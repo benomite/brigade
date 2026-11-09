@@ -325,7 +325,7 @@ const connus = {
   relireBox: () => avecLaLectureGitHub((ouverte) => ouverte.relire()),
   gestesDeFiche: (/** @type {unknown} */ carte) => avecLesGestes((gestes) => gestes.gestesDeFiche(carte), []),
   gesteDeFiche: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.geste(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
-  attente: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.attente(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
+  attente: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket, /** @type {unknown} */ saisie) => avecLesGestes((gestes) => gestes.attente(projet, id, ticket, saisie), { refus: SANS_GITHUB, detail: "" }),
   repondreCarte: async (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {unknown} */ reponse) => {
     const rendu = /** @type {any} */ (await avecLesGestes((gestes) => gestes.repondreCarte(projet, ticket, reponse), { refus: SANS_GITHUB, detail: "" }));
     // Répondue dans l'app : sa notification disparaît tout de suite (le ticket 2747).

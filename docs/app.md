@@ -830,6 +830,39 @@ through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the car
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
+### WAITING on a GitHub project (#3075)
+
+On a GitHub project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a
+phone's. It opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and
+*follow-up on*, proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without
+whom, or with a follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves.
+**Cancel** closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
+`app/src/vue/attente/saisie.ts`, the same reading for every path.
+
+- **Where it goes.** When the project's kitchen runs on this computer, *waiting for…* and *resume* go through the
+  runtime's `waiting set` / `waiting resume` command, typed in the project's second (`app/src/attente.ts`). Otherwise —
+  the project served elsewhere, or the phone — they are written on the issue as the runtime writes them there
+  (`app/src/vue/attente/attente-github.ts`): *waiting for…* posts the WAITING comment (`**WAITING: awaiting <who>.**
+  <what>`, then *from whom*, *since*, *follow-up*, *on arrival*, the shape of `direMarque` in `runtime/src/attente.ts`,
+  its dates with their year), then sets the `waiting` label; *resume* removes the label, and the ticket goes back to
+  what its other labels make it — a TODO card back in TODO. *it arrived, back to the kitchen* removes the label, as
+  before (#1740). A comment GitHub posted but whose label it refused is said: the ticket is not in WAITING.
+- **What is read.** An issue carrying `waiting` is never a TODO entry, whatever else it carries. Among the issues the
+  app already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one carrying `waiting` has
+  its last WAITING comment read (`app/src/tableau/attente-du-chef.ts`), and no other list is asked of GitHub (the
+  budget of #3007): its card in WAITING says
+  `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what arrival does, and it carries
+  *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo` card) is
+  placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading of these
+  issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications do not pay
+  for this reading.
+
+Captures: `docs/captures/3075/` — `attente-github-avant.png` / `attente-github-apres.png` (the rail: the button on each
+TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-github-dialogue-apres.png` (the form opened on
+#41; before, there was no button to open it), `attente-github-fiche-avant.png` / `attente-github-fiche-apres.png` (the
+sheet of #41), `attente-github-telephone-*.png` and `attente-github-waiting-telephone-*.png` (the same cards at phone
+width).
+
 ### The second's choices, as buttons under its terminal (#1520)
 
 When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel
@@ -1412,11 +1445,13 @@ last read of each project — its repository, its last rail read, the chef's car
   its gesture played (`resume`, `merge`, `drop`, `close`) — `repondreSurGithub`, as on the desktop;
 - **resuming** — *back to the kitchen* on the sheet, *it arrived, back to the kitchen* on a WAITING card: the `waiting`
   label removed from the issue;
-- **putting on hold** — *remove from the rail* on the sheet: the `fire` label removed; no station takes the ticket.
+- **putting on hold** — *remove from the rail* on the sheet: the `fire` label removed; no station takes the ticket;
+- **the WAITING gestures** (#3075) — *waiting for…* on a TODO card and its sheet, *resume* on a WAITING card: the phone
+  reaches no runtime, so it writes them on the issue as the desktop does when the project's kitchen is not on that
+  computer (see "WAITING on a GitHub project" above).
 
 A sheet on the phone offers those gestures only, ordered and priced by the desktop's table. Merging a delivery says what
-the desktop says (merge its PR on GitHub), and the other WAITING gestures are station commands the phone does not reach:
-nothing is sent, and one sentence says so. A write GitHub refuses, or a GitHub that does not answer, comes back as one
+the desktop says (merge its PR on GitHub). A write GitHub refuses, or a GitHub that does not answer, comes back as one
 sentence with what GitHub or the network said on hover, and nothing is shown done; only a write GitHub took reads GitHub
 again, which shows it. Not signed in, nothing is sent: *nothing was sent: this phone is not signed in to GitHub*. The APK
 build lays the module next to the view (`www/src/gestes-github-telephone.js`). Its tests — each gesture played by the
@@ -2796,7 +2831,7 @@ attention. Each sentence is written from the facts the queue already gives about
 | queued | `after #14, #15` when `status` names the tickets that hold it; otherwise what holds it, as is; otherwise `ready, waits for a place in the kitchen` | — |
 | `BLOCKED` | likewise, or `blocked` and the marker | `blocked` |
 | set aside (`86`) | its reason in plain words, the one the runtime gives (`attente.raison`); the word `86` is displayed as `set aside` | `set aside` |
-| with a third party (WAITING) | `waiting for <what> · from <who>` | `follow-up date passed` when the follow-up date has passed |
+| with a third party (WAITING) | `waiting for <what> · from <who> · follow-up <YYYY-MM-DD>` — the follow-up day on this computer's calendar (#3075); without a follow-up, the first two | `follow-up date passed` when the follow-up date has passed |
 | question answered (WAITING) | `answered by <who> · the manager's turn` — `you` for an answer the app has just posted | — |
 | awaiting you | what is expected of you, in one sentence (`decision.ts`); for a question from the manager — before splitting an epic, or which holds the ticket through `blocked-on-human` —, the question being asked of you | — |
 | served | `served at 14:02 · <first sentence of the review summary>`; with no summary, the time and the marker | — |

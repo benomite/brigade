@@ -170,9 +170,10 @@ export type Pont = {
   // Ce qu'un geste confirmé coûte, à dire avant son « oui » (confirmation.ts) : tiré des derniers
   // faits lus du projet. Rien ne part. Rien, pour un geste qui ne se confirme pas.
   confirmer(projet: string, id: string): Promise<Confirmation | { refus: string } | undefined>;
-  // Un geste de WAITING (attente.ts), sur la carte d'un ticket : sa commande part dans le second du
-  // projet, comme un geste du socle. `saisie` : ce que le chef a rempli pour « waiting for… » — ce
-  // qu'il attend, de qui, le jour de la relance. Rend le second, ou pourquoi rien n'est parti.
+  // Un geste de WAITING (attente.ts), sur la carte d'un ticket ou sa fiche : sa commande part dans le second du
+  // projet, comme un geste du socle, quand sa cuisine tourne sur ce poste — sinon il s'écrit sur l'issue
+  // (vue/attente/attente-github.ts, ticket 3075). `saisie` : ce que le chef a rempli pour « waiting for… » — ce
+  // qu'il attend, de qui, le jour de la relance. Rend le second, ce qui est écrit (`fait`), ou pourquoi rien n'est parti.
   // « it arrived, back to the kitchen » (`attente-arrivee`) part sur le tableau de la cuisine : il rend
   // ce qui est posté (`fait`, le commentaire au survol), ou pourquoi rien ne l'est.
   attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;

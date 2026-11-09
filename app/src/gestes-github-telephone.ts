@@ -8,11 +8,13 @@
 // Les trois gestes :
 //   - répondre à une carte de TODO — la carte du chef lue de GitHub (tableau-gestes/reponse-github.ts) : la réponse
 //     postée en commentaire sur l'issue, puis son geste joué (`resume`, `merge`, `drop`, `close`) ;
-//   - reprendre (« resume ») — « back to the kitchen » sur la fiche, « it arrived, back to the kitchen » sur une carte de WAITING : le
-//     label `waiting` retiré, le ticket revient sur le rail (gestes-github.ts, `retirerLeLabel`) ;
+//   - reprendre (« resume ») — « back to the kitchen » sur la fiche : le label `waiting` retiré, le ticket revient sur le
+//     rail (gestes-github.ts, `retirerLeLabel`) ;
 //   - mettre en suspens (« put on hold ») — « remove from the rail » sur la fiche : le label `fire` retiré, plus aucune station ne le prend ;
-//     le reposer le ramène.
-// Ce que le desktop ne fait pas de l'app, le téléphone non plus, et la même phrase le dit : « waiting for… » et « resume » de WAITING sont des commandes de la station.
+//     le reposer le ramène ;
+//   - les gestes de WAITING (#3075) — « waiting for… » sur une carte de TODO, « resume » et « it arrived, back to the
+//     kitchen » sur une carte de WAITING : le téléphone ne joint aucun runtime, il les écrit sur l'issue comme le desktop
+//     sans runtime ici (vue/attente/attente-github.ts, `attenteSurGithub`).
 //
 // Une écriture que GitHub refuse, ou qui ne le joint pas, se dit en une ligne, ce que GitHub en a dit au survol, et rien
 // ne la tient pour faite : la lecture n'est relancée qu'après une écriture que GitHub a prise (`ecrit`), comme le desktop
@@ -22,6 +24,7 @@ import { ACTIONS, gestesDeCarte, type Actions, type Propose } from "./gestes-fic
 import { retirerLeLabel, SANS_FAIT, surGithub, type Ecrit } from "./gestes-github.ts";
 import { clientDeLaPriorite, type EnvoiGitHub, type MethodeDEcriture } from "./priorite.ts";
 import { corpsLu, type AppelGitHub } from "./tableau/client.ts";
+import { attenteSurGithub } from "./vue/attente/attente-github.ts";
 import type { TableauLu } from "./tableau/lecture.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
@@ -59,8 +62,6 @@ export function ecritureParCapacitor(requete: (demande: DemandeNative) => Promis
 // Les gestes de la fiche que le téléphone joue : ceux que le desktop écrit sur GitHub (gestes-github.ts,
 // `LABELS_DES_GESTES`), dans l'ordre et avec le prix de la table du chef (gestes-fiche.ts).
 const ACTIONS_DU_TELEPHONE: Actions = Object.fromEntries(Object.entries(ACTIONS).filter(([id]) => surGithub(id)));
-// Le geste de WAITING qui s'écrit sur GitHub : « it arrived, back to the kitchen » retire `waiting`, comme `cuisine`.
-const ARRIVEE = "attente-arrivee";
 
 const SANS_DEPOT = (projet: string) => `nothing was sent: this phone has not read which repository ${projet} is — read it again`;
 
@@ -85,11 +86,11 @@ export function ouvrirLesGestesGitHub(options: Options) {
       return retirer(projet, id, ticket);
     },
 
-    // Un geste d'une carte de WAITING : « it arrived, back to the kitchen » retire `waiting`. Les autres sont des
-    // commandes de la station, que le téléphone ne joint pas.
-    async attente(projet: string, id: unknown, ticket: unknown): Promise<Ecrit> {
-      if (id !== ARRIVEE) return { refus: "nothing was sent: this gesture is a command of the station, which this phone does not reach — run it from a computer", detail: `“${String(id)}” is not written on GitHub` };
-      return retirer(projet, "cuisine", ticket);
+    // Un geste de WAITING, écrit sur l'issue : « waiting for… » avec ce que le chef a rempli, « resume », « it arrived ».
+    async attente(projet: string, id: unknown, ticket: unknown, saisie?: unknown): Promise<Ecrit> {
+      const rendu = await attenteSurGithub({ id, ticket, saisie, aujourdhui: new Date(), lu: options.dernier(projet), client });
+      if ("fait" in rendu) options.ecrit?.(projet);
+      return rendu;
     },
 
     // La réponse du chef à une carte de TODO : la carte du chef que la dernière lecture porte, répondue sur son issue.

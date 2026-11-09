@@ -1170,8 +1170,9 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
         ...(dit === undefined ? {} : { attendu: duChef !== undefined && donne?.chef !== undefined ? phraseDuChef(donne.chef.sorte) : (pourquoi ?? attenduDe(donne?.decision).phrase) }),
         ...(dit === undefined ? {} : tete(teteDe(donne?.decision, donne?.livraison))),
       },
-      // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
-      ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
+      // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers — sur un projet GitHub, toute carte
+      // de TODO (vue/attente/, #3075).
+      ...(dit !== undefined && (faits.stationsSurGithub !== undefined || (connu !== undefined && POSABLES.includes(connu.etat))) ? { gestes: ["attente-poser" as const] } : {}),
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
       ...(dit !== undefined && donne?.chef !== undefined ? { chef: donne.chef } : {}),
       ...(miseDeCote === undefined ? {} : { miseDeCote: { label: miseDeCote.label, liens: miseDeCote.raison === null ? [] : miseDeCote.liens.map(({ numero }) => numero) } }),

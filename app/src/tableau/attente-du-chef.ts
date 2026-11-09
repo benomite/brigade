@@ -12,18 +12,27 @@
 //     dite au second, dans le bloc, avec pourquoi (`illisibles`) ;
 //   - une issue que le manager a écartée et qui porte le label du chef — `question`, `decision`, `blocked-on-human` —, dans
 //     les mots du bloc `awaiting` de la box (runtime/src/attend.ts, `GESTES_D_ECART_EN`) : depuis la pose de son label.
-// Une issue au label `waiting` attend un tiers, pas le chef ; l'issue du tableau de la cuisine n'est jamais une entrée.
+// Une issue au label `waiting` attend un tiers, pas le chef : elle n'est jamais une entrée, quoi qu'elle porte d'autre
+// (#3075) ; l'issue du tableau de la cuisine non plus.
+//
+// Ce qu'attend chaque issue au label `waiting` de ces listes est lu aussi (#3075) — sans liste de plus : le budget GitHub
+// de l'app (budget-github.ts) ne la paie pas. Son dernier commentaire d'entrée en WAITING (vue/attente/attente-github.ts,
+// `tiersDesCommentaires`) dit ce que sa carte de WAITING montre, quoi, de qui, sa relance. Une issue qui n'est pas sur le
+// rail (sans `fire`, une carte `chef-todo`) y est posée, dans WAITING : mise en attente depuis TODO, elle quitte TODO et
+// se montre là. Cette lecture qui échoue ne fait pas tomber celle du chef : ses cartes de WAITING ne disent pas ce
+// qu'elles attendent, et le bloc dit pourquoi (`illisibles`).
 //
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`, `decision`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
 // quand il n'y en a aucune. Une lecture qui échoue n'est jamais « rien n'attend » : elle dit pourquoi.
-import type { AttenduDAutrui } from "../faits.ts";
+import type { AttenduDAutrui, Tiers } from "../faits.ts";
 import type { Partage } from "../vue/cartes-assignees/cartes-assignees.ts";
 import type { AppelGitHub } from "./client.ts";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lecture.ts";
 import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
+import { tiersDesCommentaires } from "../vue/attente/attente-github.ts";
 
 const LABEL_FIRE = "fire";
 const LABEL_WAITING = "waiting";
@@ -54,9 +63,11 @@ export type AttenteDuChef = {
   // Les logins de ses assignés sur GitHub, quand elle en a : qui elle attend, à la place du chef (vue/cartes-assignees/, #2761).
   assignes?: string[];
 };
+// Une issue au label `waiting` : son ticket, et ce qu'elle attend d'un tiers — nul quand son commentaire ne se lit pas.
+export type EnWaiting = { ticket: number; titre: string; url: string; tiers: Tiers | null };
 // Ce que la lecture rend : les entrées et l'heure de la lecture — ou pourquoi rien ne se lit. `horsLigne` : GitHub n'a
-// pas été joint du tout.
-export type AttenteLue = { lue: true; lu: string; attentes: AttenteDuChef[]; illisibles: string[] } | { lue: false; raison: string; horsLigne?: true };
+// pas été joint du tout. `enWaiting` : les issues au label `waiting`.
+export type AttenteLue = { lue: true; lu: string; attentes: AttenteDuChef[]; illisibles: string[]; enWaiting: EnWaiting[] } | { lue: false; raison: string; horsLigne?: true };
 
 type Brut = Record<string, unknown>;
 const objet = (valeur: unknown): Brut | null => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Brut) : null);
@@ -85,7 +96,9 @@ function ligneDeLaMiseDeCote(miseDeCote: MiseDeCote): string {
 // Ce qui attend le chef dans `depot`, lu de GitHub. `appeler` : le `GET` de l'API — celui de l'app (sous condition, un 304
 // ne coûte rien) ou le `gh` du poste, pour le second. `maintenant` : l'heure de la lecture, jusqu'à laquelle les durées
 // du bloc se comptent.
-export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date }): Promise<AttenteLue> {
+// `enWaiting` : lire aussi ce qu'attend chaque issue en WAITING — ce que le rail de l'app montre ; le second et les
+// notifications ne s'en servent pas, et ne paient pas sa lecture.
+export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true }): Promise<AttenteLue> {
   const { depot, appeler } = options;
   const lire = async (chemin: string): Promise<unknown> => {
     const reponse = await appeler(chemin).catch((erreur: unknown) => {
@@ -110,6 +123,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       const labels = labelsDe(issue);
       return issue.pull_request === undefined && typeof issue.number === "number" && labels.includes(label) && !labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE);
     });
+  const enAttente = (issue: Brut) => labelsDe(issue).includes(LABEL_WAITING);
   const commentaires = (numero: number) => pages(`/repos/${depot}/issues/${numero}/comments`);
   const entree = (issue: Brut) => {
     const assignes = liste(issue.assignees).flatMap(({ login }) => (typeof login === "string" ? [login] : []));
@@ -130,7 +144,9 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     // Les listes d'abord, puis ce que chaque issue en dit — chaque fois toutes à la fois : le `gh` du second paie chaque
     // lecture d'un processus, et son crochet a peu de temps.
     const labelsDEcart = Object.keys(ECARTS) as (keyof typeof ECARTS)[];
-    const [auFeu, auChef, ...ecartees] = await Promise.all([issuesAuLabel(LABEL_FIRE), issuesAuLabel(LABEL_DU_CHEF), ...labelsDEcart.map(issuesAuLabel)]);
+    const listes = await Promise.all([issuesAuLabel(LABEL_FIRE), issuesAuLabel(LABEL_DU_CHEF), ...labelsDEcart.map(issuesAuLabel)]);
+    // Une issue en WAITING n'attend pas le chef : elle n'est l'entrée d'aucun label.
+    const [auFeu, auChef, ...ecartees] = listes.map((issues) => issues.filter((issue) => !enAttente(issue)));
     const misesDeCote = await Promise.all(
       (auFeu ?? []).flatMap((issue) => {
         const label = labelDeMiseDeCote(labelsDe(issue));
@@ -183,7 +199,23 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     // La plus ancienne d'abord, comme le bloc de la box.
     const instant = (iso: string) => Date.parse(iso);
     attentes.sort((a, b) => instant(a.depuis) - instant(b.depuis) || a.ticket - b.ticket);
-    return { lue: true, lu, attentes, illisibles };
+    // Ce qu'attend chaque issue en WAITING : une lecture qui échoue le dit au bloc, et laisse ses cartes sans ce qu'elles
+    // attendent — jamais l'attente du chef tombée avec elle.
+    const attendent = [...new Map(listes.flat().filter(enAttente).map((issue) => [issue.number as number, issue])).values()];
+    // Une issue dont les commentaires ne se lisent pas garde sa carte, sans ce qu'elle attend ; le bloc dit pourquoi, une fois.
+    let rate: string | undefined;
+    const enWaiting: EnWaiting[] = await Promise.all(
+      (options.enWaiting === undefined ? [] : attendent).map(async (issue) => {
+        const { ticket, titre, url } = entree(issue);
+        const tiers = await commentaires(ticket).then(tiersDesCommentaires, (erreur: unknown) => {
+          rate ??= (erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
+          return null;
+        });
+        return { ticket, titre, url, tiers };
+      }),
+    );
+    if (rate !== undefined) illisibles.push(`what the \`${LABEL_WAITING}\` issues wait for was not read from GitHub: ${rate} — their WAITING cards do not say it until the next reading`);
+    return { lue: true, lu, attentes, illisibles, enWaiting };
   } catch (erreur) {
     const dit = (erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
     const raison = `What awaits the chef in ${depot} was not read from GitHub: ${dit}.`;
@@ -200,10 +232,30 @@ export const fileDuChef = (attentes: readonly AttenteDuChef[]): LigneDeLaFile[] 
 export const blocDuChef = ({ lu, attentes, illisibles }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): string[] =>
   blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu });
 
+// Le rail, avec ce qu'attend chaque issue en WAITING : rien à changer sans elles.
+function avecEnWaiting(rail: unknown, enWaiting: readonly EnWaiting[]): { rail?: Brut[] } {
+  if (enWaiting.length === 0) return {};
+  const lus = liste(rail);
+  const surLeRail = new Set(lus.map(({ ticket }) => ticket));
+  const sien = new Map(enWaiting.map((issue) => [issue.ticket, issue]));
+  const tiersDe = (tiers: Tiers | null) => (tiers === null ? {} : { tiers });
+  return {
+    rail: [
+      ...lus.map((ticket) => {
+        const issue = typeof ticket.ticket === "number" ? sien.get(ticket.ticket) : undefined;
+        return issue === undefined || ticket.etat !== "WAITING" ? ticket : { ...ticket, ...tiersDe(issue.tiers) };
+      }),
+      ...enWaiting.filter(({ ticket }) => !surLeRail.has(ticket)).map(({ ticket, titre, url, tiers }) => ({ ticket, etat: "WAITING", titre, url, ...tiersDe(tiers) })),
+    ],
+  };
+}
+
 // La lecture du rail, dont ce qui attend le chef est cette lecture, et rien d'autre : la file du bloc `awaiting` de
 // `status` et `faits.attend`, que TODO dessine, dans le même ordre. `autres` : les entrées qui attendent un autre humain
 // que le compte connecté, que TODO replie sous « Awaiting others » (`faits.attendAutres`, ticket 2985) — hors de la file.
-export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres = [] }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[]; autres?: Partage<AttenteDuChef>["autres"] }): TableauLu {
+// Les issues en WAITING (`enWaiting`, #3075) : un ticket du rail en WAITING porte ce qu'il attend (`tiers`) ; une issue
+// qui n'est pas sur le rail y est posée, en WAITING, pour que sa carte y soit.
+export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres = [], enWaiting = [] }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[]; autres?: Partage<AttenteDuChef>["autres"]; enWaiting?: readonly EnWaiting[] }): TableauLu {
   const dit = ({ ticket, titre, url, chef, miseDeCote, decision }: AttenteDuChef) => ({
     ticket,
     titre,
@@ -217,7 +269,7 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres
     ...lu,
     file: fileDuChef(attentes),
     bilans: [...illisibles],
-    faits: { ...lu.faits, attend, ...(autres.length === 0 ? {} : { attendAutres: autres.map(({ attente, qui }) => ({ ...dit(attente), qui })) }), compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } },
+    faits: { ...lu.faits, ...avecEnWaiting(lu.faits.rail, enWaiting), attend, ...(autres.length === 0 ? {} : { attendAutres: autres.map(({ attente, qui }) => ({ ...dit(attente), qui })) }), compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } },
   };
 }
 
@@ -226,7 +278,7 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres
 // et celles qui attendent un autre humain (vue/cartes-assignees/, #2761, #2985).
 export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, partager?: (attentes: AttenteDuChef[]) => Promise<Partage<AttenteDuChef>>): Promise<LectureDuTableauDuDepot> {
   if (!lu.lu) return lu;
-  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe) });
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: true });
   if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
   if (partager === undefined) return avecLAttenteDuChef(lu, attente);
   const { siennes, autres } = await partager(attente.attentes);

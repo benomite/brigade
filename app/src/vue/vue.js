@@ -80,6 +80,7 @@ import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, prixDit, survol } from "./briques.js";
 import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
+import { poserLesGestesDAttente, relanceProposee } from "./attente/attente.js";
 import { rangeeDeReglage as rangeeDeLaFamille } from "./composants/reglage/reglage.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
 import { bon as bonDeLaFamille, teteDuBon } from "./composants/bon/bon.js";
@@ -2926,20 +2927,11 @@ function signalerLaCarte(projet, carte) {
   return signalement.poser({ projet: projet.nom, reference: { ticket }, panne: `${projet.nom}, ticket ${ticket}: ${dit}` });
 }
 
-// Le jour de la relance que le formulaire propose : dans sept jours, au calendrier du poste
-// (attente.ts, `relanceProposee`) — modifiable.
-const relanceProposee = () => {
-  const maintenant = new Date();
-  const dans = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate() + 7);
-  return `${dans.getFullYear()}-${String(dans.getMonth() + 1).padStart(2, "0")}-${String(dans.getDate()).padStart(2, "0")}`;
-};
-
-// Les gestes de WAITING d'une carte (faits.ts, `gestes`) : sur une carte de TODO, « waiting for… »,
-// qui ouvre son formulaire sur la carte — ce qu'elle attend, dans les mots du chef ; de qui ; le
-// jour de la relance, proposé à sept jours ; validé, la commande part dans le second, et la carte
-// passe dans WAITING à la lecture qui le voit. Sur une carte de WAITING, « resume » et « it arrived,
-// back to the kitchen » : chacun part au clic. Ce qui part se décide dans attente.ts — « it arrived »
-// part sur le tableau de la cuisine, et la carte dit dessous ce qu'il en est advenu.
+// Les gestes de WAITING d'une carte (faits.ts, `gestes`), sur la carte et sur sa fiche (vue/attente/) : sur une carte de
+// TODO, « waiting for… », qui ouvre son formulaire — ce qu'elle attend, dans les mots du chef ; de qui ; le jour de la
+// relance, proposé à sept jours ; validé, le geste part, et la carte passe dans WAITING à la lecture qui le voit. Sur une
+// carte de WAITING, « resume » et « it arrived, back to the kitchen » : chacun part au clic. Ce qui part se décide dans
+// le process principal (attente.ts, vue/attente/attente-github.ts), et « it arrived » dit dessous ce qu'il en est advenu.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
 function poserGestesDAttente(projet, carte) {
   const { ticket, gestes } = carte;
@@ -2947,38 +2939,31 @@ function poserGestesDAttente(projet, carte) {
   // Une carte sortie de WAITING n'a plus à dire ce qu'est devenu son « it arrived ».
   if (!gestes?.includes("attente-arrivee")) arriveesDeCartes.delete(cle);
   const siens = GESTES_D_ATTENTE.filter(({ id }) => gestes?.includes(/** @type {never} */ (id)));
-  if (siens.length === 0) return [];
-  const ouvert = formulairesDAttente.get(cle);
-  const poser = siens.find(({ id }) => id === "attente-poser");
-  if (poser !== undefined && ouvert !== undefined) return [poserFormulaireDAttente(projet, ticket, cle, ouvert)];
-  const arrivee = arriveesDeCartes.get(cle);
-  const rangee = document.createElement("p");
-  rangee.className = "gestes attente";
-  rangee.append(
-    ...siens.map(({ id, libelle }) => {
-      const pose = bouton(libelle, () => {
+  // Le rail et la fiche ouverte de ce ticket montrent le même état.
+  const redessiner = () => {
+    poserRail(projet);
+    if (ficheDe(projet, ticket)) poserFiche();
+  };
+  return poserLesGestesDAttente(
+    document,
+    { ticket, cle, siens, ouvert: formulairesDAttente.get(cle), arrivee: arriveesDeCartes.get(cle) },
+    {
+      cliquer: (id) => {
         if (id === "attente-arrivee") return void arriver(projet, ticket);
         if (id !== "attente-poser") return void ecrireAttente(projet, id, ticket);
-        formulairesDAttente.set(cle, { quoi: "", qui: "", relance: relanceProposee() });
-        poserRail(projet);
-      });
-      pose.dataset.attente = id;
-      pose.title =
-        id === "attente-poser"
-          ? `put #${ticket} in WAITING: say what it waits for, from whom, and when to come back to it`
-          : id === "attente-reprendre"
-            ? `bring #${ticket} back into TODO, now — it stops waiting`
-            : `#${ticket} goes back to the kitchen, without going through TODO — \`waiting\` removed from its issue`;
-      if (arrivee !== undefined && "envoi" in arrivee) pose.disabled = true;
-      return pose;
-    }),
+        formulairesDAttente.set(cle, { quoi: "", qui: "", relance: relanceProposee(new Date()) });
+        redessiner();
+      },
+      valider: () => {
+        const ouvert = formulairesDAttente.get(cle);
+        if (ouvert !== undefined) void ecrireAttente(projet, "attente-poser", ticket, { quoi: ouvert.quoi, qui: ouvert.qui, relance: ouvert.relance });
+      },
+      renoncer: () => {
+        formulairesDAttente.delete(cle);
+        redessiner();
+      },
+    },
   );
-  if (arrivee === undefined) return [rangee];
-  const dite = "refus" in arrivee ? ligneErreur(document, arrivee.refus, arrivee.detail, { classe: "arrivee refus" }) : bloc("p", "envoi" in arrivee ? "it arrived, back to the kitchen: sent, waiting for the answer…" : arrivee.fait);
-  if (!("refus" in arrivee)) dite.className = "arrivee";
-  dite.ariaLive = "polite";
-  if ("fait" in arrivee && arrivee.detail !== "") dite.title = arrivee.detail;
-  return [rangee, dite];
 }
 
 // « It arrived, back to the kitchen » part sur le tableau de la cuisine, pas dans le second : la carte dit qu'il
@@ -2992,6 +2977,7 @@ async function arriver(projet, ticket) {
   nonEcrit = nonEcritSecond = "";
   arriveesDeCartes.set(cle, { envoi: true });
   poserRail(projet);
+  if (ficheDe(projet, ticket)) poserFiche();
   /** @type {{ fait: string, detail: string } | { refus: string, detail: string }} */
   let dite;
   try {
@@ -3008,51 +2994,7 @@ async function arriver(projet, ticket) {
   arriveesDeCartes.set(cle, dite);
   if ("fait" in dite) lireLesFaits();
   poserRail(projet);
-}
-
-// Le formulaire « waiting for… » d'une carte de TODO : trois champs, que le chef remplit, puis
-// « put in WAITING », qui fait partir la commande — ou dit, sous les champs, pourquoi elle ne part
-// pas ; « cancel » le referme, et rien ne part.
-/** @param {Projet} projet @param {number} ticket @param {string} cle @param {{ quoi: string, qui: string, relance: string, refus?: string }} ouvert */
-function poserFormulaireDAttente(projet, ticket, cle, ouvert) {
-  const formulaire = document.createElement("form");
-  formulaire.className = "attente";
-  /** @param {"quoi" | "qui" | "relance"} champ @param {string} libelle @param {string} [type] */
-  const saisie = (champ, libelle, type) => {
-    const etiquette = document.createElement("label");
-    const entree = /** @type {HTMLInputElement} */ (document.createElement("input"));
-    if (type !== undefined) entree.type = type;
-    entree.value = ouvert[champ];
-    entree.dataset.champ = champ;
-    entree.dataset.cle = cle;
-    entree.addEventListener("input", () => void (ouvert[champ] = entree.value));
-    etiquette.append(bloc("span", libelle), entree);
-    return etiquette;
-  };
-  const valider = bouton("put in WAITING", undefined, "recommande");
-  valider.type = "submit";
-  valider.dataset.attente = "attente-poser";
-  const renoncer = bouton(ANNULER, () => {
-    formulairesDAttente.delete(cle);
-    poserRail(projet);
-  }, "discret");
-  renoncer.type = "button";
-  const gestes = document.createElement("p");
-  gestes.className = "gestes";
-  gestes.append(valider, renoncer);
-  formulaire.append(
-    bloc("strong", `#${ticket} waits for a third party`),
-    saisie("quoi", "what it waits for, in your words"),
-    saisie("qui", "from whom"),
-    saisie("relance", "follow-up on", "date"),
-    ...(ouvert.refus === undefined ? [] : [Object.assign(bloc("p", ouvert.refus), { className: "refus" })]),
-    gestes,
-  );
-  formulaire.addEventListener("submit", (soumission) => {
-    soumission.preventDefault();
-    void ecrireAttente(projet, "attente-poser", ticket, { quoi: ouvert.quoi, qui: ouvert.qui, relance: ouvert.relance });
-  });
-  return formulaire;
+  if (ficheDe(projet, ticket)) poserFiche();
 }
 
 // Un geste de WAITING part dans le second, comme un geste du socle : sa sortie s'y lit, sa note dit
@@ -3064,10 +3006,16 @@ async function ecrireAttente(projet, id, ticket, saisie) {
   gesteRate = undefined;
   /** @type {string | undefined} */
   let refus;
+  /** @type {{ fait: string, detail: string } | undefined} */
+  let fait;
   try {
     const rendu = await brigade.attente(projet.nom, id, ticket, saisie);
     if (rendu !== undefined && "refus" in rendu) refus = rendu.refus;
-    else if (rendu !== undefined && !("fait" in rendu)) garder(projet.nom, rendu);
+    // Écrit sur GitHub (vue/attente/attente-github.ts) : la lecture suivante montre la carte dans sa colonne.
+    else if (rendu !== undefined && "fait" in rendu) {
+      fait = { fait: rendu.fait, detail: rendu.detail ?? "" };
+      lireLesFaits();
+    } else if (rendu !== undefined) garder(projet.nom, rendu);
   } catch (erreur) {
     refus = `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
@@ -3075,7 +3023,11 @@ async function ecrireAttente(projet, id, ticket, saisie) {
   if (saisie !== undefined && ouvert !== undefined && refus !== undefined) ouvert.refus = refus;
   else if (saisie !== undefined) formulairesDAttente.delete(cle);
   if (refus !== undefined && saisie === undefined) nonEcritSecond = refus;
+  // « resume » qui n'est pas parti dans le second : la carte dit dessous ce qu'il en est, comme pour « it arrived ».
+  if (saisie === undefined && (refus !== undefined || fait !== undefined)) arriveesDeCartes.set(cle, fait ?? { refus: refus ?? "", detail: "" });
+  poserRail(projet);
   montrer();
+  if (ficheDe(projet, ticket)) poserFiche();
 }
 
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture en entier, dans ses mots
@@ -3330,7 +3282,9 @@ function poserFiche() {
   const cook = poserLActiviteDuCook(document, { publiees: activitesPubliees.get(projet.nom), ticket, pastille, ouvrirPr: () => void ouvrirPrDuCook(projet, ticket) });
   // Dans l'ordre où le chef lit : ce qu'est le ticket, où il en est, ce qu'on attend de lui, ce qu'il peut
   // faire, l'issue (repliée) — puis seulement ce que la cuisine en dit.
-  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), ...(lignes.children.length > 0 ? [lignes] : []), ...poserDetailsDeFiche(projet, carte));
+  // Les gestes de WAITING de sa carte, sur la fiche aussi (vue/attente/) : « waiting for… » sur une carte de TODO, « resume » et
+  // « it arrived » sur une carte de WAITING.
+  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), ...(lignes.children.length > 0 ? [lignes] : []), ...poserGestesDAttente(projet, carte), ...poserDetailsDeFiche(projet, carte));
   const suite = [...(cook === null ? [] : [cook]), ...poserHistoire(projet, ticket, carte, cook !== null)];
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
