@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { after, test } from "node:test";
 import { configurer } from "../../src/bac-a-sable/configuration.ts";
+import { posixOnly } from "../support/plateforme.ts";
 import { jouerSetup } from "../../src/gates.ts";
 import { CACHES_DES_PAQUETS, droitsDInstallation } from "../../src/sandbox/installation.ts";
 
@@ -23,7 +24,7 @@ test("le cook du Mac écrit et retire node_modules de son worktree et les caches
     assert.equal(ouvert(lieu), true, lieu);
   }
   for (const relatif of CACHES_DES_PAQUETS) assert.ok(allowWrite.includes(`${HOME}/${relatif}`), relatif);
-    assert.ok(permissions.allow.includes(`Edit(/${WORKTREE}/**)`));
+  assert.ok(permissions.allow.includes(`Edit(/${WORKTREE}/**)`));
   // Hors du worktree et de ces caches, rien ne s'écrit.
   for (const lieu of [`${HOME}/Documents`, `${HOME}/.zshrc`, `${HOME}/.ssh/id_ed25519`, `${HOME}/Library/Keychains`, `${HOME}/.cache/autre`, `${HOME}/brigade-wt/3055-autre/node_modules`, "/etc/hosts", HOME]) {
     assert.equal(ouvert(lieu), false, lieu);
@@ -69,27 +70,41 @@ function nonCouverts(racine: string, worktree: string, home: string): string[] {
   return [...fichiers(home), ...fichiers(worktree)].filter((lieu) => !ouvert(lieu));
 }
 
-const projets = [projetPnpm(), projetPnpm()];
-// Le second est déjà installé : le cook n'a plus qu'à rejouer.
-execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: projets[1]!.worktree, env: projets[1]!.env, stdio: "pipe" });
-after(() => projets.forEach(({ racine }) => rmSync(racine, { recursive: true, force: true })));
+const SANS_PNPM = (() => {
+  try {
+    execFileSync("pnpm", ["--version"], { stdio: "pipe", shell: process.platform === "win32" });
+    return false;
+  } catch {
+    return "pnpm absent du poste";
+  }
+})();
+const OPTIONS = { skip: posixOnly("le setup du worktree est un script bash") || SANS_PNPM };
+const LIMITE_DU_SETUP = 60 * 1000;
+const racines: string[] = [];
+after(() => racines.forEach((racine) => rmSync(racine, { recursive: true, force: true })));
+const projet = () => {
+  const p = projetPnpm();
+  racines.push(p.racine);
+  return p;
+};
 
-test("un setup qui lance `pnpm install` va au bout : node_modules porte chaque dépendance du lockfile", async () => {
-  const { worktree, env } = projets[0]!;
-  const setup = await jouerSetup({ worktree, ticket: 3054, env, delaiMs: 60_000 });
+test("un setup qui lance `pnpm install` va au bout : node_modules porte chaque dépendance du lockfile", OPTIONS, async () => {
+  const { worktree, env, racine } = projet();
+  const setup = await jouerSetup({ worktree, ticket: 3054, env, delaiMs: LIMITE_DU_SETUP });
   assert.equal(setup.pret, true, "sortie" in setup ? setup.sortie : "");
   const lock = readFileSync(join(worktree, "pnpm-lock.yaml"), "utf8");
   for (const nom of ["dep-a", "dep-b"]) assert.match(lock, new RegExp(`\\b${nom}\\b`));
   assert.ok(existsSync(join(worktree, "node_modules", "dep-a", "package.json")));
   // dep-b est une dépendance de dep-a : pnpm la range sous .pnpm.
   assert.ok(readdirSync(join(worktree, "node_modules", ".pnpm")).some((nom) => nom.startsWith("dep-b@")));
-  assert.deepEqual(nonCouverts(projets[0]!.racine, worktree, join(projets[0]!.racine, "home")), []);
+  assert.deepEqual(nonCouverts(racine, worktree, join(racine, "home")), []);
 });
 
-test("le cook rejoue `pnpm install --frozen-lockfile` sur un node_modules déjà installé, sans « Operation not permitted »", () => {
-  const { worktree, env } = projets[1]!;
+test("le cook rejoue `pnpm install --frozen-lockfile` sur un node_modules déjà installé, sans « Operation not permitted »", OPTIONS, () => {
+  const { worktree, env, racine } = projet();
+  execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: worktree, env, stdio: "pipe" });
   const rejeu = execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: worktree, env, encoding: "utf8", stdio: "pipe" });
   assert.doesNotMatch(rejeu, /Operation not permitted|ERR_PNPM/);
-  assert.deepEqual(nonCouverts(projets[1]!.racine, worktree, join(projets[1]!.racine, "home")), []);
+  assert.deepEqual(nonCouverts(racine, worktree, join(racine, "home")), []);
   assert.ok(existsSync(join(worktree, "node_modules", "dep-a", "package.json")));
 });
