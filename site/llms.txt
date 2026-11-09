@@ -1,0 +1,13 @@
+# Brigade
+
+> Brigade is a free, open-source app that runs Claude Code agents on your GitHub issues: they open, review and merge pull requests and ask you only for product decisions.
+
+It needs a GitHub repository and a Claude subscription. It is MIT licensed and charges nothing.
+
+- [Home](https://benomite.github.io/brigade/): what Brigade does and how it works
+- [Pricing](https://benomite.github.io/brigade/tarifs.html): what is paid, and to whom
+- [FAQ](https://benomite.github.io/brigade/faq.html): what it is, who it is for, what it costs and needs, how it differs from alternatives
+- [Install steps](https://benomite.github.io/brigade/#install): install Brigade and cook a first ticket
+- [README](https://github.com/benomite/brigade/blob/main/README.md): overview in the repository
+- [Documentation](https://github.com/benomite/brigade/blob/main/docs/index.md): the full docs
+- [Repository](https://github.com/benomite/brigade): source code and releases

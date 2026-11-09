@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frequently asked questions — Brigade</title>
+  <meta name="description" content="Short answers: what Brigade is, who it is for, what it costs, what it needs and how it differs from other ways of running agents.">
+  <meta property="og:title" content="Frequently asked questions — Brigade">
+  <meta property="og:description" content="What Brigade is, who it is for, what it costs and what it needs.">
+  <meta property="og:type" content="website">
+  <link rel="canonical" href="https://benomite.github.io/brigade/faq.html">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="logo.svg" alt="" width="36" height="36"> brigade</a>
+    <h1>Frequently asked questions</h1>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="faq">
+    <h2>What is Brigade?</h2>
+    <p>Brigade is a free, open-source app that runs Claude Code agents on your GitHub issues. The agents open, review and merge pull requests on their own, and ask you only for product decisions.</p>
+    <h2>Who is it for?</h2>
+    <p>It is for people who already use Claude Code and have a GitHub repository with a backlog of issues. It suits a solo developer or a small team who want tickets to ship while they are away from the computer.</p>
+    <h2>What does it cost?</h2>
+    <p>Brigade itself costs nothing: no licence, no seat, no per-ticket fee. You pay your own Claude subscription, and your hosting provider if you run a cloud machine. See the <a href="tarifs.html">pricing page</a>.</p>
+    <h2>What does it need?</h2>
+    <p>It needs a GitHub account with a repository, and a Claude subscription for the agents to run on. The desktop app runs on Mac (Apple silicon) and Windows.</p>
+    <h2>How is it different from running Claude Code by hand?</h2>
+    <p>By hand, you start a session, steer it and review its work yourself. With Brigade, you label an issue and an agent works it in its own git worktree, then an independent review and your checks run before it merges. You are called only when a product decision is yours.</p>
+    <h2>How is it different from other ways of running several agents?</h2>
+    <p>Brigade works from your GitHub issues and pull requests rather than from a chat or a script you drive. Each ticket gets its own agent and worktree, every delivery is judged by your gates, CI and a separate review before merging, and everything stays visible on GitHub.</p>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p class="fine"><a href="index.html">Home</a> · <a href="tarifs.html">Pricing</a> · <a href="https://github.com/benomite/brigade">benomite/brigade</a></p>
+</footer>
+
+</body>
+</html>
