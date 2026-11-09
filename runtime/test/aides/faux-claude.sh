@@ -530,6 +530,12 @@ FIN
 {"issue":"carte","motif":"Deux voies s'opposent, rien ne dit laquelle.","type":"product","enonce":"Choisir entre l'export CSV et l'export JSON.","capture":null}
 FIN
       ;;
+    requalifie-geste-git)
+      assistant
+      resultat <<'FIN'
+{"issue":"carte","motif":"Le ticket attend un geste git.","type":"gesture","enonce":"Bring origin/main into cook/2914-github?","capture":null}
+FIN
+      ;;
     requalifie-reprise)
       assistant
       resultat <<'FIN'

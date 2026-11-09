@@ -241,6 +241,17 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
           noter(issue.number, { type: "manager.completed", payload: { run, fingerprint: suivi, outcome: "question", reason: valeur.motif, question: valeur.question } });
           return entree;
         });
+        if (entree.porte === "reparation") {
+          // Un geste git n'est pas une carte : le ticket `fix` de la cuisine la remplace.
+          try {
+            const fix = await github.creerIssue(entree.fix);
+            await commenter(issue.number, ["**Manager — ticket incomplet : la question est un geste git, aucune carte pour le chef.**", "", valeur.motif, "", `Le ticket \`fix\` #${fix} est ouvert : ${valeur.question}`, "", signature]);
+          } catch (erreur) {
+            avertir(`brigade : ticket \`fix\` du geste git non ouvert pour l'issue #${issue.number}, repris au tour suivant — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+            return "attente";
+          }
+          return "question";
+        }
         await commenter(issue.number, [
           "**Manager — ticket incomplet : il attend une décision de produit, une question est posée au chef.**",
           "",

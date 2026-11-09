@@ -41,6 +41,20 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     assert.equal(c.journal.tout().filter((e) => e.type === "todo.held").length, 1);
   });
 
+  test("un geste git proposé en carte n'est pas une carte : aucun TODO, aucune retenue, un ticket fix ouvert sur la cuisine", async (t) => {
+    const c = brigade(t, "requalifie-geste-git");
+    await jusqua(() => c.dits().length === 1);
+
+    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.deepEqual(cartesRetenues(c.journal.base), []);
+    assert.equal(c.journal.duTicket(40).filter((e) => e.type === "todo.rerouted").length, 1);
+    const fix = c.gh.lire(501);
+    assert.ok(fix?.labels.includes("fix") && fix.labels.includes("fire"));
+    assert.match(c.dits()[0] ?? "", /#501/);
+    await c.laisserTourner();
+    assert.equal(c.gh.lire(502), undefined);
+  });
+
   test("la carte sort de TODO quand le chef retire le label", async (t) => {
     const c = brigade(t, "requalifie-carte");
     await jusqua(() => c.requalifie().length === 1);

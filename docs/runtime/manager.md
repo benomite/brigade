@@ -343,6 +343,10 @@ shows them when there are some. Anything else (a `gesture`, no question or choic
 next turn. A card sent back three times after an agent answer is no longer taken up: the ticket shows in
 `attend` with the card of what it waits for.
 
+A card whose gesture is a git operation (a merge, a rebase, a fetch, a branch update, a rerun) is not refused to the
+triage: no card is created (`todo.rerouted`) and the manager opens a `fix` ticket on the kitchen instead
+(`runtime/src/garde-todo/geste-git.ts`).
+
 Every ticket in `attend` has a card of the same shape (`runtime/src/carte-todo/cartes.ts`), built from
 what it waits for when no gate card stands for it: a green delivery the pass does not merge, an
 escalation that stays the chef's, a PR closed unmerged, a ticket blocked by one that left the rail, an

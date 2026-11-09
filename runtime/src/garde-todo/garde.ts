@@ -8,7 +8,7 @@ import type { Proposition } from "../carte-todo.ts";
 
 const ACTION = /\b(merge|rebase|re-?run|re-?trigger|re-?launch|restart)\b/i;
 // Ce sur quoi l'action porte : une PR, une branche, une CI.
-const OBJET = /(?:\b(?:prs?|pull requests?|branch(?:es)?|ci|pipelines?|workflows?|checks?|builds?|jobs?)\b|#\d+)/i;
+export const OBJET = /(?:\b(?:prs?|pull requests?|branch(?:es)?|ci|pipelines?|workflows?|checks?|builds?|jobs?)\b|#\d+)/i;
 // Une demande technique est un ordre (« Merge PR #2908 », « Please rebase… ») ou
 // une demande de permission (« Can I merge… ? ») : une question de produit qui
 // nomme ces mots (« Which merge strategy… ? ») n'en est pas une.

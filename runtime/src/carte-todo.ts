@@ -36,6 +36,7 @@ import type { Base } from "./base.ts";
 import { capturesManquantes, lireCaptures, type Captures } from "./captures.ts";
 import { GESTES, uneQuestion, validerCarte } from "./carte-todo/forme.ts";
 import { refuserDemandeTechnique } from "./garde-todo/garde.ts";
+import { gesteGit, reparationDuGeste, type ReparationDuGeste } from "./garde-todo/geste-git.ts";
 import type { Journal } from "./journal.ts";
 
 // Les deux sortes de cartes qui entrent dans TODO.
@@ -80,8 +81,10 @@ export const RESUME_D_AVANT = "A question awaits your answer before this ticket 
 export type Jugement = { admise: true; carte: CarteDeTodo } | { admise: false; raison: string };
 
 // Où une proposition est allée : dans TODO, ou au triage — retenue, avec la
-// raison de la porte quand elle l'a refusée (nulle : le triage retient tout).
-export type Entree = { porte: "todo"; carte: CarteDeTodo } | { porte: "triage"; raison: string | null };
+// raison de la porte quand elle l'a refusée (nulle : le triage retient tout) —
+// ou à la réparation, quand la carte demandait un geste git : aucune carte, le
+// ticket `fix` que l'appelant ouvre (garde-todo/geste-git.ts).
+export type Entree = { porte: "todo"; carte: CarteDeTodo } | { porte: "triage"; raison: string | null } | { porte: "reparation"; fix: ReparationDuGeste };
 
 const surPlusieursLignes = (texte: string) => /[\r\n]/.test(texte);
 const estType = (mot: string): mot is TypeDeCarte => (TYPES_DE_CARTE as readonly string[]).includes(mot);
@@ -183,6 +186,12 @@ function noterLeRefus(journal: Journal, projet: string, ticket: number, proposit
 // `auteur` : qui la pose (`manager`, `pass`, `station:<nom>`…).
 export function entrerDansTodo(journal: Journal, projet: string, ticket: number, proposition: Proposition, auteur: string): Entree {
   return journal.base.transaction((): Entree => {
+    const geste = gesteGit(proposition);
+    if (geste !== null) {
+      const fix = reparationDuGeste(geste, proposition, ticket);
+      journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.rerouted", payload: { ...proposee(proposition), gesture: geste, fix: fix.titre } });
+      return { porte: "reparation", fix };
+    }
     const retenir = () => journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.held", payload: proposee(proposition) });
     if (triages.get(journal.base)?.() === true) {
       retenir();
