@@ -158,9 +158,9 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt.
   const [ticket, ...autres] = issuesOuvertes();
   assert.deepEqual(autres, []);
-  assert.equal(ticket?.title, "Préparer le dépôt : gates, setup de worktree, sites autorisés");
+  assert.equal(ticket?.title, "Prepare the repository: gates, worktree setup, allowed sites");
   assert.deepEqual(ticket?.labels, ["fire", "model:opus", "effort:high"]);
-  assert.match(ticket?.body ?? "", /## Éprouver sur la station, pas en local/);
+  assert.match(ticket?.body ?? "", /## Try it on the station, not locally/);
   assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/shop/preparation-depot.json"), "utf8")).ticket, 1);
   await station.attendre("brigade [shop] : servi par la station");
   const journal = ouvrirJournal(join(racine, "etat/shop"), { lectureSeule: true });
