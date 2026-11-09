@@ -22,6 +22,7 @@ function essai(t: TestContext) {
     ...process.env,
     PATH: `${join(racine, "bin")}:${process.env.PATH}`,
     GH_LOG: join(racine, "gh.log"),
+    GH_LABELS: join(racine, "gh-labels.txt"),
     TMPDIR: racine,
     GIT_AUTHOR_NAME: "t",
     GIT_AUTHOR_EMAIL: "t@t",
@@ -37,7 +38,7 @@ function essai(t: TestContext) {
   mkdirSync(join(racine, "bin"));
   writeFileSync(
     join(racine, "bin", "gh"),
-    `#!/usr/bin/env bash\necho "$*" >>"$GH_LOG"\ncase "$1 $2" in\n  "pr create") echo "${URL_DE_LA_PR}" ;;\nesac\nexit 0\n`,
+    `#!/usr/bin/env bash\necho "$*" >>"$GH_LOG"\ncase "$1 $2" in\n  "label create") grep -qxF "$3" "$GH_LABELS" 2>/dev/null && exit 1 ;;\n  "label list") cat "$GH_LABELS" 2>/dev/null ;;\n  "pr create") echo "${URL_DE_LA_PR}" ;;\nesac\nexit 0\n`,
     { mode: 0o755 },
   );
 
@@ -69,7 +70,8 @@ function essai(t: TestContext) {
     return execFileSync("bash", [script, ...args], { cwd: dossier, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   };
   const appelsDeGh = () => readFileSync(env.GH_LOG, "utf8").trim().split("\n");
-  return { git, origin, dossier, ouvrir, initialiser, appelsDeGh };
+  const labelsDuDepot = (...noms: string[]) => writeFileSync(env.GH_LABELS, noms.map((n) => `${n}\n`).join(""));
+  return { git, origin, dossier, ouvrir, initialiser, appelsDeGh, labelsDuDepot };
 }
 
 test("un dépôt neuf ouvert par l'app se prépare par /brigade:init : les labels posés, les bindings et les gates dans une PR, rien dans le dossier de l'utilisateur", { skip: SANS_POSIX }, async (t) => {
@@ -82,7 +84,8 @@ test("un dépôt neuf ouvert par l'app se prépare par /brigade:init : les label
   // Tous les labels du catalogue du runtime, avec leur description anglaise.
   const creations = appelsDeGh().filter((appel) => appel.startsWith("label create "));
   assert.deepEqual(creations.map((appel) => /^label create (\S+) /.exec(appel)?.[1]), ETIQUETTES.map(({ name }) => name));
-  for (const { name, description } of ETIQUETTES) assert.ok(creations.includes(`label create ${name} --color ${ETIQUETTES.find((e) => e.name === name)?.color} --description ${description}`), name);
+  for (const { name, color, description } of ETIQUETTES) assert.ok(creations.includes(`label create ${name} --color ${color} --description ${description}`), name);
+  assert.deepEqual(appelsDeGh().filter((appel) => appel.startsWith("label edit ")), []);
   assert.match(appelsDeGh().find((a) => a.startsWith("pr create")) ?? "", /^pr create --base main --head brigade\/init /);
 
   // La branche poussée porte le bloc, après ce que `CLAUDE.md` disait déjà, et les deux scripts exécutables.
@@ -110,6 +113,40 @@ test("un dépôt neuf ouvert par l'app se prépare par /brigade:init : les label
   git("-C", dossier, "fetch", "-q", "origin", "brigade/init");
   git("-C", dossier, "worktree", "add", "-q", essaiDesGates, "origin/brigade/init");
   execFileSync(join(essaiDesGates, ".claude", "brigade", "gates.sh"), [essaiDesGates]);
+});
+
+test("/brigade:init renomme l'ancien label hors-cuisine en served-elsewhere, sans rien supprimer", { skip: SANS_POSIX }, async (t) => {
+  const { ouvrir, initialiser, appelsDeGh, labelsDuDepot } = essai(t);
+  await ouvrir();
+  labelsDuDepot("hors-cuisine", "fire");
+
+  initialiser("--test", "true");
+
+  const appels = appelsDeGh();
+  assert.ok(appels.includes("label edit hors-cuisine --name served-elsewhere"));
+  assert.equal(appels.filter((a) => a.startsWith("label delete")).length, 0);
+});
+
+test("/brigade:init rejoué sur un dépôt qui porte déjà served-elsewhere ne le supprime ni ne le renomme", { skip: SANS_POSIX }, async (t) => {
+  const { ouvrir, initialiser, appelsDeGh, labelsDuDepot } = essai(t);
+  await ouvrir();
+  labelsDuDepot("served-elsewhere", "fire");
+
+  initialiser("--test", "true");
+
+  const appels = appelsDeGh();
+  assert.equal(appels.filter((a) => a.startsWith("label delete") || a.includes("--name")).length, 0);
+});
+
+test("/brigade:init corrige la description d'un label déjà là (repli label edit)", { skip: SANS_POSIX }, async (t) => {
+  const { ouvrir, initialiser, appelsDeGh, labelsDuDepot } = essai(t);
+  await ouvrir();
+  labelsDuDepot("fix");
+
+  initialiser("--test", "true");
+
+  const fix = ETIQUETTES.find(({ name }) => name === "fix");
+  assert.ok(appelsDeGh().includes(`label edit fix --description ${fix?.description}`));
 });
 
 test("rejoué une fois la PR mergée, /brigade:init ne propose rien : la branche d'intégration porte déjà tout", { skip: SANS_POSIX }, async (t) => {

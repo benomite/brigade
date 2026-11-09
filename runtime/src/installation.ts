@@ -53,9 +53,6 @@ export const VARIABLES = [
 
 export type Label = { name: string; color: string; description: string };
 
-// Les labels d'un projet : le catalogue de `etiquettes.ts`.
-export const LABELS: Label[] = ETIQUETTES.map((etiquette) => ({ ...etiquette }));
-
 // `manque` : aucun cook ne doit partir tant que ce n'est pas réglé. `note` :
 // à savoir, sans rien retenir. `geste` : ce qui le règle. `etape` : l'étape
 // de l'installation (`etapes.ts`) à reprendre pour le régler — tout manque en
@@ -907,7 +904,7 @@ export async function poserLabels(env: NodeJS.ProcessEnv): Promise<BilanDesLabel
     if (statut !== 200) throw new Error(`description of label \`${label.name}\` refused by GitHub on ${depot}: HTTP ${statut}`);
     corriges.push(label.name);
   }
-  return { crees, presents: LABELS.map(({ name }) => name).filter((nom) => !crees.includes(nom) && !renommes.includes(nom)), renommes, corriges };
+  return { crees, presents: ETIQUETTES.map(({ name }) => name).filter((nom) => !crees.includes(nom) && !renommes.includes(nom)), renommes, corriges };
 }
 
 // Le worktree de sonde : un essai jetable, sous un nom qu'aucun run ne porte.

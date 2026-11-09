@@ -46,15 +46,13 @@ BRANCH="brigade/init"
 
 # 1. The labels: the catalogue (labels.tsv next to this script, generated from runtime/src/etiquettes.ts),
 # each created if absent, its description corrected if present — a present label keeps its colour. The
-# former `served-elsewhere` is renamed `served-elsewhere` first: GitHub carries the new name onto its issues.
+# legacy French name is renamed first, only when the new one is absent: GitHub carries the new name onto its issues.
+LEGACY_SERVED_ELSEWHERE="hors-cuisine"
 CATALOGUE="$(dirname "${BASH_SOURCE[0]}")/labels.tsv"
 [ -s "$CATALOGUE" ] || { echo "brigade init: the label catalogue is missing ($CATALOGUE)" >&2; exit 1; }
-if gh label list --limit 200 --json name --jq '.[].name' | grep -qx 'served-elsewhere'; then
-  if gh label list --limit 200 --json name --jq '.[].name' | grep -qx 'served-elsewhere'; then
-    gh label delete served-elsewhere --yes >/dev/null
-  else
-    gh label edit served-elsewhere --name served-elsewhere >/dev/null
-  fi
+EXISTING="$(gh label list --limit 200 --json name --jq '.[].name')"
+if printf '%s\n' "$EXISTING" | grep -qxF "$LEGACY_SERVED_ELSEWHERE" && ! printf '%s\n' "$EXISTING" | grep -qxF 'served-elsewhere'; then
+  gh label edit "$LEGACY_SERVED_ELSEWHERE" --name served-elsewhere >/dev/null
 fi
 while IFS=$'\t' read -r NAME COLOR DESCRIPTION; do
   [ -n "$NAME" ] || continue
