@@ -2785,7 +2785,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
       ? `this ticket is not on the rail that ${geste(projet, "facts")} returns: the app does not have its address`
       : "the address the station returned for this ticket is not https: the app does not open it";
   const pose = { numero, hors: horsColonne, ...(etat === undefined ? {} : { mot: motDEtat ?? etat, ...(horsColonne ? {} : { etat: etatDeColonne ?? etatDuTon(ton) }) }) };
-  const bon = attendu ? carteAttente(document, { ...pose, attendu }) : bonDeLaFamille(document, pose);
+  // Une carte qui attend un autre humain (« Awaiting others ») garde la carte d'attente, sans dire qu'elle t'attend (ticket 3071).
+  const bon = attendu ? carteAttente(document, { ...pose, attendu: carte.qui === undefined }) : bonDeLaFamille(document, pose);
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
   // clique déjà — son numéro, sa PR, ses remarques — garde son geste ; un texte
   // qu'on y sélectionne pour le recopier n'ouvre rien. Au clavier, Entrée ou Espace sur la carte.
@@ -4658,7 +4659,7 @@ function poserLeRail(projet) {
   // Le kanban est entier sur Rail, Taken et Pass compris.
   const colonnes = toutes;
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
-  const lesCartes = [...toutes.flatMap(({ cartes: siennes }) => siennes), ...hors];
+  const lesCartes = [...toutes.flatMap(({ cartes: siennes, autres: dAutrui }) => [...siennes, ...(dAutrui ?? [])]), ...hors];
   // Ce sur quoi un agent travaille porte la poêle (ticket 2984) — jamais d'une lecture dont l'app ne sait plus si elle dit
   // vrai (hors ligne, périmée, la box muette), ni la cuisine arrêtée, ni sur une carte qui attend le chef.
   const enCuisson = new Set(horsLigne === undefined && perime === undefined && muet === undefined && !tenu.tableau.arretee ? (tenu.tableau.auTravail ?? []) : []);
@@ -4710,7 +4711,7 @@ function poserLeRail(projet) {
         colonne.append(liste);
       } else if (!avecDisjoncteur) colonne.append(bloc("p", nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
       // Ce qui attend un autre humain du projet ferme TODO, replié sous son nombre (ticket 2985).
-      const deAutrui = nom === COLONNE_QUI_T_ATTEND ? poserLesAutres(document, { autres, deplie: autresDeplies.has(projet.nom), deplier: (ouvert) => void (ouvert ? autresDeplies.add(projet.nom) : autresDeplies.delete(projet.nom)) }) : undefined;
+      const deAutrui = nom === COLONNE_QUI_T_ATTEND ? poserLesAutres(document, { autres, bons, deplie: autresDeplies.has(projet.nom), deplier: (ouvert) => void (ouvert ? autresDeplies.add(projet.nom) : autresDeplies.delete(projet.nom)) }) : undefined;
       if (deAutrui !== undefined) colonne.append(deAutrui);
       return colonne;
     }),
@@ -4804,15 +4805,15 @@ function oublierLesReponsesPerimees(projet, colonnes) {
 
 // Les cartes de TODO que des colonnes portent, par projet et ticket, et la question de chacune.
 /** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes @returns {Map<string, string | null>} */
-const cartesPortees = (projet, colonnes) => new Map(colonnes.flatMap(({ cartes }) => cartes).flatMap(({ ticket, todo }) => (todo === undefined ? [] : [[`${projet.nom}#${ticket}`, todo.question]])));
+const cartesPortees = (projet, colonnes) => new Map(colonnes.flatMap(({ cartes, autres }) => [...cartes, ...(autres ?? [])]).flatMap(({ ticket, todo }) => (todo === undefined ? [] : [[`${projet.nom}#${ticket}`, todo.question]])));
 
 // Ce qu'une lecture dit d'une carte de TODO où le chef a tapé (ticket 2151) : rien, si elle est encore dans TODO avec la
 // même question — n'importe laquelle, `question` indéfinie ; sinon, en une ligne, ce qu'elle est devenue — son texte, lui,
 // reste.
 /** @param {import("../faits.ts").Rail} lu @param {number} ticket @param {string | null | undefined} question @returns {string | undefined} */
 function resolueEntreTemps(lu, ticket, question) {
-  const colonne = lu.colonnes.find(({ cartes }) => cartes.some((carte) => carte.ticket === ticket));
-  const sienne = colonne?.cartes.find((carte) => carte.ticket === ticket);
+  const colonne = lu.colonnes.find(({ cartes, autres }) => [...cartes, ...(autres ?? [])].some((carte) => carte.ticket === ticket));
+  const sienne = [...(colonne?.cartes ?? []), ...(colonne?.autres ?? [])].find((carte) => carte.ticket === ticket);
   if (colonne?.nom === COLONNE_QUI_T_ATTEND && sienne?.todo !== undefined) return question === undefined || sienne.todo.question === question ? undefined : `its question changed meanwhile — ${TEXTE_GARDE}`;
   const devenue =
     colonne === undefined
@@ -5196,7 +5197,7 @@ function carteSurLeRail(nom, ticket) {
   const tenu = tenus.get(nom);
   if (tenu === undefined || !("tableau" in tenu)) return undefined;
   const { colonnes, hors } = tenu.tableau.rail;
-  return [...colonnes.flatMap(({ cartes }) => cartes), ...hors].find((carte) => carte.ticket === ticket);
+  return [...colonnes.flatMap(({ cartes, autres }) => [...cartes, ...(autres ?? [])]), ...hors].find((carte) => carte.ticket === ticket);
 }
 
 /** @param {string} nom @param {number} ticket */

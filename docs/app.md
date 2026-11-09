@@ -760,18 +760,22 @@ used by `lireLeTableau` (`app/src/main.ts`). Test: `app/test/cartes-assignees/ca
 `docs/captures/2761/` — `todo-cartes-assignees-avant.png` (the human sees all four cards) and
 `todo-cartes-assignees-apres.png` (only their two).*
 
-**Awaiting others (#2985).** The cards that await another human of the project are not lost, and never drawn under the
+**Awaiting others (#2985, #3071).** The cards that await another human of the project are not lost, and never drawn under the
 rail: they close the Todo column, after the viewer's own cards, in a section **Awaiting others (N)**, N their number,
-folded by default — unfolded, it stays so at the next reading. Each one says its ticket number, its question (the card's
-question; for an entry without a card, its line) and who it awaits, by GitHub login (`awaits alice, carol`), read-only:
-no choice, no field, no gesture. The chef sees the same way: a card assigned only to others is under Awaiting
-others; an unassigned one, or one that lists the chef among its assignees, is the chef's own. When nothing awaits another human, the section
+folded by default — unfolded, it stays so at the next reading. Assigning a card is for notification and readability, never
+to stop a human from moving it forward: unfolded, each one is a card of Todo — it opens its sheet on a click, and takes the
+same answer, choices, field and gestures (answer, put on the rail, close, waiting for…) — and says in addition who it awaits,
+by GitHub login (`awaits alice, carol`), without the “awaiting you” mark. The answer is posted on GitHub with the account
+signed in on this computer, like any other answer; the card stays under Awaiting others, and out of the Todo count, until
+the reading says otherwise. The chef sees the same way: a card assigned only to others is under Awaiting others;
+an unassigned one, or one that lists the chef among its assignees, is the chef's own. When nothing awaits another human, the section
 is not shown. The narrow screen draws the same section at the end of its Todo, and the phone splits its cards for the
-account it is signed in to, as the desktop does. *Code: `partagerLesCartes` in
-`app/src/vue/cartes-assignees/cartes-assignees.ts`, `faits.attendAutres` written by `avecLAttenteDuChef`
-(`app/src/tableau/attente-du-chef.ts`), the column's `autres` in `rail` (`app/src/faits.ts`), drawn by
-`app/src/vue/todo/autres.js`. Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`,
-`app/test/vue/todo/autres.test.ts`, `app/test/lecture-github-telephone.test.ts`.*
+account it is signed in to, as the desktop does, and answers them the same way. *Code: `partagerLesCartes` in
+`app/src/vue/cartes-assignees/cartes-assignees.ts`, `faits.attendAutres` (entries shaped like `attend`'s, plus `qui`) written
+by `avecLAttenteDuChef` (`app/src/tableau/attente-du-chef.ts`), the column's `autres` (full cards) in `rail`
+(`app/src/faits.ts`, `entreeDe` for the sheet, the chef's card and the address), drawn by `app/src/vue/todo/autres.js`.
+Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`, `app/test/vue/todo/autres.test.ts`,
+`app/test/lecture-github-telephone.test.ts`, `app/test/gestes-github.test.ts`.*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
 is the question "Merge PR #N by hand? It changes what judges it." with the PR link, to merge on GitHub; a technical

@@ -442,6 +442,14 @@ describe("la carte de projet", () => {
 });
 
 describe("un ticket s'ouvre sur son issue", () => {
+  test("une carte qui attend un autre humain du projet s'ouvre et se répond comme les autres : son adresse et sa carte du chef sont lues (#3071)", () => {
+    const tenus = tenirFaits();
+    const chef = { sorte: "product-question", texte: "Open the beta?\n\n- [resume] Yes" };
+    tenus.recevoir(lue(rendus({ ...FAITS, attend: [], rail: [], attendAutres: [{ ticket: 77, titre: "Open the beta", url: "https://github.com/benomite/brigade/issues/77", chef, qui: ["carol"] }] })));
+    assert.equal(tenus.adresse("brigade", 77), "https://github.com/benomite/brigade/issues/77");
+    assert.deepEqual(tenus.chef("brigade", 77), chef);
+  });
+
   test("l'adresse est celle que la box a donnée pour ce ticket de ce projet — la vue ne nomme qu'un projet et un numéro", () => {
     const tenus = tenirFaits();
     tenus.recevoir(lue(rendus(FAITS)));

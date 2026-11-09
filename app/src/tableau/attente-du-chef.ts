@@ -200,33 +200,24 @@ export const fileDuChef = (attentes: readonly AttenteDuChef[]): LigneDeLaFile[] 
 export const blocDuChef = ({ lu, attentes, illisibles }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): string[] =>
   blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu });
 
-// Ce qu'une entrée qui attend un autre humain dit sous « Awaiting others » (ticket 2985) : sa question — celle de sa carte,
-// ou sa ligne, pour une entrée sans carte —, et qui elle attend.
-const dAutrui = ({ attente: { ticket, titre, url, chef, ligne }, qui }: Partage<AttenteDuChef>["autres"][number]): AttenduDAutrui => ({
-  ticket,
-  titre,
-  url,
-  question: (chef === undefined ? null : formeDuChef(chef.texte).question) ?? ligne,
-  qui,
-});
-
 // La lecture du rail, dont ce qui attend le chef est cette lecture, et rien d'autre : la file du bloc `awaiting` de
 // `status` et `faits.attend`, que TODO dessine, dans le même ordre. `autres` : les entrées qui attendent un autre humain
 // que le compte connecté, que TODO replie sous « Awaiting others » (`faits.attendAutres`, ticket 2985) — hors de la file.
 export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres = [] }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[]; autres?: Partage<AttenteDuChef>["autres"] }): TableauLu {
-  const attend = attentes.map(({ ticket, titre, url, chef, miseDeCote, decision }) => ({
+  const dit = ({ ticket, titre, url, chef, miseDeCote, decision }: AttenteDuChef) => ({
     ticket,
     titre,
     url,
     ...(miseDeCote === undefined ? {} : { miseDeCote }),
     ...(decision === undefined ? {} : { decision }),
     ...(chef === undefined ? {} : { chef }),
-  }));
+  });
+  const attend = attentes.map(dit);
   return {
     ...lu,
     file: fileDuChef(attentes),
     bilans: [...illisibles],
-    faits: { ...lu.faits, attend, ...(autres.length === 0 ? {} : { attendAutres: autres.map(dAutrui) }), compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } },
+    faits: { ...lu.faits, attend, ...(autres.length === 0 ? {} : { attendAutres: autres.map(({ attente, qui }) => ({ ...dit(attente), qui })) }), compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } },
   };
 }
 

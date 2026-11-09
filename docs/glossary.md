@@ -41,7 +41,7 @@ Related terms built on « cuisine »:
 | `consommé` | `consumed` | What launches have spent (in flight, 5 h window, 24 h) |
 | `attend` (bloc, ligne, pilule) | `awaiting` | What waits for the chef's decision. Block `attend` … `fin attend` → `awaiting` … `end awaiting` |
 | `T'attend` | `Awaiting you` | The rail column and card pill of the same object |
-| `Attend les autres` | `Awaiting others` | The folded section that closes Awaiting you: the cards that await another human of the project, read-only (#2985) |
+| `Attend les autres` | `Awaiting others` | The folded section that closes Awaiting you: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071) |
 | `attend` (ligne de la fiche) | `awaiting` | The same word, same translation: a ticket that waits for another ticket, in its card (`attend : #12` → `awaiting: #12`) |
 | `en attente` | `queued` | A ticket on the rail not yet taken |
 | `pris` / `en cuisine` / `Au travail` | `taken` / `Taken` | A cook holds the ticket (see §1) |

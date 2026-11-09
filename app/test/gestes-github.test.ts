@@ -88,6 +88,10 @@ describe("retirer le label du geste de l'issue du ticket", () => {
     assert.deepEqual([...ticketsLus({ faits: {} })], []);
   });
 
+  test("une carte qui attend un autre humain est lue aussi : l'assignation ne retient personne (#3071)", () => {
+    assert.deepEqual([...ticketsLus({ faits: { rail: [{ ticket: 22 }], attend: [{ ticket: 31 }], attendAutres: [{ ticket: 40, qui: ["bob"] }] } })], [22, 31, 40]);
+  });
+
   test("seuls `retirer` et `cuisine` s'écrivent sur GitHub ; le reste a sa phrase, qui dit que rien n'est parti", () => {
     assert.ok(surGithub("retirer") && surGithub("cuisine"));
     for (const id of ["merger", "toString", "", undefined, 1]) assert.equal(surGithub(id), false, String(id));
