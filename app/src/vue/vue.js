@@ -95,6 +95,7 @@ import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATI
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
+import { poserLesAutres } from "./todo/autres.js";
 import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, REPOS as REPRISE_AU_REPOS } from "./todo-breaker-line.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
@@ -599,6 +600,9 @@ const bandeauSante = element("bandeau-sante");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
 const blocagesDeplies = new Map();
+// Les projets dont le chef a déplié « Awaiting others » au pied de TODO (ticket 2985) : la lecture suivante la garde dépliée.
+/** @type {Set<string>} */
+const autresDeplies = new Set();
 // Ce qui manque au projet pour ses tests (ticket 1400), au-dessus de ses blocages : une carte par besoin
 // (projet/choix.js). Par projet : les choix dont l'issue part (`enCours`), celles qui sont écrites et que la station
 // n'a pas encore relues (`retenus`), et pourquoi une issue n'a pas été retenue (`refus`).
@@ -4650,7 +4654,7 @@ function poserLeRail(projet) {
   const lues = tenu.tableau.rail.colonnes;
   oublierLesReponsesPerimees(projet, lues);
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
-  const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
+  const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], autres: undefined, vide: "not known while the station is unreachable" }));
   // Le kanban est entier sur Rail, Taken et Pass compris.
   const colonnes = toutes;
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
@@ -4673,7 +4677,7 @@ function poserLeRail(projet) {
   const grille = document.createElement("div");
   grille.className = "colonnes";
   grille.append(
-    ...colonnes.map(({ nom, ton, compte, cartes, vide, defile }) => {
+    ...colonnes.map(({ nom, ton, compte, cartes, vide, defile, autres }) => {
       const colonne = document.createElement("section");
       colonne.className = "colonne";
       colonne.dataset.ton = ton;
@@ -4702,6 +4706,9 @@ function poserLeRail(projet) {
         liste.append(...resolues);
         colonne.append(liste);
       } else if (!avecDisjoncteur) colonne.append(bloc("p", nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
+      // Ce qui attend un autre humain du projet ferme TODO, replié sous son nombre (ticket 2985).
+      const deAutrui = nom === COLONNE_QUI_T_ATTEND ? poserLesAutres(document, { autres, deplie: autresDeplies.has(projet.nom), deplier: (ouvert) => void (ouvert ? autresDeplies.add(projet.nom) : autresDeplies.delete(projet.nom)) }) : undefined;
+      if (deAutrui !== undefined) colonne.append(deAutrui);
       return colonne;
     }),
   );

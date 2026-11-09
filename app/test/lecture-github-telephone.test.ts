@@ -27,7 +27,7 @@ const LU = "2026-11-06T09:00:00.000Z";
 const maintenant = () => new Date(LU);
 const JETON = "gho_du_coffre";
 
-type Issue = { labels: string[]; commentaires?: unknown[] };
+type Issue = { labels: string[]; commentaires?: unknown[]; assignes?: string[] };
 type Monde = { gists: Record<string, Record<string, string>>; depots: Record<string, Record<number, Issue>> };
 const dit = (body: string, created_at: string) => ({ id: Date.parse(created_at), body, created_at, author_association: "OWNER" });
 const enregistrement = JSON.stringify({ brigade: "station-registration", format: 1, name: "atelier", platform: "linux", machine: "Linux 6.1.0", version: "1.0.0", registeredAt: "2026-11-01T00:00:00Z", lastSeen: LU, refreshMs: 120_000, stoppedAt: null });
@@ -78,7 +78,7 @@ function github(monde: Monde = MONDE, refuser: (chemin: string) => ReponseGitHub
     const issues = monde.depots[depot];
     if (issues === undefined) return { status: 404, data: { message: "Not Found" } };
     const page = Number(/[?&]page=(\d+)/.exec(reste)?.[1] ?? "1");
-    const json = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${depot}/issues/${numero}`, created_at: "2026-11-05T00:00:00Z", labels: issue.labels.map((name) => ({ name })) });
+    const json = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${depot}/issues/${numero}`, created_at: "2026-11-05T00:00:00Z", labels: issue.labels.map((name) => ({ name })), assignees: (issue.assignes ?? []).map((login) => ({ login })) });
     if (reste.startsWith("/issues?")) {
       const label = /[?&]labels=([^&]+)/.exec(reste)?.[1];
       return ok(page > 1 ? [] : Object.entries(issues).filter(([, issue]) => label === undefined || issue.labels.includes(label)).map(([numero, issue]) => json(Number(numero), issue)));
@@ -160,6 +160,19 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     await lecture.tous(3);
     assert.deepEqual(rail("parade"), await commeLeDesktop("parade", "chef/parade", 1, 3));
     assert.deepEqual(rail("cantine"), await commeLeDesktop("cantine", "chef/cantine", 1, 3));
+  });
+
+  test("une carte assignée à un autre humain que le compte du téléphone : au pied de TODO, sous « Awaiting others », comme au desktop (#2985)", async () => {
+    const parade = MONDE.depots["chef/parade"] ?? assert.fail("pas de parade");
+    const { envoyer } = github({ ...MONDE, depots: { ...MONDE.depots, "chef/parade": { ...parade, 20: { ...parade[20]!, assignes: ["alice"] } } } });
+    const { lecture, rail } = telephone({ envoyer });
+    await lecture.faits(1);
+    await lecture.regarder("parade", 2);
+    const vu = tableauDe(rail("parade"));
+    const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you");
+    assert.deepEqual(todo?.cartes.map(({ ticket }) => ticket), [12]);
+    assert.deepEqual(todo?.autres, [{ ticket: 20, titre: "Ticket 20", question: "Which token does the box use for the registry?", qui: ["alice"] }]);
+    assert.deepEqual(vu.rail.hors, []);
   });
 
   test("dans l'espace d'un projet, ce qui est avant son rail se lit aussi, comme sur le desktop", async () => {

@@ -33,7 +33,7 @@ import { clientGitHub, parFetch, posterParFetch } from "./tableau/client.ts";
 import { avecCeQuiAttendLeChef } from "./tableau/attente-du-chef.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
-import { filtreDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
+import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { activitesPubliees, lireLeTableauDuDepot } from "./tableau/lecture.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
@@ -235,8 +235,8 @@ const signesDeVie = tenirLesSignesDeVie({
     return lireLesStationsDuCompte({ gh: ghIci, env: process.env });
   },
 });
-// Le compte GitHub de cet ordinateur, pour les cartes de TODO qui lui sont assignées (#2761, vue/cartes-assignees/) : le
-// chef les voit toutes, un autre humain les siennes.
+// Le compte GitHub de cet ordinateur, pour les cartes de TODO qui l'attendent (#2761, vue/cartes-assignees/) : celles
+// qui attendent un autre humain se replient sous « Awaiting others » (#2985).
 const compteConnecte = tenirLeLogin(async () => {
   const { echecDeGh } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
   return lireLeCompteGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env, echecDeGh });
@@ -245,7 +245,7 @@ const lireLeTableau = async (projet: Projet) => {
   const depot = await depotDuProjet(projet);
   const lu = await lireLeTableauDuDepot({ depot, appeler: appelerGitHub, memoire: memoireDuRail(depot), signes: () => signesDeVie.signes() });
   const appeler = lectureConditionnelle(appelerGitHub, memoireDuRail(depot));
-  return avecCeQuiAttendLeChef(lu, appeler, filtreDesCartesAssignees({ appeler, depot, login: compteConnecte.login }));
+  return avecCeQuiAttendLeChef(lu, appeler, partageDesCartesAssignees({ appeler, depot, login: compteConnecte.login }));
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 

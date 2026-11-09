@@ -266,6 +266,9 @@ export { SANS_RAISON };
 // (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
 // `miseDeCote` : pour un ticket d'un projet GitHub seul que `hors-cuisine` ou `blocked-on-human` met de côté, ce qui le
 // met de côté (tableau/mise-de-cote-github.ts, #2075) — absente pour toute autre entrée.
+// Une carte qui attend un autre humain du projet que le compte connecté (vue/cartes-assignees/, ticket 2985) : TODO la
+// replie sous « Awaiting others », en lecture seule — sa question, et `qui` elle attend, leurs logins GitHub.
+export type AttenduDAutrui = { ticket: number; titre: string; url: string; question: string; qui: string[] };
 export type Attendu = { ticket: number; titre: string; url: string | null; chef?: CarteDuChef; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue; tache?: TacheHumaine; miseDeCote?: MiseDeCote; illisible?: string };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
@@ -361,6 +364,9 @@ export type Faits = {
   rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; illisible?: string }[];
   cooks?: Cook[];
   attend?: Attendu[];
+  // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
+  // — TODO le replie sous « Awaiting others ». Absent quand rien n'attend un autre humain, et des `facts` d'une station.
+  attendAutres?: AttenduDAutrui[];
   livres?: Livre[];
   urgence?: Urgence | null;
   // Les décisions du chef qui retiennent des tickets sans arrêter la cuisine : absent, c'est un
@@ -440,7 +446,10 @@ export type Livraison = { resume: string; remarques: string; constats: Constat[]
 // qui attend. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
 // `defile` : ses cartes défilent dans une hauteur bornée — longue, la colonne ne
 // pousse rien sous les autres.
-export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[]; vide: string; defile?: true };
+// `autres` : dans TODO, les cartes qui attendent un autre humain du projet (ticket 2985), repliées sous « Awaiting
+// others » après les siennes — leur question, qui elles attendent ; absent quand il n'y en a aucune.
+export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[]; vide: string; defile?: true; autres?: CarteDAutrui[] };
+export type CarteDAutrui = { ticket: number; titre?: string; question: string; qui: string[] };
 // `hors` : les tickets que `faits` rend et qu'aucune colonne ne prend. `attendLu` :
 // l'heure de la lecture de `status` dont vient le bloc — absente, il n'a pas été pris.
 // `railLu` : celle dont viennent les lignes que les cartes portent — absente, la
@@ -696,7 +705,8 @@ function refusGitHubSeulLu(valeur: unknown): { githubSeulRefuse?: { reason: stri
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi — et `apprentissage`, absent quand le projet n'a ni leçon ni profil, et `github` quand GitHub ne limite pas le compte.
+// et qui manquent alors ici aussi — et `apprentissage`, absent quand le projet n'a ni leçon ni profil, `github` quand GitHub ne limite pas le compte,
+// et `attendAutres` quand rien n'attend un autre humain.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -778,6 +788,15 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               const miseDeCote = miseDeCoteLue(lu.miseDeCote);
               return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(chef === undefined ? {} : { chef }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }), ...tacheLue(lu.tache) };
               }, ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, illisible }));
+            }),
+          }),
+      ...(racine.attendAutres === undefined
+        ? {}
+        : {
+            attendAutres: (Array.isArray(racine.attendAutres) ? racine.attendAutres : refuser("attendAutres", "a list")).map((attendu: unknown, rang) => {
+              const lequel = `attendAutres[${rang}]`;
+              const lu = objet(attendu, lequel);
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: texte(lu.url, `${lequel}.url`), question: texte(lu.question, `${lequel}.question`), qui: textesLus(lu.qui, `${lequel}.qui`) };
             }),
           }),
       ...(racine.livres === undefined
@@ -1244,7 +1263,11 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   const livres = faits.livres?.map(livre);
   // Un ticket `servi` du rail que `livres` donne a sa carte dans Livré : il n'en a pas d'autre.
   const servis = new Set(livres?.map(({ ticket }) => ticket));
-  const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !enWaiting.has(ticket) && !repondus.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
+  // Ce qui attend un autre humain est dans TODO, replié sous « Awaiting others » (ticket 2985) : ni dans une autre colonne,
+  // ni hors des colonnes.
+  const autres = (faits.attendAutres ?? []).filter(({ ticket }) => !dits.has(ticket) && !enWaiting.has(ticket) && !repondus.has(ticket));
+  const dAutrui = new Set(autres.map(({ ticket }) => ticket));
+  const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !enWaiting.has(ticket) && !repondus.has(ticket) && !dAutrui.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
   const colonnes: Colonne[] = COLONNES_DE_FAITS.map(({ nom, ton, etats }) => {
     if (nom === LIVRE && livres !== undefined) return { nom, ton, compte: String(livres.length), cartes: livres, vide: RIEN_LIVRE, defile: true };
     const siennes = ailleurs.filter((posee) => colonneDeFaits(connus.get(posee.ticket), posee.etat) === nom);
@@ -1257,6 +1280,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     compte: rienDeLu ? "?" : String(dits.size),
     cartes: [...dits.keys()].map(carte),
     vide: rienDeLu ? RIEN_DE_LU : attend === undefined ? AUCUN_ATTENDU : blocVide(attend) ? RIEN_N_ATTEND : AUCUN_NUMERO,
+    ...(autres.length === 0 ? {} : { autres: autres.map(({ ticket, titre, question, qui }) => ({ ticket, ...(titre === "" ? {} : { titre }), question, qui })) }),
   });
   colonnes.splice(WAITING.rang, 0, {
     nom: WAITING.nom,
@@ -1271,7 +1295,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     colonnes,
     hors,
     plusieursStations: new Set([...colonnes.flatMap((colonne) => colonne.cartes), ...hors].flatMap(({ station }) => (station === undefined ? [] : [station]))).size > 1,
-    ...(hors.length === 0 && colonnes.every(({ nom, cartes }) => nom === LIVRE || cartes.length === 0) ? { aucunTicket: true as const } : {}),
+    ...(hors.length === 0 && autres.length === 0 && colonnes.every(({ nom, cartes }) => nom === LIVRE || cartes.length === 0) ? { aucunTicket: true as const } : {}),
     ...(attend === undefined ? {} : { attendLu: attend.a }),
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
     ...(faits.cadence === undefined ? {} : { cadence: histogramme(faits.cadence) }),

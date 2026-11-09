@@ -396,9 +396,9 @@ async function jusqua(fait: () => boolean): Promise<void> {
 const auRepos = async () => {
   for (let tour = 0; tour < 20; tour++) await repos();
 };
-// Ce que le téléphone lit de GitHub — les gists, le rail, TODO —, mis à part : il reste ce que le geste y a écrit, et ce
-// qu'il a lu pour l'écrire.
-const LECTURE = /^https:\/\/api\.github\.com\/(gists[/?]|repos\/[^/]+\/[^/]+\/(issues\?|pulls\?|issues\/\d+\/(comments|events)\?))/;
+// Ce que le téléphone lit de GitHub — les gists, le rail, TODO et le chef du projet, à qui ses cartes sont partagées
+// (#2985) —, mis à part : il reste ce que le geste y a écrit, et ce qu'il a lu pour l'écrire.
+const LECTURE = /^https:\/\/api\.github\.com\/(gists[/?]|repos\/[^/]+\/[^/]+\/(issues\?|pulls\?|issues\/\d+\/(comments|events)\?|contents\/\.claude\/brigade\/projet\.json$))/;
 const duGeste = (recues: Recue[]) => recues.filter(({ methode, url }) => !(methode === "GET" && LECTURE.test(url)));
 const json = (valeur: unknown) => JSON.parse(JSON.stringify(valeur));
 

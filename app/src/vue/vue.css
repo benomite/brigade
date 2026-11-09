@@ -2833,6 +2833,37 @@ main > header,
   font-weight: 400;
   color: var(--discret);
 }
+/* « Awaiting others » ferme TODO (ticket 2985) : le bloc replié du rail, dans la colonne, sous ses cartes. Dépliées, les
+   cartes d'un autre humain se lisent sans se répondre : leur numéro, leur question, qui elles attendent. */
+#rail .colonne > .replie.autres {
+  margin: var(--pas-2) 0 0;
+  padding: var(--pas-2);
+}
+#rail .replie.autres > ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#rail .carte-d-autrui {
+  padding: var(--pas-2);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+  font-size: var(--taille-corps);
+  color: var(--texte);
+}
+#rail .carte-d-autrui > .numero {
+  color: var(--discret);
+}
+#rail .carte-d-autrui > p {
+  margin: var(--pas-1) 0 0;
+  overflow-wrap: anywhere;
+}
+#rail .carte-d-autrui > .qui {
+  color: var(--discret);
+}
 #rail ol {
   display: flex;
   flex-direction: column;
