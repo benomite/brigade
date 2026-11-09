@@ -155,8 +155,7 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
 /** @typedef {import("../alertes.ts").Alerte} Alerte */
-// Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
-const JOURNAL = "log";
+// Ce que `onglets.ts` nomme : l'onglet Paramètres, qui n'a pas de commande à lui.
 const PARAMETRES = "parametres";
 // Et la lecture de la page des coûts de l'app (ticket 1022) : `station`, sur la box de chaque projet (onglets.ts, `COUTS`).
 const COUTS = "couts";
@@ -261,7 +260,6 @@ const panneauDuSecond = monterLePanneau({
 window.addEventListener?.("resize", () => panneauDuSecond.reborner());
 const message = element("message");
 const etat = element("etat");
-const journal = element("journal");
 // Settings (ticket 1700, 2494) : un seul groupe, le projet. Ce qui était à cette machine n'y est plus : ses lignes sont
 // toujours posées, dans un conteneur caché, jusqu'à ce que Stations les reprenne.
 const groupeMachine = element("reglages-machine");
@@ -1373,9 +1371,6 @@ function montrer() {
   if (courant !== undefined && reglagesMontres()) poserLeBandeauDeSante(courant);
   else bandeauSante.replaceChildren();
   luOnglet.hidden = relaye === undefined;
-  // Le journal : un geste, pas un onglet. Le recliquer le referme.
-  journal.hidden = courant === undefined || !seLit(courant);
-  journal.ariaPressed = String(visible === JOURNAL);
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
   poserSecond(ouvrable, droite?.terminal);
@@ -1817,10 +1812,6 @@ function activerRubrique(id) {
   else laisse.set(courant.nom, rubrique.defaut);
   montrer();
 }
-
-journal.addEventListener("click", () => {
-  if (courant !== undefined) activer(JOURNAL);
-});
 
 // Seul l'onglet de contenu affiché est lu sur la box : en changer, passer à un
 // terminal ou quitter l'espace arrête sa lecture. Rien ne reste de l'onglet d'avant.

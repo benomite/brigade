@@ -173,7 +173,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual([regle("#contenu").get("position"), regle("#contenu").get("inset"), regle("#contenu").get("overflow-y"), regle("#contenu").get("background")], ["absolute", "0", "auto", "var(--fond)"]);
   });
 
-  test("il est posé dès que l'espace s'ouvre, et le reste quel que soit ce qui est affiché : aucune page, une page par-dessus, un shell à droite", async () => {
+  test("il est posé dès que l'espace s'ouvre, et le reste quel que soit ce qui est affiché : aucune page, un shell à droite", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
@@ -186,18 +186,9 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.equal(vue.element("rail").hidden, false);
     assert.deepEqual(cinq(), ATTENDU);
 
-    // Une page par-dessus : toutes, sauf Cooks, qui n'est plus ni un onglet ni une page.
-    for (const { titre } of ONGLETS.filter(({ id }) => id !== "cooks")) {
-      await ouvrirLecture(vue, titre);
-      assert.equal(vue.element("contenu").hidden, false, titre);
-      assert.equal(vue.element("rail").hidden, false, titre);
-      assert.deepEqual(cinq(), ATTENDU, titre);
-    }
-    // La dernière page refermée, un shell s'ouvre à droite : le centre n'en sait rien.
-    await ouvrirLecture(vue, "Log");
+    // Un shell s'ouvre à droite : le centre n'en sait rien.
     (vue.element("terminaux").children.find((pose) => pose.textContent === "+ shell") ?? assert.fail("pas de « + shell »")).click();
     await repos();
-    assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("rail").inert, false);
     assert.deepEqual(cinq(), ATTENDU);

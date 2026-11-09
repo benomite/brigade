@@ -176,33 +176,6 @@ describe("les cartes du rail", () => {
   });
 });
 
-describe("une ligne d'erreur", () => {
-  test("une lecture en échec porte le bouton, et sa demande dit la panne sans la commande lancée", async () => {
-    const vue = await ouvrirParade();
-    await ouvrirLecture(vue, "Log");
-    const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: "$ node /home/alice/runtime/src/station/geste.ts parade station\nENOSPC: no space left on device\n→ exit code 1", atteinte: true, cas: null }, undefined);
-    await repos();
-    const ligne = vue.element("lecture-onglet").dessous("p").find(({ className }) => className === "indisponible") ?? assert.fail("pas de ligne d'erreur");
-    const bouton = signaler(ligne)[0] ?? assert.fail("pas de bouton sur la ligne d'erreur");
-    bouton.click();
-    await repos();
-    const [demande] = vue.dernier("signaler") as [Demande];
-    assert.deepEqual(demande.reference, { ligne: "the station answered, but not as the app expects" });
-    assert.equal(demande.projet, "parade");
-    assert.equal(demande.panne, "parade: the station answered, but not as the app expects — ENOSPC: no space left on device → exit code 1");
-  });
-
-  test("une lecture réussie n'en porte pas", async () => {
-    const vue = await ouvrirParade();
-    await ouvrirLecture(vue, "Log");
-    const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "log", texte: "" }] }, undefined);
-    await repos();
-    assert.deepEqual(signaler(vue.element("lecture-onglet")), []);
-  });
-});
-
 describe("une station en panne", () => {
   const MISE_A_JOUR: Panne = { cle: "mise-a-jour:2026-11-02T08:56:00.000Z", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed", survol: "box stayed on version 1.4.0", bouton: { libelle: "dismiss", geste: "ecarter" } };
   const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · parade", pannes: [MISE_A_JOUR], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };

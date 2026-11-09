@@ -230,8 +230,7 @@ a few words, and one click opens it — you do not act there, you look, then go 
 on hover of a "?" icon), each action is a button that says its word,
 a read that fails fits on one line (the cause, the retry and the exit code on hover), and a
 confirmation of a costly action says its price in one line, the rest and its source on hover.
-**The log is no longer on screen**: it is breakdown tooling, opened by the
-"log" action, at the head of the space. And at the head of the bar, the **All projects** screen: your projects and your
+**The log is no longer on screen** (the "log" button is gone, #3048). And at the head of the bar, the **All projects** screen: your projects and your
 stations at a glance, the entry to the cost of all projects, and the health of Max and GitHub in one line.
 
 **The app also says when its own code is behind.** It runs on the code of a clone, and a
@@ -2400,8 +2399,7 @@ route left (`app/src/onglets.ts`); the installation guide and **the installation
 button in the space's header, the verdict at the top of Settings —: the app only needs a GitHub connection (#1692), and
 installing a station is a separate topic (#1536); uninstalling the project from its station (`See what the station would
 remove`, `Uninstall from the station`); `where the rail's data comes from`; and the project's `status`, as the station
-renders it. **Reliability and Closer are no longer there either** (#1699), nor on the Cooks tab, which is gone (#2921). An alert-band line whose cause is fixed on the Stations tab leads to it in one click. **The log (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log over the rail;
-clicking it again closes it.
+renders it. **Reliability and Closer are no longer there either** (#1699), nor on the Cooks tab, which is gone (#2921). An alert-band line whose cause is fixed on the Stations tab leads to it in one click. **The log (Log) has no tab and no button** (#3048).
 
 **The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings, in its **project** group,
 one row per project setting, in the order and with the labels of the artboard `Settings.dc.html` (Integration branch, Manager’s calibration, Reviewer’s calibration, Calibration ceiling, Closer’s tokens cap, then the label and the colors in the bar); the closer's other three settings, which the artboard does not draw, follow under the colors as rows of the same component, and the kitchen is its own *Kitchen* section below. The rows: the integration branch, the manager's and the reviewer's
