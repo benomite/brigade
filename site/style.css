@@ -127,6 +127,13 @@ h3 { font-size: 1.08rem; font-weight: 700; margin: 0 0 .3rem; line-height: 1.25;
 .s4 .stage, .s4 .state { color: #0f5a43; }
 .s1 { rotate: -1.2deg; } .s2 { rotate: .8deg; } .s3 { rotate: -.6deg; } .s4 { rotate: 1.4deg; }
 
+/* On a phone the four slips hang two by two instead of scrolling out of sight. */
+@media (max-width: 51.99rem) {
+  .rail { overflow: visible; }
+  .bar { min-width: 0; }
+  .slips { min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 1.8rem; }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .slip { animation: hang .7s cubic-bezier(.2,.9,.3,1.2) both; }
   .s1 { animation-delay: .15s; } .s2 { animation-delay: .35s; } .s3 { animation-delay: .55s; } .s4 { animation-delay: .75s; }
