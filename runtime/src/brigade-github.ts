@@ -73,7 +73,7 @@ import { preuveDeMesure } from "./preuve-mesure.ts";
 import { redeposerHorsCuisine } from "./refile-hors-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
-import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
+import { checkRougeDit, MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { PRIO_REPARATION } from "./reparation.ts";
@@ -148,6 +148,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // `review` assigné à sa carte. Absentes, la station ne les sert pas.
     prsExternes?(): Promise<PRExterne[]>;
     remplacerCommentaire?: GitHub["remplacerCommentaire"];
+    // Les étapes en échec du job d'un check rouge, que son renvoi nomme (#3028).
+    // Absentes, le renvoi ne nomme que le check.
+    etapesEnEchec?: GitHub["etapesEnEchec"];
     assigner?: GitHub["assigner"];
   } & GitHubDeLaRelance;
 
@@ -949,6 +952,26 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "renvoi");
   };
 
+  // Les checks rouges du commit, tels que le renvoi les nomme : chacun avec les
+  // étapes en échec de son job (#3028). Illisibles, elles ne retiennent pas le
+  // renvoi : le check est nommé sans elles, comme avant. GitHub qui limite ses
+  // appels se dit comme ailleurs dans le tour.
+  const checksRougesDits = async (sha: string) =>
+    Promise.all(
+      (await github.ci(sha))
+        .filter((check) => check.outcome === "red")
+        .map(async (check) => {
+          let etapes: string[] = [];
+          try {
+            etapes = (await github.etapesEnEchec?.(check)) ?? [];
+          } catch (erreur) {
+            if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+            avertir(`brigade : failed steps of \`${check.name}\` on ${sha.slice(0, 7)} unreadable on ${nom} — ${message(erreur)}`);
+          }
+          return checkRougeDit(check.name, etapes);
+        }),
+    );
+
   // Le second juge de la tête d'une livraison qui touche à ce qui la juge
   // (#2555) : son verdict s'il l'a déjà rendu sur cette tête, sinon il est
   // lancé — une fois la branche à jour de sa base et la CI verte sur sa tête,
@@ -1255,7 +1278,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
-            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.ci} \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`, 1, "red CI");
+            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.ci} \`${pr.sha.slice(0, 7)}\`: ${(await checksRougesDits(pr.sha)).join(", ")}`, 1, "red CI");
           }
           // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
           if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) {
@@ -1698,6 +1721,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     creerIssue: (issue) => github.creerIssue(issue),
     fermerIssue: (numero) => github.fermerIssue(numero),
     journalDuCheck: (check) => github.journalDuCheck(check),
+    ...(github.etapesEnEchec === undefined ? {} : { etapesEnEchec: github.etapesEnEchec.bind(github) }),
     ci: async (sha) => {
       const lue = instantane?.prs.find((pr) => pr.sha === sha);
       return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;
