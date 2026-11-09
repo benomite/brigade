@@ -34,6 +34,11 @@
 .reglage > .valeur strong {
   font-weight: 600;
 }
+/* Une valeur qui ne vaut pas — non prise, ou pas dite (`data-retrait`, posé par l'écran) — est en retrait. */
+.reglage[data-retrait] > .valeur strong {
+  font-weight: 400;
+  color: var(--discret);
+}
 .reglage > .valeur small {
   font-size: var(--taille-corps);
   color: var(--discret);

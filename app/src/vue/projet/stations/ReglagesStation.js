@@ -169,6 +169,7 @@ function stationReglee(doc, station, saisie, contexte) {
   const caseOrdinaires = caseOuiNon(doc, `${station.nom} takes the ordinary tickets`, ordinaires.pris === true, ordinaires.reglable && !enCours, (pris) => gestes.ordinaires(pris));
   const prendre = rangeeDeReglage(doc, { nom: nomOrdinaires, cle: cleOrdinaires, niveau: niveauDe(doc, cleOrdinaires), valeur: valeurDite(doc, ordinairesDits, ordinaires.survol), controle: [caseOrdinaires], dessous: ditDuReglage(doc, ordinairesDit) });
   prendre.dataset.pris = ordinaires.pris === null ? "inconnu" : String(ordinaires.pris);
+  if (ordinaires.pris !== true) prendre.dataset.retrait = "";
 
   // Servir le projet : être déclarée. Décocher demande confirmation ; la seule station ne se retire pas.
   const caseSert = caseOuiNon(doc, `${station.nom} serves ${projet}`, !saisie.confirmer, !seule && !saisie.envoi, (cochee) => gestes.confirmer(station.nom, !cochee));

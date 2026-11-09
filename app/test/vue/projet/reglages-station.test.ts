@@ -260,6 +260,8 @@ describe("l'onglet Stations : les réglages de chaque station (#2488)", () => {
   test("les tickets ordinaires de la station de ce poste se cochent ici, et le restent à la relance", async () => {
     const tenu = stockage();
     const vue = await lancer(tenu);
+    // Non prise, la valeur est en retrait (la rangée le porte, reglage.css) ; prise, elle ne l'est plus.
+    assert.equal(ligneDe(stationDe(vue, "mac/claude"), "ordinaires").dataset.retrait, "");
     const coche = caseDe(ligneDe(stationDe(vue, "mac/claude"), "ordinaires"));
     coche.checked = true;
     coche.declencher("change");
@@ -267,6 +269,7 @@ describe("l'onglet Stations : les réglages de chaque station (#2488)", () => {
     // La limite de cooks de ce poste reste celle qu'elle était.
     assert.deepEqual(vue.dernier("reglerOrdinaires"), [PARADE, true, 2]);
     assert.equal(lu(stationDe(vue, "mac/claude"))[2]?.valeur, "taken");
+    assert.equal(ligneDe(stationDe(vue, "mac/claude"), "ordinaires").dataset.retrait, undefined);
 
     const relancee = await lancer(tenu);
     assert.equal(lu(stationDe(relancee, "mac/claude"))[2]?.valeur, "taken");

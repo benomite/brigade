@@ -4720,7 +4720,7 @@ main > header {
 /* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
    ses quatre réglages, chacun une rangée de réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920).
    Ici ne se pose que la place des cartes, alignées sur la liste des stations au-dessus (ticket 2487), et ce qui est à
-   elles : un réglage qui ne vaut pas est en retrait, les capacités sont des cases. */
+   elles : les capacités sont des cases. Un réglage qui ne vaut pas est en retrait, par la rangée (`data-retrait`). */
 .reglages-station h3 {
   display: flex;
   align-items: center;
@@ -4736,10 +4736,6 @@ main > header {
   gap: var(--pas-2);
   margin: 0 0 var(--pas-1);
   font-size: var(--taille-corps);
-}
-#rail .station-reglee > :is([data-pris="false"], [data-pris="inconnu"]) > .valeur strong {
-  font-weight: 400;
-  color: var(--discret);
 }
 #rail .station-reglee .capacites {
   display: flex;
