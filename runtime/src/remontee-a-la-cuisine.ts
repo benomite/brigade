@@ -185,14 +185,6 @@ export function calibrageAuDessus(pose: Calibrage, plafond: Plafond): Calibrage 
   return cible === null || rangDEffort(cible.effort) > rangDEffort(EFFORT_MAX_DE_LA_CUISINE) ? null : cible;
 }
 
-// Pourquoi la cuisine abandonne un ticket, telle que son issue le lit.
-export function raisonDAbandon(cause: string, pose: Calibrage | null, plafond: Plafond): string {
-  const pasAuCook = SANS_RENVOI[cause];
-  if (pasAuCook !== undefined) return `sa cause (\`${cause}\`) n'est pas au cook (${pasAuCook}) : ni un renvoi ni un calibrage plus haut ne la lèveraient, et le ticket \`fix\` que la cuisine pouvait ouvrir sur elle l'a été, ou ce ticket en est un`;
-  const limite = `le plafond du projet (\`${plafond.model}\` / \`${plafond.effort}\`), et jamais au-delà de \`${EFFORT_MAX_DE_LA_CUISINE}\``;
-  return `son calibrage (${pose === null ? "?" : `\`${pose.model}\` / \`${pose.effort}\``}) est déjà au plus haut que la cuisine pose — ${limite} —, et ce qu'elle pouvait tenter avant (renvoi, ticket \`fix\`, calibrage monté) n'a pas suffi`;
-}
-
 // Ce que la cuisine a déjà tenté sur ce ticket, toutes remontées confondues.
 export function dejaTente(base: Base, ticket: number): { renvoye: boolean; fixe: boolean } {
   const prises = lirePrises(base, ticket);
@@ -320,43 +312,4 @@ export function corpsDuFix(fix: FixDeRemontee): string {
     "",
     `_Opened by the pass, with no gesture from the chef. Calibrated \`${CALIBRAGE_TEST_INSTABLE.model}\` / \`${CALIBRAGE_TEST_INSTABLE.effort}\`, \`${PRIO_TEST_INSTABLE}\`._`,
   ].join("\n");
-}
-
-// Ce qui repart au cook : pourquoi la cuisine le lui renvoie, en français
-// comme tout ce qui va au cook. `montee` : le calibrage que la cuisine a
-// monté, quand c'est lui que le renvoi suit. `merges` : ceux qui ont atterri
-// sur la base depuis le dernier rouge, quand c'est un réessai.
-export function constatsDuRenvoi(
-  remontee: Remontee,
-  coup: "return" | "resume" | "retry",
-  issue: number | null,
-  constats: string[],
-  montee: { from: Calibrage; to: Calibrage } | null = null,
-  merges: number | null = null,
-): string[] {
-  const cause = remontee.cause ?? remontee.reason;
-  if (coup === "retry") {
-    return [
-      `Cette livraison est restée bloquée (\`${remontee.reason}\` : \`${cause}\`) après tout ce que la cuisine pouvait tenter, et elle allait l'abandonner. Mais ${merges === 1 ? "un merge a atterri" : `${merges ?? "des"} merges ont atterri`} sur la base depuis son dernier verdict rouge : ce qui la faisait échouer a pu changer. Elle te revient une dernière fois, depuis la base du moment. Mets ta branche à jour de la base, vérifie qu'elle tient, et livre de nouveau ; bloquée encore, la cuisine l'abandonnera.`,
-      ...(remontee.reason === NON_JUGEE && remontee.why !== null ? [`Ce qui a empêché le jugement : ${remontee.why}`] : []),
-      ...constats,
-    ];
-  }
-  if (coup === "resume" && montee !== null) {
-    return [
-      `Cette livraison est restée bloquée (\`${remontee.reason}\` : \`${cause}\`) après ce que la cuisine avait déjà tenté : plutôt que de la laisser de côté, elle te revient un cran plus haut, en \`${montee.to.model}\` / \`${montee.to.effort}\` au lieu de \`${montee.from.model}\` / \`${montee.from.effort}\`. Mets ta branche à jour de la base, lève ce qui la bloque, et livre de nouveau.`,
-      ...(remontee.reason === NON_JUGEE && remontee.why !== null ? [`Ce qui a empêché le jugement : ${remontee.why}`] : []),
-      ...constats,
-    ];
-  }
-  if (coup === "resume") {
-    return [
-      `Le ticket \`fix\` #${issue}, ouvert par la cuisine sur ce qui bloquait cette livraison (\`${cause}\`), est servi : la livraison te revient. Mets ta branche à jour de la base, vérifie qu'elle tient, et livre de nouveau.`,
-      ...constats,
-    ];
-  }
-  return [
-    `La pass n'a pas pu juger cette livraison (\`${NON_JUGEE}\` : \`${cause}\`)${remontee.why === null ? "." : ` : ${remontee.why}`}`,
-    "La cuisine te la renvoie une fois plutôt que de la remonter au chef : mets ta branche à jour de la base, lève ce qui t'en revient, et livre de nouveau. Si la même cause revient, la cuisine ouvre un ticket `fix` dessus.",
-  ];
 }

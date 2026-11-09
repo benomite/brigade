@@ -48,6 +48,17 @@ const citer = (texte: string) =>
     .map((ligne) => `> ${ligne}`)
     .join("\n");
 
+// Ce qui, dans les mots du cook, est du français : une lettre accentuée, ou un
+// mot outil que l'anglais n'écrit pas.
+const FRANCAIS = /[àâäçéèêëîïôöùûüÿœæ]|\b(?:le|la|les|des|du|une|est|sont|pas|sur|dans|avec|que|qui|mais|ou|ce|cette|ces|il|elle|je|ne|au|aux|et|sa|ses|mon|mes|encore|donc)\b/i;
+
+// Les mots du cook tels qu'un commentaire de la station les cite sur l'issue,
+// en anglais (#3033) : cités s'ils s'y lisent, et sinon pas — le cook les
+// écrit le plus souvent en français, et rien ne les traduit sur ce chemin.
+export function lesMotsDuCook(question: string): string[] {
+  return FRANCAIS.test(question) ? ["The cook's words are not quoted: it wrote them in French."] : ["The cook's words:", "", citer(question)];
+}
+
 // Le commentaire qui met le ticket en attente : sa marque nomme les tickets
 // attendus, que la porte de prise relit à chaque tour.
 export function corpsDeLAttente({ station, attendus, question }: { station: string; attendus: readonly number[]; question: string }): string {
@@ -56,9 +67,7 @@ export function corpsDeLAttente({ station, attendus, question }: { station: stri
     `${MARQUE_D_ATTENTE_DE_TICKET} ${liste(attendus)} -->`,
     `Station \`${station}\`: the cook stopped because this ticket builds on the unmerged work of ${liste(attendus)}. Nothing here is for the chef: the ticket waits on the rail for ${liste(attendus)}, and a cook takes it on its own once ${un ? "it is" : "they are all"} served. This stop is not counted among the ticket's tries.`,
     "",
-    "The cook's words:",
-    "",
-    citer(question),
+    ...lesMotsDuCook(question),
   ].join("\n");
 }
 

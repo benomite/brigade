@@ -39,8 +39,10 @@ export type Avis =
   | { issue: "produit" | "design"; question: string }
   | { issue: "geste"; geste: string };
 
-// Ce que la station rend d'une consultation : l'avis, ou pourquoi il n'y en a pas.
-export type ReponseDuManager = { avis: Avis } | { illisible: string };
+// Ce que la station rend d'une consultation : l'avis, ou pourquoi il n'y en a
+// pas. `questionEn` : la question du cook, que le manager a traduite en
+// anglais — celle que l'issue cite ; le cook l'écrit en français.
+export type ReponseDuManager = { avis: Avis; questionEn?: string } | { illisible: string };
 
 // Le manager, tel que la station le consulte : le ticket, la question du cook,
 // et les réponses techniques qu'il a déjà données sur ce ticket.
@@ -53,6 +55,11 @@ const citer = (texte: string) =>
     .map((ligne) => `> ${ligne}`)
     .join("\n");
 const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
+
+// La question du cook telle que l'issue la cite : la traduction anglaise du
+// manager ; sans elle, rien n'est cité — le cook l'a écrite en français.
+const laQuestionDuCook = (titre: string, questionEn: string | null): string[] =>
+  questionEn === null ? [`${titre} not quoted: the manager gave no English version of it.`] : [`${titre}:`, "", citer(questionEn)];
 
 export function consigneDuBlocage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; question: string; reponses: string[] }): string {
   const { depot, issue, commentaires, question, reponses } = mission;
@@ -93,12 +100,12 @@ export function consigneDuBlocage(mission: { depot: string; issue: IssueAJuger; 
     "Un seul objet JSON, et rien après lui :",
     "",
     "```json",
-    '{"issue": "technique", "reponse": "the answer to the cook\'s question", "decision": "what you decided, and what the cook does now"}',
+    '{"issue": "technique", "reponse": "the answer to the cook\'s question", "decision": "what you decided, and what the cook does now", "question_en": "the cook\'s question, translated into English"}',
     "```",
     "",
-    'ou `{"issue": "produit", "question": "…?"}`, `{"issue": "design", "question": "…?"}`, `{"issue": "geste", "geste": "…"}`.',
+    'ou `{"issue": "produit", "question": "…?", "question_en": "…"}`, `{"issue": "design", "question": "…?", "question_en": "…"}`, `{"issue": "geste", "geste": "…", "question_en": "…"}`.',
     "",
-    "`reponse`, `decision`, `question` et `geste` sont écrits sur l'issue, que le cook et le chef lisent : en anglais.",
+    "`reponse`, `decision`, `question` et `geste` sont écrits sur l'issue, que le cook et le chef lisent : en anglais. `question_en` est la question du cook, traduite fidèlement en anglais, sans rien y ajouter : c'est elle que l'issue cite.",
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
@@ -108,6 +115,14 @@ export function lireAvis(message: string | null): ReponseDuManager {
   if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
   if (!lu) return { illisible: "no JSON object in the answer" };
+  const avis = lireLAvis(lu);
+  if ("illisible" in avis) return avis;
+  // Sans traduction, l'avis vaut quand même : l'issue ne cite pas la question.
+  const questionEn = phrase(lu.question_en);
+  return questionEn === null ? avis : { ...avis, questionEn };
+}
+
+function lireLAvis(lu: Record<string, unknown>): { avis: Avis } | { illisible: string } {
   const issue = parmi(lu.issue, ISSUES_DE_L_AVIS);
   if (!issue) return { illisible: `unknown outcome ${JSON.stringify(lu.issue)} — expected ${ISSUES_DE_L_AVIS.join(", ")}` };
   if (issue === "technique") {
@@ -129,14 +144,14 @@ export function lireAvis(message: string | null): ReponseDuManager {
 
 // La réponse technique du manager, postée sur l'issue : la question du cook,
 // la réponse, la décision prise. `n` : son rang parmi les réponses du ticket.
-export function corpsDeLaReponseAuBlocage({ station, n, question, avis, ecrite }: { station: string; n: number; question: string; avis: Extract<Avis, { issue: "technique" }>; ecrite: boolean }): string {
+// `questionEn` : la question du cook en anglais, null quand le manager ne l'a
+// pas traduite (de même pour les deux suivantes).
+export function corpsDeLaReponseAuBlocage({ station, n, questionEn, avis, ecrite }: { station: string; n: number; questionEn: string | null; avis: Extract<Avis, { issue: "technique" }>; ecrite: boolean }): string {
   return [
     `${MARQUE_DE_REPONSE} n=${n} -->`,
     "**Manager — the cook's block is technical: answered here, the ticket goes back to a cook, not to the chef.**",
     "",
-    "The cook's question:",
-    "",
-    citer(question),
+    ...laQuestionDuCook("The cook's question", questionEn),
     "",
     `**Answer.** ${avis.reponse}`,
     "",
@@ -149,12 +164,12 @@ export function corpsDeLaReponseAuBlocage({ station, n, question, avis, ecrite }
 }
 
 // La décision écrite dans le corps du ticket, à la troisième réponse.
-export function sectionDeLaDecision(question: string, avis: Extract<Avis, { issue: "technique" }>): string {
-  return [MARQUE_DE_DECISION, "## Manager's decision (added by the station)", "", "A cook blocked on this ticket again after two answers of the manager. Its question:", "", citer(question), "", `**Answer.** ${avis.reponse}`, "", `**Decision.** ${avis.decision}`, "", "Follow this decision: it is part of the ticket."].join("\n");
+export function sectionDeLaDecision(questionEn: string | null, avis: Extract<Avis, { issue: "technique" }>): string {
+  return [MARQUE_DE_DECISION, "## Manager's decision (added by the station)", "", "A cook blocked on this ticket again after two answers of the manager.", ...laQuestionDuCook("Its question", questionEn), "", `**Answer.** ${avis.reponse}`, "", `**Decision.** ${avis.decision}`, "", "Follow this decision: it is part of the ticket."].join("\n");
 }
 
 // Ce que la carte du chef porte : la question sur une ligne, ou le geste exact.
-export function corpsDeLaCarte({ station, question, avis }: { station: string; question: string; avis: Exclude<Avis, { issue: "technique" }> }): string {
+export function corpsDeLaCarte({ station, questionEn, avis }: { station: string; questionEn: string | null; avis: Exclude<Avis, { issue: "technique" }> }): string {
   const tete = avis.issue === "geste" ? `**Gesture for the chef:** ${avis.geste}` : `**Question for the chef (${avis.issue === "produit" ? "product" : "design"}):** ${avis.question}`;
   const ensuite = avis.issue === "geste" ? "Once it is done, remove `blocked-on-human`: a cook resumes the ticket from its branch." : "Answer it on this issue, then remove `blocked-on-human`: a cook resumes the ticket from its branch.";
   return [
@@ -162,8 +177,6 @@ export function corpsDeLaCarte({ station, question, avis }: { station: string; q
     "",
     `Station \`${station}\`: the cook stopped, blocked — nothing it did goes to review. The manager read its question: ${avis.issue === "geste" ? "nothing in it is to decide, but only the chef can make this gesture" : `it is a ${avis.issue === "produit" ? "product" : "design"} decision, only the chef makes it`}. ${ensuite}`,
     "",
-    "The cook's question:",
-    "",
-    citer(question),
+    ...laQuestionDuCook("The cook's question", questionEn),
   ].join("\n");
 }

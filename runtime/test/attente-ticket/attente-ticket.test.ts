@@ -107,6 +107,16 @@ test("a cook that stops on an open ticket's unmerged work: the ticket waits for 
   assert.equal(s.cooks(), 2, "a cook takes the ticket on the next pass once #A is served");
 });
 
+test("a cook that stops in French on an open ticket's unmerged work: the waiting comment does not quote its French words (#3033)", async (t) => {
+  const bloque = `Ce ticket bâtit sur le travail de #${A}, pas encore mergé : je ne peux pas commencer avant.`;
+  const s = station(t, { bloque, avant: (faux) => faux.feu(A, OUVERT) });
+  await s.tour();
+  const attente = s.commentaires().find((corps) => corps.startsWith(MARQUE_D_ATTENTE_DE_TICKET)) ?? "";
+  assert.match(attente, new RegExp(`^${MARQUE_D_ATTENTE_DE_TICKET} #${A} -->`), "the ticket waits for #A");
+  assert.match(attente, /The cook's words are not quoted: it wrote them in French\.$/);
+  assert.ok(s.commentaires().every((corps) => !corps.includes("bâtit") && !corps.includes("pas encore")), "the French words are posted nowhere");
+});
+
 test("a ticket waiting on two open tickets starts only once both are served", async (t) => {
   const s = station(t, {
     bloque: `I need #${A} and #${C}: this ticket depends on both, and neither is merged.`,

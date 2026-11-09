@@ -71,7 +71,7 @@ const priorites = (labels: string[]) => labels.filter((label) => /^prio:[1-9]$/.
 // quand un état change.
 type LigneLue = LigneDeListe & { ferme: boolean; pr: string | null };
 
-const ouvert = (ticket: number, title: string): LigneLue => ({ ticket, title, state: "ouvert", served: false, ferme: false, pr: null });
+const ouvert = (ticket: number, title: string): LigneLue => ({ ticket, title, state: "open", served: false, ferme: false, pr: null });
 
 export function ouvrirDecoupage(atelier: Atelier) {
   const { journal, github, noter, avertir, arrete } = atelier;
@@ -114,65 +114,65 @@ export function ouvrirDecoupage(atelier: Atelier) {
         const numero = (rang: number) => `#${nes.get(rang) ?? "?"}`;
         // Les dépendances que le code a posées : des zones qui se recouvraient.
         const raccords = connu.tickets.flatMap((prevu, i) =>
-          (prevu.overlaps ?? []).map(({ index, path }) => `- ${numero(i + 1)} attend ${numero(index)} : tous deux possèdent \`${path}\``),
+          (prevu.overlaps ?? []).map(({ index, path }) => `- ${numero(i + 1)} awaits ${numero(index)}: both own \`${path}\``),
         );
         return [
           MARQUEUR_MANAGER,
-          `**Manager — épique découpée en ${connu.tickets.length} ticket${connu.tickets.length > 1 ? "s" : ""}.** Ils sont créés, calibrés et lancés ; ce qu'ils deviennent se lit dans la liste en bas de l'épique.`,
+          `**Manager — epic split into ${connu.tickets.length} ticket${connu.tickets.length > 1 ? "s" : ""}.** They are created, calibrated and fired; what becomes of them reads in the list at the bottom of the epic.`,
           "",
-          `**Pourquoi ces tickets.** ${connu.reason}`,
+          `**Why these tickets.** ${connu.reason}`,
           "",
-          `**Pourquoi cet ordre.** ${connu.order ?? ""}`,
+          `**Why this order.** ${connu.order ?? ""}`,
           "",
-          "| # | Ticket | Attend | Zone | Calibrage |",
+          "| # | Ticket | Awaiting | Zone | Calibration |",
           "|---|---|---|---|---|",
           ...connu.tickets.map(
             (prevu, i) =>
-              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "rien"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? " · cook design" : ""} |`,
+              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? " · design cook" : ""} |`,
           ),
           ...(raccords.length === 0
             ? []
             : [
                 "",
-                "**Zones qui se recouvraient.** Deux tickets qui peuvent partir en même temps ne possèdent pas le même fichier : là où le découpage en donnait un à deux tickets sans dire lequel passe d'abord, le second attend le premier.",
+                "**Zones that overlapped.** Two tickets that can start at the same time do not own the same file: where the split gave one to two tickets without saying which goes first, the second awaits the first.",
                 "",
                 ...raccords,
               ]),
           "",
-          `Ce découpage est à toi désormais. Ferme un ticket : il ne renaîtra pas. Ajoutes-en un en écrivant \`${reference(epic.number)}\` dans son corps : il entre dans la liste. Change un critère, une fiche, un calibrage : rien n'est réécrit. Le manager ne redécoupe jamais une épique.`,
+          `This split is yours now. Close a ticket: it will not be born again. Add one by writing \`${reference(epic.number)}\` in its body: it enters the list. Change a criterion, a card, a calibration: nothing is rewritten. The manager never splits an epic again.`,
           "",
-          atelier.signature(connu.run, "Découpé"),
+          atelier.signature(connu.run, "Split"),
         ].join("\n");
       }
       case "asked":
         return [
           MARQUEUR_MANAGER,
           MARQUEUR_QUESTION,
-          "**Manager — épique non découpée : une question.**",
+          "**Manager — epic not split: a question.**",
           "",
           connu.reason,
           "",
-          "Réponds ici, ou édite l'épique : elle sera relue, et découpée si la réponse suffit. Aucun ticket n'est créé d'ici là — et rien d'autre n'attend cette réponse : le reste du rail avance.",
+          "Answer here, or edit the epic: it will be read again, and split if the answer is enough. No ticket is created until then — and nothing else awaits this answer: the rest of the rail goes on.",
           "",
-          atelier.signature(connu.run, "Lu"),
+          atelier.signature(connu.run, "Read"),
         ].join("\n");
       case "skipped":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — épique déjà découpée : aucun ticket créé.** ${connu.reason}`,
+          `**Manager — epic already split: no ticket created.** ${connu.reason}`,
           "",
-          "Si ce n'est pas le cas, dis-le ici ou édite l'épique : elle sera relue.",
+          "If it is not, say so here or edit the epic: it will be read again.",
           "",
-          atelier.signature(connu.run, "Lu"),
+          atelier.signature(connu.run, "Read"),
         ].join("\n");
       case "failed":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — découpage illisible.** Le découpage de cette épique n'a rien rendu que le code sache lire (${connu.reason}) : aucun ticket n'est créé.`,
+          `**Manager — unreadable split.** The split of this epic gave nothing the code can read (${connu.reason}): no ticket is created.`,
           "",
-          "Elle sera relue quand elle changera ; d'ici là, ses tickets s'écrivent à la main.",
+          "It will be read again when it changes; until then, its tickets are written by hand.",
           "",
-          atelier.signature(connu.run, "Lu"),
+          atelier.signature(connu.run, "Read"),
         ].join("\n");
     }
   };
@@ -327,7 +327,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       if (!reponse) return null;
       if ("illisible" in reponse) return { impossible: reponse.illisible };
       const { valeur } = reponse;
-      if (valeur.quoi === "question") return { impossible: `le découpage demande : ${valeur.question}` };
+      if (valeur.quoi === "question") return { impossible: `the split asks: ${valeur.question}` };
       if (valeur.quoi === "deja") return { impossible: valeur.reason };
       return { retenir: () => retenir(ticket.number, empreinteDEpique(ticket, commentaires), reponse) };
     },
@@ -425,7 +425,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       pr = debranche?.merged ? debranche : pr;
     }
     const title = lue.title;
-    const ligne: LigneLue = pr?.merged ? { ticket: numero, title, state: "servi", served: true, ferme: true, pr: pr.url } : { ticket: numero, title, state: "abandonné", served: false, ferme: true, pr: null };
+    const ligne: LigneLue = pr?.merged ? { ticket: numero, title, state: "served", served: true, ferme: true, pr: pr.url } : { ticket: numero, title, state: "dropped", served: false, ferme: true, pr: null };
     fermes.set(numero, ligne);
     return ligne;
   }
@@ -461,19 +461,19 @@ export function ouvrirDecoupage(atelier: Atelier) {
       MARQUEUR_MANAGER,
       MARQUEUR_TERMINEE,
       abandonnes.length === 0
-        ? `**Manager — épique servie, je la ferme.** Ses ${lignes.length} tickets sont servis :`
-        : `**Manager — épique terminée, je la ferme.** Ses ${lignes.length} tickets sont fermés, ${abandonnes.length} sans être servi${abandonnes.length > 1 ? "s" : ""}.`,
+        ? `**Manager — epic served, I close it.** Its ${lignes.length} tickets are served:`
+        : `**Manager — epic finished, I close it.** Its ${lignes.length} tickets are closed, ${abandonnes.length} without being served.`,
       ...(abandonnes.length === 0
         ? ["", ...servis.map(nommer)]
         : [
             "",
-            `**Servis** (${servis.length}) :`,
-            ...(servis.length === 0 ? ["- aucun"] : servis.map(nommer)),
+            `**Served** (${servis.length}):`,
+            ...(servis.length === 0 ? ["- none"] : servis.map(nommer)),
             "",
-            `**Abandonnés** (${abandonnes.length}), fermés sans PR mergée :`,
+            `**Dropped** (${abandonnes.length}), closed with no merged PR:`,
             ...abandonnes.map(nommer),
             "",
-            `⚠️ ${abandonnes.length > 1 ? "Ces tickets abandonnés n'ont rien livré" : "Ce ticket abandonné n'a rien livré"} : ce qu'il${abandonnes.length > 1 ? "s" : ""} devai${abandonnes.length > 1 ? "en" : ""}t faire de l'épique n'est pas fait. Elle se ferme quand même ; au second de dire s'il reste un ticket à ouvrir.`,
+            `⚠️ ${abandonnes.length > 1 ? "These dropped tickets delivered nothing" : "This dropped ticket delivered nothing"}: what ${abandonnes.length > 1 ? "they were" : "it was"} to do of the epic is not done. It closes anyway; the second says whether a ticket is left to open.`,
           ]),
     ].join("\n");
   }

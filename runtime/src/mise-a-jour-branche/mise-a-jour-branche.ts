@@ -18,7 +18,7 @@
 // la fusion, non commitée, est laissée au cook ; ici, la fusion est commitée
 // par la station ou défaite, et le worktree reste propre. Différent de #2968
 // (`attente-ticket.ts`) : là, le travail attendu n'est pas encore mergé.
-import { MARQUE_D_ATTENTE_DE_TICKET } from "../attente-ticket/attente-ticket.ts";
+import { lesMotsDuCook, MARQUE_D_ATTENTE_DE_TICKET } from "../attente-ticket/attente-ticket.ts";
 import { LABEL_FIX, marqueDeFix, PRIO_DU_FIX } from "../github-seul/renvois/renvois.ts";
 import { LABEL } from "../github.ts";
 import type { LanceurGit, SortieGit } from "../integration-base.ts";
@@ -76,13 +76,6 @@ export function demandeLaBase(question: string, base: string): boolean {
   return question.split(/(?<=[.!?])\s+|\n+/).some((phrase) => nommee.test(phrase) && BESOIN.test(phrase));
 }
 
-const citer = (texte: string) =>
-  texte
-    .trim()
-    .split("\n")
-    .map((ligne) => `> ${ligne}`)
-    .join("\n");
-
 // Le ticket `fix` d'une mise à jour que la station n'a pas pu faire : sous les
 // labels du `fix` que le manager ouvre (`renvois.ts`), au calibrage d'une
 // réparation, et marqué du ticket qu'il répare, pour qu'il n'en ouvre pas d'autre.
@@ -103,9 +96,7 @@ export function ticketDuFix({ ticket, base, branche, miseAJour, question }: { ti
       miseAJour.detail,
       "```",
       "",
-      "The cook's words:",
-      "",
-      citer(question),
+      ...lesMotsDuCook(question),
       "",
       "## Acceptance criteria",
       "",
@@ -134,7 +125,7 @@ export async function apresLaMiseAJour(
   if (miseAJour.etat === "fusionnee") {
     await github.commenter(
       ticket,
-      `Station \`${station}\`: the cook stopped because it needs commits that are on \`origin/${base}\` and not on its branch. The station fetched \`origin/${base}\` and merged it into \`${branche}\`: the ticket goes back to a cook, from that branch. Nothing here is for the chef, and this stop is not counted among the ticket's tries.\n\nThe cook's words:\n\n${citer(question)}`,
+      `Station \`${station}\`: the cook stopped because it needs commits that are on \`origin/${base}\` and not on its branch. The station fetched \`origin/${base}\` and merged it into \`${branche}\`: the ticket goes back to a cook, from that branch. Nothing here is for the chef, and this stop is not counted among the ticket's tries.\n\n${lesMotsDuCook(question).join("\n")}`,
     );
     return { fix: null, dit: `the station merged \`origin/${base}\` into \`${branche}\`: the ticket goes back to a cook` };
   }
@@ -151,7 +142,7 @@ export async function apresLaMiseAJour(
   }
   await github.commenter(
     ticket,
-    `${MARQUE_D_ATTENTE_DE_TICKET} #${fix} -->\nStation \`${station}\`: the cook stopped because it needs commits that are on \`origin/${base}\` and not on its branch. The station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}: ${miseAJour.detail}) and opened the \`fix\` ticket #${fix}. Nothing here is for the chef: the ticket waits on the rail for #${fix}, and a cook takes it on its own once it is served. This stop is not counted among the ticket's tries.\n\nThe cook's words:\n\n${citer(question)}`,
+    `${MARQUE_D_ATTENTE_DE_TICKET} #${fix} -->\nStation \`${station}\`: the cook stopped because it needs commits that are on \`origin/${base}\` and not on its branch. The station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}: ${miseAJour.detail}) and opened the \`fix\` ticket #${fix}. Nothing here is for the chef: the ticket waits on the rail for #${fix}, and a cook takes it on its own once it is served. This stop is not counted among the ticket's tries.\n\n${lesMotsDuCook(question).join("\n")}`,
   );
   return { fix, dit: `the station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}): it opened the fix ticket #${fix}, which the ticket waits for` };
 }

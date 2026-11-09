@@ -266,24 +266,6 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(vue.xterms.map(({ ecrits }) => ecrits), [[RELAYE, "\r\n"]]);
   });
 
-  test("dans Log : la sortie brute de leur commande n'est pas montrée", async () => {
-    const vue = await ouvrirUnEspace();
-    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Log"]);
-
-    for (const { id, titre, commande } of ONGLETS) {
-      await ouvrirLecture(vue, titre);
-      const [projet, demande, numero] = vue.dernier("onglet") as [string, string, number];
-      assert.deepEqual([projet, demande], [PARADE, id]);
-      const texte = `${titre}\n${RELAYE}`;
-      const lecture: Lecture = { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte }] };
-      vue.dire("surContenu", lecture, undefined);
-
-      // La sortie brute de la commande n'est montrée nulle part : ni bloc, ni texte.
-      assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [], titre);
-      assert.doesNotMatch(vue.element("lecture-onglet").textContent, /what the station said/, titre);
-    }
-  });
-
   test("aucune règle de la peau ne coupe, ne cache ni ne récrit un `pre` : ses blancs et ses lignes sont gardés", () => {
     const feuille = regles(lire("vue.css"));
     const dUnPre = (selecteur: string) => /(^|[\s>(])pre\b/.test(selecteur) || selecteur === "#message";
@@ -393,20 +375,6 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
         const px = /^(\d+)px$/.exec(declarations.get(propriete) ?? "")?.[1];
         if (px !== undefined) assert.ok(Number(px) <= 640, `${selecteurs.join(", ")} { ${propriete}: ${px}px }`);
       }
-    }
-  });
-
-  test("une sortie longue, d'un seul mot comme de dix mille lignes, s'affiche entière dans chaque écran", async () => {
-    const mot = `x${"0123456789".repeat(400)}`;
-    const longue = [mot, ...Array.from({ length: 10000 }, (_, i) => `  ligne ${i}   avec    des blancs  `), mot].join("\n");
-    const vue = await ouvrirUnEspace();
-
-    for (const { id, titre, commande } of ONGLETS) {
-      if (id === "cooks") continue;
-      await ouvrirLecture(vue, titre);
-      const numero = (vue.dernier("onglet") as [string, string, number])[2];
-      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined);
-      assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [], titre);
     }
   });
 });

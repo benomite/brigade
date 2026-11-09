@@ -423,19 +423,19 @@ FIN
       resultat <<'FIN'
 Ma décision.
 
-{"nature":"ticket","motif":"Un livrable, vérifiable par un test.","modele":"haiku","effort":"low","calibrage":"Correctif dont le test est déjà écrit."}
+{"nature":"ticket","motif":"One deliverable, checked by a test.","modele":"haiku","effort":"low","calibrage":"A fix whose test is already written."}
 FIN
       ;;
     juge-epique)
       assistant
       resultat <<'FIN'
-{"nature":"epic","motif":"Trois livrables distincts.","manque":"La découper en tickets."}
+{"nature":"epic","motif":"Three distinct deliverables.","manque":"Split it into tickets."}
 FIN
       ;;
     juge-incomplet)
       assistant
       resultat <<'FIN'
-{"nature":"incomplete","motif":"Rien ne dit comment vérifier que c'est fait.","manque":"Un critère d'acceptation."}
+{"nature":"incomplete","motif":"Nothing says how to check it is done.","manque":"An acceptance criterion."}
 FIN
       ;;
     # Le tri de l'issue d'un auteur sans l'écriture (#2934).
@@ -462,19 +462,19 @@ FIN
     complete-criteres)
       assistant
       resultat <<'FIN'
-{"issue":"complete","motif":"Le seuil manquait : il est posé à 3 échecs, et l'essai manuel devient un test.","criteres":["Three failures in a row open the breaker","A test in runtime/test/disjoncteur.test.ts plays the three failures"],"modele":"sonnet","effort":"medium","calibrage":"Critères précis, module connu."}
+{"issue":"complete","motif":"The threshold was missing: it is set at 3 failures, and the manual trial becomes a test.","criteres":["Three failures in a row open the breaker","A test in runtime/test/disjoncteur.test.ts plays the three failures"],"modele":"sonnet","effort":"medium","calibrage":"Precise criteria, known module."}
 FIN
       ;;
     complete-question)
       assistant
       resultat <<'FIN'
-{"issue":"question","motif":"Deux comportements s'opposent, et l'utilisateur ne voit pas le même écran.","resume":"Le ticket ne dit pas ce que voit l'utilisateur.","question":"Le TODO montre-t-il les tickets fermés ?","choix":["Oui, grisés","Non, masqués"]}
+{"issue":"question","motif":"Two behaviours conflict, and the user does not see the same screen.","resume":"Le ticket ne dit pas ce que voit l'utilisateur.","question":"Le TODO montre-t-il les tickets fermés ?","question_en":"Does the TODO show closed tickets?","choix":["Oui, grisés","Non, masqués"]}
 FIN
       ;;
     complete-geste-git)
       assistant
       resultat <<'FIN'
-{"issue":"question","motif":"Le ticket attend un geste git du chef.","resume":"La branche est en retard sur la base.","question":"Bring origin/main into cook/2914-github?","choix":["Oui","Non"]}
+{"issue":"question","motif":"The ticket awaits a git gesture from the chef.","resume":"La branche est en retard sur la base.","question":"Bring origin/main into cook/2914-github?","question_en":"Bring origin/main into cook/2914-github?","choix":["Oui","Non"]}
 FIN
       ;;
     # L'agent de triage : il envoie la carte en TODO, une question et ses
@@ -533,25 +533,25 @@ FIN
     requalifie-carte)
       assistant
       resultat <<'FIN'
-{"issue":"carte","motif":"Deux voies s'opposent, rien ne dit laquelle.","type":"product","enonce":"Choisir entre l'export CSV et l'export JSON.","capture":null}
+{"issue":"carte","motif":"Two ways conflict, nothing says which one.","type":"product","enonce":"Choisir entre l'export CSV et l'export JSON.","enonce_en":"Choose between the CSV export and the JSON export.","capture":null}
 FIN
       ;;
     requalifie-geste-git)
       assistant
       resultat <<'FIN'
-{"issue":"carte","motif":"Le ticket attend un geste git.","type":"gesture","enonce":"Bring origin/main into cook/2914-github?","capture":null}
+{"issue":"carte","motif":"The ticket awaits a git gesture.","type":"gesture","enonce":"Bring origin/main into cook/2914-github?","enonce_en":"Bring origin/main into cook/2914-github?","capture":null}
 FIN
       ;;
     requalifie-reprise)
       assistant
       resultat <<'FIN'
-{"issue":"reprise","motif":"Aucun choix ni geste n'attend le chef.","type":null,"enonce":null,"capture":null}
+{"issue":"reprise","motif":"No choice and no gesture awaits the chef.","type":null,"enonce":null,"capture":null}
 FIN
       ;;
     requalifie-enoncee)
       assistant
       resultat <<'FIN'
-{"issue":"enoncee","motif":"Le corps dit qu'il faut choisir le fournisseur."}
+{"issue":"enoncee","motif":"The body says the provider must be chosen."}
 FIN
       ;;
     juge-illisible)
@@ -595,13 +595,13 @@ FIN
     decoupe-question)
       assistant
       resultat <<'FIN'
-{"reponse":"question","question":"« Plus rapide » : sur quel écran, et mesuré comment ?"}
+{"reponse":"question","question":"“Faster”: on which screen, and measured how?"}
 FIN
       ;;
     decoupe-deja)
       assistant
       resultat <<'FIN'
-{"reponse":"deja-decoupee","motif":"Son corps liste déjà #68 à #74."}
+{"reponse":"deja-decoupee","motif":"Its body already lists #68 to #74."}
 FIN
       ;;
     decoupe-illisible)

@@ -131,36 +131,36 @@ test("un découpage se lit avec son motif, son ordre, et chaque ticket avec crit
 test("une question et une épique déjà découpée se lisent, et ne portent aucun ticket", () => {
   assert.deepEqual(lireDecoupage('{"reponse": "question", "question": "Quel écran ?"}'), { valeur: { quoi: "question", question: "Quel écran ?" } });
   assert.deepEqual(lireDecoupage('{"reponse": "deja-decoupee", "motif": "Elle liste #68 à #74."}'), { valeur: { quoi: "deja", reason: "Elle liste #68 à #74." } });
-  assert.match(illisible('{"reponse": "question"}'), /question absente/);
+  assert.match(illisible('{"reponse": "question"}'), /no `question`/);
 });
 
 test("un découpage dont un seul ticket ne se lit pas n'est pas un découpage : il dit lequel, et pourquoi", () => {
-  assert.match(illisible(""), /aucune réponse/);
-  assert.match(illisible("Je propose trois tickets."), /aucun objet JSON/);
-  assert.match(illisible('{"reponse": "plan"}'), /reponse inconnue/);
-  assert.match(illisible(reponse([ticket()], { motif: "" })), /motif absent/);
-  assert.match(illisible(reponse([ticket()], { ordre: undefined })), /ordre non justifié/);
-  assert.match(illisible(reponse([])), /aucun ticket/);
-  assert.match(illisible(reponse([ticket(), ticket({ titre: " " })])), /ticket 2 : titre absent/);
-  assert.match(illisible(reponse([ticket({ criteres: [] })])), /ticket 1 : critères d'acceptation absents/);
-  assert.match(illisible(reponse([ticket({ criteres: ["ok", ""] })])), /critères d'acceptation absents ou vides/);
-  assert.match(illisible(reponse([ticket({ zone: [] })])), /zone de fichiers absente/);
-  assert.match(illisible(reponse([ticket({ zone: ["/etc/passwd"] })])), /zone illisible.*n'est pas un chemin du dépôt/);
-  assert.match(illisible(reponse([ticket({ zone: ["a,b"] })])), /zone illisible/);
-  assert.match(illisible(reponse([ticket({ modele: "gpt" })])), /modele inconnu/);
-  assert.match(illisible(reponse([ticket({ effort: "max" })])), /effort hors de ce que le manager pose/);
-  assert.match(illisible(reponse([ticket({ calibrage: "" })])), /calibrage non justifié/);
+  assert.match(illisible(""), /no answer/);
+  assert.match(illisible("Je propose trois tickets."), /no JSON object/);
+  assert.match(illisible('{"reponse": "plan"}'), /unknown answer/);
+  assert.match(illisible(reponse([ticket()], { motif: "" })), /no `motif`/);
+  assert.match(illisible(reponse([ticket()], { ordre: undefined })), /order not justified/);
+  assert.match(illisible(reponse([])), /no ticket/);
+  assert.match(illisible(reponse([ticket(), ticket({ titre: " " })])), /ticket 2: no `titre`/);
+  assert.match(illisible(reponse([ticket({ criteres: [] })])), /ticket 1: acceptance criteria missing/);
+  assert.match(illisible(reponse([ticket({ criteres: ["ok", ""] })])), /acceptance criteria missing or empty/);
+  assert.match(illisible(reponse([ticket({ zone: [] })])), /no file zone/);
+  assert.match(illisible(reponse([ticket({ zone: ["/etc/passwd"] })])), /unreadable zone.*n'est pas un chemin du dépôt/);
+  assert.match(illisible(reponse([ticket({ zone: ["a,b"] })])), /unreadable zone/);
+  assert.match(illisible(reponse([ticket({ modele: "gpt" })])), /unknown model/);
+  assert.match(illisible(reponse([ticket({ effort: "max" })])), /an effort the manager does not set/);
+  assert.match(illisible(reponse([ticket({ calibrage: "" })])), /calibration not justified/);
 });
 
 test("un ticket n'attend que des tickets placés avant lui : ni lui-même, ni un suivant, ni un numéro d'issue", () => {
-  assert.match(illisible(reponse([ticket({ attend: [1] })])), /ticket 1 : attend \[1\]/);
-  assert.match(illisible(reponse([ticket({ attend: [2] }), ticket()])), /rangs de tickets placés avant lui/);
-  assert.match(illisible(reponse([ticket(), ticket({ attend: ["#1"] })])), /ticket 2 : attend/);
+  assert.match(illisible(reponse([ticket({ attend: [1] })])), /ticket 1: attend \[1\]/);
+  assert.match(illisible(reponse([ticket({ attend: [2] }), ticket()])), /ranks of tickets placed before it/);
+  assert.match(illisible(reponse([ticket(), ticket({ attend: ["#1"] })])), /ticket 2: attend/);
 });
 
 test(`au-delà de ${TICKETS_MAX} tickets, le découpage est refusé : l'épique est à réduire`, () => {
   const trop = Array.from({ length: TICKETS_MAX + 1 }, () => ticket());
-  assert.match(illisible(reponse(trop)), /13 tickets — 12 au plus/);
+  assert.match(illisible(reponse(trop)), /13 tickets — 12 at most/);
   assert.ok("valeur" in lireDecoupage(reponse(trop.slice(1))));
 });
 
@@ -169,7 +169,7 @@ test("le corps d'un ticket dit son épique, porte sa marque, ses critères, et p
   assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
   const corps = corpsDuTicket(30, 2, lu.valeur.tickets[0]!);
 
-  assert.ok(corps.startsWith("Épique : #30\n<!-- brigade:decoupage #30.2 -->"));
+  assert.ok(corps.startsWith("Epic: #30\n<!-- brigade:decoupage #30.2 -->"));
   assert.equal(epiqueDe(corps), 30);
   assert.ok(corps.includes(marque(30, 2)));
   assert.equal(neDUnDecoupage(corps), true);
@@ -178,9 +178,9 @@ test("le corps d'un ticket dit son épique, porte sa marque, ses critères, et p
   // Citée dans une phrase ou dans un exemple, la marque n'est pas portée.
   assert.equal(neDUnDecoupage(`Le manager écrit \`${marque(30, 2)}\` dans ses tickets.`), false);
   assert.equal(marqueDe(`\`\`\`\n${marque(30, 2)}\n\`\`\``), null);
-  assert.match(corps, /## Critères d'acceptation\n\n- `run rail` affiche le compte/);
-  assert.match(corps, /Calibré `sonnet` \/ `low` — Un module\./);
-  assert.match(corps, /le manager n'y reviendra pas/);
+  assert.match(corps, /## Acceptance criteria\n\n- `run rail` affiche le compte/);
+  assert.match(corps, /Calibrated `sonnet` \/ `low` — Un module\./);
+  assert.match(corps, /the manager will not come back to it/);
 });
 
 test("la fiche d'un ticket nomme ceux qu'il attend par leur numéro d'issue, et se relit sans problème", () => {
@@ -220,7 +220,7 @@ test("un ticket du découpage porte les capacités qu'il demande, et sa fiche le
   assert.equal(Object.hasOwn(sans ?? {}, "requires"), false);
 
   const texte = ficheDuTicket({ waitsFor: [1], zone: ["e2e/"], requires: ["navigateur-headless", "chrome-connecté"] }, (rang) => 500 + rang);
-  assert.equal(texte.split("\n").at(-1), "- requiert : navigateur-headless, chrome-connecté");
+  assert.equal(texte.split("\n").at(-1), "- requires: navigateur-headless, chrome-connecté");
   assert.deepEqual(fiche([texte]), { waitsFor: [501], zone: ["e2e/"], problems: [], requires: ["navigateur-headless", "chrome-connecté"] });
   // Sans capacité demandée, la fiche est celle d'avant, ligne pour ligne.
   assert.equal(ficheDuTicket({ waitsFor: [], zone: ["docs/"] }, () => 0), ficheDuTicket({ waitsFor: [], zone: ["docs/"], requires: [] }, () => 0));
@@ -228,9 +228,9 @@ test("un ticket du découpage porte les capacités qu'il demande, et sa fiche le
 });
 
 test("des capacités qui ne sont pas des noms rendent le découpage illisible, et le disent", () => {
-  assert.match(illisible(reponse([ticket({ capacites: "navigateur-headless" })])), /ticket 1 : capacites "navigateur-headless" — attendu des noms de capacité/);
-  assert.match(illisible(reponse([ticket({ capacites: ["chrome connecté"] })])), /ticket 1 : capacites \["chrome connecté"\]/);
-  assert.match(illisible(reponse([ticket(), ticket({ capacites: [12] })])), /ticket 2 : capacites \[12\]/);
+  assert.match(illisible(reponse([ticket({ capacites: "navigateur-headless" })])), /ticket 1: capacites "navigateur-headless" — expected capability names/);
+  assert.match(illisible(reponse([ticket({ capacites: ["chrome connecté"] })])), /ticket 1: capacites \["chrome connecté"\]/);
+  assert.match(illisible(reponse([ticket(), ticket({ capacites: [12] })])), /ticket 2: capacites \[12\]/);
 });
 
 test("la consigne propose le cook design dans un dépôt qui le définit, et nulle part ailleurs", () => {
@@ -269,7 +269,7 @@ test("un ticket dont la zone touche la vue de l'app est au cook design ; un tick
   const lu = lireDecoupage(reponse([ticket()]));
   assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
   assert.equal(Object.hasOwn(lu.valeur.tickets[0] ?? {}, "cook"), false);
-  assert.match(illisible(reponse([ticket({ cook: "designer" })])), /ticket 1 : cook inconnu : "designer" — attendu general, design/);
+  assert.match(illisible(reponse([ticket({ cook: "designer" })])), /ticket 1: unknown cook "designer" — expected general, design/);
 });
 
 test("le cook design ne change rien au calibrage : modèle et effort se lisent comme avant, sans `xhigh` ni `max`", () => {
@@ -277,7 +277,7 @@ test("le cook design ne change rien au calibrage : modèle et effort se lisent c
   assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
   assert.deepEqual([lu.valeur.tickets[0]?.model, lu.valeur.tickets[0]?.effort, lu.valeur.tickets[0]?.cook], ["opus", "high", "design"]);
   for (const effort of ["xhigh", "max"]) {
-    assert.match(illisible(reponse([ticket({ zone: ["app/src/vue/carte.js"], cook: "design", effort })])), /effort hors de ce que le manager pose/);
+    assert.match(illisible(reponse([ticket({ zone: ["app/src/vue/carte.js"], cook: "design", effort })])), /an effort the manager does not set/);
   }
 });
 
@@ -286,8 +286,8 @@ test("le corps d'un ticket d'interface dit au cook qu'il est le cook design, et 
   assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
   const [design, ordinaire] = lu.valeur.tickets.map((prevu) => corpsDuTicket(30, 1, prevu));
 
-  assert.match(design ?? "", /<!-- brigade:decoupage #30\.1 -->\n\n## Cook design\n\nTicket d'interface : il touche la vue de l'app\. .*lis `agents\/cook-design\.md` et suis-le/);
-  assert.match(design ?? "", /Calibré `sonnet` \/ `low`, pour le cook design \(`cook:design`\) — Un module\./);
-  assert.doesNotMatch(ordinaire ?? "", /cook design|cook:design/i);
-  assert.match(ordinaire ?? "", /Calibré `sonnet` \/ `low` — Un module\./);
+  assert.match(design ?? "", /<!-- brigade:decoupage #30\.1 -->\n\n## Design cook\n\nInterface ticket: it touches the app's view\. .*read `agents\/cook-design\.md` and follow it/);
+  assert.match(design ?? "", /Calibrated `sonnet` \/ `low`, for the design cook \(`cook:design`\) — Un module\./);
+  assert.doesNotMatch(ordinaire ?? "", /design cook|cook:design/i);
+  assert.match(ordinaire ?? "", /Calibrated `sonnet` \/ `low` — Un module\./);
 });

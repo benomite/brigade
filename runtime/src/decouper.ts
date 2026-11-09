@@ -4,7 +4,7 @@
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
 import { COOKS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
-import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capacites.ts";
+import { capacite, CAPACITE, CLE_DES_CAPACITES_EN, FORME_DE_CAPACITE } from "./capacites.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
@@ -133,7 +133,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "une question :",
     "",
     "```json",
-    '{"reponse": "question", "question": "la question, telle que le chef la lira sur l\'épique"}',
+    '{"reponse": "question", "question": "the question, as the chef will read it on the epic, in English"}',
     "```",
     "",
     "ou une épique déjà découpée :",
@@ -142,7 +142,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     '{"reponse": "deja-decoupee", "motif": "où sont ses tickets"}',
     "```",
     "",
-    "Le texte des tickets (titre, corps, fiche) est en anglais, avec les mots de docs/glossary.md ; la question que tu poses au chef reste en français. Tout est précis, sans renvoyer à cette consigne.",
+    "Le texte des tickets (titre, corps, fiche) est en anglais, avec les mots de docs/glossary.md ; la question que tu poses au chef aussi, le `motif` et l'`ordre` : tout est posté sur l'épique. Tout est précis, sans renvoyer à cette consigne.",
     "",
     "## Le plan du dépôt",
     "",
@@ -172,8 +172,10 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
 export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "requires">, numeros: (rang: number) => number): string {
   const attend = prevu.waitsFor.map((rang) => `#${numeros(rang)}`).join(", ");
   // La ligne des capacités n'est écrite que pour un ticket qui en demande.
-  const requiert = prevu.requires?.length ? [`- ${CLE_DES_CAPACITES} : ${prevu.requires.join(", ")}`] : [];
-  return [MARQUEUR, `- attend : ${attend || "rien"}`, `- zone : ${prevu.zone.join(", ") || "aucune"}`, ...requiert].join("\n");
+  // Les clés en anglais (docs/glossary.md : `attend` → `awaiting`) ; `fiche.ts`
+  // lit aussi les françaises.
+  const requiert = prevu.requires?.length ? [`- ${CLE_DES_CAPACITES_EN}: ${prevu.requires.join(", ")}`] : [];
+  return [MARQUEUR, `- awaiting: ${attend || "none"}`, `- zone: ${prevu.zone.join(", ") || "none"}`, ...requiert].join("\n");
 }
 
 const REPONSES = ["tickets", "question", "deja-decoupee"];
@@ -194,21 +196,21 @@ function zoneDuCookDesign(zone: string[], fichiers: readonly string[] | null): b
 
 function lireTicket(brut: unknown, rang: number, fichiers: readonly string[] | null): TicketPrevu | string {
   const ou = `ticket ${rang}`;
-  if (brut === null || typeof brut !== "object" || Array.isArray(brut)) return `${ou} : pas un objet`;
+  if (brut === null || typeof brut !== "object" || Array.isArray(brut)) return `${ou}: not an object`;
   const lu = brut as Record<string, unknown>;
   const title = phrase(lu.titre);
-  if (!title) return `${ou} : titre absent`;
+  if (!title) return `${ou}: no \`titre\``;
   const criteres = Array.isArray(lu.criteres) ? lu.criteres.map(phrase) : [];
-  if (criteres.length === 0 || criteres.includes(null)) return `${ou} : critères d'acceptation absents ou vides`;
+  if (criteres.length === 0 || criteres.includes(null)) return `${ou}: acceptance criteria missing or empty`;
   const attend = lu.attend ?? [];
   if (!Array.isArray(attend) || !attend.every((valeur) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur < rang)) {
-    return `${ou} : attend ${JSON.stringify(lu.attend)} — attendu des rangs de tickets placés avant lui`;
+    return `${ou}: attend ${JSON.stringify(lu.attend)} — expected ranks of tickets placed before it`;
   }
   const zone = Array.isArray(lu.zone) ? lu.zone.map(phrase) : [];
-  if (zone.length === 0 || zone.includes(null)) return `${ou} : zone de fichiers absente`;
+  if (zone.length === 0 || zone.includes(null)) return `${ou}: no file zone`;
   const capacites = lu.capacites ?? [];
   if (!Array.isArray(capacites) || !capacites.every((valeur) => typeof valeur === "string" && CAPACITE.test(capacite(valeur.trim())))) {
-    return `${ou} : capacites ${JSON.stringify(lu.capacites)} — attendu des noms de capacité : ${FORME_DE_CAPACITE}`;
+    return `${ou}: capacites ${JSON.stringify(lu.capacites)} — expected capability names: ${FORME_DE_CAPACITE}`;
   }
   const requires = [...new Set((capacites as string[]).map((nom) => capacite(nom.trim())))];
   const prevu = { waitsFor: [...new Set(attend as number[])], zone: [...new Set(zone as string[])], ...(requires.length === 0 ? {} : { requires }) };
@@ -216,16 +218,16 @@ function lireTicket(brut: unknown, rang: number, fichiers: readonly string[] | n
   // rail refuserait ne part pas sur GitHub.
   const relue = fiche([ficheDuTicket(prevu, (n) => n)]);
   if (!relue || relue.problems.length > 0 || JSON.stringify(relue.zone) !== JSON.stringify(prevu.zone) || JSON.stringify(relue.requires ?? []) !== JSON.stringify(requires)) {
-    return `${ou} : zone illisible — ${relue?.problems.join(" ; ") || "attendu des chemins du dépôt, sans virgule"}`;
+    return `${ou}: unreadable zone — ${relue?.problems.join(" ; ") || "expected paths of the repository, with no comma"}`;
   }
   const model = parmi(lu.modele, MODELES);
-  if (!model) return `${ou} : modele inconnu : ${JSON.stringify(lu.modele)} — attendu ${MODELES.join(", ")}`;
+  if (!model) return `${ou}: unknown model ${JSON.stringify(lu.modele)} — expected ${MODELES.join(", ")}`;
   const effort = parmi(lu.effort, EFFORTS_DU_MANAGER);
-  if (!effort) return `${ou} : effort hors de ce que le manager pose : ${JSON.stringify(lu.effort)} — attendu ${EFFORTS_DU_MANAGER.join(", ")}`;
+  if (!effort) return `${ou}: an effort the manager does not set: ${JSON.stringify(lu.effort)} — expected ${EFFORTS_DU_MANAGER.join(", ")}`;
   const calibration = phrase(lu.calibrage);
-  if (!calibration) return `${ou} : calibrage non justifié`;
+  if (!calibration) return `${ou}: calibration not justified`;
   const cook = parmi(lu.cook ?? "general", COOKS);
-  if (!cook) return `${ou} : cook inconnu : ${JSON.stringify(lu.cook)} — attendu ${COOKS.join(", ")}`;
+  if (!cook) return `${ou}: unknown cook ${JSON.stringify(lu.cook)} — expected ${COOKS.join(", ")}`;
   // Une zone qui touche la vue de l'app est au cook design, quoi qu'en dise
   // le jugement.
   const design = cook === "design" || zoneDuCookDesign(prevu.zone, fichiers);
@@ -235,22 +237,22 @@ function lireTicket(brut: unknown, rang: number, fichiers: readonly string[] | n
 // Lit le découpage dans le dernier message du jugement. `fichiers` : le plan
 // du dépôt donné au jugement, null s'il est inconnu.
 export function lireDecoupage(message: string | null, fichiers: readonly string[] | null = null): { valeur: Decoupe } | { illisible: string } {
-  if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
+  if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
-  if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
+  if (!lu) return { illisible: "no JSON object in the answer" };
   const reponse = parmi(lu.reponse, REPONSES);
-  if (!reponse) return { illisible: `reponse inconnue : ${JSON.stringify(lu.reponse)} — attendu ${REPONSES.join(", ")}` };
+  if (!reponse) return { illisible: `unknown answer ${JSON.stringify(lu.reponse)} — expected ${REPONSES.join(", ")}` };
   if (reponse === "question") {
     const question = phrase(lu.question);
-    return question ? { valeur: { quoi: "question", question } } : { illisible: "question absente" };
+    return question ? { valeur: { quoi: "question", question } } : { illisible: "no `question`" };
   }
   const reason = phrase(lu.motif);
-  if (!reason) return { illisible: "motif absent" };
+  if (!reason) return { illisible: "no `motif`" };
   if (reponse === "deja-decoupee") return { valeur: { quoi: "deja", reason } };
   const order = phrase(lu.ordre);
-  if (!order) return { illisible: "ordre non justifié" };
-  if (!Array.isArray(lu.tickets) || lu.tickets.length === 0) return { illisible: "aucun ticket dans le découpage" };
-  if (lu.tickets.length > TICKETS_MAX) return { illisible: `${lu.tickets.length} tickets — ${TICKETS_MAX} au plus : au-delà, l'épique est à réduire` };
+  if (!order) return { illisible: "order not justified" };
+  if (!Array.isArray(lu.tickets) || lu.tickets.length === 0) return { illisible: "no ticket in the split" };
+  if (lu.tickets.length > TICKETS_MAX) return { illisible: `${lu.tickets.length} tickets — ${TICKETS_MAX} at most: beyond, the epic is to be reduced` };
   const tickets: TicketPrevu[] = [];
   for (const [i, brut] of lu.tickets.entries()) {
     const ticket = lireTicket(brut, i + 1, fichiers);
@@ -323,23 +325,23 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     // cook design.
     ...(prevu.cook === "design"
       ? [
-          "## Cook design",
+          "## Design cook",
           "",
-          `Ticket d'interface : il touche la vue de l'app. Il est cuisiné par le **cook design** — avant d'écrire quoi que ce soit, lis \`${PROFIL_COOK_DESIGN}\` et suis-le : la langue visuelle de l'app, et les captures avant et après.`,
+          `Interface ticket: it touches the app's view. It is cooked by the **design cook** — before writing anything, read \`${PROFIL_COOK_DESIGN}\` and follow it: the app's visual language, and the screenshots before and after.`,
           "",
         ]
       : []),
-    "## Contexte",
+    "## Context",
     "",
-    prevu.context || `Ticket né du découpage de l'épique #${epic}.`,
+    prevu.context || `Ticket born of the split of epic #${epic}.`,
     "",
-    "## Critères d'acceptation",
+    "## Acceptance criteria",
     "",
     ...prevu.criteria.map((critere) => `- ${critere}`),
     "",
     "---",
     "",
-    `_Né du découpage de l'épique #${epic} par le manager. Calibré \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? `, pour le cook design (\`${LABEL_COOK_DESIGN}\`)` : ""} — ${prevu.calibration} Ce ticket est à toi : change un critère, remplace un label de calibrage, retire \`fire\` ou ferme-le, le manager n'y reviendra pas._`,
+    `_Born of the split of epic #${epic} by the manager. Calibrated \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? `, for the design cook (\`${LABEL_COOK_DESIGN}\`)` : ""} — ${prevu.calibration} This ticket is yours: change a criterion, replace a calibration label, remove \`fire\` or close it, the manager will not come back to it._`,
   ].join("\n");
 }
 

@@ -14,7 +14,6 @@ import { DU_MANAGER, ENCORE_ROUGE } from "../src/events/pass.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ticketDuRail, lireRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "./aides/rail-du-journal.ts";
-import { raisonDAbandon } from "../src/remontee-a-la-cuisine.ts";
 import { repondreALaCarte } from "../src/reponse-carte.ts";
 import { fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { aArreter, DEPOT, repertoireTemporaire } from "./outils.ts";
@@ -51,7 +50,7 @@ function atelier(t: TestContext) {
     noter(N, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: DU_MANAGER } }, "manager");
     rail.quatreVingtSix(N, { motif: REMONTE });
     heure.avancer(40 * 60_000);
-    const reason = raisonDAbandon(DU_MANAGER, { model: "opus", effort: "high" }, { model: "opus", effort: "high" });
+    const reason = "its calibration (`opus` / `high`) is already the highest the kitchen sets, and what it could try before was not enough";
     noter(N, { type: "pass.kitchen-took-over", payload: { cause: DU_MANAGER, move: "drop", reason } }, "pass");
   };
   return { journal, rail, gh, heure, noter, arriver, sortir, enTodo, repondre, abandonner };

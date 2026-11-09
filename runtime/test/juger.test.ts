@@ -101,13 +101,13 @@ test("une réponse sans décision lisible le dit, au lieu d'en inventer une", ()
     return lue.illisible;
   };
 
-  assert.match(illisible(null), /aucune réponse/);
-  assert.match(illisible("Je pense que c'est un ticket."), /aucun objet JSON/);
-  assert.match(illisible('{"nature": "ticket", "motif": '), /aucun objet JSON/);
+  assert.match(illisible(null), /no answer/);
+  assert.match(illisible("Je pense que c'est un ticket."), /no JSON object/);
+  assert.match(illisible('{"nature": "ticket", "motif": '), /no JSON object/);
   assert.match(illisible(JSON.stringify({ nature: "roman", motif: "…" })), /nature/);
   assert.match(illisible(JSON.stringify({ nature: "ticket", motif: "" , modele: "sonnet", effort: "low", calibrage: "…" })), /motif/);
-  assert.match(illisible(JSON.stringify({ nature: "ticket", motif: "ok", modele: "gpt", effort: "low", calibrage: "…" })), /modele/);
-  assert.match(illisible(JSON.stringify({ nature: "ticket", motif: "ok", modele: "sonnet", effort: "low" })), /calibrage/);
+  assert.match(illisible(JSON.stringify({ nature: "ticket", motif: "ok", modele: "gpt", effort: "low", calibrage: "…" })), /unknown model/);
+  assert.match(illisible(JSON.stringify({ nature: "ticket", motif: "ok", modele: "sonnet", effort: "low" })), /calibration/);
 });
 
 test("`xhigh` et `max` ne sont pas au manager : un jugement qui les pose est illisible", () => {

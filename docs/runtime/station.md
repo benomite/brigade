@@ -313,16 +313,17 @@ live in **a comment of its issue**, spotted by a marker:
 
 ```
 <!-- brigade:fiche -->
-**Fiche du ticket** — lue par le runtime, corrigeable à la main.
-- attend : #68, #69
-- zone : runtime/src/rail.ts, runtime/test/rail.test.ts
-- requiert : navigateur-headless
+- awaiting: #68, #69
+- zone: runtime/src/rail.ts, runtime/test/rail.test.ts
+- requires: navigateur-headless
 ```
 
-The marker and the keys `attend`, `zone` and `requiert` are what the runtime reads, so they stay
-French (the heading line is free prose). `attend` (*awaiting*): `#N`s, separated by commas or spaces.
+The marker and the keys `awaiting`, `zone` and `requires` are what the runtime reads (a line of prose
+may sit around them). The manager writes them in English (#3033); the French keys of older cards —
+`attend`, `requiert` — still read as the same keys, and `none`, `rien` or `aucune` say a key holds
+nothing. `awaiting`: `#N`s, separated by commas or spaces.
 `zone`: paths relative to the repository root — files or directories —, separated by commas.
-`requiert` (*requires*): capability names, separated by commas or spaces; **optional** (see "The
+`requires`: capability names, separated by commas or spaces; **optional** (see "The
 capabilities a ticket asks for"). Without a card, a ticket awaits no one, owns nothing and asks for
 nothing. **It is corrected by hand**, by editing the comment; the reading tolerates case, bold, the
 bullet or its absence, the order, and prose around. The marker **counts only at the head of a line,
@@ -335,7 +336,7 @@ outside a code block**. The manager writes the card of the tickets it splits.
 | A **pattern** in the zone (`*`, `?`) | unreadable card: a directory already owns everything it contains |
 | Two cards | unreadable card, **neither is read** |
 | A `#N` that designates no issue, the ticket itself, or a PR | unreadable card |
-| `attend` entries that form a cycle between tickets of the rail | unreadable card for each ticket of the cycle |
+| `awaiting` entries that form a cycle between tickets of the rail | unreadable card for each ticket of the cycle |
 | A card set by someone who has no hand on the repository | **ignored**, and said in journald (`fiche ignorée sur le ticket #N`, still written in French) |
 
 Unreadable card, the ticket is **refused** at the take: 86, reason `unreadable-card`, a comment lists
@@ -403,7 +404,7 @@ it is reviewed again once the ticket is served.
 ### The capabilities a ticket asks for
 
 **A station provides capabilities** (see "Declaring the stations"); **a ticket asks for some** by the
-`requiert` line of its card. The manager sets it at the split, for a ticket that cannot be done
+`requires` line of its card. The manager sets it at the split, for a ticket that cannot be done
 without it (it reads what the project's stations provide); it is corrected by hand. Most tickets ask
 for none.
 
@@ -434,7 +435,7 @@ for none.
 - **`status` says what is missing and the gesture**, in the `awaiting` block (manager off):
 
   ```
-  #14  for 3 min  no station provides `chrome-connecté` — to provide: declare a station that provides it with `brigade <project> station stations <machine>/<engine>:<cook cap>:chrome-connecté`, or remove `chrome-connecté` from the `requiert` line of its card — it starts again on its own
+  #14  for 3 min  no station provides `chrome-connecté` — to provide: declare a station that provides it with `brigade <project> station stations <machine>/<engine>:<cook cap>:chrome-connecté`, or remove `chrome-connecté` from the `requires` line of its card — it starts again on its own
   ```
 
 - **It returns to queued by itself** (`ticket.released`, `capabilities-reread`): at restart, if a

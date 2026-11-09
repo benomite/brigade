@@ -8,16 +8,8 @@ import { geste } from "../geste.ts";
 export const NATURES = ["ticket", "epic", "question", "decision", "incomplete"] as const;
 export type Nature = (typeof NATURES)[number];
 
-// Each nature as it is told to the chef, in French: the comments the manager puts on GitHub.
-export const NOMS_DE_NATURE: Record<Nature, string> = {
-  ticket: "un ticket",
-  epic: "une épique",
-  question: "une question",
-  decision: "une issue de décision",
-  incomplete: "un ticket incomplet",
-};
-
-// The same, in English: what `manager` and `manager upstream` say of them.
+// Each nature as it is told in English: what `manager` and `manager upstream`
+// say of them, and the comments the manager puts on GitHub (#3033).
 export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
   ticket: "a ticket",
   epic: "an epic",

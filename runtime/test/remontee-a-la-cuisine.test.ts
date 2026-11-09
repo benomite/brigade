@@ -20,7 +20,6 @@ import {
   direRepriseEn,
   fixPermis,
   prochainCoup,
-  raisonDAbandon,
   reessaiPermis,
   REMONTEES_SANS_ENTREE,
   repriseDeLaRemontee,
@@ -117,9 +116,6 @@ test("la cuisine monte d'un cran — l'effort, puis le modèle —, dans la limi
   assert.equal(calibrageAuDessus({ model: "sonnet", effort: "xhigh" }, { model: "opus", effort: "max" }), null);
   // Le plafond du projet est la limite : plus bas que le défaut, il arrête la montée plus tôt.
   assert.equal(calibrageAuDessus({ model: "sonnet", effort: "medium" }, { model: "sonnet", effort: "medium" }), null);
-  // Ce qui ne monte plus a sa raison, que l'issue lira.
-  assert.match(raisonDAbandon("ci-silent", { model: "opus", effort: "high" }, plafond), /^son calibrage \(`opus` \/ `high`\) est déjà au plus haut que la cuisine pose/);
-  for (const cause of Object.keys(SANS_RENVOI)) assert.match(raisonDAbandon(cause, null, plafond), new RegExp(`^sa cause \\(\`${cause}\`\\) n'est pas au cook`), cause);
 });
 
 test("une remontée qu'un runtime d'avant #1861 a laissée « sans suite » (`none`) n'est plus finale : la cuisine la reprend", (t) => {

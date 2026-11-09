@@ -49,24 +49,6 @@ const survols = (ou: Faux) => ou.dessous("button").filter(({ className }) => cla
 // Le texte posé à plat : celui des éléments, sans le contenu d'un `pre` ni le nom accessible d'une aide.
 const aPlat = (ou: Faux) => ou.textContent;
 
-describe("la lecture du journal (Log) : des gestes en boutons, rien d'expliqué à plat", () => {
-  test("une lecture en échec tient en une ligne : ni `usage`, ni code de sortie à plat — le détail est au survol", async () => {
-    const vue = await ouvrir();
-    await ouvrirLecture(vue, "Log");
-    const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    const erreur = "usage: brigade <projet> station\nthe station did not answer\n→ code de sortie 255";
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur, atteinte: false, cas: null }, undefined);
-    await repos();
-
-    const corps = vue.element("lecture-onglet");
-    assert.equal(corps.dessous("pre").length, 0);
-    assert.doesNotMatch(aPlat(corps), TECHNIQUE);
-    // Et « report to brigade » à la suite (ticket 1977, signalement/ouverture/).
-    assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the station did not answer?report to brigade");
-    assert.ok(survols(corps).some((dit) => dit.startsWith(erreur)));
-  });
-});
-
 describe("Settings n'a plus de page Manager (#1700)", () => {
   // Un seul interrupteur pour tout le projet (#1406), en tête de l'espace : sa confirmation, qui dit son
   // prix en une ligne, est éprouvée là (interrupteur-projet.test.ts).

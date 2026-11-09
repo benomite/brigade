@@ -65,15 +65,15 @@ test("#2618 on 2026-11-06 17:40: nine split epics whose sub-tickets are all clos
   for (const epic of EPIQUES) {
     const liste = c.gh.corpsDe(epic);
     const servis = epic === 2553 ? 2 : 3;
-    assert.match(liste, new RegExp(`\\*\\*${servis}/3 servi${servis > 1 ? "s" : ""}\\.\\*\\*`));
+    assert.match(liste, new RegExp(`\\*\\*${servis}/3 served\\.\\*\\*`));
     assert.doesNotMatch(liste, /pas sur le rail/);
     const dits = c.gh.commentaires.filter(([numero, corps]) => numero === epic && corps.includes("brigade:epique-terminee"));
     assert.equal(dits.length, 1, `#${epic} carries one closing comment`);
   }
-  assert.match(c.gh.corpsDe(2553), /\| #25531 \| Ticket 25531 \| abandonné \|/);
+  assert.match(c.gh.corpsDe(2553), /\| #25531 \| Ticket 25531 \| dropped \|/);
   const dit2553 = c.gh.commentaires.find(([numero, corps]) => numero === 2553 && corps.includes("brigade:epique-terminee"))?.[1] ?? "";
-  assert.match(dit2553, /\*\*Abandonnés\*\* \(1\), fermés sans PR mergée :\n- #25531 Ticket 25531$/m);
-  assert.match(dit2553, /Elle se ferme quand même/);
+  assert.match(dit2553, /\*\*Dropped\*\* \(1\), closed with no merged PR:\n- #25531 Ticket 25531$/m);
+  assert.match(dit2553, /It closes anyway/);
 });
 
 test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the held-kitchen line no longer counts them", async (t) => {

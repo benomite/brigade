@@ -26,7 +26,7 @@ import type { Decisions } from "./decisions.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
-import { commandeRendre, NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./events/manager.ts";
+import { commandeRendre, NOMS_DE_NATURE_EN, type Ecart, type FaitManager, type Nature } from "./events/manager.ts";
 import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
@@ -141,19 +141,19 @@ export type OptionsManager = ConfigManager & {
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
-  roadmap: "c'est la roadmap du projet",
-  epic: "elle porte le label `epic`",
-  question: "elle porte le label `question`",
-  decision: "elle porte le label `decision`",
-  "blocked-on-human": "elle porte le label `blocked-on-human`",
-  "served-elsewhere": "elle porte le label `served-elsewhere` : elle ne se sert pas sur cette box",
-  "already-split": "c'est une épique dont le corps liste déjà les tickets",
+  roadmap: "it is the project's roadmap",
+  epic: "it has the `epic` label",
+  question: "it has the `question` label",
+  decision: "it has the `decision` label",
+  "blocked-on-human": "it has the `blocked-on-human` label",
+  "served-elsewhere": "it has the `served-elsewhere` label: it is not served on this box",
+  "already-split": "it is an epic whose body already lists its tickets",
 };
 
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const duree = (ms: number) =>
-  ms >= 60_000 ? `${(ms / 60_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} min` : `${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
+  ms >= 60_000 ? `${(ms / 60_000).toLocaleString("en-US", { maximumFractionDigits: 1 })} min` : `${(ms / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })} s`;
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const code = (labels: string[]) => labels.map((label) => `\`${label}\``).join(", ");
 
@@ -363,11 +363,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     for (const station of stationsAnnoncees(base)) noter(null, fait(station));
   };
 
-  const signature = (run: string | null, verbe = "Jugé"): string => {
+  const signature = (run: string | null, verbe = "Judged"): string => {
     const cook = run === null ? null : cookDeRun(base, run);
-    const calibrage = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
-    const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
-    return `_${verbe} par le manager${calibrage}${mesure}._`;
+    const calibrage = cook?.model && cook.effort ? ` in \`${cook.model}\` / \`${cook.effort}\`` : "";
+    const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "turn")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
+    return `_${verbe} by the manager${calibrage}${mesure}._`;
   };
 
   const dire = (issue: IssueOuverte, connue: IssueDuManager, parLaStation = false): string => {
@@ -383,16 +383,16 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         ];
         return [
           MARQUEUR_MANAGER,
-          `**Manager — ticket mis sur le rail.** ${poses.length === 0 ? "Rien à poser : tout y était." : `Posé : ${code(poses)}.`}`,
+          `**Manager — ticket put on the rail.** ${poses.length === 0 ? "Nothing to set: everything was there." : `Set: ${code(poses)}.`}`,
           "",
-          `**Pourquoi il est exécutable.** ${connue.reason}`,
+          `**Why it is workable.** ${connue.reason}`,
           "",
-          `**Pourquoi \`${connue.model}\` / \`${connue.effort}\`.** ${connue.calibration ?? ""}`,
-          ...(laisses.length === 0 ? [] : ["", `${code(laisses)} ${laisses.length > 1 ? "étaient déjà posés : laissés tels quels" : "était déjà posé : laissé tel quel"}.`]),
+          `**Why \`${connue.model}\` / \`${connue.effort}\`.** ${connue.calibration ?? ""}`,
+          ...(laisses.length === 0 ? [] : ["", `${code(laisses)} ${laisses.length > 1 ? "were already set: left as they were" : "was already set: left as it was"}.`]),
           "",
-          "C'est ton quota : remplace un label de calibrage, le manager ne le réécrira pas.",
+          "It is your quota: replace a calibration label, the manager will not rewrite it.",
           "",
-          `⚠️ **Retirer \`fire\`, \`model:\` ou \`effort:\` sans le remplacer écarte ce ticket du manager** : il n'y reposera rien et ne le rejugera plus, même si l'issue change — jusqu'à ce que tu le lui rendes (\`${commandeRendre(issue.number)}\`). Corriger \`prio:\`, poser ou retirer \`question\` ou \`blocked-on-human\` ne le lui retire pas.`,
+          `⚠️ **Removing \`fire\`, \`model:\` or \`effort:\` without replacing it takes this ticket away from the manager**: it will set nothing on it again and will not judge it again, even if the issue changes — until you give it back (\`${commandeRendre(issue.number)}\`). Correcting \`prio:\`, or setting or removing \`question\` or \`blocked-on-human\`, does not take it away.`,
           "",
           signature(connue.run),
         ].join("\n");
@@ -400,21 +400,21 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       case "refused":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — pas un ticket exécutable : ${NOMS_DE_NATURE[connue.kind as Nature] ?? connue.kind}.** Rien n'est posé, aucun cook ne partira.`,
+          `**Manager — not a workable ticket: ${NOMS_DE_NATURE_EN[connue.kind as Nature] ?? connue.kind}.** Nothing is set, no cook will start.`,
           "",
           connue.reason,
-          ...(connue.missing === null ? [] : ["", `**Ce qui le rendrait exécutable.** ${connue.missing}`]),
+          ...(connue.missing === null ? [] : ["", `**What would make it workable.** ${connue.missing}`]),
           "",
-          `L'issue sera rejugée dès qu'elle changera — corps édité, ou réponse en commentaire.${fired ? " `fire` y est posé : il reste, mais sans calibrage aucun cook ne part." : ""}`,
+          `The issue will be judged again as soon as it changes — body edited, or an answer in a comment.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
           "",
           signature(connue.run),
         ].join("\n");
       case "failed":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — jugement illisible.** Le jugement de cette issue n'a rendu aucune décision lisible (${connue.reason}) : rien n'est posé.`,
+          `**Manager — unreadable judgement.** The judgement of this issue gave no readable decision (${connue.reason}): nothing is set.`,
           "",
-          "Elle sera rejugée quand elle changera ; d'ici là, `fire` et le calibrage se posent à la main.",
+          "It will be judged again when it changes; until then, `fire` and the calibration are set by hand.",
           "",
           signature(connue.run),
         ].join("\n");
@@ -423,11 +423,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         const manque = connue.lacking ?? [];
         return [
           MARQUEUR_MANAGER,
-          `**Manager — ticket écarté : il n'est plus lancé et calibré.** Le manager y avait posé des labels, et ${manque.length === 0 ? "son calibrage ne se lit plus" : `il y manque aujourd'hui ${code(manque)}`}. L'issue est à toi : le manager n'y pose plus rien et ne la rejuge pas, même si elle change.`,
+          `**Manager — ticket set aside: it is no longer fired and calibrated.** The manager had set labels on it, and ${manque.length === 0 ? "its calibration no longer reads" : `it now lacks ${code(manque)}`}. The issue is yours: the manager sets nothing on it any more and does not judge it again, even if it changes.`,
           "",
-          `**Pour la lui rendre :** \`${commandeRendre(issue.number)}\`. Il la rejuge à neuf : il retire le calibrage qu'il y avait posé, puis pose \`fire\` et celui du nouveau jugement — ou dit pourquoi ce n'est pas un ticket exécutable.`,
+          `**To give it back:** \`${commandeRendre(issue.number)}\`. It judges it afresh: it removes the calibration it had set, then sets \`fire\` and the one of the new judgement — or says why it is not a workable ticket.`,
           "",
-          "Pour la cuisiner sans lui, pose `fire`, `model:` et `effort:` toi-même.",
+          "To cook it without the manager, set `fire`, `model:` and `effort:` yourself.",
         ].join("\n");
       }
     }
@@ -438,21 +438,21 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       ? parLaStation
         ? [
             MARQUEUR_MANAGER,
-            `**Manager — \`served-elsewhere\` : la station a mis ce ticket de côté.**${connue.fired ? " `fire` y est posé, et `served-elsewhere` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} C'est le compteur d'échecs de la station, pas un ticket servi par une autre box : personne ne le sert.`,
+            `**Manager — \`served-elsewhere\`: the station set this ticket aside.**${connue.fired ? " `fire` is set on it, and `served-elsewhere` wins: the ticket does not enter the rail, no cook starts." : " It does not enter the rail."} This is the station's failure counter, not a ticket served by another box: nobody serves it.`,
             "",
-            "Le pourquoi est dans le dernier commentaire de la station. Retire `served-elsewhere` pour relancer le ticket.",
+            "The reason is in the station's last comment. Remove `served-elsewhere` to relaunch the ticket.",
           ].join("\n")
         : [
           MARQUEUR_MANAGER,
-          `**Manager — \`served-elsewhere\` : ce ticket ne se sert pas sur cette box.**${connue.fired ? " `fire` y est posé, et `served-elsewhere` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} Le pourquoi est sur l'issue, de celui qui a posé le label.`,
+          `**Manager — \`served-elsewhere\`: this ticket is not served on this box.**${connue.fired ? " `fire` is set on it, and `served-elsewhere` wins: the ticket does not enter the rail, no cook starts." : " It does not enter the rail."} The reason is on the issue, from whoever set the label.`,
           "",
-          "Ce n'est pas une attente du chef : le ticket est servi ailleurs. Retire `served-elsewhere` si la box doit le prendre.",
+          "Nothing here awaits the chef: the ticket is served elsewhere. Remove `served-elsewhere` if the box must take it.",
         ].join("\n")
       : [
       MARQUEUR_MANAGER,
-      `**Manager — \`fire\` laissé, ticket non calibré.** Pour le manager, cette issue n'est pas une unité de travail — ${RAISONS[connue.reason as Ecart] ?? connue.reason}. Il ne retire pas ton \`fire\`, et ne pose aucun calibrage.`,
+      `**Manager — \`fire\` left, ticket not calibrated.** For the manager, this issue is not a unit of work — ${RAISONS[connue.reason as Ecart] ?? connue.reason}. It does not remove your \`fire\`, and sets no calibration.`,
       "",
-      "Sans `model:` ni `effort:`, aucun cook ne part. Pose-les toi-même si tu veux qu'elle soit cuisinée.",
+      "Without `model:` and `effort:`, no cook starts. Set them yourself if you want it cooked.",
     ].join("\n");
 
   // Note qu'une issue est écartée, si ce n'est pas déjà ce que le journal dit.
@@ -604,7 +604,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       const refus = refusDAffilee(base, `${sujet.prefixe}-${sujet.numero}-`);
       avertir(`brigade : ${sujet.nom} de l'issue #${sujet.numero} refusé par le modèle (${direRefus(flux)}), essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`);
       if (refus < REFUS_MAX) return null;
-      return { run, illisible: `${direRefus(flux)}, ${refus} fois d'affilée (\`stop_reason: refusal\`)` };
+      // Posé sur l'issue : en anglais.
+      return { run, illisible: `model refusal${flux?.refus?.categorie ? ` (${flux.refus.categorie})` : ""}, ${refus} times in a row (\`stop_reason: refusal\`)` };
     }
     // Seul un jugement allé à son terme dit quelque chose de l'issue, que sa
     // réponse se lise ou non : il s'épingle sur son état. Tout le reste —

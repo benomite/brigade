@@ -110,8 +110,10 @@ export function direManqueEn({ capacites, ensemble }: Manque): string {
   return ensemble ? `no station provides ${nommer(capacites, "and")} together` : `no station provides ${nommer(capacites, "or")}`;
 }
 
-// La clé de la fiche qui porte ce qu'un ticket demande.
+// La clé de la fiche qui porte ce qu'un ticket demande : la française, que
+// `fiche.ts` lit encore, et l'anglaise, que le découpage écrit.
 export const CLE_DES_CAPACITES = "requiert";
+export const CLE_DES_CAPACITES_EN = "requires";
 
 // Le geste qui fournirait ce qui manque : dit d'un seul endroit, à `status`
 // comme à l'issue. Rien n'y donne quoi que ce soit : déclarer une station dit
@@ -124,5 +126,5 @@ export function gesteDeCapacite({ capacites, ensemble }: Manque): string {
 // Le même geste, en anglais, pour le bloc `awaiting`.
 export function gesteDeCapaciteEn({ capacites, ensemble }: Manque): string {
   const [la, elle] = capacites.length > 1 ? ["them", nommer(capacites, "and")] : ["it", nommer(capacites, "and")];
-  return `declare a station that provides ${la}${ensemble ? " together" : ""} with \`brigade <project> station stations <machine>/<engine>:<cook cap>:${capacites.join("+")}\`, or remove ${elle} from the \`${CLE_DES_CAPACITES}\` line of its card — it starts again on its own`;
+  return `declare a station that provides ${la}${ensemble ? " together" : ""} with \`brigade <project> station stations <machine>/<engine>:<cook cap>:${capacites.join("+")}\`, or remove ${elle} from the \`${CLE_DES_CAPACITES_EN}\` line of its card — it starts again on its own`;
 }

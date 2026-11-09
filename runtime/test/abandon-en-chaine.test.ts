@@ -69,9 +69,9 @@ test("abandonné par la cuisine, un ticket emmène hors du rail ceux qui l'atten
     [18, 19],
   );
   for (const [, corps] of gh.commentaires) {
-    assert.match(corps, /^\*\*Cuisine — ticket abandonné avec #17 \(`wrong-base`\)\.\*\*/);
-    assert.match(corps, /\*\*Pourquoi\.\*\* Sa cause \(`wrong-base`\) n'est pas au cook/);
-    assert.match(corps, /quand `fire` revient sur #17 : c'est le seul chemin du retour/);
+    assert.match(corps, /^\*\*Kitchen — ticket dropped with #17 \(`wrong-base`\)\.\*\*/);
+    assert.match(corps, /\*\*Why\.\*\* Sa cause \(`wrong-base`\) n'est pas au cook/);
+    assert.match(corps, /when `fire` comes back on #17: that is the only way back/);
   }
 
   // Le sondage ne les a pas encore sortis : rien ne se redit, le retrait se redemande.
@@ -105,7 +105,7 @@ test("`fire` remis sur la racine, ceux qui sont sortis avec elle la suivent d'eu
     [18, { root: 17, refired: true }],
     [19, { root: 17, refired: false }],
   ]);
-  assert.match(gh.commentaires.at(-1)?.[1] ?? "", /^\*\*Cuisine — #17 est revenu sur le rail : ce ticket aussi\.\*\*/);
+  assert.match(gh.commentaires.at(-1)?.[1] ?? "", /^\*\*Kitchen — #17 came back on the rail: this ticket too\.\*\*/);
   assert.equal(gh.commentaires.at(-1)?.[0], 18);
   // Ramenés une fois : rien ne se redit.
   assert.equal(await jouer(), 0);
