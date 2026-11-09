@@ -67,7 +67,7 @@ Toute remontée vers l'orchestrateur passe **obligatoirement** par `SendMessage 
 
 | Signal | Quand | Effet attendu côté orchestrateur |
 |---|---|---|
-| `question-spec #N : <questions>` | décision produit nécessaire | dépose les questions en commentaire d'issue, met `blocked-on-human`, te répond plus tard |
+| `question-spec #N : <questions>` | décision produit nécessaire | dépose les questions en commentaire d'issue (en anglais, avec les mots de `docs/glossary.md`), met `blocked-on-human`, te répond plus tard |
 | `prêt #N (PR <url>)` | livré, PR ouverte | lance les gates, merge si vert |
 | `bloqué #N : <raison>` | blocage technique non résoluble seul | arbitrage / renvoi |
 | `hors-scope #N : issue triage #M créée` | découverte hors scope | re-qualification ultérieure ; toi, tu continues ta tâche |
