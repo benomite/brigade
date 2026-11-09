@@ -204,7 +204,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // le manager lit qui a posé le label, pas qui a écrit l'issue (#2619).
   const garanties = new Set<number>();
   // Les comptes que le projet déclare (`humans`) : seuls ils font d'une marque de station celle d'une station (#3012).
-  const declares = () => (options.humains?.() ?? []).map(({ login }) => login);
+  // Des réglages illisibles ne déclarent personne : la marque ne vaut alors rien, et l'issue reste celle d'un inconnu.
+  const declares = () => {
+    try {
+      return (options.humains?.() ?? []).map(({ login }) => login);
+    } catch {
+      return [];
+    }
+  };
   const garantir = async (issue: IssueOuverte) => {
     garanties.delete(issue.number);
     if (!auteurSansEcriture(issue, declares()) || !github.labelsPosesParDeConfiance) return;
