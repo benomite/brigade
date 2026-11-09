@@ -153,7 +153,7 @@ export function configurer(cook: Cook): ConfigDeBacASable {
   const home = chemin(cook.home, cook.home, "répertoire du compte");
   const interdits = unique([...LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif)), ...(cook.prod ?? []).map((acces) => chemin(acces, home, "accès de prod"))]);
   const worktree = chemin(cook.worktree, home, "worktree");
-  const ecrits = unique([worktree, ...cook.caches.map((cache) => chemin(cache, home, "cache du projet")), ...droitsDInstallation(worktree, home)]);
+  const ecrits = unique([worktree, ...cook.caches.map((cache) => chemin(cache, home, "cache du projet")), ...droitsDInstallation(home)]);
   for (const lieu of ecrits) {
     // Écrire au-dessus du compte, c'est écrire partout dessous : ses fichiers
     // de démarrage, ses clés.

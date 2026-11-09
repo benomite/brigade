@@ -3,9 +3,9 @@
 // un setup qui lance `pnpm install` va au bout, et le cook le rejoue.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { after, test } from "node:test";
 import { configurer } from "../../src/bac-a-sable/configuration.ts";
 import { jouerSetup } from "../../src/gates.ts";
@@ -23,14 +23,13 @@ test("le cook du Mac écrit et retire node_modules de son worktree et les caches
     assert.equal(ouvert(lieu), true, lieu);
   }
   for (const relatif of CACHES_DES_PAQUETS) assert.ok(allowWrite.includes(`${HOME}/${relatif}`), relatif);
-  assert.ok(allowWrite.includes(`${WORKTREE}/node_modules`));
-  assert.ok(permissions.allow.includes(`Edit(/${WORKTREE}/node_modules/**)`));
+    assert.ok(permissions.allow.includes(`Edit(/${WORKTREE}/**)`));
   // Hors du worktree et de ces caches, rien ne s'écrit.
   for (const lieu of [`${HOME}/Documents`, `${HOME}/.zshrc`, `${HOME}/.ssh/id_ed25519`, `${HOME}/Library/Keychains`, `${HOME}/.cache/autre`, `${HOME}/brigade-wt/3055-autre/node_modules`, "/etc/hosts", HOME]) {
     assert.equal(ouvert(lieu), false, lieu);
   }
   assert.ok(denyWrite.includes(`${HOME}/.ssh`));
-  assert.deepEqual(droitsDInstallation(WORKTREE, HOME).filter((lieu) => !lieu.startsWith(HOME)), []);
+  assert.deepEqual(droitsDInstallation(HOME).filter((lieu) => !lieu.startsWith(`${HOME}/`)), []);
 });
 
 // Un projet dont le setup lance `pnpm install` : ses dépendances sont des
@@ -48,9 +47,26 @@ function projetPnpm() {
   writeFileSync(join(worktree, ".claude", "brigade", "worktree-setup.sh"), '#!/usr/bin/env bash\nset -e\ncd "$2"\npnpm install --frozen-lockfile >&2\n', { mode: 0o755 });
   const home = join(racine, "home");
   mkdirSync(home);
-  const env = { PATH: process.env.PATH, HOME: home, npm_config_manage_package_manager_versions: "false", npm_config_store_dir: join(home, "Library", "pnpm", "store"), npm_config_cache_dir: join(home, "Library", "Caches", "pnpm"), CI: "true" };
+  const env = { PATH: process.env.PATH, HOME: home, npm_config_manage_package_manager_versions: "false", CI: "true" };
   execFileSync("pnpm", ["install", "--lockfile-only", "--offline"], { cwd: worktree, env, stdio: "pipe" });
   return { racine, worktree, env };
+}
+
+// Tout ce que pnpm a écrit sous le compte d'essai ou le worktree, hors le
+// worktree lui-même : chaque fichier doit tomber sous une racine ouverte en
+// écriture par les règles que `configurer` construit pour ce cook. Le bac à
+// sable (seatbelt) n'existe pas ici : on vérifie donc la couverture, qui échoue
+// dès que `droitsDInstallation` ne couvre plus ce que pnpm écrit.
+function fichiers(dossier: string): string[] {
+  return readdirSync(dossier).flatMap((nom) => {
+    const chemin = join(dossier, nom);
+    return statSync(chemin).isDirectory() ? fichiers(chemin) : [chemin];
+  });
+}
+function nonCouverts(racine: string, worktree: string, home: string): string[] {
+  const { allowWrite } = configurer({ worktree, caches: [], hotes: [], home }).reglages.sandbox.filesystem;
+  const ouvert = (lieu: string) => allowWrite.some((ouverte) => lieu === ouverte || lieu.startsWith(`${ouverte}${sep}`));
+  return [...fichiers(home), ...fichiers(worktree)].filter((lieu) => !ouvert(lieu));
 }
 
 const projets = [projetPnpm(), projetPnpm()];
@@ -67,11 +83,13 @@ test("un setup qui lance `pnpm install` va au bout : node_modules porte chaque d
   assert.ok(existsSync(join(worktree, "node_modules", "dep-a", "package.json")));
   // dep-b est une dépendance de dep-a : pnpm la range sous .pnpm.
   assert.ok(readdirSync(join(worktree, "node_modules", ".pnpm")).some((nom) => nom.startsWith("dep-b@")));
+  assert.deepEqual(nonCouverts(projets[0]!.racine, worktree, join(projets[0]!.racine, "home")), []);
 });
 
 test("le cook rejoue `pnpm install --frozen-lockfile` sur un node_modules déjà installé, sans « Operation not permitted »", () => {
   const { worktree, env } = projets[1]!;
   const rejeu = execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: worktree, env, encoding: "utf8", stdio: "pipe" });
   assert.doesNotMatch(rejeu, /Operation not permitted|ERR_PNPM/);
+  assert.deepEqual(nonCouverts(projets[1]!.racine, worktree, join(projets[1]!.racine, "home")), []);
   assert.ok(existsSync(join(worktree, "node_modules", "dep-a", "package.json")));
 });

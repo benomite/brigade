@@ -20,7 +20,7 @@ const HOME = "/Users/chef";
 const WORKTREE = "/Users/chef/brigade-wt/850-bac-a-sable";
 const CACHES = ["/Users/chef/.npm", "/Users/chef/Library/Caches/pnpm"];
 const projet = (hotes: string[] = []): Cook => ({ worktree: WORKTREE, caches: CACHES, hotes: reglesDuProjet(hotes), home: HOME });
-const INSTALLATION = droitsDInstallation(WORKTREE, HOME);
+const INSTALLATION = droitsDInstallation(HOME);
 const projetBrigade = (): Cook => ({ ...projet(), brigade: true });
 const projetSeul = (hotes: Regle[]): Cook => ({ ...projet(), hotes });
 
@@ -84,7 +84,7 @@ test("un ticket qui ne livre pas que `.claude/brigade/` part en `dontAsk`, sans 
 
 test("un autre worktree, d'autres caches : la configuration n'ouvre que ceux-là, chemins nettoyés et sans doublon", () => {
   const { reglages } = configurer({ ...projet(), worktree: "/Users/chef/wt/12-autre/", caches: ["~/.cargo/registry", "/Users/chef/wt/12-autre"] });
-  assert.deepEqual(reglages.sandbox.filesystem.allowWrite, ["/Users/chef/wt/12-autre", "/Users/chef/.cargo/registry", ...droitsDInstallation("/Users/chef/wt/12-autre", HOME)]);
+  assert.deepEqual(reglages.sandbox.filesystem.allowWrite, ["/Users/chef/wt/12-autre", "/Users/chef/.cargo/registry", ...droitsDInstallation(HOME)]);
   assert.equal(JSON.stringify(reglages).includes(WORKTREE), false);
   assert.deepEqual(configurer({ ...projet(), caches: [] }).reglages.sandbox.filesystem.allowWrite, [WORKTREE, ...INSTALLATION]);
 });

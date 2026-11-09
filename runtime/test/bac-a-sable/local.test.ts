@@ -101,7 +101,7 @@ test("sans bac à sable, les arguments partent tels quels ; avec, le répertoire
   const bac: BacASableLocal = { version: "2.1.300", home: HOME, caches: ["/Users/chef/Library/Caches/brigade"], hotes: () => (lues++, HOTES) };
   const dedans = dansLeBacASableLocal(bac, args, "/Users/chef/wt/12");
   const reglages = JSON.parse(dedans[dedans.indexOf("--settings") + 1] ?? "") as Reglages;
-  assert.deepEqual(reglages.sandbox.filesystem.allowWrite, ["/Users/chef/wt/12", "/Users/chef/Library/Caches/brigade", ...droitsDInstallation("/Users/chef/wt/12", HOME)]);
+  assert.deepEqual(reglages.sandbox.filesystem.allowWrite, ["/Users/chef/wt/12", "/Users/chef/Library/Caches/brigade", ...droitsDInstallation(HOME)]);
   assert.ok(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"));
   // La liste réseau est relue à chaque lancement.
   dansLeBacASableLocal(bac, args, "/Users/chef/wt/13");

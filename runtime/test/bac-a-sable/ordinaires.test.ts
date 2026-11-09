@@ -20,7 +20,7 @@ test("disponible, le poste est retenu tel qu'il le dit — de quoi configurer le
   const constat = constater(DIT, HOTES);
   assert.deepEqual(constat, { disponible: true, poste: { version: "2.1.250", home: DIT.home, worktrees: DIT.worktrees, caches: DIT.caches } });
   const config = configurerLeCook(constat.disponible ? constat.poste : (null as never), "851-abcd", HOTES);
-  assert.deepEqual(config.reglages.sandbox.filesystem.allowWrite, ["/Users/chef/brigade-cooks/brigade/851-abcd", "/Users/chef/Library/Caches/brigade", ...droitsDInstallation("/Users/chef/brigade-cooks/brigade/851-abcd", DIT.home)]);
+  assert.deepEqual(config.reglages.sandbox.filesystem.allowWrite, ["/Users/chef/brigade-cooks/brigade/851-abcd", "/Users/chef/Library/Caches/brigade", ...droitsDInstallation(DIT.home)]);
 });
 
 test("indisponible, ce que la station en dit est la raison — et une station qui n'en dit rien ne l'a pas", () => {
