@@ -21,7 +21,7 @@ const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)\s*-->\s*([\s\S]*
 export type CarteDuChef = { sorte: string; texte: string };
 
 // Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`).
-export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close"] as const;
+export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail"] as const;
 export type GesteDuChef = (typeof GESTES_DU_CHEF)[number];
 export type ChoixDuChef = { texte: string; suite: GesteDuChef };
 // Ce que le texte d'une carte du chef pose : sa question — sa première ligne écrite, nulle sur un texte vide —, ses choix,

@@ -144,35 +144,61 @@ export function propositionDu(corps: string): Proposition | null {
   const marque = MARQUE.exec(corps);
   if (marque === null) return null;
   const triage = marque[1] as Proposition["triage"];
-  const motif = corps.slice((marque.index ?? 0) + marque[0].length).trim();
+  // Après la marque : le titre en gras, puis le motif, puis la phrase fixe qui clôt le commentaire.
+  const suite = corps.slice((marque.index ?? 0) + marque[0].length).trim();
+  const motif = triage === "none" ? suite : suite.replace(/^\*\*[^\n]*\*\*\s*/, "").replace(/\s*This issue was opened by someone without write access[\s\S]*$/, "").trim();
   if (triage === "duplicate") return marque[2] === undefined ? null : { triage, de: Number(marque[2]), motif };
   if (triage === "ticket") return marque[3] === undefined ? null : { triage, prio: Number(marque[3]), motif };
   return { triage, motif };
 }
 
-// La carte : sa question sur sa première ligne, la proposition, puis comment répondre.
-export function carteDuTriage(numero: number, proposition: Proposition): Carte {
-  const prio = proposition.triage === "ticket" ? proposition.prio : null;
-  return {
-    sorte: SORTE_DE_LA_CARTE,
-    texte: [
-      `Stranger's issue #${numero}: put it on the rail, or close it?`,
-      "",
-      proposition.triage === "none" ? "The manager has no triage proposal: its answer could not be read." : `The manager proposes: **${direLaProposition(proposition)}** (its comment above says why).`,
-      "",
-      "Answer on this issue with one line:",
-      prio === null
-        ? "- `on the rail prio:N` — it goes on the rail with that priority (`on the rail` alone puts `fire` on it);"
-        : `- \`on the rail\` — it goes on the rail with \`prio:${prio}\`; write \`on the rail prio:N\` for another priority;`,
-      "- `close` — it is closed, not cooked.",
-      "",
-      `Until you answer, nothing of #${numero} reaches the rail.`,
-    ].join("\n"),
-  };
-}
+// Le `prio:` que le second choix pose quand le tri n'en a proposé aucun.
+export const PRIO_PAR_DEFAUT = 5;
 
 // GitHub ne distingue pas la casse d'un login.
 const meme = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+// Un texte sur une ligne, d'au plus `max` signes.
+const uneLigne = (texte: string, max: number): string => {
+  const ligne = texte.replace(/[`*_>#\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+  return ligne.length <= max ? ligne : `${ligne.slice(0, max - 1).trimEnd()}…`;
+};
+
+// Ce que l'issue demande, en une ligne : son titre, puis la première ligne de son corps.
+const ceQuElleDemande = ({ title, body }: { title: string; body: string }): string => {
+  const debut = uneLigne(body.split("\n").find((ligne) => ligne.trim() !== "") ?? "", 120);
+  return debut === "" ? uneLigne(title, 160) : `${uneLigne(title, 80)} — ${debut}`;
+};
+
+// La carte : sa question sur sa première ligne, ses deux choix — le premier est
+// la recommandation du tri : `rail` avec le `prio:` qu'il propose, sinon `close` —,
+// puis ce que l'issue demande, qui l'a ouverte, et pourquoi cette recommandation.
+// `declare` : l'auteur est un humain que le projet déclare (`humans`), pas un inconnu.
+export function carteDuTriage(numero: number, proposition: Proposition, issue: { title: string; body: string; auteur?: string; declare?: boolean }): Carte {
+  const prio = proposition.triage === "ticket" ? proposition.prio : null;
+  const sur = (n: number) => `- [rail] Put it on the rail with \`prio:${n}\``;
+  const fermer = "- [close] Close it";
+  const [recommande, autre] = prio === null ? [fermer, sur(PRIO_PAR_DEFAUT)] : [sur(prio), fermer];
+  const declare = issue.declare === true;
+  const auteur = issue.auteur === undefined || issue.auteur === "" ? null : `@${issue.auteur}`;
+  const qui = declare ? `Opened by ${auteur}, a declared human of the project.` : auteur === null ? "Opened by a stranger." : `Opened by ${auteur}, a stranger.`;
+  const pourquoi = proposition.triage === "none" ? "no triage proposal, so closing is the default" : `${direLaProposition(proposition)}. ${uneLigne(proposition.motif, 200)}`;
+  return {
+    sorte: SORTE_DE_LA_CARTE,
+    texte: [
+      `${declare ? "Issue" : "Stranger's issue"} #${numero}: put it on the rail, or close it?`,
+      "",
+      recommande,
+      autre,
+      "",
+      `Asks: ${ceQuElleDemande(issue)}`,
+      qui,
+      `Recommended: ${prio === null ? "close it" : `rail, \`prio:${prio}\``} — the manager's triage: ${pourquoi}`,
+      "",
+      `Until you answer, nothing of #${numero} reaches the rail. You can also answer on the issue with one line: \`on the rail\` (or \`on the rail prio:N\`), or \`close\`.`,
+    ].join("\n"),
+  };
+}
 
 // La réponse de l'humain parmi ces commentaires — ceux qui suivent la carte —,
 // la plus récente qui se lise. Fait foi : l'humain à qui la carte va, ou un
@@ -214,10 +240,15 @@ export function ouvrirIssuesEtrangeres(atelier: AtelierDuTri) {
 
   // Pose la carte, assignée à l'humain `product` s'il y en a un — avant la
   // carte : un arrêt entre les deux rejoue l'assignation, sans doubler.
-  const poser = async (numero: number, proposition: Proposition) => {
+  const poser = async (issue: IssueOuverte, proposition: Proposition) => {
+    const numero = issue.number;
     const aiguillage = aiguiller(atelier.humains(), SORTE_DE_LA_CARTE);
     if (aiguillage.vers === "humain") await github.assigner?.(numero, [aiguillage.login]);
-    await poserCarte(numero, carteDuTriage(numero, proposition), github);
+    // L'auteur : celui que la liste des ouvertes dit, sinon la lecture de l'issue.
+    // Une lecture qui échoue fait reprendre le pas au tour suivant.
+    const auteur = issue.author ?? (await github.issue(numero))?.author;
+    const declare = auteur !== undefined && atelier.humains().some(({ login }) => meme(login, auteur));
+    await poserCarte(numero, carteDuTriage(numero, proposition, { title: issue.title, body: issue.body, ...(auteur === undefined ? {} : { auteur }), declare }), github);
   };
 
   // Applique la réponse : la carte levée d'abord — un arrêt après elle relit la
@@ -260,7 +291,7 @@ export function ouvrirIssuesEtrangeres(atelier: AtelierDuTri) {
           proposition = "valeur" in reponse ? reponse.valeur : { triage: "none", motif: reponse.illisible };
           await github.commenter(issue.number, corpsDuTriage(proposition));
           if (arrete()) return "reste";
-          await poser(issue.number, proposition);
+          await poser(issue, proposition);
           return "fait";
         }
         const suite = lus.slice(rang + 1);
@@ -268,7 +299,7 @@ export function ouvrirIssuesEtrangeres(atelier: AtelierDuTri) {
         if (suite.some((lu) => DE_CONFIANCE.includes(lu.association) && MARQUE_APPLIQUEE.test(lu.body))) return "fait";
         const carte = suite.findIndex((lu) => DE_CONFIANCE.includes(lu.association) && lu.body.startsWith(marqueur(SORTE_DE_LA_CARTE)));
         if (carte === -1) {
-          await poser(issue.number, proposition);
+          await poser(issue, proposition);
           return "fait";
         }
         const aiguillage = aiguiller(atelier.humains(), SORTE_DE_LA_CARTE);

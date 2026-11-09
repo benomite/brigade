@@ -50,6 +50,7 @@ const PRIX_DE_SUITE: Readonly<Record<string, string>> = {
   resume: `${ECRITE}, and the kitchen takes the ticket up again with it — a cook may be launched on the project's quota`,
   drop: `${ECRITE}, and the ticket is off the rail: no cook takes it, its issue stays open`,
   close: `${ECRITE}, and its issue is closed: the ticket is not cooked`,
+  rail: `${ECRITE}, and the \`prio:\` label of the choice is put on the issue: it goes on the rail`,
 };
 export const PRIX_DU_TEXTE = PRIX_DE_SUITE.resume as string;
 
@@ -61,6 +62,7 @@ const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
   merge: `${POSTEE}, and the app merges the PR the card names under your GitHub account — a merge is not undone from the app`,
   drop: `${POSTEE}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
   close: `${POSTEE}, and the app closes the issue: the ticket is not cooked`,
+  rail: `${POSTEE}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
 };
 
 // La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ

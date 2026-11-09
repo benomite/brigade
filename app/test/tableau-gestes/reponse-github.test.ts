@@ -73,6 +73,10 @@ function monde() {
       issue.commentaires.push(pose);
       return ok({ id: pose.id, html_url: `https://github.com/${DEPOT}/issues/${numero}#issuecomment-${pose.id}` }, 201);
     }
+    if (methode === "POST" && reste === "/labels" && issue !== undefined) {
+      for (const pose of (corps as { labels: string[] }).labels) issue.labels.add(pose);
+      return ok([]);
+    }
     const label = /^\/labels\/(.+)$/.exec(reste ?? "")?.[1];
     if (methode === "DELETE" && label !== undefined && issue !== undefined) return issue.labels.delete(decodeURIComponent(label)) ? ok([]) : ok({ message: "Label does not exist" }, 404);
     if (methode === "PATCH" && reste === "" && issue !== undefined) {
@@ -175,6 +179,61 @@ describe("les cartes de #2061 et #1554 : un bouton par choix et un champ, la que
     assert.deepEqual(situation({ etat: carte.etat as string, attend: carte.attend, dit: carte.dit, question: carte.todo?.question ?? "" }), { libelle: "question", lignes: ["Does the export keep the old column order?"] });
     // Une seule fois sur la fiche aussi : sa tête dit ce que la sorte attend.
     assert.equal(carte.fiche.attendu, "A product question waits for your answer.");
+  });
+});
+
+// La carte d'une issue d'un inconnu, telle que le tri la pose (runtime/src/issue-etrangere/issue-etrangere.ts, `carteDuTriage`).
+const CARTE_ETRANGERE = [
+  "<!-- brigade:todo kind=product-question -->",
+  "Stranger's issue #40: put it on the rail, or close it?",
+  "",
+  "- [rail] Put it on the rail with `prio:2`",
+  "- [close] Close it",
+  "",
+  "Asks: Ticket 40 — Please add dark mode.",
+  "Opened by @mallory, a stranger.",
+  "Recommended: rail, `prio:2` — the manager's triage: ticket, with `prio:2`. A real need.",
+].join("\n");
+
+describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un seul pas", () => {
+  const avecLaCarte = () => {
+    const leMonde = monde();
+    leMonde.issues.set(40, { labels: new Set(["chef-todo"]), state: "open", commentaires: [{ id: 900, body: CARTE_ETRANGERE, author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" }] });
+    return leMonde;
+  };
+
+  test("la recommandation est le premier bouton, l'autre choix le second, puis le champ libre", async () => {
+    const carte = carteDe(await todo(avecLaCarte().client), 40);
+    const { racine } = posee(40, carte.todo ?? assert.fail("the card asks its question"));
+    assert.deepEqual(boutons(racine).map(({ textContent }) => textContent), ["Put it on the rail with `prio:2`", "Close it"]);
+    assert.equal(racine.dessous("textarea")[0]?.placeholder, CHAMP);
+    assert.ok(racine.dessous("p").some(({ textContent }) => textContent?.includes("Opened by @mallory, a stranger.")));
+  });
+
+  test("rail : le `prio:` du bouton est posé sur l'issue, la carte levée, rien d'autre n'est demandé", async () => {
+    const leMonde = avecLaCarte();
+    const rendu = await cliquer(leMonde, 40, "Put it on the rail with `prio:2`");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(dernierCommentaire(leMonde, 40), "<!-- brigade:reponse gesture=rail -->\nPut it on the rail with `prio:2`");
+    assert.deepEqual([...(leMonde.issues.get(40)?.labels ?? [])], ["prio:2"]);
+    assert.equal(leMonde.issues.get(40)?.state, "open");
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 40));
+  });
+
+  test("close : l'issue est fermée", async () => {
+    const leMonde = avecLaCarte();
+    const rendu = await cliquer(leMonde, 40, "Close it");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(leMonde.issues.get(40)?.state, "closed");
+    assert.deepEqual([...(leMonde.issues.get(40)?.labels ?? [])], []);
+  });
+
+  test("GitHub qui refuse le label : la réponse est écrite, le geste se dit non joué", async () => {
+    const leMonde = avecLaCarte();
+    const ecrire = leMonde.client.ecrire;
+    const client: ClientDeLaReponse = { lire: leMonde.client.lire, ecrire: async (methode, chemin, corps) => (chemin.endsWith("/labels") ? { status: 403, data: { message: "no" } } : ecrire(methode, chemin, corps)) };
+    const rendu = await cliquer({ ...leMonde, client }, 40, "Put it on the rail with `prio:2`");
+    assert.ok("refus" in rendu && /gesture \(rail\) was not played/.test(rendu.refus), JSON.stringify(rendu));
   });
 });
 

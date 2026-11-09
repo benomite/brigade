@@ -39,7 +39,7 @@ export type Issue = {
 
 // Une issue telle que le manager la juge : avec son corps, et le lien de son
 // auteur avec le dépôt, tel que GitHub le nomme (`OWNER`, `MEMBER`, `NONE`…).
-export type IssueOuverte = Issue & { body: string; association: string };
+export type IssueOuverte = Issue & { body: string; association: string; author?: string };
 
 // Une issue lue parmi celles modifiées depuis un instant : fermée, avec quand
 // elle l'a été, si GitHub le dit.
@@ -534,7 +534,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     return { inchange: false, issues, confirmer: () => void (empreinte === null ? etags.delete(chemin) : etags.set(chemin, empreinte)) };
   };
 
-  const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE" });
+  const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE", author: brute.user?.login ?? "" });
 
   return {
     tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, (brute) => ({ ...lire(brute), ...(porteListe(brute.body ?? "") ? { epique: true as const } : {}) })),
