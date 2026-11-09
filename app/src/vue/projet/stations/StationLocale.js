@@ -14,6 +14,7 @@
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), l'état lu et les gestes.
 
 import { survol } from "../../briques.js";
+import { interrupteur } from "../../composants/interrupteur/interrupteur.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.js";
 import { niveauDe } from "../../niveaux.js";
@@ -100,10 +101,6 @@ function bacASable(doc, { poste, projet, ordinaires, refusOrdinaires = "", regla
   if (ordinaires === undefined) return [rangee(doc, { nom: "sandbox", cle: "ordinaires", valeur: [avec(doc, "span", LECTURE)] })];
   if (ordinaires === null) return [rangee(doc, { nom: "sandbox", cle: "ordinaires", valeur: [avec(doc, "span", NE_CUIT_PAS(projet, poste))] })];
   if (!ordinaires.reglable) return [rangee(doc, { nom: "sandbox", cle: "ordinaires", valeur: [avec(doc, "span", `none on ${poste}`), survol(doc, ordinaires.explication)] })];
-  const option = doc.createElement("input");
-  option.type = "checkbox";
-  option.checked = ordinaires.actif;
-  option.ariaLabel = `Take the ordinary tickets on ${poste}`;
   const limite = doc.createElement("input");
   limite.type = "number";
   limite.min = "1";
@@ -112,11 +109,14 @@ function bacASable(doc, { poste, projet, ordinaires, refusOrdinaires = "", regla
   limite.ariaLabel = `Cooks ${poste} runs at once`;
   // Un changement en route : les deux contrôles attendent sa réponse.
   const enCours = reglageDit !== undefined && "enCours" in reglageDit.dit;
-  option.disabled = enCours;
   limite.disabled = enCours;
-  const regler = (/** @type {Bac} */ ou) => () => gestes.regler(option.checked === true, String(limite.value).trim() === "" ? null : Number(limite.value), ou);
-  option.addEventListener("change", regler("option"));
-  limite.addEventListener("change", regler("limite"));
+  const regler = (/** @type {Bac} */ ou, /** @type {boolean} */ prise) => gestes.regler(prise, String(limite.value).trim() === "" ? null : Number(limite.value), ou);
+  const option = interrupteur(
+    doc,
+    { texte: ordinaires.actif ? "on" : "off", allume: ordinaires.actif, libelle: `Take the ordinary tickets on ${poste}`, actif: !enCours },
+    (prise) => regler("option", prise),
+  );
+  limite.addEventListener("change", () => regler("limite", option.ariaChecked === "true"));
   const dit = (/** @type {Bac} */ ou) => ditDuReglage(doc, reglageDit?.ou === ou ? reglageDit.dit : undefined);
   return [
     rangee(doc, {

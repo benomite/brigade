@@ -128,6 +128,7 @@ import { AUCUNE_STATION } from "./cooks/sans-station.js";
 import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { MENU, STATIONS } from "./projet/menu/menu.js";
 import { poserBlocBandeRail } from "./projet/rail/BandeRail.js";
+import { interrupteur as interrupteurDeLApp } from "./composants/interrupteur/interrupteur.js";
 import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
 import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
 import { ORDINAIRES_EN_COURS, poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
@@ -2160,7 +2161,6 @@ function reglagesDesStations(projet) {
   const ordinairesDit = ordinairesEnCours.has(projet.nom) ? ORDINAIRES_EN_COURS : ordinairesRefuses.projet === projet.nom && ordinairesRefuses.refus !== "" ? { refus: ordinairesRefuses.refus } : undefined;
   const pose = poserBlocReglagesStation(document, {
     stations: declarees.get(projet.nom),
-    projet: projet.nom,
     ici: projet.ici === true,
     ...(ordinaires === undefined ? {} : { ordinaires }),
     ...(ordinairesDit === undefined ? {} : { ordinairesDit }),
@@ -2184,20 +2184,12 @@ function reposerLesReglagesDesStations(projet) {
   rendreLeClavier(reprise);
 }
 // Les gestes du bloc : un plafond ou des capacités changés partent aussitôt, comme sous « edit » sur Cooks ; la case des
-// tickets ordinaires de ce poste s'écrit comme dans Settings ; « Stop serving » confirmé retire la station.
+// tickets ordinaires de ce poste s'écrit comme dans Settings.
 /** @param {Projet} projet @returns {import("./projet/stations/ReglagesStation.js").Gestes} */
 function gestesDesReglages(projet) {
-  const saisie = (/** @type {string} */ nom) => saisiesDesStations.get(projet.nom)?.get(nom);
   return {
     appliquer: (nom, cle, voulu) => void changerLaStation(projet, nom, cle, voulu),
     ordinaires: (pris) => void reglerLesOrdinairesIci(projet, pris),
-    confirmer: (nom, oui) => {
-      const tenue = saisie(nom);
-      if (tenue === undefined || tenue.envoi) return;
-      tenue.confirmer = oui;
-      reposerLesReglagesDesStations(projet);
-    },
-    retirer: (nom) => void changerLaStation(projet, nom, "sert", { retiree: true }),
   };
 }
 // Le changement part — la rangée `cle` dit qu'il est en route —, puis elle dit ce qu'il a rendu ; refusé, la saisie revient
@@ -2207,7 +2199,6 @@ async function changerLaStation(projet, nom, cle, voulu) {
   const saisie = saisiesDesStations.get(projet.nom)?.get(nom);
   if (saisie === undefined || saisie.envoi) return;
   saisie.envoi = true;
-  saisie.confirmer = false;
   saisie.ou = cle;
   saisie.rendu = undefined;
   reposerLesReglagesDesStations(projet);
@@ -2261,6 +2252,7 @@ function lieuDesStations(projet) {
   /** @type {import("./stations-declarees.js").Editer} */
   const editer = {
     ...(editee?.projet === projet.nom ? { editee: editee.edition } : {}),
+    ...(retraitAConfirmer?.projet === projet.nom ? { retrait: retraitAConfirmer.nom } : {}),
     ...(derniereEditee?.projet === projet.nom ? { dernier: derniereEditee } : {}),
     ouvrir: (/** @type {string} */ nom) => void ouvrirLEdition(projet, nom),
     fermer: () => {
@@ -2268,13 +2260,19 @@ function lieuDesStations(projet) {
       reposerLesStations(projet);
     },
     appliquer: (nom, cle, voulu) => void envoyerLEdition(projet, nom, cle, voulu),
-    confirmer: (/** @type {boolean} */ oui) => {
-      if (editee?.projet !== projet.nom) return;
-      editee.edition.confirmer = oui;
+    demander: (/** @type {string} */ nom) => {
+      retraitAConfirmer = { projet: projet.nom, nom };
       reposerLesStations(projet);
     },
-    retirer: () => {
-      if (editee?.projet === projet.nom) void envoyerLEdition(projet, editee.edition.nom, "retrait", { retiree: true });
+    renoncer: () => {
+      retraitAConfirmer = undefined;
+      reposerLesStations(projet);
+    },
+    retirer: (/** @type {string} */ nom) => {
+      retraitAConfirmer = undefined;
+      // Le formulaire de la station se ferme avec elle : ce que le retrait rend se lit sous sa ligne.
+      if (editee?.projet === projet.nom && editee.edition.nom === nom) editee = undefined;
+      void envoyerLEdition(projet, nom, "retrait", { retiree: true });
     },
   };
   return { ici: projet.ici === true, projet: projet.nom, editer };
@@ -2284,6 +2282,9 @@ function lieuDesStations(projet) {
 // autres stations, et ce que cet ordinateur sait déclarer — lu comme pour « + station » (ticket 1307).
 /** @type {{ projet: string, edition: import("./stations-declarees.js").Edition } | undefined} */
 let editee;
+// La station dont le retrait attend son « yes », sous sa ligne : une à la fois (ticket 2914).
+/** @type {{ projet: string, nom: string } | undefined} */
+let retraitAConfirmer;
 // Ce que le dernier changement a rendu sur une station dont le formulaire est fermé : son plafond réglé sur sa ligne
 // (« Its stations »), en route ou rendu, ou son retrait.
 /** @type {{ projet: string, nom: string, ou: string, envoi?: boolean, rendu?: import("../service.ts").StationChangee } | undefined} */
@@ -2295,7 +2296,7 @@ async function ouvrirLEdition(projet, nom, appelee) {
   const lues = declarees.get(projet.nom);
   const station = lues?.declarees.find((lue) => lue.nom === nom);
   if (lues === undefined || station === undefined) return;
-  const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: [...station.fournit], choix: choixDeCapacites(station, lues, [], appelee), confirmer: false, envoi: false } };
+  const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: [...station.fournit], choix: choixDeCapacites(station, lues, [], appelee), envoi: false } };
   editee = ouverte;
   derniereEditee = undefined;
   reposerLesStations(projet);
@@ -2306,7 +2307,7 @@ async function ouvrirLEdition(projet, nom, appelee) {
 }
 // Un réglage de la station changé — dans son formulaire, ou son plafond sur sa ligne —, ou « Remove » confirmé : le geste
 // part, sa rangée dit qu'il est en route, puis ce qu'il a rendu ; refusé, la saisie revient à la déclaration en vigueur.
-// Le formulaire reste ouvert, sauf sur un retrait fait. Les stations relues arrivent par `surGuide`.
+// Le formulaire reste ouvert ; un retrait ne passe jamais par lui (`retirer`, plus haut). Les stations relues arrivent par `surGuide`.
 /** @param {Projet} projet @param {string} nom @param {string} cle @param {import("../service.ts").StationVoulue} voulu */
 async function envoyerLEdition(projet, nom, cle, voulu) {
   const ouverte = editee?.projet === projet.nom && editee.edition.nom === nom ? editee : undefined;
@@ -2314,7 +2315,6 @@ async function envoyerLEdition(projet, nom, cle, voulu) {
   if (edition?.envoi === true || (derniereEditee?.projet === projet.nom && derniereEditee.nom === nom && derniereEditee.envoi === true)) return;
   if (edition !== undefined) {
     edition.envoi = true;
-    edition.confirmer = false;
     edition.ou = cle;
     edition.rendu = undefined;
   }
@@ -2330,10 +2330,7 @@ async function envoyerLEdition(projet, nom, cle, voulu) {
   if (edition !== undefined) {
     edition.envoi = false;
     if ("refus" in rendu) revenir(edition, declarees.get(projet.nom)?.declarees.find((lue) => lue.nom === nom));
-    if (cle === "retrait" && "fait" in rendu && editee === ouverte) {
-      editee = undefined;
-      derniereEditee = { projet: projet.nom, nom, ou: cle, rendu };
-    } else edition.rendu = rendu;
+    edition.rendu = rendu;
   } else derniereEditee = { projet: projet.nom, nom, ou: cle, rendu };
   if (courant?.nom === projet.nom) reposerLesStations(courant);
 }
@@ -2614,25 +2611,25 @@ async function poserOrdinaires(projet) {
   ordinairesPose = pose;
   ordinaires.ariaLabel = `Ordinary tickets on ${POSTE.nom}`;
   ordinaires.hidden = false;
-  const option = document.createElement("input");
-  option.type = "checkbox";
-  option.checked = recu.actif;
-  option.ariaLabel = `Take the ordinary tickets on ${POSTE.nom}`;
   const limite = document.createElement("input");
   limite.type = "number";
   limite.min = "1";
   limite.step = "1";
   limite.value = recu.limite === null ? "" : String(recu.limite);
   limite.ariaLabel = `Cooks ${POSTE.nom} runs at once`;
-  const regler = async () => {
+  const regler = async (/** @type {boolean} */ prise) => {
     const voulue = limite.value.trim() === "" ? null : Number(limite.value);
-    const refus = await brigade.reglerOrdinaires(projet.nom, option.checked, voulue);
+    const refus = await brigade.reglerOrdinaires(projet.nom, prise, voulue);
     ordinairesRefuses = { projet: projet.nom, refus: refus ?? "" };
     ordinairesPose = "";
     if (courant?.nom === projet.nom) void poserOrdinaires(projet);
   };
-  option.addEventListener("change", () => void regler());
-  limite.addEventListener("change", () => void regler());
+  const option = interrupteurDeLApp(
+    document,
+    { texte: recu.actif ? "on" : "off", allume: recu.actif, libelle: `Take the ordinary tickets on ${POSTE.nom}` },
+    (prise) => void regler(prise),
+  );
+  limite.addEventListener("change", () => void regler(option.ariaChecked === "true"));
   // Ce que l'option implique est au survol de sa valeur ; un bac à sable indisponible, sous sa ligne.
   // Leur niveau, celui de la table (niveaux.js) : le groupe le dit, l'étiquette reste sur la ligne.
   const prendre = rangeeDeReglage("ordinary tickets", [bloc("span", recu.actif ? "taken" : "not taken"), survol(document, recu.explication)], [option], [...refusDeReglage(recu.indisponible ?? ""), ...refusDeReglage(ordinairesRefuses.refus)], { cle: "ordinaires", niveau: niveauDe(document, "ordinaires") });
@@ -5178,17 +5175,16 @@ async function ouvrirPr(projet, ticket) {
  * @returns {HTMLElement[]}
  */
 function interrupteur(nom, allume, { pourquoi, eteindre, allumer, clic, confirmation }) {
-  const bascule = cliquable("", () => (allume === undefined ? undefined : clic()));
-  bascule.role = "switch";
-  bascule.className = "bascule";
-  bascule.dataset.etat = allume === undefined ? "inconnu" : allume ? "allume" : "eteint";
-  bascule.ariaChecked = allume === undefined ? "mixed" : String(allume);
-  bascule.disabled = allume === undefined;
-  const glissiere = bloc("span", "");
-  glissiere.className = "glissiere";
-  bascule.append(glissiere, bloc("span", `${nom} ${allume === undefined ? "…" : allume ? "on" : "off"}`));
-  bascule.title = `${pourquoi}${allume === undefined ? "" : `\n${allume ? eteindre : allumer}`}`;
-  bascule.ariaLabel = `the ${nom}: ${allume === undefined ? "not read" : allume ? "on" : "off"}`;
+  const bascule = interrupteurDeLApp(
+    document,
+    {
+      texte: `${nom} ${allume === undefined ? "…" : allume ? "on" : "off"}`,
+      allume,
+      libelle: `the ${nom}: ${allume === undefined ? "not read" : allume ? "on" : "off"}`,
+      titre: `${pourquoi}${allume === undefined ? "" : `\n${allume ? eteindre : allumer}`}`,
+    },
+    clic,
+  );
   return [bascule, ...(confirmation === undefined ? [] : [confirmation])];
 }
 

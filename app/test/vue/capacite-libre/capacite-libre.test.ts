@@ -210,7 +210,7 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     assert.equal(envoyes.length, 1);
   });
 
-  test("le formulaire reposé — la confirmation d'un retrait ouverte — garde la case ajoutée, cochée, et ce qui était tapé", async () => {
+  test("le formulaire reposé — la confirmation d'un retrait ouverte sur la ligne — garde la case ajoutée, cochée, et ce qui était tapé", async () => {
     const { vue } = await ouvrir();
     let forme = await editer(vue, "box/claude");
     taper(forme, "enregistrement-ecran");
@@ -218,10 +218,12 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     await attendre();
     forme = formulaire(vue, "box/claude");
     taper(forme, "machine-vier");
-    bouton(forme, "Remove").click();
+    // « Remove » est sur la ligne de la station, pas dans son formulaire (#2914) ; sa confirmation s'ouvre sous la ligne.
+    assert.equal(forme.dessous("button").some(({ textContent }) => textContent === "Remove"), false);
+    bouton(ligne(vue, "box/claude"), "Remove").click();
     await attendre();
     forme = formulaire(vue, "box/claude");
-    assert.ok(forme.dessous("section").some(({ className }) => className === "confirmation"), "la confirmation n'est pas ouverte");
+    assert.ok(ligne(vue, "box/claude").children.some(({ className }) => className === "confirmation"), "la confirmation n'est pas ouverte");
     assert.deepEqual(cases(forme).at(-1), ["enregistrement-ecran", true]);
     assert.equal(champ(forme).value, "machine-vier");
     assert.equal(champ(forme).dataset.cle, "station:box/claude");

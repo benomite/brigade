@@ -102,57 +102,6 @@
 .reglage > p.dit.propose > span + * {
   margin-left: var(--pas-1);
 }
-/* Le contrôle d'une bascule (marche / arrêt) : la glissière de l'interrupteur, la même partout. */
-:is(.interrupteur-de-tete, .reglage) .bascule {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-2);
-  padding: var(--pas-1) var(--pas-3) var(--pas-1) var(--pas-2);
-  font-weight: 600;
-  background: var(--bouton);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-pastille);
-}
-:is(.interrupteur-de-tete, .reglage) .bascule:hover:not(:disabled) {
-  border-color: var(--trait-fort);
-}
-:is(.interrupteur-de-tete, .reglage) .glissiere {
-  position: relative;
-  width: 30px;
-  height: 16px;
-  background: var(--trait-fort);
-  border-radius: var(--rayon-pastille);
-}
-:is(.interrupteur-de-tete, .reglage) .glissiere::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  background: var(--discret);
-  border-radius: 50%;
-}
-:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="allume"] .glissiere {
-  background: var(--vert);
-}
-:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="allume"] .glissiere::after {
-  left: 16px;
-  background: var(--texte);
-}
-:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="eteint"] {
-  color: var(--texte-doux);
-}
-:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="inconnu"] {
-  color: var(--discret);
-  border-style: dashed;
-  cursor: default;
-}
-:is(.interrupteur-de-tete, .reglage) .bascule[data-etat="inconnu"] .glissiere::after {
-  left: 9px;
-  background: transparent;
-  border: 1px dashed var(--discret);
-}
 @media (max-width: 720px) {
   .reglage {
     grid-template-columns: minmax(0, 1fr);

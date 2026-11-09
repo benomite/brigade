@@ -175,7 +175,7 @@ function saisieDuPlafond(declaree, dernier) {
     tenue.envoi = dernier?.envoi === true;
     return tenue;
   }
-  const neuve = { nom: declaree.nom, cooks: String(declaree.cooks), fournit: [...declaree.fournit], choix: [], confirmer: false, envoi: dernier?.envoi === true, lue, ...(refuse ? { vu: dernier } : {}) };
+  const neuve = { nom: declaree.nom, cooks: String(declaree.cooks), fournit: [...declaree.fournit], choix: [], envoi: dernier?.envoi === true, lue, ...(refuse ? { vu: dernier } : {}) };
   plafondsTapes.set(declaree.nom, neuve);
   return neuve;
 }
@@ -319,9 +319,9 @@ function fournitDe(doc, rang, lieu, declarees) {
     ligne.append(rien);
     return [ligne];
   }
-  const [capacites, editer, dessous] = ceQuElleFournit(doc, rang.declaree, { ...lieu, seule: declarees === 1 });
-  ligne.append(capacites, ...(editer === undefined ? [] : [editer]));
-  return [ligne, ...(dessous === undefined ? [] : [dessous])];
+  const [capacites, gestes, ...dessous] = ceQuElleFournit(doc, rang.declaree, { ...lieu, seule: declarees === 1 });
+  ligne.append(capacites, ...(gestes === undefined ? [] : [gestes]));
+  return [ligne, ...dessous];
 }
 
 // La section des stations, ou null : `facts` ne les donne pas. `pastille` : celle de la vue. `tete` : ce qui se lit sous son titre,

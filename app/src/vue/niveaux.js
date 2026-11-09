@@ -29,14 +29,12 @@ export const NIVEAUX = {
   "closer-tokens": "project",
   "closer-lines": "project",
   // Cette machine : ses cooks, le dossier de ses espaces de travail, ce qu'elle sait faire, ses tickets ordinaires — et,
-  // sur l'onglet Stations (ticket 2488), si une station sert le projet : la déclaration que sa station principale tient ;
   // pour la station de cet ordinateur (ticket 2489), sa connexion à Claude.
   cooks: "machine",
   dossier: "machine",
   capacites: "machine",
   ordinaires: "machine",
   porte: "machine",
-  sert: "machine",
   claude: "machine",
   // La page d'une station (ticket 2642) : son nom, sa machine, ses cœurs, sa version et sa mise à jour.
   "station-nom": "machine",

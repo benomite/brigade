@@ -117,7 +117,7 @@ single-station commands run through the project's station (`installation station
 The declaration lives on the project's main station, not in the repository: no change opens a pull request. While a change
 runs, `applying…` reads under its row and the form's controls wait; then the row says what was done, or the refusal in one
 line (the station's answer on hover), the control back to the value in force. The form stays open; `Close` folds it.
-`Remove` asks first, its price in one line, then runs `installation stations remove`; the project's only station cannot be
+`Remove` is not in the form: it is on the station's line, next to `edit` (#2914). It asks first, inline under the line, its price in one line, then runs `installation stations remove`; the project's only station cannot be
 removed. Then the stations are read again, and the rows follow; one line under the station's row says it was removed. It is the same on a
 Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
@@ -446,14 +446,17 @@ lines, each the same row as in Settings — the setting's name and its **level**
   declaration with that one value changed, the same gesture as "edit" on Cooks (`changerUneStation`); `applying…` reads
   under its row and the controls wait meanwhile, then the row says what was done, or the refusal in one line (its detail on
   hover) with the control back to the value in force. The re-read declaration then shows the new values.
-- **ordinary tickets** — `taken` or `not taken`. On the station that runs on this computer, the box is this computer's
+- **ordinary tickets** — `taken` or `not taken`, with the app's switch (`composants/interrupteur/interrupteur.js`, the same
+  as the project switch at the head of the project space and the sandbox row below). On the station that runs on this computer, the switch is this computer's
   option, the same as Settings (`reglerOrdinaires`, its cooks limit kept): it writes at once, `applying…` under the row
   meanwhile, a refusal under it. On a box station, `taken`,
   greyed — a box station takes every ticket it can cook. On a remote station, what `facts` says of it, greyed, the
   reason on hover; `not said` when its main station does not say it.
-- **serves this project** — ticked for every declared station. Unticking asks first, with what it costs in one line
-  (`Stop serving parade on pc/claude?`); confirmed, the station is removed from the declaration. The project's only
-  station cannot be unticked, the reason on hover.
+
+Removing a station is not a row of this block (#2914): `Remove` sits on the station's own line, next to `edit`, in the
+list above (`stations-declarees.js`), and nowhere else. It asks first, inline under the line, with what it costs in one
+line (`Remove pc/claude from parade?`); confirmed, the station is removed from the declaration. The project's only station
+cannot be removed, the reason on hover.
 
 Each line is the app's settings row (`rangeeDeReglage`, `app/src/vue/composants/reglage/reglage.js`). Every one of these
 settings lives on a station, none in the project's repository: no change opens a pull request. Nothing is stored by the

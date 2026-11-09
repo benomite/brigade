@@ -1121,12 +1121,14 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     assert.match(reglage(section(vue, editee), "capacites").textContent, /saved; the other stations are unchanged/);
 
     // La retirer : rien ne part avant la confirmation.
-    cocher(section(vue, editee), `${editee} serves calculus`, false);
+    // « Remove » est sur la ligne de la station (#2914), sa confirmation s'ouvre dessous.
+    const ligne = () => vue.dessous("li").find(({ className, dataset }) => (className === "station-de-cuisson" || className === "station-declaree") && dataset.station === editee) ?? assert.fail(`pas de ligne pour ${editee}`);
+    bouton(ligne(), "Remove").click();
     await fini();
-    forme = formulaire(vue, editee);
-    assert.match(forme.dessous("p").map(({ textContent }) => textContent).join(" "), new RegExp(`Stop serving calculus on ${editee}\\?`));
+    const confirmation = ligne().children.find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(confirmation.dessous("p").map(({ textContent }) => textContent).join(" "), new RegExp(`Remove ${editee} from calculus\\?`));
     assert.equal((await declaree()).length, 3);
-    bouton(forme, "Stop serving").click();
+    bouton(confirmation, "Remove").click();
     await fini();
     assert.deepEqual(lues(vue), sans(avant, editee));
     assert.deepEqual(await declaree(), sans(auJournal, editee));
@@ -1144,7 +1146,8 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     const { vue: jouee, fini, declaree } = await cuisine(t, "box/claude:3:code");
     const vue = jouee.element("rail");
     const forme = formulaire(vue, "box/claude");
-    assert.equal(reglage(forme, "sert").dessous("input")[0]?.disabled, true);
+    const ligneSeule = vue.dessous("li").find(({ className, dataset }) => (className === "station-de-cuisson" || className === "station-declaree") && dataset.station === "box/claude") ?? assert.fail("pas de ligne pour box/claude");
+    assert.equal(bouton(ligneSeule, "Remove").disabled, true);
     // Aucune capacité cochée : refusé avant de partir, rien n'est écrit ; le refus se lit sous sa rangée, et la case
     // revient à la valeur en vigueur.
     cocher(forme, "code", false);
