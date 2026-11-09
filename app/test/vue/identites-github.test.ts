@@ -145,7 +145,7 @@ describe("configured", () => {
     taper(champCle(pass), CLE);
     assert.deepEqual(jeu.appels, [], "écrite sans être validée, la clé ne part pas");
     valider(champCle(pass));
-    assert.ok(ligne(jeu.ecran(), "pass").textContent.includes("saving…"), "le geste en route se dit");
+    assert.ok(ligne(jeu.ecran(), "pass").textContent.includes("Saving…"), "le geste en route se dit");
     await repos();
     assert.deepEqual(jeu.appels, [{ role: "pass", id: "1203457", cle: CLE }]);
     // La station l'a pour de bon : son ID et sa clé, dans son répertoire des Apps.

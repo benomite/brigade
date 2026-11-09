@@ -11,6 +11,7 @@
 
 import { boutonAction, survol } from "./../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { REESSAYER } from "../lexique.js";
 
 /** @typedef {import("./../briques.js").Fabrique} Fabrique */
 /** @typedef {{ ready: boolean, missingBindings: string[], missingLabels: string[] }} Preparation */
@@ -36,7 +37,7 @@ import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 export const INCONNU = { etape: "inconnu" };
 
 export const PREPARER = "Set up for Brigade";
-export const REESSAYER = "Retry";
+export { REESSAYER };
 export const EN_ROUTE = "setting the project up…";
 export const TITRE = "this project is not set up for Brigade";
 

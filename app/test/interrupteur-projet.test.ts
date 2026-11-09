@@ -195,7 +195,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
     const note = vue.element("note");
     assert.equal(note.hidden, false);
     assert.match(note.textContent, /^nothing was sent to the second: the second is busy/);
-    const encore = note.dessous("button").find(({ textContent }) => textContent === "try again") ?? assert.fail("pas de « try again »");
+    const encore = note.dessous("button").find(({ textContent }) => textContent === "Try again") ?? assert.fail("pas de « Try again »");
     encore.click();
     await repos();
     assert.equal(gestesPartis(vue).length, 2);

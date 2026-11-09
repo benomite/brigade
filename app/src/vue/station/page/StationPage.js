@@ -14,6 +14,7 @@
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { NIVEAUX } from "../../niveaux.js";
 import { niveauReglage } from "./NiveauReglage.js";
+import { NON_ATTEINT } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /**
@@ -43,7 +44,7 @@ export const SECTIONS = /** @type {const} */ ([
 export const LIVREES = new Set(["dossiers-et-bac-a-sable", "connexions"]);
 
 export const PAS_ENCORE = "not shown yet";
-export const INDISPONIBLE = "this section is unavailable";
+export const INDISPONIBLE = NON_ATTEINT("this section");
 
 // La page est celle de cet ordinateur quand la station ouverte est la station locale que l'app connaît.
 /** @param {StationOuverte} station @param {string | null | undefined} locale */

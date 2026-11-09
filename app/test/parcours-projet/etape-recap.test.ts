@@ -17,13 +17,13 @@ function monter(station?: string) {
 
 describe("l'étape récap", () => {
   test("elle montre le nom du projet et sa station", () => {
-    const { ligne } = monter("this Mac");
+    const { ligne } = monter("this computer");
     assert.match(ligne("projet")?.textContent ?? "", /chef\/parade/);
-    assert.match(ligne("station")?.textContent ?? "", /this Mac/);
+    assert.match(ligne("station")?.textContent ?? "", /this computer/);
   });
 
   test("elle dit que la cuisine prend le premier ticket labellisé fire, le label en code", () => {
-    const { tous } = monter("this Mac");
+    const { tous } = monter("this computer");
     const code = tous.find((element) => element.balise === "code");
     assert.equal(code?.textContent, "fire");
     assert.equal(tous.some((element) => element.className.includes("erreur")), false);
@@ -47,10 +47,10 @@ describe("l'étape récap", () => {
 
 describe("le descripteur du registre", () => {
   test("il pose l'étape du dépôt retenu avec sa station, et ne la dit jamais faite", () => {
-    const [racine] = etapeDuRecap.poser(doc, { depot: "chef/parade", station: "this Mac" }, { retour: () => {} }) as Faux[];
+    const [racine] = etapeDuRecap.poser(doc, { depot: "chef/parade", station: "this computer" }, { retour: () => {} }) as Faux[];
     const texte = [...racine!.descendants()].map((element) => element.textContent).join(" ");
     assert.match(texte, /chef\/parade/);
-    assert.match(texte, /this Mac/);
+    assert.match(texte, /this computer/);
     assert.equal(etapeDuRecap.faite(), false);
   });
 

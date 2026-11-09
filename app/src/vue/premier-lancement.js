@@ -21,6 +21,7 @@ import { poserParcoursProjet } from "./parcours-projet/parcours.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
+import { REESSAYER, LECTURE_DE, PAS_ENCORE } from "./lexique.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
 export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDetail, ROUVRIR_LA_PAGE, tapeLeCode } from "./parcours-projet/connexion.js";
@@ -65,13 +66,13 @@ export const OUVRIR_CE_PROJET = "open this project";
 export const PROJET_MANQUE = "Type the project to work on: its GitHub repository, `owner/repo`.";
 export const COMPTE_MANQUE = "Connect to GitHub above, or type the project as `owner/repo`: a name alone does not say whose it is.";
 export const PROJET_ILLISIBLE = "This is not a GitHub repository, `owner/repo`.";
-export const LECTURE = "Reading the stations you have paired, on GitHub…";
+export const LECTURE = LECTURE_DE("the stations you have paired, on GitHub");
 /** @param {string} poste */
 export const OUVRIR_UN_PROJET = (poste) => `Open one of your projects on ${poste}: one click, no folder to choose.`;
 export const RELIRE = "read again";
-export const REESSAYER = "try again";
+export { REESSAYER };
 export const PAR_UN_DOSSIER = "add a project from a folder instead";
-export const SANS_PROJET = "no project on this station yet";
+export const SANS_PROJET = PAS_ENCORE("project on this station");
 export const DEPOT_INCONNU = "its station does not say which GitHub repository it is, so it cannot be cloned from here";
 export const SANS_CUISINE = "does not cook";
 /** @param {string} projet */

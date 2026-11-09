@@ -11,6 +11,7 @@
 import { replie, survol } from "../briques.js";
 import { confirmationDeGeste } from "../composants/confirmation/confirmation.js";
 import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
+import { OUI, ANNULER } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./choix.js").Geste} Geste */
@@ -20,8 +21,8 @@ export const AIDE = "a click asks you to confirm: the command runs in the second
 export const BOUTON = "Run the second's command…";
 export const VOIR = "the exact command";
 export const TITRE = "Run this command in the second's terminal, in your name?";
-export const LANCER = "run it";
-export const ANNULER = "cancel";
+export const LANCER = OUI("run it");
+export { ANNULER };
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {

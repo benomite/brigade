@@ -89,14 +89,14 @@ for (const [poste, paquet, indice] of [
   });
 }
 
-test("la ligne suit la mise à jour de l'app installée : téléchargement, prête avec « Install now », installation", async () => {
+test("la ligne suit la mise à jour de l'app installée : téléchargement, prête avec « Update now », installation", async () => {
   const { vue, phrase, classe } = await lancer({ publiees: ["1.5.0"], miseAJour: { etat: "telechargement", version: "1.4.0", nouvelle: "1.5.0", recus: 40, taille: 100 } });
   assert.equal(phrase(), "Brigade 1.4.0 is running — 1.5.0 is out · downloading it, 40 %");
   assert.equal(classe("telecharger"), undefined);
   vue.dire("surMiseAJour", { etat: "prete", version: "1.4.0", nouvelle: "1.5.0" });
   assert.equal(phrase(), "Brigade 1.4.0 is running — 1.5.0 is out · it is downloaded: it installs at the next launch");
-  const installer = [...vue.element("nouvelle-version").descendants()].find(({ textContent, balise }) => balise === "button" && textContent === "Install now");
-  assert.ok(installer, "« Install now » est sur la ligne");
+  const installer = [...vue.element("nouvelle-version").descendants()].find(({ textContent, balise }) => balise === "button" && textContent === "Update now");
+  assert.ok(installer, "« Update now » est sur la ligne");
   assert.equal(installer.className, "recommande");
   installer.click();
   await repos();
@@ -105,9 +105,9 @@ test("la ligne suit la mise à jour de l'app installée : téléchargement, prê
   assert.equal(phrase(), "Brigade 1.4.0 is running — 1.5.0 is out · installing it — the app relaunches itself…");
 });
 
-test("« Install now » refusé : la ligne dit pourquoi, à la place de ce qu'elle disait", async () => {
+test("« Update now » refusé : la ligne dit pourquoi, à la place de ce qu'elle disait", async () => {
   const { lieu, phrase } = await lancer({ publiees: ["1.5.0"], miseAJour: { etat: "prete", version: "1.4.0", nouvelle: "1.5.0" }, installer: () => ({ refus: "the update is not ready to install" }) });
-  [...lieu().descendants()].find(({ textContent, balise }) => balise === "button" && textContent === "Install now")?.click();
+  [...lieu().descendants()].find(({ textContent, balise }) => balise === "button" && textContent === "Update now")?.click();
   await repos();
   assert.equal(phrase(), "Brigade 1.4.0 is running — 1.5.0 is out · the update is not ready to install");
 });

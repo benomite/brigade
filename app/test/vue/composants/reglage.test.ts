@@ -26,7 +26,7 @@ describe("la rangée de réglage", () => {
       rangee.children.map((pose: Faux) => pose.className),
       ["nom", "valeur", "champ", ""],
     );
-    assert.equal(rangee.children[0]?.textContent, "cooks at oncethis machine");
+    assert.equal(rangee.children[0]?.textContent, "cooks at oncethis computer");
     assert.equal(rangee.children[2]?.children[0], champ);
     // Un réglage de la machine ne passe pas par le dépôt : aucune ligne de PR.
     assert.equal(rangee.dataset.depot, undefined);

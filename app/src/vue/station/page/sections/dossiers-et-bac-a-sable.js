@@ -13,6 +13,7 @@ import { ligneErreur } from "../../../composants/ligne-erreur/ligne-erreur.js";
 import { ditDuReglage, rangeeDeReglage } from "../../../composants/reglage/reglage.js";
 import { niveauDe } from "../../../niveaux.js";
 import { appliquer, RIEN_N_A_CHANGE } from "../appliquer.js";
+import { LECTURE, NON_ATTEINT } from "../../../lexique.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../composants/reglage/reglage.js").Dit} Dit */
@@ -35,7 +36,7 @@ export const BAC = {
   off: { dit: "off", survol: "this station runs its cooks without a sandbox — you chose to continue without it" },
 };
 export const PORTE = "the network hosts a cook may reach — everything else is refused";
-export const INDISPONIBLE = "folders and sandbox unavailable";
+export const INDISPONIBLE = NON_ATTEINT("folders and sandbox");
 export const SANS_LECTURE = "this app does not read them";
 export const AUTRE_STATION = "not available for this station";
 export const SUR_SON_ORDINATEUR = "its folders and hosts are read and changed on its own computer";
@@ -166,6 +167,6 @@ export function poserSection(doc, contexte) {
     ];
   }
 
-  racine.append(avec(doc, "p", "reading…", "dit"));
+  racine.append(avec(doc, "p", LECTURE, "dit"));
   return lire().then(() => racine);
 }

@@ -40,7 +40,7 @@ function monter(options: Options = {}) {
   const servirIci = options.servirIci === null ? undefined : (options.servirIci ?? (async (depot: string) => (servis.push(depot), { depots: [depot] })));
   const racine = poserEtapeStation(doc, {
     depot: DEPOT,
-    ici: "this Mac",
+    ici: "this computer",
     locale: "gistmacbook",
     ...(options.stations === null ? {} : { stations: options.stations ?? STATIONS }),
     ...(servirIci === undefined ? {} : { servirIci }),
@@ -69,7 +69,7 @@ describe("la question, et cet ordinateur d'abord", () => {
     const etape = monter();
     assert.equal(etape.machines()[0], "ici");
     const bouton = etape.un("ici")!.dessous("button")[0]!;
-    assert.equal(bouton.textContent, "this Mac");
+    assert.equal(bouton.textContent, "this computer");
     assert.equal(bouton.className, "recommande");
   });
   test("un clic sur cet ordinateur : sa station sert le dépôt, et le parcours suit", async () => {
@@ -77,7 +77,7 @@ describe("la question, et cet ordinateur d'abord", () => {
     await etape.cliquer("ici");
     assert.deepEqual(etape.servis, [DEPOT]);
     assert.deepEqual(etape.choisis, []);
-    assert.deepEqual(etape.choisies, ["this Mac"]);
+    assert.deepEqual(etape.choisies, ["this computer"]);
   });
   test("cet ordinateur refuse : une ligne, son détail au survol, et le parcours ne suit pas", async () => {
     const etape = monter({ servirIci: async () => ({ refus: "brigade: chef/parade cannot be cloned — the repository is archived" }) });
@@ -94,7 +94,7 @@ describe("la question, et cet ordinateur d'abord", () => {
       },
     });
     await etape.cliquer("ici");
-    assert.equal(etape.un("erreur")!.textContent, "this Mac could not be given the project.");
+    assert.equal(etape.un("erreur")!.textContent, "this computer could not be given the project.");
     assert.equal(etape.suites(), 0);
   });
 });
@@ -192,7 +192,7 @@ describe("l'étape inscrite au parcours, après celle du projet", () => {
     assert.equal(etapeDeLaStation.id, "station");
     assert.equal(etapeDeLaStation.titre, TITRE);
     assert.equal(etapeDeLaStation.faite({ depot: DEPOT }), false);
-    assert.equal(etapeDeLaStation.faite({ depot: DEPOT, station: "this Mac" }), true);
+    assert.equal(etapeDeLaStation.faite({ depot: DEPOT, station: "this computer" }), true);
   });
   test("sans dépôt ajouté, elle attend le projet en une ligne, sans bouton", () => {
     const poses = etapeDeLaStation.poser(doc, {}, gestes([])) as Faux[];
@@ -210,7 +210,7 @@ describe("l'étape inscrite au parcours, après celle du projet", () => {
   });
   test("le dépôt ajouté, elle pose la question ; un clic tient la machine choisie", async () => {
     const tenues: string[] = [];
-    const [racine] = etapeDeLaStation.poser(doc, { depot: DEPOT, ici: "this Mac", locale: "gistmacbook", appairees: STATIONS }, gestes(tenues)) as Faux[];
+    const [racine] = etapeDeLaStation.poser(doc, { depot: DEPOT, ici: "this computer", locale: "gistmacbook", appairees: STATIONS }, gestes(tenues)) as Faux[];
     assert.equal(racine!.children[0]?.textContent, ATTENDU);
     const lignes = [...racine!.descendants()].filter((element) => element.dataset.station !== undefined);
     assert.deepEqual(lignes.map((element) => element.dataset.station), ["ici", "nas", "parade-box"]);
@@ -238,7 +238,7 @@ describe("l'étape dans le parcours d'ajout partagé (parcours.js)", () => {
     assert.ok(ETAPES.findIndex((etape) => etape.id === "compte") < ETAPES.indexOf(etapeDeLaStation));
   });
   test("le projet ajouté, le parcours demande « Who cooks this project? » à l'étape courante, sans quitter l'écran", () => {
-    const racine = ecran({ compte: { login: "chef" }, depot: DEPOT, ici: "this Mac", locale: "gistmacbook", appairees: STATIONS });
+    const racine = ecran({ compte: { login: "chef" }, depot: DEPOT, ici: "this computer", locale: "gistmacbook", appairees: STATIONS });
     const station = ligne(racine);
     assert.equal(station.dataset.etat, "courante");
     assert.ok([...station.descendants()].some((element) => element.textContent === ATTENDU && element.className === "attendu"));
@@ -249,14 +249,14 @@ describe("l'étape dans le parcours d'ajout partagé (parcours.js)", () => {
   });
   test("sans station appairée, cet ordinateur seul ; un clic le confie, et le parcours tient la machine", async () => {
     const tenues: string[] = [];
-    const station = ligne(ecran({ compte: { login: "chef" }, depot: DEPOT, ici: "this Mac", appairees: [] }, tenues));
+    const station = ligne(ecran({ compte: { login: "chef" }, depot: DEPOT, ici: "this computer", appairees: [] }, tenues));
     const machines = [...station.descendants()].filter((element) => element.dataset.station !== undefined);
     assert.deepEqual(machines.map((element) => element.dataset.station), ["ici"]);
     machines[0]!.dessous("button")[0]!.click();
     await new Promise((resoudre) => setImmediate(resoudre));
-    assert.deepEqual(tenues, ["this Mac"]);
+    assert.deepEqual(tenues, ["this computer"]);
   });
   test("la machine tenue, l'étape est faite", () => {
-    assert.equal(ligne(ecran({ compte: { login: "chef" }, depot: DEPOT, station: "this Mac" })).dataset.etat, "faite");
+    assert.equal(ligne(ecran({ compte: { login: "chef" }, depot: DEPOT, station: "this computer" })).dataset.etat, "faite");
   });
 });

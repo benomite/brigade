@@ -13,6 +13,7 @@
 
 import { boutonAction } from "../../briques.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
+import { REESSAYER, LECTURE_DE, CET_ORDINATEUR } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 // `version` : la version qui tourne et si elle est en retard, quand le statut de la station la dit (station-version.js).
@@ -34,12 +35,12 @@ import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
  */
 
 export const TITRE = "This computer's station";
-export const INSTALLER = "Install this computer's station";
+export const INSTALLER = `Install ${CET_ORDINATEUR}'s station`;
 export const INSTALLATION = "installing the station…";
 export const INSTALLATION_SURVOL = "downloads the station, starts it, and connects it to GitHub and Max: it can take a couple of minutes";
 export const REFUS = "the station could not be installed";
-export const REESSAYER = "Try again";
-export const LECTURE = "reading this computer's station…";
+export { REESSAYER };
+export const LECTURE = LECTURE_DE(`${CET_ORDINATEUR}'s station`);
 export const PRETE = "the station is ready";
 export const SA_PAGE = "Station settings";
 export const LES_AUTRES = "Your other stations";

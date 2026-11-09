@@ -57,10 +57,10 @@ describe("l'étape « Who cooks this project? »", () => {
 
   test("ce qu'on attend du chef en tête ; cet ordinateur d'abord, recommandé ; une station hors ligne le dit ; cancel", () => {
     const hors = appairee("g7h8", "vieux-pc", [], false);
-    const pose = poserEtapeStation(doc, { projet: PARADE, ici: "this Mac", iciOffert: true, stations: [ATELIER, hors] }, { ouvert: true }, gestesNuls) as Faux;
+    const pose = poserEtapeStation(doc, { projet: PARADE, ici: "this computer", iciOffert: true, stations: [ATELIER, hors] }, { ouvert: true }, gestesNuls) as Faux;
     assert.equal(pose.children[0]?.textContent, TITRE(PARADE));
-    assert.deepEqual(boutons(pose).map(({ textContent }) => textContent), ["this Mac", "atelier", "vieux-pc", ANNULER]);
-    assert.equal(bouton(pose, "this Mac").className, "recommande");
+    assert.deepEqual(boutons(pose).map(({ textContent }) => textContent), ["this computer", "atelier", "vieux-pc", ANNULER]);
+    assert.equal(bouton(pose, "this computer").className, "recommande");
     assert.equal(bouton(pose, "atelier").className, "");
     assert.ok(pose.dessous("li").find((li) => li.dataset.choix === "g7h8")?.textContent.includes(HORS_LIGNE));
     // Chaque choix dit au survol ce qu'il fait : rien n'est écrit à plat sous le bouton.
@@ -68,15 +68,15 @@ describe("l'étape « Who cooks this project? »", () => {
   });
 
   test("sans choix, une ligne le dit ; un choix qui s'écrit grise les boutons ; un refus se dit en une ligne, sa suite au survol", () => {
-    const vide = poserEtapeStation(doc, { projet: PARADE, ici: "this Mac", iciOffert: false, stations: [] }, { ouvert: true }, gestesNuls) as Faux;
+    const vide = poserEtapeStation(doc, { projet: PARADE, ici: "this computer", iciOffert: false, stations: [] }, { ouvert: true }, gestesNuls) as Faux;
     assert.ok(vide.textContent.includes(AUCUNE(PARADE)));
     assert.deepEqual(boutons(vide).map(({ textContent }) => textContent), [ANNULER]);
 
-    const enCours = poserEtapeStation(doc, { projet: PARADE, ici: "this Mac", iciOffert: true, stations: [ATELIER] }, { ouvert: true, enCours: ICI }, gestesNuls) as Faux;
+    const enCours = poserEtapeStation(doc, { projet: PARADE, ici: "this computer", iciOffert: true, stations: [ATELIER] }, { ouvert: true, enCours: ICI }, gestesNuls) as Faux;
     assert.ok(boutons(enCours).every(({ disabled }) => disabled));
     assert.ok(enCours.dessous("li")[0]?.textContent.includes(ENVOI));
 
-    const refus = poserEtapeStation(doc, { projet: PARADE, ici: "this Mac", iciOffert: true, stations: [] }, { ouvert: true, refus: { ligne: "nothing was written: GitHub did not take the change", detail: "HTTP 502" } }, gestesNuls) as Faux;
+    const refus = poserEtapeStation(doc, { projet: PARADE, ici: "this computer", iciOffert: true, stations: [] }, { ouvert: true, refus: { ligne: "nothing was written: GitHub did not take the change", detail: "HTTP 502" } }, gestesNuls) as Faux;
     const ligne = refus.dessous("p").find(({ className }) => className === "refus") ?? assert.fail("pas de refus");
     assert.equal(ligne.children[0]?.textContent, "nothing was written: GitHub did not take the change");
     assert.equal(ligne.dessous("button")[0]?.ariaLabel, "HTTP 502");
@@ -97,7 +97,7 @@ describe("l'étape « Who cooks this project? »", () => {
     ajout.confier(PARADE, DEPOT, ATELIER);
     assert.deepEqual(ajout.etatDe(PARADE), { ouvert: true, enCours: ATELIER.id });
     // Tant qu'atelier s'écrit, rien d'autre ne part ; cancel attend aussi.
-    ajout.servirIci(PARADE, DEPOT, "this Mac");
+    ajout.servirIci(PARADE, DEPOT, "this computer");
     ajout.annuler(PARADE);
     assert.deepEqual(servis, []);
     assert.deepEqual(choisis, [[ATELIER.id, ["chef/cantine", DEPOT]]]);
@@ -105,24 +105,24 @@ describe("l'étape « Who cooks this project? »", () => {
     await repos();
     assert.deepEqual(ajout.etatDe(PARADE), { ouvert: true, refus: { ligne: "nothing was written: GitHub did not take the change", detail: "HTTP 502" } });
 
-    ajout.servirIci(PARADE, DEPOT, "this Mac");
+    ajout.servirIci(PARADE, DEPOT, "this computer");
     await repos();
     assert.deepEqual(servis, [DEPOT]);
-    assert.deepEqual(ajout.etatDe(PARADE), { ouvert: false, fait: "this Mac" } satisfies EtatDeLAjout);
+    assert.deepEqual(ajout.etatDe(PARADE), { ouvert: false, fait: "this computer" } satisfies EtatDeLAjout);
     assert.deepEqual(ajout.etatDe("cantine"), { ouvert: false }, "l'état est celui d'un projet");
     assert.ok(rendus >= 5);
   });
 
   test("le bloc : la liste qu'on lui donne, telle quelle, puis « Add a station » ; ouvert, l'étape à sa place ; fait, une ligne", () => {
     const liste = new Faux("div");
-    const donnees = { projet: PARADE, ici: "this Mac", iciOffert: true, stations: [ATELIER] };
+    const donnees = { projet: PARADE, ici: "this computer", iciOffert: true, stations: [ATELIER] };
     const gestes = { ...gestesNuls, ouvrir: () => {} };
     const ferme = poserBlocListeStations(doc, { liste, ajout: { donnees, etat: { ouvert: false }, gestes } });
     assert.equal(ferme.children[1], liste);
     assert.deepEqual(boutons(ferme).map(({ textContent }) => textContent), [AJOUTER]);
     assert.deepEqual(boutons(poserBlocListeStations(doc, { liste })), [], "sans ajout, pas de bouton");
     const ouvert = poserBlocListeStations(doc, { liste, ajout: { donnees, etat: { ouvert: true }, gestes } });
-    assert.deepEqual(boutons(ouvert).map(({ textContent }) => textContent), ["this Mac", "atelier", ANNULER]);
+    assert.deepEqual(boutons(ouvert).map(({ textContent }) => textContent), ["this computer", "atelier", ANNULER]);
     const fait = poserBlocListeStations(doc, { liste, ajout: { donnees, etat: { ouvert: false, fait: "atelier" }, gestes } });
     assert.ok(fait.textContent.includes(FAIT("atelier", PARADE)));
   });
@@ -162,7 +162,7 @@ async function ouvrir() {
   const vue = await jouerLaVue({
     demarrage,
     espace: () => [SECOND],
-    machines: () => [{ id: "poste", titre: "this Mac" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
     projetsServis: () => ({ depots: [] }),
     servirUnProjet: (depot, servi) => ({ depots: servi ? [depot] : [] }),
     stationsDuCompte: () => COMPTE,
@@ -201,13 +201,13 @@ describe("l'onglet Stations de la vue", () => {
     assert.equal(vue.element("rail").dataset.onglet, "stations");
     assert.ok(bloc(vue).textContent.includes(TITRE(PARADE)));
     // Ce Mac d'abord ; parade-box, à qui parade est déjà choisi, n'est pas proposée.
-    assert.deepEqual(boutons(bloc(vue)).slice(-3).map(({ textContent }) => textContent), ["this Mac", "atelier", ANNULER]);
+    assert.deepEqual(boutons(bloc(vue)).slice(-3).map(({ textContent }) => textContent), ["this computer", "atelier", ANNULER]);
 
-    bouton(bloc(vue), "this Mac").click();
+    bouton(bloc(vue), "this computer").click();
     await repos();
     assert.deepEqual(vue.dernier("servirUnProjet"), [DEPOT, true]);
     assert.ok(!bloc(vue).textContent.includes(TITRE(PARADE)), "l'étape se referme");
-    assert.ok(bloc(vue).textContent.includes(FAIT("this Mac", PARADE)));
+    assert.ok(bloc(vue).textContent.includes(FAIT("this computer", PARADE)));
     // La station de ce Mac prend parade : la lecture suivante la porte, et la liste la montre.
     recevoir(vue, [station("box/claude"), station("mac/claude")]);
     await repos();

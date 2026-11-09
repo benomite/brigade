@@ -20,6 +20,7 @@ import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { BRANCHE_ILLISIBLE, ILLISIBLE, lireFermeture, NON_COMMUNIQUE } from "../section.js";
 import { bouton } from "../../composants/bouton/bouton.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
+import { LECTURE, PAS_ENCORE } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../box.ts").Lecture} Lecture */
@@ -36,7 +37,7 @@ import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 
 export const TITRE = "added / removed, per project";
 export const ACCUEIL = "added / removed ratio and its trend";
-export const LECTURE = "reading…";
+export { LECTURE };
 export const PEU = "not enough data";
 export const SENS = /** @type {const} */ ({ down: "going down", flat: "flat", up: "going up" });
 export const AUCUN = "No project has a closer set.";
@@ -112,7 +113,7 @@ function actuel(doc, fenetres) {
   const bloc = cree(doc, "span");
   bloc.className = "actuel";
   if (fenetre === undefined || fenetre.merges === 0) {
-    bloc.append(ligneVide(doc, fenetre === undefined ? NON_COMMUNIQUE : "no merge yet", { classe: "rapport sans", balise: "span" }));
+    bloc.append(ligneVide(doc, fenetre === undefined ? NON_COMMUNIQUE : PAS_ENCORE("merge"), { classe: "rapport sans", balise: "span" }));
     return bloc;
   }
   const rapport = cree(doc, "span", fenetre.reads);

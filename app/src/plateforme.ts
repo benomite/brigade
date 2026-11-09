@@ -6,15 +6,12 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { CET_ORDINATEUR } from "./vue/lexique.js";
 
 export const estUnMac = (plateforme: string): boolean => plateforme === "darwin";
 
-// Le nom de ce poste, tel que l'écran le dit : « this Mac », « this PC », « this computer ».
-export function nomDuPoste(plateforme: string): string {
-  if (estUnMac(plateforme)) return "this Mac";
-  if (plateforme === "win32") return "this PC";
-  return "this computer";
-}
+// Le nom de ce poste, tel que l'écran le dit : « this computer » sur toutes les plateformes (lexique de l'app, src/vue/lexique.js).
+export const nomDuPoste = (): string => CET_ORDINATEUR;
 
 export type Shell = { commande: string; args: string[] };
 
@@ -67,4 +64,4 @@ export const enGroupe = (plateforme: string): boolean => plateforme !== "win32";
 
 // Le nom de ce poste-ci, celui où l'app tourne. Lu sans supposer Node : la lecture du téléphone (app/android/web/
 // lecture.ts) charge ce module dans la WebView de l'app Android, où `process` n'existe pas.
-export const ICI = nomDuPoste(globalThis.process?.platform ?? "");
+export const ICI = nomDuPoste();

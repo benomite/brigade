@@ -108,11 +108,11 @@ describe("le temps des tickets, sur Health", () => {
     for (const c of CHIFFRES) assert.ok(texte(bande).includes(c.valeur) && texte(bande).includes(`/ ${c.seuil}`), c.cle);
   });
 
-  test("jamais un blanc ni un zéro : sans mesure, « no measure yet » — la phase, le plafond et les figures ne s'inventent pas", () => {
+  test("jamais un blanc ni un zéro : sans mesure, « No measure yet. » — la phase, le plafond et les figures ne s'inventent pas", () => {
     for (const temps of [undefined, { enregistrements: [], lostTimeMaxMin: 2 }]) {
       const vide = poserBlocTempsTickets(doc, temps);
       assert.equal(vide.dataset.temps, "vide");
-      assert.match(texte(vide), /no measure yet/);
+      assert.match(texte(vide), /No measure yet./);
       assert.equal(parClasse(vide, "temps-chiffre").length, 0);
     }
   });
@@ -210,7 +210,7 @@ describe("les plafonds de durée, sur Health", () => {
   });
 
   test("tant que rien n'est lu, une ligne le dit ; une lecture ratée tient en une ligne", () => {
-    assert.match(texte(poserBlocPlafondsDuree(doc, {})), /reading the caps of the repository…/);
+    assert.match(texte(poserBlocPlafondsDuree(doc, {})), /Reading the caps of the repository…/);
     const rate = poserBlocPlafondsDuree(doc, { lecture: { sans: "duration caps unavailable", detail: "GitHub refused (HTTP 401)" } });
     assert.match(texte(rate), /duration caps unavailable/);
     assert.doesNotMatch(texte(rate), /HTTP 401/, "le détail est au survol, pas à l'écran");
@@ -293,7 +293,7 @@ describe("le closer, sur Health", () => {
     assert.match(texte(replie), /M1export vieux of c\.ts:12 — referenced nowhere/);
     // Sans passe, il dit ce qu'il vérifiera.
     const sans = poserBlocCloser(doc, { lecture: { ...CLOSER, passes: { liste: [] } } });
-    assert.match(texte(partieDe(sans, "passes")), /No closing pass yet on this project/);
+    assert.match(texte(partieDe(sans, "passes")), /No closing pass yet\./);
     assert.match(texte(partieDe(sans, "en-premier")), /its own checks — dead code, duplicates, drift, ticket times — once a pass is opened/);
   });
 
@@ -387,7 +387,7 @@ describe("le closer, sur Health", () => {
   });
 
   test("tant que rien n'est lu, chaque partie le dit ; une lecture ratée tient en une ligne, le détail au survol", () => {
-    assert.match(texte(poserBlocCloser(doc)), /reading the closer's passes…/);
+    assert.match(texte(poserBlocCloser(doc)), /Reading the closer's passes…/);
     const sans = { sans: "the closer's settings unavailable", detail: "GitHub refused (HTTP 401)" };
     const rate = poserBlocCloser(doc, { lecture: { ...CLOSER, reglages: sans } });
     assert.match(texte(partieDe(rate, "reglages")), /the closer's settings unavailable/);

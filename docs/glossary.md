@@ -188,6 +188,6 @@ Where a setting lives (see [`reglages.md`](reglages.md)).
 |---|---|---|
 | niveau | `level` | Where a setting is kept: the project's repository, the station, or the chef's app |
 | projet (niveau) | `project` | The setting kept in the project's repository (`projet.json`), changed by a pull request |
-| cette machine (niveau) | `this machine` | The setting kept on one station, private, never in git |
+| cet ordinateur (niveau) | `this computer` | The setting kept on one station, private, never in git |
 | toi (niveau) | `you` | The chef's preference in the app |
 | réglages du projet | `project settings` | The `projet.json` fields, read from the repository |

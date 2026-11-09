@@ -10,7 +10,7 @@ const PAR_PAGE = 100;
 const PAGES_MAX = 10;
 
 function echec(reglages: Reglages, erreur: ExecFileException, erreurs: string): string {
-  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this machine: the app reads your repositories with your own \`gh\``;
+  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this computer: the app reads your repositories with your own \`gh\``;
   if (erreur.killed === true) return `GitHub gave no answer within ${Math.round(reglages.delaiMs / 1000)} s`;
   return erreurs.trim().split("\n").at(-1) || erreur.message;
 }

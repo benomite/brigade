@@ -18,9 +18,10 @@
 
 import { bouton } from "../composants/bouton/bouton.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { LECTURE } from "../lexique.js";
 
 export const NON_COMMUNIQUE = "not communicated";
-export const LECTURE = "reading…";
+export { LECTURE };
 export const QUOTA = "Max account quota";
 export const USAGE = "/usage";
 

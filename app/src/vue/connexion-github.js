@@ -12,6 +12,7 @@
 import { boutonAction, survol } from "./briques.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { connexionDite } from "./premier-lancement.js";
+import { PAS_ENCORE } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../connexion-github.ts").DebutDeConnexion} DebutDeConnexion */
@@ -116,7 +117,7 @@ export function poserLaListeGitHub(doc, { liste }, projets, reconnecter) {
     return ligne;
   };
   if (liste === undefined) return projets > 0 ? [] : [phrase("Your projects on GitHub: first read in progress…")];
-  if (liste.lue) return projets > 0 ? [] : [phrase("None of your stations serves a project yet: a project is added from a computer.")];
+  if (liste.lue) return projets > 0 ? [] : [phrase(`${PAS_ENCORE("project served by your stations")} A project is added from a computer.`)];
   if (liste.reason === "oublie") {
     const ligne = ligneErreur(doc, "GitHub no longer accepts this phone's sign-in.", `${liste.said} — the access was revoked on GitHub, or it expired.`);
     ligne.dataset.etat = "oublie";

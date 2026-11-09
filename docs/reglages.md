@@ -3,12 +3,12 @@
 Brigade has three places for a setting, and each setting lives at exactly one of them. The level
 is written next to each setting in the app (`app/src/vue/niveaux.js`, ticket 1310), so you can see
 where a value is kept before you change it. The three levels are named with the glossary words
-([`glossary.md`](glossary.md), §7 — *level*): **project**, **this machine** and **you**.
+([`glossary.md`](glossary.md), §7 — *level*): **project**, **this computer** and **you**.
 
 | Level | Where it is kept | Who changes it, and how | Shared with the collaborators? |
 |---|---|---|---|
 | **project** | `.claude/brigade/projet.json`, in the project's repository | by a pull request, held for the chef | yes: everyone who clones the repository gets it |
-| **this machine** | the station's configuration, on that machine | the chef, on that station (`brigade <projet> station`, or the app) | no: private to the station |
+| **this computer** | the station's configuration, on that machine | the chef, on that station (`brigade <projet> station`, or the app) | no: private to the station |
 | **you** | `~/.config/brigade/app.json`, and a secret gist of the chef's GitHub account | the chef, in the app | no: it follows the chef, not the project |
 
 **Nothing private goes in git.** Secrets, the paths of a machine, and what a machine decides for

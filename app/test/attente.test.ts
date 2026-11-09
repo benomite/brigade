@@ -381,7 +381,7 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     assert.equal(champ(formulaire(), "quoi").value, "sa réponse");
 
     const appels = vue.appels.filter(({ geste }) => geste === "attente").length;
-    boutonDe(formulaire(), "cancel").click();
+    boutonDe(formulaire(), "Cancel").click();
     await repos();
     assert.equal(bonDe(vue, 31).dessous("form").length, 0);
     assert.equal(vue.appels.filter(({ geste }) => geste === "attente").length, appels);

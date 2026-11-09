@@ -16,7 +16,7 @@ export const SOCLE = [
   { hote: "github.com", origine: "GitHub — the repository, the issues, the archives" },
   { hote: "githubusercontent.com", origine: "GitHub — the repository, the issues, the archives" },
 ];
-export const OUVERT_PAR_LE_CHEF = "opened by you on this machine";
+export const OUVERT_PAR_LE_CHEF = "opened by you on this computer";
 const HOTE = /^(\*\.)?((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?)(:[1-9][0-9]{0,4})?$/;
 
 const absolu = (chemin: string) => posix.isAbsolute(chemin) || win32.isAbsolute(chemin);
@@ -80,5 +80,5 @@ export function ecrireReglagesDeLaStation(fichier: string, changement: Changemen
   } catch (erreur) {
     return { refus: "nothing was changed", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  return { fait: "saved on this machine" };
+  return { fait: "saved on this computer" };
 }

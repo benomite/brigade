@@ -33,7 +33,7 @@ export const REGLAGES_TMUX = ["mouse off", "prefix None", "prefix2 None", "statu
 export const REGLAGES_SCREEN = ["defmousetrack off", "mousetrack off", 'escape ""'] as const;
 
 // Ce que dit un shell ouvert là où aucun multiplexeur n'est installé : il s'ouvre quand même.
-export const SANS_MULTIPLEXEUR = "brigade: neither tmux nor screen on this machine — this shell is not persistent: it ends with its terminal";
+export const SANS_MULTIPLEXEUR = "brigade: neither tmux nor screen on this computer — this shell is not persistent: it ends with its terminal";
 
 // Le nom de la session d'un shell : `brigade-<projet>-<rang>`. Un projet dont le nom
 // ne s'écrit pas tel quel y porte aussi une empreinte du sien : deux projets ne

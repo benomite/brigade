@@ -191,12 +191,12 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
     let rendre: (discussion: Discussion) => void = () => {};
     const vue = await ouvrir({ lireDiscussion: () => new Promise((resoudre) => (rendre = resoudre)) as never });
     await ouvrirFiche(vue, 21);
-    assert.equal(discussion(vue).dessous("p")[0]?.textContent, "reading issue #21…");
+    assert.equal(discussion(vue).dessous("p")[0]?.textContent, "Reading issue #21…");
     rendre({ sans: "no issue to read: #21 is a pull request, not an issue" });
     await repos();
     // Une ligne courte ; pourquoi, au survol de son aide (briques.js).
     const ligne = discussion(vue).dessous("p")[0] ?? assert.fail("pas de ligne");
-    assert.deepEqual([ligne.className, ligne.children[0]?.textContent], ["indisponible", "discussion unavailable"]);
+    assert.deepEqual([ligne.className, ligne.children[0]?.textContent], ["indisponible", "Discussion not reached."]);
     assert.equal((ligne.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, "no issue to read: #21 is a pull request, not an issue");
     assert.deepEqual(discussion(vue).dessous("textarea"), []);
   });

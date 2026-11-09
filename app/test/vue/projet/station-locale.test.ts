@@ -1,7 +1,7 @@
 // La station locale sur l'onglet Stations (#2489, épique #2484) : ses dossiers — le clone du projet et les worktrees de
 // ses cooks —, son bac à sable et sa connexion à Claude, chacun avec son niveau. Les autres stations n'ont rien de cela.
 // Chaque geste a l'effet qu'il avait ailleurs dans l'app : le bac à sable se règle par le même appel que la ligne des
-// tickets ordinaires de Settings (« this machine »), la connexion se refait par le login de la panne de la station. Les
+// tickets ordinaires de Settings (« this computer »), la connexion se refait par le login de la panne de la station. Les
 // téléphones appairés n'y sont plus (#2500) : aucune station n'appaire de téléphone. Le module est joué devant une
 // fabrique de faux éléments ; la vue entière, contre le faux pont (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -38,7 +38,7 @@ const niveauDe = (ligne: Faux) => [...ligne.descendants()].filter(({ className }
 const boutons = (bloc: Faux, texte: string) => bloc.dessous("button").filter(({ textContent }) => textContent === texte);
 
 const etat = (plus: Partial<EtatDeLaStationLocale> = {}): EtatDeLaStationLocale => ({
-  poste: "this Mac",
+  poste: "this computer",
   projet: "parade",
   station: station("macbook", "connectee"),
   dossiers: DOSSIERS,
@@ -49,7 +49,7 @@ const etat = (plus: Partial<EtatDeLaStationLocale> = {}): EtatDeLaStationLocale 
 describe("le bloc de la station locale", () => {
   test("ses dossiers, son bac à sable et sa connexion à Claude, chacun avec son niveau — aucun téléphone à appairer", () => {
     const bloc = poserBlocStationLocale(doc, etat()) as unknown as Faux;
-    assert.equal(bloc.dessous("h3")[0]?.textContent, "Local stationmacbook · this Mac");
+    assert.equal(bloc.dessous("h3")[0]?.textContent, "Local stationmacbook · this computer");
     const poses = lignes(bloc);
     assert.deepEqual(
       poses.map((ligne) => [nomDe(ligne), valeurDe(ligne)]),
@@ -72,29 +72,29 @@ describe("le bloc de la station locale", () => {
   test("un appareil sans station le dit en une ligne, sans aucun réglage", () => {
     const bloc = poserBlocStationLocale(doc, etat({ station: null })) as unknown as Faux;
     assert.deepEqual(lignes(bloc), []);
-    assert.deepEqual(bloc.dessous("p").map(({ textContent }) => textContent), [SANS_STATION("this Mac")]);
+    assert.deepEqual(bloc.dessous("p").map(({ textContent }) => textContent), [SANS_STATION("this computer")]);
   });
 
   test("ce qui n'est pas encore lu le dit ; ce qui ne se lit pas, en une ligne, sa raison au survol", () => {
-    const enRoute = poserBlocStationLocale(doc, { poste: "this Mac", projet: "parade" }) as unknown as Faux;
+    const enRoute = poserBlocStationLocale(doc, { poste: "this computer", projet: "parade" }) as unknown as Faux;
     assert.deepEqual(lignes(enRoute).map((ligne) => [nomDe(ligne), valeurDe(ligne)]), [
-      ["folders", "reading…"],
-      ["sandbox", "reading…"],
-      ["Claude connection", "reading…"],
+      ["folders", "Reading…"],
+      ["sandbox", "Reading…"],
+      ["Claude connection", "Reading…"],
     ]);
     const rates = poserBlocStationLocale(doc, etat({ dossiers: { refus: "its folders could not be read", detail: "ENOENT" } })) as unknown as Faux;
     const [dossiers] = lignes(rates);
-    assert.equal(dossiers?.children[1]?.children[0]?.children[0]?.textContent, "folders unavailable");
+    assert.equal(dossiers?.children[1]?.children[0]?.children[0]?.textContent, "Folders not reached.");
     assert.ok(rates.dessous("button").some(({ ariaLabel }) => ariaLabel === "its folders could not be read — ENOENT"));
   });
 
   test("le bac à sable : hors d'un Mac il n'y en a pas, et un projet qui ne cuit pas ici n'en a pas", () => {
-    const pc = poserBlocStationLocale(doc, etat({ poste: "this PC", ordinaires: blocDesOrdinaires(PARADE, "win32", undefined, true) ?? null })) as unknown as Faux;
+    const pc = poserBlocStationLocale(doc, etat({ poste: "this computer", ordinaires: blocDesOrdinaires(PARADE, "win32", undefined, true) ?? null })) as unknown as Faux;
     const bac = lignes(pc).find(({ dataset }) => dataset.cle === "ordinaires") ?? assert.fail("pas de ligne");
-    assert.deepEqual([nomDe(bac), valeurDe(bac)], ["sandbox", "none on this PC"]);
+    assert.deepEqual([nomDe(bac), valeurDe(bac)], ["sandbox", "none on this computer"]);
     assert.deepEqual(pc.dessous("input"), []);
     const ailleurs = poserBlocStationLocale(doc, etat({ ordinaires: null })) as unknown as Faux;
-    assert.equal(valeurDe(lignes(ailleurs).find(({ dataset }) => dataset.cle === "ordinaires") ?? assert.fail("pas de ligne")), "parade does not cook on this Mac");
+    assert.equal(valeurDe(lignes(ailleurs).find(({ dataset }) => dataset.cle === "ordinaires") ?? assert.fail("pas de ligne")), "parade does not cook on this computer");
   });
 
   test("chaque geste appelle le sien : le bac à sable, le login de la panne", () => {
@@ -138,7 +138,7 @@ describe("la station locale dans l'onglet Stations", () => {
   const jouer = (locale: StationVue, regler: (...args: unknown[]) => string | undefined = () => undefined) =>
     jouerLaVue({
       demarrage: () => ({
-        poste: { nom: "this Mac", mac: true },
+        poste: { nom: "this computer", mac: true },
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
@@ -187,7 +187,7 @@ describe("la station locale dans l'onglet Stations", () => {
   test("régler le bac à sable sur Stations fait le même appel que la ligne des tickets ordinaires de Settings", async () => {
     const vue = await jouer(station("macbook", "connectee"));
     await ouvrirLeProjet(vue);
-    // Dans Settings, sous « this machine » : décocher, puis écrire 4 cooks à la fois.
+    // Dans Settings, sous « this computer » : décocher, puis écrire 4 cooks à la fois.
     await ouvrirLecture(vue, "Settings");
     const [option, limite] = vue.element("ordinaires").dessous("input");
     if (option === undefined || limite === undefined) return assert.fail("pas de champs dans Settings");

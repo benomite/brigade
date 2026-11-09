@@ -19,6 +19,7 @@ import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.
 import { niveauDe } from "../../niveaux.js";
 import { bouton } from "../../composants/bouton/bouton.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
+import { LECTURE, NON_ATTEINT, CET_ORDINATEUR } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../ordinaires.ts").Bloc} BlocDesOrdinaires */
@@ -53,9 +54,9 @@ import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 export const TITRE = "Local station";
 
 export const SANS_STATION = (/** @type {string} */ poste) => `${poste} runs no station: nothing of it to set here`;
-export const LECTURE = "reading…";
-export const CLONE = (/** @type {string} */ projet) => `where this computer's station keeps ${projet}'s clone. The station chooses it: it is read here, it does not change`;
-export const WORKTREES = (/** @type {string} */ projet) => `where this computer's station puts the worktrees of ${projet}'s cooks — each cook writes only in its own. The station chooses it: it is read here, it does not change`;
+export { LECTURE };
+export const CLONE = (/** @type {string} */ projet) => `where ${CET_ORDINATEUR}'s station keeps ${projet}'s clone. The station chooses it: it is read here, it does not change`;
+export const WORKTREES = (/** @type {string} */ projet) => `where ${CET_ORDINATEUR}'s station puts the worktrees of ${projet}'s cooks — each cook writes only in its own. The station chooses it: it is read here, it does not change`;
 export const NE_CUIT_PAS = (/** @type {string} */ projet, /** @type {string} */ poste) => `${projet} does not cook on ${poste}`;
 export const CONNEXION = {
   connectee: { dit: "connected", survol: "this station's Claude Code is signed in to your Max account: its cooks can run" },
@@ -84,7 +85,7 @@ function rangee(doc, { nom, cle, valeur, controle = [], dessous = [] }) {
 /** @param {Fabrique} doc @param {EtatDeLaStationLocale} etat */
 function dossiers(doc, { projet, dossiers: lus }) {
   if (lus === undefined) return [rangee(doc, { nom: "folders", cle: "dossier", valeur: [avec(doc, "span", LECTURE)] })];
-  if ("refus" in lus) return [rangee(doc, { nom: "folders", cle: "dossier", valeur: [ligneErreur(doc, "folders unavailable", [lus.refus, lus.detail ?? ""].filter(Boolean).join(" — "))] })];
+  if ("refus" in lus) return [rangee(doc, { nom: "folders", cle: "dossier", valeur: [ligneErreur(doc, NON_ATTEINT("folders"), [lus.refus, lus.detail ?? ""].filter(Boolean).join(" — "))] })];
   return [
     rangee(doc, { nom: "clone folder", cle: "dossier", valeur: [avec(doc, "span", lus.clone, "mono"), survol(doc, CLONE(projet))] }),
     rangee(doc, { nom: "worktrees folder", cle: "dossier", valeur: [avec(doc, "span", lus.worktrees, "mono"), survol(doc, WORKTREES(projet))] }),

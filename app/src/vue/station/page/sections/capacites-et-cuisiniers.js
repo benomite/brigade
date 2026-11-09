@@ -11,6 +11,7 @@
 
 import { rangeeDeReglage } from "../../../composants/reglage/reglage.js";
 import { appliquer, dire, RIEN_N_A_CHANGE } from "../appliquer.js";
+import { CET_ORDINATEUR } from "../../../lexique.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../appliquer.js").Rendu} Rendu */
@@ -29,7 +30,7 @@ export const INCONNU = "unknown";
 export const A_DECLARER = "declare a capability";
 export const PLAFOND_ENTIER = "the cook cap is a whole number above zero";
 export const AUCUNE = "none";
-export const SURVOL_DE_LA_DECLARATION = "Tells the project this machine can do it; the station does not check.";
+export const SURVOL_DE_LA_DECLARATION = `Tells the project ${CET_ORDINATEUR} can do it; the station does not check.`;
 
 /** @param {Fabrique} doc @param {any} contexte */
 export function poserSection(doc, contexte) {

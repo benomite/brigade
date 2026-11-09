@@ -37,31 +37,31 @@ const lues = (bloc: Faux) =>
       ton: une.dataset.ton,
       survol: une.dessous("button").find(({ className }) => className === "aide")?.ariaLabel,
     }));
-const poser = (statut: unknown, stations: StationVue[] | undefined = [BOX, MAC]) => lues(poserVersionsDesStations(doc, casesDesVersions({ stations, locale: "g2", poste: "this Mac", statut })) as unknown as Faux);
+const poser = (statut: unknown, stations: StationVue[] | undefined = [BOX, MAC]) => lues(poserVersionsDesStations(doc, casesDesVersions({ stations, locale: "g2", poste: "this computer", statut })) as unknown as Faux);
 
 describe("les trois états de la station de cet ordinateur, à côté de la box", () => {
   test("en retard : la case de ce poste le dit, en jaune, et nomme la dernière version", () => {
     assert.deepEqual(poser(EN_RETARD), [
       { nom: "parade-box", phrase: "version 2.4.0 · up to date", ton: "vert", survol: undefined },
-      { nom: "this Mac", phrase: "version 2.3.1 · behind — 2.4.0 is out", ton: "jaune", survol: undefined },
+      { nom: "this computer", phrase: "version 2.3.1 · behind — 2.4.0 is out", ton: "jaune", survol: undefined },
     ]);
   });
 
   test("à jour : la case de ce poste le dit, comme celle de la box", () => {
     assert.deepEqual(poser(A_JOUR), [
       { nom: "parade-box", phrase: "version 2.4.0 · up to date", ton: "vert", survol: undefined },
-      { nom: "this Mac", phrase: "version 2.4.0 · up to date", ton: "vert", survol: undefined },
+      { nom: "this computer", phrase: "version 2.4.0 · up to date", ton: "vert", survol: undefined },
     ]);
   });
 
   test("sans statut, ou un statut illisible : « version unknown », pourquoi au survol — ni erreur, ni case vide", () => {
     for (const statut of [undefined, null, "2.3.1", {}, { stationVersion: "", behind: false }, { stationVersion: "2.3.1" }, { stationVersion: "2.3.1", behind: "yes" }]) {
-      assert.deepEqual(poser(statut)[1], { nom: "this Mac", phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI }, JSON.stringify(statut));
+      assert.deepEqual(poser(statut)[1], { nom: "this computer", phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI }, JSON.stringify(statut));
     }
   });
 
   test("le bloc porte son titre, puis les deux cases côte à côte, la box d'abord", () => {
-    const bloc = poserVersionsDesStations(doc, casesDesVersions({ stations: [BOX, MAC], locale: "g2", poste: "this PC", statut: EN_RETARD })) as unknown as Faux;
+    const bloc = poserVersionsDesStations(doc, casesDesVersions({ stations: [BOX, MAC], locale: "g2", poste: "this computer", statut: EN_RETARD })) as unknown as Faux;
     assert.equal(bloc.className, "versions-des-stations");
     assert.equal(bloc.children[0]?.textContent, TITRE);
     assert.deepEqual(bloc.children.slice(1).map(({ dataset }) => dataset.ici ?? "box"), ["box", "oui"]);
@@ -72,7 +72,7 @@ describe("les trois états de la station de cet ordinateur, à côté de la box"
 
 describe("ce que chaque case lit", () => {
   test("en retard sans dernière version publiée : la case le dit en retard, sans en inventer une", () => {
-    assert.equal(caseDIci("this Mac", { stationVersion: "2.3.1", latestStationVersion: null, behind: true }).phrase, "version 2.3.1 · behind");
+    assert.equal(caseDIci("this computer", { stationVersion: "2.3.1", latestStationVersion: null, behind: true }).phrase, "version 2.3.1 · behind");
     assert.deepEqual(statutLu({ stationVersion: " 2.3.1 ", latestStationVersion: "", behind: true }), { stationVersion: "2.3.1", latestStationVersion: null, behind: true });
   });
 
@@ -84,15 +84,15 @@ describe("ce que chaque case lit", () => {
   test("la station de cet ordinateur, un téléphone et une station illisible ne sont pas des box ; sans box lue, la sienne se dit inconnue", () => {
     const telephone: StationVue = { ...BOX, id: "g3", nom: "pixel", cuisine: false };
     const illisible: StationVue = { ...BOX, id: "g4", nom: "g4", etat: "illisible", version: "" };
-    assert.deepEqual(poser(A_JOUR, [BOX, MAC, telephone, illisible]).map(({ nom }) => nom), ["parade-box", "this Mac"]);
+    assert.deepEqual(poser(A_JOUR, [BOX, MAC, telephone, illisible]).map(({ nom }) => nom), ["parade-box", "this computer"]);
     for (const stations of [undefined, [], [MAC]]) {
-      assert.deepEqual(casesDesVersions({ stations, locale: "g2", poste: "this Mac", statut: A_JOUR })[0], { nom: "box", phrase: INCONNUE, ton: "gris", survol: INCONNUE_BOX, ici: false });
+      assert.deepEqual(casesDesVersions({ stations, locale: "g2", poste: "this computer", statut: A_JOUR })[0], { nom: "box", phrase: INCONNUE, ton: "gris", survol: INCONNUE_BOX, ici: false });
     }
   });
 });
 
 const demarrage = (stations: VuDesStations) => ({
-  poste: { nom: "this Mac", mac: true },
+  poste: { nom: "this computer", mac: true },
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
@@ -113,7 +113,7 @@ describe("la vue jouée : sous toutes les stations, en bas de l'onglet Stations 
     const jouee = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [], statutDeLaStation: () => statut } as Parameters<typeof jouerLaVue>[0]);
     await ouvrirToutesLesStations(jouee);
     const bloc = () => jouee.element("toutes-les-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sous la liste des stations");
-    assert.deepEqual(lues(bloc()).map(({ nom, phrase }) => `${nom}: ${phrase}`), ["parade-box: version 2.4.0 · up to date", "this Mac: version 2.3.1 · behind — 2.4.0 is out"]);
+    assert.deepEqual(lues(bloc()).map(({ nom, phrase }) => `${nom}: ${phrase}`), ["parade-box: version 2.4.0 · up to date", "this computer: version 2.3.1 · behind — 2.4.0 is out"]);
     assert.ok(jouee.appels.some(({ geste }) => geste === "statutDeLaStation"));
 
     jouee.dire("surStatutDeLaStation", A_JOUR);
@@ -129,6 +129,6 @@ describe("la vue jouée : sous toutes les stations, en bas de l'onglet Stations 
     const sans = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [] });
     await ouvrirToutesLesStations(sans);
     const blocSans = sans.element("toutes-les-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sans statut");
-    assert.deepEqual(lues(blocSans)[1], { nom: "this Mac", phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI });
+    assert.deepEqual(lues(blocSans)[1], { nom: "this computer", phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI });
   });
 });

@@ -247,7 +247,7 @@ function deMax(stations: readonly StationVue[] | undefined, blocs: readonly stri
 function commeGitHub(sans: string, limite: VuDesStations["limite"]): string {
   if (limite !== undefined || LIMITE.test(sans)) return `GitHub limits calls${limite?.reprise == null ? "" : `, back around ${heureCourte(limite.reprise)}`}`;
   if (/gave no answer within/.test(sans)) return "GitHub does not answer";
-  if (/is not on this machine/.test(sans)) return "GitHub: its tool is missing on this computer";
+  if (/is not on this computer/.test(sans)) return "GitHub: its tool is missing on this computer";
   if (/auth|log ?in|credentials|HTTP 401/i.test(sans)) return "GitHub: this computer is not signed in";
   if (/error connecting|could not resolve|network|timeout/i.test(sans)) return "GitHub cannot be reached";
   return "GitHub could not be read";

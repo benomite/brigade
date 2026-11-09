@@ -75,7 +75,7 @@ function dessinable(): Dessinable {
 }
 
 async function jouer(stockage?: FauxStockage): Promise<Jouee> {
-  return jouerLaVue({ demarrage, espace: (projet) => (projet === FANFARE ? [SECOND_DE_FANFARE] : [SECOND]), machines: () => [{ id: "poste", titre: "this Mac" }] }, { stockage });
+  return jouerLaVue({ demarrage, espace: (projet) => (projet === FANFARE ? [SECOND_DE_FANFARE] : [SECOND]), machines: () => [{ id: "poste", titre: "this computer" }] }, { stockage });
 }
 // La case de la barre : « T », puis les projets dans l'ordre du fichier.
 async function entrer(vue: Jouee, nom: string): Promise<void> {

@@ -5,11 +5,12 @@
 // à distance ; la note sinon. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
 import { boutonAction } from "../../briques.js";
+import { CET_ORDINATEUR } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 
 export const NOTE_SUR_PLACE = "only on this station";
-export const SURVOL_DE_LA_NOTE = "This setting can only be changed on that machine itself, not from this computer.";
+export const SURVOL_DE_LA_NOTE = `This setting can only be changed on that machine itself, not from ${CET_ORDINATEUR}.`;
 
 /** @param {Fabrique} doc */
 export function noteSurPlace(doc) {

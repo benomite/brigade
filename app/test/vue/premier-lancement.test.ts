@@ -101,7 +101,7 @@ function unEcran(etat: Partial<EtatDuPremier> = {}) {
     ajouterUnDossier: () => void faits.push("ajout"),
     ouvrirUnDossier: (dossier) => void faits.push(`dossier ${dossier}`),
   };
-  const ecran = poserPremierLancement(doc, { poste: "this PC", ...etat }, gestes) as Faux;
+  const ecran = poserPremierLancement(doc, { poste: "this computer", ...etat }, gestes) as Faux;
   const bouton = (texte: string) => ecran.dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${ecran.dessous("button").map((b) => b.textContent).join(", ")}`);
   // La phrase des stations, sous le parcours d'ajout.
   const tete = () => ecran.dessous("h3")[0] ?? assert.fail("pas de phrase des stations");
@@ -112,8 +112,8 @@ function unEcran(etat: Partial<EtatDuPremier> = {}) {
 describe("les stations listées : chacune avec ses projets, un projet s'ouvre d'un clic", () => {
   test("la tête dit ce qu'on attend du chef ; chaque station a son nom, son état, ses projets en boutons", () => {
     const { tete, station, ecran } = unEcran({ stations: LISTEES });
-    assert.equal(tete().textContent, OUVRIR_UN_PROJET("this PC"));
-    assert.equal(OUVRIR_UN_PROJET("this PC"), "Open one of your projects on this PC: one click, no folder to choose.");
+    assert.equal(tete().textContent, OUVRIR_UN_PROJET("this computer"));
+    assert.equal(OUVRIR_UN_PROJET("this computer"), "Open one of your projects on this computer: one click, no folder to choose.");
     assert.deepEqual(
       cartes(ecran).map((carte) => ({ nom: carte.dessous("strong")[0]?.textContent, etat: carte.dessous("p")[0]?.dessous("span").at(-1)?.textContent, projets: carte.dessous("button").map((bouton) => bouton.textContent) })),
       [
@@ -351,7 +351,7 @@ describe("le premier lancement demande le projet de qui l'ouvre, sans rien de pr
 // La vue jouée entière : l'app neuve, sans aucun projet dans son fichier.
 const demarrage = (projets: Projet[]) => ({
   configuration: pourLaBarre({ chemin: "C:\\Users\\chef\\.config\\brigade\\app.json", projets }),
-  poste: { nom: "this PC", mac: false },
+  poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
@@ -377,7 +377,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     const tous = vue.element("tous");
     assert.equal(tous.hidden, false);
     assert.equal(vue.element("ajout").hidden, true);
-    assert.equal(tous.dessous("h3")[0]?.textContent, OUVRIR_UN_PROJET("this PC"));
+    assert.equal(tous.dessous("h3")[0]?.textContent, OUVRIR_UN_PROJET("this computer"));
     assert.equal(vue.appels.filter(({ geste }) => geste === "stationsDuChef").length, 1);
     const parade = tous.dessous("button").find((bouton) => bouton.textContent === "parade") ?? assert.fail();
     parade.click();
@@ -444,7 +444,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     await repos();
     assert.equal(lues, 2);
     assert.equal(comptes, 2);
-    assert.equal(vue.element("tous").dessous("h3")[0]?.textContent, OUVRIR_UN_PROJET("this PC"));
+    assert.equal(vue.element("tous").dessous("h3")[0]?.textContent, OUVRIR_UN_PROJET("this computer"));
     assert.ok(vue.element("tous").dessous("p").some((pose) => pose.textContent === connecteEnTantQue("chef")));
   });
 

@@ -23,11 +23,11 @@ describe("la section identité de la page d'une station", () => {
     let mises = 0;
     const racine = poserSection(doc, contexte(true, { ...EN_RETARD, mettreAJour: () => mises++ })) as Faux;
     assert.deepEqual(lignes(racine), [
-      { nom: "name", niveau: "machine", marque: "this machine", valeur: "mac/claude" },
-      { nom: "machine", niveau: "machine", marque: "this machine", valeur: "MacBook Pro" },
-      { nom: "cores", niveau: "machine", marque: "this machine", valeur: "10" },
-      { nom: "version", niveau: "machine", marque: "this machine", valeur: "1.4.0" },
-      { nom: "updates", niveau: "machine", marque: "this machine", valeur: "behind — 1.5.0 is out" },
+      { nom: "name", niveau: "machine", marque: "this computer", valeur: "mac/claude" },
+      { nom: "machine", niveau: "machine", marque: "this computer", valeur: "MacBook Pro" },
+      { nom: "cores", niveau: "machine", marque: "this computer", valeur: "10" },
+      { nom: "version", niveau: "machine", marque: "this computer", valeur: "1.4.0" },
+      { nom: "updates", niveau: "machine", marque: "this computer", valeur: "behind — 1.5.0 is out" },
     ]);
     const [action] = boutons(racine);
     assert.equal(action?.children[0]?.textContent, METTRE_A_JOUR);

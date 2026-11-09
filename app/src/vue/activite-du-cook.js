@@ -11,6 +11,7 @@ import { survol } from "./briques.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { bouton } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { NON_ATTEINT, CET_ORDINATEUR } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../tableau/lecture.ts").ActiviteDuCook} Activite */
@@ -24,9 +25,9 @@ import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 export const TITRE = "its cook";
 export const EN_COURS = "cooking";
 export const SANS_PR = "it opened no PR";
-export const INDISPONIBLE = "its cook's activity unavailable";
+export const INDISPONIBLE = NON_ATTEINT("its cook's activity");
 // D'où vient ce que la section dit, au survol de sa dernière ligne.
-export const SOURCE = "What GitHub says of the cook — the claim comment of its station, its PR — read with this computer's GitHub account, nothing else. It is read again with the rail, every 30 seconds, and this sheet follows it.";
+export const SOURCE = `What GitHub says of the cook — the claim comment of its station, its PR — read with ${CET_ORDINATEUR}'s GitHub account, nothing else. It is read again with the rail, every 30 seconds, and this sheet follows it.`;
 
 // Comment un cook a fini (`fin`, tableau/lecture.ts), en mots, et la couleur de sa pilule. Un mot qui n'y
 // est pas se dit tel quel, pilule grise.
