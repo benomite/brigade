@@ -4,9 +4,9 @@
 //
 // La règle du chef (#2455) : une entrée de TODO est un fait de GitHub — un label, une PR qui attend le chef — et lui pose
 // toujours une question. Sont lus, sur les issues ouvertes du dépôt :
-//   - une issue au label `fire` que `hors-cuisine` ou `blocked-on-human` met de côté (tableau/mise-de-cote-github.ts,
+//   - une issue au label `fire` que `served-elsewhere` ou `blocked-on-human` met de côté (tableau/mise-de-cote-github.ts,
 //     #2075, #2422), quand elle demande quelque chose au chef : la PR qui touche à ce qui la juge, à merger à la main ;
-//     la question de produit d'un `hors-cuisine`, tant qu'aucune réponse ne la suit ; un `blocked-on-human` sans PR, à lever ;
+//     la question de produit d'un `served-elsewhere`, tant qu'aucune réponse ne la suit ; un `blocked-on-human` sans PR, à lever ;
 //   - une issue au label `chef-todo` : la carte que son dernier commentaire marqué pose (tableau/todo-github.ts, #2217) ;
 //     une carte dont la question ne se lit pas (pas de commentaire marqué, ou sans texte) n'est pas une entrée : elle est
 //     dite au second, dans le bloc, avec pourquoi (`illisibles`) ;

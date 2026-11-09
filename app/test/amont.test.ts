@@ -95,7 +95,7 @@ async function unDepot(t: TestContext) {
     ouverte(10, ["fire", "model:haiku", "effort:low"]),
     ouverte(11, ["model:opus", "effort:high", "prio:2"], { title: "Prêt sans feu" }),
     ouverte(12, ["blocked-on-human"]),
-    ouverte(13, ["hors-cuisine"]),
+    ouverte(13, ["served-elsewhere"]),
     ouverte(14, ["model:opus"]),
     ouverte(16, ["epic", "prio:1"], { title: "Une épique" }),
     ouverte(17, ["epic"]),
@@ -132,7 +132,7 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     const issue = (ticket: number) => vu.groupes.flatMap(({ issues }) => issues).find((posee) => posee.ticket === ticket) ?? assert.fail(`pas de #${ticket}`);
     // Ce qui la retient, mot pour mot — ce que ses labels disent, en une ligne.
     assert.equal(issue(12).dit, "it carries `blocked-on-human`: a human decides");
-    assert.equal(issue(13).dit, "it carries `hors-cuisine`: this kitchen does not serve it");
+    assert.equal(issue(13).dit, "it carries `served-elsewhere`: this kitchen does not serve it");
     assert.equal(issue(14).dit, "not calibrated yet: no `model:` and `effort:` labels");
     assert.equal(issue(16).dit, "it carries `epic`: not split yet");
     assert.equal(issue(11).dit, "calibrated (model:opus, effort:high), without `fire`: the rail takes it once `fire` is set");

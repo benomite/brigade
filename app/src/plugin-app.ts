@@ -50,6 +50,8 @@ export const PROPRES = join(import.meta.dirname, "plugin");
 // Le script de `/brigade:init`, posé dans le marketplace sous `scripts/` ; la commande le nomme par
 // `@SCRIPT@`, remplacé à la pose par son chemin.
 export const SCRIPT_INIT = "init.sh";
+// Le catalogue des labels que le script lit, posé à côté de lui.
+export const CATALOGUE_DES_LABELS = "labels.tsv";
 const MARQUE_DU_SCRIPT = "@SCRIPT@";
 // Le dossier du marketplace, à côté du fichier des projets.
 export const DOSSIER = "plugin-app";
@@ -64,7 +66,7 @@ export function versionDuPlugin(versionDeLApp: string, commandes: string, propre
   if (versionDeLApp !== VERSION_DU_DEPOT) return versionDeLApp;
   const empreinte = createHash("sha256");
   for (const nom of COMMANDES) empreinte.update(nom).update("\0").update(readFileSync(join(commandes, nom))).update("\0");
-  for (const nom of [...COMMANDES_DE_L_APP, SCRIPT_INIT]) empreinte.update(nom).update("\0").update(readFileSync(join(propres, nom))).update("\0");
+  for (const nom of [...COMMANDES_DE_L_APP, SCRIPT_INIT, CATALOGUE_DES_LABELS]) empreinte.update(nom).update("\0").update(readFileSync(join(propres, nom))).update("\0");
   return `${VERSION_DU_DEPOT}-${empreinte.digest("hex").slice(0, 12)}`;
 }
 
@@ -94,6 +96,7 @@ export function poserLeMarketplace(dossier: string, commandes: string, version: 
   const script = join(dossier, "scripts", SCRIPT_INIT);
   ecrire(script, readFileSync(join(propres, SCRIPT_INIT), "utf8"));
   chmodSync(script, 0o755);
+  ecrire(join(dossier, "scripts", CATALOGUE_DES_LABELS), readFileSync(join(propres, CATALOGUE_DES_LABELS), "utf8"));
   for (const nom of COMMANDES_DE_L_APP) ecrire(join(dossier, "commands", nom), readFileSync(join(propres, nom), "utf8").replaceAll(MARQUE_DU_SCRIPT, script.replaceAll("\\", "/")));
 }
 

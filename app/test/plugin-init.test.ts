@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { LABELS } from "../../runtime/src/installation.ts";
+import { ETIQUETTES } from "../../runtime/src/etiquettes.ts";
 import { lancerVraiment, tenirLePluginApp, type Lancer } from "../src/plugin-app.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
@@ -79,9 +79,10 @@ test("un dépôt neuf ouvert par l'app se prépare par /brigade:init : les label
   const sortie = initialiser("--test", "true", "--install", "true", "--zones", "`src/`");
 
   assert.equal(sortie.trim().split("\n").at(-1), `pr ${URL_DE_LA_PR}`);
-  // Les labels du rail, ceux que la station vérifie (runtime/src/installation.ts), tous.
-  const labels = appelsDeGh().flatMap((appel) => /^label create (\S+) /.exec(appel)?.[1] ?? []);
-  assert.deepEqual(labels, LABELS.map(({ name }) => name));
+  // Tous les labels du catalogue du runtime, avec leur description anglaise.
+  const creations = appelsDeGh().filter((appel) => appel.startsWith("label create "));
+  assert.deepEqual(creations.map((appel) => /^label create (\S+) /.exec(appel)?.[1]), ETIQUETTES.map(({ name }) => name));
+  for (const { name, description } of ETIQUETTES) assert.ok(creations.includes(`label create ${name} --color ${ETIQUETTES.find((e) => e.name === name)?.color} --description ${description}`), name);
   assert.match(appelsDeGh().find((a) => a.startsWith("pr create")) ?? "", /^pr create --base main --head brigade\/init /);
 
   // La branche poussée porte le bloc, après ce que `CLAUDE.md` disait déjà, et les deux scripts exécutables.
@@ -130,4 +131,9 @@ test("sans commande de test, /brigade:init n'écrit rien : une gate qui ne lance
 
   assert.throws(() => initialiser(), (erreur: { status?: number; stderr?: string }) => erreur.status === 64 && /--test is required/.test(erreur.stderr ?? ""));
   assert.equal(git("--git-dir", origin, "branch", "--list", "brigade/init"), "");
+});
+
+test("le catalogue que lit /brigade:init (labels.tsv) est celui du runtime (etiquettes.ts), ligne pour ligne", () => {
+  const tsv = readFileSync(join(import.meta.dirname, "..", "src", "plugin", "labels.tsv"), "utf8");
+  assert.equal(tsv, ETIQUETTES.map((e) => `${e.name}\t${e.color}\t${e.description}\n`).join(""));
 });

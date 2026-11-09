@@ -206,13 +206,13 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
 
 // Un ticket mis de côté (#2075) : #7 sorti de la cuisine après ses renvois, #8 en pass retenu par `blocked-on-human` — sa
 // livraison touche à ce qui la juge —, #9 sorti à la main sans un mot, #10 sorti puis mis en WAITING par le chef.
-describe("un ticket mis de côté par `hors-cuisine` ou `blocked-on-human`, sur GitHub seul (#2075)", () => {
-  const issuesMisesDeCote = () => [issue(1, ["fire"]), issue(7, ["fire", "hors-cuisine"]), issue(8, ["fire", "in-pass", "blocked-on-human"]), issue(9, ["fire", "hors-cuisine"]), issue(10, ["fire", "hors-cuisine", "waiting"])];
+describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, sur GitHub seul (#2075)", () => {
+  const issuesMisesDeCote = () => [issue(1, ["fire"]), issue(7, ["fire", "served-elsewhere"]), issue(8, ["fire", "in-pass", "blocked-on-human"]), issue(9, ["fire", "served-elsewhere"]), issue(10, ["fire", "served-elsewhere", "waiting"])];
   const commentaires = {
     7: [
       prise(21, "box/claude", "2026-11-04T01:00:00Z"),
-      { id: 22, body: "<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes: the empty case is not tested\n\nTaken off the kitchen (`hors-cuisine`): a human decides.", author_association: "OWNER", created_at: "2026-11-04T02:00:00Z" },
-      { id: 23, body: "<!-- brigade:manager -->\n**Manager — `hors-cuisine` : ce ticket ne se sert pas sur cette box.**", author_association: "OWNER", created_at: "2026-11-04T02:01:00Z" },
+      { id: 22, body: "<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes: the empty case is not tested\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", author_association: "OWNER", created_at: "2026-11-04T02:00:00Z" },
+      { id: 23, body: "<!-- brigade:manager -->\n**Manager — `served-elsewhere` : ce ticket ne se sert pas sur cette box.**", author_association: "OWNER", created_at: "2026-11-04T02:01:00Z" },
     ],
     8: [{ id: 31, body: "Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", author_association: "OWNER", created_at: "2026-11-04T02:30:00Z" }],
   };
@@ -261,21 +261,21 @@ describe("un ticket mis de côté par `hors-cuisine` ou `blocked-on-human`, sur 
 });
 
 // Le Todo du chef du 2026-11-05 (#2422), tel que ses issues le disaient : treize cartes, aucune ne demandait rien — onze
-// `hors-cuisine` de cause technique, deux `blocked-on-human` (#2408, #2322) dont la ligne était un constat, et #1683, l'issue du
+// `served-elsewhere` de cause technique, deux `blocked-on-human` (#2408, #2322) dont la ligne était un constat, et #1683, l'issue du
 // tableau de la cuisine. Les commentaires sont ceux que la station écrit (runtime/src/brigade-github.ts, renvois.ts).
 describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaque carte le demande (#2422)", () => {
-  const renvoi = (n: number, raison: string) => ({ id: n, body: `<!-- brigade:renvoi n=3 sha=7579211 -->\nStation \`box/claude\`: still not mergeable after 2 sends back — ${raison}\n\nTaken off the kitchen (\`hors-cuisine\`): a human decides.`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
-  const sansLivraison = (n: number) => ({ id: n, body: "<!-- brigade:echec n=3 -->\nStation `box/claude`: the cook stopped without a delivery — the cook committed nothing\n\nTaken off the kitchen (`hors-cuisine`) after 3 cooks without a delivery: a human decides.", author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
+  const renvoi = (n: number, raison: string) => ({ id: n, body: `<!-- brigade:renvoi n=3 sha=7579211 -->\nStation \`box/claude\`: still not mergeable after 2 sends back — ${raison}\n\nTaken off the kitchen (\`served-elsewhere\`): a human decides.`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
+  const sansLivraison = (n: number) => ({ id: n, body: "<!-- brigade:echec n=3 -->\nStation `box/claude`: the cook stopped without a delivery — the cook committed nothing\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides.", author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
   const juge = (n: number, pr: number) => ({ id: n, body: `Station \`box/claude\`: this delivery changes what judges it (\`.github/workflows/ci.yml\`, \`.claude/brigade/gates.sh\`), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr}.`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
   const conflit = "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit";
   const ciRouge = "the CI is red on `7579211` (PR #2400):\n- `app tests`";
   const revue = "the review requested changes on `7579211` (PR #2401):\n\nThe empty case is not tested.";
   const techniques: Record<number, unknown> = { 2301: renvoi(1, conflit), 2302: renvoi(2, ciRouge), 2303: renvoi(3, revue), 2304: sansLivraison(4), 2305: renvoi(5, conflit), 2306: renvoi(6, ciRouge), 2307: sansLivraison(7), 2308: renvoi(8, revue), 2309: renvoi(9, conflit), 2310: sansLivraison(10), 2311: renvoi(11, ciRouge) };
   const issues = () => [
-    ...Object.keys(techniques).map((n) => issue(Number(n), ["fire", "hors-cuisine"])),
+    ...Object.keys(techniques).map((n) => issue(Number(n), ["fire", "served-elsewhere"])),
     issue(2408, ["fire", "in-pass", "blocked-on-human"]),
     issue(2322, ["fire", "in-pass", "blocked-on-human"]),
-    issue(1683, ["fire", "hors-cuisine", "kitchen-board"]),
+    issue(1683, ["fire", "served-elsewhere", "kitchen-board"]),
   ];
   const commentaires = { ...Object.fromEntries(Object.entries(techniques).map(([n, c]) => [Number(n), [c]])), 2408: [juge(21, 2416)], 2322: [juge(22, 2325)] };
   const lireLeTodo = async () => dessine(await lire(github({ issues, commentaires })));
@@ -291,7 +291,7 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
     assert.deepEqual(todo.map(({ miseDeCote }) => miseDeCote?.liens), [[2325], [2416]]);
   });
 
-  test("les onze `hors-cuisine` techniques sont sur le rail, avec leur ligne, et aucun dans Todo", async () => {
+  test("les onze `served-elsewhere` techniques sont sur le rail, avec leur ligne, et aucun dans Todo", async () => {
     const vu = await lireLeTodo();
     const rail = vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? [];
     assert.equal(rail.length, 11);
@@ -310,9 +310,9 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
     assert.ok(!partout.some(({ ticket }) => ticket === 1683));
   });
 
-  test("un `hors-cuisine` dont le commentaire marqué pose une question de produit entre dans Todo, avec cette question", async () => {
+  test("un `served-elsewhere` dont le commentaire marqué pose une question de produit entre dans Todo, avec cette question", async () => {
     const question = { id: 40, body: "<!-- brigade:todo kind=product-question -->\nShould the export keep the old column order?\n\nBoth are defensible.", author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" };
-    const vu = dessine(await lire(github({ issues: () => [issue(2312, ["fire", "hors-cuisine"])], commentaires: { 2312: [renvoi(1, conflit), question] } })));
+    const vu = dessine(await lire(github({ issues: () => [issue(2312, ["fire", "served-elsewhere"])], commentaires: { 2312: [renvoi(1, conflit), question] } })));
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     // La question n'est dite qu'une fois, sur la carte (#2434) : la ligne dit ce que sa sorte attend.
     assert.deepEqual(todo.map(({ ticket, ligne, chef, todo: carte }) => ({ ticket, ligne, chef, question: carte?.question })), [
@@ -324,7 +324,7 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
 describe("ce qui attend le chef : la lecture du second", () => {
   test("la même entrée dans TODO que dans le bloc qu'il relaie, et rien d'autre", async () => {
     const question = { id: 40, body: "<!-- brigade:todo kind=product-question -->\nShould the export keep the old column order?", author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" };
-    const monde = () => github({ issues: () => [issue(2312, ["fire", "hors-cuisine"])], commentaires: { 2312: [question] } });
+    const monde = () => github({ issues: () => [issue(2312, ["fire", "served-elsewhere"])], commentaires: { 2312: [question] } });
     const lu = await lire(monde());
     assert.ok(lu.lu);
     const attente = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: monde(), maintenant: () => LU });

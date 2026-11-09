@@ -19,7 +19,7 @@ import { Faux } from "../aides/fausse-vue.ts";
 const DEPOT = "acme/brigade";
 const LU = "2026-11-05T09:00:00.000Z";
 
-// Les deux questions du 2026-11-05, réécrites avec leurs choix : #2061 et #1554, chacune `hors-cuisine` sous sa question
+// Les deux questions du 2026-11-05, réécrites avec leurs choix : #2061 et #1554, chacune `served-elsewhere` sous sa question
 // de produit. #1554 a une PR ouverte, #1560.
 const QUESTION_2061 = [
   "<!-- brigade:todo kind=product-question -->",
@@ -44,8 +44,8 @@ function monde() {
   let suivant = 100;
   const commentaire = (body: string) => ({ id: suivant++, body, author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" });
   const issues = new Map<number, Issue>([
-    [2061, { labels: new Set(["fire", "hors-cuisine"]), state: "open", commentaires: [commentaire(QUESTION_2061)] }],
-    [1554, { labels: new Set(["fire", "hors-cuisine"]), state: "open", commentaires: [commentaire(QUESTION_1554)] }],
+    [2061, { labels: new Set(["fire", "served-elsewhere"]), state: "open", commentaires: [commentaire(QUESTION_2061)] }],
+    [1554, { labels: new Set(["fire", "served-elsewhere"]), state: "open", commentaires: [commentaire(QUESTION_1554)] }],
   ]);
   const prs = new Map<number, PR>([[1560, { state: "open", merged: false, ref: "cook/1554-export", body: "Closes #1554" }]]);
   const ecrits: { methode: string; chemin: string; corps?: unknown }[] = [];
@@ -143,7 +143,7 @@ describe("le commentaire marqué porte ses choix", () => {
     // Sans choix, la carte garde son champ, dont la réponse joue `resume`.
     const carte = carteDuChefDeTodo({ sorte: "product-question", texte: "Which plan?" });
     assert.deepEqual(carte?.choix, []);
-    assert.match(carte?.prixDuTexte ?? "", /removes `hors-cuisine` and `chef-todo`/);
+    assert.match(carte?.prixDuTexte ?? "", /removes `served-elsewhere` and `chef-todo`/);
     // Un commentaire marqué sans texte n'a rien à quoi répondre.
     assert.equal(carteDuChefDeTodo({ sorte: "blocked", texte: "  " }), undefined);
   });
@@ -238,7 +238,7 @@ describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un s
 });
 
 describe("un clic joue son geste sur GitHub, après le commentaire de la réponse ; la carte quitte Todo à la lecture suivante", () => {
-  test("resume : la réponse dans l'issue, `hors-cuisine` retiré — le ticket revient sur le rail", async () => {
+  test("resume : la réponse dans l'issue, `served-elsewhere` retiré — le ticket revient sur le rail", async () => {
     const leMonde = monde();
     const rendu = await cliquer(leMonde, 2061, "Yes, every project is on GitHub-only: remove the old path");
     assert.ok("repondue" in rendu, JSON.stringify(rendu));
@@ -253,7 +253,7 @@ describe("un clic joue son geste sur GitHub, après le commentaire de la répons
     const rendu = await cliquer(leMonde, 2061, "No, keep it waiting");
     assert.ok("repondue" in rendu, JSON.stringify(rendu));
     assert.equal(dernierCommentaire(leMonde, 2061), "<!-- brigade:reponse gesture=drop -->\nNo, keep it waiting");
-    assert.deepEqual([...(leMonde.issues.get(2061)?.labels ?? [])], ["hors-cuisine"]);
+    assert.deepEqual([...(leMonde.issues.get(2061)?.labels ?? [])], ["served-elsewhere"]);
     assert.equal(leMonde.issues.get(2061)?.state, "open");
     assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 2061));
   });

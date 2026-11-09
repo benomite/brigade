@@ -78,20 +78,7 @@ Sur une relance où tout est déjà déclaré et cohérent : **ne demande rien**
 
 Sans `gh` authentifié ou sans remote, saute cette étape et **note-la comme restant à faire** ; continue le reste.
 
-Les labels, avec `--force` : la commande crée si absent, met à jour si présent, ne casse jamais sur une relance.
-
-```bash
-gh label create product           --color 0E8A16 --description "Issue née du PO" --force
-gh label create triage            --color FBCA04 --description "À qualifier" --force
-gh label create design            --color D93F0B --description "Chasse gardée du Designer" --force
-gh label create blocked-on-human  --color B60205 --description "Attend une décision humaine" --force
-gh label create feature           --color 1D76DB --description "Nouvelle fonctionnalité" --force
-gh label create fix               --color D73A4A --description "Correction" --force
-gh label create tech              --color 5319E7 --description "Technique, sans impact fonctionnel" --force
-gh label create prio:1            --color 000000 --description "À faire en premier" --force
-gh label create prio:2            --color 555555 --description "Important, pas bloquant" --force
-gh label create prio:3            --color AAAAAA --description "Souhaitable, plus tard" --force
-```
+Les labels sont ceux du catalogue du runtime (`runtime/src/etiquettes.ts`), nom et description en anglais : ne les redéfinis pas ici. Pose-les par `brigade <projet> installation labels` — il crée ceux qui manquent, corrige la description de ceux qui l'ont autre, et renomme l'ancien `hors-cuisine` en `served-elsewhere` ; rejouable sans dégât.
 
 N'ajoute un label à cette liste que si le projet en a un équivalent sous un autre nom — dans ce cas, **réutilise le sien** plutôt que d'en créer un doublon, et note la correspondance dans le bloc.
 

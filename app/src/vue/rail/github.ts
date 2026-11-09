@@ -106,7 +106,7 @@ async function lireLesServis(lire: (chemin: string) => Promise<unknown>, depot: 
 }
 
 // Le rail d'un projet : ses tickets au label `fire`, chacun dans son état, avec sa PR et sa station. Un ticket qui porte
-// `hors-cuisine` ou `blocked-on-human` — sans `waiting` — est mis de côté, quoi que ses autres labels disent : ses
+// `served-elsewhere` ou `blocked-on-human` — sans `waiting` — est mis de côté, quoi que ses autres labels disent : ses
 // commentaires, toutes pages, disent pourquoi (tableau/mise-de-cote-github.ts, ticket 2075). Une lecture qui échoue
 // lève : la lecture du rail en dit la raison (tableau/lecture.ts).
 export async function lireLeRailSurGithub(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date }): Promise<RailSurGithub> {

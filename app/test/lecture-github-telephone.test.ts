@@ -48,7 +48,7 @@ const MONDE: Monde = {
     "chef/parade": {
       1: { labels: ["fire", "prio:2"] },
       6: { labels: [] },
-      12: { labels: ["fire", "hors-cuisine"], commentaires: [dit("<!-- brigade:todo kind=product-question -->\nDoes the export keep the old column order?\n- [merge] Yes, merge PR #40 as delivered\n- [close] No, we drop the export", "2026-11-06T07:00:00Z")] },
+      12: { labels: ["fire", "served-elsewhere"], commentaires: [dit("<!-- brigade:todo kind=product-question -->\nDoes the export keep the old column order?\n- [merge] Yes, merge PR #40 as delivered\n- [close] No, we drop the export", "2026-11-06T07:00:00Z")] },
       20: { labels: ["chef-todo"], commentaires: [dit("<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", "2026-11-06T08:00:00Z")] },
     },
     "chef/cantine": {},

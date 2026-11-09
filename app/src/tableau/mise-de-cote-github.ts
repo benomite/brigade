@@ -1,5 +1,5 @@
 // Un ticket mis de côté, lu de GitHub, pour un projet GitHub seul (#2075) : la station ou le chef pose sur son issue
-// `hors-cuisine` (trop de renvois, trop de cooks sans livraison : un humain décide) ou `blocked-on-human` (la livraison
+// `served-elsewhere` (trop de renvois, trop de cooks sans livraison : un humain décide) ou `blocked-on-human` (la livraison
 // touche à ce qui la juge), et la station dit pourquoi dans un commentaire, en posant le label. Le ticket attend le chef :
 // sa carte est dans TODO — dans WAITING si le chef l'y a mis —, et dit en une ligne pourquoi, tirée de ce commentaire.
 //
@@ -10,7 +10,7 @@
 // (`SANS_RAISON`), et reste dans TODO.
 //
 // Ce qui entre dans TODO (#2422) : seul ce qui demande quelque chose au chef. `blocked-on-human` — la livraison touche à ce
-// qui la juge : la merger à la main — est une question à lui, avec son geste (« Merge PR #N by hand? »). `hors-cuisine`
+// qui la juge : la merger à la main — est une question à lui, avec son geste (« Merge PR #N by hand? »). `served-elsewhere`
 // n'en est une que si un commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217, todo-github.ts) en pose
 // une ; pour une cause technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de
 // mise de côté, avec sa ligne : c'est le travail du second. Un `kitchen-board` n'est jamais une carte.
@@ -21,10 +21,10 @@
 
 import { carteDuCommentaire, type CarteDuChef } from "./todo-github.ts";
 
-export const HORS_CUISINE = "hors-cuisine";
+export const SERVED_ELSEWHERE = "served-elsewhere";
 export const BLOCKED_ON_HUMAN = "blocked-on-human";
 // Dans l'ordre où la carte les nomme quand l'issue porte les deux.
-export const LABELS_DE_MISE_DE_COTE = [HORS_CUISINE, BLOCKED_ON_HUMAN] as const;
+export const LABELS_DE_MISE_DE_COTE = [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN] as const;
 // L'issue du tableau de la cuisine : jamais une carte, ni sur le rail ni dans TODO.
 export const LABEL_DU_TABLEAU_DE_LA_CUISINE = "kitchen-board";
 // La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi : un label posé à la main. Ici, et non dans faits.ts,
@@ -41,7 +41,7 @@ const LONGUEUR_MAX = 160;
 export type LienDeLigne = { numero: number; url: string };
 // Ce que la carte dit d'un ticket mis de côté : le label qui le met de côté, la ligne qui dit pourquoi — nulle quand aucun
 // commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
-// `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `hors-cuisine`.
+// `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`.
 export type MiseDeCote = { label: string; raison: string | null; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
 
 type Brut = Record<string, unknown>;
@@ -115,7 +115,7 @@ function questionDuChef(commentaires: readonly Brut[]): { carte: CarteDuChef; co
   return null;
 }
 
-// Le commentaire qui dit la mise de côté — la question marquée d'un `hors-cuisine`, sinon le dernier qui la nomme —, et la
+// Le commentaire qui dit la mise de côté — la question marquée d'un `served-elsewhere`, sinon le dernier qui la nomme —, et la
 // question, quand c'en est une.
 function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { dit: Brut | undefined; question: CarteDuChef | null } {
   const dit =
@@ -123,7 +123,7 @@ function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { d
       .reverse()
       .filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DU_MANAGER) && ditLaMiseDeCote(body, label))
       .find(({ body }) => ligneDuCommentaire(body as string) !== null);
-  const question = label === HORS_CUISINE ? questionDuChef(commentaires) : null;
+  const question = label === SERVED_ELSEWHERE ? questionDuChef(commentaires) : null;
   return { dit: question?.commentaire ?? dit, question: question?.carte ?? null };
 }
 

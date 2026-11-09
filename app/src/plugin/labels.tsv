@@ -1,0 +1,30 @@
+product	0E8A16	Issue born from the product owner
+design	D93F0B	Interface work, reserved to the designer
+triage	FBCA04	To be qualified
+blocked-on-human	B60205	Waits for a human decision
+feature	1D76DB	New functionality
+fix	D73A4A	Correction of a defect
+tech	5319E7	Technical work, no functional impact
+prio:0	B60205	Urgent: before everything else
+prio:1	000000	To do first
+prio:2	555555	Important, not blocking
+prio:3	AAAAAA	Desirable, later
+fire	D93F0B	To be served: the issue enters the rail
+model:opus	5319E7	The cook of this ticket runs on opus
+model:sonnet	5319E7	The cook of this ticket runs on sonnet
+model:haiku	5319E7	The cook of this ticket runs on haiku
+effort:low	1D76DB	The cook of this ticket runs at low effort
+effort:medium	1D76DB	The cook of this ticket runs at medium effort
+effort:high	1D76DB	The cook of this ticket runs at high effort
+effort:xhigh	1D76DB	The cook of this ticket runs at xhigh effort
+effort:max	1D76DB	The cook of this ticket runs at max effort
+decision	FBCA04	Needs a product or design decision before any cook starts
+epic	3E4B9E	Groups other tickets: it is split, never cooked itself
+served-elsewhere	6E7781	This box does not serve the ticket: another box does, or a human decides
+taken	0052CC	A cook holds the ticket
+in-pass	0052CC	The delivery of the ticket is being judged
+waiting	C5DEF5	Waits for another ticket to be served
+chef-todo	B60205	A card in the chef's to-do list waits on this ticket
+product-question	FBCA04	A question for the chef about the product
+cook:design	D93F0B	Cooked by the design cook
+kitchen-board	BFD4F2	The former board issue of the kitchen: never a card

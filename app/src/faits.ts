@@ -264,7 +264,7 @@ export { SANS_RAISON };
 // quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
 // `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
 // (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
-// `miseDeCote` : pour un ticket d'un projet GitHub seul que `hors-cuisine` ou `blocked-on-human` met de côté, ce qui le
+// `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` ou `blocked-on-human` met de côté, ce qui le
 // met de côté (tableau/mise-de-cote-github.ts, #2075) — absente pour toute autre entrée.
 // Une carte qui attend un autre humain du projet que le compte connecté (vue/cartes-assignees/, ticket 2985) : TODO la
 // replie sous « Awaiting others », en lecture seule — sa question, et `qui` elle attend, leurs logins GitHub.
