@@ -93,8 +93,6 @@ function github(panne: Panne = () => undefined) {
       const commentaires = lu[2] === "comments" && page === 1 ? (issues.get(Number(lu[1]))?.commentaires ?? []) : [];
       return { status: 200, data: commentaires.map((body, rang) => ({ id: Number(lu[1]) * 100 + rang, body, created_at: `2026-11-06T0${rang}:00:00Z`, author_association: "OWNER" })) };
     }
-    // Le dépôt lui-même : son propriétaire, une personne — le chef par défaut quand projet.json n'en nomme pas (#3052).
-    if (recue.methode === "GET" && chemin === "") return { status: 200, data: { full_name: DEPOT, owner: { login: DEPOT.split("/")[0], type: "User" } } };
     if (recue.methode === "GET" && chemin.startsWith("/pulls?")) return { status: 200, data: pr.state === "open" ? [prJson()] : [] };
     if (recue.methode === "GET" && chemin === `/pulls/${pr.numero}`) return { status: 200, data: prJson() };
     if (recue.methode === "PUT" && chemin === `/pulls/${pr.numero}/merge`) {
@@ -399,8 +397,8 @@ const auRepos = async () => {
   for (let tour = 0; tour < 20; tour++) await repos();
 };
 // Ce que le téléphone lit de GitHub — les gists, le rail, TODO et le chef du projet, à qui ses cartes sont partagées
-// (#2985), le dépôt quand projet.json n'en nomme pas (#3052) —, mis à part : il reste ce que le geste y a écrit, et ce qu'il a lu pour l'écrire.
-const LECTURE = /^https:\/\/api\.github\.com\/(gists[/?]|repos\/[^/]+\/[^/]+$|repos\/[^/]+\/[^/]+\/(issues\?|pulls\?|issues\/\d+\/(comments|events)\?|contents\/\.claude\/brigade\/projet\.json$))/;
+// (#2985), lu de son fichier ou, sans lui, du propriétaire du dépôt (#3052) —, mis à part : il reste ce que le geste y a écrit, et ce qu'il a lu pour l'écrire.
+const LECTURE = /^https:\/\/api\.github\.com\/(gists[/?]|repos\/[^/]+\/[^/]+(\/(issues\?|pulls\?|issues\/\d+\/(comments|events)\?|contents\/\.claude\/brigade\/projet\.json$)|$))/;
 const duGeste = (recues: Recue[]) => recues.filter(({ methode, url }) => !(methode === "GET" && LECTURE.test(url)));
 const json = (valeur: unknown) => JSON.parse(JSON.stringify(valeur));
 

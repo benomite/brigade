@@ -43,6 +43,15 @@ base, the stale-branch pruning).
   pass, and does not count as a failed cook "added nothing since its last delivery", as it did on #3036. Since #2061 the station
   never read `<bloque>`: the partial work of a blocked cook went to review, came back red, and the next cook blocked
   again — 6 of the 13 blocking reviews on BOBL-tech/espace (#798 four times, #755 twice) (#2805).
+- **A ticket whose gates cannot run on a station goes to another station of the project.** When the cook's block
+  says, in one sentence, that the gates or tests cannot run on its station for lack of a dependency, a command or a local
+  service (`gatesInjouables`, `runtime/src/routage-station/routage-station.ts`), the station posts
+  `<!-- brigade:station-incapable station=<name> -->` on the issue with the cook's words and gives the ticket back,
+  not counted among its tries, without the manager. A station never takes a ticket that marks it unable: its claim
+  gate skips it, and another station of the project (`stationsDuProjet`, the declared stations) takes it. When the
+  project has no other station that is not marked, the ticket stays on the rail, held on that station: the station's log
+  and its skip line say the station is to be fixed — no `blocked-on-human`, no TODO card. The marks count since the
+  ticket's last removal of `fire` or `served-elsewhere`: putting it back on the rail clears them. Seen on mirrorlab#674 (#3057).
 - **The manager answers a technical block; only a product or design decision reaches the chef.** The station runs the
   manager — its calibration, the reviewer's read-only tools, in a worktree of the ticket's branch — on the cook's question
   and its previous answers on this ticket (`runtime/src/blocage-au-manager.ts`). A technical question — a tool, a path, a

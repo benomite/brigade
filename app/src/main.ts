@@ -35,7 +35,8 @@ import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-g
 import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
 import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
-import { activitesPubliees, lireLeTableauDuDepot } from "./tableau/lecture.ts";
+import { INTERVALLE_PAR_PROJET_MS, lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
+import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
@@ -215,15 +216,15 @@ const terminaux = ouvrirTerminaux({
 // issues, des labels et des PR de son dépôt sur GitHub (#1694, #2061, tableau/lecture.ts), avec le jeton du `gh` de ce
 // poste : ni tailnet, ni box jointe, ni tableau de la cuisine — aucun runtime n'en écrit plus. Les veilles du rail, des
 // faits et de l'amont lisent toutes cette même lecture, une à la fois par projet, reprise par chacune tant qu'elle a
-// moins de quinze secondes. Le dépôt d'un projet est son `depot`, ou celui de l'`origin` de son dossier. GitHub se lit
+// moins d'une minute. Le dépôt d'un projet est son `depot`, ou celui de l'`origin` de son dossier. GitHub se lit
 // pour tout projet, quelle que soit la station qui le sert — que l'app la connaisse ou non (#2076) ; un projet qui ne
 // se lit pas dit pourquoi.
 const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: parFetch() });
 const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", projet.dossier)) ?? projet.nom;
 // Le rail — ses tickets au label `fire`, leur état tiré de leurs labels, de leur PR et de la base, la station qui les
 // tient (vue/rail/github.ts) —, TODO — ce qui attend le chef, la lecture même que le second relaie à son ouverture
-// (tableau/attente-du-chef.ts, #2460) — et ce qui est avant le rail : relus à chaque lecture (trente secondes, ou
-// aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
+// (tableau/attente-du-chef.ts, #2460) — et ce qui est avant le rail : relus à chaque lecture (au plus une fois par
+// minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
 const memoiresDuRail = new Map<string, MemoireDesLectures>();
 const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
 // Ses stations, sur l'onglet Stations, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
@@ -241,13 +242,25 @@ const compteConnecte = tenirLeLogin(async () => {
   const { echecDeGh } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
   return lireLeCompteGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env, echecDeGh });
 });
-const lireLeTableau = async (projet: Projet) => {
+// Ces lectures restent loin du budget horaire du jeton du chef (budget-github.ts, #3007) : un projet ne se relit pas plus
+// d'une fois par minute, et toutes s'arrêtent, chaque projet gardant son dernier rail, quand GitHub dit le budget
+// presque épuisé ou refuse pour dépassement — jusqu'à l'heure où il se remplit.
+const budgetGitHub = tenirLeBudgetGitHub();
+const appelerSousBudget = budgetGitHub.appeler(appelerGitHub);
+const lireLeTableau = async (projet: Projet): Promise<LectureDuTableauDuDepot> => {
   const depot = await depotDuProjet(projet);
-  const lu = await lireLeTableauDuDepot({ depot, appeler: appelerGitHub, memoire: memoireDuRail(depot), signes: () => signesDeVie.signes() });
-  const appeler = lectureConditionnelle(appelerGitHub, memoireDuRail(depot));
-  return avecCeQuiAttendLeChef(lu, appeler, partageDesCartesAssignees({ appeler, depot, login: compteConnecte.login }));
+  return lectureSousBudget({
+    budget: budgetGitHub,
+    depot,
+    dernier: () => tableaux.dernier(projet.nom),
+    lire: async () => {
+      const lu = await lireLeTableauDuDepot({ depot, appeler: appelerSousBudget, memoire: memoireDuRail(depot), signes: () => signesDeVie.signes() });
+      const appeler = lectureConditionnelle(appelerSousBudget, memoireDuRail(depot));
+      return avecCeQuiAttendLeChef(lu, appeler, partageDesCartesAssignees({ appeler, depot, login: compteConnecte.login }));
+    },
+  });
 };
-const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
+const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: INTERVALLE_PAR_PROJET_MS });
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
 // les trente secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.
