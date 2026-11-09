@@ -33,7 +33,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   {
     nom: "waiting",
     ancien: "attente",
-    description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>",
+    description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>; a GitHub-only ticket is named <owner>/<repo>#<issue>, which also takes arrived; <owner>/<repo> lists its TODO and WAITING cards",
     mots: { poser: "set", reprendre: "resume", "--quoi": "--what", "--de": "--from", "--relance": "--remind" },
   },
   { nom: "report", description: "The daily report of the decisions brigade took and told about, the last 24 hours (read-only)" },
