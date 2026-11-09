@@ -15,6 +15,7 @@
 //   m'attend     ce qu'on attend du chef, en une phrase (decision.ts)
 //   livrée       `served at HH:MM · <résumé>`
 import { heureHM } from "./format.ts";
+import { jourDe } from "./vue/attente/saisie.ts";
 
 // `signal` : ce qui demande l'attention. `repere` : la file ne dit pas tout, la fiche le détaille.
 export type LigneDeCarte = { ligne: string; signal?: string; repere?: true };
@@ -62,9 +63,12 @@ export const ligneMiseDeCote = (raison: string): LigneDeCarte => ({ ligne: raiso
 // Qui m'attend : ce qu'on attend du chef, en une phrase.
 export const ligneQuiMAttend = (phrase: string | undefined): LigneDeCarte => (phrase === undefined ? { ligne: ATTEND_TA_DECISION, repere: true } : { ligne: phrase });
 
-// En WAITING : ce qu'il attend et de qui ; la relance passée est le signal.
-export const ligneEnWaiting = (tiers: { quoi: string; qui: string } | null | undefined, relancePassee: boolean): LigneDeCarte =>
-  tiers == null ? { ligne: "waits for a third party", repere: true } : { ligne: `waiting for ${tiers.quoi} · from ${tiers.qui}`, ...(relancePassee ? { signal: RELANCE_PASSEE } : {}) };
+// En WAITING : ce qu'il attend, de qui, et le jour de sa relance, au calendrier du poste (#3075) ; la relance passée est
+// le signal.
+export const ligneEnWaiting = (tiers: { quoi: string; qui: string; relance?: string | null } | null | undefined, relancePassee: boolean): LigneDeCarte =>
+  tiers == null
+    ? { ligne: "waits for a third party", repere: true }
+    : { ligne: `waiting for ${tiers.quoi} · from ${tiers.qui}${tiers.relance == null ? "" : ` · follow-up ${jourDe(new Date(tiers.relance))}`}`, ...(relancePassee ? { signal: RELANCE_PASSEE } : {}) };
 
 // Une question du manager répondue, qui attend qu'il lise la réponse (repondues.ts) : qui y a répondu.
 export const ligneRepondue = (par: string): LigneDeCarte => ({ ligne: `answered by ${par} · the manager's turn` });

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { rail, type Carte, type Faits } from "../src/faits.ts";
 import { heureHM } from "../src/format.ts";
+import { jourDe } from "../src/vue/attente/saisie.ts";
 import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, PASS_SANS_DETAIL, PRET, TRAVAIL_SANS_DETAIL } from "../src/ligne-carte.ts";
 
 const LU = "2026-10-12T10:04:11.000Z";
@@ -72,9 +73,12 @@ describe("la phrase de chaque état d'une carte (#622)", () => {
     assert.doesNotMatch(JSON.stringify(phrase(carte)), /\b86\b/);
   });
 
-  test("chez un tiers (WAITING) : ce qu'il attend et de qui ; la relance passée est un signal", () => {
-    assert.deepEqual(phrase(de(FAITS, 5)), { ligne: "waiting for le devis · from le client", signal: "follow-up date passed" });
+  test("chez un tiers (WAITING) : ce qu'il attend, de qui, et sa relance ; la relance passée est un signal", () => {
+    assert.deepEqual(phrase(de(FAITS, 5)), { ligne: `waiting for le devis · from le client · follow-up ${jourDe(new Date("2026-10-10T00:00:00.000Z"))}`, signal: "follow-up date passed" });
     assert.deepEqual(ligneEnWaiting({ quoi: "un accès", qui: "Sam" }, false), { ligne: "waiting for un accès · from Sam" });
+    // Sa relance, au jour du poste (#3075) : celui que le chef a choisi, posé à minuit.
+    assert.deepEqual(ligneEnWaiting({ quoi: "un accès", qui: "Sam", relance: new Date(2026, 10, 16).toISOString() }, false), { ligne: "waiting for un accès · from Sam · follow-up 2026-11-16" });
+    assert.deepEqual(ligneEnWaiting({ quoi: "un accès", qui: "Sam", relance: null }, false), { ligne: "waiting for un accès · from Sam" });
     assert.deepEqual(ligneEnWaiting(null, false), { ligne: "waits for a third party", repere: true });
   });
 

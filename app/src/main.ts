@@ -31,6 +31,7 @@ import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } 
 import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch, posterParFetch } from "./tableau/client.ts";
 import { avecCeQuiAttendLeChef } from "./tableau/attente-du-chef.ts";
+import { jouerLAttente } from "./vue/attente/attente-github.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
 import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
@@ -983,16 +984,17 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, oui: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, oui, cuisines.cuisineDe(vise));
 });
-// Un geste de WAITING, sur une carte du rail : sa commande part dans le second du projet, comme un
-// geste du socle. La vue nomme le geste et le ticket, et donne ce que le chef a rempli ; ce qui
-// part se décide dans attente.ts. « It arrived, back to the kitchen » n'a pas de commande : il
-// retire `waiting` de l'issue (gestes-github.ts), comme le geste `cuisine` de la fiche.
+// Un geste de WAITING, sur une carte du rail ou sa fiche : quand la cuisine du projet tourne sur ce poste, sa commande
+// part dans le second du projet, comme un geste du socle (attente.ts) ; sinon il s'écrit sur l'issue, comme la commande
+// l'y écrit (vue/attente/attente-github.ts, #3075). La vue nomme le geste et le ticket, et donne ce que le chef a rempli.
+// « It arrived, back to the kitchen » n'a pas de commande : il retire `waiting` de l'issue (gestes-github.ts), comme le
+// geste `cuisine` de la fiche.
 ipcMain.handle("attente", async (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  if (id !== "attente-arrivee") return ecrireAttente(terminaux, id, vise, ticket, saisie, new Date(), cuisines.cuisineDe(vise));
-  const rendu = await retirerLeLabel(tableaux.dernier(vise.nom), "cuisine", ticket, clientDesLabels);
-  if ("fait" in rendu) tableaux.oublier();
+  const aujourdhui = new Date();
+  const rendu = await jouerLAttente({ id, ticket, saisie, aujourdhui, lu: () => tableaux.dernier(vise.nom), client: clientDesLabels, parLeRuntime: () => ecrireAttente(terminaux, id, vise, ticket, saisie, aujourdhui, cuisines.cuisineDe(vise)) });
+  if (rendu !== undefined && "fait" in rendu) tableaux.oublier();
   return rendu;
 });
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits

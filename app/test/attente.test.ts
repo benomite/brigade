@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { commandeDAttente, ecrireAttente, GESTES_D_ATTENTE, relanceProposee } from "../src/attente.ts";
+import { commandeDAttente, ecrireAttente, GESTES_D_ATTENTE, jourDe, relanceProposee } from "../src/attente.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { GESTE, type Cuisine } from "../src/box.ts";
@@ -301,7 +301,7 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     assert.ok(colonne(vue, "Waiting").contains(bon));
     assert.ok(!colonne(vue, "Awaiting you").contains(bon));
     // La carte dit l'essentiel en une ligne ; le détail est dans sa fiche.
-    assert.equal(bon.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, "waiting for sa validation écrite du devis · from le client");
+    assert.equal(bon.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, `waiting for sa validation écrite du devis · from le client · follow-up ${jourDe(new Date(TIERS.relance ?? ""))}`);
     assert.equal(bon.dessous("li").length, 0);
     bon.click();
     const lu = fiche(vue).dessous("li").map((fait) => fait.children.map((pose) => pose.textContent));
