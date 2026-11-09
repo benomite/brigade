@@ -498,6 +498,10 @@ tickets claimed after that merge, #2977 and #2985, none was sent back for a conf
 evidence, with #2963 and #2979 closed by merged PRs out of the station's times, main's gate returns `en-attente`
 on #2979 (19 tickets missing), and the code before #2979, which dated neither, opens a ticket.
 Nothing to correct on main.
+A merged PR is the one GitHub says closed the issue, or else the merged PR of its cook's branch
+(`cook/<n>-github`), as an epic reads its tickets (#3083): the station that merges closes the issue at once
+(#2467), often before GitHub does, and that closing carries no merge commit. Before, #3080, merged by another
+station, waited for nothing, and #3083 reopened on the two repairs of main (#3066, #3068) #3080 had counted.
 #3028, measured on BOBL-tech/mirrorlab, names "red gates: type check" for three red-CI send-backs (#651, #20,
 #612), but no failed step was read: their reasons name the one red check, `Lint + Format + Typecheck + Tests
 (+ e2e:critical si label e2e)`, a job that runs four steps. `causeDuRenvoi` (`runtime/src/qualite-github.ts`)
