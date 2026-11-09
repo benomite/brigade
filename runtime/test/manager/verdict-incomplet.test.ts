@@ -60,8 +60,8 @@ describe("un verdict incomplet", { concurrency: 8 }, () => {
       assert.match(corps, /## Acceptance criteria\n\n- Three failures in a row open the breaker\n- A test in runtime\/test\/disjoncteur\.test\.ts plays the three failures\n\n## Notes/);
       assert.match(corps, new RegExp(`The breaker of ticket ${numero} opens too late\\.`));
       assert.doesNotMatch(corps, /Try it by hand/);
-      await jusqua(() => gh.commentaires.some(([n, dit]) => n === numero && /mis sur le rail/.test(dit)));
-      assert.ok(gh.commentaires.some(([n, dit]) => n === numero && /complété par le manager/.test(dit)));
+      await jusqua(() => gh.commentaires.some(([n, dit]) => n === numero && /put on the rail/.test(dit)));
+      assert.ok(gh.commentaires.some(([n, dit]) => n === numero && /completed by the manager/.test(dit)));
     }
     // Complété, il ne se rejuge pas au tour suivant.
     const depart = gh.sondages.ouvertes;
@@ -83,7 +83,11 @@ describe("un verdict incomplet", { concurrency: 8 }, () => {
     assert.deepEqual(c.gh.lire(40)?.labels, ["product-question"]);
     assert.equal(issueDuManager(c.journal.base, 40)?.decision, "refused");
     assert.equal((c.dernier("manager.completed", 40) as { outcome: string }).outcome, "question");
-    await jusqua(() => c.gh.commentaires.some(([n, dit]) => n === 40 && /une question est posée au chef/.test(dit)));
+    await jusqua(() => c.gh.commentaires.some(([n, dit]) => n === 40 && /a question is asked to the chef/.test(dit)));
+    // #3033 : la carte du chef garde sa question française ; l'issue cite l'anglaise.
+    const dit = c.gh.commentaires.find(([n, corps]) => n === 40 && /a question is asked to the chef/.test(corps))?.[1] ?? "";
+    assert.match(dit, /\(`product-question`\)\. Does the TODO show closed tickets\?/);
+    assert.doesNotMatch(dit, /Le TODO montre-t-il/);
 
     // Le même verdict ne se suit pas deux fois.
     const depart = c.gh.sondages.ouvertes;
@@ -105,7 +109,7 @@ describe("un verdict incomplet", { concurrency: 8 }, () => {
     await jusqua(() => c.gh.lire(50)?.labels.includes("product-question") === true);
     assert.equal(issueDuManager(c.journal.base, 50)?.decision, "refused");
     assert.deepEqual(c.journal.duTicket(50).filter((e) => e.type === "manager.completed").map((e) => (e.payload as { outcome: string }).outcome), ["unreadable", "question"]);
-    await jusqua(() => c.gh.commentaires.some(([n, dit]) => n === 50 && /une question est posée au chef/.test(dit)));
+    await jusqua(() => c.gh.commentaires.some(([n, dit]) => n === 50 && /a question is asked to the chef/.test(dit)));
 
     const depart = c.gh.sondages.ouvertes;
     await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
@@ -147,6 +151,8 @@ describe("la réécriture des critères", () => {
     assert.ok("illisible" in lireCompletion('{"issue":"complete","motif":"m","criteres":[],"modele":"sonnet","effort":"low","calibrage":"c"}'));
     assert.ok("illisible" in lireCompletion('{"issue":"question","motif":"m","resume":"r","question":"A ? ou B ?","choix":["A","B"]}'));
     assert.ok("illisible" in lireCompletion('{"issue":"question","motif":"m","resume":"r","question":"A ou B ?","choix":["A"]}'));
-    assert.ok("valeur" in lireCompletion('{"issue":"question","motif":"m","resume":"r","question":"A ou B ?","choix":["A","B"]}'));
+    assert.ok("valeur" in lireCompletion('{"issue":"question","motif":"m","resume":"r","question":"A ou B ?","question_en":"A or B?","choix":["A","B"]}'));
+    // La question que l'issue cite est l'anglaise : sans elle, la réponse ne se lit pas.
+    assert.deepEqual(lireCompletion('{"issue":"question","motif":"m","resume":"r","question":"A ou B ?","choix":["A","B"]}'), { illisible: "a question with no `question_en`, the English the issue quotes" });
   });
 });

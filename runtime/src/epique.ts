@@ -27,11 +27,12 @@ export function lignesHorsCode(corps: string): Ligne[] {
 }
 
 // La ligne par laquelle un ticket dit de quelle épique il vient. Le manager
-// l'écrit en tête des siens ; le chef l'écrit sur un ticket qu'il ajoute.
-const REFERENCE = /^[ \t]*[*_]{0,2}[ÉEé]pique[ \t]*:[ \t]*[*_]{0,2}[ \t]*#([1-9]\d*)\b/iu;
+// l'écrit en tête des siens, en anglais (`Epic: #N`) ; le chef l'écrit sur un
+// ticket qu'il ajoute. La forme française d'avant (`Épique : #N`) se lit encore.
+const REFERENCE = /^[ \t]*[*_]{0,2}(?:[ÉEé]pique|Epic)[ \t]*:[ \t]*[*_]{0,2}[ \t]*#([1-9]\d*)\b/iu;
 
 export function reference(epic: number): string {
-  return `Épique : #${epic}`;
+  return `Epic: #${epic}`;
 }
 
 // L'épique dont le corps d'une issue se réclame, ou null.
@@ -103,15 +104,15 @@ export function rendreListe(epic: number, lignes: LigneDeListe[]): string {
   const servis = lignes.filter((ligne) => ligne.served).length;
   return [
     DEBUT,
-    "## Tickets de l'épique",
+    "## Tickets of the epic",
     "",
-    `**${servis}/${lignes.length} ${servis > 1 ? "servis" : "servi"}.**`,
+    `**${servis}/${lignes.length} served.**`,
     "",
-    "| # | Ticket | État |",
+    "| # | Ticket | State |",
     "|---|---|---|",
     ...lignes.map((ligne) => `| #${ligne.ticket} | ${cellule(ligne.title)} | ${cellule(ligne.state)} |`),
     "",
-    `_Liste tenue par le manager : ce qui est entre ses deux marqueurs est réécrit, le reste de l'épique est à toi. Pour y faire entrer un ticket que tu ajoutes, écris \`${reference(epic)}\` dans son corps._`,
+    `_List kept by the manager: what is between its two markers is rewritten, the rest of the epic is yours. To bring in a ticket you add, write \`${reference(epic)}\` in its body._`,
     FIN,
   ].join("\n");
 }

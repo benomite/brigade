@@ -533,7 +533,8 @@ cook its station comments give; for the lost time, also each ticket's filing, `f
 and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
 heartbeat), 40 at most. The lost time counts as a failed cook every cook given back without a delivery, so its
 evidence also names the stops the quality does not count as a try — a block the manager answered, a stop on an open
-ticket, a stop the cook did not cause —, each with the cook's words (#3036): before, BOBL-tech/mirrorlab#670 read
+ticket, a stop the cook did not cause —, each with the cook's words (#3036), when its station comment quotes them
+— in English only: words the cook wrote in French and nothing translated are not quoted (#3033). Before, BOBL-tech/mirrorlab#670 read
 "first try" over 5 min of failed cooks, and the cook's question that cost them was written nowhere in the ticket.
 A read that fails is named on its line, with its error: the ticket is filed all the same.
 When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,

@@ -13,11 +13,11 @@ test("la liste dit chaque ticket, son état, et le décompte de ce qui est servi
   const bloc = rendreListe(30, LIGNES);
 
   assert.ok(bloc.startsWith(DEBUT) && bloc.endsWith(FIN));
-  assert.match(bloc, /\*\*1\/2 servi\.\*\*/);
+  assert.match(bloc, /\*\*1\/2 served\.\*\*/);
   assert.match(bloc, /\| #501 \| Le rail compte \| servi \|/);
   // Une barre dans un titre ne casse pas le tableau.
   assert.match(bloc, /\| #502 \| La pass \\\| lit \| attend #501 \|/);
-  assert.match(bloc, /`Épique : #30`/);
+  assert.match(bloc, /`Epic: #30`/);
 });
 
 test("une épique sans liste la reçoit à la fin, et ce que l'humain a écrit ne bouge pas", () => {
@@ -68,6 +68,9 @@ test("un ticket dit son épique par une ligne de son corps, où qu'elle soit et 
   assert.equal(epiqueDe("Épique : #75\n\n## Contexte"), 75);
   assert.equal(epiqueDe("## Contexte\n\n**Épique :** #75"), 75);
   assert.equal(epiqueDe("epique: #7"), 7);
+  // La forme anglaise, que le manager écrit depuis #3033.
+  assert.equal(epiqueDe("Epic: #75\n\n## Context"), 75);
+  assert.equal(epiqueDe("**Epic:** #75"), 75);
   // Une phrase qui en parle n'est pas une référence.
   assert.equal(epiqueDe("Fait partie de l'épique : #75"), null);
   assert.equal(epiqueDe("Épique : la refonte"), null);

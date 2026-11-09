@@ -693,7 +693,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped, blocked, and the manager could not answer its question — ${lu.illisible}.\n\nThe ticket does not go to the chef: it waits until ${new Date(reprise).toISOString()}, then a cook resumes it from its branch. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
       return "liberee";
     }
+    // L'issue cite la question du cook en anglais, traduite par le manager.
     const { avis } = lu;
+    const questionEn = lu.questionEn ?? null;
     if (avis.issue === "technique") {
       const deja = reponses ?? [];
       // La troisième réponse s'écrit dans le corps du ticket, une seule fois.
@@ -709,17 +711,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (corps.includes(MARQUE_DE_DECISION)) return { echec: `the cook blocked again on a technical question after the manager's decision was written into the ticket: ${premiereLigne}` };
         if (github.ecrireCorps === undefined) return pasEcrite("this GitHub client cannot write the ticket's body");
         try {
-          await github.ecrireCorps(issue, `${corps.trimEnd()}\n\n${sectionDeLaDecision(question, avis)}\n`);
+          await github.ecrireCorps(issue, `${corps.trimEnd()}\n\n${sectionDeLaDecision(questionEn, avis)}\n`);
         } catch (erreur) {
           return pasEcrite(message(erreur));
         }
       }
       avertir(`brigade : #${issue} sur ${nom} — the cook blocked on a technical question: the manager answered it${ecrite ? " and its decision is written into the ticket" : ""}, the ticket goes back to a cook`);
-      await github.commenter(issue, corpsDeLaReponseAuBlocage({ station: nom, n: deja.length + 1, question, avis, ecrite }));
+      await github.commenter(issue, corpsDeLaReponseAuBlocage({ station: nom, n: deja.length + 1, questionEn, avis, ecrite }));
       return "liberee";
     }
     avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked, and the manager read ${avis.issue === "geste" ? "a gesture only the chef can make" : `a ${avis.issue === "produit" ? "product" : "design"} decision`}: the ticket goes to the chef`);
-    const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, corpsDeLaCarte({ station: nom, question, avis }));
+    const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, corpsDeLaCarte({ station: nom, questionEn, avis }));
     if (!pose.pose) avertir(`brigade : ${pose.echec}`);
     return "retenue";
   };

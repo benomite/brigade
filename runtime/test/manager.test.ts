@@ -141,15 +141,15 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => dits(30).length === 1);
 
     const [dit = ""] = dits(30);
-    assert.match(dit, /ticket mis sur le rail/);
+    assert.match(dit, /ticket put on the rail/);
     assert.match(dit, /`fire`, `model:haiku`, `effort:low`/);
-    assert.match(dit, /Un livrable, vérifiable par un test\./);
-    assert.match(dit, /Pourquoi `haiku` \/ `low`\.\*\* Correctif dont le test est déjà écrit\./);
-    assert.match(dit, /le manager ne le réécrira pas/);
-    assert.match(dit, /Retirer `fire`, `model:` ou `effort:` sans le remplacer écarte ce ticket du manager/);
+    assert.match(dit, /One deliverable, checked by a test\./);
+    assert.match(dit, /Why `haiku` \/ `low`\.\*\* A fix whose test is already written\./);
+    assert.match(dit, /the manager will not rewrite it/);
+    assert.match(dit, /Removing `fire`, `model:` or `effort:` without replacing it takes this ticket away from the manager/);
     assert.match(dit, /`brigade <projet> manager return 30`/);
-    assert.match(dit, /Corriger `prio:`, poser ou retirer `question` ou `blocked-on-human` ne le lui retire pas/);
-    assert.match(dit, /Jugé par le manager en `sonnet` \/ `medium` · 1 tour · 10 tokens/);
+    assert.match(dit, /Correcting `prio:`, or setting or removing `question` or `blocked-on-human`, does not take it away/);
+    assert.match(dit, /Judged by the manager in `sonnet` \/ `medium` · 1 turn · 10 tokens/);
   });
 
   test("chaque décision est au journal avec son motif, et le jugement y figure comme un cook, avec son calibrage", async (t) => {
@@ -159,7 +159,7 @@ describe("le manager", { concurrency: 8 }, () => {
     const juge = charge(faits(30)[0]);
     assert.deepEqual(
       { ...juge, run: null, fingerprint: null },
-      { run: null, fingerprint: null, verdict: "fire", kind: "ticket", reason: "Un livrable, vérifiable par un test.", missing: null, model: "haiku", effort: "low", calibration: "Correctif dont le test est déjà écrit." },
+      { run: null, fingerprint: null, verdict: "fire", kind: "ticket", reason: "One deliverable, checked by a test.", missing: null, model: "haiku", effort: "low", calibration: "A fix whose test is already written." },
     );
     assert.match(String(juge?.run), /^juge-30-[0-9a-f]{8}$/);
     const lancement = journal.tout().find((e) => e.type === "cook.launched" && e.payload.run === juge?.run);
@@ -200,11 +200,11 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(labels(30), ["product-question"]);
     assert.ok(!gh.labellisations.flat(2).includes("fire"));
     const [question = "", dit = ""] = dits(30);
-    assert.match(question, /une question est posée au chef/);
-    assert.match(dit, /pas un ticket exécutable : un ticket incomplet/);
-    assert.match(dit, /Rien ne dit comment vérifier que c'est fait\./);
-    assert.match(dit, /Ce qui le rendrait exécutable\.\*\* Un critère d'acceptation\./);
-    assert.match(dit, /rejugée/);
+    assert.match(question, /a question is asked to the chef/);
+    assert.match(dit, /not a workable ticket: an incomplete ticket/);
+    assert.match(dit, /Nothing says how to check it is done\./);
+    assert.match(dit, /What would make it workable\.\*\* An acceptance criterion\./);
+    assert.match(dit, /judged again/);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented"]);
     assert.deepEqual(faits(30).filter((e) => e.type === "manager.completed").map((e) => charge(e)?.outcome), ["unreadable", "question"]);
     assert.deepEqual((({ verdict, kind }) => ({ verdict, kind }))(charge(faits(30)[0]) ?? {}), { verdict: "refused", kind: "incomplete" });
@@ -218,7 +218,7 @@ describe("le manager", { concurrency: 8 }, () => {
     const fix = gh.lire(501);
     assert.ok(fix?.labels.includes("fix") && fix.labels.includes("fire"));
     assert.deepEqual(labels(30), []);
-    assert.match(dits(30)[0] ?? "", /geste git, aucune carte pour le chef/);
+    assert.match(dits(30)[0] ?? "", /git gesture, no card for the chef/);
     assert.match(dits(30)[0] ?? "", /#501/);
     assert.equal(journal.duTicket(30).filter((e) => e.type === "todo.rerouted").length, 1);
     assert.equal(journal.duTicket(30).filter((e) => e.type === "todo.entered" || e.type === "todo.held").length, 0);
@@ -326,7 +326,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.equal(dits(30).length, 1);
     assert.doesNotMatch(dits(30)[0] ?? "", /servi ailleurs/);
-    assert.match(dits(30)[0] ?? "", /la station a mis ce ticket de côté/);
+    assert.match(dits(30)[0] ?? "", /the station set this ticket aside/);
   });
 
   test("`served-elsewhere` l'emporte sur `fire` et sur un calibrage complet : jamais jugée, jamais lancée, et le manager le dit", async (t) => {
@@ -342,8 +342,8 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(charge(faits(30)[0])?.reason, "served-elsewhere");
     assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "served-elsewhere"]]);
     assert.equal(dits(30).length, 1);
-    assert.match(dits(30)[0] ?? "", /`served-elsewhere` l'emporte/);
-    assert.doesNotMatch(dits(30)[0] ?? "", /Pose-les toi-même/);
+    assert.match(dits(30)[0] ?? "", /`served-elsewhere` wins/);
+    assert.doesNotMatch(dits(30)[0] ?? "", /Set them yourself/);
     assert.deepEqual(dits(31), []);
   });
 
@@ -386,8 +386,8 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(gh.labellisations, []);
     assert.equal(jugements().length, 0);
     assert.equal(dits(30).length, 1);
-    assert.match(dits(30)[0] ?? "", /`fire` laissé/);
-    assert.match(dits(30)[0] ?? "", /aucun cook ne part/);
+    assert.match(dits(30)[0] ?? "", /`fire` left/);
+    assert.match(dits(30)[0] ?? "", /no cook starts/);
     assert.deepEqual(charge(faits(30)[0]), { reason: "question", fired: true });
   });
 
@@ -405,7 +405,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.deepEqual(gh.labellisations, [[30, ["fire", "effort:low"]]]);
     assert.deepEqual(labels(30), ["model:opus", "fire", "effort:low"]);
-    assert.match(dits(30)[0] ?? "", /`model:opus` était déjà posé : laissé tel quel/);
+    assert.match(dits(30)[0] ?? "", /`model:opus` was already set: left as it was/);
   });
 
   test("le chef retire le `fire` du manager : il n'est pas reposé, même si l'issue change", async (t) => {
@@ -432,9 +432,9 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.equal(dits(30).length, 2);
     const dit = dits(30)[1] ?? "";
-    assert.match(dit, /ticket écarté : il n'est plus lancé et calibré/);
-    assert.match(dit, /il y manque aujourd'hui `fire`\./);
-    assert.match(dit, /ne la rejuge pas, même si elle change/);
+    assert.match(dit, /ticket set aside: it is no longer fired and calibrated/);
+    assert.match(dit, /it now lacks `fire`\./);
+    assert.match(dit, /does not judge it again, even if it changes/);
     assert.match(dit, /`brigade <projet> manager return 30`/);
   });
 
@@ -486,7 +486,7 @@ describe("le manager", { concurrency: 8 }, () => {
     gh.poser(issue(30, ["model:opus", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusqua(() => dits(30).length === 2);
 
-    assert.match(dits(30)[1] ?? "", /il y manque aujourd'hui `fire`\. /);
+    assert.match(dits(30)[1] ?? "", /it now lacks `fire`\. /);
     assert.doesNotMatch(dits(30)[1] ?? "", /haiku/);
   });
 
@@ -588,7 +588,7 @@ describe("le manager", { concurrency: 8 }, () => {
     await laisserTourner();
 
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.labeled", "manager.commented"]);
-    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason ?? null]).slice(0, 2), [["manager.set-aside", "blocked-on-human"], ["manager.judged", "Un livrable, vérifiable par un test."]]);
+    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason ?? null]).slice(0, 2), [["manager.set-aside", "blocked-on-human"], ["manager.judged", "One deliverable, checked by a test."]]);
     assert.equal(jugements().length, 3);
   });
 
@@ -611,8 +611,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.equal(jugements().length, 1);
     assert.deepEqual(labels(30), []);
-    assert.match(dits(30)[0] ?? "", /jugement illisible/);
-    assert.match(dits(30)[0] ?? "", /aucun objet JSON/);
+    assert.match(dits(30)[0] ?? "", /unreadable judgement/);
+    assert.match(dits(30)[0] ?? "", /no JSON object/);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.failed", "manager.commented"]);
     assert.equal(journal.tout().find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
   });
@@ -781,7 +781,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(jugements().length, 3);
     assert.deepEqual(labels(30), []);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.failed", "manager.commented"]);
-    assert.match(dits(30)[0] ?? "", /refus du modèle \(reasoning_extraction\), 3 fois d'affilée \(`stop_reason: refusal`\)/);
+    assert.match(dits(30)[0] ?? "", /model refusal \(reasoning_extraction\), 3 times in a row \(`stop_reason: refusal`\)/);
     assert.equal(journal.tout().some((e) => e.type === "breaker.opened"), false);
   });
 

@@ -4,7 +4,7 @@
 // de l'issue, repéré par un marqueur et fait de lignes « clé : valeur », qu'un
 // humain lit et corrige à la main. Ce module la lit, sans E/S : tout ce qu'il
 // ne comprend pas devient un problème dit, jamais un champ vide.
-import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capacites.ts";
+import { capacite, CAPACITE, CLE_DES_CAPACITES, CLE_DES_CAPACITES_EN, FORME_DE_CAPACITE } from "./capacites.ts";
 import { refus } from "./zones.ts";
 
 export const MARQUEUR = "<!-- brigade:fiche -->";
@@ -23,6 +23,9 @@ export type Fiche = {
 };
 
 const CLES = ["attend", "zone", CLE_DES_CAPACITES] as const;
+// Les clés anglaises (docs/glossary.md : `attend` → `awaiting`), que le
+// découpage écrit : chacune vaut sa clé française, et compte avec elle.
+const ALIAS: Record<string, string> = { awaiting: "attend", [CLE_DES_CAPACITES_EN]: CLE_DES_CAPACITES };
 
 const EN_TETE_DE_LIGNE = /^\s*<!--\s*brigade:fiche\s*-->/i;
 const BLOC_DE_CODE = /^\s*(```|~~~)/;
@@ -32,7 +35,7 @@ const PUCE = /^\s*[-*+]\s+/;
 // est la valeur, telle quelle : un chemin peut commencer par `*` ou `_`.
 const CHAMP = /^([*_`]*)([\p{L}][\p{L}\p{N}_-]*)[*_`]*\s*:(?!\/\/)(.*)$/u;
 // Les façons d'écrire qu'un champ ne porte rien.
-const RIEN = /^(rien|aucune?|-|—)?$/i;
+const RIEN = /^(rien|aucune?|none|nothing|-|—)?$/i;
 
 // Les lignes d'un commentaire, sans celles de ses blocs de code : un format
 // cité n'est pas une fiche.
@@ -112,7 +115,7 @@ export function fiche(commentaires: string[]): Fiche | null {
       continue;
     }
     const [, emphase = "", nom = "", suite = ""] = champ;
-    const cle = nom.toLowerCase();
+    const cle = ALIAS[nom.toLowerCase()] ?? nom.toLowerCase();
     // « **clé :** valeur » : l'emphase ouverte avant la clé se ferme après les
     // deux-points. Rien d'autre n'est retiré à la valeur.
     const valeur = (emphase !== "" && suite.startsWith(emphase) ? suite.slice(emphase.length) : suite).trim();
@@ -152,14 +155,14 @@ export function sansAttente(corps: string, numero: number): string | null {
     if (corrigee || /^\r?\n$/.test(ligne)) return ligne;
     if (BLOC_DE_CODE.test(ligne)) dansUnBloc = !dansUnBloc;
     if (dansUnBloc) return ligne;
-    const champ = /^(.*?[*_`]*attend[*_`]*\s*:[*_`]*)(.*)$/i.exec(ligne);
-    if (!champ || CHAMP.exec(ligne.replace(EN_TETE_DE_LIGNE, "").replace(PUCE, "").trim())?.[2]?.toLowerCase() !== "attend") return ligne;
-    const [, cle = "", valeur = ""] = champ;
+    const champ = /^(.*?[*_`]*(attend|awaiting)[*_`]*\s*:[*_`]*)(.*)$/i.exec(ligne);
+    if (!champ || CHAMP.exec(ligne.replace(EN_TETE_DE_LIGNE, "").replace(PUCE, "").trim())?.[2]?.toLowerCase() !== champ[2]?.toLowerCase()) return ligne;
+    const [, cle = "", nom = "", valeur = ""] = champ;
     const mots = valeur.split(/[\s,]+/).filter(Boolean);
     const restants = mots.filter((mot) => mot !== `#${numero}`);
     if (restants.length === mots.length) return ligne;
     corrigee = true;
-    return `${cle} ${restants.length === 0 ? "rien" : restants.join(", ")}`;
+    return `${cle} ${restants.length === 0 ? (nom.toLowerCase() === "awaiting" ? "none" : "rien") : restants.join(", ")}`;
   });
   return corrigee ? lignes.join("") : null;
 }

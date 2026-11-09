@@ -239,7 +239,7 @@ const laReponse = (suppressions: boolean, regles = false) => [
   `{"verdict": "rouge", "resume": "ce que tu as relu et ce que tu en retiens, en deux ou trois phrases", "constats": [{"gravite": "bloquant", "fichier": "chemin/du/fichier.ts", "constat": "ce qui ne va pas, et pourquoi"}, {"gravite": "remarque", "fichier": null, "constat": "…"}${suppressions ? ', {"gravite": "a_supprimer", "fichier": "chemin/du/fichier.md", "constat": "ce qui devrait partir, et pourquoi"}' : ""}${regles ? ', {"gravite": "bloquant", "fichier": "docs/captures/<ticket>/<écran>-apres.png", "regle": "erreur-brute", "constat": "ce que la capture montre"}' : ""}]}`,
   "```",
   "",
-  "`verdict` vaut `rouge` s'il y a au moins un constat bloquant, `vert` sinon — `constats` peut être vide. `resume` et `constat` sont lus par le chef, sur l'issue : en français, précis.",
+  "`verdict` vaut `rouge` s'il y a au moins un constat bloquant, `vert` sinon — `constats` peut être vide. `resume` et `constat` sont postés sur la PR, que le chef lit : en anglais, précis.",
 ];
 
 // Le diff, tel qu'il est donné à relire. `auteur` : qui l'a écrit ; `par` :

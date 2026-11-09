@@ -36,7 +36,7 @@ async function bloqueSur(t: TestContext, question: string, { tours = 1, corps = 
   const lancer: Lancer = ({ args, flux }) => {
     const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
     if (!consulte) lancements += 1;
-    const message = consulte ? JSON.stringify({ issue: "produit", question: PRODUIT }) : `I stopped.\n<livrable>\n<bloque>${question}</bloque>\n</livrable>`;
+    const message = consulte ? JSON.stringify({ issue: "produit", question: PRODUIT, question_en: question }) : `I stopped.\n<livrable>\n<bloque>${question}</bloque>\n</livrable>`;
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };

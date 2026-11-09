@@ -33,7 +33,7 @@ function brigade(t: TestContext, options: Options & { decoupage?: string } = {})
     const depart = c.gh.sondages.ouvertes;
     await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
   };
-  const decoupee = (numero: number) => jusqua(() => dits(numero).some((dit) => /épique découpée/.test(dit)));
+  const decoupee = (numero: number) => jusqua(() => dits(numero).some((dit) => /epic split into/.test(dit)));
   return { ...c, jugements, dits, faits, tous, labels, liste, laisserTourner, decoupee };
 }
 
@@ -68,9 +68,9 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.deepEqual(c.labels(502), ["model:sonnet", "effort:medium", "prio:2", "fire"]);
     assert.deepEqual(c.gh.labellisations, [[501, ["fire"]], [502, ["fire"]], [503, ["fire"]]]);
     const corps = c.gh.corpsDe(502);
-    assert.ok(corps.startsWith(`Épique : #30\n${marque(30, 2)}`));
+    assert.ok(corps.startsWith(`Epic: #30\n${marque(30, 2)}`));
     assert.match(corps, /- `run pass` affiche le compte\n- Un test le couvre/);
-    assert.match(corps, /Calibré `sonnet` \/ `medium` — Critères précis\./);
+    assert.match(corps, /Calibrated `sonnet` \/ `medium` — Critères précis\./);
     // Les dépendances portent les numéros des issues nées, et la zone suit.
     const fiches = [501, 502, 503].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
     assert.deepEqual(fiches, [
@@ -106,7 +106,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
       { waitsFor: [], zone: ["e2e/compte.ts"], problems: [], requires: ["chrome-connecté"] },
       { waitsFor: [], zone: ["docs/e2e.md"], problems: [] },
     ]);
-    assert.match(c.gh.commentaires.find(([n]) => n === 501)?.[1] ?? "", /^- requiert : navigateur-headless$/m);
+    assert.match(c.gh.commentaires.find(([n]) => n === 501)?.[1] ?? "", /^- requires: navigateur-headless$/m);
   });
 
   test("un ticket d'interface sort du découpage désigné pour le cook design — label, corps, commentaire — et les autres non, au même calibrage", async (t) => {
@@ -120,12 +120,12 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.deepEqual(c.labels(502), ["model:opus", "effort:high", "cook:design", "prio:1", "fire"]);
     assert.deepEqual(c.labels(503), ["model:sonnet", "effort:low", "cook:design", "prio:1", "fire"]);
     assert.deepEqual(c.labels(504), ["model:haiku", "effort:low", "prio:1", "fire"]);
-    assert.match(c.gh.corpsDe(502), /## Cook design\n\nTicket d'interface .* lis `agents\/cook-design\.md` et suis-le/);
-    assert.match(c.gh.corpsDe(502), /Calibré `opus` \/ `high`, pour le cook design \(`cook:design`\) — Un écran\./);
-    for (const numero of [501, 504]) assert.doesNotMatch(c.gh.corpsDe(numero), /cook design/i);
-    const dit = c.dits(30).find((texte) => /épique découpée/.test(texte)) ?? "";
+    assert.match(c.gh.corpsDe(502), /## Design cook\n\nInterface ticket: .* read `agents\/cook-design\.md` and follow it/);
+    assert.match(c.gh.corpsDe(502), /Calibrated `opus` \/ `high`, for the design cook \(`cook:design`\) — Un écran\./);
+    for (const numero of [501, 504]) assert.doesNotMatch(c.gh.corpsDe(numero), /design cook/i);
+    const dit = c.dits(30).find((texte) => /epic split into/.test(texte)) ?? "";
     assert.match(dit, /\| #501 \| Le rail expose le compte \| .* \| `sonnet` \/ `medium` \|$/m);
-    assert.match(dit, /\| #502 \| La carte montre le compte \| .* \| `opus` \/ `high` · cook design \|$/m);
+    assert.match(dit, /\| #502 \| La carte montre le compte \| .* \| `opus` \/ `high` · design cook \|$/m);
     assert.match(dit, /\| #504 \| La doc dit le compte \| .* \| `haiku` \/ `low` \|$/m);
     // L'intention au journal porte la désignation.
     const prevus = charge(c.tous("manager.split")[0])?.tickets as { cook?: string }[];
@@ -145,8 +145,8 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     const prevus = charge(c.tous("manager.split")[0])?.tickets as { waitsFor: number[]; overlaps?: unknown }[];
     assert.deepEqual(prevus.map((prevu) => [prevu.waitsFor, prevu.overlaps ?? null]), [[[], null], [[1], [{ index: 1, path: "runtime/src/rail.ts" }]], [[], null]]);
     const [dit = ""] = c.dits(30);
-    assert.match(dit, /Zones qui se recouvraient/);
-    assert.match(dit, /#502 attend #501 : tous deux possèdent `runtime\/src\/rail\.ts`/);
+    assert.match(dit, /Zones that overlapped/);
+    assert.match(dit, /#502 awaits #501: both own `runtime\/src\/rail\.ts`/);
     // La doc vivante est commune : le troisième ticket n'attend personne.
     assert.doesNotMatch(dit, /#503 attend/);
     // La consigne a nommé les chemins communs.
@@ -204,12 +204,12 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await c.decoupee(30);
 
     const [dit = ""] = c.dits(30);
-    assert.match(dit, /épique découpée en 3 tickets/);
-    assert.match(dit, /Pourquoi ces tickets\.\*\* Un livrable par module touché\./);
-    assert.match(dit, /Pourquoi cet ordre\.\*\* Le rail d'abord/);
+    assert.match(dit, /epic split into 3 tickets/);
+    assert.match(dit, /Why these tickets\.\*\* Un livrable par module touché\./);
+    assert.match(dit, /Why this order\.\*\* Le rail d'abord/);
     assert.match(dit, /\| #502 \| La pass lit le compte \| #501 \| `runtime\/src\/pass\.ts`, `runtime\/src\/rail\.ts` \| `sonnet` \/ `medium` \|/);
-    assert.match(dit, /Le manager ne redécoupe jamais une épique\./);
-    assert.match(dit, /Découpé par le manager en `sonnet` \/ `medium` · 1 tour/);
+    assert.match(dit, /The manager never splits an epic again\./);
+    assert.match(dit, /Split by the manager in `sonnet` \/ `medium` · 1 turn/);
     assert.equal(c.dits(30).length, 1);
   });
 
@@ -241,11 +241,11 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     const c = brigade(t, { issues: [issue(30, ["epic"])] });
     epique(c);
     await c.decoupee(30);
-    await jusqua(() => /\| #501 \| Le rail compte ses tickets \| ouvert \|/.test(c.liste(30)));
+    await jusqua(() => /\| #501 \| Le rail compte ses tickets \| open \|/.test(c.liste(30)));
 
-    assert.match(c.liste(30), /\*\*0\/3 servi\.\*\*/);
-    assert.match(c.liste(30), /\| #502 \| La pass lit le compte \| ouvert \|/);
-    assert.match(c.liste(30), /\| #503 \| La doc dit le compte \| ouvert \|/);
+    assert.match(c.liste(30), /\*\*0\/3 served\.\*\*/);
+    assert.match(c.liste(30), /\| #502 \| La pass lit le compte \| open \|/);
+    assert.match(c.liste(30), /\| #503 \| La doc dit le compte \| open \|/);
     // Ce que le chef a écrit de l'épique n'a pas bougé.
     assert.ok(c.gh.corpsDe(30).startsWith(`${EPIQUE}\n\n${DEBUT}`));
     assert.ok(c.gh.ecritures.every(([numero]) => numero === 30));
@@ -256,13 +256,13 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     epique(c);
     await c.decoupee(30);
     livrer(c, 501);
-    await jusqua(() => /\*\*1\/3 servi\.\*\*/.test(c.liste(30)) && /\| #501 \| [^|]+ \| servi \|/.test(c.liste(30)));
+    await jusqua(() => /\*\*1\/3 served\.\*\*/.test(c.liste(30)) && /\| #501 \| [^|]+ \| served \|/.test(c.liste(30)));
     livrer(c, 502, 503);
 
-    await jusqua(() => /\*\*3\/3 servis\.\*\*/.test(c.liste(30)));
+    await jusqua(() => /\*\*3\/3 served\.\*\*/.test(c.liste(30)));
 
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
-    for (const numero of [501, 502, 503]) assert.match(c.liste(30), new RegExp(`\\| #${numero} \\| [^|]+ \\| servi \\|`));
+    for (const numero of [501, 502, 503]) assert.match(c.liste(30), new RegExp(`\\| #${numero} \\| [^|]+ \\| served \\|`));
     // Une liste qui ne change plus ne se réécrit plus.
     const ecrites = c.gh.ecritures.length;
     await c.laisserTourner();
@@ -277,13 +277,13 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
 
     await jusqua(() => c.gh.lire(30)?.state === "closed" && c.faits(30).some((e) => e.type === "manager.split-served"));
 
-    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps));
+    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /epic served/.test(corps));
     assert.equal(dit.length, 1);
     // Chacun avec la PR qui l'a servi.
     for (const numero of [501, 502, 503]) assert.match(dit[0]?.[1] ?? "", new RegExp(`^- #${numero} .+ — https://github.com/acme/kitchen/pull/${900 + numero}$`, "m"));
-    assert.doesNotMatch(dit[0]?.[1] ?? "", /Abandonnés/);
+    assert.doesNotMatch(dit[0]?.[1] ?? "", /Dropped/);
     await c.laisserTourner();
-    assert.equal(c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps)).length, 1);
+    assert.equal(c.gh.commentaires.filter(([n, corps]) => n === 30 && /epic served/.test(corps)).length, 1);
   });
 
   test("un ticket fermé sans livraison est abandonné : l'épique attend les autres, puis se ferme quand même, et le dit", async (t) => {
@@ -291,7 +291,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     epique(c);
     await c.decoupee(30);
     fermer(c, 502);
-    await jusqua(() => /\| #502 \| [^|]+ \| abandonné \|/.test(c.liste(30)));
+    await jusqua(() => /\| #502 \| [^|]+ \| dropped \|/.test(c.liste(30)));
     await c.laisserTourner();
 
     assert.equal(c.gh.lire(30)?.state, "open");
@@ -303,12 +303,12 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     livrer(c, 501, 503);
     await jusqua(() => c.gh.lire(30)?.state === "closed");
     assert.deepEqual(c.gh.fermetures, [30]);
-    assert.match(c.liste(30), /\*\*2\/3 servis\.\*\*/);
-    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique terminée/.test(corps)).map(([, corps]) => corps);
+    assert.match(c.liste(30), /\*\*2\/3 served\.\*\*/);
+    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /epic finished/.test(corps)).map(([, corps]) => corps);
     assert.equal(dit.length, 1);
-    assert.match(dit[0] ?? "", /\*\*Servis\*\* \(2\) :\n- #501 .+\n- #503 /);
-    assert.match(dit[0] ?? "", /\*\*Abandonnés\*\* \(1\), fermés sans PR mergée :\n- #502 La pass lit le compte$/m);
-    assert.match(dit[0] ?? "", /n'a rien livré/);
+    assert.match(dit[0] ?? "", /\*\*Served\*\* \(2\):\n- #501 .+\n- #503 /);
+    assert.match(dit[0] ?? "", /\*\*Dropped\*\* \(1\), closed with no merged PR:\n- #502 La pass lit le compte$/m);
+    assert.match(dit[0] ?? "", /delivered nothing/);
   });
 
   test("un ticket fermé par une PR mergée depuis sa branche `cook/<n>-github`, sans `Closes`, est servi avec son numéro de PR", async (t) => {
@@ -319,11 +319,11 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     c.gh.ouvertes.set("cook/502-github", { number: 902, url: "https://github.com/acme/kitchen/pull/902", base: "main", sha: "s", state: "closed", merged: true, enRetard: false, mergeePar: null });
     fermer(c, 502);
     await jusqua(() => c.gh.lire(30)?.state === "closed");
-    assert.match(c.liste(30), /\| #502 \| [^|]+ \| servi \|/);
-    assert.match(c.liste(30), /\*\*3\/3 servis\.\*\*/);
-    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps)).map(([, corps]) => corps);
+    assert.match(c.liste(30), /\| #502 \| [^|]+ \| served \|/);
+    assert.match(c.liste(30), /\*\*3\/3 served\.\*\*/);
+    const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /epic served/.test(corps)).map(([, corps]) => corps);
     assert.equal(dit.length, 1);
-    assert.doesNotMatch(dit[0] ?? "", /Abandonnés/);
+    assert.doesNotMatch(dit[0] ?? "", /Dropped/);
     assert.match(dit[0] ?? "", /- #502 .+pull\/902/);
   });
 
@@ -335,7 +335,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     c.gh.ouvertes.set("cook/502-github", { number: 902, url: "https://github.com/acme/kitchen/pull/902", base: "main", sha: "s", state: "closed", merged: false, enRetard: false, mergeePar: null });
     fermer(c, 502);
     await jusqua(() => c.gh.lire(30)?.state === "closed");
-    assert.match(c.liste(30), /\| #502 \| [^|]+ \| abandonné \|/);
+    assert.match(c.liste(30), /\| #502 \| [^|]+ \| dropped \|/);
   });
 
   test("devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse", async (t) => {
@@ -343,13 +343,13 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     epique(c, 30, "Que ce soit plus rapide.");
     await jusqua(() => c.dits(30).length === 1 && c.labels(31).includes("fire"));
 
-    assert.match(c.dits(30)[0] ?? "", /épique non découpée : une question/);
-    assert.match(c.dits(30)[0] ?? "", /« Plus rapide » : sur quel écran, et mesuré comment \?/);
-    assert.match(c.dits(30)[0] ?? "", /le reste du rail avance/);
+    assert.match(c.dits(30)[0] ?? "", /epic not split: a question/);
+    assert.match(c.dits(30)[0] ?? "", /“Faster”: on which screen, and measured how\?/);
+    assert.match(c.dits(30)[0] ?? "", /the rest of the rail goes on/);
     assert.deepEqual(c.gh.creations, []);
     assert.deepEqual(c.labels(30), ["epic"]);
     assert.deepEqual(c.faits(30).map((e) => [e.type, charge(e)?.question]), [
-      ["manager.split-asked", "« Plus rapide » : sur quel écran, et mesuré comment ?"],
+      ["manager.split-asked", "“Faster”: on which screen, and measured how?"],
       ["manager.split-commented", undefined],
     ]);
     assert.equal(decoupageDe(c.journal.base, 30)?.state, "asked");
@@ -384,7 +384,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     // La question du manager est relue avec la réponse : sans elle, la réponse
     // ne répond à rien.
     assert.ok(c.dits(30)[0]?.includes(MARQUEUR_QUESTION));
-    assert.match(c.jugements()[1]?.args[1] ?? "", /« Plus rapide » : sur quel écran, et mesuré comment \?[\s\S]*mesuré au nombre de tickets servis par heure/);
+    assert.match(c.jugements()[1]?.args[1] ?? "", /“Faster”: on which screen, and measured how\?[\s\S]*mesuré au nombre de tickets servis par heure/);
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
   });
 
@@ -512,7 +512,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await c.decoupee(30);
 
     fermer(c, 502);
-    await jusqua(() => /\| #502 \| [^|]+ \| abandonné \|/.test(c.liste(30)));
+    await jusqua(() => /\| #502 \| [^|]+ \| dropped \|/.test(c.liste(30)));
     await c.laisserTourner();
 
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
@@ -529,10 +529,10 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     c.gh.decrire(40, { body: "Épique : #30\n\nUn oubli du découpage." });
     c.gh.poser(issue(41, [], { title: "Un intrus" }));
     c.gh.decrire(41, { body: "Épique : #30", association: "NONE" });
-    await jusqua(() => /\| #40 \| Le compte dans status \| ouvert \|/.test(c.liste(30)));
+    await jusqua(() => /\| #40 \| Le compte dans status \| open \|/.test(c.liste(30)));
     await jusqua(() => c.dits(40).length === 2);
 
-    assert.match(c.liste(30), /\*\*0\/4 servi\.\*\*/);
+    assert.match(c.liste(30), /\*\*0\/4 served\.\*\*/);
     assert.doesNotMatch(c.liste(30), /#41/);
     assert.deepEqual(c.faits(40).map((e) => e.type), ["manager.split-adopted", "manager.judged", "manager.completed", "manager.completed", "manager.commented"]);
     assert.deepEqual(ticketsDEpique(c.journal.base, 30).map((ticket) => [ticket.ticket, ticket.index]), [[501, 1], [502, 2], [503, 3], [40, null]]);
@@ -540,7 +540,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
 
     // Fermé sans avoir été lancé, il reste dans la liste, et le dit.
     fermer(c, 40);
-    await jusqua(() => /\| #40 \| Le compte dans status \| abandonné \|/.test(c.liste(30)));
+    await jusqua(() => /\| #40 \| Le compte dans status \| dropped \|/.test(c.liste(30)));
   });
 
   test("le chef change un critère, un calibrage ou retire `fire` d'un ticket du découpage : le manager n'y revient pas", async (t) => {
@@ -580,7 +580,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await jusqua(() => c.dits(30).length === 1);
     await c.laisserTourner();
 
-    assert.match(c.dits(30)[0] ?? "", /épique déjà découpée : aucun ticket créé\.\*\* Son corps liste déjà #68 à #74\./);
+    assert.match(c.dits(30)[0] ?? "", /epic already split: no ticket created\.\*\* Its body already lists #68 to #74\./);
     assert.deepEqual(c.gh.creations, []);
     assert.equal(c.jugements().length, 1);
     assert.equal(decoupageDe(c.journal.base, 30)?.state, "skipped");
@@ -592,7 +592,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     await jusqua(() => c.dits(30).length === 1);
     await c.laisserTourner();
 
-    assert.match(c.dits(30)[0] ?? "", /découpage illisible/);
+    assert.match(c.dits(30)[0] ?? "", /unreadable split/);
     assert.deepEqual(c.gh.creations, []);
     // Le découpage, sa relance, puis l'épique jugée comme un ticket seul.
     assert.equal(c.jugements().length, 3);

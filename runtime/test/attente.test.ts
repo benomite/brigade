@@ -180,10 +180,10 @@ test("l'issue d'un ticket en WAITING dit qui est attendu, quoi et jusqu'à quand
   assert.equal(gh.commentaires.length, 1);
   const [numero, corps] = gh.commentaires[0] ?? [];
   assert.equal(numero, 8);
-  assert.match(corps ?? "", /^\*\*WAITING : en attente de le client\.\*\* sa validation écrite du devis/);
-  assert.match(corps ?? "", /\*\*de qui\*\* : le client/);
-  assert.match(corps ?? "", /\*\*relance\*\* : 21 oct\. 12:00 UTC/);
-  assert.match(corps ?? "", /sa relance ne l'en sort pas\. Retirer ce label le renvoie en cuisine ; `.*waiting resume 8` lui rend l'état qu'il avait avant d'attendre/);
+  assert.match(corps ?? "", /^\*\*WAITING: awaiting le client\.\*\* sa validation écrite du devis/);
+  assert.match(corps ?? "", /\*\*from whom\*\*: le client/);
+  assert.match(corps ?? "", /\*\*follow-up\*\*: 21 Oct 12:00 UTC/);
+  assert.match(corps ?? "", /its follow-up does not take it out\. Removing this label sends it back to the kitchen; `.*waiting resume 8` gives it back the state it had before waiting/);
   assert.deepEqual(gh.lire(8)?.labels.includes(LABEL_WAITING), true);
   // Rien de neuf : rien ne se redit.
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 0);
@@ -192,14 +192,14 @@ test("l'issue d'un ticket en WAITING dit qui est attendu, quoi et jusqu'à quand
   mettreEnAttente(journal, PROJET, 8, { quoi: "sa signature", qui: "le juriste", relance: new Date("2026-10-30T09:00:00.000Z") }, MAINTENANT);
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 1);
   assert.equal(gh.labellisations.length, 1);
-  assert.match(gh.commentaires[1]?.[1] ?? "", /^\*\*WAITING — mis à jour : en attente de le juriste\.\*\* sa signature[\s\S]*30 oct\. 09:00 UTC/);
+  assert.match(gh.commentaires[1]?.[1] ?? "", /^\*\*WAITING — updated: awaiting le juriste\.\*\* sa signature[\s\S]*30 Oct 09:00 UTC/);
 
   // Repris : le label est retiré, l'issue dit où il est allé.
   reprendre(journal, PROJET, 8);
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 1);
   assert.deepEqual(gh.delabellisations, [[8, LABEL_WAITING]]);
   assert.equal(gh.lire(8)?.labels.includes(LABEL_WAITING), false);
-  assert.match(gh.commentaires[2]?.[1] ?? "", /^\*\*WAITING levé\*\* — n'attend plus le juriste \(« sa signature »\) : il repart en cuisine/);
+  assert.match(gh.commentaires[2]?.[1] ?? "", /^\*\*WAITING lifted\*\* — no longer awaiting le juriste \(“sa signature”\): it goes back to the kitchen/);
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 0);
 
   // « C'est arrivé » : de même, en le disant.
@@ -208,7 +208,7 @@ test("l'issue d'un ticket en WAITING dit qui est attendu, quoi et jusqu'à quand
   cestArrive(journal, PROJET, 9);
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 1);
   assert.deepEqual(gh.delabellisations.at(-1), [9, LABEL_WAITING]);
-  assert.match(gh.commentaires.at(-1)?.[1] ?? "", /^\*\*WAITING levé\*\* — n'attend plus le client .* : il repart en cuisine/);
+  assert.match(gh.commentaires.at(-1)?.[1] ?? "", /^\*\*WAITING lifted\*\* — no longer awaiting le client .*: it goes back to the kitchen/);
   assert.deepEqual(
     journal.tout().filter((e) => e.type === "waiting.marked").map((e) => [e.ticket, e.payload.waiting === null ? null : "posée"]),
     [[8, "posée"], [8, "posée"], [8, null], [9, "posée"], [9, null]],

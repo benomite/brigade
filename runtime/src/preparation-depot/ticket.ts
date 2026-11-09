@@ -13,7 +13,7 @@ import { DECLARATION } from "../secrets.ts";
 // le reconnaît par lui si elle l'a créé sans avoir pu le noter.
 export const MARQUEUR = "<!-- brigade:preparation-depot -->";
 
-export const TITRE = "Préparer le dépôt : gates, setup de worktree, sites autorisés";
+export const TITRE = "Prepare the repository: gates, worktree setup, allowed sites";
 
 // `fire` : il entre sur le rail. Son calibrage est posé d'office — aucun cook
 // ne part sans —, celui d'un ticket qui demande du jugement : il lit un dépôt
@@ -47,7 +47,7 @@ export function dejaSurLaBase(clone: string, base: string): Record<string, boole
 }
 
 const direPresence = (present: boolean | null | undefined, base: string) =>
-  present === true ? `déjà sur \`${base}\` : à éprouver, à corriger au besoin` : present === false ? "absent : à écrire" : "inconnu : la station n'a pas pu lire la branche";
+  present === true ? `already on \`${base}\`: to try, to fix if needed` : present === false ? "missing: to write" : "unknown: the station could not read the branch";
 
 export type Contenu = { projet: string; depot: string; base: string; presents: Record<string, boolean | null> };
 
@@ -55,33 +55,33 @@ export type Contenu = { projet: string; depot: string; base: string; presents: R
 export function corps({ projet, depot, base, presents }: Contenu): string {
   return [
     MARQUEUR,
-    `Premier ticket de la cuisine de **${projet}** (\`${depot}\`, branche d'intégration \`${base}\`) : préparer le dépôt pour qu'elle puisse le servir. La station l'a ouvert seule quand le chef a ajouté le projet.`,
+    `First ticket of the kitchen of **${projet}** (\`${depot}\`, integration branch \`${base}\`): prepare the repository so that it can serve it. The station opened it on its own when the chef added the project.`,
     "",
-    `**Tant que ce ticket n'est pas mergé, aucun autre ticket du projet ne part.** Une fois mergé, le rail démarre seul : rien d'autre à faire.`,
+    `**As long as this ticket is not merged, no other ticket of the project starts.** Once merged, the rail starts on its own: nothing else to do.`,
     "",
-    `Si le \`${SCRIPT_SETUP}\` de la branche échoue sur la station, ce ticket part quand même — c'est à lui de le réparer : la station dit ici, en une phrase, ce qui a échoué, et remet au cook ce que le setup a dit.`,
+    `If the branch's \`${SCRIPT_SETUP}\` fails on the station, this ticket starts anyway — fixing it is its job: the station says here, in one sentence, what failed, and hands the cook what the setup said.`,
     "",
-    "## À livrer",
+    "## To deliver",
     "",
-    "| Fichier | Contrat | Aujourd'hui |",
+    "| File | Contract | Today |",
     "|---|---|---|",
-    `| \`${SCRIPT_GATES}\` | exécutable ; \`gates.sh <worktree>\`. **Son code de sortie est le verdict de la pass** : 0 vert, tout autre rouge. Il joue ce qui dit qu'une livraison est bonne — tests, contrôle de types, lint —, sans écran, sans service qui reste derrière lui, et sans courir contre l'horloge. | ${direPresence(presents[SCRIPT_GATES], base)} |`,
-    `| \`${SCRIPT_SETUP}\` | exécutable ; \`worktree-setup.sh <n> <worktree>\`. **N'imprime que des \`export\`** sur sa sortie (le reste va sur la sortie d'erreur). Il rend un worktree neuf prêt pour le cook et les gates : dépendances, build. Les ports se dérivent de \`<n>\`, jamais en dur — plusieurs cooks tournent en même temps ; il ne laisse rien tourner. Il ne lit aucun fichier que le dépôt ne porte pas — un \`.env\` copié à la main sur une machine — et n'exige aucun service que la station n'a pas : une configuration de dev s'écrit dans le dépôt ou s'en dérive, un secret se déclare dans \`${DECLARATION}\` et la station le passe au setup. | ${direPresence(presents[SCRIPT_SETUP], base)} |`,
-    `| \`${DECLARATION_RESEAU}\` | **les sites que le projet a le droit de joindre**, en plus d'Anthropic et de GitHub : un hôte par ligne (\`registry.npmjs.org\`), \`*.\` devant pour ses sous-domaines, \`:port\` derrière pour un autre port que 443 et 80, jamais une adresse ; \`#\` commente. Chaque registre de paquets, chaque service que le setup et les gates joignent y est. Rien à ouvrir : le fichier existe quand même, commenté, et le dit. | ${direPresence(presents[DECLARATION_RESEAU], base)} |`,
+    `| \`${SCRIPT_GATES}\` | executable; \`gates.sh <worktree>\`. **Its exit code is the pass's verdict**: 0 green, anything else red. It runs what says a delivery is good — tests, type check, lint —, with no screen, no service left running behind it, and without racing the clock. | ${direPresence(presents[SCRIPT_GATES], base)} |`,
+    `| \`${SCRIPT_SETUP}\` | executable; \`worktree-setup.sh <n> <worktree>\`. **Prints only \`export\` lines** on its output (the rest goes to the error output). It makes a fresh worktree ready for the cook and the gates: dependencies, build. Ports derive from \`<n>\`, never hard-coded — several cooks run at once; it leaves nothing running. It reads no file the repository does not hold — a \`.env\` copied by hand onto a machine — and requires no service the station does not have: a dev configuration is written in the repository or derived from it, a secret is declared in \`${DECLARATION}\` and the station passes it to the setup. | ${direPresence(presents[SCRIPT_SETUP], base)} |`,
+    `| \`${DECLARATION_RESEAU}\` | **the sites the project may reach**, besides Anthropic and GitHub: one host per line (\`registry.npmjs.org\`), \`*.\` in front for its subdomains, \`:port\` behind for a port other than 443 and 80, never an address; \`#\` comments. Every package registry, every service the setup and the gates reach is there. Nothing to open: the file exists anyway, commented, and says so. | ${direPresence(presents[DECLARATION_RESEAU], base)} |`,
     "",
-    "## Éprouver sur la station, pas en local",
+    "## Try it on the station, not locally",
     "",
-    "Ce ticket se cuit sur la station qui servira le projet : c'est là que tourneront le setup et les gates de chacun de ses tickets. **Éprouve la configuration ici, sur cette machine, dans ton worktree** — pas sur un poste de dev, pas de tête, pas en la lisant seulement :",
+    "This ticket is cooked on the station that will serve the project: that is where the setup and the gates of each of its tickets will run. **Try the configuration here, on this machine, in your worktree** — not on a dev workstation, not from memory, not only by reading it:",
     "",
-    `1. \`${SCRIPT_SETUP} <n> "$PWD"\` sort en 0 et n'imprime que des \`export\` ; \`eval\` de sa sortie dans un shell, il laisse le worktree prêt ;`,
-    `2. dans ce même shell, \`${SCRIPT_GATES} "$PWD"\` sort en 0 ;`,
-    `3. chaque hôte que le setup et les gates ont joint est dans \`${DECLARATION_RESEAU}\`. Si la station filtre le réseau du projet, les sites que tu déclares ne s'ouvrent qu'une fois ce ticket mergé : un téléchargement refusé ici se dit dans le compte-rendu, avec l'hôte en cause — il ne se contourne pas.`,
+    `1. \`${SCRIPT_SETUP} <n> "$PWD"\` exits with 0 and prints only \`export\` lines; with its output \`eval\`ed in a shell, it leaves the worktree ready;`,
+    `2. in that same shell, \`${SCRIPT_GATES} "$PWD"\` exits with 0;`,
+    `3. every host the setup and the gates reached is in \`${DECLARATION_RESEAU}\`. If the station filters the project's network, the sites you declare open only once this ticket is merged: a download refused here is said in the report, with the host at fault — it is not worked around.`,
     "",
-    "## Critères d'acceptation",
+    "## Acceptance criteria",
     "",
-    `- [ ] \`${SCRIPT_GATES}\` passe (code 0) sur la station qui cuit ce ticket, dans un worktree préparé par le setup`,
-    `- [ ] \`${SCRIPT_SETUP}\` s'exécute sur cette station dans un worktree neuf, et n'imprime que des \`export\``,
-    `- [ ] \`${DECLARATION_RESEAU}\` est présent, et nomme chaque site que le setup et les gates joignent — ou dit, commenté, qu'il n'y en a aucun`,
-    `- [ ] les trois sont commités, exécutables pour les deux scripts ; le compte-rendu dit, pour chacun, la commande lancée sur la station et la fin de ce qu'elle a imprimé`,
+    `- [ ] \`${SCRIPT_GATES}\` passes (code 0) on the station that cooks this ticket, in a worktree prepared by the setup`,
+    `- [ ] \`${SCRIPT_SETUP}\` runs on this station in a fresh worktree, and prints only \`export\` lines`,
+    `- [ ] \`${DECLARATION_RESEAU}\` is present, and names every site the setup and the gates reach — or says, commented, that there is none`,
+    `- [ ] the three are committed, the two scripts executable; the report says, for each, the command run on the station and the end of what it printed`,
   ].join("\n");
 }
