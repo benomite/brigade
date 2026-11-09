@@ -51,6 +51,7 @@ import { suivreLeTour } from "../retenue/tour.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
 import type { TicketPublie } from "../appairage/rail-publie.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
+import { DECLARATION_SERVICES_LOCAUX, servicesDuDepot } from "../sandbox/services-locaux.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE, sonderLeFiltre, variablesDeRelais } from "../reseau.ts";
 import { plafondDuProjet } from "../reagir.ts";
 import { lireLeDepot, variablesDesGatesDuDepot } from "../reglages-projet/en-vigueur.ts";
@@ -153,7 +154,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       return REGLES_DE_BASE;
     }
   };
-  const bacASable = configBacASableLocal(options.sondes ?? sondesDeLaMachine(station.bin), { home: envProjet.HOME, worktrees, caches: lireCaches(envProjet) }, hotes);
+  const bacASable = configBacASableLocal(options.sondes ?? sondesDeLaMachine(station.bin), { home: envProjet.HOME, worktrees, caches: lireCaches(envProjet) }, hotes, () => servicesDuDepot(() => lireALaBase(station, DECLARATION_SERVICES_LOCAUX)));
   const session = configSession(envProjet, repertoireEtat);
   const apps = configIdentites(envProjet);
 
