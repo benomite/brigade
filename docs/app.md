@@ -513,9 +513,10 @@ The chef's main screen does not lose a card because a reading went wrong:
 
 - **A failed reading never empties a column.** When GitHub answers but does not give the rail — rate limit, a refusal,
   no answer in time —, the rail keeps the last reading that drew it,
-  whole, and one line takes the place of its age: `stale since 4:15 PM — the rail shown was read at 4:14 PM, and the
-  readings since have failed`, the reason of the last failure on hover. The time is that of the first failed reading
-  of the series; the line goes with the first reading that draws the rail again. This holds for a project no station
+  whole, and one line takes the place of its age: `The last reading of GitHub failed — the rail shows the 4:14 reading · read 4 min
+  ago`, the reason of the last failure on hover when the second's panel is on screen. When GitHub limits the account's
+  requests, the line says so in plain words: `GitHub limits this account's requests until 4:20 — the rail shows the 4:14
+  reading`. The line goes with the first reading that draws the rail again. This holds for a project no station
   of this computer serves: the stations' gist (`not-served`, `rail-du-projet.ts`) no longer takes the place of its
   columns. The main process keeps its last facts and `status` too (`estRateeDuTableau` in `app/src/faits.ts`), so the
   cards' sheets and addresses still open. With nothing read before, the failure is said as before.
