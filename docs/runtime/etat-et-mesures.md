@@ -486,6 +486,12 @@ most over their estimate, the most frequent send-back reasons and broken checks)
 show them from those values. TODO's informative part names each of the
 last 10 tickets that lost over twice the threshold, with its heaviest loss.
 
+On `benomite/brigade` itself, the times hold only the tickets this station merged. A quality or lost-time
+ticket that is closed, in none of these times, and closed by a merged PR (another station merged it) is served
+when its issue is closed (#2979); one closed without a merged PR — a duplicate the station closed, an issue
+closed as not planned — holds nothing back. Before, #2963, merged by another station, waited for nothing, and
+#2979 reopened on the nine conflict send-backs #2963 had counted.
+
 The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
 again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent
 tickets it counted (`brigade:qualite-comptes`), and while the window holds no other, nothing opens (`deja-servie`).

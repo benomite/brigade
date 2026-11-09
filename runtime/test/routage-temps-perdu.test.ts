@@ -2,7 +2,7 @@
 // brigade (#2783), jamais sur le projet ; sur la brigade elle-même, rien ne change.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { correctionDuTemps, type GitHubDeLaCorrection } from "../src/temps-max/correction.ts";
+import { correctionDuTemps, MARQUE_CORRECTION, type GitHubDeLaCorrection } from "../src/temps-max/correction.ts";
 import { DEPOT_BRIGADE, marqueDuProjet, routerLeTempsPerdu, type GitHubDeLaBrigade } from "../src/routage-temps-perdu.ts";
 import type { TempsTicket } from "../src/temps-ticket/ligne-status.ts";
 
@@ -125,4 +125,84 @@ test("#2833: after a merge, an unchanged metric files nothing; a changed one fil
   // La mesure a changé après le merge : un nouveau ticket.
   assert.notEqual(await depose("BOBL-tech/espace", titre.replace("3.8", "9"), 48), premier);
   assert.equal(brigade.issues.length, 2);
+});
+
+// #2979 : sur son propre dépôt, la station ne voit dans ses temps que les tickets qu'elle a
+// mergés. #2963, ticket de qualité mergé par une autre station, n'y était pas : il n'attendait
+// aucun ticket, et #2979 se rouvrait sur les neuf conflits qu'il avait comptés et corrigés.
+const QUALITE = "<!-- brigade:qualite -->\n<!-- brigade:qualite-comptes 1,2,3,4,5,6,7,8,9,10 -->";
+const DEBUT_2979 = Date.UTC(2026, 10, 8, 0);
+// Dix tickets renvoyés pour conflit, pris avant le service de #2963, puis `apres` tickets pris après lui, renvoyés aussi.
+const conflits = (apres: number): TempsTicket[] =>
+  [...pris(1, 10, DEBUT_2979), ...pris(2970, apres, DEBUT_2979 + 12 * 60 * 60_000)].map((t) => ({ ...t, attentePrise: 0 }));
+const renvoyes = (tickets: readonly TempsTicket[]) => new Map(tickets.map((t) => [t.ticket, { renvois: ["the PR conflicts with the base"], cooksRates: 0 }] as const));
+const fermee2963 = new Date(DEBUT_2979 + 11 * 60 * 60_000).toISOString();
+// Le dépôt de la brigade tel que la station le lit : ses issues fermées disent quand, et la PR mergée qui les a fermées.
+function brigadeLue(issues: { number: number; body: string; closedAt?: string }[], fermeesParUnMerge: number[], echec = false) {
+  const lectures: number[] = [];
+  const creees: number[] = [];
+  const github = {
+    issuesDepuis: async () => issues.map(({ number, body, closedAt }) => ({ number, body, association: "OWNER", state: closedAt === undefined ? ("open" as const) : ("closed" as const), ...(closedAt === undefined ? {} : { closedAt }) })),
+    creerIssue: async () => {
+      creees.push(3000 + creees.length);
+      return 2999 + creees.length;
+    },
+    fermerIssue: async () => {},
+    prQuiFerme: async (numero: number) => {
+      lectures.push(numero);
+      if (echec) throw new Error("gh api : HTTP 502");
+      return fermeesParUnMerge.includes(numero) ? ({ number: 5000 + numero } as unknown as Awaited<ReturnType<NonNullable<Parameters<typeof routerLeTempsPerdu>[0]["github"]["prQuiFerme"]>>>) : null;
+    },
+  };
+  return { github, lectures, creees };
+}
+const mesurerSurLaBrigade = (brigade: ReturnType<typeof brigadeLue>, enregistrements: TempsTicket[]) =>
+  correctionDuTemps({
+    github: routerLeTempsPerdu({ github: brigade.github, servi: DEPOT_BRIGADE, dansLesTemps: (numero) => enregistrements.some((t) => t.ticket === numero) }),
+    lire: () => ({ enregistrements, lostTimeMaxMin: 60, qualites: renvoyes(enregistrements) }),
+    maintenant: () => new Date(DEBUT_2979 + 24 * 60 * 60_000),
+  });
+
+test("#2979: on benomite/brigade, a quality ticket another station merged waits for 20 tickets claimed after its closing — it does not reopen on the send-backs it counted", async () => {
+  const brigade = brigadeLue([{ number: 2963, body: QUALITE, closedAt: fermee2963 }], [2963]);
+  const enregistrements = conflits(3);
+  assert.deepEqual(await mesurerSurLaBrigade(brigade, enregistrements)([]), { issue: "qualite", qualite: { issue: "en-attente", numero: 2963, manque: 17, causes: ["premier-coup"] } });
+  assert.deepEqual(brigade.creees, []);
+  // Sans la PR mergée qui l'a fermé, rien ne le date : la mesure se rouvre, comme avant le correctif.
+  const sansMerge = brigadeLue([{ number: 2963, body: QUALITE, closedAt: fermee2963 }], []);
+  assert.equal((await mesurerSurLaBrigade(sansMerge, enregistrements)([])).issue, "qualite");
+  assert.deepEqual(sansMerge.creees, [3000]);
+});
+
+test("#2979: on benomite/brigade, a measure ticket closed without a merge — a duplicate the station closed, an issue closed as not planned — waits for nothing", async () => {
+  // Le doublon : deux stations l'ont ouvert ensemble, la seconde l'a fermé (`fermerIssue`, sans PR).
+  // L'issue « not planned » : aucune PR ne la ferme non plus. Ni l'une ni l'autre n'a de PR mergée.
+  const brigade = brigadeLue([
+    { number: 2963, body: QUALITE, closedAt: fermee2963 },
+    { number: 2964, body: `${MARQUE_CORRECTION}\n`, closedAt: fermee2963 },
+  ], []);
+  const decision = await mesurerSurLaBrigade(brigade, conflits(3))([]);
+  assert.deepEqual(decision, { issue: "qualite", qualite: { issue: "ouverte", numero: 3000, causes: ["premier-coup"] } });
+  assert.deepEqual(brigade.lectures.sort(), [2963, 2964]);
+});
+
+test("#2979: on benomite/brigade, a measure ticket this station merged is dated by its merge in the times, and GitHub is not asked who closed it", async () => {
+  // #2963 est dans les temps de la station, mergé avant les dix renvois : il ne les a pas attendus,
+  // même si sa fermeture lue sur GitHub vient après eux.
+  const enregistrements = [...pris(2963, 1, DEBUT_2979 - 2 * 60 * 60_000).map((t) => ({ ...t, attentePrise: 0 })), ...conflits(0)];
+  const brigade = brigadeLue([{ number: 2963, body: QUALITE, closedAt: fermee2963 }], [2963]);
+  const decision = await mesurerSurLaBrigade(brigade, enregistrements)([]);
+  assert.deepEqual(decision, { issue: "qualite", qualite: { issue: "en-attente", numero: 2963, manque: 10, causes: ["premier-coup"] } });
+  assert.deepEqual(brigade.lectures, []);
+});
+
+test("#2979: GitHub is asked once who closed a measure ticket; when it does not answer, the turn fails and opens nothing", async () => {
+  const brigade = brigadeLue([{ number: 2963, body: QUALITE, closedAt: fermee2963 }, { number: 2950, body: "not a measure", closedAt: fermee2963 }], [2963]);
+  const mesurer = mesurerSurLaBrigade(brigade, conflits(3));
+  await mesurer([]);
+  await mesurer([]);
+  assert.deepEqual(brigade.lectures, [2963]);
+  const enPanne = brigadeLue([{ number: 2963, body: QUALITE, closedAt: fermee2963 }], [2963], true);
+  await assert.rejects(mesurerSurLaBrigade(enPanne, conflits(3))([]), /HTTP 502/);
+  assert.deepEqual(enPanne.creees, []);
 });
