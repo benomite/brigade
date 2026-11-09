@@ -103,7 +103,7 @@ export function poserLaCarte(doc, { carte, total, brouillon, enRoute, refus, ret
   const corps = cree(doc, "div", "corps-des-cartes");
   corps.dataset.vu = "carte";
   corps.append(cree(doc, "span", "numero-de-carte", `#${carte.ticket} · ${carte.projet}`));
-  // À première vue, dans l'ordre de la carte du bureau (#3086) : ce qui se passe, en une ligne ; la question ; la réponse
+  // À première vue, dans l'ordre de la carte du bureau (ticket 3086) : ce qui se passe, en une ligne ; la question ; la réponse
   // recommandée ; les boutons. Le reste du commentaire est derrière « details », fermé.
   if (todo.question !== null && todo.resume !== undefined) corps.append(cree(doc, "p", "mot-des-cartes", todo.resume));
   corps.append(cree(doc, "h1", undefined, todo.question ?? todo.resume ?? ""));

@@ -2839,7 +2839,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   if (poseeLa !== undefined) {
     const resume = bloc("p", poseeLa.resume);
     resume.className = "question-courte";
-    // Qui l'a posée, et quand, est derrière « details » (#3086) : à première vue, la question seule.
+    // Qui l'a posée, et quand, est derrière « details » (ticket 3086) : à première vue, la question seule.
     bon.append(resume, detailsDeCarte(document, `asked by ${poseeLa.auteur}, ${dateHeure(poseeLa.a)}`));
   }
   // Deux lignes au plus : ce qui se passe, et ce qui demande l'attention. Le reste est dans la fiche.

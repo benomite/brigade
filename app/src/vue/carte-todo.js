@@ -148,7 +148,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   if (vu.vu === "attente" || vu.vu === "jouee") racine.dataset.envoi = vu.vu;
   racine.ariaLabel = question === null ? `what #${ticket} awaits from you` : `the question #${ticket} asks you`;
 
-  // À première vue, dans cet ordre et rien de plus (#3086) : ce qui se passe, en une ligne ; la question, la plus forte ; la
+  // À première vue, dans cet ordre et rien de plus (ticket 3086) : ce qui se passe, en une ligne ; la question, la plus forte ; la
   // réponse recommandée, en une ligne ; puis les boutons. Tout le reste — ce que le commentaire dit d'autre — est derrière
   // « details », fermé. Aucune question sur une carte à un seul geste.
   const tete = [];
@@ -174,7 +174,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   choix.className = "choix-carte";
   // La réponse recommandée est le premier choix (ticket 2922, maquette Project.dc.html) : plein d'accent, au-dessus des
   // autres. Chaque libellé se lit entier, sur autant de lignes qu'il lui faut ; ce que le bouton fait est au survol, sans
-  // pictogramme à déchiffrer à côté (#3086).
+  // pictogramme à déchiffrer à côté (ticket 3086).
   carte.choix.forEach(({ texte, prix }, rang) => {
     const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { recommande: rang === 0 });
     const bouton = groupe.children?.[0];

@@ -126,7 +126,6 @@
 }
 .bon .carte-todo div.choix-carte .action > button.choix {
   justify-content: flex-start;
-  height: auto;
   text-align: left;
   white-space: normal;
   overflow-wrap: break-word;
@@ -135,7 +134,7 @@
   justify-content: center;
   text-align: center;
 }
-/* #3086 : la recommandation, une ligne sous la question ; le pli « details », fermé, tient tout le reste. */
+/* ticket 3086 : la recommandation, une ligne sous la question ; le pli « details », fermé, tient tout le reste. */
 .bon .carte-todo p.recommandation-carte {
   padding-top: 0;
   font-size: var(--taille-corps);
@@ -236,7 +235,7 @@
 .bon .carte-todo [hidden] {
   display: none;
 }
-/* #3086 : la question d'un manager, sans carte de réponse dessous, est la ligne la plus forte de sa carte ; le pli
+/* ticket 3086 : la question d'un manager, sans carte de réponse dessous, est la ligne la plus forte de sa carte ; le pli
    « details » d'une carte du chef, sans carte de réponse, est celui de la carte de TODO. */
 .bon[data-carte="attente"] p.question-courte {
   font-size: var(--taille-intertitre);
