@@ -84,6 +84,8 @@ function github(monde: Monde = MONDE, refuser: (chemin: string) => ReponseGitHub
       return ok(page > 1 ? [] : Object.entries(issues).filter(([, issue]) => label === undefined || issue.labels.includes(label)).map(([numero, issue]) => json(Number(numero), issue)));
     }
     if (reste.startsWith("/pulls?")) return ok([]);
+    // Le dépôt lui-même : son propriétaire, une personne, chef par défaut de ses cartes (#3052).
+    if (reste === "") return ok({ owner: { login: depot.split("/")[0], type: "User" } });
     const [, numero, quoi] = /^\/issues\/(\d+)\/(comments|events)/.exec(reste) ?? [];
     if (numero !== undefined) return ok(page > 1 || quoi === "events" ? [] : (issues[Number(numero)]?.commentaires ?? []));
     return { status: 404, data: { message: "Not Found" } };
