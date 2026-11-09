@@ -421,6 +421,13 @@ export const ATTENTE_MS = 30 * 60_000;
 export const ATTENTE_MAX_MS = 6 * 60 * 60_000;
 const MARQUE_D_ATTENTE = "<!-- brigade:attente";
 
+/** Le terme (ms) de la dernière attente d'après un arrêt, s'il n'est pas passé ; sinon null. La porte de prise et la cuisine inerte le lisent d'ici (#2975). */
+export function termeDeLAttente(commentaires: readonly { body: string }[], instant: number): number | null {
+  const derniere = commentaires.filter((c) => c.body.startsWith(MARQUE_D_ATTENTE)).pop();
+  const terme = Number(/until=(\d+)/.exec(derniere?.body ?? "")?.[1]);
+  return Number.isFinite(terme) && terme > instant ? terme : null;
+}
+
 // Les dernières lignes que `claude` a écrites : sa sortie d'erreur, sinon son
 // dernier message.
 const DERNIERES_LIGNES = 5;
@@ -641,9 +648,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Le terme de la dernière attente du ticket n'est pas passé. Illisibles, ses commentaires ne le retiennent pas.
   // Rend ce terme (ms), ou null quand le ticket n'attend pas.
   const enAttente = async (ticket: TicketLu): Promise<number | null> => {
-    const derniere = (await github.commentaires(ticket.number).catch(() => [])).filter((c) => c.body.startsWith(MARQUE_D_ATTENTE)).pop();
-    const terme = Number(/until=(\d+)/.exec(derniere?.body ?? "")?.[1]);
-    return Number.isFinite(terme) && terme > instant() ? terme : null;
+    return termeDeLAttente(await github.commentaires(ticket.number).catch(() => []), instant());
   };
 
   // La question d'un cook bloqué va au manager, jamais au chef directement

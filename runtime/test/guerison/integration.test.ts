@@ -233,3 +233,22 @@ test("a kitchen with a fire ticket to take (a model label, nothing else) and not
   assert.ok(!p.faux.ticket(bug as number).labels.has("blocked-on-human"));
   assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
 });
+
+// #2975 : la porte de prise saute un ticket que l'attente d'après un arrêt retient ;
+// la cuisine inerte ne le compte pas comme à prendre, tant que le terme n'est pas passé.
+test("a ticket held by the wait after a stop does not file an inertia bug on an empty rail, until the wait is over (#2975)", async () => {
+  const p = projet("zeta/lab", "mac/claude", "develop");
+  p.faux.feu(2912, CALIBRE);
+  const terme = Date.parse("2026-11-07T10:00:00Z") + (INERTIE_MINUTES + 30) * MINUTE;
+  await p.faux.pour("mac/claude").commenter(2912, `<!-- brigade:attente until=${terme} court -->\nStation \`mac/claude\`: stopped.`);
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  await p.passer();
+  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+  assert.deepEqual(p.faux.cuissons, []);
+  // Le terme passé, la porte le prend : il n'est plus retenu.
+  p.avancer(31 * MINUTE);
+  await p.passer();
+  assert.deepEqual(p.faux.cuissons.map((c: { issue: number }) => c.issue), [2912]);
+});

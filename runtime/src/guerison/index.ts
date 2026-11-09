@@ -20,7 +20,7 @@
 // Rien n'est propre à un dépôt : le projet, sa base et sa station viennent de
 // l'appelant. Ce qui se tient d'un tour à l'autre (l'horloge des claims, celle
 // de l'inertie) vit dans l'objet que rend `ouvrirGuerison`, un par station.
-import { A_LA_MAIN, brancheDuTicket } from "../brigade-github.ts";
+import { A_LA_MAIN, brancheDuTicket, termeDeLAttente } from "../brigade-github.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import { aExaminer, renvoyerLesCiRouges, type PROuverte } from "../ci-rouge/ci-rouge.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type IssueOuverte } from "../github.ts";
@@ -213,7 +213,14 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       // dont le calibrage est incomplet, n'est pas prenable — la station le
       // saute — et ne vaut pas une inertie. Un `waiting` non plus : il est sur
       // sa colonne, pas sur le rail.
-      const aPrendre = tickets.filter((t) => t.epique !== true && ![HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) && complet(calibrage([...t.labels])));
+      // Ni un ticket que l'attente d'après un arrêt retient : la porte de prise le saute (#2508, #2975).
+      const aPrendre: typeof tickets[number][] = [];
+      for (const t of tickets) {
+        if (t.epique === true || [HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) || !complet(calibrage([...t.labels]))) continue;
+        // Illisibles, ses commentaires ne le retiennent pas : comme la porte.
+        if (termeDeLAttente(await github.commentaires(t.number).catch(() => []), instant) !== null) continue;
+        aPrendre.push(t);
+      }
       if (auTravail || aPrendre.length === 0) auTravailLe = instant;
       const fait = await signalerInertie({
         maintenant: new Date(instant),
