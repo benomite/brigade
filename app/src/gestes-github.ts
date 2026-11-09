@@ -30,11 +30,11 @@ export const SANS_FAIT = {
 
 const PAS_LU = "nothing was written: the rail of this project has not been read yet — read it again";
 
-// Les tickets que la dernière lecture porte : ceux de son rail (`faits.rail`) et de TODO (`faits.attend`).
+// Les tickets que la dernière lecture porte : ceux de son rail (`faits.rail`) et de TODO (`faits.attend`, et `faits.attendAutres` : l'assignation ne retient personne, #3071).
 export function ticketsLus(lu: Pick<TableauLu, "faits">): Set<number> {
   const tickets = (liste: unknown): number[] =>
     Array.isArray(liste) ? liste.flatMap((entree: unknown) => (typeof entree === "object" && entree !== null && typeof (entree as { ticket?: unknown }).ticket === "number" ? [(entree as { ticket: number }).ticket] : [])) : [];
-  return new Set([...tickets(lu.faits.rail), ...tickets(lu.faits.attend)]);
+  return new Set([...tickets(lu.faits.rail), ...tickets(lu.faits.attend), ...tickets(lu.faits.attendAutres)]);
 }
 
 const numero = (ticket: unknown): ticket is number => typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket >= 1;

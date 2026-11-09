@@ -2730,36 +2730,20 @@ main > header,
   font-weight: 400;
   color: var(--discret);
 }
-/* « Awaiting others » ferme TODO (ticket 2985) : le bloc replié du rail, dans la colonne, sous ses cartes. Dépliées, les
-   cartes d'un autre humain se lisent sans se répondre : leur numéro, leur question, qui elles attendent. */
+/* « Awaiting others » ferme TODO (tickets 2985, 3071) : le bloc replié du rail, dans la colonne, sous ses cartes. Dépliées,
+   les cartes d'un autre humain sont des cartes de TODO, avec en plus qui elles attendent. */
 #rail .colonne > .replie.autres {
   margin: var(--pas-2) 0 0;
   padding: var(--pas-2);
 }
-#rail .replie.autres > ul {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+#rail .replie.autres > ol {
+  margin-top: var(--pas-2);
 }
-#rail .carte-d-autrui {
-  padding: var(--pas-2);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-}
-#rail .carte-d-autrui > .numero {
-  color: var(--discret);
-}
-#rail .carte-d-autrui > p {
+#rail .replie.autres .qui {
   margin: var(--pas-1) 0 0;
-  overflow-wrap: anywhere;
-}
-#rail .carte-d-autrui > .qui {
+  font-size: var(--taille-corps);
   color: var(--discret);
+  overflow-wrap: anywhere;
 }
 #rail ol {
   display: flex;

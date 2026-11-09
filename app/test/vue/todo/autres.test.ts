@@ -1,6 +1,7 @@
 // « Awaiting others » au pied de TODO (#2985) : les cartes qui attendent un autre humain du projet ferment la colonne,
-// repliées sous leur nombre ; dépliées, chacune dit sa question et qui elle attend, sans rien pour y répondre. Rien
-// n'attend un autre humain : la section n'est pas là. Le même bloc ferme TODO sur un écran étroit — le téléphone.
+// repliées sous leur nombre ; dépliées, chacune dit qui elle attend, et s'ouvre et se répond comme une carte de TODO
+// (#3071 : l'assignation ne retient personne). Rien n'attend un autre humain : la section n'est pas là. Le même bloc
+// ferme TODO sur un écran étroit — le téléphone.
 // La vue est jouée telle qu'elle est (aides/fausse-vue.ts), sur les faits que le process principal range (faits.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -30,6 +31,8 @@ const demarrage = () => ({
   code: undefined,
 });
 
+const CARTE = (question: string) => ({ type: "product", question, choix: [{ texte: "Yes.", suite: "resume" }, { texte: "No.", suite: "resume" }], captures: null });
+
 // #12 attend le compte connecté ; #22, mis de côté sur le rail, attend bob ; #23 attend le chef et carol.
 const FAITS: Faits = {
   etat: "ouverte",
@@ -43,8 +46,8 @@ const FAITS: Faits = {
   ],
   attend: [{ ticket: 12, titre: "Validation SIRET", url: issue(12) }],
   attendAutres: [
-    { ticket: 22, titre: "Drop the importer", url: issue(22), question: "Drop the legacy importer?", qui: ["bob"] },
-    { ticket: 23, titre: "Open the beta", url: issue(23), question: "Open the beta to everyone?", qui: ["benomite", "carol"] },
+    { ticket: 22, titre: "Drop the importer", url: issue(22), carte: CARTE("Drop the legacy importer?"), qui: ["bob"] },
+    { ticket: 23, titre: "Open the beta", url: issue(23), carte: CARTE("Open the beta to everyone?"), qui: ["benomite", "carol"] },
   ],
 };
 
@@ -72,33 +75,52 @@ describe("« Awaiting others » ferme TODO (#2985)", () => {
   for (const etroit of [false, true]) {
     test(`${etroit ? "écran étroit" : "écran large"} : les siennes d'abord, puis « Awaiting others (2) », replié, en dernier`, async () => {
       const colonne = todo(await ouvrir({ etroit }));
-      const cartes = colonne.dessous("li").filter((li) => li.className.split(" ").includes("bon"));
+      const pli = pliDe(colonne) ?? assert.fail("pas de « Awaiting others »");
+      const cartes = colonne.dessous("li").filter((li) => li.className.split(" ").includes("bon") && !pli.dessous("li").includes(li));
       assert.deepEqual(cartes.map((li) => li.children[0]?.children[0]?.textContent), ["#12"]);
       assert.equal(colonne.children[0]?.children[1]?.textContent, "1");
-      const pli = pliDe(colonne) ?? assert.fail("pas de « Awaiting others »");
       assert.equal(colonne.children.at(-1), pli);
       assert.equal(pli.children[0]?.textContent, "Awaiting others (2)");
       assert.equal(ouvert(pli), false);
     });
   }
 
-  test("déplié : chaque carte dit sa question et qui elle attend, et rien ne s'y répond", async () => {
-    const pli = pliDe(todo(await ouvrir({ etroit: false }))) ?? assert.fail("pas de « Awaiting others »");
+  test("déplié : chaque carte dit qui elle attend, et reste sous « Awaiting others », hors du compte de TODO", async () => {
+    const colonne = todo(await ouvrir({ etroit: false }));
+    const pli = pliDe(colonne) ?? assert.fail("pas de « Awaiting others »");
     deplier(pli);
     assert.deepEqual(
-      pli.dessous("li").map((li) => li.children.map((enfant) => enfant.textContent)),
-      [
-        ["#22", "Drop the legacy importer?", "awaits bob"],
-        ["#23", "Open the beta to everyone?", "awaits benomite, carol"],
-      ],
+      pli.dessous("p").filter((p) => p.className === "qui").map((p) => p.textContent),
+      ["awaits bob", "awaits benomite, carol"],
     );
-    assert.deepEqual([...pli.dessous("button"), ...pli.dessous("input"), ...pli.dessous("textarea")], []);
+    assert.deepEqual(
+      pli.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent),
+      ["#22", "#23"],
+    );
+    assert.equal(colonne.children[0]?.children[1]?.textContent, "1");
+    assert.equal(pli.dessous("*").some((e) => e.textContent === "awaiting you"), false, "elles n'attendent pas le compte connecté");
   });
+
+  for (const etroit of [false, true]) {
+    test(`${etroit ? "écran étroit" : "écran large"} : une carte d'autrui porte sa question, ses choix et le champ de réponse de TODO, et s'ouvre d'un clic (#3071)`, async () => {
+      const vue = await ouvrir({ etroit });
+      const pli = pliDe(todo(vue)) ?? assert.fail("pas de « Awaiting others »");
+      deplier(pli);
+      const bon = pli.dessous("li").find((li) => li.className.split(" ").includes("bon") && li.children[0]?.children[0]?.textContent === "#22") ?? assert.fail("pas de #22");
+      const carte = bon.dessous("section").find((c) => c.className === "carte-todo") ?? assert.fail("pas de carte de TODO sur #22");
+      assert.deepEqual(carte.dessous("button").filter((b) => b.className === "choix").map((b) => b.textContent), ["Yes.", "No."]);
+      assert.equal(carte.dessous("textarea").length, 1);
+      assert.equal(vue.element("fiche").hidden, true);
+      bon.click();
+      assert.equal(vue.element("fiche").hidden, false);
+    });
+  }
 
   test("aucune carte sous le rail : #22, mise de côté, n'est que dans « Awaiting others »", async () => {
     const vue = await ouvrir({ etroit: false });
     assert.equal(vue.element("rail").textContent.includes("outside the columns"), false);
-    const bons = vue.element("rail").dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent);
+    const pli = pliDe(todo(vue)) ?? assert.fail("pas de « Awaiting others »");
+    const bons = vue.element("rail").dessous("li").filter((li) => li.className.split(" ").includes("bon") && !pli.dessous("li").includes(li)).map((li) => li.children[0]?.children[0]?.textContent);
     assert.equal(bons.includes("#22"), false);
   });
 
