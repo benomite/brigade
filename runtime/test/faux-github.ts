@@ -1,22 +1,11 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
 import { porteListe } from "../src/epique.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
-import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
+import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub, StatutDeCommit } from "../src/github.ts";
-import { CONTEXTE_DES_GATES, GATES_PERIMEES_MS, type LieuDesGates, type VerdictDesGates } from "../src/github-etat/gates-de-la-tete.ts";
-import { jusqua, repertoireTemporaire } from "./outils.ts";
-import { ouvrirJournal } from "../src/journal.ts";
-import { LimiteGitHubAtteinte, limiteDeLaStation } from "../src/limite-github.ts";
-import { lireLaCuisine } from "../src/retenue/brancher.ts";
-import { direCause, diagnostiquer } from "../src/retenue/retenue.ts";
-import { suivreLeTour } from "../src/retenue/tour.ts";
-import { lireLaConsigne } from "../src/second-juge.ts";
+import type { LieuDesGates } from "../src/github-etat/gates-de-la-tete.ts";
 
 export const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
@@ -355,3 +344,69 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
   };
   return client as GitHub;
 }
+
+// Ce que les stations du dépôt (`stationDuDepot`) des tests sur le faux ont en
+// commun : une place sur `main`, la prise de #2056, des plafonds d'une minute.
+export const STATION_DU_DEPOT = {
+  nom: "box",
+  places: 1,
+  base: "main",
+  depotGitHub: "faux/depot",
+  prise: priseDeLaStation,
+  claude: "claude",
+  env: {},
+  cloison: null,
+  plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+  graceMs: 1,
+  reviewer: { model: "sonnet", effort: "medium" },
+} satisfies Partial<OptionsDuDepot>;
+
+// Le dépôt d'une station dont le cook part d'une branche neuve, sous `repertoire`.
+export const depotNeuf = (repertoire: string): OptionsDuDepot["depot"] => ({ connait: () => true, preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "" });
+
+// Le dépôt d'une station dont le cook reprend sa branche, livrée à `tete`.
+export const depotRepris = (repertoire: string, tete: string): OptionsDuDepot["depot"] => ({ connait: () => true, preparer: async () => assert.fail("the branch is resumed"), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 1, changes: () => [], diff: () => "", tete: () => tete });
+
+type IssueDuTour = { number: number; title: string; body: string; labels: string[]; state: "open" | "closed" };
+
+// Le GitHub d'un projet à la base verte, réduit à ce que le tour lit et écrit ;
+// la station ne prend rien (`prise` refuse), elle ne fait que tourner.
+export function fauxDuTour() {
+  const issues: IssueDuTour[] = [];
+  const github = {
+    checksDeLaBase: async () => [{ name: "tests", outcome: "green" as const }],
+    fires: async (): Promise<TicketLu[]> => issues.filter((i) => i.state === "open" && i.labels.includes("fire")).map(({ number, title, labels, state }) => ({ number, title, labels, state })),
+    issuesDepuis: async () => issues.map(({ number, body, state }) => ({ number, body, state, association: "OWNER" })),
+    creerIssue: async ({ titre, corps, labels }: { titre: string; corps: string; labels: string[] }) => {
+      const number = 3000 + issues.length;
+      issues.push({ number, title: titre, body: corps, labels, state: "open" });
+      return number;
+    },
+    fermerIssue: async (numero: number) => {
+      const issue = issues.find((i) => i.number === numero);
+      if (issue) issue.state = "closed";
+    },
+    corpsDuTicket: async (numero: number) => issues.find((i) => i.number === numero)?.body ?? "",
+    prDuTicket: async () => null,
+    commentaires: async () => [],
+    dependancesOuvertes: async () => [],
+    prsOuvertes: async () => [],
+    retraitsDeLabels: async () => [],
+  };
+  return { issues, github: github as unknown as GitHubDuTour };
+}
+
+// Une station qui ne fait que tourner sur le clone `depot` : elle ne prend
+// rien, ne cuisine rien, et note ce qu'elle dit dans `avertis`.
+export const stationQuiTourne = (github: GitHubDuTour, depot: string, avertis: string[]) =>
+  stationGitHub({
+    nom: "box/test",
+    places: 1,
+    base: "main",
+    github,
+    prise: { prendre: async () => ({ prise: false }), lacher: async () => true },
+    cuisiner: async () => ({ echec: "not here" }),
+    juger: async () => ({ verdict: "approve", motif: "" }),
+    clone: depot,
+    avertir: (texte) => avertis.push(texte),
+  });

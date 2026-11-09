@@ -9,12 +9,11 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, cheminsDuDepot, clientDuTour, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type JugerEnSecond, type Lancer, type OptionsDuDepot, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { ATTENTE_PRESSEE_MS, PASS_MAX, RELANCE_DES_GATES_MS, TOURS_PRESSES, brancherBrigadeGithub, brancheDuTicket, cheminsDuDepot, dependancesDuCorps, lecteurDeLaCiDesPR, verdictDesGates, priseDeLaStation, stationDuDepot, stationGitHub, secoupent, zoneDuCorps, type Lancer, type OptionsDuDepot, type StationGitHub } from "../src/brigade-github.ts";
 import { ConsigneIllisible } from "../src/second-juge.ts";
-import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
-import type { GitHub, StatutDeCommit } from "../src/github.ts";
+import type { GitHub } from "../src/github.ts";
 import { CONTEXTE_DES_GATES, GATES_PERIMEES_MS, type LieuDesGates, type VerdictDesGates } from "../src/github-etat/gates-de-la-tete.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -23,7 +22,7 @@ import { lireLaCuisine } from "../src/retenue/brancher.ts";
 import { direCause, diagnostiquer } from "../src/retenue/retenue.ts";
 import { suivreLeTour } from "../src/retenue/tour.ts";
 import { lireLaConsigne } from "../src/second-juge.ts";
-import { CALIBRE, FauxGitHub, fauxClient, type OptionsDuFaux, type PR, type Ticket } from "./faux-github.ts";
+import { CALIBRE, FauxGitHub, fauxClient } from "./faux-github.ts";
 
 const zoneDe = (...chemins: string[]) => `## Context\n\nwhatever\n\n## Zone\n\n${chemins.map((c) => `- \`${c}\``).join("\n")}\n\n## Acceptance\n\n- done\n`;
 
