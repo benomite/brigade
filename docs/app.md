@@ -732,14 +732,28 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 with choices, a click on each gesture against a fake GitHub).*
 
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
-signed in to the cards assigned to it on GitHub. The chef — `chef` in the repository's `.claude/brigade/projet.json`, or,
-without it, the repository's owner — sees every card, as before. Any other signed-in human sees only the cards whose issue
-lists them among its assignees: not the chef's unassigned cards, not someone else's; with none, the usual empty Todo. A card
-they see is the chef's card unchanged, answered with the same buttons and the same answer flow (above). An account or a
-`projet.json` that cannot be read filters nothing. The account is read again at most every five minutes, and right after a
-GitHub sign-in. *Code: `app/src/vue/cartes-assignees/cartes-assignees.ts`, used by `lireLeTableau` (`app/src/main.ts`).
-Test: `app/test/cartes-assignees/cartes-assignees.test.ts`. Captures: `docs/captures/2761/` — `todo-cartes-assignees-avant.png`
-(the human sees all four cards) and `todo-cartes-assignees-apres.png` (only their two).*
+signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without
+an assignee, it awaits the chef — `chef` in the repository's `.claude/brigade/projet.json`, or, without it, the
+repository's owner. A signed-in human sees in their own list only the cards that await them; with none, the usual empty
+Todo. A card they see is the chef's card unchanged, answered with the same buttons and the same answer flow (above). An
+account or a `projet.json` that cannot be read splits nothing: every card is in the list. The account is read again at
+most every five minutes, and right after a GitHub sign-in. *Code: `app/src/vue/cartes-assignees/cartes-assignees.ts`,
+used by `lireLeTableau` (`app/src/main.ts`). Test: `app/test/cartes-assignees/cartes-assignees.test.ts`. Captures:
+`docs/captures/2761/` — `todo-cartes-assignees-avant.png` (the human sees all four cards) and
+`todo-cartes-assignees-apres.png` (only their two).*
+
+**Awaiting others (#2985).** The cards that await another human of the project are not lost, and never drawn under the
+rail: they close the Todo column, after the viewer's own cards, in a section **Awaiting others (N)**, N their number,
+folded by default — unfolded, it stays so at the next reading. Each one says its ticket number, its question (the card's
+question; for an entry without a card, its line) and who it awaits, by GitHub login (`awaits alice, carol`), read-only:
+no choice, no field, no gesture. The chef sees the same way: a card assigned only to others is under Awaiting
+others; an unassigned one, or one that lists the chef among its assignees, is the chef's own. When nothing awaits another human, the section
+is not shown. The narrow screen draws the same section at the end of its Todo, and the phone splits its cards for the
+account it is signed in to, as the desktop does. *Code: `partagerLesCartes` in
+`app/src/vue/cartes-assignees/cartes-assignees.ts`, `faits.attendAutres` written by `avecLAttenteDuChef`
+(`app/src/tableau/attente-du-chef.ts`), the column's `autres` in `rail` (`app/src/faits.ts`), drawn by
+`app/src/vue/todo/autres.js`. Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`,
+`app/test/vue/todo/autres.test.ts`, `app/test/lecture-github-telephone.test.ts`.*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
 is the question "Merge PR #N by hand? It changes what judges it." with the PR link, to merge on GitHub; a technical

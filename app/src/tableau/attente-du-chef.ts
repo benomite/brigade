@@ -17,6 +17,8 @@
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`, `decision`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
 // quand il n'y en a aucune. Une lecture qui échoue n'est jamais « rien n'attend » : elle dit pourquoi.
+import type { AttenduDAutrui } from "../faits.ts";
+import type { Partage } from "../vue/cartes-assignees/cartes-assignees.ts";
 import type { AppelGitHub } from "./client.ts";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lecture.ts";
 import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
@@ -49,7 +51,7 @@ export type AttenteDuChef = {
   chef?: CarteDuChef;
   miseDeCote?: MiseDeCote;
   decision?: DecisionDeMerge;
-  // Les logins de ses assignés sur GitHub, quand elle en a : qui d'autre que le chef la voit (vue/cartes-assignees/, #2761).
+  // Les logins de ses assignés sur GitHub, quand elle en a : qui elle attend, à la place du chef (vue/cartes-assignees/, #2761).
   assignes?: string[];
 };
 // Ce que la lecture rend : les entrées et l'heure de la lecture — ou pourquoi rien ne se lit. `horsLigne` : GitHub n'a
@@ -198,9 +200,20 @@ export const fileDuChef = (attentes: readonly AttenteDuChef[]): LigneDeLaFile[] 
 export const blocDuChef = ({ lu, attentes, illisibles }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): string[] =>
   blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu });
 
+// Ce qu'une entrée qui attend un autre humain dit sous « Awaiting others » (ticket 2985) : sa question — celle de sa carte,
+// ou sa ligne, pour une entrée sans carte —, et qui elle attend.
+const dAutrui = ({ attente: { ticket, titre, url, chef, ligne }, qui }: Partage<AttenteDuChef>["autres"][number]): AttenduDAutrui => ({
+  ticket,
+  titre,
+  url,
+  question: (chef === undefined ? null : formeDuChef(chef.texte).question) ?? ligne,
+  qui,
+});
+
 // La lecture du rail, dont ce qui attend le chef est cette lecture, et rien d'autre : la file du bloc `awaiting` de
-// `status` et `faits.attend`, que TODO dessine, dans le même ordre.
-export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): TableauLu {
+// `status` et `faits.attend`, que TODO dessine, dans le même ordre. `autres` : les entrées qui attendent un autre humain
+// que le compte connecté, que TODO replie sous « Awaiting others » (`faits.attendAutres`, ticket 2985) — hors de la file.
+export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres = [] }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[]; autres?: Partage<AttenteDuChef>["autres"] }): TableauLu {
   const attend = attentes.map(({ ticket, titre, url, chef, miseDeCote, decision }) => ({
     ticket,
     titre,
@@ -209,15 +222,22 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles }: { at
     ...(decision === undefined ? {} : { decision }),
     ...(chef === undefined ? {} : { chef }),
   }));
-  return { ...lu, file: fileDuChef(attentes), bilans: [...illisibles], faits: { ...lu.faits, attend, compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } } };
+  return {
+    ...lu,
+    file: fileDuChef(attentes),
+    bilans: [...illisibles],
+    faits: { ...lu.faits, attend, ...(autres.length === 0 ? {} : { attendAutres: autres.map(dAutrui) }), compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } },
+  };
 }
 
 // La lecture du rail, avec ce qui attend le chef lu de GitHub comme le second le lit (main.ts) : l'app ne dit jamais autre
-// chose que lui. Pas lu : une lecture ratée, jamais un TODO vide. `filtrer` : les cartes que le compte connecté voit
-// (vue/cartes-assignees/, #2761).
-export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, filtrer?: (attentes: AttenteDuChef[]) => Promise<AttenteDuChef[]>): Promise<LectureDuTableauDuDepot> {
+// chose que lui. Pas lu : une lecture ratée, jamais un TODO vide. `partager` : les cartes qui attendent le compte connecté,
+// et celles qui attendent un autre humain (vue/cartes-assignees/, #2761, #2985).
+export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, partager?: (attentes: AttenteDuChef[]) => Promise<Partage<AttenteDuChef>>): Promise<LectureDuTableauDuDepot> {
   if (!lu.lu) return lu;
   const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe) });
   if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
-  return avecLAttenteDuChef(lu, filtrer === undefined ? attente : { ...attente, attentes: await filtrer(attente.attentes) });
+  if (partager === undefined) return avecLAttenteDuChef(lu, attente);
+  const { siennes, autres } = await partager(attente.attentes);
+  return avecLAttenteDuChef(lu, { ...attente, attentes: siennes, autres });
 }

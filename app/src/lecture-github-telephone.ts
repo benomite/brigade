@@ -10,7 +10,8 @@
 //     (runtime/src/enregistrement-station/contrat.ts, des dépôts, chacun nommé comme la station le nomme). Un même dépôt
 //     n'est qu'un projet ; rangés par nom ;
 //   - le rail et TODO de chacun : la lecture même du desktop (main.ts, `lireLeTableau`) — `lireLeTableauDuDepot`, puis
-//     ce qui attend le chef (`avecCeQuiAttendLeChef`), en lectures conditionnelles dont un 304 ne coûte rien.
+//     ce qui attend le chef (`avecCeQuiAttendLeChef`), partagé pour le compte connecté (vue/cartes-assignees/), en
+//     lectures conditionnelles dont un 304 ne coûte rien.
 // Ce qui en est fait est ce que fait le desktop, par les mêmes modules : `facts` passe par `tenirFaits` et devient le
 // rail et ses cartes ; `status`, son bloc `attend` mis à part (`mettreAPart`), passe par `attendre` et pose TODO ; la
 // bande d'alertes, les lignes de l'accueil, l'activité des cooks et, dans l'espace d'un projet, ce qui est avant le rail
@@ -38,6 +39,7 @@ import type { EnvoiGitHub } from "./priorite.ts";
 import { FICHIER_PROJETS, lireDemande } from "./projets/demande.ts";
 import { nomDuProjet } from "./projets/projets.ts";
 import { avecCeQuiAttendLeChef } from "./tableau/attente-du-chef.ts";
+import { partageDesCartesAssignees } from "./vue/cartes-assignees/cartes-assignees.ts";
 import { clientGitHub, corpsLu, refusDe, type AppelGitHub, type Envoi, type ReponseGitHub } from "./tableau/client.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type ActivitesPubliees, type LectureDuTableauDuDepot, type TableauLu } from "./tableau/lecture.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
@@ -203,7 +205,9 @@ export function ouvrirLaLectureGitHub(options: Options) {
   async function lireLeProjet({ depot }: ProjetDuCompte): Promise<LectureDuTableauDuDepot> {
     try {
       const lu = await lireLeTableauDuDepot({ depot, appeler, memoire: memoire(depot), maintenant });
-      return await avecCeQuiAttendLeChef(lu, lectureConditionnelle(appeler, memoire(depot)));
+      const lecteur = lectureConditionnelle(appeler, memoire(depot));
+      // Les cartes du compte connecté, et celles d'un autre humain sous « Awaiting others », comme au desktop (#2985).
+      return await avecCeQuiAttendLeChef(lu, lecteur, partageDesCartesAssignees({ appeler: lecteur, depot, login: async () => options.compte ?? null }));
     } catch (erreur) {
       return { lu: false, depot, luLe: maintenant().toISOString(), raison: `The rail of ${depot} was not read from GitHub: ${ditDe(erreur)}.` };
     }
