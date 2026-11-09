@@ -30,6 +30,7 @@ import { poserALaMain } from "./blocages-sans-question.ts";
 import { lireBlocage, lireLivrable } from "./livrable.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
 import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
+import { lireLeGeste, poserLaCarteDeLaStation } from "./carte-station/carte-station.ts";
 import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis, MARQUE_DE_DECISION, MARQUE_DE_REPONSE, REPONSES_AVANT_DECISION, sectionDeLaDecision, type ConsulterLeManager, type ReponseDuManager } from "./blocage-au-manager.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
@@ -671,6 +672,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // pour le chef sur une décision de produit ou de design ou un geste qu'il est
   // seul à pouvoir faire (`retenue`) —, ou l'échec d'un cook sans livraison
   // qu'il devient : le même blocage technique ne boucle pas.
+  // Les cartes de station que ce processus a posées : une par prérequis.
+  const cartesDeLaStation = new Map<string, number>();
   const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
     const issue = ticket.number;
     const premiereLigne = question.trim().split("\n")[0] ?? "";
@@ -716,6 +719,24 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       avertir(`brigade : #${issue} sur ${nom} — the cook blocked on a technical question: the manager answered it${ecrite ? " and its decision is written into the ticket" : ""}, the ticket goes back to a cook`);
       await github.commenter(issue, corpsDeLaReponseAuBlocage({ station: nom, n: deja.length + 1, question, avis, ecrite }));
+      return "liberee";
+    }
+    // Une installation, un service à démarrer, une base à créer ou migrer n'est
+    // jamais une carte du ticket (#3058) : seul le prérequis qu'un humain pose une
+    // fois pour la station a sa carte, une par station, et le ticket attend.
+    const geste = avis.issue === "geste" ? lireLeGeste(avis.geste) : null;
+    if (geste !== null) {
+      let suite = "no card is posted for it: the kitchen does it, or the ticket waits";
+      if (geste.serveur !== null) {
+        const pose = await poserLaCarteDeLaStation({ github, deja: cartesDeLaStation, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) }, nom, geste.serveur);
+        if ("echec" in pose) avertir(`brigade : ${pose.echec}`);
+        else suite = `the ${geste.serveur.nom} is missing on this station: its single card is #${pose.carte}`;
+      }
+      const deja = (await depuisLeRelancement(github, issue, lus ?? [], MARQUE_D_ATTENTE)).filter((c) => c.body.includes(" manager ")).length;
+      if (deja + 1 >= ECHECS_MAX) return { echec: `the cook declared itself blocked on a ${geste.sorte} gesture, ${deja + 1} times, and no card is posted for such a gesture` };
+      const reprise = instant() + ATTENTE_MS;
+      avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked on a ${geste.sorte} gesture: ${suite}`);
+      await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped, blocked on a gesture to ${geste.sorte === "install" ? "install something" : geste.sorte === "service" ? "start a service" : "create or migrate a database"}. Nothing here is for the chef: ${suite}.\n\nThe ticket waits until ${new Date(reprise).toISOString()}, then a cook resumes it from its branch. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
       return "liberee";
     }
     avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked, and the manager read ${avis.issue === "geste" ? "a gesture only the chef can make" : `a ${avis.issue === "produit" ? "product" : "design"} decision`}: the ticket goes to the chef`);
