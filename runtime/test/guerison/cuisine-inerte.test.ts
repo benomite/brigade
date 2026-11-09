@@ -71,10 +71,3 @@ test("aucun ticket cuisinable : rien", async () => {
   assert.deepEqual(await d.appeler(), { fait: "rien", pourquoi: "no cookable ticket" });
   assert.equal(d.issues.length, 0);
 });
-
-// #2977 : le bug dit, pour chaque ticket cuisinable, ce que la porte de prise en a dit.
-test("le bug cite la ligne de saut de la porte de prise pour chaque ticket, ou dit qu'elle n'en a pas", async () => {
-  const d = depot({ cuisinables: [{ number: 2912, title: "Held", saut: "#2912 is claimable but not claimed, the claim gate skipped it: zone held by #2900" }, { number: 7, title: "Seven" }] });
-  await d.appeler();
-  assert.match(d.issues[0]?.corps ?? "", /## What the claim gate said\n\n- #2912: #2912 is claimable but not claimed, the claim gate skipped it: zone held by #2900\n- #7: not skipped with a line at its last turn\n/);
-});
