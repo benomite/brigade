@@ -820,8 +820,7 @@ main > header,
   display: flex;
   flex-direction: column;
 }
-/* Le bandeau de santé de la cuisine (ticket 2921), au-dessus du rail : en vue, ses chiffres côte à côte ; derrière une
-   ligne, ce qui se règle. Il ne prend jamais plus des deux cinquièmes du centre, et défile au-delà, que le rail garde sa
+/* En tête de Stations, la ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013). Il ne prend jamais plus des deux cinquièmes du centre, et défile au-delà, que l'onglet garde sa
    hauteur. */
 #bandeau-sante {
   flex: none;
@@ -832,17 +831,6 @@ main > header,
 }
 #bandeau-sante[hidden] {
   display: none;
-}
-#bandeau-sante .chiffres-de-sante {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2) var(--pas-6);
-}
-#bandeau-sante .chiffres-de-sante > .bloc-du-projet {
-  flex: 1 1 280px;
-}
-#bandeau-sante > details {
-  margin-top: var(--pas-2);
 }
 #message {
   flex: 1;
@@ -2125,37 +2113,29 @@ main > header,
   font-size: var(--taille-meta);
   color: var(--discret);
 }
-/* La bande du haut de l'onglet Rail (#2486) : une seule ligne mince — le temps d'un ticket, les cooks en cours, le
-   backlog —, chaque part séparée de la suivante d'un trait, l'âge du rail au bout, à voix basse. Chaque part dit son
-   chiffre ; son détail est au survol. Sur une fenêtre trop étroite pour elle, une part passe à la ligne entière, jamais
-   coupée. Rien ne la rogne : les bulles de ses survols descendent sur le rail. */
+/* La bande du haut de l'onglet Rail (#2486, #3013 ; maquette Project.dc.html) : une seule ligne de chiffres, chacun son
+   nom, sa valeur en gras et ce qu'elle est, à voix basse ; l'âge du rail au bout. Sur une fenêtre trop étroite, un
+   chiffre passe à la ligne entier, jamais coupé. Rien ne la rogne : les bulles de ses survols descendent sur le rail. */
 #rail .bande-rail {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  row-gap: var(--pas-1);
-  min-height: 36px;
-  padding: var(--pas-1) var(--pas-4);
+  align-items: baseline;
+  gap: var(--pas-2) var(--pas-5);
+  padding: var(--pas-3) var(--pas-5);
   font-size: var(--taille-corps);
-  color: var(--discret);
+  color: var(--texte-doux);
   white-space: nowrap;
   border-bottom: 1px solid var(--trait-doux);
 }
 #rail .bande-rail > * {
   flex: none;
 }
-/* Un trait après chaque part, sauf la dernière et celle que suit l'âge : passée à la ligne, une part commence au bord. */
-#rail .bande-rail > :not(:last-child, :has(+ .age-du-rail)) {
-  margin-right: var(--pas-4);
-  padding-right: var(--pas-4);
-  border-right: 1px solid var(--trait-doux);
-}
 #rail .bande-rail .bande-part {
   display: inline-flex;
   align-items: baseline;
-  gap: var(--pas-2);
+  gap: var(--pas-1);
 }
-/* Une part qui a un détail le dit au survol : le pointeur le signale. */
+/* Un chiffre qui a un détail le dit au survol : le pointeur le signale. */
 #rail .bande-rail .survol > .bande-part {
   cursor: help;
 }
@@ -2163,125 +2143,45 @@ main > header,
   font-weight: 600;
   color: var(--texte);
 }
-#rail .bande-rail .bande-doux {
-  color: var(--texte-doux);
-}
-/* Un des quatre chiffres du projet passé son seuil vire au rouge (#2672) ; la médiane et le p75 du temps n'ont pas de plafond. */
-#rail .bande-rail .bande-chiffre {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--pas-1);
-}
-#rail .bande-rail .bande-chiffre[data-depasse="oui"] .bande-valeur {
+/* Le premier coup sous son but vire au rouge (#2672). */
+#rail .bande-rail .bande-part[data-depasse="oui"] .bande-valeur {
   color: var(--rouge-clair);
+}
+/* Le backlog est un bouton, qui déplie sa colonne : il se lit comme les autres chiffres. */
+#rail .bande-rail .bande-backlog {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+#rail .bande-rail .bande-backlog:hover .bande-nom,
+#rail .bande-rail .bande-backlog[aria-expanded="true"] .bande-nom {
+  color: var(--texte);
 }
 /* L'âge du rail, au bout de la bande. */
 #rail .bande-rail .age-du-rail {
   margin-left: auto;
-  padding: 0 0 0 var(--pas-4);
-}
-/* Dans la bande, ce qui est avant le rail (#1836) : une petite barre empilée, qui déplie la colonne Backlog, son total, et
-   l'histogramme des 24 heures. */
-#rail .amont {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-3);
-}
-
-/* La barre : de largeur fixe, haute de quelques pixels, une part par état — sa longueur, la part de son compte dans le
-   total (avant-le-rail.js). Le titre et le total sont à côté, les comptes en mots au survol ; le rouge est réservé à ce qui est cassé : la refusée incomplète attend le second, elle est jaune. Chaque état a sa couleur, lisible sur le sombre ;
-   la mise de côté est hachurée, à part des quatre autres. Une lecture ratée la laisse vide, en pointillé. */
-#rail .amont > .survol {
-  align-self: center;
-}
-#rail .amont .avant-le-rail {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
   padding: 0;
-  font: inherit;
-  color: var(--texte);
-  background: none;
-  border: 0;
 }
-#rail .amont .avant-le-rail .titre {
-  color: var(--discret);
-}
-#rail .amont .avant-le-rail .piste {
-  display: flex;
-  gap: var(--pas-1);
-  width: 120px;
-  height: 12px;
-  background: var(--case);
-  border: 1px solid var(--trait-fort);
-  border-radius: 0;
-}
-#rail .amont .avant-le-rail:hover .piste,
-#rail .amont .avant-le-rail[aria-expanded="true"] .piste {
-  border-color: var(--discret);
-}
-#rail .amont .avant-le-rail[data-sans] .piste {
-  border-style: dashed;
-}
-#rail .amont .avant-le-rail .part {
-  flex-basis: 0;
-  flex-shrink: 1;
-  min-width: 2px;
-}
-#rail .avant-le-rail .part[data-etat="non-lue"],
+/* La pastille de chaque état de la colonne Backlog : chacun sa couleur, lisible sur le sombre ; le rouge est réservé à
+   ce qui est cassé : la refusée incomplète attend le second, elle est jaune. La mise de côté est hachurée. */
 #rail .backlog .groupe[data-etat="non-lue"] h5 span:first-child::before {
   background: var(--gris);
 }
-#rail .avant-le-rail .part[data-etat="incomplete"],
 #rail .backlog .groupe[data-etat="incomplete"] h5 span:first-child::before {
   background: var(--jaune);
 }
-#rail .avant-le-rail .part[data-etat="epique"],
 #rail .backlog .groupe[data-etat="epique"] h5 span:first-child::before {
   background: var(--bleu);
 }
-#rail .avant-le-rail .part[data-etat="prete"],
 #rail .backlog .groupe[data-etat="prete"] h5 span:first-child::before {
   background: var(--vert);
 }
-#rail .avant-le-rail .part[data-etat="mise-de-cote"],
 #rail .backlog .groupe[data-etat="mise-de-cote"] h5 span:first-child::before {
   background: var(--case);
   background-image: repeating-linear-gradient(135deg, var(--discret) 0 2px, transparent 2px 4px);
-}
-/* À côté, à quelle allure la cuisine sert (#1811) : vingt-quatre barres fines, une par heure, l'heure en cours à
-   droite, hautes d'une ligne. Chaque heure a sa case, à peine marquée, sur un trait de base : vide, elle se voit
-   vide. Les servis en vert en bas, les ratés en rouge dessus. Une barre dit son heure et ses comptes au survol. */
-#rail .amont .cadence {
-  display: inline-flex;
-  align-self: center;
-  align-items: stretch;
-  gap: var(--pas-1);
-  height: 24px;
-}
-#rail .amont .cadence > .survol {
-  align-items: stretch;
-}
-#rail .amont .cadence .barre {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  width: 5px;
-  padding: 0;
-  background: var(--case);
-  border-bottom: 1px solid var(--trait-fort);
-  border-radius: 0;
-}
-#rail .amont .cadence .barre[data-en-cours] {
-  border-bottom-color: var(--discret);
-}
-#rail .amont .cadence .servis {
-  flex: none;
-  background: var(--vert);
-}
-#rail .amont .cadence .rates {
-  flex: none;
-  background: var(--rouge);
 }
 /* La tête du rail, la cuisine oisive avec des cartes dessus (#1863) : une panne — rouge, épaisse, sur le fond chaud de
    ce qui attend le chef, marquée FAULT comme l'urgence l'est URGENT. Elle se voit avant les colonnes. */
@@ -4466,8 +4366,7 @@ main > header {
   color: var(--discret);
 }
 
-/* Le bandeau de santé (ticket 2490, 2921) : le temps des tickets en détail, puis les plafonds de durée. Les couleurs sont celles
-   de l ancienne carte des temps : le ticket en bleu, sa pass en jaune, le plafond et ce qui le passe en rouge. */
+/* Les blocs du projet (tickets 2490, 2921) : les plafonds de durée, le closer, les lignes de tous les projets. */
 .bloc-du-projet h3,
 #rail .bloc-du-projet h3 {
   display: flex;
@@ -4475,7 +4374,6 @@ main > header {
   gap: var(--pas-2);
   padding: 0;
 }
-.bloc-du-projet[data-bloc="temps-tickets"],
 .bloc-du-projet[data-bloc="plafonds-duree"],
 .bloc-du-projet[data-bloc="closer"],
 .bloc-du-projet[data-bloc="toutes-les-stations"],
@@ -4486,121 +4384,6 @@ main > header {
 }
 .bloc-du-projet :is(p, table) {
   margin: 0;
-}
-[data-bloc="temps-tickets"] .temps-chiffres {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2) var(--pas-6);
-}
-[data-bloc="temps-tickets"] .temps-chiffre {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-}
-[data-bloc="temps-tickets"] .temps-valeur {
-  font-size: var(--taille-titre);
-  font-weight: 400;
-  color: var(--texte);
-}
-[data-bloc="temps-tickets"] .temps-chiffre[data-depasse="oui"] .temps-valeur {
-  color: var(--rouge-clair);
-}
-[data-bloc="bloque-sans-question"] .sans-question-ligne {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-}
-[data-bloc="bloque-sans-question"] .sans-question-valeur {
-  font-size: var(--taille-titre);
-  font-weight: 400;
-  color: var(--texte);
-}
-[data-bloc="bloque-sans-question"] .sans-question-legende {
-  color: var(--texte-doux);
-}
-[data-bloc="bloque-sans-question"][data-sans-question="alerte"] {
-  border-left: 3px solid var(--rouge-clair);
-  padding-left: var(--pas-3);
-}
-[data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-valeur,
-[data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-legende {
-  color: var(--rouge-clair);
-}
-[data-bloc="bloque-sans-question"][data-sans-question="alerte"] .sans-question-valeur {
-  font-weight: 700;
-}
-[data-bloc="temps-tickets"] .temps-phase-lente {
-  color: var(--texte-doux);
-}
-[data-bloc="temps-tickets"] .temps-legende {
-  color: var(--texte-doux);
-}
-[data-bloc="temps-tickets"] .temps-courbe {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-}
-[data-bloc="temps-tickets"] .temps-colonnes {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: var(--pas-1);
-  height: 120px;
-  padding: 0 var(--pas-1);
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-[data-bloc="temps-tickets"] .temps-colonne {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  justify-content: flex-end;
-  height: 100%;
-}
-[data-bloc="temps-tickets"] .temps-ticket-part {
-  background: var(--bleu);
-  border-radius: 0;
-}
-[data-bloc="temps-tickets"] .temps-pass-part {
-  background: var(--jaune);
-}
-[data-bloc="temps-tickets"] :is(.temps-axe, .temps-cles) {
-  display: flex;
-  gap: var(--pas-4);
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-[data-bloc="temps-tickets"] .temps-axe {
-  justify-content: space-between;
-}
-[data-bloc="temps-tickets"] .temps-cle::before {
-  content: "";
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: var(--pas-2);
-  vertical-align: -1px;
-  border-radius: 0;
-  background: var(--bleu);
-}
-[data-bloc="temps-tickets"] .temps-cle.pass::before {
-  background: var(--jaune);
-}
-[data-bloc="temps-tickets"] .temps-par-ticket {
-  border-collapse: collapse;
-  width: 100%;
-  max-width: 640px;
-}
-[data-bloc="temps-tickets"] .temps-par-ticket :is(th, td) {
-  padding: var(--pas-1) var(--pas-5) var(--pas-1) 0;
-  text-align: left;
-  border-bottom: 1px solid var(--trait-doux);
-}
-[data-bloc="temps-tickets"] .temps-par-ticket th {
-  font-weight: 400;
-  font-size: var(--taille-corps);
-  color: var(--discret);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafonds-lecture {
   font-size: var(--taille-corps);

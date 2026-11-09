@@ -1,5 +1,6 @@
-// Le bandeau de santé (#2490, #2921, ex-Kitchen > Health) : le temps des tickets en détail — le ticket et sa pass, par ticket et dans le temps — et les
-// plafonds de durée, réglés là et nulle part ailleurs dans la page du projet. Les blocs sont joués avec le faux élément
+// Le bandeau au-dessus du rail (#2490, #2921, ex-Kitchen > Health) : derrière une ligne, les plafonds de durée, réglés là et
+// nulle part ailleurs dans la page du projet, le closer et les lignes de tous les projets. Les chiffres — le temps des
+// tickets, le premier coup — sont dans la bande du rail (#3013, rail/bande-rail.test.ts). Les blocs sont joués avec le faux élément
 // de l'app (aides/fausse-vue.ts), puis la vue entière, telle qu'elle est.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -15,108 +16,15 @@ import type { LectureDuCloser, RenduDesVerifications, RenduDuReglage } from "../
 import { PLAFONDS, type LectureDesPlafonds, type RenduDuPlafond } from "../../../src/plafonds-duree.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { CLES as CLES_DES_REGLAGES, PROPOSE } from "../../../src/reglages-du-projet.ts";
-import { poserBlocBloqueSansQuestion } from "../../../src/vue/projet/bandeau-sante/BloqueSansQuestion.js";
 import { poserBlocCloser } from "../../../src/vue/projet/bandeau-sante/Closer.js";
 import { EN_COURS, poserBlocPlafondsDuree } from "../../../src/vue/projet/bandeau-sante/PlafondsDuree.js";
 import { PAR_PR } from "../../../src/vue/composants/reglage/reglage.js";
-import { tempsDeLaBande } from "../../../src/vue/projet/rail/bande-rail.js";
-import { lireLesTemps, poserBlocTempsTickets } from "../../../src/vue/projet/bandeau-sante/TempsTickets.js";
 import { Faux, jouerLaVue, ouvrirOnglet, repos, type Jouee } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
-const MIN = 60;
-
-// Un ticket mesuré : `total` minutes, dont `pass` d'attente de la pass et de revue, mergé le `jour` d'octobre.
-const ticket = (n: number, total: number, pass: number, jour = n - 100) => ({
-  ticket: n,
-  claimedAt: "2026-10-01T00:00:00.000Z",
-  mergedAt: `2026-10-${String(jour).padStart(2, "0")}T10:00:00.000Z`,
-  cuisson: (total - pass) * MIN * 0.8,
-  cuissonTests: (total - pass) * MIN * 0.1,
-  attentePasse: pass * MIN * 0.5,
-  revue: pass * MIN * 0.5,
-  ci: (total - pass) * MIN * 0.05,
-  merge: (total - pass) * MIN * 0.05,
-});
-// Le résumé de la mesure (`resume` de temps-tickets.json) et les quatre chiffres (`chiffres`) : la bande du rail et Health les lisent sans les recalculer.
-// Le temps total n'a pas de plafond (#2670, #2672) : seuls les quatre chiffres ont un seuil.
-const RESUME = { n: 3, medianMin: 10, p75Min: 14, phaseLaPlusLongue: { nom: "cooking", medianMin: 6, partPct: 60 }, perteLaPlusLourde: null };
-const CHIFFRES = [
-  { cle: "perdu", nom: "lost time", valeur: "1 min median, 1.5 min p75", seuil: "2 min", depasse: false, pesent: ["#102 lost 1.5 min"] },
-  { cle: "estimation", nom: "vs estimate", valeur: "×1.20 median", seuil: "×1.5", depasse: false, pesent: [] },
-  { cle: "premier-coup", nom: "first try", valeur: "80%", seuil: "70%", depasse: false, pesent: ["red CI (2)"] },
-  { cle: "reparations", nom: "main repairs", valeur: "0.050 per merge", seuil: "0.1 per merge", depasse: false, pesent: [] },
-];
-const TEMPS = { enregistrements: [ticket(103, 9, 3), ticket(101, 10, 2), ticket(102, 20, 6)], lostTimeMaxMin: 2, resume: RESUME, chiffres: CHIFFRES };
 
 const texte = (racine: Faux) => racine.textContent;
 const parClasse = (racine: Faux, classe: string) => [...racine.descendants()].filter((pose) => pose.className.split(" ").includes(classe));
-
-describe("le temps des tickets, sur Health", () => {
-  test("le ticket et sa pass en médiane, dans le temps du plus ancien au plus récent, et par ticket du plus récent", () => {
-    const lu = lireLesTemps(TEMPS) ?? assert.fail("rien de lu");
-    assert.equal(lu.mediane, 10 * MIN);
-    assert.equal(lu.medianePasse, 3 * MIN);
-    assert.deepEqual(lu.dansLeTemps.map(({ ticket: n }) => n), [101, 102, 103]);
-    assert.deepEqual(lu.parTicket.map(({ ticket: n, total, passe }) => [n, total / MIN, passe / MIN]), [
-      [103, 9, 3],
-      [102, 20, 6],
-      [101, 10, 2],
-    ]);
-
-    const bloc: Faux = poserBlocTempsTickets(doc, TEMPS);
-    assert.equal(bloc.dataset.temps, "normal");
-    assert.deepEqual(parClasse(bloc, "temps-chiffre").map(texte), [
-      "10 minmedian of the last 3 measured tickets",
-      "14 minp75 of the last 3 measured tickets",
-      "1 min median, 1.5 min p75lost time, threshold 2 min",
-      "×1.20 medianvs estimate, threshold ×1.5",
-      "80%first try, threshold 70%",
-      "0.050 per mergemain repairs, threshold 0.1 per merge",
-    ]);
-    assert.equal(parClasse(bloc, "temps-phase-lente").map(texte)[0], "Slowest phase: cooking, median 6 min");
-    const colonnes = parClasse(bloc, "temps-colonne");
-    assert.deepEqual(colonnes.map(({ title }) => title), ["#101 · Oct 1 · 10 min, pass 2 min", "#102 · Oct 2 · 20 min, pass 6 min", "#103 · Oct 3 · 9 min, pass 3 min"]);
-    assert.deepEqual(colonnes.map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined], "le temps d'un ticket n'a pas de plafond");
-    assert.equal(parClasse(bloc, "temps-plafond").length, 0);
-    const lignes = bloc.dessous("tr").filter(({ dataset }) => dataset.ticket !== undefined);
-    assert.deepEqual(lignes.map((ligne) => ligne.children.map(texte)), [
-      ["#103", "Oct 3", "9 min", "3 min"],
-      ["#102", "Oct 2", "20 min", "6 min"],
-      ["#101", "Oct 1", "10 min", "2 min"],
-    ]);
-  });
-
-  test("un chiffre au-delà de son seuil passe le bloc en « depasse », lui seul en rouge ; ce qui pèse le plus au survol ; la perte la plus lourde se dit", () => {
-    const sur = (chiffres: object[], resume: object = RESUME) => poserBlocTempsTickets(doc, { ...TEMPS, resume, chiffres });
-    const rouge = CHIFFRES.map((c) => (c.cle === "premier-coup" ? { ...c, valeur: "50%", depasse: true, pesent: ["tests failed (3)", "review (1)"] } : c));
-    const perdu = sur(rouge, { ...RESUME, perteLaPlusLourde: { nom: "send-backs", medianMin: 3, partPct: 60 } });
-    assert.equal(perdu.dataset.temps, "depasse");
-    assert.deepEqual(parClasse(perdu, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined, undefined, "oui", undefined]);
-    assert.deepEqual(parClasse(perdu, "temps-phase-lente").map(texte), ["Heaviest loss: send-backs, median 3 min", "Slowest phase: cooking, median 6 min"]);
-    const survols = parClasse(perdu, "survol").map((pose) => pose.children[0] as Faux);
-    assert.equal(survols.find((c) => c.dataset.chiffre === "premier-coup")?.ariaLabel, "Weighs most: tests failed (3) · review (1)");
-    const long = sur(CHIFFRES, { ...RESUME, medianMin: 90, p75Min: 160 });
-    assert.equal(long.dataset.temps, "normal", "un long ticket sans temps perdu n'est au-dessus de rien");
-    assert.deepEqual(parClasse(long, "temps-chiffre").map(({ dataset }) => dataset.depasse), [undefined, undefined, undefined, undefined, undefined, undefined]);
-  });
-
-  test("les chiffres sont ceux de la station, les mêmes que ceux de la bande du rail", () => {
-    const bloc = poserBlocTempsTickets(doc, TEMPS);
-    const bande = tempsDeLaBande(doc, TEMPS);
-    assert.deepEqual(parClasse(bloc, "temps-valeur").map(texte), ["10 min", "14 min", "1 min median, 1.5 min p75", "×1.20 median", "80%", "0.050 per merge"]);
-    for (const c of CHIFFRES) assert.ok(texte(bande).includes(c.valeur) && texte(bande).includes(`/ ${c.seuil}`), c.cle);
-  });
-
-  test("jamais un blanc ni un zéro : sans mesure, « No measure yet. » — la phase, le plafond et les figures ne s'inventent pas", () => {
-    for (const temps of [undefined, { enregistrements: [], lostTimeMaxMin: 2 }]) {
-      const vide = poserBlocTempsTickets(doc, temps);
-      assert.equal(vide.dataset.temps, "vide");
-      assert.match(texte(vide), /No measure yet./);
-      assert.equal(parClasse(vide, "temps-chiffre").length, 0);
-    }
-  });
-});
 
 const LECTURE: LectureDesPlafonds = {
   branche: "main",
@@ -396,7 +304,7 @@ describe("le closer, sur Health", () => {
   });
 });
 
-// La vue entière : parade, ouvert sur Rail, sous le bandeau de santé (#2921), devant un GitHub qui garde ce qu'on lui écrit.
+// La vue entière : parade, ouvert sur Stations, sous le bandeau de santé (#2921, #3013), devant un GitHub qui garde ce qu'on lui écrit.
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
@@ -436,16 +344,19 @@ async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][]
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
+  // Le bandeau est en tête de Stations depuis que Rail n'a plus que la bande des chiffres (#3013).
+  await ouvrirOnglet(vue, "Stations");
   return { vue, ecrits, closer };
 }
 const bloc = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "plafonds-duree") ?? assert.fail("pas de plafonds");
 
 describe("le bandeau de santé, dans la vue", () => {
-  test("en vue, les chiffres ; les plafonds, le closer et les lignes de tous les projets sont repliés derrière une ligne, fermée à l'ouverture", async () => {
+  test("ni chiffre, ni titre : les plafonds, le closer et les lignes de tous les projets sont repliés derrière une ligne, fermée à l'ouverture", async () => {
     const { vue } = await jouer();
     await repos();
-    const [chiffres, reste] = vue.element("bandeau-sante").children;
-    assert.deepEqual(chiffres?.dessous("section").map(({ dataset }) => dataset.bloc), ["temps-tickets", "bloque-sans-question"]);
+    // Les chiffres sont dans la bande du rail (#3013) : le bandeau n'a que sa ligne repliée.
+    const [reste, ...autres] = vue.element("bandeau-sante").children;
+    assert.deepEqual(autres, []);
     assert.equal(reste?.balise, "details");
     assert.deepEqual(reste?.dessous("section").map(({ dataset }) => dataset.bloc).filter((nom) => nom !== undefined), ["plafonds-duree", "closer", "de-tous-les-projets"]);
     assert.equal(reste?.dessous("summary")[0]?.textContent, "Caps, closer and all projectsduration caps, the closer, cost and closer of all projects");
@@ -514,26 +425,5 @@ describe("le bandeau de santé, dans la vue", () => {
     }
     // Settings : ses réglages du projet n'en portent aucun.
     assert.deepEqual(CLES_DES_REGLAGES.filter((cle) => /drift|temps|duration|tests|gates/i.test(cle)), []);
-  });
-});
-
-describe("les blocked-on-human sans question, sur Health", () => {
-  test("à 0 le compteur est neutre, à 3 il est en alerte, et sans le champ il ne dit pas zéro", () => {
-    const zero: Faux = poserBlocBloqueSansQuestion(doc, 0);
-    assert.equal(zero.dataset.bloc, "bloque-sans-question");
-    assert.equal(zero.dataset.sansQuestion, "zero");
-    assert.match(texte(zero), /Blocked without a question/);
-    assert.deepEqual(parClasse(zero, "sans-question-valeur").map(texte), ["0"]);
-    assert.notEqual(parClasse(zero, "sans-question-ligne")[0]?.role, "alert");
-
-    const trois: Faux = poserBlocBloqueSansQuestion(doc, 3);
-    assert.equal(trois.dataset.sansQuestion, "alerte");
-    assert.match(texte(trois), /Blocked without a question/);
-    assert.deepEqual(parClasse(trois, "sans-question-valeur").map(texte), ["3"]);
-    assert.match(texte(parClasse(trois, "sans-question-legende")[0] as Faux), /tickets blocked-on-human with no question — a defect to fix/);
-    assert.equal(parClasse(trois, "sans-question-ligne")[0]?.role, "alert");
-    assert.notEqual(zero.dataset.sansQuestion, trois.dataset.sansQuestion);
-
-    for (const absent of [undefined, "3", -1, 1.5]) assert.equal(poserBlocBloqueSansQuestion(doc, absent).dataset.sansQuestion, "inconnu");
   });
 });

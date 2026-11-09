@@ -280,40 +280,33 @@ function recevoirFaits(vue: Jouee, faits: Faits): void {
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
 
-// Ce qui est avant le rail est une part de la bande du haut du rail (#2486) : sans barre ni histogramme, elle n'y est pas.
+// Ce qui est avant le rail est un chiffre de la bande du haut du rail (#2486, #3013) : « Backlog 8 issues », un bouton
+// sous l'enveloppe de son survol. Sans nombre, il n'y est pas.
 const bande = (vue: Jouee): Faux => vue.element("rail").children.find((pose) => pose.className === "bande-rail") ?? assert.fail("pas de bande en tête du rail");
-const amont = (vue: Jouee): Faux | undefined => bande(vue).children.find((pose) => pose.className === "amont");
-const tete = (vue: Jouee): Faux => amont(vue) ?? assert.fail("pas de part de ce qui est avant le rail dans la bande");
-const barre = (vue: Jouee): Faux | undefined => amont(vue)?.dessous("button").find((pose) => pose.className === "avant-le-rail");
-const laBarre = (vue: Jouee): Faux => barre(vue) ?? assert.fail("pas de barre");
+const amont = (vue: Jouee): Faux | undefined => bande(vue).children.find((pose) => pose.children[0]?.className === "bande-part bande-backlog");
+const tete = (vue: Jouee): Faux => amont(vue) ?? assert.fail("pas de backlog dans la bande");
+const barre = (vue: Jouee): Faux | undefined => amont(vue)?.children[0];
+const laBarre = (vue: Jouee): Faux => barre(vue) ?? assert.fail("pas de backlog");
 const colonne = (vue: Jouee, nom: string): Faux => colonnes(vue).find((pose) => pose.dessous("h4")[0]?.children[0]?.textContent === nom) ?? assert.fail(`pas de colonne ${nom}`);
 const colonnes = (vue: Jouee): Faux[] => vue.element("rail").dessous("div").find((pose) => pose.className === "colonnes")?.children ?? assert.fail("pas de colonnes");
 const backlog = (vue: Jouee): Faux | undefined => colonnes(vue).find((pose) => pose.className === "colonne backlog");
 const fiche = (vue: Jouee) => vue.element("fiche");
 
 describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de lui", () => {
-  test("une barre empilée, nommée Backlog, son total à côté ; le survol dit chaque compte en mots", async (t) => {
+  test("un nombre, nommé Backlog — ni barre ni jauge ; le survol dit chaque compte en mots", async (t) => {
     const { sortie } = await unDepot(t);
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
-    // Avant la première lecture : ni barre, ni part du backlog dans la bande.
+    // Avant la première lecture : pas de backlog dans la bande.
     assert.equal(barre(vue), undefined);
     assert.equal(amont(vue), undefined);
 
     vue.dire("surAmont", tenirAmont().recevoir(sortie));
 
     const pose = laBarre(vue);
-    assert.deepEqual(
-      pose.children[1]!.children.map((part) => [part.className, part.dataset.etat, part.style.getPropertyValue("flex-grow")]),
-      [
-        ["part", "non-lue", "3"],
-        ["part", "epique", "2"],
-        ["part", "prete", "1"],
-        ["part", "mise-de-cote", "2"],
-      ],
-    );
-    // Sans survol : le titre et le total — la bande reste d'une ligne (#2486).
-    const mots = "Backlog" + "8 issues";
+    // Sans survol : le titre et le nombre — la bande reste d'une ligne (#2486), sans piste ni part (#3013).
+    assert.deepEqual(pose.children.map(({ className }) => className), ["bande-nom", "bande-valeur", "bande-doux"]);
+    const mots = "Backlog" + "8" + "issues";
     assert.equal(tete(vue).textContent, mots);
     assert.equal((pose as Faux & { ariaExpanded?: string }).ariaExpanded, "false");
     // Le survol dit les comptes en mots — ceux que les labels seuls disent, sans état « incomplete » (#2061) —, et lui seul.
@@ -341,7 +334,7 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
     assert.equal(colonnes(vue).indexOf(colonne), 0);
     assert.equal(colonnes(vue)[1]?.dessous("h4")[0]?.children[0]?.textContent, "On the rail");
     assert.equal((laBarre(vue) as Faux & { ariaExpanded?: string }).ariaExpanded, "true");
-    // Redessinée, la barre garde le clavier : sa bulle reste ouverte.
+    // Redessiné, le backlog garde le clavier : sa bulle reste ouverte.
     assert.equal(laBarre(vue).focalise, 1);
     assert.deepEqual(colonne.dessous("h4")[0]?.children.map((pose) => pose.textContent), ["Backlog", "8", "fold"]);
     const groupes = colonne.children.filter((pose) => pose.className === "groupe");
@@ -408,29 +401,27 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
 
     vue.dire("surAmont", voir(lecture(JSON.stringify({ lu: A, depot: DEPOT, issues: [] }))));
     assert.equal(phrase(), "nothing on the rail, nothing before it");
-    // Rien avant le rail : la barre est vide, et son survol le dit.
-    assert.deepEqual(laBarre(vue).children[1]?.children, []);
-    assert.equal(laBarre(vue).children[2]?.textContent, "nothing before the rail");
-    assert.equal(laBarre(vue).dataset.vide, "");
+    // Rien avant le rail : le backlog dit 0, et son survol dit pourquoi.
+    assert.equal(tete(vue).textContent, "Backlog" + "0" + "issues");
     assert.equal(laBarre(vue).ariaLabel, "nothing before the rail: every open issue of the repository is on it");
   });
 
-  test("une lecture ratée : la barre reste vide, son survol dit pourquoi, la colonne dépliée aussi — aucun nombre", async () => {
+  test("une lecture ratée : aucun nombre, le backlog n'est pas dans la bande ; la colonne déjà dépliée dit pourquoi", async (t) => {
+    const { sortie } = await unDepot(t);
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
+    vue.dire("surAmont", tenirAmont().recevoir(sortie));
+    laBarre(vue).click();
     vue.dire("surAmont", voir({ projet: PARADE, demande: 3, a: A, erreur: "GitHub refused to read the rail of acme/brigade (HTTP 403).", atteinte: true, cas: null, duTableau: true }));
 
-    const pose = laBarre(vue);
-    assert.equal(pose.dataset.sans, "");
-    assert.deepEqual(pose.children[1]?.children, []);
-    assert.match(pose.ariaLabel ?? "", /HTTP 403\)\. This is not “nothing before the rail”$/);
-    pose.click();
-    const colonne = backlog(vue) ?? assert.fail("la colonne n'est pas dépliée");
+    assert.equal(amont(vue), undefined);
+    assert.doesNotMatch(bande(vue).textContent, /Backlog/);
+    const colonne = backlog(vue) ?? assert.fail("la colonne n'est plus dépliée");
     assert.deepEqual(colonne.dessous("h4")[0]?.children.map((posee) => posee.textContent), ["Backlog", "?", "fold"]);
     assert.match(colonne.textContent, /HTTP 403\)\. This is not “nothing before the rail”$/);
   });
 
-  test("une lecture fraîche qui ne porte pas ce qui est avant le rail : ni barre, ni colonne — rien n'est dit (#1770)", async () => {
+  test("une lecture fraîche qui ne porte pas ce qui est avant le rail : ni backlog, ni colonne — rien n'est dit (#1770)", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     vue.dire("surAmont", voir({ projet: PARADE, demande: 3, a: A, erreur: "`manager upstream` is not read from GitHub for acme/brigade: only the station's log carries it.", atteinte: true, cas: null, duTableau: true, pasPublie: true }));

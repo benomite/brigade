@@ -1,5 +1,5 @@
-// La bande du rail de « parade » (#2664, épique #2659, #2670) : le temps d'un ticket en médiane et p75, sans plafond, puis
-// le temps perdu médian contre son seuil, tels que la mesure les publie dans `resume` de `temps-tickets.json`. Le temps
+// La bande du rail de « parade » (#2664, épique #2659, #2670, #3013) : le temps d'un ticket en médiane, sans plafond, le
+// p75 et le temps perdu au survol, tels que la mesure les publie dans `resume` de `temps-tickets.json` ; le dernier merge. Le temps
 // perdu (5 min, surtout des cuissons ratées) passe le seuil (2 min).
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
@@ -17,7 +17,7 @@ export const RESUME = {
 export const TEMPS = { enregistrements: LENT, lostTimeMaxMin: 2, resume: RESUME };
 
 export const ecran: Ecran = {
-  dit: "La bande du rail de « parade » : médiane et p75 du temps d'un ticket, temps perdu au-dessus de son seuil (#2664, #2670)",
+  dit: "La bande du rail de « parade » : la médiane du temps d'un ticket, le p75 et le temps perdu au survol, le dernier merge (#2664, #2670, #3013)",
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR],
