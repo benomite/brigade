@@ -83,7 +83,8 @@ test("a merged PR that GitHub did not close the issue for: the station closes th
   ouvrir(t, faux.station("A"));
   await jusqua(() => faux.mergee(1) !== undefined);
   await jusqua(() => faux.ticket(1).state === "closed");
-  assert.equal(faux.ticket(1).labels.has("in-pass"), false);
+  // La fermeture passe avant le retrait d'`in-pass` (#2467) : attendre le retrait, pas le lire à l'instant.
+  await jusqua(() => !faux.ticket(1).labels.has("in-pass"));
 });
 
 test("a ticket left open with in-pass while its PR is merged is closed by the next turn of any station", async (t) => {
