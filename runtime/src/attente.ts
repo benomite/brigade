@@ -24,7 +24,7 @@ import type { GitHub } from "./github.ts";
 import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./instants.ts";
 import type { Journal } from "./journal.ts";
 import { direALArrivee, direALArriveeEn, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
-import { GesteRefuse, nomEtat, nomEtatEn } from "./rail.ts";
+import { GesteRefuse, nomEtatEn } from "./rail.ts";
 
 // Le label qu'une issue porte tant que son ticket attend un tiers.
 export const LABEL_WAITING = "waiting";
@@ -136,26 +136,31 @@ export function direAttenteDeTiers(attente: AttenteDeTiers, depuis: (instant: st
   return `attend ${attente.who} : « ${attente.what} » — depuis ${depuis(attente.since)}, relance le ${direInstant(attente.followUp)} — à l'arrivée, ${attente.onArrival}`;
 }
 
+// `onArrival` se lit en français sur le rail (et dans `facts`) : sa forme
+// anglaise est recalculée, pour `status` comme pour l'issue.
+function alArriveeEn(attente: AttenteDeTiers): string {
+  const livraison = ["open", null].find((delivery) => direALArrivee(delivery) === attente.onArrival);
+  return livraison === undefined ? attente.onArrival : direALArriveeEn(livraison);
+}
+
 // La même, en anglais : la ligne du ticket dans `status`.
 export function direAttenteDeTiersEn(attente: AttenteDeTiers, depuis: (instant: string) => string): string {
-  // `onArrival` se lit en français sur le rail (et dans `facts`) : sa forme anglaise est recalculée.
-  const livraison = ["open", null].find((delivery) => direALArrivee(delivery) === attente.onArrival);
-  const alArrivee = livraison === undefined ? attente.onArrival : direALArriveeEn(livraison);
+  const alArrivee = alArriveeEn(attente);
   return `awaiting ${attente.who}: “${attente.what}” — since ${depuis(attente.since)}, follow-up on ${direInstantEn(attente.followUp)} — on arrival, ${alArrivee}`;
 }
 
 // Le commentaire posé sur l'issue quand le ticket entre en WAITING, ou que ce
-// qu'il attend change.
+// qu'il attend change. En anglais : `what` et `who` sont les mots du chef.
 export function direMarque(ticket: number, attente: AttenteDeTiers, miseAJour: boolean): string {
   return [
-    `**WAITING${miseAJour ? " — mis à jour" : ""} : en attente de ${attente.who}.** ${attente.what}`,
+    `**WAITING${miseAJour ? " — updated" : ""}: awaiting ${attente.who}.** ${attente.what}`,
     "",
-    `- **de qui** : ${attente.who}`,
-    `- **depuis** : ${direInstant(attente.since)}`,
-    `- **relance** : ${direInstant(attente.followUp)}`,
-    `- **à l'arrivée** : ${attente.onArrival}`,
+    `- **from whom**: ${attente.who}`,
+    `- **since**: ${direInstantEn(attente.since)}`,
+    `- **follow-up**: ${direInstantEn(attente.followUp)}`,
+    `- **on arrival**: ${alArriveeEn(attente)}`,
     "",
-    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas, et sa relance ne l'en sort pas. Retirer ce label le renvoie en cuisine ; \`${geste(`waiting resume ${ticket}`)}\` lui rend l'état qu'il avait avant d'attendre.`,
+    `As long as it has the \`${LABEL_WAITING}\` label, the kitchen does not take it, and its follow-up does not take it out. Removing this label sends it back to the kitchen; \`${geste(`waiting resume ${ticket}`)}\` gives it back the state it had before waiting.`,
   ].join("\n");
 }
 
@@ -163,13 +168,13 @@ export function direMarque(ticket: number, attente: AttenteDeTiers, miseAJour: b
 export function direLevee(ticket: TicketRail | null, marque: { what: string; who: string }): string {
   const ou =
     ticket === null
-      ? "il a quitté le rail"
+      ? "it left the rail"
       : ticket.state === "86"
-        ? `repris : il est de nouveau mis de côté pour son propre motif (${ticket.reason ?? "sans motif"}), et repart seul une fois celui-ci levé`
+        ? `resumed: it is set aside again for its own reason (${ticket.reason ?? "no reason"}), and starts again on its own once that is lifted`
         : ticket.state === "waiting"
-          ? "il repart en cuisine"
-          : `il est ${nomEtat(ticket.state)}`;
-  return `**WAITING levé** — n'attend plus ${marque.who} (« ${marque.what} ») : ${ou}. Le label \`${LABEL_WAITING}\` est retiré.`;
+          ? "it goes back to the kitchen"
+          : `it is ${nomEtatEn(ticket.state)}`;
+  return `**WAITING lifted** — no longer awaiting ${marque.who} (“${marque.what}”): ${ou}. The \`${LABEL_WAITING}\` label is removed.`;
 }
 
 // Met l'issue de chaque ticket à jour de son attente : le label `waiting` et un

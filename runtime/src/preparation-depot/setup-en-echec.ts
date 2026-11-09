@@ -104,15 +104,16 @@ export function phraseDuSetup(echec: EchecDuSetup, station: string): Phrases {
 // entre ses deux marques, remplacé à chaque échec, retiré s'il n'y en a plus.
 export const DEBUT = "<!-- brigade:setup-en-echec -->";
 export const FIN = "<!-- /brigade:setup-en-echec -->";
-// Le passage se pose avant cette section du corps, ou à sa fin s'il ne l'a pas.
-const AVANT = "## À livrer";
+// Le passage se pose avant cette section du corps, ou à sa fin s'il ne l'a
+// pas : l'anglaise, ou la française d'un ticket ouvert avant elle.
+const AVANT = ["## To deliver", "## À livrer"];
 
 export function passageDuSetup(phrase: string): string {
   return [
     DEBUT,
-    "## Le setup échoue sur cette station",
+    "## The setup fails on this station",
     "",
-    `**${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}.** Le cook de ce ticket part quand même, sans que le setup ait préparé son worktree : la station lui a remis ce que \`${SCRIPT_SETUP}\` a dit. C'est à ce ticket de le rendre jouable ici — sans copier à la main un fichier secret sur la station, ni demander de service qu'elle n'a pas.`,
+    `**${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}.** The cook of this ticket starts anyway, without the setup having prepared its worktree: the station handed it what \`${SCRIPT_SETUP}\` said. Making it run here is this ticket's job — without copying a secret file by hand onto the station, nor asking for a service it does not have.`,
     FIN,
   ].join("\n");
 }
@@ -124,6 +125,6 @@ export function corpsAvecLeSetup(corps: string, passage: string | null): string 
   const fin = debut === -1 ? -1 : corps.indexOf(FIN, debut);
   const sans = debut === -1 || fin === -1 ? corps : `${corps.slice(0, debut).trimEnd()}\n\n${corps.slice(fin + FIN.length).trimStart()}`.trim();
   if (passage === null) return debut === -1 || fin === -1 ? corps : sans;
-  const ici = sans.indexOf(AVANT);
+  const ici = AVANT.map((titre) => sans.indexOf(titre)).find((ou) => ou !== -1) ?? -1;
   return ici === -1 ? `${sans.trimEnd()}\n\n${passage}` : `${sans.slice(0, ici)}${passage}\n\n${sans.slice(ici)}`;
 }

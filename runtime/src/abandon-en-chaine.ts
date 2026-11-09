@@ -38,7 +38,7 @@ function racinesAbandonnees(base: Base): Map<number, AbandonEnChaine> {
     racines.delete(ticket);
     if (seq < derniereEntree(base, ticket)) continue;
     const { cause, reason } = lu(payload);
-    racines.set(ticket, { root: ticket, cause: texte(cause, "?"), reason: texte(reason, "la raison est sur son issue") });
+    racines.set(ticket, { root: ticket, cause: texte(cause, "?"), reason: texte(reason, "the reason is on its issue") });
   }
   return racines;
 }
@@ -48,7 +48,7 @@ function sortisAvec(base: Base): Map<number, AbandonEnChaine & { seq: number }> 
   const sortis = new Map<number, AbandonEnChaine & { seq: number }>();
   for (const { ticket, seq, payload } of base.lire<{ ticket: number; seq: number; payload: string }>("SELECT ticket, seq, payload FROM events WHERE type = 'ticket.dropped-with' AND ticket IS NOT NULL ORDER BY seq")) {
     const { root, cause, reason } = lu(payload);
-    if (typeof root === "number") sortis.set(ticket, { root, cause: texte(cause, "?"), reason: texte(reason, "la raison est sur son issue"), seq });
+    if (typeof root === "number") sortis.set(ticket, { root, cause: texte(cause, "?"), reason: texte(reason, "the reason is on its issue"), seq });
   }
   return sortis;
 }
@@ -102,19 +102,19 @@ const majuscule = (phrase: string) => `${phrase.charAt(0).toUpperCase()}${phrase
 
 export function corpsDeSortieAvec({ root, cause, reason }: AbandonEnChaine): string {
   return [
-    `**Cuisine — ticket abandonné avec #${root} (\`${cause}\`).**`,
+    `**Kitchen — ticket dropped with #${root} (\`${cause}\`).**`,
     "",
-    `Ce ticket attend #${root}, directement ou de proche en proche, et la cuisine vient d'abandonner #${root}. **Pourquoi.** ${majuscule(reason)}.`,
+    `This ticket awaits #${root}, directly or step by step, and the kitchen just dropped #${root}. **Why.** ${majuscule(reason)}.`,
     "",
-    `Plutôt que de le laisser attendre un ticket qui ne partira plus, la cuisine retire son label \`${LABEL}\` : il sort du rail avec #${root}. Son issue reste ouverte, et sa carte attend le chef dans TODO jusqu'à sa réponse. Il revient sur le rail de lui-même quand \`${LABEL}\` revient sur #${root} : c'est le seul chemin du retour.`,
+    `Rather than leave it awaiting a ticket that will not start any more, the kitchen removes its \`${LABEL}\` label: it leaves the rail with #${root}. Its issue stays open, and its TODO card awaits the chef until their answer. It comes back on the rail on its own when \`${LABEL}\` comes back on #${root}: that is the only way back.`,
   ].join("\n");
 }
 
 export function corpsDeRetourAvec(root: number): string {
   return [
-    `**Cuisine — #${root} est revenu sur le rail : ce ticket aussi.**`,
+    `**Kitchen — #${root} came back on the rail: this ticket too.**`,
     "",
-    `Ce ticket était sorti du rail avec #${root}, que la cuisine avait abandonné. \`${LABEL}\` est revenu sur #${root} : la cuisine repose le sien, et il reprend sa place sur le rail.`,
+    `This ticket had left the rail with #${root}, which the kitchen had dropped. \`${LABEL}\` came back on #${root}: the kitchen sets its own again, and it takes its place back on the rail.`,
   ].join("\n");
 }
 

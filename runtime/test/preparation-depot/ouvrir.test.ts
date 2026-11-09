@@ -109,21 +109,21 @@ test("le ticket dit, pour chaque fichier, ce que la branche d'intégration en po
   assert.deepEqual(Object.values(dejaSurLaBase(repertoireTemporaire(t), BASE)), [null, null, null]);
 
   const texte = corps({ projet: "shop", depot: "acme/shop", base: BASE, presents: dejaSurLaBase(clone, BASE) });
-  assert.match(texte, /`\.claude\/brigade\/gates\.sh` \|.*\| déjà sur `v2` : à éprouver, à corriger au besoin \|/);
-  assert.match(texte, /`\.claude\/brigade\/worktree-setup\.sh` \|.*\| absent : à écrire \|/);
-  assert.match(texte, /`\.claude\/brigade\/reseau` \|.*\| absent : à écrire \|/);
+  assert.match(texte, /`\.claude\/brigade\/gates\.sh` \|.*\| already on `v2`: to try, to fix if needed \|/);
+  assert.match(texte, /`\.claude\/brigade\/worktree-setup\.sh` \|.*\| missing: to write \|/);
+  assert.match(texte, /`\.claude\/brigade\/reseau` \|.*\| missing: to write \|/);
 });
 
 test("le ticket demande des critères observables, et que le cook les éprouve sur la station qui le cuit — pas en local", () => {
   const texte = corps({ projet: "shop", depot: "acme/shop", base: "main", presents: {} });
-  assert.match(texte, /Tant que ce ticket n'est pas mergé, aucun autre ticket du projet ne part/);
-  assert.match(texte, /## Éprouver sur la station, pas en local/);
-  assert.match(texte, /Éprouve la configuration ici, sur cette machine, dans ton worktree\*\* — pas sur un poste de dev/);
-  const criteres = texte.split("## Critères d'acceptation")[1]?.split("\n").filter((ligne) => ligne.startsWith("- [ ] ")) ?? [];
+  assert.match(texte, /As long as this ticket is not merged, no other ticket of the project starts/);
+  assert.match(texte, /## Try it on the station, not locally/);
+  assert.match(texte, /Try the configuration here, on this machine, in your worktree\*\* — not on a dev workstation/);
+  const criteres = texte.split("## Acceptance criteria")[1]?.split("\n").filter((ligne) => ligne.startsWith("- [ ] ")) ?? [];
   assert.equal(criteres.length, 4);
-  assert.match(criteres[0] ?? "", /gates\.sh` passe \(code 0\) sur la station qui cuit ce ticket/);
-  assert.match(criteres[1] ?? "", /worktree-setup\.sh` s'exécute sur cette station/);
-  assert.match(criteres[2] ?? "", /reseau` est présent/);
+  assert.match(criteres[0] ?? "", /gates\.sh` passes \(code 0\) on the station that cooks this ticket/);
+  assert.match(criteres[1] ?? "", /worktree-setup\.sh` runs on this station/);
+  assert.match(criteres[2] ?? "", /reseau` is present/);
   assert.deepEqual(LABELS, ["fire", "model:opus", "effort:high"]);
 });
 

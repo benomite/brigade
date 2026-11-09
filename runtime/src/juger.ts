@@ -132,7 +132,7 @@ export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger;
     '{"nature": "epic", "motif": "pourquoi ce n\'est pas un ticket exécutable", "manque": "ce qui la rendrait exécutable"}',
     "```",
     "",
-    "`motif`, `manque` et `calibrage` sont lus par le chef, sur l'issue : en français, deux ou trois phrases, précises.",
+    "`motif`, `manque` et `calibrage` sont postés sur l'issue, que le chef lit : en anglais, deux ou trois phrases, précises.",
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
@@ -158,22 +158,22 @@ export const parmi = (valeur: unknown, admis: readonly string[]): string | null 
 
 // Lit la décision dans le dernier message du jugement.
 export function lireDecision(message: string | null): { decision: Decision } | { illisible: string } {
-  if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
+  if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
-  if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
+  if (!lu) return { illisible: "no JSON object in the answer" };
   const kind = parmi(lu.nature, NATURES) as Nature | null;
-  if (!kind) return { illisible: `nature inconnue : ${JSON.stringify(lu.nature)} — attendu ${NATURES.join(", ")}` };
+  if (!kind) return { illisible: `unknown nature ${JSON.stringify(lu.nature)} — expected ${NATURES.join(", ")}` };
   const reason = phrase(lu.motif);
-  if (!reason) return { illisible: "motif absent" };
+  if (!reason) return { illisible: "no `motif`" };
   if (kind !== "ticket") {
     return { decision: { verdict: "refused", kind, reason, missing: phrase(lu.manque), model: null, effort: null, calibration: null } };
   }
   const model = parmi(lu.modele, MODELES);
-  if (!model) return { illisible: `modele inconnu : ${JSON.stringify(lu.modele)} — attendu ${MODELES.join(", ")}` };
+  if (!model) return { illisible: `unknown model ${JSON.stringify(lu.modele)} — expected ${MODELES.join(", ")}` };
   const effort = parmi(lu.effort, EFFORTS_DU_MANAGER);
-  if (!effort) return { illisible: `effort hors de ce que le manager pose : ${JSON.stringify(lu.effort)} — attendu ${EFFORTS_DU_MANAGER.join(", ")}` };
+  if (!effort) return { illisible: `an effort the manager does not set: ${JSON.stringify(lu.effort)} — expected ${EFFORTS_DU_MANAGER.join(", ")}` };
   const calibration = phrase(lu.calibrage);
-  if (!calibration) return { illisible: "calibrage non justifié" };
+  if (!calibration) return { illisible: "calibration not justified" };
   return { decision: { verdict: "fire", kind, reason, missing: null, model, effort, calibration } };
 }
 

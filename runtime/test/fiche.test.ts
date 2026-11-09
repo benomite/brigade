@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fiche, illisible, MARQUEUR, porteFiche, requises } from "../src/fiche.ts";
+import { fiche, illisible, MARQUEUR, porteFiche, requises, sansAttente } from "../src/fiche.ts";
 
 const FICHE = [
   MARQUEUR,
@@ -144,5 +144,21 @@ test("une clé encore inconnue rend toujours la fiche illisible, à côté d'une
   assert.deepEqual(resultat?.problems, ["clé inconnue « domaine » — connues : attend, zone, requiert"]);
   assert.match(illisible(resultat) ?? "", /domaine/);
   // Les noms qu'on aurait pu donner à la ligne n'en sont pas.
-  for (const autre of ["capacités", "capacites", "requires", "demande"]) assert.match(lue(`- ${autre} : gpu`)?.problems[0] ?? "", /clé inconnue/, autre);
+  // `requires` est la clé anglaise de `requiert` (#3033), que le découpage écrit.
+  for (const autre of ["capacités", "capacites", "demande"]) assert.match(lue(`- ${autre} : gpu`)?.problems[0] ?? "", /clé inconnue/, autre);
+});
+
+// #3033 : le découpage écrit la fiche en anglais (docs/glossary.md :
+// `attend` → `awaiting`) ; les fiches françaises d'avant se lisent encore.
+test("an English card reads like a French one: awaiting, zone, requires, and none", () => {
+  assert.deepEqual(lue("- awaiting: #68, #69", "- zone: runtime/src", "- requires: navigateur-headless"), { waitsFor: [68, 69], zone: ["runtime/src"], requires: ["navigateur-headless"], problems: [] });
+  assert.deepEqual(lue("- awaiting: none", "- zone: none"), { waitsFor: [], zone: [], problems: [] });
+  // La clé anglaise et la française sont la même : les deux, c'est deux fois la même ligne.
+  assert.deepEqual(lue("- attend : #68", "- awaiting: #69")?.problems, ["« attend » figure deux fois — une seule ligne par clé"]);
+});
+
+test("a served ticket leaves an English awaiting line as it leaves a French one", () => {
+  assert.equal(sansAttente(`${MARQUEUR}\n- awaiting: #68, #69\n- zone: runtime/src`, 68), `${MARQUEUR}\n- awaiting: #69\n- zone: runtime/src`);
+  assert.equal(sansAttente(`${MARQUEUR}\n- awaiting: #68\n- zone: runtime/src`, 68), `${MARQUEUR}\n- awaiting: none\n- zone: runtime/src`);
+  assert.equal(sansAttente(`${MARQUEUR}\n- attend : #68\n- zone : runtime/src`, 68), `${MARQUEUR}\n- attend : rien\n- zone : runtime/src`);
 });

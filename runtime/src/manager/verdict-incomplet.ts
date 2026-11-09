@@ -33,20 +33,25 @@ export const MARQUE_DE_COMPLETION = "<!-- brigade:completion -->";
 export const ESSAIS_DE_COMPLETION = 1;
 
 // La question que le manager pose quand il n'a pas su compléter le ticket :
-// combler le manque lui revient alors, au chef.
+// combler le manque lui revient alors, au chef. `motif` et `questionEn` sont
+// postés sur l'issue, en anglais ; `resume`, `question` et `choix` sont la
+// carte du chef, en français.
 export function questionDeRepli(illisible: string): Extract<Completion, { issue: "question" }> {
   return {
     issue: "question",
-    motif: `Le manager n'a pas su compléter ce ticket lui-même : sa réponse ne se lisait pas (${illisible}).`,
+    motif: `The manager could not complete this ticket itself: its answer did not read (${illisible}).`,
     resume: "Le manager a jugé ce ticket incomplet et n'a pas su le compléter lui-même.",
     question: "Complètes-tu toi-même les critères d'acceptation de ce ticket ?",
+    questionEn: "Do you complete this ticket's acceptance criteria yourself?",
     choix: ["Oui, je réécris ses critères sur l'issue", "Non, je ferme le ticket"],
   };
 }
 
+// `questionEn` : la même question que `question`, en anglais — celle que
+// l'issue cite ; `question` reste la carte du chef.
 export type Completion =
   | { issue: "complete"; motif: string; criteres: string[]; model: string; effort: string; calibration: string }
-  | { issue: "question"; motif: string; resume: string; question: string; choix: string[] };
+  | { issue: "question"; motif: string; resume: string; question: string; questionEn: string; choix: string[] };
 
 export function consigneDeCompletion(mission: {
   depot: string;
@@ -81,16 +86,16 @@ export function consigneDeCompletion(mission: {
     "Un seul objet JSON, et rien après lui :",
     "",
     "```json",
-    '{"issue": "complete", "motif": "ce que tu as complété, et pourquoi aucune décision n\'y manque", "criteres": ["un critère vérifiable", "un autre"], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}',
+    '{"issue": "complete", "motif": "what you completed, and why no decision is missing from it", "criteres": ["un critère vérifiable", "un autre"], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}',
     "```",
     "",
     "ou :",
     "",
     "```json",
-    '{"issue": "question", "motif": "la décision qui manque, et pourquoi elle est au chef", "resume": "ce qui se passe, en une ou deux phrases simples", "question": "la question, en une ligne ?", "choix": ["une voie", "une autre"]}',
+    '{"issue": "question", "motif": "the missing decision, and why it is the chef\'s", "resume": "ce qui se passe, en une ou deux phrases simples", "question": "la question, en une ligne ?", "question_en": "the same question, in English, on one line?", "choix": ["une voie", "une autre"]}',
     "```",
     "",
-    "`motif`, `criteres`, `resume`, `question` et `choix` sont lus par le chef : en anglais pour `criteres` (ils entrent dans le corps de l'issue), en français pour le reste.",
+    "`motif`, `criteres` et `question_en` sont postés sur l'issue : en anglais. `resume`, `question` et `choix` sont la carte du chef dans l'app : en français. `question_en` est `question`, traduite en anglais.",
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
@@ -100,31 +105,34 @@ const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
 const lignes = (valeur: unknown): string[] => (Array.isArray(valeur) ? valeur.map(phrase).filter((texte): texte is string => texte !== null).map(surUneLigne) : []);
 
 export function lireCompletion(message: string | null): { valeur: Completion } | { illisible: string } {
-  if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
+  if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
-  if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
+  if (!lu) return { illisible: "no JSON object in the answer" };
   const issue = parmi(lu.issue, ["complete", "question"]);
-  if (!issue) return { illisible: `issue inconnue : ${JSON.stringify(lu.issue)} — attendu complete ou question` };
+  if (!issue) return { illisible: `unknown outcome ${JSON.stringify(lu.issue)} — expected complete or question` };
   const motif = phrase(lu.motif);
-  if (!motif) return { illisible: "motif absent" };
+  if (!motif) return { illisible: "no `motif`" };
   if (issue === "complete") {
     const criteres = lignes(lu.criteres);
-    if (criteres.length === 0) return { illisible: "aucun critère d'acceptation" };
+    if (criteres.length === 0) return { illisible: "no acceptance criterion" };
     const model = parmi(lu.modele, MODELES);
-    if (!model) return { illisible: `modele inconnu : ${JSON.stringify(lu.modele)} — attendu ${MODELES.join(", ")}` };
+    if (!model) return { illisible: `unknown model ${JSON.stringify(lu.modele)} — expected ${MODELES.join(", ")}` };
     const effort = parmi(lu.effort, EFFORTS_DU_MANAGER);
-    if (!effort) return { illisible: `effort hors de ce que le manager pose : ${JSON.stringify(lu.effort)} — attendu ${EFFORTS_DU_MANAGER.join(", ")}` };
+    if (!effort) return { illisible: `an effort the manager does not set: ${JSON.stringify(lu.effort)} — expected ${EFFORTS_DU_MANAGER.join(", ")}` };
     const calibration = phrase(lu.calibrage);
-    if (!calibration) return { illisible: "calibrage non justifié" };
+    if (!calibration) return { illisible: "calibration not justified" };
     return { valeur: { issue: "complete", motif, criteres, model, effort, calibration } };
   }
   const resume = phrase(lu.resume);
-  if (!resume) return { illisible: "question sans résumé" };
+  if (!resume) return { illisible: "a question with no `resume`" };
   const question = phrase(lu.question);
-  if (!question || !uneQuestion(surUneLigne(question))) return { illisible: "pas exactement une question, finie par son seul « ? »" };
+  if (!question || !uneQuestion(surUneLigne(question))) return { illisible: "not exactly one question, ended by its only “?”" };
+  // La question telle que l'issue la cite : en anglais, jamais la carte française.
+  const questionEn = phrase(lu.question_en);
+  if (!questionEn) return { illisible: "a question with no `question_en`, the English the issue quotes" };
   const choix = [...new Set(lignes(lu.choix))];
-  if (choix.length < 2) return { illisible: "moins de deux réponses à la question" };
-  return { valeur: { issue: "question", motif, resume: surUneLigne(resume), question: surUneLigne(question), choix } };
+  if (choix.length < 2) return { illisible: "fewer than two answers to the question" };
+  return { valeur: { issue: "question", motif, resume: surUneLigne(resume), question: surUneLigne(question), questionEn: surUneLigne(questionEn), choix } };
 }
 
 // La section des critères d'acceptation d'un corps d'issue : son titre, et ce
@@ -220,7 +228,7 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
         } else avertir(`brigade : complétion illisible sur l'issue #${issue.number} (${reponse.illisible}), essai ${illisibles}/${ESSAIS_DE_COMPLETION} — elle est redemandée`);
       }
       const { run, valeur } = lue;
-      const signature = atelier.signature(run, "Complété");
+      const signature = atelier.signature(run, "Completed");
 
       if (valeur.issue === "question") {
         const proposition = { type: "product", resume: valeur.resume, enonce: valeur.question, capture: null, choix: valeur.choix.map((texte) => ({ texte, suite: "resume" })) };
@@ -231,7 +239,8 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
         if (geste !== null) {
           let fix: number;
           try {
-            fix = await github.creerIssue(reparationDuGeste(geste, proposition, issue.number));
+            // Le ticket `fix` cite la question anglaise : il est posté sur GitHub.
+            fix = await github.creerIssue(reparationDuGeste(geste, { ...proposition, enonce: valeur.questionEn }, issue.number));
           } catch (erreur) {
             if (!arrete()) avertir(`brigade : ticket \`fix\` du geste git non ouvert pour l'issue #${issue.number}, repris au tour suivant — ${message(erreur)}`);
             return "attente";
@@ -240,7 +249,7 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
             entrerDansTodo(journal, projet, issue.number, proposition, AUTEUR_DE_CARTE);
             noter(issue.number, { type: "manager.completed", payload: { run, fingerprint: suivi, outcome: "question", reason: valeur.motif, question: valeur.question } });
           });
-          await commenter(issue.number, ["**Manager — ticket incomplet : la question est un geste git, aucune carte pour le chef.**", "", valeur.motif, "", `Le ticket \`fix\` #${fix} est ouvert : ${valeur.question}`, "", signature]);
+          await commenter(issue.number, ["**Manager — incomplete ticket: the question is a git gesture, no card for the chef.**", "", valeur.motif, "", `The \`fix\` ticket #${fix} is open: ${valeur.questionEn}`, "", signature]);
           return "question";
         }
         // Le label d'abord : sans lui, rien n'est écrit, et tout se refait.
@@ -257,13 +266,13 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
           return entree;
         });
         await commenter(issue.number, [
-          "**Manager — ticket incomplet : il attend une décision de produit, une question est posée au chef.**",
+          "**Manager — incomplete ticket: it awaits a product decision, a question is asked to the chef.**",
           "",
           valeur.motif,
           "",
-          `**${entree.porte === "todo" ? "Carte dans TODO" : "Carte proposée, que le triage lit d'abord"}** (\`${QUESTION_PRODUIT}\`). ${valeur.question}`,
+          `**${entree.porte === "todo" ? "Card in TODO" : "Card proposed, which the triage reads first"}** (\`${QUESTION_PRODUIT}\`). ${valeur.questionEn}`,
           "",
-          "Ta réponse sur l'issue la fait rejuger.",
+          "Your answer on the issue has it judged again.",
           "",
           signature,
         ]);
@@ -289,15 +298,15 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
         });
       });
       await commenter(issue.number, [
-        "**Manager — ticket incomplet complété par le manager.** Le manque ne demandait aucune décision de produit : ses critères d'acceptation sont réécrits dans le corps de l'issue, et il est qualifié.",
+        "**Manager — incomplete ticket completed by the manager.** What was missing called for no product decision: its acceptance criteria are rewritten in the issue's body, and it is qualified.",
         "",
-        `**Ce qui manquait.** ${verdict.missing ?? verdict.reason}`,
+        `**What was missing.** ${verdict.missing ?? verdict.reason}`,
         "",
-        `**Ce qui est complété.** ${valeur.motif}`,
+        `**What is completed.** ${valeur.motif}`,
         "",
         ...valeur.criteres.map((critere) => `- ${critere}`),
         "",
-        "Ce ticket est à toi : réécris un critère, le manager le rejugera.",
+        "This ticket is yours: rewrite a criterion, the manager will judge it again.",
         "",
         signature,
       ]);

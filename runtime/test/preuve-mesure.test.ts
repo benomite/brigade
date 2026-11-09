@@ -127,7 +127,7 @@ test("a lost-time ticket's evidence names every cook stopped without a delivery 
   const reponse = corpsDeLaReponseAuBlocage({
     station: "box/a",
     n: 1,
-    question: "Which fixture should the new screen read?\nThe ticket names none.",
+    questionEn: "Which fixture should the new screen read?\nThe ticket names none.",
     avis: { issue: "technique", reponse: "The one under test/fixtures.", decision: "Read test/fixtures/ecran.json." },
     ecrite: false,
   });

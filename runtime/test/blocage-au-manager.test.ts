@@ -17,14 +17,15 @@ import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "./faux-gith
 const TICKET = 75;
 const CORPS = "## Context\n\nTake real captures of the app at phone width.";
 const QUESTION = "Which capture tool do I use, and on which public ticket?";
-const TECHNIQUE = (n: number) => JSON.stringify({ issue: "technique", reponse: `answer ${n}: the tool is scripts/capture-ecran/, and benomite/brigade is public`, decision: `decision ${n}: use scripts/capture-ecran/ on any ticket the kitchen served` });
+const TECHNIQUE = (n: number) => JSON.stringify({ issue: "technique", reponse: `answer ${n}: the tool is scripts/capture-ecran/, and benomite/brigade is public`, decision: `decision ${n}: use scripts/capture-ecran/ on any ticket the kitchen served`, question_en: QUESTION });
 
-type Options = { tours?: number; manager?: ((n: number) => string) | null; commentaires?: string[]; ecrire?: (numero: number, corps: string) => Promise<void>; commentairesIllisibles?: boolean };
+// `question` : ce que le cook écrit dans son `<bloque>`, `QUESTION` sinon.
+type Options = { tours?: number; manager?: ((n: number) => string) | null; commentaires?: string[]; ecrire?: (numero: number, corps: string) => Promise<void>; commentairesIllisibles?: boolean; question?: string };
 
 // Une station dont le cook du ticket s'arrête bloqué sur `QUESTION` à chacun de
 // ses `tours`, et dont le manager répond `manager(n)` à sa n-ième consultation.
 // `manager: null` : la station n'a pas de manager à consulter.
-async function bloque(t: TestContext, { tours = 1, manager = TECHNIQUE, commentaires = [], ecrire, commentairesIllisibles = false }: Options = {}) {
+async function bloque(t: TestContext, { tours = 1, manager = TECHNIQUE, commentaires = [], ecrire, commentairesIllisibles = false, question = QUESTION }: Options = {}) {
   const repertoire = mkdtempSync(join(tmpdir(), "blocage-au-manager-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -39,7 +40,7 @@ async function bloque(t: TestContext, { tours = 1, manager = TECHNIQUE, commenta
     else cooks += 1;
     // Le cook a lu son ticket : ce sont les lectures d'après qui échouent.
     if (commentairesIllisibles) illisibles = true;
-    const message = consulte ? (manager as (n: number) => string)(consultations.length) : `I stopped.\n<livrable>\n<bloque>${QUESTION}</bloque>\n</livrable>`;
+    const message = consulte ? (manager as (n: number) => string)(consultations.length) : `I stopped.\n<livrable>\n<bloque>${question}</bloque>\n</livrable>`;
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
@@ -88,7 +89,7 @@ test("a technical question: the manager answers it on the issue with its decisio
 
 test("a product or a design question: only then blocked-on-human, and the comment carries the question on one line", async (t) => {
   for (const [issue, nom] of [["produit", "product"], ["design", "design"]] as const) {
-    const { ticket, commentaires } = await bloque(t, { manager: () => JSON.stringify({ issue, question: "Which of the two\nlayouts does the chef want?" }) });
+    const { ticket, commentaires } = await bloque(t, { manager: () => JSON.stringify({ issue, question: "Which of the two\nlayouts does the chef want?", question_en: QUESTION }) });
     assert.equal(ticket.labels.has(A_LA_MAIN), true);
     assert.equal(ticket.labels.has(LABEL_TAKEN), false);
     const carte = commentaires.find((corps) => corps.startsWith("**Question for the chef"));
@@ -161,10 +162,40 @@ test("comments the station cannot read to count the manager's answers: nothing g
 });
 
 test("the manager's answer is read strictly: an unknown outcome or a missing field is unreadable, never a guess", () => {
-  assert.deepEqual(lireAvis(TECHNIQUE(1)), { avis: { issue: "technique", reponse: "answer 1: the tool is scripts/capture-ecran/, and benomite/brigade is public", decision: "decision 1: use scripts/capture-ecran/ on any ticket the kitchen served" } });
+  assert.deepEqual(lireAvis(TECHNIQUE(1)), { avis: { issue: "technique", reponse: "answer 1: the tool is scripts/capture-ecran/, and benomite/brigade is public", decision: "decision 1: use scripts/capture-ecran/ on any ticket the kitchen served" }, questionEn: QUESTION });
+  // Sans traduction de la question du cook, l'avis vaut encore : l'issue ne la cite pas.
+  assert.deepEqual(lireAvis('{"issue": "produit", "question": "Which layout?"}'), { avis: { issue: "produit", question: "Which layout?" } });
   assert.deepEqual(lireAvis(null), { illisible: "no answer" });
   assert.deepEqual(lireAvis('{"issue": "chef"}'), { illisible: 'unknown outcome "chef" — expected technique, produit, design, geste' });
   assert.deepEqual(lireAvis('{"issue": "technique", "reponse": "yes"}'), { illisible: "a technical answer with no `decision`" });
   assert.deepEqual(lireAvis('{"issue": "geste", "geste": " "}'), { illisible: "a gesture with no `geste`" });
   assert.deepEqual(lireAvis('{"issue": "design"}'), { illisible: "a design question with no `question`" });
+});
+
+// #3033 : le cook écrit sa question en français ; ce que la station poste sur
+// l'issue cite la traduction anglaise que le manager en donne, jamais le français.
+const QUESTION_FR = "Quel outil de capture dois-je utiliser, et sur quel ticket public ?";
+const QUESTION_EN = "Which capture tool should I use, and on which public ticket?";
+
+test("a cook's French question is quoted in English on the chef's card, as the manager translated it", async (t) => {
+  const { ticket, commentaires } = await bloque(t, { question: QUESTION_FR, manager: () => JSON.stringify({ issue: "produit", question: "Which layout does the chef want?", question_en: QUESTION_EN }) });
+  assert.equal(ticket.labels.has(A_LA_MAIN), true);
+  const carte = commentaires.find((corps) => corps.startsWith("**Question for the chef")) ?? "";
+  assert.ok(carte.includes(`The cook's question:\n\n> ${QUESTION_EN}`), carte);
+  assert.ok(commentaires.every((corps) => !corps.includes(QUESTION_FR)), "the French question is posted nowhere");
+});
+
+test("a cook's French question answered as technical is quoted in English in the manager's answer", async (t) => {
+  const { du } = await bloque(t, { question: QUESTION_FR, manager: (n) => JSON.stringify({ ...JSON.parse(TECHNIQUE(n)), question_en: QUESTION_EN }) });
+  const [reponse = ""] = du(MARQUE_DE_REPONSE);
+  assert.ok(reponse.includes(`The cook's question:\n\n> ${QUESTION_EN}`), reponse);
+  assert.ok(!reponse.includes(QUESTION_FR));
+});
+
+test("a manager answer with no English version of the cook's question: the card still goes to the chef, and the French question is not quoted", async (t) => {
+  const { ticket, commentaires } = await bloque(t, { question: QUESTION_FR, manager: () => JSON.stringify({ issue: "design", question: "Is this screen right?" }) });
+  assert.equal(ticket.labels.has(A_LA_MAIN), true);
+  const carte = commentaires.find((corps) => corps.startsWith("**Question for the chef")) ?? "";
+  assert.match(carte, /The cook's question not quoted: the manager gave no English version of it\./);
+  assert.ok(commentaires.every((corps) => !corps.includes(QUESTION_FR)));
 });

@@ -48,7 +48,7 @@ describe("deux stations sur un projet : le manager agit une fois par issue", { c
     const box = p.station("box/claude", { suite: ["juge-epique", "decoupe-tickets"] });
     const mac = p.station("mac/claude", { suite: ["juge-epique", "decoupe-tickets"] });
 
-    await jusqua(() => p.dits(30).some((dit) => /épique découpée/.test(dit)));
+    await jusqua(() => p.dits(30).some((dit) => /epic split into/.test(dit)));
     await p.laisserTourner();
 
     // Une qualification, un découpage, sur les deux stations ensemble.
@@ -59,7 +59,7 @@ describe("deux stations sur un projet : le manager agit une fois par issue", { c
     assert.deepEqual(p.gh.creations, [501, 502, 503]);
     assert.equal(new Set([501, 502, 503].map((numero) => p.gh.lire(numero)?.title)).size, 3);
     for (const numero of [501, 502, 503]) assert.equal(box.runs(`juge-${numero}-`).length + mac.runs(`juge-${numero}-`).length, 0);
-    assert.equal(p.dits(30).filter((dit) => /épique découpée/.test(dit)).length, 1);
+    assert.equal(p.dits(30).filter((dit) => /epic split into/.test(dit)).length, 1);
     // L'issue dit qui a fait le travail, et qu'il est fait.
     const [tenue, ...autres] = (await p.prises(30)).filter((prise) => prise.fait);
     assert.deepEqual(autres, []);

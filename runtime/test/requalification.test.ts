@@ -34,7 +34,10 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     assert.equal((fait?.payload as { outcome: string }).outcome, "card");
     assert.deepEqual(c.gh.lire(40)?.labels, ["blocked-on-human"]);
     await jusqua(() => c.dits().length === 1);
-    assert.match(c.dits()[0] ?? "", /une carte est proposée au chef/);
+    assert.match(c.dits()[0] ?? "", /a card is proposed to the chef/);
+    // #3033 : la carte garde l'énoncé français du chef ; l'issue cite l'anglais.
+    assert.match(c.dits()[0] ?? "", /\(product\)\. Choose between the CSV export and the JSON export\./);
+    assert.doesNotMatch(c.dits()[0] ?? "", /Choisir entre/);
     // Une fois lue, la même issue ne se relit pas, et la carte ne se repose pas.
     await c.laisserTourner();
     assert.equal(c.requalifie().length, 1);
@@ -74,7 +77,7 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     assert.ok(!c.gh.lire(40)?.labels.includes("blocked-on-human"));
     assert.deepEqual(cartesEnTodo(c.journal.base), []);
     await jusqua(() => c.journal.duTicket(40).some((e) => e.type === "manager.judged"));
-    assert.ok(c.dits().some((dit) => /la cuisine reprend le ticket/.test(dit)));
+    assert.ok(c.dits().some((dit) => /the kitchen takes the ticket back/.test(dit)));
   });
 
   test("quand elle dit la décision attendue, rien ne change : retenue, sans carte, label gardé, écartée comme avant", async (t) => {

@@ -55,8 +55,8 @@ test("une ligne démesurée est bornée", () => {
 test("le passage se pose avant ce que le ticket demande de livrer, se remplace, et se retire en rendant le corps d'origine", () => {
   const origine = corps({ projet: "shop", depot: "acme/shop", base: "main", presents: {} });
   const premier = corpsAvecLeSetup(origine, passageDuSetup("le setup sort en 1 sur la station `box/claude`"));
-  assert.ok(premier.indexOf(DEBUT) > 0 && premier.indexOf(FIN) < premier.indexOf("## À livrer"));
-  assert.match(premier, /\*\*Le setup sort en 1 sur la station `box\/claude`\.\*\* Le cook de ce ticket part quand même/);
+  assert.ok(premier.indexOf(DEBUT) > 0 && premier.indexOf(FIN) < premier.indexOf("## To deliver"));
+  assert.match(premier, /\*\*Le setup sort en 1 sur la station `box\/claude`\.\*\* The cook of this ticket starts anyway/);
   // Reposé tel quel : rien ne change.
   assert.equal(corpsAvecLeSetup(premier, passageDuSetup("le setup sort en 1 sur la station `box/claude`")), premier);
   // Une autre cause remplace la première, sans en laisser trace.

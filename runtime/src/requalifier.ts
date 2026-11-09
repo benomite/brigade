@@ -11,6 +11,7 @@
 // Chaque issue est écrite au journal (`manager.requalified`), avec l'empreinte
 // de ce qui a été lu : le même état ne se requalifie pas deux fois.
 import { cartesEnTodo, entrerDansTodo, sortirDeTodo, TYPES_PROPOSES, type TypePropose } from "./carte-todo.ts";
+import { gesteGit, reparationDuGeste } from "./garde-todo/geste-git.ts";
 import type { Reponse } from "./decoupage.ts";
 import type { FaitManager } from "./events/manager.ts";
 import type { GitHub, IssueOuverte } from "./github.ts";
@@ -22,7 +23,9 @@ const AUTEUR_DE_CARTE = "manager";
 
 export type Requalification =
   | { issue: "enoncee"; motif: string }
-  | { issue: "carte"; motif: string; carte: { type: TypePropose; enonce: string; capture: string | null } }
+  // `enonceEn` : la même question qu'`enonce`, en anglais — celle que l'issue
+  // cite ; `enonce` reste la carte du chef.
+  | { issue: "carte"; motif: string; carte: { type: TypePropose; enonce: string; enonceEn: string; capture: string | null } }
   | { issue: "reprise"; motif: string };
 
 export function consigneDeRequalification(mission: { depot: string; issue: { number: number; title: string; body: string; labels: string[] }; commentaires: string[] }): string {
@@ -47,10 +50,10 @@ export function consigneDeRequalification(mission: { depot: string; issue: { num
     "Un seul objet JSON, et rien après lui :",
     "",
     "```json",
-    '{"issue": "carte", "motif": "pourquoi", "type": "product", "enonce": "la question, en une ligne", "capture": null}',
+    '{"issue": "carte", "motif": "why, in English", "type": "product", "enonce": "la question, en une ligne", "enonce_en": "the same question, in English, on one line", "capture": null}',
     "```",
     "",
-    `\`issue\` : \`enoncee\`, \`carte\` ou \`reprise\`. \`type\`, \`enonce\` et \`capture\` ne servent que pour \`carte\` (\`type\` : ${TYPES_PROPOSES.join(", ")}). \`motif\` est lu par le chef, sur l'issue : en français, deux ou trois phrases, précises.`,
+    `\`issue\` : \`enoncee\`, \`carte\` ou \`reprise\`. \`type\`, \`enonce\`, \`enonce_en\` et \`capture\` ne servent que pour \`carte\` (\`type\` : ${TYPES_PROPOSES.join(", ")}). \`motif\` est posté sur l'issue, que le chef lit : en anglais, deux ou trois phrases, précises. \`enonce\` est la carte du chef dans l'app : en français ; \`enonce_en\` est le même énoncé traduit en anglais, celui que l'issue cite.`,
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
@@ -59,21 +62,24 @@ export function consigneDeRequalification(mission: { depot: string; issue: { num
 const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
 
 export function lireRequalification(message: string | null): { valeur: Requalification } | { illisible: string } {
-  if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
+  if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
-  if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
+  if (!lu) return { illisible: "no JSON object in the answer" };
   const issue = parmi(lu.issue, ["enoncee", "carte", "reprise"]);
-  if (!issue) return { illisible: `issue inconnue : ${JSON.stringify(lu.issue)} — attendu enoncee, carte ou reprise` };
+  if (!issue) return { illisible: `unknown outcome ${JSON.stringify(lu.issue)} — expected enoncee, carte or reprise` };
   const motif = phrase(lu.motif);
-  if (!motif) return { illisible: "motif absent" };
+  if (!motif) return { illisible: "no `motif`" };
   if (issue !== "carte") return { valeur: { issue: issue as "enoncee" | "reprise", motif } };
   const type = parmi(lu.type, TYPES_PROPOSES) as TypePropose | null;
-  if (!type) return { illisible: `type de carte inconnu : ${JSON.stringify(lu.type)} — attendu ${TYPES_PROPOSES.join(", ")}` };
+  if (!type) return { illisible: `unknown card type ${JSON.stringify(lu.type)} — expected ${TYPES_PROPOSES.join(", ")}` };
   const enonce = phrase(lu.enonce);
-  if (!enonce) return { illisible: "carte sans énoncé" };
+  if (!enonce) return { illisible: "a card with no `enonce`" };
+  // L'énoncé tel que l'issue le cite : en anglais, jamais la carte française.
+  const enonceEn = phrase(lu.enonce_en);
+  if (!enonceEn) return { illisible: "a card with no `enonce_en`, the English the issue quotes" };
   const capture = phrase(lu.capture);
-  if (type === "design" && capture === null) return { illisible: "carte design sans capture" };
-  return { valeur: { issue: "carte", motif, carte: { type, enonce: surUneLigne(enonce), capture: capture === null ? null : surUneLigne(capture) } } };
+  if (type === "design" && capture === null) return { illisible: "a design card with no `capture`" };
+  return { valeur: { issue: "carte", motif, carte: { type, enonce: surUneLigne(enonce), enonceEn: surUneLigne(enonceEn), capture: capture === null ? null : surUneLigne(capture) } } };
 }
 
 // Ce que le manager prête aux relectures de son tour : la requalification
@@ -143,7 +149,7 @@ export function ouvrirRequalification(atelier: AtelierDuManager) {
         return "retenue";
       }
       const { run, valeur } = reponse;
-      const signature = atelier.signature(run, "Lu");
+      const signature = atelier.signature(run, "Read");
       if (valeur.issue === "enoncee") {
         noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: etat, outcome: "stated", reason: valeur.motif } });
         return "retenue";
@@ -151,16 +157,18 @@ export function ouvrirRequalification(atelier: AtelierDuManager) {
       if (valeur.issue === "carte") {
         const { carte } = valeur;
         // Elle entre dans TODO, ou va au triage : une proposition n'est jamais perdue.
+        const proposition = { type: carte.type, enonce: carte.enonce, capture: carte.capture };
         const entree = base.transaction(() => {
-          const entree = entrerDansTodo(journal, projet, issue.number, { type: carte.type, enonce: carte.enonce, capture: carte.capture }, AUTEUR_DE_CARTE);
+          const entree = entrerDansTodo(journal, projet, issue.number, proposition, AUTEUR_DE_CARTE);
           noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: etat, outcome: "card", reason: valeur.motif, card: { kind: carte.type, statement: carte.enonce } } });
           return entree;
         });
         if (entree.porte === "reparation") {
           // Un geste git n'est pas une carte : le ticket `fix` de la cuisine la remplace.
           try {
-            const fix = await github.creerIssue(entree.fix);
-            await commenter(issue.number, ["**Manager — `blocked-on-human` sur un geste git : aucune carte pour le chef, la cuisine le fait.**", "", valeur.motif, "", `Le ticket \`fix\` #${fix} est ouvert : ${carte.enonce}`, "", signature]);
+            // Le ticket `fix` cite l'énoncé anglais : il est posté sur GitHub.
+            const fix = await github.creerIssue(reparationDuGeste(gesteGit(proposition) ?? "", { ...proposition, enonce: carte.enonceEn }, issue.number));
+            await commenter(issue.number, ["**Manager — `blocked-on-human` on a git gesture: no card for the chef, the kitchen does it.**", "", valeur.motif, "", `The \`fix\` ticket #${fix} is open: ${carte.enonceEn}`, "", signature]);
           } catch (erreur) {
             // Une empreinte vide : le même état est relu au tour suivant.
             noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: "", outcome: "unreadable", reason: `fix ticket not opened: ${message(erreur)}` } });
@@ -170,13 +178,13 @@ export function ouvrirRequalification(atelier: AtelierDuManager) {
           return "retenue";
         }
         await commenter(issue.number, [
-          "**Manager — `blocked-on-human` sans décision écrite : une carte est proposée au chef.**",
+          "**Manager — `blocked-on-human` with no written decision: a card is proposed to the chef.**",
           "",
           valeur.motif,
           "",
-          `**${entree.porte === "todo" ? "Carte dans TODO" : "Carte proposée, que le triage lit d'abord"}** (${carte.type}). ${carte.enonce}`,
+          `**${entree.porte === "todo" ? "Card in TODO" : "Card proposed, which the triage reads first"}** (${carte.type}). ${carte.enonceEn}`,
           "",
-          "L'issue reste retenue ; la carte sort de TODO quand tu retires `blocked-on-human` ou fermes l'issue.",
+          "The issue stays held; the card leaves TODO when you remove `blocked-on-human` or close the issue.",
           "",
           signature,
         ]);
@@ -192,11 +200,11 @@ export function ouvrirRequalification(atelier: AtelierDuManager) {
       if (arrete()) return "attente";
       noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: etat, outcome: "taken-back", reason: valeur.motif } });
       await commenter(issue.number, [
-        "**Manager — `blocked-on-human` sans décision attendue : la cuisine reprend le ticket.**",
+        "**Manager — `blocked-on-human` with no awaited decision: the kitchen takes the ticket back.**",
         "",
         valeur.motif,
         "",
-        "Le label est retiré et le manager juge l'issue. Pour la retenir de nouveau, repose `blocked-on-human` en disant la décision attendue.",
+        "The label is removed and the manager judges the issue. To hold it again, set `blocked-on-human` again and say the awaited decision.",
         "",
         signature,
       ]);

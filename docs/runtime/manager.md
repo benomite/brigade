@@ -187,9 +187,9 @@ ticket placed after it, a calibration outside the table, more than twelve ticket
 manager` (`QUESTION ASKED`); answer in a comment or edit the epic, and it is read again **with the
 question**.
 
-**A ticket born from a split** carries a body starting with `Épique : #N`, then context, criteria and
-**why this calibration**; `model:`, `effort:` and the epic's `prio:`; its **card** (`attend`, `zone`,
-`requiert`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends
+**A ticket born from a split** carries a body starting with `Epic: #N`, then context, criteria and
+**why this calibration**; `model:`, `effort:` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
+`requires`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends
 on (see "A ticket's card", in `station.md`).
 
 **An interface ticket goes to the design cook** (`agents/cook-design.md`): its zone touches the app's view
@@ -197,8 +197,8 @@ on (see "A ticket's card", in `station.md`).
 a file under `app/src/vue/` in its plan), or the split says so (`"cook": "design"`, only in a repository that
 defines the design cook). A folder containing the view in a repository without one is not an interface zone:
 on BOBL-tech/espace, `app/src/` is the server, and its server tickets were sent back for screen captures no
-screen could give (#2800). It carries `cook:design`, a "Cook design" paragraph at
-the head of its body, and `· cook design` in the split comment's "Calibrage" column. Calibration is
+screen could give (#2800). It carries `cook:design`, a "Design cook" paragraph at
+the head of its body, and `· design cook` in the split comment's "Calibration" column. Calibration is
 unchanged.
 
 **Its delivery shows the screen before and after** (`runtime/src/captures.ts`). A ticket is an interface
@@ -217,15 +217,15 @@ makes the review unreadable (asked again). **A delivery with no capture at all i
 with one of two stays a remark. The expected case is in `evals/relecture-captures-830/`.
 
 **The epic lists its tickets, with their state**, in a block the manager writes at the end of its body,
-between `<!-- brigade:tickets -->` and `<!-- /brigade:tickets -->`: a French heading `## Tickets de
-l'épique`, `**1/3 servi.**`, a `# | Ticket | État` table, and a note saying what is between the markers is
-rewritten, the rest is yours, and `Épique : #78` in a ticket's body makes it enter. **It is the only place
+between `<!-- brigade:tickets -->` and `<!-- /brigade:tickets -->`: a heading `## Tickets of the epic`,
+`**1/3 served.**`, a `# | Ticket | State` table, and a note saying what is between the markers is
+rewritten, the rest is yours, and `Epic: #78` in a ticket's body makes it enter. **It is the only place
 in the body it rewrites.** A marker counts only **alone on its line, outside a code block**. **The tally
 is read from GitHub on every manager turn** (#2618), for every open issue whose body carries the block —
 split by the manager or by hand —: its tickets are the numbers that head a row of the table or an item
 of a hand-written list (`- #68`), the tickets the split created, and the trusted open issues that say
-`Épique : #N`. A ticket is `ouvert` while its issue is open, `servi` once closed by a merged PR,
-`abandonné` once closed without one; a number GitHub does not know as an issue is left out. An open
+`Epic: #N` (or the older French `Épique : #N`). A ticket is `open` while its issue is open, `served` once closed by a merged PR,
+`dropped` once closed without one; a number GitHub does not know as an issue is left out. An open
 ticket costs no read; a closed one is read once per process (`issue`, then `prQuiFerme`). Off, the
 manager no longer keeps the list; turned back on, it catches up.
 
@@ -242,8 +242,8 @@ no station claims it (`brigade-github.ts`), the held-kitchen diagnosis does not 
 `epique`.
 
 **Your split is stronger than its own.** An epic is split **only once**. You **close** a ticket: it is not
-reborn (the list says `abandonné`; remove the `attend` line of its dependents yourself); you
-**add** one by writing `Épique : #N` in its body; you **change** a criterion, card or calibration, or
+reborn (the list says `dropped`; remove the `awaiting` line of its dependents yourself); you
+**add** one by writing `Epic: #N` in its body; you **change** a criterion, card or calibration, or
 remove `fire`: nothing is rewritten; you **hold** the epic: creations in progress wait. **An epic split by hand: paste `<!-- brigade:tickets -->` into its body** before turning on
 (`already-split`). A **closed** epic is never split.
 
