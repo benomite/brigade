@@ -3,7 +3,7 @@
 // donne (tableau/attente-du-chef.ts), seule la liste change. Celles qui attendent un autre humain du projet ne sont pas
 // perdues : elles se replient sous « Awaiting others », en lecture seule, chacune avec qui elle attend (ticket 2985). La règle :
 //   - une carte attend ses assignés sur GitHub ; sans assigné, elle attend le chef — `chef` de `.claude/brigade/projet.json`
-//     sur la branche par défaut du dépôt, ou, sans lui, le propriétaire du dépôt ;
+//     sur la branche par défaut du dépôt, ou, sans lui, le propriétaire du dépôt — jamais une organisation (3052) ;
 //   - le compte connecté voit en propre les cartes qui l'attendent, lui parmi d'autres ; les autres attendent quelqu'un
 //     d'autre — le chef compris, qui voit sous « Awaiting others » les cartes assignées à un autre que lui ;
 //   - un compte ou un chef qui ne se lit pas ne retire rien : la liste reste celle du chef, jamais un TODO vidé à tort.
@@ -35,20 +35,30 @@ export function partagerLesCartes<T extends { assignes?: readonly string[] }>(at
   return partage;
 }
 
-// Le chef du projet : `chef` du fichier du projet, ou le propriétaire du dépôt quand le fichier n'en nomme pas ; `null`
-// quand le fichier ne se lit pas — rien ne se retire sur une lecture ratée.
+// Le propriétaire du dépôt quand c'est une personne ; `null` pour une organisation (elle n'est pas un humain qu'on attend :
+// la carte sans assigné reste alors au compte connecté, ticket 3052) et quand le dépôt ne se lit pas.
+async function proprietaireHumain(appeler: AppelGitHub, depot: string): Promise<string | null> {
+  const lu = await appeler(`/repos/${depot}`);
+  if (lu.status !== 200) return null;
+  const proprietaire = (lu.data as { owner?: { login?: unknown; type?: unknown } } | null)?.owner;
+  if (proprietaire?.type === "Organization") return null;
+  return typeof proprietaire?.login === "string" && proprietaire.login !== "" ? proprietaire.login : depot.split("/")[0] || null;
+}
+
+// Le chef du projet : `chef` du fichier du projet, ou le propriétaire du dépôt quand le fichier n'en nomme pas (sauf une
+// organisation : alors `null`, rien ne se retire) ; `null` quand le fichier ne se lit pas — rien ne se retire sur une lecture ratée.
 export async function lireLeChef(appeler: AppelGitHub, depot: string): Promise<string | null> {
-  const proprietaire = depot.split("/")[0] || null;
   try {
+    const proprietaire = () => proprietaireHumain(appeler, depot);
     const lu = await appeler(`/repos/${depot}/contents/${FICHIER_DU_PROJET}`);
-    if (lu.status === 404) return proprietaire;
+    if (lu.status === 404) return await proprietaire();
     if (lu.status !== 200) return null;
     const contenu = (lu.data as { content?: unknown } | null)?.content;
     if (typeof contenu !== "string") return null;
     // `atob`, pas `Buffer` : le téléphone lit ce fichier aussi, dans une WebView (lecture-github-telephone.ts).
     const reglages: unknown = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(contenu), (signe) => signe.charCodeAt(0))));
     const chef = typeof reglages === "object" && reglages !== null ? (reglages as { chef?: unknown }).chef : undefined;
-    return typeof chef === "string" && chef.trim() !== "" ? chef.trim() : proprietaire;
+    return typeof chef === "string" && chef.trim() !== "" ? chef.trim() : await proprietaire();
   } catch {
     return null;
   }
