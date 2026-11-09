@@ -75,6 +75,10 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
    `publier-app: <tag> was not published…` (ou commente celle qui est déjà ouverte), avec le lien du run
    et les jobs en cause. Si les annotations du job parlent d'une image de runner retirée ou en
    « brownout », le titre le dit : il faut alors changer le `runs-on` du job.
+   Après chaque publication, le job `fermer-alertes` (#3089) ferme chaque alerte ouverte dont la
+   release, lue dans son titre, est maintenant publiée — par ce run ou par un run rejoué —, avec un
+   commentaire d'une ligne qui nomme le run qui l'a publiée. Une alerte dont la release ne l'est pas,
+   ou qui en signale une autre encore non publiée, reste ouverte.
 
 | | Chemin signé | Chemin non signé |
 | --- | --- | --- |
