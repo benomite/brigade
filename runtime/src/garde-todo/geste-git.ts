@@ -7,21 +7,30 @@
 // ticket `fix` sur la cuisine (`reparationDuGeste`), que l'appelant ouvre.
 import { LABEL } from "../github.ts";
 import type { Proposition } from "../carte-todo.ts";
-import { OBJET } from "./garde.ts";
 
-const VERBES = "merge|rebase|fetch|pull|sync|update|bring|re-?run|re-?trigger|re-?launch|restart";
+// Les gestes qui portent sur une PR, une branche ou une CI nommées par leur genre.
+const VERBES_NETS = "merge|rebase|re-?run|re-?trigger|re-?launch|restart";
+// Les verbes qui se disent aussi d'un écran ou d'un texte (« Update the build
+// screen »): ils ne comptent que sur un objet git sans équivoque.
+const VERBES_LARGES = "fetch|pull|sync|update|bring";
 // L'ordre ou la demande de permission, en tête de la ligne : une question de
 // produit qui nomme ces mots (« Which merge strategy… ? ») n'en est pas un.
-const DEMANDE = new RegExp(`^\\W*(?:(?:please|can|could|may|should|shall|do|would)\\b[^.?]{0,30}?\\b)?(${VERBES})\\b(.*)$`, "i");
-// Ce sur quoi le geste porte, en plus de l'objet de garde.ts : la base, un remote, une branche de cook.
-const OBJET_GIT = /\b(?:origin|upstream|main|master|cook\/\S+)/i;
+const DEMANDE = new RegExp(`^\\W*(?:(?:please|can|could|may|should|shall|do|would)\\b[^.?]{0,30}?\\b)?(${VERBES_NETS}|${VERBES_LARGES})\\b(.*)$`, "i");
+const NET = new RegExp(`^(?:${VERBES_NETS})$`, "i");
+// Ce sur quoi un verbe net porte : une PR, une branche, une CI, ou un objet git.
+const OBJET = /(?:\b(?:prs?|pull requests?|branch(?:es)?|ci|pipelines?|workflows?|checks?|builds?|jobs?)\b|#\d+)/i;
+// L'objet git sans équivoque : un remote, une branche de cook, une PR numérotée,
+// la base nommée comme cible (« into main »). « main menu » n'en est pas un.
+const OBJET_GIT = /(?:\b(?:origin|upstream)\b|\bcook\/\S+|\b(?:prs?|pull requests?)\s*#\d+|\b(?:into|onto|on|from|with)\s+(?:origin\/|upstream\/)?(?:main|master)\b(?!\s+\w))/i;
 
 // Le verbe du geste git que dit cette ligne, ou null.
 function verbeDuGeste(ligne: string): string | null {
   const lu = DEMANDE.exec(ligne.trim());
   if (!lu) return null;
+  const verbe = lu[1] ?? "";
   const reste = lu[2] ?? "";
-  return OBJET.test(reste) || OBJET_GIT.test(reste) ? (lu[1] ?? "").toLowerCase() : null;
+  const porte = OBJET_GIT.test(reste) || (NET.test(verbe) && OBJET.test(reste));
+  return porte ? verbe.toLowerCase() : null;
 }
 
 // Le geste git que la proposition demande, ou null. Lit la question seule : les
@@ -29,6 +38,13 @@ function verbeDuGeste(ligne: string): string | null {
 // validation), ce n'est pas ce qu'elle demande.
 export function gesteGit({ enonce }: Proposition): string | null {
   return verbeDuGeste(enonce ?? "");
+}
+
+// Pourquoi la porte refuse cette proposition (la carte qu'un triage réécrit,
+// `laisserEntrer`), ou null quand elle ne demande aucun geste git.
+export function refuserGesteGit(proposition: Proposition): string | null {
+  const geste = gesteGit(proposition);
+  return geste === null ? null : `git gesture (“${geste}”): a merge, a rebase, a fetch, a branch update or a CI rerun is never a question for the chef — the manager opens a fix ticket on the kitchen`;
 }
 
 // Le ticket `fix` que le manager ouvre sur la cuisine à la place de la carte.

@@ -53,7 +53,16 @@ test("un geste git est détourné même quand le triage retient les cartes", (t)
 
 test("une vraie décision de produit entre toujours dans le TODO", (t) => {
   const { journal, todo } = cuisine(t);
-  for (const enonce of ["Which merge strategy should the project use, squash or rebase?", "Should the export be CSV or JSON?"]) {
+  const decisions = [
+    "Which merge strategy should the project use, squash or rebase?",
+    "Should the export be CSV or JSON?",
+    "Update the build screen: A or B?",
+    "Update main menu wording: short or long?",
+    "Sync the job list with the new rail: live or on demand?",
+    "Pull the checks panel up front or keep it below?",
+    "Bring the branch picker to the home screen: yes or no?",
+  ];
+  for (const enonce of decisions) {
     assert.equal(gesteGit(carte(enonce)), null);
   }
   assert.equal(entrerDansTodo(journal, "brigade", 7, carte("Should the export be CSV or JSON?"), "manager").porte, "todo");
