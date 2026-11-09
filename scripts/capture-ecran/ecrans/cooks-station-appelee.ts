@@ -1,7 +1,7 @@
 // L'onglet Cooks de « parade » à qui manque un navigateur pour ses tests, « Cook it on a station that has it » cliqué sur
 // sa carte (#1511, épique #1506) : le formulaire de pc/claude, la station de ce poste, s'ouvre sous sa ligne avec
-// `navigateur-headless` déjà coché, en plus de code et raisonnement qu'elle fournissait. Rien n'est écrit tant que le chef
-// n'a pas cliqué sur « Save ».
+// `navigateur-headless` offert, décoché, à côté de code et raisonnement qu'elle fournit. Chaque case s'applique dès
+// qu'elle change (#2920) : rien n'est écrit tant que le chef ne l'a pas cochée.
 import type { Blocage, Choix } from "../../../app/src/projets/demande.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { DEFAUTS } from "./ajouter-station.ts";
@@ -28,7 +28,7 @@ const DECLAREES = { ...TOUTES, declarees: TOUTES.declarees.map((station) => ({ .
 const PARADE = RENDUS.parade as Rendu;
 
 export const ecran: Ecran = {
-  dit: "L'onglet Cooks de « parade » : « Cook it on a station that has it » cliqué sur la carte du navigateur — le formulaire de pc/claude, navigateur-headless déjà coché",
+  dit: "L'onglet Cooks de « parade » : « Cook it on a station that has it » cliqué sur la carte du navigateur — le formulaire de pc/claude, navigateur-headless offert, décoché",
   largeur: 1440,
   hauteur: 1700,
   etapes: [

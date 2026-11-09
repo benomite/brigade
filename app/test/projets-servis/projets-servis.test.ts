@@ -110,6 +110,14 @@ describe("à l'installation", () => {
     // Rien n'est écrit tant que le chef ne choisit pas : la station n'a toujours pas de liste.
     assert.equal(existsSync(cheminDesProjetsServis(racine)), false);
     assert.deepEqual(app.appels, []);
+    // Chaque ligne est la rangée de réglage (#2920) : la case s'applique à son changement, sans « save » ; gardée sur la
+    // station, elle ne dit pas de PR. Le dépôt se lit à côté du nom.
+    for (const rang of lignes(ecran)) {
+      assert.equal(rang.className, "reglage");
+      assert.equal(rang.dessous("button").some((bouton) => /save|propose/i.test(bouton.textContent)), false);
+      assert.equal(rang.dessous("p").some((p) => p.className === "par-pr"), false);
+    }
+    assert.equal(ligne(ecran, "parade").children[0]?.textContent, "paradechef/parade");
   });
 
   test("un projet dont l'app ne connaît pas le dépôt a sa case muette, la raison au survol", async () => {

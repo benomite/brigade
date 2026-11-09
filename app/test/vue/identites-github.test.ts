@@ -1,6 +1,7 @@
 // Les GitHub Apps de la station, dans Settings (#2317) : une ligne par rôle — cook, pass, manager —, chacune avec son
-// état (`not configured`, `configured`), son App ID, sa clé et « save » ; la ligne d'en-tête dit que les clés restent
-// sur la station. Rangée, une clé quitte l'écran : son champ se vide et rien ne la redit. Un App ID vide ou une clé qui
+// état (`not configured`, `configured`), son App ID et sa clé, sans « save » : c'est la rangée de réglage (#2920), qui
+// s'applique au `change` d'un des deux champs — un App ID changé sans sa clé dit qu'il l'attend ; la ligne d'en-tête dit que les clés restent sur
+// la station. Rangée, une clé quitte l'écran : son champ se vide et rien ne la redit. Un App ID vide ou une clé qui
 // n'est pas PEM se disent sous leur champ, et rien ne part. L'écran est joué devant un faux document ; derrière son
 // pont, la station range pour de bon, par `rangerApp` du runtime, dans un répertoire du test.
 import assert from "node:assert/strict";
@@ -11,6 +12,7 @@ import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { AppRefusee, appsRangees, rangerApp } from "../../../runtime/src/identites-stations.ts";
 import {
+  CLE_ATTENDUE,
   CONFIGURE,
   GARDE,
   ILLISIBLE,
@@ -73,6 +75,12 @@ const taper = (champ: Faux, texte: string) => {
   champ.value = texte;
   champ.declencher("input");
 };
+// Puis le quitter, ou le valider : son `change` — le réglage s'applique là.
+const valider = (champ: Faux) => champ.declencher("change");
+const ecrire = (champ: Faux, texte: string) => {
+  taper(champ, texte);
+  valider(champ);
+};
 // Tout ce que l'écran donne à lire : ses textes, ses survols, ses noms accessibles, la valeur de ses champs.
 function toutCeQuiSeLit(racine: Faux): string {
   const survols = racine.dessous("button").filter((element) => element.className === "aide");
@@ -83,7 +91,7 @@ function toutCeQuiSeLit(racine: Faux): string {
 }
 
 describe("l'écran des GitHub Apps", () => {
-  test("une ligne par rôle, cook, pass et manager, chacune avec un App ID, une clé et « save » — et la ligne qui dit que les clés restent sur la station", async () => {
+  test("une ligne par rôle, cook, pass et manager, chacune avec un App ID et une clé, sans « save » — et la ligne qui dit que les clés restent sur la station", async () => {
     const jeu = joue();
     await jeu.tenue.lire();
     const ecran = jeu.ecran();
@@ -94,8 +102,11 @@ describe("l'écran des GitHub Apps", () => {
       const sienne = ligne(ecran, role);
       assert.equal(champId(sienne).balise, "input");
       assert.equal(champCle(sienne).balise, "textarea");
-      assert.ok(bouton(sienne, "save"));
+      assert.equal(sienne.className, "reglage");
+      assert.equal(sienne.dessous("button").some((candidat) => /save|propose/i.test(candidat.textContent)), false);
       assert.ok(bouton(sienne, "choose the .pem file"));
+      // Gardée sur la station, la ligne ne dit pas de PR.
+      assert.equal(sienne.dessous("p").some((p) => p.className === "par-pr"), false);
       const fichier = sienne.dessous("input").find((champ) => champ.type === "file") as unknown as { accept: string } | undefined;
       assert.equal(fichier?.accept, ".pem,application/x-pem-file");
     }
@@ -123,13 +134,17 @@ describe("not configured", () => {
 });
 
 describe("configured", () => {
-  test("« save » range l'App du rôle sur la station : sa ligne dit `configured` et son ID, et le champ de la clé est vide", async () => {
+  test("l'App ID puis la clé écrits, la clé validée range l'App du rôle sur la station : sa ligne dit `configured` et son ID, et le champ de la clé est vide", async () => {
     const jeu = joue();
     await jeu.tenue.lire();
     let pass = ligne(jeu.ecran(), "pass");
-    taper(champId(pass), " 1203457 ");
+    // L'App ID validé sans clé n'envoie rien : il attend la clé.
+    ecrire(champId(pass), " 1203457 ");
+    assert.deepEqual(jeu.appels, []);
+    assert.deepEqual(erreurs(ligne(jeu.ecran(), "pass")), []);
     taper(champCle(pass), CLE);
-    bouton(pass, "save").click();
+    assert.deepEqual(jeu.appels, [], "écrite sans être validée, la clé ne part pas");
+    valider(champCle(pass));
     assert.ok(ligne(jeu.ecran(), "pass").textContent.includes("saving…"), "le geste en route se dit");
     await repos();
     assert.deepEqual(jeu.appels, [{ role: "pass", id: "1203457", cle: CLE }]);
@@ -147,13 +162,12 @@ describe("configured", () => {
     assert.equal(etatDe(ligne(jeu.ecran(), "manager")), PAS_CONFIGURE);
   });
 
-  test("la clé n'est jamais redite : ni après « save », ni relue, ni rouverte — l'écran n'en garde rien", async () => {
+  test("la clé n'est jamais redite : ni rangée, ni relue, ni rouverte — l'écran n'en garde rien", async () => {
     const jeu = joue();
     await jeu.tenue.lire();
     const cook = ligne(jeu.ecran(), "cook");
     taper(champId(cook), "1203456");
-    taper(champCle(cook), CLE);
-    bouton(cook, "save").click();
+    ecrire(champCle(cook), CLE);
     await repos();
     const corps = CLE.split("\n")[1] ?? assert.fail("une clé sans corps");
     assert.ok(!toutCeQuiSeLit(jeu.ecran()).includes(corps));
@@ -166,7 +180,7 @@ describe("configured", () => {
     assert.equal(champCle(ligne(relu, "cook")).value, "");
   });
 
-  test("une station qui a déjà ses Apps les dit configurées, leur ID dans son champ — et « save » n'y est plus le geste recommandé", async () => {
+  test("une station qui a déjà ses Apps les dit configurées, leur ID dans son champ — et aucun « save » n'y attend", async () => {
     const jeu = joue();
     rangerApp({ station: jeu.station, role: "manager", id: "1203458", cle: CLE, env: {} });
     await jeu.tenue.lire();
@@ -175,11 +189,10 @@ describe("configured", () => {
     assert.equal(etatDe(manager), CONFIGURE);
     assert.equal(champId(manager).value, "1203458");
     assert.equal(champCle(manager).value, "");
-    assert.equal(bouton(manager, "save").className, "");
-    assert.equal(bouton(ligne(ecran, "cook"), "save").className, "recommande");
+    assert.equal(ecran.dessous("button").some((candidat) => /save/i.test(candidat.textContent)), false);
   });
 
-  test("la clé choisie dans un fichier .pem : son nom se lit, pas son contenu, et « save » la range", async () => {
+  test("la clé choisie dans un fichier .pem : son nom se lit, pas son contenu ; sans App ID, la ligne le demande, et l'App ID validé la range", async () => {
     const jeu = joue();
     await jeu.tenue.lire();
     let cook = ligne(jeu.ecran(), "cook");
@@ -194,8 +207,10 @@ describe("configured", () => {
     cook = ligne(jeu.ecran(), "cook");
     assert.ok(cook.textContent.includes("parade-cook.2026-11-04.private-key.pem chosen"));
     assert.equal(champCle(cook).value, "", "la clé lue n'est pas écrite dans le champ");
-    taper(champId(cook), "1203456");
-    bouton(cook, "save").click();
+    // Le fichier choisi est un changement : sans App ID, rien ne part, et la ligne le demande.
+    assert.deepEqual(jeu.appels, []);
+    assert.deepEqual(erreurs(classe(cook, "champ-id")[0] ?? assert.fail("pas de ligne de l'App ID")), [SANS_ID]);
+    ecrire(champId(cook), "1203456");
     await repos();
     assert.deepEqual(jeu.appels, [{ role: "cook", id: "1203456", cle: CLE }]);
     cook = ligne(jeu.ecran(), "cook");
@@ -203,28 +218,49 @@ describe("configured", () => {
     assert.ok(!cook.textContent.includes("chosen"));
   });
 
-  test("« save » sur un rôle déjà configuré remplace son App", async () => {
+  test("une clé écrite sur un rôle déjà configuré remplace son App", async () => {
     const jeu = joue();
     rangerApp({ station: jeu.station, role: "pass", id: "1203457", cle: CLE, env: {} });
     await jeu.tenue.lire();
     const pass = ligne(jeu.ecran(), "pass");
     taper(champId(pass), "1203459");
-    taper(champCle(pass), AUTRE_CLE);
-    bouton(pass, "save").click();
+    ecrire(champCle(pass), AUTRE_CLE);
     await repos();
     assert.equal(readFileSync(join(jeu.station, "apps-github", "pass.pem"), "utf8"), AUTRE_CLE);
     assert.ok(ligne(jeu.ecran(), "pass").textContent.includes("App 1203459"));
   });
+
+  test("seul l'App ID changé sur un rôle déjà configuré ne range rien sans sa clé, et la ligne le dit ; l'ID déjà rangé ne dit rien", async () => {
+    const jeu = joue();
+    rangerApp({ station: jeu.station, role: "pass", id: "1203457", cle: CLE, env: {} });
+    await jeu.tenue.lire();
+    ecrire(champId(ligne(jeu.ecran(), "pass")), "1203459");
+    await repos();
+    assert.deepEqual(jeu.appels, [], "sans clé, rien ne part vers la station");
+    assert.equal(readFileSync(join(jeu.station, "apps-github", "pass.id"), "utf8"), "1203457\n");
+    let pass = ligne(jeu.ecran(), "pass");
+    assert.ok(pass.textContent.includes(CLE_ATTENDUE), "le changement sans effet se dit");
+    assert.deepEqual(erreurs(pass), []);
+    // Revenu à l'ID que la station a, il n'y a plus rien qui attend.
+    ecrire(champId(pass), "1203457");
+    pass = ligne(jeu.ecran(), "pass");
+    assert.equal(pass.textContent.includes(CLE_ATTENDUE), false);
+    // La clé donnée ensuite range l'App avec l'ID changé.
+    taper(champId(pass), "1203459");
+    ecrire(champCle(pass), AUTRE_CLE);
+    await repos();
+    assert.equal(readFileSync(join(jeu.station, "apps-github", "pass.id"), "utf8"), "1203459\n");
+    assert.equal(ligne(jeu.ecran(), "pass").textContent.includes(CLE_ATTENDUE), false);
+  });
 });
 
 describe("error", () => {
-  test("« save » sans App ID : l'erreur se dit sous le champ, et rien n'est écrit", async () => {
+  test("une clé validée sans App ID : l'erreur se dit sous le champ, et rien n'est écrit", async () => {
     const jeu = joue();
     await jeu.tenue.lire();
     let pass = ligne(jeu.ecran(), "pass");
     taper(champId(pass), "   ");
-    taper(champCle(pass), CLE);
-    bouton(pass, "save").click();
+    ecrire(champCle(pass), CLE);
     await repos();
     assert.deepEqual(jeu.appels, [], "rien n'est parti vers la station");
     assert.deepEqual(readdirSync(jeu.station), []);
@@ -234,17 +270,17 @@ describe("error", () => {
     assert.equal(etatDe(pass), PAS_CONFIGURE);
   });
 
-  test("« save » avec un texte qui n'est pas une clé privée PEM : l'erreur se dit sous le champ de la clé, et rien n'est écrit", async () => {
+  test("un texte validé qui n'est pas une clé privée PEM : l'erreur se dit sous le champ de la clé, et rien n'est écrit ; un champ vidé n'est pas une erreur", async () => {
     const jeu = joue();
     await jeu.tenue.lire();
     for (const texte of ["", "my key", "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA\n-----END PUBLIC KEY-----\n", CLE.replace("-----END PRIVATE KEY-----", "")]) {
       let cook = ligne(jeu.ecran(), "cook");
       taper(champId(cook), "1203456");
-      taper(champCle(cook), texte);
-      bouton(cook, "save").click();
+      ecrire(champCle(cook), texte);
       await repos();
       cook = ligne(jeu.ecran(), "cook");
-      assert.deepEqual(erreurs(classe(cook, "champ-cle")[0] ?? assert.fail("pas de ligne de la clé")), [PAS_UNE_CLE], JSON.stringify(texte));
+      // Vidé, le champ n'a rien à ranger : il ne dit rien.
+      assert.deepEqual(erreurs(classe(cook, "champ-cle")[0] ?? assert.fail("pas de ligne de la clé")), texte === "" ? [] : [PAS_UNE_CLE], JSON.stringify(texte));
       assert.deepEqual(erreurs(classe(cook, "champ-id")[0] ?? assert.fail("pas de ligne de l'App ID")), []);
     }
     assert.deepEqual(jeu.appels, []);
@@ -255,11 +291,10 @@ describe("error", () => {
     const jeu = joue();
     await jeu.tenue.lire();
     let manager = ligne(jeu.ecran(), "manager");
-    bouton(manager, "save").click();
+    ecrire(champCle(manager), "my key");
     manager = ligne(jeu.ecran(), "manager");
     assert.deepEqual(erreurs(manager), [SANS_ID, PAS_UNE_CLE]);
-    taper(champId(manager), "1203458");
-    bouton(manager, "save").click();
+    ecrire(champId(manager), "1203458");
     assert.deepEqual(erreurs(ligne(jeu.ecran(), "manager")), [PAS_UNE_CLE]);
     assert.deepEqual(jeu.appels, []);
   });
@@ -269,8 +304,7 @@ describe("error", () => {
     await jeu.tenue.lire();
     const cook = ligne(jeu.ecran(), "cook");
     taper(champId(cook), "-----BEGIN PRIVATE KEY-----");
-    taper(champCle(cook), CLE);
-    bouton(cook, "save").click();
+    ecrire(champCle(cook), CLE);
     assert.deepEqual(erreurs(ligne(jeu.ecran(), "cook")), [PAS_UN_ID]);
     assert.deepEqual(jeu.appels, []);
   });
@@ -281,8 +315,7 @@ describe("error", () => {
     await jeu.tenue.lire();
     const pass = ligne(jeu.ecran(), "pass");
     taper(champId(pass), "1203456");
-    taper(champCle(pass), AUTRE_CLE);
-    bouton(pass, "save").click();
+    ecrire(champCle(pass), AUTRE_CLE);
     await repos();
     assert.equal(jeu.appels.length, 1);
     assert.deepEqual(readdirSync(join(jeu.station, "apps-github")).sort(), ["cook.id", "cook.pem"]);

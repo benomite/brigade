@@ -48,7 +48,7 @@ async function ouvrir(reponses: Reponses = {}) {
 }
 
 const section = (vue: Jouee) => vue.element("stations-contributrices").children[0] ?? assert.fail("pas de bloc des stations");
-const rangees = (vue: Jouee) => section(vue).children.filter((pose) => pose.className.startsWith("station-contributrice"));
+const rangees = (vue: Jouee) => section(vue).children.filter((pose) => pose.className.split(" ").includes("station-contributrice"));
 const rangee = (vue: Jouee, station: string) => rangees(vue).find((pose) => pose.dataset.station === station) ?? assert.fail(`pas de rangée ${station}`);
 const boutons = (pose: Faux) => pose.dessous("button").map((pris) => pris.textContent);
 const bouton = (pose: Faux, libelle: string) => pose.dessous("button").find((pris) => pris.textContent === libelle) ?? assert.fail(`pas de « ${libelle} »`);
@@ -64,6 +64,20 @@ describe("Settings : les stations contributrices du projet", () => {
     assert.deepEqual(boutons(rangee(vue, "carol-mac/claude")), [MOTS.reaccepter]);
     assert.ok(rangee(vue, "carol-mac/claude").className.includes("refusee"));
     assert.ok(!rangee(vue, "bob-pc/claude").className.includes("refusee"));
+  });
+
+  test("chaque station est la rangée de réglage de l'app (composants/reglage, #2920) : son nom, son compte et son état, son geste", async () => {
+    const vue = await ouvrir();
+    const carol = rangee(vue, "carol-mac/claude");
+    assert.equal(carol.className.split(" ")[0], "reglage");
+    assert.deepEqual(
+      carol.children.map((pose) => [pose.className, pose.textContent]),
+      [
+        ["nom mono", "carol-mac/claude"],
+        ["valeur", "@carolrefused"],
+        ["champ", MOTS.reaccepter],
+      ],
+    );
   });
 
   test("« Refuse » part tout de suite, sans « Save », et la rangée devient refusée ; « Accept again » la rend", async () => {

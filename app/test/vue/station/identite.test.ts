@@ -8,8 +8,13 @@ import { Faux } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const contexte = (ici: boolean, identite: object) => ({ station: { id: "gist-mac", nom: "mac/claude" }, ici, lectureSeule: !ici, niveau: (cle: string) => niveauDe(doc, cle), identite });
-const lignes = (racine: Faux) => racine.children.map((ligne) => ({ nom: ligne.children[0]?.textContent, niveau: ligne.children[1]?.dataset.niveau, marque: ligne.children[1]?.textContent, valeur: ligne.children[2]?.textContent }));
-const boutons = (racine: Faux) => racine.children.flatMap((ligne) => ligne.children.slice(3));
+// Une rangée de réglage (ticket 2920) : son nom et la marque de son niveau, sa valeur, son contrôle.
+const lignes = (racine: Faux) =>
+  racine.children.map((ligne) => {
+    const marque = ligne.children[0]?.children[0];
+    return { nom: ligne.children[0]?.textContent.replace(marque?.textContent ?? "", ""), niveau: marque?.dataset.niveau, marque: marque?.textContent, valeur: ligne.children[1]?.textContent };
+  });
+const boutons = (racine: Faux) => racine.children.flatMap((ligne) => ligne.children[2]?.children ?? []);
 
 const EN_RETARD = { machine: "MacBook Pro", coeurs: 10, version: "1.4.0", enRetard: true, derniere: "1.5.0" };
 
@@ -29,6 +34,9 @@ describe("la section identité de la page d'une station", () => {
     assert.equal(action?.children[0]?.className, "recommande");
     action?.children[0]?.click();
     assert.equal(mises, 1);
+    // Le nom, la machine, les cœurs et la version se lisent seulement : leurs rangées n'ont pas de contrôle, ni de PR.
+    assert.deepEqual(racine.children.map((ligne) => ligne.children[2]?.children.length), [0, 0, 0, 0, 1]);
+    assert.ok([...racine.descendants()].every((n) => n.className !== "par-pr"));
   });
 
   test("cet ordinateur à jour : la ligne le dit, aucun bouton", () => {

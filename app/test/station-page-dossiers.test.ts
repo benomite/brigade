@@ -1,11 +1,14 @@
 // La section « Folders and sandbox » de la page d'une station (#2644) : elle montre les dossiers, le bac à sable et la
 // porte réseau, change un dossier ou la porte sur cet ordinateur et le relit, et ne change rien sur une autre station.
+// Chaque réglage est une rangée de réglage (ticket 2920) : un champ s'applique dès qu'il change, sans « Save ».
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ecrireReglagesDeLaStation, lireReglagesDeLaStation } from "../src/reglages-de-la-station.ts";
+import { EN_COURS } from "../src/vue/station/page/appliquer.js";
+import { FERMER_NON, FERMER_OUI } from "../src/vue/station/page/sections/dossiers-et-bac-a-sable.js";
 import { poserPageDeStation } from "../src/vue/station/page/StationPage.js";
 import { Faux, repos } from "./aides/fausse-vue.ts";
 
@@ -18,6 +21,13 @@ function descendants(noeud: Faux): Faux[] {
 }
 const ligne = (page: Faux, cle: string) => descendants(page).find((n) => n.dataset.cle === cle) as Faux;
 const texte = (noeud: Faux): string => descendants(noeud).map((n) => n.textContent).join("|");
+const champ = (rangee: Faux) => descendants(rangee).find((n) => n.balise === "input") as Faux;
+const bouton = (rangee: Faux, libelle: string) => descendants(rangee).find((n) => n.balise === "button" && n.textContent === libelle) as Faux;
+// Le chef tape, puis quitte le champ : `change`, et le réglage s'applique.
+const changer = (entree: Faux, saisi: string) => {
+  entree.value = saisi;
+  entree.declencher("change");
+};
 
 // Un port en mémoire, soutenu par le vrai magasin de l'app dans un dossier d'essai.
 function port(sansBac = false) {
@@ -34,10 +44,13 @@ describe("la section dossiers et bac à sable", () => {
   test("montre les deux dossiers, le bac à sable et la porte réseau, chacun avec sa marque de niveau", async () => {
     const reglages = port();
     const page = await section("gist-mac", reglages);
-    assert.match(texte(ligne(page, "dossier")), /\/st\/clones/);
+    assert.match(texte(ligne(page, "clones")), /\/st\/clones/);
     const lignes = descendants(page).filter((n) => n.className === "reglage");
     assert.deepEqual(lignes.map((l) => (l.children[0]?.textContent ?? "").replace("this machine", "")), ["clones folder", "worktrees folder", "sandbox", "network door"]);
     for (const l of lignes) assert.equal(descendants(l).filter((n) => n.className === "niveau").length, 1, "une marque de niveau par réglage");
+    // Des réglages de la machine, jamais du dépôt : aucune ligne de PR ; et aucun bouton « Save ».
+    assert.ok(descendants(page).every((n) => n.className !== "par-pr"));
+    assert.ok(!descendants(page).some((n) => n.balise === "button" && /^(save|open)$/i.test(n.textContent)), "pas de bouton pour enregistrer");
     assert.match(texte(ligne(page, "bac")), /on/);
     assert.match(texte(ligne(page, "porte")), /github\.com/);
     assert.match(texte(page), /\/st\/worktrees/);
@@ -47,14 +60,11 @@ describe("la section dossiers et bac à sable", () => {
   test("changer un dossier et la porte depuis cet ordinateur s'enregistre et se montre au rechargement", async () => {
     const reglages = port();
     let page = await section("gist-mac", reglages);
-    const champ = descendants(ligne(page, "dossier")).find((n) => n.balise === "input") as Faux;
-    champ.value = "/data/clones";
-    descendants(ligne(page, "dossier")).find((n) => n.balise === "button" && n.textContent === "save")?.click();
+    changer(champ(ligne(page, "clones")), "/data/clones");
     await repos();
     assert.match(texte(page), /\/data\/clones/);
-    const porte = descendants(ligne(page, "porte"));
-    (porte.find((n) => n.balise === "input") as Faux).value = "registry.npmjs.org";
-    porte.find((n) => n.balise === "button" && n.textContent === "open")?.click();
+    assert.match(texte(ligne(page, "clones")), /saved on this machine/);
+    changer(champ(ligne(page, "porte")), "registry.npmjs.org");
     await repos();
     assert.match(texte(page), /registry\.npmjs\.org/);
     // Rechargé : une page neuve relit le fichier.
@@ -67,11 +77,36 @@ describe("la section dossiers et bac à sable", () => {
   test("une valeur refusée ne s'écrit pas et le refus se lit sous le réglage", async () => {
     const reglages = port();
     const page = await section("gist-mac", reglages);
-    (descendants(ligne(page, "dossier")).find((n) => n.balise === "input") as Faux).value = "relative/path";
-    descendants(ligne(page, "dossier")).find((n) => n.balise === "button" && n.textContent === "save")?.click();
+    changer(champ(ligne(page, "clones")), "relative/path");
     await repos();
-    assert.match(texte(page), /must be an absolute path/);
+    const refus = ligne(page, "clones").children.slice(3);
+    assert.equal(refus[0]?.dataset.ligne, "erreur", "le refus est la ligne d'erreur, sous la rangée");
+    assert.match(texte(ligne(page, "clones")), /must be an absolute path/);
+    assert.ok(descendants(refus[0]!).some((n) => /relative\/path/.test(n.ariaLabel)), "son détail au survol");
     assert.equal((await reglages.lire() as { clones: string }).clones, "/st/clones");
+    rmSync(reglages.dossier, { recursive: true });
+  });
+
+  test("un changement s'applique dès que le champ change : « applying… » et le champ désactivé le temps qu'il court", async () => {
+    const reglages = port();
+    const envoyes: unknown[] = [];
+    let fini: () => void = () => {};
+    const lent = { ...reglages, ecrire: (c: any) => (envoyes.push(c), new Promise((r) => (fini = () => r(reglages.ecrire(c))))) };
+    const page = await section("gist-mac", lent as never);
+    const entree = champ(ligne(page, "worktrees"));
+    entree.value = "/data/worktrees";
+    assert.deepEqual(envoyes, [], "taper n'envoie rien");
+    entree.declencher("change");
+    assert.deepEqual(envoyes, [{ worktrees: "/data/worktrees" }]);
+    assert.equal(entree.disabled, true);
+    assert.match(texte(ligne(page, "worktrees")), new RegExp(EN_COURS));
+    fini();
+    await repos();
+    await repos();
+    assert.match(texte(ligne(page, "worktrees")), /\/data\/worktrees/);
+    assert.doesNotMatch(texte(page), new RegExp(EN_COURS));
+    changer(champ(ligne(page, "worktrees")), "/data/worktrees");
+    assert.equal(envoyes.length, 1, "la même valeur ne s'envoie pas");
     rmSync(reglages.dossier, { recursive: true });
   });
 
@@ -85,17 +120,21 @@ describe("la section dossiers et bac à sable", () => {
   test("un hôte ouvert se retire, un hôte invalide est refusé sous la porte", async () => {
     const reglages = port();
     const page = await section("gist-mac", reglages);
-    const porte = () => descendants(ligne(page, "porte"));
-    (porte().find((n) => n.balise === "input") as Faux).value = "registry.npmjs.org";
-    porte().find((n) => n.balise === "button" && n.textContent === "open")?.click();
+    changer(champ(ligne(page, "porte")), "registry.npmjs.org");
     await repos();
     assert.match(texte(page), /registry\.npmjs\.org/);
-    (porte().find((n) => n.balise === "input") as Faux).value = "not a host";
-    porte().find((n) => n.balise === "button" && n.textContent === "open")?.click();
+    changer(champ(ligne(page, "porte")), "not a host");
     await repos();
     assert.match(texte(ligne(page, "porte")), /not a host/);
-    assert.doesNotMatch(texte(ligne(page, "dossier")), /not a host/, "le refus reste sous son réglage");
-    porte().find((n) => n.balise === "button" && n.textContent === "remove")?.click();
+    assert.doesNotMatch(texte(ligne(page, "clones")), /not a host/, "le refus reste sous son réglage");
+    // Retirer se confirme en ligne : « keep it open » ne retire rien, « close it » retire.
+    bouton(ligne(page, "porte"), "remove").click();
+    bouton(ligne(page, "porte"), FERMER_NON).click();
+    await repos();
+    assert.match(texte(page), /registry\.npmjs\.org/);
+    assert.equal(bouton(ligne(page, "porte"), FERMER_OUI), undefined);
+    bouton(ligne(page, "porte"), "remove").click();
+    bouton(ligne(page, "porte"), FERMER_OUI).click();
     await repos();
     assert.doesNotMatch(texte(page), /registry\.npmjs\.org/);
     rmSync(reglages.dossier, { recursive: true });

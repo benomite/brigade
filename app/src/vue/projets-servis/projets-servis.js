@@ -5,9 +5,10 @@
 //
 // Une ligne d'en-tête dit ce que sert cet ordinateur — et, à l'installation, qu'il n'en sert aucun : la liste est vide,
 // et la station ne prend aucun ticket. Puis une ligne par projet de l'app : son nom, son dépôt, `served` ou
-// `not served`, et une case. Un projet dont l'app ne connaît pas le dépôt a sa case muette, la raison au survol. Un
-// dépôt de la liste qu'aucun projet de l'app ne porte garde sa ligne, cochée : le chef voit tout ce qui cuit ici, et
-// peut le retirer.
+// `not served`, et une case — chaque ligne est la rangée de réglage de l'app (composants/reglage, ticket 2920), et la
+// case s'applique dès qu'elle change, sans « save ». Un projet dont l'app ne connaît pas le dépôt a sa case muette, la
+// raison au survol. Un dépôt de la liste qu'aucun projet de l'app ne porte garde sa ligne, cochée : le chef voit tout ce
+// qui cuit ici, et peut le retirer.
 //
 // La case ne change rien à l'écran avant la réponse de la station : la valeur dite est celle de la liste écrite. Un
 // refus se dit sous la ligne, en une ligne, sa suite au survol.
@@ -17,7 +18,7 @@
 
 import { survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
-import { rangee } from "../identites-github.js";
+import { ditDuReglage, rangeeDeReglage } from "../composants/reglage/reglage.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -159,19 +160,18 @@ export function poserLesProjetsServis(doc, { etat, projets, ici }, gestes) {
     const aucun = ligneVide(doc, AUCUN(ici), { classe: "aucun", balise: "strong" });
     valeur = [aucun, survol(doc, AIDE(ici))];
   } else valeur = [cree(doc, "span", SERT(depots.length)), survol(doc, AIDE(ici))];
-  const tete = rangee(doc, [TITRE(ici)], valeur, []);
-  tete.className = "reglage tete";
+  const tete = rangeeDeReglage(doc, { nom: TITRE(ici), valeur, classe: "tete" });
   racine.append(tete);
   if (depots === undefined) return racine;
 
   for (const ligne of lignesDesProjets(projets, depots)) {
     const enCours = ligne.depot !== null && etat.enCours === cle(ligne.depot);
-    const nom = [cree(doc, "span", ligne.nom)];
-    if (ligne.horsDeLApp) nom[0].className = "mono";
-    else if (ligne.depot !== null) {
-      const depot = cree(doc, "small", ligne.depot);
-      depot.className = "mono depot";
-      nom.push(depot);
+    // Le dépôt d'un projet de l'app se lit à côté de son nom ; un dépôt hors de l'app est son nom.
+    /** @type {any} */
+    let depotDit;
+    if (!ligne.horsDeLApp && ligne.depot !== null) {
+      depotDit = cree(doc, "small", ligne.depot);
+      depotDit.className = "mono depot";
     }
     /** @type {any[]} */
     const vaut = [];
@@ -191,13 +191,11 @@ export function poserLesProjetsServis(doc, { etat, projets, ici }, gestes) {
     coche.disabled = ligne.depot === null || etat.enCours !== undefined;
     const depot = ligne.depot;
     if (depot !== null) coche.addEventListener("change", () => gestes.servir(depot, coche.checked === true));
-    /** @type {any[]} */
-    const dessous = [];
     const refus = etat.refus;
-    if (refus !== undefined && depot !== null && refus.depot === cle(depot)) {
-      dessous.push(ligneErreur(doc, refus.ligne, refus.detail, { classe: "dit refus" }));
-    }
-    const rang = rangee(doc, nom, vaut, [coche], dessous);
+    const sien = refus !== undefined && depot !== null && refus.depot === cle(depot) ? { refus: refus.ligne, detail: refus.detail } : undefined;
+    const rang = rangeeDeReglage(doc, { nom: ligne.nom, valeur: vaut, controle: [coche], dessous: ditDuReglage(doc, sien) });
+    if (depotDit !== undefined) rang.children[0].append(depotDit);
+    if (ligne.horsDeLApp) rang.children[0].className = "nom mono";
     rang.dataset.projet = ligne.nom;
     racine.append(rang);
   }

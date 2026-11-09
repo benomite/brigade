@@ -1,14 +1,16 @@
 // @ts-check
 // Les réglages du projet sur sa page (ticket 1309, épique 1301) : sa branche d'intégration, les calibrages par défaut
-// de son manager et de son reviewer, son plafond de calibrage, et ceux de son closer (ticket 1685). Chacun dit sa valeur
-// en vigueur et d'où elle vient, et a de quoi la changer : un champ — un nom, un nombre, ou un modèle et un effort — et
-// « propose ». Ils vivent dans le dépôt du
-// projet : le clic ouvre une PR, que la pass retient pour le chef, et rien ne se pose sur la box. La valeur montrée
-// reste celle en vigueur — la PR vaut une fois mergée : ce qui est dit à côté du champ, avec de quoi ouvrir la PR.
-// Refusé — une valeur qui est à la machine, rien qui change —, le refus se dit à côté du champ, et le champ revient à
-// la valeur en vigueur. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
+// de son manager et de son reviewer, son plafond de calibrage, et ceux de son closer (ticket 1685). Chacun est la rangée
+// de réglage de l'app (composants/reglage, ticket 2920) : sa valeur en vigueur et d'où elle vient, et de quoi la changer
+// — un champ, un nom ou un nombre, ou un modèle et un effort. Ils vivent dans le dépôt du projet : la rangée le dit
+// (`PAR_PR`), et un changement ouvre une PR dès qu'il est fait — le `change` du champ, ou d'une des deux listes —, sans
+// bouton. La pass retient la PR pour le chef, et rien ne se pose sur la box. La valeur montrée reste celle en vigueur —
+// la PR vaut une fois mergée : ce qui est dit sous la rangée, avec de quoi ouvrir la PR. Refusé — une valeur qui est à
+// la machine, rien qui change —, le refus se dit sous la rangée, et le champ revient à la valeur en vigueur. Ce module
+// ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { boutonAction, survol } from "../briques.js";
+import { survol } from "../briques.js";
+import { ditDuReglage, rangeeDeReglage } from "../composants/reglage/reglage.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { niveauDe } from "../niveaux.js";
 
@@ -17,15 +19,17 @@ import { niveauDe } from "../niveaux.js";
 /** @typedef {import("../../reglages-du-projet.ts").LectureDesReglages} Lecture */
 /** @typedef {import("../../reglages-du-projet.ts").ChoixDeReglage} Choix */
 /** @typedef {import("../../reglages-du-projet.ts").Cle} Cle */
-// Ce que le dernier clic a rendu : la PR ouverte et la valeur qu'elle propose, ou le refus et son détail.
+// Ce que le dernier changement a rendu : la PR ouverte et la valeur qu'elle propose, ou le refus et son détail.
 /** @typedef {{ propose: string, pr: string, numero: number, valeur: string } | { refus: string, detail?: string }} Dit */
-// L'état d'un réglage entre deux poses : ce que le chef a choisi sans l'avoir proposé, le clic en cours, ce qu'il a rendu.
+// L'état d'un réglage entre deux poses : ce que le chef écrit sans l'avoir encore changé, la proposition en route, ce
+// qu'elle a rendu.
 /** @typedef {{ choisi?: string | { modele: string, effort: string }, enCours?: boolean, dit?: Dit }} Etat */
 
 export const TITRE = "Project settings";
 export const AIDE =
   "Kept in the project's repository (.claude/brigade/projet.json), for everyone who clones it. A change is proposed as a pull request, held for you: it applies once merged. Nothing is saved on the box.";
-export const BOUTON = { libelle: "propose", enCours: "proposing…", survol: "opens a pull request on the project's repository — it applies once merged" };
+// Ce que la rangée dit tant que la proposition est en route.
+export const EN_COURS = "proposing…";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
@@ -34,9 +38,10 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
-// Une liste déroulante : ses valeurs, celle qui est choisie — une valeur que rien ne dit ouvre sur « — ».
-/** @param {Fabrique} doc @param {string} libelle @param {readonly string[]} valeurs @param {string} choisie @param {(valeur: string) => void} changer */
-function liste(doc, libelle, valeurs, choisie, changer) {
+// Une liste déroulante : ses valeurs, celle qui est choisie — une valeur que rien ne dit ouvre sur « — ». `input` garde
+// le choix ; `change` le fait.
+/** @param {Fabrique} doc @param {string} libelle @param {readonly string[]} valeurs @param {string} choisie @param {(valeur: string) => void} garder @param {(valeur: string) => void} changer */
+function liste(doc, libelle, valeurs, choisie, garder, changer) {
   const select = cree(doc, "select");
   select.ariaLabel = libelle;
   const options = choisie === "" ? ["", ...valeurs] : valeurs;
@@ -49,7 +54,8 @@ function liste(doc, libelle, valeurs, choisie, changer) {
     }),
   );
   select.value = choisie;
-  for (const evenement of ["input", "change"]) select.addEventListener(evenement, () => changer(select.value));
+  select.addEventListener("input", () => garder(select.value));
+  select.addEventListener("change", () => changer(select.value));
   return select;
 }
 
@@ -64,48 +70,34 @@ function choixDe(vu, choisi) {
   return { dit: `${modele} / ${effort}`, change: modele !== "" && effort !== "" && (modele !== vu.modele || effort !== vu.effort), choix: /** @type {Choix} */ ({ cle: vu.cle, modele, effort }) };
 }
 
-// Un réglage : son nom, sa valeur en vigueur et d'où elle vient, son champ et « propose », puis ce que le dernier clic
-// a rendu. `choisir` garde ce que le chef change dans le champ — sans reposer la page : il est en train d'écrire.
+// Un réglage : la rangée de réglage, son niveau « project » — elle dit qu'un changement ouvre une PR —, sa valeur en
+// vigueur et d'où elle vient, son champ, puis ce que le dernier changement a rendu. `choisir` garde ce que le chef écrit
+// — sans reposer la page : il est en train d'écrire ; le `change` du champ le propose, s'il change la valeur en vigueur.
 /**
  * @param {Fabrique} doc
  * @param {{ vu: Vu, modeles: readonly string[], efforts: readonly string[], etat: Etat | undefined, choisir: (choisi: string | { modele: string, effort: string }) => void, proposer: (choix: Choix, dit: string) => void, ouvrir: (url: string) => void }} options
  */
 export function poserUnReglage(doc, { vu, modeles, efforts, etat, choisir, proposer, ouvrir }) {
-  const rangee = cree(doc, "div");
-  rangee.className = "reglage";
-  rangee.dataset.cle = vu.cle;
-  const nom = cree(doc, "span", vu.nom);
-  nom.className = "nom";
-  nom.append(niveauDe(doc, vu.cle));
-  const valeur = cree(doc, "p");
-  valeur.className = "valeur";
   const dite = cree(doc, "strong", vu.dit ?? "not set");
   dite.className = "mono";
   const source = cree(doc, "small", vu.source);
   source.className = "source";
-  valeur.append(dite, source);
 
   const occupe = etat?.enCours === true;
   let choisi = etat?.choisi;
-  const champ = cree(doc, "p");
-  champ.className = "champ";
-  const bouton = boutonAction(doc, occupe ? BOUTON.enCours : BOUTON.libelle, () => {
-    const { change, choix, dit } = choixDe(vu, choisi);
-    if (change) proposer(choix, dit);
-  });
-  bouton.className = "action proposer-le-reglage";
-  /** @type {any} */
-  const clic = bouton.children[0];
-  const suivre = () => {
-    if (clic !== undefined) clic.disabled = occupe || !choixDe(vu, choisi).change;
+  /** @param {string | { modele: string, effort: string }} neuf */
+  const garder = (neuf) => {
+    choisi = neuf;
+    choisir(neuf);
   };
   /** @param {string | { modele: string, effort: string }} neuf */
   const changer = (neuf) => {
-    choisi = neuf;
-    choisir(neuf);
-    suivre();
+    garder(neuf);
+    const { change, choix, dit } = choixDe(vu, choisi);
+    if (change) proposer(choix, dit);
   };
-  if (clic !== undefined) clic.title = BOUTON.survol;
+  /** @type {any[]} */
+  const controle = [];
   if ("valeur" in vu) {
     const saisie = cree(doc, "input");
     saisie.type = "text";
@@ -115,36 +107,29 @@ export function poserUnReglage(doc, { vu, modeles, efforts, etat, choisir, propo
     saisie.spellcheck = false;
     saisie.value = typeof choisi === "string" ? choisi : vu.valeur;
     saisie.disabled = occupe;
-    saisie.addEventListener("input", () => changer(saisie.value));
-    champ.append(saisie);
+    saisie.addEventListener("input", () => garder(saisie.value));
+    saisie.addEventListener("change", () => changer(saisie.value));
+    controle.push(saisie);
   } else {
     const courant = typeof choisi === "object" ? choisi : { modele: vu.modele, effort: vu.effort };
-    const modele = liste(doc, `${vu.nom}: model`, modeles, courant.modele, (pris) => changer({ ...(typeof choisi === "object" ? choisi : courant), modele: pris }));
-    const effort = liste(doc, `${vu.nom}: effort`, efforts, courant.effort, (pris) => changer({ ...(typeof choisi === "object" ? choisi : courant), effort: pris }));
+    const avec = (/** @type {Partial<{ modele: string, effort: string }>} */ pris) => ({ ...(typeof choisi === "object" ? choisi : courant), ...pris });
+    const modele = liste(doc, `${vu.nom}: model`, modeles, courant.modele, (pris) => garder(avec({ modele: pris })), (pris) => changer(avec({ modele: pris })));
+    const effort = liste(doc, `${vu.nom}: effort`, efforts, courant.effort, (pris) => garder(avec({ effort: pris })), (pris) => changer(avec({ effort: pris })));
     modele.disabled = occupe;
     effort.disabled = occupe;
-    champ.append(modele, cree(doc, "span", " / "), effort);
+    controle.push(modele, cree(doc, "span", " / "), effort);
   }
-  champ.append(bouton);
-  suivre();
-  rangee.append(nom, valeur, champ);
 
-  // Ce que le dernier clic a rendu, à côté du champ.
-  const dit = etat?.dit;
-  if (dit !== undefined) {
-    let rendu = cree(doc, "p");
-    if ("refus" in dit) {
-      rendu = ligneErreur(doc, dit.refus, dit.detail, { classe: "dit refus" });
-    } else {
-      rendu.className = "dit propose";
-      const lien = boutonAction(doc, `pull request #${dit.numero}`, () => ouvrir(dit.pr));
-      lien.className = "action ouvrir-la-pr";
-      if (lien.children[0] !== undefined) lien.children[0].title = dit.pr;
-      rendu.append(cree(doc, "span", `${dit.valeur} ${dit.propose}`), lien);
-    }
-    rangee.append(rendu);
-  }
-  return rangee;
+  // Ce que le dernier changement a rendu, sous la rangée : la proposition en route, la PR ouverte, ou le refus.
+  const dit = occupe ? { enCours: EN_COURS } : etat?.dit;
+  return rangeeDeReglage(doc, {
+    nom: vu.nom,
+    cle: vu.cle,
+    niveau: niveauDe(doc, vu.cle),
+    valeur: [dite, source],
+    controle,
+    dessous: ditDuReglage(doc, dit, { ouvrir }),
+  });
 }
 
 // La section des réglages, ou null tant que rien n'est lu. Une lecture ratée tient en une ligne, son détail au survol.
@@ -157,8 +142,9 @@ export function poserLesReglages(doc, { lecture, etats, choisir, proposer, ouvri
   const section = cree(doc, "section");
   section.className = "reglages-du-projet";
   section.ariaLabel = TITRE;
-  const titre = cree(doc, "h3", TITRE);
-  titre.append(survol(doc, AIDE));
+  // Sa tête est une rangée sans contrôle : son titre, où ses réglages sont gardés au survol.
+  const titre = rangeeDeReglage(doc, { nom: TITRE, classe: "tete" });
+  titre.children[0]?.append(survol(doc, AIDE));
   section.append(titre);
   if ("sans" in lecture) {
     section.append(ligneErreur(doc, lecture.sans, lecture.detail ?? ""));

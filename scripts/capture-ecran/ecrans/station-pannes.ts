@@ -1,4 +1,4 @@
-// La page d'une station en panne, ouverte d'un clic sur sa ligne de l'accueil : ce que la station
+// La page d'une station en panne, ouverte d'un clic sur sa ligne de « All stations », en bas de l'onglet Stations de `parade` (#2638) : ce que la station
 // publie sur GitHub (un document figé) passe par les modules de l'app (stations.ts, pannes.ts,
 // accueil.ts) — la vue reçoit ce qu'elle recevrait, la panne et ses mots sont ceux du code.
 import { type Accueil, type LigneDeStation, ligneDeStation } from "../../../app/src/accueil.ts";
@@ -57,7 +57,7 @@ export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes
     dit,
     largeur: 1440,
     hauteur: 900,
-    etapes: [{ cliquer: "#accueil-stations button.ligne" }, ...etapes],
+    etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(2)" }, { cliquer: "#toutes-les-stations button.ligne" }, ...etapes],
     donnees: () => ({
       maintenant: MAINTENANT,
       reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: { a: MAINTENANT, stations: [station] }, accueil } },

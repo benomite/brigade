@@ -1,7 +1,8 @@
 // Le closer d'un projet, sur Kitchen > Health (#2491) : l'app lit ses passes sur GitHub — les issues de fermeture que le
 // runtime ouvre, et la PR de chacune —, ses vérifications en plus (`.claude/brigade/closer-checks.md`) et ses réglages
-// (`closer.*` de `.claude/brigade/projet.json`), et les écrit sur la branche d'intégration. Un réglage écrit est de ceux
-// que le runtime lit, et c'est sa valeur qu'il applique ensuite ; une vérification ajoutée se relit.
+// (`closer.*` de `.claude/brigade/projet.json`). Un réglage changé se propose par une pull request vers la branche
+// d'intégration (#2920) : le fichier proposé est de ceux que le runtime lit, et c'est sa valeur qu'il applique une fois
+// mergé. Une vérification ajoutée ou retirée se propose de même ; la liste en vigueur ne change qu'au merge.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { brancheDuTicket } from "../../runtime/src/brigade-github.ts";
@@ -10,6 +11,7 @@ import { COOKS_PAR_DEFAUT, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "../../
 import { CLES_DU_CLOSER, reglagesDuTexte } from "../../runtime/src/reglages-projet/reglages.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser, lirePasse, REGLAGES, texteDesVerifications, VERIFICATIONS, verificationsDu } from "../src/closer-sante.ts";
 import { FICHIER } from "../src/plafonds-duree.ts";
+import { PROPOSE } from "../src/reglages-du-projet.ts";
 import type { ClientDeLaPriorite } from "../src/priorite.ts";
 import type { ReponseGitHub } from "../src/tableau/client.ts";
 
@@ -37,44 +39,64 @@ const corps = (temps?: string[]) =>
     ...(temps === undefined ? {} : { temps }),
   });
 
-// Un GitHub en mémoire : les fichiers de `main` (contenu et `sha` qui change à chaque écriture), les issues que la
-// recherche rend, les PR de chaque branche ; chaque demande notée — et, pour une méthode ou un chemin nommé, la réponse
-// qu'il rend à la place.
+// Un GitHub en mémoire : les fichiers de chaque branche (contenu et `sha` qui change à chaque écriture) — `main` au
+// départ, une branche créée part de la tête d'une autre et en copie les fichiers —, les issues que la recherche rend, les
+// PR de chaque branche, et celles que l'app ouvre ; chaque demande notée — et, pour un chemin nommé (`METHODE chemin`
+// pour une écriture), la réponse qu'il rend à la place.
 function github({ fichiers = {}, issues = [], prs = {}, refus = {} }: { fichiers?: Record<string, string>; issues?: unknown[]; prs?: Record<string, Record<string, unknown>[]>; refus?: Record<string, ReponseGitHub> } = {}) {
-  const textes = new Map(Object.entries(fichiers));
-  const shas = new Map([...textes.keys()].map((chemin) => [chemin, 1]));
+  const branches = new Map([["main", new Map(Object.entries(fichiers).map(([chemin, texte]) => [chemin, { texte, sha: 1 }]))]]);
   const demandes: string[] = [];
   const ecrits: Record<string, unknown>[] = [];
+  const ouvertes: Record<string, unknown>[] = [];
   const contenu = (chemin: string) => /^\/repos\/chef\/parade\/contents\/([^?]+)/.exec(chemin)?.[1];
+  const refuse = (demande: string) => Object.entries(refus).find(([debut]) => demande.startsWith(debut))?.[1];
   const client: ClientDeLaPriorite = {
     lire: async (chemin) => {
       demandes.push(`GET ${chemin}`);
-      const refuse = Object.entries(refus).find(([debut]) => chemin.startsWith(debut));
-      if (refuse !== undefined) return refuse[1];
+      const refusee = refuse(chemin);
+      if (refusee !== undefined) return refusee;
       const fichier = contenu(chemin);
       if (fichier !== undefined) {
-        const texte = textes.get(fichier);
-        return texte === undefined ? { status: 404, data: { message: "Not Found" } } : { status: 200, data: { content: Buffer.from(texte).toString("base64"), sha: `sha${shas.get(fichier)}` } };
+        const ref = new URL(chemin, "https://api.github.com").searchParams.get("ref") ?? "main";
+        const lu = branches.get(ref)?.get(fichier);
+        return lu === undefined ? { status: 404, data: { message: "Not Found" } } : { status: 200, data: { content: Buffer.from(lu.texte).toString("base64"), sha: `sha${lu.sha}` } };
       }
+      if (chemin === `/repos/${DEPOT}`) return { status: 200, data: { default_branch: "main" } };
+      const tete = /\/git\/ref\/heads\/(.+)$/.exec(chemin)?.[1];
+      if (tete !== undefined) return branches.has(tete) ? { status: 200, data: { object: { sha: `tete-${tete}` } } } : { status: 404, data: { message: "Not Found" } };
       if (chemin.startsWith("/search/issues?")) return { status: 200, data: { items: issues } };
-      const tete = /\/pulls\?state=all&head=([^&]+)/.exec(chemin)?.[1];
-      if (tete !== undefined) return { status: 200, data: prs[decodeURIComponent(tete)] ?? [] };
+      const head = /\/pulls\?state=all&head=([^&]+)/.exec(chemin)?.[1];
+      if (head !== undefined) return { status: 200, data: prs[decodeURIComponent(head)] ?? [] };
       const pr = /\/pulls\/(\d+)$/.exec(chemin)?.[1];
       const trouvee = Object.values(prs).flat().find(({ number }) => String(number) === pr);
       return trouvee === undefined ? { status: 404, data: { message: "Not Found" } } : { status: 200, data: trouvee };
     },
     ecrire: async (methode, chemin, corpsEcrit) => {
       demandes.push(`${methode} ${chemin}`);
-      const fichier = contenu(chemin) ?? "";
+      const refusee = refuse(`${methode} ${chemin}`);
+      if (refusee !== undefined) return refusee;
       const recu = corpsEcrit as Record<string, unknown>;
+      if (chemin === `/repos/${DEPOT}/git/refs`) {
+        const depart = [...branches.entries()].find(([nom]) => recu.sha === `tete-${nom}`)?.[1] ?? assert.fail(`une branche créée d'aucune tête : ${String(recu.sha)}`);
+        branches.set(String(recu.ref).replace("refs/heads/", ""), new Map([...depart].map(([c, f]) => [c, { ...f }])));
+        return { status: 201, data: {} };
+      }
+      if (chemin === `/repos/${DEPOT}/pulls`) {
+        ouvertes.push(recu);
+        return { status: 201, data: { number: 60 + ouvertes.length, html_url: `https://github.com/${DEPOT}/pull/${60 + ouvertes.length}` } };
+      }
+      const fichier = contenu(chemin) ?? "";
       ecrits.push({ ...recu, fichier });
-      if (textes.has(fichier) && recu.sha !== `sha${shas.get(fichier)}`) return { status: 409, data: { message: "sha does not match" } };
-      textes.set(fichier, Buffer.from(recu.content as string, "base64").toString("utf8"));
-      shas.set(fichier, (shas.get(fichier) ?? 0) + 1);
+      const sur = branches.get(String(recu.branch ?? "main")) ?? assert.fail("une écriture sur une branche inconnue");
+      const avant = sur.get(fichier);
+      if (avant !== undefined && recu.sha !== `sha${avant.sha}`) return { status: 409, data: { message: "sha does not match" } };
+      sur.set(fichier, { texte: Buffer.from(recu.content as string, "base64").toString("utf8"), sha: (avant?.sha ?? 0) + 1 });
       return { status: 200, data: {} };
     },
   };
-  return { client, demandes, ecrits, texte: (fichier: string) => textes.get(fichier) };
+  // `texte(fichier, branche)` : un fichier sur une branche — `main` par défaut, celle de la dernière PR ouverte avec `"pr"`.
+  const texte = (fichier: string, branche = "main") => branches.get(branche === "pr" ? String(ouvertes.at(-1)?.head) : branche)?.get(fichier)?.texte;
+  return { client, demandes, ecrits, ouvertes, texte };
 }
 const json = (objet: unknown) => `${JSON.stringify(objet, null, 2)}\n`;
 const issue = (number: number, body: string, autres: Record<string, unknown> = {}) => ({ number, title: titreDeLaFermeture("main"), html_url: `https://github.com/${DEPOT}/issues/${number}`, created_at: "2026-10-10T08:00:00Z", state: "closed", author_association: "OWNER", body, ...autres });
@@ -140,47 +162,83 @@ describe("le closer, dans le dépôt du projet", () => {
   });
 });
 
-describe("les réglages du closer, écrits depuis Health", () => {
-  test("un réglage changé est écrit sur la branche, le reste gardé, et c'est la valeur que le runtime lit ensuite", async () => {
+describe("les réglages du closer, proposés depuis Health", () => {
+  test("un réglage changé est proposé par une PR vers main — le reste gardé —, c'est la valeur que le runtime lit une fois mergé, et main n'a pas bougé", async () => {
     const depot = github({ fichiers: { [FICHIER]: json(PROJET) } });
     assert.deepEqual(await changerLeReglage({ depot: DEPOT, branche: "main", cle: "maxRemovedLines", saisie: "800", client: depot.client }), {
-      fait: "saved in the repository — the station applies it at its next fetch",
+      propose: PROPOSE,
+      pr: `https://github.com/${DEPOT}/pull/61`,
+      numero: 61,
       cle: "maxRemovedLines",
       valeur: 800,
     });
+    assert.deepEqual(depot.demandes, [`GET /repos/${DEPOT}/contents/${FICHIER}?ref=main`, `GET /repos/${DEPOT}/git/ref/heads/main`, `POST /repos/${DEPOT}/git/refs`, `PUT /repos/${DEPOT}/contents/${FICHIER}`, `POST /repos/${DEPOT}/pulls`]);
+    const premiere = depot.texte(FICHIER, "pr") ?? assert.fail("pas de fichier proposé");
+    assert.deepEqual(reglagesDuTexte(premiere).closer, { maxTokens: 300000, maxRemovedLines: 800 });
     assert.deepEqual(await changerLeReglage({ depot: DEPOT, branche: "main", cle: "calibration", saisie: { model: "opus", effort: "high" }, client: depot.client }), {
-      fait: "saved in the repository — the station applies it at its next fetch",
+      propose: PROPOSE,
+      pr: `https://github.com/${DEPOT}/pull/62`,
+      numero: 62,
       cle: "calibration",
       valeur: { model: "opus", effort: "high" },
     });
     await changerLeReglage({ depot: DEPOT, branche: "main", cle: "cooksBelow", saisie: " 2 ", client: depot.client });
+    // Chaque changement a sa branche, partie de main, et sa PR vers main.
+    const neuves = depot.ouvertes.map(({ head }) => String(head));
+    assert.equal(new Set(neuves).size, 3);
     assert.deepEqual(
-      depot.ecrits.map(({ message, branch }) => [message, branch]),
+      depot.ecrits.map(({ message, branch, sha }) => [message, neuves.indexOf(String(branch)), sha]),
       [
-        ["brigade: set closer.maxRemovedLines to 800 (from the app, Kitchen > Health)", "main"],
-        ["brigade: set closer.calibration to opus / high (from the app, Kitchen > Health)", "main"],
-        ["brigade: set closer.cooksBelow to 2 (from the app, Kitchen > Health)", "main"],
+        ["brigade: set closer.maxRemovedLines to 800 (from the app, Kitchen > Health)", 0, "sha1"],
+        ["brigade: set closer.calibration to opus / high (from the app, Kitchen > Health)", 1, "sha1"],
+        ["brigade: set closer.cooksBelow to 2 (from the app, Kitchen > Health)", 2, "sha1"],
       ],
     );
-    const texte = depot.texte(FICHIER) ?? assert.fail("pas de fichier");
+    assert.deepEqual(depot.ouvertes.map(({ base }) => base), ["main", "main", "main"]);
+    const texte = depot.texte(FICHIER, "pr") ?? assert.fail("pas de fichier proposé");
     assert.deepEqual(JSON.parse(texte).defaultCalibrations, PROJET.defaultCalibrations);
-    assert.deepEqual(reglagesDuTexte(texte).closer, { calibration: { model: "opus", effort: "high" }, cooksBelow: 2, maxTokens: 300000, maxRemovedLines: 800 });
-    // Relu : la valeur écrite.
+    assert.deepEqual(reglagesDuTexte(texte).closer, { cooksBelow: 2, maxTokens: 300000 });
+    // Relu sur main : la valeur en vigueur, celle d'avant — la PR vaut une fois mergée.
+    assert.equal(depot.texte(FICHIER), json(PROJET));
     const lu = await lireLeCloser({ depot: DEPOT, branche: "main", client: depot.client });
     assert.ok("liste" in lu.reglages);
-    assert.deepEqual(lu.reglages.liste.find(({ cle }) => cle === "maxRemovedLines")?.valeur, 800);
+    assert.equal(lu.reglages.liste.find(({ cle }) => cle === "maxRemovedLines")?.valeur, null);
   });
 
-  test("vide, le réglage se retire du dépôt ; la valeur déjà écrite n'écrit rien ; sans fichier, il est créé", async () => {
+  test("vide, le retrait du réglage est proposé ; la valeur déjà là n'ouvre rien ; sans fichier, il est créé ; sans branche, celle par défaut", async () => {
     const depot = github({ fichiers: { [FICHIER]: json(PROJET) } });
     assert.deepEqual(await changerLeReglage({ depot: DEPOT, branche: "main", cle: "maxTokens", saisie: "300000", client: depot.client }), { fait: "unchanged: the repository already says so", cle: "maxTokens", valeur: 300000 });
     assert.equal(depot.ecrits.length, 0);
+    assert.equal(depot.ouvertes.length, 0);
     await changerLeReglage({ depot: DEPOT, branche: "main", cle: "maxTokens", saisie: "", client: depot.client });
-    assert.equal(JSON.parse(depot.texte(FICHIER) ?? "{}").closer, undefined, "plus aucun réglage : le closer sort du fichier");
+    assert.equal(JSON.parse(depot.texte(FICHIER, "pr") ?? "{}").closer, undefined, "plus aucun réglage : le closer sort du fichier");
 
     const neuf = github();
     await changerLeReglage({ depot: DEPOT, branche: "main", cle: "calibration", saisie: { model: "sonnet", effort: "medium" }, client: neuf.client });
-    assert.deepEqual(reglagesDuTexte(neuf.texte(FICHIER) ?? assert.fail("pas de fichier")), { integrationBranch: "main", closer: { calibration: { model: "sonnet", effort: "medium" } } });
+    assert.deepEqual(reglagesDuTexte(neuf.texte(FICHIER, "pr") ?? assert.fail("pas de fichier")), { integrationBranch: "main", closer: { calibration: { model: "sonnet", effort: "medium" } } });
+
+    const sansBranche = github({ fichiers: { [FICHIER]: json(PROJET) } });
+    assert.ok("propose" in (await changerLeReglage({ depot: DEPOT, branche: null, cle: "maxRemovedLines", saisie: "800", client: sansBranche.client })));
+    assert.ok(sansBranche.demandes.includes(`GET /repos/${DEPOT}`), "la branche par défaut est lue");
+    assert.equal(sansBranche.ouvertes[0]?.base, "main");
+  });
+
+  test("chaque étape que GitHub refuse : rien n'est proposé, rien ne se dit fait, main n'a pas bougé, le détail est gardé", async () => {
+    const non: ReponseGitHub = { status: 422, data: { message: "Refused here" } };
+    for (const [etape, quoi] of [
+      [`/repos/${DEPOT}/git/ref/heads/main`, "the reading of main"],
+      [`POST /repos/${DEPOT}/git/refs`, "the branch brigade/setting-"],
+      [`PUT /repos/${DEPOT}/contents/${FICHIER}`, `the change of ${FICHIER}`],
+      [`POST /repos/${DEPOT}/pulls`, "the pull request of brigade/setting-"],
+    ] as const) {
+      const depot = github({ fichiers: { [FICHIER]: json(PROJET) }, refus: { [etape]: non } });
+      const rendu = await changerLeReglage({ depot: DEPOT, branche: "main", cle: "maxRemovedLines", saisie: "800", client: depot.client });
+      assert.ok("refus" in rendu, etape);
+      assert.equal(rendu.refus, `nothing was proposed: GitHub did not open the pull request of ${FICHIER}`);
+      assert.ok(rendu.detail?.startsWith(`GitHub refused ${quoi}`) && rendu.detail.includes("(HTTP 422): Refused here"), `${etape}: ${rendu.detail}`);
+      assert.equal(depot.texte(FICHIER), json(PROJET), etape);
+      assert.equal(depot.ouvertes.length, 0, etape);
+    }
   });
 
   test("une valeur que le runtime refuserait n'écrit rien, et se dit", async () => {
@@ -196,38 +254,74 @@ describe("les réglages du closer, écrits depuis Health", () => {
       const rendu = await changerLeReglage({ depot: DEPOT, branche: "main", cle, saisie, client: depot.client });
       assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was changed"), `${cle} = ${JSON.stringify(saisie)}`);
       assert.equal(depot.ecrits.length, 0);
+      assert.equal(depot.ouvertes.length, 0);
     }
   });
 });
 
-describe("les vérifications en plus, ajoutées depuis Health", () => {
-  test("une vérification ajoutée est écrite dans le dépôt et se relit ; deux fois, elle n'est pas doublée ; retirée, elle part", async () => {
+describe("les vérifications en plus, proposées depuis Health", () => {
+  test("une vérification ajoutée est proposée par une PR vers main ; la liste en vigueur reste celle de main ; déjà là, rien ; retirée, son retrait est proposé", async () => {
     const depot = github();
-    assert.deepEqual(await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "  Unused   CSS classes ", client: depot.client }), { fait: "added in the repository", liste: ["Unused CSS classes"] });
-    await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "Doc sentences naming removed code", client: depot.client });
-    assert.deepEqual(depot.ecrits.map(({ fichier, branch, sha }) => [fichier, branch, sha]), [
-      [VERIFICATIONS, "main", undefined],
-      [VERIFICATIONS, "main", "sha1"],
-    ]);
-    const texte = depot.texte(VERIFICATIONS) ?? assert.fail("pas de fichier");
+    const ajoutee = await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "  Unused   CSS classes ", client: depot.client });
+    assert.deepEqual(ajoutee, { propose: PROPOSE, pr: `https://github.com/${DEPOT}/pull/61`, numero: 61, geste: "ajouter", verification: "Unused CSS classes", liste: [] });
+    assert.deepEqual(depot.demandes, [`GET /repos/${DEPOT}/contents/${VERIFICATIONS}?ref=main`, `GET /repos/${DEPOT}/git/ref/heads/main`, `POST /repos/${DEPOT}/git/refs`, `PUT /repos/${DEPOT}/contents/${VERIFICATIONS}`, `POST /repos/${DEPOT}/pulls`]);
+    const [pr] = depot.ouvertes;
+    assert.deepEqual([pr?.base, pr?.title], ["main", "brigade: add a check of the closer"]);
+    assert.deepEqual(depot.ecrits.map(({ fichier, branch, sha }) => [fichier, branch, sha]), [[VERIFICATIONS, pr?.head, undefined]], "créé sur la branche neuve, jamais sur main");
+    const texte = depot.texte(VERIFICATIONS, "pr") ?? assert.fail("pas de fichier proposé");
     assert.match(texte, /^# The closer's extra checks\n/);
-    assert.deepEqual(verificationsDu(texte), ["Unused CSS classes", "Doc sentences naming removed code"]);
-    assert.deepEqual((await lireLeCloser({ depot: DEPOT, branche: "main", client: depot.client })).verifications, { liste: ["Unused CSS classes", "Doc sentences naming removed code"] });
+    assert.deepEqual(verificationsDu(texte), ["Unused CSS classes"]);
+    // main n'a pas bougé : la liste relue est celle en vigueur.
+    assert.equal(depot.texte(VERIFICATIONS), undefined);
+    assert.deepEqual((await lireLeCloser({ depot: DEPOT, branche: "main", client: depot.client })).verifications, { liste: [] });
 
-    assert.deepEqual(await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "Unused CSS classes", client: depot.client }), { fait: "unchanged: the closer already has this check", liste: ["Unused CSS classes", "Doc sentences naming removed code"] });
-    assert.equal(depot.ecrits.length, 2);
-    await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "retirer", saisie: "Unused CSS classes", client: depot.client });
-    assert.deepEqual(verificationsDu(depot.texte(VERIFICATIONS) ?? ""), ["Doc sentences naming removed code"]);
+    // Sur un fichier déjà là : le reste gardé, le `sha` lu sur main.
+    const tenu = github({ fichiers: { [VERIFICATIONS]: texteDesVerifications(["Unused CSS classes"]) } });
+    await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "Doc sentences naming removed code", client: tenu.client });
+    assert.equal(tenu.ecrits[0]?.sha, "sha1");
+    assert.deepEqual(verificationsDu(tenu.texte(VERIFICATIONS, "pr") ?? ""), ["Unused CSS classes", "Doc sentences naming removed code"]);
+    assert.deepEqual(await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "Unused CSS classes", client: tenu.client }), { fait: "unchanged: the closer already has this check", liste: ["Unused CSS classes"] });
+    assert.equal(tenu.ouvertes.length, 1);
+    const retiree = await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "retirer", saisie: "Unused CSS classes", client: tenu.client });
+    assert.ok("propose" in retiree && retiree.geste === "retirer");
+    assert.equal(tenu.ouvertes.at(-1)?.title, "brigade: remove a check of the closer");
+    assert.deepEqual(verificationsDu(tenu.texte(VERIFICATIONS, "pr") ?? "x"), []);
+    assert.deepEqual(verificationsDu(tenu.texte(VERIFICATIONS) ?? ""), ["Unused CSS classes"], "main n'a pas bougé");
+
+    // Sans branche connue : celle par défaut du dépôt.
+    const sansBranche = github();
+    assert.ok("propose" in (await changerLesVerifications({ depot: DEPOT, branche: null, geste: "ajouter", saisie: "Unused CSS", client: sansBranche.client })));
+    assert.ok(sansBranche.demandes.includes(`GET /repos/${DEPOT}`));
+    assert.equal(sansBranche.ouvertes[0]?.base, "main");
   });
 
-  test("une vérification vide ou trop longue n'écrit rien ; GitHub qui refuse se dit, son détail à part", async () => {
+  test("une vérification vide ou trop longue n'écrit rien ; GitHub qui refuse la lecture se dit, son détail à part", async () => {
     const depot = github();
     for (const saisie of ["", "   ", "x".repeat(201)]) assert.ok("refus" in (await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie, client: depot.client })));
     assert.equal(depot.ecrits.length, 0);
+    assert.equal(depot.ouvertes.length, 0);
     const refuse = github({ refus: { [`/repos/${DEPOT}/contents/${VERIFICATIONS}`]: { status: 403, data: { message: "Resource not accessible" } } } });
     assert.deepEqual(await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "Unused CSS", client: refuse.client }), {
       refus: `nothing was changed: ${VERIFICATIONS} was not read on GitHub`,
       detail: `GitHub refused the reading of ${VERIFICATIONS} (HTTP 403): Resource not accessible`,
     });
+  });
+
+  test("chaque étape que GitHub refuse : rien n'est proposé, rien ne se dit fait, main n'a pas bougé, le détail est gardé", async () => {
+    const non: ReponseGitHub = { status: 422, data: { message: "Refused here" } };
+    for (const [etape, quoi] of [
+      [`/repos/${DEPOT}/git/ref/heads/main`, "the reading of main"],
+      [`POST /repos/${DEPOT}/git/refs`, "the branch brigade/setting-"],
+      [`PUT /repos/${DEPOT}/contents/${VERIFICATIONS}`, `the change of ${VERIFICATIONS}`],
+      [`POST /repos/${DEPOT}/pulls`, "the pull request of brigade/setting-"],
+    ] as const) {
+      const depot = github({ fichiers: { [VERIFICATIONS]: texteDesVerifications(["Unused CSS classes"]) }, refus: { [etape]: non } });
+      const rendu = await changerLesVerifications({ depot: DEPOT, branche: "main", geste: "ajouter", saisie: "Doc sentences", client: depot.client });
+      assert.ok("refus" in rendu, etape);
+      assert.equal(rendu.refus, `nothing was proposed: GitHub did not open the pull request of ${VERIFICATIONS}`);
+      assert.ok(rendu.detail?.startsWith(`GitHub refused ${quoi}`) && rendu.detail.includes("(HTTP 422): Refused here"), `${etape}: ${rendu.detail}`);
+      assert.deepEqual(verificationsDu(depot.texte(VERIFICATIONS) ?? ""), ["Unused CSS classes"], etape);
+      assert.equal(depot.ouvertes.length, 0, etape);
+    }
   });
 });

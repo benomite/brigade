@@ -14,10 +14,11 @@ import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import type { LectureDuCloser, RenduDesVerifications, RenduDuReglage } from "../../../src/closer-sante.ts";
 import { PLAFONDS, type LectureDesPlafonds, type RenduDuPlafond } from "../../../src/plafonds-duree.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
-import { CLES as CLES_DES_REGLAGES } from "../../../src/reglages-du-projet.ts";
+import { CLES as CLES_DES_REGLAGES, PROPOSE } from "../../../src/reglages-du-projet.ts";
 import { poserBlocBloqueSansQuestion } from "../../../src/vue/projet/bandeau-sante/BloqueSansQuestion.js";
 import { poserBlocCloser } from "../../../src/vue/projet/bandeau-sante/Closer.js";
-import { poserBlocPlafondsDuree } from "../../../src/vue/projet/bandeau-sante/PlafondsDuree.js";
+import { EN_COURS, poserBlocPlafondsDuree } from "../../../src/vue/projet/bandeau-sante/PlafondsDuree.js";
+import { PAR_PR } from "../../../src/vue/composants/reglage/reglage.js";
 import { tempsDeLaBande } from "../../../src/vue/projet/rail/bande-rail.js";
 import { lireLesTemps, poserBlocTempsTickets } from "../../../src/vue/projet/bandeau-sante/TempsTickets.js";
 import { Faux, jouerLaVue, ouvrirOnglet, repos, type Jouee } from "../../aides/fausse-vue.ts";
@@ -121,9 +122,15 @@ const LECTURE: LectureDesPlafonds = {
   branche: "main",
   plafonds: PLAFONDS.map((plafond) => ({ cle: plafond.cle, nom: plafond.nom, unite: plafond.unite, entier: plafond.entier, duree: plafond.duree, defaut: "defaut" in plafond ? plafond.defaut : null, valeur: plafond.cle === "gatesSeconds" ? 120 : null })),
 };
-const ligneDe = (racine: Faux, cle: string) => [...racine.descendants()].find((pose) => pose.className === "plafond" && pose.dataset.cle === cle) ?? assert.fail(`pas de ligne ${cle}`);
+// Une rangée de réglage (composants/reglage, #2920), par sa clé.
+const ligneDe = (racine: Faux, cle: string) => [...racine.descendants()].find((pose) => pose.className === "reglage" && pose.dataset.cle === cle) ?? assert.fail(`pas de ligne ${cle}`);
 const champDe = (ligne: Faux) => ligne.dessous("input")[0] ?? assert.fail("pas de champ");
-const boutonDe = (ligne: Faux) => ligne.dessous("button").find((bouton) => bouton.textContent === "save" || bouton.textContent === "saving…") ?? assert.fail("pas de bouton");
+const PR = "https://github.com/chef/parade/pull/41";
+// Aucun « save » sur un écran de réglages (#2920) : un bouton qui enregistre, ou une classe qui le nomme.
+const sansEnregistrer = (racine: Faux) => {
+  assert.deepEqual(racine.dessous("button").map(({ textContent }) => textContent).filter((libelle) => /^(save|saving…)$/i.test(libelle)), []);
+  assert.deepEqual([...racine.descendants()].filter(({ className }) => /enregistrer/.test(className)), []);
+};
 
 describe("les plafonds de durée, sur Health", () => {
   test("le seuil du temps perdu par ticket tel que la station le publie, sans champ ; les durées du dépôt ; les autres repliés", () => {
@@ -131,38 +138,75 @@ describe("les plafonds de durée, sur Health", () => {
     const perduMax = ligneDe(bloc, "lostTimeMaxMin");
     assert.match(texte(perduMax), /^Lost time per ticket2 minmedian of recent tickets, published by the stationnot editable here yet/);
     assert.equal(perduMax.dessous("input").length, 0);
+    assert.equal(perduMax.dataset.depot, undefined, "il ne se change pas d'ici : pas de PR à annoncer");
     assert.match(texte(ligneDe(bloc, "gatesSeconds")), /^Gates duration120 sin the repository/);
+    // Gardé dans le dépôt : chaque rangée d'un seuil dit qu'un changement ouvre une PR.
+    for (const { cle } of PLAFONDS) {
+      const ligne = ligneDe(bloc, cle);
+      assert.equal(ligne.dataset.depot, "", cle);
+      assert.deepEqual(parClasse(ligne, "par-pr").map(texte), [PAR_PR], cle);
+    }
+    sansEnregistrer(bloc);
     assert.match(texte(ligneDe(bloc, "testsSeconds")), /^Test suite durationnot setthe station's, if any/);
     const replie = bloc.dessous("details")[0] ?? assert.fail("pas de repli");
     assert.match(texte(replie), /Other drift thresholdsnone set in the repository/);
     assert.equal(replie.dessous("input").length, PLAFONDS.filter(({ duree }) => !duree).length);
   });
 
-  test("« save » n'est cliquable qu'une fois la valeur changée, et donne la clé et ce qui est tapé", () => {
+  test("le champ s'applique à son `change`, sans « save », quand il change la valeur du dépôt ; ce qui est tapé est gardé", () => {
     const changes: [string, string][] = [];
-    const bloc = poserBlocPlafondsDuree(doc, { lecture: LECTURE, changer: (cle, saisie) => changes.push([cle, saisie]) });
+    const choisis: [string, string][] = [];
+    const bloc = poserBlocPlafondsDuree(doc, { lecture: LECTURE, changer: (cle, saisie) => changes.push([cle, saisie]), choisir: (cle, choisi) => choisis.push([cle, choisi]) });
+    sansEnregistrer(bloc);
     const ligne = ligneDe(bloc, "gatesSeconds");
-    assert.equal(boutonDe(ligne).disabled, true);
     const champ = champDe(ligne);
     champ.value = " 150 ";
     champ.declencher("input");
-    assert.equal(boutonDe(ligne).disabled, false);
-    boutonDe(ligne).click();
-    assert.deepEqual(changes, [["gatesSeconds", "150"]]);
+    assert.deepEqual(changes, [], "taper n'applique rien");
+    assert.deepEqual(choisis, [["gatesSeconds", " 150 "]]);
+    champ.declencher("change");
+    // La valeur déjà en vigueur n'applique rien.
+    champ.value = "120";
+    champ.declencher("change");
+    // Vide, le retrait d'un seuil posé s'applique ; celui d'un seuil qui n'est pas posé, non.
+    champ.value = "";
+    champ.declencher("change");
+    const nonPose = champDe(ligneDe(bloc, "testsSeconds"));
+    nonPose.value = " ";
+    nonPose.declencher("change");
+    assert.deepEqual(changes, [
+      ["gatesSeconds", "150"],
+      ["gatesSeconds", ""],
+    ]);
   });
 
-  test("ce que l'écriture a rendu se dit sous le champ ; un refus garde son détail au survol", () => {
+  test("en cours, la rangée le dit et son champ attend ; la PR ouverte se dit avec la valeur proposée et s'ouvre ; un refus garde son détail au survol", () => {
+    const ouvertes: string[] = [];
     const bloc = poserBlocPlafondsDuree(doc, {
       lecture: LECTURE,
+      ouvrir: (url) => ouvertes.push(url),
       etats: new Map([
-        ["gatesSeconds", { dit: { fait: "saved in the repository — the station applies it at its next fetch" } }],
+        ["gatesSeconds", { dit: { pr: PR, numero: 41, valeur: 150 } }],
         ["testsSeconds", { choisi: "abc", dit: { refus: "nothing was changed: test suite duration must be a number greater than zero", detail: "" } }],
+        ["tests", { choisi: "800", enCours: true }],
+        ["merges", { dit: { pr: PR, numero: 42, valeur: null } }],
       ]),
     });
-    assert.match(texte(ligneDe(bloc, "gatesSeconds")), /saved in the repository/);
+    const proposee = ligneDe(bloc, "gatesSeconds");
+    assert.match(texte(proposee), /^Gates duration120 sin the repository/, "la valeur montrée reste celle en vigueur, jusqu'au merge");
+    assert.equal(champDe(proposee).value, "120");
+    assert.deepEqual(parClasse(proposee, "propose").map(texte), ["150 s proposed inpull request #41"]);
+    (proposee.dessous("button").find(({ textContent }) => textContent === "pull request #41") ?? assert.fail("pas de lien vers la PR")).click();
+    assert.deepEqual(ouvertes, [PR]);
+    assert.match(texte(ligneDe(bloc, "merges")), /removal proposed inpull request #42/);
+
     const refusee = ligneDe(bloc, "testsSeconds");
     assert.match(texte(refusee), /nothing was changed/);
     assert.equal(champDe(refusee).value, "abc", "ce que le chef a tapé reste dans le champ");
+
+    const enCours = ligneDe(bloc, "tests");
+    assert.deepEqual(parClasse(enCours, "en-cours").map(texte), [EN_COURS]);
+    assert.equal(champDe(enCours).disabled, true);
   });
 
   test("tant que rien n'est lu, une ligne le dit ; une lecture ratée tient en une ligne", () => {
@@ -271,9 +315,25 @@ describe("le closer, sur Health", () => {
       ["ajouter", "Doc sentences naming removed code"],
       ["retirer", "Unused CSS classes"],
     ]);
+    // Gardées dans le dépôt : la partie dit qu'un geste ouvre une PR.
+    assert.deepEqual(parClasse(en, "par-pr").map(texte), [PAR_PR]);
   });
 
-  test("ses réglages : le calibrage, la condition de départ, les plafonds — chacun sa valeur, d'où elle vient, et « save »", () => {
+  test("une vérification proposée : en route, la partie le dit ; la PR ouverte se dit et s'ouvre ; un retrait se dit retrait", () => {
+    const enRoute = partieDe(poserBlocCloser(doc, { lecture: CLOSER, verifications: { enCours: "ajouter" } }), "en-plus");
+    assert.deepEqual(parClasse(enRoute, "en-cours").map(texte), [EN_COURS]);
+    const ouvertes: string[] = [];
+    const bloc = poserBlocCloser(doc, { lecture: CLOSER, ouvrirLaPr: (url) => ouvertes.push(url), verifications: { dit: { pr: PR, numero: 43, geste: "ajouter", verification: "Doc sentences" } } });
+    const en = partieDe(bloc, "en-plus");
+    assert.match(texte(en), /^Extra checks\?Unused CSS classesremove/, "la liste en vigueur, jusqu'au merge");
+    assert.deepEqual(parClasse(en, "propose").map(texte), ["the check “Doc sentences” proposed inpull request #43"]);
+    (en.dessous("button").find(({ textContent }) => textContent === "pull request #43") ?? assert.fail("pas de lien")).click();
+    assert.deepEqual(ouvertes, [PR]);
+    const retrait = partieDe(poserBlocCloser(doc, { lecture: CLOSER, verifications: { dit: { pr: PR, numero: 44, geste: "retirer", verification: "Unused CSS classes" } } }), "en-plus");
+    assert.deepEqual(parClasse(retrait, "propose").map(texte), ["the removal of “Unused CSS classes” proposed inpull request #44"]);
+  });
+
+  test("ses réglages : le calibrage, la condition de départ, les plafonds — chacun sa valeur, d'où elle vient, et un contrôle qui s'applique à son `change`", () => {
     const changes: [string, unknown][] = [];
     const bloc = poserBlocCloser(doc, { lecture: CLOSER, valeurs: VALEURS, changer: (cle, saisie) => changes.push([cle, saisie]) });
     assert.match(texte(ligneDe(bloc, "calibration")), /^Calibrationsonnet \/ mediumin the repository/);
@@ -281,31 +341,49 @@ describe("le closer, sur Health", () => {
     assert.match(texte(ligneDe(bloc, "maxTokens")), /^Tokens cap300,000 tokensin the repositorynot read on GitHub yet/);
     assert.match(texte(ligneDe(bloc, "maxRemovedLines")), /^Removed lines capnot setthe station's, or 500 lines/);
     assert.doesNotMatch(texte(ligneDe(bloc, "maxRemovedLines")), /not read on GitHub/);
+    sansEnregistrer(partieDe(bloc, "reglages"));
+    for (const cle of ["calibration", "cooksBelow", "maxTokens", "maxRemovedLines"]) assert.deepEqual(parClasse(ligneDe(bloc, cle), "par-pr").map(texte), [PAR_PR], cle);
 
     const lignes = ligneDe(bloc, "maxRemovedLines");
     const champ = champDe(lignes);
     champ.value = "800";
     champ.declencher("input");
-    boutonDe(lignes).click();
+    champ.declencher("change");
 
     const calibrage = ligneDe(bloc, "calibration");
     const [modele = assert.fail("pas de modèle"), effort = assert.fail("pas d'effort")] = calibrage.dessous("select");
-    assert.equal(boutonDe(calibrage).disabled, true, "rien n'a changé");
+    // L'un sans l'autre ne s'applique pas ; les deux choisis, si.
     modele.value = "opus";
+    effort.value = "";
     modele.declencher("change");
     effort.value = "high";
     effort.declencher("change");
-    assert.equal(boutonDe(calibrage).disabled, false);
-    boutonDe(calibrage).click();
-    // L'un sans l'autre ne s'enregistre pas.
-    effort.value = "";
-    effort.declencher("change");
-    assert.equal(boutonDe(calibrage).disabled, true);
 
     assert.deepEqual(changes, [
       ["maxRemovedLines", "800"],
       ["calibration", { model: "opus", effort: "high" }],
     ]);
+  });
+
+  test("un réglage proposé : sa PR se dit sous sa rangée et s'ouvre par `ouvrirLaPr`, la valeur en vigueur reste", () => {
+    const ouvertes: string[] = [];
+    const bloc = poserBlocCloser(doc, {
+      lecture: CLOSER,
+      valeurs: VALEURS,
+      ouvrirLaPr: (url) => ouvertes.push(url),
+      etats: new Map([
+        ["calibration", { dit: { pr: PR, numero: 41, valeur: { model: "opus", effort: "high" } } }],
+        ["maxRemovedLines", { dit: { pr: PR, numero: 42, valeur: 800 } }],
+      ]),
+    });
+    const calibrage = ligneDe(bloc, "calibration");
+    assert.match(texte(calibrage), /^Calibrationsonnet \/ mediumin the repository/);
+    assert.deepEqual(parClasse(calibrage, "propose").map(texte), ["opus / high proposed inpull request #41"]);
+    const retirees = ligneDe(bloc, "maxRemovedLines");
+    assert.match(texte(retirees), /^Removed lines capnot set/);
+    assert.deepEqual(parClasse(retirees, "propose").map(texte), ["800 lines proposed inpull request #42"]);
+    (retirees.dessous("button").find(({ textContent }) => textContent === "pull request #42") ?? assert.fail("pas de lien")).click();
+    assert.deepEqual(ouvertes, [PR]);
   });
 
   test("tant que rien n'est lu, chaque partie le dit ; une lecture ratée tient en une ligne, le détail au survol", () => {
@@ -332,7 +410,7 @@ const demarrage = () => ({
 });
 
 async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][]; closer: unknown[][] }> {
-  let lecture = LECTURE;
+  const lecture = LECTURE;
   const ecrits: [string, string, string][] = [];
   const closer: unknown[][] = [];
   const vue = await jouerLaVue({
@@ -342,17 +420,18 @@ async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][]
     plafondsDuree: async () => lecture,
     changerPlafondDuree: async (projet, cle, saisie): Promise<RenduDuPlafond> => {
       ecrits.push([projet, cle, saisie]);
-      if ("plafonds" in lecture) lecture = { ...lecture, plafonds: lecture.plafonds.map((plafond) => (plafond.cle === cle ? { ...plafond, valeur: Number(saisie) } : plafond)) };
-      return { fait: "saved in the repository — the station applies it at its next fetch", cle: cle as "gatesSeconds", valeur: Number(saisie) };
+      // Proposé par une PR : la branche d'intégration — ce que la lecture rend — ne change pas tant qu'elle n'est pas mergée.
+      return { propose: PROPOSE, pr: PR, numero: 41, cle: cle as "gatesSeconds", valeur: Number(saisie) };
     },
     closerDeSante: async () => CLOSER,
     changerReglageDuCloser: async (projet, cle, saisie): Promise<RenduDuReglage> => {
       closer.push([projet, cle, saisie]);
-      return { fait: "saved in the repository — the station applies it at its next fetch", cle: cle as "maxRemovedLines", valeur: Number(saisie) };
+      return { propose: PROPOSE, pr: PR, numero: 42, cle: cle as "maxRemovedLines", valeur: Number(saisie) };
     },
     changerVerificationDuCloser: async (projet, geste, saisie): Promise<RenduDesVerifications> => {
       closer.push([projet, geste, saisie]);
-      return { fait: "added in the repository", liste: ["Unused CSS classes", saisie] };
+      // Proposée par une PR : la liste en vigueur reste celle de la branche d'intégration jusqu'au merge.
+      return { propose: PROPOSE, pr: PR, numero: 43, geste, verification: saisie, liste: ["Unused CSS classes"] };
     },
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
@@ -372,25 +451,29 @@ describe("le bandeau de santé, dans la vue", () => {
     assert.equal(reste?.dessous("summary")[0]?.textContent, "Caps, closer and all projectsduration caps, the closer, cost and closer of all projects");
   });
 
-  test("un plafond changé dans le bandeau part au process principal, et la ligne dit la valeur écrite", async () => {
+  test("un plafond changé dans le bandeau part au process principal à son `change`, et la rangée dit la PR ouverte, qui s'ouvre", async () => {
     const { vue, ecrits } = await jouer();
     await repos();
     assert.deepEqual(vue.dernier("plafondsDuree"), ["parade"]);
+    sansEnregistrer(bloc(vue));
     const ligne = ligneDe(bloc(vue), "gatesSeconds");
+    assert.deepEqual(parClasse(ligne, "par-pr").map(texte), [PAR_PR]);
     const champ = champDe(ligne);
     champ.value = "150";
     champ.declencher("input");
-    boutonDe(ligne).click();
+    champ.declencher("change");
     await repos();
     await repos();
 
     assert.deepEqual(ecrits, [["parade", "gatesSeconds", "150"]]);
     const apres = ligneDe(bloc(vue), "gatesSeconds");
-    assert.match(texte(apres), /^Gates duration150 sin the repository/);
-    assert.match(texte(apres), /saved in the repository — the station applies it at its next fetch/);
+    assert.match(texte(apres), /^Gates duration120 sin the repository/, "la valeur en vigueur reste, jusqu'au merge");
+    assert.deepEqual(parClasse(apres, "propose").map(texte), ["150 s proposed inpull request #41"]);
+    (apres.dessous("button").find(({ textContent }) => textContent === "pull request #41") ?? assert.fail("pas de lien vers la PR")).click();
+    assert.deepEqual(vue.dernier("ouvrirLaProposition"), [PR]);
   });
 
-  test("le closer du bandeau : une vérification ajoutée et un réglage enregistré partent au process principal, et la page les reprend", async () => {
+  test("le closer du bandeau : une vérification ajoutée et un réglage changé partent au process principal ; la liste reprise, la PR du réglage dite", async () => {
     const { vue, closer } = await jouer();
     await repos();
     assert.deepEqual(vue.dernier("closerDeSante"), ["parade"]);
@@ -403,19 +486,19 @@ describe("le bandeau de santé, dans la vue", () => {
     boutonNomme(partieDe(duCloser(), "en-plus"), "add").click();
     await repos();
     await repos();
-    assert.match(texte(partieDe(duCloser(), "en-plus")), /Unused CSS classesremoveDoc sentences naming removed coderemove/);
-    assert.match(texte(partieDe(duCloser(), "en-plus")), /added in the repository/);
+    assert.doesNotMatch(texte(partieDe(duCloser(), "en-plus")), /Doc sentences naming removed coderemove/, "la liste en vigueur, jusqu'au merge");
+    assert.deepEqual(parClasse(partieDe(duCloser(), "en-plus"), "propose").map(texte), ["the check “Doc sentences naming removed code” proposed inpull request #43"]);
     assert.equal((partieDe(duCloser(), "en-plus").dessous("input")[0] ?? assert.fail("pas de champ")).value, "", "ajoutée, le champ se vide");
 
     const ligne = ligneDe(duCloser(), "maxRemovedLines");
     const nombre = champDe(ligne);
     nombre.value = "800";
     nombre.declencher("input");
-    boutonDe(ligne).click();
+    nombre.declencher("change");
     await repos();
     await repos();
-    assert.match(texte(ligneDe(duCloser(), "maxRemovedLines")), /^Removed lines cap800 linesin the repository/);
-    assert.match(texte(ligneDe(duCloser(), "maxRemovedLines")), /saved in the repository/);
+    assert.match(texte(ligneDe(duCloser(), "maxRemovedLines")), /^Removed lines capnot set/, "la valeur en vigueur reste, jusqu'au merge");
+    assert.deepEqual(parClasse(ligneDe(duCloser(), "maxRemovedLines"), "propose").map(texte), ["800 lines proposed inpull request #42"]);
     assert.deepEqual(closer, [
       ["parade", "ajouter", "Doc sentences naming removed code"],
       ["parade", "maxRemovedLines", "800"],

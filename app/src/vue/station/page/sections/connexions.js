@@ -1,22 +1,26 @@
 // @ts-check
 // La section « Connections » de la page d'une station (ticket 2643, épique 2497) : le compte GitHub que le `gh` de la
 // machine tient, et la connexion de Claude (le compte Max) — son état, depuis quand elle tient, et de quoi la renouveler.
-// Chaque réglage porte la marque de son niveau (« this machine »). Sur la page d'une autre station, les deux se montrent
+// Chaque réglage est une rangée de réglage (composants/reglage) avec la marque de son niveau (« this machine ») : il vit sur
+// la machine, jamais dans le dépôt, donc aucune PR. Sur la page d'une autre station, les deux se montrent
 // sans geste : une ligne dit que le changement se fait sur cette machine. Ce que la section lit — le compte, la connexion
 // publiée — et les gestes qu'elle offre lui sont remis par la coque (`contexte.connexions`) : ce module ne touche ni
 // `document` ni le pont, il reçoit de quoi créer un élément.
 
 import { boutonAction, survol } from "../../../briques.js";
+import { rangeeDeReglage } from "../../../composants/reglage/reglage.js";
+import { appliquer } from "../appliquer.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../StationPage.js").Contexte} Contexte */
 /** @typedef {import("../../../../connexion-github.ts").CompteGitHub} CompteGitHub */
 /** @typedef {{ etat: "connectee" | "perdue" | "inconnue", depuis: string | null }} ConnexionClaude */
+/** @typedef {import("../appliquer.js").Rendu} Rendu */
 /**
  * Ce que la section lit : `github` le compte du `gh` de cette machine (absent : pas encore lu), `claude` la connexion que la
  * station publie (nulle : elle n'en dit rien). `gestes` : changer de compte, renouveler la connexion — des promesses qui
- * rendent la ligne que le geste a dite (ou rien).
- * @typedef {{ github?: CompteGitHub, claude: ConnexionClaude | null, gestes?: { changerGitHub?(): Promise<string | void>, renouveler?(): Promise<string | void> } }} Connexions
+ * rendent la ligne que le geste a dite, son refus (`{ refus, detail }`), ou rien.
+ * @typedef {{ github?: CompteGitHub, claude: ConnexionClaude | null, gestes?: { changerGitHub?(): Promise<Rendu>, renouveler?(): Promise<Rendu> } }} Connexions
  */
 
 export const LECTURE = "reading…";
@@ -35,6 +39,7 @@ export const CLAUDE_DIT = {
 };
 export const CLAUDE_TUE = "not said";
 export const CLAUDE_TUE_SURVOL = "this station has not published its Claude connection — it is offline, or its version does not say it";
+export const RIEN_FAIT = "nothing was done";
 export const AILLEURS = (/** @type {string} */ nom) => `Changed on ${nom} itself: open this page from that machine.`;
 
 /** @param {string | null} depuis */
@@ -50,34 +55,18 @@ function avec(doc, balise, texte, classe) {
   return pose;
 }
 
-// Une rangée : son nom, sa marque de niveau, sa valeur, son geste (absent en lecture seule), et la ligne que le geste a dite.
-/** @param {Fabrique} doc @param {{ cle: string, nom: string, niveau: any, valeur: any[], geste?: { libelle: string, faire(): Promise<string | void> } }} rangee */
+// Une rangée de réglage (composants/reglage, ticket 2920) : son nom et sa marque de niveau, sa valeur, son geste (absent en
+// lecture seule) ; dessous, ce que le geste a rendu. Le geste s'applique au clic, son bouton désactivé et « applying… »
+// le temps qu'il court ; un geste qui échoue se dit en une ligne d'erreur, son message au survol.
+/** @param {Fabrique} doc @param {{ cle: string, nom: string, niveau: any, valeur: any[], geste?: { libelle: string, faire(): Promise<Rendu> } }} rangee */
 function rangee(doc, { cle, nom, niveau, valeur, geste }) {
-  const racine = doc.createElement("div");
-  racine.className = "reglage";
-  racine.dataset.reglage = cle;
-  const dit = avec(doc, "p", "");
-  dit.className = "geste-dit";
-  dit.hidden = true;
-  const controle = [];
+  const racine = rangeeDeReglage(doc, { nom, cle, niveau, valeur });
   if (geste !== undefined) {
-    controle.push(
-      boutonAction(doc, geste.libelle, () => {
-        void Promise.resolve()
-          .then(() => geste.faire())
-          .then((ligne) => {
-            dit.textContent = ligne ?? "";
-            dit.hidden = !ligne;
-          })
-          .catch((erreur) => {
-            dit.textContent = `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
-            dit.hidden = false;
-          });
-      }),
-    );
+    const action = boutonAction(doc, geste.libelle, () => {
+      void appliquer(doc, racine, [action.children[0]], () => geste.faire().catch((erreur) => ({ refus: RIEN_FAIT, detail: erreur instanceof Error ? erreur.message : String(erreur) })));
+    });
+    racine.children[2].append(action);
   }
-  racine.append(avec(doc, "span", nom, "nom"), niveau, avec(doc, "span", "", "valeur"), ...controle, dit);
-  racine.children[2].append(...valeur);
   return racine;
 }
 

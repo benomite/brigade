@@ -1,6 +1,6 @@
 // Les réglages de chaque station, sur l'onglet Stations (#2488, épique #2484) : pour chacune, son plafond de cooks, ses
 // capacités, si elle prend les tickets ordinaires et si elle sert le projet, chacun avec son niveau. Un changement fait
-// ici part par le stockage qui existe déjà — la déclaration des stations (`changerUneStation`), l'option des tickets
+// ici s'applique dès que son contrôle change — aucun « Save » (#2920) — et part par le stockage qui existe déjà — la déclaration des stations (`changerUneStation`), l'option des tickets
 // ordinaires de ce poste (`reglerOrdinaires`) — et se relit tel quel quand l'app est relancée : le faux pont de ce test
 // tient ce stockage, comme le process principal. La vue jouée telle qu'elle est, devant un faux document
 // (aides/fausse-vue.ts).
@@ -18,7 +18,8 @@ import { blocDesOrdinaires, type StationDesFaits } from "../../../src/ordinaires
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import type { Guide, StationChangee, StationsLues, StationVoulue } from "../../../src/service.ts";
 import { NIVEAUX_DITS } from "../../../src/vue/niveaux.js";
-import { ARRETER, ORDINAIRES_D_AILLEURS, poserBlocReglagesStation, REGLAGES, SAUVER } from "../../../src/vue/projet/stations/ReglagesStation.js";
+import { ARRETER, ORDINAIRES_D_AILLEURS, poserBlocReglagesStation, REGLAGES } from "../../../src/vue/projet/stations/ReglagesStation.js";
+import { APPLIQUE } from "../../../src/vue/stations-declarees.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../aides/fausse-vue.ts";
 
 const A = "2026-11-05T10:04:12.000Z";
@@ -82,13 +83,16 @@ const demarrage = (projet: Projet) => () => ({
 // Le faux process principal : il lit et écrit `tenu`, comme main.ts et service.ts lisent et écrivent leur stockage.
 function changer(tenu: Stockage, nom: string, voulu: StationVoulue): StationChangee {
   const declarees = tenu.stations.declarees;
+  // Comme service.ts : un plafond hors de 1 à 99 est refusé, rien n'est écrit.
+  if (!("retiree" in voulu) && (voulu.cooks < 1 || voulu.cooks > 99)) return { refus: `Nothing was saved: how many cooks ${nom} runs at once is a whole number, from 1 to 99.` };
   if ("retiree" in voulu) tenu.stations = { ...tenu.stations, declarees: declarees.filter((lue) => lue.nom !== nom) };
   else tenu.stations = { ...tenu.stations, declarees: declarees.map((lue) => (lue.nom === nom ? { ...lue, cooks: voulu.cooks, fournit: [...voulu.fournit] } : lue)) };
   return { fait: "retiree" in voulu ? `${nom} no longer serves ${PARADE}` : `${nom} saved` };
 }
 
-// Un lancement de l'app : « parade » ouverte, ses faits lus, l'onglet Stations montré.
-async function lancer(tenu: Stockage): Promise<Jouee> {
+// Un lancement de l'app : « parade » ouverte, ses faits lus, l'onglet Stations montré. `retenir` : le faux process
+// principal garde sa réponse à `changerUneStation` jusqu'à ce que le test la lâche.
+async function lancer(tenu: Stockage, retenir?: Promise<void>): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: demarrage(tenu.projet),
     espace: () => [],
@@ -98,7 +102,10 @@ async function lancer(tenu: Stockage): Promise<Jouee> {
       tenu.projet = { ...tenu.projet, ordinaires: actif, ...(limite === null ? {} : { limiteCooks: limite }) };
       return undefined;
     },
-    changerUneStation: (_, nom, voulu) => changer(tenu, nom, voulu),
+    changerUneStation: async (_, nom, voulu) => {
+      if (retenir !== undefined) await retenir;
+      return changer(tenu, nom, voulu);
+    },
     lireCapture: () => ({ image: "data:image/png;base64,iVBORw0KGgo=" }),
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
@@ -114,6 +121,9 @@ const stationDe = (vue: Jouee, nom: string) => bloc(vue).dessous("section").find
 const ligneDe = (pose: Faux, cle: string) => pose.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === cle) ?? assert.fail(`pas de ligne « ${cle} »`);
 const caseDe = (ligne: Faux) => ligne.dessous("input").find(({ type }) => type === "checkbox") ?? assert.fail("pas de case");
 const boutonDe = (pose: Faux, texte: string) => pose.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
+const champDe = (pose: Faux) => ligneDe(pose, "cooks").dessous("input")[0] ?? assert.fail("pas de champ");
+// Ce qu'une rangée dit sous elle : ce que son dernier changement a rendu.
+const ditSous = (ligne: Faux) => ligne.children.filter(({ className }) => className.startsWith("dit")).map(({ className, textContent }) => [className, textContent]);
 
 // Une station telle que l'écran la dit : chaque réglage, son niveau, sa valeur, et s'il se change d'ici.
 const lu = (pose: Faux) =>
@@ -163,28 +173,44 @@ describe("l'onglet Stations : les réglages de chaque station (#2488)", () => {
     assert.deepEqual(REGLAGES.map(({ cle }) => cle), ["cooks", "capacites", "ordinaires", "sert"]);
   });
 
-  test("le plafond et les capacités changés ici sont enregistrés, et se relisent tels quels à la relance de l'app", async () => {
+  test("aucun « Save » : le bloc n'a que ses contrôles, et rien ne part tant qu'aucun ne change", async () => {
+    const vue = await lancer(stockage());
+    assert.deepEqual(bloc(vue).dessous("button").filter(({ textContent }) => /^(save|saving…)$/i.test(textContent)), []);
+    // Le champ tapé sans être quitté n'envoie rien ; quitté à la même valeur non plus.
+    const cooks = champDe(stationDe(vue, "pc/claude"));
+    cooks.value = "3";
+    cooks.declencher("input");
+    cooks.value = "1";
+    cooks.declencher("change");
+    await repos();
+    assert.equal(vue.appels.some(({ geste }) => geste === "changerUneStation"), false);
+  });
+
+  test("le plafond et les capacités changés ici s'appliquent aussitôt, et se relisent tels quels à la relance de l'app", async () => {
     const tenu = stockage();
     const vue = await lancer(tenu);
-    const pc = stationDe(vue, "pc/claude");
-    const sauver = boutonDe(pc, SAUVER);
-    // Rien de changé : rien à enregistrer.
-    assert.equal(sauver.disabled, true);
-    const cooks = ligneDe(pc, "cooks").dessous("input")[0] ?? assert.fail("pas de champ");
+    // Le plafond, dès que son champ change : la déclaration entière de la station part, ce plafond dedans.
+    const cooks = champDe(stationDe(vue, "pc/claude"));
     cooks.value = "4";
     cooks.declencher("input");
-    const macos = ligneDe(pc, "capacites").dessous("input").find(({ ariaLabel }) => ariaLabel === "macos") ?? assert.fail("pas de case macos");
-    macos.checked = true;
-    macos.declencher("change");
-    assert.equal(sauver.disabled, false);
-    sauver.click();
+    cooks.declencher("change");
     await repos();
-    assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "pc/claude", { cooks: 4, fournit: ["code", "navigateur-headless", "macos"] }]);
-    assert.ok(stationDe(vue, "pc/claude").dessous("p").some(({ textContent }) => textContent === "pc/claude saved"));
+    assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "pc/claude", { cooks: 4, fournit: ["code", "navigateur-headless"] }]);
+    assert.deepEqual(ditSous(ligneDe(stationDe(vue, "pc/claude"), "cooks")), [["dit fait", "pc/claude saved"]]);
     // La déclaration relue arrive par le contrôle suivant.
     vue.dire("surGuide", guide(tenu.stations));
     await repos();
     assert.equal(lu(stationDe(vue, "pc/claude"))[0]?.valeur, "4 cooks at once");
+    // Une case cochée part aussitôt, elle aussi, le plafond en vigueur dedans ; ce qu'elle a rendu se lit sous sa rangée.
+    const macos = ligneDe(stationDe(vue, "pc/claude"), "capacites").dessous("input").find(({ ariaLabel }) => ariaLabel === "macos") ?? assert.fail("pas de case macos");
+    macos.checked = true;
+    macos.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "pc/claude", { cooks: 4, fournit: ["code", "navigateur-headless", "macos"] }]);
+    assert.deepEqual(ditSous(ligneDe(stationDe(vue, "pc/claude"), "capacites")), [["dit fait", "pc/claude saved"]]);
+    assert.deepEqual(ditSous(ligneDe(stationDe(vue, "pc/claude"), "cooks")), []);
+    vue.dire("surGuide", guide(tenu.stations));
+    await repos();
 
     // L'app relancée : la même valeur, lue du même stockage.
     const relancee = await lancer(tenu);
@@ -194,9 +220,48 @@ describe("l'onglet Stations : les réglages de chaque station (#2488)", () => {
     assert.equal(lu(stationDe(relancee, "mac/claude"))[0]?.valeur, "2 cooks at once");
   });
 
+  test("un changement en route se dit sous sa rangée, et ses contrôles attendent sa réponse", async () => {
+    const tenu = stockage();
+    let lacher = () => {};
+    const vue = await lancer(tenu, new Promise<void>((resolu) => (lacher = resolu)));
+    const cooks = champDe(stationDe(vue, "pc/claude"));
+    cooks.value = "3";
+    cooks.declencher("change");
+    await repos();
+    const pc = stationDe(vue, "pc/claude");
+    assert.deepEqual(ditSous(ligneDe(pc, "cooks")), [["dit en-cours", APPLIQUE]]);
+    assert.equal(champDe(pc).disabled, true);
+    assert.ok(ligneDe(pc, "capacites").dessous("input").every(({ disabled }) => disabled));
+    lacher();
+    await repos();
+    assert.deepEqual(ditSous(ligneDe(stationDe(vue, "pc/claude"), "cooks")), [["dit fait", "pc/claude saved"]]);
+    assert.equal(champDe(stationDe(vue, "pc/claude")).disabled, false);
+  });
+
+  test("un changement refusé : le refus sous sa rangée, et le champ revient à la valeur en vigueur", async () => {
+    const tenu = stockage();
+    const vue = await lancer(tenu);
+    const cooks = champDe(stationDe(vue, "pc/claude"));
+    cooks.value = "120";
+    cooks.declencher("input");
+    cooks.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "pc/claude", { cooks: 120, fournit: ["code", "navigateur-headless"] }]);
+    const pc = stationDe(vue, "pc/claude");
+    const refus = ligneDe(pc, "cooks").children.find(({ className }) => className === "dit refus") ?? assert.fail("pas de refus sous la rangée");
+    assert.equal(refus.dataset.ligne, "erreur");
+    assert.match(refus.textContent, /whole number, from 1 to 99/);
+    assert.equal(champDe(pc).value, "1");
+    assert.equal(champDe(pc).disabled, false);
+    // Rien n'a changé au stockage.
+    assert.equal(tenu.stations.declarees.find(({ nom }) => nom === "pc/claude")?.cooks, 1);
+  });
+
   test("les tickets ordinaires de la station de ce poste se cochent ici, et le restent à la relance", async () => {
     const tenu = stockage();
     const vue = await lancer(tenu);
+    // Non prise, la valeur est en retrait (la rangée le porte, reglage.css) ; prise, elle ne l'est plus.
+    assert.equal(ligneDe(stationDe(vue, "mac/claude"), "ordinaires").dataset.retrait, "");
     const coche = caseDe(ligneDe(stationDe(vue, "mac/claude"), "ordinaires"));
     coche.checked = true;
     coche.declencher("change");
@@ -204,6 +269,7 @@ describe("l'onglet Stations : les réglages de chaque station (#2488)", () => {
     // La limite de cooks de ce poste reste celle qu'elle était.
     assert.deepEqual(vue.dernier("reglerOrdinaires"), [PARADE, true, 2]);
     assert.equal(lu(stationDe(vue, "mac/claude"))[2]?.valeur, "taken");
+    assert.equal(ligneDe(stationDe(vue, "mac/claude"), "ordinaires").dataset.retrait, undefined);
 
     const relancee = await lancer(tenu);
     assert.equal(lu(stationDe(relancee, "mac/claude"))[2]?.valeur, "taken");
@@ -261,7 +327,7 @@ describe("l'onglet Stations : les réglages de chaque station (#2488)", () => {
     const doc = { createElement: (balise: string) => new Faux(balise) };
     const coquille = poserBlocReglagesStation(doc as never) as unknown as Faux;
     assert.deepEqual(coquille.children.map(({ balise }) => balise), ["h3"]);
-    const gestes = { sauver() {}, ordinaires() {}, confirmer() {}, retirer() {} };
+    const gestes = { appliquer() {}, ordinaires() {}, confirmer() {}, retirer() {} };
     const pasLue = poserBlocReglagesStation(doc as never, { stations: undefined, projet: PARADE, saisies: new Map(), gestes }) as unknown as Faux;
     assert.equal(pasLue.dessous("p").at(-1)?.className, "vide");
   });

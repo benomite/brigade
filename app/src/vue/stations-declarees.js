@@ -4,10 +4,12 @@
 // cooks et ses capacités. Où elle tourne a trois mots distincts : sur la box (« box station ») ; sur ce poste
 // (« this workstation » : la cuisine du projet y tourne) ; sur un autre poste (« remote »). Un projet qui ne déclare aucune station le dit en une ligne, jamais par un blanc ; une déclaration
 // pas encore lue aussi.
-// Chaque ligne s'édite (ticket 1510) : « edit » ouvre sous elle son formulaire — son plafond, ses capacités en cases
-// (celles de « + station », ticket 1307), cochées comme elle les déclare, et un champ pour en ajouter une hors de ces
-// cases (ticket 1959, capacite-libre/) —, avec
-// « Save » et « Remove », qui demande confirmation. Le geste ne change qu'elle (service.ts, `changerUneStation`).
+// Chaque ligne s'édite (ticket 1510) : « edit » ouvre sous elle son formulaire — deux rangées de réglage
+// (composants/reglage, ticket 2920) : son plafond, et ses capacités en cases (celles de « + station », ticket 1307),
+// cochées comme elle les déclare, avec un champ pour en ajouter une hors de ces cases (ticket 1959, capacite-libre/).
+// Chaque contrôle s'applique dès qu'il change : il envoie la déclaration de la station, cette seule valeur changée — il
+// n'y a pas de « Save ». Le geste ne change qu'elle (service.ts, `changerUneStation`). La déclaration vit sur sa station
+// principale, pas dans le dépôt : aucun changement n'ouvre de PR. « Remove », qui demande confirmation, reste un geste.
 // La déclaration vient de `installation stations --json`, que le contrôle de l'installation lit (service.ts) : la vue la
 // pose, elle n'en déduit rien d'autre.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
@@ -18,6 +20,8 @@ import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { casesDuFormulaire, champDeCapaciteLibre } from "./capacite-libre/capacite-libre.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
+import { niveauDe } from "./niveaux.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../service.ts").StationsLues} StationsLues */
@@ -27,14 +31,16 @@ import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 /** @typedef {import("../service.ts").StationChangee} StationChangee */
 /**
  * Le formulaire ouvert d'une station : ce que le chef y a saisi — `cooks` tel qu'il est tapé, `fournit` dans l'ordre
- * des cases cochées —, les cases qu'il offre (`choix`), la confirmation du retrait ouverte ou non, un envoi en
- * route, et ce que le dernier envoi a rendu.
- * @typedef {{ nom: string, cooks: string, fournit: string[], choix: { capacite: string, dite: string }[], confirmer: boolean, envoi: boolean, rendu?: StationChangee }} Edition
+ * des cases cochées —, les cases qu'il offre (`choix`), la confirmation du retrait ouverte ou non, un changement en
+ * route, la rangée d'où il est parti (`ou` : « cooks », « capacites », ou « retrait »), et ce qu'il a rendu.
+ * @typedef {{ nom: string, cooks: string, fournit: string[], choix: { capacite: string, dite: string }[], confirmer: boolean, envoi: boolean, ou?: string, rendu?: StationChangee }} Edition
  */
+/** Ce qu'un changement envoie : la déclaration entière de la station, une seule valeur changée. @typedef {{ cooks: number, fournit: string[] }} Voulu */
 /**
- * Ce que la vue donne pour éditer : le formulaire ouvert, ce que le dernier geste a rendu sur une station fermée, et
- * les gestes — la vue les envoie au process principal, puis repose le bloc.
- * @typedef {{ editee?: Edition, dernier?: { nom: string, fait: string }, ouvrir(nom: string): void, fermer(): void, sauver(): void, confirmer(oui: boolean): void, retirer(): void }} Editer
+ * Ce que la vue donne pour éditer : le formulaire ouvert, ce que le dernier changement a rendu sur une station fermée
+ * (son plafond réglé sur sa ligne, stations-de-cuisson.js, ou son retrait), et les gestes — la vue les envoie au
+ * process principal, puis repose le bloc. `appliquer` : la rangée `cle` a changé, `voulu` part.
+ * @typedef {{ editee?: Edition, dernier?: { nom: string, ou: string, envoi?: boolean, rendu?: StationChangee }, ouvrir(nom: string): void, fermer(): void, appliquer(nom: string, cle: string, voulu: Voulu): void, confirmer(oui: boolean): void, retirer(): void }} Editer
  */
 
 export const TITRE = "what each station provides";
@@ -45,8 +51,10 @@ export const PAS_LUE = "not read yet: the next check of the installation reads t
 export const EDITER = "edit";
 export const PLAFOND = "Cooks at once";
 export const FOURNIT = "What it provides";
-export const SAUVER = "Save";
 export const RETIRER = "Remove";
+export const FERMER = "Close";
+// Ce qu'une rangée dit tant que son changement est en route.
+export const APPLIQUE = "applying…";
 export const SEULE = "the project's only station: without one, no cook leaves — declare another before removing it";
 
 // Les trois mots d'une station, selon où elle tourne, et ce qu'ils veulent dire, au survol.
@@ -104,7 +112,77 @@ export function stationAOuvrir(stations, projet) {
   return stations.declarees.find((station) => ouTourne(station, projet) === "poste") ?? stations.declarees[0];
 }
 
-// Le formulaire ouvert d'une station, sous sa ligne : son plafond, ses capacités, et ses gestes.
+// Ce que le dernier changement d'une station a rendu sous la rangée `cle` : rien s'il est parti d'une autre, « applying… »
+// tant qu'il est en route, puis ce qui est fait ou le refus — à poser par `ditDuReglage`.
+/** @param {{ envoi?: boolean, ou?: string, rendu?: StationChangee }} etat @param {string} cle */
+export function ditDe({ envoi, ou, rendu }, cle) {
+  if (ou !== cle) return undefined;
+  return envoi === true ? { enCours: APPLIQUE } : rendu;
+}
+
+// Un changement refusé : la saisie revient à la valeur en vigueur, celle que la station déclare.
+/** @param {Edition} edition @param {StationDeclaree | undefined} station */
+export function revenir(edition, station) {
+  if (station === undefined) return;
+  edition.cooks = String(station.cooks);
+  edition.fournit = [...station.fournit];
+}
+
+// Le plafond d'une station, un nombre : il s'applique à son `change` (le champ quitté, ou Entrée), et la saisie garde la
+// frappe d'ici là. `changer` reçoit la déclaration entière, le plafond tapé dedans ; rien ne part s'il n'a pas changé.
+/**
+ * @param {Fabrique} doc @param {StationDeclaree} station @param {Edition} edition @param {string} cle
+ * @param {(voulu: Voulu) => void} changer
+ */
+export function champDuPlafond(doc, station, edition, cle, changer) {
+  const cooks = cree(doc, "input");
+  cooks.type = "number";
+  cooks.min = "1";
+  cooks.max = "99";
+  cooks.value = edition.cooks;
+  cooks.disabled = edition.envoi;
+  cooks.ariaLabel = `how many cooks ${station.nom} runs at once`;
+  // Le bloc reposé rend le clavier au champ où le chef tapait (vue.js, `reprise`).
+  cooks.dataset.cle = cle;
+  cooks.dataset.champ = "cooks";
+  cooks.addEventListener("input", () => void (edition.cooks = cooks.value));
+  cooks.addEventListener("change", () => {
+    edition.cooks = cooks.value;
+    if (edition.envoi || edition.cooks.trim() === String(station.cooks)) return;
+    changer({ cooks: Number(edition.cooks), fournit: [...edition.fournit] });
+  });
+  return cooks;
+}
+
+// Les capacités d'une station : ses cases, et le champ d'une capacité hors d'elles (ticket 1959). Chaque case cochée ou
+// décochée, chaque capacité ajoutée s'applique aussitôt : `changer` reçoit la déclaration entière, ces capacités dedans.
+// Un changement en route : rien ne se coche avant qu'il ait répondu.
+/**
+ * @param {Fabrique} doc @param {StationDeclaree} station @param {Edition} edition
+ * @param {(voulu: Voulu) => void} changer
+ */
+export function controleDesCapacites(doc, station, edition, changer) {
+  const partir = () => changer({ cooks: Number(edition.cooks), fournit: [...edition.fournit] });
+  const cases = cree(doc, "div");
+  cases.className = "capacites";
+  const uneCase = (/** @type {{ capacite: string, dite: string }} */ { capacite, dite }) => {
+    const pose = caseACocher(doc, { nom: capacite, dit: dite, cochee: edition.fournit.includes(capacite), mono: true }, (cochee) => {
+      edition.fournit = cochee ? [...edition.fournit.filter((tenue) => tenue !== capacite), capacite] : edition.fournit.filter((tenue) => tenue !== capacite);
+      partir();
+    });
+    const coche = pose.firstChild;
+    if (coche) coche.disabled = edition.envoi;
+    return pose;
+  };
+  cases.append(...casesDuFormulaire(edition).map(uneCase));
+  const libre = champDeCapaciteLibre(doc, edition, station.nom, (choix) => {
+    cases.append(uneCase(choix));
+    partir();
+  });
+  return [cases, libre];
+}
+
+// Le formulaire ouvert d'une station, sous sa ligne : ses deux rangées de réglage, puis ses gestes — le fermer, la retirer.
 // Ce que le chef saisit est gardé dans `editee` au fil de la frappe : un bloc reposé le redonne tel quel.
 /**
  * @param {Fabrique} doc @param {StationDeclaree} station @param {Edition} editee @param {Editer} editer
@@ -114,44 +192,38 @@ function formulaireDe(doc, station, editee, editer, { seule, projet }) {
   const forme = cree(doc, "div");
   forme.className = "edition";
   forme.ariaLabel = `edit ${station.nom}`;
-  const cooks = cree(doc, "input");
-  cooks.type = "number";
-  cooks.min = "1";
-  cooks.max = "99";
-  cooks.value = editee.cooks;
-  cooks.ariaLabel = `how many cooks ${station.nom} runs at once`;
-  // Le rail redessiné rend le clavier au champ où le chef tapait (vue.js, `reprise`).
-  cooks.dataset.cle = `station:${station.nom}`;
-  cooks.dataset.champ = "cooks";
-  cooks.addEventListener("input", () => void (editee.cooks = cooks.value));
-  const plafond = cree(doc, "label");
-  plafond.className = "champ";
-  plafond.append(cree(doc, "span", PLAFOND), cooks);
-  const cases = cree(doc, "div");
-  cases.className = "capacites";
-  const uneCase = (/** @type {{ capacite: string, dite: string }} */ { capacite, dite }) =>
-    caseACocher(doc, { nom: capacite, dit: dite, cochee: editee.fournit.includes(capacite), mono: true }, (cochee) => {
-      editee.fournit = cochee ? [...editee.fournit.filter((tenue) => tenue !== capacite), capacite] : editee.fournit.filter((tenue) => tenue !== capacite);
-    });
-  cases.append(...casesDuFormulaire(editee).map(uneCase));
-  const capacites = cree(doc, "fieldset");
-  capacites.className = "capacites-de-station";
-  // Une capacité hors de ces cases, tapée par le chef (ticket 1959).
-  capacites.append(cree(doc, "legend", FOURNIT), cases, champDeCapaciteLibre(doc, editee, station.nom, (choix) => cases.append(uneCase(choix))));
+  const appliquer = (/** @type {string} */ cle) => (/** @type {Voulu} */ voulu) => editer.appliquer(station.nom, cle, voulu);
+  const plafond = rangeeDeReglage(doc, {
+    nom: PLAFOND,
+    cle: "cooks",
+    niveau: niveauDe(doc, "cooks"),
+    valeur: [cree(doc, "strong", plafondDit(station.cooks))],
+    controle: [champDuPlafond(doc, station, editee, `station:${station.nom}`, appliquer("cooks"))],
+    dessous: ditDuReglage(doc, ditDe(editee, "cooks")),
+  });
+  const fournit = cree(doc, "strong", station.fournit.length === 0 ? "provides nothing" : station.fournit.join(", "));
+  if (station.fournit.length > 0) fournit.className = "mono";
+  const capacites = rangeeDeReglage(doc, {
+    nom: FOURNIT,
+    cle: "capacites",
+    niveau: niveauDe(doc, "capacites"),
+    valeur: [fournit],
+    controle: controleDesCapacites(doc, station, editee, appliquer("capacites")),
+    dessous: ditDuReglage(doc, ditDe(editee, "capacites")),
+  });
   forme.append(plafond, capacites);
   const gestes = cree(doc, "div");
   gestes.className = "gestes";
-  const sauver = boutonAction(doc, editee.envoi ? "saving…" : SAUVER, () => editer.sauver(), { recommande: true });
-  const annuler = boutonAction(doc, "Cancel", () => editer.fermer());
+  const fermer = boutonAction(doc, FERMER, () => editer.fermer());
   const retirer = boutonAction(doc, RETIRER, () => editer.confirmer(true));
   retirer.className = "action retrait";
-  // Un envoi en route : rien ne repart avant qu'il ait répondu.
-  for (const groupe of [sauver, annuler, retirer]) groupe.firstChild.disabled = editee.envoi;
+  // Un changement en route : rien ne repart avant qu'il ait répondu.
+  retirer.firstChild.disabled = editee.envoi;
   if (seule) {
     retirer.firstChild.disabled = true;
     retirer.append(survol(doc, `Not removable: ${SEULE}.`));
   }
-  gestes.append(sauver, annuler, retirer);
+  gestes.append(fermer, retirer);
   forme.append(gestes);
   if (editee.confirmer) {
     forme.append(
@@ -162,8 +234,9 @@ function formulaireDe(doc, station, editee, editer, { seule, projet }) {
       ),
     );
   }
-  const rendu = editee.rendu;
-  if (rendu !== undefined) forme.append("refus" in rendu ? ligneErreur(doc, rendu.refus, rendu.detail ?? "") : uneLigneFaite(doc, rendu.fait));
+  // Ce que le retrait a rendu, sous ses gestes : il n'est la valeur d'aucune rangée.
+  const retrait = ditDe(editee, "retrait");
+  if (retrait !== undefined && !("enCours" in retrait)) forme.append("refus" in retrait ? ligneErreur(doc, retrait.refus, retrait.detail ?? "") : uneLigneFaite(doc, retrait.fait));
   return forme;
 }
 
@@ -238,7 +311,9 @@ export function ceQuElleFournit(doc, station, projet) {
   bouton.ariaExpanded = ouverte === undefined ? "false" : "true";
   bouton.addEventListener("click", () => (ouverte === undefined ? editer.ouvrir(station.nom) : editer.fermer()));
   if (ouverte !== undefined) return [capacites, bouton, formulaireDe(doc, station, ouverte, editer, { seule: projet.seule === true, ...(projet.projet === undefined ? {} : { projet: projet.projet }) })];
-  if (editer.dernier?.nom === station.nom) return [capacites, bouton, uneLigneFaite(doc, editer.dernier.fait)];
+  // Le formulaire refermé : ce que son retrait a rendu reste dit sous sa ligne.
+  const retrait = editer.dernier?.nom === station.nom ? ditDe(editer.dernier, "retrait") : undefined;
+  if (retrait !== undefined && "fait" in retrait) return [capacites, bouton, uneLigneFaite(doc, retrait.fait)];
   return [capacites, bouton];
 }
 

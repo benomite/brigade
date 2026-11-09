@@ -1241,8 +1241,9 @@ ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> 
 // Les labels d'une issue, lus et changés depuis une fiche (priorite.ts, gestes-github.ts), et le commentaire du chef,
 // avec le jeton du `gh` de ce poste.
 const clientDesLabels = clientDeLaPriorite({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), appeler: appelerGitHub, envoyer: envoyerParFetch() });
-// Les plafonds de durée du projet, sur Kitchen > Health (#2490, plafonds-duree.ts) : lus et écrits dans
-// `.claude/brigade/projet.json` de son dépôt, sur sa branche d'intégration, par le jeton du `gh` de ce poste — ni box.
+// Les plafonds de durée du projet, sur Kitchen > Health (#2490, plafonds-duree.ts) : lus dans `.claude/brigade/projet.json`
+// de son dépôt, sur sa branche d'intégration, et changés par une pull request vers elle (#2920), par le jeton du `gh` de
+// ce poste — ni box. L'adresse de la PR rendue s'ouvre depuis l'écran (`ouvrirLaProposition`).
 const brancheDuProjet = (projet: Projet) => projet.base ?? projetsDesStations.vu()?.projets.find(({ nom }) => nom === projet.nom)?.base ?? null;
 ipcMain.handle("plafondsDuree", async (_, nom: unknown) => {
   const vise = connu(nom);
@@ -1252,11 +1253,14 @@ ipcMain.handle("plafondsDuree", async (_, nom: unknown) => {
 ipcMain.handle("changerPlafondDuree", async (_, nom: unknown, cle: unknown, saisie: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return changerLePlafond({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+  const rendu = await changerLePlafond({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
 });
 // Le closer du projet, sur Kitchen > Health (#2491, closer-sante.ts) : ses passes et leurs PR, ses vérifications en plus
-// (`.claude/brigade/closer-checks.md`) et ses réglages (`closer.*` de `projet.json`), lus et écrits sur sa branche
-// d'intégration par le jeton du `gh` de ce poste — ni box.
+// (`.claude/brigade/closer-checks.md`) et ses réglages (`closer.*` de `projet.json`), lus sur sa branche d'intégration
+// par le jeton du `gh` de ce poste — ni box. Un réglage changé, une vérification ajoutée ou retirée, s'y proposent par
+// une pull request (#2920), dont l'adresse s'ouvre depuis l'écran.
 ipcMain.handle("closerDeSante", async (_, nom: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) {
@@ -1268,12 +1272,16 @@ ipcMain.handle("closerDeSante", async (_, nom: unknown) => {
 ipcMain.handle("changerReglageDuCloser", async (_, nom: unknown, cle: unknown, saisie: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return changerLeReglage({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+  const rendu = await changerLeReglage({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), cle, saisie, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
 });
 ipcMain.handle("changerVerificationDuCloser", async (_, nom: unknown, geste: unknown, saisie: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return changerLesVerifications({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), geste, saisie, client: clientDesLabels });
+  const rendu = await changerLesVerifications({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), geste, saisie, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
 });
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));

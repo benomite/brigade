@@ -1,0 +1,32 @@
+/* Les GitHub Apps de la station (ticket 2317, identites-github.js) : des rangées de réglage (composants/reglage, ticket
+   2920). Ici ne se dit que ce qui est à elles : le contrôle d'un rôle tient l'App ID et la clé — collée, ou son .pem
+   choisi —, l'un sous l'autre, chaque erreur sous son champ ; et la couleur de ce qui est configuré. */
+.apps-github .garde {
+  color: var(--texte-doux);
+}
+.apps-github .configuree {
+  color: var(--vert);
+}
+.apps-github .pas-configuree {
+  color: var(--discret);
+}
+.apps-github .champ {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.apps-github :is(.champ-id, .champ-cle, .gestes-du-role) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-2);
+  width: 100%;
+}
+.apps-github .champ p.dit {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--taille-corps);
+}
+.apps-github .fichier {
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}

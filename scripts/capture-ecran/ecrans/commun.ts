@@ -34,10 +34,10 @@ export type Donnees = {
   envois: { faits?: Envoi[]; tous?: Envoi[]; regarder?: Record<string, Envoi[]>; onglet?: Record<string, Envoi[]> };
 };
 
-// Un clic, par un sélecteur CSS — l'élément doit exister, un seul est cliqué —, un texte tapé dans un champ, ou un
-// glisser du navigateur : l'élément `glisser` part, et survole `sur` — la capture le montre en vol ; `lacher`, il y est
-// lâché (ticket 1347).
-export type Etape = { cliquer: string } | { saisir: string; texte: string } | { glisser: string; sur: string; lacher?: true } | { soulever: string; vers: string; lacher?: true } | { defiler: string };
+// Un clic, par un sélecteur CSS — l'élément doit exister, un seul est cliqué —, un texte tapé dans un champ — `valider` :
+// puis quitté, son `change` déclenché (ticket 2920) —, ou un glisser du navigateur : l'élément `glisser` part, et survole
+// `sur` — la capture le montre en vol ; `lacher`, il y est lâché (ticket 1347).
+export type Etape = { cliquer: string } | { saisir: string; texte: string; valider?: true } | { glisser: string; sur: string; lacher?: true } | { soulever: string; vers: string; lacher?: true } | { defiler: string };
 
 export type Ecran = {
   // Ce que l'écran montre, en une ligne : `--liste` l'affiche.

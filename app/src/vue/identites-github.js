@@ -2,7 +2,9 @@
 // Les GitHub Apps de la station de cet ordinateur, dans Settings, sous cette machine (ticket 2317, épique 2313) : le
 // chef remet à la station l'App ID et la clé privée de l'App de chaque rôle — cook, pass, manager —, un rôle à la fois.
 // Une ligne d'en-tête dit que les clés restent sur cette station ; puis une ligne par rôle : son état, `configured` ou
-// `not configured`, et son formulaire — l'App ID, la clé (collée, ou lue du fichier .pem choisi), « save ».
+// `not configured`, et son contrôle — l'App ID, la clé (collée, ou lue du fichier .pem choisi). Chaque ligne est la
+// rangée de réglage de l'app (composants/reglage, ticket 2920) : pas de « save », l'App se range dès que son contrôle
+// change — le `change` d'un des deux champs, ou un .pem choisi — une fois la clé écrite ; l'App ID est jugé alors.
 //
 // La clé n'est jamais rendue : l'écran ne la reçoit d'aucune lecture — la station dit seulement si elle l'a —, et une
 // fois rangée, elle quitte l'état de l'écran et son champ se vide. Lue d'un fichier, elle n'est pas écrite dans le
@@ -17,6 +19,7 @@
 
 import { boutonAction, survol } from "./briques.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
+import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {"cook" | "pass" | "manager"} Role */
@@ -37,7 +40,7 @@ import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 /**
  * Ce que le chef a saisi pour un rôle. `fichier` : le nom du .pem dont la clé a été lue ; `erreurId`, `erreurCle` :
  * ce qui est dit sous chaque champ ; `refus` : ce que la station a refusé ; `rangee` : elle vient de la ranger.
- * @typedef {{ id: string, cle: string, fichier?: string, erreurId?: string, erreurCle?: string, refus?: { ligne: string, detail: string }, enCours: boolean, rangee: boolean }} Saisie
+ * @typedef {{ id: string, cle: string, fichier?: string, erreurId?: string, erreurCle?: string, refus?: { ligne: string, detail: string }, attendCle?: boolean, enCours: boolean, rangee: boolean }} Saisie
  */
 /** @typedef {{ lecture?: LectureDesApps, saisies: Record<Role, Saisie> }} EtatDesIdentites */
 /**
@@ -72,9 +75,9 @@ export const CHAMP_ID = "App ID";
 export const CHAMP_CLE = "paste the private key, or choose its .pem file";
 export const CHOISIR = "choose the .pem file";
 export const CHOISI = (/** @type {string} */ fichier) => `${fichier} chosen`;
-export const ENREGISTRER = "save";
 export const ENREGISTREMENT = "saving…";
 export const RANGEE = "stored: its key is not shown again";
+export const CLE_ATTENDUE = "not applied yet: an App ID is stored with its private key — paste it, or choose its .pem file";
 export const SANS_ID = "nothing was written: enter the App's ID";
 export const PAS_UN_ID = "nothing was written: an App ID is the number on the App's page (or its Client ID)";
 export const PAS_UNE_CLE = "nothing was written: this is not a private key — give the .pem file downloaded from the App's page";
@@ -175,6 +178,13 @@ export function tenirLesIdentites({ pont, rendre }) {
         const saisie = etat.saisies[role];
         if (saisie.enCours) return;
         const id = saisie.id.trim();
+        // Sans clé, rien ne se range : un App ID qui n'est pas celui que la station a déjà le dit sous la ligne, plutôt
+        // que de rester sans effet en silence ; un champ vidé n'a rien à ranger.
+        if (saisie.cle.trim() === "") {
+          saisie.attendCle = id !== "" && id !== (appDe(etat.lecture, role)?.id ?? "");
+          return rendre();
+        }
+        delete saisie.attendCle;
         delete saisie.refus;
         saisie.rangee = false;
         if (id === "") saisie.erreurId = SANS_ID;
@@ -221,25 +231,6 @@ function erreurSous(doc, texte) {
   return ligneErreur(doc, texte, "", { classe: "dit refus" });
 }
 
-// Une ligne de réglage, la même que les autres de Settings : son nom, sa valeur, son contrôle — puis, sous elle, ce
-// que le contrôle a rendu.
-/** @param {Fabrique} doc @param {any[]} nom @param {any[]} valeur @param {any[]} controle @param {any[]} [dessous] */
-export function rangee(doc, nom, valeur, controle, dessous = []) {
-  const racine = cree(doc, "div");
-  racine.className = "reglage";
-  const nomme = cree(doc, "span");
-  nomme.className = "nom";
-  nomme.append(...nom);
-  const vaut = cree(doc, "p");
-  vaut.className = "valeur";
-  vaut.append(...valeur);
-  const champ = cree(doc, "div");
-  champ.className = "champ";
-  champ.append(...controle);
-  racine.append(nomme, vaut, champ, ...dessous);
-  return racine;
-}
-
 // Un rôle est configuré quand la station a son App et sa clé.
 /** @param {LectureDesApps | undefined} lecture @param {Role} role */
 const estConfigure = (lecture, role) => {
@@ -263,9 +254,11 @@ function etatDuRole(doc, lecture, role) {
   return [...valeur, survol(doc, `The ${role} App ${ROLE_DIT[role]}.`)];
 }
 
-// Le formulaire d'un rôle : l'App ID, la clé — collée, ou lue du .pem choisi —, « save » ; chaque erreur sous son champ.
-/** @param {Fabrique} doc @param {Role} role @param {Saisie} saisie @param {boolean} configure @param {GestesDesIdentites} gestes */
-function formulaire(doc, role, saisie, configure, gestes) {
+// Le contrôle d'un rôle : l'App ID, la clé — collée, ou lue du .pem choisi — ; chaque erreur sous son champ. Il
+// s'applique à son `change` : `enregistrer` juge l'App ID et la clé, et range l'App — sans clé, il dit qu'elle manque.
+/** @param {Fabrique} doc @param {Role} role @param {Saisie} saisie @param {GestesDesIdentites} gestes */
+function formulaire(doc, role, saisie, gestes) {
+  const appliquer = () => gestes.enregistrer(role);
   const id = cree(doc, "input");
   id.className = "mono app-id";
   id.type = "text";
@@ -275,6 +268,10 @@ function formulaire(doc, role, saisie, configure, gestes) {
   id.spellcheck = false;
   id.autocomplete = "off";
   id.addEventListener("input", () => gestes.saisirId(role, String(id.value)));
+  id.addEventListener("change", () => {
+    gestes.saisirId(role, String(id.value));
+    appliquer();
+  });
   const ligneId = cree(doc, "div");
   ligneId.className = "champ-id";
   ligneId.append(id);
@@ -290,6 +287,10 @@ function formulaire(doc, role, saisie, configure, gestes) {
   cle.spellcheck = false;
   cle.autocomplete = "off";
   cle.addEventListener("input", () => gestes.saisirCle(role, String(cle.value)));
+  cle.addEventListener("change", () => {
+    gestes.saisirCle(role, String(cle.value));
+    appliquer();
+  });
   const fichier = cree(doc, "input");
   fichier.type = "file";
   fichier.accept = ".pem,application/x-pem-file";
@@ -298,7 +299,10 @@ function formulaire(doc, role, saisie, configure, gestes) {
   fichier.addEventListener("change", () => {
     const choisi = fichier.files?.[0];
     if (choisi === undefined) return;
-    void choisi.text().then((/** @type {string} */ texte) => gestes.choisirLeFichier(role, String(choisi.name), texte));
+    void choisi.text().then((/** @type {string} */ texte) => {
+      gestes.choisirLeFichier(role, String(choisi.name), texte);
+      appliquer();
+    });
     fichier.value = "";
   });
   const ligneCle = cree(doc, "div");
@@ -311,13 +315,12 @@ function formulaire(doc, role, saisie, configure, gestes) {
   }
   if (saisie.erreurCle !== undefined) ligneCle.append(erreurSous(doc, saisie.erreurCle));
 
-  // « save » est le geste attendu tant que le rôle n'est pas configuré ; configuré, il ne sert qu'à remplacer l'App.
   const gestesDuRole = cree(doc, "div");
   gestesDuRole.className = "gestes-du-role";
-  gestesDuRole.append(
-    boutonAction(doc, CHOISIR, () => fichier.click()),
-    saisie.enCours ? cree(doc, "span", ENREGISTREMENT) : boutonAction(doc, ENREGISTRER, () => gestes.enregistrer(role), { recommande: !configure }),
-  );
+  gestesDuRole.append(boutonAction(doc, CHOISIR, () => fichier.click()));
+  // Tant que la station range, le contrôle attend.
+  id.disabled = saisie.enCours;
+  cle.disabled = saisie.enCours;
   return [ligneId, ligneCle, gestesDuRole];
 }
 
@@ -330,20 +333,18 @@ export function poserLesIdentites(doc, etat, gestes) {
   const garde = cree(doc, "span", GARDE);
   garde.className = "garde";
   const lue = etat.lecture;
-  const tete = rangee(doc, [TITRE], [garde, survol(doc, AIDE)], lue !== undefined && "refus" in lue ? [ligneErreur(doc, ILLISIBLE, lue.refus)] : []);
-  tete.className = "reglage tete";
+  const tete = rangeeDeReglage(doc, { nom: TITRE, valeur: [garde, survol(doc, AIDE)], controle: lue !== undefined && "refus" in lue ? [ligneErreur(doc, ILLISIBLE, lue.refus)] : [], classe: "tete" });
   racine.append(tete);
   for (const role of ROLES) {
     const saisie = etat.saisies[role];
-    const dessous = [];
-    if (saisie.refus !== undefined) {
-      dessous.push(ligneErreur(doc, saisie.refus.ligne, saisie.refus.detail, { classe: "dit refus" }));
-    } else if (saisie.rangee) {
-      const dit = cree(doc, "p", RANGEE);
-      dit.className = "dit";
-      dessous.push(dit);
-    }
-    const ligne = rangee(doc, [NOM(role)], etatDuRole(doc, lue, role), formulaire(doc, role, saisie, estConfigure(lue, role), gestes), dessous);
+    // Ce que le dernier changement a rendu, sous la ligne : le rangement en route, l'App rangée, ou le refus.
+    /** @type {import("./composants/reglage/reglage.js").Dit | undefined} */
+    let dit;
+    if (saisie.enCours) dit = { enCours: ENREGISTREMENT };
+    else if (saisie.refus !== undefined) dit = { refus: saisie.refus.ligne, detail: saisie.refus.detail };
+    else if (saisie.attendCle === true) dit = { enCours: CLE_ATTENDUE };
+    else if (saisie.rangee) dit = { fait: RANGEE };
+    const ligne = rangeeDeReglage(doc, { nom: NOM(role), valeur: etatDuRole(doc, lue, role), controle: formulaire(doc, role, saisie, gestes), dessous: ditDuReglage(doc, dit) });
     ligne.dataset.role = role;
     racine.append(ligne);
   }

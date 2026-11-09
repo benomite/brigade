@@ -267,7 +267,8 @@ export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
 const BOUTON_RESUME = "the `Resume` button on the breaker line of TODO";
 const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
 const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `kitchen` line of the project's Settings";
-const BOUTON_PROPOSE = (reglage: string) => `the \`propose\` button on the \`${reglage}\` line of the project's Settings`;
+// Un réglage du projet gardé dans son dépôt se change sur sa ligne de Settings : changée, elle ouvre sa PR (#2920).
+const LIGNE_DU_PROJET = (reglage: string) => `on the \`${reglage}\` line of the project's Settings`;
 const SANS_BOUTON = "no app button for it yet";
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
@@ -547,7 +548,7 @@ function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): stri
 function direRefusDeLaFermetureEn(retenue: Refus): string {
   switch (retenue.reason) {
     case "unconfigured":
-      return `the closer is not set on this project — set its calibration with ${BOUTON_PROPOSE("closer's calibration")}, it applies once its pull request is merged`;
+      return `the closer is not set on this project — set its calibration ${LIGNE_DU_PROJET("closer's calibration")}: the change opens a pull request, it applies once merged`;
     case "stopped":
       return `the kitchen has been stopped by the chef since ${retenue.detail} — ${BOUTON_REPRENDRE_LA_CUISINE} first`;
     case "breaker":
@@ -563,7 +564,7 @@ function direFermetureEn({ since, sansIssue }: DemandeDeFermeture, retenue: Refu
   if (!faitAttendre(retenue)) return `${demandee}: ${refus} — the runtime refuses it at its next wake-up, nothing leaves`;
   const renoncer = `withdraw it: ${SANS_BOUTON}`;
   if (sansIssue === null) return `${demandee}, it waits — ${refus}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
-  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold with ${BOUTON_PROPOSE("closer's start threshold (cooks in flight)")}, switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold ${LIGNE_DU_PROJET("closer's start threshold (cooks in flight)")}, switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
 }
 
 // Une phrase reprise au milieu d'une ligne.

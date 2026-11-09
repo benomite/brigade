@@ -2,7 +2,7 @@
 // que `facts` donne, celles que la principale déclare sans qu'elles s'y soient annoncées, et celles que l'app lui a
 // ajoutées et qui n'en sont pas encore. La principale — le manager et la pass — vient d'abord, marquée, avec « move the
 // kitchen » ; chacune dit si elle est atteinte, ce qu'elle fournit (le bloc « what each station provides » y est fondu),
-// ses cooks à la fois avec « set the cap », ce qu'elle cuit, et pourquoi elle ne cuit pas. La vue jouée telle qu'elle est,
+// ses cooks à la fois — une rangée de réglage, dont le champ s'applique dès qu'il change (#2920) —, ce qu'elle cuit, et pourquoi elle ne cuit pas. La vue jouée telle qu'elle est,
 // devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -18,11 +18,11 @@ import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
-import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
+import { lireStations, type Guide, type StationChangee, type StationsLues, type StationVoulue } from "../../src/service.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
 import { ABSENTE } from "../../src/cuisson.ts";
-import { ATTEINTE, FOURNIT_PAS_DIT, PAS_ANNONCEE, POSER_LE_PLAFOND, RELIRE, stationsDuBloc } from "../../src/vue/stations-de-cuisson.js";
-import { TITRE as TITRE_DES_DECLAREES } from "../../src/vue/stations-declarees.js";
+import { ATTEINTE, FOURNIT_PAS_DIT, PAS_ANNONCEE, PLAFOND, RELIRE, stationsDuBloc } from "../../src/vue/stations-de-cuisson.js";
+import { APPLIQUE, TITRE as TITRE_DES_DECLAREES } from "../../src/vue/stations-declarees.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-27T10:04:12.000Z";
@@ -112,8 +112,13 @@ const demarrage = (vu: VuDesProjets) => () => ({
   projetsDesStations: vu,
 });
 
-async function ouvrir(vu: VuDesProjets = vuDes(SUR_LA_BOX), stations: DuRuntime[] = STATIONS_DES_FAITS, declarees: StationsLues = DECLAREES): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: demarrage(vu), espace: () => [], service: () => guide(declarees), defautsDeStation: () => ({ refus: "pas ici" }) });
+async function ouvrir(
+  vu: VuDesProjets = vuDes(SUR_LA_BOX),
+  stations: DuRuntime[] = STATIONS_DES_FAITS,
+  declarees: StationsLues = DECLAREES,
+  changerUneStation: (projet: string, nom: string, voulu: StationVoulue) => StationChangee | Promise<StationChangee> = (_, nom) => ({ fait: `${nom} saved; the other stations are unchanged` }),
+): Promise<Jouee> {
+  const vue = await jouerLaVue({ demarrage: demarrage(vu), espace: () => [], service: () => guide(declarees), defautsDeStation: () => ({ refus: "pas ici" }), changerUneStation });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations }) }] });
@@ -127,6 +132,9 @@ const ligne = (vue: Jouee, nom: string) => lignes(vue).find((li) => li.dataset.s
 const atteinte = (pose: Faux) => pose.dessous("span").find(({ className }) => className === "pilule atteinte");
 const fournit = (pose: Faux) => pose.dessous("div").find(({ className }) => className === "fournit-de-station");
 const retenue = (pose: Faux) => pose.dessous("p").find(({ className }) => className === "retenue-de-cuisson");
+const plafondDe = (pose: Faux) => pose.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks") ?? assert.fail(`pas de rangée « ${PLAFOND} » sous ${pose.dataset.station}`);
+const champDuPlafond = (pose: Faux) => plafondDe(pose).dessous("input")[0] ?? assert.fail(`pas de champ du plafond sous ${pose.dataset.station}`);
+const ditSous = (pose: Faux) => plafondDe(pose).children.filter(({ className }) => className.startsWith("dit")).map(({ className, textContent }) => [className, textContent]);
 const boutonDe = (pose: Faux, texte: string) => pose.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de « ${texte} » sous ${pose.dataset.station}`);
 
 describe("« Its stations » liste toutes les stations du projet (#1786)", () => {
@@ -146,9 +154,10 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
     // Ce qu'elle cuit : la box #14 ; les autres, rien.
     assert.match(ligne(vue, "box/claude").textContent, /#14/);
     assert.match(ligne(vue, "pc").textContent, /nothing running/);
-    // Ses cooks à la fois, et « set the cap ».
-    assert.match(ligne(vue, "macbook/claude").textContent, /Cooks at once: 2/);
-    boutonDe(ligne(vue, "macbook/claude"), POSER_LE_PLAFOND);
+    // Ses cooks à la fois : sa rangée, et son champ.
+    const plafond = plafondDe(ligne(vue, "macbook/claude"));
+    assert.equal(plafond.children[1]?.textContent, "2");
+    assert.equal(champDuPlafond(ligne(vue, "macbook/claude")).value, "2");
   });
 
   test("une station qui ne peut pas cuire dit pourquoi en une ligne : déclarée sans s'être annoncée, ajoutée sans avoir lu la demande — « check again » relit GitHub", async () => {
@@ -177,12 +186,49 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
     assert.deepEqual(formes, formes.map(() => ["nom", "etat"]));
   });
 
-  test("« set the cap » d'une station ouvre son formulaire dans sa ligne, son plafond prêt à changer", async () => {
+  test("le plafond d'une station se règle sur sa ligne, sans « Save » : changé, il part aussitôt, la déclaration entière avec lui", async () => {
+    let lacher = () => {};
+    const retenue = new Promise<void>((resolu) => (lacher = resolu));
+    const vue = await ouvrir(vuDes(SUR_LA_BOX), STATIONS_DES_FAITS, DECLAREES, async (_, nom) => {
+      await retenue;
+      return { fait: `${nom} saved; the other stations are unchanged` };
+    });
+    assert.equal(ligne(vue, "macbook/claude").dessous("button").some(({ textContent }) => /^(save|saving…|set the cap)$/i.test(textContent)), false);
+    const champ = champDuPlafond(ligne(vue, "macbook/claude"));
+    champ.value = "4";
+    champ.declencher("input");
+    champ.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "macbook/claude", { cooks: 4, fournit: ["code", "raisonnement", "navigateur-headless"] }]);
+    // En route : sa rangée le dit, son champ attend.
+    assert.deepEqual(ditSous(ligne(vue, "macbook/claude")), [["dit en-cours", APPLIQUE]]);
+    assert.equal(champDuPlafond(ligne(vue, "macbook/claude")).disabled, true);
+    lacher();
+    await repos();
+    assert.deepEqual(ditSous(ligne(vue, "macbook/claude")), [["dit fait", "macbook/claude saved; the other stations are unchanged"]]);
+    assert.equal(champDuPlafond(ligne(vue, "macbook/claude")).disabled, false);
+  });
+
+  test("un plafond refusé : le refus sous sa rangée, et le champ revient à la valeur en vigueur", async () => {
+    const vue = await ouvrir(vuDes(SUR_LA_BOX), STATIONS_DES_FAITS, DECLAREES, (_, nom) => ({ refus: `Nothing was saved: how many cooks ${nom} runs at once is a whole number, from 1 to 99.`, detail: "exit 2" }));
+    const champ = champDuPlafond(ligne(vue, "macbook/claude"));
+    champ.value = "0";
+    champ.declencher("input");
+    champ.declencher("change");
+    await repos();
+    const pose = ligne(vue, "macbook/claude");
+    assert.deepEqual(ditSous(pose).map(([classe]) => classe), ["dit refus"]);
+    assert.match(plafondDe(pose).textContent, /whole number, from 1 to 99/);
+    assert.equal(champDuPlafond(pose).value, "2");
+  });
+
+  test("son formulaire ouvert sous elle a le champ du plafond : la rangée de sa ligne se lit alors seulement", async () => {
     const vue = await ouvrir();
-    boutonDe(ligne(vue, "macbook/claude"), POSER_LE_PLAFOND).click();
+    (ligne(vue, "macbook/claude").dessous("button").find(({ className }) => className === "editer") ?? assert.fail("pas de « edit »")).click();
     await repos();
     const champ = ligne(vue, "macbook/claude").dessous("input").find(({ ariaLabel }) => ariaLabel === "how many cooks macbook/claude runs at once") ?? assert.fail("pas de formulaire ouvert dans la ligne");
     assert.equal(champ.value, "2");
+    assert.deepEqual(plafondDe(ligne(vue, "macbook/claude")).dessous("input"), []);
   });
 });
 

@@ -1,6 +1,6 @@
 // Les humains du projet sous Settings (#2930) : chaque humain que son `projet.json` déclare, son login et ses rôles ;
-// ajouter, changer les rôles et retirer s'appliquent au changement, sans « Save », et chaque rangée dit que le
-// changement s'écrit dans projet.json par une PR — puis le lien de la PR ouverte. Un refus du service se dit en une ligne
+// ajouter, changer les rôles et retirer s'appliquent au changement, sans « Save ». Chaque rangée est la rangée de
+// réglage (#2920) : elle dit qu'un changement ouvre une PR (`PAR_PR`), puis, dessous, le lien de la PR ouverte. Un refus du service se dit en une ligne
 // sur la rangée du login concerné seule, et la rangée revient à ce qui était. La vue est jouée telle qu'elle est, devant
 // un faux document (aides/fausse-vue.ts), le service derrière le faux pont.
 import assert from "node:assert/strict";
@@ -14,6 +14,7 @@ import { BANNIERE } from "../../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
+import { PAR_PR } from "../../../src/vue/composants/reglage/reglage.js";
 import { MOTS, nomDeLaPr, renduLu, serviceDuPont, type Humain, type Rendu } from "../../../src/vue/settings-humans/humains.js";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../../aides/fausse-vue.ts";
 
@@ -56,21 +57,25 @@ async function ouvrir(reponses: Reponses = {}) {
 }
 
 const section = (vue: Jouee) => vue.element("humains-du-projet").children[0] ?? assert.fail("pas de section des humains");
-const rangees = (vue: Jouee) => section(vue).children.filter((pose) => pose.className.startsWith("humain"));
+const rangees = (vue: Jouee) => section(vue).children.filter((pose) => pose.className.split(" ").includes("humain"));
+const neuve = (vue: Jouee) => rangees(vue).find((pose) => pose.className === "reglage humain neuf") ?? assert.fail("pas de rangée neuve");
 const rangee = (vue: Jouee, login: string) => rangees(vue).find((pose) => pose.dataset.login === login) ?? assert.fail(`pas de rangée ${login}`);
 const coches = (pose: Faux) => pose.dessous("input").filter((champ) => champ.type === "checkbox");
 const cochees = (pose: Faux) => coches(pose).filter((champ) => champ.checked).map((champ) => champ.ariaLabel);
 const caseDe = (pose: Faux, role: string) => coches(pose).find((champ) => champ.ariaLabel === role) ?? assert.fail(`pas de case ${role}`);
 const bouton = (pose: Faux, libelle: string) => pose.dessous("button").find((pris) => pris.textContent === libelle) ?? assert.fail(`pas de « ${libelle} »`);
-const source = (pose: Faux) => pose.dessous("p").find((p) => p.className.startsWith("source"))?.textContent;
-const refus = (pose: Faux) => pose.dessous("p").find((p) => p.className === "refus");
+// La ligne qui dit qu'un changement ouvre une PR, et ce que le dernier geste a rendu, sous la rangée.
+const parPr = (pose: Faux) => pose.dessous("p").find((p) => p.className === "par-pr")?.textContent;
+const dit = (pose: Faux) => pose.dessous("p").find((p) => p.className === "dit en-cours" || p.className === "dit propose")?.textContent;
+const enVigueur = (pose: Faux) => pose.dessous("p").find((p) => p.className === "valeur")?.textContent;
+const refus = (pose: Faux) => pose.dessous("p").find((p) => p.className === "dit refus");
 function cocher(champ: Faux, cochee: boolean) {
   champ.checked = cochee;
   champ.declencher("change");
 }
 
 describe("Settings : les humains du projet", () => {
-  test("chaque humain déclaré, son login et ses rôles ; chaque rangée dit que son changement s'écrit dans projet.json par une PR ; aucun « Save »", async () => {
+  test("chaque humain déclaré, son login et ses rôles ; chaque rangée dit que son changement ouvre une PR ; aucun « Save »", async () => {
     const { vue } = await ouvrir();
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "listerLesHumains").map(({ args }) => args), [[PARADE]]);
     assert.equal(vue.element("humains-du-projet").hidden, false);
@@ -80,8 +85,12 @@ describe("Settings : les humains du projet", () => {
     assert.deepEqual(coches(rangee(vue, "bob")).map((champ) => champ.ariaLabel), ["product", "design", "review", "client-contact"]);
     for (const login of ["alice", "bob"]) {
       assert.match(rangee(vue, login).textContent, new RegExp(`^${login}`));
-      assert.equal(source(rangee(vue, login)), "written to projet.json through a pull request");
+      assert.equal(rangee(vue, login).dataset.depot, "");
+      assert.equal(parPr(rangee(vue, login)), PAR_PR);
+      assert.equal(dit(rangee(vue, login)), undefined);
     }
+    assert.equal(enVigueur(rangee(vue, "alice")), "product, review");
+    assert.equal(enVigueur(rangee(vue, "bob")), "design");
     assert.equal(
       section(vue).dessous("button").some((pris) => /save|propose/i.test(pris.textContent)),
       false,
@@ -93,14 +102,16 @@ describe("Settings : les humains du projet", () => {
     cocher(caseDe(rangee(vue, "bob"), "review"), true);
     await repos();
     assert.deepEqual(ecritures.map(({ args }) => args), [[PARADE, { login: "bob", roles: ["design", "review"] }]]);
-    assert.equal(source(rangee(vue, "bob")), MOTS.enCours);
+    assert.equal(dit(rangee(vue, "bob")), MOTS.enCours);
     assert.ok(coches(rangee(vue, "bob")).every((champ) => champ.disabled));
     ecritures[0]?.rendre({ pr: PR });
     await repos();
-    assert.equal(source(rangee(vue, "bob")), "proposed inPR #2951");
+    assert.equal(dit(rangee(vue, "bob")), "proposed inpull request #2951");
     assert.deepEqual(cochees(rangee(vue, "bob")), ["design", "review"]);
+    // La valeur en vigueur est celle de projet.json : la PR vaut une fois mergée.
+    assert.equal(enVigueur(rangee(vue, "bob")), "design");
     assert.equal(refus(rangee(vue, "bob")), undefined);
-    bouton(rangee(vue, "bob"), "PR #2951").click();
+    bouton(rangee(vue, "bob"), "pull request #2951").click();
     assert.deepEqual(vue.dernier("ouvrirLaProposition"), [PR]);
   });
 
@@ -108,11 +119,11 @@ describe("Settings : les humains du projet", () => {
     const { vue, ecritures } = await ouvrir();
     bouton(section(vue), MOTS.ajouter).click();
     await repos();
-    const neuve = () => rangees(vue).find((pose) => pose.className === "humain neuf") ?? assert.fail("pas de rangée neuve");
-    cocher(caseDe(neuve(), "design"), true);
+    cocher(caseDe(neuve(vue), "design"), true);
     await repos();
     assert.equal(ecritures.length, 0);
-    const champ = neuve().dessous("input").find((pris) => pris.ariaLabel === MOTS.login) ?? assert.fail("pas de champ du login");
+    assert.equal(parPr(neuve(vue)), PAR_PR);
+    const champ = neuve(vue).dessous("input").find((pris) => pris.ariaLabel === MOTS.login) ?? assert.fail("pas de champ du login");
     champ.value = "carol";
     champ.declencher("input");
     assert.equal(ecritures.length, 0);
@@ -121,9 +132,9 @@ describe("Settings : les humains du projet", () => {
     assert.deepEqual(ecritures.map(({ args }) => args), [[PARADE, { login: "carol", roles: ["design"] }]]);
     ecritures[0]?.rendre({ pr: PR });
     await repos();
-    assert.equal(source(neuve()), "proposed inPR #2951");
-    assert.equal(neuve().dessous("input").some((pris) => pris.ariaLabel === MOTS.login), false, "le login proposé ne se réécrit plus");
-    assert.equal(neuve().dataset.login, "carol");
+    assert.equal(dit(neuve(vue)), "proposed inpull request #2951");
+    assert.equal(neuve(vue).dessous("input").some((pris) => pris.ariaLabel === MOTS.login), false, "le login proposé ne se réécrit plus");
+    assert.equal(neuve(vue).dataset.login, "carol");
   });
 
   test("« cancel » sur une rangée neuve la retire sans rien écrire", async () => {
@@ -144,39 +155,55 @@ describe("Settings : les humains du projet", () => {
     assert.deepEqual(ecritures.map(({ args }) => args), [[PARADE, "alice"]]);
     ecritures[0]?.rendre({ pr: "https://github.com/benomite/parade/pull/2952" });
     await repos();
-    assert.equal(source(rangee(vue, "alice")), "removal proposed inPR #2952");
+    assert.equal(dit(rangee(vue, "alice")), "removal proposed inpull request #2952");
     assert.ok(coches(rangee(vue, "alice")).every((champ) => champ.disabled));
     assert.equal(bouton(rangee(vue, "alice"), MOTS.retirer).disabled, true);
   });
 
-  test("un refus se dit en une ligne sur la rangée du login seule ; elle revient à ce qui était et ne dit aucune PR", async () => {
+  test("un refus se dit en une ligne sous la rangée du login seule ; elle revient à ce qui était et ne dit aucune PR", async () => {
     const { vue, ecritures } = await ouvrir();
     cocher(caseDe(rangee(vue, "bob"), "product"), true);
     await repos();
     ecritures[0]?.rendre({ refus: "you have no access to benomite/parade: nothing was written\ngh: HTTP 403", detail: "$ gh api …" });
     await repos();
-    const dit = refus(rangee(vue, "bob")) ?? assert.fail("pas de refus sur bob");
-    assert.equal(dit.children[0]?.textContent, "you have no access to benomite/parade: nothing was written");
+    const refusDeBob = refus(rangee(vue, "bob")) ?? assert.fail("pas de refus sur bob");
+    assert.equal(refusDeBob.children[0]?.textContent, "you have no access to benomite/parade: nothing was written");
     // Le reste du refus n'est qu'au survol.
-    assert.equal(dit.textContent.includes("HTTP 403"), false);
+    assert.equal(refusDeBob.textContent.includes("HTTP 403"), false);
     assert.equal(refus(rangee(vue, "alice")), undefined);
     assert.deepEqual(cochees(rangee(vue, "bob")), ["design"]);
-    assert.equal(source(rangee(vue, "bob")), "written to projet.json through a pull request");
+    assert.equal(dit(rangee(vue, "bob")), undefined);
+    assert.equal(parPr(rangee(vue, "bob")), PAR_PR);
 
     // Un login inconnu, ajouté : le refus est sur sa rangée, qui garde le login écrit.
     bouton(section(vue), MOTS.ajouter).click();
     await repos();
-    const neuve = () => rangees(vue).find((pose) => pose.className === "humain neuf") ?? assert.fail("pas de rangée neuve");
-    const champ = neuve().dessous("input").find((pris) => pris.ariaLabel === MOTS.login) ?? assert.fail();
+    const champ = neuve(vue).dessous("input").find((pris) => pris.ariaLabel === MOTS.login) ?? assert.fail();
     champ.value = "ghost-user";
     champ.declencher("input");
     champ.declencher("change");
     await repos();
     ecritures[1]?.rendre({ refus: "ghost-user is not a GitHub account" });
     await repos();
-    assert.equal(refus(neuve())?.textContent, "ghost-user is not a GitHub account");
-    assert.equal(neuve().dessous("input").find((pris) => pris.ariaLabel === MOTS.login)?.value, "ghost-user");
+    assert.equal(refus(neuve(vue))?.textContent, "ghost-user is not a GitHub account");
+    assert.equal(neuve(vue).dessous("input").find((pris) => pris.ariaLabel === MOTS.login)?.value, "ghost-user");
     assert.equal(rangees(vue).filter((pose) => refus(pose) !== undefined).length, 2, "bob garde le sien, rien d'autre");
+  });
+
+  test("un refus après une PR ouverte se dit sous elle : la PR reste dite, elle est toujours ouverte ; un lien sans numéro se dit « pull request »", async () => {
+    const { vue, ecritures } = await ouvrir();
+    cocher(caseDe(rangee(vue, "bob"), "review"), true);
+    await repos();
+    ecritures[0]?.rendre({ pr: "https://example.test/elsewhere" });
+    await repos();
+    assert.equal(dit(rangee(vue, "bob")), "proposed inpull request");
+    cocher(caseDe(rangee(vue, "bob"), "product"), true);
+    await repos();
+    ecritures[1]?.rendre({ refus: "you have no access to benomite/parade: nothing was written" });
+    await repos();
+    assert.equal(dit(rangee(vue, "bob")), "proposed inpull request");
+    assert.equal(refus(rangee(vue, "bob"))?.children[0]?.textContent, "you have no access to benomite/parade: nothing was written");
+    assert.deepEqual(cochees(rangee(vue, "bob")), ["design", "review"]);
   });
 
   test("une écriture qui échoue, ou qui ne rend rien de lisible, est un refus — jamais une PR devinée", async () => {
@@ -200,7 +227,7 @@ describe("Settings : les humains du projet", () => {
     assert.equal(premier.className, "recommande");
     premier.click();
     await repos();
-    assert.deepEqual(rangees(vue).map((pose) => pose.className), ["humain neuf"]);
+    assert.deepEqual(rangees(vue).map((pose) => pose.className), ["reglage humain neuf"]);
   });
 
   test("une lecture qui échoue tient en une ligne, son détail au survol ; un pont sans humains ne pose pas la section", async () => {

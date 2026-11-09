@@ -1,6 +1,6 @@
 // La partie « closer » de la page d'un projet (vue/closer/section.js, #990) : les quatre chiffres de la
 // dernière observation, la liste de ce qu'elle a repéré derrière un bouton, et — sans closer réglé — le
-// message et le geste qui en règle un, un bouton, sans aucun chiffre. Le module est lu seul, sur un faux document :
+// message et la rangée de réglage qui en règle un, sans bouton ni aucun chiffre. Le module est lu seul, sur un faux document :
 // la vue ne le pose plus (#2921, la page Cooks est supprimée).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -22,7 +22,7 @@ import {
   NON_COMMUNIQUE,
   poserCloser,
   RATIO,
-  REGLER,
+  REGLAGE,
   SANS_CLOSER,
 } from "../../src/vue/closer/section.js";
 import { Faux } from "../aides/fausse-vue.ts";
@@ -168,12 +168,12 @@ describe("la partie closer, observée", () => {
   });
 });
 
-// Ce que la partie sans closer pose pour le régler : les deux listes, et le bouton.
+// Ce que la partie sans closer pose pour le régler : la rangée de réglage, et ses deux listes.
 const reglage = (racine: Faux) => {
-  const [modele, effort] = racine.dessous("select");
-  const bouton = racine.dessous("button").find(({ textContent }) => textContent === REGLER);
-  assert.ok(modele !== undefined && effort !== undefined && bouton !== undefined, "pas de réglage");
-  return { modele, effort, bouton };
+  const rangee = racine.dessous("div").find(({ className }) => className === "reglage");
+  const [modele, effort] = rangee?.dessous("select") ?? [];
+  assert.ok(rangee !== undefined && modele !== undefined && effort !== undefined, "pas de réglage");
+  return { rangee, modele, effort };
 };
 const choisir = (liste: Faux, valeur: string) => {
   liste.value = valeur;
@@ -181,13 +181,15 @@ const choisir = (liste: Faux, valeur: string) => {
 };
 
 describe("la partie closer, sans closer réglé", () => {
-  test("elle le dit, propose le modèle et l'effort ensemble devant un bouton recommandé, et ne montre aucun chiffre", () => {
+  test("elle le dit, propose le modèle et l'effort ensemble dans une rangée de réglage, sans bouton, et ne montre aucun chiffre", () => {
     const racine = poser(SANS, { valeurs: CALIBRAGE });
     assert.ok(racine.dessous("p").some(({ textContent }) => textContent === SANS_CLOSER));
-    const { modele, effort, bouton } = reglage(racine);
+    const { rangee, modele, effort } = reglage(racine);
+    assert.equal(rangee.dessous("span").find(({ className }) => className === "nom")?.textContent, REGLAGE);
+    // Aucun bouton « Set » : la rangée s'applique dès qu'elle change.
+    assert.deepEqual(rangee.dessous("button").filter(({ className }) => className !== "aide"), []);
     assert.deepEqual(modele.children.map(({ textContent, value }) => [textContent, value]), [[CHOISIR_MODELE, ""], ...MODELES.map((valeur) => [valeur, valeur])]);
     assert.deepEqual(effort.children.map(({ textContent, value }) => [textContent, value]), [[CHOISIR_EFFORT, ""], ...EFFORTS.map((valeur) => [valeur, valeur])]);
-    assert.equal(bouton.className, "recommande");
     assert.deepEqual(chiffres(racine), []);
     for (const absent of [MERGES, RATIO, DOUBLONS, MORTS]) assert.doesNotMatch(racine.textContent, new RegExp(absent));
     // Aucune commande à recopier : ni `station`, ni bloc de code.
@@ -196,35 +198,35 @@ describe("la partie closer, sans closer réglé", () => {
     // Ni liste, ni places pour le lancement ou le bilan : il n'y a pas de closer à lancer.
     assert.deepEqual(racine.dessous("button").filter(({ className }) => className === "deplier"), []);
     assert.deepEqual(racine.dessous("div").filter(({ className }) => /^closer-(lancement|bilan)$/.test(className)), []);
-    // Ce que le bouton fait, et les valeurs acceptées, sont au survol, pas à plat.
+    // Ce que la rangée fait, et les valeurs acceptées, sont au survol, pas à plat.
     const aide = racine.dessous("button").find(({ className }) => className === "aide") ?? assert.fail("pas d'aide");
     assert.match(aide.ariaLabel, /without sending them/);
     for (const valeur of [...MODELES, ...EFFORTS]) assert.match(aide.ariaLabel, new RegExp(valeur));
   });
 
-  test("le bouton n'agit qu'avec le modèle et l'effort choisis, et les donne ensemble", () => {
+  test("la rangée ne s'applique qu'avec le modèle et l'effort choisis, dès qu'ils le sont, et les donne ensemble", () => {
     const reglages: [string, string][] = [];
     const choix: { modele: string; effort: string }[] = [];
     const racine = poser(SANS, { valeurs: CALIBRAGE, regler: (modele, effort) => void reglages.push([modele, effort]), choisir: (pris) => void choix.push(pris) });
-    const { modele, effort, bouton } = reglage(racine);
-    assert.equal(bouton.disabled, true);
-    bouton.declencher("click");
+    const { modele, effort } = reglage(racine);
     choisir(modele, "sonnet");
-    assert.equal(bouton.disabled, true, "un modèle sans effort ne règle rien");
-    bouton.declencher("click");
-    assert.deepEqual(reglages, []);
+    assert.deepEqual(reglages, [], "un modèle sans effort ne règle rien");
+    assert.deepEqual(choix.at(-1), { modele: "sonnet", effort: "" });
     choisir(effort, "medium");
-    assert.equal(bouton.disabled, false);
-    bouton.click();
     assert.deepEqual(reglages, [["sonnet", "medium"]]);
     assert.deepEqual(choix.at(-1), { modele: "sonnet", effort: "medium" });
+    // Changer l'un des deux, l'autre gardé, s'applique aussitôt ; le retirer ne règle rien.
+    choisir(effort, "high");
+    assert.deepEqual(reglages, [["sonnet", "medium"], ["sonnet", "high"]]);
+    choisir(modele, "");
+    assert.equal(reglages.length, 2);
   });
 
   test("ce que le chef a choisi est reposé tel quel ; une valeur que la station n'accepte pas ne l'est pas", () => {
     const repris = reglage(poser(SANS, { valeurs: CALIBRAGE, choix: { modele: "opus", effort: "high" } }));
-    assert.deepEqual([repris.modele.value, repris.effort.value, repris.bouton.disabled], ["opus", "high", false]);
+    assert.deepEqual([repris.modele.value, repris.effort.value], ["opus", "high"]);
     const inconnu = reglage(poser(SANS, { valeurs: CALIBRAGE, choix: { modele: "gpt", effort: "high" } }));
-    assert.deepEqual([inconnu.modele.value, inconnu.bouton.disabled], ["", true]);
+    assert.deepEqual([inconnu.modele.value, inconnu.effort.value], ["", "high"]);
   });
 });
 
