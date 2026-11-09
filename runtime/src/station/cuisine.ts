@@ -233,6 +233,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 avertir: dire,
                 observer: suiviDuTour.envelopper,
                 sauter: suiviDuTour.sauter,
+                // Un ticket dont les gates ne se jouent pas ici va à une autre station du projet (#3057).
+                stationsDuProjet: () => stations.map((declaree) => declaree.nom),
                 // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
                 clone: station.clone,
                 repertoireEtat,

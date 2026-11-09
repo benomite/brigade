@@ -22,6 +22,7 @@ import { compagnons } from "./compagnons.ts";
 import { fiche, type Fiche } from "./fiche.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { attendusDuBlocage, attendusOuverts, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
+import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapables, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
@@ -311,6 +312,10 @@ export type OptionsDeStation = {
   // les secrets du projet, et ses humains, à qui va leur carte. Absent, la
   // station ne les sert pas.
   externes?: ServiceDesPRExternes;
+  // Les stations que le projet déclare, celle-ci comprise (#3057) : un ticket
+  // dont les gates ne se jouent pas ici va à une autre. Absentes, aucune
+  // autre : il reste retenu sur cette station.
+  stationsDuProjet?: () => readonly string[];
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -724,6 +729,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     return "retenue";
   };
 
+  // Marque sur l'issue que cette station ne joue pas les gates du ticket, et
+  // rend les stations du projet qui le peuvent encore (#3057). Des marques
+  // illisibles n'en écartent aucune : la porte de chaque station relit les
+  // siennes avant de prendre.
+  const routerAilleurs = async (issue: number, question: string): Promise<string[]> => {
+    let marquees = new Set<string>();
+    try {
+      const commentaires = await github.commentaires(issue);
+      marquees = incapables(commentaires, await Promise.resolve().then(() => github.retraitsDeLabels(issue)).catch(() => []));
+    } catch (erreur) {
+      avertir(`brigade : #${issue} sur ${nom} — the stations already unable to run its gates could not be read: ${message(erreur)}`);
+    }
+    const vers = stationsCapables(nom, options.stationsDuProjet?.() ?? [], marquees);
+    await github.commenter(issue, corpsDeLIncapacite({ station: nom, vers, question }));
+    return vers;
+  };
+
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
   const cuire = async (ticket: TicketLu, calibrage: Calibrage) => {
@@ -786,6 +808,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (fait.miseAJour !== undefined && fait.miseAJour.etat !== "deja") {
           const { dit } = await apresLaMiseAJour(github, { station: nom, ticket: issue, base, branche: brancheDuTicket(issue), question: fait.bloque, miseAJour: fait.miseAJour });
           avertir(`brigade : #${issue} sur ${nom} — the cook stopped on commits of \`origin/${base}\` missing from its branch: ${dit}`);
+          chrono.rater(issue);
+          await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+          liberee = true;
+          return;
+        }
+        // Les gates ne se jouent pas sur cette station : le ticket va à une
+        // autre station du projet, et celle-ci ne le reprend plus (#3057).
+        if (gatesInjouables(fait.bloque)) {
+          const vers = await routerAilleurs(issue, fait.bloque);
+          avertir(
+            vers.length > 0
+              ? `brigade : #${issue} sur ${nom} — the cook stopped: this station cannot run the ticket's gates; the ticket goes to another station of the project (${vers.join(", ")}), not to the chef`
+              : `brigade : station ${nom} cannot run the gates of #${issue}, and no other station of the project can: the ticket stays on the rail, held on this station, until it is fixed — ${fait.bloque.trim().split("\n")[0] ?? ""}`,
+          );
           chrono.rater(issue);
           await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
           liberee = true;
@@ -1474,6 +1510,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         options.sauter?.(ticket.number, direSaut(ticket.number, `capability missing on this station: ${manques.join(", ")}`));
         continue;
       }
+      // Une station marquée incapable de jouer ses gates ne le reprend jamais :
+      // il attend une autre station du projet (#3057). Des commentaires
+      // illisibles ne le retiennent pas ici, comme l'attente d'après un arrêt
+      // (`enAttente`) : la prise relit ces mêmes commentaires, et ne prend rien
+      // sur une issue qu'elle ne lit pas — son tour échoue, et le dit. Des
+      // retraits illisibles gardent toutes les marques.
+      const marquees = await github
+        .commentaires(ticket.number)
+        .then(async (commentaires) => incapables(commentaires, await Promise.resolve().then(() => github.retraitsDeLabels(ticket.number)).catch(() => [])))
+        .catch(() => new Set<string>());
+      if (marquees.has(nom)) {
+        options.sauter?.(ticket.number, direSaut(ticket.number, direIncapacite(nom, stationsCapables(nom, options.stationsDuProjet?.() ?? [], marquees))));
+        continue;
+      }
       // Un ticket sans calibrage complet ne part pas, (#2213).
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) {
@@ -1829,6 +1879,9 @@ export type OptionsDuDepot = {
   setup?: { delaiMs: number };
   // Ce que la porte de prise a dit d'un ticket qu'elle n'a pas pris (#2429).
   sauter?: (ticket: number, ligne: string) => void;
+  // Les stations que le projet déclare (#3057), où va un ticket dont les gates
+  // ne se jouent pas sur celle-ci.
+  stationsDuProjet?: () => readonly string[];
   // La configuration du projet, relue à chaque PR externe : son humain
   // `review` reçoit la carte « merge #N? » (#2933). Absente, elle va au chef.
   projet?: () => unknown;
@@ -2365,7 +2418,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), ...(depot.historique === undefined ? {} : { historique: () => depot.historique?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), redeposer });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), ...(depot.historique === undefined ? {} : { historique: () => depot.historique?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
