@@ -491,6 +491,12 @@ ticket that is closed, in none of these times, and closed by a merged PR (anothe
 when its issue is closed (#2979); one closed without a merged PR — a duplicate the station closed, an issue
 closed as not planned — holds nothing back. Before, #2963, merged by another station, waited for nothing, and
 #2979 reopened on the nine conflict send-backs #2963 had counted.
+#3019 opened on those same nine conflicts (#2921 ×5, #2922 ×3, #2930 ×1), all cooked on 2026-11-08 before
+#2963's fix (4a17e71, merged as #2965 at 23:02 UTC) held a zone's companions at the claim gate; of the measured
+tickets claimed after that merge, #2977 and #2985, none was sent back for a conflict. Replayed on #3019's
+evidence, with #2963 and #2979 closed by merged PRs out of the station's times, main's gate returns `en-attente`
+on #2979 (19 tickets missing), and the code before #2979, which dated neither, opens a ticket.
+Nothing to correct on main.
 
 The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
 again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent
