@@ -95,7 +95,7 @@ import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, reveni
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
 import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
-import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
+import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { poserLesAutres } from "./todo/autres.js";
@@ -2839,7 +2839,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   if (poseeLa !== undefined) {
     const resume = bloc("p", poseeLa.resume);
     resume.className = "question-courte";
-    bon.append(resume, bloc("small", `asked by ${poseeLa.auteur}, ${dateHeure(poseeLa.a)}`));
+    // Qui l'a posée, et quand, est derrière « details » (ticket 3086) : à première vue, la question seule.
+    bon.append(resume, detailsDeCarte(document, `asked by ${poseeLa.auteur}, ${dateHeure(poseeLa.a)}`));
   }
   // Deux lignes au plus : ce qui se passe, et ce qui demande l'attention. Le reste est dans la fiche.
   // Les captures d'un ticket d'interface livré restent sur sa carte : elles se lisent sans un clic. Celles
@@ -2873,9 +2874,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // son texte le dit, sous la phrase de sa sorte.
   if (attendu && carte.chef !== undefined && carte.todo === undefined) {
     const duChef = carteDeReponse(document, { sorte: carte.chef.sorte, source: "github" });
-    const texte = bloc("p", carte.chef.texte);
-    texte.className = "resume-carte";
-    duChef.append(texte);
+    duChef.append(detailsDeCarte(document, carte.chef.texte));
     bon.append(duChef);
   }
   // La file ne dit pas tout : un repère discret, le détail est dans la fiche.

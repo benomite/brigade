@@ -732,6 +732,15 @@ is said once: the card's line says what its kind asks (`A product question waits
 question, and the sheet says it under `what it asks you`, its head saying what the kind asks (never `what blocks it: not
 communicated`).
 
+**What a TODO card shows at first sight (#3086).** In this order, and nothing more: the ticket number and its title, once;
+one line of situation — the first sentence the comment says after its question, whole, else the line of its kind; the
+question, the strongest line; the recommendation, `Recommended: <first choice>`; the answer buttons, each label read whole
+(no cut text, no `?` beside it — what a button does is on the button, at hover). Everything else — the rest of the comment,
+who asked a manager's question and when — is behind one `details` fold, closed by default. The phone's card follows the same
+order. *Code: `poserCarteDeTodo` (`app/src/vue/carte-todo.js`), `poserLaCarte`
+(`app/src/vue/cartes-du-chef/cartes-du-chef.js`), `carteDuChefDeTodo` (`app/src/carte-todo.ts`). Tests:
+`app/test/vue/carte-todo.test.ts`, `app/test/cartes-du-chef/cartes-du-chef.test.ts`, `app/test/carte-todo.test.ts`.*
+
 A click on a choice, or a typed answer, posts a comment on the issue from the chef's `gh` — `<!-- brigade:reponse
 gesture=<g> -->`, then the chosen label, or the text — then plays the gesture on GitHub (a typed answer plays `resume`):
 

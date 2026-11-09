@@ -124,9 +124,36 @@
   border-top: 0;
   overflow-wrap: break-word;
 }
+.bon .carte-todo div.choix-carte .action > button.choix {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 .bon .carte-todo div.choix-carte .action:only-child > button.choix:not(:disabled) {
   justify-content: center;
   text-align: center;
+}
+/* ticket 3086 : la recommandation, une ligne sous la question ; le pli « details », fermé, tient tout le reste. */
+.bon .carte-todo p.recommandation-carte {
+  padding-top: 0;
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+  border-top: 0;
+  overflow-wrap: break-word;
+}
+.bon .carte-todo details.details-carte {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+.bon .carte-todo details.details-carte > summary {
+  cursor: pointer;
+}
+.bon .carte-todo details.details-carte p {
+  padding-top: var(--pas-1);
+  border-top: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 .bon .carte-todo p.secondaire {
   display: flex;
@@ -207,4 +234,23 @@
 /* Le champ replié, et le bouton qui l'ouvre une fois ouvert : `.bon div` ne les remet pas en flex. */
 .bon .carte-todo [hidden] {
   display: none;
+}
+/* ticket 3086 : la question d'un manager, sans carte de réponse dessous, est la ligne la plus forte de sa carte ; le pli
+   « details » d'une carte du chef, sans carte de réponse, est celui de la carte de TODO. */
+.bon[data-carte="attente"] p.question-courte {
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--texte);
+}
+.bon[data-carte="attente"] details.details-carte {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+.bon[data-carte="attente"] details.details-carte > summary {
+  cursor: pointer;
+}
+.bon[data-carte="attente"] details.details-carte p {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }

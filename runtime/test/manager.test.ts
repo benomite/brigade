@@ -363,6 +363,18 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "untrusted-author"]]);
   });
 
+  test("l'issue ouverte par github-actions[bot] (#3084) n'est pas celle d'un inconnu : elle est jugée comme un ticket technique, sans proposition de tri ni carte", async (t) => {
+    const { gh, jugements, dits, faits, laisserTourner } = brigade(t, { issues: [issue(30, [])] });
+    gh.decrire(30, { association: "NONE", author: "github-actions[bot]" });
+
+    await jusqua(() => jugements().length === 1);
+    await laisserTourner();
+
+    assert.equal(jugements().length, 1);
+    assert.equal(faits(30).some((e) => e.type === "manager.set-aside"), false);
+    assert.equal(dits(30).some((texte) => /triage proposal/.test(texte)), false);
+  });
+
   test("l'issue d'un inconnu que le chef a lancée ou priorisée est jugée ; sans label d'un membre, elle reste écartée", async (t) => {
     const { gh, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["prio:2"]), issue(31, ["prio:2"])] });
     gh.decrire(30, { association: "CONTRIBUTOR" });
