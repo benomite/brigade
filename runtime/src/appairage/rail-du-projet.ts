@@ -25,6 +25,13 @@
 //     quand une page lève la cause, `action` quand l'app peut la lever (se
 //     connecter à GitHub, sous un autre compte), et `detail`, ce que `gh` a dit.
 //
+// Quand GitHub refuse la lecture — `rate-limit`, `github`, `network`, `timeout`
+// — après une lecture réussie du même projet dans ce process, c'est elle qui
+// est rendue, `listed`, avec `stale: true`, `readAt`, l'heure où elle a été lue,
+// et `refusal`, l'état `unavailable` qui l'aurait remplacée (#3005,
+// `derniere-lecture-github.ts`). Sans lecture réussie avant, le refus est rendu
+// tel quel.
+//
 // L'app l'importe (`lireLeRailDuProjet`), ou lance la commande :
 //
 //   node runtime/src/appairage/rail-du-projet.ts <projet | owner/repo>
@@ -32,6 +39,7 @@
 // qui rend cet état en une ligne JSON — code 0 quand le rail est lu, 1 sinon.
 // `BRIGADE_GH_BIN` nomme le `gh` (`gh` par défaut).
 import { enProcess, Sortie, type Appel } from "../appel.ts";
+import { tenirDernieresLectures, type DernieresLectures } from "../derniere-lecture-github.ts";
 import { FICHIER_RAIL, railDuDocument } from "./rail-publie.ts";
 import { connexionGitHub, DELAI_MS, lireLesStationsEtLeursGists, type CauseIndisponible, type Connexion, type OptionsDeLecture, type StationAppairee, type StationsDuChef } from "./stations-du-chef.ts";
 
@@ -39,28 +47,38 @@ export type TicketDuRail = { ticket: number; state: string; title: string; url: 
 
 export type CauseSansRail = CauseIndisponible | "not-served" | "not-published" | "unreadable";
 
+export type RailIndisponible = { state: "unavailable"; project: string; cause: CauseSansRail; reason: string; link?: string; action?: Connexion; detail?: string };
+
+export type RailLu = {
+  state: "listed";
+  project: string;
+  repository: string | null;
+  station: { id: string; name: string; online: boolean };
+  publishedAt: string;
+  tickets: TicketDuRail[];
+  reason?: string;
+};
+
 export type RailDuProjet =
-  | {
-      state: "listed";
-      project: string;
-      repository: string | null;
-      station: { id: string; name: string; online: boolean };
-      publishedAt: string;
-      tickets: TicketDuRail[];
-      reason?: string;
-    }
+  | (RailLu & { stale?: true; readAt?: string; refusal?: RailIndisponible })
   | { state: "sign-in-required"; project: string; reason: string; action: Connexion }
-  | { state: "unavailable"; project: string; cause: CauseSansRail; reason: string; link?: string; action?: Connexion; detail?: string };
+  | RailIndisponible;
 
 export type OptionsDuRail = OptionsDeLecture & {
   // Le nom du projet, ou son dépôt `<owner>/<repo>`.
   project: string;
+  // Les dernières bonnes lectures à servir sur un refus ; celles du process par défaut.
+  dernieres?: DernieresLectures<RailLu, RailIndisponible>;
 };
+
+// Les causes où GitHub refuse la lecture, ou ne la donne pas : la dernière bonne se sert à leur place.
+const REFUS: readonly CauseSansRail[] = ["rate-limit", "github", "network", "timeout"];
+const DERNIERES_DU_PROCESS = tenirDernieresLectures<RailLu, RailIndisponible>();
 
 const derniereLigne = (texte: string) => texte.trim().split("\n").at(-1)?.trim().replace(/[.\s]+$/, "") ?? "";
 
 // Pourquoi les stations n'ont pas pu être lues, dit du rail du projet.
-function sansLesStations(projet: string, gh: string, delaiMs: number, etat: Exclude<StationsDuChef, { state: "listed" }>): RailDuProjet {
+function sansLesStations(projet: string, gh: string, delaiMs: number, etat: Exclude<StationsDuChef, { state: "listed" }>): Exclude<RailDuProjet, { state: "listed" }> {
   if (etat.state === "sign-in-required") {
     return { state: "sign-in-required", project: projet, reason: `This computer is not signed in to GitHub, so brigade cannot read the rail of ${projet}.`, action: etat.action };
   }
@@ -79,8 +97,21 @@ function sansLesStations(projet: string, gh: string, delaiMs: number, etat: Excl
 // Ce que la station dit du projet, s'il est des siens.
 const projetDe = (station: StationAppairee, projet: string) => station.projects.find(({ name, repository }) => name === projet || repository === projet);
 
-// Lit le rail du projet sur GitHub. Ne lève pas : un échec est un état.
+// Lit le rail du projet sur GitHub. Ne lève pas : un échec est un état. Un refus
+// de GitHub sert la dernière bonne lecture du projet, s'il en a une.
 export async function lireLeRailDuProjet(options: OptionsDuRail): Promise<RailDuProjet> {
+  const dernieres = options.dernieres ?? DERNIERES_DU_PROCESS;
+  const lu = await lireSurGitHub(options);
+  if (lu.state === "listed") {
+    dernieres.reussie(options.project, lu);
+    return lu;
+  }
+  if (lu.state !== "unavailable" || !REFUS.includes(lu.cause)) return lu;
+  const servie = dernieres.refusee(options.project, lu);
+  return servie.reading === null ? lu : { ...servie.reading, stale: true, readAt: servie.readAt, refusal: lu };
+}
+
+async function lireSurGitHub(options: OptionsDuRail): Promise<RailLu | Exclude<RailDuProjet, { state: "listed" }>> {
   const { gh, project: projet } = options;
   const { etat, gists } = await lireLesStationsEtLeursGists(options);
   if (etat.state !== "listed") return sansLesStations(projet, gh, options.delaiMs ?? DELAI_MS, etat);
