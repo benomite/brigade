@@ -53,14 +53,14 @@ describe("ce que `setting` rend, et ce que la proposition envoie", () => {
     assert.deepEqual(
       vus.reglages.map(({ cle, nom, dit, source }) => [cle, nom, dit, source]),
       [
-        ["branche", "integration branch", "main", "from the repository"],
-        ["manager", "manager's default calibration", "opus / high", "from the repository"],
-        ["reviewer", "reviewer's default calibration", null, "not set"],
-        ["plafond", "calibration ceiling", "opus / high", "default"],
-        ["closer", "closer's calibration", "sonnet / medium", "from the repository"],
-        ["closer-cooks", "closer's start threshold (cooks in flight)", "1", "default"],
-        ["closer-tokens", "closer's tokens cap", "200000", "from the repository"],
-        ["closer-lines", "closer's removed-lines cap", "800", "set on the station"],
+        ["branche", "Integration branch", "main", "from the repository"],
+        ["manager", "Manager’s calibration", "opus / high", "from the repository"],
+        ["reviewer", "Reviewer’s calibration", null, "not set"],
+        ["plafond", "Calibration ceiling", "opus / high", "default"],
+        ["closer", "Closer’s calibration", "sonnet / medium", "from the repository"],
+        ["closer-cooks", "Closer’s start threshold (cooks in flight)", "1", "default"],
+        ["closer-tokens", "Closer’s tokens cap", "200000", "from the repository"],
+        ["closer-lines", "Closer’s removed-lines cap", "800", "set on the station"],
       ],
     );
     assert.equal(reglagesVus("not json"), null);
@@ -154,7 +154,8 @@ async function ouvrir(lecture: LectureDesReglages = { vus: reglagesVus(SORTIE) ?
 }
 
 const section = (vue: Jouee) => vue.element("reglages-du-projet").children[0] ?? assert.fail("pas de réglages du projet");
-const rangee = (vue: Jouee, cle: string) => section(vue).children.find((pose) => pose.dataset.cle === cle) ?? assert.fail(`pas de rangée ${cle}`);
+const enPlus = (vue: Jouee) => vue.element("reglages-du-projet-en-plus").children[0] ?? assert.fail("pas de réglages en plus");
+const rangee = (vue: Jouee, cle: string) => [...section(vue).children, ...enPlus(vue).children].find((pose) => pose.dataset.cle === cle) ?? assert.fail(`pas de rangée ${cle}`);
 const valeur = (pose: Faux) => pose.dessous("p").find((p) => p.className === "valeur")?.textContent;
 const dit = (pose: Faux) => pose.dessous("p").find((p) => p.className.startsWith("dit"));
 const parPr = (pose: Faux) => pose.dessous("p").find((p) => p.className === "par-pr")?.textContent;
@@ -178,7 +179,12 @@ describe("Settings : les réglages du projet, chacun changé par une PR", () => 
     assert.match(section(vue).children[0]?.textContent ?? "", new RegExp(`^${TITRE}`));
     assert.deepEqual(
       section(vue).children.slice(1).map((pose) => pose.dataset.cle),
-      ["branche", "manager", "reviewer", "plafond", "closer", "closer-cooks", "closer-tokens", "closer-lines"],
+      ["branche", "manager", "reviewer", "plafond", "closer-tokens"],
+    );
+    // Les réglages que l'artboard ne dessine pas suivent, dans leur propre bloc, sous le sigle et la couleur.
+    assert.deepEqual(
+      enPlus(vue).children.map((pose) => pose.dataset.cle),
+      ["closer", "closer-cooks", "closer-lines"],
     );
     assert.equal(valeur(rangee(vue, "branche")), "mainfrom the repository");
     assert.equal(rangee(vue, "branche").dessous("input")[0]?.value, "main");

@@ -117,7 +117,7 @@ single-station commands run through the project's station (`installation station
 The declaration lives on the project's main station, not in the repository: no change opens a pull request. While a change
 runs, `applying…` reads under its row and the form's controls wait; then the row says what was done, or the refusal in one
 line (the station's answer on hover), the control back to the value in force. The form stays open; `Close` folds it.
-`Remove` asks first, its price in one line, then runs `installation stations remove`; the project's only station cannot be
+`Remove` is not in the form: it is on the station's line, next to `edit` (#2914). It asks first, inline under the line, its price in one line, then runs `installation stations remove`; the project's only station cannot be
 removed. Then the stations are read again, and the rows follow; one line under the station's row says it was removed. It is the same on a
 Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
@@ -446,14 +446,17 @@ lines, each the same row as in Settings — the setting's name and its **level**
   declaration with that one value changed, the same gesture as "edit" on Cooks (`changerUneStation`); `applying…` reads
   under its row and the controls wait meanwhile, then the row says what was done, or the refusal in one line (its detail on
   hover) with the control back to the value in force. The re-read declaration then shows the new values.
-- **ordinary tickets** — `taken` or `not taken`. On the station that runs on this computer, the box is this computer's
+- **ordinary tickets** — `taken` or `not taken`, with the app's switch (`composants/interrupteur/interrupteur.js`, the same
+  as the project switch at the head of the project space and the sandbox row below). On the station that runs on this computer, the switch is this computer's
   option, the same as Settings (`reglerOrdinaires`, its cooks limit kept): it writes at once, `applying…` under the row
   meanwhile, a refusal under it. On a box station, `taken`,
   greyed — a box station takes every ticket it can cook. On a remote station, what `facts` says of it, greyed, the
   reason on hover; `not said` when its main station does not say it.
-- **serves this project** — ticked for every declared station. Unticking asks first, with what it costs in one line
-  (`Stop serving parade on pc/claude?`); confirmed, the station is removed from the declaration. The project's only
-  station cannot be unticked, the reason on hover.
+
+Removing a station is not a row of this block (#2914): `Remove` sits on the station's own line, next to `edit`, in the
+list above (`stations-declarees.js`), and nowhere else. It asks first, inline under the line, with what it costs in one
+line (`Remove pc/claude from parade?`); confirmed, the station is removed from the declaration. The project's only station
+cannot be removed, the reason on hover.
 
 Each line is the app's settings row (`rangeeDeReglage`, `app/src/vue/composants/reglage/reglage.js`). Every one of these
 settings lives on a station, none in the project's repository: no change opens a pull request. Nothing is stored by the
@@ -2086,7 +2089,7 @@ On the left, a column of tiles, Slack or Discord style:
   `mirrorscreen` and `mirrorlab` read `MS` and `ML` — or its second letter when no other name starts like it
   (`brigade` → `BR`). Should two names still want the same label, the one first in alphabetical order keeps it
   and the other takes its next free one. Rearranging the bar never changes a label.
-- **You can write your own label** for a project in its Settings, under `you` ("label, in the bar"): 3 characters at
+- **You can write your own label** for a project in its Settings, under `you` ("Label in the bar"): 3 characters at
   most, written to `sigle` in the projects file, and the tile follows at once. Emptied, or with "back to its name",
   the tile goes back to the derived label. A label another project already carries as yours is refused, saying
   whose; the derived labels step aside from yours. Like the colors, it follows you from one device to another.
@@ -2385,7 +2388,7 @@ renders it. **Reliability and Closer are no longer there either** (#1699), nor o
 clicking it again closes it.
 
 **The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings, in its **project** group,
-one row per project setting: the integration branch, the manager's and the reviewer's
+one row per project setting, in the order and with the labels of the artboard `Settings.dc.html` (Integration branch, Manager’s calibration, Reviewer’s calibration, Calibration ceiling, Closer’s tokens cap, then the label and the colors in the bar); the closer's other three settings, which the artboard does not draw, follow under the colors as rows of the same component, and the kitchen is its own *Kitchen* section below. The rows: the integration branch, the manager's and the reviewer's
 default calibrations, the calibration ceiling, and the closer's four settings (#1685) — its calibration, its start
 threshold (`cooksBelow`), its tokens cap and its removed-lines cap. Each row says the value in force and where it comes from — `from the
 repository` (`.claude/brigade/projet.json`), `set on the station`, `from CLAUDE.md`, `default` — and has its edit control —

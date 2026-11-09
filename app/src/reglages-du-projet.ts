@@ -37,15 +37,16 @@ export type ChoixDeReglage = { cle: Ecrit; valeur: string } | { cle: Calibre; mo
 export type RenduDuReglage = { propose: string; pr: string; numero: number } | { refus: string; detail?: string };
 
 export const NOMS: Readonly<Record<Cle, string>> = {
-  branche: "integration branch",
-  manager: "manager's default calibration",
-  reviewer: "reviewer's default calibration",
-  plafond: "calibration ceiling",
-  closer: "closer's calibration",
-  "closer-cooks": "closer's start threshold (cooks in flight)",
-  "closer-tokens": "closer's tokens cap",
-  "closer-lines": "closer's removed-lines cap",
+  branche: "Integration branch",
+  manager: "Manager’s calibration",
+  reviewer: "Reviewer’s calibration",
+  plafond: "Calibration ceiling",
+  closer: "Closer’s calibration",
+  "closer-cooks": "Closer’s start threshold (cooks in flight)",
+  "closer-tokens": "Closer’s tokens cap",
+  "closer-lines": "Closer’s removed-lines cap",
 };
+
 // Les nombres du closer : le mot de la commande, et le nom que `setting` leur donne.
 const NOMBRES = { "closer-cooks": "cooksBelow", "closer-tokens": "maxTokens", "closer-lines": "maxRemovedLines" } as const;
 const SOURCES: Readonly<Record<string, string>> = {
