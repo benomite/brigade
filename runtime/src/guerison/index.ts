@@ -100,9 +100,9 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
 
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
-  // les tickets qu'un cook de cette station cuisine en ce moment. `sauts` : la
-  // ligne que la porte de prise a dite, au tour précédent, de chaque ticket sauté.
-  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, sauts: ReadonlyMap<number, string> = new Map()): Promise<BilanDeLaGuerison<T>> {
+  // les tickets qu'un cook de cette station cuisine en ce moment. `zonesTenues` :
+  // ceux que la porte de prise a sautés à son dernier tour, leur zone tenue.
+  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, zonesTenues: ReadonlySet<number> = new Set()): Promise<BilanDeLaGuerison<T>> {
     const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
@@ -218,6 +218,11 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       const aPrendre: typeof tickets[number][] = [];
       for (const t of tickets) {
         if (t.epique === true || [HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) || !complet(calibrage([...t.labels]))) continue;
+        // Ni un ticket dont la zone est tenue : la porte de prise le saute, et ce
+        // qui le tient se compte de lui-même — son ticket pris ou en pass est du
+        // travail, à prendre il vaut une inertie, mis de côté ou chez le chef il
+        // attend un humain, que rien sur le rail ne remplace (#2977).
+        if (zonesTenues.has(t.number)) continue;
         // Illisibles, ses commentaires ne le retiennent pas : comme la porte.
         if (termeDeLAttente(await github.commentaires(t.number).catch(() => []), instant) !== null) continue;
         aPrendre.push(t);
@@ -227,8 +232,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
         maintenant: new Date(instant),
         github: {
           dernierMerge: async () => new Date(auTravailLe).toISOString(),
-          // Chacun avec ce que la porte de prise en a dit, s'il l'a sauté (#2977).
-          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title, ...(sauts.has(t.number) ? { saut: sauts.get(t.number) as string } : {}) })),
+          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title })),
           // Rien n'est pris quand l'inertie se lit : un ticket pris est du travail.
           prises: async () => [],
           prsEnPasse: async () => tickets.filter((t) => t.labels.includes(LABEL_IN_PASS)).length,
