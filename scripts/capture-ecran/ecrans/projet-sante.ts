@@ -1,5 +1,5 @@
-// La page de « parade », le bandeau de santé au-dessus du rail (#2490, #2921) : le temps des tickets — en général et celui de la
-// pass, par ticket et dans le temps — et les plafonds de durée que le chef y règle. Le dépôt déclare deux seuils
+// La page de « parade », le bandeau au-dessus du rail (#2490, #2921, #3013) : la ligne repliée des plafonds de durée que le
+// chef y règle, sous la ligne de chiffres de la bande du rail. Le dépôt déclare deux seuils
 // (`drift.gatesSeconds` et `drift.tests`) ; les autres n'y sont pas.
 import { PLAFONDS, type LectureDesPlafonds } from "../../../app/src/plafonds-duree.ts";
 import type { Ecran } from "./commun.ts";
@@ -13,7 +13,7 @@ export const PLAFONDS_LUS: LectureDesPlafonds = {
 };
 
 export const ecran: Ecran = {
-  dit: "L'espace de « parade », Rail et son bandeau de santé : temps des tickets et plafonds de durée (#2490)",
+  dit: "L'espace de « parade », Rail et la ligne repliée au-dessus : plafonds de durée (#2490, #3013)",
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR],

@@ -22,7 +22,7 @@ import { apprentissageDe, apprentissageInforme, apprentissageLu, type Apprentiss
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { agentsDe, cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
-import { anciennete, cadenceLue, essaisLus, histogramme, points, type Anciennete, type EssaiLu, type Point, type CadenceLue, type Histogramme } from "./cadence.ts";
+import { anciennete, cadenceLue, essaisLus, points, type Anciennete, type EssaiLu, type Point, type CadenceLue } from "./cadence.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
@@ -457,7 +457,7 @@ export type CarteDAutrui = { ticket: number; titre?: string; question: string; q
 // cuire, rien en cuisson, rien qui t'attende : c'est là que se dit ce qui est en amont (amont.ts).
 // `cadence` : l'histogramme des 24 dernières heures, servis et ratés (cadence.ts) — absent d'un runtime d'avant ce champ.
 // `plusieursStations` : les cartes nomment plus d'une station — la vue n'étiquette la station que dans ce cas.
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; plusieursStations?: boolean; aucunTicket?: true; attendLu?: string; railLu?: string; cadence?: Histogramme };
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; plusieursStations?: boolean; aucunTicket?: true; attendLu?: string; railLu?: string };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
@@ -1301,7 +1301,6 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     ...(hors.length === 0 && autres.length === 0 && colonnes.every(({ nom, cartes }) => nom === LIVRE || cartes.length === 0) ? { aucunTicket: true as const } : {}),
     ...(attend === undefined ? {} : { attendLu: attend.a }),
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
-    ...(faits.cadence === undefined ? {} : { cadence: histogramme(faits.cadence) }),
   };
 }
 

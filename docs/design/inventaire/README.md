@@ -214,8 +214,8 @@ The rules below each draw a « nothing here » line, under ten different class n
 | 8px | `.bon .etiquette` (3858), `#fiche .panneau` (4380) | `--rayon-bouton` (8px: same value, the token is not used) | `rail-etiquettes.png`, `fiche.png` |
 | 7px | `#projets .signal` (2558) | `--rayon-bouton` (8px) | `barre-des-projets.png` |
 | 4px | `#temps-ticket-du-projet .temps-part` (469), `#machines > button` (1154) | `--rayon-bon` (4px: same value, the token is not used) | `projet-temps-normal.png`, `demenager-choix.png` |
-| 3px | `#rail .amont .avant-le-rail .piste` (2845), `#rail .panne-du-rail .marque` (2938), `#alertes .urgent` (4956), `[data-bloc="temps-tickets"] .temps-ticket-part` (7139, `3px 3px 0 0`) | `--rayon-bon` (4px) | `rail-backlog.png`, `espace-projet.png`, `projet-sante.png` |
-| 2px | `#projets button:is(.depot-avant, .depot-apres)::before` (198), `#rail .captures img` and `.place` (3944, 3955), `[data-bloc="temps-tickets"] .temps-cle::before` (7160) | `--rayon-bon` (4px) | `barre-des-projets.png`, `projet-sante.png` |
+| 3px | `#rail .panne-du-rail .marque` (2938), `#alertes .urgent` (4956) | `--rayon-bon` (4px) | `espace-projet.png` |
+| 2px | `#projets button:is(.depot-avant, .depot-apres)::before` (198), `#rail .captures img` and `.place` (3944, 3955) | `--rayon-bon` (4px) | `barre-des-projets.png` |
 | 1px | nine shape marks (`vue.css:1965`, `1969`, `2492`, `2496`, `3046`, `3758`, `3762`, `4266`, `4270`) | `--rayon-bon` (4px) | `espace-projet-etats-github.png`, `rail-backlog.png` |
 | 999px | the toggle (`vue.css:287`, `297`), `.pilule` (2522), `#rail .bon .age`, `.prio` and `.etat-ticket.attendu` (4298, 4349, 4330) | none of the three | `reglages-pc.png`, `rail-file.png` |
 
@@ -229,7 +229,7 @@ The rules below each draw a « nothing here » line, under ten different class n
 | 16px | `.tete-cout .total.sans` (1244), `.courbe-cout p.sans` (1504), `#toutes-les-stations .ligne span.ouvrir` (6774) | `cout.png`, `tous-les-projets.png` |
 | 17px | `#fiche .rendu h1` (4745) | `fiche.png` |
 | 20px | `.tendances .rapport` (1362) | `cout.png` |
-| 22px | `#temps-ticket-du-projet .temps-valeur` (453), `.perdus-cout .perdus-total` (5223), `[data-bloc="temps-tickets"] .temps-valeur` (7076), `[data-bloc="bloque-sans-question"] .sans-question-valeur` (7089) | `projet-temps-normal.png`, `cout.png`, `projet-sante.png` |
+| 22px | `#temps-ticket-du-projet .temps-valeur` (453), `.perdus-cout .perdus-total` (5223) | `projet-temps-normal.png`, `cout.png` |
 | 26px | `.tete-cout .total` (1237), `#rail .tete-fiabilite .total` (5375), `#rail .tete-closer .total` (5676) | `cout.png`, `fiabilite.png`, `closer.png` |
 
 **Spacings.** `jetons.css` defines no spacing token (no `--espace*` or similar; it holds colors, fonts and radii), so there is no token to name. In `vue.css` and `autonomie/autonomie.css`, `padding` is declared 326 times with 97 distinct values, `gap` 317 times with 32 distinct values and `margin` 273 times with 38 distinct values. The most frequent `gap` values in `vue.css`: 8px (85), 6px (63), 10px (36), 4px (30), 12px (15), `4px 8px` (13), 2px (12). The most frequent `padding` values: `3px 10px` (15), `8px 12px` (11), `3px 12px` (11), `8px 16px` (9), `0 6px` (9), `4px 12px` (7), `10px 14px` (7). The `padding` of the buttons, with the line where each is declared in `vue.css`:

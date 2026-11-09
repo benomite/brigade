@@ -2,19 +2,13 @@
 // Le temps d'un ticket tel que la mesure le résume (ticket 2664, épique 2659) : l'objet `resume` de `temps-tickets.json`
 // — `n`, `medianMin`, `p75Min`, `phaseLaPlusLongue` et `perteLaPlusLourde` (`{ nom, medianMin }`) —, lu tel quel, jamais
 // recalculé. Le temps d'un ticket n'a pas de plafond (tickets 2670, 2672) : les seuils sont ceux des quatre chiffres du
-// projet (`temps.chiffres`). La bande du rail et l'onglet Health les disent des mêmes valeurs et des mêmes mots : ce
-// module les leur donne. Il ne touche pas `document`.
+// projet (`temps.chiffres`). La bande du rail les dit (projet/rail/bande-rail.js) : ce module les lui donne. Il ne touche pas `document`.
 
 import { dureeEnClair } from "./temps-ticket.js";
-import { PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {{ nom: string, medianMin: number }} Part */
 /** @typedef {{ n: number, medianMin: number, p75Min: number, phaseLaPlusLongue: Part | null, perteLaPlusLourde: Part | null }} Resume */
 /** @typedef {{ cle: string, nom: string, valeur: string, seuil: string, depasse: boolean, pesent: string[] }} Chiffre */
-
-// Ce que les deux vues disent quand la mesure n'a rien publié : ni un blanc ni un zéro.
-export const SANS_MESURE = PAS_ENCORE("measure");
-export const SANS_MESURE_DETAIL = "The station has not published a ticket time measure yet: this is not a count of zero tickets";
 
 /** @param {unknown} x @returns {x is number} */
 const nombre = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
@@ -60,9 +54,6 @@ export const pesentLePlus = (c) => (c.pesent.length === 0 ? `Nothing weighs on $
 /** @param {number} minutes */
 export const enMinutes = (minutes) => dureeEnClair(minutes * 60);
 
-// Un des quatre chiffres passe son seuil.
-/** @param {Chiffre[] | null} chiffres */
-export const aUnDepassement = (chiffres) => chiffres?.some((c) => c.depasse) === true;
 
 /** @param {Resume} r */
 export const surCombien = (r) => (r.n === 1 ? "the only measured ticket" : `the last ${r.n} measured tickets`);

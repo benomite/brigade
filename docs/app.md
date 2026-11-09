@@ -4,12 +4,12 @@ A window on the Mac: your projects in an icon bar, and in each one a real termin
 second runs. You no longer open a terminal, you no longer move into a folder.
 
 **The project's menu is three entries, Rail · Stations · Settings** (#2485, #2921), next to the project name; **Rail is the
-tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's health sits in
-a strip above the rail** (#2921, `app/src/vue/projet/bandeau-sante/`) — the ticket time in detail, the blocked-without-a-question
-counter, the duration caps (#2490), the closer (#2491), then the Cost and Closer rows of all projects — with the same values
-as before, shown on the Rail tab only (it holds at most a third of the middle and scrolls past that). Settings opens over
+tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
+the band at the top of the rail** (#3013, below), and **above it, one folded line** (#2921, `app/src/vue/projet/bandeau-sante/`) —
+`Caps, closer and all projects`: the duration caps (#2490), the closer (#2491), then the Cost and Closer rows of all
+projects — shown on the Rail tab only (it holds at most a third of the middle and scrolls past that). Settings opens over
 the middle as before, with its content unchanged. Each block is mounted in its own file under `app/src/vue/projet/`
-(`stations/`, `bandeau-sante/`, `rail/BandeRail.js`). **Stations lists the project's stations** (#2487), kept up to date by
+(`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations lists the project's stations** (#2487), kept up to date by
 the same readings as ever — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
 to a station.* **This computer comes first**, as the recommended button, when its station does not serve the project yet;
 then the stations paired with your account that the project is not chosen for — an offline one says so. Each choice is a
@@ -404,31 +404,38 @@ the old columns are kept (#2151, below); offline, the last rail stays dimmed, ma
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
 
-### Ticket time, cooks running and backlog: one thin band at the top of the Rail tab (#2486, epic #2484)
+### The project's figures: one single line at the top of the Rail tab (#2486, #3013, epic #3010)
 
-The Rail tab opens on **one thin band**, a single line, then the columns, which take the whole height left under it —
-each column runs down to the bottom of the tab, and no block above them pushes them into an inner scroll. The band
-says, from left to right, each part split from the next by a faint rule:
+The Rail tab opens on **one single line of figures** between the tabs and the rail, as `docs/maquettes/app/Project.dc.html`
+draws it (README decision 4), then the columns, which take the whole height left under it — each column runs down to the
+bottom of the tab, and no block above them pushes them into an inner scroll. Each figure is its name, its value in bold,
+then what the value is, in this order, each at most once:
 
-- **Ticket time** — the median and p75 of the recent tickets, with no cap (a ticket's size varies), then the
-  station's four figures (#2672), each with its threshold, red when over it: `lost time 5 min median, 9 min p75 / 2 min ·
-  vs estimate ×2.10 median / ×1.50 · first try 50% / 70% · main repairs 0.200 per merge / 0.1 per merge`. On hover (or
-  on the keyboard), what weighs most on the figure: the tickets that lost the most time or are the most over their
-  estimate, the most frequent send-back reasons, the checks that broke main (see "Median and p75, and the four figures"
-  below). With no measure
-  published, `no measure yet` — never a blank or a zero.
-- **Cooks** — how many are running: `Cooks 2 running`, their tickets and stations on hover; `none running` when none
-  is. When the reading does not name them (the rail read from GitHub alone), the count is that of Taken — one cook per
-  ticket —, and the hover says so.
-- **Backlog** — the stacked bar of what is before the rail (#1836, below) and its total, `12 issues`, each count in
-  words on hover; a click unfolds the Backlog column. The 24-hour histogram (#1811) follows it.
+- **Ticket time** — `Ticket time 14 min median`: the median of the recent tickets from the station's `resume`, with no
+  cap (a ticket's size varies). On hover (or on the keyboard): the p75, the heaviest loss and the slowest phase with
+  their medians, then the station's other figures (#2672) — lost time, vs estimate, main repairs — each with its
+  threshold, and `— over it` when it is.
+- **First try** — `First try 57% · goal 70%`: the station's `first try` figure against its threshold, in red under it;
+  what weighs most on hover.
+- **Cooks** — `Cooks 2 running`, their tickets and stations on hover; `none running` when none is. When the reading does
+  not name them (the rail read from GitHub alone), the count is that of Taken — one cook per ticket —, and the hover says
+  so.
+- **Last merge** — `Last merge 4 min ago` (`3 d ago` past a day): the most recent `mergedAt` of the station's ticket
+  records, the ticket and its time on hover.
+- **Backlog** — `Backlog 18 issues`: a number, no bar and no gauge; each count of what is before the rail (#1836, below)
+  in words on hover. A click unfolds the Backlog column.
 - **The age of the rail** (#2054), at the end of the line.
 
+**A figure without a value is not drawn at all**: no `no measure yet`, no `Not available yet`, no `?` helper and no title
+with nothing under it. With nothing published but the running cooks, the line reads only `Cooks 3 running`. Before the
+rail is read, there is neither Cooks nor Backlog. The figures are those the station publishes, never recomputed
+(`app/src/vue/temps-ticket/resume.js`). The Ticket time and Blocked without a question blocks that stood above the rail
+are gone (#3013), and so is the 24-hour histogram.
+
 The signs that something is wrong — the alert line, a stale or offline reading, the idle-kitchen fault, the project
-turned off — stay above the band. Before the rail is drawn, the band does not show: the tab says why, as before. The
-Ticket times card, the separate backlog line and the empty-rail sentence above the columns are gone from the Rail tab:
-the card stays whole on **Cooks**, and an empty rail is said by its **On the rail** column. A band narrower than its
-parts wraps a whole part to the next line; nothing is cut. Captures: `docs/captures/2486/`.
+turned off — stay above the band. Before the rail is drawn, the band does not show: the tab says why, as before. An
+empty rail is said by its **On the rail** column. A line narrower than its figures wraps a whole figure to the next line;
+nothing is cut. Captures: `docs/captures/2486/`, `docs/captures/3013/`.
 
 *Code: `app/src/vue/projet/rail/bande-rail.js` (the band), `bandeDuRail` in `app/src/vue/vue.js`. Test:
 `app/test/vue/projet/rail/bande-rail.test.ts`.*
@@ -1872,7 +1879,7 @@ Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
 the band at the top says the four figures (#2672), the rest on hover (#2486): the median total of the
 last 10 measured tickets (by `mergedAt`), the slowest (`#number — total`), the median of five phases (cooking with its
 tests, waiting for the pass, review, CI, merge). Nothing there shows a time against a max any more: lost time,
-cooking against estimate and the quality figures are the four figures of the rail band and the Health tab (#2672). A
+cooking against estimate and the quality figures are the figures of the rail band (#2672, #3013). A
 ticket's total time has no cap. Two states, `data-temps`: `normal`; `vide` ("No ticket measured yet", never a blank or
 a zero). Each of the five phases is the median of that phase alone, so their
 sum can differ from the median total. The principal station reads the project's clone
@@ -1882,30 +1889,21 @@ project tracking, next to `delai`; the app relays it on the project's view. A st
 (an older one) shows "Ticket times not available yet", which is not a count of zero tickets.
 Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temps-ticket.js`.
 
-**Median and p75, and lost time against its threshold** (#2664, epic #2659; #2670): the rail band and the Health tab
-say the ticket time from the `resume` object of `temps-tickets.json` that the measure publishes (`n`, `medianMin`,
+**Median and p75, and lost time against its threshold** (#2664, epic #2659; #2670): the rail band says the ticket time from the `resume` object of `temps-tickets.json` that the measure publishes (`n`, `medianMin`,
 `p75Min`, `perduMedianMin`, `lostTimeMaxMin`, `phaseLaPlusLongue` and `perteLaPlusLourde` as `{ nom, medianMin,
 partPct }`, the latter null when nothing was lost), relayed as `temps.resume` — the app reads it, it does not recompute
 it (`app/src/vue/temps-ticket/resume.js`). A ticket's time, from its filing to its merge, has no cap: its size varies.
 Only its **lost time** has one — everything but the cook that delivered and the pass, CI and merge of the merged
 delivery: the wait for a claim, the failed cooks, the send-backs. The four figures come from the station
 as `temps.chiffres` (`runtime/src/chiffres-du-projet.ts`): `{ cle, nom, valeur, seuil, depasse, pesent }`, read as they
-are, never recomputed. Rail band: « median 14 min / p75 47 min · lost time 5 min median, 9 min p75 / 2 min · … », a
-figure over its threshold in red (`data-depasse="oui"`, and `data-temps="depasse"` on the part); the median and p75 are
-never red. On hover of a figure: what weighs most (`pesent`). Health: the same median, p75 and four figures with the
-same hover, the heaviest loss and the slowest phase named with their medians, then the chart and the list when the
-records are there. With neither `resume` nor `chiffres`, both say « no measure yet » (never a blank or a zero).
+are, never recomputed. Rail band (#3013): « Ticket time 14 min median », the p75 and
+the other figures on its hover, and « First try 50% · goal 70% », in red under its goal (`data-depasse="oui"`); what weighs
+most (`pesent`) on the hover of First try. With no `resume`, there is no Ticket time; with no first-try value, no First
+try — never a blank, a zero or « no measure yet ».
 Screenshots: `docs/captures/2664/`.
 
-**Health strip: ticket time and duration caps** (#2490, epic #2484). Two blocks, then the closer's.
-**Ticket time** reads the same measures as the Ticket times card (`temps` of the project's view): a ticket's time runs
-from its filing to its merge, its **pass** is the wait for the pass plus the review (`attentePasse + revue`). At the
-head, the median and the p75 from the measure's resume, then the station's four figures (#2672) with their thresholds,
-in red when over. Over time, one column per ticket
-(the last 30, oldest left), its pass at the bottom in yellow, with no max line: a ticket's total time has no cap; the
-ticket, its date and both durations on hover. Per ticket, the
-last 10, newest first: number, merge date, time, pass. The same empty states as the card ("No ticket measured yet",
-"Ticket times not available yet"). Module: `app/src/vue/projet/bandeau-sante/TempsTickets.js`.
+**Health strip: duration caps** (#2490, epic #2484), folded behind the `Caps, closer and all projects` line above the
+rail, then the closer's. The Ticket time block that stood before it is gone (#3013): its figures are in the rail band.
 **Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
 first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
 as the station publishes it), then the durations the
@@ -1927,8 +1925,6 @@ its detail on hover — nothing claims success.
 block writes, and the station reads it from its clone's working tree — its row says so, the reason on hover. The caps
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
 `app/src/vue/projet/bandeau-sante/PlafondsDuree.js`.
-
-**Health strip: blocked without a question** (#2557, epic #2553). Under the ticket time, a **Blocked without a question** counter: the project status field `blockedWithoutQuestion` (an integer). At 0 it reads neutral ("none — every block asks the chef a question"); above 0 it is an alert — a red left rule, a bold red number, "tickets blocked-on-human with no question — a defect to fix". A station that does not publish the field yet reads "Not available yet", which is not a count of zero.
 
 **Health strip: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
 read on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/closer-sante.ts`) — when Health
@@ -3062,11 +3058,11 @@ section. With the section laid, `right now` is not repeated under it.
   cause is read (the alerts, what awaits you). It is gone at the first reading of `facts` that no longer carries it;
   without it — or from a runtime from before this field — the head of the rail is exactly what it was. A box that
   does not answer shows none: its last reading is no longer new.
-- **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/avant-le-rail.js`, #1836). An empty rail does
-  not mean a finished project. In the band at the top of the Rail tab (#2486), next to the 24-hour histogram, a **small stacked bar** shows
-  the open issues of the repository that are not on the rail yet. It is read from GitHub with the rest of the rail
+- **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/projet/rail/bande-rail.js`, #1836). An empty rail does
+  not mean a finished project. In the band at the top of the Rail tab (#2486, #3013), **Backlog 18 issues** counts
+  the open issues of the repository that are not on the rail yet — a number, no bar. It is read from GitHub with the rest of the rail
   view (`avantLeRail` in `app/src/tableau/lecture.ts`, #2061): every open issue without `fire`, filed from its labels
-  alone. The bar has five states, drawn in this order, one part each, its length in proportion to its count:
+  alone. They fall in five states, in this order — the groups of the Backlog column:
   - **not read yet** (grey): neither a `model:` and an `effort:` label, nor any of the labels below — "not calibrated
     yet";
   - **refused as incomplete** (red): no label says it, so the reading from GitHub never gives it;
@@ -3074,12 +3070,12 @@ section. With the section laid, `right now` is not repeated under it.
   - **ready, not fired** (green): it carries both a `model:` and an `effort:` label, without `fire`;
   - **set aside** (hatched): it carries `hors-cuisine` or `blocked-on-human`.
 
-  An issue that carries `fire` is not counted: it is on the rail. Beside the bar, its title and its total (`Backlog`,
-  `7 issues`, #2367, #2486); on hover, on the keyboard or on a tap, it says its counts — `7 issues before the rail — 2
+  An issue that carries `fire` is not counted: it is on the rail. The band says its title and its total (`Backlog`,
+  `7 issues`, #2367, #2486, #3013); on hover, on the keyboard or on a tap, it says its counts — `7 issues before the rail — 2
   not read yet · 1 refused as incomplete · …`. **A click unfolds the
-  Backlog column**, to the left of "On the rail", and the row scrolls back to show it; a second click on the bar, or
+  Backlog column**, to the left of "On the rail", and the row scrolls back to show it; a second click on it, or
   `fold` in the column's title, folds it again — a new reading does not fold it. The column holds **the rail's
-  cards**, grouped by state in the bar's order, each group sorted by `prio:` (none last, the oldest first): the
+  cards**, grouped by state in that order, each group sorted by `prio:` (none last, the oldest first): the
   number opens the issue on GitHub, the card says in one line what holds it, and a click opens its sheet over the
   rail — its title, its priority, the link to the issue. **Nothing on the rail** — no card outside Served —, the On the
   rail column says so in plain words (#2486): `nothing on the rail, nothing before it` when there is nothing before it either; otherwise
@@ -3087,16 +3083,11 @@ section. With the section laid, `right now` is not repeated under it.
   it reads them at every wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of
   guessing — and the manager's state is not read from GitHub (only the station's log has it). **The view deduces
   nothing there**: it counts what the reading lists and files each issue under the word it carries. When the open
-  issues could not be read, the view says nothing about them — no bar, never "not read" — and the rail is still
-  shown. A rail reading that fails as a whole gives an empty bar outlined in dashes: its hover and the unfolded column
-  say why, and it is not "nothing before the rail".
-- **How fast tickets are being served (#1811, `app/src/cadence.ts`)**: on the same line as the bar of what is before the rail, a small
-  histogram of the last 24 hours — one line high, one thin bar per hour, the hour in progress on the right. Each bar is
-  stacked: the tickets **served** in that hour in green at the bottom, the **failed** ones in red on top (a pass that came
-  back red, or a cook a guardrail stopped). An hour with nothing is an empty slot on a faint baseline: a run of empty
-  slots shows at once that nothing moved — there is no sentence, and no reassuring blank. The scale is the day's busiest
-  hour, four tickets at least. On hover, on the keyboard or on a tap on the phone, a bar says its hour and its two counts
-  (`14:00–15:00 · 3 served · 1 failed`, the last one `…–now`): that is its only text. **Each Taken or Pass card** carries
+  issues could not be read, the view says nothing about them — no number, never "not read" — and the rail is still
+  shown. A rail reading that fails as a whole gives no Backlog figure (#3013); a Backlog column already unfolded says
+  why, and it is not "nothing before the rail".
+- **How long a card has been there (#1811, `app/src/cadence.ts`)**: the 24-hour histogram that stood next to the
+  backlog left the head of the rail with the line of figures (#3013). **Each Taken or Pass card** carries
   how long it has been in that column (`12 min`, `3 h`, `2 d`), its exact age and the usual time on hover; a card there
   more than **twice the median** of the tickets that went through that column in the last 7 days turns its age red and
   takes a red edge. With fewer than three such tickets, nothing is usual yet: no card stands out, and the hover says why.

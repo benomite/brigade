@@ -94,7 +94,7 @@ async function ouvrir(stockage?: FauxStockage): Promise<Jouee> {
 
 const menu = (vue: Jouee) => vue.element("onglets-du-projet").children;
 const marques = (ou: Faux[]) => ou.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
-// Les blocs du bandeau de santé : les chiffres en vue, puis ce que le chef déplie (les plafonds, le closer, tous les projets).
+// Les blocs du bandeau au-dessus du rail : ce que le chef déplie (les plafonds, le closer, tous les projets).
 const blocsDuBandeau = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").map((pose) => pose.dataset.bloc).filter((bloc) => bloc !== undefined);
 const blocs = (vue: Jouee) => vue.element("rail").children.map((pose) => pose.dataset.bloc);
 
@@ -111,21 +111,20 @@ describe("le menu de la page d'un projet (#2485, #2921)", () => {
 
   test("chaque bloc est monté dans son onglet, le bandeau de santé sur Rail seulement", async () => {
     const vue = await ouvrir();
-    assert.deepEqual(vue.element("bloc-du-rail").children.map((pose) => pose.dataset.bloc), ["bande-rail"]);
-    // Au-dessus du rail, la santé de la cuisine : ses blocs, puis les lignes « Cost » et « Closer » de tous les projets (#2638).
+    // Au-dessus du rail, les plafonds, le closer, puis les lignes « Cost » et « Closer » de tous les projets (#2638) ; les
+    // chiffres de la cuisine sont dans la bande du rail (#3013).
     assert.equal(vue.element("bandeau-sante").hidden, false);
-    assert.deepEqual(blocsDuBandeau(vue), ["temps-tickets", "bloque-sans-question", "plafonds-duree", "closer", "de-tous-les-projets"]);
+    assert.deepEqual(blocsDuBandeau(vue), ["plafonds-duree", "closer", "de-tous-les-projets"]);
 
     await ouvrirOnglet(vue, "Stations");
     // Puis, en bas, toutes les stations et « + station », qui ont quitté l'accueil (#2638).
     assert.deepEqual(blocs(vue), ["liste-stations", "reglages-station", "station-locale", "toutes-les-stations"]);
-    assert.deepEqual(vue.element("bloc-du-rail").children, []);
     assert.equal(vue.element("bandeau-sante").hidden, true);
     assert.deepEqual(vue.element("bandeau-sante").children, []);
 
     await ouvrirOnglet(vue, "Rail");
     assert.equal(vue.element("bandeau-sante").hidden, false);
-    assert.equal(blocsDuBandeau(vue).length, 5);
+    assert.equal(blocsDuBandeau(vue).length, 3);
   });
 
   test("l'onglet retenu est celui du projet ; un ancien « cooks » ou « sante » stocké ouvre Rail", async () => {
