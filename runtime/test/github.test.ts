@@ -359,6 +359,16 @@ test("fermer une issue la dit terminée", async (t) => {
   assert.deepEqual(gh.appels(), [["api", "-i", "-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]]);
 });
 
+test("fermer une PR n'appelle que la PR, sans toucher à sa branche (#3097)", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/pulls/489`;
+  gh.repondre(chemin, { corps: { number: 489, state: "closed" } });
+
+  await github.fermerPR?.(489);
+
+  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "PATCH", "-f", "state=closed", chemin]]);
+});
+
 const CHEMIN_OUVERTES = `repos/${DEPOT}/issues?state=open&per_page=100`;
 
 async function ouvertes(github: ReturnType<typeof ouvrirGitHub>) {

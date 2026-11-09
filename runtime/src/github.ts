@@ -94,7 +94,8 @@ export type GitHub = {
   ouvertes(): Promise<Sondage<IssueOuverte>>;
   // Une issue, avec son corps et le compte qui l'a ouverte, ou null si elle
   // n'existe plus.
-  issue(numero: number): Promise<(Issue & { body?: string; author?: string }) | null>;
+  // `closedAt` : quand elle a été fermée, si GitHub le dit.
+  issue(numero: number): Promise<(Issue & { body?: string; author?: string; closedAt?: string }) | null>;
   // Les commentaires d'une issue, du plus ancien au plus récent.
   commentaires(numero: number): Promise<Commentaire[]>;
   // Les commentaires de tout le dépôt modifiés depuis `instant`, du plus ancien au
@@ -199,6 +200,8 @@ export type GitHub = {
   // seul le client réel le porte.
   mettreAJour?(numero: number, sha: string): Promise<void>;
   fermerIssue(numero: number): Promise<void>;
+  // Ferme une PR sans toucher à sa branche. Facultatif : seul le client réel le porte.
+  fermerPR?(numero: number): Promise<void>;
   // La PR mergée qui a fermé cette issue (`Closes #n`), ou null si rien ne dit
   // qu'une PR l'ait fermée.
   prQuiFerme(numero: number): Promise<PR | null>;
@@ -553,7 +556,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const reponse = await lireSousCondition([chemin]);
       if (reponse.statut === 404 || reponse.statut === 410) return null;
       const brute = JSON.parse(exiger(reponse, chemin).corps) as IssueBrute;
-      return { ...lire(brute), body: brute.body ?? "", author: brute.user?.login ?? "" };
+      return { ...lire(brute), body: brute.body ?? "", author: brute.user?.login ?? "", ...(typeof brute.closed_at === "string" ? { closedAt: brute.closed_at } : {}) };
     },
     async ecrireCorps(numero, corps) {
       const chemin = `repos/${depot}/issues/${numero}`;
@@ -867,6 +870,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async fermerIssue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;
       exiger(await appeler(["-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]), chemin);
+    },
+    async fermerPR(numero) {
+      const chemin = `repos/${depot}/pulls/${numero}`;
+      exiger(await appeler(["-X", "PATCH", "-f", "state=closed", chemin]), chemin);
     },
     identite: async () => (options.identite ? options.identite() : null),
     async droits() {

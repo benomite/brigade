@@ -169,7 +169,8 @@ base, the stale-branch pruning).
   previous one. The app's TODO lists issues only, so this card shows on GitHub, not in the app.
 - **Cost follows events, not time** (#2198): a turn where nothing changed costs no counted GitHub call (its reads are
   conditional); a merge GitHub refuses, or a branch update it asked for, is not retried until the PR or the base
-  changes. A ticket served end to end costs about 27 calls, at most 30 (`runtime/test/cout-par-ticket/`).
+  changes. A ticket served end to end costs about 27 calls, at most 31 (`runtime/test/cout-par-ticket/`).
+- **Leftover PRs** (#3097): at most every ten minutes, a turn closes each open PR whose ticket (`cook/<n>-…` branch) is closed, with one comment — `its ticket #N was closed on <date>; nothing serves this PR any more` — and keeps its branch. The comment is read before it is posted, so a failed close does not double it on the next pass. A PR from a fork is never closed.
 - **Guardrails.** The chef's stop, the breaker, the Max quota and the arbiter between projects hold a turn's launches
   (`github-seul/garde-fous/`, #2213). An open breaker is said on GitHub by an issue labelled `brigade:breaker-open`
   (`breaker-issue.ts`); a `/resume` comment on it by someone with write access closes the breaker at the next tick
