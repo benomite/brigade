@@ -22,6 +22,7 @@ import { ConfigInvalide } from "../runtime.ts";
 import { argumentsDuBacASable, configurer, type ConfigDeBacASable } from "./configuration.ts";
 import { detecter, type Sondes } from "./detection.ts";
 import { constater, pourLaBox } from "./ordinaires.ts";
+import type { ServiceLocal } from "../sandbox/services-locaux.ts";
 
 // Les caches du projet où un cook de la cuisine locale écrit aussi : des
 // chemins absolus, séparés par `:`. Aucun, par défaut.
@@ -34,8 +35,9 @@ export type Verification = { ok: true; version: string } | { ok: false; raison: 
 
 // Ce que la cuisine retient de son bac à sable : de quoi configurer celui de
 // chaque lancement. `hotes` : la liste réseau du projet, relue à chaque
-// lancement — celle que sa branche d'intégration déclare.
-export type BacASableLocal = { version: string; home: string; caches: string[]; hotes: () => Regle[] };
+// lancement — celle que sa branche d'intégration déclare. `services` : ses
+// services locaux, relus de même.
+export type BacASableLocal = { version: string; home: string; caches: string[]; hotes: () => Regle[]; services?: () => ServiceLocal[] };
 
 // Les lieux d'une cuisine locale, tels que la vérification les éprouve.
 // `worktrees` : où ses cooks travaillent ; `caches` : les caches du projet.
@@ -71,11 +73,11 @@ export function verifier(sondes: Sondes, lieux: Lieux, hotes: Regle[] = REGLES_D
 // Le bac à sable de la cuisine d'un projet. Nul hors de macOS : la cuisine
 // n'est pas locale, et la cloison de sa machine la garde. Sous macOS, une
 // vérification qui échoue est un refus : la cuisine ne s'ouvre pas.
-export function configBacASableLocal(sondes: Sondes, lieux: Lieux, hotes: () => Regle[]): BacASableLocal | null {
+export function configBacASableLocal(sondes: Sondes, lieux: Lieux, hotes: () => Regle[], services?: () => ServiceLocal[]): BacASableLocal | null {
   if (sondes.plateforme !== PLATEFORME_LOCALE) return null;
   const verification = verifier(sondes, lieux);
   if (!verification.ok) throw new ConfigInvalide(`sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — ${verification.raison}`, "sandbox-unusable");
-  return { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes };
+  return { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes, services };
 }
 
 // Les arguments d'un `claude` lancé dans le bac à sable : ceux qu'il aurait
@@ -97,7 +99,7 @@ export function poserLeBacASable(args: readonly string[], config: ConfigDeBacASa
 // `brigade` : son ticket ne livre que `.claude/brigade/`, il y écrit.
 export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = [], brigade = false): string[] {
   if (!bac) return args;
-  return poserLeBacASable(args, configurer({ worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade }));
+  return poserLeBacASable(args, configurer({ worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.() }));
 }
 
 // Ce que la cuisine dit de son bac à sable au démarrage.
