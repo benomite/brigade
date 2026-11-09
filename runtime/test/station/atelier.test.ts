@@ -16,6 +16,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { REGLES_DE_BASE } from "../../src/reseau.ts";
 import { prendreVerrou } from "../../src/verrou.ts";
 import { demenagerVersLAtelier } from "../../src/station/atelier.ts";
+import { droitsDInstallation } from "../../src/sandbox/installation.ts";
 import { lieuxDuProjet } from "../../src/station/configuration.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
@@ -154,7 +155,7 @@ test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks 
   const worktree = join(lieux.worktrees, RUN);
   assert.equal(existsSync(join(worktree, "en-cours.txt")), true);
   const { sandbox, permissions } = reglagesDansLeBacASable(home, lieux.worktrees, worktree);
-  assert.deepEqual(sandbox.filesystem.allowWrite, [worktree]);
+  assert.deepEqual(sandbox.filesystem.allowWrite, [worktree, ...droitsDInstallation(home)]);
   assert.ok(permissions.allow.includes(`Edit(/${worktree}/**)`));
   const interdits = [".ssh", ".config/brigade", ".claude/.credentials.json", ".git-credentials", ".netrc", ".config/gh"].map((relatif) => join(home, relatif));
   for (const interdit of interdits) {
