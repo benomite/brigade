@@ -497,6 +497,13 @@ tickets claimed after that merge, #2977 and #2985, none was sent back for a conf
 evidence, with #2963 and #2979 closed by merged PRs out of the station's times, main's gate returns `en-attente`
 on #2979 (19 tickets missing), and the code before #2979, which dated neither, opens a ticket.
 Nothing to correct on main.
+#3028, measured on BOBL-tech/mirrorlab, names "red gates: type check" for three red-CI send-backs (#651, #20,
+#612), but no failed step is read: their reasons name the one red check, `Lint + Format + Typecheck + Tests
+(+ e2e:critical si label e2e)`, a job that runs four steps. `causeDuRenvoi` (`runtime/src/qualite-github.ts`)
+tests `types?` before `tests` on the check names, so this job is always "type check", whichever step failed;
+`Lint + Format + Tests` would read "runtime tests", and `Lint` "other". Which step was red on `db59a30`,
+`a437316` and `9572273` is in mirrorlab's CI logs, which the cook of #3028 could not read: its cause stays
+unnamed, and nothing is corrected.
 
 The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
 again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent
