@@ -56,7 +56,7 @@ h3 { font-size: 1.08rem; font-weight: 700; margin: 0 0 .3rem; line-height: 1.25;
 @media (prefers-color-scheme: dark) { .btn.primary { color: #0e1714; } }
 
 /* The rail */
-.rail { margin: 2.75rem 0 1rem; overflow-x: auto; padding-bottom: 1.5rem; }
+.rail { margin: 2.75rem 0 1rem; overflow-x: auto; padding-bottom: calc(1.5rem - 9px); }
 .bar {
   height: 16px; min-width: 52rem;
   background: linear-gradient(180deg, #f7f9fa 0%, #c3cbd1 45%, #8d979f 100%);
@@ -67,7 +67,7 @@ h3 { font-size: 1.08rem; font-weight: 700; margin: 0 0 .3rem; line-height: 1.25;
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.4rem;
 }
 .slip {
-  position: relative; background: var(--paper); color: #1d2328; margin-top: -5px; padding: 1.5rem 1rem 1.2rem;
+  position: relative; background: var(--paper); color: #1d2328; margin-top: 4px; padding: 1.5rem 1rem 1.2rem;
   font: 400 .85rem/1.45 "Courier Prime", ui-monospace, monospace;
   display: grid; gap: .35rem; transform-origin: top center;
   filter: drop-shadow(0 8px 8px rgba(0,0,0,.18));
