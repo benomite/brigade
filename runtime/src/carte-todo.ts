@@ -36,6 +36,7 @@ import type { Base } from "./base.ts";
 import { capturesManquantes, lireCaptures, type Captures } from "./captures.ts";
 import { GESTES, uneQuestion, validerCarte } from "./carte-todo/forme.ts";
 import { gesteGit, refuserGesteGit, reparationDuGeste, type ReparationDuGeste } from "./garde-todo/geste-git.ts";
+import { refuserSansQuestion, refuserSansReponse } from "./garde-todo/question-reponse.ts";
 import type { Journal } from "./journal.ts";
 
 // Les deux sortes de cartes qui entrent dans TODO.
@@ -103,13 +104,15 @@ export function jugerCarte({ type, resume, enonce, choix }: Proposition, capture
   const mot = type?.trim().toLowerCase() ?? "";
   if (mot === "") return { admise: false, raison: "no kind: a TODO card is a product choice (product) or a design validation (design)" };
   if (!estType(mot)) return { admise: false, raison: `“${type?.trim()}” is not a TODO card: only a product choice (product) or a design validation (design) reaches the chef` };
+  const sansQuestion = refuserSansQuestion({ enonce });
+  if (sansQuestion !== null) return { admise: false, raison: sansQuestion };
   const question = enonce?.trim() ?? "";
-  if (question === "") return { admise: false, raison: "no question: a TODO card asks the chef exactly one question" };
   if (surPlusieursLignes(question)) return { admise: false, raison: "question on several lines: a TODO card asks one question, on one line" };
   if (!uneQuestion(question)) return { admise: false, raison: "not exactly one question: a TODO card asks one question, ending with its only “?”" };
-  if (!choix || choix.length === 0) return { admise: false, raison: "no choice: a TODO card offers at least one choice to click" };
+  const sansReponse = refuserSansReponse({ choix });
+  if (sansReponse !== null) return { admise: false, raison: sansReponse };
   const lus: Choix[] = [];
-  for (const [rang, propose] of choix.entries()) {
+  for (const [rang, propose] of (choix ?? []).entries()) {
     const texte = propose.texte?.trim() ?? "";
     if (texte === "" || surPlusieursLignes(texte)) return { admise: false, raison: `choice ${rang + 1} is empty or on several lines: each choice is one line` };
     if (lus.some((lu) => lu.texte === texte)) return { admise: false, raison: `choice ${rang + 1} repeats another: each choice is a different way` };
