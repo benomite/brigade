@@ -1,11 +1,11 @@
-// La page de « parade », le bandeau de santé en tête de Stations (#2491, épique #2484, #3013), haute assez pour montrer le
+// La page de « parade », le bandeau de santé dans Settings (#2491, épique #2484, #3014), haute assez pour montrer le
 // closer sous les plafonds : ses trois dernières passes — une en cours, sa PR à la pass ; une mergée, ses lignes retirées ; une fermée
 // sans merge —, ce que la dernière lui a remis, les deux vérifications que le chef lui a demandées en plus, et ses
 // réglages, dont le calibrage et le plafond de tokens posés dans le dépôt.
 import type { LectureDuCloser } from "../../../app/src/closer-sante.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
-import { PLAFONDS_LUS, STATIONS } from "./projet-sante.ts";
+import { PLAFONDS_LUS, SECTION, SETTINGS } from "./projet-sante.ts";
 import { NORMAL } from "./projet-temps-commun.ts";
 
 const DEPOT = "https://github.com/chef/parade";
@@ -68,9 +68,9 @@ export const CLOSER_LU: LectureDuCloser = {
 };
 
 export const ecran: Ecran = {
-  dit: "L'espace de « parade », le bandeau de santé de Stations : le closer — ses passes, ce qu'il vérifie en premier et en plus, ses réglages (#2491)",
+  dit: "L'espace de « parade », le bandeau de santé de Settings : le closer — ses passes, ce qu'il vérifie en premier et en plus, ses réglages (#2491)",
   largeur: 1440,
   hauteur: 1700,
-  etapes: [OUVRIR, STATIONS],
+  etapes: [OUVRIR, SETTINGS, SECTION],
   donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, lostTimeMaxMin: 2 } }, { plafondsDuree: PLAFONDS_LUS, closerDeSante: CLOSER_LU }),
 };

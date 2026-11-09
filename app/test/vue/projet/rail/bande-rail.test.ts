@@ -313,7 +313,6 @@ describe("sur l'onglet Rail", () => {
     // Au-dessus du rail, plus rien d'autre que la bande : ni bloc de chiffres, ni titre sans rien dessous, ni aide `?`, ni la
     // ligne repliée « Caps, closer and all projects ».
     const dessus = vue.element("bandeau-sante");
-    assert.equal(dessus.hidden, true);
     assert.deepEqual(dessus.children, []);
     // Devant la bande, seul un signe de lecture (une lecture vieille, hors ligne) peut se poser : aucun bloc, titre ni ligne repliée.
     assert.deepEqual(enfants.slice(0, enfants.indexOf("bande-rail")).filter((nom) => !/^(fraicheur|hors-ligne)/.test(nom)), [], enfants.join(", "));
@@ -321,14 +320,14 @@ describe("sur l'onglet Rail", () => {
     assert.doesNotMatch(bande(vue)?.textContent ?? "", /no measure yet|Not available yet|\?/i);
   });
 
-  test("sur Stations, la bande n'y est pas, la ligne repliée des réglages si ; Rail rend la bande seule", async () => {
+  test("sur Stations, ni la bande ni les réglages de santé, passés dans Settings (#3014) ; Rail rend la bande seule", async () => {
     const vue = await ouvrir(NORMAL);
-    assert.equal(vue.element("bandeau-sante").hidden, true);
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
     await ouvrirOnglet(vue, "Stations");
     assert.equal(bande(vue), undefined);
-    assert.equal(vue.element("bandeau-sante").hidden, false);
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
     await ouvrirOnglet(vue, "Rail");
-    assert.equal(vue.element("bandeau-sante").hidden, true);
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
     assert.notEqual(bande(vue), undefined);
   });
 

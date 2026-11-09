@@ -71,8 +71,8 @@ const GROUPES = (() => {
 // Ce que la page Settings montre, avec le niveau du groupe qui le porte.
 const deSettings = (vue: Jouee): { niveau: string; pose: Faux }[] =>
   vue.element("etat").hidden ? [] : GROUPES.flatMap(({ niveau, ids }) => ids.map((id) => ({ niveau, pose: vue.element(id) }))).filter(({ pose }) => montre(pose));
-// Les éléments où chercher un réglage dans un onglet (sur Stations, le bandeau de santé en tête en fait partie, #3013).
-const racines = (vue: Jouee, onglet: Onglet): Faux[] => (onglet === "Settings" ? deSettings(vue).map(({ pose }) => pose) : [vue.element("rail"), vue.element("bandeau-sante")]);
+// Les éléments où chercher un réglage dans un onglet (le bandeau de santé est une section de Settings, #3014).
+const racines = (vue: Jouee, onglet: Onglet): Faux[] => (onglet === "Settings" ? deSettings(vue).map(({ pose }) => pose) : [vue.element("rail")]);
 
 // Un élément se montre quand lui et tous ses parents le font.
 function montre(pose: Faux): boolean {

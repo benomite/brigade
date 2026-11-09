@@ -77,7 +77,7 @@ import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./conne
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
-import { boutonAction, caseACocher, prixDit, replie, survol } from "./briques.js";
+import { boutonAction, caseACocher, prixDit, survol } from "./briques.js";
 import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { rangeeDeReglage as rangeeDeLaFamille } from "./composants/reglage/reglage.js";
@@ -1368,6 +1368,10 @@ function montrer() {
   rail.inert = !contenu.hidden || !fiche.hidden;
   // Settings est une seule page, sans sous-pages (ticket 1700) : son seul groupe, celui du projet, et rien d'autre.
   etat.hidden = courant === undefined || visible !== PARAMETRES;
+  // Les plafonds, le closer et les lignes de tous les projets, leur section de Settings (ticket 3014) : posés tant qu'il
+  // est ouvert, vidés sinon.
+  if (courant !== undefined && reglagesMontres()) poserLeBandeauDeSante(courant);
+  else bandeauSante.replaceChildren();
   luOnglet.hidden = relaye === undefined;
   // Le journal : un geste, pas un onglet. Le recliquer le referme.
   journal.hidden = courant === undefined || !seLit(courant);
@@ -4590,11 +4594,9 @@ function poserLeRail(projet) {
   const onglet = ongletDe(projet);
   rail.dataset.onglet = onglet === STATIONS ? onglet : RAIL;
   rail.ariaLabel = onglet === STATIONS ? "The stations" : "The rail";
-  // La ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013) : plus sur Rail, où
-  // seule la bande des chiffres tient au-dessus des colonnes ; en tête de Stations, le temps que Settings la reprenne.
-  bandeauSante.hidden = onglet !== STATIONS;
-  if (onglet === STATIONS) poserLeBandeauDeSante(projet);
-  else bandeauSante.replaceChildren();
+  // Settings ouvert par-dessus : sa section des plafonds et du closer suit la lecture, comme elle le faisait sur l'onglet
+  // (ticket 3014) ; un champ en cours de frappe n'est pas reposé.
+  reposerLaSante(projet, true);
   // Stations : la liste de ses stations (ticket 2487), et « Add a station » ; les réglages de
   // chacune (ticket 2488) ; la station de cet ordinateur (ticket 2489).
   if (onglet === STATIONS) {
@@ -6321,10 +6323,10 @@ setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
 }, 30_000);
 
-// Le bandeau de santé (ticket 2490, 2921), en tête de Stations depuis que Rail n'a plus que la bande des chiffres (ticket
-// 3013) : les plafonds de durée et le closer. Les plafonds du dépôt se lisent sur GitHub par le process principal
-// (plafonds-duree.ts) — à l'ouverture de Stations, puis au plus une fois la minute tant qu'il reste ouvert, et après
-// chaque changement. Un champ en cours de frappe n'est pas reposé.
+// Le bandeau de santé (ticket 2490, 2921), une section de Settings depuis le ticket 3014 (Rail n'a plus que la bande des
+// chiffres, ticket 3013) : les plafonds de durée et le closer. Les plafonds du dépôt se lisent sur GitHub par le process
+// principal (plafonds-duree.ts) — à l'ouverture de Settings, puis au plus une fois la minute tant qu'il reste ouvert, et
+// après chaque changement. Un champ en cours de frappe n'est pas reposé.
 /** @type {Map<string, import("../plafonds-duree.ts").LectureDesPlafonds>} */
 const plafondsLus = new Map();
 /** @type {Map<string, number>} */
@@ -6346,15 +6348,7 @@ const etatsDuCloser = new Map();
 const verificationsDuCloser = new Map();
 /** @type {Set<string>} */
 const candidatsOuverts = new Set();
-// Ce que le chef a déplié dans le bandeau de santé, par projet (`<projet>#<bloc>`) : une relecture ne le replie pas.
-/** @type {Set<string>} */
-const santeDepliee = new Set();
-/** @param {Projet} projet @param {string} bloc */
-const depliageDeSante = (projet, bloc) => ({
-  ouvert: santeDepliee.has(`${projet.nom}#${bloc}`),
-  basculer: (/** @type {boolean} */ ouvert) => void (ouvert ? santeDepliee.add(`${projet.nom}#${bloc}`) : santeDepliee.delete(`${projet.nom}#${bloc}`)),
-});
-// `garder` : la relecture du rail ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
+// `garder` : une relecture ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
 /** @param {Projet} projet @param {boolean} [garder] */
 function poserLeBandeauDeSante(projet, garder = true) {
   const tape = /** @type {HTMLElement | null} */ (document.activeElement);
@@ -6363,10 +6357,9 @@ function poserLeBandeauDeSante(projet, garder = true) {
   const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
   etatsDesPlafonds.set(projet.nom, etats);
   const lecture = plafondsLus.get(projet.nom);
-  // Derrière une ligne, ce qui se règle ou s'ouvre : les plafonds de durée, le closer, et les lignes de tous les projets.
-  // Les chiffres de la cuisine sont dans la bande du rail (ticket 3013).
+  // Sous le titre de sa section de Settings, ce qui se règle ou s'ouvre : les plafonds de durée, le closer, et les lignes
+  // de tous les projets. Les chiffres de la cuisine sont dans la bande du rail (ticket 3013).
   bandeauSante.replaceChildren(
-    replie(document, { titre: "Caps, closer and all projects", resume: "duration caps, the closer, cost and closer of all projects", ...depliageDeSante(projet, "reglages") }, [
     poserBlocPlafondsDuree(document, {
       ...(lecture === undefined ? {} : { lecture }),
       ...(vu?.temps === undefined ? {} : { lostTimeMaxMin: vu.temps.lostTimeMaxMin }),
@@ -6379,14 +6372,13 @@ function poserLeBandeauDeSante(projet, garder = true) {
     }),
     poserLeCloserDeSante(projet),
     deTousLesProjets,
-    ]),
   );
   if (Date.now() - (plafondsLusLe.get(projet.nom) ?? 0) > 60_000) void lireLesPlafondsDuree(projet);
   if (Date.now() - (closerDeSanteLuLe.get(projet.nom) ?? 0) > 60_000) void lireLeCloserDeSante(projet);
 }
 /** @param {Projet} projet @param {boolean} [garder] */
 function reposerLaSante(projet, garder = false) {
-  if (courant?.nom === projet.nom && ongletDe(projet) === STATIONS && laisse.get(projet.nom) === undefined) poserLeBandeauDeSante(projet, garder);
+  if (courant?.nom === projet.nom && reglagesMontres()) poserLeBandeauDeSante(projet, garder);
 }
 /** @param {Projet} projet */
 async function lireLesPlafondsDuree(projet) {
@@ -6430,7 +6422,7 @@ async function changerUnPlafond(projet, cle, saisie) {
 }
 
 // Le closer du bandeau de santé (ticket 2491) : ses passes, ce qu'il vérifie en premier et en plus, ses réglages — lus sur GitHub
-// par le process principal (closer-sante.ts), à l'ouverture de Stations puis au plus une fois la minute, comme les
+// par le process principal (closer-sante.ts), à l'ouverture de Settings puis au plus une fois la minute, comme les
 // plafonds. Un réglage changé se propose par une pull request (ticket 2920), qui se dit sous sa rangée — la valeur en
 // vigueur ne change qu'au merge ; une vérification ajoutée ou retirée s'écrit dans le dépôt, et la liste écrite est reprise.
 /** @param {Projet} projet */

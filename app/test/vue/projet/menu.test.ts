@@ -94,7 +94,7 @@ async function ouvrir(stockage?: FauxStockage): Promise<Jouee> {
 
 const menu = (vue: Jouee) => vue.element("onglets-du-projet").children;
 const marques = (ou: Faux[]) => ou.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent);
-// Les blocs du bandeau de santé, en tête de Stations (#3013) : ce que le chef déplie (les plafonds, le closer, tous les projets).
+// Les blocs du bandeau de santé, une section de Settings (#3014) : les plafonds, le closer, tous les projets.
 const blocsDuBandeau = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").map((pose) => pose.dataset.bloc).filter((bloc) => bloc !== undefined);
 const blocs = (vue: Jouee) => vue.element("rail").children.map((pose) => pose.dataset.bloc);
 
@@ -109,22 +109,25 @@ describe("le menu de la page d'un projet (#2485, #2921)", () => {
     assert.equal(vue.poses().some((element) => element.id === "onglets-cuisine"), false);
   });
 
-  test("chaque bloc est monté dans son onglet, le bandeau de santé sur Stations seulement", async () => {
+  test("chaque bloc est monté dans son onglet, le bandeau de santé dans Settings seulement", async () => {
     const vue = await ouvrir();
     // Sur Rail, au-dessus des colonnes, la seule bande des chiffres (#3013) : plus de ligne repliée.
-    assert.equal(vue.element("bandeau-sante").hidden, true);
     assert.deepEqual(vue.element("bandeau-sante").children, []);
 
     await ouvrirOnglet(vue, "Stations");
     // Puis, en bas, toutes les stations et « + station », qui ont quitté l'accueil (#2638).
     assert.deepEqual(blocs(vue), ["liste-stations", "reglages-station", "station-locale", "toutes-les-stations"]);
-    // En tête, les plafonds, le closer, puis les lignes « Cost » et « Closer » de tous les projets (#2638), le temps que
-    // Settings les reprenne (#3013).
-    assert.equal(vue.element("bandeau-sante").hidden, false);
+    // Plus en tête de Stations : les plafonds, le closer et les lignes de tous les projets sont dans Settings (#3014).
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
+
+    (menu(vue).find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas d'entrée Settings")).click();
+    await repos();
+    // Leur section de Settings : les plafonds, le closer, puis les lignes « Cost » et « Closer » de tous les projets (#2638).
+    assert.equal(vue.element("etat").hidden, false);
     assert.deepEqual(blocsDuBandeau(vue), ["plafonds-duree", "closer", "de-tous-les-projets"]);
 
     await ouvrirOnglet(vue, "Rail");
-    assert.equal(vue.element("bandeau-sante").hidden, true);
+    assert.equal(vue.element("etat").hidden, true);
     assert.deepEqual(vue.element("bandeau-sante").children, []);
   });
 

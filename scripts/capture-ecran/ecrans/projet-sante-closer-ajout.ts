@@ -1,11 +1,11 @@
-// La page de « parade », le bandeau de santé en tête de Stations (#2491, #2920, #3013) : le chef a tapé une vérification de plus pour le closer
+// La page de « parade », le bandeau de santé dans Settings (#2491, #2920, #3014) : le chef a tapé une vérification de plus pour le closer
 // et cliqué « add » — l'ajout à `.claude/brigade/closer-checks.md` est proposé par une pull request, que la partie dit et
 // ouvre ; la liste reste celle en vigueur jusqu'au merge.
 import type { RenduDesVerifications } from "../../../app/src/closer-sante.ts";
 import { PROPOSE } from "../../../app/src/reglages-du-projet.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
-import { PLAFONDS_LUS, STATIONS } from "./projet-sante.ts";
+import { PLAFONDS_LUS, SETTINGS } from "./projet-sante.ts";
 import { CLOSER_LU } from "./projet-sante-closer.ts";
 import { NORMAL } from "./projet-temps-commun.ts";
 
@@ -21,14 +21,13 @@ const RENDU: RenduDesVerifications = {
 const CHAMP = '[data-bloc="closer"] [data-partie="en-plus"] .champ.ajouter input';
 
 export const ecran: Ecran = {
-  dit: "L'espace de « parade », le bandeau de santé de Stations : une vérification ajoutée au closer, proposée par une pull request (#2491, #2920)",
+  dit: "L'espace de « parade », le bandeau de santé de Settings : une vérification ajoutée au closer, proposée par une pull request (#2491, #2920)",
   largeur: 1440,
   hauteur: 1700,
-  // Le closer est replié derrière une ligne du bandeau : le chef la déplie d'abord, puis la partie est amenée à l'écran.
+  // Le closer est dans la section de Settings : le chef ouvre Settings, puis la partie est amenée à l'écran.
   etapes: [
     OUVRIR,
-    STATIONS,
-    { cliquer: "#bandeau-sante > details > summary" },
+    SETTINGS,
     { saisir: CHAMP, texte: AJOUTEE },
     { cliquer: '[data-bloc="closer"] .ajouter-la-verification button' },
     { defiler: '[data-bloc="closer"] [data-partie="en-plus"]' },

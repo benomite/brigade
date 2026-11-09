@@ -820,18 +820,6 @@ main > header,
   display: flex;
   flex-direction: column;
 }
-/* En tête de Stations, la ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013). Il ne prend jamais plus des deux cinquièmes du centre, et défile au-delà, que l'onglet garde sa
-   hauteur. */
-#bandeau-sante {
-  flex: none;
-  max-height: 40%;
-  overflow-y: auto;
-  padding: var(--pas-2) var(--pas-4);
-  border-bottom: 1px solid var(--trait-doux);
-}
-#bandeau-sante[hidden] {
-  display: none;
-}
 #message {
   flex: 1;
   padding: var(--pas-5);
@@ -1879,6 +1867,14 @@ main > header,
 #etat #arreter-cuisine {
   display: block;
   padding: 0;
+}
+/* Les plafonds, le closer et les lignes de tous les projets (ticket 3014) : leurs blocs s'alignent sur les rangées des
+   autres groupes, et le dernier ne double pas le bord de la carte. */
+#etat #bandeau-sante > .bloc-du-projet {
+  padding-inline: 0;
+}
+#etat #bandeau-sante > .bloc-du-projet:last-child {
+  border-bottom: 0;
 }
 /* Les couleurs du projet : une pastille ronde par couleur de la palette, sur la ligne de chaque rôle. Celle que le
    projet porte est cerclée. */
