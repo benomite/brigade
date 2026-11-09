@@ -8,9 +8,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { corpsDeVerdict } from "../src/github-etat/fusion.ts";
-import { FauxGitHub, fauxClient } from "./faux-github.ts";
+import { FauxGitHub, STATION_DU_DEPOT, depotRepris, fauxClient } from "./faux-github.ts";
 
 const MAINTENANT = new Date("2026-11-06T14:00:00Z");
 const TICKET = 2557;
@@ -34,19 +34,9 @@ async function cuisinerLe6Novembre(t: TestContext, message: string, passages: nu
     return { fin: Promise.resolve({ code: 0, signal: null, turns: TOURS, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const station = stationDuDepot({
-    nom: "box",
-    places: 1,
-    base: "main",
-    depotGitHub: "faux/depot",
+    ...STATION_DU_DEPOT,
     github: fauxClient(faux),
-    depot: { connait: () => true, preparer: async () => assert.fail("the branch is resumed"), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 1, changes: () => [], diff: () => "", tete: () => tete },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
+    depot: depotRepris(repertoire, tete),
     flux: repertoire,
     lancer,
     maintenant: () => MAINTENANT,

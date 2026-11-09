@@ -8,12 +8,12 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { MARQUE_QUALITE, marqueDesComptes } from "../src/alerte-qualite.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../src/blocage-au-manager.ts";
-import { A_LA_MAIN, priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { A_LA_MAIN, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
 import { ajouterLaPreuve, MARQUE_DE_PREUVE } from "../src/relance-blocage-preuve.ts";
-import { FauxGitHub, fauxClient } from "./faux-github.ts";
+import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "./faux-github.ts";
 
 const QUALITE = 40;
 const CORPS = [MARQUE_QUALITE, marqueDesComptes([5, 6]), "", "## Context", "", "first-try rate 50% under the 70% threshold"].join("\n");
@@ -43,19 +43,9 @@ async function bloqueSur(t: TestContext, question: string, { tours = 1, corps = 
   const avertissements: string[] = [];
   const github: GitHub = { ...fauxClient(faux), ecrireCorps: ecrire ?? (async (numero, nouveau) => void (faux.ticket(numero).corps = nouveau)) };
   const station = stationDuDepot({
-    nom: "box",
-    places: 1,
-    base: "main",
-    depotGitHub: "faux/depot",
+    ...STATION_DU_DEPOT,
     github,
-    depot: { connait: () => true, preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "" },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
+    depot: depotNeuf(repertoire),
     manager: () => ({ model: "sonnet", effort: "medium" }),
     flux: repertoire,
     lancer,

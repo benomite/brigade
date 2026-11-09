@@ -9,12 +9,12 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { attendusDesCommentaires, attendusDuBlocage, corpsDeLAttente, MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, priseDeLaStation, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { MARQUEUR } from "../../src/fiche.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import type { GitHub } from "../../src/github.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
-import { FauxGitHub, fauxClient } from "../faux-github.ts";
+import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
 const B = 20;
 const A = 10;
@@ -49,19 +49,9 @@ function station(t: TestContext, { bloque = null, avant }: Options = {}) {
   const client = fauxClient(faux);
   const github: GitHub = { ...client };
   const ouverte = stationDuDepot({
-    nom: "box",
-    places: 1,
-    base: "main",
-    depotGitHub: "faux/depot",
+    ...STATION_DU_DEPOT,
     github,
-    depot: { connait: () => true, preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "" },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
+    depot: depotNeuf(repertoire),
     manager: () => ({ model: "opus", effort: "high" }),
     flux: repertoire,
     lancer,
