@@ -621,6 +621,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les tickets de la cuisine que le dernier tour a lus ouverts : ceux qu'un
   // cook bloqué peut nommer comme attendus (#2968).
   let ouvertsDuTour = new Set<number>();
+  // Les tickets que la porte de prise a sautés au tour en cours parce qu'une
+  // PR ouverte, ou un ticket en cuisson, tient leur zone. La cuisine inerte
+  // les lit au tour suivant : ils ne sont pas à prendre, ce qui les tient
+  // doit bouger d'abord (#2977).
+  let tenusDuTour = new Set<number>();
   // La station s'arrête (`arreter`) : ses cooks meurent avec elle.
   let arretee = false;
   // La branche d'intégration que l'origine n'a pas (#2876) : la station ne prend plus rien de ce projet.
@@ -1075,7 +1080,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
-    const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()));
+    // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
+    const tenusAvant = tenusDuTour;
+    tenusDuTour = new Set();
+    const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()), tenusAvant);
     await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a hors-cuisine lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
     if (clone !== undefined && corrigerLeTemps !== null) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
@@ -1461,6 +1469,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       const tenant = await tenue(ticket);
       if (tenant !== null) {
+        tenusDuTour.add(ticket.number);
         const numeroDuTenant = /^cook\/(\d+)-/.exec(tenant)?.[1];
         options.sauter?.(ticket.number, direSaut(ticket.number, `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
         continue;

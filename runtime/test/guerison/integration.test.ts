@@ -252,3 +252,26 @@ test("a ticket held by the wait after a stop does not file an inertia bug on an 
   await p.passer();
   assert.deepEqual(p.faux.cuissons.map((c: { issue: number }) => c.issue), [2912]);
 });
+
+// #2977 : #2912, prenable, était sauté par la porte de prise — « zone held by
+// #2907 » — tant que la PR de #2907, chez le chef, restait ouverte hors de la
+// pass ; la cuisine inerte le comptait quand même à prendre et ouvrait un bug
+// `empty-rail`. Elle lit maintenant le verdict de zone de la porte.
+test("a ticket whose zone is held by an open PR set aside for the chef files no inertia bug on an empty rail, and is cooked once that PR merges (#2977)", async () => {
+  const p = projet("zeta/lab", "mac/claude", "develop");
+  const zone = "## Context\n\nwhatever\n\n## Zone\n\n- `docs/maquettes/app/`\n\n## Acceptance\n\n- done\n";
+  p.faux.feu(2907, [...CALIBRE, "blocked-on-human"], zone);
+  const tenante = p.faux.prOuverte(["docs/maquettes/app/Main.dc.html"], brancheDuTicket(2907));
+  p.faux.feu(2912, CALIBRE, zone);
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  await p.passer();
+  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+  assert.deepEqual(p.faux.cuissons, []);
+  // La PR qui tenait la zone mergée, la porte prend le ticket.
+  tenante.state = "closed";
+  tenante.merged = true;
+  await p.passer();
+  assert.deepEqual(p.faux.cuissons.map((c: { issue: number }) => c.issue), [2912]);
+});

@@ -100,8 +100,9 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
 
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
-  // les tickets qu'un cook de cette station cuisine en ce moment.
-  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>): Promise<BilanDeLaGuerison<T>> {
+  // les tickets qu'un cook de cette station cuisine en ce moment. `zonesTenues` :
+  // ceux que la porte de prise a sautés à son dernier tour, leur zone tenue.
+  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, zonesTenues: ReadonlySet<number> = new Set()): Promise<BilanDeLaGuerison<T>> {
     const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
@@ -217,6 +218,11 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       const aPrendre: typeof tickets[number][] = [];
       for (const t of tickets) {
         if (t.epique === true || [HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) || !complet(calibrage([...t.labels]))) continue;
+        // Ni un ticket dont la zone est tenue : la porte de prise le saute, et ce
+        // qui le tient se compte de lui-même — son ticket pris ou en pass est du
+        // travail, à prendre il vaut une inertie, mis de côté ou chez le chef il
+        // attend un humain, que rien sur le rail ne remplace (#2977).
+        if (zonesTenues.has(t.number)) continue;
         // Illisibles, ses commentaires ne le retiennent pas : comme la porte.
         if (termeDeLAttente(await github.commentaires(t.number).catch(() => []), instant) !== null) continue;
         aPrendre.push(t);
