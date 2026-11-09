@@ -63,6 +63,15 @@ base, the stale-branch pruning).
   among its tries (`runtime/src/relance-blocage-preuve.ts`). Once only: a ticket that already carries the evidence and
   blocks again goes to the manager, as does a question the evidence does not answer, or evidence the station cannot
   read or write (it warns why). Seen on #2832, #2837 and BOBL-tech/espace#825 (#2841).
+- **The kitchen keeps a cook branch up to date with `origin/<base>`.** A new branch starts from the base the station
+  has just fetched. Before a cook resumes an existing branch, the station fetches the base in its worktree and merges it
+  into the branch if the branch does not hold its tip (a branch in conflict follows the conflict send-back instead,
+  #2953); a merge that fails is undone, the station warns, and the cook starts from its branch as is. When a cook blocks because it needs commits that are on the base and not on its branch, the station
+  commits what the cook left, fetches and merges `origin/<base>` into the branch, and gives the ticket back to a cook
+  from it, not counted among its tries. If it cannot — conflict, refusal, network —, the merge is undone, the station
+  opens a `fix` ticket under the manager's fix labels (`brigade:remontee <n>`), and the ticket waits for it on the rail
+  (`brigade:attend-ticket`). A branch that already holds the tip leaves the question to the paths above. No TODO card,
+  never `blocked-on-human` (`runtime/src/mise-a-jour-branche/`). Seen on #2910, #2914 and #2915 (#3001).
 - **A red cook PR held for the chef goes back to a cook.** At each turn's healing, an open PR on a `cook/<n>-github`
   branch whose head has a red check, and whose ticket is on the rail and held for the chef (`blocked-on-human`,
   `chef-todo`) with no cook on it — not cooking on this station, not `taken`, not `in-pass` (the pass sends its own

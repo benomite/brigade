@@ -55,6 +55,7 @@ import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts
 import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
+import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
@@ -223,7 +224,9 @@ export const secoupent = (a: string, b: string): boolean => {
 // conflit ou rouge (#2454) : ce n'est pas un échec, il reste du travail.
 // `bloque` : le cook s'est déclaré bloqué (`<bloque>` dans son dernier message), avec
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string } | { constat: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+// `miseAJour` : il lui manquait des commits de la base, et la station a tenté
+// de la fusionner dans sa branche (#3001).
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -771,6 +774,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // déclarait bloqué à son tour : 6 des 13 relectures bloquantes de
       // BOBL-tech/espace (#798 quatre fois, #755 deux fois) (#2805).
       if ("bloque" in fait) {
+        // Il lui manquait des commits de la base, et la station l'a fusionnée
+        // dans sa branche — ou ouvert le `fix` qu'elle attend : le ticket
+        // repart à un cook, jamais au chef (#3001).
+        if (fait.miseAJour !== undefined && fait.miseAJour.etat !== "deja") {
+          const { dit } = await apresLaMiseAJour(github, { station: nom, ticket: issue, base, branche: brancheDuTicket(issue), question: fait.bloque, miseAJour: fait.miseAJour });
+          avertir(`brigade : #${issue} sur ${nom} — the cook stopped on commits of \`origin/${base}\` missing from its branch: ${dit}`);
+          chrono.rater(issue);
+          await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+          liberee = true;
+          return;
+        }
         // Une question que la preuve de la mesure répond n'est pas pour le
         // chef : la station l'ajoute au ticket et le rend à un cook (#2841).
         const relance = await ajouterLaPreuve(github, issue, fait.bloque);
@@ -1967,7 +1981,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // La tête que le cook reprend : s'il n'y ajoute rien, il n'a rien livré
     // (#2372) — sans quoi la pass ressort une tête déjà renvoyée, et le ticket
     // boucle entre elle et les cooks sans qu'aucun échec ne compte.
-    const avant = reprise && depot.tete !== undefined ? depot.tete(branche) : null;
+    let avant = reprise && depot.tete !== undefined ? depot.tete(branche) : null;
     // La PR de cette branche, si elle est encore ouverte et qu'elle ne se merge
     // pas : en conflit avec la base, ou rouge. Le cook doit la remettre à jour (#2454).
     let resteAFaire: string | null = null;
@@ -2031,9 +2045,20 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         return { branche };
       }
     }
+    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
+    // Au départ du cook, sa branche porte la tête de `origin/<base>` (#3001).
+    // Une branche neuve en part déjà : `preparer` vient de la rapatrier. Une
+    // branche reprise, la station la rapatrie et l'y fusionne ; en conflit,
+    // elle suit le renvoi pour conflit, juste après. Une fusion qui bute est
+    // défaite, et le cook part de sa branche telle quelle. La fusion n'est pas
+    // une livraison du cook : c'est d'elle que se compte ce qu'il ajoute.
+    if (reprise && !enConflit && lancerGit !== undefined) {
+      const depart = await mettreAJourLaBranche(lancerGit, worktree, base);
+      if (depart.etat === "fusionnee" && avant !== null) avant = depot.tete?.(branche) ?? avant;
+      if (depart.etat === "echec") avertir(`brigade : #${ticket.number} sur ${nom} — the station could not bring \`${branche}\` up to date with \`origin/${base}\` before the cook (${depart.etape}: ${depart.detail}): the cook starts from its branch as is`);
+    }
     // Un renvoi pour conflit : la station intègre la base avant le cook, qui
     // reçoit la branche avec la fusion tentée, conflits non commités (#2953).
-    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
     let consigneIntegree: string | null = null;
     if (enConflit && lancerGit !== undefined) {
       const integration = await integrerAvantLeCook(lancerGit, worktree, base);
@@ -2101,6 +2126,18 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         return { echec: `the cook was refused a git command on a conflict send-back, and the station could not take over: ${message(erreur)}` };
       }
     }
+    // Il lui manque des commits de la base : la station récolte ce qu'il a
+    // laissé, rapatrie `origin/<base>` et la fusionne dans sa branche (#3001).
+    // `cuire` en fait la suite, sans carte pour le chef.
+    let miseAJour: MiseAJourDeLaBranche | undefined;
+    if (question !== null && !integree && lancerGit !== undefined && demandeLaBase(question, base)) {
+      try {
+        depot.recolter?.(worktree, branche);
+        miseAJour = await mettreAJourLaBranche(lancerGit, worktree, base);
+      } catch (erreur) {
+        miseAJour = { etat: "echec", etape: "recolte", detail: message(erreur), fichiers: [] };
+      }
+    }
     if (question !== null && !integree) {
       if (prOuverte === null && depot.recolter !== undefined) {
         try {
@@ -2118,7 +2155,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work stays only in the clone, \`${branche}\` could not be pushed: ${message(erreur)}`);
         }
       }
-      return { bloque: question };
+      return { bloque: question, ...(miseAJour === undefined ? {} : { miseAJour }) };
     }
     await depot.ranger(worktree, branche);
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
