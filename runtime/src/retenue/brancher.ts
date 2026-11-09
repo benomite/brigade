@@ -55,7 +55,7 @@ const plusRecent = (instants: Array<string | null | undefined>): string | null =
   instants.filter((instant): instant is string => typeof instant === "string").sort().at(-1) ?? null;
 
 // Ce que dit le rail de ce qui n'avance pas : un ticket qui en attend un autre
-// que la cuisine a mis de côté (`hors-cuisine`, `fire` retiré) le dit avec la
+// que la cuisine a mis de côté (`served-elsewhere`, `fire` retiré) le dit avec la
 // ligne de raison du départ ; un ticket prenable que la zone d'un autre tient,
 // de même (#2429).
 export function explicationsDuRail(rail: ReturnType<typeof lireRail>, attendentLeChef: ReadonlySet<number> = new Set()): string[] {

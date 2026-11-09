@@ -164,8 +164,8 @@ npm --prefix runtime run rail -- human <ticket> [who…]
 ```
 
 For a ticket in WAITING because no station provides what its `requiert` line asks: it is a human's
-job. The issue loses `fire` and takes `hors-cuisine`, the ticket leaves the rail (`ticket.left`,
-reason `hors-cuisine`), and its task enters TODO, author `chef`: `capability.human-job` (to whom —
+job. The issue loses `fire` and takes `served-elsewhere`, the ticket leaves the rail (`ticket.left`,
+reason `served-elsewhere`), and its task enters TODO, author `chef`: `capability.human-job` (to whom —
 `chef` without a name —, what is missing, title, context and acceptance criteria from the issue) and
 a `product` card, `What became of this task?` — `It is done`, `It will not be done`, or your own
 words; the answer is written on the issue and the card leaves TODO. It skips the triage. `facts`

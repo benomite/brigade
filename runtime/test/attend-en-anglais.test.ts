@@ -298,7 +298,7 @@ test("le test de glossaire cite le mot français et sa ligne, et ne lit pas ce q
   for (const mot of ["rail", "base", "installation", "station", "stop", "cooks", "Pass"]) assert.ok(!mots.includes(mot), mot);
 
   assert.deepEqual(motsFrancaisDans(["  #3  for 1 min  la cuisine tourne"]), [{ mot: "cuisine", ligne: "  #3  for 1 min  la cuisine tourne" }]);
-  assert.deepEqual(motsFrancaisDans(["remove it from the `attend` line of the card, label `hors-cuisine`"]), []);
+  assert.deepEqual(motsFrancaisDans(["remove it from the `attend` line of the card, label `served-elsewhere`"]), []);
   // Un mot entier, sans égard à la casse.
   assert.deepEqual(motsFrancaisDans(["Disjoncteur open", "cuisiner", "précuisine"]).map(({ mot }) => mot), ["disjoncteur", "cuisiner"]);
   assert.throws(() => sansMotFrancais(["awaiting   1 décision", "fin attend"]), /« fin attend » dans : fin attend/);

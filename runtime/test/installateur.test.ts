@@ -13,7 +13,8 @@ import { posixOnly } from "./support/plateforme.ts";
 import { EFFORTS, MODELES } from "../src/calibrage.ts";
 import { decisionsPosees } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { LABELS, verifier } from "../src/installation.ts";
+import { verifier } from "../src/installation.ts";
+import { ETIQUETTES } from "../src/etiquettes.ts";
 import { CODES, lireDemande, portLibre, Refus, VARIABLES_POSEES } from "../src/installateur.ts";
 import { BOX } from "../src/installateur-cli.ts";
 import { principal as relire } from "../src/relire.ts";
@@ -106,7 +107,7 @@ describe("installer un projet", () => {
     // Et `installation`, sur ce projet, dans l'environnement que son unité lui donnera.
     const gh = fauxGh(t);
     gh.repondre("repos/acme/calculus", { corps: { full_name: "acme/calculus", permissions: { push: true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } } });
-    gh.repondre("repos/acme/calculus/labels?per_page=100", { corps: LABELS.map(({ name }) => ({ name })) });
+    gh.repondre("repos/acme/calculus/labels?per_page=100", { corps: ETIQUETTES.map(({ name }) => ({ name })) });
     // La branche d'intégration, protégée : ce compte n'administre pas le dépôt, il la lit par la branche.
     gh.repondre(`repos/acme/calculus/branches/${BASE}`, { corps: { name: BASE, protected: true } });
     const duService: Record<string, string> = { ...ENV_GIT, ...environnementDuService(b, "calculus"), HOME: b.home, BRIGADE_GH_BIN: gh.bin, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SYSTEMCTL_BIN: b.box.systemctl, BRIGADE_INSTALLER_CONFIG: b.box.config, CLAUDE_CODE_TMPDIR: b.racine };

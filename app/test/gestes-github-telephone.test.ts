@@ -31,7 +31,7 @@ const PROJET = "parade";
 const JETON = "gho_du_chef";
 const API = "https://api.github.com/";
 
-// Deux questions du chef, chacune sous `hors-cuisine` et `chef-todo` : #40 se reprend ou se laisse, #41 a sa PR ouverte,
+// Deux questions du chef, chacune sous `served-elsewhere` et `chef-todo` : #40 se reprend ou se laisse, #41 a sa PR ouverte,
 // #1560, à merger.
 const QUESTION_40 = ["<!-- brigade:todo kind=product-question -->", "Keep the old export?", "- [resume] Yes, keep it", "- [drop] No, drop it"].join("\n");
 const QUESTION_41 = ["<!-- brigade:todo kind=product-question -->", "Does the export keep the old column order?", "- [merge] Yes, merge PR #1560 as delivered", "- [close] No, we drop the export"].join("\n");
@@ -65,8 +65,8 @@ function github(panne: Panne = () => undefined) {
   const issues = new Map<number, Issue>([
     [22, { labels: new Set(["fire"]), state: "open", commentaires: [] }],
     [31, { labels: new Set(["fire", "waiting"]), state: "open", commentaires: [] }],
-    [40, { labels: new Set(["fire", "hors-cuisine", "chef-todo"]), state: "open", commentaires: [QUESTION_40] }],
-    [41, { labels: new Set(["fire", "hors-cuisine", "chef-todo"]), state: "open", commentaires: [QUESTION_41] }],
+    [40, { labels: new Set(["fire", "served-elsewhere", "chef-todo"]), state: "open", commentaires: [QUESTION_40] }],
+    [41, { labels: new Set(["fire", "served-elsewhere", "chef-todo"]), state: "open", commentaires: [QUESTION_41] }],
   ]);
   const pr = { numero: 1560, state: "open", merged: false, ref: "cook/41-export", body: "Closes #41" };
   const recues: Recue[] = [];
@@ -176,18 +176,18 @@ const resume = (recues: Recue[]) => recues.map(({ methode, url, corps }) => `${m
 const ENTETES = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${JETON}` };
 
 describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le même geste", () => {
-  test("répondre à une carte de TODO (resume) : le commentaire marqué posté, `hors-cuisine` et `chef-todo` retirés", async () => {
+  test("répondre à une carte de TODO (resume) : le commentaire marqué posté, `served-elsewhere` et `chef-todo` retirés", async () => {
     const { recues, etat, dit, ecrits } = await deuxFois(
       (client) => repondreSurGithub({ depot: DEPOT, ticket: 40, chef: CHEFS.get(40), reponse: clic(40, 1), client }),
       (gestes) => gestes.repondreCarte(PROJET, 40, clic(40, 1)),
     );
     assert.deepEqual(resume(recues), [
       `POST /repos/${DEPOT}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/hors-cuisine`,
+      `DELETE /repos/${DEPOT}/issues/40/labels/served-elsewhere`,
       `DELETE /repos/${DEPOT}/issues/40/labels/chef-todo`,
     ]);
     assert.deepEqual(etat.issues[40]?.labels, ["fire"]);
-    assert.deepEqual(dit, { repondue: true, dit: "answer posted on #40 (resume): `hors-cuisine` and `chef-todo` removed", commentaire: 902 });
+    assert.deepEqual(dit, { repondue: true, dit: "answer posted on #40 (resume): `served-elsewhere` and `chef-todo` removed", commentaire: 902 });
     assert.deepEqual(ecrits, [PROJET], "the phone reads GitHub again, and the card leaves TODO");
   });
 
@@ -309,7 +309,7 @@ describe("une écriture que GitHub ne prend pas se dit, et rien n'est montré fa
     assert.equal(dit.refus, "nothing was sent: your answer was not posted on #40");
     assert.match(dit.detail, /Resource not accessible by integration/);
     assert.deepEqual(resume(monde.recues), [`POST /repos/${DEPOT}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`]);
-    assert.deepEqual(monde.etat().issues[40]?.labels, ["chef-todo", "fire", "hors-cuisine"]);
+    assert.deepEqual(monde.etat().issues[40]?.labels, ["chef-todo", "fire", "served-elsewhere"]);
     assert.deepEqual(ecrits, []);
   });
 
@@ -426,11 +426,11 @@ async function parLePont<R>(duDesktop: (client: ReturnType<typeof desktop>) => P
 }
 
 describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur GitHub comme du desktop", () => {
-  test("répondre à une carte de TODO : la réponse postée sur l'issue, `hors-cuisine` et `chef-todo` retirés — puis GitHub relu", async () => {
+  test("répondre à une carte de TODO : la réponse postée sur l'issue, `served-elsewhere` et `chef-todo` retirés — puis GitHub relu", async () => {
     const { ecrites, dit, relues } = await parLePont((client) => repondreSurGithub({ depot: DEPOT, ticket: 40, chef: CHEFS.get(40), reponse: clic(40, 1), client }), "repondreCarte", PROJET, 40, clic(40, 1));
     assert.deepEqual(resume(ecrites), [
       `POST /repos/${DEPOT}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/hors-cuisine`,
+      `DELETE /repos/${DEPOT}/issues/40/labels/served-elsewhere`,
       `DELETE /repos/${DEPOT}/issues/40/labels/chef-todo`,
     ]);
     assert.ok("repondue" in dit);

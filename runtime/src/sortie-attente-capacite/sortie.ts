@@ -12,7 +12,7 @@
 //   (`requiert`) : l'app l'ajoute à la station choisie, sans le deviner.
 // - C'est le travail d'un humain (`rail human <ticket> [qui]`) : aucune
 //   station ne le fournira. Le ticket quitte le rail — son issue perd `fire`
-//   et prend `hors-cuisine`, aucune cuisine ne le reprend — et entre dans
+//   et prend `served-elsewhere`, aucune cuisine ne le reprend — et entre dans
 //   TODO comme une tâche, pour le chef ou pour qui il nomme : son titre, son
 //   contexte et ses critères d'acceptation, repris de son issue, et la
 //   capacité qu'aucune station ne fournit. Rejoué sur un ticket déjà confié,
@@ -195,7 +195,7 @@ export async function confierAUnHumain(journal: Journal, github: GitHub, projet:
   const fait = base.transaction(() => {
     const encore = ticketDuRail(base, ticket);
     if (encore === null || manqueDuTicket(encore) === null) return false;
-    journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.left", payload: { reason: "hors-cuisine" } });
+    journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.left", payload: { reason: "served-elsewhere" } });
     entrer(journal, projet, ticket, tache);
     return true;
   });

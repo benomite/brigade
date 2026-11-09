@@ -29,7 +29,7 @@ const AU_FEU = [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1
 // Les issues ouvertes : le rail, et ce qui est avant lui — une de chaque état, une PR.
 const OUVERTES = [
   ...AU_FEU,
-  issue(5, ["hors-cuisine"]),
+  issue(5, ["served-elsewhere"]),
   issue(6, ["blocked-on-human", "prio:1"]),
   issue(7, ["epic", "prio:3"]),
   issue(8, ["model:opus", "effort:high", "prio:1"]),
@@ -130,7 +130,7 @@ test("ce qui est avant le rail : les issues ouvertes sans `fire`, chacune dans l
 });
 
 test("l'état avant le rail se tire des labels seuls", () => {
-  assert.deepEqual(avantLeRailDe(["hors-cuisine", "epic"]), { etat: "mise-de-cote", dit: "it carries `hors-cuisine`: this kitchen does not serve it" });
+  assert.deepEqual(avantLeRailDe(["served-elsewhere", "epic"]), { etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" });
   assert.deepEqual(avantLeRailDe(["blocked-on-human", "model:opus", "effort:high"]), { etat: "mise-de-cote", dit: "it carries `blocked-on-human`: a human decides" });
   assert.deepEqual(avantLeRailDe(["epic", "model:opus", "effort:high"]), { etat: "epique", dit: "it carries `epic`: not split yet" });
   assert.deepEqual(avantLeRailDe(["prio:2", "model:opus", "effort:high"]), { etat: "prete", dit: "calibrated (model:opus, effort:high), without `fire`: the rail takes it once `fire` is set" });

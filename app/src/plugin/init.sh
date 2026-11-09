@@ -7,8 +7,8 @@
 #                [--zones <text>] [--dev-local <text>] [--doc <text>]
 #
 # What it does, each step convergent — replayed, it only fills what is missing:
-#   1. the labels through which the chef talks to the rail (`gh label create --force`), on GitHub
-#      at once: the same list as the runtime's (runtime/src/installation.ts, LABELS);
+#   1. the labels of the catalogue (labels.tsv, the runtime's runtime/src/etiquettes.ts), on GitHub
+#      at once;
 #   2. in a throwaway worktree on `brigade/init`, from the integration branch: the bindings block
 #      `## Équipe multi-agents` at the end of `CLAUDE.md`, `.claude/brigade/gates.sh` and
 #      `.claude/brigade/worktree-setup.sh` — each only if absent, nothing already there is rewritten;
@@ -44,14 +44,21 @@ if [ -z "$BASE" ]; then
 fi
 BRANCH="brigade/init"
 
-# 1. The labels.
-label() { gh label create "$1" --color "$2" --description "$3" --force >/dev/null; echo "label $1" >&2; }
-label fire D93F0B "brigade : à servir — l'issue entre sur le rail"
-label prio:1 000000 "À faire en premier"
-label prio:2 555555 "Important, pas bloquant"
-label prio:3 AAAAAA "Souhaitable, plus tard"
-for MODEL in opus sonnet haiku; do label "model:$MODEL" 5319E7 "brigade : le cook de ce ticket tourne sur $MODEL"; done
-for EFFORT in low medium high xhigh max; do label "effort:$EFFORT" 1D76DB "brigade : le cook de ce ticket tourne à l'effort $EFFORT"; done
+# 1. The labels: the catalogue (labels.tsv next to this script, generated from runtime/src/etiquettes.ts),
+# each created if absent, its description corrected if present — a present label keeps its colour. The
+# legacy French name is renamed first, only when the new one is absent: GitHub carries the new name onto its issues.
+LEGACY_SERVED_ELSEWHERE="hors-cuisine"
+CATALOGUE="$(dirname "${BASH_SOURCE[0]}")/labels.tsv"
+[ -s "$CATALOGUE" ] || { echo "brigade init: the label catalogue is missing ($CATALOGUE)" >&2; exit 1; }
+EXISTING="$(gh label list --limit 200 --json name --jq '.[].name')"
+if printf '%s\n' "$EXISTING" | grep -qxF "$LEGACY_SERVED_ELSEWHERE" && ! printf '%s\n' "$EXISTING" | grep -qxF 'served-elsewhere'; then
+  gh label edit "$LEGACY_SERVED_ELSEWHERE" --name served-elsewhere >/dev/null
+fi
+while IFS=$'\t' read -r NAME COLOR DESCRIPTION; do
+  [ -n "$NAME" ] || continue
+  gh label create "$NAME" --color "$COLOR" --description "$DESCRIPTION" >/dev/null 2>&1 || gh label edit "$NAME" --description "$DESCRIPTION" >/dev/null
+  echo "label $NAME" >&2
+done <"$CATALOGUE"
 
 # 2. The files, in a throwaway worktree.
 git fetch --quiet origin "$BASE" >&2

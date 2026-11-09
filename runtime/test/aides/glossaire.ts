@@ -10,7 +10,7 @@
 // la liste des mots déjà anglais —, et celui que sa ligne dit `unchanged`.
 //
 // Ce qui est entre backticks dans la sortie n'est pas lu : c'est un identifiant
-// que le chef tape tel quel — une commande, un label (`hors-cuisine`), une clé
+// que le chef tape tel quel — une commande, un label (`served-elsewhere`), une clé
 // de fiche (`attend`). Son nom change avec le ticket qui le renomme, pas avec
 // la phrase qui le cite.
 import assert from "node:assert/strict";

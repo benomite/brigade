@@ -31,7 +31,7 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // everything it carries is now his.
 // `already-split`: an epic whose body already carries the list of its tickets,
 // without the log knowing it was split — it was done by hand.
-export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "hors-cuisine" | "untrusted-author" | "chef-changed" | "already-split";
+export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "untrusted-author" | "chef-changed" | "already-split";
 
 // The command by which the chef hands a `chef-changed` issue back to the
 // manager, as it is told on the issue and in the report.

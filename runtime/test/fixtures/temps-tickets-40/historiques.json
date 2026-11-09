@@ -1226,7 +1226,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T07:04:42Z"
     },
     {
@@ -1236,7 +1236,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T16:40:23Z"
     },
     {
@@ -1455,7 +1455,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T07:11:49Z"
     },
     {
@@ -1465,7 +1465,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T16:40:25Z"
     },
     {
@@ -1822,7 +1822,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T06:29:10Z"
     },
     {
@@ -1832,7 +1832,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T16:40:31Z"
     },
     {
@@ -2966,7 +2966,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-05T21:37:59Z"
     },
     {
@@ -2986,7 +2986,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T06:09:53Z"
     },
     {
@@ -3016,7 +3016,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T06:29:16Z"
     },
     {
@@ -3026,7 +3026,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T16:40:29Z"
     },
     {
@@ -3739,7 +3739,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-05T22:00:49Z"
     },
     {
@@ -3749,7 +3749,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T06:09:50Z"
     },
     {
@@ -3829,7 +3829,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T06:51:16Z"
     },
     {
@@ -3839,7 +3839,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T16:40:27Z"
     },
     {
@@ -3909,7 +3909,7 @@
     },
     {
      "event": "labeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T17:49:45Z"
     },
     {
@@ -3919,7 +3919,7 @@
     },
     {
      "event": "unlabeled",
-     "label": "hors-cuisine",
+     "label": "served-elsewhere",
      "createdAt": "2026-11-06T17:52:02Z"
     },
     {

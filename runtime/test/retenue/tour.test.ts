@@ -60,7 +60,7 @@ test("le tour vu par la retenue : attendent les tickets en pass et ceux qu'une s
     ticket(3, "taken"),
     ticket(4, "in-pass", "blocked-on-human"),
     { ...ticket(5), labels: ["fire", "model:opus"] },
-    ticket(6, "hors-cuisine"),
+    ticket(6, "served-elsewhere"),
     ticket(7, "waiting"),
     ticket(8, "chef-todo"),
   ];

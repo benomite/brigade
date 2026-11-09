@@ -46,7 +46,7 @@ const AVANT_LE_RAIL = {
     { ticket: 45, titre: "Le stock en temps réel", priorite: 2, etat: "non-lue", dit: "the manager has not judged it yet" },
     { ticket: 33, titre: "La carte des allergènes", priorite: 2, etat: "prete", dit: "put on the rail by the manager, sonnet / low — `fire` is not set on it yet" },
     { ticket: 47, titre: "Les réservations de groupe", priorite: 3, etat: "epique", dit: "split in progress, 1/4 tickets created and fired" },
-    { ticket: 48, titre: "Un thème clair", priorite: null, etat: "mise-de-cote", dit: "it carries `hors-cuisine`: this kitchen does not serve it" },
+    { ticket: 48, titre: "Un thème clair", priorite: null, etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" },
     { ticket: 49, titre: "Les pourboires partagés", priorite: null, etat: "non-lue", dit: "the manager has not judged it yet" },
     { ticket: 50, titre: "Le bon de livraison imprimé", priorite: null, etat: "non-lue", dit: "returned to the manager, not rejudged yet" },
     { ticket: 51, titre: "Garder les tickets un an ?", priorite: null, etat: "mise-de-cote", dit: "set aside: it carries `question` — a question, left to you" },

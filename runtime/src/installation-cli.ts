@@ -93,12 +93,16 @@ async function juger(): Promise<number> {
 
 async function labelliser(): Promise<number> {
   const { depot } = configRail(env);
-  const { crees, presents } = await poserLabels(env);
-  console.log(
-    crees.length === 0
-      ? `brigade : nothing to create on ${depot} — the ${pluriel(presents.length, "label")} of the rail are already there`
-      : `brigade : ${pluriel(crees.length, "label")} created on ${depot}: ${crees.join(", ")}${presents.length === 0 ? "" : ` (${nombre(presents.length)} were already there)`}`,
-  );
+  const { crees, presents, renommes, corriges } = await poserLabels(env);
+  if (crees.length + renommes.length + corriges.length === 0) {
+    console.log(`brigade : nothing to change on ${depot} — the ${pluriel(presents.length, "label")} of the catalogue are already there, as they should be`);
+    return 0;
+  }
+  if (crees.length > 0) {
+    console.log(`brigade : ${pluriel(crees.length, "label")} created on ${depot}: ${crees.join(", ")}${presents.length === 0 ? "" : ` (${nombre(presents.length)} were already there)`}`);
+  }
+  if (renommes.length > 0) console.log(`brigade : ${pluriel(renommes.length, "label")} renamed on ${depot}: ${renommes.join(", ")}`);
+  if (corriges.length > 0) console.log(`brigade : ${pluriel(corriges.length, "description")} fixed on ${depot}: ${corriges.join(", ")}`);
   return 0;
 }
 

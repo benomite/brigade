@@ -497,7 +497,7 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 30 && !(faux.creations.length > 0 && faux.ticket(31).labels.has("hors-cuisine")); i += 1) {
+  for (let i = 0; i < 30 && !(faux.creations.length > 0 && faux.ticket(31).labels.has("served-elsewhere")); i += 1) {
     await a.tour();
     await a.calme();
   }
@@ -508,7 +508,7 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   assert.equal(renvois.length, 9);
   assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
   assert.match(renvois[2]?.body ?? "", /Taken off the kitchen/);
-  assert.ok(faux.ticket(31).labels.has("hors-cuisine"));
+  assert.ok(faux.ticket(31).labels.has("served-elsewhere"));
   assert.equal((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:relance cause=red-check")).length, 2);
   assert.equal(faux.creations.length, 1);
   // Recuisiné huit fois, sous la même PR : aucune seconde PR.
@@ -757,7 +757,7 @@ test("a delivery whose only blocker is a mechanical conflict is synced by the st
   }
   const corps = (faux.commentaires.get(36) ?? []).map((c) => c.body);
   assert.equal(corps.filter((b) => b.startsWith("<!-- brigade:renvoi")).length, 0);
-  assert.ok(!faux.ticket(36).labels.has("hors-cuisine"));
+  assert.ok(!faux.ticket(36).labels.has("served-elsewhere"));
   assert.equal(faux.mergee(36)?.mergeePar, "A");
 });
 
@@ -779,7 +779,7 @@ test("a conflict with the base is never set aside: a third conflict send-back re
   }
   const renvois = renvoisDe();
   assert.ok(renvois.length >= 4);
-  assert.ok(!faux.ticket(36).labels.has("hors-cuisine"));
+  assert.ok(!faux.ticket(36).labels.has("served-elsewhere"));
   assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1, conflicts\)/);
   assert.match(renvois[2]?.body ?? "", /sent back to a cook \(3, conflicts\)/);
   assert.doesNotMatch(renvois.map((r) => r.body).join("\n"), /Taken off the kitchen/);
@@ -797,7 +797,7 @@ test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping 
   const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
   assert.equal(echecs.length, 3);
   assert.match(echecs[2]?.body ?? "", /Taken off the kitchen/);
-  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
 });
 
 const echecsDe = (faux: FauxGitHub, issue: number) => (faux.commentaires.get(issue) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length;
@@ -811,7 +811,7 @@ test("two consecutive failures with the same stop reason set the ticket aside at
     await a.calme();
   }
   assert.equal(echecsDe(faux, 35), 2);
-  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
 });
 
 test("three consecutive failures with different reasons set the ticket aside, no fourth cook (#2729)", async () => {
@@ -824,7 +824,7 @@ test("three consecutive failures with different reasons set the ticket aside, no
     await a.calme();
   }
   assert.equal(echecsDe(faux, 35), 3);
-  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
+  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
   const dernier = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).at(-1);
   assert.match(dernier?.body ?? "", /reason 3[\s\S]*Taken off the kitchen/);
 });
@@ -842,24 +842,24 @@ test("a ticket whose files all live under .claude/brigade/ is launched to a cook
   assert.equal(faux.ticket(40).labels.has("blocked-on-human"), false);
 });
 
-test("removing hors-cuisine restarts the count of cooks without a delivery (#2430)", async () => {
+test("removing served-elsewhere restarts the count of cooks without a delivery (#2430)", async () => {
   const faux = new FauxGitHub();
   faux.feu(35);
   const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }), avertir: () => {} });
-  for (let i = 0; i < 8 && !faux.ticket(35).labels.has("hors-cuisine"); i += 1) {
+  for (let i = 0; i < 8 && !faux.ticket(35).labels.has("served-elsewhere"); i += 1) {
     await a.tour();
     await a.calme();
   }
-  assert.ok(faux.ticket(35).labels.has("hors-cuisine"));
-  // Le second relance le ticket : il retire `hors-cuisine`, sur GitHub.
-  await faux.pour("chef").delabelliser(35, "hors-cuisine");
+  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
+  // Le second relance le ticket : il retire `served-elsewhere`, sur GitHub.
+  await faux.pour("chef").delabelliser(35, "served-elsewhere");
   for (let i = 0; i < 1; i += 1) {
     await a.tour();
     await a.calme();
   }
   const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
   assert.equal(echecs.length, 3);
-  assert.equal(faux.ticket(35).labels.has("hors-cuisine"), false);
+  assert.equal(faux.ticket(35).labels.has("served-elsewhere"), false);
 });
 
 test("a send-back whose label removal failed is completed at the next turn, without a second comment (#2319)", async () => {
@@ -1182,7 +1182,7 @@ test("the loop: a ticket the manager has just made claimable is taken at a turn 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
   const faux = new FauxGitHub();
   faux.feu(7, [...CALIBRE, "waiting"]);
-  faux.feu(8, [...CALIBRE, "hors-cuisine"]);
+  faux.feu(8, [...CALIBRE, "served-elsewhere"]);
   faux.feu(9, ["fire"]);
   faux.feu(10);
   const a = faux.station("A", { places: 4 });
@@ -1738,7 +1738,7 @@ test("three one-minute stops caused by a Claude quota limit leave the ticket on 
   const corps = (faux.commentaires.get(77) ?? []).map((c) => c.body);
   assert.equal(corps.filter((c) => /exit code 1[\s\S]*Claude usage limit reached/.test(c)).length, 3);
   assert.equal(corps.filter((c) => c.includes("brigade:echec")).length, 0);
-  assert.equal(faux.ticket(77).labels.has("hors-cuisine"), false);
+  assert.equal(faux.ticket(77).labels.has("served-elsewhere"), false);
   assert.equal(journal.filter((l) => /exit code 1.*Claude usage limit reached/.test(l)).length, 3);
   assert.equal(corps.filter((c) => c.includes("brigade:attente")).length, 3);
 });
@@ -1787,7 +1787,7 @@ test("a cook refused a write to a file of its ticket ends with a named reason ca
   assert.ok(corps.filter((c) => /write refused by sandbox: runtime\/src\/x\.ts/.test(c)).length >= 3);
   assert.equal(corps.filter((c) => c.includes("brigade:echec")).length, 0);
   assert.doesNotMatch(corps.join("\n"), /the cook committed nothing \(/);
-  assert.equal(faux.ticket(77).labels.has("hors-cuisine"), false);
+  assert.equal(faux.ticket(77).labels.has("served-elsewhere"), false);
 });
 
 test("a cook that stops in its first turns after a send-back, adding nothing, has not worked on the review: the try is not counted (#2508)", async (t) => {
@@ -1903,7 +1903,7 @@ test("a cook that adds nothing to a branch whose PR conflicts with main is not a
     const faux = await repriseQui(t, false, true);
     const corps = (faux.commentaires.get(14) ?? []).map((c) => c.body).join("\n");
     assert.doesNotMatch(corps, /brigade:echec/);
-    assert.equal(faux.ticket(14).labels.has("hors-cuisine"), false);
+    assert.equal(faux.ticket(14).labels.has("served-elsewhere"), false);
     assert.equal(faux.ticket(14).labels.has(LABEL_IN_PASS), false);
   }
 });
@@ -2176,8 +2176,8 @@ test("the held-kitchen line replays 2026-11-05: the limit past its announced end
   const ligne = () => direCause(diagnostiquer(lireLaCuisine(journal.base, new Date(instant), { station: racine, tour: suivi }).signaux()).cause);
 
   // Rien n'est pris : #2186 est mis de côté, #2187 l'attend, #2383 est prenable mais sa zone est tenue.
-  faux.feu(2186, [...CALIBRE, "hors-cuisine"]);
-  faux.poster(2186, "A", "<!-- brigade:renvoi n=2 sha=abc -->\nStation `A`: still not mergeable after 2 sends back — conflicts with main\n\nTaken off the kitchen (`hors-cuisine`): a human decides.");
+  faux.feu(2186, [...CALIBRE, "served-elsewhere"]);
+  faux.poster(2186, "A", "<!-- brigade:renvoi n=2 sha=abc -->\nStation `A`: still not mergeable after 2 sends back — conflicts with main\n\nTaken off the kitchen (`served-elsewhere`): a human decides.");
   faux.feu(2187, CALIBRE);
   faux.poster(2187, "A", "<!-- brigade:fiche -->\nattend : #2186\nzone : rien");
   faux.feu(2383, CALIBRE, zoneDe("runtime/src/a.ts"));
@@ -2248,7 +2248,7 @@ test("a station whose base branch is missing on the remote gives the ticket back
     await a.calme();
   }
   assert.equal(echecsDe(faux, 21) + echecsDe(faux, 22), 0);
-  assert.ok(!faux.ticket(21).labels.has("hors-cuisine") && !faux.ticket(22).labels.has("hors-cuisine"));
+  assert.ok(!faux.ticket(21).labels.has("served-elsewhere") && !faux.ticket(22).labels.has("served-elsewhere"));
   assert.ok(!faux.ticket(21).labels.has(LABEL_TAKEN) && !faux.ticket(22).labels.has(LABEL_TAKEN));
   // Un seul ticket essayé, un seul signalement, qui nomme la branche.
   assert.equal(dits.filter((d) => d.includes("`v2` does not exist on the remote")).length, 1);

@@ -27,7 +27,7 @@ export type Etat = "waiting" | "taken" | "pass" | "served" | "86";
 
 // A ticket the card says to await and which has not been served. `left`: it
 // left the rail without being so, its issue still open — `fire` removed,
-// `hors-cuisine` set —, why, and by which event: the ticket still waits for
+// `served-elsewhere` set —, why, and by which event: the ticket still waits for
 // it, on the rail (#1834).
 export type Attendu = { ticket: number; left: { reason: string; seq: number } | null };
 

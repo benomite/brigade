@@ -114,10 +114,10 @@ const prioriteDe = (labels: readonly string[]): number | null => {
 };
 
 // L'état avant le rail d'une issue ouverte sans `fire`, d'après ses labels seuls — la box n'est plus là pour dire ce
-// que le manager en a jugé : `hors-cuisine` ou `blocked-on-human`, mise de côté ; `epic`, une épique ; `model:` et
+// que le manager en a jugé : `served-elsewhere` ou `blocked-on-human`, mise de côté ; `epic`, une épique ; `model:` et
 // `effort:`, calibrée et prête ; sinon, pas encore calibrée.
 export function avantLeRailDe(labels: readonly string[]): { etat: string; dit: string } {
-  if (labels.includes("hors-cuisine")) return { etat: "mise-de-cote", dit: "it carries `hors-cuisine`: this kitchen does not serve it" };
+  if (labels.includes("served-elsewhere")) return { etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" };
   if (labels.includes("blocked-on-human")) return { etat: "mise-de-cote", dit: "it carries `blocked-on-human`: a human decides" };
   if (labels.includes("epic")) return { etat: "epique", dit: "it carries `epic`: not split yet" };
   const calibrage = labels.filter((label) => label.startsWith("model:") || label.startsWith("effort:"));

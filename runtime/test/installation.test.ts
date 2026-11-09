@@ -8,7 +8,8 @@ import { dirname, join } from "node:path";
 import { after, describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReglageDuGeste, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, REGLAGE_DU_GESTE, tenir, VARIABLES, verifier as verifierLaBox, jugerRenouvellement, type Constat } from "../src/installation.ts";
+import { ANCIEN_NOM_DE_SERVED_ELSEWHERE as ANCIEN, ETIQUETTES, NOMS_DES_LABELS_DU_RAIL } from "../src/etiquettes.ts";
+import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReglageDuGeste, jugerReseau, jugerTemporaire, jugerUnites, mesurerSetup, poserLabels, REGLAGE_DU_GESTE, tenir, VARIABLES, verifier as verifierLaBox, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement, Systemd } from "../src/sonde-renouvellement.ts";
 import type { Verdict } from "../src/verdict.ts";
 import { poserDecision, retirerDecision } from "../src/decisions.ts";
@@ -153,7 +154,7 @@ function projet(t: TestContext, porte: Porte = {}, { clone: tenu = "a-jour" }: {
   for (const nom of ["brigade@.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer"]) cpSync(join(DEPLOIEMENT, nom), join(unites, nom));
   const gh = fauxGh(t);
   gh.repondre(`repos/${DEPOT}`, { corps: DEPOT_LU });
-  gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.map(({ name }) => ({ name })) });
+  gh.repondre(LABELS_DU_DEPOT, { corps: ETIQUETTES.map(({ name, description }) => ({ name, description })) });
   gh.repondre(PROTECTION_DE_LA_BASE, { corps: PROTECTION_LUE });
   const env: Record<string, string> = {
     ...ENV_GIT,
@@ -686,18 +687,18 @@ describe("la vérification", { concurrency: 8 }, () => {
 
   test("un label écrit avec une autre casse est le même label : GitHub ne la distingue pas", async (t) => {
     const { env, gh } = projet(t);
-    gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.map(({ name }) => ({ name: name.toUpperCase() })) });
+    gh.repondre(LABELS_DU_DEPOT, { corps: ETIQUETTES.map(({ name, description }) => ({ name: name.toUpperCase(), description })) });
 
     assert.deepEqual(manques(await verifierHorsModes(env)), []);
-    assert.deepEqual(await poserLabels(env), { crees: [], presents: LABELS.map(({ name }) => name) });
+    assert.deepEqual(await poserLabels(env), { crees: [], presents: ETIQUETTES.map(({ name }) => name), renommes: [], corriges: [] });
     assert.deepEqual(gh.appels().filter((appel) => appel.includes("POST")), []);
   });
 
   test("les labels sont lus au-delà de la première page", async (t) => {
     const { env, gh } = projet(t);
     const suite = `repos/${DEPOT}/labels?per_page=100&page=2`;
-    gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.slice(0, 3).map(({ name }) => ({ name })), suivant: suite });
-    gh.repondre(suite, { corps: LABELS.slice(3).map(({ name }) => ({ name })) });
+    gh.repondre(LABELS_DU_DEPOT, { corps: ETIQUETTES.slice(0, 3).map(({ name }) => ({ name })), suivant: suite });
+    gh.repondre(suite, { corps: ETIQUETTES.slice(3).map(({ name }) => ({ name })) });
 
     assert.deepEqual(manques(await verifierHorsModes(env)), []);
   });
@@ -1140,17 +1141,41 @@ describe("les labels", { concurrency: 8 }, () => {
 
   test("ceux qui manquent sont créés, ceux qui existent ne sont pas touchés", async (t) => {
     const { env, gh } = projet(t);
-    gh.repondre(LABELS_DU_DEPOT, { corps: [{ name: "fire" }, { name: "prio:1" }, { name: "bug" }] });
+    const conforme = (nom: string) => ({ name: nom, description: ETIQUETTES.find(({ name }) => name === nom)?.description });
+    gh.repondre(LABELS_DU_DEPOT, { corps: [conforme("fire"), conforme("prio:1"), { name: "bug", description: "" }] });
     gh.repondre(CREATION, { statut: 201, corps: {} });
 
     const bilan = await poserLabels(env);
 
-    const attendus = LABELS.map(({ name }) => name).filter((nom) => nom !== "fire" && nom !== "prio:1");
-    assert.deepEqual(bilan, { crees: attendus, presents: ["fire", "prio:1"] });
+    const attendus = ETIQUETTES.map(({ name }) => name).filter((nom) => nom !== "fire" && nom !== "prio:1");
+    assert.deepEqual(bilan, { crees: attendus, presents: ["prio:1", "fire"], renommes: [], corriges: [] });
     assert.deepEqual(crees(gh), attendus);
     const appel = gh.appels().find((arguments_) => arguments_.includes("name=model:opus"));
     assert.ok(appel?.some((argument) => /^color=[0-9A-F]{6}$/.test(argument)));
     assert.ok(appel?.some((argument) => argument.startsWith("description=")));
+  });
+
+  test("un label à la description française est corrigé, l'ancien nom est renommé, la couleur du projet reste", async (t) => {
+    const { env, gh } = projet(t);
+    gh.repondre(LABELS_DU_DEPOT, {
+      corps: [
+        ...ETIQUETTES.filter(({ name }) => name !== "fix" && name !== "served-elsewhere").map(({ name, description }) => ({ name, description })),
+        { name: "fix", description: "Correction", color: "FF0000" },
+        { name: ANCIEN, description: "Ce ticket ne se sert pas sur cette box" },
+      ],
+    });
+    const ecritures = (methode: string) => gh.appels().filter((appel) => appel.includes(methode));
+    gh.repondre(`repos/${DEPOT}/labels/fix`, { corps: {} });
+    gh.repondre(`repos/${DEPOT}/labels/${ANCIEN}`, { corps: {} });
+
+    const bilan = await poserLabels(env);
+
+    assert.deepEqual([bilan.crees, bilan.renommes, bilan.corriges], [[], ["served-elsewhere"], ["fix"]]);
+    assert.deepEqual(ecritures("POST"), []);
+    const [renommage, correction] = ecritures("PATCH");
+    assert.ok(renommage?.includes("new_name=served-elsewhere") && renommage.some((argument) => argument.startsWith("description=")));
+    assert.ok(renommage?.includes(`repos/${DEPOT}/labels/${ANCIEN}`));
+    assert.deepEqual(correction?.filter((argument) => argument.startsWith("description=") || argument.startsWith("color=")), [`description=${ETIQUETTES.find(({ name }) => name === "fix")?.description}`]);
   });
 
   test("rejouée sur un dépôt qui les a tous, l'installation ne crée rien", async (t) => {
@@ -1164,7 +1189,7 @@ describe("les labels", { concurrency: 8 }, () => {
 
   test("un label créé entre-temps par quelqu'un d'autre n'est pas une erreur", async (t) => {
     const { env, gh } = projet(t);
-    gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.slice(1).map(({ name }) => ({ name })) });
+    gh.repondre(LABELS_DU_DEPOT, { corps: ETIQUETTES.slice(1).map(({ name, description }) => ({ name, description })) });
     gh.repondre(CREATION, { statut: 422, corps: { message: "Validation Failed" } });
 
     assert.deepEqual((await poserLabels(env)).crees, []);
@@ -1175,7 +1200,7 @@ describe("les labels", { concurrency: 8 }, () => {
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
     gh.repondre(CREATION, { statut: 403, corps: { message: "Forbidden" } });
 
-    await assert.rejects(poserLabels(env), /fire.*HTTP 403/);
+    await assert.rejects(poserLabels(env), /product.*HTTP 403/);
   });
 });
 
@@ -1472,12 +1497,12 @@ describe("la commande du chef", { concurrency: 8 }, () => {
 
   test("`labels` crée ce qui manque et le dit", async (t) => {
     const { env, gh } = projet(t);
-    gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.slice(2).map(({ name }) => ({ name })) });
+    gh.repondre(LABELS_DU_DEPOT, { corps: ETIQUETTES.slice(2).map(({ name, description }) => ({ name, description })) });
     gh.repondre(`repos/${DEPOT}/labels`, { statut: 201, corps: {} });
 
     const { code, sortie } = await commande(t, env, "labels");
 
-    assert.match(sortie, /2 labels created on acme\/brigade: fire, prio:1/);
+    assert.match(sortie, /2 labels created on acme\/brigade: product, design/);
     assert.equal(code, 0);
   });
 
@@ -1537,7 +1562,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.deepEqual(dit, [
       ["the decision “reviewer-modele” has not been taken", "chef", "decisions"],
       ["the repository has no gates: nothing would judge a delivery", "chef", "init"],
-      [`the repository lacks ${LABELS.length} of the labels through which you talk to brigade`, "chef", `brigade ${PROJET} installation labels`],
+      [`the repository lacks ${NOMS_DES_LABELS_DU_RAIL.length} of the labels through which you talk to brigade`, "chef", `brigade ${PROJET} installation labels`],
     ]);
     assert.equal(verdict.brut, texte.sortie);
     assert.equal(code, 1);

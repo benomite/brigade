@@ -48,11 +48,11 @@ test("la limite de GitHub reste la cause tant que ses refus durent, la reprise d
 
 test("un ticket qui en attend un mis de côté le dit, avec la ligne de raison", () => {
   const rail = [
-    { ticket: 2187, state: "waiting", awaits: [{ ticket: 2186, left: { reason: "hors-cuisine: the chef set it aside", seq: 5 } }], held: [], waitingFor: null },
+    { ticket: 2187, state: "waiting", awaits: [{ ticket: 2186, left: { reason: "served-elsewhere: the chef set it aside", seq: 5 } }], held: [], waitingFor: null },
     { ticket: 2400, state: "waiting", awaits: [{ ticket: 2399, left: null }], held: [], waitingFor: null },
   ] as unknown as Parameters<typeof explicationsDuRail>[0];
   const lignes = explicationsDuRail(rail);
-  assert.deepEqual(lignes, ["#2187 waits on #2186, set aside: hors-cuisine: the chef set it aside"]);
+  assert.deepEqual(lignes, ["#2187 waits on #2186, set aside: served-elsewhere: the chef set it aside"]);
   const { cause } = diagnostiquer({ ...SANS_SIGNAL, explications: lignes });
-  assert.equal(direCause(cause), "cause: #2187 waits on #2186, set aside: hors-cuisine: the chef set it aside");
+  assert.equal(direCause(cause), "cause: #2187 waits on #2186, set aside: served-elsewhere: the chef set it aside");
 });

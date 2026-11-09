@@ -197,7 +197,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     noter({ type: "manager.labeled", payload: { labels: ["fire", "effort:low"] } }, 30);
     noter({ type: "manager.judged", payload: { run: "juge-31-a", fingerprint: "e2", verdict: "refused", kind: "epic", reason: "Three deliverables.", missing: null, model: null, effort: null, calibration: null } }, 31);
     noter({ type: "manager.failed", payload: { run: "juge-32-a", fingerprint: "e3", reason: "no JSON object in the answer" } }, 32);
-    for (const [ticket, reason] of [[1, "roadmap"], [2, "blocked-on-human"], [3, "question"], [4, "decision"], [5, "epic"], [6, "hors-cuisine"], [7, "already-split"], [8, "untrusted-author"], [9, "chef-changed"]] as const) {
+    for (const [ticket, reason] of [[1, "roadmap"], [2, "blocked-on-human"], [3, "question"], [4, "decision"], [5, "epic"], [6, "served-elsewhere"], [7, "already-split"], [8, "untrusted-author"], [9, "chef-changed"]] as const) {
       noter({ type: "manager.set-aside", payload: { reason, fired: ticket === 9 } }, ticket);
     }
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 10);

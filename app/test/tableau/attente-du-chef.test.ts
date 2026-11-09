@@ -20,21 +20,21 @@ type Commentaire = { body: string; created_at: string; author_association?: stri
 type Issue = { labels: string[]; commentaires?: Commentaire[]; evenements?: { event: string; label: { name: string }; created_at: string }[]; created_at?: string };
 const dit = (body: string, created_at: string): Commentaire => ({ body, created_at, author_association: "OWNER" });
 
-// Le projet du 2026-11-05 : #8 en pass, sa livraison touche à ce qui la juge (PR #2326) ; #12, `hors-cuisine`, pose une question
-// de produit avec ses choix ; #7, `hors-cuisine` après ses renvois, ne demande rien au chef ; #20, une carte `chef-todo` ;
+// Le projet du 2026-11-05 : #8 en pass, sa livraison touche à ce qui la juge (PR #2326) ; #12, `served-elsewhere`, pose une question
+// de produit avec ses choix ; #7, `served-elsewhere` après ses renvois, ne demande rien au chef ; #20, une carte `chef-todo` ;
 // #30, écarté par le manager avec `question` ; #31, `decision`, mais en WAITING ; #1683, l'issue du tableau de la cuisine.
 const MONDE: Record<number, Issue> = {
   1: { labels: ["fire"] },
-  7: { labels: ["fire", "hors-cuisine"], commentaires: [dit("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the PR conflicts with the base\n\nTaken off the kitchen (`hors-cuisine`): a human decides.", "2026-11-05T01:00:00Z")] },
+  7: { labels: ["fire", "served-elsewhere"], commentaires: [dit("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the PR conflicts with the base\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", "2026-11-05T01:00:00Z")] },
   8: { labels: ["fire", "in-pass", "blocked-on-human"], commentaires: [dit("Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", "2026-11-05T09:00:00Z")] },
   12: {
-    labels: ["fire", "hors-cuisine"],
+    labels: ["fire", "served-elsewhere"],
     commentaires: [dit("<!-- brigade:todo kind=product-question -->\nDoes the export keep the old column order?\n- [merge] Yes, merge PR #1560 as delivered\n- [close] No, we drop the export", "2026-11-05T08:00:00Z")],
   },
   20: { labels: ["chef-todo"], commentaires: [dit("chatter", "2026-11-05T02:00:00Z"), dit("<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", "2026-11-05T10:00:00Z")] },
   30: { labels: ["question"], evenements: [{ event: "labeled", label: { name: "prio:2" }, created_at: "2026-11-04T08:00:00Z" }, { event: "labeled", label: { name: "question" }, created_at: "2026-11-05T06:00:00Z" }] },
   31: { labels: ["decision", "waiting"] },
-  1683: { labels: ["fire", "hors-cuisine", "kitchen-board"] },
+  1683: { labels: ["fire", "served-elsewhere", "kitchen-board"] },
 };
 
 // Un faux GitHub : les issues ouvertes au label demandé, leurs commentaires, leurs événements — et, pour le rail de l'app,

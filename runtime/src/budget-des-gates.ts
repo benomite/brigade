@@ -9,7 +9,7 @@
 // budget, et ce qui le dépasse.
 //
 // Un seul à la fois par projet : tant que le dernier ouvert est encore sur le
-// rail (ouvert sur GitHub, avec `fire`, sans `hors-cuisine`), un passage hors
+// rail (ouvert sur GitHub, avec `fire`, sans `served-elsewhere`), un passage hors
 // budget n'en ouvre pas d'autre. Fermé, disparu — ou retiré du rail, resté
 // ouvert —, le passage hors budget suivant en ouvre un neuf. Il s'ouvre en
 // `prio:1`: les gates hors budget retiennent la box, il passe devant les autres. Sous le budget, rien ne

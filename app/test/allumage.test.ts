@@ -49,7 +49,7 @@ const CONNU = [
   issue(14, ["question"]),
   issue(15, ["blocked-on-human"], true),
   issue(16, ["prio:1", "blocked-on-human"]),
-  issue(17, ["hors-cuisine"]),
+  issue(17, ["served-elsewhere"]),
 ];
 
 function repertoire(t: TestContext): string {

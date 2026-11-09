@@ -25,12 +25,12 @@ const CHEF = "benomite";
 type Issue = { assignes: string[]; question: string; le: string; labels?: string[] };
 const question = (texte: string) => `<!-- brigade:todo kind=product-question -->\n${texte}\n- [resume] Yes, go on\n- [drop] No, leave it`;
 // Trois cartes `chef-todo` : #20 et #21 assignées à alice, #22 à bob ; #23 sans assigné, celle du chef. #22 est aussi un
-// ticket du rail que sa question de produit met de côté (`fire`, `hors-cuisine`) : sur le rail, son mot (`86`) n'est
+// ticket du rail que sa question de produit met de côté (`fire`, `served-elsewhere`) : sur le rail, son mot (`86`) n'est
 // d'aucune colonne — retirée de TODO, sa carte tombait sous le rail (#2985).
 const MONDE: Record<number, Issue> = {
   20: { assignes: ["alice"], question: "Which colour for the export button?", le: "2026-11-07T08:00:00Z" },
   21: { assignes: ["Alice", "carol"], question: "Keep the old CSV column order?", le: "2026-11-07T09:00:00Z" },
-  22: { assignes: ["bob"], question: "Drop the legacy importer?", le: "2026-11-07T10:00:00Z", labels: ["fire", "hors-cuisine", "chef-todo"] },
+  22: { assignes: ["bob"], question: "Drop the legacy importer?", le: "2026-11-07T10:00:00Z", labels: ["fire", "served-elsewhere", "chef-todo"] },
   23: { assignes: [], question: "Open the beta to everyone?", le: "2026-11-07T11:00:00Z" },
 };
 

@@ -116,7 +116,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     noter(allumer, null, "chef");
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
     noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 31);
-    noter({ type: "manager.set-aside", payload: { reason: "hors-cuisine", fired: true } }, 32);
+    noter({ type: "manager.set-aside", payload: { reason: "served-elsewhere", fired: true } }, 32);
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 30);
 
     const { decisions, ecartees } = lu(sortie());
@@ -126,7 +126,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
       lignes: [
         { a: "2026-10-13T09:05:00.000Z", ticket: 30, motif: "you removed `fire` or a calibration the manager had set", rend: "to return it to the manager: `brigade <projet> manager return 30`: it rejudges it from scratch" },
         // Servi ailleurs : le runtime n'en dit que le motif, il n'y a rien à rendre.
-        { a: "2026-10-13T09:04:00.000Z", ticket: 32, motif: "`hors-cuisine` — this ticket is not served on this box; the why is on the issue" },
+        { a: "2026-10-13T09:04:00.000Z", ticket: 32, motif: "`served-elsewhere` — this ticket is not served on this box; the why is on the issue" },
         { a: "2026-10-13T09:03:00.000Z", ticket: 31, motif: "it carries `blocked-on-human`", rend: "to return it to the manager: remove `blocked-on-human`: it is judged on the next wake-up" },
         { a: "2026-10-13T09:02:00.000Z", ticket: 1, motif: "it is the project's roadmap", rend: "nothing returns it to the manager" },
       ],
@@ -135,7 +135,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     // Un écart est aussi une décision : il se lit dans les deux sections, comme le runtime l'écrit.
     assert.deepEqual(decisions?.lignes.map(({ ticket, dit }) => [ticket, dit]), [
       [30, "set aside (`chef-changed`)"],
-      [32, "set aside (`hors-cuisine`), `fire` set by the chef: left as it is, not calibrated"],
+      [32, "set aside (`served-elsewhere`), `fire` set by the chef: left as it is, not calibrated"],
       [31, "set aside (`blocked-on-human`)"],
       [1, "set aside (`roadmap`)"],
     ]);
