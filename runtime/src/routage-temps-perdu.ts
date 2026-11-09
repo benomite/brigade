@@ -16,6 +16,7 @@
 // `docs/runtime/etat-et-mesures.md`).
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { MARQUE_QUALITE } from "./alerte-qualite.ts";
+import { brancheDuTicket } from "./brigade-github.ts";
 import type { GitHub } from "./github.ts";
 import { MARQUE_CORRECTION, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
 
@@ -84,13 +85,19 @@ export type GitHubDeLaBrigade = Omit<GitHubDeLaCorrection, "issuesDepuis"> & Par
 // écartée —, il n'a rien changé et n'attend rien, comme avant (#2577). La réponse
 // de `prQuiFerme` est gardée par numéro et fermeture ; une lecture qui échoue
 // fait échouer le tour, qui n'ouvre rien.
-export function dateeParSaFermeture({ github, dansLesTemps }: { github: GitHubDeLaBrigade & Pick<GitHub, "prQuiFerme">; dansLesTemps: (numero: number) => boolean }): GitHubDeLaCorrection {
+// La station qui merge ferme l'issue aussitôt (`cloreLeServi`, #2467), souvent
+// avant GitHub : sa fermeture ne porte alors aucun commit et `prQuiFerme` ne
+// trouve rien. Le ticket est aussi servi si la PR de la branche de son cook est
+// mergée (`prDeBranche`), comme une épique lit ses tickets (`decoupage.ts`).
+// Sans elle, #3080, mergé par une autre station, n'attendait rien, et #3083
+// s'est rouvert sur les deux réparations de la base (#3066, #3068) qu'il avait comptées.
+export function dateeParSaFermeture({ github, dansLesTemps }: { github: GitHubDeLaBrigade & Pick<GitHub, "prQuiFerme"> & Partial<Pick<GitHub, "prDeBranche">>; dansLesTemps: (numero: number) => boolean }): GitHubDeLaCorrection {
   const parUnMerge = new Map<string, boolean>();
   const fermeeParUnMerge = async (numero: number, closedAt: string) => {
     const cle = `${numero} ${closedAt}`;
     const connu = parUnMerge.get(cle);
     if (connu !== undefined) return connu;
-    const merge = (await github.prQuiFerme(numero)) !== null;
+    const merge = (await github.prQuiFerme(numero)) !== null || (await github.prDeBranche?.(brancheDuTicket(numero)))?.merged === true;
     parUnMerge.set(cle, merge);
     return merge;
   };
@@ -110,10 +117,10 @@ export function dateeParSaFermeture({ github, dansLesTemps }: { github: GitHubDe
 
 // `dansLesTemps` : les tickets que cette station a mergés, lus dans ses temps ; sans lui, sur
 // son propre dépôt, un ticket n'est daté que par ces temps, comme avant #2979.
-export function routerLeTempsPerdu({ github, servi, brigade, dansLesTemps, maintenant = () => new Date() }: { github: GitHubDeLaBrigade & Partial<Pick<GitHub, "prQuiFerme">>; servi: string; brigade?: GitHubDeLaBrigade; dansLesTemps?: (numero: number) => boolean; maintenant?: () => Date }): GitHubDeLaCorrection {
+export function routerLeTempsPerdu({ github, servi, brigade, dansLesTemps, maintenant = () => new Date() }: { github: GitHubDeLaBrigade & Partial<Pick<GitHub, "prQuiFerme" | "prDeBranche">>; servi: string; brigade?: GitHubDeLaBrigade; dansLesTemps?: (numero: number) => boolean; maintenant?: () => Date }): GitHubDeLaCorrection {
   if (servi.toLowerCase() === DEPOT_BRIGADE) {
-    const { prQuiFerme } = github;
-    return prQuiFerme === undefined || dansLesTemps === undefined ? github : dateeParSaFermeture({ github: { ...github, prQuiFerme }, dansLesTemps });
+    const { prQuiFerme, prDeBranche } = github;
+    return prQuiFerme === undefined || dansLesTemps === undefined ? github : dateeParSaFermeture({ github: { ...github, prQuiFerme, ...(prDeBranche === undefined ? {} : { prDeBranche }) }, dansLesTemps });
   }
   if (brigade === undefined) return github;
   const marque = marqueDuProjet(servi);
