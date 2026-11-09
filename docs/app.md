@@ -102,7 +102,7 @@ the first read, one line says `not read yet`; a project that declares no station
 for this project`, never a blank. On a narrow screen, the block sits under the stations' lines. The module is
 `app/src/vue/stations-declarees.js`.
 **Each row has `edit`** (#1510) — so does each station's block (#1786): under the row, its form — two settings rows
-(`composants/reglage`, #2920), each with its `this machine` level: `Cooks at once`, prefilled; `What it provides`, one checkbox per
+(`composants/reglage`, #2920), each with its `this computer` level: `Cooks at once`, prefilled; `What it provides`, one checkbox per
 capability (the boxes of "+ station", #1307): the ones it declares, ticked, then what the other stations provide and what
 this computer can declare, unticked. Under the boxes (#1959), a field and `Add` take a capability that no box offers — the one a
 ticket in WAITING awaits (``awaiting a station that provides `<capability>` ``): its name is typed (trimmed, inner spaces turned into
@@ -437,7 +437,7 @@ parts wraps a whole part to the next line; nothing is cut. Captures: `docs/captu
 
 The **Station settings** block of the Stations tab has one card per station the project declares, in the order of the
 declaration: its name and where it runs (`this workstation`, `box station`, `remote` — the words of Cooks), then four
-lines, each the same row as in Settings — the setting's name and its **level** (`this machine`, from
+lines, each the same row as in Settings — the setting's name and its **level** (`this computer`, from
 `app/src/vue/niveaux.js`), the value in force, and its control:
 
 - **cooks at once** — a number; **what it provides** — the capability boxes of "edit" on Cooks, and a field for one no
@@ -468,7 +468,7 @@ block: each change goes through the storage that already existed, and a reload o
 At the bottom of the **Stations** tab, under **Station settings**, the **Local station** block shows what only this computer's station has, titled
 with its name and `this Mac` (`this PC`), its lines in a card like those of **Station settings** above it. The other
 stations have none of it. Each setting is the app's settings row (`composants/reglage`, #2920) —
-its name with its level label (`this machine` for all of them, `app/src/vue/niveaux.js`), its value, what it implies on
+its name with its level label (`this computer` for all of them, `app/src/vue/niveaux.js`), its value, what it implies on
 hover, its one control, and under it what the control returned. A control applies as soon as it changes — no Save button —:
 `applying…` under its row while the change runs, both sandbox controls waiting; a refusal in one line under the row that
 changed, the control re-read at the value in force. None of them is kept in the repository: no change opens a pull request.
@@ -476,20 +476,20 @@ changed, the control re-read at the value in force. None of them is kept in the 
 | Line | Value | Control |
 |---|---|---|
 | `clone folder`, `worktrees folder` | where the station keeps the project's clone and puts its cooks' worktrees (the runtime's `lieuxDuProjet`, read through `dossiersDeLaStation`) | none: the station chooses them |
-| `sandbox · ordinary tickets`, `cooks at once` | `taken` / `not taken`, the cap or `no limit`; the sandbox unavailable, and why, under it | the checkbox and the number of Settings' **this machine** group — the same call, `reglerOrdinaires`, written to the projects file. Off a Mac, `none on this PC`; a project that does not cook here, one line that says so |
+| `sandbox · ordinary tickets`, `cooks at once` | `taken` / `not taken`, the cap or `no limit`; the sandbox unavailable, and why, under it | the checkbox and the number of Settings' **this computer** group — the same call, `reglerOrdinaires`, written to the projects file. Off a Mac, `none on this PC`; a project that does not cook here, one line that says so |
 | `Claude connection` | `connected`, `lost`, `unknown` — as the station publishes it on GitHub | lost: `log in`, the button of the station's Max-connection breakdown (the same login as on the station's page) |
 
 The sandbox's `ordinary tickets` is the same option as the `ordinary tickets` line of this computer's card in **Station
 settings**: ticked in one, the other reads it at once. They are read when the tab opens, then every thirty seconds while it is re-laid; a reading that fails is one line, its
 detail on hover. A device with no station (a phone, a workstation) says so in one line. The block is
 `app/src/vue/projet/stations/StationLocale.js`. It has no `paired phones` line any more: the phone signs in to GitHub, no
-station pairs it (#2500). Settings still shows its own **this machine** lines until a separate ticket
+station pairs it (#2500). Settings still shows its own **this computer** lines until a separate ticket
 removes them.
 
 ### The station page, section Identity (#2642, epic #2497)
 
 The **Identity** section of a station's page has one settings row per fact (#2920, `composants/reglage/reglage.js`) —
-`name`, `machine`, `cores`, `version`, `updates` — each with its level label (`this machine`, from
+`name`, `machine`, `cores`, `version`, `updates` — each with its level label (`this computer`, from
 `app/src/vue/niveaux.js`). The first four are read only: their rows have no control. What the station has not said reads `unknown`.
 On this computer, a station that is behind shows **Update now** (recommended); up to date, the line says so. On another
 station the section is read-only: the same lines, never a button.
@@ -1052,8 +1052,8 @@ What the home used to show besides went elsewhere, or was removed:
   this computer's station. The stations under your account are read again each time that tab opens.
 - The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
   block, **All projects**, of **a project's health strip**. Their pages are unchanged.
-- The **App** section (the running version, **Install now** / **Later**) is removed: a higher version is said, with
-  **Install now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
+- The **App** section (the running version, **Update now** / **Later**) is removed: a higher version is said, with
+  **Update now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
   shown.
 - The **health row** (`Max ✓ · GitHub ✓`) is removed. The main process still computes it (`sante` of
   `app/src/accueil.ts`); the view no longer shows it.
@@ -1301,13 +1301,13 @@ When a newer `app-v<version>` release is published and the app does not run it, 
 
 ```
 Brigade 1.0.102 is running — 1.0.105 is out · downloading it, 40 %
-Brigade 1.0.102 is running — 1.0.105 is out · it is downloaded: it installs at the next launch   [Install now]
+Brigade 1.0.102 is running — 1.0.105 is out · it is downloaded: it installs at the next launch   [Update now]
 Brigade 1.0.102 is running — 1.0.105 is out · installing it — the app relaunches itself…
 Brigade 1.0.102 is running — 1.0.105 is out · it could not update itself — Download
 Brigade 1.0.102 is running — 1.0.105 is out — Download
 ```
 
-The suite follows the state of the installed app's update (`miseAJour`, "Launching the app", *Updating it*): downloading, ready with **Install now** (recommended; its price on hover: it closes the app's terminals and relaunches it on the new version — a refusal takes the suite's place), installing. When the update is downloading a version lower than the latest (a newer one came out since), the line names it (`· 1.0.104 is downloaded: …`). When the app does not update itself to it — the update failed (the reason on hover of the line), the release carries no `latest-mac.yml` (one published before #2431), or Android —, the line ends with **Download**, a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser, and its hover says how to open the unsigned build the first time (*right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows; nothing on Android). **Nothing dismisses the line**: it stays until the app runs the latest version, and a check that finds nothing (GitHub silent) does not remove a newer version already known — the running version does not change while the app runs. With the app on the latest version there is no line.
+The suite follows the state of the installed app's update (`miseAJour`, "Launching the app", *Updating it*): downloading, ready with **Update now** (recommended; its price on hover: it closes the app's terminals and relaunches it on the new version — a refusal takes the suite's place), installing. When the update is downloading a version lower than the latest (a newer one came out since), the line names it (`· 1.0.104 is downloaded: …`). When the app does not update itself to it — the update failed (the reason on hover of the line), the release carries no `latest-mac.yml` (one published before #2431), or Android —, the line ends with **Download**, a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser, and its hover says how to open the unsigned build the first time (*right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows; nothing on Android). **Nothing dismisses the line**: it stays until the app runs the latest version, and a check that finds nothing (GitHub silent) does not remove a newer version already known — the running version does not change while the app runs. With the app on the latest version there is no line.
 
 The check is `app/src/mise-a-jour/avis.ts` (#1527), run by the main process at launch and every fifteen minutes, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no line. Its notice carries the latest version, the running one (`courante`) and the package link. Together with the update's own check, it reads GitHub's API at most three times every fifteen minutes. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, the gesture `telechargerVersion` (opens the link of the current notice, and only it), and the update's `surMiseAJour` and `installerMiseAJour`. The view is `app/src/vue/mise-a-jour/bandeau.js`; its tests, against a mocked release list and the update's states, are in `app/test/bandeau-mise-a-jour/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (`docs/captures/1528/`, taken before #2431). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the line is built and tested for Android but nothing sends it a notice there.
 
@@ -1506,8 +1506,8 @@ it), through the same gesture the section always used (`station/page/appliquer.j
 them live on the machine, none in the repository, so no row opens a pull request. Screens: `docs/captures/2641/`.
 Folders and sandbox (#2644, `sections/dossiers-et-bac-a-sable.js`): the clones folder, the worktrees folder, the sandbox
 state (on / off) and the network door — the hosts a cook may reach, each with what opens it on hover — each with the
-`this machine` mark. On this computer's station a folder changes from its field, and a host opens from the network
-door's field, as soon as the field changes — no `save` or `open` button; `saved on this machine` then reads under the row.
+`this computer` mark. On this computer's station a folder changes from its field, and a host opens from the network
+door's field, as soon as the field changes — no `save` or `open` button; `saved on this computer` then reads under the row.
 Removing a host the chef opened (`remove`) is confirmed inline under the door (`close it` / `keep it open`). The change is
 kept in `station-reglages.json` beside the app file (`app/src/reglages-de-la-station.ts`) and read back at every load. On another station the section shows the same, with nothing to change. The station does not
 read that file yet: it is the app's side of the setting (each setting's hover says so). The sandbox state is read from
@@ -2246,7 +2246,7 @@ A project added before the setup check, or whose setup was skipped, shows a noti
 at the head of its TODO: one sentence saying what is missing (`Not set up for Brigade: 2 bindings and 3 labels
 missing.`, the names on hover) and one recommended button, `Set up for Brigade` — the same single gesture as adding a
 project (`runRepoSetup`). While it runs the button waits and the notice says so; on failure the notice gives one
-sentence and `Retry`; once done it leaves on both views without a reload. The state is read once per project with
+sentence and `Try again`; once done it leaves on both views without a reload. The state is read once per project with
 `checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. Modules:
 `app/src/vue/page-projet/depot-non-prepare.js`, `app/src/vue/todo/avis-todo.js`. Captures:
 `docs/captures/2628/`.
@@ -2359,7 +2359,7 @@ which each read brings up to date (`app/src/reglages-perso/`, on the module of #
 of all projects lives at the app level (see "The cost of all projects"), each project's share named there.
 
 **Settings holds only the project's settings** (#1700, #2494). It is one page, with no sub-page and no navigation of its
-own, in one card titled `project`. The `this machine` block is gone from it — its lines (ordinary tickets, the station's
+own, in one card titled `project`. The `this computer` block is gone from it — its lines (ordinary tickets, the station's
 GitHub Apps, the projects it serves, the app's code) are not shown in Settings; they move to Stations.
 
 - the project's settings in its repository (below), stored in `.claude/brigade/projet.json`;
@@ -2467,7 +2467,7 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
 **Each role acts on GitHub under its own App** (`docs/runtime/identites-et-secrets.md`): you create the three Apps once on
 your GitHub account, then hand each station their IDs and private keys **through the app** — on the computer that runs
-the station. In Settings' **this machine** group, a line `GitHub Apps` says, in one sentence, that **the keys stay on this
+the station. In Settings' **this computer** group, a line `GitHub Apps` says, in one sentence, that **the keys stay on this
 station and are never sent to the repository** (what the Apps are for on hover). Then **one line per role**, `cook App`,
 `pass App`, `manager App`:
 
@@ -2495,7 +2495,7 @@ Captures: `docs/captures/2317/`.
 ### The projects this computer serves, in Settings (#2359, epic #2356)
 
 **A computer's station cooks only the projects you choose for it**, straight from GitHub (`runtime/src/station-ordinateur/`,
-#2357). You choose them in Settings' **this machine** group, under a line `projects this Mac serves` (`this PC` under
+#2357). You choose them in Settings' **this computer** group, under a line `projects this Mac serves` (`this PC` under
 Windows):
 
 - **On a fresh install, none is chosen**, and the line says so in plain words, in yellow: `this Mac serves no project`.
@@ -3511,7 +3511,7 @@ release carries it, **signed or not**: until #2431 the unsigned path published t
 so an installed app saw no newer version, said nothing and stayed where it was (1.0.102 while 1.0.105
 was out). If there is one, it announces it with its number and downloads it right away, checked against the
 published size and sha512, under `~/.config/brigade/mise-a-jour/`. Once ready, it installs on the
-"install now" action — the app closes, the new one takes its place and reopens —, or, with no
+"update now" action — the app closes, the new one takes its place and reopens —, or, with no
 action, at the next opening, before anything starts in it. The installer checks the new version's
 signature — its integrity (`codesign --verify --deep --strict`), which an ad hoc signed build passes,
 and, when the running app is signed by an identified developer, that the new one is signed by the
@@ -3541,7 +3541,7 @@ The app refuses to update when it does not run from the folder the installer lai
 **What the chef sees of it** (#1014, #2431). At the very top of the window, as long as a newer version is
 published and the app does not run it, **one line** says both versions and where the update stands (see
 "The new-version line"). The **App** section that "All projects" carried — the running version
-in every state, **Install now** and **Later** — was removed by #2638: the line at the top carries **Install now**.
+in every state, **Update now** and **Later** — was removed by #2638: the line at the top carries **Update now**.
 
 **From the repo:**
 
