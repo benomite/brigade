@@ -8,7 +8,7 @@ import type { Humain } from "../../src/aiguillage-humains/aiguillage.ts";
 import type { Commentaire, IssueOuverte } from "../../src/github.ts";
 import { auteurSansEcriture } from "../../src/github-etat/auteur.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
-import { carteDuTriage, corpsDuTriage, lireTriage, MARQUE_DU_TRI, ouvrirIssuesEtrangeres, propositionDu, reponseDuProduit, type AtelierDuTri, type Triage } from "../../src/issue-etrangere/issue-etrangere.ts";
+import { carteDuTriage, corpsDuTriage, lireTriage, MARQUE_DU_TRI, ouvrirIssuesEtrangeres, PRIO_PAR_DEFAUT, propositionDu, reponseDuProduit, type AtelierDuTri, type Triage } from "../../src/issue-etrangere/issue-etrangere.ts";
 import { MARQUEUR_MANAGER } from "../../src/juger.ts";
 import { chef, cuisine, issue, type Options } from "../aides/cuisine.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
@@ -72,7 +72,7 @@ describe("l'issue d'un auteur sans l'écriture", { concurrency: 4 }, () => {
     assert.match(c.lancementsDeTri()[0]?.args[1] ?? "", /The CSV export drops its last row\./);
     // La carte, assignée à l'humain `product`.
     assert.equal(c.cartes(30).length, 1);
-    assert.match(c.cartes(30)[0] ?? "", /\nStranger's issue #30: put it on the rail, or close it\?\n\nThe manager proposes: \*\*ticket, with `prio:2`\*\*/);
+    assert.match(c.cartes(30)[0] ?? "", /\nStranger's issue #30: put it on the rail, or close it\?\n\n- \[rail\] Put it on the rail with `prio:2`\n- \[close\] Close it\n\nAsks: /);
     assert.deepEqual(c.labels(30), [CHEF_TODO]);
     assert.deepEqual(c.assignations, [[30, ["lea"]]]);
     // Ni `fire`, ni calibrage, ni `prio:` : la pass ne la voit pas, aucun cook ne part.
@@ -157,7 +157,7 @@ function atelier(reponses: Array<string | null>, options: { humains?: Humain[]; 
     avertir: (texte) => void avertissements.push(texte),
     humains: () => options.humains ?? PRODUIT,
   };
-  const ouverte = (updatedAt = "2026-11-08T09:00:00Z"): IssueOuverte => ({ ...issue(40, []), body: "Please add dark mode.", association: "NONE", updatedAt });
+  const ouverte = (updatedAt = "2026-11-08T09:00:00Z", author = "mallory"): IssueOuverte => ({ ...issue(40, []), body: "Please add dark mode.", association: "NONE", author, updatedAt });
   const ecrire = (body: string, author: string, association = "NONE") => void commentaires.push({ body, author, association, createdAt: "2026-11-08T11:00:00Z" });
   return { contexte, commentaires, labels, faits, avertissements, lancees, ouverte, ecrire };
 }
@@ -185,11 +185,41 @@ describe("le tri, sans manager autour", () => {
     }
   });
 
+  test("la carte d'un inconnu : ce que l'issue demande et qui l'a ouverte, la recommandation en premier choix, l'autre ensuite", async () => {
+    const rail = atelier([tri({ triage: "ticket", prio: 2, motif: "A real need.\nIt loses data." })]);
+    await ouvrirIssuesEtrangeres(rail.contexte).traiter(rail.ouverte(), []);
+    const texte = rail.commentaires.find((lu) => lu.body.startsWith(CARTE))?.body ?? "";
+    const lignes = texte.split("\n");
+    assert.equal(lignes[1], "Stranger's issue #40: put it on the rail, or close it?");
+    assert.deepEqual(lignes.slice(3, 5), ["- [rail] Put it on the rail with `prio:2`", "- [close] Close it"]);
+    assert.ok(lignes.includes("Asks: Ticket 40 — Please add dark mode."));
+    assert.ok(lignes.includes("Opened by @mallory, a stranger."));
+    assert.ok(lignes.includes("Recommended: rail, `prio:2` — the manager's triage: ticket, with `prio:2`. A real need. It loses data."));
+    // Sans `prio:` proposé : fermer d'abord, puis le rail avec la priorité par défaut.
+    const fermer = atelier([tri({ triage: "out-of-scope", motif: "Not this project." })]);
+    await ouvrirIssuesEtrangeres(fermer.contexte).traiter(fermer.ouverte(), []);
+    const autre = (fermer.commentaires.find((lu) => lu.body.startsWith(CARTE))?.body ?? "").split("\n");
+    assert.deepEqual(autre.slice(3, 5), ["- [close] Close it", `- [rail] Put it on the rail with \`prio:${PRIO_PAR_DEFAUT}\``]);
+    assert.ok(autre.includes("Recommended: close it — the manager's triage: out of scope. Not this project."));
+  });
+
+  test("l'auteur est un humain déclaré dans `humans` : la carte ne parle pas d'inconnu ; absent de `humans`, elle l'en traite", async () => {
+    const declare = atelier([tri({ triage: "ticket", prio: 3, motif: "Real." })], { humains: [...PRODUIT, { login: "Mallory", roles: ["client-contact"] }] });
+    await ouvrirIssuesEtrangeres(declare.contexte).traiter(declare.ouverte(), []);
+    const texte = declare.commentaires.find((lu) => lu.body.startsWith(CARTE))?.body ?? "";
+    assert.match(texte, /\nIssue #40: put it on the rail, or close it\?/);
+    assert.match(texte, /\nOpened by @mallory, a declared human of the project\./);
+    assert.doesNotMatch(texte, /stranger/i);
+    const inconnu = atelier([tri({ triage: "ticket", prio: 3, motif: "Real." })], { humains: [] });
+    await ouvrirIssuesEtrangeres(inconnu.contexte).traiter(inconnu.ouverte(), []);
+    assert.match(inconnu.commentaires.find((lu) => lu.body.startsWith(CARTE))?.body ?? "", /Stranger's issue #40[\s\S]*Opened by @mallory, a stranger\./);
+  });
+
   test("une réponse illisible ne décide rien : la carte part sans proposition, et l'humain tranche", async () => {
     const a = atelier(['{"triage":"maybe","motif":"?"}']);
     assert.equal(await ouvrirIssuesEtrangeres(a.contexte).traiter(a.ouverte(), []), "fait");
     assert.match(a.commentaires[0]?.body ?? "", /triage=none -->\n\*\*Manager — no triage proposal:\*\* its answer could not be read \(unknown triage/);
-    assert.match(a.commentaires[1]?.body ?? "", /The manager has no triage proposal[\s\S]*`on the rail prio:N`/);
+    assert.match(a.commentaires[1]?.body ?? "", /- \[close\] Close it\n- \[rail\] Put it on the rail with `prio:5`[\s\S]*Recommended: close it — the manager's triage: no triage proposal/);
     assert.deepEqual(a.labels, [CHEF_TODO]);
     assert.match(a.avertissements[0] ?? "", /tri illisible sur l'issue #40/);
     // « on the rail » sans priorité, ni proposée ni écrite : `fire`, et le manager la juge.
@@ -211,7 +241,7 @@ describe("le tri, sans manager autour", () => {
     b.commentaires.push({ body: corpsDuTriage({ triage: "ticket", prio: 5, motif: "Real." }), author: "brigade", association: "OWNER", createdAt: "2026-11-08T10:00:00Z" });
     assert.equal(await ouvrirIssuesEtrangeres(b.contexte).traiter(b.ouverte(), []), "fait");
     assert.deepEqual(b.lancees, []);
-    assert.match(b.commentaires[1]?.body ?? "", /`on the rail` — it goes on the rail with `prio:5`/);
+    assert.match(b.commentaires[1]?.body ?? "", /- \[rail\] Put it on the rail with `prio:5`\n- \[close\] Close it/);
   });
 
   test("une réponse appliquée ne se rejoue pas : le chef qui retire le `prio:` garde la main", async () => {
@@ -227,7 +257,7 @@ describe("le tri, sans manager autour", () => {
   });
 
   test("sans humain `product` déclaré, la carte va au chef : seul un compte qui a l'écriture y répond", () => {
-    const carte = carteDuTriage(40, { triage: "out-of-scope", motif: "No." });
+    const carte = carteDuTriage(40, { triage: "out-of-scope", motif: "No." }, { title: "T", body: "B" });
     assert.equal(carte.sorte, "product-question");
     const lus = (author: string, association: string, body: string): Commentaire[] => [{ author, association, body, createdAt: "" }];
     assert.equal(reponseDuProduit(lus("lea", "NONE", "close"), null), null);

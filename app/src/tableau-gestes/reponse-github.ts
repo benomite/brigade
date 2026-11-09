@@ -11,7 +11,8 @@
 //      - `merge` : la PR que la carte nomme est mergée — celle que le libellé du choix nomme (`#N`), sinon la PR ouverte
 //        du ticket ; aucune, rien ne part ;
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
-//      - `close` : l'issue est fermée.
+//      - `close` : l'issue est fermée ;
+//      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
 //      Chaque geste retire aussi `chef-todo` : répondue, la question n'attend plus le chef.
 // La carte quitte TODO à la lecture suivante : ses labels ont changé, et une question que suit une réponse n'en pose plus
 // (tableau/mise-de-cote-github.ts).
@@ -34,6 +35,7 @@ const RETIRES: Readonly<Record<GesteDuChef, readonly string[]>> = {
   merge: [LABEL_DU_CHEF],
   drop: [LABEL_FIRE, LABEL_DU_CHEF],
   close: [LABEL_DU_CHEF],
+  rail: [LABEL_DU_CHEF],
 };
 
 // Le commentaire de la réponse : sa marque, puis le libellé du choix, ou le texte du chef.
@@ -58,7 +60,7 @@ async function prNommee(depot: string, ticket: number, libelle: string, client: 
 }
 
 // Le geste joué sur l'issue de `ticket` — ce qu'il dit fait, ou l'erreur de GitHub.
-async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: number | null, client: ClientDeLaReponse): Promise<string> {
+async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: number | null, libelle: string, client: ClientDeLaReponse): Promise<string> {
   const issue = `/repos/${depot}/issues/${ticket}`;
   let fait = "";
   if (geste === "merge" && pr !== null) {
@@ -70,6 +72,13 @@ async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: numb
     const fermee = await client.ecrire("PATCH", issue, { state: "closed", state_reason: "not_planned" });
     if (fermee.status !== 200) throw refusDe(`the closing of #${ticket}`, fermee);
     fait = `#${ticket} closed`;
+  }
+  if (geste === "rail") {
+    // L'issue d'un inconnu : le `prio:` que le choix nomme, sinon `fire`, comme « on the rail » du runtime.
+    const label = /\bprio:([1-9])\b/.exec(libelle)?.[0] ?? LABEL_FIRE;
+    const posee = await client.ecrire("POST", `${issue}/labels`, { labels: [label] });
+    if (posee.status !== 200) throw refusDe(`the \`${label}\` label`, posee);
+    fait = `\`${label}\` put on #${ticket}`;
   }
   const retires: string[] = [];
   for (const label of RETIRES[geste]) {
@@ -110,7 +119,7 @@ export async function repondreSurGithub({ depot, ticket, chef, reponse, client }
     return { refus: `nothing was sent: your answer was not posted on #${lue.ticket}`, detail: message(erreur) };
   }
   try {
-    const fait = await jouer(depot, lue.ticket, geste, pr, client);
+    const fait = await jouer(depot, lue.ticket, geste, pr, choisi?.texte ?? "", client);
     return { repondue: true, dit: `answer posted on #${lue.ticket} (${geste}): ${fait}`, commentaire };
   } catch (erreur) {
     return { refus: `your answer is posted on #${lue.ticket}, but its gesture (${geste}) was not played — play it on GitHub`, detail: message(erreur) };
