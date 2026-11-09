@@ -480,7 +480,7 @@ repository, through its `gh`, the issue "Prepare the repository: gates, worktree
 
 - **what to deliver**: `.claude/brigade/gates.sh`, `.claude/brigade/worktree-setup.sh` and
   `.claude/brigade/reseau` (the sites the project may reach), each with its contract and what the
-  integration base already carries ("absent : à écrire", "déjà sur `main` : à éprouver");
+  integration base already carries ("missing: to write", "already on `main`: to try, to fix if needed");
 - **when the current setup fails there**: the ticket leaves anyway (it repairs it), and the body says what
   failed ("The worktree setup comes before the cook" in [`station.md`](station.md));
 - **where to prove it**: on the station that cooks it, which will serve the project, not on a dev
