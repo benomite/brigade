@@ -77,6 +77,8 @@ function github(monde: Monde = MONDE, refuser: (chemin: string) => ReponseGitHub
     const [, depot = "", reste = ""] = /^\/repos\/([^/]+\/[^/?]+)(.*)$/.exec(chemin) ?? [];
     const issues = monde.depots[depot];
     if (issues === undefined) return { status: 404, data: { message: "Not Found" } };
+    // Le dépôt lui-même : son propriétaire, une personne — le chef par défaut quand projet.json n'en nomme pas (#3052).
+    if (reste === "") return ok({ full_name: depot, owner: { login: depot.split("/")[0], type: "User" } });
     const page = Number(/[?&]page=(\d+)/.exec(reste)?.[1] ?? "1");
     const json = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${depot}/issues/${numero}`, created_at: "2026-11-05T00:00:00Z", labels: issue.labels.map((name) => ({ name })), assignees: (issue.assignes ?? []).map((login) => ({ login })) });
     if (reste.startsWith("/issues?")) {

@@ -15,7 +15,7 @@ The station rereads the selection **every 30 s** (`CADENCE_MS` of `projets/tenir
 `SIGHUP`. So:
 
 - **A ticked repository** is taken in hand within **30 s** of the app's write. The station clones it,
-  writes the project's decisions and opens its "Préparer le dépôt" ticket, then writes its line in its
+  writes the project's decisions and opens its "Prepare the repository" ticket, then writes its line in its
   configuration. It serves it as soon as that is done: the clone's time, plus at most 2 s for the
   station to reread its configuration.
 - **An unticked repository** leaves the station's configuration within **30 s**. Its kitchen closes
