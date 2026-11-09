@@ -472,7 +472,7 @@ ahead of the whole rail, looking for a cause the previous one had just fixed. A 
 merge holds nothing back. For a served project, the correction is filed on `benomite/brigade` (#2783) and its
 merge is never in the project's times: it is served when its issue on the brigade is closed (its `closed_at`),
 and a project ticket bearing the same number is not it (#2809) — before, no correction of a served project was
-ever on trial, and each one reopened as soon as the previous one closed, on the tickets claimed before its fix. On the station's own repository, the times hold only the tickets this station merged: a served ticket that another station merged is not in them, and it is served when its issue is closed, too, unless GitHub says it was closed as not planned (#2979) — before, #2963, merged by another station, waited for nothing, and #2979 reopened on the nine conflict send-backs #2963 had counted and fixed. The rule holds only once the station runs it: #2580 opened two minutes after #2577
+ever on trial, and each one reopened as soon as the previous one closed, on the tickets claimed before its fix. The rule holds only once the station runs it: #2580 opened two minutes after #2577
 merged, from a station still on the code before it, whose update comes much later; the same turn on the
 code of today opens nothing (`test/temps-max/station.test.ts`). In the cook sessions claimed after #2573
 and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window's median of 9 min is that
@@ -485,6 +485,12 @@ them with the ticket times (`temps.chiffres`), with what weighs most on each (th
 most over their estimate, the most frequent send-back reasons and broken checks); the app's rail band and Health tab
 show them from those values. TODO's informative part names each of the
 last 10 tickets that lost over twice the threshold, with its heaviest loss.
+
+On `benomite/brigade` itself, the times hold only the tickets this station merged. A quality or lost-time
+ticket that is closed, in none of these times, and closed by a merged PR (another station merged it) is served
+when its issue is closed (#2979); one closed without a merged PR — a duplicate the station closed, an issue
+closed as not planned — holds nothing back. Before, #2963, merged by another station, waited for nothing, and
+#2979 reopened on the nine conflict send-backs #2963 had counted.
 
 The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
 again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent

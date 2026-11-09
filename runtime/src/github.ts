@@ -42,9 +42,8 @@ export type Issue = {
 export type IssueOuverte = Issue & { body: string; association: string };
 
 // Une issue lue parmi celles modifiées depuis un instant : fermée, avec quand
-// elle l'a été, si GitHub le dit, et `nonPlanifiee` si elle l'a été comme
-// « not planned » — fermée sans être servie (#2979).
-export type IssueDepuis = IssueOuverte & { closedAt?: string; nonPlanifiee?: true };
+// elle l'a été, si GitHub le dit.
+export type IssueDepuis = IssueOuverte & { closedAt?: string };
 
 export type Sondage<I extends Issue = Issue> =
   // GitHub répond que rien n'a changé depuis le dernier sondage confirmé.
@@ -336,7 +335,6 @@ type IssueBrute = {
   html_url: string;
   pull_request?: unknown;
   closed_at?: string | null;
-  state_reason?: string | null;
   body?: string | null;
   author_association?: string;
   user?: { login?: string } | null;
@@ -569,7 +567,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       return pages
         .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
         .filter((lue) => lue.pull_request === undefined)
-        .map((brute) => ({ ...lireOuverte(brute), ...(typeof brute.closed_at === "string" ? { closedAt: brute.closed_at } : {}), ...(brute.state_reason === "not_planned" ? { nonPlanifiee: true as const } : {}) }));
+        .map((brute) => ({ ...lireOuverte(brute), ...(typeof brute.closed_at === "string" ? { closedAt: brute.closed_at } : {}) }));
     },
     async commentaires(numero) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);

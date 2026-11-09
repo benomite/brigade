@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { stationGitHub, type GitHubDuTour, type TicketLu } from "../../src/brigade-github.ts";
 import { MARQUE_CORRECTION } from "../../src/temps-max/correction.ts";
+import { DEPOT_BRIGADE } from "../../src/routage-temps-perdu.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
 type Issue = { number: number; title: string; body: string; labels: string[]; state: "open" | "closed" };
@@ -98,4 +99,36 @@ test("#2580: the turn right after a correction is served opens nothing while the
   await station(github, depot, avertis).tour();
   assert.deepEqual(avertis, []);
   assert.deepEqual(issues.map((i) => i.number), [2577]);
+});
+
+// #2979 : sur le dépôt de la brigade, #2963 (qualité) mergé par une autre station n'est pas dans
+// les temps de celle-ci. Fermé par sa PR mergée, il est servi à sa fermeture : le tour attend
+// 20 tickets pris après lui, et ne rouvre rien sur les renvois qu'il a comptés.
+test("#2979: on benomite/brigade, the turn waits after a quality ticket another station merged, and opens nothing on the send-backs it counted", async (tc) => {
+  const { issues, github } = faux();
+  issues.push({ number: 2963, title: "Quality before time", body: "<!-- brigade:qualite -->\n<!-- brigade:qualite-comptes 1,2,3,4,5,6,7,8,9 -->", labels: ["fire", "prio:0"], state: "closed" });
+  const fermee = "2026-11-08T11:00:00Z";
+  const lu = github as unknown as Record<string, unknown>;
+  const issuesDepuis = lu.issuesDepuis as () => Promise<{ number: number; state: string }[]>;
+  lu.issuesDepuis = async () => (await issuesDepuis()).map((issue) => (issue.number === 2963 ? { ...issue, closedAt: fermee } : issue));
+  lu.prQuiFerme = async (numero: number) => (numero === 2963 ? { number: 2978, merged: true } : null);
+  const depot = clone(tc, []);
+  const ticket = (numero: number, prise: string) => ({ ticket: numero, claimedAt: prise, mergedAt: prise.replace(/:00Z$/, ":10Z"), attentePrise: 0, cuisson: 300, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0, qualite: { renvois: ["the PR conflicts with the base"], cooksRates: 0 } });
+  const temps = [...Array.from({ length: 9 }, (_, rang) => ticket(rang + 1, `2026-11-08T0${rang}:00:00Z`)), ticket(2977, "2026-11-08T12:00:00Z")];
+  writeFileSync(join(depot, ".claude", "brigade", "temps-tickets.json"), JSON.stringify(temps));
+  const avertis: string[] = [];
+  await stationGitHub({
+    nom: "box/test",
+    places: 1,
+    base: "main",
+    github,
+    prise: { prendre: async () => ({ prise: false }), lacher: async () => true },
+    cuisiner: async () => ({ echec: "not here" }),
+    juger: async () => ({ verdict: "approve", motif: "" }),
+    clone: depot,
+    depotServi: DEPOT_BRIGADE,
+    avertir: (texte) => avertis.push(texte),
+  }).tour();
+  assert.deepEqual(avertis, []);
+  assert.deepEqual(issues.map((i) => i.number), [2963]);
 });

@@ -11,14 +11,13 @@
 // projet n'en masque pas un autre. Le merge d'un ticket de la brigade n'est
 // pas dans les temps du projet : chacun dit quand il a été fermé (`servieLe`),
 // pour que la correction servie soit à l'essai sur le projet (#2809). Sur la
-// brigade elle-même, les tickets restent sur son dépôt, mais ses temps ne sont
-// que ceux des tickets que cette station a mergés : un ticket servi que plus
-// d'une station sert y manque. Fermé sans être « not planned », il est servi à
-// sa fermeture (#2979) — sans quoi #2963, mergé par une autre station,
-// n'attendait aucun ticket, et #2979 se rouvrait sur les neuf conflits qu'il
-// avait comptés et corrigés.
+// brigade elle-même, les tickets restent sur son dépôt ; un ticket de mesure
+// qu'une autre station a mergé y est servi à sa fermeture (#2979, la règle dans
+// `docs/runtime/etat-et-mesures.md`).
 import { DE_CONFIANCE } from "./alimenter.ts";
-import type { GitHubDeLaCorrection } from "./temps-max/correction.ts";
+import { MARQUE_QUALITE } from "./alerte-qualite.ts";
+import type { GitHub } from "./github.ts";
+import { MARQUE_CORRECTION, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
 
 export const DEPOT_BRIGADE = "benomite/brigade";
 
@@ -71,20 +70,48 @@ export function familleCouverte(
 // Le GitHub de la brigade tel que le routage le lit : ses issues fermées
 // disent quand (`closedAt`), si GitHub le dit.
 export type GitHubDeLaBrigade = Omit<GitHubDeLaCorrection, "issuesDepuis"> & {
-  issuesDepuis(instant: string): Promise<(Awaited<ReturnType<GitHubDeLaCorrection["issuesDepuis"]>>[number] & { closedAt?: string; nonPlanifiee?: true })[]>;
+  issuesDepuis(instant: string): Promise<(Awaited<ReturnType<GitHubDeLaCorrection["issuesDepuis"]>>[number] & { closedAt?: string })[]>;
 };
 
-export function routerLeTempsPerdu({ github, servi, brigade, maintenant = () => new Date() }: { github: GitHubDeLaBrigade; servi: string; brigade?: GitHubDeLaBrigade; maintenant?: () => Date }): GitHubDeLaCorrection {
-  // Sur son propre dépôt, une issue fermée dont GitHub dit la fermeture est servie à cette date ;
-  // sans elle, ou fermée « not planned », le ticket n'est daté que par son merge dans les temps
-  // de la station, s'il y est : une correction écartée ne retient rien (#2577).
-  if (brigade === undefined || servi.toLowerCase() === DEPOT_BRIGADE)
-    return {
-      creerIssue: (issue) => github.creerIssue(issue),
-      fermerIssue: (numero) => github.fermerIssue(numero),
-      issuesDepuis: async (instant) =>
-        (await github.issuesDepuis(instant)).map(({ closedAt, nonPlanifiee, ...issue }) => (issue.state === "closed" && closedAt !== undefined && nonPlanifiee !== true && issue.servieLe === undefined ? { ...issue, servieLe: closedAt } : issue)),
-    };
+// Sur son propre dépôt, la station ne date un ticket de mesure que par son merge
+// dans ses temps. Un ticket fermé qu'aucune ligne des temps ne porte (`dansLesTemps`)
+// est servi à sa fermeture si une PR mergée l'a fermé (`prQuiFerme`) : mergé par
+// une autre station. Fermé sans merge — un doublon que la station ferme, une issue
+// écartée —, il n'a rien changé et n'attend rien, comme avant (#2577). La réponse
+// de `prQuiFerme` est gardée par numéro et fermeture ; une lecture qui échoue
+// fait échouer le tour, qui n'ouvre rien.
+export function dateeParSaFermeture({ github, dansLesTemps }: { github: GitHubDeLaBrigade & Pick<GitHub, "prQuiFerme">; dansLesTemps: (numero: number) => boolean }): GitHubDeLaCorrection {
+  const parUnMerge = new Map<string, boolean>();
+  const fermeeParUnMerge = async (numero: number, closedAt: string) => {
+    const cle = `${numero} ${closedAt}`;
+    const connu = parUnMerge.get(cle);
+    if (connu !== undefined) return connu;
+    const merge = (await github.prQuiFerme(numero)) !== null;
+    parUnMerge.set(cle, merge);
+    return merge;
+  };
+  return {
+    creerIssue: (issue) => github.creerIssue(issue),
+    fermerIssue: (numero) => github.fermerIssue(numero),
+    issuesDepuis: async (instant) => {
+      const issues = await github.issuesDepuis(instant);
+      const mesure = (body: string) => body.includes(MARQUE_QUALITE) || body.includes(MARQUE_CORRECTION);
+      const ailleurs = issues.filter(({ number, state, closedAt, body }) => state === "closed" && closedAt !== undefined && mesure(body) && !dansLesTemps(number));
+      const servies = new Set<number>();
+      for (const { number, closedAt } of ailleurs) if (await fermeeParUnMerge(number, closedAt as string)) servies.add(number);
+      return issues.map(({ closedAt, ...issue }) => (servies.has(issue.number) ? { ...issue, servieLe: closedAt as string } : issue));
+    },
+  };
+}
+
+// `dansLesTemps` : les tickets que cette station a mergés, lus dans ses temps ; sans lui, sur
+// son propre dépôt, un ticket n'est daté que par ces temps, comme avant #2979.
+export function routerLeTempsPerdu({ github, servi, brigade, dansLesTemps, maintenant = () => new Date() }: { github: GitHubDeLaBrigade & Partial<Pick<GitHub, "prQuiFerme">>; servi: string; brigade?: GitHubDeLaBrigade; dansLesTemps?: (numero: number) => boolean; maintenant?: () => Date }): GitHubDeLaCorrection {
+  if (servi.toLowerCase() === DEPOT_BRIGADE) {
+    const { prQuiFerme } = github;
+    return prQuiFerme === undefined || dansLesTemps === undefined ? github : dateeParSaFermeture({ github: { ...github, prQuiFerme }, dansLesTemps });
+  }
+  if (brigade === undefined) return github;
   const marque = marqueDuProjet(servi);
   return {
     issuesDepuis: async (instant) =>

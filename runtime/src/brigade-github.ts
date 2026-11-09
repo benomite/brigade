@@ -565,7 +565,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     clone === undefined
       ? null
       : correctionDuTemps({
-          github: options.depotServi === undefined ? github : routerLeTempsPerdu({ github, servi: options.depotServi, ...(options.githubDeLaBrigade === undefined ? {} : { brigade: options.githubDeLaBrigade }) }),
+          // Sur son propre dépôt, un ticket de mesure fermé hors de ses temps est daté par sa fermeture s'il a été mergé (#2979).
+          github: options.depotServi === undefined ? github : routerLeTempsPerdu({ github, servi: options.depotServi, dansLesTemps: (numero) => lesTempsDesTickets(clone).enregistrements.some((t) => t.ticket === numero), ...(options.githubDeLaBrigade === undefined ? {} : { brigade: options.githubDeLaBrigade }) }),
           lire: () => {
             const temps = lesTempsDesTickets(clone);
             return { ...temps, qualites: qualitesDesTemps(temps.enregistrements), projet: projetDuClone(clone) };
