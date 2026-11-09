@@ -296,7 +296,7 @@ describe("sur l'onglet Rail", () => {
   const bande = (vue: Jouee) => vue.element("rail").children.find((pose) => pose.className === "bande-rail");
   const parts = (vue: Jouee) => (bande(vue) ?? assert.fail("pas de bande en tête du rail")).children.map(laPart);
 
-  test("une seule ligne de chiffres en tête du rail, chacun une fois ; au-dessus, ni bloc des temps, ni « Blocked without a question », ni aide `?`", async () => {
+  test("une seule ligne de chiffres en tête du rail, chacun une fois ; au-dessus, ni bloc des temps, ni « Blocked without a question », ni aide `?`, ni la ligne repliée « Caps, closer and all projects »", async () => {
     const vue = await ouvrir(NORMAL);
     const [temps, premierCoup, cooks, dernierMerge] = parts(vue);
     assert.equal(temps?.textContent, TEMPS_NORMAL);
@@ -310,23 +310,25 @@ describe("sur l'onglet Rail", () => {
     assert.ok(enfants.indexOf("bande-rail") < enfants.indexOf("colonnes"), enfants.join(", "));
     const noms = parts(vue).map((part) => part.className);
     assert.deepEqual(noms, [...new Set(noms)]);
-    // Au-dessus du rail, plus de bloc de chiffres, de titre sans rien dessous ni d'aide `?` : seule la ligne repliée des
-    // réglages reste, le temps que Settings la reprenne.
+    // Au-dessus du rail, plus rien d'autre que la bande : ni bloc de chiffres, ni titre sans rien dessous, ni aide `?`, ni la
+    // ligne repliée « Caps, closer and all projects ».
     const dessus = vue.element("bandeau-sante");
-    assert.deepEqual(dessus.dessous("section").map(({ dataset }) => dataset.bloc).filter((bloc) => bloc === "temps-tickets" || bloc === "bloque-sans-question"), []);
-    assert.doesNotMatch(dessus.textContent, /Ticket time|Blocked without a question/);
-    assert.doesNotMatch(dessus.textContent, /no measure yet|Not available yet/i);
-    assert.doesNotMatch(bande(vue)?.textContent ?? "", /no measure yet|Not available yet/i);
+    assert.equal(dessus.hidden, true);
+    assert.deepEqual(dessus.children, []);
+    // Devant la bande, seul un signe de lecture (une lecture vieille, hors ligne) peut se poser : aucun bloc, titre ni ligne repliée.
+    assert.deepEqual(enfants.slice(0, enfants.indexOf("bande-rail")).filter((nom) => !/^(fraicheur|hors-ligne)/.test(nom)), [], enfants.join(", "));
+    assert.doesNotMatch(vue.element("rail").textContent, /Caps, closer and all projects|Blocked without a question/);
+    assert.doesNotMatch(bande(vue)?.textContent ?? "", /no measure yet|Not available yet|\?/i);
   });
 
-  test("sur Stations, la bande et le bandeau de santé n'y sont pas ; Rail les rend", async () => {
+  test("sur Stations, la bande n'y est pas, la ligne repliée des réglages si ; Rail rend la bande seule", async () => {
     const vue = await ouvrir(NORMAL);
-    assert.equal(vue.element("bandeau-sante").hidden, false);
+    assert.equal(vue.element("bandeau-sante").hidden, true);
     await ouvrirOnglet(vue, "Stations");
     assert.equal(bande(vue), undefined);
-    assert.equal(vue.element("bandeau-sante").hidden, true);
-    await ouvrirOnglet(vue, "Rail");
     assert.equal(vue.element("bandeau-sante").hidden, false);
+    await ouvrirOnglet(vue, "Rail");
+    assert.equal(vue.element("bandeau-sante").hidden, true);
     assert.notEqual(bande(vue), undefined);
   });
 

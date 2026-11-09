@@ -4590,10 +4590,10 @@ function poserLeRail(projet) {
   const onglet = ongletDe(projet);
   rail.dataset.onglet = onglet === STATIONS ? onglet : RAIL;
   rail.ariaLabel = onglet === STATIONS ? "The stations" : "The rail";
-  // Au-dessus du rail, la ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013) :
-  // sur Rail seulement. Les chiffres sont dans la bande du rail.
-  bandeauSante.hidden = onglet !== RAIL;
-  if (onglet === RAIL) poserLeBandeauDeSante(projet);
+  // La ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013) : plus sur Rail, où
+  // seule la bande des chiffres tient au-dessus des colonnes ; en tête de Stations, le temps que Settings la reprenne.
+  bandeauSante.hidden = onglet !== STATIONS;
+  if (onglet === STATIONS) poserLeBandeauDeSante(projet);
   else bandeauSante.replaceChildren();
   // Stations : la liste de ses stations (ticket 2487), et « Add a station » ; les réglages de
   // chacune (ticket 2488) ; la station de cet ordinateur (ticket 2489).
@@ -6321,9 +6321,10 @@ setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
 }, 30_000);
 
-// Le bandeau de santé, au-dessus du rail (ticket 2490, 2921) : le temps des tickets en détail, les plafonds de durée et le closer. Les plafonds du
-// dépôt se lisent sur GitHub par le process principal (plafonds-duree.ts) — à l'ouverture de Rail, puis au plus une
-// fois la minute tant qu'il reste ouvert, et après chaque changement. Un champ en cours de frappe n'est pas reposé.
+// Le bandeau de santé (ticket 2490, 2921), en tête de Stations depuis que Rail n'a plus que la bande des chiffres (ticket
+// 3013) : les plafonds de durée et le closer. Les plafonds du dépôt se lisent sur GitHub par le process principal
+// (plafonds-duree.ts) — à l'ouverture de Stations, puis au plus une fois la minute tant qu'il reste ouvert, et après
+// chaque changement. Un champ en cours de frappe n'est pas reposé.
 /** @type {Map<string, import("../plafonds-duree.ts").LectureDesPlafonds>} */
 const plafondsLus = new Map();
 /** @type {Map<string, number>} */
@@ -6385,7 +6386,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
 }
 /** @param {Projet} projet @param {boolean} [garder] */
 function reposerLaSante(projet, garder = false) {
-  if (courant?.nom === projet.nom && ongletDe(projet) === RAIL && laisse.get(projet.nom) === undefined) poserLeBandeauDeSante(projet, garder);
+  if (courant?.nom === projet.nom && ongletDe(projet) === STATIONS && laisse.get(projet.nom) === undefined) poserLeBandeauDeSante(projet, garder);
 }
 /** @param {Projet} projet */
 async function lireLesPlafondsDuree(projet) {
@@ -6429,7 +6430,7 @@ async function changerUnPlafond(projet, cle, saisie) {
 }
 
 // Le closer du bandeau de santé (ticket 2491) : ses passes, ce qu'il vérifie en premier et en plus, ses réglages — lus sur GitHub
-// par le process principal (closer-sante.ts), à l'ouverture de Rail puis au plus une fois la minute, comme les
+// par le process principal (closer-sante.ts), à l'ouverture de Stations puis au plus une fois la minute, comme les
 // plafonds. Un réglage changé se propose par une pull request (ticket 2920), qui se dit sous sa rangée — la valeur en
 // vigueur ne change qu'au merge ; une vérification ajoutée ou retirée s'écrit dans le dépôt, et la liste écrite est reprise.
 /** @param {Projet} projet */

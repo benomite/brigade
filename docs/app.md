@@ -5,9 +5,10 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 
 **The project's menu is three entries, Rail · Stations · Settings** (#2485, #2921), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
-the band at the top of the rail** (#3013, below), and **above it, one folded line** (#2921, `app/src/vue/projet/bandeau-sante/`) —
-`Caps, closer and all projects`: the duration caps (#2490), the closer (#2491), then the Cost and Closer rows of all
-projects — shown on the Rail tab only (it holds at most a third of the middle and scrolls past that). Settings opens over
+the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **One folded line**
+(#2921, `app/src/vue/projet/bandeau-sante/`) — `Caps, closer and all projects`: the duration caps (#2490), the closer
+(#2491), then the Cost and Closer rows of all projects — has left the Rail tab (#3013) and stands at the top of the
+Stations tab until Settings takes it in (it holds at most two fifths of the middle and scrolls past that). Settings opens over
 the middle as before, with its content unchanged. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations lists the project's stations** (#2487), kept up to date by
 the same readings as ever — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
@@ -1061,7 +1062,7 @@ What the home used to show besides went elsewhere, or was removed:
   with its pairing code field — is the last block of **a project's Stations tab**, under the project's own stations and
   this computer's station. The stations under your account are read again each time that tab opens.
 - The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
-  block, **All projects**, of **a project's health strip**. Their pages are unchanged.
+  block, **All projects**, of **a project's health strip**, at the top of its Stations tab (#3013). Their pages are unchanged.
 - The **App** section (the running version, **Update now** / **Later**) is removed: a higher version is said, with
   **Update now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
   shown.
@@ -1916,8 +1917,8 @@ most (`pesent`) on the hover of First try. With no `resume`, there is no Ticket 
 try — never a blank, a zero or « no measure yet ».
 Screenshots: `docs/captures/2664/`.
 
-**Health strip: duration caps** (#2490, epic #2484), folded behind the `Caps, closer and all projects` line above the
-rail, then the closer's. The Ticket time block that stood before it is gone (#3013): its figures are in the rail band.
+**Health strip: duration caps** (#2490, epic #2484), folded behind the `Caps, closer and all projects` line at the top
+of the Stations tab (#3013), then the closer's. The Ticket time block that stood before it is gone (#3013): its figures are in the rail band.
 **Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
 first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
 as the station publishes it), then the durations the

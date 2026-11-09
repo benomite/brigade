@@ -820,7 +820,7 @@ main > header,
   display: flex;
   flex-direction: column;
 }
-/* Au-dessus du rail, la ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013). Il ne prend jamais plus des deux cinquièmes du centre, et défile au-delà, que le rail garde sa
+/* En tête de Stations, la ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013). Il ne prend jamais plus des deux cinquièmes du centre, et défile au-delà, que l'onglet garde sa
    hauteur. */
 #bandeau-sante {
   flex: none;

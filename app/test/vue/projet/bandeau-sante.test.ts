@@ -304,7 +304,7 @@ describe("le closer, sur Health", () => {
   });
 });
 
-// La vue entière : parade, ouvert sur Rail, sous le bandeau de santé (#2921), devant un GitHub qui garde ce qu'on lui écrit.
+// La vue entière : parade, ouvert sur Stations, sous le bandeau de santé (#2921, #3013), devant un GitHub qui garde ce qu'on lui écrit.
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
@@ -344,6 +344,8 @@ async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][]
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
+  // Le bandeau est en tête de Stations depuis que Rail n'a plus que la bande des chiffres (#3013).
+  await ouvrirOnglet(vue, "Stations");
   return { vue, ecrits, closer };
 }
 const bloc = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "plafonds-duree") ?? assert.fail("pas de plafonds");

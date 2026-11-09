@@ -506,11 +506,13 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
   return cliquer(vue.element("onglets-du-projet"), "Settings");
 }
 
-// Les lignes de tous les projets, « Cost » et « Closer », sont en bas du bandeau de santé de chaque projet (#2638, #2921) : le
-// premier projet de la barre s'ouvre, comme le chef le fait. Rend la ligne qui porte ce nom.
+// Les lignes de tous les projets, « Cost » et « Closer », sont en bas du bandeau de santé de chaque projet (#2638, #2921), en
+// tête de Stations (#3013) : le premier projet de la barre s'ouvre, puis Stations, comme le chef le fait. Rend la ligne qui
+// porte ce nom.
 async function ligneDeTousLesProjets(vue: Jouee, nom: string): Promise<Faux> {
   vue.element("projets").children[1]?.click();
   await repos();
+  await ouvrirOnglet(vue, "Stations");
   const ligne = vue.element("de-tous-les-projets").dessous("button").find(({ ariaLabel }) => ariaLabel === nom);
   if (ligne === undefined) throw new Error(`pas de ligne « ${nom} » dans le bandeau de santé`);
   return ligne;
