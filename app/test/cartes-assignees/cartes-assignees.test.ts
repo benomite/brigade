@@ -129,6 +129,10 @@ describe("un humain voit les cartes qui lui sont assignées, et elles seules", (
       assert.ok(parPY.tickets.includes(23));
       assert.ok(!parPY.autres?.some(({ qui }) => qui.includes("acme")));
     }
+    // les cartes assignées à un autre humain se replient toujours sous « Awaiting others »
+    const parPYsansChef = await todoDe("py", MONDE, {}, "Organization");
+    assert.ok(!parPYsansChef.tickets.includes(22));
+    assert.deepEqual(parPYsansChef.autres?.find(({ ticket }) => ticket === 22)?.qui, ["bob"]);
     // un `chef` nommé décide, sur une organisation aussi
     assert.deepEqual((await todoDe("py", MONDE, { chef: "py" }, "Organization")).tickets.includes(23), true);
     const parBob = await todoDe("bob", MONDE, { chef: "py" }, "Organization");

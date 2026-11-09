@@ -35,21 +35,21 @@ export function partagerLesCartes<T extends { assignes?: readonly string[] }>(at
   return partage;
 }
 
-// Le propriétaire du dépôt quand c'est une personne ; `null` pour une organisation (elle n'est pas un humain qu'on attend :
-// la carte sans assigné reste alors au compte connecté, ticket 3052) et quand le dépôt ne se lit pas.
-async function proprietaireHumain(appeler: AppelGitHub, depot: string): Promise<string | null> {
+// Le propriétaire du dépôt quand c'est une personne ; `organisation` pour une organisation (elle n'est pas un humain qu'on
+// attend : le compte connecté est alors le chef par défaut, ticket 3052) ; `null` quand le dépôt ne se lit pas.
+async function proprietaireHumain(appeler: AppelGitHub, depot: string, organisation: string | null): Promise<string | null> {
   const lu = await appeler(`/repos/${depot}`);
   if (lu.status !== 200) return null;
   const proprietaire = (lu.data as { owner?: { login?: unknown; type?: unknown } } | null)?.owner;
-  if (proprietaire?.type === "Organization") return null;
+  if (proprietaire?.type === "Organization") return organisation;
   return typeof proprietaire?.login === "string" && proprietaire.login !== "" ? proprietaire.login : depot.split("/")[0] || null;
 }
 
 // Le chef du projet : `chef` du fichier du projet, ou le propriétaire du dépôt quand le fichier n'en nomme pas (sauf une
-// organisation : alors `null`, rien ne se retire) ; `null` quand le fichier ne se lit pas — rien ne se retire sur une lecture ratée.
-export async function lireLeChef(appeler: AppelGitHub, depot: string): Promise<string | null> {
+// organisation : alors `parDefaut`, le compte connecté) ; `null` quand le fichier ne se lit pas — rien ne se retire sur une lecture ratée.
+export async function lireLeChef(appeler: AppelGitHub, depot: string, parDefaut: string | null = null): Promise<string | null> {
   try {
-    const proprietaire = () => proprietaireHumain(appeler, depot);
+    const proprietaire = () => proprietaireHumain(appeler, depot, parDefaut);
     const lu = await appeler(`/repos/${depot}/contents/${FICHIER_DU_PROJET}`);
     if (lu.status === 404) return await proprietaire();
     if (lu.status !== 200) return null;
@@ -96,6 +96,6 @@ export function partageDesCartesAssignees({ appeler, depot, login }: { appeler: 
   return async <T extends { assignes?: readonly string[] }>(attentes: readonly T[]): Promise<Partage<T>> => {
     const qui = await login();
     if (qui === null) return { siennes: [...attentes], autres: [] };
-    return partagerLesCartes(attentes, { login: qui, chef: await lireLeChef(appeler, depot) });
+    return partagerLesCartes(attentes, { login: qui, chef: await lireLeChef(appeler, depot, qui) });
   };
 }
