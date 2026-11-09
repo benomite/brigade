@@ -198,6 +198,8 @@ test("waiting tickets left an hour on a fake clock cost no counted GitHub call: 
   faux.commenterCommeLeDepot(7, corpsDePrise("mac/claude"));
   // Sa zone est tenue par une PR ouverte d'un autre ticket.
   faux.feu(8, CALIBRE, "ticket 8", "## Zone\n\n- `runtime/src`\n");
+  // Ce ticket est encore ouvert (sans `fire`) : sa PR tient la zone, et la station le lit sous ETag.
+  faux.feu(99, ["bug"]);
   faux.livrer(99, ["runtime/src/a.ts"]);
   // Une livraison qui change ce qui la juge n'attend plus le chef : le second
   // juge en décide (#2555), elle n'a plus sa place ici.

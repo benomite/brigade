@@ -2043,6 +2043,33 @@ test("a ticket whose zone is held by another open PR is held back, and claimed o
   assert.deepEqual(faux.cuissons, [{ station: "A", issue: 1 }]);
 });
 
+test("an open PR whose ticket is closed holds no zone: the tickets touching its files are claimed (#3096)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(412, CALIBRE);
+  faux.ticket(412).state = "closed";
+  faux.prOuverte(["runtime/src/a.ts", "runtime/src/b.ts", "runtime/src/c.ts"], "cook/412-645045df");
+  faux.feu(42, CALIBRE, zoneDe("runtime/src/a.ts"));
+  faux.feu(666, CALIBRE, zoneDe("runtime/src/b.ts"));
+  faux.feu(669, CALIBRE, zoneDe("runtime/src/c.ts"));
+  const a = faux.station("A", { places: 3 });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue).sort(), [42, 666, 669]);
+});
+
+test("an open PR whose ticket is still open keeps holding its zone: 'zone held by #N' (#3096)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(412, CALIBRE.filter((label) => label !== "fire"));
+  faux.prOuverte(["runtime/src/a.ts"], "cook/412-645045df");
+  faux.feu(42, CALIBRE, zoneDe("runtime/src/a.ts"));
+  const sauts: string[] = [];
+  const a = faux.station("A", { sauter: (_numero, ligne) => sauts.push(ligne) });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, []);
+  assert.ok(sauts.some((ligne) => ligne.includes("zone held by #412")), sauts.join("\n"));
+});
+
 test("a free zone is claimed, a zone inside or around a changed folder is held, an own PR holds nothing (#2188)", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, CALIBRE, zoneDe("app/src/x.ts"));
