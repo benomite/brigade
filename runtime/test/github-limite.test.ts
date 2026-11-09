@@ -134,6 +134,13 @@ test("sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`
   }
 });
 
+test("le refus pour limite qui remonte à l'app porte kind et resetAt, lus de la réponse", async (t) => {
+  const { gh, github } = sondage(t);
+  const fin = (DEPART + 50 * MINUTE) / SECONDE;
+  gh.repondre(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(fin) }, LIMITE_PRIMAIRE);
+  await assert.rejects(github.tickets(), (erreur: unknown) => erreur instanceof LimiteGitHubAtteinte && erreur.kind === "rate-limit" && erreur.resetAt === fin * SECONDE);
+});
+
 test("la limite secondaire (retry-after) fixe aussi la fin de l'attente", async (t) => {
   const { gh, github } = sondage(t);
   gh.repondre(403, { "retry-after": "90" }, { message: "You have exceeded a secondary rate limit." });
