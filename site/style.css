@@ -202,8 +202,12 @@ main section { padding: 3.5rem 0; }
 .r-line:first-of-type span:last-child { color: #0f5a43; font-size: 1.6rem; line-height: 1; }
 .r-total { border-top: 1px dashed #b9b4a4; padding-top: .5rem; margin-top: .5rem !important; font-weight: 700; }
 
-.demo { border: 3px dashed var(--steel-dk); padding: 2rem 1rem; text-align: center; color: var(--mute); }
-.demo p { margin: 0; }
+.capture { max-width: 45rem; margin-top: 2rem; }
+.capture img { width: auto; max-width: 100%; }
+@media (min-width: 44rem) {
+  .capture.side { display: flex; gap: 1.5rem; align-items: center; }
+  .capture.side figcaption { margin: 0; font-size: 1rem; }
+}
 
 .install { padding-left: 1.4rem; }
 .install li { margin-bottom: .5rem; }
