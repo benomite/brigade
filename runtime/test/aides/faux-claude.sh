@@ -471,6 +471,12 @@ FIN
 {"issue":"question","motif":"Deux comportements s'opposent, et l'utilisateur ne voit pas le même écran.","resume":"Le ticket ne dit pas ce que voit l'utilisateur.","question":"Le TODO montre-t-il les tickets fermés ?","choix":["Oui, grisés","Non, masqués"]}
 FIN
       ;;
+    complete-geste-git)
+      assistant
+      resultat <<'FIN'
+{"issue":"question","motif":"Le ticket attend un geste git du chef.","resume":"La branche est en retard sur la base.","question":"Bring origin/main into cook/2914-github?","choix":["Oui","Non"]}
+FIN
+      ;;
     # L'agent de triage : il envoie la carte en TODO, une question et ses
     # choix, ou tranche.
     triage-laisse)
@@ -528,6 +534,12 @@ FIN
       assistant
       resultat <<'FIN'
 {"issue":"carte","motif":"Deux voies s'opposent, rien ne dit laquelle.","type":"product","enonce":"Choisir entre l'export CSV et l'export JSON.","capture":null}
+FIN
+      ;;
+    requalifie-geste-git)
+      assistant
+      resultat <<'FIN'
+{"issue":"carte","motif":"Le ticket attend un geste git.","type":"gesture","enonce":"Bring origin/main into cook/2914-github?","capture":null}
 FIN
       ;;
     requalifie-reprise)

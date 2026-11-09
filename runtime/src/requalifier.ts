@@ -36,7 +36,7 @@ export function consigneDeRequalification(mission: { depot: string; issue: { num
     "- `carte` — elle ne le dit pas, mais tu en dérives une vraie question pour le chef, d'un de ces types :",
     "  - `product` : un choix entre plusieurs voies, qui change ce que l'utilisateur obtient ;",
     "  - `design` : un écran ou un rendu à valider — `capture` (un chemin ou une adresse, une seule ligne) est alors exigée ;",
-    "  - `gesture` : un accès, un secret, une action que seul le chef peut faire.",
+    "  - `gesture` : un accès, un secret, une action que seul le chef peut faire — jamais un geste git (merger, rebaser, fetch, mettre une branche à jour, relancer une CI) : la cuisine le fait, ce n'est pas une carte (`reprise`).",
     "  `enonce` est la question dérivée, en une seule ligne.",
     "- `reprise` — elle ne dit rien d'attendu, et tu n'en dérives aucune question : aucun choix ni geste ne s'y cache, la cuisine peut la reprendre. Le label est alors retiré et le ticket jugé.",
     "",
@@ -156,6 +156,19 @@ export function ouvrirRequalification(atelier: AtelierDuManager) {
           noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: etat, outcome: "card", reason: valeur.motif, card: { kind: carte.type, statement: carte.enonce } } });
           return entree;
         });
+        if (entree.porte === "reparation") {
+          // Un geste git n'est pas une carte : le ticket `fix` de la cuisine la remplace.
+          try {
+            const fix = await github.creerIssue(entree.fix);
+            await commenter(issue.number, ["**Manager — `blocked-on-human` sur un geste git : aucune carte pour le chef, la cuisine le fait.**", "", valeur.motif, "", `Le ticket \`fix\` #${fix} est ouvert : ${carte.enonce}`, "", signature]);
+          } catch (erreur) {
+            // Une empreinte vide : le même état est relu au tour suivant.
+            noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: "", outcome: "unreadable", reason: `fix ticket not opened: ${message(erreur)}` } });
+            avertir(`brigade : ticket \`fix\` du geste git non ouvert pour l'issue #${issue.number}, repris au tour suivant — ${message(erreur)}`);
+            return "attente";
+          }
+          return "retenue";
+        }
         await commenter(issue.number, [
           "**Manager — `blocked-on-human` sans décision écrite : une carte est proposée au chef.**",
           "",

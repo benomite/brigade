@@ -29,6 +29,11 @@ export type FaitTodo =
   // The card was refused at the gate: it is not in TODO, and goes back to
   // the triage (it is held). `reason`: why, in plain words.
   | { type: "todo.refused"; payload: Proposed & { reason: string } }
+  // The card asked for a git gesture (a merge, a rebase, a fetch, a branch
+  // update, a rerun): no card, no triage — the manager opens a `fix` ticket on
+  // the kitchen (`garde-todo/geste-git.ts`). `gesture`: the verb; `fix`: the
+  // title of the ticket.
+  | { type: "todo.rerouted"; payload: Proposed & { gesture: string; fix: string } }
   // The card leaves TODO: the decision is taken — the chef answered —, or it
   // is no longer the chef's. `why`: in plain words.
   | { type: "todo.left"; payload: { why: string } }

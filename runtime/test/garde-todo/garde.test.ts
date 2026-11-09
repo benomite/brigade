@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { attentesDuChef } from "../../src/attend.ts";
-import { cartesRetenues, entrerDansTodo, type Proposition } from "../../src/carte-todo.ts";
-import { refuserDemandeTechnique } from "../../src/garde-todo/garde.ts";
+import { entrerDansTodo, jugerCarte, type Proposition } from "../../src/carte-todo.ts";
+import { refuserGesteGit } from "../../src/garde-todo/geste-git.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { lireRail } from "../../src/projections/rail.ts";
 import { aArreter, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
@@ -38,17 +38,11 @@ for (const [mot, enonce] of [
   ["rerun", "Please re-run the failing checks?"],
   ["merge", "Can you merge pull request #12?"],
 ] as const) {
-  test(`une carte qui demande « ${enonce} » n'est pas dans le TODO du chef : elle est renvoyée au triage, raison écrite`, (t) => {
-    const { journal, todo } = cuisine(t);
-    const entree = entrerDansTodo(journal, "brigade", 7, carte(enonce), "manager");
-    assert.equal(entree.porte, "triage");
-    assert.match(entree.porte === "triage" ? (entree.raison ?? "") : "", new RegExp(`technical ask .*${mot}.*manager or a cook`));
-    assert.deepEqual(todo(), []);
-    const [retenue] = cartesRetenues(journal.base);
-    assert.equal(retenue?.enonce, enonce);
-    assert.match(retenue?.refus ?? "", /^technical ask/);
-    const [refus] = journal.base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'todo.refused'");
-    assert.match(JSON.parse(refus?.payload ?? "{}").reason, /^technical ask/);
+  test(`la porte refuse « ${enonce} » avec la raison de la garde (la carte qu'un triage réécrit, laisserEntrer)`, () => {
+    const jugement = jugerCarte(carte(enonce));
+    assert.equal(jugement.admise, false);
+    assert.match(jugement.admise ? "" : jugement.raison, new RegExp(`git gesture .*${mot}.*fix ticket`));
+    assert.equal(refuserGesteGit(carte(enonce)) !== null, true);
   });
 }
 
@@ -60,5 +54,5 @@ test("une carte de produit et une demande de relecture humaine entrent toujours 
 });
 
 test("la garde ne lit que la question, pas les choix", () => {
-  assert.equal(refuserDemandeTechnique({ enonce: "Is the empty rail right?", choix: [{ texte: "Merge PR #1." }] }), null);
+  assert.equal(refuserGesteGit({ enonce: "Is the empty rail right?", choix: [{ texte: "Merge PR #1." }] }), null);
 });
