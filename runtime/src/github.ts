@@ -17,7 +17,7 @@ import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-de
 export const LABEL = "fire";
 // Le label par lequel un ticket dit qu'il ne se sert pas sur cette box — sa base
 // n'est pas celle du projet, par exemple. Il l'emporte sur `fire`.
-export const HORS_CUISINE = "hors-cuisine";
+export const HORS_CUISINE = "served-elsewhere";
 
 export type Issue = {
   number: number;

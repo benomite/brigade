@@ -1,4 +1,4 @@
-// Le ticket de temps perdu resté `hors-cuisine` (#2786, épique #2782) : un
+// Le ticket de temps perdu resté `served-elsewhere` (#2786, épique #2782) : un
 // ticket « Tickets lose too much time » (`temps-max/correction.ts`) ouvert sur
 // un projet servi mesure la cuisine, pas le code du projet. Sa cause est dans
 // la station : ses cooks ratent trois fois, et il sort de la cuisine
@@ -8,7 +8,7 @@
 // le redépose une fois sur le dépôt de brigade, avec un lien vers l'original ;
 // puis elle dit pourquoi sur l'original, et le ferme. Une perte qui n'est plus
 // au-dessus du seuil ferme l'original sans rien redéposer. Tout autre ticket
-// `hors-cuisine` reste tel quel.
+// `served-elsewhere` reste tel quel.
 //
 // Idempotent : le redépôt porte la marque cachée de l'original, cherchée sur
 // le dépôt de brigade avant d'en créer un ; le commentaire porte la sienne,
@@ -23,7 +23,7 @@ import { MARQUE_CORRECTION } from "./temps-max/correction.ts";
 
 export const DEPOT_DE_BRIGADE = "benomite/brigade";
 export const TITRE_DU_TEMPS_PERDU = "Tickets lose too much time";
-export const MARQUE_DU_COMMENTAIRE = "<!-- brigade:refile-hors-cuisine -->";
+export const MARQUE_DU_COMMENTAIRE = "<!-- brigade:refile-served-elsewhere -->";
 // La marque du redépôt : l'original qu'il porte, `<owner>/<repo>#<n>`.
 export const marqueDuRedepot = (depot: string, numero: number) => `<!-- brigade:refile ${depot}#${numero} -->`;
 // Jusqu'où, sur le dépôt de brigade, on cherche un redépôt déjà fait.

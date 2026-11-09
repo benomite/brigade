@@ -85,7 +85,7 @@ PRs…`, or `still running: brigade/gates — nothing to do`), the tickets' own 
 aside: <reason>`, on the old path's rail and on the GitHub-only turn, where the claim gate reads the card's `attend` and
 the set-aside ticket's last station comment; `#2383 is claimable but not claimed, the claim gate skipped it: zone held by
 #N`, `capability missing…` or `its calibration (model, effort) is incomplete`; the gate does not claim a ticket that
-waits on a set-aside one, `hors-cuisine` or `blocked-on-human`), or `cause unknown`, with no gesture — only when none of
+waits on a set-aside one, `served-elsewhere` or `blocked-on-human`), or `cause unknown`, with no gesture — only when none of
 these applies. Later passes of the same hold write nothing; a new cause rewrites the entry, keeping
 its start. When the kitchen serves again — or nothing waits any more, or you stop the kitchen —, `kitchen.hold-lifted`
 is written and the entry leaves the block. On the old path the waiting tickets are read from the rail; on the
@@ -362,7 +362,7 @@ full run of the gates of <project> on the base back under its budget: …". Its 
 wall-clock and CPU, each budget, the exceeded dimension and
 by how much, the run that did it, and the criteria: back under budget, no test removed, skipped or
 weakened. It carries `fire`, `prio:1` and `model:opus` / `effort:high`. **One at a time**: while the last one is on the rail (open on GitHub, with
-`fire`, without `hors-cuisine`), a run over budget opens nothing; once it is closed, gone — or
+`fire`, without `served-elsewhere`), a run over budget opens nothing; once it is closed, gone — or
 taken off the rail and left open —, the next run over budget writes `gates.budget-ticket-closed`
 (`state`: `closed`, `gone` or `off-rail`) and opens a new one. While the last run is over budget and
 no budget ticket is on the rail, `rail` says so in one line (`gates of <project> over budget

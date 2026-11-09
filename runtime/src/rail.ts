@@ -79,7 +79,7 @@ const ABANDONS: Record<string, string> = {
   closed: "issue fermée sans avoir été servie",
   unfired: "label `fire` retiré",
   gone: "issue disparue",
-  "hors-cuisine": "label `hors-cuisine` posé : ce ticket ne se sert pas sur cette box",
+  "served-elsewhere": "label `served-elsewhere` posé : ce ticket ne se sert pas sur cette box",
 };
 
 export function nomAbandon(motif: string): string {
@@ -91,7 +91,7 @@ const ABANDONS_EN: Record<string, string> = {
   closed: "issue closed without being served",
   unfired: "label `fire` removed",
   gone: "issue gone",
-  "hors-cuisine": "label `hors-cuisine` set: this ticket is not served on this box",
+  "served-elsewhere": "label `served-elsewhere` set: this ticket is not served on this box",
 };
 
 export function nomAbandonEn(motif: string): string {

@@ -211,7 +211,7 @@ async function epuiser(gh: ReturnType<typeof depot>) {
 test("au plafond, rien ne monte : le ticket sort de la cuisine, un humain décide", async () => {
   const gh = depot(["fire", LABEL_IN_PASS, "model:opus", "effort:high"]);
   const coup = await epuiser(gh);
-  assert.equal(coup.coup, "hors-cuisine");
+  assert.equal(coup.coup, "served-elsewhere");
   assert.deepEqual(gh.creees, []);
   assert.ok(gh.labels().includes(HORS_CUISINE));
   assert.match(gh.commentaires().at(-1)?.body ?? "", /already the highest the kitchen sets/);
@@ -220,7 +220,7 @@ test("au plafond, rien ne monte : le ticket sort de la cuisine, un humain décid
 test("un ticket fix de la cuisine n'ouvre pas de fix de plus", async () => {
   const gh = depot(CALIBRE, `${marqueDeFix(7)}\n\n## Context`);
   const coup = await epuiser(gh);
-  assert.equal(coup.coup, "hors-cuisine");
+  assert.equal(coup.coup, "served-elsewhere");
   assert.deepEqual(gh.creees, []);
 });
 

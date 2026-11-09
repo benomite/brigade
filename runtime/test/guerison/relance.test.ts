@@ -163,7 +163,7 @@ test("un ticket mis de côté pour une raison produit ou de design n'est pas rel
 
 test("une mise de côté dont la raison n'est pas réparable par un cook n'est pas relancée : un humain décide", async () => {
   const d = depot();
-  d.poster(TICKET, "<!-- brigade:renvoi n=3 sha=abc -->\nStation `box/claude`: still not mergeable after 2 sends back — the design is undecided\n\nTaken off the kitchen (`hors-cuisine`): a human decides.");
+  d.poster(TICKET, "<!-- brigade:renvoi n=3 sha=abc -->\nStation `box/claude`: still not mergeable after 2 sends back — the design is undecided\n\nTaken off the kitchen (`served-elsewhere`): a human decides.");
   assert.equal((await d.relancer()).fait, "rien");
   assert.ok(d.etiquettes.has(HORS_CUISINE));
   assert.equal(d.commentairesDu().length, 1);

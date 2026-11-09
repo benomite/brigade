@@ -387,12 +387,12 @@ station posts that deliverable on the issue (`brigade:constat` marker) and close
 the criteria section counts, and not what it quotes (backticks, quotation marks, `>` quotes); a
 ticket without that section, a cook without a delimited deliverable, or a branch whose PR is still
 open stays a cook without a delivery. Before, every correct cook of a diagnosis-only ticket counted
-as a failure, until `hors-cuisine` (BOBL-tech/espace#826).
+as a failure, until `served-elsewhere` (BOBL-tech/espace#826).
 
 ### Relaunching a set-aside ticket
 
-A station on GitHub alone sets a ticket aside (`hors-cuisine`) after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or
-after 2 sends back of the same delivery. To relaunch it, fix the cause, then **remove `hors-cuisine`**
+A station on GitHub alone sets a ticket aside (`served-elsewhere`) after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or
+after 2 sends back of the same delivery. To relaunch it, fix the cause, then **remove `served-elsewhere`**
 from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
 the next turn, and both counts restart: the cooks without a delivery and the sends back are counted
 from the removal, which every station reads on GitHub (the issue's label-removal event), so the next
@@ -442,7 +442,7 @@ for none.
 - **The chef has two ways out** (#1958), on its WAITING card: give the capability to one of the
   project's stations (`installation stations set`), or make it a human's job (`rail human <ticket>`,
   [`journal-et-rail.md`](journal-et-rail.md), "Handing a ticket to a human"): it leaves the rail,
-  `hors-cuisine`, and its task enters TODO.
+  `served-elsewhere`, and its task enters TODO.
 - **With no declared station at all**, a ticket that asks for a capability is 86 in the same way; one
   that asks for none waits.
 

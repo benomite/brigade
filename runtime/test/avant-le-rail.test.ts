@@ -41,9 +41,9 @@ test("un tableau de référence : chaque issue dans un seul des cinq états, et 
   noter({ type: "manager.judged", payload: { ...REFUS, kind: "epic" } }, 31);
   // Mise sur le rail par le manager, `fire` pas encore posé.
   noter({ type: "manager.judged", payload: LANCE }, 34);
-  // Écartées par le code : un `blocked-on-human`, et `hors-cuisine` jugé.
+  // Écartées par le code : un `blocked-on-human`, et `served-elsewhere` jugé.
   noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 42);
-  noter({ type: "manager.set-aside", payload: { reason: "hors-cuisine", fired: false } }, 43);
+  noter({ type: "manager.set-aside", payload: { reason: "served-elsewhere", fired: false } }, 43);
   const ouvertes = [
     issue(10),
     issue(11, ["prio:1"]),
@@ -59,9 +59,9 @@ test("un tableau de référence : chaque issue dans un seul des cinq états, et 
     issue(40),
     issue(41),
     issue(42, ["blocked-on-human"]),
-    issue(43, ["hors-cuisine"]),
-    // `hors-cuisine` l'emporte sur tout le reste : calibrée, épique, elle est mise de côté.
-    issue(44, ["hors-cuisine", "epic", "model:opus", "effort:high"]),
+    issue(43, ["served-elsewhere"]),
+    // `served-elsewhere` l'emporte sur tout le reste : calibrée, épique, elle est mise de côté.
+    issue(44, ["served-elsewhere", "epic", "model:opus", "effort:high"]),
     // Lancée : le rail la prend à son prochain sondage — elle n'est plus avant lui.
     issue(50, ["fire", "model:opus", "effort:high"]),
     // Une PR n'est jamais un ticket.

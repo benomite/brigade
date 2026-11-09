@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Sortie } from "../../src/appel.ts";
+import { ANCIEN_NOM_DE_SERVED_ELSEWHERE as ANCIEN, ETIQUETTES } from "../../src/etiquettes.ts";
 import { checkRepoSetup, commande, LABELS_DES_ROLES, runRepoSetup, type Repo } from "../../src/depot-prepare/preparation.ts";
 import type { ClientGitHub, RequeteGitHub } from "../../src/proteger-branche.ts";
 import { DEPOT, fauxGh, repertoireTemporaire } from "../outils.ts";
@@ -14,22 +15,43 @@ import { DEPOT, fauxGh, repertoireTemporaire } from "../outils.ts";
 const TOUS = LABELS_DES_ROLES.map(({ name }) => name);
 const BINDINGS = "# Projet\n\n## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `main`\n";
 
-// Un GitHub en mémoire : les labels du dépôt, et ce qu'il refuse de créer.
-function github(presents: string[], refuse: string[] = []) {
-  const labels = new Set(presents.map((nom) => nom.toLowerCase()));
+// Un GitHub en mémoire : les labels du dépôt avec leur description, les issues et
+// les labels qu'elles portent (un renommage de label les suit, comme chez GitHub),
+// et ce qu'il refuse de créer. `presents` : des noms, à la description du
+// catalogue, ou des labels tels que le dépôt les tient.
+type LabelTenu = { name: string; description: string | null };
+function github(presents: Array<string | LabelTenu>, refuse: string[] = [], issues: Record<number, string[]> = {}) {
+  const labels = new Map<string, LabelTenu>();
+  for (const present of presents) {
+    const label = typeof present === "string" ? { name: present, description: ETIQUETTES.find(({ name }) => name.toLowerCase() === present.toLowerCase())?.description ?? null } : present;
+    labels.set(label.name.toLowerCase(), label);
+  }
   const ecritures: RequeteGitHub[] = [];
+  const reponse = (statut: number, corps: unknown = {}) => ({ statut, corps, scopes: null });
   const client: ClientGitHub = async (requete) => {
+    const racine = `repos/${DEPOT}/labels`;
+    if (requete.methode === "GET" && requete.chemin.startsWith(`${racine}?`)) return reponse(200, requete.chemin.endsWith("page=1") ? [...labels.values()] : []);
     if (requete.methode === "GET") {
-      const nom = decodeURIComponent(requete.chemin.slice(`repos/${DEPOT}/labels/`.length));
-      return { statut: labels.has(nom.toLowerCase()) ? 200 : 404, corps: {}, scopes: null };
+      const lu = labels.get(decodeURIComponent(requete.chemin.slice(`${racine}/`.length)).toLowerCase());
+      return lu ? reponse(200, lu) : reponse(404);
     }
     ecritures.push(requete);
-    const { name } = requete.corps as { name: string };
-    if (refuse.includes(name)) return { statut: 403, corps: { message: "Resource not accessible by integration" }, scopes: null };
-    labels.add(name.toLowerCase());
-    return { statut: 201, corps: {}, scopes: null };
+    if (requete.methode === "POST") {
+      const { name, description } = requete.corps as { name: string; description: string };
+      if (refuse.includes(name)) return reponse(403, { message: "Resource not accessible by integration" });
+      labels.set(name.toLowerCase(), { name, description });
+      return reponse(201);
+    }
+    const ancien = decodeURIComponent(requete.chemin.slice(`${racine}/`.length));
+    const tenu = labels.get(ancien.toLowerCase());
+    if (!tenu) return reponse(404);
+    const { new_name: nouveau, description } = requete.corps as { new_name?: string; description?: string };
+    labels.delete(ancien.toLowerCase());
+    labels.set((nouveau ?? tenu.name).toLowerCase(), { name: nouveau ?? tenu.name, description: description ?? tenu.description });
+    if (nouveau !== undefined) for (const portes of Object.values(issues)) portes.splice(0, portes.length, ...portes.map((nom) => (nom === ancien ? nouveau : nom)));
+    return reponse(200);
   };
-  return { client, ecritures, labels };
+  return { client, ecritures, labels, issues };
 }
 
 function depot(t: TestContext, claudeMd: string | null): Repo {
@@ -72,14 +94,58 @@ describe("le geste", { concurrency: 4 }, () => {
 
     assert.deepEqual(await runRepoSetup(repo, gh.client), { ready: true, missingBindings: false, missingLabels: [] });
     assert.deepEqual(await checkRepoSetup(repo, gh.client), { ready: true, missingBindings: false, missingLabels: [] });
-    assert.deepEqual(gh.ecritures.map((requete) => (requete.corps as { name: string }).name), ["product", "prio:1", "prio:2", "prio:3"]);
+    assert.deepEqual(gh.ecritures.map((requete) => (requete.corps as { name: string }).name), ETIQUETTES.map(({ name }) => name).filter((nom) => nom !== "triage"));
     const ecrit = readFileSync(join(repo.dir, "CLAUDE.md"), "utf8");
     assert.match(ecrit, /^# Projet\n\nDu texte du projet\.\n\n## Équipe multi-agents \(plugin brigade\)\n/);
     assert.match(ecrit, /- \*\*Branche d'intégration\*\* : `main`/);
 
     assert.deepEqual(await runRepoSetup(repo, gh.client), { ready: true, missingBindings: false, missingLabels: [] });
-    assert.equal(gh.ecritures.length, 4);
+    assert.equal(gh.ecritures.length, ETIQUETTES.length - 1);
     assert.equal(readFileSync(join(repo.dir, "CLAUDE.md"), "utf8"), ecrit);
+  });
+
+  test("sur un projet vide, l'init crée chaque label du catalogue, avec son nom et sa description anglais", async (t) => {
+    const gh = github([]);
+
+    await runRepoSetup(depot(t, "# Projet\n"), gh.client);
+
+    assert.deepEqual([...gh.labels.values()], ETIQUETTES.map(({ name, description }) => ({ name, description })));
+    assert.deepEqual(gh.ecritures.map((requete) => requete.methode), ETIQUETTES.map(() => "POST"));
+    assert.deepEqual(gh.ecritures.map((requete) => (requete.corps as { color: string }).color), ETIQUETTES.map(({ color }) => color));
+  });
+
+  test("à la mise à jour, les descriptions françaises et l'ancien nom du label servi ailleurs finissent en anglais, les tickets sur `served-elsewhere`", async (t) => {
+    const anciens = [
+      { name: "product", description: "Issue née du PO" },
+      { name: "triage", description: "À qualifier" },
+      { name: "prio:1", description: "À faire en premier" },
+      { name: "fire", description: "brigade : à servir — l'issue entre sur le rail" },
+      { name: ANCIEN, description: "Ce ticket ne se sert pas sur cette box" },
+      { name: "bug", description: "Un label du projet" },
+    ];
+    const gh = github(anciens, [], { 7: ["fire", ANCIEN], 8: [ANCIEN, "bug"], 9: ["fire"] });
+
+    await runRepoSetup(depot(t, "# Projet\n"), gh.client);
+
+    const finis = new Map([...gh.labels.values()].map(({ name, description }) => [name, description]));
+    for (const { name, description } of ETIQUETTES) assert.equal(finis.get(name), description, name);
+    assert.equal(finis.has(ANCIEN), false);
+    assert.equal(finis.get("bug"), "Un label du projet");
+    assert.deepEqual(gh.issues, { 7: ["fire", "served-elsewhere"], 8: ["served-elsewhere", "bug"], 9: ["fire"] });
+
+    const avant = gh.ecritures.length;
+    await runRepoSetup(depot(t, "# Projet\n"), gh.client);
+    assert.equal(gh.ecritures.length, avant);
+  });
+
+  test("GitHub qui ne rend pas la liste des labels : le geste rejette en une phrase, sans rien écrire", async (t) => {
+    const ecritures: string[] = [];
+    const client: ClientGitHub = async (requete) => {
+      if (requete.methode !== "GET") ecritures.push(requete.chemin);
+      return requete.chemin.includes("?") ? { statut: 500, corps: { message: "Server Error" }, scopes: null } : { statut: 200, corps: {}, scopes: null };
+    };
+    await assert.rejects(runRepoSetup(depot(t, "# Projet\n"), client), { message: `GitHub did not let the labels be read on ${DEPOT} (HTTP 500: Server Error).` });
+    assert.deepEqual(ecritures, []);
   });
 
   test("sans CLAUDE.md, il le crée avec la seule section, sur la branche du dépôt", async (t) => {

@@ -3,7 +3,7 @@
 // #2908 était rouge — deux tests de la vue lisaient encore les anciennes
 // maquettes — et personne ne l'a réparée : elle a fini en demande « merge it »
 // au chef. Le pass ne renvoie que le rouge d'un ticket `in-pass`, et la relance
-// (`guerison/relance.ts`) celui d'un ticket `hors-cuisine` ; un ticket tenu
+// (`guerison/relance.ts`) celui d'un ticket `served-elsewhere` ; un ticket tenu
 // pour le chef (`blocked-on-human`, `chef-todo`) gardait sa PR rouge.
 //
 // À chaque tour, pour chaque PR ouverte sur une branche `cook/<n>-github` :
@@ -11,7 +11,7 @@
 //   épique : rien ;
 // - un cook y travaille — en cuisson ici, `taken`, ou `in-pass`, où le pass
 //   renvoie lui-même le rouge — : rien ;
-// - `hors-cuisine` est à la relance, `waiting` attend son ticket `fix` : rien ;
+// - `served-elsewhere` est à la relance, `waiting` attend son ticket `fix` : rien ;
 // - rien ne le tient pour le chef : libre, un cook le prendra, et le pass
 //   renverra le rouge de sa PR approuvée : rien ;
 // - la CI de sa tête n'a aucun check rouge (verte, en cours, absente) : rien ;

@@ -3,7 +3,7 @@
 // commit : le cook qui n'a rien commité et délimite son constat a livré, et la
 // station poste ce constat sur l'issue, puis ferme le ticket (#2854). Sur
 // BOBL-tech/espace#826, trois cooks ont rendu ce constat, comptés chacun pour
-// un `echec`, et le ticket est parti `hors-cuisine`.
+// un `echec`, et le ticket est parti `served-elsewhere`.
 //
 // La règle reste étroite, pour ne pas masquer un vrai échec : seuls comptent
 // les critères d'acceptation du corps, et une phrase qui dit que le livrable

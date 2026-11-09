@@ -7,7 +7,7 @@
 // - Attendent : les tickets `fire` en pass, et ceux qu'une station prendrait —
 //   ni `taken`, ni `in-pass`, au calibrage complet. Pas ceux qui attendent le
 //   chef (`blocked-on-human`, `chef-todo`), un tiers (`waiting`), ou qui sont
-//   sortis de la cuisine (`hors-cuisine`), ni une épique, dont le corps liste
+//   sortis de la cuisine (`served-elsewhere`), ni une épique, dont le corps liste
 //   les tickets (#2618).
 // - Servi : un merge que ce tour a fait, ou un ticket en pass qui n'est plus
 //   parmi les tickets ouverts — une autre station l'a mergé.

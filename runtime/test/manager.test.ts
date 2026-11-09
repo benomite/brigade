@@ -319,9 +319,9 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => labels(30).includes("fire"));
   });
 
-  test("`hors-cuisine` posé par le compteur de la station n'est pas dit « servi ailleurs » (#2728)", async (t) => {
-    const { dits, laisserTourner, gh } = brigade(t, { issues: [issue(30, ["fire", "model:haiku", "effort:low", "hors-cuisine"])] });
-    gh.repondre(30, "<!-- brigade:renvoi n=3 sha=abc -->\nStation `A`: still not mergeable.\n\nTaken off the kitchen (`hors-cuisine`): a human decides.", "NONE");
+  test("`served-elsewhere` posé par le compteur de la station n'est pas dit « servi ailleurs » (#2728)", async (t) => {
+    const { dits, laisserTourner, gh } = brigade(t, { issues: [issue(30, ["fire", "model:haiku", "effort:low", "served-elsewhere"])] });
+    gh.repondre(30, "<!-- brigade:renvoi n=3 sha=abc -->\nStation `A`: still not mergeable.\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", "NONE");
     await laisserTourner();
 
     assert.equal(dits(30).length, 1);
@@ -329,20 +329,20 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dits(30)[0] ?? "", /la station a mis ce ticket de côté/);
   });
 
-  test("`hors-cuisine` l'emporte sur `fire` et sur un calibrage complet : jamais jugée, jamais lancée, et le manager le dit", async (t) => {
+  test("`served-elsewhere` l'emporte sur `fire` et sur un calibrage complet : jamais jugée, jamais lancée, et le manager le dit", async (t) => {
     const { jugements, labels, dits, faits, journal, laisserTourner } = brigade(t, {
-      issues: [issue(30, ["fire", "model:haiku", "effort:low", "hors-cuisine"]), issue(31, ["hors-cuisine"])],
+      issues: [issue(30, ["fire", "model:haiku", "effort:low", "served-elsewhere"]), issue(31, ["served-elsewhere"])],
     });
     await laisserTourner();
 
     assert.equal(jugements().length, 0);
-    assert.deepEqual(labels(31), ["hors-cuisine"]);
+    assert.deepEqual(labels(31), ["served-elsewhere"]);
     assert.equal(journal.duTicket(30).some((e) => e.type === "ticket.arrived"), false);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.set-aside", "manager.commented"]);
-    assert.equal(charge(faits(30)[0])?.reason, "hors-cuisine");
-    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "hors-cuisine"]]);
+    assert.equal(charge(faits(30)[0])?.reason, "served-elsewhere");
+    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "served-elsewhere"]]);
     assert.equal(dits(30).length, 1);
-    assert.match(dits(30)[0] ?? "", /`hors-cuisine` l'emporte/);
+    assert.match(dits(30)[0] ?? "", /`served-elsewhere` l'emporte/);
     assert.doesNotMatch(dits(30)[0] ?? "", /Pose-les toi-même/);
     assert.deepEqual(dits(31), []);
   });

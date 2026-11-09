@@ -114,7 +114,7 @@ test("a PR on a branch that is not cook/<n>-github, or whose ticket is off the r
     prs: [pr(30, SHA, "feature/30"), pr(30, SHA, "cook/30-local"), pr(50), pr(51), pr(52), pr(53)],
     tickets: [
       { number: 30, labels: [...CALIBRE, "blocked-on-human"] },
-      { number: 51, labels: [...CALIBRE, "hors-cuisine"] },
+      { number: 51, labels: [...CALIBRE, "served-elsewhere"] },
       { number: 52, labels: [...CALIBRE, "waiting"] },
       { number: 53, labels: ["fire"], epique: true },
     ],

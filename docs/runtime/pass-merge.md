@@ -11,7 +11,7 @@ A delivery is merged once its verdict is approved and the CI of its head is gree
 
 ⚠️ **Code written by a cook lands on the integration branch without any human having read it**: its
 judges are the gates, the project's CI, and a reviewer that is a model. The brakes are the stop
-(`hors-cuisine` sets a ticket aside, [`station.md`](station.md)) and the second judge, which reads a
+(`served-elsewhere` sets a ticket aside, [`station.md`](station.md)) and the second judge, which reads a
 delivery that changes what judges it before it merges ([`pass.md`](pass.md), "The second judge").
 
 ### Deliveries judged in parallel

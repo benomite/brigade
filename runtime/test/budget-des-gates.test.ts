@@ -143,7 +143,7 @@ describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
     assert.ok(gh.lire(501)!.labels.includes("prio:1"));
   });
 
-  test("un ticket retiré du rail, resté ouvert, ne retient pas le suivant — ni `hors-cuisine`", async (t) => {
+  test("un ticket retiré du rail, resté ouvert, ne retient pas le suivant — ni `served-elsewhere`", async (t) => {
     const { gh, passage, tenir, types } = cas(t);
     passage(TROP_LONG);
     await tenir();
@@ -151,7 +151,7 @@ describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
 
     passage(TROP_LONG);
     assert.deepEqual(await tenir(), { ticket: 502, ouvert: true });
-    gh.poser({ ...gh.lire(502)!, labels: [...gh.lire(502)!.labels, "hors-cuisine"] });
+    gh.poser({ ...gh.lire(502)!, labels: [...gh.lire(502)!.labels, "served-elsewhere"] });
     passage(TROP_LONG);
     assert.deepEqual(await tenir(), { ticket: 503, ouvert: true });
     assert.deepEqual(types().filter((type) => type.startsWith("gates.budget-ticket-closed")), ["gates.budget-ticket-closed 501", "gates.budget-ticket-closed 502"]);

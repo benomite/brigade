@@ -77,7 +77,7 @@ async function cookSansCommit(t: TestContext, corps: string, message: string, to
   return { faux, corps: (faux.commentaires.get(TICKET) ?? []).map((c) => c.body) };
 }
 
-test("a diagnosis-only ticket whose cook commits nothing and delivers a finding is served: the finding is posted, the ticket closed, no echec and no hors-cuisine (#2854)", async (t) => {
+test("a diagnosis-only ticket whose cook commits nothing and delivers a finding is served: the finding is posted, the ticket closed, no echec and no served-elsewhere (#2854)", async (t) => {
   const { faux, corps } = await cookSansCommit(t, DIAGNOSTIC, `I read the detector.\n\n<livrable>\n${CONSTAT}\n</livrable>\n\n<retro></retro>`);
   const constat = corps.filter((c) => c.startsWith(MARQUE_DE_CONSTAT));
   assert.equal(constat.length, 1);
