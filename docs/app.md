@@ -1052,7 +1052,9 @@ recommended button, **Install this computer's station**, and no other setting. A
 bridge ("installing the station…", no button meanwhile), then walks the first settings one step at a time — "Step 1 of 2
 — GitHub" (**Connect to GitHub**, the gesture the app already has), "Step 2 of 2 — Projects" — each with **Next**, the
 last with **Done**, until "the station is ready". A refusal is one line, its detail on hover, and the button comes back.
-**Installed**: the station's name and its line, and **Open its page**; no install button. **Your other stations** are
+**Installed** (a card, as `Home.dc.html` draws it): the station's name and its line, then a second row with its version
+(and whether a newer one is out) and **Station settings**, which opens its page; no install button. The mockup's
+"Update now" is not built: the app has no gesture that updates this computer's station. **Your other stations** are
 listed under it, each row opening its page. The bridge's `installerLaStation` (preload and main, `app/src/poste/installer.ts`)
 makes sure this app's station is running — on a computer, installing the app installs the station — and refuses in one line
 when it is not a station here or refused to start; on Android the bridge has none, and the button says so. The "GitHub" step
@@ -1108,9 +1110,11 @@ THIS COMPUTER'S STATION
   in the app's own words, and the project's space shows it in full.
 
 **The Projects block** (`app/src/vue/accueil/projets/`). One line per project: its state among *cooking*,
-*waiting for the chef*, *held* and *idle* (read from the line `accueil.ts` already says), then the stations that
-serve it (or "no station"); one click on the line opens the project. Under the list, "Add a project" opens the
-single guided path (`parcours-projet/`), the same as the "+" in the bar. An empty list says "no project yet".
+*waiting for the chef*, *held* and *idle*, then what is going on in one sentence (the line `accueil.ts` already says),
+and, when the chef is expected, an `N awaiting you` pill (`attend` of the line); the stations that serve it are in the
+name of the line, not on its face. One click on the line opens the project. "Add a project" sits at the right of the
+title (as `Home.dc.html` draws it, #2912) and opens the single guided path (`parcours-projet/`), the same as the "+" in
+the bar. An empty list says "no project yet".
 
 **Where it comes from** (`app/src/accueil.ts`). The home asks nothing new of anyone: it is drawn
 from what the app already reads. `facts` of each project, every thirty seconds and whatever the

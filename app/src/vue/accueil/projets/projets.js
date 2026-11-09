@@ -11,7 +11,8 @@ import { boutonAction } from "../../briques.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {"cooking" | "waiting" | "held" | "idle"} EtatDeProjet */
-/** @typedef {{ nom: string, etat: EtatDeProjet, stations: string[], survol?: string }} ProjetDuBloc */
+// `maintenant` : ce qui s'y passe, en une phrase (accueil.ts) ; `attend` : combien de décisions attendent le chef, absent quand aucune.
+/** @typedef {{ nom: string, etat: EtatDeProjet, stations: string[], maintenant: string, attend?: number, survol?: string }} ProjetDuBloc */
 /** @typedef {{ ouvrir(nom: string): void, ajouter(): void, pastille?(dit: string, ton: string): any }} GestesDuBloc */
 
 // Les quatre états, dans les mots de l'app, avec le ton de leur pastille (vue.css) : le chef attendu est jaune, un
@@ -33,8 +34,10 @@ export function etatDeLaLigne({ ton, dit }) {
 }
 export const SANS_STATION = "no station";
 export const AJOUTER = "Add a project";
+export const ATTEND = "awaiting you";
 
-// Une ligne : la pastille, le nom, l'état, les stations — et la flèche. Un seul bouton, donc un seul clic.
+// Une ligne : la pastille, le nom, l'état, ce qui s'y passe, ce qui attend le chef — et la flèche. Les stations se lisent
+// dans le nom accessible de la ligne. Un seul bouton, donc un seul clic.
 /** @param {Fabrique} doc @param {ProjetDuBloc} projet @param {GestesDuBloc} gestes */
 function ligne(doc, projet, gestes) {
   const { dit, ton } = ETATS[projet.etat];
@@ -56,14 +59,21 @@ function ligne(doc, projet, gestes) {
   const etat = doc.createElement("span");
   etat.className = "etat";
   etat.textContent = dit;
-  const ou = doc.createElement("span");
-  ou.className = "stations";
-  ou.textContent = stations;
+  const maintenant = doc.createElement("span");
+  maintenant.className = "maintenant";
+  maintenant.textContent = projet.maintenant;
   const suite = doc.createElement("span");
   suite.className = "ouvrir";
   suite.ariaHidden = "true";
   suite.textContent = "›";
-  racine.append(pastille, nom, etat, ou, suite);
+  racine.append(pastille, nom, etat, maintenant);
+  if (projet.attend !== undefined && projet.attend > 0) {
+    const attend = doc.createElement("span");
+    attend.className = "attend";
+    attend.textContent = `${projet.attend} ${ATTEND}`;
+    racine.append(attend);
+  }
+  racine.append(suite);
   racine.addEventListener("click", () => gestes.ouvrir(projet.nom));
   return racine;
 }

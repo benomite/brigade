@@ -1301,7 +1301,7 @@ main > header,
   flex-direction: column;
   gap: var(--pas-4);
 }
-.bloc-de-l-accueil > h2 {
+.bloc-de-l-accueil h2 {
   font-size: var(--taille-meta);
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1346,6 +1346,60 @@ main > header,
 :is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne span.ouvrir {
   flex: none;
   color: var(--discret);
+}
+/* Home.dc.html (#2912) : le titre des projets et « Add a project » sur une rangée ; une ligne de projet qui passe à la
+   ligne quand la fenêtre se resserre — ce qui s'y passe prend la largeur qui reste, et ce qui attend le chef est une pastille. */
+.entete-du-bloc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pas-2) var(--pas-3);
+}
+#tous .liste .ligne {
+  flex-wrap: wrap;
+  align-items: center;
+}
+#tous .ligne span.etat {
+  flex: none;
+}
+#tous .ligne span.maintenant {
+  flex: 1 1 12em;
+}
+#tous .liste .ligne span.ouvrir {
+  margin-left: auto;
+}
+#tous .ligne span.attend {
+  flex: none;
+  padding: 0 var(--pas-2);
+  border: 1px solid #5c4630;
+  border-radius: var(--rayon-pastille);
+  background: #1f1b17;
+  color: var(--rouge-clair);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  line-height: 22px;
+}
+/* La carte de la station de cet ordinateur : son nom et ce qu'elle dit, puis sa version et « Station settings ». */
+#accueil-bloc-station .station-installee,
+#accueil-bloc-station .station-page {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2) var(--pas-4);
+  margin: 0;
+  padding: var(--pas-2) var(--pas-3);
+}
+#accueil-bloc-station .station-installee strong {
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+}
+#accueil-bloc-station .station-page {
+  border-top: 1px solid var(--trait-doux);
+}
+#accueil-bloc-station :is(.station-installee, .station-page) .dit {
+  color: var(--texte-doux);
+  overflow-wrap: anywhere;
 }
 /* Le premier lancement, sur un ordinateur neuf (ticket 1434) : en tête la phrase de ce qu'on attend du chef — ou
    pourquoi rien ne se lit —, puis une carte par station, ses projets en boutons. Ce qui se passe sous une station —

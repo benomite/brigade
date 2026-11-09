@@ -2,7 +2,7 @@
 // stations ; un clic ouvre le projet ; « Add a project » lance le parcours d'ajout. Joué devant un faux document.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { AJOUTER, ETATS, SANS_STATION, etatDeLaLigne, boutonDAjout, lignesDeProjets, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
+import { AJOUTER, ATTEND, ETATS, SANS_STATION, etatDeLaLigne, boutonDAjout, lignesDeProjets, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -18,21 +18,22 @@ const poserLesProjets = (d: typeof doc, projets: ProjetDuBloc[], g: ReturnType<t
 };
 const lignes = (bloc: Faux) => bloc.children.filter(({ className }) => className === "ligne");
 const PROJETS: ProjetDuBloc[] = [
-  { nom: "brigade", etat: "cooking", stations: ["parade-box", "this Mac"] },
-  { nom: "espace", etat: "waiting", stations: ["parade-box"] },
-  { nom: "calculus", etat: "held", stations: [] },
-  { nom: "cantine", etat: "idle", stations: ["this Mac"] },
+  { nom: "brigade", etat: "cooking", stations: ["parade-box", "this Mac"], maintenant: "#12 cooking" },
+  { nom: "espace", etat: "waiting", stations: ["parade-box"], maintenant: "1 decision awaits you", attend: 1 },
+  { nom: "calculus", etat: "held", stations: [], maintenant: "kitchen held" },
+  { nom: "cantine", etat: "idle", stations: ["this Mac"], maintenant: "nothing cooking, nothing waits for you" },
 ];
 
 describe("le bloc Projects de l'accueil", () => {
   test("une ligne par projet, avec son état parmi les quatre et ses stations", () => {
     const bloc = poserLesProjets(doc, PROJETS, gestes());
     assert.deepEqual(lignes(bloc).map((l) => l.children.map(texte).filter((t) => t !== "")), [
-      ["brigade", "cooking", "parade-box, this Mac", "›"],
-      ["espace", "waiting for the chef", "parade-box", "›"],
-      ["calculus", "held", SANS_STATION, "›"],
-      ["cantine", "idle", "this Mac", "›"],
+      ["brigade", "cooking", "#12 cooking", "›"],
+      ["espace", "waiting for the chef", "1 decision awaits you", `1 ${ATTEND}`, "›"],
+      ["calculus", "held", "kitchen held", "›"],
+      ["cantine", "idle", "nothing cooking, nothing waits for you", "›"],
     ]);
+    assert.deepEqual(lignes(bloc).map((l) => l.ariaLabel?.split(" — ").at(-1)), ["parade-box, this Mac", "parade-box", SANS_STATION, "this Mac"], "les stations restent dites, dans le nom de la ligne");
     assert.deepEqual(Object.values(ETATS).map(({ dit }) => dit), ["cooking", "waiting for the chef", "held", "idle"]);
   });
 

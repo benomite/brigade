@@ -131,7 +131,7 @@ import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/Ajout
 import { ORDINAIRES_EN_COURS, poserBlocReglagesStation } from "./projet/stations/ReglagesStation.js";
 import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
 import { monterLePanneau } from "./projet/panneau-second/panneau-second.js";
-import { poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
+import { poserAjout, poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
 import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocTempsTickets } from "./projet/bandeau-sante/TempsTickets.js";
 import { poserBlocBloqueSansQuestion } from "./projet/bandeau-sante/BloqueSansQuestion.js";
@@ -139,7 +139,7 @@ import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js"
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
-import { casesDesVersions, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
+import { casesDesVersions, caseDIci, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -5325,9 +5325,11 @@ function poserAccueil() {
   const desProjets = lignesDeProjets(
     document,
     configuration.projets.map((projet) => {
-      const ligne = lignes.get(projet.nom) ?? { ton: "gris", dit: "first read in progress…", survol: "" };
+      /** @type {import("../accueil.ts").LigneDeProjet} */
+      const attendue = { nom: projet.nom, ton: "gris", dit: "first read in progress…", survol: "" };
+      const ligne = lignes.get(projet.nom) ?? attendue;
       const stations = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom)).map(({ nom }) => nom);
-      return { nom: projet.nom, etat: etatDeLaLigne(ligne), stations, survol: `${ligne.dit}${ligne.survol === "" ? "" : ` — ${ligne.survol}`}` };
+      return { nom: projet.nom, etat: etatDeLaLigne(ligne), stations, maintenant: ligne.dit, ...(ligne.attend === undefined ? {} : { attend: ligne.attend }), survol: `${ligne.dit}${ligne.survol === "" ? "" : ` — ${ligne.survol}`}` };
     }),
     gestesDuBloc,
   );
@@ -5338,10 +5340,12 @@ function poserAccueil() {
       ? [...poserLaListeGitHub(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
       : desProjets.length === 0
         ? (telephoneVu === undefined
-          ? [bloc("p", "no project yet: “+” in the bar adds one"), boutonDAjout(document, gestesDuBloc, true)]
+          ? [bloc("p", "no project yet: “+” in the bar adds one")]
           : [bloc("p", "no project on this phone yet: a project is added from a computer")])
-        : [...desProjets, ...(telephoneVu === undefined ? [boutonDAjout(document, gestesDuBloc, false)] : [])]),
+        : desProjets),
   );
+  // « Add a project » est à droite du titre du bloc (Home.dc.html) ; un téléphone n'ajoute pas de projet.
+  poserAjout(blocDesProjets, telephoneVu === undefined ? boutonDAjout(document, gestesDuBloc, desProjets.length === 0) : undefined);
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
@@ -7204,8 +7208,11 @@ function poserBlocStation() {
   if (stationsVues === undefined && statutLu(statutDeLaStationVu) === undefined) return blocDeLaStation.lire(undefined);
   // Sans id local, la page de sa station ne s'ouvrirait nulle part : elle n'est pas dite installée.
   if (locale === null || (ici === undefined && statutLu(statutDeLaStationVu) === undefined)) return blocDeLaStation.lire({ station: null });
-  const phrase = statutLu(statutDeLaStationVu) === undefined ? "installed" : `version ${statutLu(statutDeLaStationVu)?.stationVersion}`;
-  blocDeLaStation.lire({ station: ici === undefined ? { id: locale, nom: POSTE.nom, phrase } : dite(ici), autres: toutes.filter(({ id }) => id !== locale).map(dite) });
+  const lu = statutLu(statutDeLaStationVu) !== undefined;
+  const version = lu ? caseDIci(POSTE.nom, statutDeLaStationVu).phrase : undefined;
+  const phrase = lu ? `version ${statutLu(statutDeLaStationVu)?.stationVersion}` : "installed";
+  const celle = ici === undefined ? { id: locale, nom: POSTE.nom, phrase } : dite(ici);
+  blocDeLaStation.lire({ station: version === undefined ? celle : { ...celle, version }, autres: toutes.filter(({ id }) => id !== locale).map(dite) });
 }
 // Le statut de la station de cet ordinateur (`statutDeLaStation`, le contrat du ticket 2189) : la version qui tourne ici, la
 // dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.

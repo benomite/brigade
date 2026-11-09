@@ -103,7 +103,7 @@ describe("la coque de la page d'une station", () => {
 });
 
 // L'app jouée : la page d'une station ouverte depuis le bloc de la station de l'accueil (#2638) monte la coque — celle de
-// cet ordinateur par « Open its page », une autre par sa ligne sous « Your other stations ».
+// cet ordinateur par « Station settings », une autre par sa ligne sous « Your other stations ».
 const A = "2026-11-06T12:00:00.000Z";
 const MAC: StationVue = { id: "gist-mac", nom: "mac", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
 const PC: StationVue = { ...MAC, id: "gist-pc", nom: "pc", machine: "Windows 11" };
@@ -128,7 +128,7 @@ async function ouvrirLaStation(nom: string) {
   await repos();
   const boutons = vue.element("accueil-bloc-station").dessous("button");
   const ligne =
-    (nom === "mac" ? boutons.find(({ textContent }) => textContent.startsWith("Open its page")) : boutons.find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom))) ??
+    (nom === "mac" ? boutons.find(({ textContent }) => textContent.startsWith("Station settings")) : boutons.find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom))) ??
     assert.fail(`pas de bouton pour « ${nom} »`);
   ligne.click();
   await repos();

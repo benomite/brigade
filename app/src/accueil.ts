@@ -29,7 +29,8 @@ import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations
 // Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris.
 export type Ton = "vert" | "jaune" | "rouge" | "gris";
 // Une ligne de l'accueil : ce qu'elle dit, sa pastille, et ce qui se lit au survol.
-export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string };
+// `attend` : combien de décisions attendent le chef, absent quand aucune (la pastille « N awaiting you » de l'accueil, #2912).
+export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string; attend?: number };
 // Une station a aussi `phrase` : son état en une phrase, en tête de sa page (#877) — « online · 2 cooks
 // running », « offline for 12 min », « saturated ». Ni sa machine, ni sa version, ni ses projets.
 // `raison` : une station installée qui ne cuit pas encore dit pourquoi, en une phrase qui nomme le geste (stations/raison.ts, #1758).
@@ -139,6 +140,7 @@ export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined
     ton: bloquant.length > 0 ? "rouge" : attendu.length > 0 ? "jaune" : "vert",
     dit: derive.length === 0 ? dit : `${dit} · drifting`,
     survol: `read at ${heure(lu.a)} — ${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
+    ...(faits.compteurs.attend > 0 ? { attend: faits.compteurs.attend } : {}),
   };
 }
 
