@@ -7,7 +7,7 @@
 // lignes des tickets qu'elle tient, ou `idle`. Une station tue dit, à la place, son dernier signe de vie. Arrêter ou
 // relancer une station est un geste de l'ancien chemin, que la boucle de GitHub seul ne lit pas : aucun bouton.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
-import { lignesDeCooks, TITRE } from "../stations-de-cuisson.js";
+import { CUISENT, lignesDeCooks, TITRE } from "../stations-de-cuisson.js";
 import { RETENUE } from "../stations-du-compte.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { PAS_ENCORE } from "../lexique.js";
@@ -52,11 +52,12 @@ function atteinteDe({ presente, vueLe, retenue }) {
 
 /**
  * Le bloc des stations, ou null : `cuisson` n'est pas celle d'un projet sur GitHub seul. `tete` : la ligne de la cuisine du
- * projet, sous le titre.
- * @param {Fabrique} doc
- * @param {{ cuisson: import("../../cuisson.ts").CuissonDuProjet | undefined, pastille: (mot: string, ton: string | undefined) => any, tete?: readonly any[] }} options
+ * projet, sous le titre. `enCuisson` : la lecture dit encore vrai — ce qui tourne sur une station qui cuit porte la poêle
+ * (ticket 2984).
+ * @param {import("../composants/poele/poele.js").Fabrique} doc
+ * @param {{ cuisson: import("../../cuisson.ts").CuissonDuProjet | undefined, pastille: (mot: string, ton: string | undefined) => any, tete?: readonly any[], enCuisson?: boolean }} options
  */
-export function poserLesStationsSurGithub(doc, { cuisson, pastille, tete = [] }) {
+export function poserLesStationsSurGithub(doc, { cuisson, pastille, tete = [], enCuisson = false }) {
   if (cuisson?.surGithub === undefined) return null;
   const section = cree(doc, "section");
   section.className = "stations-de-cuisson";
@@ -105,7 +106,7 @@ export function poserLesStationsSurGithub(doc, { cuisson, pastille, tete = [] })
         etat.append(mot);
       }
       // Ses cooks : une ligne chacun, sous sa ligne.
-      pose.append(nom, etat, lignesDeCooks(doc, ligne.cooks, ligne.agents));
+      pose.append(nom, etat, lignesDeCooks(doc, ligne.cooks, ligne.agents, enCuisson && CUISENT.has(ligne.etat)));
       return pose;
     }),
   );

@@ -210,6 +210,37 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual((({ verdict, kind }) => ({ verdict, kind }))(charge(faits(30)[0]) ?? {}), { verdict: "refused", kind: "incomplete" });
   });
 
+  test("un ticket incomplet dont la question est un geste git (#3002) : aucune carte, pas de label question, un ticket fix sur la cuisine", async (t) => {
+    const { gh, labels, dits, faits, journal } = brigade(t, { manager: { suite: ["juge-incomplet", "complete-geste-git"] }, issues: [issue(30, [])] });
+    await jusqua(() => dits(30).length === 2);
+
+    assert.equal(gh.creations.length, 1);
+    const fix = gh.lire(501);
+    assert.ok(fix?.labels.includes("fix") && fix.labels.includes("fire"));
+    assert.deepEqual(labels(30), []);
+    assert.match(dits(30)[0] ?? "", /geste git, aucune carte pour le chef/);
+    assert.match(dits(30)[0] ?? "", /#501/);
+    assert.equal(journal.duTicket(30).filter((e) => e.type === "todo.rerouted").length, 1);
+    assert.equal(journal.duTicket(30).filter((e) => e.type === "todo.entered" || e.type === "todo.held").length, 0);
+    assert.deepEqual(faits(30).filter((e) => e.type === "manager.completed").map((e) => charge(e)?.outcome), ["question"]);
+  });
+
+  test("le ticket fix du geste git non ouvert : rien n'est noté ni labellisé, la complétion est reprise au tour suivant (#3002)", async (t) => {
+    const { gh, labels, dits, faits, avertissements, journal } = brigade(t, { manager: { suite: ["juge-incomplet", "complete-geste-git", "complete-geste-git"] }, issues: [issue(30, [])] });
+    gh.pannes.creation = true;
+    await jusqua(() => avertissements.some((message) => /ticket `fix` du geste git non ouvert/.test(message)));
+
+    assert.deepEqual(labels(30), []);
+    assert.deepEqual(faits(30).filter((e) => e.type === "manager.completed"), []);
+    assert.equal(journal.duTicket(30).filter((e) => e.type.startsWith("todo.")).length, 0);
+    assert.deepEqual(dits(30), []);
+
+    gh.pannes.creation = false;
+    await jusqua(() => gh.creations.length === 1 && dits(30).length === 2);
+    assert.deepEqual(labels(30), []);
+    assert.deepEqual(faits(30).filter((e) => e.type === "manager.completed").map((e) => charge(e)?.outcome), ["question"]);
+  });
+
   test("une issue ne se juge qu'une fois par état : ni les réveils, ni ce que le manager y a écrit ne la font rejuger", async (t) => {
     const { gh, jugements, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 2);

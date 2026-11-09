@@ -66,6 +66,11 @@ export const reserveDes = (plafond: number): number => Math.ceil(plafond * RESER
 export class LimiteGitHubAtteinte extends Error {
   readonly jusqua: number;
   readonly libreDansMs: number;
+  // Ce que l'app lit du refus : sa nature et l'instant (ms, epoch) où GitHub rend les appels.
+  readonly kind = "rate-limit" as const;
+  get resetAt(): number {
+    return this.jusqua;
+  }
   constructor(jusqua: number, libreDansMs: number, message = "GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls") {
     super(message);
     this.name = "LimiteGitHubAtteinte";
@@ -537,6 +542,26 @@ export function refusPourLimite(reponse: ReponseHttp): boolean {
   return /rate limit/i.test(message);
 }
 
+// Ce que le statut et les en-têtes d'un refus disent de lui : une limite d'appels
+// (429 ; 403 au quota à zéro ou avec `retry-after`) et l'instant (ms, epoch) où
+// elle prend fin — `retry-after` (secondes) ajouté à `maintenant`, sinon
+// `x-ratelimit-reset` (epoch en secondes) quand le quota est à zéro —, ou `other`.
+// `resetAt` est null quand les en-têtes ne le disent pas (le 429 nu).
+export type ClasseDuRefus = { kind: "rate-limit"; resetAt: number | null } | { kind: "other" };
+
+export function classerLeRefus(statut: number, entetes: Map<string, string>, maintenant: number): ClasseDuRefus {
+  const vide = entetes.get("x-ratelimit-remaining") === "0";
+  const attente = entetes.has("retry-after");
+  if (statut !== 429 && !(statut === 403 && (vide || attente))) return { kind: "other" };
+  const retry = Number(entetes.get("retry-after"));
+  const reset = Number(entetes.get("x-ratelimit-reset"));
+  // `x-ratelimit-reset` est sur toute réponse : le reset horaire du quota
+  // primaire. Il ne dit la fin que si ce quota est épuisé (#2449).
+  if (attente && Number.isFinite(retry) && retry >= 0) return { kind: "rate-limit", resetAt: maintenant + retry * 1000 };
+  if (vide && Number.isFinite(reset) && reset * 1000 > maintenant) return { kind: "rate-limit", resetAt: reset * 1000 };
+  return { kind: "rate-limit", resetAt: null };
+}
+
 // À défaut d'attente donnée par GitHub.
 export const ATTENTE_PAR_DEFAUT_MS = 60_000;
 const DELAI_RATE_LIMIT_MS = 10_000;
@@ -879,14 +904,8 @@ export const estLaPauseDeGitHub = (erreur: unknown): boolean => erreur instanceo
 export async function constaterLimite(limite: Limite, reponse: ReponseHttp, options: { gh: string; env?: NodeJS.ProcessEnv; maintenant?: () => number }): Promise<LimiteGitHubAtteinte> {
   const maintenant = options.maintenant ?? (() => Date.now());
   const instant = maintenant();
-  const retry = Number(reponse.entetes.get("retry-after"));
-  const reset = Number(reponse.entetes.get("x-ratelimit-reset"));
-  let jusqua: number | null = null;
-  if (reponse.entetes.has("retry-after") && Number.isFinite(retry) && retry >= 0) jusqua = instant + retry * 1000;
-  // `x-ratelimit-reset` est sur toute réponse : c'est le reset horaire du quota
-  // primaire. Il ne dit la fin de la fenêtre que si ce quota est épuisé — sur
-  // une limite secondaire, il gelait la station jusqu'à l'heure suivante (#2449).
-  else if (reponse.entetes.get("x-ratelimit-remaining") === "0" && Number.isFinite(reset) && reset * 1000 > instant) jusqua = reset * 1000;
+  const classe = classerLeRefus(reponse.statut, reponse.entetes, instant);
+  let jusqua: number | null = classe.kind === "rate-limit" ? classe.resetAt : null;
   jusqua ??= await finDeFenetreDite({ gh: options.gh, env: options.env, maintenant: instant });
   const precedente = reculs.get(limite) ?? { fin: Number.NEGATIVE_INFINITY, duree: 0 };
   const enCours = instant < precedente.fin;

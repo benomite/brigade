@@ -13,6 +13,7 @@
 // Chaque issue est écrite au journal (`manager.completed`), avec l'empreinte
 // du verdict qu'elle suit : le même verdict ne se relit pas deux fois.
 import { entrerDansTodo } from "../carte-todo.ts";
+import { gesteGit, reparationDuGeste } from "../garde-todo/geste-git.ts";
 import { uneQuestion } from "../carte-todo/forme.ts";
 import type { IssueOuverte } from "../github.ts";
 import { EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, issueEnDonnee, MARQUEUR_MANAGER, objet, parmi, phrase } from "../juger.ts";
@@ -222,6 +223,26 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
       const signature = atelier.signature(run, "Complété");
 
       if (valeur.issue === "question") {
+        const proposition = { type: "product", resume: valeur.resume, enonce: valeur.question, capture: null, choix: valeur.choix.map((texte) => ({ texte, suite: "resume" })) };
+        const geste = gesteGit(proposition);
+        // Un geste git n'est pas une carte : le ticket `fix` de la cuisine la
+        // remplace, ouvert avant que rien soit écrit — s'il échoue, ni label ni
+        // issue `question` ne restent, et tout se refait au tour suivant.
+        if (geste !== null) {
+          let fix: number;
+          try {
+            fix = await github.creerIssue(reparationDuGeste(geste, proposition, issue.number));
+          } catch (erreur) {
+            if (!arrete()) avertir(`brigade : ticket \`fix\` du geste git non ouvert pour l'issue #${issue.number}, repris au tour suivant — ${message(erreur)}`);
+            return "attente";
+          }
+          journal.base.transaction(() => {
+            entrerDansTodo(journal, projet, issue.number, proposition, AUTEUR_DE_CARTE);
+            noter(issue.number, { type: "manager.completed", payload: { run, fingerprint: suivi, outcome: "question", reason: valeur.motif, question: valeur.question } });
+          });
+          await commenter(issue.number, ["**Manager — ticket incomplet : la question est un geste git, aucune carte pour le chef.**", "", valeur.motif, "", `Le ticket \`fix\` #${fix} est ouvert : ${valeur.question}`, "", signature]);
+          return "question";
+        }
         // Le label d'abord : sans lui, rien n'est écrit, et tout se refait.
         try {
           if (!issue.labels.includes(QUESTION_PRODUIT)) await github.labelliser(issue.number, [QUESTION_PRODUIT]);
@@ -231,13 +252,7 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
         }
         if (arrete()) return "attente";
         const entree = journal.base.transaction(() => {
-          const entree = entrerDansTodo(
-            journal,
-            projet,
-            issue.number,
-            { type: "product", resume: valeur.resume, enonce: valeur.question, capture: null, choix: valeur.choix.map((texte) => ({ texte, suite: "resume" })) },
-            AUTEUR_DE_CARTE,
-          );
+          const entree = entrerDansTodo(journal, projet, issue.number, proposition, AUTEUR_DE_CARTE);
           noter(issue.number, { type: "manager.completed", payload: { run, fingerprint: suivi, outcome: "question", reason: valeur.motif, question: valeur.question } });
           return entree;
         });

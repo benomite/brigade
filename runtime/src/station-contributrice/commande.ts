@@ -26,11 +26,11 @@ export const JOURS_VUS = 30;
 export type StationVue = { station: string; login: string | null; refused: boolean };
 
 // Les stations contributrices qui ont pris un ticket depuis `depuis`, plus celles que le chef refuse, même sans prise vue.
-export async function listerLesStations(github: Pick<GitHub, "issuesDepuis" | "commentaires">, refusees: readonly string[], depuis: string): Promise<StationVue[]> {
+// Une seule liste, celle des commentaires du dépôt depuis `depuis` : lire ceux de chaque issue coûtait un appel par issue,
+// un millier sur brigade à chaque ouverture de Settings, et vidait le quota du chef (#3030).
+export async function listerLesStations(github: Required<Pick<GitHub, "commentairesDepuis">>, refusees: readonly string[], depuis: string): Promise<StationVue[]> {
   const logins = new Map<string, string>();
-  for (const { number } of await github.issuesDepuis(depuis)) {
-    for (const { station, login } of stationsQuiOntPris(await github.commentaires(number))) if (!logins.has(station)) logins.set(station, login);
-  }
+  for (const { station, login } of stationsQuiOntPris(await github.commentairesDepuis(depuis))) if (!logins.has(station)) logins.set(station, login);
   const vues: StationVue[] = [...logins].map(([station, login]) => ({ station, login, refused: refusees.includes(station) }));
   for (const station of refusees) if (!logins.has(station)) vues.push({ station, login: null, refused: true });
   return vues;

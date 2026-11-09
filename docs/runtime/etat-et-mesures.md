@@ -481,7 +481,7 @@ figures, one line each, value then threshold and red over it (`runtime/src/chiff
 p75 lost time (`lostTimeMaxMin`), the median cooking over estimate (`cookingOverEstimateMax`), the first-try rate
 (`premierCoupMinPourcent`) and the repairs of main per merged PR (`REPARATIONS_PAR_MERGE_MAX`) — these two
 over the recent tickets whose `qualite` the station recorded at their merge, from GitHub (#2707). The station publishes
-them with the ticket times (`temps.chiffres`), with what weighs most on each (the 5 tickets with the most lost time or
+them with the ticket times (`temps.chiffres`) and their summary (`temps.resume`: median, p75, slowest phase — null when no ticket merged in the last 24 h, `runtime/src/mesures/resume-servi.ts`), with what weighs most on each (the 5 tickets with the most lost time or
 most over their estimate, the most frequent send-back reasons and broken checks); the app's rail band and Health tab
 show them from those values. TODO's informative part names each of the
 last 10 tickets that lost over twice the threshold, with its heaviest loss.
@@ -491,6 +491,12 @@ ticket that is closed, in none of these times, and closed by a merged PR (anothe
 when its issue is closed (#2979); one closed without a merged PR — a duplicate the station closed, an issue
 closed as not planned — holds nothing back. Before, #2963, merged by another station, waited for nothing, and
 #2979 reopened on the nine conflict send-backs #2963 had counted.
+#3019 opened on those same nine conflicts (#2921 ×5, #2922 ×3, #2930 ×1), all cooked on 2026-11-08 before
+#2963's fix (4a17e71, merged as #2965 at 23:02 UTC) held a zone's companions at the claim gate; of the measured
+tickets claimed after that merge, #2977 and #2985, none was sent back for a conflict. Replayed on #3019's
+evidence, with #2963 and #2979 closed by merged PRs out of the station's times, main's gate returns `en-attente`
+on #2979 (19 tickets missing), and the code before #2979, which dated neither, opens a ticket.
+Nothing to correct on main.
 
 The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
 again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent

@@ -15,6 +15,7 @@ import { ouvrirGitHub } from "../src/github.ts";
 import {
   AppelEspace,
   appelerGitHub,
+  classerLeRefus,
   CuisineRalentie,
   ECRITURES_PAR_HEURE,
   ECRITURES_PAR_MINUTE,
@@ -428,6 +429,17 @@ test("la station réelle compte chacun de ses appels au gist dans le compteur de
   assert.ok(limite.appels() >= 2, `${limite.appels()} appels comptés`);
   // Un `gh` encore en route à la sortie de la station finit de noter le sien.
   await jusqua(() => lancesParGh() === limite.appels());
+});
+
+test("un refus de GitHub se classe : 403 au quota à zéro et 429 avec retry-after sont des limites, avec leur fin ; un 403 de permission ou un 500 non", () => {
+  const maintenant = Date.parse("2026-11-09T09:00:00Z");
+  const reset = Date.parse("2026-11-09T09:50:00Z") / 1000;
+  assert.deepEqual(classerLeRefus(403, new Map([["x-ratelimit-remaining", "0"], ["x-ratelimit-reset", String(reset)]]), maintenant), { kind: "rate-limit", resetAt: reset * 1000 });
+  assert.deepEqual(classerLeRefus(429, new Map([["retry-after", "60"]]), maintenant), { kind: "rate-limit", resetAt: maintenant + 60_000 });
+  assert.deepEqual(classerLeRefus(403, new Map([["retry-after", "30"], ["x-ratelimit-remaining", "4000"]]), maintenant), { kind: "rate-limit", resetAt: maintenant + 30_000 });
+  assert.deepEqual(classerLeRefus(403, new Map([["x-ratelimit-remaining", "4000"], ["x-ratelimit-reset", String(reset)]]), maintenant), { kind: "other" });
+  assert.deepEqual(classerLeRefus(403, new Map(), maintenant), { kind: "other" });
+  assert.deepEqual(classerLeRefus(500, new Map([["x-ratelimit-remaining", "0"], ["retry-after", "5"]]), maintenant), { kind: "other" });
 });
 
 test("limite-github.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

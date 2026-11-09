@@ -2742,6 +2742,18 @@ the recommended answer**, the only button filled with the accent, the others ord
 words`, which opens the free-text field and its `send`. A card with no choices keeps its field open (it is its only
 answer), and so does a card on which the chef already typed. Captures: `docs/captures/2922/`.
 
+**The cooking pan** (#2984, `app/src/vue/composants/poele/`): a small 8-bit pan, drawn for Brigade, sizzles at the end
+of a voucher's head while an agent works on that ticket — its cook holds it (Taken), or the pass runs its gates,
+reviews, judges or merges it (Pass) — and at the end of each line of the Stations tab that runs: a cook, the pass, the
+manager qualifying or splitting an issue, the triage, the closer. The main process says which tickets are at work
+(`app/src/faits.ts`, `auTravail`, from the rail and the runtime's `agents`); the view lays the pan only on a live
+reading. No pan on a card that waits — queued, set aside, awaiting you, waiting for a third party, a delivery waiting
+for the pass, its CI or the chef —, none when the kitchen is stopped, on a station that is stopped, absent or whose word
+the app does not know, and none on a reading that is offline, stale or from a station that does not answer: the pan
+never claims work that may not be happening. It is 22 × 14 px, takes no line of its own, and its colors are tokens
+(`--gris` iron, `--accent` food, `--discret` steam) that read on a voucher's paper as on the dark; with the system's
+"reduce motion" on, it shows its first frame, still.
+
 **A card fits in two lines** (#622): its number, its state and its title, then **a sentence in plain
 words** that says what is happening, and at most **one signal line** when something asks for your
 attention. Each sentence is written from the facts the queue already gives about the card

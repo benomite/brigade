@@ -4,8 +4,9 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { attentesDuChef } from "../../src/attend.ts";
-import { cartesRetenues, entrerDansTodo, type Proposition } from "../../src/carte-todo.ts";
-import { refuserDemandeTechnique } from "../../src/garde-todo/garde.ts";
+import { entrerDansTodo, jugerCarte, type Proposition } from "../../src/carte-todo.ts";
+import { refuserGesteGit } from "../../src/garde-todo/geste-git.ts";
+import { refuserSansQuestion, refuserSansReponse } from "../../src/garde-todo/question-reponse.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { lireRail } from "../../src/projections/rail.ts";
 import { aArreter, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
@@ -38,17 +39,11 @@ for (const [mot, enonce] of [
   ["rerun", "Please re-run the failing checks?"],
   ["merge", "Can you merge pull request #12?"],
 ] as const) {
-  test(`une carte qui demande « ${enonce} » n'est pas dans le TODO du chef : elle est renvoyée au triage, raison écrite`, (t) => {
-    const { journal, todo } = cuisine(t);
-    const entree = entrerDansTodo(journal, "brigade", 7, carte(enonce), "manager");
-    assert.equal(entree.porte, "triage");
-    assert.match(entree.porte === "triage" ? (entree.raison ?? "") : "", new RegExp(`technical ask .*${mot}.*manager or a cook`));
-    assert.deepEqual(todo(), []);
-    const [retenue] = cartesRetenues(journal.base);
-    assert.equal(retenue?.enonce, enonce);
-    assert.match(retenue?.refus ?? "", /^technical ask/);
-    const [refus] = journal.base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'todo.refused'");
-    assert.match(JSON.parse(refus?.payload ?? "{}").reason, /^technical ask/);
+  test(`la porte refuse « ${enonce} » avec la raison de la garde (la carte qu'un triage réécrit, laisserEntrer)`, () => {
+    const jugement = jugerCarte(carte(enonce));
+    assert.equal(jugement.admise, false);
+    assert.match(jugement.admise ? "" : jugement.raison, new RegExp(`git gesture .*${mot}.*fix ticket`));
+    assert.equal(refuserGesteGit(carte(enonce)) !== null, true);
   });
 }
 
@@ -60,5 +55,38 @@ test("une carte de produit et une demande de relecture humaine entrent toujours 
 });
 
 test("la garde ne lit que la question, pas les choix", () => {
-  assert.equal(refuserDemandeTechnique({ enonce: "Is the empty rail right?", choix: [{ texte: "Merge PR #1." }] }), null);
+  assert.equal(refuserGesteGit({ enonce: "Is the empty rail right?", choix: [{ texte: "Merge PR #1." }] }), null);
+});
+
+test("une carte sans question est refusée avec sa raison, et n'entre pas dans le TODO", (t) => {
+  for (const enonce of [undefined, null, "", "  "]) {
+    const sans = jugerCarte({ ...carte("x"), enonce });
+    assert.equal(sans.admise, false);
+    assert.equal(sans.admise ? "" : sans.raison, "no question: a TODO card asks the chef exactly one question");
+  }
+  assert.match(refuserSansQuestion({ enonce: " " }) ?? "", /^no question/);
+  const { journal, todo } = cuisine(t);
+  const entree = entrerDansTodo(journal, "brigade", 7, { ...carte("x"), enonce: "" }, "manager");
+  assert.equal(entree.porte, "triage");
+  assert.equal(todo().length, 0);
+});
+
+test("une carte avec sa question mais sans chemin de réponse est refusée avec sa raison", (t) => {
+  for (const choix of [undefined, null, []]) {
+    const sans = jugerCarte({ ...carte("Which strategy?"), choix });
+    assert.equal(sans.admise, false);
+    assert.equal(sans.admise ? "" : sans.raison, "no choice: a TODO card offers at least one choice to click");
+  }
+  assert.match(refuserSansReponse({ choix: [] }) ?? "", /^no choice/);
+  const { journal, todo } = cuisine(t);
+  assert.equal(entrerDansTodo(journal, "brigade", 7, { ...carte("Which strategy?"), choix: [] }, "manager").porte, "triage");
+  assert.equal(todo().length, 0);
+});
+
+test("une carte avec sa question et son chemin de réponse entre dans le TODO", (t) => {
+  assert.equal(refuserSansQuestion(carte("Which strategy?")), null);
+  assert.equal(refuserSansReponse(carte("Which strategy?")), null);
+  const { journal, todo } = cuisine(t);
+  assert.equal(entrerDansTodo(journal, "brigade", 7, carte("Which strategy?"), "manager").porte, "todo");
+  assert.equal(todo().length, 1);
 });

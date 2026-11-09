@@ -78,7 +78,9 @@ test("the stations listed are those that claimed a ticket, each once, with their
     [8, [prise("bob-pc/claude", "bob"), prise("alice-pc/claude", "alice"), prise("mallory/claude", "alice", "mallory")]],
     [9, []],
   ]);
-  const vues = await listerLesStations({ issuesDepuis: async () => [7, 8, 9].map((number) => ({ number }) as never), commentaires: async (n) => lues.get(n) ?? [] }, ["bob-pc/claude", "carol/claude"], "2026-10-09T00:00:00Z");
+  const depuis: string[] = [];
+  const vues = await listerLesStations({ commentairesDepuis: async (instant) => (depuis.push(instant), [...lues.values()].flat()) }, ["bob-pc/claude", "carol/claude"], "2026-10-09T00:00:00Z");
+  assert.deepEqual(depuis, ["2026-10-09T00:00:00Z"], "one listing of the repo's comments, never one reading per issue (#3030)");
   assert.deepEqual(vues, [
     { station: "bob-pc/claude", login: "bob", refused: true },
     { station: "alice-pc/claude", login: "alice", refused: false },

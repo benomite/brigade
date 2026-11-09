@@ -1,0 +1,48 @@
+/* La poêle (ticket 2984) : une petite poêle 8-bit qui grésille à côté de ce qu'un agent fait en ce moment. Elle ne
+   pousse rien — sa hauteur tient dans une ligne de texte, elle ne passe jamais à la ligne seule — et ses couleurs se
+   lisent sur le papier d'un bon comme sur le sombre : le fer gris, ce qui cuit à l'accent, la vapeur discrète. Ses règles
+   ne nomment aucun écran. */
+.poele {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  line-height: 0;
+  vertical-align: middle;
+}
+.poele .fer {
+  fill: var(--gris);
+}
+.poele .mets {
+  fill: var(--accent);
+}
+.poele .vapeur {
+  fill: var(--discret);
+}
+/* Trois trames, l'une après l'autre, sans fondu : chacune visible un tiers du tour. */
+.poele .trame {
+  opacity: 0;
+  animation: poele-gresille 0.9s step-end infinite;
+}
+.poele .trame-2 {
+  animation-delay: -0.6s;
+}
+.poele .trame-3 {
+  animation-delay: -0.3s;
+}
+@keyframes poele-gresille {
+  0% {
+    opacity: 1;
+  }
+  33.333% {
+    opacity: 0;
+  }
+}
+/* Moins de mouvement, demandé par le système : la première trame, immobile. */
+@media (prefers-reduced-motion: reduce) {
+  .poele .trame {
+    animation: none;
+  }
+  .poele .trame-1 {
+    opacity: 1;
+  }
+}

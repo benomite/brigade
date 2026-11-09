@@ -35,7 +35,8 @@
 import type { Base } from "./base.ts";
 import { capturesManquantes, lireCaptures, type Captures } from "./captures.ts";
 import { GESTES, uneQuestion, validerCarte } from "./carte-todo/forme.ts";
-import { refuserDemandeTechnique } from "./garde-todo/garde.ts";
+import { gesteGit, refuserGesteGit, reparationDuGeste, type ReparationDuGeste } from "./garde-todo/geste-git.ts";
+import { refuserSansQuestion, refuserSansReponse } from "./garde-todo/question-reponse.ts";
 import type { Journal } from "./journal.ts";
 
 // Les deux sortes de cartes qui entrent dans TODO.
@@ -80,8 +81,10 @@ export const RESUME_D_AVANT = "A question awaits your answer before this ticket 
 export type Jugement = { admise: true; carte: CarteDeTodo } | { admise: false; raison: string };
 
 // Où une proposition est allée : dans TODO, ou au triage — retenue, avec la
-// raison de la porte quand elle l'a refusée (nulle : le triage retient tout).
-export type Entree = { porte: "todo"; carte: CarteDeTodo } | { porte: "triage"; raison: string | null };
+// raison de la porte quand elle l'a refusée (nulle : le triage retient tout) —
+// ou à la réparation, quand la carte demandait un geste git : aucune carte, le
+// ticket `fix` que l'appelant ouvre (garde-todo/geste-git.ts).
+export type Entree = { porte: "todo"; carte: CarteDeTodo } | { porte: "triage"; raison: string | null } | { porte: "reparation"; fix: ReparationDuGeste };
 
 const surPlusieursLignes = (texte: string) => /[\r\n]/.test(texte);
 const estType = (mot: string): mot is TypeDeCarte => (TYPES_DE_CARTE as readonly string[]).includes(mot);
@@ -96,18 +99,20 @@ export { uneQuestion };
 // ensuite la règle de la forme unique (carte-todo/forme.ts), qui refuse une
 // carte sans résumé, ou au résumé de plus de deux phrases.
 export function jugerCarte({ type, resume, enonce, choix }: Proposition, captures: Captures | null = null): Jugement {
-  const technique = refuserDemandeTechnique({ enonce });
+  const technique = refuserGesteGit({ enonce });
   if (technique !== null) return { admise: false, raison: technique };
   const mot = type?.trim().toLowerCase() ?? "";
   if (mot === "") return { admise: false, raison: "no kind: a TODO card is a product choice (product) or a design validation (design)" };
   if (!estType(mot)) return { admise: false, raison: `“${type?.trim()}” is not a TODO card: only a product choice (product) or a design validation (design) reaches the chef` };
+  const sansQuestion = refuserSansQuestion({ enonce });
+  if (sansQuestion !== null) return { admise: false, raison: sansQuestion };
   const question = enonce?.trim() ?? "";
-  if (question === "") return { admise: false, raison: "no question: a TODO card asks the chef exactly one question" };
   if (surPlusieursLignes(question)) return { admise: false, raison: "question on several lines: a TODO card asks one question, on one line" };
   if (!uneQuestion(question)) return { admise: false, raison: "not exactly one question: a TODO card asks one question, ending with its only “?”" };
-  if (!choix || choix.length === 0) return { admise: false, raison: "no choice: a TODO card offers at least one choice to click" };
+  const sansReponse = refuserSansReponse({ choix });
+  if (sansReponse !== null) return { admise: false, raison: sansReponse };
   const lus: Choix[] = [];
-  for (const [rang, propose] of choix.entries()) {
+  for (const [rang, propose] of (choix ?? []).entries()) {
     const texte = propose.texte?.trim() ?? "";
     if (texte === "" || surPlusieursLignes(texte)) return { admise: false, raison: `choice ${rang + 1} is empty or on several lines: each choice is one line` };
     if (lus.some((lu) => lu.texte === texte)) return { admise: false, raison: `choice ${rang + 1} repeats another: each choice is a different way` };
@@ -183,6 +188,12 @@ function noterLeRefus(journal: Journal, projet: string, ticket: number, proposit
 // `auteur` : qui la pose (`manager`, `pass`, `station:<nom>`…).
 export function entrerDansTodo(journal: Journal, projet: string, ticket: number, proposition: Proposition, auteur: string): Entree {
   return journal.base.transaction((): Entree => {
+    const geste = gesteGit(proposition);
+    if (geste !== null) {
+      const fix = reparationDuGeste(geste, proposition, ticket);
+      journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.rerouted", payload: { ...proposee(proposition), gesture: geste, fix: fix.titre } });
+      return { porte: "reparation", fix };
+    }
     const retenir = () => journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.held", payload: proposee(proposition) });
     if (triages.get(journal.base)?.() === true) {
       retenir();
