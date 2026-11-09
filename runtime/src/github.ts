@@ -97,6 +97,9 @@ export type GitHub = {
   issue(numero: number): Promise<(Issue & { body?: string; author?: string }) | null>;
   // Les commentaires d'une issue, du plus ancien au plus récent.
   commentaires(numero: number): Promise<Commentaire[]>;
+  // Les commentaires de tout le dépôt modifiés depuis `instant`, du plus ancien au
+  // plus récent : une liste paginée, au lieu d'une lecture par issue (#3030).
+  commentairesDepuis?(instant: string): Promise<Commentaire[]>;
   // Les instants où le label `fire` a été retiré de l'issue, du plus ancien au
   // plus récent : l'historique des labels, que l'état courant ne garde pas.
   retraitsDeFire(numero: number): Promise<string[]>;
@@ -398,7 +401,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -571,6 +574,12 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     },
     async commentaires(numero) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);
+      return pages
+        .flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[])
+        .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE", createdAt: brut.created_at ?? "" }));
+    },
+    async commentairesDepuis(instant) {
+      const pages = await lireLaListe(`repos/${depot}/issues/comments?since=${instant}&sort=created&direction=asc&per_page=100`);
       return pages
         .flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[])
         .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE", createdAt: brut.created_at ?? "" }));
