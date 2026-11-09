@@ -123,7 +123,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
 // Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
 // Les temps des tickets que la station publie : aucun fichier dans le clone, aucun enregistrement et le seuil du temps perdu par défaut (#2346, #2670).
 // Avec les quatre chiffres du projet (#2672), qui n'ont rien à dire.
-const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2, chiffres: chiffresDuProjet({ enregistrements: [], qualites: new Map(), ratios: [], projet: null }) };
+const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2, resume: null, chiffres: chiffresDuProjet({ enregistrements: [], qualites: new Map(), ratios: [], projet: null }) };
 const AJOUTE = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: null, duree: null };
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
@@ -601,4 +601,31 @@ test("la boîte du 2026-11-06 : une ligne écrite à la main, 13 enregistrements
   // Les quatre chiffres sont publiés avec eux, dans l'ordre de la table du ticket #2672.
   assert.deepEqual(temps?.chiffres?.map(({ cle }) => cle), ["perdu", "estimation", "premier-coup", "reparations"]);
   assert.match(temps?.chiffres?.[0]?.valeur ?? "", /^[\d.]+ min median, [\d.]+ min p75$/);
+});
+
+// #3015 : le résumé des temps que l'app lit (`temps.resume`) est publié avec les enregistrements du clone servi.
+const enregistrementMerge = (ticket: number, mergedAt: string) => ({ ticket, claimedAt: "2026-10-15T09:00:00Z", mergedAt, cuisson: 900, cuissonTests: 100, attentePasse: 60, revue: 120, ci: 200, merge: 30 });
+
+test("un projet servi dont des tickets ont été mergés dans les dernières 24 h publie le résumé de leurs temps", async (t) => {
+  const clone = repertoireTemporaire(t);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude", "brigade", "temps-tickets.json"), JSON.stringify({ tickets: [enregistrementMerge(1, "2026-10-14T10:00:00Z"), enregistrementMerge(2, "2026-10-15T10:00:00Z"), enregistrementMerge(3, "2026-10-15T11:00:00Z")] }));
+  const station = uneStation(t, { clonesServis: { shop: clone } });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  const resume = station.suivi()?.[0]?.temps?.resume;
+  assert.equal(resume?.n, 3);
+  assert.ok(resume !== null && resume !== undefined && resume.medianMin > 0 && resume.p75Min > 0);
+});
+
+test("un projet servi sans ticket mergé dans les dernières 24 h ne publie aucun résumé", async (t) => {
+  const clone = repertoireTemporaire(t);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude", "brigade", "temps-tickets.json"), JSON.stringify({ tickets: [enregistrementMerge(1, "2026-10-13T10:00:00Z")] }));
+  const station = uneStation(t, { clonesServis: { shop: clone } });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  assert.equal(station.suivi()?.[0]?.temps?.resume, null);
 });
