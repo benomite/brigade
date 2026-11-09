@@ -232,16 +232,6 @@ export const fileDuChef = (attentes: readonly AttenteDuChef[]): LigneDeLaFile[] 
 export const blocDuChef = ({ lu, attentes, illisibles }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): string[] =>
   blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu });
 
-// Ce qu'une entrée qui attend un autre humain dit sous « Awaiting others » (ticket 2985) : sa question — celle de sa carte,
-// ou sa ligne, pour une entrée sans carte —, et qui elle attend.
-const dAutrui = ({ attente: { ticket, titre, url, chef, ligne }, qui }: Partage<AttenteDuChef>["autres"][number]): AttenduDAutrui => ({
-  ticket,
-  titre,
-  url,
-  question: (chef === undefined ? null : formeDuChef(chef.texte).question) ?? ligne,
-  qui,
-});
-
 // Le rail, avec ce qu'attend chaque issue en WAITING : rien à changer sans elles.
 function avecEnWaiting(rail: unknown, enWaiting: readonly EnWaiting[]): { rail?: Brut[] } {
   if (enWaiting.length === 0) return {};
@@ -266,19 +256,20 @@ function avecEnWaiting(rail: unknown, enWaiting: readonly EnWaiting[]): { rail?:
 // Les issues en WAITING (`enWaiting`, #3075) : un ticket du rail en WAITING porte ce qu'il attend (`tiers`) ; une issue
 // qui n'est pas sur le rail y est posée, en WAITING, pour que sa carte y soit.
 export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres = [], enWaiting = [] }: { attentes: readonly AttenteDuChef[]; illisibles: readonly string[]; autres?: Partage<AttenteDuChef>["autres"]; enWaiting?: readonly EnWaiting[] }): TableauLu {
-  const attend = attentes.map(({ ticket, titre, url, chef, miseDeCote, decision }) => ({
+  const dit = ({ ticket, titre, url, chef, miseDeCote, decision }: AttenteDuChef) => ({
     ticket,
     titre,
     url,
     ...(miseDeCote === undefined ? {} : { miseDeCote }),
     ...(decision === undefined ? {} : { decision }),
     ...(chef === undefined ? {} : { chef }),
-  }));
+  });
+  const attend = attentes.map(dit);
   return {
     ...lu,
     file: fileDuChef(attentes),
     bilans: [...illisibles],
-    faits: { ...lu.faits, ...avecEnWaiting(lu.faits.rail, enWaiting), attend, ...(autres.length === 0 ? {} : { attendAutres: autres.map(dAutrui) }), compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } },
+    faits: { ...lu.faits, ...avecEnWaiting(lu.faits.rail, enWaiting), attend, ...(autres.length === 0 ? {} : { attendAutres: autres.map(({ attente, qui }) => ({ ...dit(attente), qui })) }), compteurs: { ...(objet(lu.faits.compteurs) ?? {}), attend: attend.length } },
   };
 }
 

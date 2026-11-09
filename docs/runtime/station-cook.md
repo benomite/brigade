@@ -150,6 +150,18 @@ two calls and 27 % the tools; the opus cooks — 405 of the 497 min — spent 65
 the repo, one call per turn in 95 % of turns, 82 % of them in runs of 3 to 42 reads: 140 min, the
 first item of cooking, ahead of the tests (92 min).
 
+**The cook plays the far tests its change can break.** Its instructions (`CONSIGNE_DES_TESTS`, the
+first cook's, the resuming cook's and the closer's) tell it that the gates and its PR's CI play only the
+tests close to its diff — what they import or name, without entering the product's code
+(`.claude/brigade/tests-touches.mjs`, #2565) — while the base plays everything: a test broken from afar
+turns the base red after the merge. Before delivering, the cook searches all the repo's tests for each
+text its diff rewrites, in its old form, and for each new call its code makes to a service — a GitHub
+route, an API — where a stand-in of that service already serves its neighbours, and plays the files it
+finds. `main` went red twice for 20 merged PRs (#3080: repairs #3066 and #3068) on two tests neither PR
+had played: #3033 translated the preparation ticket's title, which `0-en-premier/recette.test.ts` still
+quoted in French; #3052 read one more GitHub route, which the fake GitHub of the app's phone tests did
+not serve.
+
 **The cook rereads its diff as the reviewer will, before committing.** Its instructions
 (`CONSIGNE_DE_RELECTURE`, both the first cook's and the resuming cook's) name what the reviewer holds
 as blocking: what the ticket asks and the diff does not do, a criterion the ticket writes out and the

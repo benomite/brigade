@@ -173,7 +173,7 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     const vu = tableauDe(rail("parade"));
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you");
     assert.deepEqual(todo?.cartes.map(({ ticket }) => ticket), [12]);
-    assert.deepEqual(todo?.autres, [{ ticket: 20, titre: "Ticket 20", question: "Which token does the box use for the registry?", qui: ["alice"] }]);
+    assert.deepEqual(todo?.autres?.map(({ ticket, todo: carte, qui }) => ({ ticket, question: carte?.question, qui })), [{ ticket: 20, question: "Which token does the box use for the registry?", qui: ["alice"] }]);
     assert.deepEqual(vu.rail.hors, []);
   });
 

@@ -127,7 +127,7 @@ describe("un humain voit les cartes qui lui sont assignées, et elles seules", (
     for (const reglages of [{}, null]) {
       const parPY = await todoDe("py", MONDE, reglages, "Organization");
       assert.ok(parPY.tickets.includes(23));
-      assert.ok(!parPY.autres?.some(({ qui }) => qui.includes("acme")));
+      assert.ok(!parPY.autres?.some(({ qui }) => qui?.includes("acme")));
     }
     // les cartes assignées à un autre humain se replient toujours sous « Awaiting others »
     const parPYsansChef = await todoDe("py", MONDE, {}, "Organization");
@@ -145,10 +145,13 @@ describe("ce qui attend un autre humain est au pied de TODO, sous « Awaiting ot
     const { tickets, compte, autres } = await todoDe("alice");
     assert.deepEqual(tickets, [20, 21]);
     assert.equal(compte, "2");
-    assert.deepEqual(autres, [
-      { ticket: 22, titre: "Ticket 22", question: "Drop the legacy importer?", qui: ["bob"] },
-      { ticket: 23, titre: "Ticket 23", question: "Open the beta to everyone?", qui: [CHEF] },
-    ]);
+    assert.deepEqual(
+      autres?.map(({ ticket, todo, qui }) => ({ ticket, question: todo?.question, qui })),
+      [
+        { ticket: 22, question: "Drop the legacy importer?", qui: ["bob"] },
+        { ticket: 23, question: "Open the beta to everyone?", qui: [CHEF] },
+      ],
+    );
   });
 
   test("aucune carte hors des colonnes, ni dans une autre colonne, quel que soit le compte — #22, mise de côté sur le rail, comprise", async () => {

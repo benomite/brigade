@@ -267,8 +267,9 @@ export { SANS_RAISON };
 // `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` ou `blocked-on-human` met de côté, ce qui le
 // met de côté (tableau/mise-de-cote-github.ts, #2075) — absente pour toute autre entrée.
 // Une carte qui attend un autre humain du projet que le compte connecté (vue/cartes-assignees/, ticket 2985) : TODO la
-// replie sous « Awaiting others », en lecture seule — sa question, et `qui` elle attend, leurs logins GitHub.
-export type AttenduDAutrui = { ticket: number; titre: string; url: string; question: string; qui: string[] };
+// replie sous « Awaiting others » — comme une entrée de `attend` (sa carte, sa décision…), et `qui` elle attend, leurs logins
+// GitHub : l'assignation ne retient personne, tout humain du projet l'ouvre et y répond (ticket 3071).
+export type AttenduDAutrui = Attendu & { qui: string[] };
 export type Attendu = { ticket: number; titre: string; url: string | null; chef?: CarteDuChef; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue; tache?: TacheHumaine; miseDeCote?: MiseDeCote; illisible?: string };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
@@ -437,7 +438,7 @@ export type Faits = {
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] } } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] } } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -448,8 +449,7 @@ export type Livraison = { resume: string; remarques: string; constats: Constat[]
 // pousse rien sous les autres.
 // `autres` : dans TODO, les cartes qui attendent un autre humain du projet (ticket 2985), repliées sous « Awaiting
 // others » après les siennes — leur question, qui elles attendent ; absent quand il n'y en a aucune.
-export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[]; vide: string; defile?: true; autres?: CarteDAutrui[] };
-export type CarteDAutrui = { ticket: number; titre?: string; question: string; qui: string[] };
+export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[]; vide: string; defile?: true; autres?: Carte[] };
 // `hors` : les tickets que `faits` rend et qu'aucune colonne ne prend. `attendLu` :
 // l'heure de la lecture de `status` dont vient le bloc — absente, il n'a pas été pris.
 // `railLu` : celle dont viennent les lignes que les cartes portent — absente, la
@@ -704,6 +704,23 @@ function refusGitHubSeulLu(valeur: unknown): { githubSeulRefuse?: { reason: stri
   return { githubSeulRefuse: { reason, since: typeof since === "string" ? since : "" } };
 }
 
+// Une entrée de `attend`, ou de `attendAutres` (qui y ajoute `qui`) : une lue de travers ne tombe que sur elle.
+function attenduLu(lu: Record<string, unknown>, lequel: string): Attendu {
+  return sauf<Attendu>(lu, lequel, () => {
+    const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
+    const livraison = lu.livraison === undefined ? undefined : livraisonLue(lu.livraison);
+    const carte = lu.carte === undefined ? undefined : carteLue(lu.carte);
+    const chef = chefLu(lu.chef);
+    const miseDeCote = miseDeCoteLue(lu.miseDeCote);
+    return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(chef === undefined ? {} : { chef }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }), ...tacheLue(lu.tache) };
+  }, ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, illisible }));
+}
+
+// L'entrée de TODO d'un ticket que `faits` porte : celle qui attend le compte connecté, ou un autre humain du projet — la
+// carte de l'un et de l'autre s'ouvre et se répond de même (ticket 3071).
+export const entreeDe = (faits: Pick<Faits, "attend" | "attendAutres"> | undefined, ticket: unknown): Attendu | undefined =>
+  faits?.attend?.find((candidat) => candidat.ticket === ticket) ?? faits?.attendAutres?.find((candidat) => candidat.ticket === ticket);
+
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
@@ -780,18 +797,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.attend === undefined
         ? {}
         : {
-            attend: (Array.isArray(racine.attend) ? racine.attend : refuser("attend", "a list")).map((attendu: unknown, rang) => {
-              const lequel = `attend[${rang}]`;
-              const lu = objet(attendu, lequel);
-              return sauf<Attendu>(lu, lequel, () => {
-              const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
-              const livraison = lu.livraison === undefined ? undefined : livraisonLue(lu.livraison);
-              const carte = lu.carte === undefined ? undefined : carteLue(lu.carte);
-              const chef = chefLu(lu.chef);
-              const miseDeCote = miseDeCoteLue(lu.miseDeCote);
-              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(chef === undefined ? {} : { chef }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }), ...tacheLue(lu.tache) };
-              }, ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, illisible }));
-            }),
+            attend: (Array.isArray(racine.attend) ? racine.attend : refuser("attend", "a list")).map((attendu: unknown, rang) => attenduLu(objet(attendu, `attend[${rang}]`), `attend[${rang}]`)),
           }),
       ...(racine.attendAutres === undefined
         ? {}
@@ -799,7 +805,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             attendAutres: (Array.isArray(racine.attendAutres) ? racine.attendAutres : refuser("attendAutres", "a list")).map((attendu: unknown, rang) => {
               const lequel = `attendAutres[${rang}]`;
               const lu = objet(attendu, lequel);
-              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: texte(lu.url, `${lequel}.url`), question: texte(lu.question, `${lequel}.question`), qui: textesLus(lu.qui, `${lequel}.qui`) };
+              return { ...attenduLu(lu, lequel), qui: textesLus(lu.qui, `${lequel}.qui`) };
             }),
           }),
       ...(racine.livres === undefined
@@ -1065,13 +1071,15 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   // Ce qui attend un tiers, d'après la forme : sa colonne est WAITING, quoi que la file en dise.
   const enWaiting = new Set(faits.rail.filter(({ etat, tiers }) => tiers != null || etat === "WAITING").map(({ ticket }) => ticket));
   const dits = new Map<number, string[]>();
+  // Ce qui attend un autre humain du projet (ticket 2985) : sa carte est celle de TODO, ses gestes aussi (ticket 3071).
+  const dAutres = new Map((faits.attendAutres ?? []).map((attendu) => [attendu.ticket, attendu]));
   for (const entree of attend === undefined ? [] : ticketsDe(attend.bloc)) dits.set(entree.ticket, [...(dits.get(entree.ticket) ?? []), ditDe(entree)]);
   for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
   for (const ticket of enWaiting) dits.delete(ticket);
   // Une question du manager avant de découper une épique — d'un runtime d'avant `decision`, ce que sa
   // ligne du bloc en dit —, et une issue que la question retient : la carte dit la question.
   const avantDecoupage = (ticket: number) => {
-    const decision = faits.attend?.find((attendu) => attendu.ticket === ticket)?.decision;
+    const decision = (faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket))?.decision;
     return decision === undefined ? (dits.get(ticket) ?? []).some((dit) => QUESTION_D_EPIQUE.test(dit)) : decision.quoi === "question";
   };
   const interroge = (ticket: number) => avantDecoupage(ticket) || (dits.get(ticket) ?? []).some((dit) => dit.includes(`\`${LABEL_RETENUE}\``));
@@ -1080,7 +1088,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     const repondue = repondues?.get(ticket);
     return repondue !== undefined && avantDecoupage(ticket) ? [[ticket, repondue] as const] : [];
   }));
-  const interroges = new Set([...dits.keys()].filter(interroge));
+  const interroges = new Set([...dits.keys(), ...dAutres.keys()].filter(interroge));
   for (const ticket of repondus.keys()) dits.delete(ticket);
 
   // La carte d'un ticket : ce que le rail en donne — ou, pour un ticket qui attend
@@ -1088,10 +1096,10 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   // adresse si la box l'a rendue —, puis ce que la file dit de lui.
   const carte = (ticket: number): Carte => {
     const connu = connus.get(ticket);
-    const donne = faits.attend?.find((attendu) => attendu.ticket === ticket);
+    const donne = faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket);
     const url = connu?.url ?? donne?.url;
     const titre = [connu?.titre, donne?.titre].find((candidat) => candidat !== undefined && candidat !== "");
-    const dit = dits.get(ticket);
+    const dit = dits.get(ticket) ?? (dAutres.has(ticket) ? [] : undefined);
     const siennes = lignes === undefined ? undefined : (lignes.get(ticket) ?? []);
     const porte = porter(connu === undefined ? {} : { etat: connu.etat, titre: connu.titre }, {
       ...(siennes === undefined ? {} : { lignes: siennes }),
@@ -1284,7 +1292,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     compte: rienDeLu ? "?" : String(dits.size),
     cartes: [...dits.keys()].map(carte),
     vide: rienDeLu ? RIEN_DE_LU : attend === undefined ? AUCUN_ATTENDU : blocVide(attend) ? RIEN_N_ATTEND : AUCUN_NUMERO,
-    ...(autres.length === 0 ? {} : { autres: autres.map(({ ticket, titre, question, qui }) => ({ ticket, ...(titre === "" ? {} : { titre }), question, qui })) }),
+    ...(autres.length === 0 ? {} : { autres: autres.map(({ ticket, qui }) => ({ ...carte(ticket), qui })) }),
   });
   colonnes.splice(WAITING.rang, 0, {
     nom: WAITING.nom,
@@ -1452,7 +1460,7 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
       const url =
         donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ??
-        donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url ??
+        entreeDe(donnes, ticket)?.url ??
         donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url ??
         // Un `#N` de la ligne d'un ticket mis de côté (#2075) : une issue ou une PR du dépôt, que le rail ne porte pas.
         donnes?.attend?.flatMap(({ miseDeCote }) => miseDeCote?.liens ?? []).find((lien) => lien.numero === ticket)?.url;
@@ -1467,7 +1475,7 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       const captures =
         donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.captures ??
         donnes?.rail.find((candidat) => candidat.ticket === ticket)?.captures ??
-        donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.carte?.captures ??
+        entreeDe(donnes, ticket)?.carte?.captures ??
         undefined;
       return captures?.ecrans.find((candidat) => candidat.ecran === ecran)?.[moment as Moment] ?? undefined;
     },
@@ -1475,13 +1483,13 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // laquelle le chef répond depuis l'app (carte-todo.ts). Rien pour un ticket qui n'en a pas.
     carte(projet: unknown, ticket: unknown): CarteLue | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
-      return donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.carte;
+      return entreeDe(donnes, ticket)?.carte;
     },
     // La carte du chef d'un ticket, lue de GitHub à la dernière lecture (#2434, tableau/todo-github.ts) : celle à laquelle le
     // chef répond sur GitHub même. Rien pour un ticket qui n'en a pas.
     chef(projet: unknown, ticket: unknown): CarteDuChef | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
-      return donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.chef;
+      return entreeDe(donnes, ticket)?.chef;
     },
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(projet: unknown, ticket: unknown): string | undefined {
@@ -1518,7 +1526,7 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       if (donnes === undefined) return undefined;
       const surLeRail = donnes.rail.find((candidat) => candidat.ticket === ticket);
       const livre = donnes.livres?.find((candidat) => candidat.ticket === ticket);
-      const attendu = donnes.attend?.find((candidat) => candidat.ticket === ticket);
+      const attendu = entreeDe(donnes, ticket);
       if (surLeRail === undefined && livre === undefined && attendu === undefined) return undefined;
       const etat = surLeRail?.etat ?? (livre === undefined ? undefined : "servi");
       const titre = [surLeRail?.titre, livre?.titre, attendu?.titre].find((candidat) => candidat !== undefined && candidat !== "");

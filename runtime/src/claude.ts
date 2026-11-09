@@ -108,7 +108,15 @@ export function ticketRemis(ticket: { number: number; title: string; body: strin
 }
 
 // Comment un cook joue ses tests pendant qu'il travaille, et ses gates à la fin.
-export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière, qui prend des minutes sur une station chargée. Les gates, joue-les une seule fois, quand tu es prêt à livrer ; une seconde fois seulement si elles échouent et que tu corriges quelque chose.";
+// Les gates et la CI d'une PR ne jouent que les tests proches du diff, sans
+// entrer dans le code du produit (`.claude/brigade/tests-touches.mjs`, #2565) :
+// un test cassé de loin ne se voit que sur la base, après le merge. #3080 :
+// `main` rouge deux fois pour 20 PR mergées (#3066, #3068), sur deux tests
+// qu'aucune des deux PR n'avait joués — #3033 traduisait le titre du ticket de
+// préparation, que `0-en-premier/recette.test.ts` citait encore en français ;
+// #3052 lisait une route GitHub de plus, que le faux GitHub des tests du
+// téléphone de l'app ne servait pas.
+export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière, qui prend des minutes sur une station chargée. Mais les gates et la CI de ta PR ne jouent que les tests proches de ton diff — ce qu'ils importent ou nomment, sans entrer dans le code du produit — ; la base joue tout, et un test cassé de loin la rend rouge après ton merge. Avant de livrer, cherche donc dans tous les tests du dépôt chaque texte que ton diff réécrit, sous son ancienne forme, et chaque appel neuf de ton code à un service — une route GitHub, une API —, là où une doublure de ce service sert déjà ses voisines ; joue les fichiers que tu trouves. Les gates, joue-les une seule fois, quand tu es prêt à livrer ; une seconde fois seulement si elles échouent et que tu corriges quelque chose.";
 
 // Comment un cook se relit avant de livrer : sur ce que le reviewer tient pour
 // bloquant (`reviewer.ts`, « Ce que tu cherches »). La relecture bloquante est
