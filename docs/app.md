@@ -1409,6 +1409,20 @@ It is the desktop's view, fed the same way: what it shows of a reading is what t
 and nothing on it scrolls sideways at phone width. Screen: `telephone-file` of
 `scripts/capture-ecran` (`docs/captures/1163/`; its Cooks screen went with the Cooks tab, #2921).
 
+**The phone opens on the cards that await you** (#2915, epic #2897; artboard `Phone.dc.html`, 390 × 844). At a narrow width
+(the same threshold, `ECRAN_ETROIT`), "All projects" gives its place to **Awaiting you**: the cards of every project's
+TODO column that ask a question, one touch each — `#21 · parade`, the question, what it asks (*Product choice · 2 options*,
+*Review only you can make*) — with the count in the header and, under them, how many projects are cooking when the app
+knows it. The projects bar stays above, and a page, a station or the first launch still cover the list. A touch opens the
+card: its question, what happens, one button per choice — the first, filled with the accent and marked *Recommended by the
+second* —, the field *Or answer in your own words* and **Send** (inactive while empty). A choice, the recommended one
+included, is the answer: it goes through `repondreCarte` like the card of TODO (`app/src/vue/carte-todo.js`), and the screen
+says **Sent to the kitchen.** with *`#N` is back on the rail* and **Back to the list**. A refusal is one line on the card,
+which keeps its buttons. Every button is the family's 44 px, a choice 52, and nothing scrolls sideways at 390 px. The
+module is `app/src/vue/cartes-du-chef/` (its tests: `app/test/cartes-du-chef/`); the captures are the screens
+`cartes-du-chef-liste`, `cartes-du-chef-carte` and `cartes-du-chef-envoyee` of `scripts/capture-ecran` (`docs/captures/2915/`).
+The artboard's line *5 tickets served today* is not drawn: no reading the app holds counts them.
+
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
 `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
 call the same bridge action, `gesteDeFiche` (the project, the gesture, the ticket — never a command), confirmed

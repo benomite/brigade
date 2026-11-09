@@ -93,6 +93,7 @@ import { poserTete } from "./cost/tete.js";
 import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, revenir, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
+import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
@@ -176,7 +177,10 @@ const ECRAN_ETROIT = "(max-width: 720px)";
 const ecranEtroit = window.matchMedia?.(ECRAN_ETROIT);
 const etroit = () => ecranEtroit?.matches === true;
 // La fenêtre passe d'une largeur à l'autre — un téléphone qu'on tourne, une fenêtre qu'on rétrécit : la page se repose.
-ecranEtroit?.addEventListener?.("change", () => montrer());
+ecranEtroit?.addEventListener?.("change", () => {
+  marquer();
+  montrer();
+});
 // La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
 const COLONNE_QUI_T_ATTEND = "Awaiting you";
 const SUR_LE_RAIL = "On the rail";
@@ -216,6 +220,7 @@ const projetDe = (nom) => configuration.projets.find((projet) => projet.nom === 
 const element = (id) => /** @type {T} */ (document.getElementById(id));
 const barre = element("projets");
 const tous = element("tous");
+const cartesDuChef = element("cartes-du-chef");
 const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
 const bande = element("alertes");
 const arret = element("arret");
@@ -4972,6 +4977,86 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
   );
 }
 
+// Les cartes qui attendent le chef, à la largeur d'un téléphone (cartes-du-chef/, ticket 2915) : celles de la colonne
+// « Awaiting you » de chaque projet lu, avec leur question — une carte déjà répondue n'y est plus. La vue montrée est la
+// liste, une carte ouverte (le brouillon et ce qui a refusé sa réponse sont ceux de la carte), ou l'envoi qu'on vient de faire.
+/** @typedef {import("./cartes-du-chef/cartes-du-chef.js").Carte} CarteDuChef */
+/** @type {{ vu: "liste" } | { vu: "carte", carte: CarteDuChef } | { vu: "envoyee", projet: string, ticket: number }} */
+let vueDesCartes = { vu: "liste" };
+/** @returns {CarteDuChef[]} */
+function lesCartesDuChef() {
+  return configuration.projets.flatMap((projet) => {
+    const tenu = tenus.get(projet.nom);
+    if (tenu === undefined || !("tableau" in tenu)) return [];
+    const colonne = tenu.tableau.rail.colonnes.find(({ nom }) => nom === COLONNE_QUI_T_ATTEND);
+    return (colonne?.cartes ?? []).flatMap((carte) => {
+      const { todo } = carte;
+      if (!carte.attendu || todo === undefined || (todo.question === null && todo.choix.length === 0)) return [];
+      const etat = etatDeLaCarte(projet, carte.ticket, todo);
+      const vu = vuDeLaCarte(todo, etat).vu;
+      return etat.etape === "postee" || vu === "attente" || vu === "jouee" ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
+    });
+  });
+}
+function poserLesCartesDuChef() {
+  if (cartesDuChef.hidden) return;
+  const cartes = lesCartesDuChef();
+  const retour = () => {
+    vueDesCartes = { vu: "liste" };
+    poserLesCartesDuChef();
+  };
+  // Répondue d'ici, la carte ouverte est postée : l'écran dit l'envoi.
+  if (vueDesCartes.vu === "carte") {
+    const { projet, ticket } = vueDesCartes.carte;
+    if (reponsesAuxCartes.get(`${projet}#${ticket}`)?.etat.etape === "postee") vueDesCartes = { vu: "envoyee", projet, ticket };
+  }
+  const vue = vueDesCartes;
+  if (vue.vu === "envoyee") {
+    const reste = cartes.filter(({ projet }) => projet === vue.projet).length;
+    return cartesDuChef.replaceChildren(...poserLEnvoi(document, { ticket: vue.ticket, projet: vue.projet, reste, total: cartes.length, retour }));
+  }
+  if (vue.vu === "carte") {
+    const { projet: nom, ticket } = vue.carte;
+    const cle = `${nom}#${ticket}`;
+    // La carte telle que la dernière lecture la dit ; partie du rail, elle ne s'ouvre plus : retour à la liste.
+    const lue = cartes.find((un) => un.projet === nom && un.ticket === ticket);
+    const projet = configuration.projets.find((un) => un.nom === nom);
+    if (lue === undefined || projet === undefined) return retour();
+    const etat = etatDeLaCarte(projet, ticket, lue.todo);
+    const refus = etat.etape === "refus" ? { dit: etat.dit, detail: etat.detail } : undefined;
+    const clavier = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DE_LA_CARTE_DU_CHEF;
+    const posee = poserLaCarteDuChef(document, {
+      carte: lue,
+      total: cartes.length,
+      brouillon: brouillonsDeCartes.get(cle) ?? "",
+      enRoute: etat.etape === "envoi",
+      ...(refus === undefined ? {} : { refus }),
+      retour,
+      ecrire: (texte) => {
+        brouillonsDeCartes.set(cle, texte);
+        questionsDesBrouillons.set(cle, lue.todo.question ?? lue.todo.resume ?? null);
+      },
+      repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
+    });
+    cartesDuChef.replaceChildren(...posee);
+    if (clavier) posee.saisie.focus();
+    return;
+  }
+  const cuisent = accueilVu === undefined ? undefined : accueilVu.projets.filter((ligne) => etatDeLaLigne(ligne) === "cooking").length;
+  const avis = telephoneVu?.github === undefined ? [] : poserLaListeGitHub(document, telephoneVu, configuration.projets.length, () => void oublierLeTelephone());
+  cartesDuChef.replaceChildren(
+    ...poserLaListeDesCartes(document, {
+      cartes,
+      avis,
+      ...(cuisent === undefined ? {} : { ailleurs: AILLEURS(cuisent) }),
+      ouvrir: (carte) => {
+        vueDesCartes = { vu: "carte", carte };
+        poserLesCartesDuChef();
+      },
+    }),
+  );
+}
+
 // La réponse du chef à une carte de TODO part par le process principal (carte-todo.ts) — une seule à la
 // fois. Postée, la carte dit qu'elle attend la cuisine, et le tableau est relu tout de suite ; refusée, elle
 // garde ses gestes, et dit pourquoi.
@@ -4985,6 +5070,7 @@ async function repondreALaCarte(projet, ticket, reponse) {
   const poser = (etat) => {
     reponsesAuxCartes.set(cle, { question: reponse.question, etat });
     if (courant?.nom === projet.nom) poserRail(projet);
+    poserLesCartesDuChef();
   };
   poser({ etape: "envoi", reponse });
   /** @type {import("../carte-todo.ts").Rendu | undefined} */
@@ -5368,6 +5454,7 @@ function poserAccueil() {
   );
   // « Add a project » est à droite du titre du bloc (Home.dc.html) ; un téléphone n'ajoute pas de projet.
   poserAjout(blocDesProjets, telephoneVu === undefined ? boutonDAjout(document, gestesDuBloc, desProjets.length === 0) : undefined);
+  poserLesCartesDuChef();
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
@@ -7167,6 +7254,15 @@ function marquer() {
   // L'espace affiché ne porte pas de signal : il le reprend en le quittant.
   for (const projet of configuration.projets) marquerSignal(projet.nom);
   tous.hidden = refuse || ajoute || courant !== undefined;
+  // À la largeur d'un téléphone, l'accueil est la liste des cartes qui attendent le chef (ticket 2915) : elle prend la place
+  // de « Tous les projets », sauf sous une page de l'app, une station ou le premier lancement, qui la couvrent comme lui.
+  const sousUnePage = stationOuverte !== undefined || pageDeLApp !== undefined || (ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous);
+  const surLesCartes = etroit() && !tous.hidden && !sousUnePage;
+  cartesDuChef.hidden = !surLesCartes;
+  if (surLesCartes) {
+    tous.hidden = true;
+    poserLesCartesDuChef();
+  }
   ajout.hidden = !ajoute;
   teindre();
   principal.hidden = !refuse && courant === undefined;
@@ -7868,6 +7964,7 @@ brigade.surFaits((recue) => {
   if (horsLigne && (gardee === undefined || !("tableau" in gardee))) tenus.delete(recue.projet);
   else if (!((muette || horsLigne || ratee) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
+  poserLesCartesDuChef();
   if (courant?.nom === recue.projet) {
     dessiner();
     void poserOrdinaires(courant);
