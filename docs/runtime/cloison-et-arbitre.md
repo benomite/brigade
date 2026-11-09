@@ -83,6 +83,15 @@ base.exemple.org:5432       # a port other than 443 and 80
 
 No IP address, no bare `*`, no `*.com`: such a line opens nothing, and `npm run partition` shows it.
 
+**Local services (Mac station sandbox).** A project whose tests need a service on the Mac's loopback
+(a Postgres on `localhost:5432`) declares it in `.claude/brigade/services-locaux`, one `host:port`
+per line, the host being `localhost` or `127.0.0.1`, `#` opening a comment. Read on the integration
+branch at each launch, like the allowlist. The cook's sandbox then connects to exactly those
+host-and-port pairs, never to the rest of the loopback; a line that is not of that shape is
+ignored, and an absent or unreadable file declares none, so the sandbox rules stay the ones of a
+project without it. The station starts and installs nothing: the service must already run
+(`runtime/src/sandbox/services-locaux.ts`).
+
 **The declaration is read on the integration branch, not the cook's worktree** — unlike secrets. A
 host is opened by a **merge**, which the pass never does itself (`review-required`, cause
 `declaration-modified: …`). The runtime re-reads it at each base fetch and tick (`network.declared`);

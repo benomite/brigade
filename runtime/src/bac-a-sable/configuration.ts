@@ -34,6 +34,7 @@
 import { posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Regle } from "../reseau.ts";
+import { entreesReseau, type ServiceLocal } from "../sandbox/services-locaux.ts";
 
 // Ce que le chef garde sous son répertoire et qu'aucun cook ne lit : ses clés,
 // ses identifiants, ses accès. Relatif à `~`.
@@ -66,8 +67,9 @@ export const LECTURES_INTERDITES = [
 // `lit` : des fichiers, hors du worktree, que la station lui remet à lire (son
 // ticket) — le seul droit de lecture que la configuration ajoute. `brigade` :
 // le ticket du cook ne livre que `.claude/brigade/` (setup du dépôt) ; seul il
-// y écrit.
-export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean };
+// y écrit. `services` : les services locaux que le projet déclare
+// (`sandbox/services-locaux.ts`), joignables sur la boucle locale, eux seuls.
+export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[] };
 
 export type Reglages = {
   env: { npm_config_manage_package_manager_versions: "false" };
@@ -193,7 +195,7 @@ export function configurer(cook: Cook): ConfigDeBacASable {
         filesystem: { allowWrite: ecrits, denyWrite: interdits, denyRead: interdits },
         // `strictAllowlist` : un hôte hors de la liste est refusé, quel que
         // soit le mode — sans lui, `bypassPermissions` le laisserait passer.
-        network: { allowedDomains: unique(hotes.flatMap(({ noms }) => noms)), strictAllowlist: true, allowLocalBinding: false, allowAllUnixSockets: false },
+        network: { allowedDomains: unique([...hotes.flatMap(({ noms }) => noms), ...entreesReseau(cook.services ?? [])]), strictAllowlist: true, allowLocalBinding: false, allowAllUnixSockets: false },
       },
       hooks: { PreToolUse: CROCHET_BASH, ...(setup ? { PermissionRequest: crochetBrigade(ecrits[0]!) } : {}) },
       permissions: {
