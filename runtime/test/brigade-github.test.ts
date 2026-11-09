@@ -2245,3 +2245,18 @@ test("a station whose base branch is missing on the remote gives the ticket back
   assert.deepEqual(preparees.sort(), ["21-github", "22-github"]);
   assert.ok(faux.mergee(21) !== undefined && faux.mergee(22) !== undefined);
 });
+
+// #2975 : un ticket que son attente d'après un arrêt retient n'est pas pris, et la porte le dit.
+test("a ticket held by the wait after a stop is skipped with a line saying until when (#2975)", async (t) => {
+  const instant = Date.parse("2026-11-09T01:00:00.000Z");
+  const faux = new FauxGitHub();
+  const dits: Array<[number, string]> = [];
+  const github = faux.pour("A");
+  const station = stationGitHub({ nom: "A", places: 1, base: "main", github, prise: faux.prise(github, "A"), cuisiner: async () => assert.fail("no cook"), juger: async () => assert.fail("no review"), avertir: (texte) => assert.fail(texte), maintenant: () => new Date(instant), sauter: (ticket, ligne) => void dits.push([ticket, ligne]) });
+  faux.feu(2912, CALIBRE);
+  await faux.pour("A").commenter(2912, `<!-- brigade:attente until=${instant + 600_000} court -->\nStation \`A\`: stopped.`);
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(faux.cuissons, []);
+  assert.deepEqual(dits, [[2912, "#2912 is claimable but not claimed, the claim gate skipped it: it waits until 2026-11-09T01:10:00.000Z after a stop"]]);
+});
