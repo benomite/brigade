@@ -75,7 +75,7 @@ export function fauxGitHub(...issues: Issue[]) {
   const ecritures: Array<[number, string]> = [];
   // Ce que le manager lit d'une issue en plus de ce que le rail en lit, et ce
   // qu'il y pose.
-  const corps = new Map<number, { body?: string; association?: string }>();
+  const corps = new Map<number, { body?: string; association?: string; author?: string }>();
   // Les labels qu'un membre avec l'écriture a posés, par issue.
   const garants = new Map<number, string[]>();
   const labellisations: Array<[number, string[]]> = [];
@@ -246,7 +246,7 @@ export function fauxGitHub(...issues: Issue[]) {
     lire: (numero: number) => etat.get(numero),
     // Le corps d'une issue, et le lien de son auteur avec le dépôt.
     garantir: (numero: number, labels: string[]) => void garants.set(numero, labels),
-    decrire: (numero: number, description: { body?: string; association?: string }) => void corps.set(numero, description),
+    decrire: (numero: number, description: { body?: string; association?: string; author?: string }) => void corps.set(numero, description),
     // Ce que le chef écrit sous une issue.
     // `author` : un autre compte que le chef — un humain déclaré du projet.
     repondre: (numero: number, body: string, association = "OWNER", author = "chef") =>
