@@ -17,7 +17,7 @@ import { ATTEINTE, poserLesStationsSurGithub } from "../../src/vue/cooks/station
 import { EN_SA_RETENUE, EN_SON_ABSENCE, HORS_LIGNE, ligneDeLEnregistree, projetsDe, type GestesDuCompte } from "../../src/vue/stations-du-compte.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Faux(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_espace: string, balise: string) => new Faux(balise) };
 const a = (hhmmss: string) => Date.parse(`2026-11-05T${hhmmss}Z`);
 const DEPOTS = ["benomite/brigade", "benomite/parade", "benomite/site", "benomite/notes"];
 const RIEN: GestesDuCompte = { ouvrirLaStation() {}, choisir() {}, chercher() {}, ajouter() {}, relire() {}, seConnecter() {}, ouvrirLaPage() {}, copier() {} };

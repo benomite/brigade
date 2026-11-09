@@ -238,6 +238,8 @@ describe("les faits que l'app dessine", () => {
         ],
         cooks: { enCours: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }], vide: "no cook running" },
         evenement: "merge.done · #216 · 13 s before the reading",
+        // #14 cuit ; #21, bloqué, attend le chef : seul #14 porte la poêle (#2984).
+        auTravail: [14],
         rail: {
           colonnes: [
             { nom: "On the rail", ton: "gris", compte: "0", cartes: [], vide: "no ticket" },

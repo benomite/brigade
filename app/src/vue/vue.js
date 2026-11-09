@@ -83,6 +83,7 @@ import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { rangeeDeReglage as rangeeDeLaFamille } from "./composants/reglage/reglage.js";
 import { bouton as boutonDeLaFamille, sorteDuBouton } from "./composants/bouton/bouton.js";
 import { bon as bonDeLaFamille, teteDuBon } from "./composants/bon/bon.js";
+import { poele } from "./composants/poele/poele.js";
 import { carteAttente, carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 import { etatDuTon, formeDe, marque as marqueDePastille, pastille as pastilleDEtat } from "./composants/pastille/pastille.js";
 import { poserChers } from "./cost/chers.js";
@@ -2772,8 +2773,8 @@ function coinceDit({ dit }) {
 // fiche. Dans Livré, la phrase porte l'heure et le résumé ; ses captures restent sur la carte.
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
-/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {import("./composants/pastille/pastille.js").Etat} [etatDeColonne] l'état de sa colonne : un même état se dit partout par la même pastille, quel que soit le mot de la file @param {boolean} [avecStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) @param {boolean} [horsColonne] une carte d'aucune des six colonnes : son mot est dit tel quel, sans l'état d'une colonne */
-function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne = false) {
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {import("./composants/pastille/pastille.js").Etat} [etatDeColonne] l'état de sa colonne : un même état se dit partout par la même pastille, quel que soit le mot de la file @param {boolean} [avecStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) @param {boolean} [horsColonne] une carte d'aucune des six colonnes : son mot est dit tel quel, sans l'état d'une colonne @param {boolean} [cuit] un agent y travaille en ce moment, d'une lecture qui le dit encore vrai : la poêle (ticket 2984) */
+function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne = false, cuit = false) {
   const { ticket, etat, mot: motDEtat, ton, titre, ouvrable, attendu, attend, pr } = carte;
   // Le bon et sa tête (composants/bon) ; sur une carte qui attend le chef, la carte d'attente (composants/carte-attente), qui
   // ajoute à la tête la pastille « awaiting you » : elle le dit en mots, pour qui ne lit pas la couleur de la colonne. Le
@@ -2809,6 +2810,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (ticket 1895).
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
+  // Un agent y travaille en ce moment : la poêle grésille au bout de sa tête (ticket 2984).
+  if (cuit) tete.append(poele(document));
   const etiquettes = poserEtiquettes(document, carte, avecStation);
   if (etiquettes !== null) bon.append(etiquettes);
   // Sur le rail, en attente : sa priorité, sous son numéro
@@ -4372,12 +4375,16 @@ function poserCuisson(projet) {
   const tenu = tenus.get(projet.nom);
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const laCuisine = tenu !== undefined && "tableau" in tenu ? ligneDeLaCuisine(projet, tenu.tableau, heureDe(tenu.a)) : [];
+  // Les cooks et les agents en cours portent la poêle (ticket 2984) d'une lecture encore vraie seulement : ni hors ligne, ni
+  // périmée, ni la cuisine arrêtée.
+  const enCuisson = stations !== undefined && !horsLignes.has(projet.nom) && !perimes.has(projet.nom) && tenu !== undefined && "tableau" in tenu && !tenu.tableau.arretee;
   // Un projet sur GitHub seul : ses stations telles que GitHub les dit, toutes par la même règle (ticket 2358) — ni celles que
   // l'ancien journal déclare, ni celles que l'app lui connaît.
-  const surGithub = poserLesStationsSurGithub(document, { cuisson: stations, pastille, tete: laCuisine });
+  const surGithub = poserLesStationsSurGithub(document, { cuisson: stations, pastille, tete: laCuisine, enCuisson });
   const pose = surGithub ?? stationsDeCuisson(document, {
     lignes: stations?.lignes,
     pastille,
+    enCuisson,
     plafonds: accueilVu?.plafonds?.[projet.nom],
     tete: laCuisine,
     // Toutes ses stations, chacune une fois (ticket 1786) : ce que le journal déclare, ce que l'app sait de chacune par
@@ -4659,12 +4666,15 @@ function poserLeRail(projet) {
   const colonnes = toutes;
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
   const lesCartes = [...toutes.flatMap(({ cartes: siennes }) => siennes), ...hors];
+  // Ce sur quoi un agent travaille porte la poêle (ticket 2984) — jamais d'une lecture dont l'app ne sait plus si elle dit
+  // vrai (hors ligne, périmée, la box muette), ni la cuisine arrêtée, ni sur une carte qui attend le chef.
+  const enCuisson = new Set(horsLigne === undefined && perime === undefined && muet === undefined && !tenu.tableau.arretee ? (tenu.tableau.auTravail ?? []) : []);
   /** @param {import("../faits.ts").Carte[]} cartes @param {import("./composants/pastille/pastille.js").Etat} [etat] l'état de la colonne, que ses cartes disent ; aucun dans T'attend, où la carte garde l'état de son mot @param {boolean} [avecStation] @param {boolean} [horsColonne] */
   const bons = (cartes, etat, avecStation = false, horsColonne = false) => {
     const liste = document.createElement("ol");
     liste.append(
       ...cartes.map((carte) => {
-        const bon = poserBon(projet, carte, etat, avecStation, horsColonne);
+        const bon = poserBon(projet, carte, etat, avecStation, horsColonne, !carte.attendu && enCuisson.has(carte.ticket));
         posees.set(carte, bon);
         return bon;
       }),

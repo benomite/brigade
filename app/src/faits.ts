@@ -21,7 +21,7 @@ import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment }
 import { apprentissageDe, apprentissageInforme, apprentissageLu, type Apprentissage, type ApprentissageLu } from "./apprentissage.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
-import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
+import { agentsDe, cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { anciennete, cadenceLue, essaisLus, histogramme, points, type Anciennete, type EssaiLu, type Point, type CadenceLue, type Histogramme } from "./cadence.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
@@ -481,6 +481,9 @@ export type Tableau = {
   // ligne ; `survol`, ce qu'elle sait de plus. Absente quand `facts` ne la porte pas.
   panne?: Panne;
   rail: Rail;
+  // Les tickets sur lesquels un agent travaille à cette lecture (#2984) : la vue pose la poêle à côté de leur carte. Absent
+  // d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ) : rien n'y cuit.
+  auTravail?: number[];
   // Ce que chaque station du projet en fait, ses cooks et son geste, et la ligne d'alerte de l'onglet Rail
   // (cuisson.ts) — absent d'un runtime qui ne donne pas les stations.
   stations?: CuissonDuProjet;
@@ -1325,6 +1328,17 @@ export function panneDe({ cuisineOisive, lu }: Faits): { panne?: Panne } {
   };
 }
 
+// Les tickets sur lesquels un agent travaille à la lecture (#2984) : un ticket pris, que son cook tient — sauf mis de côté
+// ou illisible —, et celui d'un agent qui tourne hors des cooks (cuisson.ts, `agentsDe`) : la pass qui juge une livraison,
+// le manager qui qualifie ou découpe une issue, le triage. Une livraison qui attend la pass, sa CI ou le chef n'y est pas,
+// ni un ticket en file ou en WAITING. Que la lecture soit encore vraie — en ligne, fraîche, la cuisine pas arrêtée —, la
+// vue le sait seule.
+function ticketsAuTravail(faits: Faits): number[] {
+  const pris = faits.rail.filter(({ etat, attente, illisible }) => etat === "pris" && attente == null && illisible === undefined).map(({ ticket }) => ticket);
+  const agents = agentsDe(faits.agents, faits.rail).flatMap(({ ticket }) => (ticket === null ? [] : [ticket]));
+  return [...new Set([...pris, ...agents])];
+}
+
 const AUCUN_COOK = "no cook running";
 const COOKS_PAS_LUS = "cooks running: not read — this station's runtime does not give them in `facts` yet. This is not “no cook”: the station's “station” step shows them";
 
@@ -1349,6 +1363,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...rienNeCuit(status),
     ...panneDe(faits),
     rail: rail(faits, attend, status, repondues, ecrites),
+    auTravail: ticketsAuTravail(faits),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
