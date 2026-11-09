@@ -100,8 +100,9 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
 
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
-  // les tickets qu'un cook de cette station cuisine en ce moment.
-  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>): Promise<BilanDeLaGuerison<T>> {
+  // les tickets qu'un cook de cette station cuisine en ce moment. `sauts` : la
+  // ligne que la porte de prise a dite, au tour précédent, de chaque ticket sauté.
+  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, sauts: ReadonlyMap<number, string> = new Map()): Promise<BilanDeLaGuerison<T>> {
     const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
@@ -226,7 +227,8 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
         maintenant: new Date(instant),
         github: {
           dernierMerge: async () => new Date(auTravailLe).toISOString(),
-          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title })),
+          // Chacun avec ce que la porte de prise en a dit, s'il l'a sauté (#2977).
+          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title, ...(sauts.has(t.number) ? { saut: sauts.get(t.number) as string } : {}) })),
           // Rien n'est pris quand l'inertie se lit : un ticket pris est du travail.
           prises: async () => [],
           prsEnPasse: async () => tickets.filter((t) => t.labels.includes(LABEL_IN_PASS)).length,

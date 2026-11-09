@@ -621,6 +621,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les tickets de la cuisine que le dernier tour a lus ouverts : ceux qu'un
   // cook bloqué peut nommer comme attendus (#2968).
   let ouvertsDuTour = new Set<number>();
+  // Ce que la porte de prise a dit de chaque ticket sauté, au tour en cours :
+  // la cuisine inerte le cite au tour suivant, pour que son bug dise ce qui
+  // retient chaque ticket au lieu d'un rail vide sans raison (#2977).
+  let sautsDuTour = new Map<number, string>();
+  const sauter = (ticket: number, ligne: string) => {
+    sautsDuTour.set(ticket, ligne);
+    options.sauter?.(ticket, ligne);
+  };
   // La station s'arrête (`arreter`) : ses cooks meurent avec elle.
   let arretee = false;
   // La branche d'intégration que l'origine n'a pas (#2876) : la station ne prend plus rien de ce projet.
@@ -1075,7 +1083,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
-    const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()));
+    // Les sauts du tour précédent, le dernier mot de la porte sur chaque ticket.
+    const sautsPrecedents = sautsDuTour;
+    sautsDuTour = new Map();
+    const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()), sautsPrecedents);
     await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a hors-cuisine lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
     if (clone !== undefined && corrigerLeTemps !== null) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
@@ -1422,20 +1433,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Une capacité qui manque à la station : le ticket attend celle qui l'a.
       const manques = besoinsDuTicket(ticket.labels).filter((besoin) => !capacites.has(besoin));
       if (manques.length > 0) {
-        options.sauter?.(ticket.number, direSaut(ticket.number, `capability missing on this station: ${manques.join(", ")}`));
+        sauter(ticket.number, direSaut(ticket.number, `capability missing on this station: ${manques.join(", ")}`));
         continue;
       }
       // Un ticket sans calibrage complet ne part pas, (#2213).
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) {
-        options.sauter?.(ticket.number, direSaut(ticket.number, "its calibration (model, effort) is incomplete"));
+        sauter(ticket.number, direSaut(ticket.number, "its calibration (model, effort) is incomplete"));
         continue;
       }
       // Il attend un ticket que la cuisine a mis de côté : il ne part pas, et le dit.
       // Sans lecture de GitHub, la remise du ticket au cook dira pourquoi il ne part pas.
       const misDeCote = await attenduMisDeCote(ticket).catch(() => null);
       if (misDeCote !== null) {
-        options.sauter?.(ticket.number, direAttenteSurMisDeCote(ticket.number, misDeCote.attendu, misDeCote.raison));
+        sauter(ticket.number, direAttenteSurMisDeCote(ticket.number, misDeCote.attendu, misDeCote.raison));
         continue;
       }
       // Un ticket ouvert qu'il attend — son corps, sa fiche, l'arrêt de son cook
@@ -1443,7 +1454,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       try {
         const attendus = await attendusOuverts(github, ticket.number, lus);
         if (attendus.length > 0) {
-          options.sauter?.(ticket.number, direAttenteDeTicket(ticket.number, attendus));
+          sauter(ticket.number, direAttenteDeTicket(ticket.number, attendus));
           continue;
         }
       } catch (erreur) {
@@ -1455,14 +1466,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // qui le tient et la cuisine inerte le prend pour un rail vide.
       const termeDeLAttente = await enAttente(ticket);
       if (termeDeLAttente !== null) {
-        options.sauter?.(ticket.number, direSaut(ticket.number, `it waits until ${new Date(termeDeLAttente).toISOString()} after a stop`));
+        sauter(ticket.number, direSaut(ticket.number, `it waits until ${new Date(termeDeLAttente).toISOString()} after a stop`));
         continue;
       }
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       const tenant = await tenue(ticket);
       if (tenant !== null) {
         const numeroDuTenant = /^cook\/(\d+)-/.exec(tenant)?.[1];
-        options.sauter?.(ticket.number, direSaut(ticket.number, `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
+        sauter(ticket.number, direSaut(ticket.number, `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
         continue;
       }
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.

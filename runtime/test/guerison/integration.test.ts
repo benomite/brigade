@@ -217,6 +217,21 @@ test("a ticket that becomes cookable after a long empty rail files the inertia b
   assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
 });
 
+// #2977 : le bug d'une cuisine inerte disait `empty-rail` sans dire ce qui
+// retenait le ticket ; il cite maintenant la ligne de la porte de prise.
+test("the inertia bug names, for each cookable ticket, the line the claim gate said when it skipped it (#2977)", async () => {
+  const p = projet("zeta/lab", "mac/claude", "develop");
+  p.faux.feu(30, CALIBRE, "Depends on #31");
+  p.faux.feu(31, [...CALIBRE, HORS_CUISINE]);
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  assert.equal(p.faux.creations.length, 1, p.avertis.join("\n"));
+  const { corps } = p.faux.ticket(p.faux.creations[0] as number);
+  assert.match(corps, /## What the claim gate said\n\n- #30: #30 .*#31/);
+  assert.deepEqual(p.faux.cuissons, []);
+});
+
 test("a kitchen with a fire ticket to take (a model label, nothing else) and nothing at work for 90 minutes files one inertia bug, once, without blocked-on-human", async () => {
   const p = projet("zeta/lab", "mac/claude", "develop");
   p.faux.feu(30, CALIBRE, "Depends on #31");

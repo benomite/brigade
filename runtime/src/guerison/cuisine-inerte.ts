@@ -23,8 +23,9 @@ export type Cause = "stale-claim" | "empty-rail" | "unknown";
 // La marque qui reconnaît le bug de l'inertie dans son corps.
 export const MARQUE_D_INERTIE = "<!-- brigade:cuisine-inerte -->";
 
-// Un ticket cuisinable.
-export type TicketCuisinable = { number: number; title: string };
+// Un ticket cuisinable. `saut` : la ligne que la porte de prise a dite en le
+// sautant à son dernier tour, s'il l'a sauté (#2977).
+export type TicketCuisinable = { number: number; title: string; saut?: string };
 
 // Un ticket pris par un cook, et depuis quand (ISO 8601).
 export type PrisePourCuisiner = { number: number; depuis: string };
@@ -89,6 +90,12 @@ export async function signalerInertie(contexte: ContexteDeLInertie): Promise<Ine
       `\`${cause}\` — ${DIT[cause]}.`,
       "",
       detail,
+      "",
+      // Ce qui retient chaque ticket, d'après la porte de prise : sans cela, le bug
+      // ne dit pas si la station a sauté le ticket, ni pourquoi (#2977).
+      "## What the claim gate said",
+      "",
+      ...cuisinables.map((t) => `- #${t.number}: ${t.saut ?? "not skipped with a line at its last turn"}`),
       "",
       "Find why the kitchen does not cook, then fix it. Close this ticket when a PR merges again.",
     ].join("\n"),
