@@ -68,7 +68,7 @@ test("7 tickets that lost a median 4 min against the threshold of 2: exactly one
 
   const depot = new FauxDepot();
   // Pas de `lostTimeMaxMin` dans projet.json : le seuil lu est 2.
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 2 }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 2 }), maintenant: MAINTENANT });
   const decision = await corriger();
   assert.deepEqual(decision, { issue: "ouverte", numero: 2600, mediane: m(4), seuilMin: 2 });
   assert.equal(depot.issues.length, 1);
@@ -93,14 +93,14 @@ test("7 tickets that lost a median 4 min against the threshold of 2: exactly one
   // Rejouée — par cette station ou une autre, qui ne sait rien d'elle — tant
   // qu'il est ouvert : pas de second ticket.
   assert.deepEqual(await corriger(), { issue: "deja-ouverte", numero: 2600, mediane: m(4), seuilMin: 2 });
-  const autre = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 2 }), maintenant: MAINTENANT });
+  const autre = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 2 }), maintenant: MAINTENANT });
   assert.deepEqual(await autre(), { issue: "deja-ouverte", numero: 2600, mediane: m(4), seuilMin: 2 });
   assert.equal(depot.issues.length, 1);
 });
 
 test("the open correction ticket known and listed by the turn costs no GitHub read", async () => {
   const depot = new FauxDepot();
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements: journee(), lostTimeMaxMin: 2 }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements: journee(), lostTimeMaxMin: 2 }), maintenant: MAINTENANT });
   await corriger([]);
   const lues = depot.lectures;
   assert.equal((await corriger([2600])).issue, "deja-ouverte");
@@ -123,7 +123,7 @@ test("at or under the threshold, nothing is opened and GitHub is not read — ho
     [longs, 2],
     [[], 2],
   ] as [TempsTicket[], number][]) {
-    const decision = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: seuil }) })();
+    const decision = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: seuil }) })();
     assert.equal(decision.issue, "sous-le-seuil");
     assert.equal(ticketDeCorrection(enregistrements, seuil), null);
   }
@@ -133,7 +133,7 @@ test("at or under the threshold, nothing is opened and GitHub is not read — ho
 
 test("once the correction ticket is closed, a median lost time still over the threshold opens a new one", async () => {
   const depot = new FauxDepot();
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements: tickets(20, 20, 20), lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements: tickets(20, 20, 20), lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
   await corriger();
   await depot.github().fermerIssue(2600);
   assert.deepEqual(await corriger([]), { issue: "ouverte", numero: 2601, mediane: m(20), seuilMin: 10 });
@@ -143,7 +143,7 @@ test("once the correction ticket is closed, a median lost time still over the th
 test("a marker posted by someone the repository does not trust silences nothing", async () => {
   const depot = new FauxDepot();
   depot.issues.push({ number: 2599, titre: "spoof", corps: MARQUE_CORRECTION, labels: [], state: "open", association: "NONE" });
-  const decision = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements: tickets(20), lostTimeMaxMin: 10 }), maintenant: MAINTENANT })();
+  const decision = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements: tickets(20), lostTimeMaxMin: 10 }), maintenant: MAINTENANT })();
   assert.equal(decision.issue, "ouverte");
 });
 
@@ -158,7 +158,7 @@ test("two stations that open it at the same time keep the oldest and close the o
       return github.creerIssue(issue);
     },
   };
-  const decision = await correctionDuTemps({ github: course, lire: () => ({ enregistrements: tickets(20), lostTimeMaxMin: 10 }), maintenant: MAINTENANT })();
+  const decision = await correctionDuTemps({ echantillonMin: 1, github: course, lire: () => ({ enregistrements: tickets(20), lostTimeMaxMin: 10 }), maintenant: MAINTENANT })();
   assert.deepEqual(decision, { issue: "deja-ouverte", numero: 2600, mediane: m(20), seuilMin: 10 });
   assert.deepEqual(depot.ouvertes().map((i) => i.number), [2600]);
 });
@@ -174,7 +174,7 @@ test("#2577: a served correction is tried on the tickets claimed after its merge
   const depot = new FauxDepot();
   const avant = lents(1, 12, Date.UTC(2026, 10, 5, 0));
   let enregistrements = avant;
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
   assert.equal((await corriger()).issue, "ouverte");
   // Servie : mergée à 12 h 30, fermée.
   const servie = "2026-11-05T12:30:00.000Z";
@@ -187,7 +187,7 @@ test("#2577: a served correction is tried on the tickets claimed after its merge
   const lues = depot.lectures;
   assert.equal((await corriger([])).issue, "a-l-essai");
   assert.equal(depot.lectures, lues);
-  assert.equal((await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT })()).issue, "a-l-essai");
+  assert.equal((await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT })()).issue, "a-l-essai");
   // 10 tickets pris après son merge : il en faut 20 (#2868).
   enregistrements = [...enregistrements, ...lents(30, 10, Date.parse(servie) + 60_000)];
   assert.deepEqual(await corriger([]), { issue: "a-l-essai", numero: 2600, servie, manque: 10, mediane: m(20), seuilMin: 10 });
@@ -202,7 +202,7 @@ test("#2577: a served correction is tried on the tickets claimed after its merge
 test("#2577: a correction closed without a merge is no correction on trial — a median lost time still over the threshold opens the next one", async () => {
   const depot = new FauxDepot();
   const enregistrements = lents(1, 12, Date.UTC(2026, 10, 5, 0));
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
   await corriger();
   await depot.github().fermerIssue(2600);
   assert.deepEqual(await corriger([]), { issue: "ouverte", numero: 2601, mediane: m(20), seuilMin: 10 });

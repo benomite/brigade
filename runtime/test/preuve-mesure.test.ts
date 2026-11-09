@@ -194,6 +194,7 @@ const station = (github: GitHubDuTour, depot: string, repertoireEtat: string, av
     repertoireEtat,
     avertir: (texte) => avertis.push(texte),
     maintenant: () => new Date("2026-11-07T14:00:00Z"),
+    echantillonMin: 1,
   });
 
 test("filing path: the station's turn files the lost-time ticket with its evidence, and the quality ticket with its own", async (t) => {
@@ -275,6 +276,7 @@ test("filing path, measured project other than the served one: the ticket filed 
     githubDeLaBrigade,
     avertir: (texte) => avertis.push(texte),
     maintenant: () => new Date("2026-11-07T14:00:00Z"),
+    echantillonMin: 1,
   }).tour();
   assert.deepEqual(avertis, []);
   assert.equal(temps.issues.length, 0);

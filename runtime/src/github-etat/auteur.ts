@@ -7,4 +7,11 @@
 // `issue-etrangere/`, ou un label qu'un membre de confiance y pose (#2619).
 import { DE_CONFIANCE } from "../alimenter.ts";
 
-export const auteurSansEcriture = (issue: { association: string }): boolean => !DE_CONFIANCE.includes(issue.association);
+// Un ticket qu'une station a déposé (#3012) porte les marques cachées `brigade:projet` ou
+// `brigade:famille` : c'est une mesure, pas l'issue d'un inconnu, quel que soit le compte GitHub
+// de la station. Il va au manager comme les tickets de la cuisine.
+const MARQUE_DE_STATION = /<!-- brigade:(?:projet=|famille )/;
+export const deposeParUneStation = (body: string): boolean => MARQUE_DE_STATION.test(body);
+
+export const auteurSansEcriture = (issue: { association: string; body?: string }): boolean =>
+  !DE_CONFIANCE.includes(issue.association) && !deposeParUneStation(issue.body ?? "");

@@ -278,6 +278,9 @@ export type OptionsDeStation = {
   repertoireEtat?: string;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
+  // Combien de tickets une mesure demande avant d'ouvrir un ticket de qualité ou de temps perdu
+  // (#3012). Par défaut, 20.
+  echantillonMin?: number;
   // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
   // (#2456) ? Absent, oui : la CI de la PR est attendue, comme avant.
   ciDesPR?: (fichiers: string[]) => boolean;
@@ -582,6 +585,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined || options.depotServi.toLowerCase() === DEPOT_BRIGADE ? {} : { projetMesure: options.depotServi }),
           }),
           ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
+          ...(options.echantillonMin === undefined ? {} : { echantillonMin: options.echantillonMin }),
         });
   // L'attente de 20 tickets après un ticket servi, que `status` dit (#2868) ; une écriture ratée est dite, et ne retient pas le tour.
   const noterLAttente = (decision: Awaited<ReturnType<NonNullable<typeof corrigerLeTemps>>>) => {

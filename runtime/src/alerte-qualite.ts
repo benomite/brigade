@@ -139,7 +139,7 @@ export function prisApres<T extends TempsDuTicket>(temps: readonly T[], instant:
 // `ouvertes` : les issues ouvertes que l'appelant vient de lire, s'il en a.
 // `preuve` : la section « Evidence » ajoutée au corps du ticket qui s'ouvre (#2839).
 // `suite` (#2868) : les temps du projet et la mesure qui les prend. Sans elle, pas d'attente.
-export function porteDeQualite({ github, maintenant = () => new Date() }: { github: GitHubDeLaQualite; maintenant?: () => Date }) {
+export function porteDeQualite({ github, echantillonMin = TICKETS_A_ATTENDRE, maintenant = () => new Date() }: { github: GitHubDeLaQualite; echantillonMin?: number; maintenant?: () => Date }) {
   let connue: number | null = null;
 
   // Les tickets de qualité de confiance, du plus ancien au plus récent.
@@ -180,6 +180,8 @@ export function porteDeQualite({ github, maintenant = () => new Date() }: { gith
       ticket = mesure;
       causes = mesure.causes;
     }
+    // Une mesure sur moins de 20 tickets mergés ne dit rien (#3012) : rien ne s'ouvre.
+    if ((suite?.temps.length ?? qualite.tickets.length) < echantillonMin) return null;
     // Les tickets de qualité mergés ont compté ces tickets : sans renvoi plus récent, rien à ouvrir.
     const comptes = new Set(toutes.flatMap((issue) => comptesDe(issue.body)));
     // Un ticket ouvert avant la marque (#2813) a compté les fautifs déjà mergés à son

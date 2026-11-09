@@ -25,7 +25,7 @@ const fauxDepot = () => {
 // Des tickets qui n'ont perdu que l'attente d'une prise : 5 min chacun.
 const temps = (): TempsTicket[] => [1, 2, 3].map((ticket) => ({ ticket, attentePrise: 300, cuisson: 300, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }));
 const ouvrir = (servi: string, projet: ReturnType<typeof fauxDepot>, brigade: ReturnType<typeof fauxDepot>) =>
-  correctionDuTemps({ github: routerLeTempsPerdu({ github: projet.github, servi, brigade: brigade.github }), lire: () => ({ enregistrements: temps(), lostTimeMaxMin: 2 }) })();
+  correctionDuTemps({ echantillonMin: 1, github: routerLeTempsPerdu({ github: projet.github, servi, brigade: brigade.github }), lire: () => ({ enregistrements: temps(), lostTimeMaxMin: 2 }) })();
 
 test("a loss measured on a served project is filed on benomite/brigade, naming the project and the loss", async () => {
   const projet = fauxDepot();
@@ -73,7 +73,7 @@ test("#2809: a correction served on benomite/brigade is tried on the served proj
   const debut = Date.UTC(2026, 10, 7, 0);
   // Un ticket du projet porte le numéro de la correction de la brigade, mergé avant tous les autres : ce n'est pas elle.
   let enregistrements: TempsTicket[] = [{ ...pris(100, 1, debut - 2 * 60 * 60_000)[0] as TempsTicket, attentePrise: 0 }, ...pris(1, 6, debut)];
-  const corriger = correctionDuTemps({ github: routerLeTempsPerdu({ github: projet.github, servi: "BOBL-tech/mirrorscreen", brigade: lue }), lire: () => ({ enregistrements, lostTimeMaxMin: 2 }) });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: routerLeTempsPerdu({ github: projet.github, servi: "BOBL-tech/mirrorscreen", brigade: lue }), lire: () => ({ enregistrements, lostTimeMaxMin: 2 }) });
   assert.deepEqual(await corriger(), { issue: "ouverte", numero: 100, mediane: 300, seuilMin: 2 });
 
   // Servie sur la brigade : sa PR mergée la ferme, après la prise de tous les tickets récents du projet.
@@ -157,7 +157,7 @@ function brigadeLue(issues: { number: number; body: string; closedAt?: string }[
   return { github, lectures, creees };
 }
 const mesurerSurLaBrigade = (brigade: ReturnType<typeof brigadeLue>, enregistrements: TempsTicket[]) =>
-  correctionDuTemps({
+  correctionDuTemps({ echantillonMin: 1,
     github: routerLeTempsPerdu({ github: brigade.github, servi: DEPOT_BRIGADE, dansLesTemps: (numero) => enregistrements.some((t) => t.ticket === numero) }),
     lire: () => ({ enregistrements, lostTimeMaxMin: 60, qualites: renvoyes(enregistrements) }),
     maintenant: () => new Date(DEBUT_2979 + 24 * 60 * 60_000),
@@ -205,4 +205,28 @@ test("#2979: GitHub is asked once who closed a measure ticket; when it does not 
   const enPanne = brigadeLue([{ number: 2963, body: QUALITE, closedAt: fermee2963 }], [2963], true);
   await assert.rejects(mesurerSurLaBrigade(enPanne, conflits(3))([]), /HTTP 502/);
   assert.deepEqual(enPanne.creees, []);
+});
+
+// #3012 : le compte de la station n'a pas l'écriture sur la brigade (`NONE`) ; son ticket ne se voyait pas, et se redéposait à chaque tour.
+test("#3012: a station whose GitHub author has no write access files its measure once while it is open", async () => {
+  const projet = fauxDepot();
+  const brigade = fauxDepot();
+  const lue: GitHubDeLaBrigade = { ...brigade.github, issuesDepuis: async () => brigade.issues.map(({ number, corps, state }) => ({ number, body: corps, association: "NONE", state })) };
+  const ouvrirEtranger = () => correctionDuTemps({ echantillonMin: 1, github: routerLeTempsPerdu({ github: projet.github, servi: "pierreyvesbobl/os-perso", brigade: lue }), lire: () => ({ enregistrements: temps(), lostTimeMaxMin: 2 }) })();
+  const premiere = await ouvrirEtranger();
+  assert.equal(premiere.issue, "ouverte");
+  // Les tours suivants rendent le numéro du ticket déjà déposé, et ne déposent rien.
+  assert.deepEqual(await ouvrirEtranger(), premiere);
+  assert.deepEqual(await ouvrirEtranger(), premiere);
+  assert.equal(brigade.issues.length, 1);
+});
+
+test("#3012: no lost-time ticket is filed from fewer than 20 merged tickets; with 20, one is", async () => {
+  const lent = (combien: number): TempsTicket[] => Array.from({ length: combien }, (_, rang) => ({ ticket: rang + 1, attentePrise: 300, cuisson: 300, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 }));
+  const depot = fauxDepot();
+  const corriger = (combien: number) => correctionDuTemps({ github: depot.github, lire: () => ({ enregistrements: lent(combien), lostTimeMaxMin: 2 }) })();
+  assert.equal((await corriger(1)).issue, "sous-le-seuil");
+  assert.equal((await corriger(19)).issue, "sous-le-seuil");
+  assert.equal(depot.issues.length, 0);
+  assert.equal((await corriger(20)).issue, "ouverte");
 });

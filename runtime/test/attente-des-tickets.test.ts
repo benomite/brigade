@@ -59,7 +59,7 @@ const enregistrementsServis = [...avant, ticket(3000, servieLe - 10 * MIN)];
 async function qualiteServie() {
   const depot = new FauxDepot();
   const lire = (enregistrements: TempsTicket[], q: (t: TempsTicket) => QualiteDuTicket) => () => ({ enregistrements, lostTimeMaxMin: 60, qualites: qualitesDe(enregistrements, q) });
-  const premiere = await correctionDuTemps({ github: depot.github(), lire: lire(avant, () => renvoye), maintenant: MAINTENANT })();
+  const premiere = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: lire(avant, () => renvoye), maintenant: MAINTENANT })();
   assert.deepEqual(premiere, { issue: "qualite", qualite: { issue: "ouverte", numero: 3000, causes: ["premier-coup"] } });
   await depot.github().fermerIssue(3000);
   return { depot, lire };
@@ -69,7 +69,7 @@ test("quality: fewer than 20 tickets taken after the served ticket's merge — n
   const { depot, lire } = await qualiteServie();
   const nouveaux = serie(100, TICKETS_A_ATTENDRE - 1, servieLe + MIN);
   const tous = [...enregistrementsServis, ...nouveaux];
-  const decision = await correctionDuTemps({ github: depot.github(), lire: lire(tous, () => renvoye), maintenant: MAINTENANT })();
+  const decision = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: lire(tous, () => renvoye), maintenant: MAINTENANT })();
   assert.deepEqual(decision, { issue: "qualite", qualite: { issue: "en-attente", numero: 3000, manque: 1, causes: ["premier-coup"] } });
   assert.equal(depot.issues.length, 1);
   assert.deepEqual(direLesAttentes(attentesDeLaDecision(decision)), ["quality: waiting for 1 more merged tickets since #3000"]);
@@ -78,7 +78,7 @@ test("quality: fewer than 20 tickets taken after the served ticket's merge — n
 test("quality: 20 new tickets, all sent back — the next ticket opens and counts only them, never those the served one counted", async () => {
   const { depot, lire } = await qualiteServie();
   const nouveaux = serie(100, TICKETS_A_ATTENDRE, servieLe + MIN);
-  const decision = await correctionDuTemps({ github: depot.github(), lire: lire([...enregistrementsServis, ...nouveaux], () => renvoye), maintenant: MAINTENANT })();
+  const decision = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: lire([...enregistrementsServis, ...nouveaux], () => renvoye), maintenant: MAINTENANT })();
   assert.deepEqual(decision, { issue: "qualite", qualite: { issue: "ouverte", numero: 3001, causes: ["premier-coup"] } });
   const corps = depot.issues[1]?.corps ?? "";
   assert.ok(corps.includes(MARQUE_QUALITE));
@@ -89,7 +89,7 @@ test("quality: 20 new tickets, all sent back — the next ticket opens and count
 test("quality: 20 new tickets that are fine — the old send-backs still in the window do not open anything", async () => {
   const { depot, lire } = await qualiteServie();
   const nouveaux = serie(100, TICKETS_A_ATTENDRE, servieLe + MIN);
-  const decision = await correctionDuTemps({ github: depot.github(), lire: lire([...enregistrementsServis, ...nouveaux], (t) => (t.ticket >= 100 ? bien : renvoye)), maintenant: MAINTENANT })();
+  const decision = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: lire([...enregistrementsServis, ...nouveaux], (t) => (t.ticket >= 100 ? bien : renvoye)), maintenant: MAINTENANT })();
   assert.equal(decision.issue, "sous-le-seuil");
   assert.equal(depot.issues.length, 1);
 });
@@ -98,7 +98,7 @@ test("lost time: fewer than 20 tickets after the served correction — it waits;
   const depot = new FauxDepot();
   const lents = serie(1, 10, DEBUT, 20);
   let enregistrements = lents;
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT });
   assert.equal((await corriger()).issue, "ouverte");
   await depot.github().fermerIssue(3000);
   const servie = new Date(servieLe).toISOString();

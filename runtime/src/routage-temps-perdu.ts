@@ -14,7 +14,6 @@
 // brigade elle-même, les tickets restent sur son dépôt ; un ticket de mesure
 // qu'une autre station a mergé y est servi à sa fermeture (#2979, la règle dans
 // `docs/runtime/etat-et-mesures.md`).
-import { DE_CONFIANCE } from "./alimenter.ts";
 import { MARQUE_QUALITE } from "./alerte-qualite.ts";
 import type { GitHub } from "./github.ts";
 import { MARQUE_CORRECTION, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
@@ -45,6 +44,8 @@ export const marqueDeLaFamille = (metrique: string, titre: string) => `<!-- brig
 // Le ticket qui couvre déjà ce dépôt : un de la famille encore ouvert, mergé
 // depuis moins de `DELAI_FAMILLE_MS`, ou mergé dont la mesure n'a pas changé
 // depuis. Sinon null : la mesure a changé après le merge, ou il n'y en a pas.
+// Quel que soit l'auteur (#3012) : la marque dit qu'une station l'a déposé ; une station sans l'écriture
+// sur la brigade ne verrait sinon jamais son ticket, et le redéposerait à chaque tour.
 export function familleCouverte(
   issues: readonly { number: number; body: string; association: string; state?: string; closedAt?: string }[],
   metrique: string,
@@ -52,7 +53,6 @@ export function familleCouverte(
   maintenant: Date,
 ): number | null {
   const famille = issues
-    .filter((issue) => DE_CONFIANCE.includes(issue.association))
     .flatMap((issue) => {
       const marque = MARQUE_FAMILLE.exec(issue.body);
       return marque?.[1] === metrique ? [{ issue, valeur: marque[2] }] : [];

@@ -53,7 +53,7 @@ const soixante = (): Map<number, QualiteDuTicket> =>
 test("first-try rate of 60% with the time over the max: no time ticket, one quality ticket listing the top send-back reasons with their counts", async () => {
   const depot = new FauxDepot();
   const enregistrements = lents(10);
-  const corriger = correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites: soixante() }), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites: soixante() }), maintenant: MAINTENANT });
   assert.deepEqual(await corriger(), { issue: "qualite", qualite: { issue: "ouverte", numero: 2700, causes: ["premier-coup"] } });
   assert.equal(depot.issues.length, 1);
   const [ouverte] = depot.issues;
@@ -73,7 +73,7 @@ test("7 repairs of main for 74 merged PRs: one quality ticket naming the checks 
   const checks = [["types (runtime)"], ["types (runtime)", "tests (app)"], ["types (runtime)"], ["tests (runtime)"], ["tests (app)"], ["types (runtime)"], ["tests (runtime)"]];
   const qualites = new Map<number, QualiteDuTicket>(enregistrements.map(({ ticket }) => [ticket, ticket <= 7 ? { ...bien, reparation: checks[ticket - 1] ?? [] } : bien]));
   assert.equal(mesurerQualite(enregistrements, qualites).mesures, 74);
-  const decision = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites }), maintenant: MAINTENANT })();
+  const decision = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites }), maintenant: MAINTENANT })();
   assert.deepEqual(decision, { issue: "qualite", qualite: { issue: "ouverte", numero: 2700, causes: ["base-cassee"] } });
   assert.equal(depot.issues.length, 1);
   const corps = depot.issues[0]?.corps ?? "";
@@ -86,9 +86,9 @@ test("first-try rate of 80% and under one repair per ten merges: the time alert 
   const depot = new FauxDepot();
   const enregistrements = lents(10);
   const qualites = new Map<number, QualiteDuTicket>(enregistrements.map(({ ticket }) => [ticket, ticket <= 2 ? { renvois: ["criteria not met"], cooksRates: 0 } : bien]));
-  const avec = await correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites }), maintenant: MAINTENANT })();
+  const avec = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites }), maintenant: MAINTENANT })();
   const temoin = new FauxDepot();
-  const sans = await correctionDuTemps({ github: temoin.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT })();
+  const sans = await correctionDuTemps({ echantillonMin: 1, github: temoin.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10 }), maintenant: MAINTENANT })();
   assert.deepEqual(avec, sans);
   assert.equal(avec.issue, "ouverte");
   assert.deepEqual(depot.issues, temoin.issues);
@@ -98,15 +98,15 @@ test("first-try rate of 80% and under one repair per ten merges: the time alert 
 test("a quality ticket already open: a new run, by this station or another, opens no other ticket", async () => {
   const depot = new FauxDepot();
   const lire = () => ({ enregistrements: lents(10), lostTimeMaxMin: 10, qualites: soixante() });
-  const corriger = correctionDuTemps({ github: depot.github(), lire, maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire, maintenant: MAINTENANT });
   await corriger();
   assert.deepEqual(await corriger([2700]), { issue: "qualite", qualite: { issue: "deja-ouverte", numero: 2700, causes: ["premier-coup"] } });
-  assert.deepEqual(await correctionDuTemps({ github: depot.github(), lire, maintenant: MAINTENANT })(), { issue: "qualite", qualite: { issue: "deja-ouverte", numero: 2700, causes: ["premier-coup"] } });
+  assert.deepEqual(await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire, maintenant: MAINTENANT })(), { issue: "qualite", qualite: { issue: "deja-ouverte", numero: 2700, causes: ["premier-coup"] } });
   assert.equal(depot.issues.length, 1);
   // Un marqueur posté par un inconnu ne fait taire rien.
   const autre = new FauxDepot();
   autre.issues.push({ number: 2699, titre: "spoof", corps: MARQUE_QUALITE, labels: [], state: "open", association: "NONE" });
-  assert.equal((await porteDeQualite({ github: autre.github(), maintenant: MAINTENANT })(mesurerQualite(lents(10), soixante())))?.issue, "ouverte");
+  assert.equal((await porteDeQualite({ echantillonMin: 1, github: autre.github(), maintenant: MAINTENANT })(mesurerQualite(lents(10), soixante())))?.issue, "ouverte");
 });
 
 test("the quality ticket carries the rule that a correction never lowers a guard, and the 'Guards left untouched' requirement for its PR", () => {
@@ -184,7 +184,7 @@ const station = (github: GitHubDuTour, depot: string, avertis: string[]) =>
     juger: async () => ({ verdict: "approve", motif: "" }),
     clone: depot,
     avertir: (texte) => avertis.push(texte),
-    maintenant: MAINTENANT,
+    maintenant: MAINTENANT, echantillonMin: 1,
   });
 
 test("the station's turn reads the quality from the ticket times of its clone and its threshold from projet.json: 60% first try opens the quality ticket, once, and neither time alert opens its own", async (t) => {
@@ -214,21 +214,35 @@ test("the project's own first-try threshold, read from projet.json by the statio
 test("a quality ticket merged: same window, same data, no second ticket; send-backs newer than it open exactly one", async () => {
   const depot = new FauxDepot();
   const lire = (qualites: Map<number, QualiteDuTicket>, combien = 10) => () => ({ enregistrements: lents(combien), lostTimeMaxMin: 10, qualites });
-  const premiere = await correctionDuTemps({ github: depot.github(), lire: lire(soixante()), maintenant: MAINTENANT })();
+  const premiere = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: lire(soixante()), maintenant: MAINTENANT })();
   assert.deepEqual(premiere, { issue: "qualite", qualite: { issue: "ouverte", numero: 2700, causes: ["premier-coup"] } });
   assert.match(depot.issues[0]?.corps ?? "", /<!-- brigade:qualite-comptes 1,2,3,4 -->/);
   // Le ticket est mergé : fermé.
   if (depot.issues[0]) depot.issues[0].state = "closed";
-  const encore = await correctionDuTemps({ github: depot.github(), lire: lire(soixante()), maintenant: MAINTENANT })();
+  const encore = await correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: lire(soixante()), maintenant: MAINTENANT })();
   assert.deepEqual(encore, { issue: "qualite", qualite: { issue: "deja-servie", numero: 2700, causes: ["premier-coup"] } });
   assert.equal(depot.issues.length, 1);
   // Des renvois plus récents, et le taux sous le seuil : un ticket, et un seul.
   const neuve = soixante();
   for (const t of [5, 6]) neuve.set(t, { renvois: ["blocking review"], cooksRates: 0 });
-  const corriger = correctionDuTemps({ github: depot.github(), lire: lire(neuve), maintenant: MAINTENANT });
+  const corriger = correctionDuTemps({ echantillonMin: 1, github: depot.github(), lire: lire(neuve), maintenant: MAINTENANT });
   assert.equal((await corriger()).issue, "qualite");
   await corriger();
   assert.equal(depot.issues.length, 2);
   assert.equal(depot.issues[1]?.state, "open");
   assert.match(depot.issues[1]?.corps ?? "", /qualite-comptes 1,2,3,4,5,6 -->/);
+});
+
+// #3012 : « over the project's 1 recent merged tickets » ne dit rien du premier coup.
+test("#3012: no quality ticket is filed from fewer than 20 merged tickets; with 20, one is", async () => {
+  const depot = new FauxDepot();
+  const sans = (combien: number) => {
+    const enregistrements = lents(combien);
+    const qualites = new Map<number, QualiteDuTicket>(enregistrements.map(({ ticket }) => [ticket, { renvois: ["criteria not met"], cooksRates: 0 }]));
+    return correctionDuTemps({ github: depot.github(), lire: () => ({ enregistrements, lostTimeMaxMin: 10, qualites }), maintenant: MAINTENANT })();
+  };
+  for (const combien of [1, 19]) assert.equal((await sans(combien)).issue, "sous-le-seuil");
+  assert.equal(depot.issues.length, 0);
+  assert.equal((await sans(20)).issue, "qualite");
+  assert.equal(depot.issues.length, 1);
 });
