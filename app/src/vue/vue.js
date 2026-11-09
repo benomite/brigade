@@ -93,6 +93,7 @@ import { poserTete } from "./cost/tete.js";
 import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, revenir, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
+import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
@@ -112,8 +113,7 @@ import { poserLesStationsSurGithub } from "./cooks/stations-github.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
-import { poserBarre } from "./avant-le-rail.js";
-import { poserAge, poserCadence, poserEssais } from "./cadence.js";
+import { poserAge, poserEssais } from "./cadence.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
@@ -127,7 +127,6 @@ import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.
 import { AUCUNE_STATION } from "./cooks/sans-station.js";
 import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { MENU, STATIONS } from "./projet/menu/menu.js";
-import { poserBlocBandeRail } from "./projet/rail/BandeRail.js";
 import { interrupteur as interrupteurDeLApp } from "./composants/interrupteur/interrupteur.js";
 import { poserBlocListeStations } from "./projet/stations/ListeStations.js";
 import { stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
@@ -136,8 +135,6 @@ import { poserBlocStationLocale } from "./projet/stations/StationLocale.js";
 import { monterLePanneau } from "./projet/panneau-second/panneau-second.js";
 import { poserAjout, poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
 import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
-import { poserBlocTempsTickets } from "./projet/bandeau-sante/TempsTickets.js";
-import { poserBlocBloqueSansQuestion } from "./projet/bandeau-sante/BloqueSansQuestion.js";
 import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserGesteDuSecond } from "./second/geste.js";
@@ -176,7 +173,10 @@ const ECRAN_ETROIT = "(max-width: 720px)";
 const ecranEtroit = window.matchMedia?.(ECRAN_ETROIT);
 const etroit = () => ecranEtroit?.matches === true;
 // La fenêtre passe d'une largeur à l'autre — un téléphone qu'on tourne, une fenêtre qu'on rétrécit : la page se repose.
-ecranEtroit?.addEventListener?.("change", () => montrer());
+ecranEtroit?.addEventListener?.("change", () => {
+  marquer();
+  montrer();
+});
 // La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
 const COLONNE_QUI_T_ATTEND = "Awaiting you";
 const SUR_LE_RAIL = "On the rail";
@@ -216,6 +216,7 @@ const projetDe = (nom) => configuration.projets.find((projet) => projet.nom === 
 const element = (id) => /** @type {T} */ (document.getElementById(id));
 const barre = element("projets");
 const tous = element("tous");
+const cartesDuChef = element("cartes-du-chef");
 const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
 const bande = element("alertes");
 const arret = element("arret");
@@ -224,8 +225,6 @@ const ongletsDuProjet = element("onglets-du-projet");
 const contenu = element("contenu");
 const centre = element("centre");
 const rail = element("rail");
-// La bande de Rail (ticket 2485) : son bloc se monte ici, au-dessus du rail, sans en être un enfant.
-const blocDuRail = element("bloc-du-rail");
 const fiche = element("fiche");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
@@ -1016,9 +1015,9 @@ const tempsDesBandes = new Map();
 // Les projets dont le chef a déplié la colonne Backlog : une lecture neuve ne la replie pas.
 /** @type {Set<string>} */
 const amontsDeplies = new Set();
-// La barre de ce qui est avant le rail, telle que la dernière tête du rail l'a posée.
+// Le backlog de la bande, tel que la dernière tête du rail l'a posé : redessiné, il garde le clavier.
 /** @type {HTMLElement | undefined} */
-let barreDuRail;
+let backlogDuRail;
 // La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
@@ -4245,36 +4244,27 @@ function poserArreter(projet, arretee) {
   poserLesGroupes();
 }
 
-// Dans la bande du haut du rail, ce qui est avant lui (amont.ts, ticket 1836) : une petite barre empilée, une part par
-// état, les comptes au survol (avant-le-rail.js), à côté de l'histogramme des 24 heures ; un clic déplie la colonne
-// Backlog, un autre la replie. Quand aucun ticket n'est sur le rail, la phrase qui dit ce qui est avant lui est celle de
-// la colonne On the rail (ticket 2486). Tout est déjà dit par le process principal : la vue pose.
-/** @param {Projet} projet @param {import("../faits.ts").Rail} lu */
-function poserAmont(projet, { cadence }) {
-  const vu = amonts.get(projet.nom);
-  const tete = document.createElement("div");
-  tete.className = "amont";
-  const barre = poserBarre(document, vu, {
+// Dans la bande du haut du rail, ce qui est avant lui (amont.ts, tickets 1836, 3013) : son nombre d'issues, les comptes
+// au survol ; un clic déplie la colonne Backlog, un autre la replie. Quand aucun ticket n'est sur le rail, la phrase qui
+// dit ce qui est avant lui est celle de la colonne On the rail (ticket 2486). Tout est déjà dit par le process principal :
+// la vue pose.
+/** @param {Projet} projet */
+function backlogDe(projet) {
+  return {
+    vu: amonts.get(projet.nom),
     deplie: amontsDeplies.has(projet.nom),
     basculer: () => {
       const deplier = !amontsDeplies.has(projet.nom);
       if (deplier) amontsDeplies.add(projet.nom);
       else amontsDeplies.delete(projet.nom);
       poserRail(projet);
-      // Redessinée, la barre garde le clavier — et sa bulle reste ouverte, comme au toucher.
-      barreDuRail?.focus?.();
+      // Redessiné, le backlog garde le clavier — et sa bulle reste ouverte, comme au toucher.
+      backlogDuRail?.focus?.();
       // Dépliée, la colonne est à gauche de « On the rail » : la rangée revient à son début pour la montrer.
       const rangee = rangees.get(projet.nom);
       if (deplier && rangee !== undefined) rangee.scrollLeft = 0;
     },
-  });
-  // La bulle du survol enveloppe la barre : c'est son bouton qui prend le clavier.
-  barreDuRail = /** @type {HTMLElement | undefined} */ (barre?.children[0]);
-  if (barre !== null) tete.append(barre);
-  // Sur la même ligne, à quelle allure la cuisine sert : l'histogramme des 24 dernières heures (cadence.js, ticket 1811).
-  const graphe = poserCadence(document, cadence);
-  if (graphe !== null) tete.append(graphe);
-  return tete;
+  };
 }
 /** @param {Projet} projet */
 const tempsVuDe = (projet) => JSON.stringify(projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.temps ?? null);
@@ -4284,20 +4274,24 @@ function railVide(projet) {
   return amonts.get(projet.nom)?.vide ?? `${PAS_ENCORE("ticket on the rail")} What is before it is being read…`;
 }
 
-// La bande du haut de l'onglet Rail (ticket 2486) : le temps d'un ticket, les cooks en cours et le backlog, sur une
-// ligne mince (projet/rail/bande-rail.js) ; l'âge du rail montré au bout. Sans tableau lu, elle ne dit que le temps d'un
-// ticket. Les cooks en cours : ceux que les faits nomment, sinon un par ticket de Taken — ce que GitHub dit.
+// La bande du haut de l'onglet Rail (tickets 2486, 3013) : une seule ligne de chiffres — le temps d'un ticket, le premier
+// coup, les cooks en cours, le dernier merge, le backlog —, chacun posé seulement s'il a une valeur
+// (projet/rail/bande-rail.js) ; l'âge du rail montré au bout. Sans tableau lu, ni cooks ni backlog. Les cooks en cours :
+// ceux que les faits nomment, sinon un par ticket de Taken — ce que GitHub dit.
 /** @param {Projet} projet @param {import("../faits.ts").Tableau} [tableau] @param {HTMLElement[]} [apres] */
 function bandeDuRail(projet, tableau, apres = []) {
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   tempsDesBandes.set(projet.nom, tempsVuDe(projet));
-  if (tableau === undefined) return poserBandeRail(document, { temps: vu?.temps, apres });
+  const maintenant = new Date().toISOString();
+  if (tableau === undefined) return poserBandeRail(document, { temps: vu?.temps, maintenant, apres });
   const { enCours } = tableau.cooks;
   const pris = tableau.compteurs.find(({ libelle }) => libelle === "taken")?.nombre ?? 0;
   const cooks = enCours.length > 0 ? { nombre: enCours.length, tickets: enCours.map(({ ticket, titre, station }) => `#${ticket} ${titre} — ${station}`) } : { nombre: pris, tickets: [] };
-  // Ni barre ni histogramme : le backlog n'a pas de part dans la bande.
-  const backlog = poserAmont(projet, tableau.rail);
-  return poserBandeRail(document, { temps: vu?.temps, cooks, ...(backlog.childElementCount === 0 ? {} : { backlog }), apres });
+  const bande = poserBandeRail(document, { temps: vu?.temps, maintenant, cooks, backlog: backlogDe(projet), apres });
+  // Le bouton du backlog, sous l'enveloppe de son survol : c'est lui qui reprend le clavier.
+  const poses = /** @type {HTMLElement[]} */ ([...bande.children]).map((pose) => /** @type {HTMLElement | undefined} */ (pose.className === "survol" ? pose.children[0] : pose));
+  backlogDuRail = poses.find((pose) => pose?.className === "bande-part bande-backlog");
+  return bande;
 }
 
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
@@ -4596,10 +4590,10 @@ function poserLeRail(projet) {
   const onglet = ongletDe(projet);
   rail.dataset.onglet = onglet === STATIONS ? onglet : RAIL;
   rail.ariaLabel = onglet === STATIONS ? "The stations" : "The rail";
-  blocDuRail.replaceChildren(...(onglet === RAIL ? [poserBlocBandeRail(document)] : []));
-  // Au-dessus du rail, le bandeau de santé de la cuisine et du temps des tickets (ticket 2921) : sur Rail seulement.
-  bandeauSante.hidden = onglet !== RAIL;
-  if (onglet === RAIL) poserLeBandeauDeSante(projet);
+  // La ligne repliée des plafonds, du closer et des lignes de tous les projets (tickets 2921, 3013) : plus sur Rail, où
+  // seule la bande des chiffres tient au-dessus des colonnes ; en tête de Stations, le temps que Settings la reprenne.
+  bandeauSante.hidden = onglet !== STATIONS;
+  if (onglet === STATIONS) poserLeBandeauDeSante(projet);
   else bandeauSante.replaceChildren();
   // Stations : la liste de ses stations (ticket 2487), et « Add a station » ; les réglages de
   // chacune (ticket 2488) ; la station de cet ordinateur (ticket 2489).
@@ -4972,6 +4966,86 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
   );
 }
 
+// Les cartes qui attendent le chef, à la largeur d'un téléphone (cartes-du-chef/, ticket 2915) : celles de la colonne
+// « Awaiting you » de chaque projet lu, avec leur question — une carte déjà répondue n'y est plus. La vue montrée est la
+// liste, une carte ouverte (le brouillon et ce qui a refusé sa réponse sont ceux de la carte), ou l'envoi qu'on vient de faire.
+/** @typedef {import("./cartes-du-chef/cartes-du-chef.js").Carte} CarteDuChef */
+/** @type {{ vu: "liste" } | { vu: "carte", carte: CarteDuChef } | { vu: "envoyee", projet: string, ticket: number }} */
+let vueDesCartes = { vu: "liste" };
+/** @returns {CarteDuChef[]} */
+function lesCartesDuChef() {
+  return configuration.projets.flatMap((projet) => {
+    const tenu = tenus.get(projet.nom);
+    if (tenu === undefined || !("tableau" in tenu)) return [];
+    const colonne = tenu.tableau.rail.colonnes.find(({ nom }) => nom === COLONNE_QUI_T_ATTEND);
+    return (colonne?.cartes ?? []).flatMap((carte) => {
+      const { todo } = carte;
+      if (!carte.attendu || todo === undefined || (todo.question === null && todo.choix.length === 0)) return [];
+      const etat = etatDeLaCarte(projet, carte.ticket, todo);
+      const vu = vuDeLaCarte(todo, etat).vu;
+      return etat.etape === "postee" || vu === "attente" || vu === "jouee" ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
+    });
+  });
+}
+function poserLesCartesDuChef() {
+  if (cartesDuChef.hidden) return;
+  const cartes = lesCartesDuChef();
+  const retour = () => {
+    vueDesCartes = { vu: "liste" };
+    poserLesCartesDuChef();
+  };
+  // Répondue d'ici, la carte ouverte est postée : l'écran dit l'envoi.
+  if (vueDesCartes.vu === "carte") {
+    const { projet, ticket } = vueDesCartes.carte;
+    if (reponsesAuxCartes.get(`${projet}#${ticket}`)?.etat.etape === "postee") vueDesCartes = { vu: "envoyee", projet, ticket };
+  }
+  const vue = vueDesCartes;
+  if (vue.vu === "envoyee") {
+    const reste = cartes.filter(({ projet }) => projet === vue.projet).length;
+    return cartesDuChef.replaceChildren(...poserLEnvoi(document, { ticket: vue.ticket, projet: vue.projet, reste, total: cartes.length, retour }));
+  }
+  if (vue.vu === "carte") {
+    const { projet: nom, ticket } = vue.carte;
+    const cle = `${nom}#${ticket}`;
+    // La carte telle que la dernière lecture la dit ; partie du rail, elle ne s'ouvre plus : retour à la liste.
+    const lue = cartes.find((un) => un.projet === nom && un.ticket === ticket);
+    const projet = configuration.projets.find((un) => un.nom === nom);
+    if (lue === undefined || projet === undefined) return retour();
+    const etat = etatDeLaCarte(projet, ticket, lue.todo);
+    const refus = etat.etape === "refus" ? { dit: etat.dit, detail: etat.detail } : undefined;
+    const clavier = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DE_LA_CARTE_DU_CHEF;
+    const posee = poserLaCarteDuChef(document, {
+      carte: lue,
+      total: cartes.length,
+      brouillon: brouillonsDeCartes.get(cle) ?? "",
+      enRoute: etat.etape === "envoi",
+      ...(refus === undefined ? {} : { refus }),
+      retour,
+      ecrire: (texte) => {
+        brouillonsDeCartes.set(cle, texte);
+        questionsDesBrouillons.set(cle, lue.todo.question ?? lue.todo.resume ?? null);
+      },
+      repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
+    });
+    cartesDuChef.replaceChildren(...posee);
+    if (clavier) posee.saisie.focus();
+    return;
+  }
+  const cuisent = accueilVu === undefined ? undefined : accueilVu.projets.filter((ligne) => etatDeLaLigne(ligne) === "cooking").length;
+  const avis = telephoneVu?.github === undefined ? [] : poserLaListeGitHub(document, telephoneVu, configuration.projets.length, () => void oublierLeTelephone());
+  cartesDuChef.replaceChildren(
+    ...poserLaListeDesCartes(document, {
+      cartes,
+      avis,
+      ...(cuisent === undefined ? {} : { ailleurs: AILLEURS(cuisent) }),
+      ouvrir: (carte) => {
+        vueDesCartes = { vu: "carte", carte };
+        poserLesCartesDuChef();
+      },
+    }),
+  );
+}
+
 // La réponse du chef à une carte de TODO part par le process principal (carte-todo.ts) — une seule à la
 // fois. Postée, la carte dit qu'elle attend la cuisine, et le tableau est relu tout de suite ; refusée, elle
 // garde ses gestes, et dit pourquoi.
@@ -4985,6 +5059,7 @@ async function repondreALaCarte(projet, ticket, reponse) {
   const poser = (etat) => {
     reponsesAuxCartes.set(cle, { question: reponse.question, etat });
     if (courant?.nom === projet.nom) poserRail(projet);
+    poserLesCartesDuChef();
   };
   poser({ etape: "envoi", reponse });
   /** @type {import("../carte-todo.ts").Rendu | undefined} */
@@ -5368,6 +5443,7 @@ function poserAccueil() {
   );
   // « Add a project » est à droite du titre du bloc (Home.dc.html) ; un téléphone n'ajoute pas de projet.
   poserAjout(blocDesProjets, telephoneVu === undefined ? boutonDAjout(document, gestesDuBloc, desProjets.length === 0) : undefined);
+  poserLesCartesDuChef();
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
@@ -6245,9 +6321,10 @@ setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
 }, 30_000);
 
-// Le bandeau de santé, au-dessus du rail (ticket 2490, 2921) : le temps des tickets en détail, les plafonds de durée et le closer. Les plafonds du
-// dépôt se lisent sur GitHub par le process principal (plafonds-duree.ts) — à l'ouverture de Rail, puis au plus une
-// fois la minute tant qu'il reste ouvert, et après chaque changement. Un champ en cours de frappe n'est pas reposé.
+// Le bandeau de santé (ticket 2490, 2921), en tête de Stations depuis que Rail n'a plus que la bande des chiffres (ticket
+// 3013) : les plafonds de durée et le closer. Les plafonds du dépôt se lisent sur GitHub par le process principal
+// (plafonds-duree.ts) — à l'ouverture de Stations, puis au plus une fois la minute tant qu'il reste ouvert, et après
+// chaque changement. Un champ en cours de frappe n'est pas reposé.
 /** @type {Map<string, import("../plafonds-duree.ts").LectureDesPlafonds>} */
 const plafondsLus = new Map();
 /** @type {Map<string, number>} */
@@ -6286,16 +6363,9 @@ function poserLeBandeauDeSante(projet, garder = true) {
   const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
   etatsDesPlafonds.set(projet.nom, etats);
   const lecture = plafondsLus.get(projet.nom);
-  // En vue, les chiffres : le temps des tickets et ce qui est bloqué sans question. Derrière une ligne, ce qui se règle ou
-  // s'ouvre : les plafonds de durée, le closer, et les lignes de tous les projets.
-  const chiffres = document.createElement("div");
-  chiffres.className = "chiffres-de-sante";
-  chiffres.append(
-    poserBlocTempsTickets(document, vu?.temps, depliageDeSante(projet, "temps")),
-    poserBlocBloqueSansQuestion(document, /** @type {{ blockedWithoutQuestion?: unknown } | undefined} */ (vu)?.blockedWithoutQuestion),
-  );
+  // Derrière une ligne, ce qui se règle ou s'ouvre : les plafonds de durée, le closer, et les lignes de tous les projets.
+  // Les chiffres de la cuisine sont dans la bande du rail (ticket 3013).
   bandeauSante.replaceChildren(
-    chiffres,
     replie(document, { titre: "Caps, closer and all projects", resume: "duration caps, the closer, cost and closer of all projects", ...depliageDeSante(projet, "reglages") }, [
     poserBlocPlafondsDuree(document, {
       ...(lecture === undefined ? {} : { lecture }),
@@ -6316,7 +6386,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
 }
 /** @param {Projet} projet @param {boolean} [garder] */
 function reposerLaSante(projet, garder = false) {
-  if (courant?.nom === projet.nom && ongletDe(projet) === RAIL && laisse.get(projet.nom) === undefined) poserLeBandeauDeSante(projet, garder);
+  if (courant?.nom === projet.nom && ongletDe(projet) === STATIONS && laisse.get(projet.nom) === undefined) poserLeBandeauDeSante(projet, garder);
 }
 /** @param {Projet} projet */
 async function lireLesPlafondsDuree(projet) {
@@ -6360,7 +6430,7 @@ async function changerUnPlafond(projet, cle, saisie) {
 }
 
 // Le closer du bandeau de santé (ticket 2491) : ses passes, ce qu'il vérifie en premier et en plus, ses réglages — lus sur GitHub
-// par le process principal (closer-sante.ts), à l'ouverture de Rail puis au plus une fois la minute, comme les
+// par le process principal (closer-sante.ts), à l'ouverture de Stations puis au plus une fois la minute, comme les
 // plafonds. Un réglage changé se propose par une pull request (ticket 2920), qui se dit sous sa rangée — la valeur en
 // vigueur ne change qu'au merge ; une vérification ajoutée ou retirée s'écrit dans le dépôt, et la liste écrite est reprise.
 /** @param {Projet} projet */
@@ -7167,6 +7237,15 @@ function marquer() {
   // L'espace affiché ne porte pas de signal : il le reprend en le quittant.
   for (const projet of configuration.projets) marquerSignal(projet.nom);
   tous.hidden = refuse || ajoute || courant !== undefined;
+  // À la largeur d'un téléphone, l'accueil est la liste des cartes qui attendent le chef (ticket 2915) : elle prend la place
+  // de « Tous les projets », sauf sous une page de l'app, une station ou le premier lancement, qui la couvrent comme lui.
+  const sousUnePage = stationOuverte !== undefined || pageDeLApp !== undefined || (ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous);
+  const surLesCartes = etroit() && !tous.hidden && !sousUnePage;
+  cartesDuChef.hidden = !surLesCartes;
+  if (surLesCartes) {
+    tous.hidden = true;
+    poserLesCartesDuChef();
+  }
   ajout.hidden = !ajoute;
   teindre();
   principal.hidden = !refuse && courant === undefined;
@@ -7868,6 +7947,7 @@ brigade.surFaits((recue) => {
   if (horsLigne && (gardee === undefined || !("tableau" in gardee))) tenus.delete(recue.projet);
   else if (!((muette || horsLigne || ratee) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
+  poserLesCartesDuChef();
   if (courant?.nom === recue.projet) {
     dessiner();
     void poserOrdinaires(courant);

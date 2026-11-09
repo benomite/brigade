@@ -1,8 +1,7 @@
-// À quelle allure la cuisine sert (#1811) : ce que l'app lit de `cadence` dans `facts`, l'histogramme qu'elle en range
-// pour la vue, et l'âge de chaque carte de Taken et de Pass — qui tranche au-delà de deux fois l'ordinaire.
+// À quelle allure la cuisine sert (#1811) : ce que l'app lit de `cadence` dans `facts`, et l'âge de chaque carte de Taken et de Pass — qui tranche au-delà de deux fois l'ordinaire.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { anciennete, cadenceLue, dureeCourte, ECHELLE_MIN, HEURES, histogramme, NOM, type CadenceLue } from "../src/cadence.ts";
+import { anciennete, cadenceLue, dureeCourte, HEURES, type CadenceLue } from "../src/cadence.ts";
 import { comprendre, rail, type Faits } from "../src/faits.ts";
 import { heureHM } from "../src/format.ts";
 
@@ -35,42 +34,6 @@ describe("la lecture de `cadence`", () => {
     ]) {
       assert.equal(cadenceLue(mauvais), undefined, JSON.stringify(mauvais)?.slice(0, 80));
     }
-  });
-});
-
-describe("l'histogramme", () => {
-  test("vingt-quatre barres, l'heure en cours la dernière ; chacune dit son heure et ses deux comptes — le seul texte", () => {
-    const { barres, nom } = histogramme(CADENCE);
-    assert.equal(nom, NOM);
-    assert.equal(barres.length, HEURES);
-    assert.deepEqual(barres.map(({ enCours }) => enCours).lastIndexOf(true), HEURES - 1);
-    assert.equal(barres.filter(({ enCours }) => enCours).length, 1);
-    assert.equal(barres[20]?.dit, `${heureHM(debut(20))}–${heureHM(debut(21))} · 3 served · 1 failed`);
-    assert.equal(barres[23]?.dit, `${heureHM(debut(23))}–now · 1 served · 0 failed`);
-  });
-
-  test("une heure sans rien est une case vide, à hauteur nulle — une suite de cases vides se voit", () => {
-    const { barres } = histogramme(CADENCE);
-    assert.deepEqual(barres.filter(({ vide }) => vide).length, HEURES - 2);
-    assert.deepEqual(barres[0], { debut: debut(0), servis: 0, rates: 0, hautServis: 0, hautRates: 0, dit: `${heureHM(debut(0))}–${heureHM(debut(1))} · 0 served · 0 failed`, vide: true, enCours: false });
-    assert.ok(histogramme({ ...CADENCE, hours: vides() }).barres.every(({ vide, hautServis, hautRates }) => vide && hautServis === 0 && hautRates === 0));
-  });
-
-  test("à l'échelle de l'heure la plus chargée — quatre au moins : servis en bas, ratés dessus", () => {
-    const { barres } = histogramme(CADENCE);
-    assert.equal(ECHELLE_MIN, 4);
-    // L'heure la plus chargée compte quatre : pleine, trois quarts servis, un quart ratés.
-    assert.deepEqual([barres[20]?.hautServis, barres[20]?.hautRates], [75, 25]);
-    assert.deepEqual([barres[23]?.hautServis, barres[23]?.hautRates], [25, 0]);
-    // Un seul ticket dans le jour ne fait pas un pic.
-    const seul = histogramme({ ...CADENCE, hours: vides().map((heure, rang) => (rang === 5 ? { ...heure, served: 1 } : heure)) });
-    assert.equal(seul.barres[5]?.hautServis, 25);
-    // Plus chargé, l'échelle suit.
-    const charge = histogramme({ ...CADENCE, hours: vides().map((heure, rang) => (rang === 5 ? { ...heure, served: 6, failed: 2 } : rang === 6 ? { ...heure, served: 2 } : heure)) });
-    assert.deepEqual([charge.barres[5]?.hautServis, charge.barres[5]?.hautRates, charge.barres[6]?.hautServis], [75, 25, 25]);
-    // Arrondies chacune de leur côté, 1 et 7 sur 8 feraient 13 et 88 : la barre pleine ne passe pas 100.
-    const juste = histogramme({ ...CADENCE, hours: vides().map((heure, rang) => (rang === 5 ? { ...heure, served: 1, failed: 7 } : heure)) });
-    assert.deepEqual([juste.barres[5]?.hautServis, juste.barres[5]?.hautRates], [13, 87]);
   });
 });
 
@@ -128,9 +91,8 @@ describe("de `facts` au rail", () => {
   };
   const carte = (lu: ReturnType<typeof rail>, ticket: number) => lu.colonnes.flatMap(({ cartes }) => cartes).find((posee) => posee.ticket === ticket);
 
-  test("le rail porte l'histogramme, et chaque carte de Taken et de Pass son âge — celle qui traîne tranche", () => {
+  test("chaque carte de Taken et de Pass porte son âge — celle qui traîne tranche", () => {
     const lu = lus(FAITS);
-    assert.deepEqual(lu.cadence, histogramme(CADENCE));
     assert.deepEqual(carte(lu, 14)?.age, anciennete("pris", "2026-10-21T10:00:00.000Z", LU, CADENCE.medianSeconds));
     assert.equal(carte(lu, 14)?.age?.longue, true);
     assert.equal(carte(lu, 15)?.age?.longue, false);
@@ -144,14 +106,12 @@ describe("de `facts` au rail", () => {
     assert.notEqual(carte(lu, 14)?.age, undefined);
   });
 
-  test("d'un runtime d'avant ces champs : ni histogramme, ni âge — le rail se dessine sans", () => {
+  test("d'un runtime d'avant ces champs : ni âge — le rail se dessine sans", () => {
     const { cadence: _, ...sans } = FAITS;
     const lu = lus({ ...sans, rail: FAITS.rail.map(({ depuis: __, ...ticket }) => ticket) });
-    assert.equal(lu.cadence, undefined);
     assert.equal(carte(lu, 14)?.age, undefined);
     // Sans cadence lue, l'âge se dit encore, sans trancher.
     const sansMediane = lus(sans);
-    assert.equal(sansMediane.cadence, undefined);
     assert.equal(carte(sansMediane, 14)?.age?.longue, false);
   });
 

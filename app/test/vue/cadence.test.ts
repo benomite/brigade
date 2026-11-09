@@ -1,11 +1,11 @@
-// En tête du rail, sur la ligne de « upcoming » (#1811) : l'histogramme des 24 dernières heures — servis et ratés,
-// une barre par heure —, et l'âge des cartes de Taken et de Pass. La vue jouée telle qu'elle est, devant un faux
+// Sur le rail (#1811) : l'âge des cartes de Taken et de Pass, et leurs essais — l'histogramme des 24 heures a quitté la
+// tête du rail avec la bande de chiffres (#3013). La vue jouée telle qu'elle est, devant un faux
 // document (aides/fausse-vue.ts), sur ce que le process principal range des faits de la box (faits.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { HEURES, histogramme, type CadenceLue } from "../../src/cadence.ts";
+import { HEURES, type CadenceLue } from "../../src/cadence.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -13,7 +13,7 @@ import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { poserAge, poserCadence, poserEssais } from "../../src/vue/cadence.js";
+import { poserAge, poserEssais } from "../../src/vue/cadence.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T12:20:01.000Z";
@@ -63,59 +63,8 @@ function recevoir(vue: Jouee, faits: unknown = FAITS) {
   const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
-// L'histogramme est dans la part du backlog de la bande du haut du rail (#2486).
-const bande = (vue: Jouee) => vue.element("rail").children.find((pose) => pose.className === "bande-rail");
-const amont = (vue: Jouee) => bande(vue)?.children.find((pose) => pose.className === "amont");
-const graphe = (vue: Jouee) => amont(vue)?.dessous("div").find((pose) => pose.className === "cadence");
 const bon = (vue: Jouee, ticket: number) => vue.element("rail").dessous("li").find((pose) => pose.className === "bon" && pose.textContent.includes(`#${ticket}`));
 const age = (pose: Faux | undefined) => pose?.dessous("span").find((posee) => posee.className === "age");
-
-describe("l'histogramme, en tête du rail", () => {
-  test("sur la ligne de « upcoming » : vingt-quatre barres, servis et ratés empilés, l'heure en cours à droite", async () => {
-    const vue = await ouvrir();
-    recevoir(vue);
-    await ouvrirOnglet(vue, "Rail");
-    const pose = graphe(vue) ?? assert.fail("pas d'histogramme en tête du rail");
-    const barres = pose.dessous("button").filter((barre) => barre.className === "barre");
-    assert.equal(barres.length, HEURES);
-    assert.equal(barres.at(-1)?.dataset.enCours, "");
-    assert.equal(barres.filter((barre) => barre.dataset.enCours !== undefined).length, 1);
-    // Une heure sans rien se voit vide.
-    assert.equal(barres.filter((barre) => barre.dataset.vide !== undefined).length, HEURES - 2);
-    // Empilée : les ratés au-dessus, les servis en bas, chacun à sa part de la hauteur.
-    assert.deepEqual(barres[20]?.children.map((part) => [part.className, part.style.getPropertyValue("height")]), [["rates", "25%"], ["servis", "75%"]]);
-    assert.equal(pose.ariaLabel, histogramme(CADENCE).nom);
-  });
-
-  test("le seul texte : au survol, au clavier ou au toucher, une barre dit son heure et ses deux comptes", async () => {
-    const vue = await ouvrir();
-    recevoir(vue);
-    await ouvrirOnglet(vue, "Rail");
-    const pose = graphe(vue) ?? assert.fail("pas d'histogramme");
-    // Hors survol, aucune bulle : l'histogramme ne porte pas de phrase.
-    assert.equal(pose.textContent, "");
-    const barre = pose.dessous("button")[20] ?? assert.fail("pas de 21e barre");
-    const attendu = histogramme(CADENCE).barres[20]?.dit ?? "";
-    assert.equal(barre.ariaLabel, attendu);
-    barre.declencher("mouseenter");
-    assert.equal(pose.textContent, attendu);
-    barre.declencher("mouseleave");
-    assert.equal(pose.textContent, "");
-    // Au toucher : le bouton prend le clavier, et la bulle s'ouvre comme au focus.
-    const avant = barre.focalise;
-    barre.click();
-    assert.equal(barre.focalise, avant + 1);
-  });
-
-  test("d'un runtime qui ne la donne pas : rien n'est posé, la ligne de « upcoming » reste la même", async () => {
-    const vue = await ouvrir();
-    const { cadence: _, ...sans } = FAITS;
-    recevoir(vue, sans);
-    await ouvrirOnglet(vue, "Rail");
-    assert.notEqual(bande(vue), undefined);
-    assert.equal(graphe(vue), undefined);
-  });
-});
 
 describe("l'âge des cartes de Taken et de Pass", () => {
   test("chaque carte dit depuis combien de temps elle y est ; son âge exact au survol", async () => {
@@ -198,9 +147,6 @@ describe("les essais d'une carte, un point chacun", () => {
 
 test("le module se lit seul, sur un faux document", () => {
   const doc = { createElement: (balise: string) => new Faux(balise) };
-  assert.equal(poserCadence(doc as never, undefined), null);
-  const pose = poserCadence(doc as never, histogramme(CADENCE)) as Faux;
-  assert.equal(pose.dessous("button").length, HEURES);
   const posee = poserAge(doc as never, { court: "3 h", dit: "in Taken for 3 h 02", longue: true }) as Faux;
   assert.deepEqual([posee.textContent, posee.title, posee.dataset.longue], ["3 h", "in Taken for 3 h 02", ""]);
   const essais = poserEssais(doc as never, [{ enCours: false, dit: "attempt 1 of 2 — stopped after 3 min: turns" }, { enCours: true, dit: "attempt 2 of 2 — cooking now" }]) as Faux;

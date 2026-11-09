@@ -1,12 +1,8 @@
 // À quelle allure la cuisine sert (#1811) : le chef revient au bout d'une heure ou de cinq, et le rail lui dit d'un coup
-// d'œil « ça a avancé » ou « pourquoi c'est lent ». Deux choses, lues dans `facts` (`cadence`,
-// docs/runtime/etat-et-mesures.md) et jamais dans la mémoire de l'app — elles sont justes dès qu'elle s'ouvre :
-//  - un petit histogramme des 24 dernières heures, une barre fine par heure, l'heure en cours à droite : les servis en
-//    bas, les ratés dessus. Une heure sans rien est une case vide sur un trait de base : une suite de cases vides se
-//    voit, sans phrase. Au survol, ou au toucher sur le téléphone, une barre dit son heure et ses deux comptes ;
-//  - sur chaque carte de Taken et de Pass, depuis combien de temps elle y est : bien plus longtemps que d'ordinaire —
+// d'œil « ça a avancé » ou « pourquoi c'est lent ». Lu dans `facts` (`cadence`,
+// docs/runtime/etat-et-mesures.md) et jamais dans la mémoire de l'app — juste dès qu'elle s'ouvre : sur chaque carte de Taken et de Pass, depuis combien de temps elle y est : bien plus longtemps que d'ordinaire —
 //    plus de deux fois la médiane des tickets passés par cette colonne —, elle tranche par sa couleur. Son âge exact
-//    est au survol.
+//    est au survol. L'histogramme des 24 heures a quitté la tête du rail avec la bande de chiffres (#3013).
 // Ce module calcule ce que la vue pose : la vue n'y compte rien.
 import { duree } from "./faits.ts";
 import { heureHM } from "./format.ts";
@@ -16,11 +12,6 @@ import { heureHM } from "./format.ts";
 export type HeureLue = { at: string; served: number; failed: number };
 export type CadenceLue = { hours: HeureLue[]; medianSeconds: { taken: number | null; pass: number | null } };
 
-// Une barre, prête à poser : son heure, ses deux comptes, la part de la hauteur de chacun (0 à 100), ce qu'elle dit au
-// survol. `vide` : rien ne s'est passé dans l'heure. `enCours` : l'heure en cours, la dernière.
-export type Barre = { debut: string; servis: number; rates: number; hautServis: number; hautRates: number; dit: string; vide: boolean; enCours: boolean };
-// L'histogramme : ses barres, et son nom pour qui ne voit pas l'écran.
-export type Histogramme = { barres: Barre[]; nom: string };
 // L'âge d'une carte de Taken ou de Pass : court, sur la carte ; exact, au survol ; `longue`, elle y est depuis plus de
 // deux fois l'ordinaire.
 export type Anciennete = { court: string; dit: string; longue: boolean };
@@ -32,11 +23,8 @@ export type EssaiLu = { depuis: string; jusqua: string | null; arret: string | n
 export type Point = { enCours: boolean; dit: string };
 
 export const HEURES = 24;
-// Une barre pleine compte au moins autant : une heure à un seul ticket ne se dessine pas comme un pic.
-export const ECHELLE_MIN = 4;
 // Bien plus longtemps que d'ordinaire : plus de deux fois la médiane.
 export const FOIS_LA_MEDIANE = 2;
-export const NOM = "tickets served and failed, hour by hour, over the last 24 hours";
 
 const compte = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0;
 const secondes = (valeur: unknown): valeur is number | null => valeur === null || (typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0);
@@ -57,29 +45,6 @@ export function cadenceLue(brut: unknown): CadenceLue | undefined {
   const { taken, pass } = medianSeconds as Record<string, unknown>;
   if (!secondes(taken) || !secondes(pass)) return undefined;
   return { hours: lues, medianSeconds: { taken, pass } };
-}
-
-// Les vingt-quatre barres, à l'échelle de l'heure la plus chargée du jour — `ECHELLE_MIN` au moins. Les heures se
-// disent à l'heure locale du poste ; la dernière va jusqu'à maintenant. La part des ratés est ce qui reste de la barre
-// entière une fois les servis posés : arrondies chacune de leur côté, les deux pourraient passer 100.
-export function histogramme({ hours }: CadenceLue): Histogramme {
-  const echelle = Math.max(ECHELLE_MIN, ...hours.map(({ served, failed }) => served + failed));
-  const part = (n: number) => Math.round((n / echelle) * 100);
-  const barres = hours.map(({ at, served, failed }, rang): Barre => {
-    const enCours = rang === hours.length - 1;
-    const fin = enCours ? "now" : heureHM(Date.parse(at) + 3_600_000);
-    return {
-      debut: at,
-      servis: served,
-      rates: failed,
-      hautServis: part(served),
-      hautRates: part(served + failed) - part(served),
-      dit: `${heureHM(at)}–${fin} · ${served} served · ${failed} failed`,
-      vide: served === 0 && failed === 0,
-      enCours,
-    };
-  });
-  return { barres, nom: NOM };
 }
 
 // Une durée en un mot court, pour la carte : « 12 min », « 3 h », « 2 d ».
