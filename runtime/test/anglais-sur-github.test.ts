@@ -8,7 +8,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { carteAbandon, carteBloque, carteMergeALaMain, carteQuestionProduit, corpsDeCarte } from "../src/github-seul/carte-todo/carte-todo.ts";
-import { corpsDeLAttente } from "../src/attente-ticket/attente-ticket.ts";
+import { corpsDeLAttente, lesMotsDuCook } from "../src/attente-ticket/attente-ticket.ts";
+import { apresLaMiseAJour, ticketDuFix } from "../src/mise-a-jour-branche/mise-a-jour-branche.ts";
 import { corpsDeLaReponse } from "../src/desaccord-cook.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { corpsDeReclamation, corpsDeRendu } from "../src/station-contributrice/reclamation.ts";
@@ -146,6 +147,22 @@ describe("in English on GitHub", { concurrency: 8 }, () => {
       direMarque(12, { what: "the vendor's API key", who: "Alice", since: "2026-11-09T10:00:00.000Z", followUp: "2026-11-10T10:00:00.000Z", onArrival: direALArrivee(null) }, true).replaceAll(nomDuProjet(), "shop"),
       direLevee(null, { what: "the key", who: "Alice" }),
     ]);
+  });
+
+  test("the cook: its French words, which no manager translates on the station's paths — awaiting a ticket, a branch brought up to date, its fix ticket —, are not quoted; English ones are", async () => {
+    const question = "Ce ticket bâtit sur le travail de #12, pas encore mergé : il me faut aussi les commits de `origin/main`.";
+    const commentes: string[] = [];
+    const github = { commenter: async (_n: number, corps: string) => void commentes.push(corps), creerIssue: async () => 13 };
+    const miseAJour = { etat: "echec" as const, etape: "merge" as const, detail: "CONFLICT", fichiers: ["a.ts"] };
+    await apresLaMiseAJour(github, { station: "box", ticket: 12, base: "main", branche: "cook/12-github", question, miseAJour: { etat: "fusionnee" } });
+    await apresLaMiseAJour(github, { station: "box", ticket: 12, base: "main", branche: "cook/12-github", question, miseAJour });
+    const fix = ticketDuFix({ ticket: 12, base: "main", branche: "cook/12-github", miseAJour, question });
+    const postes = [corpsDeLAttente({ station: "box", attendus: [12], question }), ...commentes, fix.titre, fix.corps];
+    assert.equal(postes.length, 5);
+    enAnglais(postes);
+    for (const corps of [...postes.slice(0, 3), fix.corps]) assert.match(corps, /The cook's words are not quoted: it wrote them in French\./);
+    assert.deepEqual(lesMotsDuCook("This builds on #12, not yet merged."), ["The cook's words:", "", "> This builds on #12, not yet merged."]);
+    assert.deepEqual(lesMotsDuCook("Je ne peux pas commencer avant #12."), ["The cook's words are not quoted: it wrote them in French."]);
   });
 
   test("the pass: its verdicts, the second judge, the fix ticket it opens, a ticket dropped with another and its return", () => {
