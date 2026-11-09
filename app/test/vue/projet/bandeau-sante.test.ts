@@ -210,7 +210,7 @@ describe("les plafonds de durée, sur Health", () => {
   });
 
   test("tant que rien n'est lu, une ligne le dit ; une lecture ratée tient en une ligne", () => {
-    assert.match(texte(poserBlocPlafondsDuree(doc, {})), /reading the caps of the repository…/);
+    assert.match(texte(poserBlocPlafondsDuree(doc, {})), /Reading the caps of the repository…/);
     const rate = poserBlocPlafondsDuree(doc, { lecture: { sans: "duration caps unavailable", detail: "GitHub refused (HTTP 401)" } });
     assert.match(texte(rate), /duration caps unavailable/);
     assert.doesNotMatch(texte(rate), /HTTP 401/, "le détail est au survol, pas à l'écran");

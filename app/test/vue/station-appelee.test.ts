@@ -173,7 +173,7 @@ describe("« Cook it on a station that has it » ouvre le formulaire de la stati
     const { jouee } = await laPage([enAttente("browser")], null);
     await cliquerSurAilleurs(jouee, "browser");
     assert.equal(formulaire(jouee), undefined);
-    assert.match(jouee.element("choix-du-projet").dessous("p").find(({ className }) => className === "refus-du-choix")?.textContent ?? "", /no station of the project is read yet/);
+    assert.match(jouee.element("choix-du-projet").dessous("p").find(({ className }) => className === "refus-du-choix")?.textContent ?? "", /No station of the project read yet/);
   });
 
   test("la capacité d'un besoin : celle que le runtime déclare en premier au catalogue", () => {
