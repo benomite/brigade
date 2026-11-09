@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Brigade — agents that ship, not agents you babysit</title>
-  <meta name="description" content="Brigade is a free, open-source app that runs Claude Code agents on your GitHub issues: they open, review and merge pull requests and ask you only for product decisions. Put the label fire on an issue and walk away.">
+  <meta name="description" content="Brigade is a free, open-source app that runs Claude Code agents on your GitHub issues: they open, review and merge pull requests and ask you only for product decisions. You stop merging pull requests by hand.">
   <meta property="og:title" content="Brigade — agents that ship, not agents you babysit">
-  <meta property="og:description" content="An open-source kitchen of Claude Code agents. Tickets in, judged and merged pull requests out.">
+  <meta property="og:description" content="Open-source Claude Code agents that work through your GitHub issues. Issues in, reviewed and merged pull requests out.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://benomite.github.io/brigade/">
   <meta property="og:image" content="https://benomite.github.io/brigade/og-image.png">
@@ -40,9 +40,9 @@
   <div class="wrap hero-grid">
     <div class="hero-text">
     <a class="brand" href="https://github.com/benomite/brigade"><img src="logo.svg" alt="" width="36" height="36"> brigade</a>
-    <h1>You are no longer at your computer. Your tickets still ship.</h1>
-    <p class="lead definition"><strong>Brigade is a free, open-source app that runs Claude Code agents on your GitHub issues: they open, review and merge pull requests and ask you only for product decisions.</strong></p>
-    <p class="lead">Put the label <code>fire</code> on a GitHub issue and walk away. A Claude Code cook writes the pull request, the pass judges and merges it, and your phone rings only when a decision is yours.</p>
+    <h1>Your agents wait for you. You spend your day merging their pull requests.</h1>
+    <p class="lead">With Brigade, the agents pick up your GitHub issues on their own, write the pull request, have it tested and reviewed, and merge it when everything is green. Your phone rings only when a decision is yours.</p>
+    <p class="lead definition"><strong>Brigade is a free, open-source app that runs Claude Code agents on your GitHub issues: they open, review and merge pull requests and ask you only for product decisions.</strong> It is for developers who already use Claude Code on a GitHub project and want to stop steering it.</p>
     <div class="actions">
       <a class="btn primary" href="#install">Install Brigade in five steps</a>
     </div>
@@ -52,7 +52,7 @@
     <figure class="phone-shot">
       <div class="phone">
         <div class="screen">
-          <p class="p-top"><span class="p-proj">parade</span><span class="p-tab">Rail</span></p>
+          <p class="p-top"><span class="p-proj">parade</span><span class="p-tab">Tickets</span></p>
           <p class="p-col"><span class="p-sq"></span>Awaiting you<span class="p-n">1</span></p>
           <div class="p-card">
             <p class="p-meta"><span class="p-no">#21</span><span class="p-queued">queued</span><span class="p-awaiting">awaiting you</span></p>
@@ -65,17 +65,17 @@
           </div>
         </div>
       </div>
-      <figcaption>Look at the phone: the one question waiting for you. Tap an answer and the cook carries on, while the rail below keeps moving.</figcaption>
+      <figcaption>Look at the phone: the one question waiting for you. Tap an answer and the agent carries on, while the tickets below keep moving.</figcaption>
     </figure>
   </div>
 
-  <div class="rail" aria-label="A ticket's journey: fire, cooking, at the pass, served">
+  <div class="rail" aria-label="A ticket's journey: queued, being written, being checked, merged">
     <div class="bar"></div>
     <ol class="slips">
-      <li class="slip s1"><span class="stage">fire</span><span class="no">#2041</span><span class="what">Export the rail as CSV</span><span class="state">queued</span></li>
-      <li class="slip s2"><span class="stage">cooking</span><span class="no">#2038</span><span class="what">Retry a dead cook from its last commit</span><span class="state">cook-3 · own worktree</span></li>
-      <li class="slip s3"><span class="stage">at the pass</span><span class="no">#2035</span><span class="what">Cap tokens per ticket</span><span class="state">tests ✓ CI ✓ review…</span></li>
-      <li class="slip s4"><span class="stage">served</span><span class="no">#2031</span><span class="what">Stop the whole kitchen in one gesture</span><span class="state">merged</span></li>
+      <li class="slip s1"><span class="stage">queued</span><span class="no">#2041</span><span class="what">Export the ticket list as CSV</span><span class="state">queued</span></li>
+      <li class="slip s2"><span class="stage">being written</span><span class="no">#2038</span><span class="what">Retry a dead agent from its last commit</span><span class="state">agent 3 · own worktree</span></li>
+      <li class="slip s3"><span class="stage">being checked</span><span class="no">#2035</span><span class="what">Cap tokens per ticket</span><span class="state">tests ✓ CI ✓ review…</span></li>
+      <li class="slip s4"><span class="stage">merged</span><span class="no">#2031</span><span class="what">Stop every agent in one gesture</span><span class="state">merged</span></li>
     </ol>
   </div>
 </header>
@@ -85,18 +85,39 @@
   <section id="difference">
     <h2>Three reasons you can leave</h2>
     <ol class="steps taped">
-      <li><h3>It ships, you don't babysit</h3><p>A cook takes the ticket in its own git worktree and opens the pull request. Nothing waits for you to steer it. <strong>Proof:</strong> 98 of Brigade's last 100 merged pull requests were cooked this way (see below).</p></li>
-      <li><h3>It arrives already judged</h3><p>The pass runs your gates, type check and CI, then an independent review. Only green merges; a failed delivery goes back to the kitchen, not to you. <strong>Proof:</strong> every ticket, pull request and review is public on GitHub.</p></li>
-      <li><h3>You are called only when it matters</h3><p>Only a product or design choice reaches you, as a card that mentions you on GitHub, so GitHub Mobile notifies you. <strong>Proof:</strong> the <em>awaiting</em> list holds nothing else, and caps, a single stop and a breaker keep the kitchen in check.</p></li>
+      <li><h3>It ships, you don't babysit</h3><p>An agent takes the issue in its own git worktree and opens the pull request. Nothing waits for you to steer it. <strong>Proof:</strong> 98 of Brigade's last 100 merged pull requests were written this way (see below).</p></li>
+      <li><h3>It arrives already reviewed</h3><p>Your gates, type check and CI run, then an independent review. Only green merges; a failed attempt goes back to an agent, not to you. <strong>Proof:</strong> every issue, pull request and review is public on GitHub.</p></li>
+      <li><h3>You are called only when it matters</h3><p>Only a product or design choice reaches you, as a card that mentions you on GitHub, so GitHub Mobile notifies you. <strong>Proof:</strong> the <em>awaiting</em> list holds nothing else.</p></li>
     </ol>
+  </section>
+
+  <section id="auto" class="pass">
+    <h2>Full auto, with brakes</h2>
+    <p>Letting agents merge is the point, so they are built to be trusted with it.</p>
+    <ul class="brakes">
+      <li><strong>Caps</strong> on duration, tokens and simultaneous agents.</li>
+      <li><strong>One stop</strong> halts every agent at once.</li>
+      <li><strong>A breaker</strong> trips after repeated failures.</li>
+      <li><strong>Nothing lives in a session's memory.</strong> If an agent dies mid-ticket, its committed work survives and the next one resumes from it.</li>
+    </ul>
   </section>
 
   <section id="how">
     <h2>How it works: the chef, the second, the kitchen</h2>
-    <p>You are the <strong>chef</strong>. The <strong>second</strong> is your product assistant: it helps you write and prioritise tickets. The <strong>kitchen</strong> (cooks and the pass) does the cooking. <strong>The phone is where you answer</strong>: a question reaches you there, you reply, the kitchen carries on.</p>
+    <p>Brigade borrows the words of a restaurant. Here is each one, in a line:</p>
+    <dl class="terms">
+      <dt>chef</dt><dd>you, the human who decides.</dd>
+      <dt>second</dt><dd>your product assistant, in the app's terminal: it helps you write and prioritise tickets.</dd>
+      <dt>kitchen</dt><dd>Brigade running on your project: the cooks and the pass.</dd>
+      <dt>fire</dt><dd>the label you put on an issue to send it to the kitchen.</dd>
+      <dt>rail</dt><dd>the queue of fired tickets, served in order.</dd>
+      <dt>cook</dt><dd>a Claude Code session that works on one ticket, in its own git worktree.</dd>
+      <dt>pass</dt><dd>the step where a ticket is judged: your gates, type check and CI, then an independent review.</dd>
+    </dl>
+    <p><strong>The phone is where you answer</strong>: a question reaches you there, you reply, the kitchen carries on.</p>
     <ol class="steps taped">
-      <li><h3>You fire a ticket</h3><p>Write an issue with acceptance criteria anyone can check, and put <code>fire</code> on it. It joins the rail, the queue the kitchen serves in order. The second, a product assistant in the app's terminal, helps you write and prioritise tickets.</p></li>
-      <li><h3>A cook takes it</h3><p>A real <code>claude</code> session, one per ticket, in its own git worktree. It implements the ticket and opens a pull request. Several cooks work in parallel.</p></li>
+      <li><h3>You fire a ticket</h3><p>Write an issue with acceptance criteria anyone can check, and put <code>fire</code> on it. It joins the rail. The second helps you write and prioritise tickets.</p></li>
+      <li><h3>A cook takes it</h3><p>It implements the ticket and opens a pull request. Several cooks work in parallel.</p></li>
       <li><h3>The pass judges it</h3><p>Your repository's gates, type check and CI, then an independent review. A failed delivery goes back to the kitchen, not to you.</p></li>
       <li><h3>It's served</h3><p>Green means merged and the issue closed. Anything only you can decide lands under <em>awaiting</em>.</p></li>
     </ol>
@@ -106,27 +127,16 @@
     </figure>
   </section>
 
-  <section id="auto" class="pass">
-    <h2>Full auto, with brakes</h2>
-    <p>Letting agents merge is the point, so the kitchen is built to be trusted with it.</p>
-    <ul class="brakes">
-      <li><strong>Caps</strong> on duration, tokens and simultaneous cooks.</li>
-      <li><strong>One stop</strong> halts the whole kitchen.</li>
-      <li><strong>A breaker</strong> trips after repeated failures.</li>
-      <li><strong>Nothing lives in a session's memory.</strong> If a cook dies mid-ticket, its committed work survives and the next cook resumes from it.</li>
-    </ul>
-  </section>
-
   <section id="proof">
-    <h2>Built by its own kitchen</h2>
+    <h2>Built by its own agents</h2>
     <div class="proof">
-      <div class="receipt" role="img" aria-label="Of Brigade's last 100 merged pull requests, 98 were cooked by agents and judged by the pass, 2 were written by hand.">
+      <div class="receipt" role="img" aria-label="Of Brigade's last 100 merged pull requests, 98 were written by agents and reviewed automatically, 2 were written by hand.">
         <p class="r-head">brigade · last 100 merged PRs</p>
-        <p class="r-line"><span>cooked by agents, merged by the pass</span><span>98</span></p>
+        <p class="r-line"><span>written by agents, merged automatically</span><span>98</span></p>
         <p class="r-line"><span>written by hand</span><span>2</span></p>
-        <p class="r-total"><span>chef reviews required</span><span>0</span></p>
+        <p class="r-total"><span>human reviews required</span><span>0</span></p>
       </div>
-      <p>Brigade is developed with Brigade, every day. The tickets, pull requests and reviews are public: <a href="https://github.com/benomite/brigade/pulls?q=is%3Apr+is%3Amerged">read them on GitHub</a> and judge the cooking yourself.</p>
+      <p>Brigade is developed with Brigade, every day. The tickets, pull requests and reviews are public: <a href="https://github.com/benomite/brigade/pulls?q=is%3Apr+is%3Amerged">read them on GitHub</a> and judge the work yourself.</p>
     </div>
   </section>
 
@@ -136,24 +146,24 @@
   </section>
 
   <section id="install">
-    <h2>Install Brigade, cook your first ticket</h2>
-    <p>You need a GitHub repository you can push to (a throwaway one is fine) and a Claude Max subscription: the cooks run on your Max session, an API key does not fit.</p>
+    <h2>Install Brigade, ship your first ticket</h2>
+    <p>You need a GitHub repository you can push to (a throwaway one is fine) and a Claude Max subscription: the agents run on your Max session, an API key does not fit.</p>
     <ol class="install">
       <li><strong>Download the app</strong> from the <a href="https://github.com/benomite/brigade/releases">releases page</a> and open it.</li>
       <li><strong>Sign in with GitHub</strong>: the app shows a code to type on the page it opens.</li>
       <li><strong>Sign in with Claude</strong> with your Max account, if the app asks.</li>
       <li><strong>Open your repository</strong>: type it as <code>owner/repo</code> and click <em>open this project</em>.</li>
-      <li><strong>Fire a ticket</strong>: open an issue and put the label <code>fire</code> on it.</li>
+      <li><strong>Send a ticket</strong>: open an issue and put on it the label from step 1 of How it works.</li>
     </ol>
     <p>No command to type, no file to edit. <a href="https://github.com/benomite/brigade/blob/main/docs/installation.md">Every screen, step by step</a>.</p>
   </section>
 
   <section id="next">
-    <h2>What's cooking next, and where you come in</h2>
-    <p>Brigade is young and moving fast. These are the next stations to build, and they are open to contributors.</p>
+    <h2>What comes next, and where you come in</h2>
+    <p>Brigade is young and moving fast. These are the next things to build, and they are open to contributors.</p>
     <ul class="next taped">
-      <li><h3>Shared kitchens for small teams</h3><p>Today one chef runs one kitchen. Next: several people firing tickets into the same kitchen, each with their own account.</p></li>
-      <li><h3>More engines than Claude</h3><p>Cooks run on Claude Code today. Codex and other engines are the next step.</p></li>
+      <li><h3>Shared setups for small teams</h3><p>Today one person runs one setup. Next: several people sending tickets to the same agents, each with their own account.</p></li>
+      <li><h3>More engines than Claude</h3><p>Agents run on Claude Code today. Codex and other engines are the next step.</p></li>
       <li><h3>Your use case</h3><p>Tried it on your repository and hit a wall? That's a ticket.</p></li>
     </ul>
     <div class="actions">
@@ -165,7 +175,7 @@
 </main>
 
 <footer class="wrap">
-  <p>Brigade is made by <a href="https://github.com/benomite">Benoît</a>, a CTO who builds agent pipelines for media and product teams. Want a kitchen like this in your company? <a href="https://github.com/benomite">Get in touch</a>.</p>
+  <p>Brigade is made by <a href="https://github.com/benomite">Benoît</a>, a CTO who builds agent pipelines for media and product teams. Want agents like these in your company? <a href="https://github.com/benomite">Get in touch</a>.</p>
   <p class="fine">Open source under the MIT licence · <a href="tarifs.html">Pricing</a> · <a href="faq.html">FAQ</a> · <a href="https://github.com/benomite/brigade">benomite/brigade</a> · <a href="https://github.com/benomite/brigade/blob/main/docs/index.md">Documentation</a></p>
 </footer>
 

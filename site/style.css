@@ -164,6 +164,10 @@ main section { padding: 3.5rem 0; }
 .steps { counter-reset: s; }
 .steps li { counter-increment: s; }
 .steps li h3::before { content: counter(s) " · "; color: var(--fire); }
+.terms { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 1rem 0 1.5rem; }
+.terms dt { font-weight: 700; color: var(--fire); }
+.terms dd { margin: 0; }
+@media (max-width: 30rem) { .terms { grid-template-columns: 1fr; gap: 0; } .terms dd { margin-bottom: .6rem; } }
 .next.taped { margin-bottom: 1.5rem; }
 @media (min-width: 44rem) { .next.taped { grid-template-columns: repeat(3, 1fr); } }
 
