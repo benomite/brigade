@@ -121,12 +121,9 @@ describe("le second est une colonne à droite, pas une page", () => {
       assert.deepEqual(terminal?.ecrits, ["> une conversation en cours\r\n"]);
     };
 
-    // Cooks n'est plus ni un onglet ni une page (#2921) : chaque autre lecture se pose par-dessus le centre.
-    for (const { titre } of ONGLETS) {
-      await ouvrirLecture(vue, titre);
-      assert.equal(vue.element("contenu").hidden, false, titre);
-      tenu();
-    }
+    // Settings se pose par-dessus le centre : le terminal ne bouge pas.
+    await ouvrirLecture(vue, "Settings");
+    tenu();
     // Un shell s'ouvre à droite, à côté du second : il a son cadre à lui, montré à la place de
     // celui du second, qui reste posé, caché, avec ce qu'il avait reçu. La page ouverte ne bouge pas.
     const page = selectionne(vue);
@@ -435,8 +432,6 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("second").hidden, false);
-    assert.equal(vue.element("journal").hidden, false);
-    assert.equal(vue.element("journal").ariaPressed, "false");
     // Rien du journal n'est lu tant que le geste n'est pas fait.
     assert.equal(vue.dernier("onglet")[1], undefined);
   });
@@ -486,20 +481,12 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.match(html.slice(html.indexOf('<section id="contenu"')), /^<section id="contenu"[^]*?<\/section>\s*<\/div>\s*<pre id="message" hidden><\/pre>\s*<\/main>/);
   });
 
-  test("le journal s'ouvre par son geste, et le recliquer le referme ; aucun onglet ne le porte", async () => {
+  test("la barre du projet n'a plus de bouton « log » (#3048)", async () => {
     const vue = await ouvrir();
 
-    vue.element("journal").click();
-    await repos();
-    assert.equal(vue.dernier("onglet")[1], "log");
-    assert.equal(vue.element("contenu").hidden, false);
-    assert.equal(vue.element("journal").ariaPressed, "true");
-    assert.deepEqual(selectionne(vue), []);
-
-    vue.element("journal").click();
-    await repos();
-    assert.equal(vue.element("contenu").hidden, true);
-    assert.equal(vue.element("journal").ariaPressed, "false");
+    assert.throws(() => vue.element("journal"));
+    assert.doesNotMatch(readFileSync(join(VUE, "index.html"), "utf8"), /id="journal"/);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings"]);
   });
 
   test("une ligne d'alerte dont la cause se règle dans Settings y mène en un clic", async () => {

@@ -845,9 +845,6 @@ main > header,
   min-width: 0;
   user-select: text;
 }
-#journal {
-  margin-left: auto;
-}
 /* Les terminaux : à droite, en permanence, sur toute la hauteur — leurs onglets, la note du
    terminal montré, et ce terminal. Aucune page ne les couvre. */
 #second {

@@ -496,12 +496,6 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
     await repos();
     return pose;
   };
-  if (titre === "Log") {
-    const geste = vue.element("journal");
-    geste.click();
-    await repos();
-    return geste;
-  }
   if (titre !== "Settings") throw new Error(`pas de page « ${titre} » : Settings n'a plus de sous-pages (#1700)`);
   return cliquer(vue.element("onglets-du-projet"), "Settings");
 }

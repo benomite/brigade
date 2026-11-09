@@ -15,13 +15,11 @@ export const ONGLETS: readonly Onglet[] = [
 
 // Ce que l'écran principal montre en haut : un onglet, Paramètres — une seule page, sans sous-pages
 // (#1700) : ce que le chef règle, en trois groupes. Les
-// pages Rail, Manager et General n'existent plus, ni leur lecture, ni l'onglet Cooks (#2921). Log n'a pas d'onglet : le
-// journal est de l'outillage de panne, il s'ouvre par son geste, en tête de l'espace. Le coût n'est plus
+// pages Rail, Manager et General n'existent plus, ni leur lecture, ni l'onglet Cooks (#2921). Log n'a ni onglet ni bouton (#3048). Le coût n'est plus
 // un onglet de projet (#1022) : il vit au niveau de l'app (`COUTS`, ci-dessous), chaque projet nommé.
 // `defaut` : la lecture que l'onglet ouvre — sans commande pour Paramètres.
 export type Rubrique = { id: string; titre: string; defaut: string; lectures: readonly string[] };
 export const PARAMETRES = "parametres";
-export const JOURNAL = "log";
 export const RUBRIQUES: readonly Rubrique[] = [
   { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES] },
 ];
