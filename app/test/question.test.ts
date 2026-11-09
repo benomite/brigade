@@ -155,7 +155,7 @@ describe("l'issue lue par le `gh` du poste", () => {
 
     const absent = await lireQuestion({ gh: join(enEchec.racine, "pas-de-gh"), delaiMs: 60_000 }, ISSUE, maintenant);
     assert.ok("sans" in absent);
-    assert.match(absent.sans, /is not on this machine/);
+    assert.match(absent.sans, /is not on this computer/);
 
     const informe = await lireQuestion(essai(t, { vue: "{}" }).reglages, ISSUE, maintenant);
     assert.ok("sans" in informe);

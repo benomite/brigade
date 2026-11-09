@@ -39,7 +39,7 @@ const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite
 // Ce que l'opération du runtime calcule pour cet ordinateur (ticket 1307) : ses cooks, son dossier, ses capacités.
 const DEFAUTS: DefautsDeLaMachine = {
   cooks: 5,
-  cooksDit: "from this machine's 12 cores: two are kept for the kitchen itself, then about two per cook",
+  cooksDit: "from this computer's 12 cores: two are kept for the kitchen itself, then about two per cook",
   espaceDeTravail: "/Users/chef/.local/state/brigade/worktrees",
   capacites: [
     { capacite: "navigateur-headless", nom: "a browser", detectee: true },
@@ -120,7 +120,7 @@ test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni 
   assert.deepEqual([...ecran.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/g)].map(([, id]) => id), ["depot", "base"]);
   assert.doesNotMatch(ecran, /\bbox|machine/i);
   assert.equal(formulaire.hidden, false);
-  assert.match(ecran, /<button type="submit" id="ajouter"[^>]*>Add to the app<\/button>/);
+  assert.match(ecran, /<button type="submit" id="ajouter"[^>]*>Add a project<\/button>/);
 });
 
 test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n'appelle que le fichier des projets, le parcours demande qui le cuit (#2477), et confié, sa page s'ouvre", async () => {
@@ -371,10 +371,10 @@ test("« + station » : ni dépôt ni branche ; dès l'ouverture, cet ordinateur
     "Docker=true",
   ]);
   assert.equal(parLibelle(formulaire, "workspace folder")?.readOnly, true);
-  assert.match(formulaire.textContent, /recommended — from this machine's 12 cores: two are kept for the kitchen itself, then about two per cook/);
+  assert.match(formulaire.textContent, /recommended — from this computer's 12 cores: two are kept for the kitchen itself, then about two per cook/);
   assert.equal(formulaire.dessous("legend").find(({ textContent }) => textContent.startsWith("What"))?.textContent, "What this computer can do");
   assert.deepEqual(capacites(formulaire).map(({ dit }) => dit), ["detected", "not found on this computer", "detected"]);
-  boutonSous(formulaire, "Add macbook to the kitchen");
+  boutonSous(formulaire, "Add a project");
 });
 
 test("garder tout et cliquer Add ajoute la station avec ses cooks et ses capacités détectées, et elle paraît dans la liste des stations", async () => {
@@ -382,7 +382,7 @@ test("garder tout et cliquer Add ajoute la station avec ses cooks et ses capacit
   boutonSous(bloc, "+ station").click();
   await repos();
   const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  boutonSous(formulaire, "Add macbook to the kitchen").click();
+  boutonSous(formulaire, "Add a project").click();
   await Promise.all(formulaire.declencher("submit"));
   await repos();
   const [saisie] = jouee.dernier("confierAUneStation") as [{ nom: string; depot: string; base: string; stations: string[]; cooks: string; capacites: string[] }];
@@ -502,7 +502,7 @@ test("tant que les stations ne sont pas lues, la page ne dit pas qu'aucune ne fa
   const jouee = await jouerLaVue({ demarrage: () => ({ ...demarrage([PARADE], undefined), stations: undefined }), espace: () => [] });
   (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
   await repos();
-  assert.equal(jouee.element("stations-du-projet").children[0]?.textContent, "reading your stations on GitHub…");
+  assert.equal(jouee.element("stations-du-projet").children[0]?.textContent, "Reading your stations on GitHub…");
   assert.equal(boutonSous(jouee.element("stations-du-projet"), "choose its machine").hidden, true);
 });
 

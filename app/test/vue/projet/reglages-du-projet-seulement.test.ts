@@ -1,4 +1,4 @@
-// Settings ne tient que des réglages du projet (#2494) : le bloc « This machine » n'y est plus, et chaque réglage montré a
+// Settings ne tient que des réglages du projet (#2494) : le bloc « This computer » n'y est plus, et chaque réglage montré a
 // son stockage dit par une table — ceux que `setting` lit sont dans `.claude/brigade/projet.json`. Le test lit la page
 // telle qu'elle est posée (index.html) : un réglage de plus, ou un bloc rendu, fait échouer la liste.
 import assert from "node:assert/strict";
@@ -37,9 +37,9 @@ const STOCKAGE: Record<string, string> = {
 };
 
 describe("Settings : les réglages du projet seulement", () => {
-  test("le bloc « This machine » n'est plus dans Settings : ni titre, ni ses lignes", () => {
+  test("le bloc « This computer » n'est plus dans Settings : ni titre, ni ses lignes", () => {
     assert.ok(holder > entier.indexOf("</section>"), "ce qui attend Stations est posé hors de Settings, caché");
-    assert.doesNotMatch(settings, /This machine|reglages-machine|niveau-machine|ordinaires|apps-github|projets-servis/i);
+    assert.doesNotMatch(settings, /This computer|reglages-machine|niveau-machine|ordinaires|apps-github|projets-servis/i);
     assert.doesNotMatch(settings, /id="reglages-toi"|niveau-you/);
   });
 

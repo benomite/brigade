@@ -111,11 +111,11 @@ describe("le temps d'un ticket, dans la bande", () => {
     assert.equal(pose.textContent, "Ticket time" + "median" + "3 min" + "/" + "p75" + "4 min" + DIT_ROUGE);
   });
 
-  test("sans mesure : « no measure yet », neutre — ni blanc ni zéro, qu'il manque le temps, les chiffres ou qu'ils soient illisibles", () => {
+  test("sans mesure : « No measure yet. », neutre — ni blanc ni zéro, qu'il manque le temps, les chiffres ou qu'ils soient illisibles", () => {
     for (const temps of [undefined, { enregistrements: [] }, { enregistrements: LENT.enregistrements }, { enregistrements: [], resume: { n: 0, medianMin: 0, p75Min: 0 } }, { enregistrements: [], resume: "x", chiffres: [{ cle: "perdu" }] }]) {
       const pose = tempsDeLaBande(doc, temps);
       assert.equal(laPart(pose).dataset.temps, "vide");
-      assert.equal(pose.textContent, "Ticket time" + "no measure yet");
+      assert.equal(pose.textContent, "Ticket time" + "No measure yet.");
       assert.match(auSurvol(pose), /not a count of zero tickets$/);
     }
   });
@@ -256,7 +256,7 @@ describe("sur l'onglet Rail", () => {
 
   test("des temps publiés après le rail : la bande les dit sans attendre la lecture suivante du rail", async () => {
     const vue = await ouvrir(undefined);
-    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "no measure yet");
+    assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "No measure yet.");
     vue.dire("surProjetsDesStations", projets(LENT));
     await repos();
     assert.equal(parts(vue)[0]?.textContent, "Ticket time" + "median" + "14 min" + "/" + "p75" + "47 min" + DIT_ROUGE);

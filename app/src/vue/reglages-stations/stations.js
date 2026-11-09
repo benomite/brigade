@@ -12,6 +12,7 @@ import { boutonAction, survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { rangeeDeReglage } from "../composants/reglage/reglage.js";
+import { NON_ATTEINT, PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ station: string, login: string | null, refused: boolean }} Station */
@@ -25,11 +26,11 @@ import { rangeeDeReglage } from "../composants/reglage/reglage.js";
 export const TITRE = "contributor stations";
 export const MOTS = {
   aide: "Stations run by people without write access to this repository. They claim a ticket with a comment, cook it in their fork and deliver a pull request. A refused station claims no ticket until you accept it again.",
-  vide: "No contributor station has taken a ticket yet.",
+  vide: PAS_ENCORE("contributor station has taken a ticket"),
   refuser: "Refuse",
   reaccepter: "Accept again",
   refusee: "refused",
-  indisponible: "contributor stations unavailable",
+  indisponible: NON_ATTEINT("contributor stations"),
   rienEnvoye: "nothing was changed: no answer from the service",
 };
 

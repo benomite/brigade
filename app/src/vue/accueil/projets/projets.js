@@ -8,6 +8,7 @@
 // Ce module ne touche pas `document` : la vue lui donne une fabrique (briques.js), les tests un faux.
 
 import { boutonAction } from "../../briques.js";
+import { AJOUTER_UN_PROJET } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {"cooking" | "waiting" | "held" | "idle"} EtatDeProjet */
@@ -33,7 +34,7 @@ export function etatDeLaLigne({ ton, dit }) {
   return ton === "vert" && !/^nothing cooking/.test(dit) && /cooking|at work|at the pass/.test(dit) ? "cooking" : "idle";
 }
 export const SANS_STATION = "no station";
-export const AJOUTER = "Add a project";
+export const AJOUTER = AJOUTER_UN_PROJET;
 export const ATTEND = "awaiting you";
 
 // Une ligne : la pastille, le nom, l'état, ce qui s'y passe, ce qui attend le chef — et la flèche. Les stations se lisent

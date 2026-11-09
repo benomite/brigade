@@ -19,7 +19,7 @@ const dessous = (une: Faux) => une.children.slice(3);
 const boutons = (racine: Faux) => [...racine.descendants()].filter((e) => e.balise === "button" && e.textContent !== "?");
 
 describe("la section Connections", () => {
-  test("connectée : le compte GitHub et son geste, l'état de Claude, la date depuis laquelle il tient, son geste — chacun avec le niveau « this machine »", async () => {
+  test("connectée : le compte GitHub et son geste, l'état de Claude, la date depuis laquelle il tient, son geste — chacun avec le niveau « this computer »", async () => {
     const appels: string[] = [];
     const racine = await section("gist-mac", {
       github: { login: "benomite" },

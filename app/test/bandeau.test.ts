@@ -6,7 +6,7 @@ import { ouvrirTerminaux } from "../src/terminaux.ts";
 import { ICI } from "../src/plateforme.ts";
 
 describe("le bandeau d'un shell", () => {
-  test("ce poste : « this Mac · benoit » — « this PC » sous Windows", () => {
+  test("ce poste : « this computer · benoit » — « this computer » sous Windows", () => {
     assert.equal(texteBandeau({ lieu: "poste" }, "benoit"), `${ICI} · benoit`);
   });
 

@@ -55,7 +55,7 @@ function navigateur() {
 }
 
 async function ouvrirParade(reponses: Reponses = {}, avec: Avec = {}): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: () => demarrage(avec), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this Mac" }], ...reponses });
+  const vue = await jouerLaVue({ demarrage: () => demarrage(avec), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], ...reponses });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
   await repos();
   return vue;

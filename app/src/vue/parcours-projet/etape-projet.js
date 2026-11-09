@@ -10,6 +10,7 @@
 import { poserInstallationDuDepot } from "../ajout-projet/installation-du-depot.js";
 import { boutonAction } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { NON_ATTEINT } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ depot: string, base: string }} Depot */
@@ -155,7 +156,7 @@ export function poserEtapeProjet(doc, { depots, resoudre, ajouter, suivante, ver
     );
   };
   recherche.addEventListener("input", poserListe);
-  if ("refus" in depots) racine.append(attendu, ligneErreur(doc, "repositories unavailable", depots.refus));
+  if ("refus" in depots) racine.append(attendu, ligneErreur(doc, NON_ATTEINT("repositories"), depots.refus));
   else {
     poserListe();
     racine.append(attendu, recherche, liste);

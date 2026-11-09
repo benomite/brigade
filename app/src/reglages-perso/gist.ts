@@ -27,7 +27,7 @@ const ABSENT = /\(HTTP 404\)/;
 class Absent extends Error {}
 
 function echec(reglages: Reglages, erreur: ExecFileException, erreurs: string): string {
-  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this machine: the app keeps your preferences on GitHub with your own \`gh\``;
+  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this computer: the app keeps your preferences on GitHub with your own \`gh\``;
   if (erreur.killed === true) return `GitHub gave no answer within ${Math.round(reglages.delaiMs / 1000)} s`;
   return erreurs.trim().split("\n").at(-1) || erreur.message;
 }

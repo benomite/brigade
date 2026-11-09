@@ -142,6 +142,7 @@ import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, caseDIci, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { CET_ORDINATEUR, ANNULER, OUI, REESSAYER, AJOUTER_UN_PROJET, PAS_ENCORE, LECTURE_DE, NON_ATTEINT } from "./lexique.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -300,7 +301,7 @@ const ajoutDeStation = tenirLAjoutDeStation({
 // « Add a station » et l'étape « station » du parcours d'ajout (ticket 2477) le font tous deux.
 /** @param {string} depot @returns {Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis>} */
 async function servirIciLeDepot(depot) {
-  const rendu = (await brigade.servirUnProjet?.(depot, true)) ?? { refus: "the app could not reach this computer's station" };
+  const rendu = (await brigade.servirUnProjet?.(depot, true)) ?? { refus: NON_ATTEINT(`${CET_ORDINATEUR}'s station`) };
   void servis.lire();
   return rendu;
 }
@@ -372,7 +373,7 @@ codeTape.ariaLabel = "pairing code";
 codeTape.autocomplete = "off";
 codeTape.spellcheck = false;
 const appairage = boutonDeLaFamille(document, "pair", undefined, { sorte: "recommande", type: "submit" });
-const renoncerAppairage = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
+const renoncerAppairage = /** @type {HTMLButtonElement} */ (bouton(ANNULER, undefined, "discret"));
 const appairageDit = document.createElement("p");
 appairageDit.ariaLive = "polite";
 formulaireDAppairage.append(codeTape, appairage, renoncerAppairage, appairageDit);
@@ -438,7 +439,7 @@ projetsChoisisDeStation.ariaLive = "polite";
 const titreDesProjets = bloc("h3", "Projects");
 const listeDesProjets = document.createElement("div");
 listeDesProjets.ariaLive = "polite";
-const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bouton("+ add a project", undefined));
+const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bouton(`+ ${AJOUTER_UN_PROJET.toLowerCase()}`, undefined));
 ouvrirLeParcours.className = "ajout-de-projet";
 const formulaireDAjout = document.createElement("form");
 formulaireDAjout.hidden = true;
@@ -467,7 +468,7 @@ const calibrageDuProjet = {
 };
 for (const [champ, liste] of Object.entries(calibrageDuProjet)) liste.ariaLabel = champ.replace("-modele", " model").replace("-effort", " effort");
 const validerAjout = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, "add", undefined, { sorte: "recommande", type: "submit" }));
-const annulerAjout = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
+const annulerAjout = /** @type {HTMLButtonElement} */ (bouton(ANNULER, undefined, "discret"));
 const ajoutRefuse = document.createElement("div");
 ajoutRefuse.ariaLive = "polite";
 const ajoutDit = document.createElement("p");
@@ -701,7 +702,7 @@ reglagesAvances.append(
 const confianceRefusee = document.createElement("div");
 confianceRefusee.ariaLive = "polite";
 const validerConfiance = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, "", undefined, { sorte: "recommande", type: "submit" }));
-const annulerConfiance = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
+const annulerConfiance = /** @type {HTMLButtonElement} */ (bouton(ANNULER, undefined, "discret"));
 const gestesDeConfiance = document.createElement("div");
 gestesDeConfiance.className = "lancer";
 gestesDeConfiance.append(validerConfiance, annulerConfiance);
@@ -1185,7 +1186,7 @@ function deplacer({ key, shiftKey, altKey = false, ctrlKey = false, metaKey = fa
 }
 
 // Cet ordinateur, tel que le process principal le dit au démarrage : son nom à l'écran, et s'il est un Mac.
-let POSTE = { nom: "this Mac", mac: true };
+let POSTE = { nom: CET_ORDINATEUR, mac: true };
 
 /**
  * Copier et coller dans un terminal, hors d'un Mac. Sur un Mac, Cmd+C et Cmd+V passent par le menu
@@ -1343,7 +1344,7 @@ function montrer() {
   listeMachines.replaceChildren(
     ...(choix === undefined
       ? []
-      : [bloc("span", "open a shell on"), ...choix.machines.map(({ id, titre }) => bouton(titre, () => void ouvrirSur(choix.projet, id))), bouton("cancel", () => void ((choixDeMachine = undefined), montrer()), "discret")]),
+      : [bloc("span", "open a shell on"), ...choix.machines.map(({ id, titre }) => bouton(titre, () => void ouvrirSur(choix.projet, id))), bouton(ANNULER, () => void ((choixDeMachine = undefined), montrer()), "discret")]),
   );
 
   // L'explication d'un onglet relayé n'est pas écrite à plat : une icône d'aide la porte.
@@ -1759,7 +1760,7 @@ function poserGesteRate({ texte, rejouer }) {
   const phrase = document.createElement("span");
   phrase.textContent = `nothing was sent to the second: ${tete}`;
   phrase.title = texte;
-  const encore = bouton("try again", rejouer);
+  const encore = bouton(REESSAYER, rejouer);
   encore.dataset.reessayer = "";
   return [phrase, encore];
 }
@@ -2401,7 +2402,7 @@ function poserRetrait(projet, pose) {
   demande.title = lignes.join("\n");
   const controle =
     retraitDeLApp === projet.nom
-      ? [bouton(`yes, remove “${projet.nom}” from the app`, () => void retirerDeLApp(projet), "danger"), bouton("no", () => ((retraitDeLApp = ""), poserRetrait(projet, pose)), "discret")]
+      ? [bouton(OUI(`remove “${projet.nom}” from the app`), () => void retirerDeLApp(projet), "danger"), bouton(ANNULER, () => ((retraitDeLApp = ""), poserRetrait(projet, pose)), "discret")]
       : [demande];
   retrait.replaceChildren(rangeeDeReglage("Remove this project from the app's sidebar", [], controle, refusDeReglage(nonRetire.refus)));
 }
@@ -2457,7 +2458,7 @@ function poserCouleurs(projet) {
     palette.className = "rangee";
     palette.append(...pastilles, autre);
     const proche = projet.proches?.[role];
-    return rangeeDeReglage(libelle, [bloc("span", portee === undefined ? "none yet" : (nommee ?? portee))], [palette], proche === undefined ? [] : refusDeReglage(`${libelle}: ${proche}`), { cle: "couleurs", niveau: niveauDe(document, "couleurs") });
+    return rangeeDeReglage(libelle, [bloc("span", portee === undefined ? PAS_ENCORE("color") : (nommee ?? portee))], [palette], proche === undefined ? [] : refusDeReglage(`${libelle}: ${proche}`), { cle: "couleurs", niveau: niveauDe(document, "couleurs") });
   };
   couleurs.replaceChildren(rangee("onglet", "tab, in the bar"), rangee("accent", "accent, in the space"), ...refusDeReglage(couleurRefusee.refus));
 }
@@ -2514,7 +2515,7 @@ async function lireLesReglages(projet) {
   try {
     recue = await brigade.reglagesDuProjet(projet.nom);
   } catch (erreur) {
-    recue = { sans: "settings unavailable", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    recue = { sans: NON_ATTEINT("settings"), detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
   // Un pont qui ne porte pas la lecture — un téléphone — ne rend rien : la section ne se pose pas.
   if (recue === undefined) reglagesLus.delete(projet.nom);
@@ -3027,7 +3028,7 @@ function poserFormulaireDAttente(projet, ticket, cle, ouvert) {
   const valider = bouton("put in WAITING", undefined, "recommande");
   valider.type = "submit";
   valider.dataset.attente = "attente-poser";
-  const renoncer = bouton("cancel", () => {
+  const renoncer = bouton(ANNULER, () => {
     formulairesDAttente.delete(cle);
     poserRail(projet);
   }, "discret");
@@ -3376,11 +3377,11 @@ function poserGestesDeFiche(projet, carte) {
   section.ariaLabel = `what you can do on #${ticket}`;
   const proposes = gestesDeFiches.get(cle);
   if (proposes === undefined) {
-    section.append(bloc("p", "reading what can be done…"));
+    section.append(bloc("p", LECTURE_DE("what can be done")));
     return section;
   }
   if ("sans" in proposes) {
-    section.append(ligneErreur(document, "actions unavailable", proposes.sans));
+    section.append(ligneErreur(document, NON_ATTEINT("actions"), proposes.sans));
     return section;
   }
   const issue = issuesDeFiches.get(cle);
@@ -3402,7 +3403,7 @@ function poserGestesDeFiche(projet, carte) {
       confirmationsDeFiches.delete(cle);
       void jouerGesteDeFiche(projet, ticket, enAttente.id);
     };
-    section.append(confirmationDeGeste(document, { titre: `${enAttente.libelle} — #${ticket}?`, prix: enAttente.prix, oui: `yes, ${enAttente.libelle}`, non: "cancel" }, { oui: confirmer, non: renoncer }));
+    section.append(confirmationDeGeste(document, { titre: `${enAttente.libelle} — #${ticket}?`, prix: enAttente.prix, oui: OUI(enAttente.libelle), non: ANNULER }, { oui: confirmer, non: renoncer }));
   }
   const refus = refusDeFiches.get(cle);
   if (refus !== undefined) {
@@ -3545,9 +3546,9 @@ function poserHistoire(projet, ticket, carte, cookPose = false) {
   const section = document.createElement("section");
   section.className = "histoire";
   section.append(bloc("h4", "history"));
-  if (histoire === undefined) section.append(bloc("p", "reading the history…"));
+  if (histoire === undefined) section.append(bloc("p", LECTURE_DE("the history")));
   // Une lecture qui manque se dit en une ligne ; ce que la station a répondu, au survol.
-  else if ("sans" in histoire) section.append(ligneErreur(document, "history unavailable", histoire.sans));
+  else if ("sans" in histoire) section.append(ligneErreur(document, NON_ATTEINT("history"), histoire.sans));
   else {
     const liste = document.createElement("ol");
     for (const { libelle, at, ton, detail } of histoire.etapes) {
@@ -3598,7 +3599,7 @@ function poserRetro(ticket, retro) {
   }
   // Une lecture qui manque se dit en une ligne ; pourquoi, au survol.
   if ("sans" in retro) {
-    section.append(ligneErreur(document, "retro unavailable", retro.sans));
+    section.append(ligneErreur(document, NON_ATTEINT("retro"), retro.sans));
     return section;
   }
   if (retro.texte === null && retro.lecons.length === 0) {
@@ -3665,11 +3666,11 @@ function poserDiscussion(projet, ticket) {
   section.ariaLabel = `issue #${ticket} and its discussion`;
   const lue = discussions.get(cle);
   if (lue === undefined) {
-    section.append(bloc("p", `reading issue #${ticket}…`));
+    section.append(bloc("p", LECTURE_DE(`issue #${ticket}`)));
     return section;
   }
   if ("sans" in lue) {
-    section.append(ligneErreur(document, "discussion unavailable", lue.sans));
+    section.append(ligneErreur(document, NON_ATTEINT("discussion"), lue.sans));
     return section;
   }
   /** @param {string} url */
@@ -3947,7 +3948,7 @@ function poserLevees(projet, ticket) {
     levees.delete(cle);
     if (ficheDe(projet, ticket)) poserFiche();
   };
-  return [retirer, fermer, confirmationDeGeste(document, { titre: `close issue #${ticket} on GitHub?`, prix: PRIX_DE_FERMETURE, oui: "yes, close the issue", non: "cancel" }, { oui: () => void lancer("fermer"), non: renoncer })];
+  return [retirer, fermer, confirmationDeGeste(document, { titre: `close issue #${ticket} on GitHub?`, prix: PRIX_DE_FERMETURE, oui: OUI("close the issue"), non: ANNULER }, { oui: () => void lancer("fermer"), non: renoncer })];
 }
 
 // La question de ce ticket, lue sur son issue par le process principal (question.ts) : la vue
@@ -4020,11 +4021,11 @@ function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
   const section = document.createElement("section");
   section.className = "question";
   if (lue === undefined) {
-    section.append(bloc("small", `reading issue #${ticket}, for the question it asks…`));
+    section.append(bloc("small", LECTURE_DE(`issue #${ticket}, for the question it asks`)));
     return section;
   }
   if ("sans" in lue) {
-    section.append(ligneErreur(document, "question unavailable", lue.sans));
+    section.append(ligneErreur(document, NON_ATTEINT("question"), lue.sans));
     return section;
   }
   const { question } = lue;
@@ -4142,7 +4143,7 @@ function signePerime({ depuis, raison }, lu) {
 function signeHorsLigne(depuis) {
   const signe = bloc("p", `offline since ${heureCourte(depuis)}`);
   signe.className = "hors-ligne";
-  signe.title = "GitHub cannot be reached from this computer: what is shown is the last state the app read. It is read again on its own when the network comes back.";
+  signe.title = `GitHub cannot be reached from ${CET_ORDINATEUR}: what is shown is the last state the app read. It is read again on its own when the network comes back.`;
   return signe;
 }
 // Le réseau revient : la lecture n'attend pas son tour.
@@ -4273,7 +4274,7 @@ const tempsVuDe = (projet) => JSON.stringify(projetsVus?.projets.find(({ nom }) 
 // Rien sur le rail : sa colonne dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
 /** @param {Projet} projet */
 function railVide(projet) {
-  return amonts.get(projet.nom)?.vide ?? "nothing on the rail — what is before it is being read…";
+  return amonts.get(projet.nom)?.vide ?? `${PAS_ENCORE("ticket on the rail")} What is before it is being read…`;
 }
 
 // La bande du haut de l'onglet Rail (ticket 2486) : le temps d'un ticket, les cooks en cours et le backlog, sur une
@@ -4362,7 +4363,7 @@ function colonneBacklog(projet, bons) {
 }
 
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
-const STATION_ARRETEE = "this computer's station is not running";
+const STATION_ARRETEE = `${CET_ORDINATEUR}'s station is not running`;
 
 // Les stations du projet, sur Stations, et la ligne d'alerte de Rail (ticket 1185), d'après ses derniers faits — rien
 // tant que sa box ne répond pas : ce qu'ils en disaient n'est plus lu — et, pour l'alerte, ce que la station du
@@ -5052,7 +5053,7 @@ async function reprendreLeDisjoncteur(projet) {
   try {
     rendu = await brigade.reprendreLeDisjoncteur(projet.nom);
   } catch (erreur) {
-    rendu = { refus: "resume not requested: the app could not reach GitHub", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    rendu = { refus: `resume not requested: ${NON_ATTEINT("GitHub")}`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
   poser(apresLaReprise(rendu));
 }
@@ -5347,8 +5348,8 @@ function poserAccueil() {
       ? [...poserLaListeGitHub(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
       : desProjets.length === 0
         ? (telephoneVu === undefined
-          ? [bloc("p", "no project yet: “+” in the bar adds one")]
-          : [bloc("p", "no project on this phone yet: a project is added from a computer")])
+          ? [bloc("p", `${PAS_ENCORE("project")} “+” in the bar adds one.`)]
+          : [bloc("p", `${PAS_ENCORE("project on this phone")} A project is added from a computer.`)])
         : desProjets),
   );
   // « Add a project » est à droite du titre du bloc (Home.dc.html) ; un téléphone n'ajoute pas de projet.
@@ -5378,7 +5379,7 @@ function poserPageDeStation() {
     versionDeStation.replaceChildren();
     retraitDeStation.replaceChildren();
   } else if (station === undefined) {
-    enTeteDeStation.replaceChildren(bloc("p", stationsVues === undefined ? "reading your stations on GitHub…" : "this station is no longer paired with this app"));
+    enTeteDeStation.replaceChildren(bloc("p", stationsVues === undefined ? LECTURE_DE("your stations on GitHub") : "this station is no longer paired with this app"));
     poserLesSectionsDeStation(undefined);
     pannesDeStation.replaceChildren();
     plafondDeStation.replaceChildren();
@@ -5448,7 +5449,7 @@ function poserLesSectionsDeStation(station) {
       },
     },
   };
-  const reglages = brigade.lireReglagesDeLaStation === undefined ? undefined : { lire: async () => (await brigade.lireReglagesDeLaStation?.()) ?? { refus: "folders and sandbox unavailable" }, ecrire: async (/** @type {any} */ c) => (await brigade.ecrireReglagesDeLaStation?.(c)) ?? { refus: "nothing was changed" } };
+  const reglages = brigade.lireReglagesDeLaStation === undefined ? undefined : { lire: async () => (await brigade.lireReglagesDeLaStation?.()) ?? { refus: NON_ATTEINT("folders and sandbox") }, ecrire: async (/** @type {any} */ c) => (await brigade.ecrireReglagesDeLaStation?.(c)) ?? { refus: "nothing was changed" } };
   void compte.then((github) => poserLaCoqueDeStation(document, { station, locale, reglages, connexions: { ...connexions, github } })).then((page) => {
     if (sectionsDeStationPosees === posees) sectionsDeStation.replaceChildren(page);
   });
@@ -5529,7 +5530,7 @@ function poserRetireLaStation(station) {
   retraitDeStation.replaceChildren(
     confirmationDeGeste(
       document,
-      { titre: `Remove ${station.nom} from this app?`, prix: `${station.nom} leaves the home and is no longer read; it keeps running, and pairs again with a new code`, oui: "remove", non: "cancel" },
+      { titre: `Remove ${station.nom} from this app?`, prix: `${station.nom} leaves the home and is no longer read; it keeps running, and pairs again with a new code`, oui: "remove", non: ANNULER },
       {
         non: () => {
           retraitDeStationDemande = undefined;
@@ -5588,7 +5589,7 @@ function poserProjets() {
     return pose;
   });
   // Tant que ce que l'app lui demande n'est pas lu, le vide n'est pas sûr : il ne se dit pas.
-  const vide = station.etat === "illisible" ? "its projects cannot be read: neither can the station" : projetsVus === undefined ? "reading GitHub…" : "no project on this station yet";
+  const vide = station.etat === "illisible" ? "its projects cannot be read: neither can the station" : projetsVus === undefined ? LECTURE_DE("GitHub") : PAS_ENCORE("project on this station");
   listeDesProjets.replaceChildren(
     ...(lignes.length === 0 ? [bloc("p", vide)] : lignes),
     ...(projetsVus?.sans === undefined ? [] : [ligneErreur(document, "GitHub could not be read: the projects added from this app are the ones from before", projetsVus.sans)]),
@@ -5617,7 +5618,7 @@ function ligneDeProjetDeStation(nom, servi, demande) {
     demande === undefined ? "installed on this station outside the app" : `${demande.projet.depot} · ${demande.projet.base}`,
     ...(demande === undefined || demande.ici.dit === "" ? [] : [demande.ici.dit]),
     ...(demande === undefined || demande.projet.servi === null ? [] : [demande.projet.servi]),
-    declare === undefined ? "not in this app's projects yet: a click opens “Add a project”" : "",
+    declare === undefined ? `not in this app's projects yet: a click opens “${AJOUTER_UN_PROJET}”` : "",
   ].filter((ligne) => ligne !== "");
   const cree = document.createElement("button");
   cree.type = "button";
@@ -5707,7 +5708,7 @@ async function ouvrirParcours() {
   cooksChoisis.value = "";
   for (const [champ, liste] of Object.entries(calibrageDuProjet)) proposer(liste, champ.endsWith("modele") ? CALIBRAGE_DU_PROJET.modeles : CALIBRAGE_DU_PROJET.efforts, champ.endsWith("modele") ? `— ${champ.split("-")[0]} model —` : `— ${champ.split("-")[0]} effort —`);
   depotChoisi.replaceChildren(new Option("— repository —", ""));
-  etapeDuProjet.replaceChildren(bloc("p", "reading your repositories on GitHub…"));
+  etapeDuProjet.replaceChildren(bloc("p", LECTURE_DE("your repositories on GitHub")));
   poserChoixDesStations();
   const vise = parcours;
   const lus = await brigade.depotsDuChef();
@@ -5897,11 +5898,11 @@ function stationNommee(station, ici, projet) {
   const sienne = (stationsVues?.stations ?? []).find(({ id }) => id === locale);
   const ceMac = ici || (station.id !== "" && station.id === locale);
   const nom = station.nom !== "" ? station.nom : ceMac ? (sienne?.nom ?? POSTE.nom) : "";
-  const dit = ceMac ? `${nom} (this computer)` : nom;
+  const dit = ceMac && nom !== CET_ORDINATEUR ? `${nom} (${CET_ORDINATEUR})` : nom;
   // Son nom ouvre sa page : un bouton discret de la famille.
   const nomme = bouton("", undefined, "discret");
   nomme.className = "station-du-projet";
-  nomme.title = [ceMac && nom !== "" ? `${nom}, this computer's station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
+  nomme.title = [ceMac && nom !== "" && nom !== CET_ORDINATEUR ? `${nom}, ${CET_ORDINATEUR}'s station` : "", station.dit, station.survol].filter((ligne) => ligne !== "").join("\n");
   const appele = bloc("strong", dit);
   appele.className = "mono";
   nomme.ariaLabel = `${dit} — ${station.dit}`;
@@ -6027,7 +6028,7 @@ function poserLeDemenagement(projet, ou, enCours, lues) {
   lesMachines.append(...machines);
   const prix = bloc("p", "Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.");
   prix.className = "prix";
-  const annuler = /** @type {HTMLButtonElement} */ (bouton("cancel", undefined, "discret"));
+  const annuler = /** @type {HTMLButtonElement} */ (bouton(ANNULER, undefined, "discret"));
   annuler.disabled = vise.part;
   annuler.addEventListener("click", () => {
     fermerDemenagement();
@@ -6166,7 +6167,7 @@ function poserStationsDuProjet() {
       }),
     );
   } else {
-    ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
+    ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : LECTURE_DE("your stations on GitHub");
   }
   poserLeDemenagement(projet, ou, enCours, lues);
   // Une station du compte qui refuse de l'avoir (ticket 1790) : son nom et sa phrase, une ligne chacune.
@@ -6311,9 +6312,9 @@ async function lireLesPlafondsDuree(projet) {
   /** @type {import("../plafonds-duree.ts").LectureDesPlafonds} */
   let lue;
   try {
-    lue = (await brigade.plafondsDuree?.(projet.nom)) ?? { sans: "duration caps unavailable", detail: SANS_PONT };
+    lue = (await brigade.plafondsDuree?.(projet.nom)) ?? { sans: NON_ATTEINT("duration caps"), detail: SANS_PONT };
   } catch (erreur) {
-    lue = { sans: "duration caps unavailable", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    lue = { sans: NON_ATTEINT("duration caps"), detail: erreur instanceof Error ? erreur.message : String(erreur) };
   } finally {
     plafondsEnLecture.delete(projet.nom);
   }
@@ -6378,10 +6379,10 @@ async function lireLeCloserDeSante(projet) {
   /** @type {import("../closer-sante.ts").LectureDuCloser} */
   let lue;
   try {
-    const sans = { sans: "the closer unavailable", detail: SANS_PONT };
+    const sans = { sans: NON_ATTEINT("the closer"), detail: SANS_PONT };
     lue = (await brigade.closerDeSante?.(projet.nom)) ?? { reglages: sans, verifications: sans, passes: sans };
   } catch (erreur) {
-    const sans = { sans: "the closer unavailable", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    const sans = { sans: NON_ATTEINT("the closer"), detail: erreur instanceof Error ? erreur.message : String(erreur) };
     lue = { reglages: sans, verifications: sans, passes: sans };
   } finally {
     closerEnLecture.delete(projet.nom);
@@ -6492,7 +6493,7 @@ function ouvrirLaStationQuiLA(nom, id, choix) {
   const station = projet === undefined || lues === undefined ? undefined : stationAOuvrir(lues, { ici: projet.ici === true });
   const tenus = choixRetenus.get(nom);
   if (projet === undefined || station === undefined) {
-    tenus?.refus.set(id, { refus: "no station of the project is read yet: the next check of the installation reads them" });
+    tenus?.refus.set(id, { refus: `${PAS_ENCORE("station of the project read")} The next check of the installation reads them.` });
     return poserStationsDuProjet();
   }
   tenus?.refus.delete(id);
@@ -6635,7 +6636,7 @@ function poserLaConfiance(vise, projet, { exclues, demande, tenue }) {
   const noms = [...vise.choisies].map(nomDe).filter((nom) => nom !== "");
   validerConfiance.textContent = premiere
     ? noms.length === 0 ? "Start the kitchen" : `Start the kitchen on ${noms.join(", ")}`
-    : noms.length === 0 ? "Add to the kitchen" : `Add ${noms.join(", ")} to the kitchen`;
+    : AJOUTER_UN_PROJET;
   gestesDeConfiance.hidden = appairees.length === 0;
 }
 
@@ -6683,8 +6684,8 @@ function uneMachine(station, role, choisie, recommandee, changer) {
 function poserLaMachineAjoutee(vise, id, nom, ici, defauts) {
   dossierDeConfiance.value = ici ? (defauts?.espaceDeTravail ?? "") : "";
   dossierDeConfiance.placeholder = ici ? "" : `chosen on ${nom}`;
-  dossierDit.textContent = ici ? "where this computer's station puts its cooks' workspaces" : `${nom}'s station chooses it on that machine`;
-  legendeDesCapacites.textContent = `What ${ici ? "this computer" : nom} can do`;
+  dossierDit.textContent = ici ? `where ${CET_ORDINATEUR}'s station puts its cooks' workspaces` : `${nom}'s station chooses it on that machine`;
+  legendeDesCapacites.textContent = `What ${ici ? CET_ORDINATEUR : nom} can do`;
   const catalogue = defauts?.capacites ?? [];
   let cochees = vise.capacites.get(id);
   if (cochees === undefined) {
@@ -6692,12 +6693,12 @@ function poserLaMachineAjoutee(vise, id, nom, ici, defauts) {
     vise.capacites.set(id, cochees);
   }
   const tenues = cochees;
-  const refus = vise.defauts !== undefined && "refus" in vise.defauts ? vise.defauts : { refus: "this computer could not be read", detail: "" };
+  const refus = vise.defauts !== undefined && "refus" in vise.defauts ? vise.defauts : { refus: `${CET_ORDINATEUR} could not be read`, detail: "" };
   choixDesCapacites.replaceChildren(
     ...(catalogue.length === 0
       ? [ligneErreur(document, refus.refus, refus.detail ?? "")]
       : catalogue.map(({ capacite, nom: dite, detectee }) =>
-          caseACocher(document, { nom: dite, dit: !ici ? "not detectable from this computer" : detectee ? "detected" : "not found on this computer", cochee: tenues.has(capacite) }, (cochee) => {
+          caseACocher(document, { nom: dite, dit: !ici ? `not detectable from ${CET_ORDINATEUR}` : detectee ? "detected" : `not found on ${CET_ORDINATEUR}`, cochee: tenues.has(capacite) }, (cochee) => {
             if (cochee) tenues.add(capacite);
             else tenues.delete(capacite);
           }),
@@ -6748,15 +6749,15 @@ async function ouvrirConfiance() {
 /** @param {string} nom @returns {Promise<import("../projets/projets.ts").DefautsDeLaMachine>} */
 async function defautsDeCetOrdinateur(nom) {
   try {
-    return (await brigade.defautsDeStation(nom)) ?? { refus: "this computer could not be read" };
+    return (await brigade.defautsDeStation(nom)) ?? { refus: `${CET_ORDINATEUR} could not be read` };
   } catch (erreur) {
-    return { refus: "this computer could not be read", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+    return { refus: `${CET_ORDINATEUR} could not be read`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
 }
 // Le dépôt à choisir : ceux du chef, lus sur GitHub, avec celui que le projet connaît déjà d'avance.
 /** @param {NonNullable<typeof confiance>} vise @param {Projet} projet */
 async function lireLesDepots(vise, projet) {
-  depotDeConfiance.replaceChildren(new Option("reading your repositories on GitHub…", ""));
+  depotDeConfiance.replaceChildren(new Option(LECTURE_DE("your repositories on GitHub"), ""));
   const lus = await brigade.depotsDuChef();
   if (confiance !== vise) return;
   if ("refus" in lus) {
@@ -7079,7 +7080,7 @@ function poserControle(projet, alerte, endroit) {
 const confirmationDeDemande = (prix) => ({
   titre: "ask the second to lift it",
   prix: [prix, "the second reads, explains, and acts only with you"],
-  choix: [{ id: "demande", libelle: "yes, write the request", dit: "written into the second, not sent: your Enter sends it" }],
+  choix: [{ id: "demande", libelle: OUI("write the request"), dit: "written into the second, not sent: your Enter sends it" }],
   renoncer: "no, write nothing",
 });
 
@@ -7196,7 +7197,7 @@ function poserStationsDeLAccueil() {
         ? [bloc("p", "your stations: first read on GitHub in progress…")]
         : sansAucune
           ? []
-          : [bloc("p", "no station yet: install one, then pair it here with “+ station”")]),
+          : [bloc("p", `${PAS_ENCORE("station")} Install one, then pair it here with “+ station”.`)]),
   );
   poserLesVersions();
   const dessous = enregistreesAbsentes ? [] : lectureDuCompte(document, etatDesEnregistrees, gestesDesEnregistrees, stations !== undefined && lignes.length === 0);
@@ -8109,7 +8110,7 @@ function afficher() {
   const entree = icone("", "All projects", ouvrirTous);
   entree.id = "entree-tous";
   entree.append(logoDeBrigade());
-  const pied = icone("+", "Add a project", ouvrirAjout);
+  const pied = icone("+", AJOUTER_UN_PROJET, ouvrirAjout);
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);

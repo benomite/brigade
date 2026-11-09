@@ -53,7 +53,7 @@ async function ouvrir(reponses: Reponses = {}, entrer = true): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage,
     espace: () => [SECOND, SHELL],
-    machines: () => [{ id: "poste", titre: "this Mac" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
     gestesDeFiche: (carte) => gestesDeCarte(carte),
     ...reponses,
   });

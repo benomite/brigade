@@ -9,9 +9,10 @@
 /** @typedef {"project" | "machine" | "you"} Niveau */
 
 /** @type {Readonly<Record<Niveau, { libelle: string, survol: string }>>} */
+import { CET_ORDINATEUR } from "../../lexique.js";
 export const NIVEAUX_DITS = {
   project: { libelle: "project", survol: "kept in the project's repository — shared with everyone who clones it, and changed by a pull request" },
-  machine: { libelle: "this machine", survol: "kept on this machine's station — private, never written to the repository" },
+  machine: { libelle: CET_ORDINATEUR, survol: `kept on ${CET_ORDINATEUR}'s station — private, never written to the repository` },
   you: { libelle: "you", survol: "your preference in the app — it follows you, not the project" },
 };
 

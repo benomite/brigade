@@ -57,7 +57,7 @@ export function appelParGh(gh: string, delaiMs: number = DELAI_MS): AppelGitHub 
         const http = /\(HTTP (\d{3})\)/.exec(erreurs)?.[1];
         if (http !== undefined) return resoudre({ status: Number(http), data: corpsLu(sortie) });
         if (erreur.killed === true) return rejeter(muet());
-        if ((erreur as { code?: unknown }).code === "ENOENT") return rejeter(new Error(`\`${gh}\` is not on this machine`));
+        if ((erreur as { code?: unknown }).code === "ENOENT") return rejeter(new Error(`\`${gh}\` is not on this computer`));
         rejeter(new Error(erreurs.trim().split("\n").at(-1) || erreur.message));
       });
     });

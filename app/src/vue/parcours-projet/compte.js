@@ -11,6 +11,7 @@ import { boutonAction } from "../briques.js";
 import { phrase } from "../onboarding/parcours.js";
 import { boutonDeLaPage, connexionDite, gestes } from "./connexion.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { LECTURE_DE, CET_ORDINATEUR } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../connexion-github.ts").CompteGitHub} CompteGitHub */
@@ -19,7 +20,7 @@ import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 /** @typedef {import("./parcours.js").Etape} Etape */
 
 export const TITRE_DU_COMPTE = "Your GitHub account";
-export const LECTURE_DU_COMPTE = "Reading the GitHub account of this computer…";
+export const LECTURE_DU_COMPTE = LECTURE_DE(`the GitHub account of ${CET_ORDINATEUR}`);
 export const SE_CONNECTER = "connect to GitHub";
 export const CHANGER_DE_COMPTE = "switch GitHub account";
 export const CHANGER_DE_COMPTE_SURVOL = "sign in with another GitHub account on the page that opens: brigade then reads it again";

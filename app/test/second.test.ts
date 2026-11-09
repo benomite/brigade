@@ -42,7 +42,7 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
       code: undefined,
     }),
     espace: (projet) => (projet === "fanfare" ? [AUTRE] : [SECOND]),
-    machines: () => [{ id: "poste", titre: "this Mac" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
     shell: () => SHELL,
     ...reponses,
   });
@@ -212,7 +212,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     const ctrl = (key: string, shiftKey = false, type = "keydown") => ({ key, shiftKey, ctrlKey: true, type });
     const ecrits = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
 
-    const pc = await ouvrir({}, [PARADE, FANFARE], { nom: "this PC", mac: false });
+    const pc = await ouvrir({}, [PARADE, FANFARE], { nom: "this computer", mac: false });
     const [second] = pc.xterms;
     // Sans sélection, Ctrl+C reste au shell — il interrompt ; Ctrl+Shift+C ne copie rien.
     assert.equal(second?.filtre?.(ctrl("c")), true);
@@ -289,7 +289,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
 
   test("« + shell » demande sur quelle machine ouvrir : ce poste, la box et chaque station, sous leurs noms — le choix part au process principal, qui ouvre le shell", async () => {
     const MACHINES = [
-      { id: "poste", titre: "this Mac" },
+      { id: "poste", titre: "this computer" },
       { id: "box", titre: "box parade-box — station box/claude" },
       { id: "station:studio", titre: "station studio/claude" },
     ];
@@ -300,7 +300,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     await cliquer(vue, vue.element("terminaux"), "+ shell");
 
     assert.equal(machines.hidden, false);
-    assert.deepEqual(machines.children.map((pose) => pose.textContent), ["open a shell on", ...MACHINES.map(({ titre }) => titre), "cancel"]);
+    assert.deepEqual(machines.children.map((pose) => pose.textContent), ["open a shell on", ...MACHINES.map(({ titre }) => titre), "Cancel"]);
     assert.deepEqual(vue.dernier("machines"), ["parade"]);
     // Rien ne s'ouvre avant le choix.
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "shell"), []);
@@ -313,7 +313,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
 
     // « cancel » referme le choix sans rien ouvrir ; recliquer « + shell » aussi.
     await cliquer(vue, vue.element("terminaux"), "+ shell");
-    await cliquer(vue, machines, "cancel");
+    await cliquer(vue, machines, "Cancel");
     assert.equal(machines.hidden, true);
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     await cliquer(vue, vue.element("terminaux"), "+ shell");

@@ -22,6 +22,7 @@ import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcours-projet/connexion.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { PAS_ENCORE, LECTURE_DE, ENREGISTREMENT } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-du-compte.ts").StationsDuCompte} StationsDuCompte */
@@ -66,7 +67,7 @@ import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
  * }} GestesDuCompte
  */
 
-export const AUCUNE = "No station yet: install one on the machine that will cook.";
+export const AUCUNE = `${PAS_ENCORE("station")} Install one on the machine that will cook.`;
 export const AUCUNE_AIDE = "The installer asks that machine to sign in to GitHub: sign it in to this same account, and the station appears here within a minute.";
 export const ILLISIBLES = "your stations could not be read";
 export const RELIRE = "read again";
@@ -76,10 +77,10 @@ export const COPIEE = "copied";
 export const EN_LIGNE = "online";
 export const HORS_LIGNE = "offline";
 export const PROJETS = "Projects it serves";
-export const LECTURE_DES_DEPOTS = "reading your repositories on GitHub…";
+export const LECTURE_DES_DEPOTS = LECTURE_DE("your repositories on GitHub");
 export const DEPOTS_ILLISIBLES = "your repositories could not be read";
 export const SANS_DEPOT = "no repository on your GitHub account";
-export const SANS_PROJET = "none of your projects yet: add a repository below";
+export const SANS_PROJET = `${PAS_ENCORE("project")} Add a repository below.`;
 export const CHERCHER = "add another repository";
 export const CHERCHER_AIDE = "type part of its name";
 export const AJOUTER = "add";
@@ -89,7 +90,7 @@ export const RIEN_NE_CORRESPOND = (texte) => `no other repository matches “${t
 export const ET_ENCORE = (combien) => `${combien} more — keep typing`;
 // Ce que la recherche montre au plus : au-delà, une ligne dit combien d'autres, et le chef précise.
 export const TROUVES_AU_PLUS = 8;
-export const ENVOI = "saving…";
+export const ENVOI = ENREGISTREMENT;
 export const EN_SON_ABSENCE = "it is offline: it serves these projects once it is back";
 // Une station que la limite de GitHub retient (ticket 2443) : elle est là, ses appels attendent la fin de la limite — son
 // signe de vie ne bouge plus d'ici là. Ni « online », ni « offline » : elle garde ses projets. L'heure est celle du chef.
@@ -160,7 +161,7 @@ export const plateformeDite = (plateforme) => PLATEFORMES[plateforme] ?? platefo
 // appairée les nomme.
 /** @param {readonly string[] | null} selection */
 export function sertDit(selection) {
-  if (selection === null) return "no project chosen yet";
+  if (selection === null) return PAS_ENCORE("project chosen");
   if (selection.length === 0) return "no project";
   return selection.join(", ");
 }

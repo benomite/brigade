@@ -109,9 +109,9 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () =
     const vue = await ouvrir(DECLAREES);
     const pose = bloc(vue) ?? assert.fail("pas de stations déclarées sur Stations");
     assert.deepEqual(lu(pose), [
-      { nom: "box/claude", ou: "box station", plafond: "Cooks at oncethis machine: 3", capacites: ["code", "raisonnement"] },
-      { nom: "mac/claude", ou: "remote", plafond: "Cooks at oncethis machine: 1", capacites: ["navigateur-headless", "chrome-connecté"] },
-      { nom: "pc/claude", ou: "remote", plafond: "Cooks at oncethis machine: 2", capacites: ["code"] },
+      { nom: "box/claude", ou: "box station", plafond: "Cooks at oncethis computer: 3", capacites: ["code", "raisonnement"] },
+      { nom: "mac/claude", ou: "remote", plafond: "Cooks at oncethis computer: 1", capacites: ["navigateur-headless", "chrome-connecté"] },
+      { nom: "pc/claude", ou: "remote", plafond: "Cooks at oncethis computer: 2", capacites: ["code"] },
     ]);
     // Les mots sont distincts.
     assert.equal(new Set(Object.values(OU)).size, 3);

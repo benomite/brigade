@@ -11,6 +11,7 @@
 import { replie, survol } from "../../briques.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.js";
+import { LECTURE_DE } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../plafonds-duree.ts").PlafondLu} Plafond */
@@ -129,7 +130,7 @@ export function poserBlocPlafondsDuree(doc, { lecture, lostTimeMaxMin, etats = n
   titre.append(survol(doc, AIDE));
   bloc.append(titre, poserLePerduMax(doc, lostTimeMaxMin));
   if (lecture === undefined) {
-    const attente = cree(doc, "p", "reading the caps of the repository…");
+    const attente = cree(doc, "p", LECTURE_DE("the caps of the repository"));
     attente.className = "plafonds-lecture";
     bloc.append(attente);
     return bloc;

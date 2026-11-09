@@ -24,7 +24,7 @@ const PARADE: ProjetDemande = { nom: "parade", depot: "benomite/parade", base: "
 test("le rendu du runtime : déménagé, refusé avec sa phrase, ou ce qui a manqué — jamais rien", () => {
   assert.deepEqual(lireRendu(0, '{"moved":true,"project":"parade","from":"parade-box","to":"macbook","askedAt":"…"}\n', ""), { demenage: { projet: "parade", de: "parade-box", vers: "macbook" } });
   // Vers cet ordinateur sans bac à sable : la raison du runtime, telle quelle, dit ce qui manque.
-  const said = "sandbox-exec is missing on this Mac: the sandbox cannot run";
+  const said = "sandbox-exec is missing on this computer: the sandbox cannot run";
   assert.deepEqual(lireRendu(1, `${JSON.stringify({ moved: false, said })}\n`, ""), { refus: said });
   // GitHub injoignable, commande mal appelée, sortie illisible : une ligne, le détail à part.
   assert.deepEqual(lireRendu(3, "", "brigade : les stations n'ont pas pu être lues sur GitHub, rien n'est changé — HTTP 502\n"), {
@@ -147,10 +147,10 @@ test("déménager passe par l'opération du runtime, vers une station appairée,
   const { projets, lectures } = lesProjets({ gbox: { [FICHIER_PROJETS]: documentDeDemande([PARADE]) }, gmac: {} }, {
     demenager: async (projet, vers, gists) => {
       appels.push([projet, vers, gists]);
-      return { refus: "sandbox-exec is missing on this Mac" };
+      return { refus: "sandbox-exec is missing on this computer" };
     },
   });
-  assert.deepEqual(await projets.demenager("parade", "gmac"), { refus: "sandbox-exec is missing on this Mac" });
+  assert.deepEqual(await projets.demenager("parade", "gmac"), { refus: "sandbox-exec is missing on this computer" });
   assert.deepEqual(appels, [["parade", "gmac", ["gbox", "gmac"]]]);
   assert.equal(lectures.length, 1, "les projets sont relus après le geste");
   // Une station qui n'est pas appairée, ou une app sans runtime : refusé, en une phrase, sans rien lancer.

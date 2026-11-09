@@ -26,9 +26,9 @@ describe("la ligne vide", () => {
 
 describe("la ligne d'erreur", () => {
   test("une ligne en clair, marquée data-ligne=erreur ; le détail n'est visible qu'au survol", () => {
-    const ligne = ligneErreur(doc, "history unavailable", "ssh: connect to host box port 22: refused") as Faux;
+    const ligne = ligneErreur(doc, "History not reached.", "ssh: connect to host box port 22: refused") as Faux;
     assert.equal(ligne.dataset.ligne, "erreur");
-    assert.equal(ligne.children[0]?.textContent, "history unavailable");
+    assert.equal(ligne.children[0]?.textContent, "History not reached.");
     assert.equal(ligne.textContent.includes("ssh"), false);
     ligne.children[1]!.children[0]!.declencher("focus");
     assert.ok(ligne.textContent.includes("connect to host box port 22: refused"));

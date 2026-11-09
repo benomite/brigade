@@ -160,7 +160,7 @@ const demarrage = () => ({
 });
 
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [{ id: "poste", titre: "this Mac" }], ...reponses });
+  const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }], ...reponses });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   vue.dire("surFaits", { ...tenir().recue, demande: vue.dernier("faits")[0] as number });

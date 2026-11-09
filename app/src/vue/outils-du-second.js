@@ -10,11 +10,12 @@
 
 import { boutonAction, survol } from "./briques.js";
 import { phrase } from "./onboarding/parcours.js";
+import { REESSAYER } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../terminaux.ts").DitDuSecond} DitDuSecond */
 
-export const REESSAYER_LE_SECOND = "try again";
+export const REESSAYER_LE_SECOND = REESSAYER;
 /** @param {string} outil */
 export const PAGE_DE = (outil) => `how to get ${outil}`;
 

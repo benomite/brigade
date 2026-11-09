@@ -43,7 +43,7 @@ const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ no
 
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   // Les gestes de la fiche sont ceux que le process principal propose : le module tel qu'il est.
-  const vue = await jouerLaVue({ demarrage: () => demarrage(), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this Mac" }], shell: () => SHELL, gestesDeFiche: (carte) => gestesDeCarte(carte), ...reponses });
+  const vue = await jouerLaVue({ demarrage: () => demarrage(), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], shell: () => SHELL, gestesDeFiche: (carte) => gestesDeCarte(carte), ...reponses });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;
@@ -646,7 +646,7 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
   test("tant que l'issue n'est pas lue, la fiche le dit ; une carte qui ne t'attend pas ne lit rien", async () => {
     let lire: (lue: Lue) => void = () => {};
     const vue = await ouvrirLaFiche({ lireQuestion: () => new Promise<Lue>((resoudre) => (lire = resoudre)) as never });
-    assert.match(section(vue)?.textContent ?? "", /^reading issue #12, for the question it asks…$/);
+    assert.match(section(vue)?.textContent ?? "", /^Reading issue #12, for the question it asks…$/);
     lire(QUESTION);
     await repos();
     assert.equal(choix(vue).length, 2);
@@ -717,7 +717,7 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
     // Pas lue : une ligne ; ce que `gh` a répondu n'est lisible qu'au survol.
     const pasLue = await ouvrirLaFiche({ lireQuestion: () => ({ a: QUESTION.a, sans: "$ gh issue view … → exit code 4" }) });
     const indisponible = section(pasLue)?.dessous("p").find((pose) => pose.className === "indisponible") ?? assert.fail("pas de ligne « indisponible »");
-    assert.equal(indisponible.children[0]?.textContent, "question unavailable");
+    assert.equal(indisponible.children[0]?.textContent, "Question not reached.");
     assert.doesNotMatch(indisponible.textContent, /exit code/);
     aides(indisponible)[0]?.declencher("focus");
     assert.match(indisponible.textContent, /\$ gh issue view … → exit code 4/);
@@ -1151,7 +1151,7 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     const prix = confirmation()?.dessous("p").filter((pose) => pose.className === "prix") ?? assert.fail("pas de confirmation");
     assert.deepEqual(prix.map((ligne) => ligne.textContent), [PRIX.retirer]);
     // « cancel » : rien ne part, la confirmation s'en va.
-    (confirmation()?.dessous("button").find((pose) => pose.textContent === "cancel") ?? assert.fail("pas de « cancel »")).click();
+    (confirmation()?.dessous("button").find((pose) => pose.textContent === "Cancel") ?? assert.fail("pas de « Cancel »")).click();
     assert.equal(confirmation(), undefined);
     assert.equal(vue.appels.filter(({ geste }) => geste === "gesteDeFiche").length, parties);
     gesteDeLaFiche(vue, "retirer").click();
@@ -1188,7 +1188,7 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     recevoir(vue);
     await ouvrirFiche(vue, 21);
     const section = () => fiche(vue).dessous("section").find((pose) => pose.className === "gestes-fiche");
-    assert.equal(section()?.dessous("p")[0]?.textContent, "reading what can be done…");
+    assert.equal(section()?.dessous("p")[0]?.textContent, "Reading what can be done…");
     assert.deepEqual(gestesDeLaFicheOuverte(vue), []);
     rendre(gestesDeCarte({ ticket: 21, etat: "en attente", ouvrable: true, attendu: false, attend: [] }));
     await repos();
@@ -1252,7 +1252,7 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
   test("l'historique et la discussion qui ne se lisent pas tiennent chacun en une ligne : la commande lancée, son usage et son code de sortie ne se lisent qu'au survol", async () => {
     const vue = await ouvrirLaCarte({ lireHistoire: () => ({ sans: PANNE }), lireDiscussion: () => ({ sans: PANNE.replace("--json", "issue") }) });
     const indisponibles = fiche(vue).dessous("p").filter((pose) => pose.className === "indisponible");
-    assert.deepEqual(indisponibles.map((ligne) => ligne.children[0]?.textContent), ["discussion unavailable", "history unavailable"]);
+    assert.deepEqual(indisponibles.map((ligne) => ligne.children[0]?.textContent), ["Discussion not reached.", "History not reached."]);
     assert.doesNotMatch(visible(vue), /geste\.ts|usage|exit code/);
     aides(indisponibles[1] ?? assert.fail("pas d'historique"))[0]?.declencher("mouseenter");
     assert.ok(visible(vue).includes(PANNE), "le détail, au survol");

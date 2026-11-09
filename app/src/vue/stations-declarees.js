@@ -22,6 +22,7 @@ import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
 import { niveauDe } from "./niveaux.js";
+import { CET_ORDINATEUR } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../service.ts").StationsLues} StationsLues */
@@ -84,8 +85,8 @@ export function ouTourne(station, { ici }) {
 /** @param {Ou} ou @param {boolean} distante */
 function survolDe(ou, distante) {
   if (ou === "box") return "it runs on the project's main station";
-  if (ou === "ailleurs") return "remote: another workstation plays it and pulls its work from the main station — this computer does not";
-  return distante ? "remote: another workstation plays it and pulls its work from the main station" : "the project's kitchen runs on this computer: this station runs with it";
+  if (ou === "ailleurs") return `remote: another workstation plays it and pulls its work from the main station — ${CET_ORDINATEUR} does not`;
+  return distante ? "remote: another workstation plays it and pulls its work from the main station" : `the project's kitchen runs on ${CET_ORDINATEUR}: this station runs with it`;
 }
 
 // Les cases du formulaire : celles que la station déclare, dans son ordre, puis ce que les autres stations du projet

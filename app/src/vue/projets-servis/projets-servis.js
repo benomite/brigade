@@ -20,6 +20,7 @@ import { survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ditDuReglage, rangeeDeReglage } from "../composants/reglage/reglage.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { CET_ORDINATEUR, ENREGISTREMENT, NON_ATTEINT, LECTURE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ depots: string[] } | { refus: string }} LectureDesProjetsServis */
@@ -41,14 +42,14 @@ export const TITRE = (/** @type {string} */ ici) => `projects ${ici} serves`;
 export const AUCUN = (/** @type {string} */ ici) => `${ici} serves no project`;
 export const SERT = (/** @type {number} */ combien) => (combien === 1 ? "serves 1 project" : `serves ${combien} projects`);
 export const AIDE = (/** @type {string} */ ici) =>
-  `${ici}'s station cooks only the projects chosen here, straight from GitHub: it clones each one on this computer and takes its tickets. With none chosen, it takes no ticket. A change is taken into account at its next turn, within two minutes.`;
+  `${ici}'s station cooks only the projects chosen here, straight from GitHub: it clones each one on ${CET_ORDINATEUR} and takes its tickets. With none chosen, it takes no ticket. A change is taken into account at its next turn, within two minutes.`;
 export const SERVI = "served";
 export const PAS_SERVI = "not served";
-export const ECRITURE = "saving…";
+export const ECRITURE = ENREGISTREMENT;
 export const SANS_DEPOT = "The app does not know this project's GitHub repository: add it again from its repository to serve it here.";
 export const HORS_DE_L_APP = "Not one of this app's projects: the station serves it because it is on its list.";
-export const ILLISIBLE = "projects served here unavailable";
-export const INJOIGNABLE = "The app could not reach this computer's station.";
+export const ILLISIBLE = NON_ATTEINT("projects served here");
+export const INJOIGNABLE = NON_ATTEINT(`${CET_ORDINATEUR}'s station`);
 export const CASE = (/** @type {string} */ nom, /** @type {string} */ ici) => `serve ${nom} on ${ici}`;
 
 // Un dépôt se compare sans égard à la casse, comme la station le fait (projets-servis.ts).
@@ -154,7 +155,7 @@ export function poserLesProjetsServis(doc, { etat, projets, ici }, gestes) {
 
   /** @type {any[]} */
   let valeur;
-  if (lue === undefined) valeur = [cree(doc, "span", "reading…")];
+  if (lue === undefined) valeur = [cree(doc, "span", LECTURE)];
   else if (depots === undefined) valeur = [ligneErreur(doc, ILLISIBLE, "refus" in lue ? lue.refus : "")];
   else if (depots.length === 0) {
     const aucun = ligneVide(doc, AUCUN(ici), { classe: "aucun", balise: "strong" });

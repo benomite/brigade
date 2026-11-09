@@ -12,6 +12,7 @@
 
 import { rangeeDeReglage } from "../../../composants/reglage/reglage.js";
 import { gesteOuNote } from "../NoteSurPlace.js";
+import { METTRE_A_JOUR } from "../../../lexique.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
 /**
@@ -23,7 +24,7 @@ import { gesteOuNote } from "../NoteSurPlace.js";
 
 export const INCONNU = "unknown";
 export const A_JOUR = "up to date";
-export const METTRE_A_JOUR = "Update now";
+export { METTRE_A_JOUR };
 export const SURVOL_DE_LA_MISE_A_JOUR = "The station installs the latest version and restarts; its cooks in flight finish first.";
 
 // La mise à jour, dite d'après ce que la station a publié.

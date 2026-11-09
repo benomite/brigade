@@ -84,7 +84,7 @@ const vue = (choix: object[]): VuDesProjets => {
   return { a: A, projets: [projet], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX) }, calibrage: calibrageRecommande([]) };
 };
 
-const DEFAUTS = { cooks: 4, cooksDit: "from this machine's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
+const DEFAUTS = { cooks: 4, cooksDit: "from this computer's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
 
 async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLAREES) {
   const envoyes: unknown[][] = [];

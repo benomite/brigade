@@ -12,6 +12,7 @@
 // quoi créer un élément (briques.js) et ce que chaque geste appelle, et rend un élément — ou rien.
 
 import { boutonAction } from "../briques.js";
+import { METTRE_A_JOUR } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../mise-a-jour/avis.ts").Avis} Avis */
@@ -96,7 +97,7 @@ export function poserBandeau(doc, ligne, avis, etat, { telecharger, installer },
     phrase.append(" — ", telechargement);
   }
   racine.append(phrase);
-  if (etat?.etat === "prete") racine.append(boutonAction(doc, "Install now", installer, { recommande: true, prix: "closes the app's terminals, then relaunches it on the new version" }));
+  if (etat?.etat === "prete") racine.append(boutonAction(doc, METTRE_A_JOUR, installer, { recommande: true, prix: "closes the app's terminals, then relaunches it on the new version" }));
   return racine;
 }
 

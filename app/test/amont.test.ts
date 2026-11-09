@@ -401,7 +401,7 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
     const vue = await ouvrir();
     recevoirFaits(vue, RAIL_VIDE);
     const phrase = () => colonne(vue, "On the rail").children.find((pose) => pose.balise === "p")?.textContent;
-    assert.equal(phrase(), "nothing on the rail — what is before it is being read…");
+    assert.equal(phrase(), "Nothing on the rail yet — what is before it is being read…");
 
     vue.dire("surAmont", tenirAmont().recevoir(sortie));
     assert.match(phrase() ?? "", /^nothing on the rail — 8 issues before it \(3 not read yet · /);

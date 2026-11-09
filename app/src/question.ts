@@ -166,7 +166,7 @@ export function lancer(reglages: Reglages, args: string[], entree?: string): Pro
 // Ce qu'un `gh` en échec a dit, et la ligne lancée.
 export function echec(reglages: Reglages, args: string[], { erreur, sortie, erreurs }: Rendu & { erreur: ExecFileException }): string {
   const lance = `$ ${reglages.gh} ${args.join(" ")}`;
-  if (erreur.code === "ENOENT") return `${lance} — \`${reglages.gh}\` is not on this machine: the app reads and answers the issue with your own \`gh\``;
+  if (erreur.code === "ENOENT") return `${lance} — \`${reglages.gh}\` is not on this computer: the app reads and answers the issue with your own \`gh\``;
   const suite = erreur.killed === true ? `no answer within ${nombre(reglages.delaiMs / 1000)} s: gh stopped` : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
   const dit = `${erreurs}${sortie}`.trim();
   return `${lance}${dit === "" ? "" : `\n${dit}`}\n→ ${suite}`;

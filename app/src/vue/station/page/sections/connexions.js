@@ -10,6 +10,7 @@
 import { boutonAction, survol } from "../../../briques.js";
 import { rangeeDeReglage } from "../../../composants/reglage/reglage.js";
 import { appliquer } from "../appliquer.js";
+import { LECTURE, NON_ATTEINT } from "../../../lexique.js";
 
 /** @typedef {import("../../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../StationPage.js").Contexte} Contexte */
@@ -23,7 +24,7 @@ import { appliquer } from "../appliquer.js";
  * @typedef {{ github?: CompteGitHub, claude: ConnexionClaude | null, gestes?: { changerGitHub?(): Promise<Rendu>, renouveler?(): Promise<Rendu> } }} Connexions
  */
 
-export const LECTURE = "reading…";
+export { LECTURE };
 export const GITHUB = "GitHub account";
 export const CLAUDE = "Claude connection";
 export const CHANGER = "change account";
@@ -31,7 +32,7 @@ export const RENOUVELER = "renew";
 export const PAS_PUBLIE = "not published";
 export const PAS_PUBLIE_SURVOL = "a station does not publish its GitHub account: it is read on that machine only";
 export const NON_CONNECTE_GITHUB = "not signed in";
-export const ILLISIBLE_GITHUB = "unavailable";
+export const ILLISIBLE_GITHUB = NON_ATTEINT("GitHub account");
 export const CLAUDE_DIT = {
   connectee: { dit: "connected", survol: "this station's Claude Code is signed in to your Max account: its cooks can run" },
   perdue: { dit: "not connected", survol: "nothing cooks on this station until you log in again" },

@@ -13,6 +13,7 @@ import { confirmationDeGeste } from "../composants/confirmation/confirmation.js"
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { phrase, prochainEssaiDit } from "./parcours.js";
+import { OUI as OUI_AVEC, ANNULER } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../projets/demande.ts").AccesBloque} Acces */
@@ -63,8 +64,8 @@ function accesDit(doc, acces, copier) {
 // son bouton sans rien changer ici. Un remède qui retire ou efface demande d'abord confirmation, avec la même
 // phrase ; les autres partent au clic. Pendant que la station le joue, le bouton attend ; ensuite, levé, le
 // refus quitte la page — ou elle dit en une phrase pourquoi il tient.
-export const OUI = "yes, do it";
-export const NON = "cancel";
+export const OUI = OUI_AVEC("do it");
+export const NON = ANNULER;
 
 // Où en est le remède du refus affiché, tel que la vue le tient d'une relecture à l'autre :
 // - `confirmer` : son bouton est cliqué, la confirmation est ouverte ;

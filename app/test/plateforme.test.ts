@@ -10,10 +10,8 @@ import { arreterLArbre, BASH_DE_GIT, enGroupe, nomDuPoste, persistantSur, shellD
 const WINDOWS = { ProgramW6432: "C:\\Program Files", ProgramFiles: "C:\\Program Files", "ProgramFiles(x86)": "C:\\Program Files (x86)", LOCALAPPDATA: "C:\\Users\\chef\\AppData\\Local" };
 
 describe("ce poste, d'une plateforme à l'autre", () => {
-  test("son nom à l'écran : « this Mac », « this PC » sous Windows, « this computer » ailleurs", () => {
-    assert.equal(nomDuPoste("darwin"), "this Mac");
-    assert.equal(nomDuPoste("win32"), "this PC");
-    assert.equal(nomDuPoste("linux"), "this computer");
+  test("son nom à l'écran : « this computer » sur toutes les plateformes (le lexique de l'app)", () => {
+    assert.equal(nomDuPoste(), "this computer");
   });
 
   test("sur un Mac ou un Linux, son shell est celui du chef, en shell de connexion — `zsh` sur un Mac qui n'en dit rien", () => {

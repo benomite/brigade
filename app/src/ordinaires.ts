@@ -54,7 +54,7 @@ export type Bloc = { reglable: boolean; actif: boolean; limite: number | null; e
 // un Mac, l'option ; ailleurs, la raison pour laquelle ce poste n'en prend pas.
 export function blocDesOrdinaires(projet: Pick<Projet, "ordinaires" | "limiteCooks">, plateforme: string, stations: readonly StationDesFaits[] | undefined, ici: boolean): Bloc | undefined {
   if (!ici) return undefined;
-  const poste = nomDuPoste(plateforme);
+  const poste = nomDuPoste();
   if (!estUnMac(plateforme)) return { reglable: false, actif: false, limite: null, explication: sansBacASable(poste) };
   const sans = stations?.find(({ bacASable }) => bacASable?.disponible === false);
   return {

@@ -15,6 +15,7 @@ import { ditDuPlafond, EN_COURS, poserUnPlafond } from "./PlafondsDuree.js";
 import { ditDuReglage, PAR_PR, rangeeDeReglage } from "../../composants/reglage/reglage.js";
 import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
+import { PAS_ENCORE, PASSE_DE_FERMETURE, LECTURE_DE, LECTURE } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../closer-sante.ts").LectureDuCloser} Lecture */
@@ -36,7 +37,7 @@ export const EN_PLUS = "Extra checks";
 export const REGLAGES = "Settings";
 export const REGLAGES_AIDE =
   "Kept in the project's repository (.claude/brigade/projet.json): a change here opens a pull request on its integration branch, and the station applies it once merged, at its next fetch. Empty, the setting's removal is proposed.";
-export const SANS_PASSE = "No closing pass yet on this project";
+export const SANS_PASSE = PAS_ENCORE(PASSE_DE_FERMETURE);
 export const SANS_PASSE_POURQUOI = "A station opens one once the closer is calibrated and 20 merges reached the integration branch since the last pass.";
 export const SES_VERIFICATIONS = "At each pass: the dead code and the duplicates of the base, the drift of the latest merges, and the ticket times.";
 export const EN_PLUS_AIDE =
@@ -123,7 +124,7 @@ function ligneDePasse(doc, passe, ouvrir) {
 function ceQuIlAFait(doc, passes, ouvrir) {
   const pose = partie(doc, FAIT);
   pose.dataset.partie = "passes";
-  if (passes === undefined) pose.append(cree(doc, "p", "reading the closer's passes…"));
+  if (passes === undefined) pose.append(cree(doc, "p", LECTURE_DE("the closer's passes")));
   else if ("sans" in passes) pose.append(ligneErreur(doc, passes.sans, passes.detail ?? ""));
   else if (passes.liste.length === 0) {
     const vide = ligneVide(doc, SANS_PASSE, { classe: "sans" });
@@ -165,7 +166,7 @@ function ceQuIlVerifie(doc, passes, { ouverts, basculer }) {
   pose.dataset.partie = "en-premier";
   const derniere = passes !== undefined && !("sans" in passes) ? passes.liste[0] : undefined;
   if (derniere === undefined) {
-    const dit = ligneVide(doc, passes === undefined ? "reading…" : "its own checks — dead code, duplicates, drift, ticket times — once a pass is opened", { classe: "sans" });
+    const dit = ligneVide(doc, passes === undefined ? LECTURE : "its own checks — dead code, duplicates, drift, ticket times — once a pass is opened", { classe: "sans" });
     pose.append(dit);
     return pose;
   }
@@ -218,7 +219,7 @@ function ceQuIlVerifieEnPlus(doc, verifications, etat, { taper, changer, ouvrir 
   const pose = partie(doc, EN_PLUS, EN_PLUS_AIDE);
   pose.dataset.partie = "en-plus";
   if (verifications === undefined) {
-    pose.append(cree(doc, "p", "reading the extra checks…"));
+    pose.append(cree(doc, "p", LECTURE_DE("the extra checks")));
     return pose;
   }
   if ("sans" in verifications) {
@@ -227,7 +228,7 @@ function ceQuIlVerifieEnPlus(doc, verifications, etat, { taper, changer, ouvrir 
   }
   const occupe = etat.enCours !== undefined;
   if (verifications.liste.length === 0) {
-    const vide = ligneVide(doc, "none yet: the closer checks only its own", { classe: "sans" });
+    const vide = ligneVide(doc, `${PAS_ENCORE("extra check")} The closer checks only its own.`, { classe: "sans" });
     pose.append(vide);
   } else {
     const liste = cree(doc, "ul");
@@ -353,7 +354,7 @@ function sesReglages(doc, reglages, { etats, valeurs, choisir, changer, ouvrir }
   const pose = partie(doc, REGLAGES, REGLAGES_AIDE);
   pose.dataset.partie = "reglages";
   if (reglages === undefined) {
-    pose.append(cree(doc, "p", "reading the closer's settings…"));
+    pose.append(cree(doc, "p", LECTURE_DE("the closer's settings")));
     return pose;
   }
   if ("sans" in reglages) {
