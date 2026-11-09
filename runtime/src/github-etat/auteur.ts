@@ -5,6 +5,7 @@
 // n'entre au rail que par la réponse du chef ou de l'humain `product` à la carte de
 // `issue-etrangere/`, ou par un label qu'un membre de confiance y pose (#2619).
 import { DE_CONFIANCE } from "../alimenter.ts";
+import { auteurInterne } from "../auteur-interne.ts";
 
 // Un ticket qu'une station a déposé (#3012) porte les marques cachées `brigade:projet` ou
 // `brigade:famille` : c'est une mesure, pas l'issue d'un inconnu, quel que soit le compte GitHub
@@ -17,4 +18,5 @@ const meme = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
 
 export const auteurSansEcriture = (issue: { association: string; body?: string; author?: string }, declares: readonly string[] = []): boolean =>
   !DE_CONFIANCE.includes(issue.association) &&
+  !auteurInterne(issue.author) &&
   !(deposeParUneStation(issue.body ?? "") && issue.author !== undefined && issue.author !== "" && declares.some((login) => meme(login, issue.author as string)));
