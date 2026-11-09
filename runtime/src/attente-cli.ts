@@ -11,7 +11,10 @@
 // elle, dans sept jours. `set` sur un ticket qui attend déjà met à jour ce
 // qu'il attend. Le geste s'écrit au journal ; le runtime qui tourne le porte
 // sur l'issue (label `waiting`, commentaire) dès qu'il le lit.
+// Un ticket d'un projet GitHub seul se nomme par son dépôt (`BOBL-tech/mirrorlab#614`) :
+// ses gestes, `arrived` compris, s'écrivent sur l'issue même (attente-github/commande.ts).
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { pourGitHub, principalGitHub, type OuvrirGitHub } from "./attente-github/commande.ts";
 import { enAnglais } from "./commandes.ts";
 import { direAttenteDeTiersEn, lireRelance, mettreEnAttente, reprendre } from "./attente.ts";
 import { dureeEn } from "./etat.ts";
@@ -29,8 +32,11 @@ const USAGE = [
 const OPTIONS = ["--what", "--from", "--remind"];
 
 // `maintenant` : l'heure du geste — celle de l'horloge, hors des tests.
-export function principal({ args: tapes, env, dire, redire }: Appel, maintenant = () => new Date()): void {
+// `ouvrir` : le GitHub d'un ticket GitHub seul — celui du `gh` du poste, hors des tests.
+export function principal(appel: Appel, maintenant = () => new Date(), ouvrir?: OuvrirGitHub): void | Promise<void> {
+  const { args: tapes, env, dire, redire } = appel;
   const args = enAnglais("waiting", tapes, redire);
+  if (pourGitHub(args)) return principalGitHub(args, appel, maintenant, ouvrir);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
