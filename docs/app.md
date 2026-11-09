@@ -5,11 +5,11 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 
 **The project's menu is three entries, Rail · Stations · Settings** (#2485, #2921), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
-the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **One folded line**
-(#2921, `app/src/vue/projet/bandeau-sante/`) — `Caps, closer and all projects`: the duration caps (#2490), the closer
-(#2491), then the Cost and Closer rows of all projects — has left the Rail tab (#3013) and stands at the top of the
-Stations tab until Settings takes it in (it holds at most two fifths of the middle and scrolls past that). Settings opens over
-the middle as before, with its content unchanged. Each block is mounted in its own file under `app/src/vue/projet/`
+the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **What the folded
+line `Caps, closer and all projects` held** (#2921, `app/src/vue/projet/bandeau-sante/`) — the duration caps (#2490), the
+closer (#2491), then the Cost and Closer rows of all projects — has left the Rail tab (#3013) and the Stations tab: it is
+**a section of its own in Settings**, under the Kitchen group, titled `Caps, closer and all projects` and shown unfolded
+(#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations lists the project's stations** (#2487), kept up to date by
 the same readings as ever — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
 to a station.* **This computer comes first**, as the recommended button, when its station does not serve the project yet;
@@ -1062,7 +1062,7 @@ What the home used to show besides went elsewhere, or was removed:
   with its pairing code field — is the last block of **a project's Stations tab**, under the project's own stations and
   this computer's station. The stations under your account are read again each time that tab opens.
 - The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
-  block, **All projects**, of **a project's health strip**, at the top of its Stations tab (#3013). Their pages are unchanged.
+  block, **All projects**, of **a project's health strip**, its `Caps, closer and all projects` section of Settings (#3014). Their pages are unchanged.
 - The **App** section (the running version, **Update now** / **Later**) is removed: a higher version is said, with
   **Update now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
   shown.
@@ -1917,8 +1917,8 @@ most (`pesent`) on the hover of First try. With no `resume`, there is no Ticket 
 try — never a blank, a zero or « no measure yet ».
 Screenshots: `docs/captures/2664/`.
 
-**Health strip: duration caps** (#2490, epic #2484), folded behind the `Caps, closer and all projects` line at the top
-of the Stations tab (#3013), then the closer's. The Ticket time block that stood before it is gone (#3013): its figures are in the rail band.
+**Health strip: duration caps** (#2490, epic #2484), in the `Caps, closer and all projects` section of the project's
+Settings (#3014), then the closer's; they are read on GitHub when Settings opens, then at most once a minute while it stays open. The Ticket time block that stood before it is gone (#3013): its figures are in the rail band.
 **Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
 first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
 as the station publishes it), then the durations the
@@ -2382,6 +2382,11 @@ GitHub Apps, the projects it serves, the app's code) are not shown in Settings; 
 - its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette — and
   `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first, which the app keeps in
   its projects file.
+
+Under these, a section of its own, **`Caps, closer and all projects`** (#3014): the duration caps, the closer and the
+Cost and Closer rows of all projects, as the folded line at the top of the Rail tab, then of the Stations tab, showed
+them — same values, same readings, same actions (see "Health strip: duration caps" and the closer's). The closer's last
+passes, which it shows with its settings, are the one reading laid in Settings.
 
 **Every setting is one line**, the same everywhere (`app/src/vue/composants/reglage/`, #2920): its name, its value in
 force, and **one** control to change it — a field, a pair of lists, a switch, a checkbox, a number, a palette, a button.

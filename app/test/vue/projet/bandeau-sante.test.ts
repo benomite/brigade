@@ -1,8 +1,10 @@
-// Le bandeau au-dessus du rail (#2490, #2921, ex-Kitchen > Health) : derrière une ligne, les plafonds de durée, réglés là et
+// Le bandeau de santé (#2490, #2921, ex-Kitchen > Health), une section de Settings (#3014) : les plafonds de durée, réglés là et
 // nulle part ailleurs dans la page du projet, le closer et les lignes de tous les projets. Les chiffres — le temps des
 // tickets, le premier coup — sont dans la bande du rail (#3013, rail/bande-rail.test.ts). Les blocs sont joués avec le faux élément
 // de l'app (aides/fausse-vue.ts), puis la vue entière, telle qu'elle est.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
@@ -19,7 +21,7 @@ import { CLES as CLES_DES_REGLAGES, PROPOSE } from "../../../src/reglages-du-pro
 import { poserBlocCloser } from "../../../src/vue/projet/bandeau-sante/Closer.js";
 import { EN_COURS, poserBlocPlafondsDuree } from "../../../src/vue/projet/bandeau-sante/PlafondsDuree.js";
 import { PAR_PR } from "../../../src/vue/composants/reglage/reglage.js";
-import { Faux, jouerLaVue, ouvrirOnglet, repos, type Jouee } from "../../aides/fausse-vue.ts";
+import { Faux, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos, type Jouee } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
@@ -304,7 +306,7 @@ describe("le closer, sur Health", () => {
   });
 });
 
-// La vue entière : parade, ouvert sur Stations, sous le bandeau de santé (#2921, #3013), devant un GitHub qui garde ce qu'on lui écrit.
+// La vue entière : parade, ouvert sur Settings, sous le bandeau de santé (#2921, #3014), devant un GitHub qui garde ce qu'on lui écrit.
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
@@ -344,22 +346,49 @@ async function jouer(): Promise<{ vue: Jouee; ecrits: [string, string, string][]
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
-  // Le bandeau est en tête de Stations depuis que Rail n'a plus que la bande des chiffres (#3013).
-  await ouvrirOnglet(vue, "Stations");
+  // Le bandeau est une section de Settings (#3014).
+  await ouvrirLecture(vue, "Settings");
   return { vue, ecrits, closer };
 }
 const bloc = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "plafonds-duree") ?? assert.fail("pas de plafonds");
 
 describe("le bandeau de santé, dans la vue", () => {
-  test("ni chiffre, ni titre : les plafonds, le closer et les lignes de tous les projets sont repliés derrière une ligne, fermée à l'ouverture", async () => {
+  test("ni chiffre : une section de Settings, sous son titre, montre les plafonds, le closer et les lignes de tous les projets, sans rien à déplier", async () => {
     const { vue } = await jouer();
     await repos();
-    // Les chiffres sont dans la bande du rail (#3013) : le bandeau n'a que sa ligne repliée.
-    const [reste, ...autres] = vue.element("bandeau-sante").children;
-    assert.deepEqual(autres, []);
-    assert.equal(reste?.balise, "details");
-    assert.deepEqual(reste?.dessous("section").map(({ dataset }) => dataset.bloc).filter((nom) => nom !== undefined), ["plafonds-duree", "closer", "de-tous-les-projets"]);
-    assert.equal(reste?.dessous("summary")[0]?.textContent, "Caps, closer and all projectsduration caps, the closer, cost and closer of all projects");
+    // Les chiffres sont dans la bande du rail (#3013) : la section n'a que son titre et ses trois blocs (#3014).
+    // La fausse vue ne rejoue pas la place des éléments de index.html : la section se lit dans le fichier, groupe de Settings.
+    const html = readFileSync(join(import.meta.dirname, "../../../src/vue/index.html"), "utf8");
+    const settings = html.slice(html.indexOf('<section id="etat"'), html.indexOf('<div id="reglages-machine"'));
+    assert.match(settings, /<section id="reglages-sante" class="groupe"[^>]*>\s*<h2 [^>]*class="niveau-du-groupe">Caps, closer and all projects<\/h2>\s*<div id="bandeau-sante"><\/div>/);
+    assert.equal(vue.element("etat").hidden, false);
+    const section = vue.element("bandeau-sante");
+    assert.deepEqual(section.children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "de-tous-les-projets"]);
+    assert.deepEqual(section.children.filter(({ balise }) => balise === "details"), [], "rien à déplier pour les voir");
+  });
+
+  test("tout ce que la ligne repliée montrait est dans Settings : chaque plafond, les parties du closer, Cost et Closer de tous les projets", async () => {
+    const { vue } = await jouer();
+    await repos();
+    for (const { cle } of PLAFONDS) assert.ok(ligneDe(bloc(vue), cle), cle);
+    const duCloser = vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "closer") ?? assert.fail("pas de closer");
+    assert.match(texte(partieDe(duCloser, "passes")), /−1,234 lines/);
+    assert.ok(partieDe(duCloser, "en-plus"));
+    assert.ok(ligneDe(duCloser, "maxRemovedLines"));
+    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the cost of all projects", "the added / removed ratio of all projects"]);
+  });
+
+  test("ni sur Rail, ni sur Stations : la section n'est posée que Settings ouvert, et se repose à sa réouverture", async () => {
+    const { vue } = await jouer();
+    for (const onglet of ["Rail", "Stations"] as const) {
+      await ouvrirOnglet(vue, onglet);
+      assert.equal(vue.element("etat").hidden, true, onglet);
+      assert.deepEqual(vue.element("bandeau-sante").children, [], onglet);
+      assert.doesNotMatch(vue.element("rail").textContent, /Caps, closer and all projects/, onglet);
+    }
+    await ouvrirLecture(vue, "Settings");
+    assert.equal(vue.element("etat").hidden, false);
+    assert.deepEqual(vue.element("bandeau-sante").children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "de-tous-les-projets"]);
   });
 
   test("un plafond changé dans le bandeau part au process principal à son `change`, et la rangée dit la PR ouverte, qui s'ouvre", async () => {
