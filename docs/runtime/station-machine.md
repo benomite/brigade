@@ -474,13 +474,13 @@ provide it; a setup that passes again clears it (`need.setup-lacks` with no need
 ### The first ticket: preparing the repository
 
 *Ticket #796.* Before writing the line of a project added from the app, the station opens on its
-repository, through its `gh`, the issue "Préparer le dépôt : gates, setup de worktree, sites autorisés"
-(`runtime/src/preparation-depot/`; title French until translated), with `fire`, `model:opus` and
+repository, through its `gh`, the issue "Prepare the repository: gates, worktree setup, allowed sites"
+(`runtime/src/preparation-depot/`), with `fire`, `model:opus` and
 `effort:high`: it enters the rail like any ticket. Its body tells the cook:
 
 - **what to deliver**: `.claude/brigade/gates.sh`, `.claude/brigade/worktree-setup.sh` and
   `.claude/brigade/reseau` (the sites the project may reach), each with its contract and what the
-  integration base already carries ("absent : à écrire", "déjà sur `main` : à éprouver");
+  integration base already carries ("missing: to write", "already on `main`: to try, to fix if needed");
 - **when the current setup fails there**: the ticket leaves anyway (it repairs it), and the body says what
   failed ("The worktree setup comes before the cook" in [`station.md`](station.md));
 - **where to prove it**: on the station that cooks it, which will serve the project, not on a dev
@@ -513,7 +513,7 @@ preparation ticket and the project's log.
 
 - **Four steps, in order** (`etapes`): `depot` (the Apps authorized, the clone, read/write access to the
   repository; refused, its action is that of the blocked access), `machine` (the station that cooks it,
-  its kitchen open), `preparation` (the "Préparer le dépôt" ticket, merged), `premier-ticket` (a ticket
+  its kitchen open), `preparation` (the "Prepare the repository" ticket, merged), `premier-ticket` (a ticket
   of the chef's on the rail). Each carries `titre`, `etat` (`faite`, `courante`, `a-venir`), an English
   sentence (`dit`) and, if current and awaiting the chef, its `geste`: `quoi`, `ou`, and the `liens`
   where to do it. `courante` names the first one not done.
