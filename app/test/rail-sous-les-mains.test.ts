@@ -108,10 +108,8 @@ describe("une lecture ratée ne vide aucune colonne (#2151)", () => {
     recevoir(vue, ratee(3));
     assert.deepEqual(contenu(vue), lus);
     assert.doesNotMatch(vue.element("rail").textContent, /not drawn|NOT READ/);
-    assert.deepEqual(
-      perime(vue).map(({ textContent }) => textContent),
-      [`stale since ${heure(2)} — the rail shown was read at ${heure(0)}, and the readings since have failed`],
-    );
+    // L'âge se compte à l'horloge de l'app, que ce test ne tient pas : son texte est vérifié dans test/vue/rail-lecture-perimee.test.ts.
+    assert.deepEqual(perime(vue).map(({ textContent }) => textContent.replace(/ read .+ ago$/, " read N ago")), [`The last reading of GitHub failed — the rail shows the ${heure(0).replace(/\s[AP]M$/, "")} reading · read N ago`]);
     assert.match(perime(vue)[0]?.title ?? "", /API rate limit exceeded/);
 
     recevoir(vue, lu(ARRIVE, 4));

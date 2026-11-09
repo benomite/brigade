@@ -87,6 +87,10 @@ const projet = () => {
   racines.push(p.racine);
   return p;
 };
+// Le projet dont le setup du premier test a installé node_modules : le cook le
+// trouve ainsi dans son worktree. Le rejeu repart de lui plutôt que de réinstaller
+// (trois pnpm dans un test dépassaient la règle des 2 s sur un poste chargé).
+let installeParLeSetup: ReturnType<typeof projet> | undefined;
 
 test("un setup qui lance `pnpm install` va au bout : node_modules porte chaque dépendance du lockfile", OPTIONS, async () => {
   const { worktree, env, racine } = projet();
@@ -98,11 +102,16 @@ test("un setup qui lance `pnpm install` va au bout : node_modules porte chaque d
   // dep-b est une dépendance de dep-a : pnpm la range sous .pnpm.
   assert.ok(readdirSync(join(worktree, "node_modules", ".pnpm")).some((nom) => nom.startsWith("dep-b@")));
   assert.deepEqual(nonCouverts(racine, worktree, join(racine, "home")), []);
+  installeParLeSetup = { worktree, env, racine };
 });
 
 test("le cook rejoue `pnpm install --frozen-lockfile` sur un node_modules déjà installé, sans « Operation not permitted »", OPTIONS, () => {
-  const { worktree, env, racine } = projet();
-  execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: worktree, env, stdio: "pipe" });
+  const { worktree, env, racine } = installeParLeSetup ?? (() => {
+    const p = projet();
+    execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: p.worktree, env: p.env, stdio: "pipe" });
+    return p;
+  })();
+  assert.ok(existsSync(join(worktree, "node_modules", ".pnpm")), "node_modules déjà installé avant le rejeu");
   const rejeu = execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: worktree, env, encoding: "utf8", stdio: "pipe" });
   assert.doesNotMatch(rejeu, /Operation not permitted|ERR_PNPM/);
   assert.deepEqual(nonCouverts(racine, worktree, join(racine, "home")), []);

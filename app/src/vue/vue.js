@@ -122,6 +122,7 @@ import { poserParcoursProjet } from "./parcours-projet/parcours.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
+import { direLaLecture, poserLaLecture } from "./rail-lecture-perimee.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
 import { AUCUNE_STATION } from "./cooks/sans-station.js";
@@ -171,6 +172,8 @@ const CONVERSATION_ONGLET = { id: CONVERSATION, titre: "Second" };
 const ECRAN_ETROIT = "(max-width: 720px)";
 const ecranEtroit = window.matchMedia?.(ECRAN_ETROIT);
 const etroit = () => ecranEtroit?.matches === true;
+// Le panneau du second est à l'écran : ni écran étroit, ni téléphone, ni colonne cachée ou repliée (ticket 3008). Ce qu'il porte ne se montre que s'il l'est.
+const panneauAFicher = () => !etroit() && telephoneVu === undefined && !colonneSecond.hidden && !colonneSecond.hasAttribute("data-replie");
 // La fenêtre passe d'une largeur à l'autre — un téléphone qu'on tourne, une fenêtre qu'on rétrécit : la page se repose.
 ecranEtroit?.addEventListener?.("change", () => {
   marquer();
@@ -4129,14 +4132,13 @@ function ageDuRail(publieLe, lu) {
   dit.title = "The box publishes its rail on GitHub, and the app reads it every 30 seconds: this is the age of what the box published, not of the app's reading.";
   return dit;
 }
-// Le rail gardé d'une lecture ratée en ligne (ticket 2151), à la place de son âge : périmé, depuis quand, et l'heure de la
-// lecture montrée. La raison de la dernière lecture ratée est au survol.
-/** @param {{ depuis: string, raison: string }} perime @param {string} lu */
-function signePerime({ depuis, raison }, lu) {
-  const signe = bloc("p", `stale since ${heureCourte(depuis)} — the rail shown was read at ${heureCourte(lu)}, and the readings since have failed`);
-  signe.className = "fraicheur perime";
-  signe.title = `${raison === "" ? "The last reading of GitHub failed." : raison} The cards stay as long as nothing shows they left: the rail is read again every 30 seconds.`;
-  return signe;
+// Le rail gardé d'une lecture ratée en ligne (ticket 2151), à la place de son âge : périmé, l'heure de la lecture montrée et
+// son âge en clair (ticket 3008, rail-lecture-perimee.js). Les détails de la dernière lecture ratée ne s'y écrivent que si
+// le panneau est à l'écran.
+/** @param {{ depuis: string, raison: string }} perime @param {number | string} lu */
+function signePerime({ raison }, lu) {
+  const dite = direLaLecture({ reading: true, readAt: lu, stale: true, refusal: { kind: "other" } }, { maintenant: Date.now(), pourquoi: raison, panneauVisible: panneauAFicher() });
+  return poserLaLecture(document, dite);
 }
 // Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
 /** @param {string} depuis */
@@ -4647,8 +4649,9 @@ function poserLeRail(projet) {
   if (tenu === undefined || !("tableau" in tenu)) {
     // Le téléphone n'a pas de panneau à droite : ce qui a été obtenu se dit sous le titre, en une ligne, son détail au survol.
     if (auTelephone && tenu !== undefined && "erreur" in tenu) return poser(bloc("h3", `the rail is not drawn — tried at ${heureDe(tenu.a)}`), ...obtenuEnUneLigne(projet, tenu, AU_TELEPHONE));
-    const sans = tenu === undefined ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
-    return poser(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
+    // Sans rien lu : une ligne d'erreur, sans renvoi ; ce que l'app a obtenu s'y ajoute si le panneau est à l'écran.
+    const sans = tenu === undefined ? [] : poserLaLecture(document, direLaLecture({ reading: null, readAt: null, stale: false, refusal: { kind: "other" } }, { maintenant: Date.now(), essaiA: tenu.a, titre: tenu.titre, pourquoi: raisonDeLEchec(tenu), panneauVisible: panneauAFicher() }));
+    return poser(...marque, ...sans);
   }
   const { hors } = tenu.tableau.rail;
   const lues = tenu.tableau.rail.colonnes;
@@ -4744,7 +4747,7 @@ function poserLeRail(projet) {
   // Sur Rail, les signes d'abord — une lecture vieille, la panne, le projet éteint —, puis la bande du haut, qui porte
   // l'âge du rail à son bout (ticket 2486).
   poser(
-    ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? [signePerime(perime, tenu.a)] : fraicheur(tenu.a)),
+    ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a)),
     ...panneDuRail(projet, tenu.tableau),
     ...teteDuRail(projet),
     bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
