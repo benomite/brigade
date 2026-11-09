@@ -10,6 +10,7 @@
 import { CUISENT, lignesDeCooks, TITRE } from "../stations-de-cuisson.js";
 import { RETENUE } from "../stations-du-compte.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../cuisson.ts").LigneDeStation} Ligne */
@@ -27,7 +28,7 @@ export const RETENUE_SURVOL = "GitHub's limit holds its calls: it keeps its tick
 // Son dernier signe de vie, comme la liste des stations du compte le dit (stations-du-compte.js).
 /** @param {string} instant */
 export const SIGNE_DE_VIE = (instant) => `last sign of life ${instant.slice(0, 16).replace("T", " ")} UTC`;
-export const AUCUNE = "no station serves this project on GitHub yet: one appears here once it is chosen for the project, or takes one of its tickets";
+export const AUCUNE = `${PAS_ENCORE("station serving this project on GitHub")} One appears here once it is chosen for the project, or takes one of its tickets.`;
 // Les signes de vie illisibles : une ligne, la raison au survol.
 export const SIGNES_ILLISIBLES = "your stations' signs of life are not read: only those holding a ticket are listed";
 

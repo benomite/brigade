@@ -1,4 +1,4 @@
-// Chaque réglage que l'app montre dit à quel niveau il vit (ticket 1310, épique 1301) : « project », « this machine »
+// Chaque réglage que l'app montre dit à quel niveau il vit (ticket 1310, épique 1301) : « project », « this computer »
 // ou « you ». Une seule table (vue/niveaux.js) le dit ; un réglage montré sans niveau dans cette table fait échouer ce
 // test, et la vue ne le rend pas.
 import assert from "node:assert/strict";
@@ -31,7 +31,7 @@ function demandes(): Map<string, string[]> {
 
 describe("le niveau de chaque réglage montré", () => {
   test("les trois niveaux, dits par trois étiquettes", () => {
-    assert.deepEqual(Object.values(NIVEAUX_DITS).map(({ libelle }) => libelle), ["project", "this machine", "you"]);
+    assert.deepEqual(Object.values(NIVEAUX_DITS).map(({ libelle }) => libelle), ["project", "this computer", "you"]);
   });
 
   test("branche, calibrages, plafond et closer sont du projet ; cooks, dossier et capacités de la machine ; couleurs et sigle de toi", () => {

@@ -19,6 +19,7 @@ import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
 import { rangeeDeReglage } from "../composants/reglage/reglage.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { LECTURE, PASSE_DE_FERMETURE, PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../box.ts").Lecture} Lecture */
@@ -39,11 +40,11 @@ import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 
 export const COMMANDE = "closing --json";
 export const TITRE = "closer";
-export const MERGES = "merges since last cleanup";
+export const MERGES = `merges since last ${PASSE_DE_FERMETURE}`;
 export const RATIO = "added / removed";
 export const DOUBLONS = "duplicates";
 export const MORTS = "dead exports";
-export const LECTURE = "reading…";
+export { LECTURE };
 export const NON_COMMUNIQUE = "not communicated";
 export const ILLISIBLE = "the closer could not be read";
 export const BRANCHE_ILLISIBLE = "the integration branch could not be read";
@@ -118,7 +119,7 @@ function chiffre(doc, libelle, valeur, precise = "") {
 /** @param {Fabrique} doc @param {Fenetre[]} fenetres */
 function rapport(doc, fenetres) {
   const fenetre = fenetres.at(-1);
-  if (fenetre === undefined || fenetre.merges === 0) return chiffre(doc, RATIO, fenetre === undefined ? NON_COMMUNIQUE : "no merge yet");
+  if (fenetre === undefined || fenetre.merges === 0) return chiffre(doc, RATIO, fenetre === undefined ? NON_COMMUNIQUE : PAS_ENCORE("merge"));
   return chiffre(doc, RATIO, fenetre.reads, `+${nombre(fenetre.added)} / −${nombre(fenetre.removed)} · last ${fenetre.merges} merge${s(fenetre.merges)}`);
 }
 

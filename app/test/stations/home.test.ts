@@ -72,7 +72,7 @@ test("toutes les stations, en bas de l'onglet Stations, une ligne chacune : sa p
 });
 
 test("sans station, la liste dit quoi faire ; avant la première lecture, qu'elle est en cours", async () => {
-  assert.match((await laHome({ ...ACCUEIL, stations: [] })).section().textContent, /^All stationsno station yet: install one, then pair it here with “\+ station”/);
+  assert.match((await laHome({ ...ACCUEIL, stations: [] })).section().textContent, /^All stationsNo station yet. Install one, then pair it here with “\+ station”/);
   assert.match((await laHome({ projets: [], sante: SANTE })).section().textContent, /first read on GitHub in progress/);
 });
 

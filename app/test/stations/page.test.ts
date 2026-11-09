@@ -144,7 +144,7 @@ test("« remove the station » : un clic ouvre la confirmation ; « cancel » la
   assert.match(page.textContent, /Remove box from this app\?/);
   assert.match(page.textContent, /it keeps running, and pairs again with a new code/, "la confirmation dit ce que ça change, en une ligne");
   assert.equal(jouee.appels.filter(({ geste }) => geste === "retirerLaStation").length, 0, "rien ne part avant le « remove »");
-  dansLaConfirmation(page, "cancel")?.click();
+  dansLaConfirmation(page, "Cancel")?.click();
   await repos();
   assert.doesNotMatch(page.textContent, /Remove box from this app/);
   assert.ok(bouton(page, "remove the station"), "le bouton revient");

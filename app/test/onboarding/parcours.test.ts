@@ -321,7 +321,7 @@ describe("la décision devant une station sans bac à sable", () => {
     const { bloc } = await laPage(SANS_BAC);
     bouton(bloc, AUTRE_STATION).click();
     await repos();
-    assert.equal(bloc.dessous("button").some((b) => b.textContent === "cancel"), true);
+    assert.equal(bloc.dessous("button").some((b) => b.textContent === "Cancel"), true);
   });
 
   test("la station publie la décision prise : l'avertissement s'en va et le parcours passe à la préparation", async () => {

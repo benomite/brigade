@@ -226,7 +226,8 @@ the cause of each failed attempt. They are read from `.claude/brigade/temps-tick
 (`BRIGADE_REPO_DIR`), not from the log, which no longer sees a merge since #2061: at each merge the station reads
 the ticket's issue on GitHub and writes its quality with its time (`qualite`, `runtime/src/qualite-github.ts`,
 #2707) — a `brigade:renvoi` comment is a delivery sent back to a cook, with its reason, classed by the words the
-station writes it with (`RAISONS_DE_RENVOI`, shared by both), a `brigade:echec` comment a cook without a delivery,
+station writes it with (`RAISONS_DE_RENVOI`, shared by both) — for a red CI, by the failed steps it names when it
+names them (#3028), else by the names of the red checks —, a `brigade:echec` comment a cook without a delivery,
 whose free-text reason is not classed (`other`), and a `prio:0` ticket with a `brigade:base-rouge` mark a repair of
 main, with the checks its body names. After each merge, the station also gives their quality to up to 10 recent
 tickets recorded without one (merged before #2707, or whose issue GitHub did not return), in place; until then such
@@ -497,6 +498,15 @@ tickets claimed after that merge, #2977 and #2985, none was sent back for a conf
 evidence, with #2963 and #2979 closed by merged PRs out of the station's times, main's gate returns `en-attente`
 on #2979 (19 tickets missing), and the code before #2979, which dated neither, opens a ticket.
 Nothing to correct on main.
+#3028, measured on BOBL-tech/mirrorlab, names "red gates: type check" for three red-CI send-backs (#651, #20,
+#612), but no failed step was read: their reasons name the one red check, `Lint + Format + Typecheck + Tests
+(+ e2e:critical si label e2e)`, a job that runs four steps. `causeDuRenvoi` (`runtime/src/qualite-github.ts`)
+tests `types?` before `tests` on the check names, so this job read "type check" whichever step failed. Which step
+was red on `db59a30`, `a437316` and `9572273` is in mirrorlab's CI logs, which the cook of #3028 could not read.
+Since #3028 the station names the failed steps of each red job in the send-back, and the cause is read from them:
+`(failed step: Format)` is "other", `(failed step: Typecheck)` "type check". The three send-backs counted keep their
+cause. The same fix turned the `app` pattern of `causeDuRenvoi` back into a word match: since #2707 it held two
+backspace characters where `\b` was meant, so no red-CI send-back was ever classed "red gates: app tests".
 
 The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
 again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent

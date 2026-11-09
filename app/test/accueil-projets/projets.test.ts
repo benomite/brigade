@@ -18,10 +18,10 @@ const poserLesProjets = (d: typeof doc, projets: ProjetDuBloc[], g: ReturnType<t
 };
 const lignes = (bloc: Faux) => bloc.children.filter(({ className }) => className === "ligne");
 const PROJETS: ProjetDuBloc[] = [
-  { nom: "brigade", etat: "cooking", stations: ["parade-box", "this Mac"], maintenant: "#12 cooking" },
+  { nom: "brigade", etat: "cooking", stations: ["parade-box", "this computer"], maintenant: "#12 cooking" },
   { nom: "espace", etat: "waiting", stations: ["parade-box"], maintenant: "1 decision awaits you", attend: 1 },
   { nom: "calculus", etat: "held", stations: [], maintenant: "kitchen held" },
-  { nom: "cantine", etat: "idle", stations: ["this Mac"], maintenant: "nothing cooking, nothing waits for you" },
+  { nom: "cantine", etat: "idle", stations: ["this computer"], maintenant: "nothing cooking, nothing waits for you" },
 ];
 
 describe("le bloc Projects de l'accueil", () => {
@@ -33,7 +33,7 @@ describe("le bloc Projects de l'accueil", () => {
       ["calculus", "held", "kitchen held", "›"],
       ["cantine", "idle", "nothing cooking, nothing waits for you", "›"],
     ]);
-    assert.deepEqual(lignes(bloc).map((l) => l.ariaLabel?.split(" — ").at(-1)), ["parade-box, this Mac", "parade-box", SANS_STATION, "this Mac"], "les stations restent dites, dans le nom de la ligne");
+    assert.deepEqual(lignes(bloc).map((l) => l.ariaLabel?.split(" — ").at(-1)), ["parade-box, this computer", "parade-box", SANS_STATION, "this computer"], "les stations restent dites, dans le nom de la ligne");
     assert.deepEqual(Object.values(ETATS).map(({ dit }) => dit), ["cooking", "waiting for the chef", "held", "idle"]);
   });
 

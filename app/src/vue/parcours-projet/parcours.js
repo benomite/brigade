@@ -10,6 +10,7 @@ import { ETATS_D_ETAPE } from "../onboarding/parcours.js";
 import { etapeDuCompte } from "./compte.js";
 import { etapeDeLaStation } from "./etape-station.js";
 import { etapeDuRecap } from "./etape-recap.js";
+import { AJOUTER_UN_PROJET } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /**
@@ -46,7 +47,7 @@ import { etapeDuRecap } from "./etape-recap.js";
 /** @type {readonly Etape[]} */
 export const ETAPES = [etapeDuCompte, etapeDeLaStation, etapeDuRecap];
 
-export const TITRE = "Add a project";
+export const TITRE = AJOUTER_UN_PROJET;
 export const BIENVENUE = "Welcome to brigade. Add the first project its kitchen will cook.";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */

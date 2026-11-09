@@ -57,7 +57,7 @@ export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
 // projet servi (`routage-temps-perdu.ts`) — ; son merge n'est pas dans ces
 // temps, et elle est servie quand elle est fermée (null : fermée sans date lue).
 export type GitHubDeLaCorrection = {
-  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt">> & { servieLe?: string | null })[]>;
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt" | "author">> & { servieLe?: string | null })[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
 };
@@ -127,6 +127,8 @@ export type DecisionDeCorrection =
 
 export type OptionsDeLaCorrection = {
   github: GitHubDeLaCorrection;
+  // Combien de tickets une mesure demande avant d'ouvrir un ticket (#3012) ; 20 en production.
+  echantillonMin?: number;
   // Les temps du projet et son seuil du temps perdu, lus à chaque appel.
   // `qualites` : ce que le journal sait de la qualité des tickets, et `projet`
   // le contenu de projet.json (son seuil du premier coup) ; sans `qualites`,
@@ -161,10 +163,10 @@ export function derniereCorrectionServie(fermees: readonly number[], enregistrem
 // ait des tickets récents à elle, ou en ouvre un. `ouvertes` : les issues
 // ouvertes que l'appelant vient de lire, s'il en a — le ticket déjà connu qui y
 // est ne coûte aucune lecture de GitHub, ni la correction à l'essai déjà connue.
-export function correctionDuTemps({ github, lire, preuve, maintenant = () => new Date() }: OptionsDeLaCorrection) {
+export function correctionDuTemps({ github, lire, preuve, echantillonMin = TICKETS_A_ATTENDRE, maintenant = () => new Date() }: OptionsDeLaCorrection) {
   let connue: number | null = null;
   let aLEssai: { numero: number; servie: number } | null = null;
-  const porte = porteDeQualite({ github, maintenant });
+  const porte = porteDeQualite({ github, echantillonMin, maintenant });
 
   // Les tickets de correction, ouverts et fermés, chacun du plus ancien au plus
   // récent. Le début de la fenêtre tombe à minuit (UTC) : la même requête toute la journée.
@@ -211,6 +213,8 @@ export function correctionDuTemps({ github, lire, preuve, maintenant = () => new
     const mesure = aLEssai === null ? ticket : ticketDeCorrection(mesures, seuilMin);
     const medianeMesuree = aLEssai === null ? mediane : medianePerdueDesRecents(mesures);
     if (mesure === null || medianeMesuree === null) return { issue: "sous-le-seuil", mediane: medianeMesuree, seuilMin };
+    // Une médiane sur moins de 20 tickets ne dit rien (#3012) : rien ne s'ouvre.
+    if (mesures.length < echantillonMin) return { issue: "sous-le-seuil", mediane: medianeMesuree, seuilMin };
     const corps = await avecLaPreuve(mesure.corps, preuve && (() => preuve("temps-perdu", mesures, qualites ?? new Map())));
     const creee = await github.creerIssue({ titre: mesure.titre, corps, labels: LABELS_CORRECTION });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.

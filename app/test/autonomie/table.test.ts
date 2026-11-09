@@ -143,7 +143,7 @@ describe("la table : sept rangées, trois positions, celle en vigueur pressée",
       appliquerProfil: () => assert.fail("rien ne s'applique"),
     });
     const indisponible = section(racine).dessous("p").find((p) => p.className === "indisponible") ?? assert.fail("aucune ligne");
-    assert.equal(indisponible.children[0]?.textContent, "the autonomy table is unavailable");
+    assert.equal(indisponible.children[0]?.textContent, "The autonomy table not reached.");
     assert.equal(indisponible.dessous("button")[0]?.ariaLabel, "connect ECONNREFUSED 127.0.0.1:7010");
     assert.equal(rangeesDe(racine).length, 0);
   });

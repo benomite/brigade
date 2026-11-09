@@ -20,13 +20,16 @@ function clone(tc: TestContext, minutes: number[], projet: object = {}): string 
   return depot;
 }
 
+// Vingt et un tickets, 7 de chaque : le minimum d'une mesure est de 20 (#3012), la médiane reste 18.
+const vingtEtUn = Array.from({ length: 21 }, (_, rang) => [12, 18, 25][rang % 3] ?? 0);
+
 test("over the lost-time threshold, the station's turn opens one prio:0 correction ticket, and no second one while it is open", async (tc) => {
   const { issues, github } = fauxDuTour();
   const avertis: string[] = [];
-  const s = stationQuiTourne(github, clone(tc, [12, 18, 25]), avertis);
+  const s = stationQuiTourne(github, clone(tc, vingtEtUn), avertis);
   await s.tour();
   await s.tour();
-  await stationQuiTourne(github, clone(tc, [12, 18, 25]), avertis).tour();
+  await stationQuiTourne(github, clone(tc, vingtEtUn), avertis).tour();
   assert.deepEqual(avertis, []);
   assert.equal(issues.length, 1);
   assert.ok(issues[0]?.labels.includes("prio:0"));

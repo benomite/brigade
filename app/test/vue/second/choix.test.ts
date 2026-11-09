@@ -107,7 +107,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
       code: undefined,
     }),
     espace: (projet) => (projet === "fanfare" ? [AUTRE] : [SECOND]),
-    machines: () => [{ id: "poste", titre: "this Mac" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
     shell: () => SHELL,
     ...reponses,
   });

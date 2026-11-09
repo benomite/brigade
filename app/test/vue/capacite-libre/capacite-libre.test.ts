@@ -34,7 +34,7 @@ const FAITS: Faits = {
   attend: [],
 };
 // Ce que cet ordinateur sait déclarer : le catalogue de « + station ».
-const DEFAUTS = { cooks: 4, cooksDit: "from this machine's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
+const DEFAUTS = { cooks: 4, cooksDit: "from this computer's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
 
 // Ce que `installation stations --json` rend (runtime/src/declarer-stations.ts, `faitsDesStations`).
 const declarees = (claude: string[]) =>

@@ -38,7 +38,7 @@ async function ouvrir(reponses = {}): Promise<Jouee> {
       code: undefined,
     }),
     espace: () => [SECOND],
-    machines: () => [{ id: "poste", titre: "this Mac" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
     ...reponses,
   });
   (vue.element("projets").children[1] ?? assert.fail("pas de case")).click();

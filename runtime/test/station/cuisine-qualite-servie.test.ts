@@ -22,14 +22,14 @@ const rienNeReste = temporaireDuFichier();
 const BRIGADE = "benomite/brigade";
 const CHEMIN_TICKETS = `repos/${BRIGADE}/issues?state=all&since=`;
 
-// Dix tickets mergés à dix minutes d'écart, les 4 premiers après un cook raté : 60 % du premier coup.
+// Vingt tickets (le minimum d'une mesure, #3012) mergés à dix minutes d'écart, les 8 premiers après un cook raté : 60 % du premier coup.
 const temps = () =>
-  Array.from({ length: 10 }, (_, rang) => ({
+  Array.from({ length: 20 }, (_, rang) => ({
     ticket: rang + 1,
     mergedAt: new Date(Date.UTC(2026, 10, 7) + rang * 10 * 60_000).toISOString(),
     cuisson: 300, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0,
     perdu: { attente: 0, ratees: 0, renvois: 0 },
-    qualite: { renvois: [], cooksRates: rang < 4 ? 1 : 0 },
+    qualite: { renvois: [], cooksRates: rang < 8 ? 1 : 0 },
   }));
 
 // Une station neuve qui sert `brigade`, dont le clone porte ces temps ; `precedent` : un ticket de qualité déjà fermé, qui a compté ces tickets.
@@ -44,6 +44,8 @@ function ouvrir(t: TestContext, precedent: boolean) {
   // Le compte de la machine écrit sur le dépôt : la station GitHub seul sert le projet, pas la contributrice (#2935).
   gh.repondre("user", { corps: { login: "chef" } });
   gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT, owner: { login: "acme", type: "Organization" }, permissions: { push: true } } });
+  // Le compte sous lequel la station dépose sur la brigade, qu'elle lit pour reconnaître son propre ticket (#3012).
+  gh.repondre(`repos/${BRIGADE}`, { corps: { full_name: BRIGADE, owner: { login: "benomite", type: "User" }, permissions: { push: false } } });
   gh.issues([issueGitHub(7, { labels: ["fire", "model:sonnet", "effort:low"] })]);
   gh.repondre(`repos/${DEPOT}/issues/7/events?per_page=100`, { corps: [] });
   gh.repondre(`repos/${DEPOT}/pulls?head=${DEPOT.split("/")[0]}:${brancheDuTicket(7)}&state=all&per_page=1`, { corps: [] });
@@ -52,7 +54,7 @@ function ouvrir(t: TestContext, precedent: boolean) {
   // Le début de la fenêtre des tickets de qualité : minuit UTC, trente jours avant.
   const debut = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   debut.setUTCHours(0, 0, 0, 0);
-  const merge = { ...issueGitHub(2800, { state: "closed" }), body: `${marqueDuProjet(DEPOT)}\n${MARQUE_QUALITE}\n${marqueDesComptes([1, 2, 3, 4])}`, author_association: "OWNER" };
+  const merge = { ...issueGitHub(2800, { state: "closed" }), body: `${marqueDuProjet(DEPOT)}\n${MARQUE_QUALITE}\n${marqueDesComptes([1, 2, 3, 4, 5, 6, 7, 8])}`, author_association: "OWNER" };
   gh.repondre(`${CHEMIN_TICKETS}${debut.toISOString()}&per_page=100`, { corps: precedent ? [merge] : [] });
   const env = environnementDuProjet(racine, projet, { HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement"), BRIGADE_GH_BIN: gh.bin });
   mkdirSync(env.BRIGADE_STATE_DIR ?? "", { recursive: true });

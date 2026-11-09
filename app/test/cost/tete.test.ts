@@ -187,7 +187,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     // Sa lecture n'est celle d'aucun projet : le process principal lit `station` sur chaque box.
     assert.deepEqual(vue.dernier("onglet").slice(0, 2), [undefined, "couts"]);
     // Avant toute lecture, les chiffres sont en lecture.
-    assert.equal(cout.dessous("p")[0]?.textContent, "reading…");
+    assert.equal(cout.dessous("p")[0]?.textContent, "Reading…");
 
     vue.dire("surContenu", { ...lu("cantine", CANTINE_LU), demande }, undefined);
     vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande }, undefined);
@@ -219,7 +219,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     const demande = vue.dernier("onglet")[2] as number;
     vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: demande - 1 }, undefined);
     await repos();
-    assert.equal(page.dessous("p")[0]?.textContent, "reading…");
+    assert.equal(page.dessous("p")[0]?.textContent, "Reading…");
 
     (page.dessous("button").find(({ textContent }) => textContent === "‹ All projects") ?? assert.fail("pas de retour")).click();
     await repos();

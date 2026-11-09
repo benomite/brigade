@@ -1,5 +1,5 @@
 // L'onglet du second sur un poste Windows (#1522, épique #1518) : la vue entière devant le faux pont, le poste dit
-// « this PC » et n'est pas un Mac. Les flux de #1520 et #1521 — un clic sur un choix, un geste confirmé puis lancé, une
+// « this computer » et n'est pas un Mac. Les flux de #1520 et #1521 — un clic sur un choix, un geste confirmé puis lancé, une
 // réponse tapée, une proposition périmée — y font ce qu'ils font ailleurs, et ce qui part vers le terminal est ce que
 // ConPTY attend : la commande à l'octet près, puis `\r` seul.
 import assert from "node:assert/strict";
@@ -36,10 +36,10 @@ async function ouvrir(): Promise<Jouee> {
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
       // Le poste Windows : son nom à l'écran, et ce n'est pas un Mac.
-      poste: { nom: "this PC", mac: false },
+      poste: { nom: "this computer", mac: false },
     }),
     espace: () => [SECOND],
-    machines: () => [{ id: "poste", titre: "this PC" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
     shell: () => SHELL,
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée du projet")).click();

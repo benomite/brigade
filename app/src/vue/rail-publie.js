@@ -10,6 +10,7 @@
 
 import { boutonAction } from "./briques.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from "./premier-lancement.js";
+import { LECTURE_DE } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../faits.ts").RailDuProjetLu} RailDuProjetLu */
@@ -31,10 +32,10 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from ".
  * }} GestesDuRailPublie
  */
 
-export const LECTURE_PUBLIEE = "Reading the rail…";
+export const LECTURE_PUBLIEE = LECTURE_DE("the rail");
 // Le rail publié se lit, son tableau pas encore : sa première lecture est en route.
 /** @param {string} projet */
-export const TABLEAU_EN_LECTURE = (projet) => `Reading ${projet} on GitHub…`;
+export const TABLEAU_EN_LECTURE = (projet) => LECTURE_DE(`${projet} on GitHub`);
 // Le rail publié se lit, son tableau non : la raison du tableau, telle que sa lecture l'a dite.
 /** @param {string} raison */
 export const TABLEAU_NON_LU = (raison) => `The rail is not drawn: ${raison}`;

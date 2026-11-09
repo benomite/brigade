@@ -41,7 +41,7 @@ export function lireFeu(reglages: Reglages, dossier: string, maintenant = () => 
       const a = maintenant().toISOString();
       const lance = `$ ${reglages.gh} ${ARGS.join(" ")}`;
       if (erreur !== null) {
-        const suite = erreur.code === "ENOENT" ? `\`${reglages.gh}\` is not on this machine` : erreur.killed === true ? `no answer within ${nombre(reglages.delaiMs / 1000)} s: gh stopped` : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
+        const suite = erreur.code === "ENOENT" ? `\`${reglages.gh}\` is not on this computer` : erreur.killed === true ? `no answer within ${nombre(reglages.delaiMs / 1000)} s: gh stopped` : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
         return resoudre({ a, sans: `${lance}\n${erreurs}${sortie}`.trimEnd() + `\n→ ${suite}` });
       }
       const tickets = ticketsDe(sortie);

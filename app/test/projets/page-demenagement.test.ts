@@ -1,5 +1,5 @@
 // La page d'un projet dit où il cuit, et déménage sa cuisine d'un geste (#1095), la vue jouée. « Cooks
-// on this Mac » pour un projet qui cuit sur cet ordinateur — avec ce que ça implique : sa cuisine
+// on this computer » pour un projet qui cuit sur cet ordinateur — avec ce que ça implique : sa cuisine
 // s'arrête quand on ferme l'app —, « Cooks on parade-box » pour un projet qui cuit sur sa box. Un seul
 // bouton, « move the kitchen », l'emmène sur ce Mac, le ramène sur sa box ou sur une autre station,
 // sans retrait ni rajout. Refusé, la raison se lit en une phrase sous la ligne, et la ligne ne
@@ -127,7 +127,7 @@ test("un seul geste l'emmène sur ce Mac : le choix dit d'où, vers où, et son 
   const ouvert = choix(bloc);
   assert.equal(ouvert.hidden, false);
   assert.equal(ouvert.dessous("p")[0]?.textContent, "Move parade's kitchen from parade-box to:");
-  assert.deepEqual(boutons(ouvert).map(({ textContent }) => textContent), ["macbook", "cancel"]);
+  assert.deepEqual(boutons(ouvert).map(({ textContent }) => textContent), ["macbook", "Cancel"]);
   assert.equal(bouton(ouvert, "macbook").title, "stops when you close the app on this computer");
   assert.equal(ouvert.dessous("p").filter(({ className }) => className === "prix").map(({ textContent }) => textContent).join(), "Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.");
   assert.equal(boutons(bloc).some(({ textContent }) => textContent === "move the kitchen"), false, "le geste ouvert ne se rouvre pas");

@@ -84,7 +84,7 @@ const vue = (choix: object[]): VuDesProjets => {
   return { a: A, projets: [projet], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX) }, calibrage: calibrageRecommande([]) };
 };
 
-const DEFAUTS = { cooks: 4, cooksDit: "from this machine's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
+const DEFAUTS = { cooks: 4, cooksDit: "from this computer's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
 
 async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLAREES) {
   const envoyes: unknown[][] = [];
@@ -173,7 +173,7 @@ describe("« Cook it on a station that has it » ouvre le formulaire de la stati
     const { jouee } = await laPage([enAttente("browser")], null);
     await cliquerSurAilleurs(jouee, "browser");
     assert.equal(formulaire(jouee), undefined);
-    assert.match(jouee.element("choix-du-projet").dessous("p").find(({ className }) => className === "refus-du-choix")?.textContent ?? "", /no station of the project is read yet/);
+    assert.match(jouee.element("choix-du-projet").dessous("p").find(({ className }) => className === "refus-du-choix")?.textContent ?? "", /No station of the project read yet/);
   });
 
   test("la capacité d'un besoin : celle que le runtime déclare en premier au catalogue", () => {

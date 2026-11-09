@@ -86,7 +86,7 @@ async function ouvrir(stations: DuRuntime[] = STATIONS, faits: Faits = FAITS) {
   const vue = await jouerLaVue({
     demarrage,
     espace: () => [SECOND],
-    machines: () => [{ id: "poste", titre: "this Mac" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
@@ -279,7 +279,7 @@ describe("la ligne de station dit le plafond du projet, sans le régler (ticket 
     const vue = await jouerLaVue({
       demarrage,
       espace: () => [SECOND],
-      machines: () => [{ id: "poste", titre: "this Mac" }],
+      machines: () => [{ id: "poste", titre: "this computer" }],
     });
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
     await repos();

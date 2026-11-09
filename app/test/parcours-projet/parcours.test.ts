@@ -47,12 +47,12 @@ describe("le squelette : des étapes ordonnées, une par fichier", () => {
   });
 
   test("le parcours finit sur le récap : le projet, sa station et la suite `fire` — jamais un projet nu", () => {
-    const ecran = poserParcoursProjet(doc, { compte: { login: "octo-chef" }, depot: "chef/parade", station: "this Mac" }, SANS_GESTE) as Faux;
+    const ecran = poserParcoursProjet(doc, { compte: { login: "octo-chef" }, depot: "chef/parade", station: "this computer" }, SANS_GESTE) as Faux;
     const fin = ecran.dessous("li").at(-1)!;
     assert.deepEqual([fin.dataset.etape, fin.dataset.etat], ["recap", "courante"]);
     const texte = [...fin.descendants()].map((element) => element.textContent).join(" ");
     assert.match(texte, /chef\/parade/);
-    assert.match(texte, /this Mac/);
+    assert.match(texte, /this computer/);
     assert.equal(fin.dessous("code")[0]?.textContent, "fire");
   });
 
@@ -85,7 +85,7 @@ describe("aucun login GitHub à taper", () => {
 // La vue jouée entière, sur un PC neuf puis sur un PC qui a déjà ses projets.
 const demarrage = (projets: Projet[]) => ({
   configuration: pourLaBarre({ chemin: "C:\\Users\\chef\\.config\\brigade\\app.json", projets }),
-  poste: { nom: "this PC", mac: false },
+  poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,

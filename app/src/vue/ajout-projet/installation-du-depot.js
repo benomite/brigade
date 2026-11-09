@@ -11,6 +11,7 @@
 
 import { boutonAction, survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { REESSAYER } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /**
@@ -25,7 +26,7 @@ export const PREPARER = "set it up";
 export const EN_COURS = (/** @type {string} */ depot) => `Setting up ${depot} for brigade…`;
 export const ECHEC = (/** @type {string} */ depot) => `${depot} could not be set up.`;
 export const ILLISIBLE = (/** @type {string} */ depot) => `${depot} could not be checked.`;
-export const REESSAYER = "try again";
+export { REESSAYER };
 
 // Ce qui manque, dit d'un mot : ses bindings, ses labels — ou rien. Une liste vide ne manque pas.
 /** @param {readonly string[] | boolean | undefined} manque */

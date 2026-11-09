@@ -26,7 +26,7 @@ import {
 import { Faux, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
-const ICI = "this Mac";
+const ICI = "this computer";
 // Les projets de l'app, tels que son fichier des projets les tient : chacun avec son dépôt, sauf un ajouté à la main.
 const PROJETS: ProjetDeLApp[] = [
   { nom: "parade", depot: "chef/parade" },
@@ -100,7 +100,7 @@ describe("à l'installation", () => {
     await app.tenue.lire();
     const ecran = app.ecran();
     assert.ok(ditAucun(ecran), "la ligne « aucun projet » se lit en tête");
-    assert.equal(AUCUN(ICI), "this Mac serves no project");
+    assert.equal(AUCUN(ICI), "this computer serves no project");
     // Les projets offerts sont ceux de l'app, dans son ordre — et rien d'autre.
     assert.deepEqual(lignes(ecran).map((rang) => rang.dataset.projet), ["parade", "cantine", "brouillon"]);
     for (const projet of ["parade", "cantine"]) {
@@ -135,7 +135,7 @@ describe("choisir un projet", () => {
     const app = ouvre(racine);
     await app.tenue.lire();
     cocher(ligne(app.ecran(), "parade"), true);
-    assert.equal(valeurDe(ligne(app.ecran(), "parade")), "saving…", "le geste en route se dit");
+    assert.equal(valeurDe(ligne(app.ecran(), "parade")), "Saving…", "le geste en route se dit");
     assert.ok(lignes(app.ecran()).every((rang) => caseDe(rang).disabled), "un projet à la fois");
     await repos();
     assert.deepEqual(app.appels, [{ depot: "chef/parade", servi: true }]);

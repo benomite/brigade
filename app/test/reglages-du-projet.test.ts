@@ -143,7 +143,7 @@ async function ouvrir(lecture: LectureDesReglages = { vus: reglagesVus(SORTIE) ?
   const vue = await jouerLaVue({
     demarrage,
     espace: () => [SECOND],
-    machines: () => [{ id: "poste", titre: "this Mac" }],
+    machines: () => [{ id: "poste", titre: "this computer" }],
     reglagesDuProjet: () => lecture,
     proposerUnReglage: (projet, choix) => new Promise<RenduDuReglage>((rendre) => propositions.push({ projet, choix, rendre })) as unknown as RenduDuReglage,
     ouvrirLaProposition: () => true,

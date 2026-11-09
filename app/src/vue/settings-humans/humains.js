@@ -15,6 +15,7 @@ import { boutonAction, caseACocher, survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ditDuReglage, rangeeDeReglage } from "../composants/reglage/reglage.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { ANNULER, NON_ATTEINT } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {"product" | "design" | "review" | "client-contact"} Role */
@@ -53,9 +54,9 @@ export const MOTS = {
   premier: "add the first human",
   ajouter: "add a human",
   retirer: "remove",
-  annuler: "cancel",
+  annuler: ANNULER,
   login: "GitHub login",
-  indisponible: "humans unavailable",
+  indisponible: NON_ATTEINT("humans"),
   rienEnvoye: "nothing was written: no answer from the service",
 };
 

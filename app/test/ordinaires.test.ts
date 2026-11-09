@@ -34,14 +34,14 @@ const lu = (chemin: string) => JSON.parse(readFileSync(chemin, "utf8")) as { pro
 const MAC = {};
 const station = (bacASable: StationDesFaits["bacASable"]): StationDesFaits => ({ station: "mac/claude", distante: true, plafond: 2, ordinaires: true, bacASable, prendOrdinaires: bacASable?.disponible === true });
 const INDISPONIBLE = { disponible: false, raison: "Seatbelt (/usr/bin/sandbox-exec) is missing", version: null, depuis: "2026-10-16T10:00:00Z" };
-const EXPLICATION = explication("this Mac");
+const EXPLICATION = explication("this computer");
 const DISPONIBLE = { disponible: true, raison: null, version: "2.1.0", depuis: "2026-10-16T10:00:00Z" };
 
 describe("le bloc des tickets ordinaires", () => {
   test("il existe pour un Mac dont la station cuit le projet, avec son réglage et la ligne d'explication", () => {
     assert.deepEqual(blocDesOrdinaires({ ...MAC }, "darwin", undefined, true), { reglable: true, actif: false, limite: null, explication: EXPLICATION });
     assert.deepEqual(blocDesOrdinaires({ ...MAC, ordinaires: true, limiteCooks: 3 }, "darwin", [station(DISPONIBLE)], true), { reglable: true, actif: true, limite: 3, explication: EXPLICATION });
-    assert.equal(EXPLICATION, "Cooks on this Mac run in Claude Code's sandbox: they write only in their own worktree, and reach only the network hosts on the project's list.");
+    assert.equal(EXPLICATION, "Cooks on this computer run in Claude Code's sandbox: they write only in their own worktree, and reach only the network hosts on the project's list.");
   });
 
   test("hors d'un Mac, il n'est pas réglable : il dit, au nom de ce poste, qu'il ne prend aucun ticket ordinaire, et pourquoi — option cochée ou non", () => {
@@ -50,7 +50,7 @@ describe("le bloc des tickets ordinaires", () => {
         reglable: false,
         actif: false,
         limite: null,
-        explication: "This PC takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's sandbox, which the station sets up only on macOS.",
+        explication: "This computer takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's sandbox, which the station sets up only on macOS.",
       });
     }
     assert.equal(blocDesOrdinaires({ ...MAC }, "linux", undefined, true)?.explication, sansBacASable("this computer"));
@@ -66,7 +66,7 @@ describe("le bloc des tickets ordinaires", () => {
   test("bac à sable indisponible : le message dit que le Mac ne prend pas de ticket ordinaire, avec la raison — option cochée ou non", () => {
     for (const ordinaires of [true, false]) {
       const bloc = blocDesOrdinaires({ ...MAC, ordinaires }, "darwin", [station(INDISPONIBLE)], true);
-      assert.equal(bloc?.indisponible, "The sandbox is unavailable on this Mac — Seatbelt (/usr/bin/sandbox-exec) is missing. This Mac takes no ordinary ticket.");
+      assert.equal(bloc?.indisponible, "The sandbox is unavailable on this computer — Seatbelt (/usr/bin/sandbox-exec) is missing. This computer takes no ordinary ticket.");
     }
     assert.equal(blocDesOrdinaires({ ...MAC }, "darwin", [station(DISPONIBLE)], true)?.indisponible, undefined);
     // Elle n'en a rien dit : l'app ne devine pas.
@@ -145,7 +145,7 @@ describe("les tickets ordinaires dans la vue", () => {
   };
   const champs = (bloc: Faux) => bloc.dessous("input");
 
-  // Les lignes du bloc : le nom de chaque réglage, sans son étiquette de niveau (« this machine », que la rangée pose à
+  // Les lignes du bloc : le nom de chaque réglage, sans son étiquette de niveau (« this computer », que la rangée pose à
   // côté de son nom — composants/reglage), et sa valeur.
   const nomDe = (nom: Faux | undefined) => nom?.textContent.slice(0, nom.textContent.length - (nom.children.find(({ className }) => className === "niveau")?.textContent.length ?? 0));
   const lignes = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "reglage").map((ligne) => [nomDe(ligne.children[0]), ligne.children[1]?.children[0]?.textContent]);
@@ -164,8 +164,8 @@ describe("les tickets ordinaires dans la vue", () => {
     assert.deepEqual(bloc.dessous("h3"), []);
     assert.ok(bloc.dessous("button").some(({ ariaLabel }) => ariaLabel === EXPLICATION));
     assert.deepEqual(refus(bloc), []);
-    assert.equal(limite?.ariaLabel, "Cooks this Mac runs at once");
-    assert.equal(option?.ariaLabel, "Take the ordinary tickets on this Mac");
+    assert.equal(limite?.ariaLabel, "Cooks this computer runs at once");
+    assert.equal(option?.ariaLabel, "Take the ordinary tickets on this computer");
   });
 
   test("régler l'option ou la limite l'envoie au process principal, qui l'écrit", async () => {
@@ -204,7 +204,7 @@ describe("les tickets ordinaires dans la vue", () => {
   });
 
   test("sous Windows, rien ne se règle : ni option ni limite, ni ligne qui l'explique", async () => {
-    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "win32", undefined, true), undefined, { nom: "this PC", mac: false });
+    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "win32", undefined, true), undefined, { nom: "this computer", mac: false });
     await ouvrir(vue);
     const bloc = vue.element("ordinaires");
     assert.equal(bloc.hidden, true);

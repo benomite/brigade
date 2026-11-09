@@ -6,13 +6,14 @@
 // module les leur donne. Il ne touche pas `document`.
 
 import { dureeEnClair } from "./temps-ticket.js";
+import { PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {{ nom: string, medianMin: number }} Part */
 /** @typedef {{ n: number, medianMin: number, p75Min: number, phaseLaPlusLongue: Part | null, perteLaPlusLourde: Part | null }} Resume */
 /** @typedef {{ cle: string, nom: string, valeur: string, seuil: string, depasse: boolean, pesent: string[] }} Chiffre */
 
 // Ce que les deux vues disent quand la mesure n'a rien publié : ni un blanc ni un zéro.
-export const SANS_MESURE = "no measure yet";
+export const SANS_MESURE = PAS_ENCORE("measure");
 export const SANS_MESURE_DETAIL = "The station has not published a ticket time measure yet: this is not a count of zero tickets";
 
 /** @param {unknown} x @returns {x is number} */

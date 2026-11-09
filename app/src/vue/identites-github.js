@@ -20,6 +20,7 @@
 import { boutonAction, survol } from "./briques.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
+import { CET_ORDINATEUR, ENREGISTREMENT, NON_ATTEINT, LECTURE } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {"cook" | "pass" | "manager"} Role */
@@ -75,14 +76,14 @@ export const CHAMP_ID = "App ID";
 export const CHAMP_CLE = "paste the private key, or choose its .pem file";
 export const CHOISIR = "choose the .pem file";
 export const CHOISI = (/** @type {string} */ fichier) => `${fichier} chosen`;
-export const ENREGISTREMENT = "saving…";
+export { ENREGISTREMENT };
 export const RANGEE = "stored: its key is not shown again";
 export const CLE_ATTENDUE = "not applied yet: an App ID is stored with its private key — paste it, or choose its .pem file";
 export const SANS_ID = "nothing was written: enter the App's ID";
 export const PAS_UN_ID = "nothing was written: an App ID is the number on the App's page (or its Client ID)";
 export const PAS_UNE_CLE = "nothing was written: this is not a private key — give the .pem file downloaded from the App's page";
-export const ILLISIBLE = "this station's Apps unavailable";
-export const INJOIGNABLE = "The app could not reach this computer's station.";
+export const ILLISIBLE = NON_ATTEINT("this station's Apps");
+export const INJOIGNABLE = NON_ATTEINT(`${CET_ORDINATEUR}'s station`);
 
 // L'App ID tel que la station l'accepte : son « App ID », un nombre, ou son « Client ID » (identites.ts, `ID_D_APP`).
 const FORME_D_ID = /^[A-Za-z0-9.]+$/;
@@ -241,7 +242,7 @@ const estConfigure = (lecture, role) => {
 // L'état d'un rôle : `configured` — l'ID dit à côté —, `not configured` sinon.
 /** @param {Fabrique} doc @param {LectureDesApps | undefined} lecture @param {Role} role */
 function etatDuRole(doc, lecture, role) {
-  if (lecture === undefined) return [cree(doc, "span", "reading…")];
+  if (lecture === undefined) return [cree(doc, "span", LECTURE)];
   if ("refus" in lecture) return [cree(doc, "span", "–")];
   const app = appDe(lecture, role);
   const pret = estConfigure(lecture, role);

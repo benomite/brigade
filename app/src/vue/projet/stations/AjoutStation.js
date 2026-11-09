@@ -13,6 +13,7 @@
 import { boutonAction, survol } from "../../briques.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
+import { ENREGISTREMENT, ANNULER } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** Une station appairée, telle que la lecture du compte la rend. @typedef {import("../../../stations-du-compte.ts").StationEnregistree} Station */
@@ -33,8 +34,8 @@ export const ICI_AIDE = (/** @type {string} */ ici, /** @type {string} */ projet
 export const APPAIREE_AIDE = (/** @type {string} */ nom, /** @type {string} */ projet) => `${projet} is added to the projects ${nom} serves; it reads the change within a minute.`;
 export const HORS_LIGNE = "offline: it takes the project once it is back";
 export const AUCUNE = (/** @type {string} */ projet) => `No other station to offer: every station of yours already has ${projet}.`;
-export const ENVOI = "saving…";
-export const ANNULER = "cancel";
+export const ENVOI = ENREGISTREMENT;
+export { ANNULER };
 export const FAIT = (/** @type {string} */ nom, /** @type {string} */ projet) => `${nom} was given ${projet}: it shows in this list once it takes it.`;
 
 // Les stations appairées à proposer : celles à qui le projet n'est pas encore choisi — le dépôt sans égard à la casse,

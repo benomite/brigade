@@ -12,8 +12,9 @@ import { canalGitHub } from "../../src/appairage/canal.ts";
 import { FICHIER_APPAIRAGE } from "../../src/appairage/document.ts";
 import { FICHIER_LOCAL, tenirPresence, type Identite } from "../../src/appairage/presence.ts";
 import { railDuJournal } from "../../src/appairage/rail-du-journal.ts";
-import { lireLeRailDuProjet, principal, type RailDuProjet } from "../../src/appairage/rail-du-projet.ts";
+import { lireLeRailDuProjet, principal, type RailDuProjet, type RailIndisponible, type RailLu } from "../../src/appairage/rail-du-projet.ts";
 import { FICHIER_RAIL, railDuDocument, type RailsPublies } from "../../src/appairage/rail-publie.ts";
+import { tenirDernieresLectures } from "../../src/derniere-lecture-github.ts";
 import type { Fait } from "../../src/evenements.ts";
 import { principal as facts } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
@@ -48,6 +49,8 @@ function unGitHub(t: TestContext) {
     tomber: (comment: Panne) => writeFileSync(join(repertoire, comment), ""),
     relever: (comment: Panne) => rmSync(join(repertoire, comment)),
     env: () => ({ PATH: process.env.PATH ?? "", FAUX_GISTS: repertoire }),
+    // Ses propres dernières lectures (#3005) : un autre GitHub, ce sont d'autres rails.
+    dernieres: tenirDernieresLectures<RailLu, RailIndisponible>(),
   };
 }
 
@@ -115,7 +118,7 @@ async function surLeMac(etat: string) {
   return rail.map(({ ticket, etat: mot, titre, url }) => ({ ticket, state: mot, title: titre, url }));
 }
 
-const lire = (github: ReturnType<typeof unGitHub>, project: string, gh = FAUX_GH) => lireLeRailDuProjet({ gh, env: github.env(), project });
+const lire = (github: ReturnType<typeof unGitHub>, project: string, gh = FAUX_GH) => lireLeRailDuProjet({ gh, env: github.env(), project, dernieres: github.dernieres });
 
 test("sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box", async (t) => {
   const github = unGitHub(t);

@@ -175,7 +175,7 @@ test("un clic sur un projet l'ouvre : son espace s'il est dans les projets de l'
 test("le vide ne se dit que sur une station qui ne porte vraiment aucun projet", async () => {
   const { page } = await laPage("atelier");
   assert.equal(lignes(page).length, 0);
-  assert.equal(page.children[7]?.textContent, "no project on this station yet");
+  assert.equal(page.children[7]?.textContent, "No project on this station yet.");
   for (const nom of ["box", "macbook"]) {
     const { page: portee } = await laPage(nom);
     assert.ok(lignes(portee).length > 0);

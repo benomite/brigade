@@ -46,7 +46,7 @@ describe("la section dossiers et bac à sable", () => {
     const page = await section("gist-mac", reglages);
     assert.match(texte(ligne(page, "clones")), /\/st\/clones/);
     const lignes = descendants(page).filter((n) => n.className === "reglage");
-    assert.deepEqual(lignes.map((l) => (l.children[0]?.textContent ?? "").replace("this machine", "")), ["clones folder", "worktrees folder", "sandbox", "network door"]);
+    assert.deepEqual(lignes.map((l) => (l.children[0]?.textContent ?? "").replace("this computer", "")), ["clones folder", "worktrees folder", "sandbox", "network door"]);
     for (const l of lignes) assert.equal(descendants(l).filter((n) => n.className === "niveau").length, 1, "une marque de niveau par réglage");
     // Des réglages de la machine, jamais du dépôt : aucune ligne de PR ; et aucun bouton « Save ».
     assert.ok(descendants(page).every((n) => n.className !== "par-pr"));
@@ -63,7 +63,7 @@ describe("la section dossiers et bac à sable", () => {
     changer(champ(ligne(page, "clones")), "/data/clones");
     await repos();
     assert.match(texte(page), /\/data\/clones/);
-    assert.match(texte(ligne(page, "clones")), /saved on this machine/);
+    assert.match(texte(ligne(page, "clones")), /saved on this computer/);
     changer(champ(ligne(page, "porte")), "registry.npmjs.org");
     await repos();
     assert.match(texte(page), /registry\.npmjs\.org/);
@@ -148,7 +148,7 @@ describe("la section dossiers et bac à sable", () => {
     assert.ok("refus" in ecrireReglagesDeLaStation(fichier, { clones: "/a" }));
     assert.equal(readFileSync(fichier, "utf8"), "{ pas du json");
     rmSync(fichier);
-    assert.deepEqual(ecrireReglagesDeLaStation(fichier, { clones: "C:\\brigade\\clones" }), { fait: "saved on this machine" });
+    assert.deepEqual(ecrireReglagesDeLaStation(fichier, { clones: "C:\\brigade\\clones" }), { fait: "saved on this computer" });
     rmSync(dossier, { recursive: true });
   });
 

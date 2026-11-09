@@ -16,6 +16,7 @@
 import { boutonAction, survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { bouton as boutonDeLaFamille } from "../composants/bouton/bouton.js";
+import { ENREGISTREMENT, NON_ATTEINT } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
@@ -92,7 +93,7 @@ export function ceQuePose(nom) {
 // Ce qui se dit d'une rangée à côté de ses positions : d'où vient celle en vigueur, quand ce n'est pas le chef.
 export const AUJOURDHUI = "today's behavior";
 export const VERROUILLEE = { titre: "Always I decide", libelle: "locked", survol: "No button changes these rows: only a delivery of brigade does." };
-export const EN_COURS = "saving…";
+export const EN_COURS = ENREGISTREMENT;
 export const PROFILS_DITS = { titre: "Start from a profile", survol: "A profile sets every row at once; each row can then be changed alone." };
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -225,7 +226,7 @@ export function poserLaTableDAutonomie(doc, { lecture, enCours, refus, poser, ap
   return section;
 }
 
-const RATEE = "the autonomy table is unavailable";
+const RATEE = NON_ATTEINT("the autonomy table");
 const NON_ECRIT = "nothing was changed: the answer could not be read";
 
 /** @param {unknown} erreur */

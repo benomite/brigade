@@ -22,7 +22,7 @@ import { Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 const CHEMIN = "/home/chef/.config/brigade/app.json";
 const DEPOT = "chef/parade";
 const PARADE: Projet = { nom: "parade", dossier: "/home/chef/code/parade", depot: DEPOT, base: "main" };
-const ICI = "this PC";
+const ICI = "this computer";
 const AUCUNE = { state: "listed" as const, stations: [], unreadable: [], reason: "No station is paired with this GitHub account yet." };
 
 // Un ordinateur neuf : le fichier des projets est vide.

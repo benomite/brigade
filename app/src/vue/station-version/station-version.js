@@ -11,6 +11,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { survol } from "../briques.js";
+import { PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 // Le statut de la station de cet ordinateur, tel que le runtime l'expose (ticket 2189).
@@ -23,7 +24,7 @@ export const TITRE = "Station version";
 export const A_JOUR = "up to date";
 export const INCONNUE = "version unknown";
 export const INCONNUE_ICI = "This computer's station has not said its version yet: it shows here as soon as the station publishes it.";
-export const INCONNUE_BOX = "No box has been read on GitHub yet: its version shows here with your stations.";
+export const INCONNUE_BOX = `${PAS_ENCORE("box read on GitHub")} Its version shows here with your stations.`;
 export const BOX = "box";
 
 // Une version, dite partout de la même façon.

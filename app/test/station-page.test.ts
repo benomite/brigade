@@ -152,7 +152,7 @@ describe("ouvrir une station dans l'app monte la coque", () => {
 describe("la marque du niveau d'un réglage", () => {
   test("chacun des trois niveaux a son étiquette, distincte, et son survol", () => {
     const marques = (["machine", "project", "you"] as const).map((niveau) => niveauReglage(doc, niveau) as Faux);
-    assert.deepEqual(marques.map(({ textContent }) => textContent), ["this machine", "project", "you"]);
+    assert.deepEqual(marques.map(({ textContent }) => textContent), ["this computer", "project", "you"]);
     assert.equal(new Set(marques.map(({ textContent }) => textContent)).size, 3);
     for (const [i, niveau] of (["machine", "project", "you"] as const).entries()) {
       assert.equal(marques[i]?.className, "niveau");

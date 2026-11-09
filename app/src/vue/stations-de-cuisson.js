@@ -28,6 +28,7 @@ import { ceQuElleFournit, champDuPlafond, ditDe, motDuLieu } from "./stations-de
 import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
 import { bouton } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { PAS_ENCORE } from "./lexique.js";
 import { poele } from "./composants/poele/poele.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
@@ -76,7 +77,7 @@ export const ATTEINTE = { oui: "reached", non: "not reached", inconnue: "no word
 export const ATTEINTE_INCONNUE = "nothing says whether this station is reached";
 export const ATTEINTE_ICI = "the app reads its kitchen: this page comes from it";
 // Une station déclarée qui ne s'est pas encore annoncée ne cuit pas.
-export const PAS_ANNONCEE = { pourquoi: "not signed in yet", geste: "nothing has been heard from it yet: it takes no ticket until it does" };
+export const PAS_ANNONCEE = { pourquoi: "not signed in yet", geste: `${PAS_ENCORE("word from it")} It takes no ticket until it does.` };
 // Ce que `facts` dit de sa présence, au survol de sa pastille (ticket 1830).
 /** @param {string | null | undefined} vueLe */
 export const VUE_PAR_LES_FAITS = (vueLe) => `the kitchen hears from it${vueLe === null || vueLe === undefined ? "" : ` — its last request: ${vueLe}`}`;

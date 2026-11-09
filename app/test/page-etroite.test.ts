@@ -87,7 +87,7 @@ async function ouvrir({ etroit = true, stockage }: { etroit?: boolean; stockage?
     {
       demarrage,
       espace: () => [SECOND],
-      machines: () => [{ id: "poste", titre: "this Mac" }],
+      machines: () => [{ id: "poste", titre: "this computer" }],
     },
     { stockage, ecran },
   );

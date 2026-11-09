@@ -975,7 +975,7 @@ describe("un projet installé n'affiche jamais l'écran d'installation", () => {
 describe("l'onglet Stations : une station déclarée, changée seule", () => {
   const DEFAUTS = {
     cooks: 4,
-    cooksDit: "from this machine's 10 cores",
+    cooksDit: "from this computer's 10 cores",
     espaceDeTravail: "/tmp/worktrees",
     capacites: [
       { capacite: "docker", nom: "Docker", detectee: true },

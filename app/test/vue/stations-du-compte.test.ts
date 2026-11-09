@@ -199,7 +199,7 @@ describe("la ligne d'une station seulement enregistrée : en ligne ou non, et le
       ["box", "mac"],
     );
     assert.match(ligne("box").textContent, /online · acme\/shop/);
-    assert.match(ligne("mac").textContent, /offline · no project chosen yet/);
+    assert.match(ligne("mac").textContent, /offline · No project chosen yet./);
     const sans = unBloc({ stations: { ...LISTEES, stations: [{ ...BOX, selection: [] }] } });
     assert.match(sans.ligne("box").textContent, /online · no project/);
   });
@@ -290,7 +290,7 @@ describe("la sélection : les projets du chef à cocher, chaque case écrite aus
   test("les dépôts du chef en lecture, sans aucun, ou illisibles : chacun se dit, et ce qu'elle sert reste décochable", () => {
     assert.ok(unBloc({ stations: LISTEES, ouverte: BOX.id }).textes().includes(LECTURE_DES_DEPOTS));
     assert.ok(unBloc({ stations: LISTEES, ouverte: MAC.id, depots: { depots: [] } }).textes().includes(SANS_DEPOT));
-    const illisibles = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: { refus: "`gh` is not on this machine" } });
+    const illisibles = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: { refus: "`gh` is not on this computer" } });
     assert.equal(illisibles.enEchec()[0]?.dessous("span")[0]?.textContent, DEPOTS_ILLISIBLES);
     assert.deepEqual(illisibles.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true]]);
   });
@@ -480,7 +480,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     const lus = await accueil(vue);
     assert.deepEqual(nomsDe(vue), ["nas", "parade-box"], "chaque machine, une fois");
     assert.match(lus.ligne("parade-box").textContent, /online · idle · brigade, espace/);
-    assert.doesNotMatch(section(vue).textContent, /no project chosen yet|runs no kitchen/, "parade-box sert des projets : rien ne dit le contraire");
+    assert.doesNotMatch(section(vue).textContent, /No project chosen yet.|runs no kitchen/, "parade-box sert des projets : rien ne dit le contraire");
     assert.match(lus.ligne("nas").textContent, /online · acme\/shop/);
     // Une seule liste : son titre seul (#2638), ni section des stations du compte qui en porterait une seconde.
     assert.deepEqual(section(vue).dessous("h3").map(({ textContent }) => textContent), ["All stations"]);
@@ -495,7 +495,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     const lus = await accueil(vue);
     assert.deepEqual(nomsDe(vue), ["macbook-air-de-benoit"]);
     assert.match(lus.ligne("macbook-air-de-benoit").textContent, /online · idle · acme\/shop/);
-    assert.doesNotMatch(section(vue).textContent, /runs no kitchen|not added to any project|no project chosen yet/);
+    assert.doesNotMatch(section(vue).textContent, /runs no kitchen|not added to any project|No project chosen yet./);
     assert.deepEqual(lus.cases(), [], "fermée, ses cases ne se montrent pas");
     // Toute la ligne ouvre la page de la station, où se cochent ses projets : pas de bouton à côté, rien ne se déplie.
     assert.deepEqual(section(vue).dessous("button").filter(({ textContent }) => textContent === "choose projects"), []);
@@ -556,7 +556,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
 
     const vue = await jouerLaVue(reponses);
     const premier = await accueil(vue);
-    assert.match(premier.ligne("box").textContent, /online · no project chosen yet/);
+    assert.match(premier.ligne("box").textContent, /online · No project chosen yet./);
     premier.ligne("box").click();
     await repos();
     assert.ok(vue.appels.some(({ geste }) => geste === "depotsDuChef"), "les dépôts du chef ne sont pas lus");

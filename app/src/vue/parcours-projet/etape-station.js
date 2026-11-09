@@ -18,6 +18,7 @@ import { boutonAction, survol } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { refusDit } from "../projets-servis/projets-servis.js";
 import { uneLigneParMachine } from "../stations-du-compte.js";
+import { ENREGISTREMENT, LECTURE_DE, CET_ORDINATEUR } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../projets-servis/projets-servis.js").LectureDesProjetsServis} LectureDesProjetsServis */
@@ -27,13 +28,13 @@ import { uneLigneParMachine } from "../stations-du-compte.js";
 export const TITRE = "The station that cooks it";
 export const ATTENDU = "Who cooks this project?";
 export const AUTRES = "or one of your stations:";
-export const ICI_DIT = "stops when you close the app on this computer";
+export const ICI_DIT = `stops when you close the app on ${CET_ORDINATEUR}`;
 export const EN_LIGNE = "online";
 export const HORS_LIGNE = "offline";
 export const HORS_LIGNE_DIT = "It cooks the project once it is back online.";
-export const EN_COURS = "saving…";
+export const EN_COURS = ENREGISTREMENT;
 export const ILLISIBLES = "your stations could not be read";
-export const LECTURE = "Reading your stations…";
+export const LECTURE = LECTURE_DE("your stations");
 export const INJOIGNABLE = (/** @type {string} */ nom) => `${nom} could not be given the project.`;
 export const EN_ATTENTE = "Once the project is added, pick here who cooks it.";
 export const CUIT_PAR = (/** @type {string} */ nom, /** @type {string} */ depot) => `${nom} cooks ${depot}.`;
@@ -202,7 +203,7 @@ export const etapeDeLaStation = {
     return [
       poserEtapeStation(doc, {
         depot,
-        ici: etat.ici ?? "this computer",
+        ici: etat.ici ?? CET_ORDINATEUR,
         ...(etat.locale === undefined ? {} : { locale: etat.locale }),
         ...(etat.appairees === undefined ? {} : { stations: etat.appairees }),
         ...(geste.servirIci === undefined ? {} : { servirIci: geste.servirIci }),
