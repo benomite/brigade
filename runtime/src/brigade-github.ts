@@ -54,6 +54,7 @@ import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
+import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
@@ -588,7 +589,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
   const fermerLaReparation = fermeReparation({ github, base });
   // Les gestes de guérison du projet (#2757), joués à chaque tour.
-  const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
+  // Une cause qui vit dans la station se dépose sur la brigade (#3098), comme le temps perdu.
+  const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
   // La médiane des tickets récents au-dessus du max du projet ouvre son ticket
   // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
   const { clone } = options;
@@ -697,7 +699,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // PR ouverte, ou un ticket en cuisson, tient leur zone. La cuisine inerte
   // les lit au tour suivant : ils ne sont pas à prendre, ce qui les tient
   // doit bouger d'abord (#2977).
-  let tenusDuTour = new Set<number>();
+  let tenusDuTour = new Map<number, TenantDeZone>();
   // La station s'arrête (`arreter`) : ses cooks meurent avec elle.
   let arretee = false;
   // La branche d'intégration que l'origine n'a pas (#2876) : la station ne prend plus rien de ce projet.
@@ -1238,7 +1240,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
     // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
     const tenusAvant = tenusDuTour;
-    tenusDuTour = new Set();
+    tenusDuTour = new Map();
     const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()), tenusAvant);
     await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a served-elsewhere lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
@@ -1534,15 +1536,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Le ticket d'une branche `cook/<n>-…` est fermé. Une branche sans numéro,
     // une issue que le client ne lit pas ou que la lecture manque : on ne sait
     // pas, la PR continue de tenir sa zone.
-    const fermes = new Map<string, Promise<boolean>>();
-    const ticketFerme = (branche: string): Promise<boolean> => {
+    const fermes = new Map<string, Promise<Fermeture | null>>();
+    const fermetureDe = (branche: string): Promise<Fermeture | null> => {
       let lu = fermes.get(branche);
       if (lu === undefined) {
-        lu = fermetureDuTicket(github.issue?.bind(github), branche).then((fermeture) => fermeture !== null);
+        lu = fermetureDuTicket(github.issue?.bind(github), branche);
         fermes.set(branche, lu);
       }
       return lu;
     };
+    const ticketFerme = async (branche: string): Promise<boolean> => (await fermetureDe(branche)) !== null;
     const tenue = async (ticket: TicketLu): Promise<string | null> => {
       const declaree = await zoneDuTicket(ticket.number);
       if (declaree.length === 0) return null;
@@ -1662,8 +1665,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       const tenant = await tenue(ticket);
       if (tenant !== null) {
-        tenusDuTour.add(ticket.number);
         const numeroDuTenant = /^cook\/(\d+)-/.exec(tenant)?.[1];
+        // Qui tient la zone, que la cuisine inerte nomme au tour suivant : son ticket, sa fermeture, sa PR. Une lecture qui manque ne la date pas.
+        const fermeture = await fermetureDe(tenant).catch(() => null);
+        const pr = ouvertes?.find((ouverte) => ouverte.branche === tenant)?.number;
+        tenusDuTour.set(ticket.number, { ticket: numeroDuTenant === undefined ? null : Number(numeroDuTenant), branche: tenant, fermeLe: fermeture?.date ?? null, pr: pr ?? null });
         options.sauter?.(ticket.number, direSaut(ticket.number, `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
         continue;
       }

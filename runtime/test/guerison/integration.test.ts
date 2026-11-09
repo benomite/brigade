@@ -10,6 +10,7 @@ import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { DELAI_CLAIM_PERIME_MS } from "../../src/guerison/claim-perime.ts";
 import { INERTIE_MINUTES } from "../../src/guerison/cuisine-inerte.ts";
 import { HORS_CUISINE } from "../../src/github.ts";
+import type { GitHubDeLaBrigade } from "../../src/routage-temps-perdu.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
 const MINUTE = 60_000;
@@ -20,7 +21,7 @@ const EPIQUE = 20;
 
 // Un projet : son faux GitHub, sa station, son horloge, ce qu'elle dit au
 // journal et les labels qu'elle pose. `casser` : un geste du client qui lève.
-function projet(depot: string, station: string, base: string, casser: Partial<GitHubDuTour> = {}, echoue = false) {
+function projet(depot: string, station: string, base: string, casser: Partial<GitHubDuTour> = {}, echoue = false, brigade?: GitHubDeLaBrigade) {
   const faux = new FauxGitHub();
   let instant = Date.parse("2026-11-07T10:00:00Z");
   const avertis: string[] = [];
@@ -54,6 +55,7 @@ function projet(depot: string, station: string, base: string, casser: Partial<Gi
     jugerEnSecond: async () => ({ verdict: "approve", motif: "" }),
     avertir: (texte) => avertis.push(texte),
     maintenant: () => new Date(instant),
+    ...(brigade === undefined ? {} : { depotServi: depot, githubDeLaBrigade: brigade }),
   });
   const passer = async () => {
     await tour.tour();
@@ -274,4 +276,32 @@ test("a ticket whose zone is held by an open PR set aside for the chef files no 
   tenante.merged = true;
   await p.passer();
   assert.deepEqual(p.faux.cuissons.map((c: { issue: number }) => c.issue), [2912]);
+});
+
+// #3098 : la zone de #2912 est tenue par la PR de #2907 (chez le chef) ; #2913, qui
+// demande une capacité qu'aucune station n'a, est à prendre mais sautée : rien ne
+// travaille. L'alerte nomme ce qui tient la zone et se dépose sur la brigade.
+test("an idle kitchen held by a zone files its alert on the brigade, naming the holder, and none on the served project (#3098)", async () => {
+  const deposees: { titre: string; corps: string }[] = [];
+  const brigade = {
+    issuesDepuis: async () => deposees.map((d, rang) => ({ number: 800 + rang, body: d.corps, association: "OWNER", state: "open" })),
+    creerIssue: async (issue: { titre: string; corps: string }) => {
+      deposees.push(issue);
+      return 800 + deposees.length - 1;
+    },
+    fermerIssue: async () => {},
+  } as unknown as GitHubDeLaBrigade;
+  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
+  const zone = "## Context\n\nwhatever\n\n## Zone\n\n- `docs/maquettes/app/`\n\n## Acceptance\n\n- done\n";
+  p.faux.feu(2907, [...CALIBRE, "blocked-on-human"], zone);
+  p.faux.prOuverte(["docs/maquettes/app/Main.dc.html"], brancheDuTicket(2907));
+  p.faux.feu(2912, CALIBRE, zone);
+  p.faux.feu(2913, [...CALIBRE, "needs:gpu"]);
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+  assert.equal(deposees.length, 1, p.avertis.join("\n"));
+  assert.match(deposees[0]?.corps ?? "", /#2912: zone held by #2907, through PR #\d+/);
+  assert.doesNotMatch(`${deposees[0]?.titre}${deposees[0]?.corps}`, /empty-rail/);
 });

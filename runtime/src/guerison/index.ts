@@ -29,7 +29,8 @@ import { dernierVerdict } from "../github-etat/fusion.ts";
 import { lireTenant, type RetraitDeLabel } from "../github-etat/prise.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { ouvrirClaimPerime } from "./claim-perime.ts";
-import { signalerInertie } from "./cuisine-inerte.ts";
+import { DEPOT_BRIGADE, marqueDuProjet, type GitHubDeLaBrigade } from "../routage-temps-perdu.ts";
+import { signalerInertie, type TenantDeZone } from "./cuisine-inerte.ts";
 import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";
 import { relancer, type GitHubDeLaGuerison } from "./relance.ts";
@@ -56,6 +57,11 @@ export type OptionsDeLaGuerison = {
   // La branche d'intégration du projet.
   base: string;
   avertir: (message: string) => void;
+  // Le projet servi et le GitHub de la brigade : une cause de l'inertie qui vit
+  // dans la station se dépose sur la brigade (#3098). Absents, ou sur la
+  // brigade elle-même, le bug reste sur le projet.
+  servi?: string;
+  brigade?: GitHubDeLaBrigade;
   // En millisecondes ; l'horloge du système par défaut.
   maintenant?: () => number;
 };
@@ -84,7 +90,8 @@ export type BilanDeLaGuerison<T extends TicketDuTour = TicketDuTour> = {
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 export function ouvrirGuerison(options: OptionsDeLaGuerison) {
-  const { github, station, base, avertir } = options;
+  const { github, station, base, avertir, servi } = options;
+  const brigade = servi === undefined || servi.toLowerCase() === DEPOT_BRIGADE ? undefined : options.brigade;
   const maintenant = options.maintenant ?? Date.now;
   const claim = ouvrirClaimPerime({ github, maintenant });
   // La dernière fois que la station a vu la cuisine au travail (un cook ici,
@@ -98,11 +105,13 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   let bugOuvert: number | null = null;
   // Une semaine : le bug d'inertie se cherche parmi les issues touchées depuis.
   const SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
+  // Un mois : sur la brigade, le bug d'un projet se cherche plus loin, comme les tickets d'une famille.
+  const MOIS_MS = 30 * 24 * 60 * 60 * 1000;
 
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
   // les tickets qu'un cook de cette station cuisine en ce moment. `zonesTenues` :
   // ceux que la porte de prise a sautés à son dernier tour, leur zone tenue.
-  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, zonesTenues: ReadonlySet<number> = new Set()): Promise<BilanDeLaGuerison<T>> {
+  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, zonesTenues: ReadonlyMap<number, TenantDeZone> = new Map()): Promise<BilanDeLaGuerison<T>> {
     const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
@@ -245,12 +254,25 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
             return lues;
           },
           creerIssue: (issue) => github.creerIssue(issue),
+          // Les zones tenues des tickets sautés au dernier tour de la porte de prise.
+          zonesTenues: async () => [...zonesTenues].map(([ticket, tenant]) => ({ ticket, tenant })),
         },
+        ...(brigade === undefined || servi === undefined
+          ? {}
+          : {
+              brigade: {
+                servi,
+                marqueDuProjet: marqueDuProjet(servi),
+                creerIssue: (issue) => brigade.creerIssue(issue),
+                issuesOuvertes: async () => (await brigade.issuesDepuis(new Date(instant - MOIS_MS).toISOString())).filter((i) => i.state !== "closed"),
+              },
+            }),
       });
       if (fait.fait === "bug") {
-        bugOuvert = fait.bug;
+        // Le bug de la brigade n'est pas une issue du projet : il ne se relit pas là.
+        if (fait.sur !== "brigade") bugOuvert = fait.bug;
         bilan.inertie = fait.bug;
-        avertir(`brigade : idle kitchen on ${station} (${fait.cause}) — bug #${fait.bug} filed`);
+        avertir(`brigade : idle kitchen on ${station} (${fait.cause}) — bug #${fait.bug} filed${fait.sur === "brigade" ? ` on ${DEPOT_BRIGADE}` : ""}`);
       }
     });
 
