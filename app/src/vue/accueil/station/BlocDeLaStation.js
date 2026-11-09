@@ -4,8 +4,8 @@
 //  - cet ordinateur n'a pas de station : un seul bouton, « Install this computer's station », et aucun autre réglage ;
 //  - le bouton a été pressé : l'installation tourne, puis les premiers réglages se déroulent un à un, jusqu'à ce que la
 //    station soit prête (un refus de l'installation se dit en une ligne, son détail au survol, et le bouton revient) ;
-//  - la station est installée : son nom, sa phrase et un lien vers sa page — pas de bouton d'installation —, puis les
-//    autres stations du chef, chacune avec le sien.
+//  - la station est installée : sa carte (Home.dc.html, ticket 2912) — son nom, sa phrase, puis une seconde rangée avec « Station
+//    settings », qui ouvre sa page — pas de bouton d'installation —, puis les autres stations du chef, chacune avec le sien.
 // Vide de lecture, le bloc dit qu'il lit.
 //
 // Il ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), l'installation, les étapes des
@@ -15,7 +15,8 @@ import { boutonAction } from "../../briques.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
-/** @typedef {{ id: string, nom: string, phrase: string }} UneStation */
+// `version` : la version qui tourne et si elle est en retard, quand le statut de la station la dit (station-version.js).
+/** @typedef {{ id: string, nom: string, phrase: string, version?: string }} UneStation */
 /**
  * Ce que la vue a lu : indéfini, la lecture est en route ; `station` nulle, cet ordinateur n'en a pas ; sinon sa station
  * et les autres du chef.
@@ -40,7 +41,7 @@ export const REFUS = "the station could not be installed";
 export const REESSAYER = "Try again";
 export const LECTURE = "reading this computer's station…";
 export const PRETE = "the station is ready";
-export const SA_PAGE = "Open its page";
+export const SA_PAGE = "Station settings";
 export const LES_AUTRES = "Your other stations";
 export const SUIVANT = "Next";
 export const TERMINER = "Done";
@@ -179,7 +180,11 @@ export function tenirBlocDeLaStation(doc, gestes) {
     resume.className = "station-installee";
     resume.title = station.phrase;
     resume.append(avec(doc, "strong", station.nom), avec(doc, "span", station.phrase, "dit"));
-    const rendu = [resume, boutonAction(doc, SA_PAGE, () => gestes.ouvrir(station.id), { recommande: true })];
+    const page = doc.createElement("p");
+    page.className = "station-page";
+    if (station.version !== undefined) page.append(avec(doc, "span", station.version, "dit"));
+    page.append(boutonAction(doc, SA_PAGE, () => gestes.ouvrir(station.id)));
+    const rendu = [resume, page];
     if (autres.length > 0) rendu.push(avec(doc, "h3", LES_AUTRES), ...autres.map((autre) => ligneDeStation(doc, autre, gestes.ouvrir)));
     return rendu;
   }

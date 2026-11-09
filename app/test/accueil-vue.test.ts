@@ -28,8 +28,8 @@ const PROJETS: Projet[] = [
 ];
 const ACCUEIL: Accueil = {
   projets: [
-    { nom: "brigade", ton: "jaune", dit: "1 decision awaits you · #867 cooking", survol: "read at 12:00:00 PM — open it to act" },
-    { nom: "espace", ton: "jaune", dit: "5 decisions await you, for 2 d", survol: "read at 12:00:00 PM — open it to act" },
+    { nom: "brigade", ton: "jaune", dit: "1 decision awaits you · #867 cooking", survol: "read at 12:00:00 PM — open it to act", attend: 1 },
+    { nom: "espace", ton: "jaune", dit: "5 decisions await you, for 2 d", survol: "read at 12:00:00 PM — open it to act", attend: 5 },
     { nom: "calculus", ton: "rouge", dit: "base red · #655 being repaired", survol: "read at 12:00:00 PM — open it to act" },
   ],
   stations: [{ id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", phrase: "online · 2 cooks running", survol: "Linux 6.1.0 · version 1.4.0" }],
@@ -105,7 +105,7 @@ test("l'accueil n'a que deux blocs, les projets puis la station de cet ordinateu
   const { vue, projets } = await lAccueil();
   const tous = vue.element("tous");
   assert.deepEqual(
-    tous.children.map(({ id, children }) => [id, children[0]?.textContent]),
+    tous.children.map(({ id, children }) => [id, children[0]?.children[0]?.textContent ?? children[0]?.textContent]),
     [
       ["accueil-bloc-projets", "Projects"],
       ["accueil-bloc-station", "This computer's station"],
@@ -122,7 +122,7 @@ test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par 
   const { vue } = await lAccueil();
   const tous = vue.element("tous");
   const texte = visible(tous);
-  for (const parti of [/commits behind/, /what the station said/, /Projects on your stations/, /add a project/, /what awaits you/, /served 24 h|at pass|awaiting you/, /read at/]) assert.doesNotMatch(texte, parti);
+  for (const parti of [/commits behind/, /what the station said/, /Projects on your stations/, /add a project/, /what awaits you/, /served 24 h|at pass/, /read at/]) assert.doesNotMatch(texte, parti);
   assert.deepEqual(tous.dessous("article"), []);
   assert.deepEqual(tous.dessous("pre"), []);
   assert.doesNotMatch(texte, /\b(brigade|gh|git)\s+(-|\S+\s)/);
@@ -148,9 +148,10 @@ test("le bloc Projects de l'accueil : un seul bouton par ligne, son état et ses
   const vue = await jouerLaVue({ demarrage: () => demarrage(ACCUEIL, undefined, stations), espace: () => [] });
   const bloc = vue.element("accueil-projets");
   const [brigade] = lesLignes(bloc);
-  assert.deepEqual(brigade?.children.map((c) => c.textContent).filter((t) => t !== ""), ["brigade", "waiting for the chef", "parade-box", "›"]);
+  assert.deepEqual(brigade?.children.map((c) => c.textContent).filter((t) => t !== ""), ["brigade", "waiting for the chef", "1 decision awaits you · #867 cooking", "1 awaiting you", "›"]);
+  assert.match(brigade?.ariaLabel ?? "", /parade-box$/, "ses stations se lisent dans le nom de la ligne");
   assert.deepEqual(brigade?.dessous("button"), [], "la ligne est un seul bouton");
-  const ajout = bloc.dessous("button").find(({ textContent }) => textContent === "Add a project");
+  const ajout = vue.element("tous").dessous("button").find(({ textContent }) => textContent === "Add a project");
   assert.ok(ajout, "« Add a project » est sur l'accueil");
   ajout.click();
   await repos();
@@ -165,11 +166,23 @@ test("le bloc de la station, dans la vue jouée : sans id local il n'est pas ins
   const boutons = () => bloc().dessous("button").map(({ textContent }) => textContent);
   vue.dire("surStations", { a: A, stations: [station("g1", "Mac"), station("g2", "box")] });
   await repos();
-  assert.deepEqual(boutons(), ["Install this computer's station"], "locale inconnue : installer, jamais « Open its page » sur un id vide");
+  assert.deepEqual(boutons(), ["Install this computer's station"], "locale inconnue : installer, jamais « Station settings » sur un id vide");
   vue.dire("surProjetsDesStations", { a: A, locale: "g1", projets: [] } as unknown as VuDesProjets);
   await repos();
-  assert.ok(boutons().includes("Open its page"));
+  assert.ok(boutons().includes("Station settings"));
   assert.ok(!boutons().includes("Install this computer's station"));
   assert.match(bloc().textContent, /Mac/);
   assert.ok(boutons().includes("box online") || bloc().textContent.includes("box"));
+});
+
+test("la ligne d'un projet dit ce qui s'y passe et, quand le chef est attendu, combien de décisions — et « Add a project » est à droite du titre (#2912)", async () => {
+  const { vue, projets } = await lAccueil();
+  const lignes = lesLignes(projets());
+  const attend = (ligne: Faux) => ligne.children.filter(({ className }) => className === "attend").map(({ textContent }) => textContent);
+  assert.deepEqual(lignes.map(attend), [["1 awaiting you"], ["5 awaiting you"], []], "une pastille par projet que le chef attend, aucune pour les autres");
+  assert.equal(lignes[0]?.children.find(({ className }) => className === "maintenant")?.textContent, "1 decision awaits you · #867 cooking");
+  const bloc = vue.element("tous").children[0] as Faux;
+  const entete = bloc.children[0] as Faux;
+  assert.deepEqual(entete.children.map(({ textContent }) => textContent), ["Projects", "Add a project"], "le bouton est dans l'en-tête du bloc");
+  assert.equal(projets().dessous("button").filter(({ className }) => className !== "ligne").length, 0, "plus de bouton sous la liste");
 });
