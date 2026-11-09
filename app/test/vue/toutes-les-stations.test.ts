@@ -149,7 +149,7 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
     ]);
     assert.match(atteinte(ligne(vue, "macbook/claude"))?.title ?? "", /it is online on GitHub/);
     // Ce que chacune fournit, dans sa ligne : le bloc à part n'est plus posé.
-    assert.deepEqual(lignes(vue).map((pose) => fournit(pose)?.textContent), ["Providescoderaisonnementedit", "Providescoderaisonnementnavigateur-headlessedit", `Provides${FOURNIT_PAS_DIT}`]);
+    assert.deepEqual(lignes(vue).map((pose) => fournit(pose)?.textContent), ["ProvidescoderaisonnementeditRemove", "Providescoderaisonnementnavigateur-headlesseditRemove", `Provides${FOURNIT_PAS_DIT}`]);
     assert.equal(vue.element("rail").textContent.includes(TITRE_DES_DECLAREES), false);
     // Ce qu'elle cuit : la box #14 ; les autres, rien.
     assert.match(ligne(vue, "box/claude").textContent, /#14/);

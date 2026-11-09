@@ -153,11 +153,11 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () =
   test("le formulaire ouvert : deux rangées, aucun « Save » ; un changement envoie la déclaration entière, et sa rangée dit ce qu'il rend", () => {
     const doc = { createElement: (balise: string) => new Faux(balise) };
     const appliques: unknown[][] = [];
-    const editee: Edition = { nom: "pc/claude", cooks: "2", fournit: ["code"], choix: [{ capacite: "code", dite: "" }, { capacite: "raisonnement", dite: "" }], confirmer: false, envoi: false };
+    const editee: Edition = { nom: "pc/claude", cooks: "2", fournit: ["code"], choix: [{ capacite: "code", dite: "" }, { capacite: "raisonnement", dite: "" }], envoi: false };
     const poser = () => {
       const pose = poserLesDeclarees(doc as never, {
         stations: DECLAREES,
-        editer: { editee, ouvrir() {}, fermer() {}, appliquer: (...args) => void appliques.push(args), confirmer() {}, retirer() {} },
+        editer: { editee, ouvrir() {}, fermer() {}, appliquer: (...args) => void appliques.push(args), demander() {}, renoncer() {}, retirer() {} },
       }) as unknown as Faux;
       return pose.dessous("div").find(({ className }) => className === "edition") ?? assert.fail("pas de formulaire");
     };
@@ -165,6 +165,8 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () =
     const rangee = (cle: string) => forme.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === cle) ?? assert.fail(`pas de rangée ${cle}`);
     assert.deepEqual(forme.children.filter(({ className }) => className === "reglage").map(({ dataset }) => dataset.cle), ["cooks", "capacites"]);
     assert.deepEqual(forme.dessous("button").filter(({ textContent }) => /^(save|saving…)$/i.test(textContent)), []);
+    // « Remove » n'est pas dans le formulaire : il est sur la ligne de la station.
+    assert.deepEqual(forme.dessous("button").map(({ textContent }) => textContent).filter((texte) => /remove/i.test(texte)), []);
     // Le plafond, au `change` du champ : la déclaration entière, ce plafond dedans.
     const champ = rangee("cooks").dessous("input")[0] ?? assert.fail("pas de champ");
     champ.value = "5";
@@ -187,5 +189,46 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () =
     forme = poser();
     assert.equal(rangee("capacites").children.find(({ className }) => className === "dit refus")?.dataset.ligne, "erreur");
     assert.deepEqual(rangee("cooks").children.filter(({ className }) => className.startsWith("dit")), []);
+  });
+
+  // Les deux gestes d'une station sont sur sa ligne (#2914) : « edit » et « Remove », et la confirmation du retrait s'ouvre
+  // dessous, d'un seul motif (composants/confirmation).
+  test("« Remove » est sur la ligne de la station ; sa confirmation s'ouvre dessous, et « Keep it » la referme", () => {
+    const doc = { createElement: (balise: string) => new Faux(balise) };
+    const appels: string[] = [];
+    const editer = (retrait?: string) => ({
+      ...(retrait === undefined ? {} : { retrait }),
+      ouvrir: (nom: string) => void appels.push(`ouvrir ${nom}`),
+      fermer() {},
+      appliquer() {},
+      demander: (nom: string) => void appels.push(`demander ${nom}`),
+      renoncer: () => void appels.push("renoncer"),
+      retirer: (nom: string) => void appels.push(`retirer ${nom}`),
+    });
+    const pose = (retrait?: string, stations = DECLAREES) => poserLesDeclarees(doc as never, { stations, projet: "parade", editer: editer(retrait) }) as unknown as Faux;
+    const ligne = (racine: Faux, nom: string) => racine.dessous("li").find(({ className, dataset }) => className === "station-declaree" && dataset.station === nom) ?? assert.fail(`pas de ligne ${nom}`);
+    const boutons = (racine: Faux, nom: string) => ligne(racine, nom).dessous("button").map(({ textContent }) => textContent);
+
+    const fermee = pose();
+    assert.deepEqual(boutons(fermee, "mac/claude").filter((texte) => ["edit", "Remove"].includes(texte)), ["edit", "Remove"]);
+    ligne(fermee, "mac/claude").dessous("button").find(({ textContent }) => textContent === "Remove")?.click();
+    assert.deepEqual(appels, ["demander mac/claude"]);
+    assert.equal(ligne(fermee, "mac/claude").dessous("section").filter(({ className }) => className === "confirmation").length, 0);
+
+    // Ouverte : le titre dit ce qui part, le prix tient en une ligne, les deux réponses sont « Remove » et « Keep it ».
+    const ouverte = pose("mac/claude");
+    const confirmation = ligne(ouverte, "mac/claude").children.find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(confirmation.dessous("p")[0]?.textContent ?? "", /^Remove mac\/claude from parade\? The other stations stay as they are\.$/);
+    assert.equal(confirmation.dessous("p").filter(({ className }) => className === "prix").length, 1);
+    assert.equal(ligne(ouverte, "pc/claude").children.some(({ className }) => className === "confirmation"), false);
+    confirmation.dessous("button").find(({ textContent }) => textContent === "Keep it")?.click();
+    confirmation.dessous("button").find(({ textContent }) => textContent === "Remove")?.click();
+    assert.deepEqual(appels.slice(1), ["renoncer", "retirer mac/claude"]);
+
+    // La seule station du projet ne se retire pas, et le survol dit pourquoi.
+    const seule = pose(undefined, { ...DECLAREES, declarees: [DECLAREES.declarees[0] ?? assert.fail()] });
+    const retirer = ligne(seule, "box/claude").dessous("button").find(({ textContent }) => textContent === "Remove") ?? assert.fail("pas de Remove");
+    assert.equal(retirer.disabled, true);
+    assert.match(ligne(seule, "box/claude").dessous("button").map(({ ariaLabel }) => ariaLabel ?? "").join(" "), /Not removable/);
   });
 });

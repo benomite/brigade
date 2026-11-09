@@ -438,7 +438,7 @@ describe("le haut du rail est allégé (#623)", () => {
     const bouton = arret.dessous("button").find((pose) => /stop the kitchen/.test(pose.textContent)) ?? assert.fail("pas de bouton d'arrêt");
     assert.equal(bouton.dataset.arret, "");
     assert.equal(arret.dessous("p").find(({ className }) => className === "valeur")?.textContent, "running");
-    assert.deepEqual(arret.dessous("span").filter(({ className }) => className === "nom").map(({ textContent }) => textContent), ["kitchen"]);
+    assert.deepEqual(arret.dessous("span").filter(({ className }) => className === "nom").map(({ textContent }) => textContent), ["Kitchen"]);
   });
 
   test("une lecture vieille se dit en tête, avec son âge ; une lecture neuve ne dit rien", async () => {

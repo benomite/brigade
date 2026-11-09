@@ -144,6 +144,8 @@ describe("les tickets ordinaires dans la vue", () => {
     await ouvrirLecture(vue, "Settings");
   };
   const champs = (bloc: Faux) => bloc.dessous("input");
+  // L'option est l'interrupteur de l'app (composants/interrupteur) ; la limite est le seul champ.
+  const interrupteur = (bloc: Faux) => bloc.dessous("button").find(({ role }) => role === "switch");
 
   // Les lignes du bloc : le nom de chaque réglage, sans son étiquette de niveau (« this computer », que la rangée pose à
   // côté de son nom — composants/reglage), et sa valeur.
@@ -156,8 +158,9 @@ describe("les tickets ordinaires dans la vue", () => {
     await ouvrir(vue);
     const bloc = vue.element("ordinaires");
     assert.equal(bloc.hidden, false);
-    const [option, limite] = champs(bloc);
-    assert.equal(option?.checked, true);
+    const [limite] = champs(bloc);
+    const option = interrupteur(bloc);
+    assert.equal(option?.ariaChecked, "true");
     assert.equal(limite?.value, "2");
     assert.deepEqual(lignes(bloc), [["ordinary tickets", "taken"], ["cooks at once", "2"]]);
     // Ni titre ni paragraphe : l'explication est au survol de la valeur.
@@ -171,12 +174,12 @@ describe("les tickets ordinaires dans la vue", () => {
   test("régler l'option ou la limite l'envoie au process principal, qui l'écrit", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined, true));
     await ouvrir(vue);
-    const [option, limite] = champs(vue.element("ordinaires"));
-    assert.equal(option?.checked, false);
+    const [limite] = champs(vue.element("ordinaires"));
+    const option = interrupteur(vue.element("ordinaires"));
+    assert.equal(option?.ariaChecked, "false");
     assert.equal(limite?.value, "");
     if (option === undefined || limite === undefined) return assert.fail("pas de champs");
-    option.checked = true;
-    option.declencher("change");
+    option.click();
     await repos();
     assert.deepEqual(vue.dernier("reglerOrdinaires"), ["parade", true, null]);
     limite.value = "4";
@@ -188,9 +191,9 @@ describe("les tickets ordinaires dans la vue", () => {
   test("un réglage refusé dit pourquoi, sous sa ligne", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined, true), () => "nothing was written: EACCES");
     await ouvrir(vue);
-    const [option] = champs(vue.element("ordinaires"));
-    if (option === undefined) return assert.fail("pas de case");
-    option.declencher("change");
+    const option = interrupteur(vue.element("ordinaires"));
+    if (option === undefined) return assert.fail("pas d'interrupteur");
+    option.click();
     await repos();
     assert.deepEqual(refus(vue.element("ordinaires")), ["nothing was written: EACCES"]);
   });

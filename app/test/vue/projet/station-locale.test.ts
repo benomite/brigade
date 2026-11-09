@@ -104,10 +104,8 @@ describe("le bloc de la station locale", () => {
       seConnecter: (cle) => void faits.push(["seConnecter", cle]),
     }) as unknown as Faux;
     assert.equal(valeurDe(lignes(bloc).find(({ dataset }) => dataset.cle === "claude") ?? assert.fail("pas de ligne")), "lost");
-    const [option, limite] = bloc.dessous("input");
-    if (option === undefined || limite === undefined) return assert.fail("pas de champs");
-    option.checked = false;
-    option.declencher("change");
+    const limite = bloc.dessous("input")[0] ?? assert.fail("pas de limite");
+    interrupteurDe(bloc).click();
     limite.value = "";
     limite.declencher("change");
     const [login] = boutons(bloc, "log in");
@@ -122,12 +120,15 @@ describe("le bloc de la station locale", () => {
     const ditSous = (pose: Faux) => lignes(pose).map((ligne) => ligne.children.filter(({ className }) => className.startsWith("dit")).map(({ className, textContent }) => [className, textContent]));
     const enRoute = poserBlocStationLocale(doc, etat({ reglageDit: { ou: "limite", dit: { enCours: "applying…" } } })) as unknown as Faux;
     assert.deepEqual(ditSous(enRoute), [[], [], [], [["dit en-cours", "applying…"]], []]);
-    assert.ok(enRoute.dessous("input").every(({ disabled }) => disabled));
+    assert.ok([...enRoute.dessous("input"), interrupteurDe(enRoute)].every(({ disabled }) => disabled));
     const refuse = poserBlocStationLocale(doc, etat({ reglageDit: { ou: "option", dit: { refus: "nothing was written: EACCES" } } })) as unknown as Faux;
     assert.deepEqual(ditSous(refuse), [[], [], [["dit refus", "nothing was written: EACCES"]], [], []]);
-    assert.ok(refuse.dessous("input").every(({ disabled }) => !disabled));
+    assert.ok([...refuse.dessous("input"), interrupteurDe(refuse)].every(({ disabled }) => !disabled));
   });
 });
+
+// L'interrupteur d'un bloc (composants/interrupteur) : son état se lit sur `aria-checked`, un clic le demande contraire.
+const interrupteurDe = (pose: Faux) => pose.dessous("button").find(({ role }) => role === "switch") ?? assert.fail("pas d'interrupteur");
 
 describe("la station locale dans l'onglet Stations", () => {
   const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
@@ -189,10 +190,8 @@ describe("la station locale dans l'onglet Stations", () => {
     await ouvrirLeProjet(vue);
     // Dans Settings, sous « this computer » : décocher, puis écrire 4 cooks à la fois.
     await ouvrirLecture(vue, "Settings");
-    const [option, limite] = vue.element("ordinaires").dessous("input");
-    if (option === undefined || limite === undefined) return assert.fail("pas de champs dans Settings");
-    option.checked = false;
-    option.declencher("change");
+    const limite = vue.element("ordinaires").dessous("input")[0] ?? assert.fail("pas de limite dans Settings");
+    interrupteurDe(vue.element("ordinaires")).click();
     await repos();
     limite.value = "4";
     limite.declencher("change");
@@ -202,10 +201,8 @@ describe("la station locale dans l'onglet Stations", () => {
     // Les mêmes gestes sur Stations.
     await ouvrirOnglet(vue, "Stations");
     await repos();
-    const [ici, combien] = leBloc(vue).dessous("input");
-    if (ici === undefined || combien === undefined) return assert.fail("pas de champs sur Stations");
-    ici.checked = false;
-    ici.declencher("change");
+    const combien = leBloc(vue).dessous("input")[0] ?? assert.fail("pas de limite sur Stations");
+    interrupteurDe(leBloc(vue)).click();
     await repos();
     combien.value = "4";
     combien.declencher("change");
@@ -222,15 +219,14 @@ describe("la station locale dans l'onglet Stations", () => {
     await ouvrirLeProjet(vue);
     await ouvrirOnglet(vue, "Stations");
     await repos();
-    const [option] = leBloc(vue).dessous("input");
-    option?.declencher("change");
+    interrupteurDe(leBloc(vue)).click();
     await repos();
     await repos();
     assert.deepEqual(leBloc(vue).dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent), ["nothing was written: EACCES"]);
     // Sous la rangée qui a changé, et la case relue revient à la valeur en vigueur.
     const bac = lignes(leBloc(vue)).find(({ dataset }) => dataset.cle === "ordinaires") ?? assert.fail("pas de bac à sable");
     assert.ok(bac.children.some(({ className }) => className === "dit refus"));
-    assert.equal(leBloc(vue).dessous("input")[0]?.checked, true);
+    assert.equal(interrupteurDe(leBloc(vue)).ariaChecked, "true");
   });
 
   test("un changement du bac à sable s'applique aussitôt : « applying… » sous sa rangée tant qu'il est en route", async () => {
@@ -239,18 +235,18 @@ describe("la station locale dans l'onglet Stations", () => {
     await ouvrirLeProjet(vue);
     await ouvrirOnglet(vue, "Stations");
     await repos();
-    const limite = leBloc(vue).dessous("input")[1] ?? assert.fail("pas de limite");
+    const limite = leBloc(vue).dessous("input")[0] ?? assert.fail("pas de limite");
     limite.value = "3";
     limite.declencher("change");
     await repos();
     assert.deepEqual(vue.dernier("reglerOrdinaires"), ["parade", true, 3]);
     assert.ok(leBloc(vue).dessous("p").some(({ className, textContent }) => className === "dit en-cours" && textContent === "applying…"));
-    assert.ok(leBloc(vue).dessous("input").every(({ disabled }) => disabled));
+    assert.ok([...leBloc(vue).dessous("input"), interrupteurDe(leBloc(vue))].every(({ disabled }) => disabled));
     lacher(undefined);
     await repos();
     await repos();
     assert.equal(leBloc(vue).dessous("p").some(({ className }) => className.startsWith("dit en-cours")), false);
-    assert.ok(leBloc(vue).dessous("input").every(({ disabled }) => !disabled));
+    assert.ok([...leBloc(vue).dessous("input"), interrupteurDe(leBloc(vue))].every(({ disabled }) => !disabled));
   });
 
   test("connexion perdue : « log in » joue le login de la panne de cette station, comme sur sa page, et ce qu'il a rendu se lit dessous", async () => {

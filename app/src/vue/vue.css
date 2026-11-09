@@ -2579,10 +2579,17 @@ main > header,
 }
 /* Une station s'édite (ticket 1510) : « edit » à droite de sa ligne, et sous elle, sur toute la largeur, son
    formulaire — son plafond et ses capacités en cases (celles de « + station », ticket 1307), chacun une rangée de
-   réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920), puis « Close » et, à l'écart, « Remove ».
+   réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920), puis « Close ».
+   « Remove » (ticket 2914) est à côté d'« edit », sur la ligne : sa confirmation s'ouvre dessous, sur toute la largeur.
    Ce que le dernier geste a rendu passe dessous. */
-#rail :is(.station-declaree, .fournit-de-station) > .editer {
+#rail :is(.station-declaree, .fournit-de-station) > .gestes-de-la-station {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
   white-space: nowrap;
+}
+#rail :is(.station-declaree, .station-de-cuisson) > .confirmation {
+  grid-column: 1 / -1;
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) {
   grid-column: 1 / -1;
@@ -2656,9 +2663,6 @@ main > header,
   flex-wrap: wrap;
   align-items: center;
   gap: var(--pas-2);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes .retrait {
-  margin-left: auto;
 }
 #rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes button {
   white-space: nowrap;

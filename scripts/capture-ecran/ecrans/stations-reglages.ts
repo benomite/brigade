@@ -1,5 +1,5 @@
 // L'onglet Stations de « parade » et les réglages de chacune de ses stations (#2488, épique #2484) : son plafond de cooks,
-// ses capacités, si elle prend les tickets ordinaires et si elle sert le projet — chacun avec son niveau. « parade » cuit
+// ses capacités, et si elle prend les tickets ordinaires — chacun avec son niveau. « parade » cuit
 // sur ce Mac (mac/claude) ; deux autres postes le servent, l'un en prenant les tickets ordinaires (pc/claude), l'autre non
 // (studio/claude). La déclaration arrive par le contrôle de l'installation, comme dans l'app (service.ts).
 import { blocDesOrdinaires, type StationDesFaits } from "../../../app/src/ordinaires.ts";
@@ -30,7 +30,7 @@ const STATIONS: StationDesFaits[] = [
 ];
 
 export const ecran: Ecran = {
-  dit: "L'onglet Stations de « parade » : pour chaque station, son plafond de cooks, ses capacités, les tickets ordinaires et si elle sert le projet, chacun avec son niveau",
+  dit: "L'onglet Stations de « parade » : pour chaque station, son plafond de cooks, ses capacités, et les tickets ordinaires, chacun avec son niveau",
   largeur: 1440,
   hauteur: 1300,
   etapes: [{ cliquer: '#projets > button[title^="parade"]' }, { cliquer: "#onglets-du-projet button:nth-child(2)" }],

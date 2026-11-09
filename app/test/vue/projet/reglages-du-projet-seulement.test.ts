@@ -26,6 +26,8 @@ const BLOCS = [...settings.matchAll(/<div id="([\w-]+)"/g)].map((trouve) => trou
 // bloc aussi. `reglages-du-projet` porte une ligne par clé de `setting` (CLES) : toutes dans projet.json.
 const STOCKAGE: Record<string, string> = {
   "reglages-du-projet": PROJET_JSON,
+  // Les rangées que l'artboard ne dessine pas (closer) : les mêmes clés de `setting`, dans un bloc sous la couleur.
+  "reglages-du-projet-en-plus": PROJET_JSON,
   // Les humains du projet (#2930) : la clé `humans`, changée par une PR.
   "humains-du-projet": PROJET_JSON,
   "arreter-cuisine": STATION,

@@ -1,7 +1,7 @@
 // @ts-check
 // Les réglages de chaque station, sur l'onglet Stations (ticket 2488, épique 2484) : pour chaque station que le projet
-// déclare, quatre lignes — combien de cooks elle fait tourner à la fois, ce qu'elle fournit, si elle prend les tickets
-// ordinaires, et si elle sert le projet —, chacune la rangée de réglage de l'app (composants/reglage, ticket 2920), avec
+// déclare, trois lignes — combien de cooks elle fait tourner à la fois, ce qu'elle fournit, et si elle prend les tickets
+// ordinaires —, chacune la rangée de réglage de l'app (composants/reglage, ticket 2920), avec
 // son niveau (niveaux.js). Chaque contrôle s'applique dès qu'il change : il n'y a pas de « Save ». Tant que le
 // changement est en route, la rangée le dit dessous et ses contrôles attendent ; refusé, le refus s'y lit et le contrôle
 // revient à la valeur en vigueur. Rien n'est stocké ici : chaque réglage reprend le stockage qui existe déjà — sur la
@@ -12,15 +12,16 @@
 //   - Les tickets ordinaires de la station qui tourne sur ce poste sont l'option de ce poste (ordinaires.ts, la même que
 //     Settings) : la case s'écrit aussitôt. Ailleurs, la valeur est ce que `facts` dit de la station, et le survol dit
 //     pourquoi elle ne se change pas d'ici.
-//   - Servir le projet, c'est y être déclarée : décocher demande confirmation, puis retire la station (`retiree`).
+//   - Retirer une station n'est pas ici : « Remove » est sur sa ligne, dans la liste des stations (stations-declarees.js), et nulle
+//     part ailleurs.
 // Ce que le chef saisit est gardé dans `saisies`, à la vue : un bloc reposé le redonne tel quel. Une saisie dont la
 // station a changé de déclaration depuis repart de la déclaration lue. Ce module ne touche pas `document` : il reçoit de
 // quoi créer un élément (briques.js), et rend un élément.
 
 import { survol } from "../../briques.js";
-import { confirmationDeGeste } from "../../composants/confirmation/confirmation.js";
+import { interrupteur } from "../../composants/interrupteur/interrupteur.js";
 import { niveauDe } from "../../niveaux.js";
-import { APPLIQUE, champDuPlafond, choixDeCapacites, controleDesCapacites, ditDe, motDuLieu, ouTourne, plafondDit, SEULE } from "../../stations-declarees.js";
+import { APPLIQUE, champDuPlafond, choixDeCapacites, controleDesCapacites, ditDe, motDuLieu, ouTourne, plafondDit } from "../../stations-declarees.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.js";
 
@@ -36,13 +37,13 @@ import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.
 /** @typedef {Edition & { lue: string }} Saisie */
 /**
  * Les gestes, que la vue envoie au process principal avant de reposer le bloc : un changement du plafond ou des capacités
- * (`appliquer` : la rangée `cle` d'où il part, et la déclaration entière voulue), la case des tickets ordinaires de ce
- * poste, la confirmation de « ne plus servir » ouverte ou refermée, et le retrait confirmé.
- * @typedef {{ appliquer(nom: string, cle: string, voulu: Voulu): void, ordinaires(pris: boolean): void, confirmer(nom: string, oui: boolean): void, retirer(nom: string): void }} Gestes
+ * (`appliquer` : la rangée `cle` d'où il part, et la déclaration entière voulue), et l'interrupteur des tickets ordinaires
+ * de ce poste.
+ * @typedef {{ appliquer(nom: string, cle: string, voulu: Voulu): void, ordinaires(pris: boolean): void }} Gestes
  */
 
 export const TITRE = "Station settings";
-export const AIDE = "Each station the project declares: how many cooks it runs at once, what it provides, whether it takes ordinary tickets, and whether it serves this project.";
+export const AIDE = "Each station the project declares: how many cooks it runs at once, what it provides, and whether it takes ordinary tickets.";
 export const PAS_LUE = "not read yet: the next check of the installation reads them";
 export const AUCUNE = "no station declared: no cook leaves for this project";
 // Les noms des quatre réglages, et leur clé dans la table des niveaux.
@@ -50,9 +51,7 @@ export const REGLAGES = /** @type {const} */ ([
   { cle: "cooks", nom: "cooks at once" },
   { cle: "capacites", nom: "what it provides" },
   { cle: "ordinaires", nom: "ordinary tickets" },
-  { cle: "sert", nom: "serves this project" },
 ]);
-export const ARRETER = "Stop serving";
 // Ce que dit la rangée des tickets ordinaires de ce poste tant que leur changement est en route.
 export const ORDINAIRES_EN_COURS = { enCours: APPLIQUE };
 // Pourquoi les tickets ordinaires d'une station ne se changent pas d'ici, au survol.
@@ -78,7 +77,7 @@ export function saisieDe(saisies, station, stations) {
   const tenue = saisies.get(station.nom);
   if (tenue !== undefined && (tenue.lue === cleDe(station) || tenue.envoi)) return tenue;
   /** @type {Saisie} */
-  const neuve = { nom: station.nom, cooks: String(station.cooks), fournit: [...station.fournit], choix: choixDeCapacites(station, stations, []), confirmer: false, envoi: false, lue: cleDe(station) };
+  const neuve = { nom: station.nom, cooks: String(station.cooks), fournit: [...station.fournit], choix: choixDeCapacites(station, stations, []), envoi: false, lue: cleDe(station) };
   if (tenue?.rendu !== undefined && "fait" in tenue.rendu) {
     neuve.rendu = tenue.rendu;
     if (tenue.ou !== undefined) neuve.ou = tenue.ou;
@@ -109,25 +108,13 @@ function valeurDite(doc, texte, survolDit, mono = false) {
   return survolDit === undefined || survolDit === "" ? [dite] : [dite, survol(doc, survolDit)];
 }
 
-// Une case seule, pour un oui ou non : désactivée, ce qui l'empêche est au survol de sa valeur.
-/** @param {Fabrique} doc @param {string} libelle @param {boolean} cochee @param {boolean} active @param {(cochee: boolean) => void} changer */
-function caseOuiNon(doc, libelle, cochee, active, changer) {
-  const coche = /** @type {HTMLInputElement} */ (cree(doc, "input"));
-  coche.type = "checkbox";
-  coche.checked = cochee;
-  coche.disabled = !active;
-  coche.ariaLabel = libelle;
-  coche.addEventListener("change", () => changer(coche.checked === true));
-  return coche;
-}
-
-// Les quatre réglages d'une station, chacun ce que son dernier changement a rendu dessous.
+// Les trois réglages d'une station, chacun ce que son dernier changement a rendu dessous.
 /**
  * @param {Fabrique} doc @param {StationDeclaree} station @param {Saisie} saisie
- * @param {{ projet: string, ici: boolean, seule: boolean, ordinaires?: Ordinaires, ordinairesDit?: Dit, lignes?: readonly { station: string, ordinaires?: boolean }[], gestes: Gestes }} contexte
+ * @param {{ ici: boolean, ordinaires?: Ordinaires, ordinairesDit?: Dit, lignes?: readonly { station: string, ordinaires?: boolean }[], gestes: Gestes }} contexte
  */
 function stationReglee(doc, station, saisie, contexte) {
-  const { projet, ici, seule, gestes } = contexte;
+  const { ici, gestes } = contexte;
   const section = cree(doc, "section");
   section.className = "station-reglee";
   section.dataset.station = station.nom;
@@ -142,7 +129,7 @@ function stationReglee(doc, station, saisie, contexte) {
   // Le plafond : un nombre, appliqué quand il change ; les capacités : les cases de « edit », et une capacité hors
   // d'elles, tapée (ticket 1959) — chacune appliquée dès qu'elle est cochée, décochée ou ajoutée.
   const fournit = station.fournit.length === 0 ? "provides nothing" : station.fournit.join(", ");
-  const [{ cle: cleCooks, nom: nomCooks }, { cle: cleCapacites, nom: nomCapacites }, { cle: cleOrdinaires, nom: nomOrdinaires }, { cle: cleSert, nom: nomSert }] = REGLAGES;
+  const [{ cle: cleCooks, nom: nomCooks }, { cle: cleCapacites, nom: nomCapacites }, { cle: cleOrdinaires, nom: nomOrdinaires }] = REGLAGES;
   const plafond = rangeeDeReglage(doc, {
     nom: nomCooks,
     cle: cleCooks,
@@ -166,25 +153,16 @@ function stationReglee(doc, station, saisie, contexte) {
   const ordinairesDits = ordinaires.pris === null ? "not said" : ordinaires.pris ? "taken" : "not taken";
   const ordinairesDit = ordinaires.reglable ? contexte.ordinairesDit : undefined;
   const enCours = ordinairesDit !== undefined && "enCours" in ordinairesDit;
-  const caseOrdinaires = caseOuiNon(doc, `${station.nom} takes the ordinary tickets`, ordinaires.pris === true, ordinaires.reglable && !enCours, (pris) => gestes.ordinaires(pris));
+  const caseOrdinaires = interrupteur(
+    doc,
+    { texte: ordinaires.pris === null ? "…" : ordinaires.pris ? "on" : "off", allume: ordinaires.pris ?? undefined, libelle: `${station.nom} takes the ordinary tickets`, actif: ordinaires.reglable && !enCours },
+    (pris) => gestes.ordinaires(pris),
+  );
   const prendre = rangeeDeReglage(doc, { nom: nomOrdinaires, cle: cleOrdinaires, niveau: niveauDe(doc, cleOrdinaires), valeur: valeurDite(doc, ordinairesDits, ordinaires.survol), controle: [caseOrdinaires], dessous: ditDuReglage(doc, ordinairesDit) });
   prendre.dataset.pris = ordinaires.pris === null ? "inconnu" : String(ordinaires.pris);
   if (ordinaires.pris !== true) prendre.dataset.retrait = "";
 
-  // Servir le projet : être déclarée. Décocher demande confirmation ; la seule station ne se retire pas.
-  const caseSert = caseOuiNon(doc, `${station.nom} serves ${projet}`, !saisie.confirmer, !seule && !saisie.envoi, (cochee) => gestes.confirmer(station.nom, !cochee));
-  const confirmation = saisie.confirmer
-    ? [
-        confirmationDeGeste(
-          doc,
-          { titre: `Stop serving ${projet} on ${station.nom}? The other stations stay as they are.`, prix: "its cooks take no new ticket — a ticket that needs what only it provides waits", oui: ARRETER, non: "Keep it" },
-          { oui: () => gestes.retirer(station.nom), non: () => gestes.confirmer(station.nom, false) },
-        ),
-      ]
-    : [];
-  const sert = rangeeDeReglage(doc, { nom: nomSert, cle: cleSert, niveau: niveauDe(doc, "sert"), valeur: valeurDite(doc, "serves it", seule ? `Not removable: ${SEULE}.` : undefined), controle: [caseSert], dessous: [...confirmation, ...ditDuReglage(doc, ditDe(saisie, cleSert))] });
-
-  section.append(plafond, capacites, prendre, sert);
+  section.append(plafond, capacites, prendre);
   return section;
 }
 
@@ -192,7 +170,7 @@ function stationReglee(doc, station, saisie, contexte) {
 // qu'il n'y en a aucune, ou qu'elles ne sont pas encore lues. Sans `reglages`, la coquille et son titre seuls.
 /**
  * @param {Fabrique} doc
- * @param {{ stations: StationsLues | undefined, projet: string, ici?: boolean, ordinaires?: Ordinaires, ordinairesDit?: Dit, lignes?: readonly { station: string, ordinaires?: boolean }[], saisies: Map<string, Saisie>, gestes: Gestes }} [reglages]
+ * @param {{ stations: StationsLues | undefined, ici?: boolean, ordinaires?: Ordinaires, ordinairesDit?: Dit, lignes?: readonly { station: string, ordinaires?: boolean }[], saisies: Map<string, Saisie>, gestes: Gestes }} [reglages]
  */
 export function poserBlocReglagesStation(doc, reglages) {
   const bloc = doc.createElement("section");
@@ -211,9 +189,7 @@ export function poserBlocReglagesStation(doc, reglages) {
     return bloc;
   }
   const contexte = {
-    projet: reglages.projet,
     ici: reglages.ici === true,
-    seule: stations.declarees.length === 1,
     ...(reglages.ordinaires === undefined ? {} : { ordinaires: reglages.ordinaires }),
     ...(reglages.ordinairesDit === undefined ? {} : { ordinairesDit: reglages.ordinairesDit }),
     ...(reglages.lignes === undefined ? {} : { lignes: reglages.lignes }),
