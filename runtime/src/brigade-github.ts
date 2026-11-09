@@ -639,10 +639,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const instant = () => (options.maintenant?.() ?? new Date()).getTime();
   // Le terme de la dernière attente du ticket n'est pas passé. Illisibles, ses commentaires ne le retiennent pas.
-  const enAttente = async (ticket: TicketLu): Promise<boolean> => {
+  // Rend ce terme (ms), ou null quand le ticket n'attend pas.
+  const enAttente = async (ticket: TicketLu): Promise<number | null> => {
     const derniere = (await github.commentaires(ticket.number).catch(() => [])).filter((c) => c.body.startsWith(MARQUE_D_ATTENTE)).pop();
     const terme = Number(/until=(\d+)/.exec(derniere?.body ?? "")?.[1]);
-    return Number.isFinite(terme) && terme > instant();
+    return Number.isFinite(terme) && terme > instant() ? terme : null;
   };
 
   // La question d'un cook bloqué va au manager, jamais au chef directement
@@ -1445,7 +1446,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         continue;
       }
       // Un arrêt subi l'a mis en attente : il n'est pas repris avant son terme (#2508).
-      if (await enAttente(ticket)) continue;
+      // Le saut est dit, comme les autres : sans lui, la retenue ne sait pas ce
+      // qui le tient et la cuisine inerte le prend pour un rail vide.
+      const termeDeLAttente = await enAttente(ticket);
+      if (termeDeLAttente !== null) {
+        options.sauter?.(ticket.number, direSaut(ticket.number, `it waits until ${new Date(termeDeLAttente).toISOString()} after a stop`));
+        continue;
+      }
       // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
       const tenant = await tenue(ticket);
       if (tenant !== null) {
