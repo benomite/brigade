@@ -27,7 +27,8 @@
 # où l'ajouter, et le run finit rouge. Un merge qui ne change pas l'app ne les lit pas.
 # Le job `alerter` (#2013) ouvre une issue quand une construction ou la publication échoue ou est
 # annulée, et la titre autrement quand GitHub a retiré l'image d'un runner : le chef le voit sans
-# ouvrir Actions.
+# ouvrir Actions. Le job `fermer-alertes` (#3089) ferme, après chaque publication, chaque alerte
+# ouverte dont la release est maintenant publiée, avec une ligne qui nomme le run qui l'a publiée.
 name: publier-app
 
 on:
@@ -533,6 +534,31 @@ jobs:
           # Seules les 5 dernières releases de l'app restent, tags compris : le dernier tag `app-v*`,
           # base du merge suivant, est toujours gardé.
           "$GITHUB_WORKSPACE/scripts/app-release/garder-les-dernieres.sh" app-v 5
+
+  fermer-alertes:
+    # Une release publiée (ce run, ou un run rejoué) : chaque alerte « was not published » ouverte
+    # dont la release l'est maintenant est fermée, avec une ligne qui nomme le run qui l'a publiée
+    # (#3089, runtime/src/fermeture-alerte-publication.ts). Un job à part : son échec ne rend pas
+    # rouge la publication, et n'ouvre pas d'alerte.
+    needs: [decider, publier]
+    if: needs.publier.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Fermer les alertes des releases publiées
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.decider.outputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node runtime/src/fermeture-alerte-publication.ts
 
   alerter:
     # Une construction ou la publication a échoué ou a été annulée : une issue le dit au chef, hors

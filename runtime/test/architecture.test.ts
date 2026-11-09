@@ -29,6 +29,7 @@ const RESEAU = /from "node:(net|http|https|http2|tls|dgram|dns)"|\bfetch\(|\bWeb
 const VERS = {
   "arbitrage.ts": "l'arbitre entre projets, sur 127.0.0.1",
   "arbitre.ts": "n'ouvre rien : il écoute, sur 127.0.0.1",
+  "fermeture-alerte-publication.ts": "l'API de GitHub, pour fermer les alertes de publication dont la release est publiée (#3089) — jouée par le workflow publier-app, pas par la station",
   "identites.ts": "l'API de GitHub, pour les jetons des rôles",
   "installateur.ts": "n'ouvre rien : il cherche un port libre sur la machine",
   "mise-a-jour/publications.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station",
