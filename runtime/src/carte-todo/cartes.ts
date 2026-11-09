@@ -24,6 +24,9 @@
 //   (abandon-au-chef.ts, #2118) : le remettre sur le rail — sorti avec un
 //   ticket abandonné, c'est celui-là qui y revient, et lui avec —, le prendre
 //   en session de dev, ou fermer son issue.
+// L'alerte d'une publication ratée, remontée ou abandonnée, dit sa question en
+// mots de produit, qui nomme la release, et ses voies : réessayer, la prendre
+// en main, ou la laisser à la release suivante (alerte-publication-question.ts).
 //
 // Aucune carte ne demande au chef de remettre un ticket sur le rail ou de l'en
 // sortir quand c'est la cuisine qui l'a mis de côté (#1834) : un tel ticket
@@ -39,6 +42,7 @@
 // relire (`change`), qui n'y entre que s'il en tient la règle — sinon, des mots
 // fixes le remplacent.
 import { pourquoiEn as pourquoiDeLAbandon } from "../abandon-au-chef.ts";
+import { questionDuTicket } from "../alerte-publication-question.ts";
 import { attentesDuChef, type Attente, type AttenteDeTicket } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, testsInstablesDeLaCause } from "../events/pass.ts";
@@ -124,6 +128,10 @@ function carteARelire(attente: AttenteAMerger) {
 // Ce que la carte d'une attente propose, avant la règle.
 function proposition(attente: AttenteDeTicket) {
   const { ticket } = attente;
+  // L'alerte d'une publication que la cuisine n'a pas su réparer : la question
+  // en mots de produit, et ses voies (alerte-publication-question.ts, #3090).
+  const publication = attente.quoi === "remontee" || attente.quoi === "abandon" ? questionDuTicket(attente.title) : null;
+  if (publication !== null) return { resume: publication.resume, question: publication.question, choix: publication.choix };
   switch (attente.quoi) {
     case "merge": {
       const merger = choix(`Merge ${laPr(attente.pr)}`, "merge");
