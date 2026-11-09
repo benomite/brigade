@@ -1471,13 +1471,38 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // d'avoir sa PR (#2741). Compagnons compris (#2963), sauf pour un ticket
     // qui revient avec sa PR ouverte : deux retours sur un même fichier
     // partagé s'attendraient l'un l'autre sans fin.
+    // Le ticket d'une branche `cook/<n>-…` est fermé. Une branche sans numéro,
+    // une issue que le client ne lit pas ou que la lecture manque : on ne sait
+    // pas, la PR continue de tenir sa zone.
+    const fermes = new Map<number, Promise<boolean>>();
+    const ticketFerme = async (branche: string): Promise<boolean> => {
+      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+      if (numero === undefined || github.issue === undefined) return false;
+      const rang = Number(numero);
+      let lu = fermes.get(rang);
+      if (lu === undefined) {
+        lu = github
+          .issue(rang)
+          .then((issue) => issue?.state === "closed")
+          .catch(() => false);
+        fermes.set(rang, lu);
+      }
+      return lu;
+    };
     const tenue = async (ticket: TicketLu): Promise<string | null> => {
       const declaree = await zoneDuTicket(ticket.number);
       if (declaree.length === 0) return null;
       ouvertes ??= await github.prsOuvertes();
       const propre = brancheDuTicket(ticket.number);
       const zone = ouvertes.some((ouverte) => ouverte.branche === propre) ? declaree : await tenuParLeTicket(ticket.number);
-      const pr = ouvertes.find((ouverte) => ouverte.branche !== propre && ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))));
+      // Une PR dont le ticket est fermé ne tient plus de zone : personne ne la sert (#3096).
+      let pr: (typeof ouvertes)[number] | undefined;
+      for (const ouverte of ouvertes) {
+        if (ouverte.branche === propre || !ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier)))) continue;
+        if (await ticketFerme(ouverte.branche)) continue;
+        pr = ouverte;
+        break;
+      }
       if (pr !== undefined) return pr.branche;
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;

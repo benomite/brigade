@@ -23,6 +23,7 @@ export type OptionsDuFaux = {
   ciDesPR?: (fichiers: string[]) => boolean;
   gates?: (ticket: { number: number }, pr: { number: number; sha: string }) => Promise<LieuDesGates>;
   maintenant?: () => Date;
+  sauter?: (ticket: number, ligne: string) => void;
 };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
@@ -135,6 +136,10 @@ export class FauxGitHub {
       corpsDuTicket: async (issue) => {
         await noter("corpsDuTicket");
         return this.ticket(issue).corps;
+      },
+      issue: async (numero) => {
+        const ticket = this.tickets.get(numero);
+        return ticket === undefined ? null : { number: numero, title: ticket.title, labels: [...ticket.labels], state: ticket.state, createdAt: "", updatedAt: "", url: "", body: ticket.corps };
       },
       prsOuvertes: async () => {
         await noter("prsOuvertes");
@@ -267,6 +272,7 @@ export class FauxGitHub {
     const github = this.pour(nom);
     return stationGitHub({
       nom,
+      ...(options.sauter === undefined ? {} : { sauter: options.sauter }),
       ...(options.ciDesPR === undefined ? {} : { ciDesPR: options.ciDesPR }),
       ...(options.gates === undefined ? {} : { gates: options.gates }),
       ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
