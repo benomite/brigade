@@ -43,7 +43,7 @@ Comme le dev, tu travailles dans **ton propre worktree isolé** (procédure du r
 2. **Gates des bindings verts** (preuve par sortie de commande).
 3. **Sign-off visuel de l'humain** sur les écrans concernés (tu l'as sollicité activement avec URL locale + checklist).
 4. **Doc vivante** si besoin, selon le binding **Doc vivante**.
-5. `git pull --rebase origin <base>` avant la PR ; commit+push tôt ; **1 PR** `--base <base>`, `Closes #N`, titre en français. **Ne merge pas, ne supprime pas ton worktree** (le Manager retire après merge).
+5. `git pull --rebase origin <base>` avant la PR ; commit+push tôt ; **1 PR** `--base <base>`, `Closes #N`, titre en anglais, avec les mots de `docs/glossary.md`. **Ne merge pas, ne supprime pas ton worktree** (le Manager retire après merge).
 6. Le Manager découvre la PR à son « fais le point » (`gh pr list`) et l'intègre comme une PR de dev.
 
 ## Gestes prévus — ceux que le mode auto peut prendre pour suspects

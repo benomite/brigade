@@ -98,7 +98,7 @@ Event-driven : les notifications *idle* et les `SendMessage` des devs te réveil
 
 | Signal reçu | Action |
 |---|---|
-| `question-spec #N : …` | **Ne bloque pas le pipeline.** Dépose les questions en commentaire de l'issue #N (`gh issue comment`), pose le label `blocked-on-human`, **notifie l'humain** (`PushNotification`), et **continue** sur les autres issues. Ne sollicite l'utilisateur (`AskUserQuestion`, questions groupées) **que** si plus aucun travail non bloqué n'est disponible. Réponse reçue → `SendMessage to:"dev-N"`, retire `blocked-on-human`. |
+| `question-spec #N : …` | **Ne bloque pas le pipeline.** Dépose les questions en commentaire de l'issue #N (`gh issue comment`), en anglais, avec les mots de `docs/glossary.md`, pose le label `blocked-on-human`, **notifie l'humain** (`PushNotification`), et **continue** sur les autres issues. Ne sollicite l'utilisateur (`AskUserQuestion`, questions groupées) **que** si plus aucun travail non bloqué n'est disponible. Réponse reçue → `SendMessage to:"dev-N"`, retire `blocked-on-human`. |
 | `prêt #N (PR …)` | Lance les gates (§5). |
 | `bloqué #N : …` | Arbitre ; si besoin utilisateur, même traitement non bloquant que `question-spec`. |
 | `hors-scope #N : issue triage #M créée` | Re-qualifie #M plus tard (§2). Le dev continue, ne rien faire d'urgent. |
@@ -145,7 +145,7 @@ Un dev-teammate tourne dans son propre process, mais son cycle de vie est lié a
 L'issue de roadmap porte deux choses de natures différentes, et **une seule a besoin d'être réécrite** :
 
 - **l'ordre** — prêt, en cours, bloqué. C'est la seule source d'ordre, et il vit dans le **corps**.
-- **l'historique des clôtures** — un journal daté, qui ne se réordonne jamais et que personne ne relit pour décider. Il vit en **commentaires** : `gh issue comment <roadmap> --body "<date> — #N fermée : <fait / écarts>"`, une ligne par merge.
+- **l'historique des clôtures** — un journal daté, qui ne se réordonne jamais et que personne ne relit pour décider. Il vit en **commentaires** : `gh issue comment <roadmap> --body "<date> — #N closed: <done / gaps>"`, une ligne par merge, en anglais.
 
 Après une fermeture, tu postes ce commentaire et **tu ne touches pas au corps**. Tu n'édites le corps que quand l'ordre change réellement — une issue qui entre en cours, un blocage levé, un tri `prio:` du PO — et alors tu n'édites **que la section concernée**, sur un corps relu juste avant, jamais réécrit de mémoire.
 

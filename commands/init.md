@@ -99,7 +99,7 @@ N'ajoute un label à cette liste que si le projet en a un équivalent sous un au
 
 ```bash
 gh issue create --title "Roadmap" --label tech \
-  --body "Ordre de priorité du projet. **Writer unique : le Manager.** Le PO dicte l'ordre par les labels \`prio:\`." \
+  --body "Project priority order. **Single writer: the Manager.** The PO sets the order through the \`prio:\` labels." \
   # → note le numéro rendu, il va dans le bloc
 ```
 
