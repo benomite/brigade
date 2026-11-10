@@ -136,6 +136,9 @@ export type Pont = {
   // pourquoi il ne l'est pas. Rien ne part d'un texte vide.
   commenter(projet: string, ticket: number, texte: string): Promise<import("../discussion.ts").Commente>;
   demanderAuSecond(projet: string, ticket: number, contexte: string): Promise<Terminal | { refus: string }>;
+  // Passe une carte de TODO au second (passation-second.ts, ticket 3133) : son numéro, sa question — nulle, « no
+  // question found » —, et ce que son issue dit, écrits dans le second du projet sans Entrée.
+  passerAuSecond(projet: string, ticket: number, question: string | null): Promise<Terminal | { refus: string }>;
   // Ouvre dans le navigateur une adresse que la dernière discussion lue de ce ticket montre — et
   // aucune autre. Rend si elle a été ouverte.
   ouvrirLien(projet: string, ticket: number, url: string): Promise<boolean>;
