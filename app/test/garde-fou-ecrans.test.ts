@@ -317,7 +317,7 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     const proposes = gestesDeCarte(carte);
     assert.ok(proposes.some(({ id }) => id === "retirer"), "la décision attendue se tranche par le retrait : le geste manque à la table");
     const boutonsDeLaFiche = boutons(racine).map(({ textContent }) => textContent);
-    for (const { libelle, id } of proposes.filter(({ id }) => id !== "priorite")) assert.ok(boutonsDeLaFiche.includes(libelle), `« ${libelle} » n'est pas un bouton de la fiche`);
+    for (const { libelle } of proposes.filter(({ id }) => id !== "priorite")) assert.ok(boutonsDeLaFiche.includes(libelle), `« ${libelle} » n'est pas un bouton de la fiche`);
     const [premier] = proposes;
     const gestes = racine.dessous("section").find(({ className }) => className === "gestes-fiche") ?? assert.fail("pas de gestes sur la fiche");
     assert.equal(boutons(gestes)[0]?.textContent, premier?.libelle);

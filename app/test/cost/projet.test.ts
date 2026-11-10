@@ -17,7 +17,6 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
-const A = "2026-10-17T10:00:00.000Z";
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine" };
 

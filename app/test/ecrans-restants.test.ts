@@ -15,14 +15,11 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { type Jouee, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
-const A = "2026-10-16T10:00:00.000Z";
-// Ce qui ne s'écrit jamais à plat sur ces écrans.
-const TECHNIQUE = /usage|exit code|code de sortie|`/;
 
 async function ouvrir(reponses = {}): Promise<Jouee> {
   const vue = await jouerLaVue({
@@ -45,9 +42,6 @@ async function ouvrir(reponses = {}): Promise<Jouee> {
   await repos();
   return vue;
 }
-const survols = (ou: Faux) => ou.dessous("button").filter(({ className }) => className === "aide").map(({ ariaLabel }) => ariaLabel);
-// Le texte posé à plat : celui des éléments, sans le contenu d'un `pre` ni le nom accessible d'une aide.
-const aPlat = (ou: Faux) => ou.textContent;
 
 describe("Settings n'a plus de page Manager (#1700)", () => {
   // Un seul interrupteur pour tout le projet (#1406), en tête de l'espace : sa confirmation, qui dit son
