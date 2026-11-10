@@ -78,6 +78,7 @@ test("un choix de produit et une validation de design entrent dans TODO, avec le
         ticket: 1,
         type: "product",
         raison: "product-choice",
+        besoin: null,
         resume: PRODUIT.resume,
         question: "One list per project, or one for all projects?",
         choix: [
@@ -90,6 +91,7 @@ test("un choix de produit et une validation de design entrent dans TODO, avec le
         ticket: 2,
         type: "design",
         raison: "design-choice",
+        besoin: null,
         resume: DESIGN.resume,
         question: "Is the empty rail screen right?",
         choix: [
@@ -102,8 +104,8 @@ test("un choix de produit et une validation de design entrent dans TODO, avec le
   );
   const lignes = bloc();
   assert.match(lignes[0] ?? "", /^awaiting {3}2 decisions await the chef — the oldest for /);
-  assert.match(lignes[1] ?? "", /^ {2}#1 {2}for .* {2}product \(product choice\): One list per project, or one for all projects\? — choices: 1\. One list per project\. · 2\. One list for all projects\. {2}Ticket 1$/);
-  assert.match(lignes[2] ?? "", /^ {2}#2 {2}for .* {2}design \(design choice\): Is the empty rail screen right\? — choices: 1\. Yes, merge it\. · 2\. No, the empty state says too little\. — captures: 1 screen, before and after {2}Ticket 2$/);
+  assert.match(lignes[1] ?? "", /^ {2}#1 {2}for .* {2}product: Product choice\. One list per project, or one for all projects\? — choices: 1\. One list per project\. · 2\. One list for all projects\. {2}Ticket 1$/);
+  assert.match(lignes[2] ?? "", /^ {2}#2 {2}for .* {2}design: Design choice\. Is the empty rail screen right\? — choices: 1\. Yes, merge it\. · 2\. No, the empty state says too little\. — captures: 1 screen, before and after {2}Ticket 2$/);
 
   const attend = faits(lireEtat(journal, MAINTENANT), MAINTENANT, DEPOT).attend;
   assert.deepEqual(attend[0]?.decision, { quoi: "carte", motif: "product", cause: "One list per project, or one for all projects?", pr: null });
@@ -190,6 +192,7 @@ test("une carte sans exactement une question et au moins un choix est refusée",
     carte: {
       type: "product",
       raison: "product-choice",
+      besoin: null,
       resume: PRODUIT.resume,
       question: PRODUIT.enonce,
       choix: [
