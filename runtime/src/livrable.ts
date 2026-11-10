@@ -61,21 +61,35 @@ export function lireLivrable(message: string | null): Livrable {
 export const OUVERTURE_BLOCAGE = "<bloque>";
 export const FERMETURE_BLOCAGE = "</bloque>";
 export function lireBlocage(livrable: string | null): string | null {
+  return lireDelimitation(livrable, "bloque");
+}
+
+// Le cook qui prouve que le ticket est déjà satisfait sur la branche
+// d'intégration le dit entre `<deja-servi>` et `</deja-servi>`, en nommant le
+// commit qui l'a satisfait. La station vérifie avant de fermer (`deja-servi.ts`,
+// #3146). Même lecture que le blocage.
+export const OUVERTURE_DEJA_SERVI = "<deja-servi>";
+export const FERMETURE_DEJA_SERVI = "</deja-servi>";
+export function lireDejaServi(livrable: string | null): string | null {
+  return lireDelimitation(livrable, "deja-servi");
+}
+
+function lireDelimitation(livrable: string | null, balise: string): string | null {
   let ouverte: number | null = null;
-  let question: string | null = null;
-  for (const balise of blanchir(livrable ?? "").matchAll(/<(\/?)bloque>/gi)) {
-    if (balise[1] === "") ouverte = balise.index;
+  let texte: string | null = null;
+  for (const marque of blanchir(livrable ?? "").matchAll(new RegExp(`<(/?)${balise}>`, "gi"))) {
+    if (marque[1] === "") ouverte = marque.index;
     else if (ouverte !== null) {
-      question = (livrable ?? "").slice(ouverte + OUVERTURE_BLOCAGE.length, balise.index).trim();
+      texte = (livrable ?? "").slice(ouverte + balise.length + 2, marque.index).trim();
       ouverte = null;
     }
   }
-  return ouverte !== null || question === "" ? null : question;
+  return ouverte !== null || texte === "" ? null : texte;
 }
 
 // Ce que la consigne d'un cook dit de son livrable, à la fin de son dernier
 // point : la même pour un premier cook et pour un cook renvoyé.
-export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois. Écris ces deux balises nues, ni entre backticks ni dans un bloc de code : citées, elles ne délimitent rien. Seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré. Si tu t'arrêtes sans avoir fini — une décision te manque, quelque chose te bloque —, c'est dans ce passage que tu dis pourquoi. Si tu ne peux pas finir le ticket parce qu'une décision ou une condition hors de ta portée te manque — un ticket dont il dépend pas encore mergé, un accès, une machine que tu n'as pas —, écris-la dans ce passage entre \`${OUVERTURE_BLOCAGE}\` et \`${FERMETURE_BLOCAGE}\`, que tu aies commité ou non : ce que tu as commité ne part pas en relecture, ton ticket remonte au chef avec cette question, et le cook qui le reprendra après sa réponse repartira de ta branche. Sans ces balises, ta moitié de ticket, ton gabarit vide ou ton « à faire » part en relecture, qui le renvoie à un cook. N'utilise pas ces balises si le ticket n'appelle vraiment aucun changement.`;
+export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois. Écris ces deux balises nues, ni entre backticks ni dans un bloc de code : citées, elles ne délimitent rien. Seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré. Si tu t'arrêtes sans avoir fini — une décision te manque, quelque chose te bloque —, c'est dans ce passage que tu dis pourquoi. Si tu ne peux pas finir le ticket parce qu'une décision ou une condition hors de ta portée te manque — un ticket dont il dépend pas encore mergé, un accès, une machine que tu n'as pas —, écris-la dans ce passage entre \`${OUVERTURE_BLOCAGE}\` et \`${FERMETURE_BLOCAGE}\`, que tu aies commité ou non : ce que tu as commité ne part pas en relecture, ton ticket remonte au chef avec cette question, et le cook qui le reprendra après sa réponse repartira de ta branche. Sans ces balises, ta moitié de ticket, ton gabarit vide ou ton « à faire » part en relecture, qui le renvoie à un cook. Si, au contraire, tu prouves que le ticket est déjà satisfait sur la branche d'intégration — le correctif y est, un autre commit ou une autre PR l'a mergé —, n'invente aucun commit : écris dans ce passage, entre \`${OUVERTURE_DEJA_SERVI}\` et \`${FERMETURE_DEJA_SERVI}\`, le hash du commit de la branche d'intégration qui le satisfait (et la PR, si tu la connais) et ce qui le prouve. La station vérifie que ce commit est sur la branche d'intégration et que les gates y sont vertes, puis ferme le ticket comme servi ; sinon ta réponse compte comme un essai raté. N'utilise pas ces balises si le ticket n'appelle vraiment aucun changement.`;
 
 // Le défaut, tel qu'il se lit sur l'issue et dans le renvoi d'un cook.
 export const direDefaut = (defaut: Defaut | null): string =>
