@@ -38,6 +38,7 @@ const pont = {
   planifier: (projet) => ipcRenderer.invoke("planifier", projet),
   desinstaller: (projet, confirmation) => ipcRenderer.invoke("desinstaller", projet, confirmation),
   espace: (projet) => ipcRenderer.invoke("espace", projet),
+  terminauxOuverts: () => ipcRenderer.invoke("terminauxOuverts"),
   machines: (projet) => ipcRenderer.invoke("machines", projet),
   shell: (projet, machine) => ipcRenderer.invoke("shell", projet, machine),
   fermerShell: (id) => ipcRenderer.invoke("fermerShell", id),

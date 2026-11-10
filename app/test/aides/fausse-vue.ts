@@ -352,8 +352,9 @@ function laVueJouable(): { texte: string; modules: string[] } {
 }
 
 // Charge une vue neuve — son module entier, jusqu'à son premier affichage. Sans stockage, la vue n'en a pas ; sans
-// écran, elle n'a pas de `matchMedia` : elle est large.
-export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>, { stockage, ecran }: { stockage?: FauxStockage; ecran?: FauxEcran } = {}): Promise<Jouee> {
+// écran, elle n'a pas de `matchMedia` : elle est large. `session` : le stockage de la session de la fenêtre
+// (`window.sessionStorage`) — passé à deux vues jouées l'une après l'autre, c'est la fenêtre rechargée (#3159).
+export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>, { stockage, ecran, session }: { stockage?: FauxStockage; ecran?: FauxEcran; session?: FauxStockage } = {}): Promise<Jouee> {
   const html = readFileSync(join(VUE, "index.html"), "utf8");
   const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
 
@@ -399,6 +400,7 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
     window: {
       brigade: pont,
       ...(stockage === undefined ? {} : { localStorage: stockage }),
+      ...(session === undefined ? {} : { sessionStorage: session }),
       ...(ecran === undefined ? {} : { matchMedia: (requete: string) => (ecran.requetes.push(requete), ecran) }),
     },
     document: {

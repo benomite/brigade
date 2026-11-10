@@ -3573,6 +3573,23 @@ Worth knowing:
   switches to `new session` the instant it exits.
 - In a folder `claude` does not know yet, it first asks whether you trust it: it is `claude` that
   asks, in the terminal, as everywhere else.
+
+## Reloading the window
+
+Reloading the window (Cmd+R) reloads only the view: the seconds and shells belong to the app, and keep running. The
+window opens again on the screen you were on — the same project, station or page — and every terminal that was open,
+in every project, gets its tab back with what it had written (at most its last million characters). A second that is running
+is reattached as it is, not relaunched: an answer being written goes on, after what was already there. Nothing is
+started twice. Only the screen is kept across a reload; quitting and relaunching the app opens it on "All projects", as
+before.
+
+A second that was no longer running when the window reloaded could not be reattached. Its tab comes back anyway, and its
+line says so:
+
+| The line | What happened |
+|---|---|
+| `the second was not running when the window reloaded: it could not be reattached — resume it` | Its `claude` had stopped. The **resume** button next to the line relaunches it like a keypress: resuming the thread, with the role. |
+
 ## Closing the app
 
 Closing the window quits the app, and quitting **stops all its terminals** — seconds and shells — and

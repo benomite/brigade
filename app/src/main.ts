@@ -801,6 +801,8 @@ ipcMain.handle("retirerDeLApp", (_, nom: unknown) => {
   return vise === undefined ? parti(nom) : retraits.retirerDeLApp(vise);
 });
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
+// La vue s'est rechargée (Cmd+R, #3159) : les pty sont restés ici, elle retrouve chacun, avec ce qu'il avait écrit.
+ipcMain.handle("terminauxOuverts", () => terminaux.ouverts());
 // « + shell » : les machines où ouvrir un shell (machines.ts) — ce poste. La vue n'en reçoit que l'identifiant et le titre.
 const machinesDuProjet = (vise: Projet) => machinesDe();
 ipcMain.handle("machines", (_, nom: unknown) => machinesDuProjet(projet(nom)).map(({ id, titre }) => ({ id, titre })));

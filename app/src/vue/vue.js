@@ -1414,6 +1414,9 @@ function poserSecond(ouvrable, montre) {
         : (montre?.note ?? (ouvrable ? "the second is opening…" : ""));
   // Ce que le runtime dit d'un second qui ne part pas nomme ses outils entre accents graves : posés en code (ticket 1435).
   if (montre?.empeche !== undefined && note === montre.note) noteSecond.replaceChildren(phrase(document, "span", note));
+  // Un second que la fenêtre rechargée n'a pas pu rattacher (ticket 3159) : sa ligne, et de quoi le reprendre — comme une
+  // touche dans un second arrêté, il est relancé sur son fil (terminaux.ts).
+  else if (montre?.aReprendre === true && note === montre.note) noteSecond.replaceChildren(note, " ", bouton("resume", () => brigade.ecrire(montre.id, "")));
   else noteSecond.textContent = note;
   // Un second qui ne part pas n'a pas de terminal à montrer : à sa place, pourquoi, et ce qui lui manque (ticket 1435).
   fil.hidden = !ouvrable || telephoneVu !== undefined || montre?.empeche !== undefined;
@@ -7216,10 +7219,57 @@ function attendre(projet, tete, corps) {
   }
 }
 
+// L'écran affiché — un projet, une station, une page de l'app, l'ajout, ou l'accueil —, retenu le temps de la session de
+// la fenêtre (ticket 3159) : rechargée (Cmd+R), la vue s'y rouvre ; l'app relancée, elle s'ouvre sur l'accueil, comme avant.
+const CLE_DE_L_ECRAN = "brigade.ecran";
+function retenirLEcran() {
+  const ecran = courant !== undefined ? { projet: courant.nom } : ajoute ? { ajout: true } : stationOuverte !== undefined ? { station: stationOuverte } : pageDeLApp !== undefined ? { page: pageDeLApp } : {};
+  try {
+    window.sessionStorage?.setItem(CLE_DE_L_ECRAN, JSON.stringify(ecran));
+  } catch {
+    // Sans stockage, un rechargement rouvre l'accueil.
+  }
+}
+// Avant le premier affichage : l'écran retenu, s'il existe encore. Illisible, ou son projet retiré du fichier : l'accueil.
+function reprendreLEcran() {
+  /** @type {{ projet?: unknown, ajout?: unknown, station?: unknown, page?: unknown }} */
+  let lu = {};
+  try {
+    lu = JSON.parse(window.sessionStorage?.getItem(CLE_DE_L_ECRAN) ?? "{}") ?? {};
+  } catch {
+    return;
+  }
+  const projet = configuration.projets.find(({ nom }) => nom === lu.projet);
+  if (projet !== undefined) courant = projet;
+  else if (lu.ajout === true) ajoute = true;
+  else if (typeof lu.station === "string") stationOuverte = lu.station;
+  else if (lu.page === COUTS || lu.page === RATIOS) pageDeLApp = lu.page;
+}
+
+// La fenêtre s'est rechargée (ticket 3159) : les terminaux ouverts avant sont restés au process principal, chacun dans son
+// projet. Chacun retrouve son onglet et ce qu'il avait écrit — rien n'est relancé, ce qu'il écrit ensuite arrive à la
+// suite. Ouverte au lancement de l'app, il n'y en a aucun. Une lecture qui échoue n'empêche pas la vue de s'ouvrir :
+// chaque terminal revient alors à l'ouverture de son projet (`espace`), sans ce qu'il avait écrit.
+async function retrouverLesTerminaux() {
+  /** @type {import("../terminaux.ts").Ouvert[]} */
+  let ouverts = [];
+  try {
+    ouverts = (await brigade.terminauxOuverts?.()) ?? [];
+  } catch {
+    ouverts = [];
+  }
+  for (const { terminal, ecrit } of ouverts) {
+    recevoir(terminal);
+    if (ecrit !== "") vue(terminal.id).xterm.write(ecrit);
+  }
+  terminauxRetrouves = true;
+}
+
 // L'entrée de la barre qui est affichée : celle du projet courant, la première —
 // « Tous les projets » — ou la dernière, l'ajout. Un fichier refusé n'a ni l'une ni l'autre :
 // sa raison prend la place du terminal.
 function marquer() {
+  retenirLEcran();
   const refuse = configuration.refus !== undefined;
   const affichee = ajoute ? barre.children.length - 1 : courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
   [...barre.children].forEach((entree, rang) => (entree.ariaCurrent = String(rang === affichee)));
@@ -7839,9 +7889,11 @@ function oublier(id) {
   fermes.add(id);
 }
 
-// Une sortie peut précéder l'annonce de son terminal : sa vue est alors créée ici.
+// Une sortie peut précéder l'annonce de son terminal : sa vue est alors créée ici. Celle qui arrive avant que la vue ait
+// retrouvé les terminaux ouverts (ticket 3159) est déjà dans ce qu'ils avaient écrit : écrite aussi, elle le serait deux fois.
+let terminauxRetrouves = false;
 brigade.surSortie((id, donnees) => {
-  if (!fermes.has(id)) vue(id).xterm.write(donnees);
+  if (terminauxRetrouves && !fermes.has(id)) vue(id).xterm.write(donnees);
 });
 // Le second publie une proposition, ou passe à autre chose : ce qui est sous son terminal suit (ticket 1520).
 brigade.surProposition?.((projet, proposition) => {
@@ -8283,6 +8335,8 @@ if (telephone !== undefined && telephone.github === undefined) {
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.
 await Promise.all(["13px", "bold 13px"].map((corps) => document.fonts.load(`${corps} ${jeton("--police-mono")}`))).catch(() => undefined);
+await retrouverLesTerminaux();
+reprendreLEcran();
 afficher();
 // Posée une fois la première liste rendue : ce qui change ensuite la remplace.
 brigade.surConfiguration((recue, partis) => {
