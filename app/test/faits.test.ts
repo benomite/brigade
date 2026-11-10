@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { GESTE, type Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
-import { SANS_DECISION } from "../src/decision.ts";
+import { sansQuestion } from "../src/decision.ts";
 import { heureHM } from "../src/format.ts";
 import { ACTIVITE_NON_COMMUNIQUEE, BANNIERE, COMMANDE, comprendre, dessiner, direEnCeMoment, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
 import type { Entete } from "../src/fiche.ts";
@@ -86,8 +86,8 @@ const fiche = (titre: string | undefined, autre: Partial<Entete> = {}): { fiche:
 });
 
 // Une carte qui t'attend porte, en tête de sa fiche, ce qu'on attend de toi (decision.ts) : sans
-// décision donnée par `faits` — une box d'avant ce champ, comme ici —, la phrase qui ne devine rien.
-const ATTENDU = { attendu: SANS_DECISION } as const;
+// décision donnée par `faits` — une box d'avant ce champ, comme ici —, « no question found on #N ».
+const attendu = (ticket: number) => ({ attendu: sansQuestion(ticket) }) as const;
 
 const lue = (texte: string): Lecture => ({ projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", sorties: [{ commande: "facts", texte }] });
 
@@ -275,7 +275,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: sansQuestion(21), dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", attendu(21)), gestes: ["attente-poser"] }],
               vide: "no ticket in `attend`, according to `facts`",
             },
             { nom: "Waiting", ton: "orange", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
@@ -509,7 +509,7 @@ const rangs = (dessine: ReturnType<typeof rail>) => dessine.colonnes.map(({ nom,
 // Ce qu'une carte porte de plus que son rang, quand `status` n'a pas été lu et que rien d'autre ne le dit.
 const NUE = { ligne: "ready, waits for a place in the kitchen", dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it` };
 // Dans T'attend, sous ce que le bloc dit du ticket : ce qui le bloque est dit, le reste manque.
-const ATTENDUE = { ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns` };
+const attendue = (ticket: number) => ({ ligne: sansQuestion(ticket), dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns` });
 
 describe("le rail en six colonnes", () => {
   test("quatre colonnes viennent du mot d'état de `faits`, dans l'ordre de service — et T'attend n'est pas lue tant que rien ne dit qui attend", () => {
@@ -540,7 +540,7 @@ describe("le rail en six colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: SANS_DECISION, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: sansQuestion(21), ...fiche("Ticket 21", attendu(21)), gestes: ["attente-poser"] });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "Awaiting you", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
@@ -567,10 +567,10 @@ describe("le rail en six colonnes", () => {
         ouvrable: true,
         attendu: true,
         attend: ["depuis 4 min  livraison verte, non mergée — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12"],
-        ...ATTENDUE,
+        ...attendue(12),
         // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
         dit: [{ libelle: "right now", valeur: "activity not given — this station's runtime does not give it in `facts`" }],
-        ...fiche("Ticket 12", ATTENDU),
+        ...fiche("Ticket 12", attendu(12)),
       });
     }
   });
@@ -590,8 +590,8 @@ describe("le rail en six colonnes", () => {
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       // Une question du manager : la carte la dit (#503).
       question: true,
-      ...ATTENDUE,
-      ...fiche(undefined, { issue: { sans: "not given — the station returns no address for this issue" }, ...ATTENDU }),
+      ...attendue(30),
+      ...fiche(undefined, { issue: { sans: "not given — the station returns no address for this issue" }, ...attendu(30) }),
     });
   });
 
@@ -609,8 +609,8 @@ describe("le rail en six colonnes", () => {
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       // Une question du manager : la carte la dit (#503).
       question: true,
-      ...ATTENDUE,
-      ...fiche(undefined, ATTENDU),
+      ...attendue(30),
+      ...fiche(undefined, attendu(30)),
     });
     const titre = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
     assert.deepEqual([titre?.titre, titre?.ouvrable], ["Un titre", true]);
@@ -1009,5 +1009,16 @@ describe("station et capacités sur les cartes du rail", () => {
     const station = (nom: string) => cartes(brut([ticket(14, { station: nom })])).cartes[0]?.station;
     assert.equal(station("box/claude"), "box/claude");
     assert.equal(station("mac/claude"), "mac/claude");
+  });
+});
+
+describe("la question d'une carte de TODO, des faits à la carte (#3131)", () => {
+  test("une carte du chef dont l'issue porte une question la dit en une phrase ; sans question, « no question found on #N »", () => {
+    const carte = { type: "product", question: "Should the export be CSV or JSON? The second is richer.", choix: [], captures: null };
+    const avec = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 40, titre: "Export", url: "https://github.com/benomite/brigade/issues/40", decision: { quoi: "carte", motif: "product", cause: carte.question, pr: null }, carte }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 40);
+    assert.equal(avec?.ligne, "Should the export be CSV or JSON?");
+    assert.equal(avec?.fiche.attendu, "Should the export be CSV or JSON?");
+    const sans = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 41, titre: "Export", url: "https://github.com/benomite/brigade/issues/41", decision: { quoi: "carte", motif: "product", cause: null, pr: null } }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 41);
+    assert.equal(sans?.ligne, "no question found on #41");
   });
 });

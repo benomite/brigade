@@ -85,7 +85,7 @@ describe("la phrase de chaque état d'une carte (#622)", () => {
   test("qui m'attend : ce qu'on attend du chef, en une phrase", () => {
     const carte = de(FAITS, 6);
     assert.equal(carte.attendu, true);
-    assert.equal(carte.ligne, "This ticket waits for your decision — its issue says which.");
+    assert.equal(carte.ligne, "no question found on #6");
     assert.deepEqual(ligneQuiMAttend("Green, but not merged: merge it yourself."), { ligne: "Green, but not merged: merge it yourself." });
     assert.deepEqual(ligneQuiMAttend(undefined), { ligne: "waits for your decision", repere: true });
   });
