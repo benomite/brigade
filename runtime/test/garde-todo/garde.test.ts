@@ -14,6 +14,7 @@ import { aArreter, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
 const MAINTENANT = new Date(`${JOUR_HORLOGE}T12:00:00.000Z`);
 const carte = (enonce: string, type = "product"): Proposition => ({
   type,
+  raison: type === "design" ? "design-choice" : "product-choice",
   resume: "A delivery is waiting on the base.",
   enonce,
   choix: [{ texte: "Yes." }, { texte: "No." }],

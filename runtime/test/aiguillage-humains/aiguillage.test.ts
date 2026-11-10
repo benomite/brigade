@@ -18,12 +18,14 @@ const CONFIG = { chef: CHEF, humans: [{ login: "alice", roles: ["product"] }, { 
 
 const PRODUIT: Proposition = {
   type: "product",
+  raison: "product-choice",
   resume: "The ticket adds a saved list. It can be kept per project or shared by all of them.",
   enonce: "One list per project, or one for all projects?",
   choix: [{ texte: "One list per project." }, { texte: "One list for all projects." }],
 };
 const DESIGN: Proposition = {
   type: "design",
+  raison: "design-choice",
   resume: "The empty rail now says what to do next.",
   enonce: "Is the empty rail screen right?",
   choix: [{ texte: "Yes, merge it.", suite: "merge" }, { texte: "No, the empty state says too little.", suite: "resume" }],

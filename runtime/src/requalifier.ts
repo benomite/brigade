@@ -157,7 +157,7 @@ export function ouvrirRequalification(atelier: AtelierDuManager) {
       if (valeur.issue === "carte") {
         const { carte } = valeur;
         // Elle entre dans TODO, ou va au triage : une proposition n'est jamais perdue.
-        const proposition = { type: carte.type, enonce: carte.enonce, capture: carte.capture };
+        const proposition = { type: carte.type, raison: carte.type === "design" ? "design-choice" : "product-choice", enonce: carte.enonce, capture: carte.capture };
         const entree = base.transaction(() => {
           const entree = entrerDansTodo(journal, projet, issue.number, proposition, AUTEUR_DE_CARTE);
           noter(issue.number, { type: "manager.requalified", payload: { run, fingerprint: etat, outcome: "card", reason: valeur.motif, card: { kind: carte.type, statement: carte.enonce } } });

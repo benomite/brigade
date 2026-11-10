@@ -172,6 +172,7 @@ describe("the validation refuses an incomplete card, saying why", () => {
 const RESUME_1752 = "Le critère de #1752 veut le geste dans le libellé, et la relecture le refuse sans bouton (règle #830). Le manager te le remonte après deux renvois rouges.";
 const CARTE_1752: Proposition = {
   type: "product",
+  raison: "product-choice",
   resume: RESUME_1752,
   enonce: "La carte d'un ticket en attente de station doit-elle dire au chef de brancher une station, alors que la règle de l'app veut qu'un geste soit un bouton ?",
   choix: [

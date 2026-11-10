@@ -142,7 +142,7 @@ test("branché au runtime, sans `chef` déclaré : la carte de TODO mentionne le
   const { chef } = brancherLeChef(runtime, { github: github satisfies GitHubDuChef, declare: () => undefined, repertoireEtat: etat });
   brancherMentionDuChef(runtime, { github: mention, chef });
   await jusqua(() => ligneDuChef(env) === "chef        carol (set up by)");
-  entrerDansTodo(journal, "brigade", 12, { type: "product", resume: "A choice.", enonce: "One list or two?", choix: [{ texte: "One." }, { texte: "Two." }] }, "manager");
+  entrerDansTodo(journal, "brigade", 12, { type: "product", raison: "product-choice", resume: "A choice.", enonce: "One list or two?", choix: [{ texte: "One." }, { texte: "Two." }] }, "manager");
   for (const ecouter of ecouteurs) ecouter("tick");
   await jusqua(() => postes.length === 1);
   assert.equal(postes[0]?.corps.split("\n")[1], "@carol One list or two?");

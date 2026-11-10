@@ -48,6 +48,7 @@ export function suivreLesChecksWindows(journal: Journal, projet: string, branche
       if (enTodo || accuseeTantQueRouge(journal, ticket) || cartesRetenues(journal.base).some((carte) => carte.ticket === ticket)) continue;
       const entree = entrerDansTodo(journal, projet, ticket, {
         type: "product",
+        raison: "product-choice",
         resume: `The Windows check ${nom} is red on ${branche}. It does not block merges.`,
         enonce: `Will you leave ${nom} alone until it turns green on ${branche}?`,
         // La porte veut deux gestes à une question. Aucun ne répare, et la carte

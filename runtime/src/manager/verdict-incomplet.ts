@@ -231,7 +231,7 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
       const signature = atelier.signature(run, "Completed");
 
       if (valeur.issue === "question") {
-        const proposition = { type: "product", resume: valeur.resume, enonce: valeur.question, capture: null, choix: valeur.choix.map((texte) => ({ texte, suite: "resume" })) };
+        const proposition = { type: "product", raison: "product-choice", resume: valeur.resume, enonce: valeur.question, capture: null, choix: valeur.choix.map((texte) => ({ texte, suite: "resume" })) };
         const geste = gesteGit(proposition);
         // Un geste git n'est pas une carte : le ticket `fix` de la cuisine la
         // remplace, ouvert avant que rien soit écrit — s'il échoue, ni label ni

@@ -7,7 +7,7 @@ import type { Captures } from "../captures.ts";
 // choices proposed, each with what follows it (`then`); null when none.
 // `summary`: what happens, in at most two plain sentences — absent from a
 // proposal written before cards carried one.
-type Proposed = { kind: string | null; summary?: string | null; statement: string | null; capture: string | null; choices: Array<{ text: string | null; then: string | null }> | null };
+type Proposed = { kind: string | null; reason?: string | null; need?: string | null; summary?: string | null; statement: string | null; capture: string | null; choices: Array<{ text: string | null; then: string | null }> | null };
 
 // The facts of the TODO gate (`carte-todo.ts`): what entered the chef's TODO
 // queue as a card, what was refused at its door, and why — and what the
@@ -25,7 +25,7 @@ export type FaitTodo =
   // `captures`: the screens its ticket delivered, before and after — never
   // null on a `design` card, null on a `product` card whose ticket delivered
   // none.
-  | { type: "todo.entered"; payload: { kind: "product" | "design"; summary?: string; statement: string; choices: Array<{ text: string; then: "resume" | "merge" | "drop" | "close" }>; captures: Captures | null } }
+  | { type: "todo.entered"; payload: { kind: "product" | "design"; reason?: string; need?: string | null; summary?: string; statement: string; choices: Array<{ text: string; then: "resume" | "merge" | "drop" | "close" }>; captures: Captures | null } }
   // The card was refused at the gate: it is not in TODO, and goes back to
   // the triage (it is held). `reason`: why, in plain words.
   | { type: "todo.refused"; payload: Proposed & { reason: string } }

@@ -14,6 +14,7 @@ import { aArreter, jusqua, JOUR_HORLOGE, repertoireTemporaire } from "./outils.t
 const PROJET = "brigade";
 const PRODUIT: Proposition = {
   type: "product",
+  raison: "product-choice",
   resume: "The ticket adds a saved list. It can be kept per project or shared by all of them.",
   enonce: "One list per project, or one for all projects?",
   choix: [{ texte: "One list per project." }, { texte: "One list for all projects." }],
