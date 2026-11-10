@@ -17,7 +17,7 @@ attendu : un découpage (`"reponse": "tickets"`) où —
   `cook` du tout : **aucun** n'est `design` ;
 - chaque ticket garde un `modele` et un `effort` pris dans la table de
   calibrage, et **aucun** effort n'est `xhigh` ni `max` ;
-- les zones restent disjointes, ou le ticket de la carte attend celui du rail.
+- les zones restent disjointes, et aucun ticket n'en attend un autre.
 
 Le découpage peut fusionner la doc avec le ticket du rail, ou laisser la doc à
 part : ce qui est jugé est la désignation du cook, pas le nombre de tickets.

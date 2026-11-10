@@ -560,17 +560,18 @@ FIN
 Je dirais que c'est faisable.
 FIN
       ;;
-    # Les découpages du manager : trois tickets qui se suivent, une question, une
-    # épique déjà découpée, ou un découpage dont un ticket ne se lit pas.
+    # Les découpages du manager : trois tickets aux zones disjointes, qui partent
+    # ensemble (#3130), une question, une épique déjà découpée, ou un découpage
+    # dont un ticket ne se lit pas.
     decoupe-tickets)
       assistant
       resultat <<'FIN'
 Voici le découpage.
 
-{"reponse":"tickets","motif":"Un livrable par module touché.","ordre":"Le rail d'abord : la pass et la doc lisent ce qu'il expose.","tickets":[{"titre":"Le rail compte ses tickets","contexte":"Le compte n'existe nulle part.","criteres":["`run rail` affiche le nombre de tickets en attente"],"attend":[],"zone":["runtime/src/rail.ts"],"modele":"sonnet","effort":"low","calibrage":"Un module, un test."},{"titre":"La pass lit le compte","criteres":["`run pass` affiche le compte","Un test le couvre"],"attend":[1],"zone":["runtime/src/pass.ts","runtime/src/rail.ts"],"modele":"sonnet","effort":"medium","calibrage":"Critères précis."},{"titre":"La doc dit le compte","contexte":"Doc vivante.","criteres":["`docs/runtime.md` décrit le compte"],"attend":[1,2],"zone":["docs/runtime.md","runtime/src/pass.ts","runtime/src/rail.ts"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+{"reponse":"tickets","motif":"Un livrable par module touché.","ordre":"Le rail d'abord : la pass et la doc lisent ce qu'il expose.","tickets":[{"titre":"Le rail compte ses tickets","contexte":"Le compte n'existe nulle part.","criteres":["`run rail` affiche le nombre de tickets en attente"],"attend":[],"zone":["runtime/src/rail.ts"],"modele":"sonnet","effort":"low","calibrage":"Un module, un test."},{"titre":"La pass lit le compte","criteres":["`run pass` affiche le compte","Un test le couvre"],"attend":[],"zone":["runtime/src/pass.ts"],"modele":"sonnet","effort":"medium","calibrage":"Critères précis."},{"titre":"La doc dit le compte","contexte":"Doc vivante.","criteres":["`docs/runtime.md` décrit le compte"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
 FIN
       ;;
-    # Deux tickets qui ne s'attendent pas possèdent le même fichier.
+    # Deux tickets qui ne s'attendent pas possèdent le même fichier : le code les joint (#3130).
     decoupe-recouvre)
       assistant
       resultat <<'FIN'
@@ -589,7 +590,7 @@ FIN
     decoupe-interface)
       assistant
       resultat <<'FIN'
-{"reponse":"tickets","motif":"La carte, son libellé, ce que le rail expose, et la doc.","ordre":"Le rail d'abord.","tickets":[{"titre":"Le rail expose le compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src/rail.ts"],"cook":"general","modele":"sonnet","effort":"medium","calibrage":"Un module."},{"titre":"La carte montre le compte","criteres":["La carte affiche le compte"],"attend":[1],"zone":["app/src/vue/carte.js"],"modele":"opus","effort":"high","calibrage":"Un écran."},{"titre":"Le libellé du compte","criteres":["Le libellé se lit"],"attend":[2],"zone":["app/src/libelles.ts"],"cook":"design","modele":"sonnet","effort":"low","calibrage":"Un libellé."},{"titre":"La doc dit le compte","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+{"reponse":"tickets","motif":"La carte, son libellé, ce que le rail expose, et la doc.","ordre":"Le rail d'abord.","tickets":[{"titre":"Le rail expose le compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src/rail.ts"],"cook":"general","modele":"sonnet","effort":"medium","calibrage":"Un module."},{"titre":"La carte montre le compte","criteres":["La carte affiche le compte"],"attend":[],"zone":["app/src/vue/carte.js"],"modele":"opus","effort":"high","calibrage":"Un écran."},{"titre":"Le libellé du compte","criteres":["Le libellé se lit"],"attend":[],"zone":["app/src/libelles.ts"],"cook":"design","modele":"sonnet","effort":"low","calibrage":"Un libellé."},{"titre":"La doc dit le compte","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
 FIN
       ;;
     decoupe-question)

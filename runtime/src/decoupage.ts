@@ -12,7 +12,7 @@ import { DE_CONFIANCE } from "./alimenter.ts";
 import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
 import { demanderAvecRelance } from "./manager/decoupage-illisible.ts";
-import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
+import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, joindre, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, type Decoupe } from "./decouper.ts";
 import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
@@ -86,8 +86,8 @@ export function ouvrirDecoupage(atelier: Atelier) {
   // Demande le découpage ; s'il rend des tickets que le code refuse (zone
   // d'un dossier de produit entier, attente entre zones disjointes), le
   // refait une fois en disant pourquoi. Le second rendu fait foi : s'il a
-  // encore des défauts, on le garde et on l'avertit — `separer` tient seul le
-  // recouvrement, et le chef relit le découpage.
+  // encore des défauts, on le garde et on l'avertit — `joindre` fait un seul
+  // ticket de ceux qui se recouvrent ou s'attendent, et le chef relit le découpage.
   const demanderDecoupage = async (sujet: { numero: number; prefixe: string; nom: string }, mission: Parameters<typeof consigneDeDecoupage>[0]): Promise<Reponse<Decoupe> | null> => {
     const communs = communsDuRail(base);
     // Le plan lu est celui dont le découpage juge ce qui est d'interface ; un
@@ -116,6 +116,10 @@ export function ouvrirDecoupage(atelier: Atelier) {
         const raccords = connu.tickets.flatMap((prevu, i) =>
           (prevu.overlaps ?? []).map(({ index, path }) => `- ${numero(i + 1)} awaits ${numero(index)}: both own \`${path}\``),
         );
+        // Les tickets que le code a joints (#3130) : des zones qui se recouvraient, ou une attente.
+        const joints = connu.tickets.flatMap((prevu, i) =>
+          (prevu.joined ?? []).map(({ index, title, path }) => `- ${numero(i + 1)} holds ticket ${index} of the split, “${title}”: ${path === null ? "it awaited a ticket now in it" : `both own \`${path}\``}`),
+        );
         return [
           MARQUEUR_MANAGER,
           `**Manager — epic split into ${connu.tickets.length} ticket${connu.tickets.length > 1 ? "s" : ""}.** They are created, calibrated and fired; what becomes of them reads in the list at the bottom of the epic.`,
@@ -130,6 +134,14 @@ export function ouvrirDecoupage(atelier: Atelier) {
             (prevu, i) =>
               `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? " · design cook" : ""} |`,
           ),
+          ...(joints.length === 0
+            ? []
+            : [
+                "",
+                "**Tickets joined.** The tickets of a split never await each other: one that awaited another lost that one's whole cooking, pass, CI and merge waiting for its claim. Where the split gave the same file to two tickets, or made one await another, they are one ticket.",
+                "",
+                ...joints,
+              ]),
           ...(raccords.length === 0
             ? []
             : [
@@ -189,7 +201,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
     const { valeur } = reponse;
     if (valeur.quoi === "question") noter(epic, { type: "manager.split-asked", payload: { ...commun, question: valeur.question } });
     else if (valeur.quoi === "deja") noter(epic, { type: "manager.split-skipped", payload: { ...commun, reason: valeur.reason } });
-    else noter(epic, { type: "manager.split", payload: { ...commun, reason: valeur.reason, order: valeur.order, tickets: separer(valeur.tickets, communsDuRail(base)) } });
+    else noter(epic, { type: "manager.split", payload: { ...commun, reason: valeur.reason, order: valeur.order, tickets: joindre(valeur.tickets, communsDuRail(base)) } });
   };
 
   // Porte sur GitHub les tickets d'un découpage qui n'y sont pas encore, dans

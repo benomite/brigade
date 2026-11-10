@@ -8,8 +8,10 @@ the other. Nothing is read from the disk. The common paths (`BRIGADE_COMMON_PATH
 collision there ends in the pass sending the cook back to update, or in the gates on the merge
 ("Green means green once merged").
 
-- **At the split**, two tickets with overlapping zones that do not await each other: the code **sets
-  the dependency** (`awaiting`, `manager.split` `overlaps`).
+- **At the split**, two tickets with overlapping zones, or one that awaits the other: the code **joins
+  them into one ticket** (`manager.split` `joined`), and the split comment says so under "Tickets
+  joined". The tickets of a split never await each other (#3130): before, the code set the dependency,
+  and the second lost the first's whole cooking, pass, CI and merge waiting for its claim.
 - **On the rail**, a queued ticket whose zone overlaps that of a ticket **that has left and is not yet
   served** is **held**: `zone held by #14 (<path>)` in `run rail` and `status`.
 - **At the harvest**, a file delivered outside the ticket's zone is **flagged**, not stopped

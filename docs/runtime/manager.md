@@ -187,6 +187,14 @@ ticket placed after it, a calibration outside the table, more than twelve ticket
 manager` (`QUESTION ASKED`); answer in a comment or edit the epic, and it is read again **with the
 question**.
 
+**The tickets of a split never await each other** (#3130): two tickets whose zones overlap (the project's
+common paths aside), or one the answer makes await another, are **joined into one ticket** by the code —
+its title the titles joined by `; `, all their criteria, zones and capabilities, the highest model and effort
+of theirs, the design cook if one had it —, and the split comment names each one joined, with the path they
+shared, under "Tickets joined". Before, the second awaited the first, and lost its whole cooking, pass, CI
+and merge waiting for its claim. The instruction asks for disjoint zones and an empty `attend`; an `attend`
+between disjoint zones is refused, and the split redone once.
+
 **A ticket born from a split** carries a body starting with `Epic: #N`, then context, criteria and
 **why this calibration**; `model:`, `effort:` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
 `requires`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends

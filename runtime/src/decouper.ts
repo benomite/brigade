@@ -3,7 +3,7 @@
 // dépôt —, ce qu'il lit de sa réponse, et ce qu'il écrit des tickets qui en
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
-import { COOKS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
+import { COOKS, EFFORTS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES_EN, FORME_DE_CAPACITE } from "./capacites.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
@@ -83,10 +83,10 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "- Chaque ticket est un livrable qui tient dans une PR, et porte ses propres critères d'acceptation **observables** : ce qu'on voit, lance ou lit pour vérifier qu'il est fait. « Le code est propre » n'en est pas un.",
     "- Ensemble, les tickets couvrent les critères de l'épique, et rien de plus : tu n'inventes aucun périmètre.",
     `- Le moins de tickets possible, ${TICKETS_MAX} au plus. Une épique qui en demanderait davantage est trop grosse : c'est une question pour le chef.`,
-    "- Les tickets sont dans l'ordre où ils se cuisinent. `attend` nomme, par leur rang dans ta liste (1 pour le premier), ceux qui doivent être servis avant : seulement des rangs plus petits que le sien, et seulement quand c'est nécessaire — deux tickets qui ne s'attendent pas peuvent être cuisinés en même temps.",
+    "- Les tickets d'un découpage partent tous en même temps : aucun n'en attend un autre, et `attend` reste vide. Un ticket qui attendrait l'autre perdrait, en attente, toute sa cuisson, sa pass, sa CI et son merge : ce qui ne peut pas partir avant un autre ticket du découpage est dans ce ticket-là.",
     "- `zone` : les chemins du dépôt que le ticket possède — des fichiers ou des dossiers, relatifs à sa racine, pris dans le plan ci-dessous ou à créer. Un dossier possède tout ce qu'il contient ; jamais de motif (`*`).",
-    "- **Un fichier, un propriétaire** : deux tickets qui ne s'attendent pas, même indirectement, n'ont aucun chemin en commun — ni le même, ni un dossier et un fichier qu'il contient. Découpe pour que les zones soient disjointes. Quand deux tickets doivent vraiment toucher au même fichier, le second attend le premier (`attend`) : sinon c'est le code qui posera cette dépendance à ta place, et le dira au chef.",
-    "- **Des zones étroites** : une zone nomme les fichiers, ou à la rigueur le sous-dossier, que le ticket change — jamais un dossier de produit entier (`runtime/`, `app/`, `docs/`), qui interdit à tout autre ticket de cuire à côté. Et `attend` ne lie que des tickets dont les zones se recouvrent, ou qui ne peuvent vraiment pas partir ensemble : deux tickets aux zones disjointes cuisent en même temps. Un découpage qui y contrevient est refusé et refait une fois.",
+    "- **Un fichier, un propriétaire** : deux tickets n'ont aucun chemin en commun — ni le même, ni un dossier et un fichier qu'il contient. Découpe pour que les zones soient disjointes. Ce qui doit vraiment toucher au même fichier est un seul ticket : sinon c'est le code qui joindra ces tickets en un à ta place, et le dira au chef.",
+    "- **Des zones étroites** : une zone nomme les fichiers, ou à la rigueur le sous-dossier, que le ticket change — jamais un dossier de produit entier (`runtime/`, `app/`, `docs/`), qui interdit à tout autre ticket de cuire à côté. Deux tickets aux zones disjointes cuisent en même temps : un `attend` entre eux est refusé, et le découpage refait une fois.",
     ...(communs.length === 0
       ? []
       : [`- Ces chemins n'appartiennent à aucun ticket, presque tous y touchent : ${communs.map((chemin) => `\`${chemin}\``).join(", ")}. Ne les mets dans aucune zone ; un ticket y écrit sans les posséder.`]),
@@ -262,29 +262,76 @@ export function lireDecoupage(message: string | null, fichiers: readonly string[
   return { valeur: { quoi: "tickets", reason, order, tickets } };
 }
 
+// Le titre d'une issue GitHub tient en 256 caractères : au-delà, la création
+// est refusée. Les titres joints qui le dépassent sont coupés, et le disent.
+export const TITRE_MAX = 256;
+const titreJoint = (titres: string[]): string => {
+  const joint = titres.join("; ");
+  return joint.length <= TITRE_MAX ? joint : `${joint.slice(0, TITRE_MAX - 1).trimEnd()}…`;
+};
+
+// La valeur de `valeurs` la plus haute dans `ordre`, qui la range à son début
+// (les modèles, du plus fort) ou à sa fin (les efforts) ; une valeur hors de
+// `ordre` ne compte pas. Null si aucune n'y est.
+function plusHaut(ordre: readonly string[], valeurs: string[], haut: "debut" | "fin"): string | null {
+  const rangs = valeurs.map((valeur) => ordre.indexOf(valeur)).filter((rang) => rang >= 0);
+  if (rangs.length === 0) return null;
+  return ordre[haut === "debut" ? Math.min(...rangs) : Math.max(...rangs)] ?? null;
+}
+
 // Fait respecter « un fichier, un propriétaire » dans un découpage : deux
-// tickets dont les zones se recouvrent et qui ne s'attendent pas, même
-// indirectement, sont concurrents — le second attend alors le premier. Chaque
-// dépendance ajoutée est portée par le ticket (`overlaps`), pour être dite.
-// Du rang le plus proche au plus lointain : trois tickets sur un même fichier
-// font une file.
-export function separer(tickets: TicketPrevu[], communs: string[] = []): TicketPrevu[] {
-  // Pour chaque rang, tous ceux qu'il attend, de proche en proche.
-  const amont: Set<number>[] = [];
-  return tickets.map((prevu, i) => {
-    const attendus = new Set(prevu.waitsFor.flatMap((rang) => [rang, ...(amont[rang - 1] ?? [])]));
-    const overlaps: NonNullable<TicketPrevu["overlaps"]> = [];
-    for (let rang = i; rang >= 1; rang--) {
-      const autre = tickets[rang - 1];
-      if (!autre || attendus.has(rang)) continue;
-      const path = recouvrement(prevu.zone, autre.zone, communs);
-      if (path === null) continue;
-      overlaps.unshift({ index: rang, path });
-      for (const attendu of [rang, ...(amont[rang - 1] ?? [])]) attendus.add(attendu);
-    }
-    amont.push(attendus);
-    if (overlaps.length === 0) return prevu;
-    return { ...prevu, waitsFor: [...prevu.waitsFor, ...overlaps.map(({ index }) => index)].sort((a, b) => a - b), overlaps };
+// tickets dont les zones se recouvrent, ou dont l'un attend l'autre, sont un
+// seul ticket. Avant #3130, le second attendait le premier : posé sur le rail
+// avec lui, il perdait en attente d'une prise la cuisson, la pass, la CI et le
+// merge de chacun de ceux d'avant. L'attente d'une prise faisait 85 % du temps
+// perdu des 48 tickets que #3130 mesure, dont une file de sept tickets du site
+// sur `site/index.html` et `site/style.css` (#3111 à #3117), chacun pris à la
+// seconde où le précédent était mergé. Les tickets d'un découpage ne
+// s'attendent donc jamais : chaque ticket rendu part dès qu'une place s'ouvre,
+// et ce que les rangs joints portaient — critères, zone, capacités — passe au
+// ticket qui les joint, au calibrage le plus haut des leurs. Chaque rang joint
+// est porté par le ticket (`joined`), pour être dit.
+export function joindre(tickets: TicketPrevu[], communs: string[] = []): TicketPrevu[] {
+  // Le premier rang de son groupe, pour chaque rang (union-find, de 0).
+  const tete = tickets.map((_, i) => i);
+  const racine = (i: number): number => {
+    while (tete[i] !== i) i = tete[i] ?? i;
+    return i;
+  };
+  const unir = (a: number, b: number) => {
+    const [x, y] = [racine(a), racine(b)].sort((u, v) => u - v);
+    if (x !== undefined && y !== undefined) tete[y] = x;
+  };
+  tickets.forEach((prevu, i) => {
+    for (const rang of prevu.waitsFor) if (rang >= 1 && rang <= tickets.length) unir(i, rang - 1);
+    for (let j = 0; j < i; j++) if (recouvrement(prevu.zone, tickets[j]?.zone ?? [], communs) !== null) unir(i, j);
+  });
+  const groupes = new Map<number, number[]>();
+  tickets.forEach((_, i) => groupes.set(racine(i), [...(groupes.get(racine(i)) ?? []), i]));
+  return [...groupes.values()].map((rangs) => {
+    const membres = rangs.map((i) => tickets[i] as TicketPrevu);
+    const [premier] = membres as [TicketPrevu, ...TicketPrevu[]];
+    if (membres.length === 1) return premier;
+    const sans = <T>(valeurs: T[]) => [...new Set(valeurs)];
+    const requires = sans(membres.flatMap((m) => m.requires ?? []));
+    const joined = rangs.slice(1).map((i, k) => {
+      const prevu = membres[k + 1] as TicketPrevu;
+      const path = membres.slice(0, k + 1).reduce<string | null>((trouve, avant) => trouve ?? recouvrement(prevu.zone, avant.zone, communs), null);
+      return { index: i + 1, title: prevu.title, path };
+    });
+    return {
+      title: titreJoint(membres.map((m) => m.title)),
+      context: membres.map((m) => m.context).filter((texte) => texte !== "").join("\n\n"),
+      criteria: membres.flatMap((m) => m.criteria),
+      waitsFor: [],
+      zone: sans(membres.flatMap((m) => m.zone)),
+      ...(requires.length === 0 ? {} : { requires }),
+      joined,
+      model: plusHaut(MODELES, membres.map((m) => m.model), "debut") ?? premier.model,
+      effort: plusHaut(EFFORTS, membres.map((m) => m.effort), "fin") ?? premier.effort,
+      calibration: sans(membres.map((m) => m.calibration)).join(" "),
+      ...(membres.some((m) => m.cook === "design") ? { cook: "design" as const } : {}),
+    };
   });
 }
 
@@ -294,8 +341,8 @@ export const DOSSIERS_DE_PRODUIT = ["runtime", "app", "docs"];
 
 // Ce qui fait refuser un découpage, ou rien : une zone qui est un dossier de
 // produit entier, et deux tickets aux zones disjointes que `attend` lie quand
-// même. Les dépendances que `separer` pose pour des zones qui se recouvrent
-// ne comptent pas : elles ont leur recouvrement. Sans E/S : ce que le code
+// même. Les tickets dont les zones se recouvrent ne comptent pas : `joindre`
+// en fait un seul. Sans E/S : ce que le code
 // vérifie du découpage, pas ce que le LLM en dit.
 export function defautsDeDecoupage(tickets: TicketPrevu[], communs: string[] = []): string[] {
   const defauts: string[] = [];
