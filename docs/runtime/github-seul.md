@@ -60,7 +60,12 @@ base, the stale-branch pruning).
   back to a cook from its branch, with no `blocked-on-human` and not counted among its tries. A product or design
   question sets `blocked-on-human`, the comment opening on the question in one line
   (`**Question for the chef (product):** …`); a gesture only the chef can make sets it too, the comment opening on the
-  exact gesture (`**Gesture for the chef:** …`). After two technical answers, the third block goes back to the manager
+  exact gesture (`**Gesture for the chef:** …`) — unless that gesture is a `gh` command the station makes itself with
+  its GitHub access: `gh issue create`, `gh issue|pr comment`, `gh issue|pr edit --add-label|--remove-label`,
+  `gh run rerun` (`runtime/src/geste-station/`). The station makes it, posts the result (the new issue's number…) on
+  the ticket, where the resuming cook reads it, removes `blocked-on-human`, and the ticket goes back to a cook — no
+  card. A GitHub call that fails counts as a cook without a delivery, its error written on the ticket (`brigade:echec`),
+  never a card asking the chef to run the command. Seen on 2026-11-10 (#3136). After two technical answers, the third block goes back to the manager
   with both answers, and its decision is appended to the ticket's body once (`<!-- brigade:decision-du-manager -->`);
   a block on a ticket that already carries it, or a decision the station cannot write, counts as a cook without a
   delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
