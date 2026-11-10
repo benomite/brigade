@@ -119,6 +119,44 @@ test("a lost-time ticket body built from a fixture gives, per measured ticket, i
   assert.doesNotMatch(corps, /box\/before|runtime\.ticked/);
 });
 
+// BOBL-tech/espace#840 (#3156) : 40 min d'attente d'une prise l'après-midi,
+// quand les 40 premiers événements de la fenêtre tombaient tous le matin — la
+// preuve n'avait aucune ligne pour la dire. Plus de 40 événements, elle cite
+// ceux des attentes d'une prise des tickets qui ont le plus attendu.
+test("over 40 journal events, the lost-time evidence cites those in the claim waits of the tickets that waited longest, not the first of the window", async (t) => {
+  const enregistrements = temps();
+  // 102 : rendu sans livraison à 10:40, repris à 10:50 — une seconde attente d'une prise.
+  // 103 : déposé à 8:00, `fire` plus d'une heure après — son attente part de `fire`, comme la
+  // mesure la compte : les 50 événements de 9:21 ne sont pas les siens.
+  const depots: Record<number, DepotDuTicket> = {
+    ...DEPOTS,
+    103: { ...(DEPOTS[103] as DepotDuTicket), deposeAt: "2026-11-07T08:00:00.000Z" },
+    102: { ...(DEPOTS[102] as DepotDuTicket), faits: [{ quoi: "prise", at: "2026-11-07T10:20:00.000Z" }, { quoi: "rendu", at: "2026-11-07T10:40:00.000Z" }, { quoi: "prise", at: "2026-11-07T10:50:00.000Z" }] },
+  };
+  const repertoire = repertoireTemporaire(t);
+  let maintenant = new Date("2026-11-07T08:00:00.000Z");
+  const journal = ouvrirJournal(repertoire, { maintenant: () => maintenant });
+  const noter = (at: string, type: string, payload: object) => {
+    maintenant = new Date(at);
+    journal.ajouter({ project: "p", ticket: null, author: "runtime", type, payload } as Parameters<typeof journal.ajouter>[0]);
+  };
+  // 50 événements hors de toute attente, entre la prise de 101 et le dépôt de 102.
+  for (let i = 0; i < 50; i++) noter(new Date(Date.UTC(2026, 10, 7, 9, 21, i)).toISOString(), "station.held", { station: `box/noise-${i}` });
+  noter("2026-11-07T10:45:00.000Z", "station.held", { station: "box/a", reason: "reclaim-102" });
+  noter("2026-11-07T11:05:00.000Z", "station.held", { station: "box/a", reason: "wait-103" });
+  noter("2026-11-07T12:10:00.000Z", "station.held", { station: "box/a", reason: "wait-104" });
+  journal.fermer();
+  const github: GitHubDeLaPreuve = { commentaires: async (numero) => COMMENTAIRES[numero] ?? [], depotDuTicket: async (numero) => depots[numero] ?? null };
+  const corps = await preuveDeMesure({ github, repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
+  assert.match(corps, /_53 events in this window: the 3 cited fall in the claim waits of #102, #103, #104, the tickets that waited longest for a claim — from filing or `fire` to first claim/);
+  assert.match(corps, /- 2026-11-07T10:45:00.000Z `station.held` station=box\/a reason=reclaim-102\n- 2026-11-07T11:05:00.000Z `station.held` station=box\/a reason=wait-103\n- 2026-11-07T12:10:00.000Z `station.held` station=box\/a reason=wait-104\n- and 50 more$/);
+  assert.doesNotMatch(corps, /box\/noise/);
+  // Sans attente lue sur GitHub, les 40 premiers de la fenêtre, comme avant.
+  const sansDepot = await preuveDeMesure({ github: { commentaires: github.commentaires }, repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
+  assert.match(sansDepot, /box\/noise-39 *\n- and 13 more$/);
+  assert.doesNotMatch(sansDepot, /box\/noise-40|wait-104|events in this window/);
+});
+
 // BOBL-tech/mirrorlab#670 (#3036) : son cook s'est arrêté bloqué, le manager a
 // répondu, et un cook suivant a livré. La mesure comptait 5 min de cook raté ;
 // la preuve disait « first try », sans la question du cook.

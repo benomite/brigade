@@ -543,10 +543,15 @@ blocked on #2832 and #2837. When it files one, the station appends an "Evidence"
 project's GitHub and its own journal: every recent ticket measured, with the reason of each send-back and failed
 cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its loss,
 and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
-heartbeat), 40 at most. The lost time counts as a failed cook every cook given back without a delivery, so its
-evidence also names the stops the quality does not count as a try — a block the manager answered, a stop on an open
-ticket, a stop the cook did not cause —, each with the cook's words (#3036), when its station comment quotes them
-— in English only: words the cook wrote in French and nothing translated are not quoted (#3033). Before, BOBL-tech/mirrorlab#670 read
+heartbeat), 40 at most. Over 40, the events cited are those in the claim waits of the five tickets that waited
+longest for a claim, an equal share each, in the journal's order (#3156): from filing — or from `fire` set over an
+hour later, as the measure counts it — to the first claim, and from each cook given back to the next claim, as
+GitHub dates them. The first 40 of BOBL-tech/espace's window all fell in its first hour, and #840's 40 min wait
+for a claim, an afternoon later, had no line to say it. With no wait read on GitHub, the first 40 of the window.
+The lost time counts as a failed cook every cook given back without a delivery, so its evidence also names the
+stops the quality does not count as a try — a block the manager answered, a stop on an open ticket, a stop the
+cook did not cause —, each with the cook's words (#3036), when its station comment quotes them — in English only:
+words the cook wrote in French and nothing translated are not quoted (#3033). Before, BOBL-tech/mirrorlab#670 read
 "first try" over 5 min of failed cooks, and the cook's question that cost them was written nowhere in the ticket.
 A read that fails is named on its line, with its error: the ticket is filed all the same.
 When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,

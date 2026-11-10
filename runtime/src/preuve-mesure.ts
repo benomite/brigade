@@ -39,7 +39,7 @@ import type { QualiteDuTicket } from "./mesure-qualite.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "./qualite-github.ts";
 import { dureeDuTicket, pertesDuTicket, tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
 import type { TempsTicket } from "./temps-ticket/ligne-status.ts";
-import type { DepotDuTicket } from "./temps-ticket/mesure.ts";
+import { type DepotDuTicket, RAIL_PLUS_TARD_MS } from "./temps-ticket/mesure.ts";
 
 export type SorteDeMesure = "qualite" | "temps-perdu";
 
@@ -183,17 +183,92 @@ const ligneDeLEvenement = (e: EvenementDuJournal, projet?: string) => {
   return `- ${e.at} \`${e.type}\`${e.ticket === null ? "" : ` ${nomme(e.ticket, projet)}`}${cite === "" ? "" : ` ${cite}`}`;
 };
 
+// Les attentes d'une prise d'un ticket, en millisecondes, d'après ce que
+// GitHub en dit : du dépôt à sa première prise — de `fire` s'il a été posé
+// plus d'une heure après le dépôt, comme la mesure (`marquesDuDepot`) —, puis
+// de chaque cook rendu sans livraison à la prise suivante, ou au merge. Sans
+// dépôt lu, aucune.
+function attentesDuTicket(p: PreuveDuTicket): { debut: number; fin: number }[] {
+  const depot = p.depot;
+  if (depot === undefined || "erreur" in depot) return [];
+  const merge = Date.parse(p.temps.mergedAt ?? "");
+  const depose = Date.parse(depot.deposeAt);
+  const fire = Date.parse(depot.fireAt ?? "");
+  const debut = !Number.isNaN(fire) && fire - depose > RAIL_PLUS_TARD_MS ? fire : depose;
+  const attentes = [{ debut, fin: Date.parse(depot.priseAt ?? "") }];
+  let rendu: number | null = null;
+  for (const fait of depot.faits ?? []) {
+    const at = Date.parse(fait.at);
+    if (Number.isNaN(at)) continue;
+    if (fait.quoi === "rendu") rendu ??= at;
+    else if (fait.quoi === "prise" && rendu !== null) {
+      attentes.push({ debut: rendu, fin: at });
+      rendu = null;
+    }
+  }
+  if (rendu !== null) attentes.push({ debut: rendu, fin: merge });
+  return attentes
+    .map(({ debut, fin }) => ({ debut, fin: Number.isNaN(fin) ? merge : fin }))
+    .filter(({ debut, fin }) => !Number.isNaN(debut) && !Number.isNaN(fin) && fin >= debut);
+}
+
+// Combien des tickets qui ont le plus attendu une prise la section suit dans le journal.
+const TICKETS_SUIVIS = 5;
+
+// Les événements que la section cite, au plus `EVENEMENTS_CITES`, dans l'ordre
+// du journal. Plus nombreux, ceux des attentes d'une prise des tickets qui ont
+// le plus attendu (`suivis`), à parts égales : les 40 premiers de la fenêtre
+// tombaient tous dans sa première heure, et l'attente de 40 min d'un ticket
+// déposé l'après-midi n'avait aucune ligne pour la dire (#3156). Sans attente
+// lue sur GitHub, ou sans événement dedans, les premiers de la fenêtre.
+function evenementsCites(
+  evenements: readonly EvenementDuJournal[],
+  tickets: readonly PreuveDuTicket[],
+): { cites: EvenementDuJournal[]; suivis: number[] } {
+  const premiers = { cites: evenements.slice(0, EVENEMENTS_CITES), suivis: [] };
+  if (evenements.length <= EVENEMENTS_CITES) return premiers;
+  const instants = evenements.map((e) => Date.parse(e.at));
+  const dedans = (attentes: { debut: number; fin: number }[]) =>
+    instants.flatMap((at, rang) => (attentes.some(({ debut, fin }) => at >= debut && at <= fin) ? [rang] : []));
+  const files = tickets
+    .map((p) => ({ ticket: p.temps.ticket, attente: pertesDuTicket(p.temps).attente, attentes: attentesDuTicket(p) }))
+    .filter(({ attente }) => attente > 0)
+    .sort((a, b) => b.attente - a.attente)
+    .map(({ ticket, attentes }) => ({ ticket, rangs: dedans(attentes) }))
+    .filter(({ rangs }) => rangs.length > 0)
+    .slice(0, TICKETS_SUIVIS);
+  const pris = new Set<number>();
+  for (let tour = 0; pris.size < EVENEMENTS_CITES && files.some(({ rangs }) => rangs.length > tour); tour++) {
+    for (const { rangs } of files) {
+      const rang = rangs[tour];
+      if (rang !== undefined && pris.size < EVENEMENTS_CITES) pris.add(rang);
+    }
+  }
+  if (pris.size === 0) return premiers;
+  const cites = [...pris].sort((a, b) => a - b).flatMap((rang) => evenements[rang] ?? []);
+  return { cites, suivis: files.map(({ ticket }) => ticket) };
+}
+
 // La section d'un ticket du temps perdu : par ticket, ses instants, sa perte et
 // ses raisons ; puis les événements du journal de la fenêtre.
 export function sectionDuTempsPerdu(tickets: readonly PreuveDuTicket[], journal: JournalDeLaFenetre, projet?: string): string {
+  const choix = "erreur" in journal ? null : evenementsCites(journal.evenements, tickets);
   const evenements =
     "erreur" in journal
       ? [`- the station's journal could not be read: ${court(journal.erreur)}`]
-      : journal.evenements.length === 0
+      : journal.evenements.length === 0 || choix === null
         ? ["- no event in this window"]
         : [
-            ...journal.evenements.slice(0, EVENEMENTS_CITES).map((e) => ligneDeLEvenement(e, projet)),
-            ...(journal.evenements.length > EVENEMENTS_CITES ? [`- and ${journal.evenements.length - EVENEMENTS_CITES} more`] : []),
+            ...(choix.suivis.length === 0
+              ? []
+              : [
+                  `_${journal.evenements.length} events in this window: the ${choix.cites.length} cited fall in the claim waits of ` +
+                    `${choix.suivis.map((n) => nomme(n, projet)).join(", ")}, the tickets that waited longest for a claim — ` +
+                    "from filing or `fire` to first claim, and from each cook given back to the next claim._",
+                  "",
+                ]),
+            ...choix.cites.map((e) => ligneDeLEvenement(e, projet)),
+            ...(journal.evenements.length > choix.cites.length ? [`- and ${journal.evenements.length - choix.cites.length} more`] : []),
           ];
   return [
     ...enTete(tickets, projet),

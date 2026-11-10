@@ -187,6 +187,16 @@ ticket placed after it, a calibration outside the table, more than twelve ticket
 manager` (`QUESTION ASKED`); answer in a comment or edit the epic, and it is read again **with the
 question**.
 
+**A split holds no other issue back** (#3156). It runs outside the manager's turn, as a station's review runs
+outside its own (#2329): the turn goes on judging and launching the other issues, and one filed while the split
+thinks is judged at the next wake-up. Before, the turn served the open issues one after the other and awaited the
+split's `claude` in place: an issue filed meanwhile was not even read before the turn ended, and the time until
+its `fire` counted, in full, in its wait for a claim. BOBL-tech/espace#840, filed at 15:27 on 2026-11-09, got
+`fire` at 16:07:17; 40 of its 41 min of wait for a claim were before `fire`, and tickets fired two seconds after
+their filing — as a split launches them — were filed from 16:08:54 (#843 to #849). That fits a split thinking in
+the turn; the station's journal of that hour was not read (a cook cannot reach it), so it is not proven. One
+split at a time per epic; what it leaves to do, the next wake-up takes back.
+
 **The tickets of a split never await each other** (#3130): two tickets whose zones overlap (the project's
 common paths aside), or one the answer makes await another, are **joined into one ticket** by the code —
 its title the titles joined by `; `, all their criteria, zones and capabilities, the highest model and effort
