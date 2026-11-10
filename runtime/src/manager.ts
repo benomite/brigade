@@ -292,6 +292,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const faitsAilleurs = new Set<string>();
   // Les issues que le tour est en train de servir.
   const servies = new Map<number, Servie>();
+  // Les épiques dont le découpage tourne hors du tour, et leur issue servie.
+  const decoupages = new Map<number, Servie>();
 
   // L'état sous lequel le travail d'une issue se prend : l'empreinte de ses
   // jugements. Rendue par le chef, elle est un travail neuf même inchangée.
@@ -308,7 +310,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // tient, ou il ne se prend pas (pas de nom de station, ou une issue que le
   // tour ne sert pas). Faux s'il est à une autre, ou que GitHub ne répond pas.
   const tenir = async (numero: number): Promise<boolean> => {
-    const servie = servies.get(numero);
+    const servie = servies.get(numero) ?? decoupages.get(numero);
     if (station === null || servie === undefined) return true;
     try {
       const etat = await etatDe(servie);
@@ -799,13 +801,34 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
     if (epique) {
       if (arrete || !managerAllume(base)) return "arret";
-      const { corps, echanges } = await lire(issue);
-      return (await decoupage.traiter(issue, corps, echanges)) ? "fait" : "reste";
+      decouperHorsDuTour(issue, servies.get(issue.number) ?? { issue });
+      return "reste";
     }
     // Éteint pendant le jugement : la décision est au journal, rien n'est
     // posé. Elle le sera, sans rejuger, quand le chef rallumera.
     if (arrete || !managerAllume(base)) return "arret";
     return (await appliquer(issue)) ? "fait" : "reste";
+  };
+
+  // Le découpage d'une épique tourne hors du tour, comme la relecture d'une
+  // station (#2329) : un `claude` de plusieurs minutes ne retient plus le
+  // jugement des autres issues. Avant, un ticket déposé pendant un découpage
+  // attendait `fire` jusqu'à la fin du tour — 40 min pour BOBL-tech/espace#840,
+  // comptées dans son attente d'une prise (#3156). Un découpage à la fois par
+  // épique ; ce qui reste à faire, le réveil suivant le reprend.
+  const decouperHorsDuTour = (issue: IssueOuverte, servie: Servie) => {
+    if (decoupages.has(issue.number)) return;
+    decoupages.set(issue.number, servie);
+    void (async () => {
+      try {
+        const { corps, echanges } = await lire(issue);
+        if (await decoupage.traiter(issue, corps, echanges)) await finir(issue.number);
+      } catch (erreur) {
+        if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : découpage de l'épique #${issue.number} interrompu — ${message(erreur)}`);
+      } finally {
+        decoupages.delete(issue.number);
+      }
+    })();
   };
 
   // Un tour : chaque issue ouverte est triée par le code, et seules celles
@@ -839,6 +862,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const remises = remisesEnAttente(base);
     for (const sondee of issues.filter(lisible).sort(ordre)) {
       if (arrete || !managerAllume(base)) return;
+      // Son découpage tourne encore : le tour passe à la suivante.
+      if (decoupages.has(sondee.number)) {
+        complet = false;
+        continue;
+      }
       const servie = { issue: sondee } as Servie;
       servies.set(sondee.number, servie);
       try {

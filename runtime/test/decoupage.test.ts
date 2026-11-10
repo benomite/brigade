@@ -89,6 +89,26 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.deepEqual(pressions, [1, 2, 3]);
   });
 
+  // BOBL-tech/espace#840 (#3156) : déposé pendant un découpage, il attendait
+  // `fire` la fin du tour du manager — 40 min comptées dans son attente d'une prise.
+  test("un ticket déposé pendant le découpage d'une épique est jugé et lancé sans attendre la fin du découpage (#3156)", async (t) => {
+    const feu = join(repertoireTemporaire(t), "feu");
+    const c = brigade(t, { manager: { suite: ["decoupe-tickets-lent"], jugement: "juge-ticket" }, env: { FAUX_CLAUDE_FEU: feu }, issues: [issue(30, ["epic", "prio:1"])] });
+    epique(c);
+    await jusqua(() => c.jugements().length === 1);
+
+    c.gh.poser(issue(31, []));
+    await jusqua(() => c.labels(31).includes("fire"));
+    // Le découpage tourne encore, une seule fois : rien n'est né de l'épique.
+    assert.equal(c.jugements().length, 2);
+    assert.deepEqual(c.gh.creations, []);
+
+    writeFileSync(feu, "");
+    await c.decoupee(30);
+    assert.deepEqual(c.gh.creations, [501, 502, 503]);
+    assert.equal(c.jugements().length, 2);
+  });
+
   test("le découpage pose sur la fiche les capacités que chaque ticket demande, devant celles que les stations du projet fournissent", async (t) => {
     const c = brigade(t, { decoupage: "decoupe-capacites", issues: [issue(30, ["epic"])] });
     // Les stations que le projet a annoncées au journal.

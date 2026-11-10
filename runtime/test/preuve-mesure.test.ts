@@ -126,8 +126,11 @@ test("a lost-time ticket body built from a fixture gives, per measured ticket, i
 test("over 40 journal events, the lost-time evidence cites those in the claim waits of the tickets that waited longest, not the first of the window", async (t) => {
   const enregistrements = temps();
   // 102 : rendu sans livraison à 10:40, repris à 10:50 — une seconde attente d'une prise.
+  // 103 : déposé à 8:00, `fire` plus d'une heure après — son attente part de `fire`, comme la
+  // mesure la compte : les 50 événements de 9:21 ne sont pas les siens.
   const depots: Record<number, DepotDuTicket> = {
     ...DEPOTS,
+    103: { ...(DEPOTS[103] as DepotDuTicket), deposeAt: "2026-11-07T08:00:00.000Z" },
     102: { ...(DEPOTS[102] as DepotDuTicket), faits: [{ quoi: "prise", at: "2026-11-07T10:20:00.000Z" }, { quoi: "rendu", at: "2026-11-07T10:40:00.000Z" }, { quoi: "prise", at: "2026-11-07T10:50:00.000Z" }] },
   };
   const repertoire = repertoireTemporaire(t);
@@ -145,7 +148,7 @@ test("over 40 journal events, the lost-time evidence cites those in the claim wa
   journal.fermer();
   const github: GitHubDeLaPreuve = { commentaires: async (numero) => COMMENTAIRES[numero] ?? [], depotDuTicket: async (numero) => depots[numero] ?? null };
   const corps = await preuveDeMesure({ github, repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
-  assert.match(corps, /_53 events in this window: the 3 cited fall in the claim waits of #102, #103, #104, the tickets that waited longest for a claim/);
+  assert.match(corps, /_53 events in this window: the 3 cited fall in the claim waits of #102, #103, #104, the tickets that waited longest for a claim — from filing or `fire` to first claim/);
   assert.match(corps, /- 2026-11-07T10:45:00.000Z `station.held` station=box\/a reason=reclaim-102\n- 2026-11-07T11:05:00.000Z `station.held` station=box\/a reason=wait-103\n- 2026-11-07T12:10:00.000Z `station.held` station=box\/a reason=wait-104\n- and 50 more$/);
   assert.doesNotMatch(corps, /box\/noise/);
   // Sans attente lue sur GitHub, les 40 premiers de la fenêtre, comme avant.
