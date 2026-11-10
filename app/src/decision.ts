@@ -7,14 +7,17 @@
 // Ce module ne lance rien : il dit.
 
 // La décision, telle que le runtime la donne : ses mots sont les siens (`merge`, `review-required`…).
-export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null };
+// `demande` : ce que l'issue demande au chef — sa demande de décision, ou la dernière question de la brigade —, quand le runtime la donne.
+export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null; demande?: string | null };
 
 // Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue
 // — là où le chef répond, recalibre ou corrige —, la renvoyer en cuisine.
 export type GesteAttendu = "retirer" | "issue" | "cuisine";
-export type Attendu = { phrase: string; gestes: GesteAttendu[] };
+// `phrase` : la question, en une phrase. `sansQuestion` : aucune question n'a été trouvée, la phrase le dit.
+export type Attendu = { phrase: string; gestes: GesteAttendu[]; sansQuestion?: true };
 
-export const SANS_DECISION = "This ticket waits for your decision — its issue says which.";
+// Le texte d'une carte dont on ne trouve pas la question : il dit le fait, il n'envoie pas le chef à l'issue.
+export const sansQuestion = (ticket: number): string => `no question found on #${ticket}`;
 
 // Une livraison verte que la pass ne merge pas elle-même : elle se merge sur sa PR, sur GitHub — aucun geste de l'app.
 const VERTE: Readonly<Record<string, string>> = {
@@ -46,12 +49,20 @@ const SORTIR = (pr: string | null): Pick<Attendu, "gestes"> & { suite: string } 
 function remontee({ motif, cause, pr }: Decision): Attendu {
   const { suite, gestes } = SORTIR(pr);
   if (motif === "still-red") return { phrase: `${cause === "manager-escalated" ? "The manager gave up after repeated reds" : "Still red after its returns, the pass gave up"}: ${suite}`, gestes };
-  if (motif === "unjudged") return { phrase: `The pass could not judge it: see what its issue says, then ${suite}`, gestes };
+  if (motif === "unjudged") return { phrase: `The pass could not judge it: ${suite}`, gestes };
   return { phrase: `Sent back to you: ${suite}`, gestes };
 }
 
-export function attenduDe(decision: Decision | undefined): Attendu {
-  if (decision === undefined) return { phrase: SANS_DECISION, gestes: [] };
+export function attenduDe(decision: Decision | undefined, ticket: number): Attendu {
+  const sans = (gestes: GesteAttendu[]): Attendu => ({ phrase: sansQuestion(ticket), gestes, sansQuestion: true });
+  if (decision === undefined) return sans([]);
+  // Une demande que l'issue porte dit la question mieux que toute phrase de sorte : la première, en une phrase.
+  const demande = typeof decision.demande === "string" ? premierePhrase(decision.demande) : "";
+  const attendu = attenduDeSorte(decision, sans);
+  return demande === "" ? attendu : { phrase: demande, gestes: attendu.gestes };
+}
+
+function attenduDeSorte(decision: Decision, sans: (gestes: GesteAttendu[]) => Attendu): Attendu {
   const { quoi, motif } = decision;
   switch (quoi) {
     case "merge":
@@ -61,7 +72,7 @@ export function attenduDe(decision: Decision | undefined): Attendu {
     case "fermee":
       return { phrase: "Its PR was closed without a merge: take it off the rail, or close its issue.", gestes: ["retirer"] };
     case "86":
-      return (motif === null ? undefined : DE_STATION[motif]) ?? { phrase: SANS_DECISION, gestes: ["issue"] };
+      return (motif === null ? undefined : DE_STATION[motif]) ?? sans(["issue"]);
     case "capacite":
       return { phrase: "No declared station provides what it needs: provide it, and it starts again on its own.", gestes: [] };
     case "absente":
@@ -69,7 +80,7 @@ export function attenduDe(decision: Decision | undefined): Attendu {
     case "bloque":
       return { phrase: "It waits for a ticket that left the rail unserved: put that ticket back on the rail, or drop it from this ticket's card.", gestes: ["issue"] };
     case "ecartee":
-      return (motif === null ? undefined : ECARTEES[motif]) ?? { phrase: SANS_DECISION, gestes: ["issue"] };
+      return (motif === null ? undefined : ECARTEES[motif]) ?? sans(["issue"]);
     case "illisible":
       return motif === "epic"
         ? { phrase: "The manager could not read its split: edit the epic and it splits it again, or close the issue.", gestes: ["issue"] }
@@ -85,7 +96,7 @@ export function attenduDe(decision: Decision | undefined): Attendu {
       // Sorti du rail par la cuisine sans être servi (#2118) : ses trois gestes sont les choix de sa carte.
       return { phrase: "The kitchen took it off the rail without serving it: put it back, take it in a dev session, or close it — its card says why.", gestes: [] };
     default:
-      return { phrase: SANS_DECISION, gestes: [] };
+      return sans([]);
   }
 }
 
@@ -95,8 +106,8 @@ const texteOuRien = (valeur: unknown): valeur is string | null => valeur === nul
 // La même, venue d'ailleurs — la vue, une sortie de box : ce qui n'a pas la forme d'une décision n'en est pas une.
 export function decisionLue(brute: unknown): Decision | undefined {
   if (typeof brute !== "object" || brute === null) return undefined;
-  const { quoi, motif, cause, pr } = brute as Record<string, unknown>;
-  return texte(quoi) && texteOuRien(motif) && texteOuRien(cause) && texteOuRien(pr) ? { quoi, motif, cause, pr } : undefined;
+  const { quoi, motif, cause, pr, demande } = brute as Record<string, unknown>;
+  return texte(quoi) && texteOuRien(motif) && texteOuRien(cause) && texteOuRien(pr) ? { quoi, motif, cause, pr, ...(texte(demande) ? { demande } : {}) } : undefined;
 }
 
 // Ce que la pass a consigné de la livraison qui attend (runtime/src/attend.ts, `Livraison`) : le

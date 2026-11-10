@@ -96,7 +96,7 @@ export function gestesDeLaFiche(carte: CarteDeFiche, actions: Actions = ACTIONS)
   };
   // L'issue ne se propose que si elle s'ouvre ; la PR, que s'il y en a une qui s'ouvre.
   const possible = (id: IdDeFiche) => branche(id) && (id !== "issue" || carte.ouvrable) && (id !== "pr" || carte.pr === true);
-  const attendus = carte.attendu ? attenduDe(carte.decision).gestes.filter(possible) : [];
+  const attendus = carte.attendu ? attenduDe(carte.decision, carte.ticket).gestes.filter(possible) : [];
   const enPlus = carte.etat === undefined ? [] : (EN_PLUS[carte.etat] ?? []);
   const tous: IdDeFiche[] = [
     ...attendus,

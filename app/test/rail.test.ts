@@ -1255,7 +1255,7 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     recevoir(vue, dessinable(FAITS, AVEC_RENONCE));
     await ouvrirFiche(vue, 12);
     const panneau = fiche(vue).children[0] ?? assert.fail("pas de panneau");
-    assert.equal(panneau.children[1]?.textContent, "This ticket waits for your decision — its issue says which.");
+    assert.equal(panneau.children[1]?.textContent, "no question found on #12");
     assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"]);
     assert.doesNotMatch(visible(vue), /brigade parade|remontée/);
   });
