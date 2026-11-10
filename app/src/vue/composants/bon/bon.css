@@ -76,6 +76,23 @@
   color: inherit;
   text-decoration: underline;
 }
+/* Une carte que plus aucun cook ne prendra (#3147) : son bord et sa première ligne la distinguent de celles qui attendent leur tour. */
+.bon[data-refus] {
+  border-inline-start: 3px solid var(--bon-alerte, currentColor);
+}
+.bon p.refus-ligne {
+  font-weight: 600;
+  color: var(--bon-alerte, var(--bon-encre));
+}
+.bon .gestes-du-refus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.bon .gestes-du-refus p.secondaire {
+  display: contents;
+}
 .bon p.signal {
   font-weight: 600;
   color: var(--bon-encre);

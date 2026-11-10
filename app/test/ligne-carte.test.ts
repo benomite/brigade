@@ -55,20 +55,20 @@ describe("la phrase de chaque état d'une carte (#622)", () => {
 
   test("en attente : après les tickets qui la retiennent, ou prête à prendre une place — jamais « non communiqué »", () => {
     assert.deepEqual(phrase(de(FAITS, 2)), { ligne: PRET });
-    assert.deepEqual(ligneEnAttente("en attente", "zone tenue par #14 (app/src)"), { ligne: "after #14" });
-    assert.deepEqual(ligneEnAttente("en attente", "après #604 et #605, puis #604"), { ligne: "after #604, #605" });
+    assert.deepEqual(ligneEnAttente("en attente", "zone tenue par #14 (app/src)"), { ligne: "Waiting for #14", liens: [14] });
+    assert.deepEqual(ligneEnAttente("en attente", "après #604 et #605, puis #604"), { ligne: "Waiting for #604, #605", liens: [604, 605] });
     assert.deepEqual(ligneEnAttente("en attente", undefined), { ligne: PRET });
   });
 
   test("bloquée : ce qui la retient, avec un signal ; sans cause donnée, le repère", () => {
-    assert.deepEqual(ligneEnAttente("BLOQUÉ", "zone tenue par #14"), { ligne: "after #14", signal: "blocked" });
+    assert.deepEqual(ligneEnAttente("BLOQUÉ", "zone tenue par #14"), { ligne: "Waiting for #14", signal: "blocked", liens: [14] });
     assert.deepEqual(ligneEnAttente("BLOQUÉ", "label `fire` manquant"), { ligne: "label `fire` manquant", signal: "blocked" });
     assert.deepEqual(ligneEnAttente("BLOQUÉ", undefined), { ligne: "blocked", signal: "blocked", repere: true });
   });
 
   test("mise de côté (86) : sa raison en clair, jamais le mot « 86 »", () => {
     const carte = de(FAITS, 4);
-    assert.deepEqual(phrase(carte), { ligne: "attend : setup du projet impossible", signal: "set aside" });
+    assert.deepEqual(phrase(carte), { ligne: "Will not start: the project's setup fails, so no cook can prepare its workspace.", signal: "set aside" });
     assert.deepEqual(ligneMiseDeCote("x"), { ligne: "x", signal: "set aside" });
     assert.doesNotMatch(JSON.stringify(phrase(carte)), /\b86\b/);
   });

@@ -179,6 +179,8 @@ export type Pont = {
   // qu'il attend, de qui, le jour de la relance. Rend le second, ce qui est écrit (`fait`), ou pourquoi rien n'est parti.
   // « it arrived, back to the kitchen » (`attente-arrivee`) part sur le tableau de la cuisine : il rend
   // ce qui est posté (`fait`, le commentaire au survol), ou pourquoi rien ne l'est.
+  // Un geste d'une carte mise de côté (gestes-refus.ts, ticket 3147) : `relancer` retire `served-elsewhere` de l'issue, `clore` la ferme comme terminée.
+  refus(projet: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce

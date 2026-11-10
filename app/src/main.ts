@@ -40,6 +40,7 @@ import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { INTERVALLE_PAR_PROJET_MS, lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
+import { jouerLeRefus } from "./gestes-refus.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
@@ -851,6 +852,16 @@ ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unkn
   }
   if (!surGithub(id)) return { refus: `nothing was done: “${String(id)}” is not a gesture the app plays here`, detail: "" };
   const rendu = await retirerLeLabel(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
+  if ("fait" in rendu) tableaux.oublier();
+  return rendu;
+});
+// Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
+// « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (gestes-refus.ts). « Ask the second »
+// passe par `passerAuSecond`, plus haut.
+ipcMain.handle("refus", async (_, nom: unknown, id: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  const rendu = await jouerLeRefus(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });

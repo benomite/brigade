@@ -635,7 +635,7 @@ describe("le rail en six colonnes", () => {
 
   test("un ticket `86` ou d'un mot inconnu n'est d'aucune colonne : il est rendu à part, avec son mot — et dans T'attend si la file dit qu'il attend", () => {
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL }, BLOC).hors, [
-      { ticket: 40, etat: "86", mot: "set aside", ton: "rouge", titre: "Ticket 40", ouvrable: true, attendu: false, attend: [], ...NUE, ...fiche("Ticket 40") },
+      { ticket: 40, etat: "86", mot: "set aside", ton: "rouge", titre: "Ticket 40", ouvrable: true, attendu: false, attend: [], ...NUE, ligne: "Will not start: the station set it aside and no cook will take it again until someone decides what to do with it.", signal: "set aside", refus: { brut: "" }, ...fiche("Ticket 40") },
       { ticket: 41, etat: "au four", titre: "Ticket 41", ouvrable: true, attendu: false, attend: [], ...NUE, ...fiche("Ticket 41") },
     ]);
     const remonte = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, { ...BLOC, bloc: "attend     1 décision attend le chef depuis 2 j\n  #40  depuis 2 j  remontée par la pass, rouge\nfin attend\n" });

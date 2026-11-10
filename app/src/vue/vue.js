@@ -116,6 +116,7 @@ import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
+import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
@@ -1069,6 +1070,9 @@ const envoisDeCommentaire = new Map();
 // terminal), ou ce qui l'a empêchée. La fiche et la carte la disent toutes deux.
 /** @type {Map<string, { envoi: true } | { parti: string } | { refus: string }>} */
 const demandesAuSecond = new Map();
+// Le geste en route (`envoi`) ou refusé (`refus`) d'une carte mise de côté (ticket 3147), par `projet#ticket`.
+/** @type {Map<string, { envoi: "relancer" | "clore" } | { refus: string }>} */
+const refusDeCartes = new Map();
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
 const situations = new Map();
@@ -2815,6 +2819,14 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   }
   // Un agent y travaille en ce moment : la poêle grésille au bout de sa tête (ticket 2984).
   if (cuit) tete.append(poele(document));
+  // Une carte que plus aucun cook ne prendra dit en haut pourquoi, en mots simples (ticket 3147) ; ce que la station en a écrit
+  // est derrière « details ». Ses trois gestes sont au pied de la carte.
+  if (carte.refus === undefined) refusDeCartes.delete(`${projet.nom}#${ticket}`);
+  else {
+    bon.dataset.refus = "";
+    const { phrase, details } = ligneDuRefus(document, carte.ligne ?? "", carte.refus.brut);
+    tete.after(...(details === undefined ? [phrase] : [phrase, details]));
+  }
   const etiquettes = poserEtiquettes(document, carte, avecStation);
   if (etiquettes !== null) bon.append(etiquettes);
   // Sur le rail, en attente : sa priorité, sous son numéro
@@ -2850,8 +2862,9 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // du bon ne le redit pas. Répondue — envoyée, ou jouée —, elle ne demande plus de répondre : la phrase se tait aussi.
   const vuDeTodo = attendu && carte.todo !== undefined ? vuDeLaCarte(carte.todo, etatDeLaCarte(projet, ticket, carte.todo)).vu : undefined;
   const todoRepondue = vuDeTodo === "attente" || vuDeTodo === "jouee";
-  if (carte.ligne !== undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
-    const phrase = carte.miseDeCote === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, carte.miseDeCote.liens);
+  if (carte.ligne !== undefined && carte.refus === undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
+    const liens = carte.miseDeCote?.liens ?? carte.liens;
+    const phrase = liens === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, liens);
     phrase.className = "ligne-carte";
     bon.append(phrase);
   }
@@ -2892,6 +2905,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     bon.append(ouvre);
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
+  if (carte.refus !== undefined) bon.append(poserLesGestesDuRefus(projet, ticket));
   bon.append(...poserGestesDAttente(projet, carte), ...signalerLaCarte(projet, carte));
   return bon;
 }
@@ -2913,6 +2927,43 @@ function ligneAvecSesNumeros(projet, ligne, liens) {
     phrase.append(ouvre);
   }
   return phrase;
+}
+
+// Les trois gestes d'une carte mise de côté (ticket 3147) : « Relaunch » et « Close as already done » partent sur l'issue
+// (gestes-refus.ts) et la carte est relue ; « Ask the second » passe la carte au second, comme toute carte.
+/** @param {Projet} projet @param {number} ticket */
+function poserLesGestesDuRefus(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  return rangeeDuRefus(
+    document,
+    ticket,
+    refusDeCartes.get(cle),
+    {
+      jouer: (id) => void jouerLeRefus(projet, ticket, id),
+      demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, null)),
+    },
+    demandesAuSecond.get(cle),
+  );
+}
+
+/** @param {Projet} projet @param {number} ticket @param {"relancer" | "clore"} id */
+async function jouerLeRefus(projet, ticket, id) {
+  const cle = `${projet.nom}#${ticket}`;
+  if (refusDeCartes.get(cle) !== undefined && "envoi" in /** @type {object} */ (refusDeCartes.get(cle))) return;
+  refusDeCartes.set(cle, { envoi: id });
+  poserRail(projet);
+  /** @type {{ envoi: "relancer" | "clore" } | { refus: string } | undefined} */
+  let dit;
+  try {
+    const rendu = await brigade.refus(projet.nom, id, ticket);
+    if ("fait" in rendu) lireLesFaits();
+    else dit = { refus: "refus" in rendu ? rendu.refus : "nothing was changed" };
+  } catch (erreur) {
+    dit = { refus: `nothing was changed: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  if (dit === undefined) refusDeCartes.delete(cle);
+  else refusDeCartes.set(cle, dit);
+  poserRail(projet);
 }
 
 // Une carte en panne porte « report to brigade » (ticket 1977) : mise de côté (86), ou remontée parce que la pass n'a
