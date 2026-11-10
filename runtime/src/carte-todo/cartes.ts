@@ -49,6 +49,7 @@ import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE
 import { REGLAGES_DU_PROJET } from "../mode-auto.ts";
 import { lireRail } from "../projections/rail.ts";
 import { DECLARATION_RESEAU } from "../reseau.ts";
+import { commentaireIllisible, commentaireRetenue } from "../commentaire-reponse-chef.ts";
 import { DECLARATION as DECLARATION_SECRETS } from "../secrets.ts";
 import { carteValide, validerCarte, type CarteTodo, type Geste } from "./forme.ts";
 
@@ -169,11 +170,11 @@ function proposition(attente: AttenteDeTicket) {
       };
     case "ecartee": {
       const retenue = attente.reason === "blocked-on-human" ? `#${ticket} is held back by the blocked-on-human label.` : `The manager set #${ticket} aside: its issue carries the ${attente.reason} label.`;
-      return { resume: `${retenue} Your answer is written on the issue and the label removed, so the manager judges it again.`, question: null, choix: [RENDRE_AU_MANAGER] };
+      return { resume: `${retenue} ${commentaireRetenue(attente.reponseEcrite === true)}`, question: null, choix: [RENDRE_AU_MANAGER] };
     }
     case "illisible":
       return {
-        resume: `The manager could not read its own ${attente.epique ? `split of the epic #${ticket}` : `judgment of #${ticket}`}. Your answer is written on the issue for it to read.`,
+        resume: `The manager could not read its own ${attente.epique ? `split of the epic #${ticket}` : `judgment of #${ticket}`}. ${commentaireIllisible(attente.reponseEcrite === true)}`,
         question: null,
         choix: [choix("Judge it again with what the issue says", "resume")],
       };
