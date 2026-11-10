@@ -25,7 +25,7 @@ export type FaitTodo =
   // `captures`: the screens its ticket delivered, before and after — never
   // null on a `design` card, null on a `product` card whose ticket delivered
   // none.
-  | { type: "todo.entered"; payload: { kind: "product" | "design"; summary?: string; statement: string; choices: Array<{ text: string; then: "resume" | "merge" | "drop" | "close" }>; captures: Captures | null } }
+  | { type: "todo.entered"; payload: { kind: "product" | "design"; reason?: string; summary?: string; statement: string; choices: Array<{ text: string; then: "resume" | "merge" | "drop" | "close" }>; captures: Captures | null } }
   // The card was refused at the gate: it is not in TODO, and goes back to
   // the triage (it is held). `reason`: why, in plain words.
   | { type: "todo.refused"; payload: Proposed & { reason: string } }
