@@ -112,6 +112,8 @@ const capacitesDites = (missing: readonly string[]) => missing.join(" or ");
 export function carteDeLaTache(assignee: string, missing: readonly string[]) {
   const jugee = jugerCarte({
     type: "product",
+    raison: "chef-gesture",
+    besoin: "machine",
     resume: `No station can provide ${capacitesDites(missing)}: this ticket left the rail and is a human's job, for ${pour(assignee)}.`,
     enonce: "What became of this task?",
     choix: [

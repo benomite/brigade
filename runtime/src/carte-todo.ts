@@ -87,10 +87,6 @@ export type Jugement = { admise: true; carte: CarteDeTodo } | { admise: false; r
 // ticket `fix` que l'appelant ouvre (garde-todo/geste-git.ts).
 export type Entree = { porte: "todo"; carte: CarteDeTodo } | { porte: "triage"; raison: string | null } | { porte: "reparation"; fix: ReparationDuGeste };
 
-const RAISON_DE_LA_SORTE: Record<TypeDeCarte, Raison> = { product: "product-choice", design: "design-choice" };
-// La sorte que prend une carte de relecture ou de geste que le producteur ne
-// range pas : `product`, qui ne demande pas d'écrans.
-const SORTE_DE_LA_RAISON: Partial<Record<Raison, TypeDeCarte>> = { "chef-review": "product", "chef-gesture": "product" };
 const surPlusieursLignes = (texte: string) => /[\r\n]/.test(texte);
 const estType = (mot: string): mot is TypeDeCarte => (TYPES_DE_CARTE as readonly string[]).includes(mot);
 const estSuite = (mot: string): mot is Suite => (SUITES as readonly string[]).includes(mot);
@@ -106,16 +102,13 @@ export { uneQuestion };
 export function jugerCarte({ type, raison, besoin, resume, enonce, choix }: Proposition, captures: Captures | null = null): Jugement {
   const technique = refuserGesteGit({ enonce });
   if (technique !== null) return { admise: false, raison: technique };
-  const dite = raison?.trim().toLowerCase() ?? "";
-  const mot = type?.trim().toLowerCase() || SORTE_DE_LA_RAISON[dite as Raison] || "";
+  const mot = type?.trim().toLowerCase() ?? "";
   if (mot === "") return { admise: false, raison: "no kind: a TODO card is a product choice (product) or a design validation (design)" };
   if (!estType(mot)) return { admise: false, raison: `“${type?.trim()}” is not a TODO card: only a product choice (product) or a design validation (design) reaches the chef` };
-  // La raison de la carte (carte-chef/carte-chef.ts) : celle que le producteur
-  // donne, sinon celle de sa sorte.
-  const qualifiee = qualifierCarte({ raison: raison ?? RAISON_DE_LA_SORTE[mot], besoin });
+  // La raison de la carte (carte-chef/carte-chef.ts) : le producteur la dit,
+  // la porte n'en devine aucune.
+  const qualifiee = qualifierCarte({ raison, besoin });
   if (!qualifiee.admise) return { admise: false, raison: qualifiee.erreur };
-  const contraire = (["product-choice", "design-choice"] as const).find((r) => r === qualifiee.carte.raison && RAISON_DE_LA_SORTE[mot] !== r);
-  if (contraire !== undefined) return { admise: false, raison: `a ${mot} card cannot be a ${contraire}: ${contraire === "product-choice" ? "a product choice is a product card" : "a design choice is a design card"}` };
   const sansQuestion = refuserSansQuestion({ enonce });
   if (sansQuestion !== null) return { admise: false, raison: sansQuestion };
   const question = enonce?.trim() ?? "";
@@ -309,7 +302,7 @@ type PayloadEntre = { kind: string; reason?: string; need?: string | null; summa
 // résumé se lit avec `RESUME_D_AVANT`.
 function lireCarte({ kind, reason, need, summary, statement, choices, captures }: PayloadEntre): CarteDeTodo | null {
   if (!estType(kind) || !choices || choices.length === 0) return null;
-  return { type: kind, raison: reason !== undefined && estRaison(reason) ? reason : RAISON_DE_LA_SORTE[kind], besoin: need !== undefined && need !== null && estBesoin(need) ? need : null, resume: summary ?? RESUME_D_AVANT, question: statement, choix: choices.map(({ text, then }) => ({ texte: text, suite: then })), captures: captures == null ? null : lireCaptures(captures) };
+  return { type: kind, ...(reason !== undefined && estRaison(reason) ? { raison: reason } : {}), besoin: need !== undefined && need !== null && estBesoin(need) ? need : null, resume: summary ?? RESUME_D_AVANT, question: statement, choix: choices.map(({ text, then }) => ({ texte: text, suite: then })), captures: captures == null ? null : lireCaptures(captures) };
 }
 
 // Les cartes dans TODO, relues du journal, dans l'ordre de leur entrée. Seuls

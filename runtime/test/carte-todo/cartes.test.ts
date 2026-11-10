@@ -54,6 +54,7 @@ const EXEMPLES = {
       quoi: "carte",
       carte: {
         type: "product",
+        raison: "product-choice",
         resume: "The ticket adds a saved list. It can be kept per project or shared by all of them.",
         question: "One list per project, or one for all projects?",
         choix: [
@@ -213,6 +214,7 @@ describe("a card that fails the rule does not enter TODO", () => {
   }
   const PRODUIT = {
     type: "product",
+    raison: "product-choice",
     resume: "The ticket adds an export. Its format decides what the user downloads.",
     enonce: "CSV or JSON?",
     choix: [{ texte: "CSV." }, { texte: "JSON." }],

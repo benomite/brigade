@@ -25,6 +25,7 @@ const BRANCHE = "cook/30-x";
 const REMONTE = "manager:escalated";
 const CARTE: Proposition = {
   type: "product",
+  raison: "product-choice",
   resume: "The ticket adds an export. Its format decides what the user downloads.",
   enonce: "Export CSV ou export JSON ?",
   choix: [{ texte: "L'export CSV." }, { texte: "L'export JSON." }, { texte: "Garder la livraison telle quelle.", suite: "merge" }],

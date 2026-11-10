@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
 import type { Captures } from "../src/captures.ts";
-import { cartesEnTodo, cartesRetenues, entreesParType, entrerDansTodo, jugerCarte, sortirDeTodo, type Proposition } from "../src/carte-todo.ts";
+import { BESOINS, RAISONS } from "../src/carte-chef/carte-chef.ts";
+import { cartesEnTodo, cartesRetenues, direCarteEn, entreesParType, entrerDansTodo, jugerCarte, sortirDeTodo, type Proposition } from "../src/carte-todo.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -20,12 +21,14 @@ const MAINTENANT = new Date(`${JOUR_HORLOGE}T12:00:00.000Z`);
 
 const PRODUIT: Proposition = {
   type: "product",
+  raison: "product-choice",
   resume: "The ticket adds a saved list. It can be kept per project or shared by all of them.",
   enonce: "One list per project, or one for all projects?",
   choix: [{ texte: "One list per project." }, { texte: "One list for all projects.", suite: "resume" }],
 };
 const DESIGN: Proposition = {
   type: "design",
+  raison: "design-choice",
   resume: "The empty rail now says what to do next.",
   enonce: "Is the empty rail screen right?",
   choix: [
@@ -321,3 +324,34 @@ function ouvrirEtFermer(repertoire: string): string {
   ouvrirJournal(repertoire).fermer();
   return repertoire;
 }
+
+test("the door states the reason of each card in the line the chef reads", () => {
+  const admise = (proposition: Proposition, captures: Captures | null = null) => {
+    const jugement = jugerCarte(proposition, captures);
+    assert.ok(jugement.admise, jugement.admise ? "" : jugement.raison);
+    return jugement.admise ? direCarteEn(jugement.carte) : "";
+  };
+  assert.match(admise(PRODUIT), /^product: Product choice\. One list/);
+  assert.match(admise(DESIGN, CAPTURES), /^design: Design choice\. Is the empty/);
+  assert.match(admise({ ...PRODUIT, raison: "chef-review" }), /^product: Review only the chef can make\. One list/);
+  for (const besoin of BESOINS) assert.match(admise({ ...PRODUIT, raison: "chef-gesture", besoin }), /^product: Gesture that needs the chef: it needs .*\. One list/);
+});
+
+test("the door refuses a card with no reason, a blank one, or one outside the four, naming them", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  aArreter(t, () => journal.fermer());
+  for (const raison of [undefined, null, "", "  ", "technical-merge"]) {
+    const jugement = jugerCarte({ ...PRODUIT, raison });
+    assert.equal(jugement.admise, false);
+    if (!jugement.admise) for (const r of RAISONS) assert.ok(jugement.raison.includes(r), jugement.raison);
+  }
+  const entree = entrerDansTodo(journal, PROJET, 7, { ...PRODUIT, raison: undefined }, "pass");
+  assert.equal(entree.porte, "triage");
+  assert.equal(cartesEnTodo(journal.base).length, 0);
+});
+
+test("the door refuses a gesture that does not say what it needs", () => {
+  const jugement = jugerCarte({ ...PRODUIT, raison: "chef-gesture" });
+  assert.equal(jugement.admise, false);
+  if (!jugement.admise) for (const b of BESOINS) assert.ok(jugement.raison.includes(b), jugement.raison);
+});

@@ -52,6 +52,7 @@ export function depotDuGitHub(github: GitHub): DepotDesExternes {
 export function carteDeDirection(issue: IssueExterne, raison: string) {
   return {
     type: "product",
+    raison: "product-choice",
     resume: raison,
     enonce: `Should brigade take on issue #${issue.number}, opened by ${issue.author}?`,
     choix: [
