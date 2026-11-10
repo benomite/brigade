@@ -26,6 +26,7 @@ import { boutonAction, prixDit, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
+import { blocDuGeste, gesteDeLaQuestion } from "./todo-carte/geste.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../carte-todo.ts").CarteDeTodo} CarteDeTodo */
@@ -138,7 +139,7 @@ function cree(doc, balise, texte) {
  * @param {CarteDeTodo} carte
  * @param {Etat} etat
  * @param {{ captures: any[], brouillon: string, cle: string, second?: { envoi: true } | { parti: string } | { refus: string } }} posees
- * @param {{ repondre: (reponse: Reponse) => void, ecrire: (texte: string) => void, demander: () => void }} gestes
+ * @param {{ repondre: (reponse: Reponse) => void, ecrire: (texte: string) => void, demander: () => void, copier?: (texte: string) => Promise<unknown> | undefined }} gestes
  */
 export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon, cle, second }, gestes) {
   const vu = vuDeLaCarte(carte, etat);
@@ -157,7 +158,10 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     dit.className = "resume-carte";
     tete.push(dit);
   }
-  if (question !== null) {
+  // Un geste du chef à faire lui-même se lit entier, avec son bouton « copy » (ticket 3132) ; toute autre question, comme avant.
+  const geste = gesteDeLaQuestion(question);
+  if (geste !== null) tete.push(blocDuGeste(doc, geste, gestes.copier ?? (() => undefined)));
+  else if (question !== null) {
     const posee = cree(doc, "p", question);
     posee.className = "question-carte";
     tete.push(posee);
