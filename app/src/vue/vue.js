@@ -3731,12 +3731,11 @@ async function envoyerCommentaire(projet, ticket) {
   if (rendu.poste) await lireDiscussion(projet, ticket);
 }
 
-// « ask the second », au clic : la box compose la demande avec le contexte du champ, et le process
-// principal l'écrit dans le second, sans Entrée. Le champ n'est pas vidé. Injoignable, rien n'est
-// écrit, et la fiche dit pourquoi — la carte de TODO aussi. `contexte` : le champ d'où part la
-// demande — celui de la fiche par défaut, celui de la carte de TODO quand elle part de la carte.
-/** @param {Projet} projet @param {number} ticket @param {string} [contexte] */
-async function demanderAuSecond(projet, ticket, contexte = commentaires.get(`${projet.nom}#${ticket}`) ?? "") {
+// « ask the second », au clic : le process principal écrit la demande dans le second, sans Entrée. Le champ n'est pas
+// vidé. Injoignable, rien n'est écrit, et la fiche dit pourquoi — la carte de TODO aussi. `ecrire` : ce qui part — de la
+// fiche par défaut, avec son champ ; d'une carte de TODO, la carte passée au second (ticket 3133, passation-second.ts).
+/** @param {Projet} projet @param {number} ticket @param {() => Promise<Terminal | { refus: string }>} [ecrire] */
+async function demanderAuSecond(projet, ticket, ecrire = () => brigade.demanderAuSecond(projet.nom, ticket, commentaires.get(`${projet.nom}#${ticket}`) ?? "")) {
   const cle = `${projet.nom}#${ticket}`;
   const avant = demandesAuSecond.get(cle);
   if (avant !== undefined && "envoi" in avant) return;
@@ -3750,7 +3749,7 @@ async function demanderAuSecond(projet, ticket, contexte = commentaires.get(`${p
   /** @type {{ envoi: true } | { parti: string } | { refus: string }} */
   let dit;
   try {
-    const rendu = await brigade.demanderAuSecond(projet.nom, ticket, contexte);
+    const rendu = await ecrire();
     if ("refus" in rendu) dit = { refus: rendu.refus };
     else {
       garder(projet.nom, rendu);
@@ -4892,8 +4891,8 @@ function etatDeLaCarte(projet, ticket, todo) {
 }
 
 // La carte de TODO d'un ticket, dans l'état de sa réponse (carte-todo.js) : ses captures posées comme
-// celles d'une livraison, lues sans un clic. « Ask the second » y part avec ce que le chef a tapé dans
-// son champ, comme celui de la fiche part avec le sien.
+// celles d'une livraison, lues sans un clic. « Ask the second » y passe la carte au second : son numéro, sa question, ce
+// que son issue dit (ticket 3133).
 /** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo */
 function poserLaCarteDeTodo(projet, ticket, todo) {
   const cle = `${projet.nom}#${ticket}`;
@@ -4911,7 +4910,7 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
         brouillonsDeCartes.set(cle, texte);
         questionsDesBrouillons.set(cle, todo.question ?? todo.resume ?? null);
       },
-      demander: () => void demanderAuSecond(projet, ticket, brouillonsDeCartes.get(cle) ?? ""),
+      demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)),
       copier: (texte) => navigator.clipboard?.writeText(texte),
     },
   );

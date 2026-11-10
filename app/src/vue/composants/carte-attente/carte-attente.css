@@ -113,8 +113,8 @@
 }
 /* La forme unique de toute carte de TODO (#1767) : en tête, ce qui se passe, à l'encre, en deux phrases
    au plus, au-dessus de la question. Une carte à un seul geste n'a pas de question : son bouton, plein,
-   est le geste attendu. « ask the second », l'action secondaire, ferme la carte en retrait — un mot
-   discret, sans cadre, plus petit que les choix : la carte se tranche sans lui. */
+   est le geste attendu. « ask the second », l'action secondaire, ferme la carte — un bouton secondaire, sous les
+   choix (ticket 3133) : la carte se tranche sans lui. */
 .bon .carte-todo p.resume-carte {
   padding-top: 0;
   font-family: var(--police-interface);

@@ -710,6 +710,16 @@ next reading (within a minute, or after a gesture).
 *Code: `app/src/tableau/attente-du-chef.ts`, used by `lireLeTableau` (`app/src/main.ts`, `avecCeQuiAttendLeChef`) and
 `app/src/second/file.ts`. Tests: `app/test/tableau/attente-du-chef.test.ts`, `app/test/second/file.test.ts`.*
 
+**"ask the second" on a Todo card hands the card over (#3133).** Every Todo card — with or without a gesture or a
+question — ends with an `ask the second` button. One click writes into the project's second, without Enter, a prepared
+first message on one line: `/brigade:ask <N>`, the issue number, the card's question (or `no question found on #N`), and
+what the issue says — its title and its last relevant message (the most recent one that says something other than the
+question already handed over, cut past 1,500 characters), read from GitHub by the workstation's `gh`. An issue that
+cannot be read does not stop the handover: the message says why and asks the second to read it. The chef pastes
+nothing; their Enter sends it. A stopped second is launched first and nothing is written, as for any button.
+*Code: `app/src/passation-second.ts`, `app/src/vue/todo-carte/demander-au-second.js`, channel `passerAuSecond`
+(`app/src/main.ts`). Test: `app/test/passation-second.test.ts`.*
+
 **Answering a card on the card (#2434).** A card of the chef read from GitHub — a `chef-todo` issue, or a `hors-cuisine`
 `product-question` (below) — has the shape of every Todo card (#1281, `runtime/src/carte-todo/forme.ts`): its
 question, one button per choice, a free-text field with `send`, and `ask the second`. GitHub is the only state, and the app

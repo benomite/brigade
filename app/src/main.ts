@@ -16,6 +16,7 @@ import { pourLaBarre } from "./barre.ts";
 import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
 import { situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, noteDeLaQuestion } from "./discussion.ts";
+import { noteDeLaPassation, passerAuSecond } from "./passation-second.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
@@ -913,6 +914,14 @@ ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) =
 ipcMain.handle("demanderAuSecond", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? { refus: parti(nom).refus } : demanderAuSecond((commande) => terminaux.inscrire(vise, commande, noteDeLaQuestion), vise, ticket);
+});
+// « ask the second », sur une carte de TODO (ticket 3133) : la carte passée au second — son numéro, sa question, ce que
+// son issue dit, lue de GitHub par le poste —, écrite dans le second du projet sans Entrée (passation-second.ts).
+ipcMain.handle("passerAuSecond", (_, nom: unknown, ticket: unknown, question: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { refus: parti(nom).refus };
+  const lire = async (numero: number) => discussionDeGitHub(reglagesGh(), await depotDuProjet(vise), numero);
+  return passerAuSecond((message) => terminaux.inscrire(vise, message, noteDeLaPassation), lire, vise, ticket, question);
 });
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
   if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;

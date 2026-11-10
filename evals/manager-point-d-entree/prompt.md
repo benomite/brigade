@@ -18,10 +18,10 @@ Tu es le manager de la brigade sur le dépôt benomite/brigade. Le chef a posé 
 - Chaque ticket est un livrable qui tient dans une PR, et porte ses propres critères d'acceptation **observables**.
 - Ensemble, les tickets couvrent les critères de l'épique, et rien de plus.
 - Le moins de tickets possible, 12 au plus.
-- `attend` nomme, par leur rang dans ta liste (1 pour le premier), ceux qui doivent être servis avant.
+- Les tickets d'un découpage partent tous en même temps : aucun n'en attend un autre, et `attend` reste vide.
 - `zone` : les chemins du dépôt que le ticket possède — des fichiers ou des dossiers, relatifs à sa racine, pris dans le plan ci-dessous ou à créer. Un dossier possède tout ce qu'il contient ; jamais de motif (`*`).
 - **La zone liste ce que le ticket change vraiment.** Un ticket qui touche trois fichiers de `runtime/src/rail/` déclare ces trois fichiers, jamais `runtime/src`. Un dossier de premier niveau entier (`runtime/src`, `app/src`, `docs`) n'est pas une zone acceptable pour un ticket qui touche quelques fichiers ; un dossier entier n'est permis que si le ticket en change vraiment la plus grande partie.
-- **Un fichier, un propriétaire** : deux tickets qui ne s'attendent pas n'ont aucun chemin en commun.
+- **Un fichier, un propriétaire** : deux tickets n'ont aucun chemin en commun ; ce qui touche au même fichier est un seul ticket.
 - Calibrage : `haiku`/`low` pour une doc ou un renommage, `sonnet`/`medium` pour un `fix`/`tech` non mécanique, `opus`/`high` pour une `feature`.
 
 ## Ta réponse

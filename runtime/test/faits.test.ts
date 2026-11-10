@@ -106,7 +106,7 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   // Sa carte de TODO : un seul geste, la lui rendre avec la réponse du chef.
   const carte = {
     type: "ecartee",
-    resume: "#378 is held back by the blocked-on-human label. Your answer is written on the issue and the label removed, so the manager judges it again.",
+    resume: "#378 is held back by the blocked-on-human label. No answer was found on the issue yet, so the label stays until you answer.",
     question: null,
     choix: [{ texte: "Hand it back to the manager with my answer", suite: "resume" }],
     reponseLibre: true,
@@ -118,6 +118,18 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
   // Un nom de dépôt qui n'en est pas un ne donne rien : rien n'est composé de travers.
   assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
+});
+
+test("la carte d'une issue retenue ne dit sa réponse écrite que si le chef a répondu depuis : sinon elle dit qu'aucune réponse n'y est (#3135)", (t) => {
+  const { noter, arriver, journal } = cuisine(t);
+  arriver(14, 1);
+  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
+  const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
+  const resume = () => (faits(lireEtat(journal, a), a, "acme/brigade").attend[0]?.carte as { resume: string }).resume;
+  assert.match(resume(), /No answer was found on the issue yet/);
+  assert.doesNotMatch(resume(), /Your answer is written/);
+  noter({ type: "todo.answered", payload: { choice: null, answer: "Go on.", then: "resume" } }, 378, "chef");
+  assert.match(resume(), /Your answer is written on the issue and the label removed/);
 });
 
 test("un ticket d'interface en pass, puis livré, porte les captures de sa dernière livraison par leur adresse — un autre n'en porte aucune, et sans dépôt aucune ne se montre", (t) => {

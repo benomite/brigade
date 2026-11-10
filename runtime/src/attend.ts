@@ -70,7 +70,7 @@ import { demandeEnAttente, faitAttendre, refus, reglagesEnVigueur, type Demande 
 import { direDemande as direDemandeDeFermeture, direRefusEn as direRefusDeFermetureEn } from "./closing/say.ts";
 import type { Ecart } from "./events/manager.ts";
 import { epiquesEnAttente } from "./projections/splits.ts";
-import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
+import { issuesEnAttente, plusUneEpiqueDepuis, seqDeDecision } from "./projections/manager.ts";
 import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket } from "./projections/pass.ts";
 import { feuNonVu, type TicketRail } from "./projections/rail.ts";
@@ -165,9 +165,9 @@ export type AttenteDeTicket = { ticket: number; title: string | null; since: str
   // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
   | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
   // Une issue que le manager ne juge pas tant qu'elle porte ce label du chef.
-  | { quoi: "ecartee"; reason: EcartQuiAttend }
+  | { quoi: "ecartee"; reason: EcartQuiAttend; reponseEcrite?: boolean }
   // Une issue dont le jugement ne se lit pas — ou, épique, le découpage.
-  | { quoi: "illisible"; epique: boolean }
+  | { quoi: "illisible"; epique: boolean; reponseEcrite?: boolean }
   // Une épique sur laquelle le manager a posé une question avant de découper.
   | { quoi: "question" }
   // Une carte typée entrée par la porte de TODO : sa sorte, sa question, ses
@@ -291,6 +291,11 @@ const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn
 // qu'elles sont à lui, ses jugements et ses découpages illisibles, les
 // questions qu'il pose sur une épique. Une issue fermée n'attend plus ; une
 // issue sur le rail est lancée, et ce qui l'y retient se lit du rail.
+// Le chef a-t-il répondu sur cette issue depuis le jugement du manager : sa
+// réponse est alors écrite (`todo.answered`, journalisé après le commentaire).
+const reponseEcriteDepuis = (base: Base, ticket: number, seq: number | null): boolean =>
+  base.lire<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE type = 'todo.answered' AND ticket = ? AND seq > ?", ticket, seq ?? 0)[0]?.n! > 0;
+
 function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): AttenteDeTicket[] {
   // Une issue retenue dont la carte parle au chef : l'écart nu ferait doublon.
   const avecCarte = new Set(cartesEnTodo(base).map((carte) => carte.ticket));
@@ -298,13 +303,13 @@ function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attent
   for (const { epic, state, at, seq, closed } of epiquesEnAttente(base)) {
     // Découpée à la main, retirée au manager, rejugée autrement qu'en épique :
     // la question ou l'échec du découpage ne vaut plus, la décision prime.
-    if (!closed && !plusUneEpiqueDepuis(base, epic, seq)) parIssue.set(epic, { ticket: epic, title: null, since: at, ...(state === "asked" ? { quoi: "question" } : { quoi: "illisible", epique: true }) });
+    if (!closed && !plusUneEpiqueDepuis(base, epic, seq)) parIssue.set(epic, { ticket: epic, title: null, since: at, ...(state === "asked" ? { quoi: "question" } : { quoi: "illisible", epique: true, reponseEcrite: reponseEcriteDepuis(base, epic, seq) }) });
   }
   // Retenue par le chef après une question, c'est la retenue qui attend.
   for (const { ticket, decision, reason, at, closed } of issuesEnAttente(base)) {
     if (closed) continue;
-    if (decision === "failed") parIssue.set(ticket, { ticket, title: null, since: at, quoi: "illisible", epique: false });
-    else if (ecartQuiAttend(reason) && !avecCarte.has(ticket)) parIssue.set(ticket, { ticket, title: null, since: at, quoi: "ecartee", reason });
+    if (decision === "failed") parIssue.set(ticket, { ticket, title: null, since: at, quoi: "illisible", epique: false, reponseEcrite: reponseEcriteDepuis(base, ticket, seqDeDecision(base, ticket)) });
+    else if (ecartQuiAttend(reason) && !avecCarte.has(ticket)) parIssue.set(ticket, { ticket, title: null, since: at, quoi: "ecartee", reason, reponseEcrite: reponseEcriteDepuis(base, ticket, seqDeDecision(base, ticket)) });
   }
   return [...parIssue.values()].filter(({ ticket }) => !tickets.has(ticket));
 }

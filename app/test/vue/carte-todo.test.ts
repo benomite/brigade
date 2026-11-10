@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { CarteVue } from "../../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
+import { premierePhrase } from "../../src/decision.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type EnvoiVu, type Rendu } from "../../src/carte-todo.ts";
 import { EXEMPLE } from "../../src/config.ts";
@@ -156,9 +157,9 @@ describe("la carte de TODO, sur le rail du projet", () => {
         donnee.choix.map(({ texte }) => texte),
       );
     }
-    // Ce qu'on attend du chef, en tête du bon, dans les mots de l'app.
-    assert.ok(bon(vue, 12)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "Validate its screen: answer its question."));
-    assert.ok(bon(vue, 21)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "A product choice is yours: answer its question."));
+    // Ce qu'on attend du chef, en tête du bon : la première phrase de la question de la carte.
+    assert.ok(bon(vue, 12)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === premierePhrase(DESIGN.question)));
+    assert.ok(bon(vue, 21)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === premierePhrase(PRODUIT.question)));
   });
 
   test("chaque choix se lit entier, sans coupe ni « ? » à déchiffrer : son libellé est celui du bouton, son prix au survol du bouton (#3086)", async () => {
@@ -421,18 +422,27 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.equal(vue.appels.filter(({ geste }) => geste === "demanderAuSecond").length, 0, "sans passer par le second");
   });
 
-  test("« ask the second » écrit une demande dans le second avec ce que le chef a tapé sur la carte ; la carte le dit, et garde ses choix", async () => {
-    const vue = await ouvrir({ demanderAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
+  test("« ask the second » passe la carte au second — son numéro et sa question (#3133) ; la carte le dit, et garde ses choix", async () => {
+    const vue = await ouvrir({ passerAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
     recevoir(vue, FORME);
     champ(carte(vue, 21)).value = "what is a journal export?";
     champ(carte(vue, 21)).declencher("input");
     bouton(carte(vue, 21), DEMANDER).click();
     await repos();
-    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 21, "what is a journal export?"]);
+    assert.deepEqual(vue.dernier("passerAuSecond"), [PARADE, 21, PRODUIT_EN_FORME.question]);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "demanderAuSecond").length, 0, "la carte ne passe plus par la demande de la fiche");
     const posee = carte(vue, 21);
     assert.equal(posee.dessous("span").find((pose) => pose.className === "refus")?.textContent, "nothing was written: the station is not reached");
     assert.ok(choix(posee).every((pose) => !pose.disabled), "la carte se tranche toujours par ses choix");
     assert.equal(compte(vue), "3");
+  });
+
+  test("« ask the second » d'une carte à un seul geste, sans question, la passe au second avec une question nulle (#3133)", async () => {
+    const vue = await ouvrir({ passerAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
+    recevoir(vue, FORME);
+    bouton(carte(vue, 31), DEMANDER).click();
+    await repos();
+    assert.deepEqual(vue.dernier("passerAuSecond"), [PARADE, 31, null]);
   });
 
   test("une entrée de TODO sans carte du runtime n'a ni question, ni choix, ni champ", async () => {
