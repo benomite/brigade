@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { CarteVue } from "../../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
+import { premierePhrase } from "../../src/decision.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type EnvoiVu, type Rendu } from "../../src/carte-todo.ts";
 import { EXEMPLE } from "../../src/config.ts";
@@ -156,9 +157,9 @@ describe("la carte de TODO, sur le rail du projet", () => {
         donnee.choix.map(({ texte }) => texte),
       );
     }
-    // Ce qu'on attend du chef, en tête du bon, dans les mots de l'app.
-    assert.ok(bon(vue, 12)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "Validate its screen: answer its question."));
-    assert.ok(bon(vue, 21)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === "A product choice is yours: answer its question."));
+    // Ce qu'on attend du chef, en tête du bon : la première phrase de la question de la carte.
+    assert.ok(bon(vue, 12)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === premierePhrase(DESIGN.question)));
+    assert.ok(bon(vue, 21)?.dessous("p").some((pose) => pose.className === "ligne-carte" && pose.textContent === premierePhrase(PRODUIT.question)));
   });
 
   test("chaque choix se lit entier, sans coupe ni « ? » à déchiffrer : son libellé est celui du bouton, son prix au survol du bouton (#3086)", async () => {

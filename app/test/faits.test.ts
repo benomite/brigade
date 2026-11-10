@@ -1011,3 +1011,14 @@ describe("station et capacités sur les cartes du rail", () => {
     assert.equal(station("mac/claude"), "mac/claude");
   });
 });
+
+describe("la question d'une carte de TODO, des faits à la carte (#3131)", () => {
+  test("une carte du chef dont l'issue porte une question la dit en une phrase ; sans question, « no question found on #N »", () => {
+    const carte = { type: "product", question: "Should the export be CSV or JSON? The second is richer.", choix: [], captures: null };
+    const avec = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 40, titre: "Export", url: "https://github.com/benomite/brigade/issues/40", decision: { quoi: "carte", motif: "product", cause: carte.question, pr: null }, carte }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 40);
+    assert.equal(avec?.ligne, "Should the export be CSV or JSON?");
+    assert.equal(avec?.fiche.attendu, "Should the export be CSV or JSON?");
+    const sans = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 41, titre: "Export", url: "https://github.com/benomite/brigade/issues/41", decision: { quoi: "carte", motif: "product", cause: null, pr: null } }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 41);
+    assert.equal(sans?.ligne, "no question found on #41");
+  });
+});

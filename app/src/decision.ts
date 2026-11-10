@@ -7,8 +7,7 @@
 // Ce module ne lance rien : il dit.
 
 // La décision, telle que le runtime la donne : ses mots sont les siens (`merge`, `review-required`…).
-// `demande` : ce que l'issue demande au chef — sa demande de décision, ou la dernière question de la brigade —, quand le runtime la donne.
-export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null; demande?: string | null };
+export type Decision = { quoi: string; motif: string | null; cause: string | null; pr: string | null };
 
 // Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue
 // — là où le chef répond, recalibre ou corrige —, la renvoyer en cuisine.
@@ -53,11 +52,14 @@ function remontee({ motif, cause, pr }: Decision): Attendu {
   return { phrase: `Sent back to you: ${suite}`, gestes };
 }
 
-export function attenduDe(decision: Decision | undefined, ticket: number): Attendu {
+// `question` : celle que la carte de TODO lue de l'issue porte (`CarteLue.question`), quand la `faits` la donne.
+export function attenduDe(decision: Decision | undefined, ticket: number, question?: string | null): Attendu {
   const sans = (gestes: GesteAttendu[]): Attendu => ({ phrase: sansQuestion(ticket), gestes, sansQuestion: true });
-  if (decision === undefined) return sans([]);
-  // Une demande que l'issue porte dit la question mieux que toute phrase de sorte : la première, en une phrase.
-  const demande = typeof decision.demande === "string" ? premierePhrase(decision.demande) : "";
+  // Une question que l'issue porte dit ce qu'on attend mieux que toute phrase de sorte : la première, en une phrase.
+  // Une décision de carte la porte aussi dans sa `cause` (runtime, `decisionDe`).
+  const dite = question ?? (decision?.quoi === "carte" ? decision.cause : null);
+  const demande = typeof dite === "string" ? premierePhrase(dite) : "";
+  if (decision === undefined) return demande === "" ? sans([]) : { phrase: demande, gestes: [] };
   const attendu = attenduDeSorte(decision, sans);
   return demande === "" ? attendu : { phrase: demande, gestes: attendu.gestes };
 }
@@ -88,8 +90,8 @@ function attenduDeSorte(decision: Decision, sans: (gestes: GesteAttendu[]) => At
     case "question":
       return { phrase: "The manager asks a question before splitting this epic: answer it on the issue.", gestes: ["issue"] };
     case "carte":
-      // Une carte entrée par la porte de TODO : sa question et ses choix sont sur la carte même (carte-todo.ts).
-      return { phrase: motif === "design" ? "Validate its screen: answer its question." : "A product choice is yours: answer its question.", gestes: [] };
+      // Une carte entrée par la porte de TODO : sa question est dite plus haut ; arrivé ici, elle n'en porte aucune.
+      return sans([]);
     case "repris":
       return { phrase: "Back from WAITING, it waits for you: send it back to the kitchen, or take it off the rail.", gestes: ["cuisine", "retirer"] };
     case "abandon":
@@ -106,8 +108,8 @@ const texteOuRien = (valeur: unknown): valeur is string | null => valeur === nul
 // La même, venue d'ailleurs — la vue, une sortie de box : ce qui n'a pas la forme d'une décision n'en est pas une.
 export function decisionLue(brute: unknown): Decision | undefined {
   if (typeof brute !== "object" || brute === null) return undefined;
-  const { quoi, motif, cause, pr, demande } = brute as Record<string, unknown>;
-  return texte(quoi) && texteOuRien(motif) && texteOuRien(cause) && texteOuRien(pr) ? { quoi, motif, cause, pr, ...(texte(demande) ? { demande } : {}) } : undefined;
+  const { quoi, motif, cause, pr } = brute as Record<string, unknown>;
+  return texte(quoi) && texteOuRien(motif) && texteOuRien(cause) && texteOuRien(pr) ? { quoi, motif, cause, pr } : undefined;
 }
 
 // Ce que la pass a consigné de la livraison qui attend (runtime/src/attend.ts, `Livraison`) : le

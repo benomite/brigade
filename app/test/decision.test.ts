@@ -44,8 +44,8 @@ describe("l'attendu d'une décision", () => {
     assert.match(attenduDe(decision("illisible", { motif: "epic" }), 1).phrase, /split/);
     assert.match(attenduDe(decision("illisible", { motif: "issue" }), 1).phrase, /judgement/);
     // Une carte de TODO : sa question et ses choix sont sur la carte même, aucun geste n'est ajouté.
-    assert.deepEqual(attenduDe(decision("carte", { motif: "design" }), 1), { phrase: "Validate its screen: answer its question.", gestes: [] });
-    assert.deepEqual(attenduDe(decision("carte", { motif: "product" }), 1), { phrase: "A product choice is yours: answer its question.", gestes: [] });
+    assert.deepEqual(attenduDe(decision("carte", { motif: "design", cause: "Is this screen right?" }), 1), { phrase: "Is this screen right?", gestes: [] });
+    assert.deepEqual(attenduDe(decision("carte", { motif: "product" }), 1), { phrase: "no question found on #1", gestes: [], sansQuestion: true });
     // Sorti du rail par la cuisine : ses trois gestes sont les choix de sa carte (#2118).
     assert.deepEqual(attenduDe(decision("abandon", { motif: "pass", cause: "manager-escalated" }), 1).gestes, []);
     assert.match(attenduDe(decision("abandon", { motif: "chain" }), 1).phrase, /^The kitchen took it off the rail without serving it: /);
@@ -75,14 +75,14 @@ describe("l'attendu d'une décision", () => {
     assert.equal(attenduDe(decision("repris"), 5).sansQuestion, undefined);
   });
 
-  test("une demande de décision sur l'issue : la carte en donne la première phrase, en clair, et garde ses gestes", () => {
-    const demande = "Should the journal export be CSV or JSON?\nThe second is richer.";
-    assert.deepEqual(attenduDe(decision("86", { motif: "refused", demande }), 12), { phrase: "Should the journal export be CSV or JSON?", gestes: ["issue", "retirer"] });
-    assert.deepEqual(attenduDe(decision("une-sorte-neuve", { demande: "Keep the old screen." }), 12), { phrase: "Keep the old screen.", gestes: [] });
-    // Une demande vide ne compte pas.
-    assert.equal(attenduDe(decision("une-sorte-neuve", { demande: "  " }), 12).phrase, "no question found on #12");
-    assert.equal(decisionLue({ quoi: "86", motif: null, cause: null, pr: null, demande })?.demande, demande);
-    assert.equal(decisionLue({ quoi: "86", motif: null, cause: null, pr: null, demande: 3 })?.demande, undefined);
+  test("la question de la carte lue de l'issue : la carte en donne la première phrase, en clair, et garde ses gestes", () => {
+    const question = "Should the journal export be CSV or JSON?\nThe second is richer.";
+    assert.deepEqual(attenduDe(decision("86", { motif: "refused" }), 12, question), { phrase: "Should the journal export be CSV or JSON?", gestes: ["issue", "retirer"] });
+    assert.deepEqual(attenduDe(decision("une-sorte-neuve"), 12, "Keep the old screen."), { phrase: "Keep the old screen.", gestes: [] });
+    assert.deepEqual(attenduDe(undefined, 12, "Keep the old screen."), { phrase: "Keep the old screen.", gestes: [] });
+    // Une question vide ou absente ne compte pas.
+    assert.equal(attenduDe(decision("une-sorte-neuve"), 12, "  ").phrase, "no question found on #12");
+    assert.equal(attenduDe(decision("une-sorte-neuve"), 12, null).sansQuestion, true);
   });
 
   test("aucune phrase rendue n'envoie le chef à l'issue pour apprendre ce qu'on lui demande", () => {
