@@ -421,18 +421,27 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.equal(vue.appels.filter(({ geste }) => geste === "demanderAuSecond").length, 0, "sans passer par le second");
   });
 
-  test("« ask the second » écrit une demande dans le second avec ce que le chef a tapé sur la carte ; la carte le dit, et garde ses choix", async () => {
-    const vue = await ouvrir({ demanderAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
+  test("« ask the second » passe la carte au second — son numéro et sa question (#3133) ; la carte le dit, et garde ses choix", async () => {
+    const vue = await ouvrir({ passerAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
     recevoir(vue, FORME);
     champ(carte(vue, 21)).value = "what is a journal export?";
     champ(carte(vue, 21)).declencher("input");
     bouton(carte(vue, 21), DEMANDER).click();
     await repos();
-    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 21, "what is a journal export?"]);
+    assert.deepEqual(vue.dernier("passerAuSecond"), [PARADE, 21, PRODUIT_EN_FORME.question]);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "demanderAuSecond").length, 0, "la carte ne passe plus par la demande de la fiche");
     const posee = carte(vue, 21);
     assert.equal(posee.dessous("span").find((pose) => pose.className === "refus")?.textContent, "nothing was written: the station is not reached");
     assert.ok(choix(posee).every((pose) => !pose.disabled), "la carte se tranche toujours par ses choix");
     assert.equal(compte(vue), "3");
+  });
+
+  test("« ask the second » d'une carte à un seul geste, sans question, la passe au second avec une question nulle (#3133)", async () => {
+    const vue = await ouvrir({ passerAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
+    recevoir(vue, FORME);
+    bouton(carte(vue, 31), DEMANDER).click();
+    await repos();
+    assert.deepEqual(vue.dernier("passerAuSecond"), [PARADE, 31, null]);
   });
 
   test("une entrée de TODO sans carte du runtime n'a ni question, ni choix, ni champ", async () => {

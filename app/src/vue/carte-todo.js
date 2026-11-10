@@ -2,13 +2,13 @@
 // La carte de TODO (ticket 1281, épique 1277), sur le bon d'un ticket qui t'attend, dans la forme
 // unique de toute carte de TODO (épique 1764, ticket 1767), dans cet ordre : ce qui se passe, en deux
 // phrases au plus ; la question ; ses captures avant et après quand il y en a ; un bouton par choix ;
-// un champ pour répondre dans tes mots, avec son bouton « send » ; et, en retrait, « ask the second ».
+// un champ pour répondre dans tes mots, avec son bouton « send » ; et, dessous, « ask the second ».
 // Une carte à un seul geste — merger à la main une livraison verte — n'a rien à demander : son bouton,
 // sans question. Le premier choix est la réponse recommandée, le seul bouton plein d'accent (ticket 2922) ; le champ
 // d'une carte qui a ses choix est replié derrière « answer in my own words ». Un clic sur un choix est la réponse : rien d'autre n'est demandé, ni confirmation
 // ni second clic ; son prix est au survol. Le texte part par son bouton — Entrée ne l'envoie pas.
-// « Ask the second » n'est jamais un des choix ni le seul chemin : il écrit dans le second une demande
-// sur le ticket, pour quand la carte ne se comprend pas.
+// « Ask the second » n'est jamais un des choix ni le seul chemin : il passe la carte au second — son numéro, sa question,
+// ce que son issue dit (ticket 3133) —, pour quand la carte ne se comprend pas.
 //
 // Répondue, la carte reste là où elle est, et dit où en est sa réponse (ticket 1841) : envoyée, en attente de
 // la cuisine — la réponse rappelée, les choix et le champ retirés, le bord de la carte qui bat doucement
@@ -26,6 +26,7 @@ import { boutonAction, prixDit, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
+import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
 import { blocDuGeste, gesteDeLaQuestion } from "./todo-carte/geste.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
@@ -72,10 +73,8 @@ export const DETAILS = "details";
 export const VOTRE_REPONSE = "your answer";
 // Le bouton discret qui ouvre le champ d'une carte qui a ses choix (ticket 2922).
 export const EN_MES_MOTS = "answer in my own words";
-// L'action secondaire de toute carte : le mot est celui du runtime (runtime/src/carte-todo/forme.ts,
-// `DEMANDER_AU_SECOND`) et de la fiche (gestes-fiche.ts).
-export const DEMANDER = "ask the second";
-export const DEMANDE_EN_ROUTE = "asking the second…";
+// L'action secondaire de toute carte, « ask the second » : todo-carte/demander-au-second.js (ticket 3133).
+export { DEMANDE_EN_ROUTE, DEMANDER } from "./todo-carte/demander-au-second.js";
 // Le champ du texte libre, tel que la vue le reconnaît pour lui rendre le clavier quand le rail est redessiné.
 export const CHAMP_DE_CARTE = "reponse-carte";
 
@@ -240,24 +239,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     racine.append(ligneErreur(doc, vu.dit, vu.detail, { classe: "refus" }));
   }
 
-  // L'action secondaire, en retrait sous tout le reste : la carte se tranche sans elle.
-  const secondaire = cree(doc, "p");
-  secondaire.className = "secondaire";
-  const demander = boutonDeLaFamille(doc, DEMANDER, undefined, { sorte: "discret" });
-  demander.className = "demander";
-  demander.dataset.geste = "demande-second";
-  demander.title = `if this card is not clear: write into the second a request about #${ticket}, with what is in the field — nothing is sent, you press Enter`;
-  demander.disabled = second !== undefined && "envoi" in second;
-  demander.addEventListener("click", () => gestes.demander());
-  secondaire.append(demander);
-  if (second !== undefined) {
-    if ("refus" in second) secondaire.append(ligneErreur(doc, second.refus, "", { classe: "refus", balise: "span" }));
-    else {
-      const dite = cree(doc, "span", "envoi" in second ? DEMANDE_EN_ROUTE : second.parti);
-      dite.className = "dite";
-      secondaire.append(dite);
-    }
-  }
-  racine.append(secondaire);
+  // L'action secondaire, sous tout le reste : la carte passée au second (ticket 3133) — la carte se tranche sans elle.
+  racine.append(rangeeDuSecond(doc, ticket, second, gestes.demander));
   return [racine];
 }
