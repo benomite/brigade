@@ -612,6 +612,22 @@ UTC every station package under `releases/download/` answered 504, dd576d9's own
 read 200 from the API. Replayed on these 90 tickets with #2879 and #2883 served at their merges, dd576d9's gate opens a
 ticket and main's waits (`en-attente`, 20 merged tickets missing since #2883). Nothing to correct on main.
 
+#3130 measured 48 tickets, a median lost time of 35 min, 3953 of their 4648 lost minutes (85 %) waiting for a
+claim. A ticket queued behind another on the same files is claimed the moment that one merges: #3112 45 s after
+#3111 merged, #3113 1 s after #3115, #3116 2 s after #3113, #3114 2 s after #3116, #3117 1 s after #3114 — seven
+tickets filed between 22:33:30 and 22:34:27 UTC on 2026-11-09, each of which wrote `site/index.html` or
+`site/style.css` (their commits) —; #3014 41 s after #3013 (both wrote `app/src/vue/index.html`), #3098 38 s after
+#3097 (`runtime/src/brigade-github.ts`). Each lost, as claim wait, the whole cooking, pass, CI and merge of those
+before it. Filed seconds apart, as the manager files a split's tickets, they were chained by the split: its
+instruction said that a second ticket on the same file awaits the first, and `separer` set that dependency itself
+when the answer did not. Since #3130 the tickets of a split never await each other: `joindre`
+(`runtime/src/decouper.ts`) joins two tickets whose zones overlap, or one that awaits another, into one ticket,
+and the instruction asks the manager for just that (see "It splits epics", `manager.md`). The measure is unchanged.
+This does not reach tickets filed one by one on the same files, which the claim gate still holds, the station's
+place limit, nor the minute or two between `fire` and the claim of a ticket nothing holds (#3001 1.1 min, #3088
+0.7 min, #3126 2.8 min). Whether the median goes back to 2 min is read on the tickets merged after this one,
+under the trial rule above.
+
 ## The daily report of the decisions brigade told about
 
 Every decision taken under `brigade decides and tells me` writes an entry (`autonomy.reported`).

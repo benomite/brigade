@@ -18,7 +18,7 @@ Tu es le manager de la brigade sur le dépôt benomite/brigade. Le chef a posé 
 - Chaque ticket est un livrable qui tient dans une PR, et porte ses propres critères d'acceptation **observables**.
 - Ensemble, les tickets couvrent les critères de l'épique, et rien de plus.
 - Le moins de tickets possible, 12 au plus.
-- `attend` nomme, par leur rang dans ta liste (1 pour le premier), ceux qui doivent être servis avant.
+- Les tickets d'un découpage partent tous en même temps : aucun n'en attend un autre, et `attend` reste vide.
 - `zone` : les fichiers que le ticket change vraiment, relatifs à la racine du dépôt, jamais de motif (`*`).
 - `labels` : les labels du ticket, qualifiés par toi.
 - Calibrage : `haiku`/`low` pour une doc ou un renommage, `sonnet`/`medium` pour un `fix`/`tech` non mécanique, `opus`/`high` pour une `feature`.

@@ -71,12 +71,12 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.ok(corps.startsWith(`Epic: #30\n${marque(30, 2)}`));
     assert.match(corps, /- `run pass` affiche le compte\n- Un test le couvre/);
     assert.match(corps, /Calibrated `sonnet` \/ `medium` — Critères précis\./);
-    // Les dépendances portent les numéros des issues nées, et la zone suit.
+    // Chaque fiche porte la zone de son ticket ; aucun n'en attend un autre (#3130).
     const fiches = [501, 502, 503].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
     assert.deepEqual(fiches, [
       { waitsFor: [], zone: ["runtime/src/rail.ts"], problems: [] },
-      { waitsFor: [501], zone: ["runtime/src/pass.ts", "runtime/src/rail.ts"], problems: [] },
-      { waitsFor: [501, 502], zone: ["docs/runtime.md", "runtime/src/pass.ts", "runtime/src/rail.ts"], problems: [] },
+      { waitsFor: [], zone: ["runtime/src/pass.ts"], problems: [] },
+      { waitsFor: [], zone: ["docs/runtime.md"], problems: [] },
     ]);
   });
 
@@ -132,23 +132,31 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.deepEqual(prevus.map((prevu) => prevu.cook ?? null), [null, "design", "design", null]);
   });
 
-  test("deux tickets concurrents du découpage sur le même fichier : le code pose la dépendance, la fiche la porte, l'épique le dit", async (t) => {
+  test("deux tickets du découpage sur le même fichier sont un seul ticket : le code les joint, la fiche porte les deux zones, l'épique le dit (#3130)", async (t) => {
     const c = brigade(t, { decoupage: "decoupe-recouvre", issues: [issue(30, ["epic"])] });
     // Les chemins communs du projet, tels que le journal les porte.
     c.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md"] } });
     epique(c);
     await c.decoupee(30);
 
-    const fiches = [501, 502, 503].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
-    assert.deepEqual(fiches.map((lue) => lue?.waitsFor), [[], [501], []]);
-    // L'intention au journal porte ce que le code a ajouté.
-    const prevus = charge(c.tous("manager.split")[0])?.tickets as { waitsFor: number[]; overlaps?: unknown }[];
-    assert.deepEqual(prevus.map((prevu) => [prevu.waitsFor, prevu.overlaps ?? null]), [[[], null], [[1], [{ index: 1, path: "runtime/src/rail.ts" }]], [[], null]]);
+    // Deux tickets nés, pas trois : aucun n'attend l'autre.
+    assert.deepEqual(c.gh.creations, [501, 502]);
+    assert.equal(c.gh.lire(501)?.title, "Le rail compte; Le rail trie");
+    assert.match(c.gh.corpsDe(501), /- `run rail` affiche le compte\n- `run rail` trie/);
+    const fiches = [501, 502].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
+    assert.deepEqual(fiches, [
+      { waitsFor: [], zone: ["runtime/src", "docs/runtime.md", "runtime/src/rail.ts"], problems: [] },
+      { waitsFor: [], zone: ["docs/runtime.md"], problems: [] },
+    ]);
+    // L'intention au journal porte ce que le code a joint.
+    const prevus = charge(c.tous("manager.split")[0])?.tickets as { waitsFor: number[]; joined?: unknown }[];
+    assert.deepEqual(prevus.map((prevu) => [prevu.waitsFor, prevu.joined ?? null]), [[[], [{ index: 2, title: "Le rail trie", path: "runtime/src/rail.ts" }]], [[], null]]);
     const [dit = ""] = c.dits(30);
-    assert.match(dit, /Zones that overlapped/);
-    assert.match(dit, /#502 awaits #501: both own `runtime\/src\/rail\.ts`/);
-    // La doc vivante est commune : le troisième ticket n'attend personne.
-    assert.doesNotMatch(dit, /#503 attend/);
+    assert.match(dit, /epic split into 2 tickets/);
+    assert.match(dit, /Tickets joined/);
+    assert.match(dit, /#501 holds ticket 2 of the split, “Le rail trie”: both own `runtime\/src\/rail\.ts`/);
+    // La doc vivante est commune : le ticket de la doc reste seul.
+    assert.doesNotMatch(dit, /#502 holds/);
     // La consigne a nommé les chemins communs.
     assert.match(c.jugements()[0]?.args[1] ?? "", /`docs\/runtime\.md`/);
   });
@@ -207,7 +215,8 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.match(dit, /epic split into 3 tickets/);
     assert.match(dit, /Why these tickets\.\*\* Un livrable par module touché\./);
     assert.match(dit, /Why this order\.\*\* Le rail d'abord/);
-    assert.match(dit, /\| #502 \| La pass lit le compte \| #501 \| `runtime\/src\/pass\.ts`, `runtime\/src\/rail\.ts` \| `sonnet` \/ `medium` \|/);
+    assert.match(dit, /\| #502 \| La pass lit le compte \| none \| `runtime\/src\/pass\.ts` \| `sonnet` \/ `medium` \|/);
+    assert.doesNotMatch(dit, /Tickets joined/);
     assert.match(dit, /The manager never splits an epic again\./);
     assert.match(dit, /Split by the manager in `sonnet` \/ `medium` · 1 turn/);
     assert.equal(c.dits(30).length, 1);

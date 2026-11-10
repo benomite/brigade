@@ -42,7 +42,12 @@ export type TicketPrevu = {
   requires?: string[];
   // Those of its `waitsFor` that the code added to the split: its zone
   // overlapped theirs without it awaiting them. `path`: the shared path.
+  // Written by splits before #3130 only: the code now joins them instead.
   overlaps?: { index: number; path: string }[];
+  // The tickets of the answer that the code joined into this one (#3130):
+  // their rank, from 1, and title, and the path they shared with a ticket
+  // before them in the join — null when they were joined by an `attend`.
+  joined?: { index: number; title: string; path: string | null }[];
   model: string;
   effort: string;
   calibration: string;

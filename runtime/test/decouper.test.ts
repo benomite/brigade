@@ -3,8 +3,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI } from "../src/juger.ts";
-import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, marqueDe, neDUnDecoupage, plan, separer, TICKETS_MAX } from "../src/decouper.ts";
+import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, marqueDe, joindre, neDUnDecoupage, plan, TICKETS_MAX, TITRE_MAX } from "../src/decouper.ts";
 import { epiqueDe, rendreListe } from "../src/epique.ts";
+import type { TicketPrevu } from "../src/events/manager.ts";
 import { fiche } from "../src/fiche.ts";
 
 const EPIQUE = { number: 30, title: "Le compte des tickets", body: "Le chef veut voir un compte.", labels: ["epic", "prio:1"] };
@@ -45,6 +46,10 @@ test("la consigne porte l'épique comme une donnée, le plan du dépôt, et dit 
   assert.doesNotMatch(consigne, /brigade:tickets/);
   // La règle des zones, et rien sur des chemins communs que le projet n'a pas.
   assert.match(consigne, /Un fichier, un propriétaire/);
+  // Les tickets d'un découpage ne s'attendent pas : ce qui partage un fichier est un seul ticket (#3130).
+  assert.match(consigne, /aucun n'en attend un autre, et `attend` reste vide/);
+  assert.match(consigne, /Ce qui doit vraiment toucher au même fichier est un seul ticket/);
+  assert.doesNotMatch(consigne, /le second attend le premier/);
   assert.doesNotMatch(consigne, /n'appartiennent à aucun ticket/);
 });
 
@@ -68,38 +73,81 @@ test("la consigne du découpage porte la même règle de forme que celle du juge
   assert.match(consigne, /Le calibrage le plus bas qui suffit/);
 });
 
-const prevus = (...tickets: [zone: string[], waitsFor?: number[]][]) =>
-  tickets.map(([zone, waitsFor = []], i) => ({ title: `T${i + 1}`, context: "", criteria: ["c"], waitsFor, zone, model: "sonnet", effort: "low", calibration: "c" }));
-const attentes = (tickets: { waitsFor: number[]; overlaps?: unknown }[]) => tickets.map((ticket) => [ticket.waitsFor, ticket.overlaps ?? null]);
+const prevus = (...tickets: [zone: string[], waitsFor?: number[]][]): TicketPrevu[] =>
+  tickets.map(([zone, waitsFor = []], i) => ({ title: `T${i + 1}`, context: "", criteria: [`c${i + 1}`], waitsFor, zone, model: "sonnet", effort: "low", calibration: "c" }));
 
-test("deux tickets d'un découpage dont les zones se recouvrent sans s'attendre : le second attend le premier, et c'est dit", () => {
-  assert.deepEqual(attentes(separer(prevus([["runtime/src"]], [["runtime/src/rail.ts", "docs/a.md"]], [["runtime/test"]]))), [
-    [[], null],
-    [[1], [{ index: 1, path: "runtime/src/rail.ts" }]],
-    [[], null],
+test("deux tickets d'un découpage dont les zones se recouvrent sont un seul ticket, et c'est dit (#3130)", () => {
+  const joints = joindre(prevus([["runtime/src"]], [["runtime/src/rail.ts", "docs/a.md"]], [["runtime/test"]]));
+  assert.deepEqual(
+    joints.map((ticket) => [ticket.title, ticket.zone, ticket.waitsFor, ticket.joined ?? null]),
+    [
+      ["T1; T2", ["runtime/src", "runtime/src/rail.ts", "docs/a.md"], [], [{ index: 2, title: "T2", path: "runtime/src/rail.ts" }]],
+      ["T3", ["runtime/test"], [], null],
+    ],
+  );
+  assert.deepEqual(joints[0]?.criteria, ["c1", "c2"]);
+});
+
+test("des zones disjointes qui ne s'attendent pas ne sont pas jointes", () => {
+  const disjoints = prevus([["runtime/src/rail.ts"]], [["runtime/src/pass.ts"]], [["docs"]]);
+  assert.deepEqual(joindre(disjoints), disjoints);
+});
+
+test("un ticket qui en attend un autre le rejoint, même aux zones disjointes, et de proche en proche : aucun ticket du découpage n'en attend un autre", () => {
+  // #3 attend #2 qui attend #1 : un seul ticket ; #4 est seul.
+  const joints = joindre(prevus([["a.ts"]], [["b.ts"], [1]], [["c.ts"], [2]], [["d.ts"]]));
+  assert.deepEqual(
+    joints.map((ticket) => [ticket.title, ticket.zone, ticket.waitsFor, ticket.joined ?? null]),
+    [
+      ["T1; T2; T3", ["a.ts", "b.ts", "c.ts"], [], [{ index: 2, title: "T2", path: null }, { index: 3, title: "T3", path: null }]],
+      ["T4", ["d.ts"], [], null],
+    ],
+  );
+});
+
+test("trois tickets sur le même fichier, et un entre eux sur un autre, font deux tickets, dans l'ordre du premier de chacun", () => {
+  const joints = joindre(prevus([["a.ts"]], [["b.ts"]], [["a.ts"]], [["a.ts"]]));
+  assert.deepEqual(
+    joints.map((ticket) => [ticket.title, ticket.joined?.map(({ index, path }) => [index, path]) ?? null]),
+    [
+      ["T1; T3; T4", [[3, "a.ts"], [4, "a.ts"]]],
+      ["T2", null],
+    ],
+  );
+});
+
+test("le ticket joint prend le calibrage le plus haut des siens, toutes leurs capacités, et le cook design si l'un l'avait", () => {
+  const [haut, bas] = prevus([["a.ts"]], [["a.ts"]]) as [TicketPrevu, TicketPrevu];
+  const [joint] = joindre([
+    { ...haut, context: "Premier.", model: "sonnet", effort: "high", calibration: "Un module.", requires: ["navigateur-headless"] },
+    { ...bas, context: "", model: "opus", effort: "low", calibration: "Un écran.", requires: ["navigateur-headless", "chrome-connecté"], cook: "design" },
   ]);
+  assert.deepEqual(
+    [joint?.model, joint?.effort, joint?.calibration, joint?.context, joint?.requires, joint?.cook],
+    ["opus", "high", "Un module. Un écran.", "Premier.", ["navigateur-headless", "chrome-connecté"], "design"],
+  );
 });
 
-test("des zones disjointes, ou déjà séparées par une dépendance — même indirecte —, ne reçoivent rien", () => {
-  const disjoints = prevus([["runtime/src/rail.ts"]], [["runtime/src/pass.ts"], [1]], [["docs"], [1, 2]]);
-  assert.deepEqual(separer(disjoints), disjoints);
-  // #3 attend #2 qui attend #1 : #3 et #1 ne sont pas concurrents.
-  const chaine = prevus([["a.ts"]], [["b.ts"], [1]], [["a.ts"], [2]]);
-  assert.deepEqual(separer(chaine), chaine);
+test("des titres joints au-delà de ce que GitHub accepte sont coupés, et le disent", () => {
+  const longs = prevus([["a.ts"]], [["a.ts"]]).map((ticket, i) => ({ ...ticket, title: `${"x".repeat(200)}${i}` }));
+  const [joint] = joindre(longs);
+  assert.equal(joint?.title.length, TITRE_MAX);
+  assert.ok(joint?.title.endsWith("…"));
 });
 
-test("trois tickets sur le même fichier font une file, pas un éventail : chacun n'attend que le précédent", () => {
-  assert.deepEqual(attentes(separer(prevus([["a.ts"]], [["a.ts"]], [["a.ts"]]))), [
-    [[], null],
-    [[1], [{ index: 1, path: "a.ts" }]],
-    [[2], [{ index: 2, path: "a.ts" }]],
+test("un modèle ou un effort hors de la table ne l'emporte pas sur ceux qui y sont", () => {
+  const [a, b] = prevus([["a.ts"]], [["a.ts"]]) as [TicketPrevu, TicketPrevu];
+  const [joint] = joindre([
+    { ...a, model: "inconnu", effort: "enorme" },
+    { ...b, model: "haiku", effort: "low" },
   ]);
+  assert.deepEqual([joint?.model, joint?.effort], ["haiku", "low"]);
 });
 
-test("un chemin commun ne crée aucune dépendance entre les tickets qui le nomment", () => {
+test("un chemin commun ne joint pas les tickets qui le nomment", () => {
   const tickets = prevus([["a.ts", "docs/runtime.md"]], [["b.ts", "docs/runtime.md"]]);
-  assert.deepEqual(separer(tickets, ["docs/runtime.md"]), tickets);
-  assert.deepEqual(separer(tickets)[1]?.waitsFor, [1]);
+  assert.deepEqual(joindre(tickets, ["docs/runtime.md"]), tickets);
+  assert.equal(joindre(tickets).length, 1);
 });
 
 test("le plan réduit le dépôt à ses dossiers sur deux niveaux, puis aux fichiers de sa racine", () => {

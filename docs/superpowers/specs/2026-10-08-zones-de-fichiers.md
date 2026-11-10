@@ -38,6 +38,8 @@ it is the living doc, this document does not copy it.
    almost every ticket" — a strict rule would make the milestone a single queue.
 2. **At the split, the code lays down the dependency** and says so on the epic. No second paid
    judgment, no split refused.
+   Since #3130 the code joins the two tickets into one instead (`joindre`, `runtime/src/decouper.ts`):
+   the second lost the first's whole cooking, pass, CI and merge waiting for its claim.
 3. **On the rail, the second is held** until the first is served; `run rail` says
    why; the hold falls if the first leaves the rail.
 4. **Out of zone**: a fact in the log and a line in the end-of-cook comment. A ticket
