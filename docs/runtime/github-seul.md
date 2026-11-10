@@ -146,7 +146,9 @@ base, the stale-branch pruning).
   (`etapesEnEchec`, `runtime/src/github.ts`, #3028): `Lint + Format + Typecheck + Tests (failed step: Format)`.
   A job that runs several steps does not say by its name which one is red. A check that is not a job, or whose
   steps GitHub does not return, is named alone, as before; a read that fails is said in the station's warnings,
-  and the send-back still goes.
+  and the send-back still goes. The `brigade/gates` status of a project with no CI on its PRs is named with what
+  made its gates red, as its status sums it up — their first `FAIL` line, or their cut (#3157):
+  `brigade/gates (failed step: tests du runtime en échec)`.
 - **A delivery that changes what judges it** (`.claude/brigade/`, `.github/workflows/`, or the second judge's own
   brief, `JUGES` in `runtime/src/brigade-github.ts`) is not merged on the reviewer's approval alone: a cook must not
   turn itself green by weakening its own judge (#2555). Once the reviewer approves, and once its branch is up to date

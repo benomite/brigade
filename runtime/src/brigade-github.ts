@@ -46,7 +46,7 @@ import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
-import { jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
+import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
 import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts";
 import { declencheSurPr } from "./declencheurs.ts";
@@ -1091,9 +1091,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   // Les checks rouges du commit, tels que le renvoi les nomme : chacun avec les
-  // étapes en échec de son job (#3028). Illisibles, elles ne retiennent pas le
+  // étapes en échec de son job (#3028), et `brigade/gates` — les gates qu'une
+  // station joue sur un projet sans CI sur ses PR — avec ce qui les a fait
+  // rougir, que son statut résume (#3157). Illisibles, elles ne retiennent pas le
   // renvoi : le check est nommé sans elles, comme avant. GitHub qui limite ses
   // appels se dit comme ailleurs dans le tour.
+  const etapesDesGates = async (sha: string) => {
+    const echec = github.statuts === undefined ? null : echecDesGates(await github.statuts(sha, CONTEXTE_DES_GATES));
+    return echec === null ? [] : [echec];
+  };
   const checksRougesDits = async (sha: string) =>
     Promise.all(
       (await github.ci(sha))
@@ -1101,7 +1107,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         .map(async (check) => {
           let etapes: string[] = [];
           try {
-            etapes = (await github.etapesEnEchec?.(check)) ?? [];
+            etapes = check.name === CONTEXTE_DES_GATES ? await etapesDesGates(sha) : ((await github.etapesEnEchec?.(check)) ?? []);
           } catch (erreur) {
             if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
             avertir(`brigade : failed steps of \`${check.name}\` on ${sha.slice(0, 7)} unreadable on ${nom} — ${message(erreur)}`);
