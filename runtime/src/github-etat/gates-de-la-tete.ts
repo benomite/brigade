@@ -53,6 +53,19 @@ const DESCRIPTION_MAX = 140;
 const decrire = (texte: string) => (texte.length > DESCRIPTION_MAX ? `${texte.slice(0, DESCRIPTION_MAX - 1)}…` : texte);
 export const descriptionEnCours = (station: string) => decrire(`Gates running on station ${station}`);
 const stationDe = (description: string) => /on station (\S+)/.exec(description)?.[1] ?? "another station";
+const ROUGES = /^Gates red on station \S+: (.+)$/;
+
+// Ce qui a fait rougir les gates de la tête, tel que leur dernier verdict le
+// résume dans son statut (sa première ligne FAIL, ou leur coupure), pour le
+// renvoi qui la nomme comme l'étape en échec d'un job (#3157) ; null si le
+// dernier verdict n'est pas rouge ou ne dit rien. Ses parenthèses deviennent
+// des crochets : le renvoi met l'étape entre parenthèses.
+export function echecDesGates(statuts: readonly StatutDeCommit[]): string | null {
+  const verdict = statuts.filter(({ state }) => state !== "pending").at(-1);
+  if (verdict === undefined || verdict.state === "success") return null;
+  const resume = ROUGES.exec(verdict.description)?.[1]?.replace(/^FAIL\s+/, "").replace(/\(/g, "[").replace(/\)/g, "]").trim();
+  return resume === undefined || resume === "" ? null : resume;
+}
 
 const peremption = (statut: StatutDeCommit) => Date.parse(statut.createdAt) + GATES_PERIMEES_MS;
 const frais = (statut: StatutDeCommit, maintenant: number) => {

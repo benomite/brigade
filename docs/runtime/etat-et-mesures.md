@@ -511,6 +511,14 @@ Since #3028 the station names the failed steps of each red job in the send-back,
 `(failed step: Format)` is "other", `(failed step: Typecheck)` "type check". The three send-backs counted keep their
 cause. The same fix turned the `app` pattern of `causeDuRenvoi` back into a word match: since #2707 it held two
 backspace characters where `\b` was meant, so no red-CI send-back was ever classed "red gates: app tests".
+#3157, measured on BOBL-tech/espace, names "other" as the first send-back reason: five of its nine send-backs
+(#830, #845, #846, #886, #879) read `the CI is red on …: brigade/gates`. espace runs no CI on its PRs, and a
+station plays its gates on the PR head and posts their verdict as the commit status `brigade/gates` (#2456). That
+status is no GitHub Actions job: no failed step was read, and the send-back named the check alone, which no cause
+matches. Since #3157 the send-back names what made the gates red, read from the status the station posted — its
+summary is their first `FAIL` line (`echecDesGates`, `runtime/src/github-etat/gates-de-la-tete.ts`) —, and the cause
+is read from it as from a job's steps: `tests du runtime en échec` is "red gates: runtime tests". The five send-backs
+counted keep their cause.
 
 The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
 again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent

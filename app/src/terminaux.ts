@@ -67,7 +67,17 @@ export type Terminal = {
   empeche?: DitDuSecond;
   // Il part, mais des outils lui manquent : ce qui en a besoin échouera tant qu'ils ne sont pas installés.
   manque?: DitDuSecond;
+  // La fenêtre s'est rechargée (#3159) et ce second ne tournait plus : il n'a pas pu être rattaché. Sa note le dit, et la
+  // vue pose à côté de quoi le reprendre — comme une touche, qui le relance.
+  aReprendre?: true;
 };
+
+// Un terminal tel qu'une vue rechargée le retrouve (#3159) : ce qu'elle en montre, et ce qu'il a écrit — la fin seulement.
+export type Ouvert = { terminal: Terminal; ecrit: string };
+
+// Ce que l'app garde de ce qu'un terminal a écrit, pour une vue qui se recharge : le dernier million de caractères. Au
+// double, la tête s'en va.
+export const RETENU = 1_000_000;
 
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
 
@@ -91,6 +101,8 @@ type Tenu = Terminal & {
   saisie?: Saisie;
   persistant?: { rang: number; session: Session };
   ici?: string;
+  // Ce qu'il a écrit depuis son ouverture, relancements compris — comme le terminal de la vue, qui le garde aussi.
+  ecrit: string;
 };
 
 // Ce qui ne s'écrit jamais dans un terminal à la place du chef : un retour à la
@@ -98,6 +110,15 @@ type Tenu = Terminal & {
 // Qui prépare une commande (gestes.ts) la refuse par la même règle, avant d'ouvrir un shell.
 export const CONTROLE = /[\x00-\x1f\x7f]/;
 export const SANS_ECRIRE = "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” of this project in the projects file";
+
+// Ce qu'une vue rechargée rejoue : la fin de ce qui a été écrit, à partir d'un début de ligne quand elle a été coupée —
+// une séquence d'échappement tranchée en deux n'y laisse pas sa moitié.
+function depuisUneLigne(ecrit: string): string {
+  if (ecrit.length <= RETENU) return ecrit;
+  const fin = ecrit.slice(-RETENU);
+  const ligne = fin.indexOf("\n");
+  return ligne === -1 ? fin : fin.slice(ligne + 1);
+}
 
 export function ouvrirTerminaux(options: {
   ouvrirPty(lancement: Lancement): Pty;
@@ -140,7 +161,7 @@ export function ouvrirTerminaux(options: {
 
   const detruire = options.detruire ?? ((session: Session) => detruireSession(session));
 
-  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite, nonParti, empeche, manque }: Tenu): Terminal => ({
+  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite, nonParti, empeche, manque, aReprendre }: Tenu): Terminal => ({
     id,
     projet,
     genre,
@@ -152,11 +173,12 @@ export function ouvrirTerminaux(options: {
     ...(nonParti === undefined ? {} : { nonParti }),
     ...(empeche === undefined ? {} : { empeche }),
     ...(manque === undefined ? {} : { manque }),
+    ...(aReprendre === undefined ? {} : { aReprendre }),
   });
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
   function tenir(projet: Projet, genre: Terminal["genre"], titre: string): Tenu {
-    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.depot === undefined ? {} : { depot: projet.depot }), ...(projet.base === undefined ? {} : { base: projet.base }) }, colonnes: 80, lignes: 24, lances: 0 };
+    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.depot === undefined ? {} : { depot: projet.depot }), ...(projet.base === undefined ? {} : { base: projet.base }) }, colonnes: 80, lignes: 24, lances: 0, ecrit: "" };
     tenus.set(tenu.id, tenu);
     return tenu;
   }
@@ -177,6 +199,7 @@ export function ouvrirTerminaux(options: {
     tenu.arrete = false;
     delete tenu.empeche;
     delete tenu.manque;
+    delete tenu.aReprendre;
     // Un second dit ses tours à l'app par ses crochets, dans un fichier qui repart vide avec lui —
     // les réglages suivent ce qui est lancé.
     const tours = tenu.genre === "second" ? options.tours?.(tenu.id) : undefined;
@@ -214,6 +237,8 @@ export function ouvrirTerminaux(options: {
       colonnes: tenu.colonnes,
       lignes: tenu.lignes,
       surSortie: (donnees) => {
+        tenu.ecrit += donnees;
+        if (tenu.ecrit.length > 2 * RETENU) tenu.ecrit = tenu.ecrit.slice(-RETENU);
         saisie?.sortie(donnees);
         options.surSortie(tenu.id, donnees);
       },
@@ -443,6 +468,21 @@ export function ouvrirTerminaux(options: {
         revenir(projet);
       }
       return de(projet.nom).map(montre);
+    },
+
+    // Tous les terminaux ouverts, de tous les projets, pour une vue qui se recharge (#3159) : chacun y retrouve son onglet,
+    // et ce qu'il avait écrit. Rien n'est lancé : un second qui tourne est rattaché tel quel, sans être relancé, et ce
+    // qu'il écrit ensuite arrive par `surSortie`. Un second qui ne tourne plus n'a pas pu l'être : sa note le dit, en une
+    // ligne, et la vue pose de quoi le reprendre. Un second qui ne part pas (`empeche`) garde la sienne, et son « try again ».
+    ouverts(): Ouvert[] {
+      return [...tenus.values()].map((tenu) => {
+        if (tenu.genre === "second" && tenu.pty === undefined && tenu.empeche === undefined) {
+          tenu.arrete = true;
+          tenu.aReprendre = true;
+          tenu.note = "the second was not running when the window reloaded: it could not be reattached — resume it";
+        }
+        return { terminal: montre(tenu), ecrit: depuisUneLigne(tenu.ecrit) };
+      });
     },
 
     // Les pages que les seconds ont nommées pour obtenir un outil qui manque (#1435) : seules celles-là s'ouvrent
