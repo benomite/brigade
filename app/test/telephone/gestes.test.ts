@@ -18,7 +18,7 @@ import { gestesDeCarte } from "../../src/gestes-fiche.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { type Faux, FauxEcran, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { type Faux, FauxEcran, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
@@ -77,17 +77,8 @@ const FAITS: Faits = {
   ],
   stations: [station("box/claude", { cooks: [COOK_14] })],
 };
-// La lecture qui suit le merge de #12 : servi, il n'attend plus personne.
-const MERGEE: Faits = {
-  ...FAITS,
-  compteurs: { ...FAITS.compteurs, aLaPass: 1, attend: 1, livres24h: 1 },
-  rail: FAITS.rail.map((ticket) => (ticket.ticket === 12 ? { ...ticket, etat: "servi" } : ticket)),
-  attend: (FAITS.attend ?? []).filter(({ ticket }) => ticket !== 12),
-};
-// Celle qui suit le retrait de #31 : il a quitté le rail.
+// La lecture qui suit le retrait de #31 : il a quitté le rail.
 const RETIREE: Faits = { ...FAITS, compteurs: { ...FAITS.compteurs, aLaPass: 1, attend: 1 }, rail: FAITS.rail.filter(({ ticket }) => ticket !== 31), attend: (FAITS.attend ?? []).filter(({ ticket }) => ticket !== 31) };
-// Celle qui suit l'arrêt de la cuisine sur la box : ses cooks finissent.
-const ARRETEE: Faits = { ...FAITS, stations: [station("box/claude", { cuisson: "stopped", arreteeDepuis: A, cooks: [COOK_14] })] };
 
 const dessinable = (faits: Faits) => tenirFaits(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
 // Ce que la box rend à la lecture que la vue a demandée en dernier — la relecture qu'un geste fait demande comprise.

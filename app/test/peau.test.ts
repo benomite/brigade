@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import type { Lecture } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -237,8 +236,6 @@ const REPONSES: Reponses & Required<Pick<Reponses, "demarrage">> = {
   espace: () => [SECOND],
 };
 
-// Les `pre` posés sous un élément : ce que la box a rendu, et — à part — ce que l'app en dit.
-const relayes = (ou: Faux) => ou.dessous("pre").filter((pre) => pre.className === "");
 const textes = (elements: Faux[]) => elements.map((element) => element.textContent);
 const entree = (vue: Awaited<ReturnType<typeof jouerLaVue>>, rang: number): Faux => vue.element("projets").children.at(rang) ?? assert.fail(`pas d'entrée ${rang} dans la barre`);
 

@@ -1,6 +1,7 @@
 // La page d'un projet en deux onglets (#1184, #2921) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris,
 // sous le bandeau de santé — et Stations. Un seul est montré au centre ; le second reste à droite,
 // le même, quel que soit l'onglet. L'app rouvre un projet sur le dernier onglet que le chef y a ouvert.
+// Le menu de la page (#2485) n'a que Rail · Stations · Settings (#2921 : Kitchen et ses sous-onglets ont disparu), et un bloc monté par onglet.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -103,6 +104,9 @@ const cartes = (vue: Jouee) =>
     .flatMap((colonne) => colonne.dessous("li").filter((li) => li.className === "bon").map((bon) => bon.children[0]?.children[0]?.textContent));
 const carteDe = (vue: Jouee, numero: number): Faux => centre(vue).dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`) ?? assert.fail(`pas de carte #${numero} sur l'onglet montré`);
 const pose = (vue: Jouee, id: string) => vue.poses().some((element) => element.id === id && !element.hidden && centre(vue).contains(element));
+// Les blocs du bandeau de santé, une section de Settings (#3014) : les plafonds, le closer, tous les projets.
+const blocsDuBandeau = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").map((pose) => pose.dataset.bloc).filter((bloc) => bloc !== undefined);
+const blocs = (vue: Jouee) => vue.element("rail").children.map((pose) => pose.dataset.bloc);
 
 describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
   test("un projet s'ouvre sur Rail ; un clic montre Stations, un autre rend Rail — un seul est montré à la fois", async () => {
@@ -245,5 +249,64 @@ describe("l'app rouvre un projet sur le dernier onglet que le chef y a ouvert", 
     const sans = await jouer();
     await entrer(sans, PARADE);
     assert.deepEqual(montre(sans), ["Rail"]);
+  });
+});
+
+describe("le menu de la page d'un projet (#2485, #2921)", () => {
+  test("exactement trois entrées, Rail · Stations · Settings ; Rail est ouvert par défaut, sans Kitchen ni sous-onglets", async () => {
+    const vue = await ouvrir();
+
+    assert.deepEqual(onglets(vue).map((onglet) => onglet.textContent), ["Rail", "Stations", "Settings"]);
+    assert.deepEqual(montre(vue), ["Rail"]);
+    assert.equal(vue.element("rail").dataset.onglet, "rail");
+    // Plus de Kitchen, donc plus de sous-onglets Health et Cooks.
+    assert.equal(vue.poses().some((element) => element.id === "onglets-cuisine"), false);
+  });
+
+  test("chaque bloc est monté dans son onglet, le bandeau de santé dans Settings seulement", async () => {
+    const vue = await ouvrir();
+    // Sur Rail, au-dessus des colonnes, la seule bande des chiffres (#3013) : plus de ligne repliée.
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
+
+    await ouvrirOnglet(vue, "Stations");
+    // Puis, en bas, toutes les stations et « + station », qui ont quitté l'accueil (#2638).
+    assert.deepEqual(blocs(vue), ["liste-stations", "reglages-station", "station-locale", "toutes-les-stations"]);
+    // Plus en tête de Stations : les plafonds, le closer et les lignes de tous les projets sont dans Settings (#3014).
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
+
+    (onglets(vue).find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas d'entrée Settings")).click();
+    await repos();
+    // Leur section de Settings : les plafonds, le closer, puis les lignes « Cost » et « Closer » de tous les projets (#2638).
+    assert.equal(vue.element("etat").hidden, false);
+    assert.deepEqual(blocsDuBandeau(vue), ["plafonds-duree", "closer", "de-tous-les-projets"]);
+
+    await ouvrirOnglet(vue, "Rail");
+    assert.equal(vue.element("etat").hidden, true);
+    assert.deepEqual(vue.element("bandeau-sante").children, []);
+  });
+
+  test("l'onglet retenu est celui du projet ; un ancien « cooks » ou « sante » stocké ouvre Rail", async () => {
+    const vue = await ouvrir();
+    await ouvrirOnglet(vue, "Stations");
+    await entrer(vue, FANFARE);
+    assert.deepEqual(montre(vue), ["Rail"]);
+    await entrer(vue, PARADE);
+    assert.deepEqual(montre(vue), ["Stations"]);
+
+    for (const ancien of ["cooks", "sante"]) {
+      const stockage = new FauxStockage();
+      stockage.setItem("brigade.onglets-des-projets", JSON.stringify({ [PARADE]: ancien }));
+      const rouverte = await ouvrir(stockage);
+      assert.deepEqual(montre(rouverte), ["Rail"], ancien);
+      assert.equal(rouverte.element("rail").dataset.onglet, "rail", ancien);
+    }
+  });
+
+  test("Settings s'ouvre par-dessus, depuis le même menu, et garde son contenu", async () => {
+    const vue = await ouvrir();
+    (onglets(vue).find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas d'entrée Settings")).click();
+    await repos();
+    assert.deepEqual(montre(vue), ["Settings"]);
+    assert.equal(vue.element("etat").hidden, false);
   });
 });

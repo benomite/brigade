@@ -19,7 +19,6 @@ import { comprendre, rail, type Carte, type Faits } from "../src/faits.ts";
 const MAINTENANT = new Date("2026-10-13T10:00:00.000Z");
 const ilYA = (minutes: number) => new Date(MAINTENANT.getTime() - minutes * 60_000).toISOString();
 const dans = (minutes: number) => ilYA(-minutes);
-const tokens = (combien: number) => `${combien.toLocaleString("en-US")} tokens at the last reading`;
 
 // L'état d'une cuisine vide, lu comme le runtime le lit — puis un rail posé dessus.
 function etatVide(): EtatCuisine {

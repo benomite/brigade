@@ -13,7 +13,7 @@ import { pourLaBarre } from "../src/barre.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Carte, type Dessinable, type Faits } from "../src/faits.ts";
+import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../src/projets/projets.ts";
