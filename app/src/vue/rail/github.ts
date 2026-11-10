@@ -232,7 +232,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [] }: Ra
       compteurs: { attend: 0, ...compteurs, livres24h: servis.length, rail: ranges.length, auTravail: nombre("pris"), aLaPass: nombre("en pass", "base rouge") },
       livres: servis.map(({ ticket, titre, url, livre, station, pr }) => ({ ticket, titre, url, livre, station, pr })),
       rail: ranges.map((ticket) => ({
-        ...(ticket.miseDeCote === undefined || ticket.miseDeCote.auChef ? {} : { attente: { raison: ticket.miseDeCote.raison ?? SANS_RAISON, ...(ticket.miseDeCote.complete === undefined ? {} : { complete: ticket.miseDeCote.complete }), colonne: COLONNE_DE_LA_MISE_DE_COTE, retour: null } }),
+        ...(ticket.miseDeCote === undefined || ticket.miseDeCote.auChef ? {} : { attente: { raison: ticket.miseDeCote.raison ?? SANS_RAISON, ...(ticket.miseDeCote.complete === undefined ? {} : { complete: ticket.miseDeCote.complete }), label: ticket.miseDeCote.label, colonne: COLONNE_DE_LA_MISE_DE_COTE, retour: null } }),
         ticket: ticket.ticket,
         etat: ticket.etat,
         titre: ticket.titre,

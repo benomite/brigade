@@ -656,7 +656,7 @@ answer but a 304) in any hour, under the 1,000 the test allows.
     behind "details", whole. The card offers three buttons: **Relaunch** (removes `served-elsewhere` from the issue),
     **Close as already done** (closes the issue as completed; the card leaves the rail) and **Ask the second** (the
     hand-over of "ask the second" on a Todo card). The first two write on GitHub through the `refus` bridge call
-    (`app/src/gestes-refus.ts`), and only for a ticket the latest read shows set aside. Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
+    (`app/src/gestes-refus.ts`), and only for a ticket the latest read shows set aside by the `served-elsewhere` label; a `86` the station clears by itself (quota, absent station…) keeps its previous line and has no such buttons. Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
     (the convention of #2217) enters Todo, and its card is that question, answered on the card (#2434, in the section
     "The chef's TODO read from GitHub" below).
   - **A `chef-todo` card whose question cannot be read** (no marked comment, or a marked comment with no text) is not shown

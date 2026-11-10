@@ -49,7 +49,7 @@ export const RAISONS_DE_REFUS: readonly Raison[] = [
   { id: "sans-station", motif: /aucune station ne fournit/, exemple: "attend : un humain — aucune station ne fournit macos ; brancher une station qui le fournit, le ticket repart alors tout seul", clair: () => "no station provides what its card requires" },
   { id: "station-absente", motif: /station absente/, exemple: "attend : station absente (box/claude) — il repart seul dès qu'elle se manifeste", clair: () => "the station that should take it is absent" },
   { id: "sans-motif", motif: /mis de côté, sans motif/, exemple: "attend : mis de côté, sans motif", clair: () => "it was set aside and the station gave no reason" },
-  { id: "sans-raison", motif: new RegExp(`^${SANS_RAISON.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), exemple: SANS_RAISON, clair: () => "it was set aside by hand, and no comment on the issue says why" },
+  { id: "sans-raison", motif: /^set aside by hand — no reason on the issue$/, exemple: SANS_RAISON, clair: () => "it was set aside by hand, and no comment on the issue says why" },
 ];
 
 // La raison que le message de la station dit, ou null quand aucune ne se reconnaît.

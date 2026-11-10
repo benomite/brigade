@@ -14,7 +14,7 @@ const LU: TableauLu = {
   depot: DEPOT,
   luLe: "2026-11-10T10:00:00.000Z",
   cuisine: { rubriques: [] },
-  faits: { rail: [{ ticket: 22, etat: "86" }, { ticket: 23, etat: "pris" }], attend: [] },
+  faits: { rail: [{ ticket: 22, etat: "86", attente: { raison: "x", colonne: "en attente", retour: null, label: "served-elsewhere" } }, { ticket: 23, etat: "pris" }, { ticket: 24, etat: "86", attente: { raison: "attend : quota du compte épuisé", colonne: "en attente", retour: null } }], attend: [] },
   file: [],
   bilans: [],
   lignesDuRail: [],
@@ -37,7 +37,17 @@ describe("les gestes d'une carte mise de côté", () => {
     assert.deepEqual(demandes, ["DELETE /repos/chef/parade/issues/22/labels/served-elsewhere"]);
     assert.ok("fait" in rendu && rendu.fait.includes("no longer carries `served-elsewhere`"));
     const deja = github(() => ({ status: 404, data: {} }));
+    deja.client.lire = async () => ({ status: 200, data: { labels: [{ name: "prio:1" }] } });
     assert.ok("fait" in (await jouerLeRefus(LU, "relancer", 22, deja.client)));
+  });
+
+  test("« Relaunch » : un 404 sur une issue introuvable, ou qui porte encore le label, n'est pas un succès", async () => {
+    for (const lue of [{ status: 404, data: {} }, { status: 200, data: { labels: [{ name: "served-elsewhere" }] } }]) {
+      const { client } = github(() => ({ status: 404, data: {} }));
+      client.lire = async () => lue;
+      const rendu = await jouerLeRefus(LU, "relancer", 22, client);
+      assert.ok("refus" in rendu && rendu.refus.includes("nothing was changed"), JSON.stringify(rendu));
+    }
   });
 
   test("« Close as already done » ferme l'issue comme terminée", async () => {
@@ -67,6 +77,7 @@ describe("les gestes d'une carte mise de côté", () => {
       [LU, "relancer", "22"],
       [LU, "clore", 23],
       [LU, "clore", 99],
+      [LU, "relancer", 24],
       [LU, "supprimer", 22],
     ] as const) {
       const rendu = await jouerLeRefus(lu, id, ticket, client);

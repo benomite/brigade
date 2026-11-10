@@ -68,7 +68,7 @@ describe("la phrase de chaque état d'une carte (#622)", () => {
 
   test("mise de côté (86) : sa raison en clair, jamais le mot « 86 »", () => {
     const carte = de(FAITS, 4);
-    assert.deepEqual(phrase(carte), { ligne: "Will not start: the project's setup fails, so no cook can prepare its workspace.", signal: "set aside" });
+    assert.deepEqual(phrase(carte), { ligne: "attend : setup du projet impossible", signal: "set aside" });
     assert.deepEqual(ligneMiseDeCote("x"), { ligne: "x", signal: "set aside" });
     assert.doesNotMatch(JSON.stringify(phrase(carte)), /\b86\b/);
   });

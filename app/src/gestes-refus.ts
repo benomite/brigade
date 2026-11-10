@@ -23,8 +23,8 @@ function refuse(lu: TableauLu | undefined, ticket: unknown): { ticket: number } 
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing was written: the action names no ticket" };
   if (lu === undefined) return { refus: PAS_LU };
   const rail: unknown[] = Array.isArray(lu.faits.rail) ? lu.faits.rail : [];
-  const carte = rail.find((entree) => typeof entree === "object" && entree !== null && (entree as { ticket?: unknown }).ticket === ticket) as { etat?: unknown } | undefined;
-  if (carte?.etat !== ETAT_MIS_DE_COTE) return { refus: `nothing was written: #${ticket} is not set aside on the latest rail read — read it again` };
+  const carte = rail.find((entree) => typeof entree === "object" && entree !== null && (entree as { ticket?: unknown }).ticket === ticket) as { etat?: unknown; attente?: { label?: unknown } | null } | undefined;
+  if (carte?.etat !== ETAT_MIS_DE_COTE || carte.attente?.label !== SERVED_ELSEWHERE) return { refus: `nothing was written: #${ticket} is not set aside on the latest rail read — read it again` };
   return { ticket };
 }
 
@@ -39,9 +39,14 @@ export async function jouerLeRefus(lu: TableauLu | undefined, id: unknown, ticke
   const issue = `https://github.com/${lu.depot}/issues/${vise.ticket}`;
   if (id === "relancer") {
     try {
-      // Une issue qui ne porte déjà plus le label : c'est fait.
       const reponse = await client.ecrire("DELETE", `/repos/${lu.depot}/issues/${vise.ticket}/labels/${encodeURIComponent(SERVED_ELSEWHERE)}`);
-      if (reponse.status !== 200 && reponse.status !== 404) throw refusDe(`the removal of \`${SERVED_ELSEWHERE}\``, reponse);
+      // 404 : le label n'y est plus — ou l'issue, ou le dépôt, est introuvable. L'issue relue les distingue.
+      if (reponse.status === 404) {
+        const issueLue = await client.lire(`/repos/${lu.depot}/issues/${vise.ticket}`);
+        const labels = Array.isArray((issueLue.data as { labels?: unknown })?.labels) ? ((issueLue.data as { labels: { name?: unknown }[] }).labels) : null;
+        if (issueLue.status !== 200 || labels === null) throw refusDe("the reading of the issue", issueLue);
+        if (labels.some(({ name }) => name === SERVED_ELSEWHERE)) throw refusDe(`the removal of \`${SERVED_ELSEWHERE}\``, reponse);
+      } else if (reponse.status !== 200) throw refusDe(`the removal of \`${SERVED_ELSEWHERE}\``, reponse);
     } catch (erreur) {
       return { refus: `nothing was changed: GitHub did not remove \`${SERVED_ELSEWHERE}\` from #${vise.ticket}`, detail: raison(erreur) };
     }

@@ -42,7 +42,7 @@ const BRUT = "off the kitchen after 3 cooks without a delivery — the cook adde
 const rail = (refuse: boolean): Faits["rail"] => [
   { ticket: 21, etat: "en attente", titre: "L'export", url: ISSUE(21), activite: null, attente: null },
   refuse
-    ? { ticket: 22, etat: "86", titre: "Le ticket refusé", url: ISSUE(22), activite: null, attente: { raison: "off the kitchen after 3 cooks without a delivery — the cook added nothing…", complete: BRUT, colonne: "en attente", retour: null } }
+    ? { ticket: 22, etat: "86", titre: "Le ticket refusé", url: ISSUE(22), activite: null, attente: { raison: "off the kitchen after 3 cooks without a delivery — the cook added nothing…", complete: BRUT, label: "served-elsewhere", colonne: "en attente", retour: null } }
     : { ticket: 22, etat: "en attente", titre: "Le ticket refusé", url: ISSUE(22), activite: null, attente: null },
 ];
 const faits = (refuse: boolean): Faits => ({ etat: "ouverte", lu: "2026-11-10T10:04:11.000Z", dernierTick: "2026-11-10T10:04:11.000Z", compteurs: { rail: 2, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: rail(refuse), cooks: [], attend: [] });
@@ -74,6 +74,19 @@ describe("la carte que plus aucun cook ne prendra", () => {
     // Une carte qui attend son tour n'a ni cette ligne ni ces boutons.
     assert.equal(ligne(bon(vue, 21)), undefined);
     assert.ok(!boutons(bon(vue, 21)).includes("Relaunch"));
+  });
+
+  test("un 86 que la station relève seule (quota) garde sa ligne de mise de côté : ni « Will not start », ni « Relaunch »", async () => {
+    const vue = await ouvrir();
+    const f = faits(true);
+    f.rail = f.rail.map((entree) => (entree.ticket === 22 ? { ...entree, attente: { raison: "attend : quota du compte épuisé", colonne: "en attente", retour: null } } : entree));
+    const tenus = tenirFaits();
+    vue.dire("surFaits", { ...tenus.recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(f) }] }), demande: vue.dernier("faits")[0] as number });
+    await repos();
+    const carte = bon(vue, 22);
+    assert.equal(ligne(carte), undefined);
+    assert.ok(!("refus" in carte.dataset));
+    assert.ok(!boutons(carte).includes("Relaunch"));
   });
 
   test("elle montre trois boutons, et le « report to brigade » n'est pas le seul geste", async () => {

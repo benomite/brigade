@@ -26,7 +26,7 @@ import { anciennete, cadenceLue, essaisLus, points, type Anciennete, type EssaiL
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
-import { SANS_RAISON, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
+import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
 import type { Repondue } from "./repondues.ts";
@@ -294,7 +294,7 @@ export type Activite = { fait: string; faitEn?: string; cible: string | null; de
 
 // Ce qu'un ticket mis de côté attend, comme le runtime le dit : `raison` en clair
 // (« attend : setup du projet impossible »), `colonne` : celle du rail où il est.
-export type Attente = { raison: string; complete?: string; colonne: string; retour: string | null };
+export type Attente = { raison: string; complete?: string; label?: string; colonne: string; retour: string | null };
 
 // Ce qu'un ticket en WAITING attend d'un tiers, comme le runtime le donne : `quoi`, dans
 // les mots du chef ; `qui` ; `depuis`, sa mise en attente, et `relance`, quand y revenir,
@@ -675,7 +675,7 @@ function comprendreCaptures(brut: unknown, lequel: string): CapturesLues {
 
 function comprendreAttente(brut: unknown, lequel: string): Attente {
   const lu = objet(brut, lequel);
-  return { raison: texte(lu.raison, `${lequel}.raison`), ...(lu.complete === undefined ? {} : { complete: texte(lu.complete, `${lequel}.complete`) }), colonne: texte(lu.colonne, `${lequel}.colonne`), retour: ouRien(lu.retour, `${lequel}.retour`, texte) };
+  return { raison: texte(lu.raison, `${lequel}.raison`), ...(lu.complete === undefined ? {} : { complete: texte(lu.complete, `${lequel}.complete`) }), ...(lu.label === undefined ? {} : { label: texte(lu.label, `${lequel}.label`) }), colonne: texte(lu.colonne, `${lequel}.colonne`), retour: ouRien(lu.retour, `${lequel}.retour`, texte) };
 }
 
 function comprendreTiers(brut: unknown, lequel: string): Tiers {
@@ -1118,7 +1118,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     // la carte — la ligne dit ce que sa sorte attend du chef, jamais la question.
     const duChef = dit === undefined || donne?.chef === undefined ? undefined : carteDuChefDeTodo(donne.chef);
     // Mis de côté sur le rail, sans question au chef : plus aucun cook ne le prendra (ticket 3147).
-    const refusee = dit === undefined && connu?.etat === "86" && connu.illisible === undefined;
+    // Seul le label `served-elsewhere` le dit : les autres 86 (quota, station absente…) repartent seuls.
+    const refusee = dit === undefined && connu?.etat === "86" && connu.illisible === undefined && connu.attente?.label === SERVED_ELSEWHERE;
     const brutDuRefus = connu?.attente?.complete ?? connu?.attente?.raison ?? "";
     const ligne: LigneDeCarte =
       connu?.illisible !== undefined || donne?.illisible !== undefined
