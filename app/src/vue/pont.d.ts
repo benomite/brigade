@@ -27,7 +27,7 @@ import type { DepotDuChef } from "../projets/github.ts";
 import type { Ajout, Choisi, DefautsDeLaMachine, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
 import type { IssueDuRemede } from "../projets/remede.ts";
 import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
-import type { Terminal } from "../terminaux.ts";
+import type { Ouvert, Terminal } from "../terminaux.ts";
 import type { CompteGitHub, DebutDeConnexion, FinDeConnexion } from "../connexion-github.ts";
 import type { Ouverture, Progres, StationsDuChef } from "../premier-lancement.ts";
 import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
@@ -101,6 +101,9 @@ export type Pont = {
   // `surConfiguration`.
   desinstaller(projet: string, confirmation: string): Promise<Retrait | undefined>;
   espace(projet: string): Promise<Terminal[]>;
+  // Tous les terminaux ouverts, de tous les projets, et ce que chacun a écrit (ticket 3159) : une vue rechargée les retrouve,
+  // sans rien relancer. Un pont qui n'en tient pas (le téléphone) ne le porte pas.
+  terminauxOuverts?(): Promise<Ouvert[]>;
   // « + shell » : les machines où un shell persistant peut s'ouvrir — ce poste, la box, les stations.
   machines(projet: string): Promise<{ id: string; titre: string }[]>;
   // Un shell persistant sur la machine choisie, par son identifiant — ou pourquoi rien ne s'est ouvert.
