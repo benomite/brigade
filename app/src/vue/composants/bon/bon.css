@@ -87,7 +87,7 @@
 .bon .gestes-du-refus {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--pas-2);
   align-items: center;
 }
 .bon .gestes-du-refus p.secondaire {
