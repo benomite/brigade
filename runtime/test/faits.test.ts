@@ -120,6 +120,18 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
 });
 
+test("la carte d'une issue retenue ne dit sa réponse écrite que si le chef a répondu depuis : sinon elle dit qu'aucune réponse n'y est (#3135)", (t) => {
+  const { noter, arriver, journal } = cuisine(t);
+  arriver(14, 1);
+  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
+  const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
+  const resume = () => (faits(lireEtat(journal, a), a, "acme/brigade").attend[0]?.carte as { resume: string }).resume;
+  assert.match(resume(), /No answer was found on the issue yet/);
+  assert.doesNotMatch(resume(), /Your answer is written/);
+  noter({ type: "todo.answered", payload: { choice: null, answer: "Go on.", then: "resume" } }, 378, "chef");
+  assert.match(resume(), /Your answer is written on the issue and the label removed/);
+});
+
 test("un ticket d'interface en pass, puis livré, porte les captures de sa dernière livraison par leur adresse — un autre n'en porte aucune, et sans dépôt aucune ne se montre", (t) => {
   const { noter, arriver, journal } = cuisine(t);
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
