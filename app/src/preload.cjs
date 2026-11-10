@@ -61,6 +61,7 @@ const pont = {
   repondreQuestion: (projet, ticket, reponse) => ipcRenderer.invoke("repondreQuestion", projet, ticket, reponse),
   geste: (projet, id, oui) => ipcRenderer.invoke("geste", projet, id, oui),
   confirmer: (projet, id) => ipcRenderer.invoke("confirmer", projet, id),
+  refus: (projet, id, ticket) => ipcRenderer.invoke("refus", projet, id, ticket),
   attente: (projet, id, ticket, saisie) => ipcRenderer.invoke("attente", projet, id, ticket, saisie),
   ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
   passer: () => ipcRenderer.invoke("passer"),

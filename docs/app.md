@@ -650,9 +650,13 @@ answer but a 304) in any hour, under the 1,000 the test allows.
     "Merge PR #2416 by hand? It changes what judges it.", the PR number opens the PR, and the merge is done on GitHub.
   - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
     is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
-    (**On the rail**, `86`), with its reason line as before ("off the kitchen after 2 sends back — the CI is red on
-    7579211", "… after 3 cooks without a delivery — the cook committed nothing", "set aside by hand — no reason on the
-    issue"). Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
+    (**On the rail**, `86`). Its card says at the top **"Will not start: <reason in plain words>."** (#3147) — every
+    reason the station can produce has a sentence in `app/src/refus.ts`, a test fails when one has none, and a reason it
+    does not know falls back to a generic sentence, never to the raw message alone. The station's own message stays
+    behind "details", whole. The card offers three buttons: **Relaunch** (removes `served-elsewhere` from the issue),
+    **Close as already done** (closes the issue as completed; the card leaves the rail) and **Ask the second** (the
+    hand-over of "ask the second" on a Todo card). The first two write on GitHub through the `refus` bridge call
+    (`app/src/gestes-refus.ts`), and only for a ticket the latest read shows set aside by the `served-elsewhere` label; a `86` the station clears by itself (quota, absent station…) keeps its previous line and has no such buttons. Only an `hors-cuisine` ticket whose latest marked comment is `<!-- brigade:todo kind=product-question -->`
     (the convention of #2217) enters Todo, and its card is that question, answered on the card (#2434, in the section
     "The chef's TODO read from GitHub" below).
   - **A `chef-todo` card whose question cannot be read** (no marked comment, or a marked comment with no text) is not shown
@@ -2847,9 +2851,9 @@ attention. Each sentence is written from the facts the queue already gives about
 |---|---|---|
 | taken (`taken`) | what the cook is doing, and for how long: `writes the tests · 12 min` (`rail[].activite`); with no activity, `in the kitchen` and a `…` marker | — |
 | in pass | likewise: `review in progress · 1 min`; with no activity, `review in progress` and the marker | — |
-| queued | `after #14, #15` when `status` names the tickets that hold it; otherwise what holds it, as is; otherwise `ready, waits for a place in the kitchen` | — |
+| queued | `Waiting for #14, #15` when `status` names the tickets that hold it, each number opening its issue (#3147); otherwise what holds it, as is; otherwise `ready, waits for a place in the kitchen` | — |
 | `BLOCKED` | likewise, or `blocked` and the marker | `blocked` |
-| set aside (`86`) | its reason in plain words, the one the runtime gives (`attente.raison`); the word `86` is displayed as `set aside` | `set aside` |
+| set aside (`86`) | `Will not start: <reason in plain words>.` (`app/src/refus.ts`, from `attente.raison` or the station's comment); the word `86` is displayed as `set aside` | `set aside` |
 | with a third party (WAITING) | `waiting for <what> · from <who> · follow-up <YYYY-MM-DD>` — the follow-up day on this computer's calendar (#3075); without a follow-up, the first two | `follow-up date passed` when the follow-up date has passed |
 | question answered (WAITING) | `answered by <who> · the manager's turn` — `you` for an answer the app has just posted | — |
 | awaiting you | what is expected of you, in one sentence (`decision.ts`); for a question from the manager — before splitting an epic, or which holds the ticket through `blocked-on-human` —, the question being asked of you | — |

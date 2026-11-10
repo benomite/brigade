@@ -21,11 +21,12 @@ export const DEMANDE_EN_ROUTE = "asking the second…";
  * @param {number} ticket
  * @param {{ envoi: true } | { parti: string } | { refus: string } | undefined} second
  * @param {() => void} demander
+ * @param {string} [libelle] le mot du bouton — celui de la carte de TODO par défaut ; une carte refusée dit « Ask the second » (ticket 3147)
  */
-export function rangeeDuSecond(doc, ticket, second, demander) {
+export function rangeeDuSecond(doc, ticket, second, demander, libelle = DEMANDER) {
   const rangee = doc.createElement("p");
   rangee.className = "secondaire";
-  const clic = bouton(doc, DEMANDER, undefined, { sorte: "secondaire" });
+  const clic = bouton(doc, libelle, undefined, { sorte: "secondaire" });
   clic.className = "demander";
   clic.dataset.geste = "demande-second";
   clic.title = `open the second with this card handed over: #${ticket}, its question and what its issue says — nothing is sent, you press Enter`;

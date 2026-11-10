@@ -237,8 +237,10 @@ describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, 
     );
     const rail = vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? [];
     const dit = Object.fromEntries(rail.map(({ ticket, ligne }) => [ticket, ligne]));
-    assert.equal(dit[7], "off the kitchen after 2 sends back — the review requested changes");
-    assert.equal(dit[9], SANS_RAISON);
+    assert.equal(dit[7], "Will not start: its delivery was sent back to a cook 2 times and is still not mergeable.");
+    assert.equal(dit[9], "Will not start: it was set aside by hand, and no comment on the issue says why.");
+    // Le message de la station reste derrière « details », en entier.
+    assert.match(rail.find(({ ticket }) => ticket === 7)?.refus?.brut ?? "", /^still not mergeable after 2 sends back — /);
     assert.equal(SANS_RAISON, "set aside by hand — no reason on the issue");
   });
 
@@ -296,11 +298,11 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
     const rail = vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? [];
     assert.equal(rail.length, 11);
     assert.deepEqual([...new Set(rail.map(({ ligne }) => ligne))].sort(), [
-      "off the kitchen after 2 sends back — the CI is red on 7579211 (PR #2400)",
-      "off the kitchen after 2 sends back — the PR conflicts with the base",
-      "off the kitchen after 2 sends back — the review requested changes on 7579211 (PR #2401)",
-      "off the kitchen after 3 cooks without a delivery — the cook committed nothing",
+      "Will not start: 3 cooks in a row stopped without delivering anything.",
+      "Will not start: its delivery was sent back to a cook 2 times and is still not mergeable.",
     ]);
+    // Le message brut, en entier, est gardé pour « details ».
+    assert.ok(rail.every(({ refus }) => (refus?.brut ?? "").includes(" — ")));
     assert.ok(!(vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? []).some(({ ticket }) => ticket in techniques));
   });
 

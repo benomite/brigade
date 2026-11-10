@@ -6,19 +6,21 @@
 //
 //   au travail   `<fait> <cible> · <durée>`           (« writing app/src/bon.ts · 12 min » ; qui ne fait que réfléchir : « in the kitchen »)
 //   en pass      la même, sinon « review in progress »
-//   en attente   `after #a, #b` ; ou ce qui le retient ; sinon « ready, waits for a place in the kitchen »
+//   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; sinon « ready, waits for a place in the kitchen »
 //   en tête      en tête de la file sans partir : `does not leave: <raison du runtime>` (ticket 1347)
 //   bloquée      ce qui la retient ; signal « blocked »
-//   mise de côté sa raison en clair ; signal « set aside »
+//   mise de côté `Will not start: <raison en mots simples>.` (refus.ts) ; signal « set aside »
 //   en WAITING   `waiting for <quoi> · from <qui>` ; signal si la relance est passée
 //   répondue     `answered by <qui> · the manager's turn` (#503)
 //   m'attend     ce qu'on attend du chef, en une phrase (decision.ts)
 //   livrée       `served at HH:MM · <résumé>`
 import { heureHM } from "./format.ts";
+import { refusEnClair } from "./refus.ts";
 import { jourDe } from "./vue/attente/saisie.ts";
 
-// `signal` : ce qui demande l'attention. `repere` : la file ne dit pas tout, la fiche le détaille.
-export type LigneDeCarte = { ligne: string; signal?: string; repere?: true };
+// `signal` : ce qui demande l'attention. `repere` : la file ne dit pas tout, la fiche le détaille. `liens` : les tickets que la
+// ligne nomme et que la carte ouvre d'un clic.
+export type LigneDeCarte = { ligne: string; signal?: string; repere?: true; liens?: number[] };
 
 export const TRAVAIL_SANS_DETAIL = "in the kitchen";
 export const PASS_SANS_DETAIL = "review in progress";
@@ -47,9 +49,10 @@ export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: st
 // Un retenu par des tickets se dit « after #a, #b » ; un texte sans numéro est relayé tel quel.
 export function ligneEnAttente(etat: string, retient: string | undefined): LigneDeCarte {
   const numeros = [...new Set(retient?.match(/#\d+/g) ?? [])];
-  const phrase = numeros.length > 0 ? `after ${numeros.join(", ")}` : retient;
-  if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOQUEE, signal: BLOQUEE, ...(phrase === undefined ? { repere: true as const } : {}) };
-  return { ligne: phrase ?? PRET };
+  const phrase = numeros.length > 0 ? `Waiting for ${numeros.join(", ")}` : retient;
+  const liens = numeros.length > 0 ? { liens: numeros.map((numero) => Number(numero.slice(1))) } : {};
+  if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOQUEE, signal: BLOQUEE, ...liens, ...(phrase === undefined ? { repere: true as const } : {}) };
+  return { ligne: phrase ?? PRET, ...liens };
 }
 
 // En tête de la file, et il ne part pas : pourquoi, dans les mots du runtime — une zone tenue, la machine saturée.
@@ -59,6 +62,10 @@ export function ligneDeTete(etat: string, raison: string): LigneDeCarte {
 
 // Mis de côté (86) : sa raison, telle que le runtime la donne.
 export const ligneMiseDeCote = (raison: string): LigneDeCarte => ({ ligne: raison, signal: MISE_DE_COTE });
+
+// Mis de côté (86) sans qu'un humain ait à trancher une question, donc que plus aucun cook ne prendra (ticket 3147) : la
+// raison en mots simples (refus.ts), d'après le message de la station.
+export const ligneRefusee = (brut: string | null | undefined): LigneDeCarte => ({ ligne: refusEnClair(brut), signal: MISE_DE_COTE });
 
 // Qui m'attend : ce qu'on attend du chef, en une phrase.
 export const ligneQuiMAttend = (phrase: string | undefined): LigneDeCarte => (phrase === undefined ? { ligne: ATTEND_TA_DECISION, repere: true } : { ligne: phrase });

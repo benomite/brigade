@@ -42,7 +42,8 @@ export type LienDeLigne = { numero: number; url: string };
 // Ce que la carte dit d'un ticket mis de côté : le label qui le met de côté, la ligne qui dit pourquoi — nulle quand aucun
 // commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
 // `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`.
-export type MiseDeCote = { label: string; raison: string | null; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
+// `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
+export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
 
 type Brut = Record<string, unknown>;
 
@@ -145,5 +146,6 @@ export function miseDeCoteDe(depot: string, label: string, commentaires: readonl
   const juges = label === BLOCKED_ON_HUMAN && dit !== undefined ? JUGES.exec((dit.body as string).replace(/`/g, "")) : null;
   const pr = juges === null ? null : { numero: Number(juges[1]), url: `https://github.com/${depot}/pull/${juges[1]}` };
   const liens = numeros.map((numero) => (numero === pr?.numero ? pr : { numero, url: `https://github.com/${depot}/issues/${numero}` }));
-  return { label, raison, liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(question === null ? {} : { chef: question }) };
+  const complete = label !== SERVED_ELSEWHERE || question !== null || dit === undefined ? "" : sansStation(nettoyer(dit.body as string));
+  return { label, raison, ...(complete === "" ? {} : { complete }), liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(question === null ? {} : { chef: question }) };
 }
