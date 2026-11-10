@@ -165,9 +165,9 @@ export type AttenteDeTicket = { ticket: number; title: string | null; since: str
   // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
   | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
   // Une issue que le manager ne juge pas tant qu'elle porte ce label du chef.
-  | { quoi: "ecartee"; reason: EcartQuiAttend }
+  | { quoi: "ecartee"; reason: EcartQuiAttend; reponseEcrite?: boolean }
   // Une issue dont le jugement ne se lit pas — ou, épique, le découpage.
-  | { quoi: "illisible"; epique: boolean }
+  | { quoi: "illisible"; epique: boolean; reponseEcrite?: boolean }
   // Une épique sur laquelle le manager a posé une question avant de découper.
   | { quoi: "question" }
   // Une carte typée entrée par la porte de TODO : sa sorte, sa question, ses

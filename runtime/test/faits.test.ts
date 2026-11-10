@@ -106,7 +106,7 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   // Sa carte de TODO : un seul geste, la lui rendre avec la réponse du chef.
   const carte = {
     type: "ecartee",
-    resume: "#378 is held back by the blocked-on-human label. Your answer is written on the issue and the label removed, so the manager judges it again.",
+    resume: "#378 is held back by the blocked-on-human label. No answer was found on the issue yet, so the label stays until you answer.",
     question: null,
     choix: [{ texte: "Hand it back to the manager with my answer", suite: "resume" }],
     reponseLibre: true,
