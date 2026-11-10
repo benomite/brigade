@@ -12,7 +12,9 @@
 // - la clôture d'une épique dont tous les sous-tickets sont fermés
 //   (`epique-finie.ts`, #2754) ;
 // - le bug d'une cuisine inerte : des tickets à prendre, et rien n'avance
-//   depuis 90 min (`cuisine-inerte.ts`, #2755).
+//   depuis 90 min (`cuisine-inerte.ts`, #2755) ;
+// - le défaut d'une carte de TODO sans question, déposé sur la brigade
+//   (`../signalement-carte-sans-question.ts`, #3134).
 // La lacune technique que le manager complète seul (#2753) est dans ses
 // instructions, pas ici.
 //
@@ -20,6 +22,7 @@
 // Rien n'est propre à un dépôt : le projet, sa base et sa station viennent de
 // l'appelant. Ce qui se tient d'un tour à l'autre (l'horloge des claims, celle
 // de l'inertie) vit dans l'objet que rend `ouvrirGuerison`, un par station.
+import { cartesDesIssues } from "../attente-github/attente-github.ts";
 import { A_LA_MAIN, brancheDuTicket, termeDeLAttente } from "../brigade-github.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import { aExaminer, renvoyerLesCiRouges, type PROuverte } from "../ci-rouge/ci-rouge.ts";
@@ -34,6 +37,8 @@ import { signalerInertie, type TenantDeZone } from "./cuisine-inerte.ts";
 import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";
 import { relancer, type GitHubDeLaGuerison } from "./relance.ts";
+import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
+import { ouvrirSignalement } from "../signalement-carte-sans-question.ts";
 
 // Ce que la guérison demande au client du tour, et rien de plus. `issue` :
 // absent, les épiques ne se ferment pas. `issuesDepuis` : absent, le bug de
@@ -66,7 +71,7 @@ export type OptionsDeLaGuerison = {
   maintenant?: () => number;
 };
 
-export type Geste = "relance" | "claim" | "ci-rouge" | "in-pass" | "epique" | "inertie";
+export type Geste = "relance" | "claim" | "ci-rouge" | "in-pass" | "epique" | "inertie" | "sans-question";
 
 // Ce qu'un tour de guérison a fait, geste par geste. `tickets` : ceux du tour
 // tels que la guérison les laisse — un ticket relancé sans `served-elsewhere`, un
@@ -94,6 +99,9 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const brigade = servi === undefined || servi.toLowerCase() === DEPOT_BRIGADE ? undefined : options.brigade;
   const maintenant = options.maintenant ?? Date.now;
   const claim = ouvrirClaimPerime({ github, maintenant });
+  // Le défaut d'une carte sans question va sur la brigade, le projet servi la brigade elle-même compris :
+  // sans son GitHub, rien ne se dépose.
+  const sansQuestion = servi === undefined || options.brigade === undefined ? null : ouvrirSignalement({ servi, brigade: options.brigade, maintenant: () => new Date(maintenant()) });
   // La dernière fois que la station a vu la cuisine au travail (un cook ici,
   // un ticket pris ou en pass) ou sans rien à prendre : le tour ne lit pas les
   // merges, c'est d'elle que l'inertie compte. Une cuisine sans ticket à
@@ -274,6 +282,13 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
         bilan.inertie = fait.bug;
         avertir(`brigade : idle kitchen on ${station} (${fait.cause}) — bug #${fait.bug} filed${fait.sur === "brigade" ? ` on ${DEPOT_BRIGADE}` : ""}`);
       }
+    });
+
+    // Une carte de TODO qui ne pose pas de question : son défaut sur la brigade, une fois (#3134).
+    await tache("sans-question", async () => {
+      const posees = tickets.filter((t) => t.labels.includes(CHEF_TODO));
+      if (sansQuestion === null || posees.length === 0) return;
+      for (const { carte, defaut } of await sansQuestion.signaler((await cartesDesIssues(github, posees)).todo)) avertir(`brigade : the TODO card of #${carte} asks no question — defect #${defaut} filed on ${DEPOT_BRIGADE}`);
     });
 
     const sans = (labels: readonly string[], label: string) => labels.filter((l) => l !== label);
