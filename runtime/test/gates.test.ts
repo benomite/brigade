@@ -28,6 +28,12 @@ function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
   return racine;
 }
 
+// Ce que le script a écrit, sans ce que le bash de Git écrit de lui-même sous
+// Windows : « bash.exe: warning: could not find /tmp, please create! », une
+// ligne par bash lancé, quand il ne trouve pas son /tmp — même après le
+// `mkdir -p /tmp` du workflow (#3154, run 42800110813).
+const sansLesAvertissementsDuBash = (sortie: string) => sortie.replace(/^bash\.exe: warning: .*\n?/gm, "");
+
 const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
 
 // Ce que `gates.sh` écrit quand son plafond de durée est franchi : la mesure,
@@ -53,7 +59,7 @@ describe("les gates", { concurrency: 8 }, () => {
     };
 
     const setup = await jouerSetup(demande);
-    assert.equal(setup.sortie, "base prête : [secret:DATABASE_URL]\n");
+    assert.equal(sansLesAvertissementsDuBash(setup.sortie), "base prête : [secret:DATABASE_URL]\n");
     // L'environnement, lui, porte la vraie valeur : c'est le cook qui s'en sert.
     assert.equal(setup.pret && setup.env.BASE, "postgres://dev:secret-de-dev@localhost/ticket_17");
 
@@ -219,10 +225,9 @@ describe("les gates", { concurrency: 8 }, () => {
     const gates = await jouer(racine);
 
     assert.equal(gates.outcome, "green");
-    // Git Bash on Windows prefixes the output with its own `could not find /tmp` warnings and
-    // may hand the worktree back in another spelling (8.3 short name, backslashes): neither is
-    // what is verified here.
-    const lignes = gates.tail.split("\n").filter((ligne) => !/^bash\.exe: warning: /.test(ligne));
+    // Git Bash on Windows may hand the worktree back in another spelling (8.3 short name,
+    // backslashes): that is not what is verified here.
+    const lignes = sansLesAvertissementsDuBash(gates.tail).split("\n");
     const sansSeparateurs = (chemin: string) => chemin.replaceAll("\\", "/");
     assert.deepEqual(lignes.map(sansSeparateurs), [sansSeparateurs(`setup 17 ${racine}`), "vu=base du ticket 17"]);
   });
@@ -330,7 +335,9 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
   test("un setup en échec le dit : son code, et ce qu'il a écrit", async (t) => {
     const racine = worktree(t, { setup: 'echo "export A_MOITIE=1"; echo "npm ci a échoué" >&2; exit 3' });
 
-    assert.deepEqual(await preparer(racine), { pret: false, depasse: false, code: 3, sortie: "npm ci a échoué\n", masques: 0 });
+    const setup = await preparer(racine);
+
+    assert.deepEqual(setup.pret ? setup : { ...setup, sortie: sansLesAvertissementsDuBash(setup.sortie) }, { pret: false, depasse: false, code: 3, sortie: "npm ci a échoué\n", masques: 0 });
   });
 
   test("un setup qui n'imprime pas que des exports est en échec : son contrat est rompu", async (t) => {
