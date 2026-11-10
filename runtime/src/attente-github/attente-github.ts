@@ -27,7 +27,7 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
-import { HORS_CUISINE, LABEL, type Commentaire, type GitHub } from "../github.ts";
+import { HORS_CUISINE, LABEL, type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
 import { carteEnCours, CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { GesteRefuse } from "../rail.ts";
 
@@ -158,8 +158,9 @@ export async function reprendreGitHub(github: GitHubDeLAttente, cible: Cible): P
   await github.commenter(cible.numero, `**WAITING lifted** — resumed by the chef: no longer awaiting${ceQuIlAttendait(attente)}. The \`${LABEL_WAITING}\` label is removed.`);
 }
 
-// Ce qui, sur l'issue, tient un ticket hors de la cuisine : TODO et la mise de côté.
-const HORS_DE_LA_CUISINE = [CHEF_TODO, A_LA_MAIN, HORS_CUISINE];
+// Ce qui, sur l'issue, tient un ticket hors de la cuisine : TODO et la mise de côté. Lu à l'appel :
+// la guérison importe ce module pendant que brigade-github.ts, qui définit `A_LA_MAIN`, se charge (#3134).
+const horsDeLaCuisine = () => [CHEF_TODO, A_LA_MAIN, HORS_CUISINE];
 
 // « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
 // TODO. `fire` d'abord, puis les labels retirés, `waiting` en dernier : une
@@ -167,16 +168,20 @@ const HORS_DE_LA_CUISINE = [CHEF_TODO, A_LA_MAIN, HORS_CUISINE];
 export async function cestArriveGitHub(github: GitHubDeLAttente, cible: Cible): Promise<string[]> {
   const { issue, attente } = await exigerWaiting(github, cible);
   if (!issue.labels.includes(LABEL)) await github.labelliser(cible.numero, [LABEL]);
-  const retires = HORS_DE_LA_CUISINE.filter((label) => issue.labels.includes(label));
+  const retires = horsDeLaCuisine().filter((label) => issue.labels.includes(label));
   for (const label of retires) await github.delabelliser(cible.numero, label);
   await github.delabelliser(cible.numero, LABEL_WAITING);
   await github.commenter(cible.numero, `**WAITING lifted — it arrived**: what this ticket was awaiting${ceQuIlAttendait(attente)} has arrived. It goes back to the kitchen: a station takes it in turn. The \`${LABEL_WAITING}\` label is removed.`);
   return [...retires, LABEL_WAITING];
 }
 
-// Une carte lue de GitHub : son issue, son titre, et ce qu'elle dit.
+// Une carte lue de GitHub : son issue, son titre, et ce qu'elle dit. Une carte
+// de TODO dit aussi ce qui lui manque pour poser sa question au chef
+// (`manque`), nul quand elle la pose : le défaut que la station dépose sur la
+// brigade (signalement-carte-sans-question.ts, #3134).
 export type CarteGitHub = { numero: number; titre: string; ligne: string };
-export type CartesGitHub = { todo: CarteGitHub[]; waiting: Array<CarteGitHub & { attente: AttenteGitHub | null }> };
+export type CarteDeTodoGitHub = CarteGitHub & { manque: string | null };
+export type CartesGitHub = { todo: CarteDeTodoGitHub[]; waiting: Array<CarteGitHub & { attente: AttenteGitHub | null }> };
 
 // Les cartes du projet, lues des issues ouvertes : WAITING, celles au label
 // `waiting` — il l'emporte, comme dans l'état lu de GitHub (github-etat/etats.ts) ;
@@ -184,9 +189,15 @@ export type CartesGitHub = { todo: CarteGitHub[]; waiting: Array<CarteGitHub & {
 export async function lireCartesGitHub(github: GitHubDeLAttente): Promise<CartesGitHub> {
   const sondage = await github.ouvertes();
   if (sondage.inchange) throw new Error("GitHub did not return the list of open issues");
+  return cartesDesIssues(github, sondage.issues);
+}
+
+// Les cartes de ces issues-là : la liste de la commande, ou les tickets que le
+// tour de la station vient de lire (guerison/index.ts).
+export async function cartesDesIssues(github: { commentaires(numero: number): Promise<Pick<Commentaire, "body" | "association">[]> }, issues: readonly Pick<IssueOuverte, "number" | "title" | "labels">[]): Promise<CartesGitHub> {
   const cartes: CartesGitHub = { todo: [], waiting: [] };
   const lues = await Promise.all(
-    sondage.issues
+    issues
       .filter(({ labels }) => [LABEL_WAITING, CHEF_TODO, A_LA_MAIN].some((label) => labels.includes(label)))
       .map(async (issue) => ({ issue, commentaires: await github.commentaires(issue.number) })),
   );
@@ -199,7 +210,16 @@ export async function lireCartesGitHub(github: GitHubDeLAttente): Promise<Cartes
     }
     const carte = carteEnCours(labels, commentaires);
     const ligne = carte !== null ? (carte.texte.split("\n")[0] ?? "") : labels.includes(A_LA_MAIN) ? `held back, it carries \`${A_LA_MAIN}\`` : `carries \`${CHEF_TODO}\`, but no marked comment says what it asks`;
-    cartes.todo.push({ numero, titre, ligne });
+    // Une carte posée (`chef-todo`) sans commentaire marqué, ou dont le commentaire marqué n'a pas de texte, ne pose
+    // aucune question : la question est la première ligne de son texte, comme l'app la lit (app/src/tableau/todo-github.ts).
+    const manque = !labels.includes(CHEF_TODO)
+      ? null
+      : carte === null
+        ? `no comment marked \`<!-- brigade:todo kind=… -->\` from the repository says what it asks`
+        : carte.texte === ""
+          ? `its marked comment (\`kind=${carte.sorte}\`) has no text: no question is written`
+          : null;
+    cartes.todo.push({ numero, titre, ligne, manque });
   }
   return cartes;
 }

@@ -92,6 +92,13 @@ base, the stale-branch pruning).
   ticket's `RENVOIS_MAX`. A green, pending or check-less CI, a free ticket, or another branch is left alone; open
   PRs are read only when a held ticket exists. A CI or head that cannot be read sends nothing back and is warned.
   Seen on #2908, whose red CI ended as a "merge it" request to the chef (#2970).
+- **A TODO card that asks no question is filed as a defect on benomite/brigade.** At each turn's healing, a ticket of
+  the turn (`fire`) that carries `chef-todo` with no marked comment `<!-- brigade:todo kind=… -->` from the repository,
+  or one whose text is empty, is reported with no action from the chef: a `fix` issue on `benomite/brigade` names the
+  project, the ticket number and what is missing, and carries `<!-- brigade:carte-sans-question <repo>#<n> -->`. An
+  issue of the brigade that carries that mark — open or closed, changed within 30 days, from the repository or from
+  this station's account — covers the card: no second one. A brigade that cannot be read files nothing and is
+  warned; the next turn tries again (`runtime/src/signalement-carte-sans-question.ts`, #3134).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a

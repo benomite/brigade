@@ -4912,6 +4912,7 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
         questionsDesBrouillons.set(cle, todo.question ?? todo.resume ?? null);
       },
       demander: () => void demanderAuSecond(projet, ticket, brouillonsDeCartes.get(cle) ?? ""),
+      copier: (texte) => navigator.clipboard?.writeText(texte),
     },
   );
 }
