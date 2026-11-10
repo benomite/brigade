@@ -390,6 +390,14 @@ ticket without that section, a cook without a delimited deliverable, or a branch
 open stays a cook without a delivery. Before, every correct cook of a diagnosis-only ticket counted
 as a failure, until `served-elsewhere` (BOBL-tech/espace#826).
 
+A cook that proves the ticket is **already satisfied on the integration branch** has served it too (#3146).
+It commits nothing and delimits, in its deliverable, `<deja-servi>` … `</deja-servi>` naming the commit.
+The station does not take its word: it fetches the base, checks the commit is on `origin/<base>`, brings
+the cook's worktree to the base and plays the project's gates there. If all holds, it posts the commit
+(`brigade:deja-servi` marker) and closes the ticket, counting no failure. If any step fails (no commit
+named, commit not on the base, changes left in the worktree, no gates to play, red gates) or the PR is
+still open, the cook's answer is an ordinary failed attempt, with the reason in the `brigade:echec` comment.
+
 ### Relaunching a set-aside ticket
 
 A station on GitHub alone sets a ticket aside (`served-elsewhere`) after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or

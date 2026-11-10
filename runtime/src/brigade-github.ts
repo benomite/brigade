@@ -28,7 +28,8 @@ import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./b
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
-import { lireBlocage, lireLivrable } from "./livrable.ts";
+import { lireBlocage, lireDejaServi, lireLivrable } from "./livrable.ts";
+import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-servi.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
 import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
 import { lireLeGeste, poserLaCarteDeLaStation } from "./carte-station/carte-station.ts";
@@ -250,7 +251,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -956,6 +957,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if ("constat" in fait) {
         avertir(`brigade : #${issue} sur ${nom} — the cook committed nothing and delivered a written finding, which the ticket's acceptance criteria accept: it is posted and the ticket is closed`);
         await github.commenter(issue, `${MARQUE_DE_CONSTAT} -->\nStation \`${nom}\`: the cook committed nothing and delivered a written finding, which this ticket's acceptance criteria accept as its outcome. The ticket is closed with it; reopen it if the finding does not answer it.\n\n${fait.constat}`);
+        await github.fermerIssue(issue);
+        await servir(issue, ticket.labels);
+        await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+        liberee = true;
+        return;
+      }
+      // Le ticket est déjà satisfait sur la base, la station l'a vérifié : il est
+      // servi, fermé avec le commit qui l'a satisfait, sans échec compté (#3146).
+      if ("dejaServi" in fait) {
+        const { sha, sujet } = fait.dejaServi;
+        avertir(`brigade : #${issue} sur ${nom} — the cook committed nothing: the ticket is already satisfied on \`${base}\` by ${sha.slice(0, 7)}, which the station checked (on the branch, gates green): it is closed as served`);
+        await github.commenter(issue, `${MARQUE_DEJA_SERVI} sha=${sha} -->\nStation \`${nom}\`: the ticket was already satisfied on \`${base}\` — commit \`${sha}\`${sujet === "" ? "" : ` (${sujet})`}. The station checked that this commit is on \`${base}\` and that the project's gates are green there. The ticket is closed as served; no failed cook is counted. Reopen it if it is not satisfied.\n\nThe cook's statement:\n\n${fait.affirmation}`);
         await github.fermerIssue(issue);
         await servir(issue, ticket.labels);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
@@ -2143,6 +2156,34 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       sauves.delete(ticket.number);
     }
   };
+  // La vérification de ce qu'un cook affirme d'un ticket déjà satisfait (#3146) :
+  // le commit est sur la base, et les gates y sont vertes.
+  const verifierLeDejaServi = async (numero: number, worktree: string, affirmation: string): Promise<{ servi: DejaServi } | { refus: string }> => {
+    const reglage = options.gates;
+    if (depot.lancerGit === undefined || reglage === undefined) return { refus: "this station cannot run git or the gates in a cook's worktree" };
+    if (!aDesGates(worktree)) return { refus: `the project has no \`${SCRIPT_GATES}\`: nothing would show the base is green` };
+    const secrets = lireSecrets(worktree, reglage.secrets ?? null);
+    if (!secrets.pret) return { refus: `the secrets the project declares cannot be given to its gates — ${secrets.problemes.join("; ")}` };
+    const envGates = environnementCook(options.env);
+    return verifierDejaServi({
+      git: (args, cwd) => depot.lancerGit!(args, cwd),
+      worktree,
+      base,
+      affirmation,
+      gates: async () => {
+        const gates = await jouerGates({
+          worktree,
+          ticket: numero,
+          ...(Object.keys(secrets.env).length === 0 ? { env: envGates } : { env: { ...envGates, ...secrets.env }, masquer: secrets.masquer }),
+          interdites: reglage.sansIdentite ? VARIABLES_GITHUB : [],
+          delaiMs: reglage.delaiMs,
+          cloison,
+          signal: abandon.signal,
+        });
+        return abandon.signal.aborted ? null : verdictDesGates(gates, reglage.delaiMs);
+      },
+    });
+  };
   const cuisinerLeTicket: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
     // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
@@ -2355,12 +2396,25 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       }
       return { bloque: question, ...(miseAJour === undefined ? {} : { miseAJour }) };
     }
+    // Il dit que le ticket est déjà satisfait sur la base : la station le vérifie
+    // avant que le worktree ne soit rangé, puisque les gates s'y jouent (#3146).
+    const messageFinal = lireLeFlux(lance.flux ?? flux).message ?? null;
+    const affirmation = prOuverte === null ? lireDejaServi(messageFinal) : null;
+    let dejaServi: { servi: DejaServi } | { refus: string } | null = null;
+    if (affirmation !== null && depot.commits(branche) === 0) {
+      dejaServi = await verifierLeDejaServi(ticket.number, worktree, affirmation);
+    }
     await depot.ranger(worktree, branche);
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
     // motif nommé, qui ne compte pas vers `served-elsewhere` (#2738).
     const refusee = lireLeFlux(lance.flux ?? flux).ecritureRefusee;
     if (depot.commits(branche) === 0 && refusee !== null) return { subi: `write refused by sandbox: ${refusee} (the cook committed nothing)` };
     if (depot.commits(branche) === 0) {
+      if (affirmation !== null) {
+        if (abandon.signal.aborted) return { subi: "the station stopped while it checked that the ticket is already satisfied" };
+        if (dejaServi !== null && "servi" in dejaServi) return { dejaServi: dejaServi.servi, affirmation };
+        return { echec: motifArretCook(`the cook stated that the ticket is already satisfied on \`${base}\`, but the station could not confirm it: ${dejaServi !== null && "refus" in dejaServi ? dejaServi.refus : "nothing was checked"}`, arretDuCook()) };
+      }
       // Sans commit, le constat qu'il a délimité est le livrable d'un ticket
       // dont les critères l'admettent (#2854). Une PR encore ouverte attend
       // une livraison sur sa branche : là, rien commité reste un échec.
