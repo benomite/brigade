@@ -6,13 +6,13 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { BADGE } from "../../src/second-init/demarrage.ts";
 import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
 
 const RACINE = join(import.meta.dirname, "..", "..", "..");
 const PLUGIN_DE_L_APP = join(RACINE, "app", "src", "plugin");
 const SANS_BASH = process.platform === "win32" && "le script de /brigade:init et son `gh` doublure sont joués par bash";
 const README = "# Shop\n\nA small shop.\nno final newline";
+const SVG_VALIDE_FILL = /fill="(#[0-9a-f]{3,6}|url\(#\w+\)|none)"/;
 const URL_DU_SITE = /<link rel="canonical" href="([^"]+)">/.exec(readFileSync(join(RACINE, "site", "index.html"), "utf8"))?.[1] ?? "";
 
 function unProjet(t: TestContext) {
@@ -97,8 +97,16 @@ test("without --badge, setup neither touches the README nor records an offer", {
   assert.throws(() => surLaBranche(".claude/brigade/badge"));
 });
 
-test("the second's opening message has the chef asked about the badge, never again once it was offered", () => {
-  assert.match(BADGE, /Cooked by Brigade/);
-  assert.match(BADGE, /`\.claude\/brigade\/badge` already exists/);
-  assert.match(BADGE, /--badge yes/);
+test("the two badge images only use real colours, those of the logo mark", () => {
+  const logo = readFileSync(join(RACINE, "docs", "logo", "brigade-icone.svg"), "utf8");
+  for (const nom of ["clair", "sombre"]) {
+    const svg = readFileSync(join(RACINE, "site", `badge-cooked-by-brigade-${nom}.svg`), "utf8");
+    for (const [, valeur] of svg.matchAll(/fill="([^"]*)"/g)) assert.match(`fill="${valeur}"`, SVG_VALIDE_FILL, `${nom}: fill="${valeur}"`);
+    for (const [, couleur] of logo.matchAll(/stop-color="([^"]+)"/g)) assert.ok(svg.includes(`stop-color="${couleur}"`), `${nom}: ${couleur}`);
+  }
+});
+
+test("the site URL of init.sh is the canonical one of the site", () => {
+  const script = readFileSync(join(PLUGIN_DE_L_APP, "init.sh"), "utf8");
+  assert.equal(/^SITE_URL="([^"]+)"/m.exec(script)?.[1], URL_DU_SITE);
 });
