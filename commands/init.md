@@ -6,7 +6,7 @@ Tu amorces le protocole **brigade** sur ce projet. À la fin, les rôles `/briga
 
 **Cette commande est rejouable.** On la relance sur un projet déjà amorcé pour compléter ou corriger, et elle ne doit alors produire ni doublon, ni écrasement, ni erreur. La règle qui garantit ça : **tu constates l'état avant d'agir, et tu ne fais que l'écart.** Toute action que tu ne peux pas rendre convergente, tu la proposes au lieu de la faire.
 
-Tu produis six choses : les **prérequis d'équipe** dans `.claude/settings.json`, les **règles du mode auto** dans le même fichier, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, la **déclaration réseau** `.claude/brigade/reseau`, et les artefacts GitHub (labels + issue de roadmap).
+Tu produis six choses : les **prérequis d'équipe** dans `.claude/settings.json`, les **règles du mode auto** dans le même fichier, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, la **déclaration réseau** `.claude/brigade/reseau`, et les artefacts GitHub (labels + issue de roadmap). Sur un **projet neuf** — un dépôt sans code —, une septième : le **ticket de fondation**, déposé et lancé (étape 1 bis).
 
 ## 1. Constate (aucune écriture à cette étape)
 
@@ -55,13 +55,35 @@ ls "$ROOT" | head -30
 ```
 
 - **Gestionnaire de paquets** : le lockfile tranche (`pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`, `bun.lockb`, `Cargo.lock`, `go.sum`, `uv.lock`/`poetry.lock`, `Gemfile.lock`, `composer.lock`). Pas de lockfile → demande.
-- **Commandes de test et de build** : les scripts `test`/`build` du `package.json`, ou l'équivalent de la stack (`cargo test`, `go test ./...`, `pytest`, `make`). Si tu n'en trouves pas, **ne devine pas** : demande.
+- **Projet neuf ?** Le dépôt n'a encore aucun code — rien que son commit initial, ou seulement `README`, `LICENSE`, `.gitignore`, `CLAUDE.md`, `docs/` :
+
+  ```bash
+  git -C "$ROOT" ls-files | grep -vE '^(README|LICENSE|CLAUDE\.md|\.gitignore|\.gitattributes|\.github/|\.claude/|docs/)' | head -5   # vide → projet neuf
+  ```
+
+  Vide → c'est un projet neuf : **dis-le en une phrase et continue**, par l'étape 1 bis. Il n'y a ni commande de test ni stack à déduire, et ce n'est pas une raison de t'arrêter.
+- **Commandes de test et de build** : les scripts `test`/`build` du `package.json`, ou l'équivalent de la stack (`cargo test`, `go test ./...`, `pytest`, `make`). Si tu n'en trouves pas, **ne devine pas** : demande. La réponse est « aucune » ou « pas encore » → le dépôt a du code mais pas de test : ne t'arrête pas, suis l'étape 1 bis **à partir de son point 4**, avec la stack que le dépôt montre — tu la nommes, tu ne la demandes pas, et tu en tires la commande de test que la fondation fera tourner.
 - **Zones de fichiers** : les workspaces (`pnpm-workspace.yaml`, champ `workspaces`, `Cargo.toml` `[workspace]`) ou les répertoires de premier niveau du code. Tu en fais une **proposition**, pas une conclusion.
 - **Secrets non versionnés** que tout worktree devra recopier : les fichiers du `.gitignore` qui ressemblent à de la configuration locale (`.env`, `.env.local`, `*.local.json`).
 - **Registres que le setup joint** : ce que `worktree-setup.sh` *installe*, pas ce que le dépôt contient — c'est l'étape 6 qui le tranche, une fois le script écrit. Ne le déduis pas des lockfiles seuls : un `requirements.txt` que le setup ne joue pas n'ouvre rien.
 - **Base de données de test** : cherche un `docker-compose*.y*ml`, un service Postgres/MySQL, une `DATABASE_URL` dans un `.env.example`. Absente → le projet n'en a pas besoin, et les scripts générés n'en parleront pas.
 
 Annonce ce que tu as déduit en quelques lignes avant de demander quoi que ce soit. Une déduction fausse coûte moins cher si elle est visible.
+
+## 1 bis. Projet neuf — ce qu'il sert, une stack, puis la suite comme partout
+
+Un dépôt sans code ne finit **jamais** sur « reviens plus tard » ni sur « relance `/brigade:init` une fois la stack choisie » : l'init le prépare quand même, et c'est le premier ticket qui pose le code. Le chemin, pas à pas — l'utilisateur ne tape aucune commande et n'écrit aucun code :
+
+1. **Tu le dis.** « C'est un projet neuf : pas encore de code. Je le prépare quand même, et le premier ticket en posera les fondations. »
+2. **Tu demandes à quoi sert le projet** — un seul `AskUserQuestion`, **au plus quatre questions**, et seulement celles dont la réponse change la stack : ce que le projet fait et pour qui ; où il tourne (navigateur, terminal, serveur, mobile, poste) ; s'il garde des données ; une langue ou un outil que l'équipe connaît déjà. Ce que le `README` dit déjà ne se redemande pas.
+3. **Tu recommandes une stack, une seule, en une phrase qui porte sa raison** — tirée des réponses, pas d'un catalogue : « Je te propose TypeScript sur Node avec Vitest, parce que c'est une API web et que tu connais JavaScript. Réponds « ok » pour la prendre, ou nomme celle que tu préfères. » Pas de liste d'options, pas de comparatif. Un mot d'accord (« ok », « oui », « go ») la prend. Une autre stack nommée → **c'est celle-là**, sans la discuter. La stack arrêtée fixe ce que l'étape 1 n'a pas pu déduire : le gestionnaire de paquets, la **commande de test** (`npm test`, `cargo test`, `pytest`…), l'installation des dépendances, et les zones de fichiers proposées (`src/`, `tests/`…).
+4. **L'étape 2 ne demande rien de plus** sur un projet neuf : elle prend ses valeurs proposées et les annonce — les rôles que les réponses impliquent (le Designer seulement si le projet a une interface), les worktrees en frère du dépôt, la doc vivante `README.md`, une roadmap à créer. L'humain les corrige dans la PR s'il le veut.
+5. **Les étapes 3 à 8 se déroulent comme pour un projet qui a déjà du code** — labels, roadmap, prérequis, bindings, scripts, déclaration réseau, mode auto, preuve, résumé, et la PR de setup si l'init en ouvre une —, avec les seuls écarts qui suivent :
+   - l'étape 3 bis **dépose le ticket de fondation et le lance** ;
+   - l'étape 5 ajoute au bloc la ligne **Gates provisoires** ;
+   - l'étape 6 écrit dans `gates.sh` la commande de test de la stack — **jamais** `true`, `exit 0` ni `|| true` à sa place : une gate qui ne vérifie rien n'entre pas dans le setup comme si elle était réelle —, et garde l'installation de `worktree-setup.sh` sur le manifeste que la fondation créera (`if [ -f "$WT/package.json" ]; then (cd "$WT" && npm install) >&2; fi`) : sans cette garde, le setup du worktree de la fondation échoue avant que son cook ait écrit une ligne ;
+   - l'étape 7 attend des gates **rouges** : elles lancent une commande de test qui n'a encore rien à jouer.
+6. **Le ticket de fondation part `fire`** : la cuisine le sert sans que l'utilisateur tape de commande. Le seul geste qui reste à l'humain est celui de tout projet : merger la PR de setup.
 
 ## 2. Demande, en une seule passe
 
@@ -91,6 +113,36 @@ gh issue create --title "Roadmap" --label tech \
 ```
 
 Ne crée jamais une deuxième issue de roadmap parce que la recherche n'a rien rendu : si tu doutes, demande.
+
+## 3 bis. Projet neuf : dépose et lance le ticket de fondation
+
+Seulement sur le chemin de l'étape 1 bis. **Un seul ticket de fondation, comme la roadmap** : cherche-le avant de le créer.
+
+```bash
+gh issue list --label foundation --state all --limit 5 --json number,title,state
+```
+
+Trouvé → reprends son numéro, ne le recrée pas. Absent → pose le label s'il manque, puis dépose le ticket, titré exactement « Lay the project's foundation with <stack> », avec `foundation` et `fire` :
+
+```bash
+gh label create foundation --color 0E8A16 --description "The first ticket of a new project: lays its code, its tests and its gates" 2>/dev/null || true  # déjà là → rien
+gh issue create --title "Lay the project's foundation with <stack>" --label foundation --label fire --label feature --body-file - <<'BODY'
+## Context
+
+<what the project is for, from the chef's answers, in two or three sentences>. Stack: <stack>, because <the reason given>.
+The repository has no code yet: `/brigade:init` set it up with provisional gates, recorded by the `Gates provisoires` line of the bindings in `CLAUDE.md`.
+
+## Acceptance criteria
+
+- The project skeleton in <stack>: its manifest and lockfile, and the folders of the declared file zones.
+- `<test command>` runs at least one real test — one that calls the project's code and can fail —, and it passes.
+- `.claude/brigade/gates.sh` runs `<test command>`, and is green on this branch.
+- `worktree-setup.sh` installs the dependencies on a fresh worktree.
+- The **Dev local** binding of `CLAUDE.md` says how to run and test the project, and the **Gates provisoires** line is removed.
+BODY
+```
+
+Note le numéro rendu : il va dans la ligne **Gates provisoires** du bloc. `gh issue create` en échec → recopie son erreur sous « Reste à la main », avec la commande ; le reste de l'init continue, la ligne **Gates provisoires** dit alors « until the foundation ticket is filed and merged ».
 
 ## 4. Pose les prérequis d'équipe
 
@@ -139,6 +191,7 @@ Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans 
 - **Specs / plans** : <chemin des specs et plans datés, s'il y en a>
 - **Doc produit** : <le fichier de référence produit, s'il y en a>
 - **Skills en boucle** : <par rôle ; « aucune » est une réponse valable>
+- **Gates provisoires** : until #<n> ("Lay the project's foundation with <stack>") is merged — `<test command>` has no test to run yet   ← seulement sur un projet neuf (étape 1 bis)
 ```
 
 **Branche d'intégration** est la branche d'où partent les worktrees et que ciblent les PR. Propose `main` sans poser de question ; un bloc existant qui déclare une autre branche la garde, et un bloc qui n'a pas la ligne se comporte déjà comme `main`.
@@ -345,7 +398,7 @@ Le fichier se merge avec le reste de l'init — c'est ainsi qu'il gagne les autr
 
 ## 7. Prouve le contrat — non contournable
 
-Lance `gates.sh` une fois, et joue `worktree-setup.sh` à blanc sur un worktree jetable que tu supprimes ensuite. Si l'un des deux échoue, **dis-le et arrête-toi** : ne déclare pas le projet initialisé. Un setup cassé se découvre sinon au premier dev spawné, en pleine boucle d'orchestration.
+Lance `gates.sh` une fois, et joue `worktree-setup.sh` à blanc sur un worktree jetable que tu supprimes ensuite. Si l'un des deux échoue, **dis-le et arrête-toi** : ne déclare pas le projet initialisé. **Seule exception, le projet neuf** (étape 1 bis) : ses gates sont rouges parce que la commande de test n'a encore rien à jouer — c'est attendu, la ligne **Gates provisoires** le dit, et tu continues ; un setup qui échoue, lui, t'arrête comme partout. Un setup cassé se découvre sinon au premier dev spawné, en pleine boucle d'orchestration.
 
 ```bash
 # La base du worktree de sonde : origin/<branche par défaut> si le dépôt a un remote, sinon HEAD.
@@ -372,7 +425,9 @@ Quatre listes, franches :
 - **Créé** — ce qui n'existait pas.
 - **Mis à jour** — ce que tu as patché, et sur quelle ligne.
 - **Inchangé** — ce qui était déjà juste. Sur une deuxième exécution, c'est presque tout : c'est le signe que la commande est rejouable.
-- **Reste à la main** — ce que tu n'as pas pu faire (`gh` absent, script existant que l'humain doit arbitrer, commande de test introuvable), et la raison.
+- **Reste à la main** — ce que tu n'as pas pu faire (`gh` absent, script existant que l'humain doit arbitrer), et la raison.
+
+**Sur un projet neuf**, le résumé dit aussi la stack retenue et pourquoi, le ticket de fondation (numéro, `fire`), et que les gates sont provisoires jusqu'à ce qu'il soit mergé.
 
 **Le mode auto tient toujours ses lignes dans le résumé** : les règles ajoutées, ou « toutes déjà là », et chaque geste `PAS AUTORISABLE` avec sa raison — ou, si la commande n'a pas tourné, pourquoi, sous « Reste à la main ».
 
