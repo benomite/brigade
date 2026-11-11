@@ -354,6 +354,9 @@ export type Pont = {
   // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès), ou celle qui dit comment obtenir
   // un outil qui manque au second (ticket 1435) ; rend faux pour toute autre.
   ouvrirLaPage?(url: string): Promise<boolean>;
+  // Le lien de l'app Android que l'offre du téléphone montre (ticket 3303, mise-a-jour/android.ts) : l'`apkUrl` de la
+  // dernière version publiée, ou la page des versions de brigade s'il ne se lit pas ; `ouvrirLaPage` l'ouvre ensuite.
+  lienDeLApk?(): Promise<string>;
   // Le projet d'essai du premier lancement (ticket 3227, runtime/src/essai-projet/) : ce qui en est noté, son ticket servi
   // et la durée depuis le premier lancement ; le créer — un dépôt privé et un seul ticket prêt à cuire — ; supprimer le
   // dépôt noté, et lui seul ; la permission `delete_repo` que `gh` fait accorder, sa fin par `surPermissionDeSuppression`.

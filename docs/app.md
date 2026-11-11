@@ -1806,6 +1806,29 @@ and keeps asking through a lost network until the code expires. On the desktop, 
 `app/src/vue/connexion-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
 `telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
 
+### Right after the first served ticket: the phone offer (#3303)
+
+On the page of the chef's **first project** — of the projects read, the one whose station records the earliest add
+(`delai.ajouteLe`, #1401) —, once its first ticket is served, a line under *First ticket served …* says **Brigade can
+call you on your phone when it needs you**, with `set up my phone` (recommended) and `no thanks`. It is not shown on
+another project, before that ticket is served, or on the phone itself.
+
+- **`set up my phone`** shows, in the same line, `download the Android app` and *Sign in with the same GitHub account*:
+  there is no pairing code since #2500, the phone signs in to the same GitHub account. The link is the `apkUrl` of
+  `latest-android.json` (`apkLink`, `app/src/mise-a-jour/android.ts`), read by the main process whatever version runs;
+  when the manifest cannot be read, it is the releases page, `https://github.com/benomite/brigade/releases`. Nothing
+  goes through Settings.
+- **`no thanks`**, or following the link, hides the offer for good: the choice is kept in the view's storage
+  (`localStorage`, key `brigade.offre-telephone`). A storage that cannot be read does not show the offer, so that a
+  refusal is never forgotten.
+- **Narrowed by the ticket's decision:** the app does not know whether a phone is already signed in — nothing publishes
+  it —, so the offer is hidden only by that stored choice; and no pairing entry exists elsewhere (Settings has none),
+  which stays as it is.
+
+*Code: `app/src/vue/offre-telephone/offre-telephone.js`, its wiring in `app/src/vue/vue.js`, `app/src/main.ts`
+(`lienDeLApk`) and `app/src/preload.cjs`. Tests: `app/test/vue/offre-telephone.test.ts`,
+`app/test/mise-a-jour/android.test.ts`. Captures: `docs/captures/3303/`.*
+
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
 Signed in, **the phone reads the chef's projects, each project's rail and its TODO on GitHub alone** — no station is

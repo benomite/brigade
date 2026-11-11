@@ -109,6 +109,7 @@ import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
+import { poserLOffre, premierProjetServi, tenirLOffre } from "./offre-telephone/offre-telephone.js";
 import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
@@ -661,6 +662,15 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+// L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
+// ticket servi ; acceptée, le lien de l'app Android ; déclinée ou suivie, gardée rangée dans le stockage de la vue.
+const offreDuTelephone = element("offre-telephone");
+const offre = tenirLOffre({
+  stockage: window.localStorage ?? undefined,
+  lire: async () => brigade.lienDeLApk?.(),
+  ouvrir: (lien) => void brigade.ouvrirLaPage?.(lien),
+  rendre: () => poserLOffreDuTelephone(courant),
+});
 const bandeauSante = element("bandeau-sante");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
@@ -6811,6 +6821,15 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  poserLOffreDuTelephone(projet);
+}
+
+// L'offre du téléphone, sur la page du premier projet servi seulement — ni sur le téléphone, ni rangée.
+/** @param {Projet | undefined} projet */
+function poserLOffreDuTelephone(projet) {
+  const montree = projet !== undefined && telephoneVu === undefined && !offre.rangee() && premierProjetServi(projetsVus?.projets ?? []) === projet.nom;
+  offreDuTelephone.hidden = !montree;
+  offreDuTelephone.replaceChildren(...(montree ? [poserLOffre(document, offre.etat, offre)] : []));
 }
 setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);

@@ -316,6 +316,29 @@ main > header,
 #stations-du-projet p {
   margin: 0;
 }
+/* L'offre du téléphone (ticket 3303) : une ligne sous le délai, ses gestes au bout ; le lien et le compte côte à côte. */
+#offre-telephone {
+  padding: var(--pas-2) var(--pas-4);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#offre-telephone .offre-telephone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-3);
+  margin: 0;
+  padding: 0;
+  color: var(--texte);
+}
+#offre-telephone .lien-apk {
+  color: var(--bleu);
+  text-decoration: underline;
+  cursor: pointer;
+}
+#offre-telephone .lecture,
+#offre-telephone .meme-compte {
+  color: var(--texte-doux);
+}
 /* Le temps de l'ajout au premier ticket servi (ticket 1401) : une ligne douce ; verte une fois figé. */
 #delai-du-projet {
   padding: var(--pas-2) var(--pas-4);
