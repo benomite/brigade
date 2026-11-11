@@ -21,10 +21,14 @@
 //   livraison suivante revient en carte neuve, avec ses captures neuves.
 //
 // Réglage absent ou faux : rien ne change, la pass merge.
+//
+// La carte, la pose d'une seule par tête et les deux gestes valent pour toute
+// livraison que la pass retient pour le chef (`SorteDeRetenue`) : le ticket
+// sensible (#3223, `sensible/`) s'en sert aussi.
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { capturesLivrees, capturesManquantes, direCaptures, dossierDesCaptures, estDInterface, type CapturesDEcran } from "../captures.ts";
 import { LABEL_IN_PASS } from "../github-etat/etats.ts";
-import { CHEF_TODO, corpsDeCarte } from "../github-seul/carte-todo/carte-todo.ts";
+import { CHEF_TODO, corpsDeCarte, type Sorte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { GitHub, PR } from "../github.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { GesteRefuse } from "../rail.ts";
@@ -52,52 +56,79 @@ export function estUneLivraisonDesign(ticket: number, fichiers: readonly string[
 
 // ── La carte ──
 
-const MARQUE_DE_CARTE = /^<!-- brigade:validation-design pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
-const marqueDeCarte = (pr: number, ticket: number, sha: string) => `<!-- brigade:validation-design pr=${pr} ticket=${ticket} sha=${sha} -->`;
+// Une sorte de carte qui retient une livraison verte pour le chef : celle-ci,
+// et le ticket sensible (#3223, `sensible/`). Chacune a ses marqueurs — `mot` —,
+// son titre, sa sorte de carte de TODO et ses mots ; le reste, une carte par
+// tête, le merge de la tête jugée verte et le renvoi au cook, est commun.
+export type SorteDeRetenue = {
+  // Le mot de ses marqueurs : `<!-- brigade:<mot> pr=… -->` sur la carte,
+  // `<!-- brigade:<mot>-carte … -->` sur le ticket.
+  mot: string;
+  titre: string;
+  sorte: Sorte;
+  // La question de la carte, sur sa première ligne : ce que le TODO du chef montre.
+  question(ticket: number, pr: number): string;
+  // Pourquoi la pass ne merge pas, sur le ticket, puis ce qu'elle en fait.
+  pourquoi: string;
+  tenue: string;
+  // Ce qui a mergé, sur la carte qui se ferme : « <faite>: PR #N is merged. »
+  faite: string;
+  // Le renvoi du chef sur le ticket, après son marqueur.
+  renvoi(pr: number, note: string): string;
+  // Le refus d'un renvoi sans note.
+  sansNote: string;
+};
 
-// La PR, le ticket et la tête jugée verte qu'une carte valide, lus dans son
-// corps ; null si ce n'en est pas une.
-export function carteDuCorps(corps: string): { pr: number; ticket: number; sha: string } | null {
-  const lu = MARQUE_DE_CARTE.exec(corps);
+export const DESIGN: SorteDeRetenue = {
+  mot: "validation-design",
+  titre: TITRE_DE_CARTE,
+  sorte: SORTE_DE_CARTE,
+  question: (ticket, pr) => `Does the screen of #${ticket} look right? Validate it and PR #${pr} is merged; send it back with what to change and a cook takes it up again.`,
+  pourquoi: "the delivery is green, and a human validates the designs of this project",
+  tenue: "held for the chef's validation of its screen",
+  faite: "Validated by the chef",
+  renvoi: (pr, note) => `The chef sent the design of PR #${pr} back to a cook — the chef asks for changes to the screen:\n\n${note}\n\nChange the screen as asked, take its before and after captures again, and deliver.`,
+  sansNote: "the comment says what to change: it cannot be empty",
+};
+
+const marqueDeCarte = (sorte: SorteDeRetenue, pr: number, ticket: number, sha: string) => `<!-- brigade:${sorte.mot} pr=${pr} ticket=${ticket} sha=${sha} -->`;
+
+// La PR, le ticket et la tête jugée verte qu'une carte de cette sorte tient,
+// lus dans son corps ; null si ce n'en est pas une.
+export function carteDuCorpsDe(sorte: SorteDeRetenue, corps: string): { pr: number; ticket: number; sha: string } | null {
+  const lu = new RegExp(`^<!-- brigade:${sorte.mot} pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->`).exec(corps);
   return lu === null ? null : { pr: Number(lu[1]), ticket: Number(lu[2]), sha: lu[3] ?? "" };
 }
 
+// La PR, le ticket et la tête jugée verte qu'une carte valide, lus dans son
+// corps ; null si ce n'en est pas une.
+export const carteDuCorps = (corps: string) => carteDuCorpsDe(DESIGN, corps);
+
 const adresseDeLaPR = (depot: string, pr: number) => `https://github.com/${depot}/pull/${pr}`;
 
-// La question de la carte, sur sa première ligne : ce que le TODO du chef montre.
-const question = (ticket: number, pr: number) => `Does the screen of #${ticket} look right? Validate it and PR #${pr} is merged; send it back with what to change and a cook takes it up again.`;
-
-type CarteAPoser = { depot: string; ticket: { number: number; title: string }; pr: number; sha: string; screens: CapturesDEcran[] };
+type CarteAPoser = { depot: string; ticket: { number: number; title: string }; pr: number; sha: string; suite: readonly string[] };
 
 // Le corps de l'issue de la carte : le marqueur, la question, le lien de la
-// PR, puis chaque écran avant et après, en images (`direCaptures`).
-function corpsDeLaCarte({ depot, ticket, pr, sha, screens }: CarteAPoser): string {
-  return [
-    marqueDeCarte(pr, ticket.number, sha),
-    `**${question(ticket.number, pr)}**`,
-    "",
-    `Ticket: #${ticket.number} — ${ticket.title}`,
-    `Pull request: ${adresseDeLaPR(depot, pr)}`,
-    "",
-    ...direCaptures(depot, ticket.number, { sha, screens }),
-  ].join("\n");
+// PR, puis ce que la sorte y ajoute (chaque écran avant et après, en images).
+function corpsDeLaCarte(sorte: SorteDeRetenue, { depot, ticket, pr, sha, suite }: CarteAPoser): string {
+  return [marqueDeCarte(sorte, pr, ticket.number, sha), `**${sorte.question(ticket.number, pr)}**`, "", `Ticket: #${ticket.number} — ${ticket.title}`, `Pull request: ${adresseDeLaPR(depot, pr)}`, ...(suite.length === 0 ? [] : ["", ...suite])].join("\n");
 }
 
 // ── La pass ──
 
-const MARQUE_DE_RETENUE = /^<!-- brigade:validation-design-carte carte=([1-9][0-9]*) pr=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
-const marqueDeRetenue = (carte: number, pr: number, sha: string) => `<!-- brigade:validation-design-carte carte=${carte} pr=${pr} sha=${sha} -->`;
+const marqueDeRetenue = (sorte: SorteDeRetenue, carte: number, pr: number, sha: string) => `<!-- brigade:${sorte.mot}-carte carte=${carte} pr=${pr} sha=${sha} -->`;
 
 // La dernière trace sur le ticket de la carte qui retient `pr`, et si un
 // renvoi la suit ; null si le ticket n'en dit aucune.
-function derniereRetenue(commentaires: ReadonlyArray<{ body: string; association: string }>, retient: (carte: number, pr: number) => boolean): { carte: number; sha: string; renvoyee: boolean } | null {
+function derniereRetenue(sorte: SorteDeRetenue, commentaires: ReadonlyArray<{ body: string; association: string }>, retient: (carte: number, pr: number) => boolean): { carte: number; sha: string; renvoyee: boolean } | null {
+  const marque = new RegExp(`^<!-- brigade:${sorte.mot}-carte carte=([1-9][0-9]*) pr=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->`);
   const sures = commentaires.filter((c) => DE_CONFIANCE.includes(c.association));
   const rang = sures.findLastIndex((c) => {
-    const lu = MARQUE_DE_RETENUE.exec(c.body);
+    const lu = marque.exec(c.body);
     return lu !== null && retient(Number(lu[1]), Number(lu[2]));
   });
   if (rang === -1) return null;
-  const lu = MARQUE_DE_RETENUE.exec(sures[rang]?.body ?? "");
+  const lu = marque.exec(sures[rang]?.body ?? "");
   return { carte: Number(lu?.[1]), sha: lu?.[3] ?? "", renvoyee: sures.slice(rang + 1).some((c) => c.body.startsWith(MARQUE_DE_RENVOI)) };
 }
 
@@ -131,8 +162,8 @@ async function fermerLaCarte(github: Pick<GitHub, "commenter" | "delabelliser" |
 // suit et qu'elle est encore ouverte. Une carte qu'un renvoi a dépassée (la CI
 // rougie après une mise à jour, une livraison sans captures), ou posée sur une
 // tête que la PR n'a plus, est fermée : sa livraison n'est plus celle-là.
-async function carteQuiTient(github: GitHubDeLaRetenue, ticket: number, pr: number, sha: string): Promise<number | null> {
-  const derniere = derniereRetenue(await github.commentaires(ticket), (_, sienne) => sienne === pr);
+async function carteQuiTient(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, ticket: number, pr: number, sha: string): Promise<number | null> {
+  const derniere = derniereRetenue(sorte, await github.commentaires(ticket), (_, sienne) => sienne === pr);
   if (derniere === null) return null;
   const { carte } = derniere;
   const lue = github.issue === undefined ? null : await github.issue(carte);
@@ -145,6 +176,21 @@ async function carteQuiTient(github: GitHubDeLaRetenue, ticket: number, pr: numb
   if (derniere.sha === sha) return carte;
   await fermerLaCarte(github, carte, `Closed by the kitchen: the head of PR #${pr} moved from \`${derniere.sha.slice(0, 7)}\` to \`${sha.slice(0, 7)}\`, judged green again — a new card holds it.`);
   return null;
+}
+
+// Retient la livraison verte pour le chef, sur une carte de cette sorte : la
+// carte qui la tient déjà sur cette tête, sinon une neuve — jamais deux. Rend
+// le motif pour lequel la pass ne la merge pas. Le dépôt inconnu, ou une carte
+// que GitHub ne crée pas, lèvent : la pass le dit, ne merge pas, et réessaie.
+export async function tenirPourLeChef(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr">, suite: readonly string[] = []): Promise<string> {
+  const { ticket, pr } = livraison;
+  const tenue = await carteQuiTient(sorte, github, ticket.number, pr.number, pr.sha);
+  if (tenue !== null) return `${sorte.tenue} (card #${tenue})`;
+  if (livraison.depot === undefined) throw new Error(`the station does not know its repository: the card of PR #${pr.number} cannot link it — not merged on this turn`);
+  const carte = await github.creerIssue({ titre: sorte.titre, corps: corpsDeLaCarte(sorte, { depot: livraison.depot, ticket, pr: pr.number, sha: pr.sha, suite }), labels: [CHEF_TODO] });
+  await github.commenter(carte, corpsDeCarte({ sorte: sorte.sorte, texte: `${sorte.question(ticket.number, pr.number)}\n\nPull request: ${adresseDeLaPR(livraison.depot, pr.number)}` }));
+  await github.commenter(ticket.number, `${marqueDeRetenue(sorte, carte, pr.number, pr.sha)}\nStation \`${livraison.station}\`: ${sorte.pourquoi} — ${sorte.tenue}, card #${carte}.`);
+  return `${sorte.tenue} (card #${carte})`;
 }
 
 // Ce que la pass fait d'une livraison verte, au moment de la merger, quand le
@@ -161,29 +207,23 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
     await livraison.renvoyer(raisonSansCaptures(ticket.number, manque));
     return `design delivery without its captures (${manque}): sent back to its cook for them`;
   }
-  const tenue = await carteQuiTient(github, ticket.number, pr.number, pr.sha);
-  if (tenue !== null) return `held for the chef's validation of its screen (card #${tenue})`;
-  if (livraison.depot === undefined) throw new Error(`the station does not know its repository: the card of PR #${pr.number} cannot show its captures — not merged on this turn`);
-  const carte = await github.creerIssue({ titre: TITRE_DE_CARTE, corps: corpsDeLaCarte({ depot: livraison.depot, ticket, pr: pr.number, sha: pr.sha, screens }), labels: [CHEF_TODO] });
-  await github.commenter(carte, corpsDeCarte({ sorte: SORTE_DE_CARTE, texte: `${question(ticket.number, pr.number)}\n\nPull request: ${adresseDeLaPR(livraison.depot, pr.number)}` }));
-  await github.commenter(ticket.number, `${marqueDeRetenue(carte, pr.number, pr.sha)}\nStation \`${livraison.station}\`: the delivery is green, and a human validates the designs of this project — held for the chef's validation of its screen, card #${carte}.`);
-  return `held for the chef's validation of its screen (card #${carte})`;
+  return tenirPourLeChef(DESIGN, github, livraison, livraison.depot === undefined ? [] : direCaptures(livraison.depot, ticket.number, { sha: pr.sha, screens }));
 }
 
 // ── Les gestes du chef ──
 
 export type GitHubDesGestes = Pick<GitHub, "ouvertes" | "commentaires" | "commenter" | "delabelliser" | "fermerIssue" | "prDeBranche" | "merger">;
 
-// La carte ouverte qui tient la PR, son ticket et sa tête jugée verte ; refusé
-// s'il n'y en a pas.
-async function carteDeLaPR(github: Pick<GitHub, "ouvertes">, pr: number): Promise<{ carte: number; ticket: number; sha: string }> {
+// La carte ouverte de cette sorte qui tient la PR, son ticket et sa tête jugée
+// verte ; refusé s'il n'y en a pas.
+async function carteDeLaPR(sorte: SorteDeRetenue, github: Pick<GitHub, "ouvertes">, pr: number): Promise<{ carte: number; ticket: number; sha: string }> {
   const sondage = await github.ouvertes();
   if (sondage.inchange) throw new Error("GitHub did not return the list of open issues");
   for (const issue of sondage.issues) {
-    const lue = DE_CONFIANCE.includes(issue.association) ? carteDuCorps(issue.body) : null;
+    const lue = DE_CONFIANCE.includes(issue.association) ? carteDuCorpsDe(sorte, issue.body) : null;
     if (lue?.pr === pr) return { carte: issue.number, ticket: lue.ticket, sha: lue.sha };
   }
-  throw new GesteRefuse(`no open “${TITRE_DE_CARTE}” card holds PR #${pr}`);
+  throw new GesteRefuse(`no open “${sorte.titre}” card holds PR #${pr}`);
 }
 
 // La PR de la carte, relue : encore la livraison de son ticket.
@@ -193,19 +233,19 @@ async function prDeLaCarte(github: Pick<GitHub, "prDeBranche">, pr: number, tick
   return lue;
 }
 
-// Valider : merge la tête que la pass a jugée verte et que la carte porte,
-// puis ferme la carte. Rien ne se merge si la PR a une autre tête (une mise à
-// jour que la pass n'a pas encore jugée, un cook qui pousse) : la pass pose
-// une carte neuve quand elle la juge verte. Ni si la pass a renvoyé la
+// Merger la carte : merge la tête que la pass a jugée verte et que la carte
+// porte, puis ferme la carte. Rien ne se merge si la PR a une autre tête (une
+// mise à jour que la pass n'a pas encore jugée, un cook qui pousse) : la pass
+// pose une carte neuve quand elle la juge verte. Ni si la pass a renvoyé la
 // livraison depuis la carte, ou que le ticket ne dit pas la carte : celle-là
 // se ferme. Un merge que GitHub refuse laisse la carte ouverte, et le dit.
-export async function valider(github: GitHubDesGestes, pr: number, brancheDuTicket: (ticket: number) => string): Promise<{ carte: number; ticket: number }> {
-  const { carte, ticket, sha } = await carteDeLaPR(github, pr);
+export async function mergerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGestes, pr: number, brancheDuTicket: (ticket: number) => string): Promise<{ carte: number; ticket: number }> {
+  const { carte, ticket, sha } = await carteDeLaPR(sorte, github, pr);
   const lue = await prDeLaCarte(github, pr, ticket, brancheDuTicket);
   if (!lue.merged) {
-    if (lue.state !== "open") throw new GesteRefuse(`PR #${pr} is closed without being merged: there is nothing to validate`);
+    if (lue.state !== "open") throw new GesteRefuse(`PR #${pr} is closed without being merged: there is nothing to merge`);
     if (lue.sha !== sha) throw new GesteRefuse(`the head of PR #${pr} moved since card #${carte} (\`${sha.slice(0, 7)}\` judged green, \`${lue.sha.slice(0, 7)}\` now): nothing merged — the pass posts a new card once it judges the new head green`);
-    const retenue = derniereRetenue(await github.commentaires(ticket), (sienne) => sienne === carte);
+    const retenue = derniereRetenue(sorte, await github.commentaires(ticket), (sienne) => sienne === carte);
     if (retenue === null || retenue.renvoyee) {
       const pourquoi = retenue === null ? `ticket #${ticket} does not say card #${carte}` : `the delivery of PR #${pr} went back to a cook since card #${carte}`;
       await fermerLaCarte(github, carte, `Closed by the kitchen: ${pourquoi}. Its next delivery comes back as a new card.`);
@@ -214,26 +254,29 @@ export async function valider(github: GitHubDesGestes, pr: number, brancheDuTick
     const merge = await github.merger(pr, sha);
     if (!merge.fait) throw new GesteRefuse(`GitHub refused to merge PR #${pr} — ${merge.motif}; card #${carte} stays open`);
   }
-  await fermerLaCarte(github, carte, `Validated by the chef: PR #${pr} is merged.`);
+  await fermerLaCarte(github, carte, `${sorte.faite}: PR #${pr} is merged.`);
   return { carte, ticket };
 }
 
-// Le début de la raison d'un renvoi du chef, sur le ticket.
-const RAISON_DU_RENVOI_DU_CHEF = "the chef asks for changes to the screen";
+// Valider : merger la carte « Validate its screen ».
+export const valider = (github: GitHubDesGestes, pr: number, brancheDuTicket: (ticket: number) => string) => mergerLaCarte(DESIGN, github, pr, brancheDuTicket);
 
-// Renvoyer : la livraison repart à un cook, le commentaire du chef comme ce
-// qu'il faut changer — un renvoi sur sa tête, que le cook lit sur le ticket, et
-// `in-pass` retiré —, puis la carte se ferme.
-export async function renvoyerLeDesign(github: GitHubDesGestes, pr: number, commentaire: string, brancheDuTicket: (ticket: number) => string): Promise<{ carte: number; ticket: number }> {
-  const aChanger = commentaire.trim();
-  if (aChanger === "") throw new GesteRefuse("the comment says what to change: it cannot be empty");
-  const { carte, ticket } = await carteDeLaPR(github, pr);
+// Renvoyer la carte : la livraison repart à un cook, la note du chef comme ce
+// qu'il faut changer — un renvoi sur sa tête, que le cook lit sur le ticket,
+// et `in-pass` retiré —, puis la carte se ferme. Une note vide est refusée.
+export async function renvoyerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGestes, pr: number, note: string, brancheDuTicket: (ticket: number) => string): Promise<{ carte: number; ticket: number }> {
+  const aChanger = note.trim();
+  if (aChanger === "") throw new GesteRefuse(sorte.sansNote);
+  const { carte, ticket } = await carteDeLaPR(sorte, github, pr);
   const lue = await prDeLaCarte(github, pr, ticket, brancheDuTicket);
   if (lue.state !== "open" || lue.merged) throw new GesteRefuse(`PR #${pr} is no longer open: there is nothing to send back`);
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
-  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\nThe chef sent the design of PR #${pr} back to a cook — ${RAISON_DU_RENVOI_DU_CHEF}:\n\n${aChanger}\n\nChange the screen as asked, take its before and after captures again, and deliver.`);
+  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\n${sorte.renvoi(pr, aChanger)}`);
   await github.delabelliser(ticket, LABEL_IN_PASS);
   await fermerLaCarte(github, carte, `Sent back to a cook by the chef: ${aChanger}`);
   return { carte, ticket };
 }
 
+// Renvoyer : renvoyer la carte « Validate its screen », le commentaire du chef
+// comme ce qu'il faut changer à l'écran.
+export const renvoyerLeDesign = (github: GitHubDesGestes, pr: number, commentaire: string, brancheDuTicket: (ticket: number) => string) => renvoyerLaCarte(DESIGN, github, pr, commentaire, brancheDuTicket);
