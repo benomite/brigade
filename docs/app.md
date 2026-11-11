@@ -994,6 +994,25 @@ body, `jouerLaValidation` for the desktop and `validerSurGithub` for the phone),
 (`app/src/main.ts`; `app/src/gestes-github-telephone.ts` and `app/android/web/pont.js` on the phone). Tests:
 `app/test/validation-design/`.*
 
+**The large detail of a `Validate its screen` card (#3212).** A click on the card, or on one of its captures, opens its
+detail over the app (in Todo, it opens the detail instead of the ticket's sheet; its buttons and its comment field keep
+their gesture; Enter or Space on its captures opens it too). In this order: the question; `One over the other`, `Next
+validation (#<card>)` when another design validation awaits you, and `Close`; for each screen, `Zoom out`, `Zoom in` and
+`Fit`, then its before and after captures side by side, each as large as the window allows; then `Pull request #<PR>`,
+`Validate`, and the comment field with `Send back to the kitchen` — the card's gestures, with the same comment. Each
+capture zooms with the wheel (around the pointer), by pinching, by its buttons or by a double click (a second one fits it
+again), and pans by dragging; the before and after of a screen share one view, so zooming or panning one does the same on
+the other, at the same spot. `One over the other` puts them in one frame and `Show after` / `Show before` switches between
+them in place, at the same zoom; `Side by side` goes back. `Full size` under a capture opens it alone over the whole
+detail, zoomable the same way; `Back to before and after`, or Escape, returns. Escape, or `Close`, closes the detail. A
+gesture done from the detail closes it and the card leaves Todo, as on the card; refused, the detail stays and says why
+in one line. `Next validation` opens the next card that awaits you (the order of the phone's list), without going back
+to Todo. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
+one under the other, pinch to zoom, its two gestures 44 px high. On a read-only project the detail shows no gesture.
+Captures: `docs/captures/3212/`.
+*Code: `app/src/vue/validation-design/detail-de-validation.js` (the detail and its zoom), opened from `validation-design.js`
+(the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-de-validation.test.ts`.*
+
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
 signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without
 an assignee, it awaits the chef — `chef` in the repository's `.claude/brigade/projet.json`, or, without it, the

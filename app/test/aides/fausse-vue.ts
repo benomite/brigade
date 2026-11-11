@@ -18,7 +18,8 @@ type Noeud = Faux | string;
 // `dataTransfer` : ce qu'une case glissée porte (voir `glisser`) ; `relatedTarget` : où le pointeur va ;
 // `target` : là où le clic est tombé — rien ne remonte d'un élément à son parent, le test le dit.
 type Toucher = { clientX: number; clientY: number };
-type Evenement = { touches?: Toucher[]; changedTouches?: Toucher[]; key?: string; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
+// `clientX`, `clientY`, `pointerId`, `deltaY` : un pointeur, un doigt, la molette (le détail en grand d'une validation, #3212).
+type Evenement = { touches?: Toucher[]; changedTouches?: Toucher[]; key?: string; clientX?: number; clientY?: number; pointerId?: number; deltaY?: number; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
 type Ecoute = (evenement: Evenement) => unknown;
 
 // Un élément : ses enfants, son texte, ses écoutes. Ce que la vue y pose d'autre — `title`,
@@ -158,6 +159,13 @@ export class Faux {
     this.focalise++;
   }
   reset(): void {}
+
+  // La boîte de l'élément à l'écran : rien n'est mesuré ici, un test la pose. Un pointeur la reprend, sans rien en faire.
+  boite = { left: 0, top: 0, width: 0, height: 0 };
+  getBoundingClientRect(): { left: number; top: number; width: number; height: number } {
+    return this.boite;
+  }
+  setPointerCapture(): void {}
 
   // Lui-même ou le plus proche de ses parents qui est d'une de ces balises — `button, a` : la vue
   // n'en demande pas plus.
