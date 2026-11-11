@@ -2253,6 +2253,15 @@ main > header,
 #rail .alerte-de-cuisine > .lien {
   flex: none;
 }
+/* Un refus de station (ticket 3198) : une ligne chacun, sous la ligne d'alerte, sur le même fond — en rouge, la couleur du refus. */
+#rail .refus-de-station {
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-2) var(--pas-3);
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-left: 3px solid var(--rouge);
+  border-radius: var(--rayon-carte);
+}
 #rail .colonne {
   min-width: 0;
   padding: var(--pas-2);

@@ -70,9 +70,12 @@ Nothing in a block is command output. A block has **no button to stop or start t
 and it is stopped on its own machine (stop its runtime there), or by removing `fire` from the tickets it should not take.
 A station stopped by your "stop" of the whole kitchen, or that refuses the project: the resume is on the
 banner, the action for a refusal in the block under the stations line. **On Rail, a single line at the top** says
-what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
+what, on the cooks' side, asks for your action — a saturated station, repository access
 blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
-when nothing asks for it. The modules are `app/src/cuisson.ts` and `app/src/vue/stations-de-cuisson.js`.
+when nothing asks for it. **A station that refuses the project has its own line under it** (#3198): one line per refusing
+station — `box/claude refuses the project: <the station's reason> <the gesture that fixes it>` — gone as soon as the station
+no longer refuses. The modules are `app/src/cuisson.ts`, `app/src/vue/stations-de-cuisson.js` and
+`app/src/vue/projet/rail/refus-de-station.js`.
 **A station that cannot cook says why in one line** (#1786, #1774), under its state: `not signed in yet` for a declared
 station that has not announced itself (on hover: it takes no ticket until it does); for a station
 added from the app, where it is stuck — `not received by the station`, `waiting for your authorization on GitHub`,

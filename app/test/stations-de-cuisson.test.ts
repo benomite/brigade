@@ -258,11 +258,11 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     assert.deepEqual([etatDe(ligne(vue, "box/claude")), noteDe(ligne(vue, "box/claude"))], ["online", "its machine has no room"]);
   });
 
-  test("une station qui refuse le projet : une seule ligne", async () => {
+  test("une station qui refuse le projet : aucune ligne d'alerte, son refus a la sienne (vue/projet/refus-de-station.test.ts)", async () => {
     const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
     const { vue } = await ouvrir([station("box/claude", { cuisson: "refused", refus })]);
     await ouvrirOnglet(vue, "Rail");
-    assert.deepEqual(alertes(vue).map((p) => p.children[0]?.textContent), ["box/claude refuses the project: This computer cannot run the project's cooks in Claude Code's sandbox."]);
+    assert.deepEqual(alertes(vue), []);
   });
 
   test("l'accès au dépôt bloqué : une seule ligne, le détail de git en moins ; avec une station saturée, toujours une seule — et la ligne part quand c'est levé", async () => {
