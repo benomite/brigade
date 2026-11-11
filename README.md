@@ -6,6 +6,8 @@
   brigade — You decide. The kitchen ships.
 </h1>
 
+**[Brigade builds itself — see its live autonomy figures](https://benomite.github.io/brigade/autonomie.html)**
+
 You write the ticket, a **cook** takes it, the **pass** merges it: you are called only for product choices. Open source, free, no Brigade account — just GitHub and your Claude subscription.
 
 The kitchen's words, once: the **rail** is the line of your tickets, from queued to served; a **cook** is a Claude session that takes one ticket and opens its pull request; the **pass** is the check that judges a pull request (gates, CI, review) and merges it; the **second** is your product assistant, who helps you write the tickets.

@@ -1,0 +1,40 @@
+# Daily refresh of the autonomy page (#3220): regenerates site/autonomie.json, then publishes site/ like pages.yml.
+# The figures come from #3213, which is not merged yet: the generator step below is a placeholder, and this
+# workflow defines and computes no figure itself. Until it is replaced, no autonomie.json is published and the
+# page says "Figures not yet available".
+name: autonomie
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # PLACEHOLDER (#3213 not merged): replace with the command #3213 delivers, writing site/autonomie.json
+      # in the shape site/autonomie.js reads ({ figures: { <name>: { value, computedAt, url } } }).
+      - name: Generate the autonomy figures
+        run: echo "::warning::#3213 is not merged — no autonomy figures generated, the page shows 'Figures not yet available'."
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
