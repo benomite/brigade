@@ -458,6 +458,7 @@ const pluginApp = process.env.BRIGADE_CLAUDE_BIN
       marketplace: join(dirname(cheminConfiguration()), DOSSIER_DU_PLUGIN),
       commandes: emplacements.commandes,
       versionDeLApp: app.getVersion(),
+      lieux: { node: emplacements.node, runtime: emplacements.runtime },
       dire: (ligne) => console.error(ligne),
     });
 // Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et

@@ -65,7 +65,7 @@ function essai(t: TestContext) {
   // Ce que `/brigade:init` joue : le script que la commande posée nomme, depuis le dossier du projet.
   const initialiser = (...args: string[]) => {
     const commande = readFileSync(join(marketplace, "commands", "init.md"), "utf8");
-    const script = /bash "([^"]+)"/.exec(commande)?.[1];
+    const script = /pr-de-setup\.ts" "([^"]+)"/.exec(commande)?.[1];
     assert.ok(script !== undefined && script.startsWith(marketplace), `the command names its script: ${script}`);
     return execFileSync("bash", [script, ...args], { cwd: dossier, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   };
