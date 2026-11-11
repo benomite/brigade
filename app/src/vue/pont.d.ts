@@ -358,6 +358,9 @@ export type Pont = {
   // projet que l'app ne connaît plus.
   reprendreLeDisjoncteur(projet: string): Promise<import("../github/breaker-resume.ts").RenduDeLaReprise | undefined>;
   ouvrirBilan(projet: string, url: string): Promise<boolean>;
+  // Un lien de la ligne d'un projet en lecture seule (ticket 3163, vue/lecture-seule/) : comment obtenir l'écriture sur son
+  // dépôt, ou le forker — ouvert pour le seul dépôt que la dernière lecture dit en lecture seule (lecture-seule.ts).
+  ouvrirLectureSeule?(projet: string, page: import("../lecture-seule.ts").PageDeLaLectureSeule): Promise<boolean>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;

@@ -3291,6 +3291,25 @@ main > header,
 #alertes .alerte {
   border-left: 3px solid var(--ton);
 }
+/* Un projet en lecture seule (ticket 3163) : sa ligne, en tête de la bande, et ses deux liens à côté. */
+#alertes .lecture-seule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+  min-height: 36px;
+  padding: var(--pas-1) var(--pas-4);
+}
+#alertes .lecture-seule + * {
+  border-top: 1px solid var(--trait-doux);
+}
+#alertes .lecture-seule > p {
+  margin: 0;
+}
+/* Settings d'un projet en lecture seule : ce qui se propose à son dépôt par une pull request n'est pas posé. */
+#etat[data-lecture-seule] :is(#reglages-du-projet, #reglages-du-projet-en-plus, #humains-du-projet, #stations-contributrices, [data-bloc="plafonds-duree"], [data-bloc="closer"]) {
+  display: none !important;
+}
 #alertes .alerte + .alerte {
   border-top: 1px solid var(--trait-doux);
 }

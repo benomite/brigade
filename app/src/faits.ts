@@ -342,6 +342,8 @@ export type Faits = {
   github?: LimiteDuCompte;
   // Le refus de l'interrupteur GitHub seul par le runtime (`githubSeul`, ticket 2161) : sa raison en une phrase, et depuis quand ; absent quand l'interrupteur est éteint ou accepté.
   githubSeulRefuse?: { reason: string; since: string };
+  // Le dépôt du projet, quand le compte GitHub de l'app ne peut pas y écrire (tableau/lecture.ts, `lectureSeule`, #3163) ; absent sinon, et quand GitHub ne l'a pas dit.
+  lectureSeule?: { depot: string };
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -481,6 +483,9 @@ export type Tableau = {
   // ligne ; `survol`, ce qu'elle sait de plus. Absente quand `facts` ne la porte pas.
   panne?: Panne;
   rail: Rail;
+  // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
+  // tout s'y voit, aucun geste n'y est offert, et une ligne en tête le dit. Absent : la vue ordinaire.
+  lectureSeule?: { depot: string };
   // Les tickets sur lesquels un agent travaille à cette lecture (#2984) : la vue pose la poêle à côté de leur carte. Absent
   // d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ) : rien n'y cuit.
   auTravail?: number[];
@@ -696,6 +701,13 @@ function surGithubLu(valeur: unknown): { stationsSurGithub?: { illisible: string
   return { stationsSurGithub: { illisible: typeof illisible === "string" && illisible !== "" ? illisible : null } };
 }
 
+// `lectureSeule`, de la racine de `facts` (#3163) : le dépôt où le compte ne peut pas écrire ; rien de mal formé ne le pose.
+function lectureSeuleLue(valeur: unknown): { lectureSeule?: { depot: string } } {
+  if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
+  const { depot } = valeur as Record<string, unknown>;
+  return typeof depot === "string" && depot !== "" ? { lectureSeule: { depot } } : {};
+}
+
 // `githubSeul`, de la racine de `facts` : seul un refus se garde, avec sa raison ; rien de mal formé ne la fait inventer.
 function refusGitHubSeulLu(valeur: unknown): { githubSeulRefuse?: { reason: string; since: string } } {
   if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
@@ -747,6 +759,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.limiteGithub === undefined ? {} : { limiteGithub: heure(racine.limiteGithub, "limiteGithub") }),
       ...limiteLue(racine.github),
       ...refusGitHubSeulLu(racine.githubSeul),
+      ...lectureSeuleLue(racine.lectureSeule),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
@@ -1379,6 +1392,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...panneDe(faits),
     rail: rail(faits, attend, status, repondues, ecrites),
     auTravail: ticketsAuTravail(faits),
+    ...(faits.lectureSeule === undefined ? {} : { lectureSeule: faits.lectureSeule }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),

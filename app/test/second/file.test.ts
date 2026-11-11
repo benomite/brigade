@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, test, type TestContext } from "node:test";
 import { crochetsDeLaFile, MATCHER } from "../../src/second/crochet-de-la-file.ts";
-import { appelParGh, contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
+import { appelParGh, contexteDeLaFile, contexteDeLEcriture, lireLaFile } from "../../src/second/file.ts";
 import { argumentsDuSecond, reglagesDuSecond, type ReglagesDuSecond } from "../../src/second/lancement.ts";
 import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
@@ -39,13 +39,16 @@ function fauxGh(t: TestContext, code: number, sortie: string, erreur = ""): stri
 
 // Un faux `gh` qui rend, chemin par chemin, ce que GitHub tient du projet (`reponseA`) : il écrit chaque appel reçu.
 // `attente` : ce que chaque appel met à répondre, en secondes.
-function ghDuProjet(t: TestContext, attente = 0): string {
+// `depot` : ce qu'il rend du dépôt lui-même (`repos/<depot>`, ses `permissions`, #3163) — `[]` sans lui.
+function ghDuProjet(t: TestContext, attente = 0, depot?: unknown): string {
   const d = dossier(t);
   const chemins = ["repos/x/issues?labels=fire", "repos/x/issues?labels=chef-todo", "repos/x/issues/8/comments", "repos/x/issues/20/comments"];
   chemins.forEach((chemin, rang) => writeFileSync(join(d, `${rang}.json`), JSON.stringify(reponseA(chemin))));
   const gh = join(d, "gh");
   const cas = ["*labels=fire*", "*labels=chef-todo*", "*/issues/8/comments*", "*/issues/20/comments*"].map((motif, rang) => `  ${motif}) /bin/cat '${join(d, `${rang}.json`)}' ;;`).join("\n");
-  writeFileSync(gh, `#!/bin/sh\necho "$@" >> '${join(d, "recu")}'\n${attente === 0 ? "" : `sleep ${attente}\n`}case "$2" in\n${cas}\n  *) echo '[]' ;;\nesac\n`);
+  writeFileSync(join(d, "depot.json"), JSON.stringify(depot ?? []));
+  const duDepot = `  repos/${DEPOT}) /bin/cat '${join(d, "depot.json")}' ;;`;
+  writeFileSync(gh, `#!/bin/sh\necho "$@" >> '${join(d, "recu")}'\n${attente === 0 ? "" : `sleep ${attente}\n`}case "$2" in\n${duDepot}\n${cas}\n  *) echo '[]' ;;\nesac\n`);
   chmodSync(gh, 0o755);
   return gh;
 }
@@ -170,6 +173,23 @@ describe("le crochet joué à la main", () => {
     const recus = readFileSync(join(gh, "..", "recu"), "utf8");
     assert.match(recus, new RegExp(`^api repos/${DEPOT}/issues\\?state=open&labels=fire&`, "m"));
     assert.doesNotMatch(recus, /kitchen-board/);
+  });
+
+  test("un dépôt où le compte du poste ne peut pas écrire : la file, puis la ligne `Read-only:` et ce que le second ne peut pas y faire (#3163)", { skip: SANS_SH }, (t) => {
+    const r = jouer(t, ghDuProjet(t, 0, { full_name: DEPOT, permissions: { admin: false, push: false, pull: true } }), "brigade", DEPOT);
+    assert.equal(r.status, 0, r.stderr);
+    const contexte = r.json?.hookSpecificOutput.additionalContext ?? "";
+    assert.match(contexte, /\nend awaiting\n\nRead-only: your GitHub account cannot write to acme\/brigade\. .*you cannot change anything there/);
+  });
+
+  test("un dépôt où le compte écrit, ou dont GitHub ne dit pas l'écriture : aucune ligne `Read-only:`", { skip: SANS_SH }, (t) => {
+    for (const depot of [{ full_name: DEPOT, permissions: { push: true } }, { full_name: DEPOT }]) {
+      const r = jouer(t, ghDuProjet(t, 0, depot), "brigade", DEPOT);
+      assert.equal(r.status, 0, r.stderr);
+      assert.doesNotMatch(r.json?.hookSpecificOutput.additionalContext ?? "", /Read-only/);
+    }
+    assert.equal(contexteDeLEcriture(DEPOT, true), "");
+    assert.equal(contexteDeLEcriture(DEPOT, null), "");
   });
 
   test("GitHub qui refuse : dit, et la session n'est pas bloquée", { skip: SANS_SH }, (t) => {

@@ -681,6 +681,38 @@ answer but a 304) in any hour, under the 1,000 the test allows.
 `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and `-apres.png` (one station cooking,
 one idle, one silent).*
 
+### A project you cannot write to opens read-only (#3163)
+
+Each reading of a project's rail also reads what this computer's GitHub account may do with its repository:
+`permissions.push` of `GET /repos/<owner>/<repo>`, the same path the rail reads for its base, so a reread is a 304 that
+costs nothing (`app/src/tableau/ecriture.ts`). When GitHub says `push: false`, `facts` carries `lectureSeule` with the
+repository, and the project opens read-only:
+
+- **Everything is seen**: the rail, its cards, Todo, the stations and the cooks, as for any project.
+- **No gesture is offered**, absent rather than greyed: no choice, field or `send` on a Todo card (its question is read),
+  no `Relaunch` or `Close as already done`, no WAITING gesture, no `Add a station`, no breaker `Resume`, no project
+  switch, no `stop the kitchen` or `resume the kitchen`, no `Set up for Brigade`. A ticket's sheet keeps only what opens
+  something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
+  to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
+  that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
+  its humans, its contributing stations, the duration caps and the closer — is not laid.
+- **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
+  <owner/repo>.`, with two links: `how to get write access` (GitHub's page on inviting a collaborator: the owner invites
+  you) and `fork it` (the repository's fork page on GitHub). The main process — on the phone, its bridge
+  (`app/android/web/pont.js`) — opens them only for the repository the latest reading says read-only
+  (`app/src/lecture-seule.ts`).
+- **The second** can still be talked to. Its opening reads the same permission, and when the account cannot write, its
+  context carries the same `Read-only:` line and what follows from it: it explains what is happening there and changes
+  nothing — no issue, label, comment, merge or push (`app/src/second/file.ts`, `app/src/second/role.md`).
+- **Write access gained**, the next reading no longer carries `lectureSeule`: the line goes and the gestures come back,
+  without reopening the project. When GitHub does not say (no `permissions` in its answer, a refusal, no answer), nothing
+  is decided in its place: the view stays the ordinary one, and the rail is still read.
+
+*Code: `app/src/tableau/ecriture.ts`, `app/src/tableau/lecture.ts`, `lectureSeule` in `app/src/faits.ts`,
+`app/src/vue/lecture-seule/lecture-seule.js`, `lectureSeuleDe` in `app/src/vue/vue.js`, `ouvrirLectureSeule` in
+`app/src/main.ts`. Tests: `app/test/lecture-seule.test.ts`, `app/test/tableau/lecture.test.ts`,
+`app/test/second/file.test.ts`.*
+
 ### The chef's TODO, read from GitHub (#2221, epic #2209)
 
 Todo is what awaits the chef, read from GitHub alone (#2460): no Kitchen board feeds it any more (#2061), every item is a

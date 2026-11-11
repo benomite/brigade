@@ -92,7 +92,7 @@ export function poserReprise(doc, etat, reprendre) {
  * @param {Fabrique} doc
  * @param {{ marque: any, dit: string, releve?: string }} ligne
  * @param {Etat} etat
- * @param {() => void} reprendre
+ * @param {(() => void) | undefined} reprendre — absent, la ligne n'a pas de « Resume » : un projet en lecture seule (ticket 3163)
  */
 export function poserLigneDuDisjoncteur(doc, { marque, dit, releve }, etat, reprendre) {
   const racine = cree(doc, "div");
@@ -102,6 +102,10 @@ export function poserLigneDuDisjoncteur(doc, { marque, dit, releve }, etat, repr
   const tete = cree(doc, "p");
   tete.className = "dit";
   tete.append(marque, cree(doc, "strong", dit), ...(releve === undefined || releve.trim() === "" ? [] : [survol(doc, releve)]));
+  if (reprendre === undefined) {
+    racine.append(tete);
+    return racine;
+  }
   const controle = cree(doc, "div");
   controle.className = "controle";
   controle.append(...poserReprise(doc, etat, reprendre));

@@ -144,6 +144,7 @@ import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, caseDIci, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
+import { ligneLectureSeule } from "./lecture-seule/lecture-seule.js";
 import { CET_ORDINATEUR, ANNULER, OUI, REESSAYER, AJOUTER_UN_PROJET, PAS_ENCORE, LECTURE_DE, NON_ATTEINT } from "./lexique.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -919,6 +920,14 @@ let pageDeLApp;
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
 /** @type {Map<string, Dessinable>} */
 const tenus = new Map();
+// Le dépôt d'un projet où le compte GitHub de cet ordinateur ne peut pas écrire (ticket 3163), d'après sa dernière
+// lecture : le projet s'ouvre en lecture seule — tout s'y voit, aucun geste n'y est offert, une ligne en tête le dit.
+// L'accès gagné, la lecture suivante ne le porte plus et la vue redevient ordinaire, sans rouvrir le projet.
+/** @param {{ nom: string }} projet @returns {string | undefined} */
+function lectureSeuleDe(projet) {
+  const tenu = tenus.get(projet.nom);
+  return tenu !== undefined && "tableau" in tenu ? tenu.tableau.lectureSeule?.depot : undefined;
+}
 // L'app n'a pas joint GitHub (tableau/lecture.ts, `horsLigne`, ticket 1818) : depuis quand, d'après la première lecture ratée
 // de la série. Ce n'est pas une panne : le rail garde sa dernière lecture, atténué, et un seul signe le dit. Il part à la
 // première lecture qui joint GitHub.
@@ -2908,7 +2917,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     bon.append(ouvre);
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
-  if (carte.refus !== undefined) bon.append(poserLesGestesDuRefus(projet, ticket));
+  if (carte.refus !== undefined && lectureSeuleDe(projet) === undefined) bon.append(poserLesGestesDuRefus(projet, ticket));
   bon.append(...poserGestesDAttente(projet, carte), ...signalerLaCarte(projet, carte));
   return bon;
 }
@@ -2987,6 +2996,8 @@ function signalerLaCarte(projet, carte) {
 // le process principal (attente.ts, vue/attente/attente-github.ts), et « it arrived » dit dessous ce qu'il en est advenu.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
 function poserGestesDAttente(projet, carte) {
+  // En lecture seule (ticket 3163), rien ne met une carte en WAITING ni ne l'en sort.
+  if (lectureSeuleDe(projet) !== undefined) return [];
   const { ticket, gestes } = carte;
   const cle = `${projet.nom}#${ticket}`;
   // Une carte sortie de WAITING n'a plus à dire ce qu'est devenu son « it arrived ».
@@ -3349,7 +3360,7 @@ function poserFiche() {
     if (!questions.has(cle)) void lireQuestion(projet, ticket);
     const question = poserQuestion(projet, ticket, questions.get(cle) ?? {});
     if (question !== undefined) panneau.append(question);
-    if (attend.some((entree) => entree.includes(LABEL_RETENUE))) {
+    if (attend.some((entree) => entree.includes(LABEL_RETENUE)) && lectureSeuleDe(projet) === undefined) {
       const gestes = document.createElement("div");
       gestes.className = "gestes";
       gestes.append(...poserLevees(projet, ticket));
@@ -3397,7 +3408,9 @@ function poserGestesDeFiche(projet, carte) {
   }
   const issue = issuesDeFiches.get(cle);
   const liste = document.createElement("ul");
-  for (const propose of proposes) {
+  // En lecture seule (ticket 3163), la fiche ne garde que ce qui ouvre ou demande au second : rien qui écrive sur l'issue.
+  const seule = lectureSeuleDe(projet) !== undefined;
+  for (const propose of seule ? proposes.filter(({ id }) => GESTES_DE_FICHE_SANS_ECRITURE.has(id)) : proposes) {
     const ligne = document.createElement("li");
     ligne.dataset.geste = propose.id;
     ligne.append(...poserGesteDeFiche(projet, ticket, propose, issue !== undefined && "envoi" in issue, prioriteCourante));
@@ -3430,6 +3443,10 @@ function poserGestesDeFiche(projet, carte) {
   }
   return section;
 }
+
+// Les gestes de la fiche qui n'écrivent rien sur GitHub (gestes-fiche.ts) : ouvrir l'issue, la PR, la page, ou demander au
+// second. Ce sont les seuls d'un projet en lecture seule (ticket 3163).
+const GESTES_DE_FICHE_SANS_ECRITURE = new Set(["issue", "pr", "second", "navigateur"]);
 
 // Ce qu'un geste de la fiche pose : son bouton — recommandé s'il l'est, son prix au survol — et,
 // pour la priorité, de quoi la choisir avant. `occupe` : un geste de la fiche attend sa réponse — aucun ne part.
@@ -3711,6 +3728,8 @@ function poserDiscussion(projet, ticket) {
 // Le champ du commentaire, son bouton et son prix, et ce qu'il est advenu du dernier envoi.
 /** @param {Projet} projet @param {number} ticket @returns {HTMLElement[]} */
 function poserCommentaire(projet, ticket) {
+  // En lecture seule (ticket 3163), aucun commentaire ne se poste d'ici.
+  if (lectureSeuleDe(projet) !== undefined) return [];
   const cle = `${projet.nom}#${ticket}`;
   const etat = envoisDeCommentaire.get(cle);
   const envoi = etat !== undefined && "envoi" in etat;
@@ -4067,6 +4086,8 @@ function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
     repondue.className = "repondue";
     section.append(repondue);
   }
+  // En lecture seule (ticket 3163), la question se lit, et ne se répond pas d'ici.
+  if (lectureSeuleDe(projet) !== undefined) return section;
   // Ce que le chef a vu sous la question : rien ne part si quelque chose y a été écrit depuis.
   const vu = question.depuis.at(-1)?.url ?? "";
   const cle = `${projet.nom}#${ticket}`;
@@ -4232,7 +4253,8 @@ setInterval(() => {
 // Chacun dit d'abord ce qu'il coûte : rien ne part avant son « oui ».
 /** @param {Projet} projet @param {boolean} arretee */
 function poserArreter(projet, arretee) {
-  const geste = GESTES_DE_LA_CUISINE.find(({ id }) => id === (arretee ? "reprendre" : "stop"));
+  // En lecture seule (ticket 3163), la cuisine ne s'arrête ni ne reprend d'ici.
+  const geste = lectureSeuleDe(projet) !== undefined ? undefined : GESTES_DE_LA_CUISINE.find(({ id }) => id === (arretee ? "reprendre" : "stop"));
   arreterCuisine.hidden = geste === undefined;
   sectionCuisine.hidden = geste === undefined;
   if (geste === undefined) {
@@ -4706,7 +4728,7 @@ function poserLeRail(projet) {
       if (avecDisjoncteur) {
         disjoncteursEnTodo.add(projet.nom);
         colonne.dataset.actif = "";
-        colonne.append(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, () => void reprendreLeDisjoncteur(projet)));
+        colonne.append(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined));
       }
       // Le projet pas préparé pour Brigade le dit en tête de TODO, avec le même bouton que sa page (ticket 2628).
       const avisDeDepot = nom === COLONNE_QUI_T_ATTEND ? avisDuDepot(projet, "todo") : undefined;
@@ -4957,7 +4979,7 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
     ticket,
     todo,
     etat,
-    { captures: todo.captures === undefined ? [] : poserCaptures(projet, ticket, todo.captures), brouillon: brouillonsDeCartes.get(cle) ?? "", cle, ...(second === undefined ? {} : { second }) },
+    { captures: todo.captures === undefined ? [] : poserCaptures(projet, ticket, todo.captures), brouillon: brouillonsDeCartes.get(cle) ?? "", cle, ...(second === undefined ? {} : { second }), ...(lectureSeuleDe(projet) === undefined ? {} : { lectureSeule: true }) },
     {
       repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
       ecrire: (texte) => {
@@ -4980,7 +5002,8 @@ let vueDesCartes = { vu: "liste" };
 function lesCartesDuChef() {
   return configuration.projets.flatMap((projet) => {
     const tenu = tenus.get(projet.nom);
-    if (tenu === undefined || !("tableau" in tenu)) return [];
+    // Une carte d'un projet en lecture seule ne se répond pas d'ici (ticket 3163) : elle n'est pas de cette liste.
+    if (tenu === undefined || !("tableau" in tenu) || tenu.tableau.lectureSeule !== undefined) return [];
     const colonne = tenu.tableau.rail.colonnes.find(({ nom }) => nom === COLONNE_QUI_T_ATTEND);
     return (colonne?.cartes ?? []).flatMap((carte) => {
       const { todo } = carte;
@@ -5083,7 +5106,8 @@ async function repondreALaCarte(projet, ticket, reponse) {
 // `runRepoSetup` le prépare, le même geste que l'ajout d'un projet. Préparé, l'avis s'en va sans recharger.
 /** @param {Projet} projet @param {"page" | "todo"} lieu */
 function avisDuDepot(projet, lieu) {
-  if (!seLit(projet) || projet.depot === undefined) return undefined;
+  // Un dépôt où le compte ne peut pas écrire ne se prépare pas d'ici (ticket 3163) : la ligne de lecture seule le dit.
+  if (!seLit(projet) || projet.depot === undefined || lectureSeuleDe(projet) !== undefined) return undefined;
   const etat = depots.get(projet.nom);
   if (etat === undefined) {
     depots.set(projet.nom, DEPOT_INCONNU);
@@ -5282,7 +5306,8 @@ function interrupteur(nom, allume, { pourquoi, eteindre, allumer, clic, confirma
 // mot, est au survol.
 function poserInterrupteur() {
   const projet = courant;
-  const cache = projet === undefined || !seLit(projet);
+  // En lecture seule (ticket 3163), le projet ne s'allume ni ne s'éteint d'ici.
+  const cache = projet === undefined || !seLit(projet) || lectureSeuleDe(projet) !== undefined;
   interrupteurProjet.hidden = cache;
   if (projet === undefined || cache) return interrupteurProjet.replaceChildren();
   const cle = JSON.stringify(["projet-allumer", "", "interrupteur"]);
@@ -5926,7 +5951,8 @@ function cuisineDe(projet) {
 /** @param {Projet} projet */
 function ajoutDeStationDe(projet) {
   const depot = projet.depot ?? projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.depot ?? "";
-  if (etroit() || depot === "") return {};
+  // Ni en lecture seule (ticket 3163) : une station ajoutée ne pourrait rien écrire dans le dépôt.
+  if (etroit() || depot === "" || lectureSeuleDe(projet) !== undefined) return {};
   const lecture = servis.etat?.lecture;
   const servisIci = lecture !== undefined && "depots" in lecture ? lecture.depots : undefined;
   const lues = enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
@@ -7034,8 +7060,11 @@ function poserAlertes(projet) {
   const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && (("geste" in appel && appel.geste === "projet-allumer") || ("reprise" in appel && disjoncteursEnTodo.has(projet.nom)))));
   gesteDeLUrgence = undefined;
   const avis = avisDuDepot(projet, "page");
-  bande.hidden = alertes.length === 0 && avis === undefined;
-  bande.replaceChildren(...(avis === undefined ? [] : [avis]), ...alertes.map((alerte) => poserAlerte(projet, alerte)));
+  // En lecture seule, sa ligne vient en tête du projet (ticket 3163) : elle dit pourquoi aucun geste n'est offert.
+  const depot = lectureSeuleDe(projet);
+  const seule = depot === undefined ? [] : [ligneLectureSeule(document, depot, (page) => void brigade.ouvrirLectureSeule?.(projet.nom, page))];
+  bande.hidden = alertes.length === 0 && avis === undefined && seule.length === 0;
+  bande.replaceChildren(...seule, ...(avis === undefined ? [] : [avis]), ...alertes.map((alerte) => poserAlerte(projet, alerte)));
 }
 
 // L'endroit d'une ligne de la bande : son sujet, et ce qu'elle dit — l'urgence par son seul sujet,
@@ -7116,6 +7145,8 @@ function poserAlerte(projet, alerte) {
 function poserControle(projet, alerte, endroit) {
   const { sujet, geste: leve, bouton: libelle, appel, prix } = alerte;
   if (appel === undefined) return [];
+  // En lecture seule (ticket 3163), ni geste du socle ni reprise du disjoncteur : rien qui change le projet.
+  if (lectureSeuleDe(projet) !== undefined && ("geste" in appel || "reprise" in appel)) return [];
   const mot = libelle ?? leve;
   /** @type {HTMLElement[]} */
   let pose;
@@ -7174,7 +7205,7 @@ function poserArret(projet) {
   const relance = GESTES_DE_LA_CUISINE.find(({ id }) => id === banniere.bouton);
   const geste = document.createElement("div");
   geste.className = "gestes";
-  if (relance !== undefined) geste.append(...poserGeste(projet, { ...relance, ou: "arret" }));
+  if (relance !== undefined && lectureSeuleDe(projet) === undefined) geste.append(...poserGeste(projet, { ...relance, ou: "arret" }));
   arret.replaceChildren(bloc("strong", titre), ...suite.map((ligne) => bloc("p", ligne)), geste);
 }
 
@@ -7186,6 +7217,9 @@ function dessiner() {
   rail.hidden = true;
   poserInterrupteur();
   poserStationsDuProjet();
+  // Settings d'un projet en lecture seule (ticket 3163) : rien de ce qui se propose à son dépôt n'y est posé (vue.css).
+  if (courant !== undefined && lectureSeuleDe(courant) !== undefined) etat.dataset.lectureSeule = "";
+  else delete etat.dataset.lectureSeule;
   if (courant === undefined) return;
   poserAlertes(courant);
   poserArret(courant);
