@@ -1640,7 +1640,7 @@ over the cooks listed for it, of their tokens × the weight of their model (the 
 that over the quota, rounded to one decimal. A cook that declares no tokens makes the share "≥", as for the tokens. **Under the list, one
 line gives the week's cost of all projects**: the weighted tokens of the cooks listed that ended from the week's start up to now, as a
 percentage of the quota (a cook ended before the start is left out; the cooks are the ten per project the box lists). When `tokens` is
-missing, zero or invalid, that line is replaced by the single line "Share unavailable: weekly quota is not configured.", no share is shown on
+missing, zero or invalid, that line is replaced by the single line "No share: the weekly quota is not configured.", no share is shown on
 the rows, and the tokens stay.
 **An overrun of a threshold is seen at a glance** (#912, `cost/seuils.js`): the thresholds are those `station` writes under
 "chef's decisions" (`seuil-ticket`, `seuil-perdus`), project by project. When the most expensive ticket exceeds its
