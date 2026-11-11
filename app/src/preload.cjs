@@ -153,6 +153,8 @@ const pont = {
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
   // Le lien de l'app Android que l'offre du téléphone montre (ticket 3303) : son `apkUrl`, ou la page des versions.
   lienDeLApk: () => ipcRenderer.invoke("lienDeLApk"),
+  // Un téléphone déjà connecté au compte GitHub du poste (ticket 3303) : la trace qu'il pose dans un gist.
+  telephoneConnecte: () => ipcRenderer.invoke("telephoneConnecte"),
   // Le projet d'essai du premier lancement (ticket 3227) : ce qui en est noté et son service, le créer, le supprimer, et
   // la permission de suppression que `gh` fait accorder — sa fin arrive par `surPermissionDeSuppression`.
   projetDEssai: () => ipcRenderer.invoke("projetDEssai"),

@@ -265,10 +265,20 @@ const colonneSecond = element("second");
 const noteSecond = element("note-second");
 const outilsDuSecond = element("outils-du-second");
 const choixDuSecond = element("choix-du-second");
+// Le stockage de la vue, ou rien quand son accès est refusé : la lecture de `window.localStorage` lève alors (SecurityError),
+// et chacun de ses usagers fait sans lui plutôt que de casser la vue au démarrage.
+/** @returns {Storage | undefined} */
+function stockageDeLaVue() {
+  try {
+    return window.localStorage ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 // La visite guidée du premier lancement (ticket 3165, visite/) : sa bulle par-dessus l'écran, l'étape où elle en est, et
 // la trace, dans le stockage de la vue, qu'elle a été montrée.
 const sectionVisite = element("visite");
-const visite = tenirLaVisite({ stockage: window.localStorage ?? undefined, rendre: () => poserLaVisite() });
+const visite = tenirLaVisite({ stockage: stockageDeLaVue(), rendre: () => poserLaVisite() });
 const marquerLaCible = marqueurDeCible();
 // Le projet que le premier lancement ajoute pour la visite : son espace s'ouvre sur elle dès qu'il est dans le fichier.
 /** @type {string | undefined} */
@@ -307,7 +317,7 @@ const panneauDuSecond = monterLePanneau({
   document,
   colonne: colonneSecond,
   tete: teteDuSecond,
-  stockage: window.localStorage ?? undefined,
+  stockage: stockageDeLaVue(),
   disponible: () => {
     const rail = principal.getBoundingClientRect?.().width;
     const panneau = colonneSecond.getBoundingClientRect?.().width;
@@ -670,11 +680,13 @@ const stationsDuProjet = element("stations-du-projet");
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
-// ticket servi ; acceptée, le lien de l'app Android ; déclinée ou suivie, gardée rangée dans le stockage de la vue.
+// ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
+// ou suivie, gardée rangée dans le stockage de la vue.
 const offreDuTelephone = element("offre-telephone");
 const offre = tenirLOffre({
-  stockage: window.localStorage ?? undefined,
+  stockage: stockageDeLaVue(),
   lire: async () => brigade.lienDeLApk?.(),
+  connecte: async () => brigade.telephoneConnecte?.(),
   ouvrir: (lien) => void brigade.ouvrirLaPage?.(lien),
   rendre: () => poserLOffreDuTelephone(courant),
 });
@@ -6831,10 +6843,11 @@ function poserLeDelai(projet) {
   poserLOffreDuTelephone(projet);
 }
 
-// L'offre du téléphone, sur la page du premier projet servi seulement — ni sur le téléphone, ni rangée.
+// L'offre du téléphone, sur la page du premier projet servi seulement — ni sur le téléphone, ni rangée, ni quand un
+// téléphone est déjà connecté : la trace n'est lue qu'une fois le reste tenu.
 /** @param {Projet | undefined} projet */
 function poserLOffreDuTelephone(projet) {
-  const montree = projet !== undefined && telephoneVu === undefined && !offre.rangee() && premierProjetServi(projetsVus?.projets ?? []) === projet.nom;
+  const montree = projet !== undefined && telephoneVu === undefined && premierProjetServi(projetsVus?.projets ?? []) === projet.nom && offre.montrable();
   offreDuTelephone.hidden = !montree;
   offreDuTelephone.replaceChildren(...(montree ? [poserLOffre(document, offre.etat, offre)] : []));
 }

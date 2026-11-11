@@ -5,8 +5,10 @@
 // publiée, lu par le process principal (mise-a-jour/android.ts), ou la page des versions s'il ne se lit pas — et « Sign
 // in with the same GitHub account » : depuis le ticket 2500, le téléphone n'a pas de code d'appairage, il se connecte au même
 // compte GitHub. Déclinée, ou son lien suivi, elle ne revient plus : le choix est gardé dans le stockage de la vue
-// (`localStorage`). Aucune détection d'un téléphone déjà connecté : rien ne le publie (décision du manager sur le
-// ticket 3303, option B, 2026-11-11). Ce module ne touche pas `document`.
+// (`localStorage`). Un téléphone déjà connecté au compte GitHub du chef ne la laisse pas paraître : l'app Android pose
+// sa trace dans un gist du compte (telephone-connecte.ts), que le process principal lit ; tant que cette lecture n'a pas
+// dit qu'aucun téléphone n'est connecté — pas encore faite, ou illisible —, l'offre ne se montre pas. Ce module ne touche
+// pas `document`.
 
 import { boutonAction } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
@@ -25,6 +27,8 @@ export const LECTURE = "Finding the Android app…";
 export const TELECHARGER = "download the Android app";
 export const MEME_COMPTE = "Sign in with the same GitHub account";
 export const ILLISIBLE = "The link to the Android app cannot be read right now.";
+// Une lecture de la trace du téléphone qui n'a pas dit « connecté » se refait au plus tôt après ce délai.
+export const RELIRE_MS = 5 * 60_000;
 
 // Le premier projet du chef — parmi les projets lus, celui dont l'ajout est le plus ancien —, si son premier ticket est
 // servi ; sinon rien. Un projet sans délai publié (ticket 1401) ne compte pas : son ajout ne se sait pas.
@@ -36,13 +40,31 @@ export function premierProjetServi(projets) {
 }
 
 // L'offre tenue pour la vue. `lire` : le lien de l'app Android, par le pont. `ouvrir` : l'ouvre dans le navigateur.
-// Un stockage absent ou illisible ne la montre pas : sans lui, un refus ne se garderait pas, et elle reviendrait à
-// chaque lancement. Une trace qui ne s'écrit pas la range quand même jusqu'à la fermeture de l'app.
-/** @param {{ stockage: Stockage | undefined, lire: () => Promise<unknown>, ouvrir: (lien: string) => void, rendre: () => void, maintenant?: () => string }} options */
-export function tenirLOffre({ stockage, lire, ouvrir, rendre, maintenant = () => new Date().toISOString() }) {
+// `connecte` : la trace d'un téléphone connecté, par le pont — `{ connecte: boolean }`, ou autre chose quand elle ne se
+// lit pas. Un stockage absent ou illisible ne la montre pas : sans lui, un refus ne se garderait pas, et elle reviendrait
+// à chaque lancement. Une trace de refus qui ne s'écrit pas la range quand même jusqu'à la fermeture de l'app.
+/** @param {{ stockage: Stockage | undefined, lire: () => Promise<unknown>, connecte: () => Promise<unknown>, ouvrir: (lien: string) => void, rendre: () => void, maintenant?: () => string, horloge?: () => number }} options */
+export function tenirLOffre({ stockage, lire, connecte, ouvrir, rendre, maintenant = () => new Date().toISOString(), horloge = Date.now }) {
   /** @type {Etat} */
   let etat = { etape: "offerte" };
   let rangeeIci = false;
+  // Ce que la dernière lecture de la trace du téléphone a dit, et quand ; une lecture en cours.
+  /** @type {{ dit: "connecte" | "absent" | "illisible", le: number } | undefined} */
+  let telephone;
+  let enLecture = false;
+  const lireLeTelephone = async () => {
+    enLecture = true;
+    let lu;
+    try {
+      lu = await connecte();
+    } catch {
+      lu = undefined;
+    }
+    const dit = typeof lu === "object" && lu !== null && "connecte" in lu && typeof lu.connecte === "boolean" ? (lu.connecte ? "connecte" : "absent") : "illisible";
+    telephone = { dit, le: horloge() };
+    enLecture = false;
+    rendre();
+  };
   /** @param {"declinee" | "suivie"} comment */
   const ranger = (comment) => {
     rangeeIci = true;
@@ -76,6 +98,13 @@ export function tenirLOffre({ stockage, lire, ouvrir, rendre, maintenant = () =>
       } catch {
         return true;
       }
+    },
+    // Vrai : l'offre peut paraître — ni rangée, ni un téléphone connecté, et la dernière lecture a dit qu'il n'y en a
+    // aucun. Sans réponse encore, ou une réponse vieille de `RELIRE_MS` qui n'a pas dit « connecté », la trace est relue.
+    montrable() {
+      if (this.rangee() || telephone?.dit === "connecte") return false;
+      if (!enLecture && (telephone === undefined || horloge() - telephone.le >= RELIRE_MS)) void lireLeTelephone();
+      return telephone?.dit === "absent";
     },
     accepter: () => void accepter(),
     decliner: () => ranger("declinee"),

@@ -1,7 +1,8 @@
 // L'offre du téléphone juste après le premier ticket servi (#3303, offre-telephone/) : d'abord ses morceaux devant un faux
 // document — le premier projet servi, l'offre tenue et son stockage, la ligne à chaque état —, puis la vue jouée entière
 // contre le faux pont : la page du premier projet servi l'offre, l'accepter montre le lien de l'app Android sans passer par
-// Settings, la décliner ou suivre son lien la range, et un lancement suivant ne la remontre pas.
+// Settings, la décliner ou suivre son lien la range, un lancement suivant ne la remontre pas, et un téléphone déjà connecté
+// au compte GitHub ne la laisse pas paraître.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
@@ -27,6 +28,7 @@ import {
   OFFRE,
   poserLOffre,
   premierProjetServi,
+  RELIRE_MS,
   TELECHARGER,
   tenirLOffre,
 } from "../../src/vue/offre-telephone/offre-telephone.js";
@@ -55,12 +57,76 @@ describe("le premier projet servi", () => {
 
 describe("l'offre tenue", () => {
   // `null` : aucun stockage.
-  const tenue = (lire: () => Promise<unknown>, stockage: FauxStockage | null = new FauxStockage()) => {
+  const tenue = (lire: () => Promise<unknown>, stockage: FauxStockage | null = new FauxStockage(), connecte: () => Promise<unknown> = async () => ({ connecte: false })) => {
     const ouverts: string[] = [];
     let rendus = 0;
-    const offre = tenirLOffre({ stockage: stockage ?? undefined, lire, ouvrir: (lien) => ouverts.push(lien), rendre: () => void rendus++, maintenant: () => "2026-11-11T10:00:00.000Z" });
-    return { offre, ouverts, stockage, rendus: () => rendus };
+    let instant = 0;
+    const offre = tenirLOffre({ stockage: stockage ?? undefined, lire, connecte, ouvrir: (lien) => ouverts.push(lien), rendre: () => void rendus++, maintenant: () => "2026-11-11T10:00:00.000Z", horloge: () => instant });
+    return { offre, ouverts, stockage, rendus: () => rendus, avancer: (ms: number) => void (instant += ms) };
   };
+
+  test("montrable une fois la trace lue sans téléphone connecté ; pas avant", async () => {
+    const lectures: number[] = [];
+    const { offre } = tenue(async () => APK, new FauxStockage(), async () => (lectures.push(1), { connecte: false }));
+    assert.equal(offre.montrable(), false, "pas avant la réponse");
+    assert.equal(offre.montrable(), false);
+    await repos();
+    assert.equal(lectures.length, 1, "une seule lecture à la fois");
+    assert.equal(offre.montrable(), true);
+  });
+
+  test("un téléphone déjà connecté : jamais montrable, et la trace n'est plus relue", async () => {
+    const lectures: number[] = [];
+    const { offre, avancer } = tenue(async () => APK, new FauxStockage(), async () => (lectures.push(1), { connecte: true }));
+    offre.montrable();
+    await repos();
+    assert.equal(offre.montrable(), false);
+    avancer(RELIRE_MS);
+    assert.equal(offre.montrable(), false);
+    await repos();
+    assert.equal(lectures.length, 1);
+  });
+
+  test("une trace illisible — le pont lève, ne rend rien, ou autre chose — ne la montre pas, et se relit après RELIRE_MS", async () => {
+    for (const lu of [async () => Promise.reject(new Error("ipc")), async () => undefined, async () => ({ illisible: "gh is missing" }), async () => ({ connecte: "oui" })]) {
+      let reponse: () => Promise<unknown> = lu;
+      const { offre, avancer } = tenue(async () => APK, new FauxStockage(), () => reponse());
+      offre.montrable();
+      await repos();
+      assert.equal(offre.montrable(), false);
+      reponse = async () => ({ connecte: false });
+      avancer(RELIRE_MS - 1);
+      offre.montrable();
+      await repos();
+      assert.equal(offre.montrable(), false, "pas relue avant le délai");
+      avancer(1);
+      offre.montrable();
+      await repos();
+      assert.equal(offre.montrable(), true);
+    }
+  });
+
+  test("un téléphone connecté après coup : la relecture le voit, et l'offre se retire", async () => {
+    let connecte = false;
+    const { offre, avancer } = tenue(async () => APK, new FauxStockage(), async () => ({ connecte }));
+    offre.montrable();
+    await repos();
+    assert.equal(offre.montrable(), true);
+    connecte = true;
+    avancer(RELIRE_MS);
+    assert.equal(offre.montrable(), true, "la réponse d'avant tient pendant la relecture");
+    await repos();
+    assert.equal(offre.montrable(), false);
+  });
+
+  test("rangée : ni montrable, ni la trace lue", async () => {
+    const lectures: number[] = [];
+    const { offre } = tenue(async () => APK, new FauxStockage(), async () => (lectures.push(1), { connecte: false }));
+    offre.decliner();
+    assert.equal(offre.montrable(), false);
+    await repos();
+    assert.equal(lectures.length, 0);
+  });
 
   test("acceptée : la lecture, puis le lien lu", async () => {
     const { offre, rendus } = tenue(async () => APK);
@@ -189,9 +255,13 @@ describe("sur la page du projet", () => {
   });
 
   // `case` : 1 pour parade, 2 pour cantine.
-  async function laPage(projets: ProjetVu[], { stockage = new FauxStockage(), lien = async () => APK, rang = 1 }: { stockage?: FauxStockage; lien?: () => Promise<string>; rang?: number } = {}) {
-    const jouee = await jouerLaVue({ demarrage: () => demarrage(projets), espace: () => [], lienDeLApk: lien, ouvrirLaPage: () => true }, { stockage });
+  async function laPage(
+    projets: ProjetVu[],
+    { stockage = new FauxStockage(), lien = async () => APK, rang = 1, connecte = async () => ({ connecte: false }) }: { stockage?: FauxStockage; lien?: () => Promise<string>; rang?: number; connecte?: () => Promise<unknown> } = {},
+  ) {
+    const jouee = await jouerLaVue({ demarrage: () => demarrage(projets), espace: () => [], lienDeLApk: lien, telephoneConnecte: connecte, ouvrirLaPage: () => true }, { stockage });
     (jouee.element("projets").children.at(rang) ?? assert.fail("pas de case du projet")).click();
+    await repos();
     await repos();
     return { jouee, section: jouee.element("offre-telephone") };
   }
@@ -228,6 +298,13 @@ describe("sur la page du projet", () => {
     assert.equal(section.hidden, true);
     assert.notEqual(stockage.getItem(CLE_DE_L_OFFRE), null);
     assert.equal((await laPage([vu("parade", SERVI)], { stockage })).section.hidden, true);
+  });
+
+  test("un téléphone déjà connecté au compte GitHub, ou une trace illisible : pas d'offre", async () => {
+    assert.equal((await laPage([vu("parade", SERVI)], { connecte: async () => ({ connecte: true }) })).section.hidden, true);
+    assert.equal((await laPage([vu("parade", SERVI)], { connecte: async () => ({ illisible: "gh is missing" }) })).section.hidden, true);
+    const { jouee } = await laPage([vu("parade", SERVI)]);
+    assert.equal(jouee.appels.some(({ geste }) => geste === "telephoneConnecte"), true);
   });
 
   test("ni avant le premier ticket servi, ni sur un autre projet que le premier", async () => {

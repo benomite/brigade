@@ -1337,6 +1337,15 @@ ipcMain.handle("lienDeLApk", async () => {
   pagesDuPremier.add(lien);
   return lien;
 });
+// Un téléphone déjà connecté au compte GitHub de cet ordinateur (#3303, telephone-connecte.ts) : la trace que l'app
+// Android pose dans un gist, lue par le `gh` du poste. `illisible` quand la liste ne se lit pas : l'offre ne se montre pas.
+ipcMain.handle("telephoneConnecte", async (): Promise<{ connecte: boolean } | { illisible: string }> => {
+  try {
+    return { connecte: (await githubDesStations({ gh: ghIci, delaiMs: 30_000 }).telephone?.()) === true };
+  } catch (erreur) {
+    return { illisible: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+});
 // Le projet d'essai du premier lancement (#3227, runtime/src/essai-projet/) : l'instant du premier lancement, noté
 // une fois ; le dépôt privé créé sur le compte du `gh` de cet ordinateur avec un seul ticket prêt à cuire ; son service lu
 // sur GitHub ; sa suppression — du seul dépôt noté —, et la permission `delete_repo` que `gh` fait accorder quand elle

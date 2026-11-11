@@ -361,6 +361,9 @@ export type Pont = {
   // Le lien de l'app Android que l'offre du téléphone montre (ticket 3303, mise-a-jour/android.ts) : l'`apkUrl` de la
   // dernière version publiée, ou la page des versions de brigade s'il ne se lit pas ; `ouvrirLaPage` l'ouvre ensuite.
   lienDeLApk?(): Promise<string>;
+  // Un téléphone déjà connecté au compte GitHub de cet ordinateur (ticket 3303, telephone-connecte.ts) : la trace que
+  // l'app Android pose dans un gist ; `illisible` quand la liste des gists ne se lit pas.
+  telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
   // Le projet d'essai du premier lancement (ticket 3227, runtime/src/essai-projet/) : ce qui en est noté, son ticket servi
   // et la durée depuis le premier lancement ; le créer — un dépôt privé et un seul ticket prêt à cuire — ; supprimer le
   // dépôt noté, et lui seul ; la permission `delete_repo` que `gh` fait accorder, sa fin par `surPermissionDeSuppression`.
