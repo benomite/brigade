@@ -483,8 +483,9 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     assert.doesNotMatch(section(vue).textContent, /No project chosen yet.|runs no kitchen/, "parade-box sert des projets : rien ne dit le contraire");
     assert.match(lus.ligne("nas").textContent, /online · acme\/shop/);
     // Une seule liste : son titre seul (#2638), ni section des stations du compte qui en porterait une seconde.
-    assert.deepEqual(section(vue).dessous("h3").map(({ textContent }) => textContent), ["All stations"]);
-    assert.doesNotMatch(vue.element("rail").textContent, /Under your GitHub account/);
+    assert.deepEqual(section(vue).dessous("h2").map(({ textContent }) => textContent), ["All stations"]);
+    assert.deepEqual(section(vue).dessous("h3"), []);
+    assert.doesNotMatch(vue.element("tous").textContent, /Under your GitHub account/);
     assert.deepEqual(section(vue).dessous("ul"), []);
   });
 

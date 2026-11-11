@@ -11,8 +11,8 @@ closer (#2491), then the Cost and Closer rows of all projects — has left the R
 **a section of its own in Settings**, under the Kitchen group, titled `Caps, closer and all projects` and shown unfolded
 (#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
-station that serves the project, and the station choice — see "The Stations tab" below. Under it, **All stations** and
-`+ station` (#2638) are still there: they have no other place in the app yet.
+station that serves the project, and the station choice — see "The Stations tab" below. Nothing else: **All stations**
+and `+ station`, which were under it since #2638, are back on the home, a block of their own (#3195).
 
 **Removed with the Kitchen tab (#2921)**: what only the Cooks sub-tab carried is gone from the app — the reliability of the
 cooks, the closer's section and its launch, the raw reading of `station` and the app's reading of it every thirty seconds,
@@ -584,8 +584,8 @@ and the paired stations the project is not chosen for; a click gives it the proj
 (`Cooks on …`, `does not serve this project`, `move the kitchen`, `+ station`, the `kitchen moves to …` sentence — they
 stay on Rail), and any line naming a station that does not serve the project. Before the stations are read, the tab says
 `Reading your stations on GitHub…` and nothing else. On a narrow screen, the tab is read-only: the line and the cards,
-no gesture and no `Details` (#1186). **Still under the tab, for now**: **All stations** and its `+ station` (#2638), which
-list every paired station — they have no other place in the app yet.
+no gesture and no `Details` (#1186). **All stations** and its `+ station`, which list every paired station, are no longer
+under the tab (#3195): they belong to the account, not to a project, and are the last block of the home.
 
 Captures, before and after, of each of the four states: `docs/captures/stations-tab/` (`cuit`, `deplacement`, `hors-ligne`,
 `personne`), from the screens `stations-tab-*` of `scripts/capture-ecran/`.
@@ -1333,14 +1333,17 @@ projects are not affected.
 
 ## All projects at a glance
 
-**Two blocks, and nothing else (#2638, epic #2497).** The home shows exactly two blocks: **Projects** — the project
-rows described below — and **This computer's station** (filled by #2640, below). Each block
-is its own component: `app/src/vue/accueil/projets/BlocDesProjets.js` and `app/src/vue/accueil/station/BlocDeLaStation.js`.
-What the home used to show besides went elsewhere, or was removed:
+**Three blocks, and nothing else (#2638, epic #2497, #3195).** The home shows exactly three blocks: **Projects** — the
+project rows described below —, **This computer's station** (filled by #2640, below), and **All stations** (#3195). The first two
+are each their own component: `app/src/vue/accueil/projets/BlocDesProjets.js` and `app/src/vue/accueil/station/BlocDeLaStation.js`.
 
 - **All stations** — the list of stations, the stations under your GitHub account, the station versions and "+ station"
-  with its pairing code field — is the last block of **a project's Stations tab**, under the project's own stations and
-  this computer's station. The stations under your account are read again each time that tab opens.
+  with its pairing code field — is the last block of the home. From #2638 it was the last block of a project's Stations
+  tab; it came back to the home with #3195, since it is about the account and not about a project. The stations under
+  your account are read again each time the home opens.
+
+What the home used to show besides went elsewhere, or was removed:
+
 - The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
   block, **All projects**, of **a project's health strip**, its `Caps, closer and all projects` section of Settings (#3014). Their pages are unchanged.
 - The **App** section (the running version, **Update now** / **Later**) is removed: a higher version is said, with
@@ -1349,8 +1352,8 @@ What the home used to show besides went elsewhere, or was removed:
 - The **health row** (`Max ✓ · GitHub ✓`) is removed. The main process still computes it (`sante` of
   `app/src/accueil.ts`); the view no longer shows it.
 
-With no project at all, the station lists and "+ station" have no tab to live in: on a computer, the first launch
-shows its stations and their projects (`premier-lancement.js`). Captures: `docs/captures/2638/`.
+With no project at all, the first launch takes the home's place on a computer and shows its stations and their
+projects (`premier-lancement.js`). Captures: `docs/captures/2638/`.
 
 **The station block (#2640, epic #2497).** Three states, in `BlocDeLaStation.js`. **No station on this computer**: one
 recommended button, **Install this computer's station**, and no other setting. A click runs `installerLaStation` of the
@@ -1388,7 +1391,7 @@ THIS COMPUTER'S STATION
   held, runtime off, station unreachable —, **yellow** when a decision awaits you, **green**
   otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project that no station serves
   on this computer. Not read is never green.
-- **In All stations, under a project's Stations tab** (#2638), **one row per paired station**: its name, its dot, its state (`online`, or
+- **In All stations, on the home** (#3195), **one row per paired station**: its name, its dot, its state (`online`, or
   `offline for 12 min`), what it is doing — its cooks in progress, `saturated`, `update failed`,
   `Max connection lost`, or `idle` — and the projects it carries. Its machine (system, kernel) and its
   version can only be read **on hover**. Dot **red** when its Max connection is lost,
@@ -1753,7 +1756,7 @@ and outside it. The Java side (`Notifications.java`, `SondeWorker.java`, `Pont.j
 
 ### Your stations: paired with a code, read on GitHub
 
-**At the bottom of a project's Stations tab** (#2638), the "All stations" list shows the ones you have paired, one line each —
+**On the home, in its last block** (#3195), the "All stations" list shows the ones you have paired, one line each —
 its name, its state, what it is doing and the projects it carries; its machine and version on hover
 (see "All projects at a glance"):
 
@@ -1915,8 +1918,8 @@ the line reads "not reached" with
 ### Your stations under your GitHub account, and the projects each serves (#1706)
 
 A station installed on one of your machines, its `gh` signed in to your GitHub account, registers itself under that
-account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **In All stations, at the bottom of a
-project's Stations tab, they are in the list of stations** (#1778, #2638), read each time that tab opens — **one row per computer**:
+account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **In All stations, on the home, they
+are in the list of stations** (#1778, #3195), read each time the home opens — **one row per computer**:
 
 ```
 ● macbook-air-de-benoit  online · idle · benomite/brigade        ›

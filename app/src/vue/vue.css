@@ -1191,7 +1191,8 @@ main > header,
   overflow-y: auto;
   user-select: text;
 }
-/* L'accueil n'a que deux blocs (ticket 2638) : les projets, et la station de cet ordinateur, chacun son titre et sa carte.
+/* L'accueil a trois blocs (tickets 2638, 3195) : les projets, la station de cet ordinateur et toutes les stations, chacun
+   son titre et sa carte.
    Le titre d'un bloc est discret : ce qui compte, ce sont les lignes. */
 .bloc-de-l-accueil {
   display: flex;
@@ -1209,6 +1210,10 @@ main > header,
   display: flex;
   flex-direction: column;
   padding: var(--pas-1);
+}
+/* Sans ligne à dire, la carte des stations ne se pose pas : la lecture du compte, dessous, dit comment en installer une. */
+#toutes-les-stations > .liste:empty {
+  display: none;
 }
 #tous .liste > p,
 #toutes-les-stations > div > p {
@@ -3845,7 +3850,6 @@ main > header {
 }
 .bloc-du-projet[data-bloc="plafonds-duree"],
 .bloc-du-projet[data-bloc="closer"],
-.bloc-du-projet[data-bloc="toutes-les-stations"],
 .bloc-du-projet[data-bloc="de-tous-les-projets"] {
   display: flex;
   flex-direction: column;

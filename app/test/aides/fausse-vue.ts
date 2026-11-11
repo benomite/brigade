@@ -537,11 +537,10 @@ export async function ouvrirLesRatios(vue: Jouee): Promise<Faux> {
   return vue.element("ratios");
 }
 
-// Toutes les stations et « + station », en bas de l'onglet Stations de chaque projet (#2638) : le premier projet de la
-// barre s'ouvre, puis Stations. Rend leur bloc.
+// Toutes les stations et « + station », un bloc de l'accueil (#3195) : l'entrée « Tous les projets » de la barre l'ouvre.
+// Rend leur bloc.
 export async function ouvrirToutesLesStations(vue: Jouee): Promise<Faux> {
-  vue.element("projets").children[1]?.click();
+  vue.element("projets").children[0]?.click();
   await repos();
-  await ouvrirOnglet(vue, "Stations");
   return vue.element("toutes-les-stations");
 }

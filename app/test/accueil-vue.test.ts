@@ -101,7 +101,7 @@ test("une station injoignable se dit en une ligne, rouge : ni code de sortie, ni
   for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /exit code|ENOENT|spawn/);
 });
 
-test("l'accueil n'a que deux blocs, les projets puis la station de cet ordinateur, et rien d'autre (#2638)", async () => {
+test("l'accueil a trois blocs, les projets, la station de cet ordinateur, puis toutes les stations, et rien d'autre (#2638, #3195)", async () => {
   const { vue, projets } = await lAccueil();
   const tous = vue.element("tous");
   assert.deepEqual(
@@ -109,13 +109,15 @@ test("l'accueil n'a que deux blocs, les projets puis la station de cet ordinateu
     [
       ["accueil-bloc-projets", "Projects"],
       ["accueil-bloc-station", "This computer's station"],
+      // Toutes les stations et « + station » valent pour le compte : revenues de l'onglet Stations d'un projet (#3195).
+      ["toutes-les-stations", "All stations"],
     ],
   );
   assert.equal(projets().parentElement, tous.children[0], "les lignes des projets sont dans leur bloc");
-  // Ni toutes les stations, ni « + station » (onglet Stations), ni Cost, ni Closer (Kitchen > Health), ni version de l'app,
-  // ni santé (retirées) : ni sur l'accueil, ni cachées dans la page.
-  assert.doesNotMatch(visible(tous), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
-  for (const parti of ["toutes-les-stations", "de-tous-les-projets", "accueil-app", "sante", "hors-de-l-accueil"]) assert.throws(() => vue.element(parti), parti);
+  // Hors de toutes les stations : ni « + station », ni Cost, ni Closer (Kitchen > Health), ni version de l'app, ni santé
+  // (retirées) : ni sur l'accueil, ni cachées dans la page.
+  for (const autre of tous.children.slice(0, 2)) assert.doesNotMatch(visible(autre), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
+  for (const parti of ["de-tous-les-projets", "accueil-app", "sante", "hors-de-l-accueil"]) assert.throws(() => vue.element(parti), parti);
 });
 
 test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par projet, les projets des stations, l'ajout d'un projet — ni commande, ni champ ouvert", async () => {
@@ -126,8 +128,8 @@ test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par 
   assert.deepEqual(tous.dessous("article"), []);
   assert.deepEqual(tous.dessous("pre"), []);
   assert.doesNotMatch(texte, /\b(brigade|gh|git)\s+(-|\S+\s)/);
-  // Aucun champ : celui du code d'appairage, sous « + station », est dans l'onglet Stations (#2638).
-  assert.deepEqual(tous.dessous("input"), []);
+  // Un seul champ, replié : celui du code d'appairage, sous « + station », dans toutes les stations (#3195).
+  assert.deepEqual(tous.dessous("input").map(({ ariaLabel, parentElement }) => [ariaLabel, parentElement?.hidden, parentElement?.parentElement?.id]), [["pairing code", true, "toutes-les-stations"]]);
   // Le code de l'app est dans Settings, sous cette machine (#1700), et au survol de « T ».
   assert.equal(vue.element("code").parentElement, vue.element("reglages-machine"));
   assert.match(vue.element("projets").children[0]?.title ?? "", /^All projects — this app's code is 3 commits behind$/);

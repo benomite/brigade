@@ -107,7 +107,7 @@ const demarrage = (stations: VuDesStations) => ({
   accueil: { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } } satisfies Accueil,
 });
 
-describe("la vue jouée : sous toutes les stations, en bas de l'onglet Stations (#2638)", () => {
+describe("la vue jouée : sous toutes les stations, sur l'accueil (#3195)", () => {
   test("le statut lu au lancement se pose ; un statut relu le remplace ; un pont qui ne le lit pas laisse la case inconnue", async () => {
     let statut: unknown = EN_RETARD;
     const jouee = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [], statutDeLaStation: () => statut } as Parameters<typeof jouerLaVue>[0]);

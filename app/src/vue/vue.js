@@ -360,21 +360,24 @@ const code = document.createElement("div");
 code.id = "code";
 code.ariaLive = "polite";
 groupeMachine.append(code);
-// L'accueil, « Tous les projets » : la vue d'ensemble de brigade (accueil.ts). Deux blocs (ticket 2638) : la liste des
-// projets — une ligne chacun, un clic ouvre son espace —, et la station de cet ordinateur. On n'y agit pas.
+// L'accueil, « Tous les projets » : la vue d'ensemble de brigade (accueil.ts). Trois blocs (tickets 2638, 3195) : la liste
+// des projets — une ligne chacun, un clic ouvre son espace —, la station de cet ordinateur, et toutes les stations.
 const projetsDeLAccueil = document.createElement("section");
 projetsDeLAccueil.id = "accueil-projets";
 projetsDeLAccueil.className = "liste";
 projetsDeLAccueil.ariaLabel = "Projects";
-// Toutes les stations — une ligne par machine, un clic ouvre sa page —, et « + station » : sur l'accueil jusqu'au ticket
-// 2638, elles sont en bas de l'onglet Stations de chaque projet, sous celles du projet et la station de cet ordinateur.
+// Toutes les stations — une ligne par machine, un clic ouvre sa page —, et « + station » : elles valent pour le compte, pas
+// pour un projet. Sous l'onglet Stations de chaque projet depuis le ticket 2638, elles reviennent sur l'accueil, un bloc à
+// elles sous la station de cet ordinateur (ticket 3195) : l'onglet ne montre que les stations qui servent le projet.
 const TOUTES_LES_STATIONS = "All stations";
 const stationsDeLAccueil = document.createElement("section");
 stationsDeLAccueil.id = "toutes-les-stations";
-stationsDeLAccueil.className = "bloc-du-projet";
+stationsDeLAccueil.className = "bloc-de-l-accueil";
 stationsDeLAccueil.ariaLabel = TOUTES_LES_STATIONS;
 stationsDeLAccueil.dataset.bloc = "toutes-les-stations";
+// Ses lignes dans une carte, comme celles des projets au-dessus.
 const listeDesStations = document.createElement("div");
+listeDesStations.className = "liste";
 listeDesStations.ariaLive = "polite";
 // « + station », sous la liste : le champ du code s'ouvre dessous, et nulle part ailleurs. Il est posé
 // une fois : une relecture ne vide pas ce que le chef tape.
@@ -404,7 +407,7 @@ blocDesEnregistrees.hidden = true;
 // côte à côte, et ce poste dit en retard quand une station plus haute est publiée. Rien sur le téléphone, qui n'en a pas.
 const versionsDesStations = document.createElement("div");
 versionsDesStations.ariaLive = "polite";
-stationsDeLAccueil.append(bloc("h3", TOUTES_LES_STATIONS), listeDesStations, versionsDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
+stationsDeLAccueil.append(bloc("h2", TOUTES_LES_STATIONS), listeDesStations, versionsDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
 /** @type {import("./stations-du-compte.js").EtatDuCompte} */
 const etatDesEnregistrees = {};
 let enregistreesAbsentes = true;
@@ -567,8 +570,8 @@ deTousLesProjets.className = "bloc-du-projet";
 deTousLesProjets.ariaLabel = TOUS_LES_PROJETS;
 deTousLesProjets.dataset.bloc = "de-tous-les-projets";
 deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil);
-// L'accueil n'a que deux blocs (ticket 2638, épique 2497) : les projets, et la station de cet ordinateur — chacun son
-// composant, sous accueil/. La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
+// L'accueil a les projets et la station de cet ordinateur (ticket 2638, épique 2497) — chacun son composant, sous
+// accueil/ —, puis toutes les stations (ticket 3195). La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
 // version plus haute, en tête de l'app (mise-a-jour/bandeau.js), dit la version qui tourne et l'installe.
 const blocDesProjets = poserBlocDesProjets(document, projetsDeLAccueil);
 // Les premiers réglages de la station qu'on vient d'installer : se connecter à GitHub (le geste que l'app a déjà), puis
@@ -4319,15 +4322,15 @@ const deplacementsDemandes = new Map();
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let minuteDuDeplacement;
 
-// Sous l'onglet, toutes les stations du compte et « + station » (ticket 2638) restent, tant qu'elles n'ont pas d'autre place.
+// L'onglet n'a que son composant (ticket 3195) : toutes les stations du compte et « + station » sont sur l'accueil. Les
+// stations du compte se relisent à chaque ouverture de l'onglet : elles disent celles qui servent le projet.
 /** @param {Projet} projet */
 function poserOngletStations(projet) {
-  poserStationsDeLAccueil();
   if (enregistreesARelire) {
     enregistreesARelire = false;
     void lireLesEnregistrees();
   }
-  rail.replaceChildren(ongletDesStations(projet), stationsDeLAccueil);
+  rail.replaceChildren(ongletDesStations(projet));
 }
 
 /** @param {Projet} projet */
@@ -5981,7 +5984,7 @@ function poserLesStations(vise, ou, averti, { exclues, relancer }) {
   if (!vise.touchee && vise.choisies.size === 0 && recommandee && appairees.some(({ id }) => id === recommandee)) vise.choisies.add(recommandee);
   ou.replaceChildren(
     ...(appairees.length === 0
-      ? [bloc("p", exclues.length === 0 ? "no station to serve it: pair one first, with “+ station” under All stations, in the Stations tab" : "no other paired station: pair one first, with “+ station” under All stations, in the Stations tab")]
+      ? [bloc("p", exclues.length === 0 ? "no station to serve it: pair one first, with “+ station” under All stations, on the home" : "no other paired station: pair one first, with “+ station” under All stations, on the home")]
       : appairees.map((station) => {
           const ligne = document.createElement("p");
           ligne.dataset.etat = station.etat;
@@ -6898,7 +6901,7 @@ function poserLaConfiance(vise, projet, { exclues, demande, tenue }) {
   sensDesStationsChoisies.hidden = true;
   choixDesStationsChoisies.replaceChildren(
     ...(appairees.length === 0
-      ? [bloc("p", premiere ? "no station to cook it: pair one first, with “+ station” under All stations, in the Stations tab" : "no other paired machine: pair one from the home, with “+ station”")]
+      ? [bloc("p", premiere ? "no station to cook it: pair one first, with “+ station” under All stations, on the home" : "no other paired machine: pair one from the home, with “+ station”")]
       : appairees.map((station) => {
           const propose = machines[station.id];
           return uneMachine(
@@ -7480,8 +7483,8 @@ function marquer() {
   poserLeProjetAPreparer();
 }
 
-// Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638) : l'écran se regarde, et
-// un clic ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
+// Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638), puis toutes les stations et
+// « + station », relues à chaque ouverture (ticket 3195) : l'écran se regarde, et un clic ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
 function ouvrirTous() {
   courant = undefined;
   ajoute = false;
@@ -7493,8 +7496,10 @@ function ouvrirTous() {
   poserCout();
   poserRatios();
   poserBlocStation();
-  tous.replaceChildren(blocDesProjets, blocDeLaStation.racine);
+  poserStationsDeLAccueil();
+  tous.replaceChildren(blocDesProjets, blocDeLaStation.racine, stationsDeLAccueil);
   brigade.tous(++demande);
+  void lireLesEnregistrees();
 }
 
 // La liste des stations de l'accueil (ticket 1778) : une ligne par machine, dans l'ordre des noms. Une machine appairée
