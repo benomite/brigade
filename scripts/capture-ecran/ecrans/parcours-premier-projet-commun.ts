@@ -20,7 +20,8 @@ export const CHOISIR_LE_RECOMMANDE: Etape = { cliquer: "#parcours-premier-projet
 // `pret` : ce que la lecture de la mise en place rend — prêt, ou ce qui manque. `prDeSetup` : la PR de mise en place
 // ouverte, sa carte attend le chef dans Awaiting you (#3169).
 // `depart` : ce que le second propose des issues ouvertes (#3268) — aucune, par défaut : la page va droit à la question.
-export function parcoursPremierProjet(dit: string, pret: boolean, etapes: Etape[] = [], prDeSetup = false, depart: unknown = { aucune: true }): Ecran {
+// `premier` : ce que le second rédige du premier ticket, et ce que sa création rend (#3306).
+export function parcoursPremierProjet(dit: string, pret: boolean, etapes: Etape[] = [], prDeSetup = false, depart: unknown = { aucune: true }, premier: Record<string, unknown> = {}): Ecran {
   return {
     dit,
     largeur: 1440,
@@ -44,6 +45,7 @@ export function parcoursPremierProjet(dit: string, pret: boolean, etapes: Etape[
           servirUnProjet: { depots: ["chef/cantine"] },
           checkRepoSetup: pret ? { ready: true, missingBindings: [], missingLabels: [] } : { ready: false, missingBindings: ["Branche d'intégration", "Gates", "Zones de fichiers"], missingLabels: ["fire", "taken"] },
           departDuProjet: depart,
+          ...premier,
           espace: [SECOND],
         },
         envois: { ...envois, regarder: { ...envois.regarder, cantine: [...(envois.regarder?.cantine ?? []), { sur: "surSortie", args: [SECOND.id, ECRAN_DU_SECOND] }] } },

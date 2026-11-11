@@ -510,10 +510,26 @@ column on the right (#3164); each state says in one sentence what is awaited and
 | set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
 
 The setup is read again at each reading of the project's rail while it is not set up: once the setup pull request is
-merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and a single line above it offers
-the next step: `<owner/repo> is ready.`, `write its first ticket with the second` — which writes the request in the
-second, without Enter, and shows it on the right — and `close`. That line comes only when you answered a question; a
-project that had nothing left to do opens on its rail.
+merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and above it the second asks for
+the project's first ticket (#3306). That panel comes only when you answered a question; a project that had nothing left
+to do opens on its rail.
+
+**The first ticket, written in the app (#3306).** You never open GitHub and never see or type a label:
+
+| State | What the panel shows |
+|---|---|
+| the question | `the second`, then `<owner/repo> is ready. What do you want to change first?`, a field for your answer, `send to the second` (lit once the field is not empty) and `not now` |
+| the second writes | `The second is writing the ticket from your answer. Nothing is awaited from you.`, and your answer; after a change, `The second is rewriting the ticket with your changes.` |
+| the draft | `Is this the right first ticket?`, the issue's title and body, `Yes, put it on the rail` (recommended; what it does on hover), then a field `What should change in this ticket` and `ask for changes` |
+| putting it on the rail | the same draft, every gesture waiting, `Putting it on the rail…` |
+| on the rail | `#<n> is on the rail: the kitchen serves it.` and `close` |
+
+The second writes the draft with `claude -p` in the project's folder, launched like its triage of #3268, from your answer
+— and, on `ask for changes`, from the draft you saw and your changes: the draft is shown again, and nothing is created.
+Only `yes` creates the issue, from this computer's `gh`, with the labels of the second's first ticket (`product`,
+`prio:1`, `fire`): it is on the rail. A draft the app cannot read, or a creation GitHub refuses, says so in one line,
+the cause on hover, and the gesture stays. The second in its column does not offer a first ticket any more: it leaves
+it to this panel.
 
 **What opens it.** The project's first reading decides, the one that says whether this computer's GitHub account can
 write to its repository (`lectureSeule`, #3163): a project you cannot write to shows none of this and opens read-only; a
@@ -521,9 +537,10 @@ reading that fails decides nothing, the next one does. Write access lost on the 
 repository picked on **Add a project** opens it, and it is held while the app runs: it is not written anywhere, and a
 project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
 
-*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states, the ready line), its wiring in
-`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`, `ecrireLePremierTicket`). Tests:
-`app/test/parcours-premier-projet/`. Captures: `docs/captures/3166/`.*
+*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states), `app/src/vue/premier-ticket/` (the first
+ticket), `runtime/src/premier-ticket/` (the draft and the creation, loaded by `app/src/main.ts`), their wiring in
+`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/parcours-premier-projet/`,
+`app/test/premier-ticket/`, `runtime/test/premier-ticket/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
 
 ### The age of the rail is always on screen (#2054)
 
@@ -2763,10 +2780,9 @@ stations replace them.
   and `lint` scripts, or the stack's test command) and the file zones (the workspaces, or the first-level folders) —
   each with what it is for in Brigade. What cannot be read is said so, with why, and left for the questions. Once you
   have answered, the second runs this `/brigade:init` itself; merge its PR — at your next message, the same session
-  takes its role again (#2689). The project is then ready, and the second offers to fire a first ticket (#3170,
-  `runtime/src/second-init/premier-ticket.ts`, carried by the same first message): it asks what you want done, drafts a
-  title and observable acceptance criteria with you, then creates it with `gh issue create` and the labels `product`,
-  `prio:1` and `fire` — a cook takes it from the rail, and you watch it in the board. It leaves the plugin once adding a project sets
+  takes its role again (#2689). The project is then ready, and its first ticket is written in the app, above the rail
+  (#3306): the same first message (`runtime/src/second-init/premier-ticket.ts`) tells the second not to offer it nor
+  create it itself, and to send you to that question. It leaves the plugin once adding a project sets
   the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
