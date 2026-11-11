@@ -125,6 +125,10 @@ export type Pont = {
   // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
   departDuProjet(projet: string): Promise<import("../depart-du-projet.ts").Depart>;
   mettreSurLeRail(projet: string, lignes: { ticket: number; priorite: number }[]): Promise<import("../depart-du-projet.ts").Mise | { refus: string; detail?: string }>;
+  // Le premier ticket d'un projet prêt (ticket 3306, runtime/src/premier-ticket/) : le second l'écrit d'après la réponse du chef —
+  // ou le réécrit avec ses changements —, et rien n'est créé ; sur le « oui » seul, l'issue est créée avec ses labels, `fire` compris.
+  redigerLePremierTicket(projet: string, demande: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Demande): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Redaction>;
+  creerLePremierTicket(projet: string, brouillon: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Brouillon): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Creation>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
@@ -303,6 +307,11 @@ export type Pont = {
   listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
   enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
   retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus par `recurring` là où sa cuisine tourne, et chacun
+  // suspendu, repris ou retiré d'un clic (recurrents/recurrents.js, recurrents/recurrents-box.ts). Optionnels : un pont qui
+  // ne les porte pas (le téléphone) ne montre pas la section.
+  listerLesRecurrents?(projet: string): Promise<import("./recurrents/recurrents-box.ts").LectureDesRecurrents>;
+  changerUnRecurrent?(projet: string, geste: import("./recurrents/recurrents-box.ts").Geste, id: string): Promise<import("./recurrents/recurrents-box.ts").EcritureDUnRecurrent>;
   // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
   // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
   listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;

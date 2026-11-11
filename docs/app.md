@@ -510,10 +510,26 @@ column on the right (#3164); each state says in one sentence what is awaited and
 | set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
 
 The setup is read again at each reading of the project's rail while it is not set up: once the setup pull request is
-merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and a single line above it offers
-the next step: `<owner/repo> is ready.`, `write its first ticket with the second` — which writes the request in the
-second, without Enter, and shows it on the right — and `close`. That line comes only when you answered a question; a
-project that had nothing left to do opens on its rail.
+merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and above it the second asks for
+the project's first ticket (#3306). That panel comes only when you answered a question; a project that had nothing left
+to do opens on its rail.
+
+**The first ticket, written in the app (#3306).** You never open GitHub and never see or type a label:
+
+| State | What the panel shows |
+|---|---|
+| the question | `the second`, then `<owner/repo> is ready. What do you want to change first?`, a field for your answer, `send to the second` (lit once the field is not empty) and `not now` |
+| the second writes | `The second is writing the ticket from your answer. Nothing is awaited from you.`, and your answer; after a change, `The second is rewriting the ticket with your changes.` |
+| the draft | `Is this the right first ticket?`, the issue's title and body, `Yes, put it on the rail` (recommended; what it does on hover), then a field `What should change in this ticket` and `ask for changes` |
+| putting it on the rail | the same draft, every gesture waiting, `Putting it on the rail…` |
+| on the rail | `#<n> is on the rail: the kitchen serves it.` and `close` |
+
+The second writes the draft with `claude -p` in the project's folder, launched like its triage of #3268, from your answer
+— and, on `ask for changes`, from the draft you saw and your changes: the draft is shown again, and nothing is created.
+Only `yes` creates the issue, from this computer's `gh`, with the labels of the second's first ticket (`product`,
+`prio:1`, `fire`): it is on the rail. A draft the app cannot read, or a creation GitHub refuses, says so in one line,
+the cause on hover, and the gesture stays. The second in its column does not offer a first ticket any more: it leaves
+it to this panel.
 
 **What opens it.** The project's first reading decides, the one that says whether this computer's GitHub account can
 write to its repository (`lectureSeule`, #3163): a project you cannot write to shows none of this and opens read-only; a
@@ -521,9 +537,10 @@ reading that fails decides nothing, the next one does. Write access lost on the 
 repository picked on **Add a project** opens it, and it is held while the app runs: it is not written anywhere, and a
 project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
 
-*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states, the ready line), its wiring in
-`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`, `ecrireLePremierTicket`). Tests:
-`app/test/parcours-premier-projet/`. Captures: `docs/captures/3166/`.*
+*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states), `app/src/vue/premier-ticket/` (the first
+ticket), `runtime/src/premier-ticket/` (the draft and the creation, loaded by `app/src/main.ts`), their wiring in
+`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/parcours-premier-projet/`,
+`app/test/premier-ticket/`, `runtime/test/premier-ticket/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
 
 ### The age of the rail is always on screen (#2054)
 
@@ -921,7 +938,7 @@ repository, and the project opens read-only:
   something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
   to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
   that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
-  its humans, its contributing stations, the duration caps and the closer — is not laid.
+  its humans, its contributing stations, its recurring tickets, the duration caps and the closer — is not laid.
 - **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
   <owner/repo>.`, with two links: `how to get write access` (GitHub's page on inviting a collaborator: the owner invites
   you) and `fork it` (the repository's fork page on GitHub). The main process — on the phone, its bridge
@@ -1623,7 +1640,7 @@ over the cooks listed for it, of their tokens × the weight of their model (the 
 that over the quota, rounded to one decimal. A cook that declares no tokens makes the share "≥", as for the tokens. **Under the list, one
 line gives the week's cost of all projects**: the weighted tokens of the cooks listed that ended from the week's start up to now, as a
 percentage of the quota (a cook ended before the start is left out; the cooks are the ten per project the box lists). When `tokens` is
-missing, zero or invalid, that line is replaced by the single line "Share unavailable: weekly quota is not configured.", no share is shown on
+missing, zero or invalid, that line is replaced by the single line "No share: the weekly quota is not configured.", no share is shown on
 the rows, and the tokens stay.
 **An overrun of a threshold is seen at a glance** (#912, `cost/seuils.js`): the thresholds are those `station` writes under
 "chef's decisions" (`seuil-ticket`, `seuil-perdus`), project by project. When the most expensive ticket exceeds its
@@ -2763,10 +2780,9 @@ stations replace them.
   and `lint` scripts, or the stack's test command) and the file zones (the workspaces, or the first-level folders) —
   each with what it is for in Brigade. What cannot be read is said so, with why, and left for the questions. Once you
   have answered, the second runs this `/brigade:init` itself; merge its PR — at your next message, the same session
-  takes its role again (#2689). The project is then ready, and the second offers to fire a first ticket (#3170,
-  `runtime/src/second-init/premier-ticket.ts`, carried by the same first message): it asks what you want done, drafts a
-  title and observable acceptance criteria with you, then creates it with `gh issue create` and the labels `product`,
-  `prio:1` and `fire` — a cook takes it from the rail, and you watch it in the board. It leaves the plugin once adding a project sets
+  takes its role again (#2689). The project is then ready, and its first ticket is written in the app, above the rail
+  (#3306): the same first message (`runtime/src/second-init/premier-ticket.ts`) tells the second not to offer it nor
+  create it itself, and to send you to that question. It leaves the plugin once adding a project sets
   the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
@@ -2938,6 +2954,20 @@ detail on hover. The block is `app/src/vue/reglages-stations/`; it calls three b
 `accepterUneStationContributrice(project, station)`, each write answering `{ok}` or `{refus}`. The desktop app carries them to the
 runtime's `contributor-stations` command where the project's kitchen runs, in `app/src/stations-contributrices.ts`. A bridge
 without `listerLesStationsContributrices` (the phone) does not show the block.
+
+Under the contributor stations, the **recurring tickets** section (#3231, epic #3216) lists the project's recurring tickets
+(`recurring`, #3230) — one row each: its title, its rhythm in words (`every day`, `every week on Monday`, `every month on
+the 15th`) and `next` with the date of its next occurrence (`next Mon, Oct 19`, the year added when it is not this one); a
+paused one says `paused` and shows no date. Each row has two one-click gestures, with no confirmation: `pause` (or `resume`
+on a paused one) and `remove`. The row changes on what the runtime answers — paused, resumed with its next date, or gone;
+a refusal is one line on that row, the detail on hover, and the row stays as it was. With none, the section says `No
+recurring tickets yet.`; a list that cannot be read says `recurring tickets unavailable` in one line, the detail on hover.
+The section is `app/src/vue/recurrents/recurrents.js`; it calls two bridge methods — `listerLesRecurrents(project)` and
+`changerUnRecurrent(project, pause | resume | remove, id)`, a gesture answering `{recurrent}`, `{retire}` or `{refus}`. The
+desktop app carries them to the runtime's `recurring` command where the project's kitchen runs — `recurring`, `recurring
+pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vue/recurrents/recurrents-box.ts`; a project
+with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
+phone) does not show the section.
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown

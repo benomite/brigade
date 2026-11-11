@@ -63,6 +63,22 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}${delimiter}/tmp` }, lieux)), /“\/tmp” would hide \/tmp/);
   });
 
+  test("le répertoire temporaire du runtime, hors de /tmp, est rendu en écriture comme /tmp ; masqué, ou ouvrant le système, il est refusé", { skip: posixOnly("binds the POSIX /var/tmp and guards /usr, which on Windows resolve against the current drive and are neither a temporary directory nor the system") }, (t) => {
+    const { lieux, env, masques } = machine(t);
+    const lancer = (temporaire: string) => demande(envelopper(configCloison({ ...env, TMPDIR: temporaire }, lieux), { commande: "claude", args: [] }, { cwd: "/tmp", depot: null }).args);
+
+    // Hors de /tmp (/dev/shm, /var/tmp) : rendu à sa place, avant ce qui est masqué, qui le recouvre.
+    const hors = lancer("/var/tmp");
+    assert.deepEqual(paires(hors, "--bind").slice(0, 2), ["/tmp → /tmp", "/var/tmp → /var/tmp"]);
+    assert.ok(hors.indexOf("/var/tmp") > hors.indexOf("--dev") && hors.indexOf("/var/tmp") < hors.indexOf("--tmpfs"));
+    // Sous /tmp, déjà rendu : rien de plus.
+    const dessous = lancer("/tmp");
+    assert.deepEqual(paires(dessous, "--bind").filter((paire) => paire.includes("tmp ")), ["/tmp → /tmp"]);
+
+    assert.match(refus(() => configCloison({ ...env, TMPDIR: "/" }, lieux)), /invalid TMPDIR: “\/” would open the system to writing/);
+    assert.match(refus(() => configCloison({ ...env, TMPDIR: join(masques[0] ?? "", "tmp") }, lieux)), /would hide the temporary directory/);
+  });
+
   test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", (t) => {
     const { lieux, env, racine, masques } = machine(t);
     const ailleurs = join(racine, "ailleurs");

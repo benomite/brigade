@@ -24,6 +24,7 @@ import { tenirLesEssais } from "./essai.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
+import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -48,7 +49,7 @@ import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/brea
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
 import { gestesDeCarte } from "./gestes-fiche.ts";
-import { mettreSurLeRail, proposerLeDepart } from "./depart-du-projet.ts";
+import { lancerLeTriage, mettreSurLeRail, proposerLeDepart } from "./depart-du-projet.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
@@ -865,6 +866,21 @@ ipcMain.handle("mettreSurLeRail", async (_, nom: unknown, lignes: unknown) => {
   if (vise === undefined) return parti(nom);
   return mettreSurLeRail({ depot: await depotDuProjet(vise), lignes, client: clientDesLabels });
 });
+// Le premier ticket d'un projet prêt (ticket 3306, runtime/src/premier-ticket/) : le second l'écrit d'après la réponse du chef,
+// par `claude -p` lancé comme son triage (`lancerLeTriage`) — rien n'est créé ; sur le « oui » du chef seul, l'issue est créée
+// avec ses labels, `fire` compris, par le `gh` de ce poste.
+const premierTicket = () => duRuntime<typeof import("../../runtime/src/premier-ticket/premier-ticket.ts")>("premier-ticket", "premier-ticket.ts");
+ipcMain.handle("redigerLePremierTicket", async (_, nom: unknown, demande: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { refus: `${String(nom)} is no longer in the projects file`, detail: "" };
+  return (await premierTicket()).rediger({ depot: await depotDuProjet(vise), dossier: vise.dossier, demande, claude: process.env.BRIGADE_CLAUDE_BIN || "claude", lancer: lancerLeTriage });
+});
+ipcMain.handle("creerLePremierTicket", async (_, nom: unknown, brouillon: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { refus: `nothing was created: ${String(nom)} is no longer in the projects file`, detail: "" };
+  const { clientGh } = await duRuntime<typeof import("../../runtime/src/proteger-branche.ts")>("proteger-branche.ts");
+  return (await premierTicket()).creer(clientGh(ghIci, process.env), await depotDuProjet(vise), brouillon);
+});
 // Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
 // « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (gestes-refus.ts). « Ask the second »
 // passe par `passerAuSecond`, plus haut.
@@ -1471,6 +1487,16 @@ const ecrireUnHumain = async (nom: unknown, geste: { save: unknown } | { remove:
 };
 ipcMain.handle("enregistrerUnHumain", (_, nom: unknown, humain: unknown) => ecrireUnHumain(nom, { save: humain }));
 ipcMain.handle("retirerUnHumain", (_, nom: unknown, login: unknown) => ecrireUnHumain(nom, { remove: login }));
+// Les tickets récurrents du projet, sous Settings (#3231) : lus par `recurring` là où sa cuisine tourne, et chacun suspendu,
+// repris ou retiré par elle (vue/recurrents/recurrents-box.ts).
+ipcMain.handle("listerLesRecurrents", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesRecurrents(vise.nom, lu, lancerSurLaCuisine);
+});
+ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
+});
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributrices.ts).
 ipcMain.handle("listerLesStationsContributrices", (_, nom: unknown) => {

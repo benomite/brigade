@@ -147,7 +147,7 @@ test("un dépôt choisi n'appelle que son ouverture — sa copie, puis le fichie
   // compte GitHub (#1706), les GitHub Apps de la station de cet ordinateur (#2317), les projets qu'elle sert (#2359), ses
   // humains et les stations qui y contribuent : des lectures, pas des gestes.
   assert.deepEqual(
-    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "railDuProjet", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "listerLesHumains", "listerLesStationsContributrices"].includes(geste)),
+    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "railDuProjet", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "listerLesHumains", "listerLesStationsContributrices", "listerLesRecurrents"].includes(geste)),
     [],
   );
   assert.equal(jouee.appels.some(({ geste }) => geste === "confierAUneStation" || geste === "ajouterAUneStation"), false);

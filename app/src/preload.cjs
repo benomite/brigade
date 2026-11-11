@@ -46,6 +46,8 @@ const pont = {
   gestesDeFiche: (carte) => ipcRenderer.invoke("gestesDeFiche", carte),
   departDuProjet: (projet) => ipcRenderer.invoke("departDuProjet", projet),
   mettreSurLeRail: (projet, lignes) => ipcRenderer.invoke("mettreSurLeRail", projet, lignes),
+  redigerLePremierTicket: (projet, demande) => ipcRenderer.invoke("redigerLePremierTicket", projet, demande),
+  creerLePremierTicket: (projet, brouillon) => ipcRenderer.invoke("creerLePremierTicket", projet, brouillon),
   gesteDeFiche: (projet, id, ticket, valeur) => ipcRenderer.invoke("gesteDeFiche", projet, id, ticket, valeur),
   lireHistoire: (projet, ticket) => ipcRenderer.invoke("lireHistoire", projet, ticket),
   lireAutonomie: (projets, jours) => ipcRenderer.invoke("lireAutonomie", projets, jours),
@@ -112,6 +114,9 @@ const pont = {
   listerLesHumains: (projet) => ipcRenderer.invoke("listerLesHumains", projet),
   enregistrerUnHumain: (projet, humain) => ipcRenderer.invoke("enregistrerUnHumain", projet, humain),
   retirerUnHumain: (projet, login) => ipcRenderer.invoke("retirerUnHumain", projet, login),
+  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus, et chacun suspendu, repris ou retiré (recurrents-box.ts).
+  listerLesRecurrents: (projet) => ipcRenderer.invoke("listerLesRecurrents", projet),
+  changerUnRecurrent: (projet, geste, id) => ipcRenderer.invoke("changerUnRecurrent", projet, geste, id),
   // Les stations contributrices du projet, sous Settings (ticket 2936) : lues, refusées ou réacceptées (stations-contributrices.ts).
   listerLesStationsContributrices: (projet) => ipcRenderer.invoke("listerLesStationsContributrices", projet),
   refuserUneStationContributrice: (projet, station) => ipcRenderer.invoke("refuserUneStationContributrice", projet, station),
