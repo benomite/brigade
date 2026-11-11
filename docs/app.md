@@ -1591,6 +1591,16 @@ a ticket none of whose cooks declare any comes after the others and is shown as 
 project's rail when it is read, "not communicated" otherwise. **A click on a row opens its project, then the ticket's
 card**, over the rail — the rail's one (#621); if the rail does not carry the ticket, the card opens with what is
 known of it, its number.
+**Each row also shows its share of the weekly Max quota** (#3254, `cost/part.js`), next to its tokens (`2.0%` next to `200,000`).
+The quota is a setting of the app's file (`~/.config/brigade/app.json`, **you** level), `quotaMax`, in weighted tokens —
+Anthropic publishes no figure to read: `{ "tokens": 10000000, "semaine": { "jour": "monday", "heure": 0 }, "poids": { "opus": 5 } }`.
+`semaine` is Monday 00:00 UTC when absent, and a model missing from `poids` weighs 1.0. A ticket's weighted tokens are the sum,
+over the cooks listed for it, of their tokens × the weight of their model (the `model` of `model / effort` in "latest cooks"); its share is
+that over the quota, rounded to one decimal. A cook that declares no tokens makes the share "≥", as for the tokens. **Under the list, one
+line gives the week's cost of all projects**: the weighted tokens of the cooks listed that ended from the week's start up to now, as a
+percentage of the quota (a cook ended before the start is left out; the cooks are the ten per project the box lists). When `tokens` is
+missing, zero or invalid, that line is replaced by the single line "Share unavailable: weekly quota is not configured.", no share is shown on
+the rows, and the tokens stay.
 **An overrun of a threshold is seen at a glance** (#912, `cost/seuils.js`): the thresholds are those `station` writes under
 "chef's decisions" (`seuil-ticket`, `seuil-perdus`), project by project. When the most expensive ticket exceeds its
 project's threshold, or a project's lost tokens exceed theirs, the block turns red and **a single line carries the action, as a button** ("open the card of #7", "open the list");
