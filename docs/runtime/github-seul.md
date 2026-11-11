@@ -219,6 +219,18 @@ base, the stale-branch pruning).
   traffic (claims, send-backs, verdicts, merges) never mentions the chef. With no chef resolved, nothing is mentioned and
   the station says so once (`runtime/src/mention-du-chef/`). Under a single GitHub identity that is the chef's own, GitHub
   does not notify the chef of their own comments: the per-role identities post as an app.
+- **A TODO card is answered by replying to its comment on GitHub** (#3253). The mention comment says so on its last
+  line. The kitchen reads the comments of every issue that has a card in the chef's queue at each runtime tick (60 s by
+  default), and a comment answers a question when it is not a bot's nor the kitchen's (a `<!-- brigade:` line that is
+  not quoted, or its own answer comment) and comes after the question's comment. It answers the question its leading
+  `>` quote block reproduces (GitHub's "Quote reply"); with no quote, the only open question, or the oldest open one
+  when the issue has several. A quote that reproduces no open question is no reply. The text left once the quote is
+  removed is one of the card's choices (whitespace and case ignored) and is recorded as that choice, as if clicked in
+  the app, or else is recorded as the chef's own words. The author must be the chef, or the declared human whose role
+  answers the card's question (the routing above); anyone else is ignored and the card stays in TODO. A question that
+  already has an answer from a comment (`todo.answered` carries its card key as `question`) is not reopened by a later
+  comment. A question is open while its card is in the queue and its marked comment is on the issue
+  (`runtime/src/reponse-par-commentaire/`).
 - **The chef is resolved by default** (#2928). In order: `chef` declared in `.claude/brigade/projet.json`
   ([settings](../reglages.md)), source `declared`; else the repository owner when the owner is a user, source
   `repo owner`; else — the owner is an organization — the author of the merged pull request that first added
