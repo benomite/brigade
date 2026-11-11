@@ -23,7 +23,7 @@ import { refus } from "../../src/projets/refus.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
-import { aArreter, BASE, depotGit, ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { aArreter, BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -44,7 +44,9 @@ const SHOP = {
 // règle le remote ; l'accès est alors vérifié par un vrai git — sans
 // configuration globale, donc sans credential helper.
 // `gists` : ceux des autres stations du compte, que son canal lit aussi.
-function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; gists?: Record<string, Fichiers>; clonesServis?: Record<string, string> } = {}) {
+// `gh` : la station clone par son vrai chemin (`clonerEnReparant`), sous ce
+// `gh` et cet environnement, et vérifie l'accès par un vrai git.
+function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; gists?: Record<string, Fichiers>; clonesServis?: Record<string, string>; gh?: { bin: string; env: Record<string, string> } } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: GIST, appairee: options.appairee ?? true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -85,7 +87,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
     racine,
     canal,
     station: "box",
-    env: remote === undefined ? {} : { ...ENV_GIT, HOME: repertoireTemporaire(t), GIT_SSL_NO_VERIFY: "1" },
+    env: options.gh !== undefined ? { ...options.gh.env, BRIGADE_GH_BIN: options.gh.bin, HOME: repertoireTemporaire(t) } : remote === undefined ? {} : { ...ENV_GIT, HOME: repertoireTemporaire(t), GIT_SSL_NO_VERIFY: "1" },
     servis: { projets: servis, depots: () => Object.fromEntries(configuration().split("\n").filter((ligne) => ligne.trim() !== "" && !ligne.startsWith("#") && !ligne.startsWith(DEBUT) && !ligne.startsWith(FIN)).map((ligne) => ligne.split(/\s+/)).filter(([nom]) => servis().includes(nom ?? "")).map(([nom, depot]) => [nom, depot])), clones: () => options.clonesServis ?? {}, refus: (nom) => refuses.get(nom) ?? null },
     apresEcriture: () => void relectures++,
     dire: (ligne) => lignes.push(ligne),
@@ -93,18 +95,18 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
     cadenceMs: 3_600_000,
     maintenant: () => Date.parse("2026-10-15T12:02:00Z"),
     autoriser: async (depot) => autorisations.get(depot) ?? { autorisee: true },
-    cloner: async (depot, clone) => {
+    ...(options.gh !== undefined ? {} : { cloner: async (depot: string, clone: string) => {
       if (clonage !== null) throw clonage;
       clones.push(`${depot} → ${clone}`);
       if (origine === null || remote === undefined) return void mkdirSync(join(clone, ".git"), { recursive: true });
       if (existsSync(join(clone, ".git"))) return;
       git(racine, "clone", "-q", origine, clone);
       remote(clone);
-    },
+    } }),
     // Le `gh` de la station, doublé : aucun vrai gh n'est joint.
     enqueter: async () => enquete,
     // Le clone doublé n'a pas de remote : rien à vérifier.
-    ...(remote === undefined ? { verifierAcces: async () => ({ etat: "libre" as const }) } : {}),
+    ...(remote === undefined && options.gh === undefined ? { verifierAcces: async () => ({ etat: "libre" as const }) } : {}),
     ouvrirLaPreparation: async (projet, repertoireEtat, clone) => {
       if (preparation !== null) throw preparation;
       preparations.push(`${projet.depot} ${projet.base} → ${repertoireEtat} ${clone}`);
@@ -474,6 +476,44 @@ test("un dépôt joignable, où la station peut pousser : servi comme avant, san
 
   assert.deepEqual(station.suivi(), [{ nom: "shop", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE, temps: SANS_TEMPS }]);
   assert.equal(station.configuration(), `${DEBUT}\nshop acme/shop ${BASE}\n${FIN}\n`);
+  assert.equal(station.preparations.length, 1);
+});
+
+// #3197 : le 2026-11-11, une station avait cloné un dépôt encore vide ; les
+// commits arrivés ensuite, son clone restait sans commit, et le push à blanc
+// de la vérification d'accès, sur « src refspec HEAD does not match any », se
+// lisait comme un droit d'écriture qui manque.
+test("#3197 : un projet ajouté quand son dépôt est vide attend, sa panne de clone dite sans refus d'écriture ; un commit arrivé sur le dépôt, la station le rapatrie et le sert", async (t) => {
+  const origines = repertoireTemporaire(t);
+  const origine = join(origines, "acme/shop.git");
+  mkdirSync(origine, { recursive: true });
+  git(origine, "init", "-q", "--bare", "-b", "main");
+  const station = uneStation(t, { gh: { bin: join(import.meta.dirname, "faux-gh.ts"), env: { ...ENV_GIT, FAUX_ORIGINES: origines, FAUX_GISTS: repertoireTemporaire(t) } } });
+  const clone = join(station.racine, "clones/shop");
+  station.demander(SHOP);
+  await station.projets.relire();
+
+  const [vide] = station.suivi() ?? [];
+  assert.equal(vide?.etat, "en-preparation");
+  assert.equal(vide?.refus, undefined);
+  assert.equal(vide?.acces, undefined);
+  assert.match(vide?.dit ?? "", /^box could not check that it may push to acme\/shop: its clone has no commit to push yet .*\(git: src refspec HEAD does not match any\); this is not an access refusal; the station retries every 3600 s$/);
+  assert.doesNotMatch(vide?.dit ?? "", /no write access/);
+  assert.equal(station.lignes.filter((ligne) => ligne.includes("son clone est en cause, pas son accès")).length, 1);
+  assert.equal(station.configuration(), "");
+  assert.deepEqual(station.preparations, []);
+
+  // Un commit arrive sur le dépôt, poussé d'ailleurs : sans aucune commande git à la main, le projet est servi.
+  const ailleurs = join(repertoireTemporaire(t), "ailleurs");
+  git(origines, "clone", "-q", origine, ailleurs);
+  commiter(ailleurs, "LISEZMOI");
+  git(ailleurs, "push", "-q", "origin", "HEAD:refs/heads/main");
+  await station.projets.relire();
+
+  assert.equal(station.suivi()?.[0]?.etat, "servi");
+  assert.equal(git(clone, "rev-parse", "HEAD"), git(ailleurs, "rev-parse", "HEAD"));
+  assert.equal(git(clone, "symbolic-ref", "--short", "HEAD"), "main");
+  assert.equal(station.configuration(), `${DEBUT}\nshop acme/shop main\n${FIN}\n`);
   assert.equal(station.preparations.length, 1);
 });
 

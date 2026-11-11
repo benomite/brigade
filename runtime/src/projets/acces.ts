@@ -10,7 +10,9 @@
 // récupération, `git push --dry-run` pour l'écriture — il s'authentifie auprès
 // du dépôt comme un vrai push, sans rien lui envoyer. Un refus est dit en une
 // phrase, avec le geste qui le lève ; un dépôt injoignable (réseau, délai)
-// n'est pas un refus : la station réessaie.
+// n'est pas un refus : la station réessaie. Une panne du clone lui-même — un
+// clone sans commit à pousser — n'en est pas un non plus : elle est dite pour
+// ce qu'elle est, jamais comme un droit d'écriture qui manque (#3197).
 import { execFile } from "../sans-invite.ts";
 
 export type Operation = "fetch" | "push";
@@ -20,7 +22,7 @@ export type Operation = "fetch" | "push";
 // l'app qui les montre.
 export type AccesBloque = { bloque: Operation; raison: string; geste: string };
 
-export type Acces = { etat: "libre" } | ({ etat: "bloque" } & AccesBloque) | { etat: "injoignable"; dit: string };
+export type Acces = { etat: "libre" } | ({ etat: "bloque" } & AccesBloque) | { etat: "injoignable"; dit: string } | { etat: "clone"; dit: string };
 
 // Le temps laissé à chaque appel : au-delà, le dépôt est injoignable.
 export const DELAI_MS = 60_000;
@@ -106,6 +108,14 @@ export function lireLeRefus({ operation, station, depot, clone, url, erreurs, he
   return refus("git fails", `Run \`git -C ${clone} ${commande}\` ${sur}, to see what git says.`);
 }
 
+// Ce que git dit d'une panne du clone, avant d'avoir rien demandé au dépôt —
+// en mots simples —, ou null. Pur.
+export function lireLaPanneDuClone(erreurs: string): string | null {
+  if (/src refspec .* does not match any/i.test(erreurs)) return "its clone has no commit to push yet — the repository was empty when it was cloned, or still is";
+  if (/index file corrupt|loose object .* is corrupt|object file .* is empty/i.test(erreurs)) return "its clone is damaged";
+  return null;
+}
+
 export type OptionsAcces = { station: string; depot: string; base: string; clone: string; env?: NodeJS.ProcessEnv; delaiMs?: number };
 
 // Vérifie, sur le remote `origin` du clone, que la station peut en récupérer
@@ -118,6 +128,8 @@ export async function verifierAcces({ station, depot, base, clone, env = process
     const essai = await git(clone, operation === "fetch" ? ["ls-remote", "--heads", "origin", `refs/heads/${base}`] : ["push", "--dry-run", "--quiet", "origin", `HEAD:${BRANCHE_A_BLANC}`], env, delaiMs);
     if (essai.ok) continue;
     if (essai.expire) return { etat: "injoignable", dit: `git did not reach ${hoteDe(url)} within ${Math.round(delaiMs / 1000)} s` };
+    const panne = lireLaPanneDuClone(essai.erreurs);
+    if (panne !== null) return { etat: "clone", dit: `${station} could not check that it may ${operation === "fetch" ? "fetch from" : "push to"} ${depot}: ${panne} (git: ${ligneDeGit(essai.erreurs)}); this is not an access refusal` };
     const helper = await git(clone, ["config", "--get-urlmatch", "credential.helper", url], env, delaiMs);
     const refus = lireLeRefus({ operation, station, depot, clone, url, erreurs: essai.erreurs, helper: helper.ok && helper.sortie !== "" });
     if (refus === null) return { etat: "injoignable", dit: `git did not reach ${hoteDe(url)} — ${ligneDeGit(essai.erreurs)}` };
