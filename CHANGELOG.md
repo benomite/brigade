@@ -7,6 +7,7 @@ Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new
 ### Added
 
 - A project added with open issues opens on `Brigade read your N open issues — here are the ones to cook first`: the second's triage proposes issues with a priority and a reason, the chef changes or drops lines, and one button puts the rest on the rail (#3268)
+- A TODO card can be answered by replying to, or quote-replying, its comment on GitHub: a choice or the chef's own words, from the chef or the human whose role answers it (#3253)
 
 ### Changed
 
