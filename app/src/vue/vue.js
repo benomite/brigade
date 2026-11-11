@@ -103,6 +103,7 @@ import { poserLesAutres } from "./todo/autres.js";
 import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, REPOS as REPRISE_AU_REPOS } from "./todo-breaker-line.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
+import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
@@ -4294,8 +4295,9 @@ function poserCuisson(projet) {
     refus: vu?.refus ?? null,
     ouvrir: () => choisirOnglet(STATIONS),
   });
-  alerteDeCuisine.hidden = alerte === null;
-  alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
+  const refus = lignesDeRefus(document, stations?.lignes ?? []);
+  alerteDeCuisine.hidden = alerte === null && refus.length === 0;
+  alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]), ...refus);
 }
 
 // L'onglet Stations (ticket 3195, stations-tab/) : un seul composant — la ligne du haut, une carte par station qui sert le

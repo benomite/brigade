@@ -79,10 +79,10 @@ function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string, a
   return { ...base, etat, dit: "", survol: `“${etat}”: a word this app does not know yet` };
 }
 
-// Ce qu'une station qui demande un geste au chef dit de son état, dans la ligne d'alerte.
+// Ce qu'une station qui demande un geste au chef dit de son état, dans la ligne d'alerte. Son refus n'y est pas : il a sa
+// propre ligne, avec sa raison et son geste (vue/projet/rail/refus-de-station.js).
 function aRegler(ligne: LigneDeStation): string | undefined {
   if (ligne.etat === "saturated") return `${ligne.station} is saturated: it takes no ticket until its machine has room`;
-  if (ligne.etat === "refused") return `${ligne.station} refuses the project: ${ligne.dit.replace(/\.$/, "")}`;
   return undefined;
 }
 

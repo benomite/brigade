@@ -139,15 +139,12 @@ describe("la ligne d'alerte de l'onglet Rail", () => {
     assert.equal(lues([station("box/claude"), station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: LU })]).tableau.stations?.alerte, null);
   });
 
-  test("une station saturée, une qui refuse le projet : une seule ligne, qui les dit", () => {
+  test("une station saturée : une seule ligne ; une station qui refuse le projet n'y est pas — son refus a sa ligne (refus-de-station)", () => {
     assert.equal(lues([station("box/claude", { cuisson: "saturated" })]).tableau.stations?.alerte, "box/claude is saturated: it takes no ticket until its machine has room");
-    assert.equal(
-      lues([station("box/claude", { cuisson: "refused", refus: REFUS })]).tableau.stations?.alerte,
-      "box/claude refuses the project: This computer cannot run the project's cooks in Claude Code's sandbox",
-    );
+    assert.equal(lues([station("box/claude", { cuisson: "refused", refus: REFUS })]).tableau.stations?.alerte, null);
     assert.equal(
       lues([station("box/claude", { cuisson: "saturated" }), station("atelier/claude", { cuisson: "refused", refus: REFUS }), station("mac/claude", { distante: true })]).tableau.stations?.alerte,
-      "box/claude is saturated: it takes no ticket until its machine has room — and 1 more station",
+      "box/claude is saturated: it takes no ticket until its machine has room",
     );
   });
 });
