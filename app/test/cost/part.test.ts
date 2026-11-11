@@ -76,7 +76,7 @@ describe("quand le quota ne se lit pas", () => {
     test(`quota ${dit} : une seule ligne, les tokens restent, ni part de ticket ni part de la semaine`, () => {
       const b = bloc(lectures(cook(7, "2026-11-10T09:00:00.000Z", "sonnet", 200_000)), quota);
       assert.deepEqual(textes(b, "p", "part-indisponible"), [INDISPONIBLE]);
-      assert.equal(INDISPONIBLE, "Share unavailable: weekly quota is not configured.");
+      assert.equal(INDISPONIBLE, "Share not shown: weekly quota is not configured.");
       assert.deepEqual(textes(b, "p", "part-semaine"), []);
       assert.deepEqual(textes(b, "span", "part"), []);
       assert.deepEqual(textes(b, "span", "tokens"), ["200,000"]);

@@ -7,7 +7,7 @@
 // de pourcent. Un quota absent, nul ou illisible ne donne aucune part : la page le dit en une ligne, et garde les tokens.
 // Ce module ne touche pas `document`.
 
-export const INDISPONIBLE = "Share unavailable: weekly quota is not configured.";
+export const INDISPONIBLE = "Share not shown: weekly quota is not configured.";
 
 const JOURS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const HEURE = 3_600_000;

@@ -8106,7 +8106,7 @@ async function mettreLeDepartSurLeRail(nom) {
     if ("fait" in rendu) departsDesProjets.mise(nom, rendu.fait, rendu.refus);
     else departsDesProjets.miseRatee(nom, rendu.refus, rendu.detail ?? "");
   } catch (erreur) {
-    departsDesProjets.miseRatee(nom, "nothing was put on the rail: the app could not reach GitHub", erreur instanceof Error ? erreur.message : String(erreur));
+    departsDesProjets.miseRatee(nom, "nothing was put on the rail: GitHub is not reached from the app", erreur instanceof Error ? erreur.message : String(erreur));
   }
 }
 
