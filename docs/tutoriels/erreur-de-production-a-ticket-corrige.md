@@ -1,8 +1,6 @@
 # From a production error to a fixed ticket
 
-From a production error in Sentry to a merged fix: Sentry opens a GitHub issue carrying the label `fire`, and Brigade takes it from there. No code to write on your side.
-
-> **Status: not yet checked on a real Sentry project.** The Sentry steps below are written from Sentry's own screens as we know them, and the Brigade steps from this repository's documentation. If a screen differs, trust the screen. See the last line of the page.
+From a production error in Sentry to a merged fix: Sentry opens a GitHub issue carrying the label `fire`, a human lets it onto the rail once, and a cook fixes it. No code to write on your side.
 
 Words (*rail*, *cook*, *pass*, *sensitive*…) are those of [`docs/glossary.md`](../glossary.md).
 
@@ -30,13 +28,19 @@ Sentry creates a GitHub issue from an alert rule, with the action that creates a
 
 ## 3. What happens next
 
-This is Brigade's ordinary path for any ticket labelled `fire`; Sentry plays no part in it once the issue exists.
+**The first gate: an issue from Sentry is not trusted by default.** Sentry's integration is not an account with write access to your repository. The manager sets aside any issue written by someone without a hand on the repository, **even with the label `fire`**, as `untrusted-author` ([`docs/runtime/manager.md`](../runtime/manager.md)). Only the `github-actions` bot is exempt. So an issue opened by Sentry does not go straight to the rail:
 
-1. **On the rail.** The label `fire` puts the issue on the rail as a card ([`premier-projet.md`](premier-projet.md), step 3). A project switched off (`project off`) takes nothing.
-2. **The manager qualifies it.** Before a cook takes it, the manager reads the issue. If it lacks what a cook needs, it completes it or asks; it sets the calibration labels `model:` and `effort:` (and may propose the `sensitive` mark with its reason, see below).
-3. **A cook takes it** in its own worktree on a branch `cook/<run>`, reads the Sentry error in the issue body, implements a fix and opens a pull request. The card goes from **Taken** to **Pass**.
-4. **The pass judges it**: gates, CI and an independent review, and writes its verdict on the issue ([`docs/runtime/pass.md`](../runtime/pass.md)). A green delivery is merged by the pass itself.
-5. **The ticket is fixed**: the pull request is merged, the issue closed, the card is in **Served** ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)).
+1. **The manager triages it, once.** It comments with a proposal (`duplicate of #N`, `out of scope`, or `ticket` with a `prio:`) and opens a **TODO** card for the project's `product` human (the chef if there is none), with two buttons, **on the rail** or **close**, and a free answer.
+2. **A human answers.** Nothing reaches the rail until you, or an account with write access, answer on the card or on the issue. `on the rail` puts the proposed `prio:` (or the one you write, `on the rail prio:N`; `fire` if there is none) and the issue is judged on the manager's next wake-up. `close` closes it.
+
+This applies to each issue Sentry opens, so a human stays in the loop for every error. The manager does not remove this gate for a given Sentry setup: this guide documents no way around it.
+
+Once the issue is on the rail, this is Brigade's ordinary path:
+
+3. **The manager qualifies it.** If it lacks what a cook needs, it completes it or asks; it sets the calibration labels `model:` and `effort:` (and may propose the `sensitive` mark with its reason, see below). A project switched off (`project off`) takes nothing.
+4. **A cook takes it** in its own worktree on a branch `cook/<run>`, reads the Sentry error in the issue body, implements a fix and opens a pull request. The card goes from **Taken** to **Pass**.
+5. **The pass judges it**: gates, CI and an independent review, and writes its verdict on the issue ([`docs/runtime/pass.md`](../runtime/pass.md)). A green delivery is merged by the pass itself.
+6. **The ticket is fixed**: the pull request is merged, the issue closed, the card is in **Served** ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)).
 
 A delivery the pass cannot settle alone waits for you in **TODO**.
 
@@ -60,8 +64,8 @@ Some fixes should never land on their own: a **migration**, **security**, a **pa
 
 A ticket labelled `sensitive` goes through the kitchen as any other: a cook fixes it and the pass judges it. But the pass does not merge it. It waits in TODO as one **review before merge** card, with the pull request and two answers: **merge**, or **send back with a note**. This is the behaviour of the epic #3214, which is in the repository at the time of writing (#3223 the hold, #3224 the card, #3225 the manager's proposal, #3226 the doc).
 
-Sentry cannot tell by itself that an error is sensitive: the label comes from your rule, from you, or from the manager's proposal. An error in sensitive code that reaches Brigade through a rule without the label is merged by the pass like any other.
+Sentry cannot tell by itself that an error is sensitive: the label comes from your rule, from you, or from the manager's proposal. An error in sensitive code that reaches Brigade through a rule without the label, and that you let onto the rail, is merged by the pass like any other once it is green: the human answer at the first gate is your chance to add `sensitive` before it does.
 
-*Placeholder, to be filled in by a human after a real run of this guide. Not yet run.*
+*Placeholder: a human fills this in after a real run of this guide. It has not been run yet; the Sentry screens are written from Sentry's documentation, so if one differs, trust the screen.*
 
 Tested on: <project>, <date>
