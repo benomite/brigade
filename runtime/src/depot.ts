@@ -121,12 +121,6 @@ export type Depot = {
   // Les fichiers suivis de la base, telle que le clone la connaît depuis son
   // dernier rapatriement.
   fichiers(): string[];
-  // Les fichiers de chacun des derniers commits de la base (hors merges), du
-  // plus récent au plus ancien : l'habitude d'où se lisent les compagnons
-  // d'une zone (`compagnons.ts`, #2963). Lève si git ne la donne pas.
-  // `ouvrirDepot` la porte toujours ; un dépôt qui ne la porte pas ne donne
-  // aucun compagnon.
-  historique?(): string[][];
   // Rapatrie la base depuis l'origine ; rend son commit de tête.
   rapatrier(): Promise<string>;
   // La station peut-elle récupérer la base sur l'origine, et y pousser ? La
@@ -347,10 +341,6 @@ export function lireALaBase(lieu: { clone: string; base: string }, chemin: strin
   if (git("ls-tree", "--name-only", `origin/${lieu.base}`, "--", chemin).trim() === "") return null;
   return git("show", `origin/${lieu.base}:${chemin}`);
 }
-
-// Les commits de la base que `historique` lit : assez pour qu'une zone peu
-// touchée y trouve son habitude, ou celle de son dossier.
-const HISTORIQUE_MAX = 500;
 
 export function ouvrirDepot(options: OptionsDepot): Depot {
   const { clone, base } = options;
@@ -897,11 +887,6 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       execFileSync("git", ["ls-tree", "-r", "-z", "--name-only", `origin/${base}`], { ...reglages, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] })
         .split("\0")
         .filter(Boolean),
-    historique: () =>
-      execFileSync("git", ["log", "--no-merges", "-z", "--format=%x01", "--name-only", "-n", String(HISTORIQUE_MAX), `origin/${base}`], { ...reglages, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] })
-        .split("\x01")
-        .slice(1)
-        .map((commit) => commit.split("\0").map((ligne) => ligne.trim()).filter(Boolean)),
     empreinte(worktree) {
       const statut = statutDe(worktree, "all");
       const empreinte = createHash("sha256").update(gitDans(worktree)("rev-parse", "HEAD").trim()).update(statut);
