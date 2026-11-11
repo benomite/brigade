@@ -27,6 +27,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "station", description: "A station's settings: cooks <N>, stop <station>, start <station>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
   { nom: "setting", description: "The project's settings, from its repository, for the app; a change is refused: make it by a pull request on GitHub" },
   { nom: "humans", description: "The project's humans, from its repository, for the app: save <login> [<role>…], remove <login> — each change opens a pull request" },
+  { nom: "recurring", description: "The project's recurring tickets, for the app: declare --title <title> [--body <body>] --rhythm daily | weekly --weekday <1-7> | monthly --day <1-31>, pause <id>, resume <id>, remove <id> — each one lands on the rail with `fire` on its next date" },
   { nom: "contributor-stations", description: "The contributor stations that took a ticket, for the app: refuse <station>, accept <station> — a refused station takes no ticket" },
   { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },
   { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
