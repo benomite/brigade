@@ -3008,6 +3008,9 @@ main > header,
   border-radius: var(--rayon-carte);
   cursor: pointer;
 }
+.chers-cout .avec-part .ticket-cher {
+  grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 4.5em 6em;
+}
 .chers-cout .ticket-cher:hover {
   border-color: var(--trait-fort);
 }
@@ -3024,11 +3027,16 @@ main > header,
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.chers-cout :is(.tokens, .essais) {
+.chers-cout :is(.tokens, .part, .essais) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 .chers-cout :is(.essais) {
+  color: var(--discret);
+}
+/* La semaine, ou la ligne qui dit qu'aucune part ne se lit, sous la liste. */
+.chers-cout :is(.part-semaine, .part-indisponible) {
+  margin: var(--pas-2) 0 0;
   color: var(--discret);
 }
 /* Les tokens perdus — de la page des coûts, ou du projet sous sa fiabilité : un chiffre, et derrière lui la liste des cooks perdus. */

@@ -5647,7 +5647,7 @@ function poserCout() {
     poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
     autonomieDeTous.poser(),
     poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus, ouvrirTicketDepuisLesCouts),
-    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts),
+    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts, configuration.quotaMax),
     poserCourbe(document, projets, coutsLus),
   );
 }
