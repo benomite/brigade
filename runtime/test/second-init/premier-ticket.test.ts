@@ -2,8 +2,8 @@
 // le constat (`checkRepoSetup`) lit la section sur la branche d'intégration quand
 // la copie locale ne l'a pas encore — par l'objet, puis par la commande
 // `installation repo` sur un `gh` —, et le second, lancé sur un dépôt pas préparé
-// (`planDuSecond`), sait d'avance qu'une fois prêt il propose un premier ticket,
-// l'écrit avec le chef et le crée sur le rail.
+// (`planDuSecond`), sait d'avance qu'une fois prêt le premier ticket s'écrit dans
+// l'app (#3306) : il ne le propose ni ne le crée lui-même.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -13,7 +13,7 @@ import { checkRepoSetup, LABELS_DES_ROLES, runRepoSetup, type Repo } from "../..
 import { ETIQUETTES } from "../../src/etiquettes.ts";
 import { LABEL } from "../../src/github.ts";
 import type { ClientGitHub, RequeteGitHub } from "../../src/proteger-branche.ts";
-import { claudeMdDeLaBase, LABELS_DU_PREMIER_TICKET, messageDuPremierTicket, SECTIONS_DU_PREMIER_TICKET } from "../../src/second-init/premier-ticket.ts";
+import { claudeMdDeLaBase, LABELS_DU_PREMIER_TICKET, messageDuPremierTicket } from "../../src/second-init/premier-ticket.ts";
 import { planDuSecond } from "../../src/second/lancement.ts";
 import { DEPOT, fauxGh, repertoireTemporaire } from "../outils.ts";
 
@@ -92,7 +92,7 @@ const fichiers = (...chemins: string[]) => {
   return (chemin: string) => tous.has(chemin);
 };
 
-test("lancé sur un dépôt pas préparé, le second sait qu'une fois prêt il propose un premier ticket, l'écrit avec le chef et le crée sur le rail", (t) => {
+test("lancé sur un dépôt pas préparé, le second sait qu'une fois prêt le premier ticket s'écrit dans l'app : il ne le propose ni ne le crée lui-même (#3306)", (t) => {
   const dossier = repertoireTemporaire(t);
   mkdirSync(join(dossier, ".git"));
   writeFileSync(join(dossier, "CLAUDE.md"), LOCAL);
@@ -112,16 +112,11 @@ test("lancé sur un dépôt pas préparé, le second sait qu'une fois prêt il p
   const premier = messageDuPremierTicket();
   // Le moment : le projet prêt, le rôle redonné après le merge.
   assert.match(premier, /merged the setup's pull request.*the project is then ready/);
-  assert.match(premier, /offer the chef, in French, to fire a first ticket/);
-  // Le dialogue : ce que le chef veut, puis un titre et des critères observables, relus avec lui.
-  assert.match(premier, /ask what they want done/);
-  assert.match(premier, /draft a short title and two to five observable acceptance criteria/);
-  assert.match(premier, /show them the draft/);
-  // La création : le geste prévu du second, ses labels, son corps.
-  assert.ok(premier.includes(`\`gh issue create --title <title> --body <body> ${LABELS_DU_PREMIER_TICKET.map((label) => `--label ${label}`).join(" ")}\``), premier);
-  for (const section of SECTIONS_DU_PREMIER_TICKET) assert.ok(premier.includes(`\`${section}\``), section);
-  assert.match(premier, /no model or effort/);
-  assert.match(premier, /watch it cook in the app's board/);
+  // Le premier ticket s'écrit dans l'app (#3306) : le second ne le propose ni ne le crée, et y renvoie le chef.
+  assert.match(premier, /the app itself asks the chef, above the rail, what they want to change first/);
+  assert.match(premier, /do not offer a first ticket yourself, and never create it with `gh issue create`/);
+  assert.match(premier, /answer the question above the rail/);
+  assert.doesNotMatch(premier, /--label/);
 });
 
 test("le premier ticket porte `fire`, le label que le rail prend, et seulement des labels que la mise en place pose", () => {
