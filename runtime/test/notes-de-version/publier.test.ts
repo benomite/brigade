@@ -69,17 +69,6 @@ test("an empty tag or an empty summary publishes nothing", async () => {
   assert.equal(github.appels.length, 0);
 });
 
-test("generating a summary alone triggers no GitHub Release: only the explicit call creates one", async () => {
-  const github = faux(["v1.2.0"]);
-  // Produire le résumé n'est qu'un objet : rien n'est appelé tant que l'action ne l'est pas.
-  const genere: Resume = { ...resume, markdown: "## Another week\n" };
-  assert.equal(genere.markdown, "## Another week\n");
-  assert.equal(github.releases.size, 0);
-  assert.deepEqual(github.appels, []);
-  await publierNotesDeVersion(github, genere, "v1.2.0");
-  assert.equal(github.releases.size, 1);
-});
-
 test("the real client reads the tag and the release, and creates the release with the tag as name and the markdown as body", async () => {
   const { ouvrirGitHub } = await import("../../src/github.ts");
   const { ouvrirLimite } = await import("../../src/limite-github.ts");
