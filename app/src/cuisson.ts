@@ -31,7 +31,7 @@ export type AgentDeStation = { role: string; ticket: number | null; titre: strin
 // `ordinaires` : la station prend aussi les tickets ordinaires, comme `facts` le dit (l'onglet Stations le montre, #2488).
 export type LigneDeStation = { station: string; distante: boolean; ordinaires?: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; fournit?: string[]; presente?: boolean; vueLe?: string | null; retenue?: string };
 // `alerte` : ce qui demande un geste au chef du côté des cooks, en une ligne — nulle quand rien ne le demande.
-// `surGithub` : un projet sur GitHub seul, dont les stations se disent de GitHub (vue/cooks/stations-github.js, #2358) —
+// `surGithub` : un projet sur GitHub seul, dont les stations se disent de GitHub (vue/onglet-stations/stations-github.js, #2358) —
 // `illisible`, pourquoi leurs signes de vie ne se lisent pas.
 export type CuissonDuProjet = { lignes: LigneDeStation[]; alerte: string | null; surGithub?: { illisible: string | null } };
 

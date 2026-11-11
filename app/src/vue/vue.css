@@ -2155,21 +2155,16 @@ main > header,
 #rail > .carte {
   margin: var(--pas-3) var(--pas-4) 0;
 }
-/* Cooks dans l'ordre de sa revue (ticket 1456). En tête du bloc des stations, la ligne de la cuisine du projet — la carte
-   du projet y est fondue : son état en pilule, son dernier événement en discret. */
-#rail .etat-de-la-cuisine {
+/* La première ligne du bloc des stations (ticket 3189) : qui cuit le projet, ou que personne ne le cuit, avec son bouton. */
+#rail .premiere-ligne {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--pas-1) var(--pas-2);
   margin: 0 0 var(--pas-1);
   font-size: var(--taille-corps);
-  color: var(--discret);
 }
-#rail .etat-de-la-cuisine small {
-  color: var(--discret);
-}
-#rail > .etat-de-la-cuisine {
+#rail > .premiere-ligne {
   margin: var(--pas-3) var(--pas-4) 0;
 }
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
