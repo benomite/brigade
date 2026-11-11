@@ -1,5 +1,5 @@
-// Le parcours guidé du premier projet à soi (#3166), cet ordinateur ajouté comme station : « cantine » n'est pas prêt
-// pour Brigade, l'étape de la mise en place dit ce qui est attendu et de qui — le second lit le dépôt.
-import { AJOUTER_ICI, parcoursPremierProjet } from "./parcours-premier-projet-commun.ts";
+// La page d'un projet pas encore prêt (#3166), cet ordinateur choisi : « 2 of 2: its setup for Brigade » — le second lit
+// le dépôt, dans sa colonne à droite.
+import { CHOISIR_LE_RECOMMANDE, parcoursPremierProjet } from "./parcours-premier-projet-commun.ts";
 
-export const ecran = parcoursPremierProjet("Le parcours du premier projet (#3166) : la station ajoutée, la mise en place — le second lit le dépôt", false, [AJOUTER_ICI]);
+export const ecran = parcoursPremierProjet("La page d'un projet pas prêt (#3166) : cet ordinateur choisi, la mise en place — le second lit le dépôt", false, [CHOISIR_LE_RECOMMANDE]);

@@ -93,6 +93,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
 | — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
 | — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |
+| — | `design` | A green design delivery held for the chef's validation (#3184) | `validate <owner>/<repo>#<PR>`, `send-back <owner>/<repo>#<PR> --comment <what to change>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
@@ -152,9 +153,7 @@ The app reads each form in both languages, whole; a line mixing the two in one f
 |---|---|
 | `Tous les projets` | `All projects` |
 | `Ajouter un projet` | `Add a project` |
-| `Son dossier sur ce poste` | `Its folder on this workstation` |
 | `Son dépôt GitHub` / `Sa branche d'intégration` | `Its GitHub repository` / `Its integration branch` |
-| `Choisir…` | `Choose…` |
 | `Sur le rail` | `On the rail` |
 | `Au travail` | `Taken` |
 | `Pass` | `Pass` |

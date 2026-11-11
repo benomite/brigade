@@ -23,7 +23,9 @@ import type { GitHub } from "../../github.ts";
 export const CHEF_TODO = "chef-todo";
 
 // Les sortes de carte, telles que le marqueur les écrit.
-export const SORTES = ["blocked", "merge-by-hand", "product-question", "abandoned"] as const;
+// `design-validation` : une livraison design verte que la pass retient pour
+// l'humain qui valide les designs (#3184, `validation-design/`).
+export const SORTES = ["blocked", "merge-by-hand", "product-question", "abandoned", "design-validation"] as const;
 export type Sorte = (typeof SORTES)[number];
 
 const MARQUE = /^<!-- brigade:todo kind=([a-z-]+) -->/;

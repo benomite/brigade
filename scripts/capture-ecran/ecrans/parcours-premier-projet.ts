@@ -1,5 +1,4 @@
-// Le parcours guidé du premier projet à soi (#3166), à sa première étape : « cantine » ajouté, son espace s'ouvre sur
-// la station — cet ordinateur cuira ses tickets, d'autres stations s'ajoutent plus tard —, un bouton.
+// La page d'un projet pas encore prêt (#3166) : « 1 of 2: who cooks it », à la place du rail — cet ordinateur recommandé.
 import { parcoursPremierProjet } from "./parcours-premier-projet-commun.ts";
 
-export const ecran = parcoursPremierProjet("Le parcours du premier projet (#3166) : « cantine » ajouté, l'étape de la station et son bouton", false);
+export const ecran = parcoursPremierProjet("La page d'un projet pas prêt (#3166) : « 1 of 2: who cooks it », à la place du rail", false);

@@ -159,8 +159,6 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
   // appairé ni connecté à GitHub sans stockage ni coffre qui en garde rien (#2500).
   assert.deepEqual(recu.telephone, {});
   assert.deepEqual(Object.fromEntries(Object.entries(recu).filter(([cle]) => cle !== "configuration" && cle !== "telephone")), JSON.parse(JSON.stringify(demarrage)));
-  assert.equal(await pont.choisirDossier!(), undefined);
-  assert.deepEqual(json(await pont.ajouter!({ dossier: "/x", depot: "a/b", base: "main" })), { etat: "pas-ajoute", titre: "Nothing was added: the Android app reads no project yet: this phone reads nothing and sends nothing." });
   assert.equal(pont.then, undefined);
   // Chaque geste que preload.cjs offre au desktop existe : un abonnement ne reçoit rien, un geste ne rend rien.
   const gestes = [...readFileSync(join(APP, "src", "preload.cjs"), "utf8").matchAll(/^ {2}([a-zA-Z]+): /gm)].map((trouve) => trouve[1] ?? "");

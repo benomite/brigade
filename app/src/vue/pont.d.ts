@@ -11,7 +11,6 @@ import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { Confirmation } from "../confirmation.ts";
 import type { CONFIRMES, DIRECTS } from "../gestes.ts";
 import type { GESTES_D_ATTENTE, Saisie as SaisieDAttente } from "../attente.ts";
-import type { Issue, Lu, Saisie } from "../ajout.ts";
 import type { Vu } from "../manager.ts";
 import type { Onglet, Rubrique } from "../onglets.ts";
 import type { Bloc } from "../ordinaires.ts";
@@ -35,13 +34,6 @@ import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
   demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; gestes: { allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
-  // Le dossier que le chef a choisi — rien, s'il a renoncé.
-  choisirDossier(): Promise<string | undefined>;
-  // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
-  lireClone(dossier: string): Promise<Lu | undefined>;
-  // L'ajout : le projet est écrit dans le fichier des projets, avec son dépôt et sa branche — ou ce
-  // qui l'a empêché, champ par champ ou d'un bloc. Rien ne part vers aucune machine. Ajouté, il arrive par `surConfiguration`.
-  ajouter(saisie: Saisie): Promise<Issue>;
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette ou
   // une couleur libre `#rrggbb` (couleurs.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle
   // arrive par `surConfiguration`.
@@ -324,9 +316,10 @@ export type Pont = {
   // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
   // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.
   stationsDuChef?(): Promise<StationsDuChef>;
-  // Ouvre un projet qu'une station porte, sans dossier à choisir : sa copie reprise ou clonée par le runtime, puis
-  // le projet ajouté au fichier des projets — il arrive par `surConfiguration` —, ou pourquoi il ne l'est pas.
-  ouvrirDUneStation?(nom: string, depot: string): Promise<Ouverture>;
+  // Ouvre un projet qu'une station porte, ou un dépôt choisi dans « Add a project », sans dossier à choisir : sa copie
+  // reprise ou clonée par le runtime, puis le projet ajouté au fichier des projets — il arrive par `surConfiguration` —,
+  // ou pourquoi il ne l'est pas. `base` : la branche par défaut que GitHub a donnée du dépôt, sa branche d'intégration.
+  ouvrirDUneStation?(nom: string, depot: string, base?: string): Promise<Ouverture>;
   // Lance la connexion à GitHub que le runtime nomme : rend le code à taper et sa page, déjà ouverte — ou pourquoi
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
   // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.

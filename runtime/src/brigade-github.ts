@@ -45,6 +45,7 @@ import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instanta
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
+import { designsValidesParUnHumain, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
@@ -52,6 +53,7 @@ import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
 import { aDesGates, jouerGates, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
+import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
@@ -337,6 +339,10 @@ export type OptionsDeStation = {
   // dont les gates ne se jouent pas ici va à une autre. Absentes, aucune
   // autre : il reste retenu sur cette station.
   stationsDuProjet?: () => readonly string[];
+  // Un humain valide les designs du projet (#3184, `humanValidatesDesigns`),
+  // relu à chaque merge : une livraison design verte attend sa carte au lieu
+  // d'être mergée (`validation-design/`). Absent, non.
+  designsValidesParUnHumain?: () => boolean;
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -1359,6 +1365,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // un renvoi, ou une CI attendue sur une tête neuve (#2333).
         let bouge = false;
         let mergee = false;
+        // Retenue pour la validation de son écran (#3184) : pas un refus de GitHub.
+        let retenue = false;
         try {
           const rendu = await relire(pr, {
             github,
@@ -1399,6 +1407,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     // Rien de ce qui touche ses juges ne se merge sur une tête
                     // que le second juge n'a pas approuvée (#2555).
                     if (juges.length > 0 && secondJugementDe(await github.commentaires(numero), sha)?.verdict !== "approve") return { fait: false, motif: `the second judge has not approved \`${sha.slice(0, 7)}\`` };
+                    // Une livraison design attend l'humain qui valide les designs du projet (#3184).
+                    if (options.designsValidesParUnHumain?.() === true) {
+                      const motif = await retenirLeDesign(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, fichiers: sienne?.fichiers ?? null, renvoyer: (raison) => renvoyer(ticket, sha, raison, 1, "review") });
+                      if (motif !== null) {
+                        retenue = true;
+                        return { fait: false, motif };
+                      }
+                    }
                     chrono.marquer(ticket.number, "merge");
                     return github.merger(numero, sha);
                   },
@@ -1424,7 +1440,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             }
             if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
-            if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
+            if (fusion.issue === "refusee" && !retenue) avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
             if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.ci} \`${pr.sha.slice(0, 7)}\`: ${(await checksRougesDits(pr.sha)).join(", ")}`, 1, "red CI");
           }
@@ -2021,6 +2037,8 @@ export type OptionsDuDepot = {
   stationsDuProjet?: () => readonly string[];
   // La configuration du projet, relue à chaque PR externe : son humain
   // `review` reçoit la carte « merge #N? » (#2933). Absente, elle va au chef.
+  // Relue aussi à chaque merge : `humanValidatesDesigns` y retient une
+  // livraison design pour sa carte (#3184). Absente, la pass merge.
   projet?: () => unknown;
 };
 
@@ -2093,6 +2111,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const abandon = new AbortController();
 
   const ciDesPR = lecteurDeLaCiDesPR(depot, base);
+  // Les tickets de fondation du dépôt, lus seulement quand des gates ne jouent
+  // rien (#3188) : les issues de toujours, celles qui portent le label.
+  const lireFondations = async () => (await options.github.issuesDepuis(new Date(0).toISOString())).filter((issue) => issue.labels.includes(LABEL_FONDATION));
 
   // Le lieu des gates de la tête d'une PR : la branche du ticket, telle que
   // l'origine la porte, dans un worktree à elle. Il ne se joue que sur la tête
@@ -2114,6 +2135,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     };
     if (depot.tete(branche) !== pr.sha) return refus(`the station's clone holds \`${branche}\` at another head than PR #${pr.number}'s \`${pr.sha.slice(0, 7)}\``);
     if (!aDesGates(worktree)) return refus(`the project has no \`${SCRIPT_GATES}\`: with no CI either, nothing would judge this delivery`);
+    // Des gates qui ne jouent rien — aucune commande de test, ou provisoires tant que la fondation n'est pas servie (#3188).
+    const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
+    if (vides !== null) return refus(vides);
     const secrets = lireSecrets(worktree, reglage.secrets ?? null);
     if (!secrets.pret) return refus(`the secrets the project declares cannot be given to its gates — ${secrets.problemes.join("; ")}`);
     const envGates = environnementCook(options.env);
@@ -2164,10 +2188,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   };
   // La vérification de ce qu'un cook affirme d'un ticket déjà satisfait (#3146) :
   // le commit est sur la base, et les gates y sont vertes.
-  const verifierLeDejaServi = async (numero: number, worktree: string, affirmation: string): Promise<{ servi: DejaServi } | { refus: string }> => {
+  const verifierLeDejaServi = async (ticket: TicketLu, worktree: string, affirmation: string): Promise<{ servi: DejaServi } | { refus: string }> => {
     const reglage = options.gates;
     if (depot.lancerGit === undefined || reglage === undefined) return { refus: "this station cannot run git or the gates in a cook's worktree" };
     if (!aDesGates(worktree)) return { refus: `the project has no \`${SCRIPT_GATES}\`: nothing would show the base is green` };
+    const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
+    if (vides !== null) return { refus: vides };
     const secrets = lireSecrets(worktree, reglage.secrets ?? null);
     if (!secrets.pret) return { refus: `the secrets the project declares cannot be given to its gates — ${secrets.problemes.join("; ")}` };
     const envGates = environnementCook(options.env);
@@ -2179,7 +2205,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       gates: async () => {
         const gates = await jouerGates({
           worktree,
-          ticket: numero,
+          ticket: ticket.number,
           ...(Object.keys(secrets.env).length === 0 ? { env: envGates } : { env: { ...envGates, ...secrets.env }, masquer: secrets.masquer }),
           interdites: reglage.sansIdentite ? VARIABLES_GITHUB : [],
           delaiMs: reglage.delaiMs,
@@ -2408,7 +2434,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const affirmation = prOuverte === null ? lireDejaServi(messageFinal) : null;
     let dejaServi: { servi: DejaServi } | { refus: string } | null = null;
     if (affirmation !== null && depot.commits(branche) === 0) {
-      dejaServi = await verifierLeDejaServi(ticket.number, worktree, affirmation);
+      dejaServi = await verifierLeDejaServi(ticket, worktree, affirmation);
     }
     await depot.ranger(worktree, branche);
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
@@ -2596,7 +2622,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), ...(depot.historique === undefined ? {} : { historique: () => depot.historique?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), ...(depot.historique === undefined ? {} : { historique: () => depot.historique?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

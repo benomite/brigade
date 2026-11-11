@@ -189,7 +189,7 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     const mono = regles(lire("vue.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)");
     assert.deepEqual(
       mono.map(({ selecteurs }) => selecteurs),
-      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", ".carte dd", "#rail h4 > span:last-child", ".premier-lancement .formulaire-du-premier input"]],
+      [[".mono", "pre", "code", "#projets button", ".carte dd", "#rail h4 > span:last-child", ".premier-lancement .formulaire-du-premier input", ".ajout-d-un-projet .depot button"]],
     );
     // Le bon porte la sienne, dans sa feuille : `.bon p`, les phrases d'un ticket que la box écrit.
     assert.deepEqual(regles(lire("composants/bon/bon.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)").map(({ selecteurs }) => selecteurs), [[".bon p"]]);
@@ -481,7 +481,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
     const feuille = regles(lire("vue.css"));
     const carte = feuille.find(({ declarations }) => declarations.get("background") === "var(--carte)" && declarations.get("border-radius") === "var(--rayon-carte)" && declarations.get("position") === undefined);
     // Les trois groupes de Settings (#1700) sont des cartes ; leurs réglages, des lignes dedans.
-    assert.deepEqual(carte?.selecteurs, [".carte", "#etat > .groupe", "#tous .liste", "#formulaire", "#stations-du-projet .confiance"]);
+    assert.deepEqual(carte?.selecteurs, [".carte", "#etat > .groupe", "#tous .liste", "#stations-du-projet .confiance"]);
     assert.equal(carte?.declarations.get("border"), "1px solid var(--trait)");
     assert.equal(feuille.find(({ selecteurs }) => selecteurs.join() === "body")?.declarations.get("background"), "var(--fond)");
     // Les colonnes du rail, les bons, le bloc de ce qui attend, la sortie relayée : chacun son cadre.

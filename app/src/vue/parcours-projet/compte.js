@@ -1,10 +1,11 @@
 // @ts-check
-// L'étape du compte, la première du parcours d'ajout (ticket 2475, épique 2473) : le compte GitHub de cet ordinateur,
-// tel que son `gh` le tient (`compteGitHub`, connexion-github.ts) — jamais tapé. Connecté, l'étape le dit, « Connected
-// to GitHub as … », et offre d'en changer ; sans compte, elle n'a qu'un bouton, « connect to GitHub » ; illisible, elle
-// dit pourquoi en une phrase, son détail au survol, avec la page qui le lève et « read again ».
+// Le compte GitHub de cet ordinateur (ticket 2475), tel que son `gh` le tient (`compteGitHub`, connexion-github.ts) —
+// jamais tapé. Connecté, le premier lancement le dit, « Connected to GitHub as … », et offre d'en changer ; sans compte,
+// il n'y a qu'un bouton, « connect to GitHub » ; illisible, il dit pourquoi en une phrase, son détail au survol, avec la
+// page qui le lève et « read again ». L'écran « Add a project » (ajout.js, ticket 3181) n'en pose que la connexion qui
+// manque, ou pourquoi il ne se lit pas : connecté, il ne dit pas le compte, qui se change dans les réglages.
 // Changer de compte, c'est se connecter d'un autre dans le navigateur, par le même geste que la connexion ; au bout, le
-// compte est relu (`tenirLeCompte`, `apresLaConnexion`) : l'étape dit celui que l'ordinateur tient désormais.
+// compte est relu (`tenirLeCompte`, `apresLaConnexion`) : l'écran dit celui que l'ordinateur tient désormais.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "../briques.js";
@@ -15,11 +16,21 @@ import { LECTURE_DE, CET_ORDINATEUR } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../connexion-github.ts").CompteGitHub} CompteGitHub */
-/** @typedef {import("./parcours.js").EtatDuParcours} EtatDuParcours */
-/** @typedef {import("./parcours.js").GestesDuParcours} GestesDuParcours */
-/** @typedef {import("./parcours.js").Etape} Etape */
+/**
+ * Ce que le compte dit. `compte` : absent, sa lecture est en route ; `connexion` : la connexion à GitHub lancée — la même
+ * partout dans l'app (connexion.js).
+ * @typedef {{ compte?: CompteGitHub, connexion?: import("./connexion.js").Connexion }} EtatDuCompte
+ */
+/**
+ * Ses gestes. `changerDeCompte` : se connecter d'un autre compte — le compte est relu au bout.
+ * @typedef {{
+ *   seConnecter: () => void,
+ *   changerDeCompte: () => void,
+ *   relireLeCompte: () => void,
+ *   ouvrirLaPage: (url: string) => void,
+ * }} GestesDuCompte
+ */
 
-export const TITRE_DU_COMPTE = "Your GitHub account";
 export const LECTURE_DU_COMPTE = LECTURE_DE(`the GitHub account of ${CET_ORDINATEUR}`);
 export const SE_CONNECTER = "connect to GitHub";
 export const CHANGER_DE_COMPTE = "switch GitHub account";
@@ -36,8 +47,8 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
-/** @param {Fabrique} doc @param {EtatDuParcours} etat @param {GestesDuParcours} geste @returns {any[]} */
-function poserLeCompte(doc, etat, geste) {
+/** @param {Fabrique} doc @param {EtatDuCompte} etat @param {GestesDuCompte} geste @returns {any[]} */
+export function poserLeCompte(doc, etat, geste) {
   const { compte, connexion } = etat;
   if (compte === undefined) {
     const dit = cree(doc, "p", LECTURE_DU_COMPTE);
@@ -68,16 +79,8 @@ function poserLeCompte(doc, etat, geste) {
   ];
 }
 
-/** @type {Etape} */
-export const etapeDuCompte = {
-  id: "compte",
-  titre: TITRE_DU_COMPTE,
-  faite: (etat) => etat.compte !== undefined && "login" in etat.compte,
-  poser: poserLeCompte,
-};
-
-// Le compte lu, tenu pour l'étape : une lecture à la fois — la dernière demandée l'emporte —, et `rendre` à chaque
-// changement. `lireUneFois` à l'ouverture du parcours ; `apresLaConnexion` au bout d'une connexion, ou d'un changement
+// Le compte lu, tenu pour l'écran : une lecture à la fois — la dernière demandée l'emporte —, et `rendre` à chaque
+// changement. `lireUneFois` à l'ouverture du premier lancement ou de l'ajout ; `apresLaConnexion` au bout d'une connexion, ou d'un changement
 // de compte : l'ordinateur en tient peut-être un autre.
 /**
  * @param {{ pont: { compteGitHub?(): Promise<CompteGitHub> }, rendre: () => void }} options

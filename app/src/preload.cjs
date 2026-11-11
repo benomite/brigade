@@ -13,9 +13,6 @@ const constatOuRejet = (rendu) => ("refus" in rendu ? Promise.reject(new Error(S
 /** @type {import("./vue/pont.d.ts").Pont} */
 const pont = {
   demarrage: () => ipcRenderer.invoke("demarrage"),
-  choisirDossier: () => ipcRenderer.invoke("choisirDossier"),
-  lireClone: (dossier) => ipcRenderer.invoke("lireClone", dossier),
-  ajouter: (saisie) => ipcRenderer.invoke("ajouter", saisie),
   colorer: (projet, role, couleur) => ipcRenderer.invoke("colorer", projet, role, couleur),
   changerSigle: (projet, sigle) => ipcRenderer.invoke("changerSigle", projet, sigle),
   ordinaires: (projet) => ipcRenderer.invoke("ordinaires", projet),
@@ -130,7 +127,7 @@ const pont = {
   // runtime ; un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
   stationsDuChef: () => ipcRenderer.invoke("stationsDuChef"),
-  ouvrirDUneStation: (nom, depot) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot),
+  ouvrirDUneStation: (nom, depot, base) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot, base),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),

@@ -1,5 +1,5 @@
-// L'étape du compte, la première du parcours d'ajout (#2475, épique #2473) : le compte GitHub de cet ordinateur, tel
-// que son `gh` le tient — jamais tapé. Connecté, « Connected to GitHub as <login>. » et de quoi changer de compte ;
+// Le compte GitHub de cet ordinateur (#2475), tel que le premier lancement et l'écran « Add a project » le disent (#3181) :
+// tel que son `gh` le tient — jamais tapé. Connecté, « Connected to GitHub as <login>. » et de quoi changer de compte ;
 // sans compte, un bouton « connect to GitHub » et rien d'autre à remplir ; changé, le compte est relu. Joué devant un
 // faux document : ni Electron, ni navigateur.
 import assert from "node:assert/strict";
@@ -8,7 +8,9 @@ import type { CompteGitHub } from "../../src/connexion-github.ts";
 import {
   CHANGER_DE_COMPTE,
   connecteEnTantQue,
-  etapeDuCompte,
+  poserLeCompte,
+  type EtatDuCompte,
+  type GestesDuCompte,
   LECTURE_DU_COMPTE,
   RELIRE_LE_COMPTE,
   SANS_REPONSE,
@@ -16,39 +18,36 @@ import {
   tenirLeCompte,
 } from "../../src/vue/parcours-projet/compte.js";
 import { CONNEXION_EN_ROUTE, ROUVRIR_LA_PAGE, tapeLeCode } from "../../src/vue/parcours-projet/connexion.js";
-import { poserParcoursProjet, type EtatDuParcours, type GestesDuParcours } from "../../src/vue/parcours-projet/parcours.js";
 import { Faux, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
-function uneEtape(etat: EtatDuParcours) {
+function uneEtape(etat: EtatDuCompte) {
   const faits: string[] = [];
-  const gestes: GestesDuParcours = {
+  const gestes: GestesDuCompte = {
     seConnecter: () => void faits.push("se connecter"),
     changerDeCompte: () => void faits.push("changer de compte"),
     relireLeCompte: () => void faits.push("relire le compte"),
     ouvrirLaPage: (url) => void faits.push(`page ${url}`),
   };
-  const ecran = poserParcoursProjet(doc, etat, gestes, { etapes: [etapeDuCompte] }) as Faux;
-  const etape = ecran.dessous("li").find((ligne) => ligne.dataset.etape === "compte") ?? assert.fail("pas d'étape du compte");
+  const etape = new Faux("div");
+  etape.append(...(poserLeCompte(doc, etat, gestes) as Faux[]));
   const boutons = () => etape.dessous("button").filter((bouton) => bouton.className !== "aide").map((bouton) => bouton.textContent);
   const bouton = (texte: string) => etape.dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${boutons().join(", ")}`);
   return { etape, faits, bouton, boutons };
 }
 
 describe("connecté : l'étape dit le compte de cet ordinateur", () => {
-  test("« Connected to GitHub as <login>. », le login en gras, tel que `gh` le tient ; l'étape est faite", () => {
+  test("« Connected to GitHub as <login>. », le login en gras, tel que `gh` le tient", () => {
     const { etape } = uneEtape({ compte: { login: "octo-chef" } });
     const dit = etape.dessous("p").find((pose) => pose.className === "compte-connecte") ?? assert.fail("pas de compte dit");
     assert.equal(dit.textContent, "Connected to GitHub as octo-chef.");
     assert.equal(connecteEnTantQue("octo-chef"), "Connected to GitHub as octo-chef.");
     assert.deepEqual(dit.dessous("strong").map((login) => [login.textContent, login.className]), [["octo-chef", "mono"]]);
-    assert.equal(etape.dataset.etat, "faite");
-    assert.equal(etapeDuCompte.faite({ compte: { login: "octo-chef" } }), true);
   });
 
   test("aucun champ à remplir, dans aucun état de l'étape", () => {
-    const etats: EtatDuParcours[] = [{}, { compte: { login: "octo-chef" } }, { compte: { nonConnecte: true } }, { compte: { refus: "GitHub cannot be reached from this computer." } }, { compte: { nonConnecte: true }, connexion: { code: "A1B2-C3D4", page: "https://github.com/login/device" } }];
+    const etats: EtatDuCompte[] = [{}, { compte: { login: "octo-chef" } }, { compte: { nonConnecte: true } }, { compte: { refus: "GitHub cannot be reached from this computer." } }, { compte: { nonConnecte: true }, connexion: { code: "A1B2-C3D4", page: "https://github.com/login/device" } }];
     for (const etat of etats) {
       const { etape } = uneEtape(etat);
       assert.deepEqual([...etape.dessous("input"), ...etape.dessous("label"), ...etape.dessous("select")], []);
@@ -58,11 +57,10 @@ describe("connecté : l'étape dit le compte de cet ordinateur", () => {
 
 describe("sans compte connecté : un bouton « connect to GitHub », et rien d'autre", () => {
   test("le seul geste de l'étape, recommandé ; un clic lance la connexion", () => {
-    const { etape, faits, bouton, boutons } = uneEtape({ compte: { nonConnecte: true } });
+    const { faits, bouton, boutons } = uneEtape({ compte: { nonConnecte: true } });
     assert.deepEqual(boutons(), [SE_CONNECTER]);
     assert.equal(SE_CONNECTER, "connect to GitHub");
     assert.equal(bouton(SE_CONNECTER).className, "recommande");
-    assert.equal(etape.dataset.etat, "courante");
     bouton(SE_CONNECTER).click();
     assert.deepEqual(faits, ["se connecter"]);
   });

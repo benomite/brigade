@@ -60,32 +60,8 @@
     <section id="tous" aria-label="All projects" hidden></section>
     <!-- Les cartes qui attendent le chef, à la largeur d'un téléphone (ticket 2915) : elles prennent la place de « All projects ». -->
     <section id="cartes-du-chef" aria-label="Cards awaiting you" hidden></section>
-    <section id="ajout" aria-label="Add a project" hidden>
-      <!-- Le parcours d'ajout d'un projet (ticket 2475, parcours-projet/) : le même que le premier lancement monte. -->
-      <div id="parcours-de-l-ajout"></div>
-      <form id="formulaire" novalidate>
-        <h3>Add a project from a folder</h3>
-        <!-- Ses boutons sont ceux de la famille unique (composants/bouton, ticket 2916) : `data-bouton` dit leur sorte. -->
-        <p id="ou"></p>
-        <div>
-          <span>Its folder on this workstation</span>
-          <button type="button" id="dossier" data-bouton="secondaire">Choose…</button>
-          <output id="choisi"></output>
-        </div>
-        <p id="refus-dossier" class="refus-champ" aria-live="polite"></p>
-        <label for="depot">Its GitHub repository</label>
-        <input id="depot" autocomplete="off" spellcheck="false" />
-        <small><code>&lt;owner&gt;/&lt;name&gt;</code>: the app reads it from the origin of the folder you chose; correct it if it is not the right one. The project takes its name.</small>
-        <p id="refus-depot" class="refus-champ" aria-live="polite"></p>
-        <label for="base">Its integration branch</label>
-        <input id="base" autocomplete="off" spellcheck="false" />
-        <small>The branch the kitchen delivers to. The app reads the one the folder's origin points to; correct it if it is not the right one.</small>
-        <p id="refus-base" class="refus-champ" aria-live="polite"></p>
-        <button type="submit" id="ajouter" class="recommande" data-bouton="recommande">Add a project</button>
-        <small>The project gets its tab, and nothing is sent anywhere. Who cooks it is asked above, once it is added.</small>
-        <section id="issue-ajout" aria-live="polite"></section>
-      </form>
-    </section>
+    <!-- L'écran « Add a project » (ticket 3181, parcours-projet/ajout.js) : le choix du dépôt, et rien d'autre. -->
+    <section id="ajout" aria-label="Add a project" hidden></section>
     <main>
       <!-- La bande d'alertes : est-ce que ça peut tourner ? Vide quand tout va bien — elle ne prend alors aucune place. -->
       <section id="alertes" aria-label="What stops it running" aria-live="polite" hidden></section>
@@ -98,9 +74,10 @@
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
       </header>
-      <!-- Le parcours guidé du premier projet à soi (ticket 3166) : la station, puis la mise en place s'il le faut, puis prêt —
-           en tête de l'espace, ce qui est attendu et de qui. -->
-      <section id="parcours-premier-projet" aria-label="Your first project" aria-live="polite" hidden></section>
+      <!-- Tant que le projet qu'« Add a project » vient d'ouvrir n'est pas prêt (ticket 3166) : à la place du rail, une question
+           à la fois — qui le cuit, puis sa mise en place s'il le faut —, ce qui est attendu et de qui. Prêt, une ligne au-dessus
+           du rail propose d'écrire son premier ticket avec le second. -->
+      <section id="parcours-premier-projet" aria-label="Until the project is ready" aria-live="polite" hidden></section>
       <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
            une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. Elles sont de
            l'onglet Cooks (ticket 1184) — sauf tant que le projet ne cuit nulle part : elles sont alors ce qui t'attend. -->

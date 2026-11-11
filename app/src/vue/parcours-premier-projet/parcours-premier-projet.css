@@ -1,23 +1,59 @@
-/* Le parcours guidé du premier projet à soi (ticket 3166, parcours-premier-projet/) : la carte du parcours d'ajout
-   (.parcours-projet, vue.css), en tête de l'espace du projet, sous son menu — le rail reste dessous, le second à droite.
-   Ce qui est attendu, et de qui, en tête de l'étape courante. */
+/* Ce que la page d'un projet montre tant qu'il n'est pas prêt (ticket 3166, parcours-premier-projet/) : une question à la
+   fois, à la place du rail. Tant qu'elle est posée (`main[data-parcours]`), rien d'autre de la page ne lui dispute la
+   place — ni le menu du projet, ni ses bandes, ni le centre : l'en-tête garde le nom du projet, le second reste à droite. */
+main[data-parcours] > :not(header):not(#parcours-premier-projet),
+main[data-parcours] #onglets-du-projet,
+main[data-parcours] #interrupteur-projet {
+  display: none !important;
+}
 #parcours-premier-projet {
   padding: var(--pas-4) var(--pas-4) 0;
 }
+.parcours-premier-projet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  max-width: 44rem;
+}
+.parcours-premier-projet .progression {
+  margin: 0;
+  color: var(--discret);
+}
 .parcours-premier-projet .attendu {
   margin: 0;
+  font-size: var(--taille-intertitre);
   font-weight: 600;
   color: var(--texte);
 }
-.parcours-premier-projet .corps-d-etape .attendu {
-  font-size: var(--taille-intertitre);
+.parcours-premier-projet .phrase {
+  margin: 0;
+  color: var(--texte);
 }
-.parcours-premier-projet .gestes {
+.parcours-premier-projet .choix-de-station {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.parcours-premier-projet .choix-de-station > li {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+}
+.parcours-premier-projet .dit {
+  color: var(--discret);
+}
+.parcours-premier-projet .gestes,
+.pret-du-projet {
   display: flex;
   align-items: center;
   gap: var(--pas-2);
   margin: 0;
+  padding: 0;
 }
-.parcours-premier-projet .gestes > span:not(.action):not(.survol) {
-  color: var(--discret);
+.pret-du-projet .phrase {
+  font-weight: 600;
+  color: var(--texte);
 }

@@ -32,7 +32,8 @@ import {
   LECTURE,
   OUVRIR_UN_PROJET,
   ouvertureDe,
-  PAR_UN_DOSSIER,
+  PAR_SES_DEPOTS,
+  BIENVENUE,
   poserPremierLancement,
   REESSAYER,
   RELIRE,
@@ -43,7 +44,6 @@ import {
   type GestesDuPremier,
 } from "../../src/vue/premier-lancement.js";
 import { connecteEnTantQue, SE_CONNECTER } from "../../src/vue/parcours-projet/compte.js";
-import { BIENVENUE, TITRE } from "../../src/vue/parcours-projet/parcours.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -86,7 +86,7 @@ const echecDuClone = (erreurs: string, action = false): Extract<Ouverture, { sta
   return { state: "failed", project: "parade", repository: "benomite/parade", ...echec, ...(action ? { action: connexionGitHub("gh") } : {}) };
 };
 
-// Les cartes des stations — le parcours d'ajout, en tête, en est une autre.
+// Les cartes des stations.
 const cartes = (ecran: Faux) => ecran.dessous("section").filter((carte) => carte.className.split(" ").includes("station-du-chef"));
 
 function unEcran(etat: Partial<EtatDuPremier> = {}) {
@@ -98,12 +98,11 @@ function unEcran(etat: Partial<EtatDuPremier> = {}) {
     relireLeCompte: () => void faits.push("relire le compte"),
     relire: () => void faits.push("relire"),
     ouvrirLaPage: (url) => void faits.push(`page ${url}`),
-    ajouterUnDossier: () => void faits.push("ajout"),
-    ouvrirUnDossier: (dossier) => void faits.push(`dossier ${dossier}`),
+    ajouterUnProjet: () => void faits.push("ajout"),
   };
   const ecran = poserPremierLancement(doc, { poste: "this computer", ...etat }, gestes) as Faux;
   const bouton = (texte: string) => ecran.dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${ecran.dessous("button").map((b) => b.textContent).join(", ")}`);
-  // La phrase des stations, sous le parcours d'ajout.
+  // La phrase des stations, sous le compte.
   const tete = () => ecran.dessous("h3")[0] ?? assert.fail("pas de phrase des stations");
   const station = (nom: string) => cartes(ecran).find((carte) => carte.ariaLabel === nom) ?? assert.fail(`pas de station « ${nom} »`);
   return { ecran, faits, bouton, tete, station };
@@ -262,25 +261,25 @@ describe("les stations ne se lisent pas : la raison en une phrase, jamais un éc
     assert.equal(unEcran().tete().textContent, LECTURE);
   });
 
-  test("dans chaque état, l'ajout par un dossier reste à un clic, sous le reste", () => {
+  test("dans chaque état, l'écran « Add a project » reste à un clic, sous le reste", () => {
     for (const stations of [undefined, LISTEES, SANS_COMPTE, SANS_GH]) {
       const { ecran, bouton, faits } = unEcran(stations === undefined ? {} : { stations });
       assert.ok(ecran.textContent.trim() !== "");
-      assert.equal(ecran.children.at(-1)?.dessous("button")[0]?.textContent, PAR_UN_DOSSIER);
-      bouton(PAR_UN_DOSSIER).click();
+      assert.equal(ecran.children.at(-1)?.dessous("button")[0]?.textContent, PAR_SES_DEPOTS);
+      bouton(PAR_SES_DEPOTS).click();
       assert.deepEqual(faits, ["ajout"]);
     }
   });
 });
 
-describe("le premier lancement : le parcours d'ajout en tête, avec sa phrase d'accueil — le compte n'est jamais tapé", () => {
-  test("le parcours d'ajout ouvre l'écran, sa phrase d'accueil d'abord ; le compte connecté se dit dans son étape", () => {
+describe("le premier lancement : sa phrase d'accueil, puis le compte — jamais tapé, et aucun bloc d'étapes (#3181)", () => {
+  test("la phrase d'accueil ouvre l'écran ; le compte connecté se dit dessous ; ni étapes numérotées, ni « Your GitHub account »", () => {
     const { ecran } = unEcran({ stations: LISTEES, compte: { login: "chef" } });
-    const parcours = ecran.children[0] ?? assert.fail();
-    assert.equal(parcours.ariaLabel, TITRE);
-    assert.equal(parcours.dessous("p")[0]?.textContent, BIENVENUE);
-    assert.equal(parcours.dessous("h2")[0]?.textContent, TITRE);
-    assert.ok(parcours.dessous("p").some((pose) => pose.textContent === connecteEnTantQue("chef")));
+    assert.equal(ecran.children[0]?.textContent, BIENVENUE);
+    const compte = ecran.children[1] ?? assert.fail();
+    assert.ok(compte.dessous("p").some((pose) => pose.textContent === connecteEnTantQue("chef")));
+    assert.deepEqual([...ecran.dessous("ol"), ...ecran.dessous("li")], []);
+    assert.doesNotMatch(ecran.textContent, /Your GitHub account|Add a project/);
   });
 });
 
@@ -322,13 +321,14 @@ describe("le premier lancement demande le projet de qui l'ouvre, sans rien de pr
     assert.deepEqual(connecte.faits, ["ouvrir  parade someone/parade"]);
   });
 
-  test("un chemin de dossier part à l'écran d'ajout, tel quel", () => {
+  test("un chemin de dossier n'est pas un dépôt : aucun dossier n'est demandé ni pris (#3181), la phrase le dit et rien ne part", () => {
     for (const chemin of ["/work/thing", "~/code/thing", "./thing", "C:\\code\\thing"]) {
-      const { ecran, bouton, faits } = unEcran();
+      const { ecran, bouton, faits } = unEcran({ compte: { login: "chef" } });
       const projet = champs(ecran)[0];
       taper(projet, chemin);
       bouton(OUVRIR_CE_PROJET).click();
-      assert.deepEqual(faits, [`dossier ${chemin}`]);
+      assert.deepEqual(faits, [], chemin);
+      assert.equal(ecran.dessous("p").find((p) => p.className === "refus-champ")?.textContent, PROJET_ILLISIBLE.replaceAll("`", ""), chemin);
     }
   });
 
@@ -383,7 +383,6 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     parade.click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirDUneStation"), ["parade", "benomite/parade"]);
-    assert.equal(vue.appels.some(({ geste }) => geste === "choisirDossier"), false);
     const etape = () => vue.element("tous").dessous("p").find((pose) => pose.className === "ouverture")?.textContent;
     assert.equal(etape(), ouvertureDe("parade"));
     // Chaque étape du runtime se dit à sa place ; celle d'un autre dépôt n'y touche pas.
@@ -467,9 +466,9 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     assert.equal(vue.element("tous").dessous("p").find((pose) => pose.className === "ouverture")?.textContent, ouvertureDe("parade"));
   });
 
-  test("« T » mène à « Tous les projets », « + » à l'ajout par un dossier — comme avant", async () => {
+  test("« T » mène à « Tous les projets », le bouton du bas à l'écran « Add a project »", async () => {
     const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => LISTEES, espace: () => [] });
-    (vue.element("tous").dessous("button").find((bouton) => bouton.textContent === PAR_UN_DOSSIER) ?? assert.fail()).click();
+    (vue.element("tous").dessous("button").find((bouton) => bouton.textContent === PAR_SES_DEPOTS) ?? assert.fail()).click();
     await repos();
     assert.equal(vue.element("ajout").hidden, false);
     (vue.poses().find((pose) => pose.id === "entree-tous") ?? assert.fail()).click();

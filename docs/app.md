@@ -303,12 +303,12 @@ Open one of your projects on this PC: one click, no folder to choose.
   [brigade]
 ● parade-box   online
   [brigade] [parade] [cantine]
-[add a project from a folder instead]
+[pick one of your repositories instead]
 ```
 
 - **A project opens in one click, with no folder to choose.** The runtime's operation
   (`runtime/src/projets/copie-locale.ts`, #1429) reuses a copy that already exists, or clones the
-  repository into the folder the app manages (`~/.local/share/brigade/projects/<name>`, or
+  repository into the folder the app manages (`~/Brigade/<name>`, or
   `BRIGADE_PROJECTS_DIR`). Each of its steps is said under the station, in its sentence —
   `Cloning benomite/parade into … — 42%.` —, and the other projects wait: one clone at a time.
   Opened, the project enters the projects file with its repository and the branch its origin points
@@ -317,8 +317,8 @@ Open one of your projects on this PC: one click, no folder to choose.
   benomite/parade, so it cannot be cloned: …` —, under its station; what `gh` and `git` wrote is in
   the `?` hover. A button opens the page that lifts it when the runtime names one (`get Git`,
   `open the page on GitHub`), and `try again` replays it.
-- **When this computer is not signed in to GitHub**, the account step of the add-a-project path (below)
-  shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the runtime's
+- **When this computer is not signed in to GitHub**, the account, at the head of the screen under the welcome sentence
+  `Welcome to brigade. Add the first project its kitchen will cook.`, shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the runtime's
   sign-in action (`gh auth login --web`), without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
   GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
   the stations are read again; a clone that was held for want of an account starts again by itself.
@@ -328,13 +328,13 @@ Open one of your projects on this PC: one click, no folder to choose.
   lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
   what to do. The screen is never blank.
 - **The screen asks for your project, never for your account** (#1540, #2475): under the stations' sentence,
-  one empty field, `The project to work on` (`owner/repo, or the path of a folder on this computer`), and
-  `open this project`. An `owner/repo` (or a `github.com` address) is cloned by the runtime; a bare name is
-  completed with the account the path says connected, and with none a sentence says so and nothing starts; a
-  folder path opens **Add a project**, already filled. What was typed is kept between two renderings. No
-  default names the chef's machines or projects.
-- **A folder you already have** is still one click away: `add a project from a folder instead`,
-  or the **+** at the foot of the bar, open **Add a project**. **T** opens All projects.
+  one empty field, `The project to work on` (`owner/repo`), and `open this project`. An `owner/repo` (or a
+  `github.com` address) is cloned by the runtime; a bare name is completed with the account the screen says
+  connected, and with none a sentence says so and nothing starts; a folder path is not a repository, and the
+  sentence says so (#3181: no folder is asked for). What was typed is kept between two renderings. No default
+  names the chef's machines or projects.
+- **Your repositories** are one click away: `pick one of your repositories instead`, or the **+** at the foot of
+  the bar, open **Add a project** (below). **T** opens All projects.
 
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
 `app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
@@ -361,7 +361,7 @@ word for it:
 With nothing served in 24 h either, the step says so and outlines the column where it would happen. Until the rail is
 read, the steps that need an example say `Reading the rail…`, and follow the next reading. Each step has `next` and
 `skip the tour`; the last has a single call to action, `add your own project`, which opens **Add a project** (the
-project added there opens the guided path of a first own project, #3166, below).
+project picked there opens on its page, which asks what is left before it is ready: #3166, below).
 
 **The tour is shown once.** Started, it leaves a mark in the view's storage (`brigade.visite`): on later launches,
 whether it was finished, skipped or left halfway, nothing is added again and the tour does not start — even if
@@ -377,102 +377,103 @@ lands, the add goes through it.
 (`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
 Captures: `docs/captures/3165/`.*
 
-### Your first own project: a guided path, station then setup (#3166, epic #3164)
+### Add a project: pick a repository, one click opens it (#3181)
 
-When you add, by its folder, **a first project your GitHub account can write to**, the app does not leave you on the
-recap of **Add a project**: the project's space opens on a guided path, a card at the top of the space, under its menu —
-the rail stays under it, the second on the right. Its steps, numbered and marked like those of the add path:
-
-| Step | What it says | Its gesture |
-|---|---|---|
-| The station that cooks it | `This computer will cook the tickets of <owner/repo>; other stations — a server, another computer — can be added later, from the Stations tab.` | one button, `add this computer`: this computer's station serves the repository, by the gesture of the add path's station step and of **Add a station** (`servirUnProjet`) |
-| Its setup for Brigade | only when the project is not set up yet (the reading of #2628, `checkRepoSetup`): what is awaited, and from whom — below | the button of the state, if any |
-| Ready | the add path's recap: the project, its station, `Next: the kitchen takes the first ticket you label fire.` | `close` |
-
-A project already set up skips the setup step: once the station is added, the path goes to Ready. While the setup step
-is open, the notice of a project not set up (`Set up for Brigade`, #2628) is not laid on the project: the step alone says
-what happens. Each state of the setup step says in one sentence what is awaited and from whom:
-
-| State | What the step says | Read from |
-|---|---|---|
-| reading | `Reading whether <owner/repo> is set up for Brigade… Nothing is awaited from you.` | `checkRepoSetup` not answered yet |
-| unreadable | `Whether <owner/repo> is set up for Brigade could not be read. Waiting for you to try again.`, the reason on hover, `Try again` | `checkRepoSetup` failed — it is never taken for set up |
-| the second starts | `Waiting for the second to start: it reads your repository first, in its column.` | the second's terminal has no title yet |
-| the second reads | `The second is reading your repository and preparing the setup. Nothing is awaited from you yet.` | the title `claude` gives its terminal starts with a working sign (`◐`…), as `app/src/saisie.ts` reads it |
-| you answer | `Waiting for you to answer the second, in its column: it asks only what reading your repository could not settle.` | the title starts with `✳` (at its prompt), or the second proposes choices or a gesture (#1520, #1521) |
-| you merge | `Waiting for you to merge the setup pull request: its card is in Awaiting you.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
-| the second cannot start | `The second could not start: its column says why. Waiting for you to set the project up from here instead.`, `Set up for Brigade` | the second's terminal says it cannot start (#1435) |
-| set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
-
-The setup is re-read at each reading of the project's rail while it is not set up: once the setup pull request is merged,
-the next reading says it is (#3170), and the path moves to Ready.
-
-**What opens the path.** The add is decided by the project's first reading, the one that says whether this computer's
-GitHub account can write to its repository (`lectureSeule`, #3163). Until it arrives, **Add a project** stays as it was,
-`Who cooks this project?` included; a reading that fails decides nothing, the next one does. The path does not open when
-the reading says the account cannot write (the project opens read-only, #3163), nor when another project of the file is
-already your own — the one the tour adds (benomite/brigade, #3165) and those read read-only do not count. A station chosen
-on **Add a project** before the reading arrived is kept: the path starts at the step after it. The path is held while the
-app runs; it is not written anywhere.
-
-*Code: `app/src/vue/parcours-premier-projet/` (the path, its states, its card), its wiring in `app/src/vue/vue.js`
-(`suivreLePremierProjet`, `poserLePremierProjet`). Tests: `app/test/parcours-premier-projet/`. Captures:
-`docs/captures/3166/`.*
-
-### One add-a-project path, on first launch and on Add a project (#2475, epic #2473)
-
-The first-launch screen and **Add a project** (the **+** at the foot of the bar) mount **the same path**:
-the same card, the same steps, the same words. First launch only adds its welcome sentence,
-`Welcome to brigade. Add the first project its kitchen will cook.`, above it.
+**Add a project** (the **+** at the foot of the bar, or the button of the Projects block) does one thing: pick the
+repository. There is no block of steps, no account to choose — switching account lives in the station's settings
+(`change account`, under Connections) —, no folder, no integration branch, and no mention of the projects file.
 
 ```
 Add a project
-1  Your GitHub account   done
-   Connected to GitHub as benomite.
-   [switch GitHub account]
+Pick the repository of your project.
+[search your repositories        ]
+[chef/parade]
+[atelier-org/cantine]
+[chef/calculus]
+[or paste a public repository: its GitHub link, or owner/name] [add]
 ```
 
-- **The account step** says the account this computer's `gh` is connected to, `Connected to GitHub as
-  <login>.`, read by the main process (`gh api user --jq .login`, the question the runtime already asks a
-  station's `gh`; a failure is read by the runtime's `echecDeGh`). **No field asks for a GitHub login**,
-  anywhere in the path.
-- **With no account connected**, the step shows one button, `connect to GitHub`, and nothing else to fill
-  in. Clicked, it runs the same sign-in as everywhere (`gh auth login --web`): the code to type, `open the
-  GitHub page again`. Signed in, the account is read again and the step says it.
-- **`switch GitHub account`**, under a connected account, signs in with another account the same way (its
-  hover says so); at the end — signed in, or not — the step reads the account again.
-- **When the account cannot be read** — no `gh`, no network —, the step says why in one sentence, the detail
-  in the hover, with the page that lifts it (`get the GitHub CLI`) and `read again`. On first launch the
-  stations' gestures then do not offer the same page a second time.
-- **The steps** are numbered, each with its state — `done`, `now` (under the accent line), `to come` — like
-  the commissioning path of a new project. One file per step, under `app/src/vue/parcours-projet/`; the next
-  steps (the project to pick, the recap) are registered in `ETAPES` (`parcours.js`). For now the project
-  is added under the path: first launch keeps its stations and its project field, and **Add a project**
-  keeps its folder form, `Add a project from a folder`.
-- **The station step** (#2477), after the account: `The station that cooks it`. Until a project is added it
-  says one line, `Once the project is added, pick here who cooks it.` Once **Add to the app** has added
-  one, the screen stays on the path and asks **`Who cooks this project?`**: **this computer first**, as
-  the recommended button (its hover: it stops when you close the app), then `or one of your stations:` —
-  the stations paired with your account, one per machine, by name, each `online` or `offline` (an
-  offline one takes the project once it is back, on hover). With no paired station, only this computer
-  is offered; when the stations cannot be read, one line says so and this computer is still offered.
-  One click gives the project to the machine, by the gestures the app already makes — this computer's
-  station serves it as its Settings box does (`servirUnProjet`), a paired station gets it in its
-  selection as its box on the home screen does (`choisirLesProjets`) —, then the project's page opens. A
-  refusal stays in the step, in one line, its detail on hover, and nothing moves.
+- **The list** is the repositories of this computer's GitHub account, its own and its organisations', most recently
+  pushed first (`gh api /user/repos?affiliation=owner,collaborator,organization_member&sort=pushed`, neither archived
+  nor forks — `app/src/projets/github.ts`), read again each time the screen opens. The search field filters it,
+  regardless of case; nothing is typed to pick one of yours.
+- **One click on a repository** opens it as a station's project opens on first launch (above): the runtime reuses a
+  copy that already exists — the folder the projects file already gives the project, or the one the app manages —, or
+  clones it into the folder the app manages (`~/Brigade/<name>`, or `BRIGADE_PROJECTS_DIR`). The
+  project enters the projects file — the left column — under the repository's name, in lower case, and its page opens:
+  the screen is left as soon as the project is there. A fresh clone is said in one line over the page, `Cloned into
+  ~/Brigade/<name>` (the home folder written `~`), until `Got it`. The folder can be changed later: the project's
+  `dossier` in the projects file, which the app re-reads as soon as it changes. While it runs, the clone's step is said under the list and no other repository can be
+  picked; a failure says why in the runtime's sentence, with `Try again`, and the screen stays.
+- **The integration branch** is the repository's default branch as GitHub gives it in the list (or in the read of a
+  pasted repository) — it is not asked. It can be changed later in the project's Settings (`Integration branch`).
+- **A public repository you do not belong to** is pasted, as its GitHub link (`https://github.com/owner/name`, with
+  or without `.git` or a page behind it) or as `owner/name`, then `add` (or Enter): it is read on GitHub
+  (`gh api /repos/<owner>/<name>`) for its default branch, then opened the same way. What is not a repository, or what
+  GitHub does not return (`… was not found on GitHub, or it is private`), is said under the field — after the gesture,
+  never before.
+- **Nothing is said in red before a gesture.** With no account connected, the screen has one sentence, `Connect to
+  GitHub to pick one of your repositories.`, and the `connect to GitHub` button; signed in, the repositories are read
+  again. An account that cannot be read says why, with `read again`. A list that cannot be read says `Your repositories
+  not reached.`, the detail on hover, with `read again`; pasting stays possible.
+- **On the phone**, which adds no project, the screen says one line: `A project is added from a computer, and this phone
+  reads it from GitHub.`
 
-```
-2  The station that cooks it   now
-   Who cooks this project?
-   [this Mac] ?
-   or one of your stations:
-   [atelier] offline ?
-   [parade-box] online
-```
+Who cooks the project is asked on its page (below, #3166; later, the Stations tab, `Add a station`), not on this screen.
 
-*Code: `app/src/vue/parcours-projet/` (the path, its steps, the sign-in brick shared with the published rail
-and the account's stations), `app/src/connexion-github.ts` (`lireLeCompteGitHub`). Captures:
-`docs/captures/2475/`, `docs/captures/2477/`.*
+A newcomer signed in to GitHub is in their new project's page two clicks after opening **Add a project**: the **+**,
+then the repository (`app/test/parcours-projet-bout-en-bout.test.ts` plays it on the view).
+
+*Code: `app/src/vue/parcours-projet/ajout.js` (the screen), its wiring in `app/src/vue/vue.js` (`ouvrirAjout`,
+`lireLesDepotsDeLAjout`, `choisirLeDepot`, `collerUnDepot`), `app/src/premier-lancement.ts` (`ouvrirDUneStation`:
+the copy, then the projects file, with the branch GitHub gave), `app/src/vue/parcours-projet/compte.js` (the account,
+`app/src/connexion-github.ts`).*
+
+### A project not ready yet: one question at a time on its page (#3166, epic #3164)
+
+A repository picked on **Add a project** opens on its page (#3181). Until the project is ready, that page shows, **in
+the rail's place, one question at a time**, under a line that says where you are — `1 of 2: who cooks it`, `2 of 2: its
+setup for Brigade`. Nothing else competes with it: while a question is asked, the project's menu, its kitchen switch, its
+bands and the centre are not laid (`main[data-parcours]`, `parcours-premier-projet.css`); the header keeps the project's
+name, and the second stays on the right.
+
+| Question | Asked when | What it says | Its gesture |
+|---|---|---|---|
+| Who cooks it — `Who cooks <owner/repo>?` | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | the recommended choice first, with one sentence: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`) | one button per choice, the recommended one first and set apart; an offline station says so beside it. One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of `Add a station` — and the page moves on. A refusal is said in one line, its detail on hover |
+| Its setup for Brigade — `<owner/repo> is being set up for Brigade` | the project is not set up yet (the reading of #2628, `checkRepoSetup`) | what is awaited, and from whom — below | the button of the state, if any |
+
+The line counts only the questions the project has: one already set up, or already cooked by a station, shows `1 of 1`.
+Until the setup is read, the count is not said (`Who cooks it`). No question is shown as done for something you did not
+do, nor announced for something with nothing to do. While the setup question is asked, the notice of a project not set
+up (`Set up for Brigade`, #2628) is not laid: the question alone says what happens. The second does the setup in its
+column on the right (#3164); each state says in one sentence what is awaited and from whom:
+
+| State | What the page says | Read from |
+|---|---|---|
+| reading | `Reading whether <owner/repo> is set up for Brigade… Nothing is awaited from you.` | `checkRepoSetup` not answered yet |
+| unreadable | `Whether <owner/repo> is set up for Brigade could not be read. Waiting for you to try again.`, the reason on hover, `Try again` | `checkRepoSetup` failed — it is never taken for set up |
+| the second starts | `The second is starting, in its column on the right: it reads your repository first. Nothing is awaited from you yet.` | the second's terminal has no title yet |
+| the second reads | `The second is reading your repository, in its column on the right. Nothing is awaited from you yet.` | the title `claude` gives its terminal starts with a working sign (`◐`…), as `app/src/saisie.ts` reads it |
+| you answer | `The second is waiting for your answer, in its column on the right.` | the title starts with `✳` (at its prompt), or the second proposes choices or a gesture (#1520, #1521) |
+| you merge | `The setup pull request is waiting for your merge: its card is in Awaiting you.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
+| the second cannot start | `The second could not start: its column says why. Waiting for you to set the project up from here instead.`, `Set up for Brigade` | the second's terminal says it cannot start (#1435) |
+| set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
+
+The setup is read again at each reading of the project's rail while it is not set up: once the setup pull request is
+merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and a single line above it offers
+the next step: `<owner/repo> is ready.`, `write its first ticket with the second` — which writes the request in the
+second, without Enter, and shows it on the right — and `close`. That line comes only when you answered a question; a
+project that had nothing left to do opens on its rail.
+
+**What opens it.** The project's first reading decides, the one that says whether this computer's GitHub account can
+write to its repository (`lectureSeule`, #3163): a project you cannot write to shows none of this and opens read-only; a
+reading that fails decides nothing, the next one does. Write access lost on the way closes it the same way. Only a
+repository picked on **Add a project** opens it, and it is held while the app runs: it is not written anywhere, and a
+project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
+
+*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states, the ready line), its wiring in
+`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`, `ecrireLePremierTicket`). Tests:
+`app/test/parcours-premier-projet/`. Captures: `docs/captures/3166/`.*
 
 ### The age of the rail is always on screen (#2054)
 
@@ -1050,20 +1051,14 @@ exact command, in full, is read on hovering the button, and again in the confirm
 ### From the app
 
 Once the file has a project, adding another is the **+**, at the foot of the bar, which opens
-**Add a project**. Adding a project is **declaring it in the app**: its folder, its repository and its branch, and
-nothing else. No station is asked and no machine is reached; the project enters the projects file, has its tab and
+**Add a project**: a repository picked, one click (see "Add a project: pick a repository, one click opens it", above).
+Adding a project is **declaring it in the app**: its folder — the copy found or cloned —, its repository and its branch,
+and nothing else. No station is asked and no machine is reached; the project enters the projects file, has its tab and
 its line on "All projects", and that is all. Entrusting its kitchen to a station is another gesture, from the project's
 page, when you decide it (see "Add a project to your stations, without a terminal").
 
-| What you give | How |
-|---|---|
-| **Its folder on this workstation** | `Choose…` opens the Mac's folder picker: it is not typed |
-| **Its GitHub repository** | `<owner>/<name>`, with no address and no `.git`. The app reads it from the origin of the chosen folder (`git remote get-url origin`) and proposes it; correct it if it is not the right one. With no readable github.com origin, the field tells you so and stays to be written |
-| **Its integration branch** | the branch the kitchen delivers to. The app reads the one the clone's origin points to (`git rev-parse --abbrev-ref origin/HEAD`) and proposes it; without one, the field says so and stays to be written |
-
-The project's name is taken from its repository. **Nothing is guessed, and nothing goes while a field is missing**: a
-missing or malformed field is flagged with its reason, and nothing is written. A project the file would refuse —
-`Not added — two projects are called "brigade"`, `folder not found: …` — is refused with its reason on screen.
+The project's name is taken from its repository. A project the file would refuse — `two projects are called
+"brigade"` — is refused with its reason on screen, and the screen stays.
 
 - **The app writes only the project added** — then its two colors, drawn for it (see "A project's colors"). What else
   you put in the file stays there — but it is rewritten in full, indented by two spaces: a layout of your own does not
@@ -1318,8 +1313,8 @@ THIS COMPUTER'S STATION
 *waiting for the chef*, *held* and *idle*, then what is going on in one sentence (the line `accueil.ts` already says),
 and, when the chef is expected, an `N awaiting you` pill (`attend` of the line); the stations that serve it are in the
 name of the line, not on its face. One click on the line opens the project. "Add a project" sits at the right of the
-title (as `Home.dc.html` draws it, #2912) and opens the single guided path (`parcours-projet/`), the same as the "+" in
-the bar. An empty list says "no project yet".
+title (as `Home.dc.html` draws it, #2912) and opens **Add a project** (`parcours-projet/ajout.js`), the same as the
+"+" in the bar. An empty list says "no project yet".
 
 **Where it comes from** (`app/src/accueil.ts`). The home asks nothing new of anyone: it is drawn
 from what the app already reads. `facts` of each project, every thirty seconds and whatever the

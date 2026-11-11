@@ -109,7 +109,7 @@ export function tenirConnexionGitHub(options: OptionsConnexion): () => Promise<D
   };
 }
 
-// Le compte GitHub que ce `gh` tient (#2475, épique #2473) : l'étape du compte du parcours d'ajout le dit, « Connected to
+// Le compte GitHub que ce `gh` tient (#2475, épique #2473) : le premier lancement et « Add a project » le disent, « Connected to
 // GitHub as … », sans que le chef ait rien à taper. La question est celle que le runtime pose déjà au `gh` d'une station
 // (`gh api user --jq .login`, runtime/src/projets/echec-du-clone.ts) ; son échec se lit par le runtime (`echecDeGh`,
 // runtime/src/appairage/stations-du-chef.ts) — un `gh` sans compte n'est pas une panne, c'est l'étape à faire.

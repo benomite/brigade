@@ -22,6 +22,7 @@
     "switch": "node src/interrupteur-cli.ts",
     "manager": "node src/manager-cli.ts",
     "waiting": "node src/attente-cli.ts",
+    "design": "node src/design-cli.ts",
     "report": "node src/rapport-cli.ts",
     "guardrails": "node src/garde-fous-cli.ts",
     "base": "node src/base-cli.ts",
