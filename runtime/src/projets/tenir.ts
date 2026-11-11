@@ -202,7 +202,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const fichier = join(racine, CONFIGURATION);
   const gh = env.BRIGADE_GH_BIN || "gh";
   const autoriser = options.autoriser ?? ((depot: string) => verifierAutorisation(env, depot));
-  const clonerLe = options.cloner ?? ((depot: string, clone: string) => clonerEnReparant({ gh, depot, clone }));
+  const clonerLe = options.cloner ?? ((depot: string, clone: string) => clonerEnReparant({ gh, depot, clone, env: { ...process.env, ...env } }));
   const enqueterLe = options.enqueter ?? ((depot: string) => enqueter({ gh, depot, env: { ...process.env, ...env } }));
   const verifierLAcces = options.verifierAcces ?? ((projet: ProjetResolu, clone: string) => verifierAcces({ station, depot: projet.depot, base: projet.base, clone, env: { ...process.env, ...env } }));
   const ouvrirLe =
@@ -290,6 +290,11 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // revérifie à chaque cadence, et le sert dès que le geste est fait.
     const acces = await verifierLAcces(resolu, cloneDe(projet.nom));
     if (acces.etat === "injoignable") return suivi("en-preparation", `the station could not check that it may fetch and push on ${projet.depot}; it retries every ${Math.round((options.cadenceMs ?? CADENCE_MS) / 1000)} s — ${acces.dit}`);
+    // Une panne de son clone n'est pas un accès refusé : dite pour ce qu'elle est, la station réessaie.
+    if (acces.etat === "clone") {
+      direUneFois(`clone-en-panne ${projet.nom} ${acces.dit}`, `brigade : station — ${projet.nom} n'est pas encore servi, son clone est en cause, pas son accès : ${acces.dit}`);
+      return suivi("en-preparation", `${acces.dit}; the station retries every ${Math.round((options.cadenceMs ?? CADENCE_MS) / 1000)} s`);
+    }
     if (acces.etat === "bloque") {
       const { bloque, raison, geste } = acces;
       direUneFois(`acces ${projet.nom} ${raison} ${geste}`, `brigade : station — ${projet.nom} n'est pas servi, son dépôt refuse le ${bloque} : ${raison} Geste : ${geste}`);

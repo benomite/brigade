@@ -4,7 +4,7 @@
 // (`../aides/depot-qui-refuse.ts`). Aucun réseau.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { lireLeRefus, verifierAcces, type Acces } from "../../src/projets/acces.ts";
+import { lireLaPanneDuClone, lireLeRefus, verifierAcces, type Acces } from "../../src/projets/acces.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { BASE, depotGit, ENV_GIT, git, portsFermesALInstant, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
@@ -109,6 +109,24 @@ test("par ssh : une clé refusée, ou un hôte inconnu, ont chacun leur geste", 
   const inconnu = refus("fatal: protocol error: bad line length 1234");
   assert.match(inconnu?.raison ?? "", /\(git: protocol error: bad line length 1234\)\.$/);
   assert.match(inconnu?.geste ?? "", /`git -C \/clones\/shop ls-remote origin`/);
+});
+
+test("#3197 : un clone sans commit, d'un dépôt vide : le push à blanc échoue chez lui — ce n'est pas un refus d'écriture, la panne du clone est dite", async (t) => {
+  const vide = `${repertoireTemporaire(t)}/vide.git`;
+  git(repertoireTemporaire(t), "init", "-q", "--bare", "-b", "main", vide);
+  const clone = `${repertoireTemporaire(t)}/clone`;
+  git(repertoireTemporaire(t), "clone", "-q", vide, clone);
+  const acces = await verifier(t, clone);
+  assert.equal(acces.etat, "clone");
+  if (acces.etat !== "clone") return;
+  assert.equal(acces.dit, "box could not check that it may push to acme/shop: its clone has no commit to push yet — the repository was empty when it was cloned, or still is (git: src refspec HEAD does not match any); this is not an access refusal");
+  assert.doesNotMatch(acces.dit, /no write access/);
+});
+
+test("#3197 : les pannes du clone se lisent pour ce qu'elles sont ; un refus du dépôt n'en est pas une", () => {
+  assert.match(lireLaPanneDuClone("error: src refspec HEAD does not match any\nerror: failed to push some refs to 'https://github.com/acme/shop.git'") ?? "", /has no commit to push yet/);
+  assert.equal(lireLaPanneDuClone("error: object file .git/objects/ab/cdef is empty\nfatal: loose object abcdef (stored in .git/objects/ab/cdef) is corrupt"), "its clone is damaged");
+  assert.equal(lireLaPanneDuClone("remote: Permission to acme/shop.git denied to box.\nfatal: unable to access 'https://github.com/acme/shop.git/': The requested URL returned error: 403"), null);
 });
 
 test("acces.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
