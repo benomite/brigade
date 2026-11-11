@@ -376,6 +376,26 @@ lands, the add goes through it.
 (`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
 Captures: `docs/captures/3165/`.*
 
+### Coming back after some days: "Since you were away" (#3305)
+
+*Ticket: #3305 (builds on #3251 and #3213).* **When the chef opens the app more than 3 days (72 hours) after the previous
+opening, a "Since you were away" screen is shown first, before any other screen.** At exactly 3 days or less it is not
+shown, and neither is it on the very first launch (no stored date). The date of the last opening is kept in the view's
+storage (`brigade.derniere-ouverture`) and rewritten at every opening, once the decision is taken: closed, the screen does
+not come back until another gap of more than 3 days. A storage that cannot be read shows nothing.
+
+For each project that is read on this computer, the screen lists what was served during the away period — the lines of its
+weekly summaries whose week reaches into the absence, worded by the summary itself (`runtime/src/resume-hebdomadaire/resume.ts`,
+nothing is reworded in the app) — and what waits for the chef, with its count: the cards of `lesCartesDuChef`, the list the
+app already treats as awaiting the chef. The autonomy figures of those weeks are shown when the summaries carry them; when
+they do not, the block is not there at all. One button closes the screen: when something waits it reads "See what is waiting
+for you" and opens the project holding it (at a phone's width, the list of cards of the home page); when nothing waits it reads
+"Close" and lands on "All projects".
+
+*Code: `app/src/vue/absence/absence.js` and its wiring in `app/src/vue/vue.js` (`poserLAbsence`); the autonomy list is
+`chiffresDeLAutonomie` of `resume-hebdomadaire.js`. Tests: `app/test/absence/`. Captures: `docs/captures/3305/` (the screen is
+new: there is no "before").*
+
 ### On first launch: try on a sample project (#3227, epic #3217)
 
 Next to `open this project`, the first-launch screen offers **`try on a sample project`**. One click creates a small

@@ -58,6 +58,32 @@ export const semaineDite = ({ weekStart, weekEnd }) => `Week of ${weekStart} to 
 const pourcent = (part) => (part === null ? "unknown" : `${Math.round(part * 100)} %`);
 
 /**
+ * Les trois chiffres d'autonomie d'une semaine, en liste — ceux de la page des résumés, que l'écran « since you were away » reprend.
+ * @param {Fabrique} doc
+ * @param {NonNullable<Resume["autonomy"]>} a
+ */
+export function chiffresDeLAutonomie(doc, a) {
+  const chiffres = doc.createElement("ul");
+  chiffres.className = "autonomie";
+  for (const [nom, dit] of [
+    [SANS_HUMAIN, `${a.servedWithoutHuman} of ${a.tickets} (${pourcent(a.shareWithoutHuman)})`],
+    [DELAI, a.medianLeadTimeMs === null ? "unknown" : `${dureeEnClair(a.medianLeadTimeMs)} (median)`],
+    [RENVOI, `${a.sentBack} of ${a.tickets} (${pourcent(a.shareSentBack)})`],
+  ]) {
+    const li = doc.createElement("li");
+    const quoi = doc.createElement("span");
+    quoi.className = "nom";
+    quoi.textContent = nom;
+    const combien = doc.createElement("span");
+    combien.className = "valeur";
+    combien.textContent = dit;
+    li.append(quoi, combien);
+    chiffres.append(li);
+  }
+  return chiffres;
+}
+
+/**
  * Le bloc, son état, et `poser(projets)` qui le rend à jour — et lit chaque projet qui ne l'a pas été depuis dix minutes.
  * @param {Fabrique} doc
  * @param {{
@@ -262,27 +288,7 @@ export function tenirLesResumesHebdomadaires(doc, { lire, changerJour, publier, 
     article.append(tete);
     if (lu.themes.length === 0) article.append(ligneVide(doc, RIEN_SERVI));
     for (const theme of lu.themes) article.append(intertitre(theme.title), liste(theme.lines, "lignes"));
-    const a = lu.autonomy;
-    if (a !== undefined) {
-      const chiffres = doc.createElement("ul");
-      chiffres.className = "autonomie";
-      for (const [nom, dit] of [
-        [SANS_HUMAIN, `${a.servedWithoutHuman} of ${a.tickets} (${pourcent(a.shareWithoutHuman)})`],
-        [DELAI, a.medianLeadTimeMs === null ? "unknown" : `${dureeEnClair(a.medianLeadTimeMs)} (median)`],
-        [RENVOI, `${a.sentBack} of ${a.tickets} (${pourcent(a.shareSentBack)})`],
-      ]) {
-        const li = doc.createElement("li");
-        const quoi = doc.createElement("span");
-        quoi.className = "nom";
-        quoi.textContent = nom;
-        const combien = doc.createElement("span");
-        combien.className = "valeur";
-        combien.textContent = dit;
-        li.append(quoi, combien);
-        chiffres.append(li);
-      }
-      article.append(intertitre(AUTONOMIE), chiffres);
-    }
+    if (lu.autonomy !== undefined) article.append(intertitre(AUTONOMIE), chiffresDeLAutonomie(doc, lu.autonomy));
     article.append(intertitre(ATTENTE), lu.waiting.length === 0 ? ligneVide(doc, RIEN_N_ATTEND) : liste(lu.waiting, "attentes"));
     article.append(publication(projet, lu));
     return article;
