@@ -29,6 +29,7 @@ import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
 import { bouton } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { PAS_ENCORE } from "./lexique.js";
+import { tonDe } from "./onglet-stations/premiere-ligne.js";
 import { poele } from "./composants/poele/poele.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
@@ -359,6 +360,7 @@ export function poserLesStations(doc, { lignes, pastille, enCuisson = false, pla
       const etat = cree(doc, "span");
       etat.className = "etat";
       const atteinte = atteinteDe(rang);
+      atteinte.ton = tonDe(ligne, atteinte.ton);
       const joint = cree(doc, "span");
       joint.className = "pilule atteinte";
       joint.dataset.ton = atteinte.ton;
@@ -368,8 +370,9 @@ export function poserLesStations(doc, { lignes, pastille, enCuisson = false, pla
       if (ligne !== undefined) {
         const pilule = cree(doc, "span");
         pilule.className = "pilule";
-        if (ligne.ton !== undefined) pilule.dataset.ton = ligne.ton;
-        pilule.append(pastille(ligne.etat, ligne.ton), cree(doc, "strong", ligne.etat));
+        const tonDeLigne = tonDe(ligne, ligne.ton);
+        if (tonDeLigne !== undefined) pilule.dataset.ton = tonDeLigne;
+        pilule.append(pastille(ligne.etat, tonDeLigne), cree(doc, "strong", ligne.etat));
         pilule.title = ligne.survol;
         etat.append(pilule, ...(ligne.dit === "" ? [] : [cree(doc, "small", ligne.dit)]));
       }

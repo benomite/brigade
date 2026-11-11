@@ -17,13 +17,18 @@ export const CUIT_PAR = (noms) => `Cooked by ${noms.join(", ")}, online`;
 // Les mots d'une station qui prend les tickets du projet : elle cuit, attend le prochain, ou n'a plus de place mais tient les siens.
 const SERT = new Set(["cooking", "idle", "saturated"]);
 
-// Une station sert le projet quand elle dit l'un de ces mots et n'est pas dite hors d'atteinte par GitHub.
-/** @param {Pick<Ligne, "etat" | "presente">} ligne */
-export const sert = ({ etat, presente }) => SERT.has(etat) && presente !== false;
+// Une station sert le projet quand elle dit l'un de ces mots et n'est pas dite hors d'atteinte par GitHub. Au repos, il faut un
+// signe de vie lu : une distante dont rien ne dit qu'elle est là n'est pas dite en ligne (la cuisine locale se lit d'elle-même).
+/** @param {Pick<Ligne, "etat" | "presente" | "distante">} ligne */
+export const sert = ({ etat, presente, distante }) => SERT.has(etat) && (etat === "idle" ? presente === true || (presente === undefined && !distante) : presente !== false);
+
+// Le seul endroit où le vert se refuse : une station qui ne sert pas le projet ne porte pas de vert, atteinte ou non.
+/** @param {Pick<Ligne, "etat" | "presente" | "distante"> | undefined} ligne @param {string | undefined} ton */
+export const tonDe = (ligne, ton) => (ton === "vert" && (ligne === undefined || !sert(ligne)) ? "gris" : ton);
 
 /**
  * @param {Fabrique} doc
- * @param {{ lignes: readonly Pick<Ligne, "station" | "etat" | "presente">[], pastille: (mot: string, ton: string | undefined) => any, ouvrir: () => void }} options
+ * @param {{ lignes: readonly Pick<Ligne, "station" | "etat" | "presente" | "distante">[], pastille: (mot: string, ton: string | undefined) => any, ouvrir: () => void }} options
  */
 export function poserLaPremiereLigne(doc, { lignes, pastille, ouvrir }) {
   const noms = lignes.filter(sert).map(({ station }) => station);

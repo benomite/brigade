@@ -206,6 +206,18 @@ describe("deux stations du projet : chacune a sa ligne (#1289)", () => {
   });
 });
 
+describe("aucun vert dans l'onglet quand aucune station ne sert le projet (#3189)", () => {
+  test("une station locale arrêtée : « Nobody cooks this project », et nulle part de vert dans le rail", async () => {
+    const { vue } = await ouvrir([station("box/claude", { cuisson: "stopped", arreteeDepuis: ARRETEE })]);
+    await ouvrirOnglet(vue, "Stations");
+    const premiere = vue.element("rail").dessous("p").find(({ className }) => className === "premiere-ligne") ?? assert.fail("pas de première ligne");
+    assert.match(premiere.textContent, /^Nobody cooks this project:/);
+    assert.deepEqual(lignes(vue).map(etatDe), ["stopped"]);
+    const verts = [...vue.element("rail").descendants()].filter((e) => e.dataset.ton === "vert");
+    assert.deepEqual(verts.map((e) => e.className), []);
+  });
+});
+
 describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
   // Ce que le process principal rend des projets que les stations publient, l'accès au dépôt de parade bloqué.
   const ACCES = { bloque: "fetch" as const, raison: "parade-box cannot fetch from benomite/parade: github.com asks for a username (git: fatal: could not read Username).", geste: "Run `gh auth setup-git` on parade-box." };
