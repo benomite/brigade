@@ -921,7 +921,7 @@ repository, and the project opens read-only:
   something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
   to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
   that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
-  its humans, its contributing stations, the duration caps and the closer — is not laid.
+  its humans, its contributing stations, its recurring tickets, the duration caps and the closer — is not laid.
 - **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
   <owner/repo>.`, with two links: `how to get write access` (GitHub's page on inviting a collaborator: the owner invites
   you) and `fork it` (the repository's fork page on GitHub). The main process — on the phone, its bridge
@@ -2938,6 +2938,20 @@ detail on hover. The block is `app/src/vue/reglages-stations/`; it calls three b
 `accepterUneStationContributrice(project, station)`, each write answering `{ok}` or `{refus}`. The desktop app carries them to the
 runtime's `contributor-stations` command where the project's kitchen runs, in `app/src/stations-contributrices.ts`. A bridge
 without `listerLesStationsContributrices` (the phone) does not show the block.
+
+Under the contributor stations, the **recurring tickets** section (#3231, epic #3216) lists the project's recurring tickets
+(`recurring`, #3230) — one row each: its title, its rhythm in words (`every day`, `every week on Monday`, `every month on
+the 15th`) and `next` with the date of its next occurrence (`next Mon, Oct 19`, the year added when it is not this one); a
+paused one says `paused` and shows no date. Each row has two one-click gestures, with no confirmation: `pause` (or `resume`
+on a paused one) and `remove`. The row changes on what the runtime answers — paused, resumed with its next date, or gone;
+a refusal is one line on that row, the detail on hover, and the row stays as it was. With none, the section says `No
+recurring tickets yet.`; a list that cannot be read says `recurring tickets unavailable` in one line, the detail on hover.
+The section is `app/src/vue/recurrents/recurrents.js`; it calls two bridge methods — `listerLesRecurrents(project)` and
+`changerUnRecurrent(project, pause | resume | remove, id)`, a gesture answering `{recurrent}`, `{retire}` or `{refus}`. The
+desktop app carries them to the runtime's `recurring` command where the project's kitchen runs — `recurring`, `recurring
+pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vue/recurrents/recurrents-box.ts`; a project
+with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
+phone) does not show the section.
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown

@@ -24,6 +24,7 @@ import { tenirLesEssais } from "./essai.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
+import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -1471,6 +1472,16 @@ const ecrireUnHumain = async (nom: unknown, geste: { save: unknown } | { remove:
 };
 ipcMain.handle("enregistrerUnHumain", (_, nom: unknown, humain: unknown) => ecrireUnHumain(nom, { save: humain }));
 ipcMain.handle("retirerUnHumain", (_, nom: unknown, login: unknown) => ecrireUnHumain(nom, { remove: login }));
+// Les tickets récurrents du projet, sous Settings (#3231) : lus par `recurring` là où sa cuisine tourne, et chacun suspendu,
+// repris ou retiré par elle (vue/recurrents/recurrents-box.ts).
+ipcMain.handle("listerLesRecurrents", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesRecurrents(vise.nom, lu, lancerSurLaCuisine);
+});
+ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
+});
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributrices.ts).
 ipcMain.handle("listerLesStationsContributrices", (_, nom: unknown) => {
