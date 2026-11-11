@@ -55,6 +55,7 @@ import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { jouerLaRevue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { lireLAutonomieDuDepot, tenirLAutonomie } from "./vue/autonomie/autonomie-github.ts";
+import { changerLeJour, lireLeJour, lireLesResumes, publierLeResume, type ResumeHebdomadaire, type ResumesDuProjet } from "./vue/resume-hebdomadaire/resume-cuisine.ts";
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
@@ -1468,6 +1469,50 @@ const changerUneStation = (nom: unknown, geste: { refuse: unknown } | { accept: 
 };
 ipcMain.handle("refuserUneStationContributrice", (_, nom: unknown, station: unknown) => changerUneStation(nom, { refuse: station }));
 ipcMain.handle("accepterUneStationContributrice", (_, nom: unknown, station: unknown) => changerUneStation(nom, { accept: station }));
+// Les résumés hebdomadaires de la cuisine d'un projet (#3263, vue/resume-hebdomadaire/resume-cuisine.ts) : le jour du
+// résumé lu dans `projet.json` sur sa branche d'intégration, et changé par une pull request, par le jeton du `gh` de ce
+// poste ; les résumés lus par `report --week` là où sa cuisine tourne, par son passage, et publiés comme les notes d'une
+// version par `release-notes`. Seul un résumé que la dernière lecture a rendu se publie, et seule l'adresse d'un ticket
+// ou d'une release qu'elles ont rendue s'ouvre depuis l'écran.
+const resumesLus = new Map<string, ResumeHebdomadaire[]>();
+const liensDesResumes = new Set<string>();
+ipcMain.handle("lireLesResumesHebdomadaires", async (_, nom: unknown): Promise<ResumesDuProjet> => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  if (vise === undefined) {
+    const sans = { sans: `${String(nom)} is no longer in the projects file` };
+    return { projet: String(nom), jour: sans, resumes: sans };
+  }
+  const jour = await lireLeJour({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), client: clientDesLabels });
+  const resumes = "sans" in jour ? { sans: "weekly summaries unavailable: the summary day was not read", detail: jour.detail ?? jour.sans } : await lireLesResumes({ projet: vise.nom, lu, jour: jour.jour, lancer: lancerSurLaCuisine, maintenant: new Date() });
+  if ("resumes" in resumes) {
+    resumesLus.set(vise.nom, resumes.resumes);
+    for (const { themes, waiting } of resumes.resumes) for (const { ticketUrl } of [...themes.flatMap(({ lines }) => lines), ...waiting]) liensDesResumes.add(ticketUrl);
+  }
+  return { projet: vise.nom, jour, resumes };
+});
+ipcMain.handle("changerLeJourDuResume", async (_, nom: unknown, jour: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  const rendu = await changerLeJour({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), jour, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+});
+ipcMain.handle("publierLeResumeHebdomadaire", async (_, nom: unknown, weekStart: unknown, tag: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  if (vise === undefined) return parti(nom);
+  const resume = resumesLus.get(vise.nom)?.find((garde) => garde.weekStart === weekStart);
+  if (resume === undefined) return { refus: "nothing was published: this summary is no longer read — open the page again" };
+  const rendu = await publierLeResume({ projet: vise.nom, lu, resume, tag, lancer: (lu, commande) => lancerLa({ delaiMs: 60_000 }, lu, commande) });
+  if ("url" in rendu) liensDesResumes.add(rendu.url);
+  return rendu;
+});
+ipcMain.handle("ouvrirTicketDuResume", (_, url: unknown) => {
+  if (typeof url !== "string" || !liensDesResumes.has(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !propositionsDeReglage.has(url)) return false;
   return shell.openExternal(url).then(

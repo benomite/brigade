@@ -1632,6 +1632,27 @@ added / removed, per project
 
 The code lives in `app/src/vue/closer/tendance/tendance.js`. Capture: `docs/captures/1682/`.
 
+### The weekly summary of each kitchen (#3263)
+
+*Ticket: #3263 (epic #3251).* **In a project's health strip, under "Cost" and "Closer", a "Weekly summary" row opens the
+page of the weekly summaries** the kitchens write (#3261), in place of the home — "‹ All projects" brings you back. One
+card per project read on this computer:
+
+- **Summary day** — `weeklySummaryDay` of the project's `.claude/brigade/projet.json`, read on its integration branch
+  with this computer's `gh` token: `Monday (default)` when the file does not set it. Choosing another day proposes it by
+  a pull request, like a duration cap — it applies once merged. A value that is not a day, or a file that does not read,
+  says so in one line and selects nothing: it is not taken as Monday.
+- **Its summaries, latest first** — `report --week <weekStart>` where the project's kitchen runs, for the last 6 weeks
+  starting on the summary day (a summary written on another day, before the setting changed, is not looked for). One
+  button per week found; the latest is shown: its themes as headings, each line followed by its ticket's number, which
+  opens the issue; then **Autonomy**, only when the week's figures were counted; and last **Waiting for the chef**. A week
+  whose summary does not read is named in one line, the runtime's answer on hover.
+- **Publish as release notes** asks for a version tag, then runs `release-notes <tag> <summary.json>` (#3262) once, on the
+  summary's record: the page says the release is published, with "open the release"; `already published` or a refusal
+  is said instead, in the runtime's words, the detail on hover. A runtime without the command asks to be updated.
+
+The code lives in `app/src/vue/resume-hebdomadaire/`. Captures: `docs/captures/3263/`.
+
 ### The app's code: up to date, or behind
 
 **At the head of each project's settings** (Settings, in its space) — and in one line, **on
