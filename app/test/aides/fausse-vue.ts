@@ -242,6 +242,14 @@ export class FauxXterm {
     this.filtre = filtre;
   }
   onResize(): void {}
+  // Le titre que `claude` donne à son terminal : un test le change, comme `claude` le fait (ticket 3166).
+  private titreChange: ((titre: string) => void) | undefined;
+  onTitleChange(ecoute: (titre: string) => void): void {
+    this.titreChange = ecoute;
+  }
+  titrer(titre: string): void {
+    this.titreChange?.(titre);
+  }
   // Ce que le chef y a sélectionné : un test le pose, comme le chef à la souris.
   selection = "";
   hasSelection(): boolean {

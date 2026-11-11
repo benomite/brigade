@@ -361,7 +361,7 @@ word for it:
 With nothing served in 24 h either, the step says so and outlines the column where it would happen. Until the rail is
 read, the steps that need an example say `Reading the rail…`, and follow the next reading. Each step has `next` and
 `skip the tour`; the last has a single call to action, `add your own project`, which opens **Add a project** (the
-guided first-project path is another ticket of the epic).
+project picked there opens on its page, which asks what is left before it is ready: #3166, below).
 
 **The tour is shown once.** Started, it leaves a mark in the view's storage (`brigade.visite`): on later launches,
 whether it was finished, skipped or left halfway, nothing is added again and the tour does not start — even if
@@ -419,7 +419,7 @@ Pick the repository of your project.
 - **On the phone**, which adds no project, the screen says one line: `A project is added from a computer, and this phone
   reads it from GitHub.`
 
-Who cooks the project is asked on its page (the Stations tab, `Add a station`), not on this screen.
+Who cooks the project is asked on its page (below, #3166; later, the Stations tab, `Add a station`), not on this screen.
 
 A newcomer signed in to GitHub is in their new project's page two clicks after opening **Add a project**: the **+**,
 then the repository (`app/test/parcours-projet-bout-en-bout.test.ts` plays it on the view).
@@ -428,6 +428,52 @@ then the repository (`app/test/parcours-projet-bout-en-bout.test.ts` plays it on
 `lireLesDepotsDeLAjout`, `choisirLeDepot`, `collerUnDepot`), `app/src/premier-lancement.ts` (`ouvrirDUneStation`:
 the copy, then the projects file, with the branch GitHub gave), `app/src/vue/parcours-projet/compte.js` (the account,
 `app/src/connexion-github.ts`).*
+
+### A project not ready yet: one question at a time on its page (#3166, epic #3164)
+
+A repository picked on **Add a project** opens on its page (#3181). Until the project is ready, that page shows, **in
+the rail's place, one question at a time**, under a line that says where you are — `1 of 2: who cooks it`, `2 of 2: its
+setup for Brigade`. Nothing else competes with it: while a question is asked, the project's menu, its kitchen switch, its
+bands and the centre are not laid (`main[data-parcours]`, `parcours-premier-projet.css`); the header keeps the project's
+name, and the second stays on the right.
+
+| Question | Asked when | What it says | Its gesture |
+|---|---|---|---|
+| Who cooks it — `Who cooks <owner/repo>?` | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | the recommended choice first, with one sentence: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`) | one button per choice, the recommended one first and set apart; an offline station says so beside it. One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of `Add a station` — and the page moves on. A refusal is said in one line, its detail on hover |
+| Its setup for Brigade — `<owner/repo> is being set up for Brigade` | the project is not set up yet (the reading of #2628, `checkRepoSetup`) | what is awaited, and from whom — below | the button of the state, if any |
+
+The line counts only the questions the project has: one already set up, or already cooked by a station, shows `1 of 1`.
+Until the setup is read, the count is not said (`Who cooks it`). No question is shown as done for something you did not
+do, nor announced for something with nothing to do. While the setup question is asked, the notice of a project not set
+up (`Set up for Brigade`, #2628) is not laid: the question alone says what happens. The second does the setup in its
+column on the right (#3164); each state says in one sentence what is awaited and from whom:
+
+| State | What the page says | Read from |
+|---|---|---|
+| reading | `Reading whether <owner/repo> is set up for Brigade… Nothing is awaited from you.` | `checkRepoSetup` not answered yet |
+| unreadable | `Whether <owner/repo> is set up for Brigade could not be read. Waiting for you to try again.`, the reason on hover, `Try again` | `checkRepoSetup` failed — it is never taken for set up |
+| the second starts | `The second is starting, in its column on the right: it reads your repository first. Nothing is awaited from you yet.` | the second's terminal has no title yet |
+| the second reads | `The second is reading your repository, in its column on the right. Nothing is awaited from you yet.` | the title `claude` gives its terminal starts with a working sign (`◐`…), as `app/src/saisie.ts` reads it |
+| you answer | `The second is waiting for your answer, in its column on the right.` | the title starts with `✳` (at its prompt), or the second proposes choices or a gesture (#1520, #1521) |
+| you merge | `The setup pull request is waiting for your merge: its card is in Awaiting you.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
+| the second cannot start | `The second could not start: its column says why. Waiting for you to set the project up from here instead.`, `Set up for Brigade` | the second's terminal says it cannot start (#1435) |
+| set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
+
+The setup is read again at each reading of the project's rail while it is not set up: once the setup pull request is
+merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and a single line above it offers
+the next step: `<owner/repo> is ready.`, `write its first ticket with the second` — which writes the request in the
+second, without Enter, and shows it on the right — and `close`. That line comes only when you answered a question; a
+project that had nothing left to do opens on its rail.
+
+**What opens it.** The project's first reading decides, the one that says whether this computer's GitHub account can
+write to its repository (`lectureSeule`, #3163): a project you cannot write to shows none of this and opens read-only; a
+reading that fails decides nothing, the next one does. Write access lost on the way closes it the same way. Only a
+repository picked on **Add a project** opens it, and it is held while the app runs: it is not written anywhere, and a
+project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
+
+*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states, the ready line), its wiring in
+`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`, `ecrireLePremierTicket`). Tests:
+`app/test/parcours-premier-projet/`. Captures: `docs/captures/3166/`.*
 
 ### The age of the rail is always on screen (#2054)
 
