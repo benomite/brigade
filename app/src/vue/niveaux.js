@@ -23,7 +23,6 @@ export const NIVEAUX = {
   manager: "project",
   reviewer: "project",
   plafond: "project",
-  calibrage: "project",
   closer: "project",
   "closer-cooks": "project",
   "closer-tokens": "project",

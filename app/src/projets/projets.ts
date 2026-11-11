@@ -101,7 +101,7 @@ export type ProjetVu = {
 export type MachineProposee = { toujoursAllumee: boolean; implique: string; cooks: number; cooksDit: string };
 // Le calibrage que l'app propose pour un projet qui prend sa première station, et d'où il vient.
 export type CalibrageRecommande = { manager: Calibre; reviewer: Calibre; dit: string };
-// `recommandee` : la station que l'app propose d'office — une serveur ; `avertissements` :
+// `recommandee` : la station que l'app propose d'office — un serveur en ligne ; `avertissements` :
 // ce qui se dit quand le chef choisit telle station ; `machines` : ce que l'écran de
 // confiance dit de chaque station, et `calibrage`, ce qu'il propose.
 // `locale` : le gist de la station de cet ordinateur, nul quand l'app n'en a pas.
@@ -169,7 +169,6 @@ export function nomDuProjet(depot: string): string {
 // un Linux est tenu pour un serveur, allumé en permanence.
 export const estUnOrdinateur = (station: Pick<StationVue, "machine">) => /^(macOS|Windows)\b/.test(station.machine);
 
-// La station que l'app recommande : un serveur, en ligne d'abord.
 // Les temps de deux stations d'un même projet : un ticket n'est compté qu'une fois (le plus récent des deux enregistrements),
 // le seuil du temps perdu est celui de la première station.
 export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): TempsPublie {
@@ -191,9 +190,10 @@ export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): T
   return { enregistrements: [...parTicket.values(), ...fusion], lostTimeMaxMin: a.lostTimeMaxMin, ...(resume === undefined ? {} : { resume }), ...(chiffres === undefined ? {} : { chiffres }) };
 }
 
+// La station que l'app recommande : un serveur qui peut cuire maintenant — en ligne. Aucun en ligne : aucune ; une
+// station hors ligne n'est jamais recommandée (#3187).
 export function stationRecommandee(stations: readonly StationVue[]): string | undefined {
-  const serveurs = stations.filter((station) => station.etat !== "illisible" && station.cuisine !== false && !estUnOrdinateur(station));
-  return (serveurs.find((station) => station.etat === "en-ligne") ?? serveurs[0])?.id;
+  return stations.find((station) => station.etat === "en-ligne" && station.cuisine !== false && !estUnOrdinateur(station))?.id;
 }
 
 // Celle des stations choisies dont le gist porte le suivi du projet : la recommandée si elle en est, sinon la première.

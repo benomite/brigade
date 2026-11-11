@@ -23,6 +23,7 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcour
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { PAS_ENCORE, LECTURE_DE, ENREGISTREMENT } from "./lexique.js";
+import { horsLigneDuCompte } from "./choix-station/choix-station.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-du-compte.ts").StationsDuCompte} StationsDuCompte */
@@ -342,6 +343,12 @@ export function projetsDe(doc, station, etat, geste) {
     const absente = cree(doc, "p", station.heldUntil ? EN_SA_RETENUE : EN_SON_ABSENCE);
     absente.className = "note";
     choix.append(absente);
+  }
+  // Hors ligne : depuis quand, et le geste qui la ramène sur sa machine (choix-station/, ticket 3187).
+  if (!station.heldUntil && !station.available) {
+    const ramener = cree(doc, "p", horsLigneDuCompte(station, Date.now()));
+    ramener.className = "note hors-ligne";
+    choix.append(ramener);
   }
   const { depots } = etat;
   if (depots === undefined) {

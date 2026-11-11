@@ -8,7 +8,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js) et rend des éléments.
 
 import { boutonAction } from "../../briques.js";
-import { FAIT, poserEtapeStation } from "./AjoutStation.js";
+import { FAIT_DIT, poserEtapeStation } from "./AjoutStation.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./AjoutStation.js").DonneesDeLEtape} DonneesDeLEtape */
@@ -41,7 +41,7 @@ export function poserBlocListeStations(doc, { liste, ajout } = {}) {
     const ouvrir = doc.createElement("p");
     ouvrir.className = "ajouter-une-station";
     ouvrir.append(boutonAction(doc, AJOUTER, gestes.ouvrir));
-    if (etat.fait !== undefined) ouvrir.append(Object.assign(doc.createElement("span"), { className: "dit", ariaLive: "polite", textContent: FAIT(etat.fait, donnees.projet) }));
+    if (etat.fait !== undefined) ouvrir.append(Object.assign(doc.createElement("span"), { className: "dit", ariaLive: "polite", textContent: FAIT_DIT(etat, donnees.projet) }));
     bloc.append(ouvrir);
   }
   return bloc;

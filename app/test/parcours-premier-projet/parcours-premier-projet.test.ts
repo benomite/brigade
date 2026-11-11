@@ -30,7 +30,7 @@ import {
   EMPECHE,
   EN_ROUTE,
   FERMER,
-  HORS_LIGNE,
+  AUCUNE_EN_LIGNE,
   ICI,
   ICI_DIT,
   ILLISIBLE,
@@ -55,6 +55,7 @@ import {
   type GestesDuParcours,
 } from "../../src/vue/parcours-premier-projet/parcours-premier-projet.js";
 import { REESSAYER } from "../../src/vue/lexique.js";
+import { REFUS_RESEAU } from "../../src/stations-du-compte.ts";
 import { Faux, jouerLaVue, type Jouee, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -62,7 +63,10 @@ const DEPOT = "chef/cantine";
 const MANQUE = { ready: false, missingBindings: ["Gates"], missingLabels: ["fire"] };
 const PRETE = { ready: true, missingBindings: [], missingLabels: [] };
 const NON_PRETE = { etape: "manque" as const, verif: { ready: false, missingBindings: ["Gates"], missingLabels: ["fire"] } };
-const ICI_CHOIX: Choix = { cle: ICI, nom: "this computer", horsLigne: false };
+const ICI_CHOIX: Choix = { cle: ICI, nom: "this computer", horsLigne: false, recommande: true };
+// 22 min après le dernier signe de vie des stations hors ligne.
+const VINGT_DEUX = Date.parse("2026-11-11T10:22:00.000Z");
+const ATELIER_ABSENT = "Offline for 22 min: switch atelier on, or start its brigade-station service there: it starts with the machine";
 
 const station = (id: string, name: string, available: boolean, selection: string[] | null = null): StationEnregistree => ({
   id,
@@ -77,6 +81,7 @@ const station = (id: string, name: string, available: boolean, selection: string
   stoppedAt: null,
   refreshMs: 30_000,
   selection,
+  ...(available ? {} : { offlineSince: "2026-11-11T10:00:00.000Z" }),
 });
 
 const gestesVides = (): GestesDuParcours & { faits: string[] } => {
@@ -131,20 +136,26 @@ describe("où en est le parcours, d'après ce qui est lu", () => {
     assert.equal(progression(station, { station: "a-faire", preparation: { etape: "inconnu" } }), "Who cooks it");
   });
 
-  test("le choix recommandé : une station du compte en ligne, sinon cet ordinateur ; les autres après", () => {
+  test("cet ordinateur d'abord, son nom d'hôte après lui ; le choix recommandé : une station du compte en ligne, sinon cet ordinateur", () => {
     const atelier = station("g1", "atelier", false);
     const box = station("g2", "parade-box", true);
-    assert.deepEqual(choixDeStation({ ici: true, stations: [atelier, box] }).map(({ cle }) => cle), ["g2", ICI, "g1"]);
-    assert.deepEqual(choixDeStation({ ici: true, stations: [atelier] }).map(({ cle }) => cle), [ICI, "g1"]);
+    const recommande = (choix: Choix[]) => choix.filter((un) => un.recommande).map(({ cle }) => cle);
+    assert.deepEqual(choixDeStation({ ici: true, stations: [atelier, box], maintenant: VINGT_DEUX }).map(({ cle }) => cle), [ICI, "g2", "g1"]);
+    assert.deepEqual(recommande(choixDeStation({ ici: true, stations: [atelier, box], maintenant: VINGT_DEUX })), ["g2"]);
+    assert.deepEqual(choixDeStation({ ici: true, stations: [atelier], maintenant: VINGT_DEUX }).map(({ cle }) => cle), [ICI, "g1"]);
+    assert.deepEqual(recommande(choixDeStation({ ici: true, stations: [atelier], maintenant: VINGT_DEUX })), [ICI]);
     assert.deepEqual(choixDeStation({ ici: true, stations: [] }), [ICI_CHOIX]);
-    assert.deepEqual(choixDeStation({ ici: false, stations: [atelier] }), [{ cle: "g1", nom: "atelier", horsLigne: true }]);
+    assert.deepEqual(choixDeStation({ ici: true, hote: "MacBook-Air-de-Chef", stations: [] }), [{ ...ICI_CHOIX, hote: "MacBook-Air-de-Chef" }]);
+    // Une station hors ligne n'est jamais recommandée : sans aucune en ligne ni cet ordinateur, rien ne l'est. Elle dit depuis
+    // quand, et comment la ramener (#3187).
+    assert.deepEqual(choixDeStation({ ici: false, stations: [atelier], maintenant: VINGT_DEUX }), [{ cle: "g1", nom: "atelier", horsLigne: true, recommande: false, absente: ATELIER_ABSENT }]);
   });
 });
 
 describe("ce que la page dit", () => {
   test("« qui le cuit » : la progression, la question, la phrase du recommandé, un bouton par choix — le recommandé en tête", () => {
     const gestes = gestesVides();
-    const choix = choixDeStation({ ici: true, stations: [station("g1", "atelier", false)] });
+    const choix = choixDeStation({ ici: true, hote: "MacBook-Air-de-Chef", stations: [station("g1", "atelier", false)], maintenant: VINGT_DEUX });
     const carte = poserParcoursPremierProjet(doc, { depot: DEPOT, vu: { etape: "station" }, progression: "1 of 2: who cooks it", station: "a-faire", choix }, gestes) as unknown as Faux;
     assert.equal(carte.dessous("p")[0]?.textContent, "1 of 2: who cooks it");
     assert.equal(carte.dessous("h2")[0]?.textContent, "Who cooks chef/cantine?");
@@ -153,7 +164,9 @@ describe("ce que la page dit", () => {
     assert.deepEqual(boutons(carte), ["this computer", "atelier"]);
     assert.equal(carte.dessous("button")[0]?.className.includes("recommande"), true);
     assert.equal(carte.dessous("button")[1]?.className.includes("recommande"), false);
-    assert.ok(carte.dessous("span").some(({ textContent }) => textContent === HORS_LIGNE));
+    // Cet ordinateur, puis son nom d'hôte ; la station hors ligne dit depuis quand, et le geste qui la ramène.
+    assert.deepEqual(carte.dessous("li")[0]?.dessous("span").map(({ textContent }) => textContent).filter((texte) => texte !== "this computer"), ["MacBook-Air-de-Chef"]);
+    assert.ok(carte.dessous("span").some(({ textContent }) => textContent === ATELIER_ABSENT));
     carte.dessous("button")[0]?.click();
     assert.deepEqual(gestes.faits, [`choisir ${ICI}`]);
   });
@@ -162,7 +175,24 @@ describe("ce que la page dit", () => {
     const choix = choixDeStation({ ici: true, stations: [station("g2", "parade-box", true)] });
     const carte = poserParcoursPremierProjet(doc, { depot: DEPOT, vu: { etape: "station" }, progression: "", station: "a-faire", choix }, gestesVides()) as unknown as Faux;
     assert.equal(phraseDe(carte)?.textContent, STATION_DIT("parade-box"));
-    assert.deepEqual(boutons(carte), ["parade-box", "this computer"]);
+    assert.deepEqual(boutons(carte), ["this computer", "parade-box"]);
+    // Le recommandé se distingue où qu'il soit dans la liste.
+    assert.equal(carte.dessous("button")[0]?.className.includes("recommande"), false);
+    assert.equal(carte.dessous("button")[1]?.className.includes("recommande"), true);
+  });
+
+  test("aucune station en ligne, ni cet ordinateur : rien n'est recommandé, et la phrase le dit (#3187)", () => {
+    const choix = choixDeStation({ ici: false, stations: [station("g1", "atelier", false)], maintenant: VINGT_DEUX });
+    const carte = poserParcoursPremierProjet(doc, { depot: DEPOT, vu: { etape: "station" }, progression: "", station: "a-faire", choix }, gestesVides()) as unknown as Faux;
+    assert.equal(phraseDe(carte)?.textContent, AUCUNE_EN_LIGNE);
+    assert.equal(carte.dessous("button").some(({ className }) => className.includes("recommande")), false);
+  });
+
+  test("une station choisie hors ligne : la page dit en clair qu'elle prend le projet à son retour (#3187)", () => {
+    const setup = poserParcoursPremierProjet(doc, { depot: DEPOT, vu: { etape: "setup", attente: "lit", qui: "second" }, progression: "", station: "ajoutee", choix: [], absente: "atelier" }, gestesVides()) as unknown as Faux;
+    assert.ok(setup.dessous("p").some(({ textContent }) => textContent === "atelier is offline: it takes chef/cantine when it comes back."));
+    const pret = poserPret(doc, DEPOT, { absente: "atelier" }, { ecrire: () => {}, fermer: () => {} }) as unknown as Faux;
+    assert.ok(pret.dessous("span").some(({ textContent }) => textContent === "atelier is offline: it takes chef/cantine when it comes back."));
   });
 
   test("un choix qui s'écrit grise les boutons ; refusé, une ligne et son détail, les boutons rendus", () => {
@@ -236,7 +266,11 @@ describe("ce que le parcours lit et tient", () => {
     assert.equal(await ajouterLaStation("this computer", async () => ({ depots: [DEPOT] })), "ajoutee");
     assert.equal(await ajouterLaStation("atelier", async () => ({ selection: [DEPOT] })), "ajoutee");
     assert.deepEqual(await ajouterLaStation("this computer", async () => ({ refus: "brigade: the station is not running — no pid" })), { ligne: "nothing was written: the station is not running", detail: "no pid" });
-    assert.deepEqual(await ajouterLaStation("atelier", async () => ({ refus: "not saved: GitHub did not take the change", detail: "422" })), { ligne: "nothing was written: GitHub did not take the change", detail: "422" });
+    // Le refus d'une station du compte dit sa cause et son geste sur la ligne même ; ce que GitHub a répondu, au survol (#3187).
+    assert.deepEqual(await ajouterLaStation("atelier", async () => ({ refus: REFUS_RESEAU, detail: "error connecting to api.github.com" })), {
+      ligne: "nothing was written: GitHub could not be reached from this computer; check its network connection, then choose again",
+      detail: "error connecting to api.github.com",
+    });
     assert.deepEqual(await ajouterLaStation("this computer", async () => Promise.reject(new Error("ipc closed"))), { ligne: "this computer could not be given the project.", detail: "ipc closed" });
   });
 
@@ -407,11 +441,27 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     await lire(vue);
     await repos();
     assert.equal(phraseDe(question(vue))?.textContent, STATION_DIT("parade-box"));
-    assert.deepEqual(boutons(question(vue)), ["parade-box", "this computer", "atelier"]);
+    assert.deepEqual(boutons(question(vue)), ["this computer", "parade-box", "atelier"]);
     bouton(question(vue), "parade-box").click();
     await repos();
     assert.deepEqual(choisis, [["g2", ["chef/parade", DEPOT]]]);
     assert.equal(principal(vue).dataset.parcours, "setup");
+  });
+
+  test("une station du compte hors ligne se choisit : sa sélection s'écrit, et la page dit qu'elle prend le projet à son retour (#3187)", async () => {
+    const choisis: [string, string[]][] = [];
+    const vue = await choisirCantine({
+      stationsDuCompte: () => ({ state: "listed", stations: [station("g1", "atelier", false, [])], unreadable: [] }),
+      choisirLesProjets: (id, depots) => (choisis.push([id, depots]), { selection: depots }),
+      checkRepoSetup: () => MANQUE,
+    });
+    await lire(vue);
+    await repos();
+    bouton(question(vue), "atelier").click();
+    await repos();
+    assert.deepEqual(choisis, [["g1", [DEPOT]]]);
+    assert.equal(principal(vue).dataset.parcours, "setup");
+    assert.ok(question(vue).dessous("p").some(({ textContent }) => textContent === `atelier is offline: it takes ${DEPOT} when it comes back.`));
   });
 
   test("déjà prêt pour Brigade : la mise en place n'est pas posée, « qui le cuit » répondue mène à prêt", async () => {

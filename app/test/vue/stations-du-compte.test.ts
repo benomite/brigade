@@ -22,7 +22,7 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { choixDesProjets, type StationEnregistree, type StationsDuCompte } from "../../src/stations-du-compte.ts";
+import { choixDesProjets, REFUS_GITHUB, type StationEnregistree, type StationsDuCompte } from "../../src/stations-du-compte.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 import {
   AUCUNE,
@@ -277,10 +277,10 @@ describe("la sélection : les projets du chef à cocher, chaque case écrite aus
     const enRoute = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS, envoi: BOX.id });
     assert.ok(enRoute.cases().every(({ disabled }) => disabled), "une case reste cliquable pendant l'écriture");
     assert.ok(enRoute.textes().includes(ENVOI));
-    const refusee = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS, refus: { id: BOX.id, refus: "not saved: GitHub did not take the change", detail: "HTTP 502: Bad Gateway" } });
+    const refusee = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS, refus: { id: BOX.id, refus: REFUS_GITHUB, detail: "HTTP 502: Bad Gateway" } });
     const [ligne, ...autres] = refusee.enEchec();
     assert.ok(ligne !== undefined && autres.length === 0);
-    assert.equal(ligne.dessous("span")[0]?.textContent, "not saved: GitHub did not take the change");
+    assert.equal(ligne.dessous("span")[0]?.textContent, REFUS_GITHUB);
     assert.match(refusee.auSurvol(ligne), /HTTP 502/);
     // La case n'a pas changé : la sélection posée est celle du gist.
     assert.equal(refusee.caseDe("acme/shop").checked, true);

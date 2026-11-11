@@ -45,6 +45,16 @@ main[data-parcours] #interrupteur-projet {
 .parcours-premier-projet .dit {
   color: var(--discret);
 }
+/* Cet ordinateur : son nom d'hôte après « this computer » ; la station choisie hors ligne : la phrase qui dit qu'elle prend
+   le projet à son retour (ticket 3187). */
+.parcours-premier-projet .hote {
+  color: var(--texte-doux);
+}
+.parcours-premier-projet .au-retour,
+.pret-du-projet .au-retour {
+  margin: 0;
+  color: var(--texte-doux);
+}
 .parcours-premier-projet .gestes,
 .pret-du-projet {
   display: flex;

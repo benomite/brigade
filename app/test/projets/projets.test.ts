@@ -67,9 +67,10 @@ function unGitHub(t: TestContext, stations: StationVue[] = [BOX, MAC], plus: Par
   return { repertoire, projets, lectures, demande, suivre, gist, depots: (liste: object[]) => writeFileSync(join(repertoire, "depots"), JSON.stringify(liste)), panne: () => writeFileSync(join(repertoire, "panne"), "") };
 }
 
-test("la station recommandée est un serveur, en ligne d'abord ; un ordinateur choisi se dit au moment du choix", () => {
+test("la station recommandée est un serveur en ligne ; un ordinateur choisi se dit au moment du choix", () => {
   assert.equal(stationRecommandee([MAC, ETEINTE, BOX]), "g1");
-  assert.equal(stationRecommandee([MAC, ETEINTE]), "g3");
+  // Un serveur hors ligne ne peut pas cuire maintenant : il n'est jamais recommandé, et rien ne l'est à sa place (#3187).
+  assert.equal(stationRecommandee([MAC, ETEINTE]), undefined);
   assert.equal(stationRecommandee([MAC]), undefined);
   assert.equal(estUnOrdinateur(MAC), true);
   assert.equal(estUnOrdinateur({ machine: "Windows 10.0.26100" }), true);

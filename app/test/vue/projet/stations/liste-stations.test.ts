@@ -18,7 +18,7 @@ import { ONGLETS, RUBRIQUES } from "../../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../../src/projets/projets.ts";
 import type { Choix, StationEnregistree, StationsDuCompte } from "../../../../src/stations-du-compte.ts";
 import type { Terminal } from "../../../../src/terminaux.ts";
-import { ANNULER, AUCUNE, ENVOI, FAIT, HORS_LIGNE, ICI, poserEtapeStation, stationsAProposer, tenirLAjoutDeStation, TITRE, type EtatDeLAjout } from "../../../../src/vue/projet/stations/AjoutStation.js";
+import { ANNULER, AUCUNE, ENVOI, FAIT, FAIT_DIT, ICI, poserEtapeStation, stationsAProposer, tenirLAjoutDeStation, TITRE, type EtatDeLAjout } from "../../../../src/vue/projet/stations/AjoutStation.js";
 import { AJOUTER, poserBlocListeStations } from "../../../../src/vue/projet/stations/ListeStations.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../../aides/fausse-vue.ts";
 
@@ -62,9 +62,22 @@ describe("l'étape « Who cooks this project? »", () => {
     assert.deepEqual(boutons(pose).map(({ textContent }) => textContent), ["this computer", "atelier", "vieux-pc", ANNULER]);
     assert.equal(bouton(pose, "this computer").className, "recommande");
     assert.equal(bouton(pose, "atelier").className, "");
-    assert.ok(pose.dessous("li").find((li) => li.dataset.choix === "g7h8")?.textContent.includes(HORS_LIGNE));
+    // Hors ligne : depuis quand, et le geste qui la ramène sur sa machine (#3187).
+    assert.match(pose.dessous("li").find((li) => li.dataset.choix === "g7h8")?.textContent ?? "", /Offline for \d+ (?:min|h|d)[^:]*: switch vieux-pc on, or start its brigade-station service there/);
     // Chaque choix dit au survol ce qu'il fait : rien n'est écrit à plat sous le bouton.
     assert.equal(pose.dessous("button").filter((aide) => aide.className === "aide").length, 3);
+  });
+
+  test("cet ordinateur se nomme « this computer », son nom d'hôte après lui ; les stations en ligne avant celles hors ligne (#3187)", () => {
+    const hors = appairee("g7h8", "vieux-pc", [], false);
+    const pose = poserEtapeStation(doc, { projet: PARADE, ici: "MacBook-Air-de-Chef", iciOffert: true, stations: [hors, ATELIER] }, { ouvert: true }, gestesNuls) as Faux;
+    assert.deepEqual(boutons(pose).map(({ textContent }) => textContent), ["this computer", "atelier", "vieux-pc", ANNULER]);
+    assert.deepEqual(pose.dessous("span").filter(({ className }) => className.includes("hote")).map(({ textContent }) => textContent), ["MacBook-Air-de-Chef"]);
+  });
+
+  test("une station choisie hors ligne : la ligne dit qu'elle prend le projet à son retour (#3187)", () => {
+    assert.equal(FAIT_DIT({ ouvert: false, fait: "vieux-pc", absente: true }, PARADE), "vieux-pc is offline: it takes parade when it comes back.");
+    assert.equal(FAIT_DIT({ ouvert: false, fait: "atelier" }, PARADE), FAIT("atelier", PARADE));
   });
 
   test("sans choix, une ligne le dit ; un choix qui s'écrit grise les boutons ; un refus se dit en une ligne, sa suite au survol", () => {
@@ -76,9 +89,9 @@ describe("l'étape « Who cooks this project? »", () => {
     assert.ok(boutons(enCours).every(({ disabled }) => disabled));
     assert.ok(enCours.dessous("li")[0]?.textContent.includes(ENVOI));
 
-    const refus = poserEtapeStation(doc, { projet: PARADE, ici: "this computer", iciOffert: true, stations: [] }, { ouvert: true, refus: { ligne: "nothing was written: GitHub did not take the change", detail: "HTTP 502" } }, gestesNuls) as Faux;
+    const refus = poserEtapeStation(doc, { projet: PARADE, ici: "this computer", iciOffert: true, stations: [] }, { ouvert: true, refus: { ligne: "nothing was written: GitHub answered the write with an error (its answer on hover); choose again in a minute", detail: "HTTP 502" } }, gestesNuls) as Faux;
     const ligne = refus.dessous("p").find(({ className }) => className === "refus") ?? assert.fail("pas de refus");
-    assert.equal(ligne.children[0]?.textContent, "nothing was written: GitHub did not take the change");
+    assert.equal(ligne.children[0]?.textContent, "nothing was written: GitHub answered the write with an error (its answer on hover); choose again in a minute");
     assert.equal(ligne.dessous("button")[0]?.ariaLabel, "HTTP 502");
   });
 
@@ -101,9 +114,9 @@ describe("l'étape « Who cooks this project? »", () => {
     ajout.annuler(PARADE);
     assert.deepEqual(servis, []);
     assert.deepEqual(choisis, [[ATELIER.id, ["chef/cantine", DEPOT]]]);
-    lacher({ refus: "not saved: GitHub did not take the change", detail: "HTTP 502" });
+    lacher({ refus: "not saved: GitHub answered the write with an error (its answer on hover); choose again in a minute", detail: "HTTP 502" });
     await repos();
-    assert.deepEqual(ajout.etatDe(PARADE), { ouvert: true, refus: { ligne: "nothing was written: GitHub did not take the change", detail: "HTTP 502" } });
+    assert.deepEqual(ajout.etatDe(PARADE), { ouvert: true, refus: { ligne: "nothing was written: GitHub answered the write with an error (its answer on hover); choose again in a minute", detail: "HTTP 502" } });
 
     ajout.servirIci(PARADE, DEPOT, "this computer");
     await repos();

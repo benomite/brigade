@@ -92,7 +92,7 @@ import { tenirServices } from "./service.ts";
 import { installerLaStation } from "./poste/installer.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
-import { avecLeursAjouts, choixDesProjets, type StationsDuCompte } from "./stations-du-compte.ts";
+import { avecLeurEtat, avecLeursAjouts, choixDesProjets, type StationsDuCompte } from "./stations-du-compte.ts";
 import { tenirStations, type VuDesStations } from "./stations/stations.ts";
 import { versionsDansFichier } from "./stations/versions.ts";
 import { suivreConfiguration } from "./suivi.ts";
@@ -1184,7 +1184,8 @@ ipcMain.handle("stationsDuCompte", async (): Promise<StationsDuCompte> => {
   signesDeVie.poser(lu);
   if (lu.state === "unavailable") return retenirLaPage(lu);
   const github = githubDesStations({ gh: ghIci, delaiMs: 30_000 });
-  return avecLeursAjouts(lu, (id) => github.lire(id));
+  // L'état de chacune est celui de son dernier signe de vie, son enregistrement ou sa présence appairée (#3187).
+  return avecLeursAjouts(avecLeurEtat(lu, stations.vu()?.stations ?? [], Date.now()), (id) => github.lire(id));
 });
 const choisirLesProjets = choixDesProjets({
   ecrire: (id, fichiers) => githubDesStations({ gh: ghIci, delaiMs: 30_000 }).ecrire(id, fichiers),
