@@ -135,7 +135,8 @@ import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, mar
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
 import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
-import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, poserPret, progression, SECOND_ABSENT, DEMANDE_DU_PREMIER, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
+import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, progression, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
+import { CHAMP_DE_LA_REPONSE, CHAMP_DES_CHANGEMENTS, poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
@@ -284,6 +285,12 @@ const parcoursDesProjets = tenirLesParcours({ rendre: (nom) => void (courant?.no
 // Le départ d'un projet qui arrive avec des issues ouvertes (ticket 3268, parcours-premier-projet/depart.js) : l'écran des
 // propositions du second, avant les questions du parcours.
 const departsDesProjets = tenirLesDeparts({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
+// Le premier ticket d'un projet prêt (ticket 3306, premier-ticket/) : la question du second, son brouillon, le « oui » du chef.
+const premiersTickets = tenirLesPremiersTickets({
+  rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()),
+  rediger: (nom, demande) => brigade.redigerLePremierTicket(nom, demande),
+  creer: (nom, brouillon) => brigade.creerLePremierTicket(nom, brouillon),
+});
 /** @type {Map<string, string>} */
 const aGuider = new Map();
 /** @type {Set<string>} */
@@ -8106,7 +8113,7 @@ async function mettreLeDepartSurLeRail(nom) {
     if ("fait" in rendu) departsDesProjets.mise(nom, rendu.fait, rendu.refus);
     else departsDesProjets.miseRatee(nom, rendu.refus, rendu.detail ?? "");
   } catch (erreur) {
-    departsDesProjets.miseRatee(nom, "nothing was put on the rail: the app could not reach GitHub", erreur instanceof Error ? erreur.message : String(erreur));
+    departsDesProjets.miseRatee(nom, "nothing was put on the rail: GitHub could not be reached", erreur instanceof Error ? erreur.message : String(erreur));
   }
 }
 
@@ -8176,10 +8183,28 @@ function poserLeProjetAPreparer() {
     parcoursDesProjets.fermer(nom);
     return reposerLaPage(projet);
   }
+  // Prêt : au-dessus du rail, le second demande au chef ce qu'il veut changer d'abord (ticket 3306). Le champ tapé garde le
+  // clavier quand la page se repose.
   if (parcours.pret !== undefined) {
     delete principal.dataset.parcours;
-    sectionDuParcours.replaceChildren(poserPret(document, parcours.depot, { ...parcours.pret, ...(parcours.absente === undefined ? {} : { absente: parcours.absente }) }, { ecrire: () => ecrireLePremierTicket(projet), fermer: () => parcoursDesProjets.fermer(nom) }));
+    premiersTickets.commencer(nom);
+    const etat = premiersTickets.de(nom);
+    if (etat === undefined) return fermer();
+    const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ;
+    sectionDuParcours.replaceChildren(
+      poserPremierTicket(document, { depot: parcours.depot, etat, ...(parcours.absente === undefined ? {} : { absente: parcours.absente }) }, {
+        ecrire: (texte) => premiersTickets.ecrire(nom, texte),
+        envoyer: () => void premiersTickets.envoyer(nom),
+        oui: () => void premiersTickets.oui(nom),
+        changer: () => void premiersTickets.changer(nom),
+        fermer: () => {
+          premiersTickets.oublier(nom);
+          parcoursDesProjets.fermer(nom);
+        },
+      }),
+    );
     sectionDuParcours.hidden = false;
+    if (enMain === CHAMP_DE_LA_REPONSE || enMain === CHAMP_DES_CHANGEMENTS) /** @type {HTMLElement | null} */ (sectionDuParcours.querySelector(`[data-champ="${enMain}"]`))?.focus();
     return;
   }
   const depart = departsDesProjets.de(nom);
@@ -8262,17 +8287,6 @@ function poserLeProjetAPreparer() {
     ),
   );
   sectionDuParcours.hidden = false;
-}
-
-// « write its first ticket with the second » : la demande s'écrit dans le second du projet, sans Entrée — le chef la donne —, et il
-// passe à droite. Un second qui ne tourne pas : rien n'est écrit, la ligne dit pourquoi.
-/** @param {Projet} projet */
-function ecrireLePremierTicket(projet) {
-  const second = [...vues.values()].find(({ terminal }) => terminal.projet === projet.nom && terminal.genre === "second")?.terminal;
-  if (second === undefined || second.arrete || second.empeche !== undefined) return parcoursDesProjets.ecrit(projet.nom, SECOND_ABSENT);
-  brigade.ecrire(second.id, DEMANDE_DU_PREMIER);
-  parcoursDesProjets.ecrit(projet.nom, true);
-  montrerADroite(second.id);
 }
 
 async function relireLePremier() {

@@ -131,7 +131,7 @@ function cree(doc, balise, texte) {
 // Le bloc entier : son libellé, et une ligne par ticket — un bouton qui ouvre la fiche. `titres` dit le
 // titre d'un ticket sur le rail de son projet, s'il y est ; `ouvrir` ouvre sa fiche.
 // `quotaBrut` : le réglage `quotaMax` du fichier (part.js) ; `maintenant`, l'heure de la page. La ligne de la semaine, ou
-// à sa place la seule ligne « Share unavailable », vient sous la liste.
+// à sa place la seule ligne « No share », vient sous la liste.
 /** @param {Fabrique} doc @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures
  *  @param {(projet: string, ticket: number) => string | undefined} titres
  *  @param {(projet: string, ticket: number, bouton: any) => void} ouvrir
