@@ -2421,6 +2421,12 @@ stations replace them.
   then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
   `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
   **a pull request you merge**. Your own checkout is never touched. Replayed once merged, it says `unchanged`.
+  The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
+  puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
+  card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
+  gives the session its last message: the pull request's address, why you are the one to merge it (it sets what
+  will judge every future delivery: the integration branch, the checks, the file zones), and that the project
+  shows as ready once it is merged. Replayed on the same pull request, it adds no second issue or card.
   A project's second whose `CLAUDE.md` has no bindings block starts the setup on its own, with nothing to type
   (#3167): its launch (`runtime/src/second-init/demarrage.ts`, from `planDuSecond`) gives it a first message with what
   it read in the repository — the integration branch (`origin`'s default branch), the checks (the `test`, `typecheck`

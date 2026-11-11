@@ -53,6 +53,14 @@ export const SCRIPT_INIT = "init.sh";
 // Le catalogue des labels que le script lit, posé à côté de lui.
 export const CATALOGUE_DES_LABELS = "labels.tsv";
 const MARQUE_DU_SCRIPT = "@SCRIPT@";
+// La commande du runtime qui lance ce script, pose la carte de sa PR dans le TODO et rend le mot de fin du second
+// (runtime/src/second-init/pr-de-setup.ts, #3169), et le `node` qui la joue : `@SETUP_PR@` et `@NODE@`, remplacés de même.
+const MARQUE_DE_LA_PR = "@SETUP_PR@";
+const MARQUE_DU_NODE = "@NODE@";
+export const PR_DE_SETUP = ["src", "second-init", "pr-de-setup.ts"] as const;
+// Où sont le runtime et son `node` (emplacements.ts) ; par défaut, le runtime à côté de l'app et le `node` du PATH.
+export type Lieux = { node: string; runtime: string };
+export const LIEUX_PAR_DEFAUT: Lieux = { node: "node", runtime: join(import.meta.dirname, "..", "..", "runtime") };
 // Le dossier du marketplace, à côté du fichier des projets.
 export const DOSSIER = "plugin-app";
 // Le fichier que Claude Code écrit dans le dossier du projet pour le scope local.
@@ -72,7 +80,7 @@ export function versionDuPlugin(versionDeLApp: string, commandes: string, propre
 
 // Pose le marketplace de l'app dans `dossier` : ses deux manifestes, les deux commandes copiées de
 // `commandes`, `/brigade:init` et son script copiés de `propres`. Un fichier déjà tel quel n'est pas réécrit.
-export function poserLeMarketplace(dossier: string, commandes: string, version: string, propres = PROPRES): void {
+export function poserLeMarketplace(dossier: string, commandes: string, version: string, propres = PROPRES, lieux: Lieux = LIEUX_PAR_DEFAUT): void {
   const manifestes = join(dossier, ".claude-plugin");
   const marketplace = {
     name: MARKETPLACE,
@@ -97,7 +105,12 @@ export function poserLeMarketplace(dossier: string, commandes: string, version: 
   ecrire(script, readFileSync(join(propres, SCRIPT_INIT), "utf8"));
   chmodSync(script, 0o755);
   ecrire(join(dossier, "scripts", CATALOGUE_DES_LABELS), readFileSync(join(propres, CATALOGUE_DES_LABELS), "utf8"));
-  for (const nom of COMMANDES_DE_L_APP) ecrire(join(dossier, "commands", nom), readFileSync(join(propres, nom), "utf8").replaceAll(MARQUE_DU_SCRIPT, script.replaceAll("\\", "/")));
+  const prDeSetup = join(lieux.runtime, ...PR_DE_SETUP);
+  for (const nom of COMMANDES_DE_L_APP)
+    ecrire(
+      join(dossier, "commands", nom),
+      readFileSync(join(propres, nom), "utf8").replaceAll(MARQUE_DU_SCRIPT, script.replaceAll("\\", "/")).replaceAll(MARQUE_DE_LA_PR, prDeSetup.replaceAll("\\", "/")).replaceAll(MARQUE_DU_NODE, lieux.node.replaceAll("\\", "/")),
+    );
 }
 
 function ecrire(chemin: string, contenu: string): void {
@@ -136,6 +149,8 @@ export type OptionsPluginApp = {
   // Le dossier des commandes que l'app porte.
   commandes: string;
   versionDeLApp: string;
+  // Le runtime et son `node`, que `/brigade:init` lance pour finir (#3169).
+  lieux?: Lieux;
   // Ce que l'app dit de ce qu'elle a fait, ou pas, pour le terminal qui l'a lancée.
   dire: (ligne: string) => void;
 };
@@ -159,7 +174,7 @@ export function tenirLePluginApp(options: OptionsPluginApp) {
     let version: string;
     try {
       version = versionDuPlugin(options.versionDeLApp, options.commandes);
-      poserLeMarketplace(options.marketplace, options.commandes, version);
+      poserLeMarketplace(options.marketplace, options.commandes, version, PROPRES, options.lieux);
     } catch (erreur) {
       options.dire(`brigade: the app's plugin was not prepared — ${(erreur as Error).message}`);
       return undefined;
