@@ -286,6 +286,13 @@ export type Pont = {
   reglagesDuProjet(projet: string): Promise<import("../reglages-du-projet.ts").LectureDesReglages>;
   proposerUnReglage(projet: string, choix: import("../reglages-du-projet.ts").ChoixDeReglage): Promise<import("../reglages-du-projet.ts").RenduDuReglage>;
   ouvrirLaProposition(url: string): Promise<boolean>;
+  // Les résumés hebdomadaires de la cuisine d'un projet et le jour de leur écriture (ticket 3263,
+  // resume-hebdomadaire/resume-cuisine.ts) ; le jour changé par une PR, qui s'ouvre par `ouvrirLaProposition` ; un
+  // résumé publié comme les notes d'une version ; puis l'issue d'un ticket qu'ils nomment, ou la release publiée.
+  lireLesResumesHebdomadaires(projet: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet>;
+  changerLeJourDuResume(projet: string, jour: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").RenduDuJour>;
+  publierLeResumeHebdomadaire(projet: string, weekStart: string, tag: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").RenduDeLaPublication>;
+  ouvrirTicketDuResume(url: string): Promise<boolean>;
   // Les humains du projet, sous Settings (ticket 2930) : ceux que son `projet.json` déclare, et chaque changement — ajouté, changé
   // ou retiré — écrit par une PR, qui rend son lien ou un refus d'une ligne (settings-humans/humains.js, humains-du-projet.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre pas la section.

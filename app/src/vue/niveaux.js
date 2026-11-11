@@ -27,6 +27,8 @@ export const NIVEAUX = {
   "closer-cooks": "project",
   "closer-tokens": "project",
   "closer-lines": "project",
+  // Le jour du résumé hebdomadaire de sa cuisine (ticket 3263, `weeklySummaryDay`).
+  "jour-du-resume": "project",
   // Cette machine : ses cooks, le dossier de ses espaces de travail, ce qu'elle sait faire, ses tickets ordinaires — et,
   // pour la station de cet ordinateur (ticket 2489), sa connexion à Claude.
   cooks: "machine",

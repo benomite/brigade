@@ -122,6 +122,10 @@ const pont = {
   changerReglageDuCloser: (projet, cle, saisie) => ipcRenderer.invoke("changerReglageDuCloser", projet, cle, saisie),
   changerVerificationDuCloser: (projet, geste, saisie) => ipcRenderer.invoke("changerVerificationDuCloser", projet, geste, saisie),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
+  lireLesResumesHebdomadaires: (projet) => ipcRenderer.invoke("lireLesResumesHebdomadaires", projet),
+  changerLeJourDuResume: (projet, jour) => ipcRenderer.invoke("changerLeJourDuResume", projet, jour),
+  publierLeResumeHebdomadaire: (projet, weekStart, tag) => ipcRenderer.invoke("publierLeResumeHebdomadaire", projet, weekStart, tag),
+  ouvrirTicketDuResume: (url) => ipcRenderer.invoke("ouvrirTicketDuResume", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
   appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),

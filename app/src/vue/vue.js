@@ -95,6 +95,7 @@ import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
+import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
 import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
 import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
@@ -178,6 +179,8 @@ const PARAMETRES = "parametres";
 const COUTS = "couts";
 // Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
 const RATIOS = "ratios";
+// Et celle des résumés hebdomadaires (ticket 3263) : lue par le process principal, sans onglet.
+const RESUMES = "resumes";
 // Les onglets de la page d'un projet (ticket 1184), Rail et Stations.
 const RAIL = "rail";
 // Le menu du projet (ticket 2485, 2921) : Rail · Stations · Settings (projet/menu/menu.js).
@@ -570,14 +573,30 @@ ouvrirLesRatios.ariaLabel = "the added / removed ratio of all projects";
   ouvrirLesRatios.append(bloc("strong", "Closer"), bloc("span", RATIOS_DE_L_ACCUEIL), suite);
 }
 ratiosDeLAccueil.append(ouvrirLesRatios);
-// Les deux lignes de tous les projets, dans le bandeau de santé de chacun (ticket 2638) : elles valent pour l'ensemble.
+// Les résumés hebdomadaires de la cuisine de chaque projet (ticket 3263), de même : une ligne « Weekly summary » ouvre leur
+// page (resume-hebdomadaire/), lue et publiée par le process principal.
+const resumesDeLAccueil = document.createElement("section");
+resumesDeLAccueil.id = "resumes-de-tous";
+resumesDeLAccueil.ariaLabel = TITRE_DES_RESUMES;
+const ouvrirLesResumes = /** @type {HTMLButtonElement} */ (bloc("button", ""));
+ouvrirLesResumes.type = "button";
+ouvrirLesResumes.className = "ligne";
+ouvrirLesResumes.ariaLabel = "the weekly summaries of all projects";
+{
+  const suite = bloc("span", "›");
+  suite.className = "ouvrir";
+  suite.ariaHidden = "true";
+  ouvrirLesResumes.append(bloc("strong", TITRE_DES_RESUMES), bloc("span", RESUMES_DE_L_ACCUEIL), suite);
+}
+resumesDeLAccueil.append(ouvrirLesResumes);
+// Les lignes de tous les projets, dans le bandeau de santé de chacun (ticket 2638) : elles valent pour l'ensemble.
 const TOUS_LES_PROJETS = "All projects";
 const deTousLesProjets = document.createElement("section");
 deTousLesProjets.id = "de-tous-les-projets";
 deTousLesProjets.className = "bloc-du-projet";
 deTousLesProjets.ariaLabel = TOUS_LES_PROJETS;
 deTousLesProjets.dataset.bloc = "de-tous-les-projets";
-deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil);
+deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil, resumesDeLAccueil);
 // L'accueil a les projets et la station de cet ordinateur (ticket 2638, épique 2497) — chacun son composant, sous
 // accueil/ —, puis toutes les stations (ticket 3195). La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
 // version plus haute, en tête de l'app (mise-a-jour/bandeau.js), dit la version qui tourne et l'installe.
@@ -615,6 +634,19 @@ retourDesRatios.className = "retour";
 const corpsDesRatios = document.createElement("div");
 corpsDesRatios.ariaLive = "polite";
 pageDesRatios.append(retourDesRatios, corpsDesRatios);
+const pageDesResumes = document.createElement("section");
+pageDesResumes.id = "resumes";
+pageDesResumes.ariaLabel = TITRE_DES_RESUMES;
+const retourDesResumes = /** @type {HTMLButtonElement} */ (bouton("‹ All projects", undefined, "discret"));
+retourDesResumes.className = "retour";
+const resumesDeTous = tenirLesResumesHebdomadaires(document, {
+  lire: (nom) => brigade.lireLesResumesHebdomadaires(nom),
+  changerJour: (nom, jour) => brigade.changerLeJourDuResume(nom, jour),
+  publier: (nom, resume, tag) => brigade.publierLeResumeHebdomadaire(nom, resume.weekStart, tag),
+  ouvrir: (url) => void brigade.ouvrirTicketDuResume(url),
+  ouvrirProposition: (url) => void brigade.ouvrirLaProposition(url),
+});
+pageDesResumes.append(retourDesResumes, resumesDeTous.element);
 
 // La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
 // ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
@@ -925,9 +957,9 @@ let telephoneVu;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
 let stationOuverte;
-// La page de l'app ouverte à la place de l'accueil : celle des coûts de tous les projets (ticket 1022), ou celle de
-// leurs ratios ajouté / retiré (ticket 1682). Aucune : l'accueil — ou un projet, une station.
-/** @type {typeof COUTS | typeof RATIOS | undefined} */
+// La page de l'app ouverte à la place de l'accueil : celle des coûts de tous les projets (ticket 1022), celle de
+// leurs ratios ajouté / retiré (ticket 1682), ou celle de leurs résumés hebdomadaires (ticket 3263). Aucune : l'accueil — ou un projet, une station.
+/** @type {typeof COUTS | typeof RATIOS | typeof RESUMES | undefined} */
 let pageDeLApp;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
@@ -7665,7 +7697,7 @@ function reprendreLEcran() {
   if (projet !== undefined) courant = projet;
   else if (lu.ajout === true) ajoute = true;
   else if (typeof lu.station === "string") stationOuverte = lu.station;
-  else if (lu.page === COUTS || lu.page === RATIOS) pageDeLApp = lu.page;
+  else if (lu.page === COUTS || lu.page === RATIOS || lu.page === RESUMES) pageDeLApp = lu.page;
 }
 
 // La fenêtre s'est rechargée (ticket 3159) : les terminaux ouverts avant sont restés au process principal, chacun dans son
@@ -8306,6 +8338,19 @@ function ouvrirRatios() {
 }
 ouvrirLesRatios.addEventListener("click", () => ouvrirRatios());
 retourDesRatios.addEventListener("click", () => ouvrirTous());
+// La page des résumés hebdomadaires de tous les projets, de même : chaque projet qui se lit, lu à l'ouverture.
+function ouvrirResumes() {
+  courant = undefined;
+  ajoute = false;
+  stationOuverte = undefined;
+  pageDeLApp = RESUMES;
+  marquer();
+  resumesDeTous.poser(configuration.projets.filter((projet) => seLit(projet)).map(({ nom }) => nom));
+  tous.replaceChildren(pageDesResumes);
+  retourDesResumes.focus();
+}
+ouvrirLesResumes.addEventListener("click", () => ouvrirResumes());
+retourDesResumes.addEventListener("click", () => ouvrirTous());
 
 // La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
 /** @param {string} id */
@@ -8931,6 +8976,7 @@ function afficher() {
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
   else if (pageDeLApp === COUTS && !ajoute) ouvrirCouts();
   else if (pageDeLApp === RATIOS && !ajoute) ouvrirRatios();
+  else if (pageDeLApp === RESUMES && !ajoute) ouvrirResumes();
   // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (premier-lancement.js). Sur le téléphone,
   // aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
   else if (ajoute || (configuration.projets.length === 0 && telephone === undefined && !avecPremier())) ouvrirAjout();
