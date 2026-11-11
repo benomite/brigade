@@ -1,0 +1,132 @@
+# Ajoute l'app pour Linux x64 à la release de l'app : brigade-<version>-linux-x64.AppImage, construite
+# par app/packaging/linux.ts sur un runner ubuntu, éprouvée par app/packaging/essai-linux.ts (l'app
+# atteint son écran principal), puis attachée à la release `app-v<version>` que publier-app vient de
+# publier, à côté du .dmg et de l'installeur Windows. Le nom vient de scripts/app-release/paquets.ts
+# (`fichiers --plateforme Linux`), comme les notes de la release qui le listent.
+#
+# Il joue quand un run de publier-app sur `main` a réussi (`workflow_run` : un tag posé par publier-app
+# avec GITHUB_TOKEN ne déclencherait aucun workflow). La release à compléter est celle que ce run a
+# publiée, lue à son commit (publier-app la crée avec `--target <commit>`) ; un run qui n'a rien
+# publié (l'app n'a pas changé) finit vert sans rien construire. L'AppImage est construite depuis le
+# tag de la release : le code de la version publiée, pas celui de `main`. `workflow_dispatch`
+# complète à la main une release donnée (`tag`), ou la dernière release de l'app.
+name: app-release-linux
+
+on:
+  workflow_run:
+    workflows: [publier-app]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The app release to complete (app-v<version>); empty: the latest app release"
+        required: false
+        default: ""
+
+# Deux constructions ne se doublent pas sur la même release.
+concurrency:
+  group: app-release-linux
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  trouver:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Trouver la release à compléter
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENEMENT: ${{ github.event_name }}
+          COMMIT: ${{ github.event.workflow_run.head_sha }}
+          DEMANDE: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENEMENT" = workflow_run ]; then
+            tag=$(gh api "repos/$GH_REPO/releases?per_page=100" \
+              --jq '[.[] | select((.tag_name | startswith("app-v")) and .target_commitish == env.COMMIT)][0].tag_name // empty')
+            if [ -z "$tag" ]; then
+              echo "The publier-app run of $COMMIT published no app release: nothing to build." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          elif [ -n "$DEMANDE" ]; then
+            tag="$DEMANDE"
+          else
+            tag=$(gh release list --limit 100 --json tagName,createdAt \
+              --jq '[.[] | select(.tagName | startswith("app-v"))] | sort_by(.createdAt) | last | .tagName // empty')
+            [ -n "$tag" ] || { echo "::error::No app release (app-v*) to complete."; exit 1; }
+          fi
+          case "$tag" in app-v*) ;; *) echo "::error::$tag is not an app release tag (app-v<version>)."; exit 1;; esac
+          gh release view "$tag" > /dev/null || { echo "::error::No release $tag to attach the Linux AppImage to."; exit 1; }
+          echo "Completing $tag with the Linux AppImage." | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: trouver
+    if: needs.trouver.outputs.tag != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      TAG: ${{ needs.trouver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.trouver.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      # mksquashfs écrit l'AppImage ; Xvfb donne un écran à l'essai, FUSE monte l'AppImage.
+      - name: Installer squashfs-tools, Xvfb et FUSE
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools xvfb fuse3
+      # node-pty est compilé ici (node-gyp, avec le make et le compilateur du runner) : il n'a pas de
+      # build linux-x64 dans son paquet.
+      - name: Construire l'AppImage
+        run: |
+          set -euo pipefail
+          node app/packaging/linux.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+      - name: Vérifier ce qui part vers la release
+        id: fichier
+        run: |
+          set -euo pipefail
+          fichier=$(node scripts/app-release/paquets.ts fichiers --version "${TAG#app-v}" --plateforme Linux)
+          [ -n "$fichier" ] || { echo "::error::scripts/app-release/paquets.ts names no Linux package"; exit 1; }
+          # Un seul fichier, à son nom.
+          ls -la "$RUNNER_TEMP/dist"
+          [ "$(ls -A "$RUNNER_TEMP/dist")" = "$fichier" ] || { echo "::error::the build did not write $fichier alone"; exit 1; }
+          echo "fichier=$fichier" >> "$GITHUB_OUTPUT"
+      - name: Éprouver l'AppImage
+        timeout-minutes: 10
+        env:
+          FICHIER: ${{ steps.fichier.outputs.fichier }}
+        run: |
+          set -euo pipefail
+          xvfb-run -a --server-args="-screen 0 1440x900x24" node app/packaging/essai-linux.ts "$RUNNER_TEMP/dist/$FICHIER" --capture "$RUNNER_TEMP/essai-linux.png"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-linux
+          path: |
+            ${{ runner.temp }}/essai-linux.png
+            ${{ runner.temp }}/dist/*.AppImage
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Attacher l'AppImage à la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FICHIER: ${{ steps.fichier.outputs.fichier }}
+        run: |
+          set -euo pipefail
+          # Un run rejoué remplace le fichier déjà attaché.
+          gh release upload "$TAG" "$RUNNER_TEMP/dist/$FICHIER" --clobber
+          echo "Attached $FICHIER to $TAG." | tee -a "$GITHUB_STEP_SUMMARY"
