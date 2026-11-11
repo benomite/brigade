@@ -77,6 +77,7 @@ describe("ranger les projets en les glissant dans la barre", () => {
         ["bravo", true],
         ["charlie", true],
         ["Add a project", false],
+        ["Replay the tour", false],
       ],
     );
   });
@@ -134,7 +135,7 @@ describe("ranger les projets en les glissant dans la barre", () => {
     vue.dire("surConfiguration", affichee([C, A, B]), []);
     await repos();
 
-    assert.deepEqual(ordre(vue), ["All projects", "charlie", "alpha", "bravo", "Add a project"]);
+    assert.deepEqual(ordre(vue), ["All projects", "charlie", "alpha", "bravo", "Add a project", "Replay the tour"]);
     assert.deepEqual(titres(), ["charlie", "alpha", "bravo"]);
     // Les cases reposées se rangent encore.
     const transfert = prendre(vue, "bravo");
@@ -211,6 +212,6 @@ describe("ranger les projets en les glissant dans la barre", () => {
     assert.equal(avis.hidden, false);
     assert.match(avis.textContent, /“charlie” was not moved in the bar/);
     assert.match(avis.textContent, /unreadable JSON/);
-    assert.deepEqual(ordre(vue), ["All projects", "alpha", "bravo", "charlie", "Add a project"]);
+    assert.deepEqual(ordre(vue), ["All projects", "alpha", "bravo", "charlie", "Add a project", "Replay the tour"]);
   });
 });

@@ -339,6 +339,44 @@ Open one of your projects on this PC: one click, no folder to choose.
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
 `app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
 
+### On first launch: brigade added on its own, and a tour of its real kitchen (#3165, epic #3162)
+
+On a fresh install, once this computer's GitHub account is read on the first-launch screen — already signed in, or
+right after `connect to GitHub` —, **the app adds benomite/brigade by itself**, the demo kitchen cooked every day in
+public: nothing is clicked or typed. It goes through the same opening as a click on a station's project (above): the
+clone's steps are said under the head, a failure says why with `Try again`. Opened, its space shows the Rail tab and
+**a tour starts over the real screens**, in a bubble at the bottom of the window. Six steps, in this order, each one
+outlining a live element of the screen in the accent and saying in one or two sentences what it is, with Brigade's
+word for it:
+
+| Step | Outlines | When the moment has nothing to show |
+|---|---|---|
+| The rail | the row of columns, named as the screen shows them | — |
+| A cook | the first card of Taken | `No cook is running right now.`, and the last served ticket instead |
+| The pass | the first card of Pass | `Nothing is in the pass right now.`, and the last delivery it judged — the last served ticket — instead |
+| Served | the last served ticket | `No ticket was served in the last 24 h.`, on the Served column |
+| Awaiting you — the TODO | the first card awaiting a human, and what a card asks | `Nothing awaits a human right now.`, on the column |
+| The second | the second's column | — |
+
+With nothing served in 24 h either, the step says so and outlines the column where it would happen. Until the rail is
+read, the steps that need an example say `Reading the rail…`, and follow the next reading. Each step has `next` and
+`skip the tour`; the last has a single call to action, `add your own project`, which opens **Add a project** (the
+guided first-project path is another ticket of the epic).
+
+**The tour is shown once.** Started, it leaves a mark in the view's storage (`brigade.visite`): on later launches,
+whether it was finished, skipped or left halfway, nothing is added again and the tour does not start — even if
+brigade was removed from the projects file. A storage that cannot be read is not a first launch: nothing is added. The
+**?** tile at the foot of the bar, under **+**, replays it from its first step, on brigade if it is in the file,
+otherwise on the open project or the first one.
+
+**Not read-only yet.** The read-only project of the companion ticket of epic #3162 is not on `main` yet: brigade is
+added as an ordinary project of the file — its folder cloned, its second started like any project's. When that ticket
+lands, the add goes through it.
+
+*Code: `app/src/vue/visite/visite.js` (steps, bubble, the first-launch mark) and its wiring in `app/src/vue/vue.js`
+(`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
+Captures: `docs/captures/3165/`.*
+
 ### One add-a-project path, on first launch and on Add a project (#2475, epic #2473)
 
 The first-launch screen and **Add a project** (the **+** at the foot of the bar) mount **the same path**:
@@ -2161,6 +2199,7 @@ On the left, a column of tiles, Slack or Discord style:
 | **T**, round, at the top | the "All projects" screen. **In yellow**: the app's code, or a brigade clone among your projects, is behind its origin — hovering says which, and by how much |
 | one **short label** per project, in the file's order | its space. At most 3 characters, large, on one line, never cut (`app/src/sigle.ts`) — see below |
 | **+**, dotted, at the bottom | add a project |
+| **?**, under **+** | replay the tour of a real kitchen (#3165) — shown when the file has a project; not on the phone |
 
 - **The full name is read on hover** over the tile, and **at the top of the space** once inside, to
   the left of the tabs.

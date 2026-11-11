@@ -9,6 +9,7 @@
 //
 // Le message tient sur une ligne : sous Windows, un `claude.cmd` ne reçoit
 // aucun argument sur plusieurs lignes (`sans-invite.ts`, `ligneDeCmd`).
+import { ACCEPTANCES, questionsInOrder, type UnsettledPoint } from "./questions.ts";
 import { etatDuDepot, lireLeDepot, type LectureDuDepot, type Trouvaille } from "./lecture-depot.ts";
 import { messageDuPremierTicket } from "./premier-ticket.ts";
 
@@ -34,6 +35,33 @@ export function proposition(lecture: LectureDuDepot): string {
   return (["branche", "checks", "zones"] as const).map((cle, rang) => `(${rang + 1}) ${chose(cle, lecture[cle])}`).join(" ");
 }
 
+// Les points de la mise en place, d'après la lecture : ceux que la lecture a réglés ne sont pas posés,
+// les autres le sont, chacun avec la réponse que l'app recommande.
+export function pointsDeLaMiseEnPlace(lecture: LectureDuDepot): UnsettledPoint[] {
+  const point = (id: keyof LectureDuDepot, question: string, recommended: string): UnsettledPoint => {
+    const t = lecture[id];
+    return { id, question, recommended, ...(t.lu ? { settled: (Array.isArray(t.valeur) ? t.valeur : [t.valeur]).join(", ") } : {}) };
+  };
+  return [
+    point("branche", "Which branch should every delivery land on?", "main"),
+    point("checks", "Which command must pass before a delivery is merged?", "none for now, so that no check runs nothing"),
+    point("zones", "How should the repository be split into parts with their own rules?", "one part for the whole repository"),
+  ];
+}
+
+// La suite du message : ce que le second demande au chef, et comment.
+function questions(lecture: LectureDuDepot): string {
+  const aPoser = questionsInOrder(pointsDeLaMiseEnPlace(lecture));
+  if (aPoser.length === 0) return "Everything was read, so there is nothing to ask: show the chef the three items and carry out the setup yourself with the app's `brigade:init` skill, with those values.";
+  const liste = aPoser.map((q, rang) => `(${rang + 1}) ${q.text}`).join(" ");
+  return [
+    "Ask the chef only what could not be read — never an item that was found — one question at a time, in this order, and wait for the answer before the next one:",
+    liste,
+    `Each question states its recommended answer, in French for the chef. A reply that is one of ${ACCEPTANCES.map((mot) => `"${mot}"`).join(", ")} alone accepts the recommendation: record the recommended value. Any other reply: record what the chef wrote.`,
+    "Once they have answered all of them, carry out the setup yourself with the app's `brigade:init` skill, with the items found and these answers.",
+  ].join(" ");
+}
+
 // Le premier message du second, une ligne, d'après une lecture du dépôt.
 export function messageDeMiseEnPlace(lecture: LectureDuDepot): string {
   return [
@@ -41,7 +69,8 @@ export function messageDeMiseEnPlace(lecture: LectureDuDepot): string {
     "Here is what the app read in the repository.",
     proposition(lecture),
     "Tell the chef, in French, each item and what it is for in Brigade, in one or two sentences, so that the setup walks them through their own project. Say plainly which items could not be read, and why.",
-    "Then ask them to confirm or correct each item found, and ask for each item not read; once they have answered, carry out the setup yourself with the app's `brigade:init` skill, with those values. If this conversation already started the setup, pick it up where it stands instead of starting over.",
+    questions(lecture),
+    "If this conversation already started the setup, pick it up where it stands instead of starting over.",
     // Le projet prêt, le premier ticket (#3170).
     messageDuPremierTicket(),
   ].join(" ");

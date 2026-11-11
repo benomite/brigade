@@ -50,6 +50,9 @@ test("un second ouvert sur un dépôt pas préparé part sur la mise en place : 
   assert.match(message, /Checks: found `npm test` \(read from the scripts `test` of `package\.json`\)/);
   assert.match(message, /File zones: found `docs\/`, `src\/` \(read from the first-level folders of the repository\)/);
   for (const sert of Object.values(SERT)) assert.ok(message.includes(`What it is for: ${sert}`), sert);
+  // Tout est lu : rien n'est demandé.
+  assert.doesNotMatch(message, /recommended: /);
+  assert.match(message, /nothing to ask/);
   // L'ancien message n'est plus : le chef n'a rien à taper.
   assert.doesNotMatch(message, /type `\/brigade:init` in this tab/);
   assert.match(message, /never ask them to type `\/brigade:init`/);
@@ -63,6 +66,12 @@ test("ce qui ne se lit pas est dit dans la proposition, et laissé aux questions
   assert.match(message, /Checks: not read — `package\.json` is not valid JSON \(.*?\); leave it for the questions, do not guess it\./);
   assert.match(message, /File zones: not read — .*leave it for the questions, do not guess it\./);
   assert.doesNotMatch(message, /found `/);
+  // Trois points non réglés : trois questions dans l'ordre, chacune avec sa recommandation, une à la fois.
+  const rang = ["Which branch", "Which command", "How should the repository"].map((debut) => message.indexOf(debut));
+  const [a = -1, b = -1, c = -1] = rang;
+  assert.ok(a > 0 && a < b && b < c, String(rang));
+  assert.equal(message.match(/recommended: /g)?.length, 3);
+  assert.match(message, /one question at a time/);
   // Le message est celui de la lecture du dépôt, rien d'autre.
   const dossier = fixture(t, ILLISIBLE);
   assert.deepEqual(argumentsDeMiseEnPlace(dossier, ROLE), [messageDeMiseEnPlace(lireLeDepot(dossier))]);
@@ -91,4 +100,11 @@ test("sous Windows, par un `claude.cmd`, le second part aussi sur la mise en pla
   });
   const message = argumentsDeMiseEnPlace(dossier, ROLE)[0] ?? "";
   assert.deepEqual(args(plan), ["/d", "/s", "/c", `"${ligneDeCmd(`${NPM}\\claude.cmd`, [...ROLE, message])}"`]);
+});
+
+test("seul ce que la lecture n'a pas réglé est demandé : une branche lue n'est pas posée", (t) => {
+  const message = argumentsDeMiseEnPlace(fixture(t, { ...ILLISIBLE, ".git/refs/remotes/origin/HEAD": "ref: refs/remotes/origin/main\n" }), ROLE)[0] ?? "";
+  assert.doesNotMatch(message, /Which branch/);
+  assert.match(message, /Which command/);
+  assert.equal(message.match(/recommended: /g)?.length, 2);
 });

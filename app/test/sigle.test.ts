@@ -160,7 +160,7 @@ describe("le sigle dans la vue", () => {
       ...(changerSigle === undefined ? {} : { changerSigle }),
     });
   // Les cases des projets : entre « Tous les projets », en tête, et « + », au pied.
-  const casesDesProjets = (vue: Jouee): Faux[] => vue.element("projets").children.slice(1, -1);
+  const casesDesProjets = (vue: Jouee): Faux[] => vue.element("projets").children.filter(({ id }) => !id.startsWith("entree-"));
   const caseDe = (vue: Jouee, nom: string): Faux => casesDesProjets(vue).find(({ title }) => title.split(" — ")[0] === nom) ?? assert.fail(`pas de case pour ${nom}`);
   const ecrit = (cas: Faux) => cas.dessous("span").filter(({ className }) => className === "sigle-de-case").map(({ textContent }) => textContent);
   const ligne = (vue: Jouee): Faux => vue.element("sigle").children.find(({ className }) => className === "reglage") ?? assert.fail("pas de ligne de sigle");
