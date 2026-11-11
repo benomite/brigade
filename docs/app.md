@@ -4259,3 +4259,7 @@ the box gives (the `renouvellement` line of `installation`, which the runtime's 
 single failure says nothing. The line stays as long as the check (read again every 5 min) reports
 the failure, and goes away on the first successful round. A session that has already dropped
 reports itself through the disconnected station.
+
+### The Help menu: GitHub Discussions (#3258)
+
+The app's Help menu has one entry, "Ask, share and propose ideas (GitHub Discussions)". It opens https://github.com/benomite/brigade/discussions in the computer's browser (`app/src/aide-communaute.ts`). The menu keeps Electron's edit, view and window roles, since setting an application menu replaces the default one.

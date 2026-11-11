@@ -1,0 +1,21 @@
+name: From a discussion
+description: An issue that comes from a GitHub Discussion
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions and ideas start in [GitHub Discussions](https://github.com/benomite/brigade/discussions). Open an issue here once a discussion has settled on something to do.
+  - type: input
+    id: discussion-url
+    attributes:
+      label: Discussion URL
+      description: The address of the discussion this issue comes from.
+      placeholder: "https://github.com/benomite/brigade/discussions/123"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What should be done
+    validations:
+      required: true
