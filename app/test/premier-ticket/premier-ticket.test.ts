@@ -1,9 +1,7 @@
-// Le premier ticket du premier projet du chef, raconté pas à pas (#3302). D'abord ses morceaux : les lignes que chaque
-// lecture du rail ajoute — pris, PR ouverte, en pass, renvoyé et pourquoi, repris, servi —, le récit gardé dans le
-// stockage de la vue — seulement pour le premier projet, rangé pour de bon, jamais écrit par-dessus une trace illisible —,
-// et ce que la page en dit. Puis la vue jouée entière (vue.js tel qu'il est, un faux pont) : un projet ajouté par « Add a
-// project » sur un ordinateur sans projet, les lectures de son rail qui arrivent l'une après l'autre, le geste qui range ;
-// et un chef qui avait déjà un projet, à qui rien n'est raconté.
+// Le premier ticket d'un projet prêt, écrit dans l'app (#3306, épique #3301). D'abord ses morceaux, devant un faux document :
+// la question du second et son champ, le brouillon montré avec « yes » et les changements, l'issue sur le rail, et l'état
+// tenu — rien n'est créé avant le « oui ». Puis la vue jouée entière (vue.js tel qu'il est, un faux pont) : « Add a
+// project », un dépôt prêt, la question au-dessus du rail, la réponse, le brouillon, une réécriture, puis le « oui ».
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
@@ -11,237 +9,246 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, comprendre, etapesDesTickets, tenirFaits, type EtapeDuTicket, type Faits } from "../../src/faits.ts";
+import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { Terminal } from "../../src/terminaux.ts";
 import {
-  avancer,
-  CLE_DU_PREMIER_TICKET,
-  EN_PASS,
-  MOTS,
-  OUVRIR_LA_PR,
+  CHANGER,
+  CREE,
+  ENVOYER,
+  FERMER,
+  LE_SECOND,
+  OUI,
+  PLUS_TARD,
   poserPremierTicket,
-  premierPris,
-  PR_OUVERTE,
-  PRIS,
-  RANGER,
-  RENVOYE,
-  REPRIS,
-  SERVI,
-  tenirLePremierTicket,
-  TITRE,
-  type Ligne,
+  PRIX_OUI,
+  QUESTION,
+  REDACTION,
+  REECRITURE,
+  RELIRE,
+  tenirLesPremiersTickets,
+  type Etat,
 } from "../../src/vue/premier-ticket/premier-ticket.js";
-import { DEPOT_DE_LA_VISITE } from "../../src/vue/visite/visite.js";
-import { Faux, FauxStockage, jouerLaVue, type Jouee, type Reponses, repos } from "../aides/fausse-vue.ts";
+import type { Brouillon, Creation, Demande, Redaction } from "../../../runtime/src/premier-ticket/premier-ticket.ts";
+import { Faux, jouerLaVue, type Jouee, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
-const A = "2026-11-11T10:04:12.000Z";
-const PR = { numero: 6, url: "https://github.com/chef/cantine/pull/6" };
-const RAISON = "the review requested changes on `3f2a9c1` (PR #6):\n\nThe price of a dish shows `NaN €`.";
-const etape = (etat: string, plus: Partial<EtapeDuTicket> = {}): EtapeDuTicket => ({ ticket: 5, etat, pr: null, renvoi: null, ...plus });
-const PRIS_LU = etape("pris");
-const EN_PASS_LU = etape("en pass", { pr: PR });
-const RENVOYE_LU = etape("pris", { pr: PR, renvoi: { n: 1, raison: RAISON } });
-const DE_NOUVEAU = etape("en pass", { pr: PR, renvoi: { n: 1, raison: RAISON } });
-const SERVI_LU = etape("servi", { pr: PR });
-const suivre = (lectures: EtapeDuTicket[], depart: Ligne[] = []) => lectures.reduce<Ligne[]>((lignes, lue) => avancer(lignes, lue, A), depart);
-const cles = (lignes: readonly Ligne[]) => lignes.map(({ cle }) => cle);
+const DEPOT = "chef/cantine";
+const BROUILLON: Brouillon = { title: "Show the lunch menu on the home page", body: "## Context\n\nGuests should see the menu first.\n\n## Acceptance criteria\n\n- When I open the home page, I see today's menu." };
+const REVU: Brouillon = { ...BROUILLON, title: "Show the lunch menu and its prices on the home page" };
 
-describe("les lignes que chaque lecture du rail ajoute", () => {
-  test("pris, PR ouverte, en pass, renvoyé et pourquoi, repris, de nouveau en pass, servi avec sa PR", () => {
-    const lignes = suivre([PRIS_LU, EN_PASS_LU, RENVOYE_LU, DE_NOUVEAU, SERVI_LU]);
-    assert.deepEqual(cles(lignes), ["pris", "pr", "pass", "renvoi", "repris", "pass", "servi"]);
-    assert.deepEqual(lignes[1]?.pr, PR);
-    assert.deepEqual([lignes[3]?.n, lignes[3]?.raison], [1, RAISON]);
-    assert.deepEqual(lignes[6]?.pr, PR);
+const gestesVides = () => {
+  const faits: string[] = [];
+  return {
+    faits,
+    ecrire: (texte: string) => void faits.push(`ecrire ${texte}`),
+    envoyer: () => void faits.push("envoyer"),
+    oui: () => void faits.push("oui"),
+    changer: () => void faits.push("changer"),
+    fermer: () => void faits.push("fermer"),
+  };
+};
+const poser = (etat: Etat, gestes = gestesVides()) => poserPremierTicket(doc, { depot: DEPOT, etat }, gestes) as unknown as Faux;
+const boutons = (ou: Faux) => ou.dessous("button").filter(({ className }) => className !== "aide");
+const bouton = (ou: Faux, texte: string) => boutons(ou).find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${boutons(ou).map(({ textContent }) => textContent).join(", ")}`);
+const champ = (ou: Faux) => ou.dessous("textarea")[0] ?? assert.fail("pas de champ");
+// Tout ce que l'écran montre, survols compris (leur texte est le nom accessible de leur « ? »).
+const toutLeTexte = (ou: Faux) => [ou.textContent, ...[...ou.descendants()].map(({ ariaLabel, placeholder, title }) => `${ariaLabel} ${placeholder} ${title}`)].join(" ");
+
+describe("le premier ticket, ses morceaux", () => {
+  test("la question : le second demande ce qu'il faut changer d'abord, un champ pour la réponse, « send » éteint tant qu'il est vide", () => {
+    const gestes = gestesVides();
+    const carte = poser({ etape: "question", reponse: "" }, gestes);
+    assert.equal(carte.dataset.etape, "question");
+    assert.equal(carte.dessous("p")[0]?.textContent, LE_SECOND);
+    assert.equal(carte.dessous("h2")[0]?.textContent, QUESTION(DEPOT));
+    assert.equal(QUESTION(DEPOT), "chef/cantine is ready. What do you want to change first?");
+    assert.deepEqual(boutons(carte).map(({ textContent }) => textContent), [ENVOYER, PLUS_TARD]);
+    const envoyer = bouton(carte, ENVOYER);
+    assert.ok(envoyer.className.includes("recommande"));
+    assert.equal(envoyer.disabled, true);
+    const saisie = champ(carte);
+    saisie.value = "Show the menu first";
+    saisie.declencher("input");
+    assert.equal(envoyer.disabled, false);
+    envoyer.click();
+    bouton(carte, PLUS_TARD).click();
+    assert.deepEqual(gestes.faits, ["ecrire Show the menu first", "envoyer", "fermer"]);
+    // Une réponse déjà tapée revient dans le champ ; une rédaction ratée se dit en une ligne, sa cause au survol.
+    const ratee = poser({ etape: "question", reponse: "Show the menu first", refus: { dit: "the second did not write the ticket", detail: "not logged in" } });
+    assert.equal(champ(ratee).value, "Show the menu first");
+    assert.equal(bouton(ratee, ENVOYER).disabled, false);
+    assert.ok(ratee.dessous("span").some(({ textContent }) => textContent === "the second did not write the ticket"));
+    assert.ok(ratee.dessous("button").some(({ ariaLabel }) => ariaLabel === "not logged in"));
   });
 
-  test("une lecture qui ne change rien n'ajoute rien ; servi, le récit est fini", () => {
-    const lignes = suivre([PRIS_LU, PRIS_LU, EN_PASS_LU, EN_PASS_LU]);
-    assert.deepEqual(cles(lignes), ["pris", "pr", "pass"]);
-    const servi = suivre([SERVI_LU, PRIS_LU, RENVOYE_LU], lignes);
-    assert.deepEqual(cles(servi), ["pris", "pr", "pass", "servi"]);
+  test("le second écrit : ce que le chef a dit, et rien à faire — puis la même chose pour une réécriture", () => {
+    const ecrit = poser({ etape: "redaction", reponse: "Show the menu first" });
+    assert.equal(ecrit.dessous("h2")[0]?.textContent, REDACTION);
+    assert.ok(ecrit.textContent.includes("“Show the menu first”"));
+    assert.deepEqual(boutons(ecrit), []);
+    const reecrit = poser({ etape: "redaction", reponse: "Show the menu first", brouillon: BROUILLON, changements: "Add the prices" });
+    assert.equal(reecrit.dessous("h2")[0]?.textContent, REECRITURE);
+    assert.ok(reecrit.textContent.includes("“Add the prices”"));
   });
 
-  test("vu d'abord en pass, déjà renvoyé une fois : la prise, le renvoi et sa raison, la PR, la pass", () => {
-    assert.deepEqual(cles(suivre([DE_NOUVEAU])), ["pris", "renvoi", "pr", "pass"]);
+  test("le brouillon : son titre, son corps, « yes » recommandé avec son prix au survol, et les changements avec « ask for changes »", () => {
+    const gestes = gestesVides();
+    const carte = poser({ etape: "brouillon", reponse: "x", brouillon: BROUILLON, changements: "" }, gestes);
+    assert.equal(carte.dessous("h2")[0]?.textContent, RELIRE);
+    assert.equal(carte.dessous("h3")[0]?.textContent, BROUILLON.title);
+    assert.ok(carte.dessous("div").some(({ textContent }) => textContent === BROUILLON.body));
+    const oui = bouton(carte, OUI);
+    assert.ok(oui.className.includes("recommande"));
+    assert.ok(carte.dessous("button").some(({ ariaLabel }) => ariaLabel === PRIX_OUI));
+    const changer = bouton(carte, CHANGER);
+    assert.equal(changer.className.includes("recommande"), false);
+    assert.equal(changer.disabled, true);
+    champ(carte).value = "Add the prices";
+    champ(carte).declencher("input");
+    assert.equal(changer.disabled, false);
+    changer.click();
+    oui.click();
+    assert.deepEqual(gestes.faits, ["ecrire Add the prices", "changer", "oui"]);
   });
 
-  test("un renvoi vu seulement à la pass suivante se dit quand même, une seule fois par rang ; un second renvoi se dit aussi", () => {
-    const lignes = suivre([PRIS_LU, EN_PASS_LU, DE_NOUVEAU, DE_NOUVEAU, etape("pris", { pr: PR, renvoi: { n: 2, raison: "the CI is red" } })]);
-    assert.deepEqual(cles(lignes), ["pris", "pr", "pass", "renvoi", "pass", "renvoi", "repris"]);
-    assert.equal(lignes[5]?.raison, "the CI is red");
+  test("le « oui » parti, tout attend ; refusé, le brouillon reste avec la raison ; créé, l'issue est sur le rail", () => {
+    const enRoute = poser({ etape: "creation", reponse: "x", brouillon: BROUILLON });
+    assert.equal(bouton(enRoute, OUI).disabled, true);
+    assert.equal(bouton(enRoute, CHANGER).disabled, true);
+    assert.equal(champ(enRoute).disabled, true);
+    const refuse = poser({ etape: "brouillon", reponse: "x", brouillon: BROUILLON, changements: "", refus: { dit: "nothing was created: GitHub could not be reached", detail: "gh missing" } });
+    assert.equal(bouton(refuse, OUI).disabled, false);
+    assert.ok(refuse.dessous("span").some(({ textContent }) => textContent === "nothing was created: GitHub could not be reached"));
+    const gestes = gestesVides();
+    const cree = poser({ etape: "cree", ticket: 7, url: `https://github.com/${DEPOT}/issues/7` }, gestes);
+    assert.equal(cree.dessous("h2")[0]?.textContent, CREE(7));
+    assert.equal(CREE(7), "#7 is on the rail: the kitchen serves it.");
+    bouton(cree, FERMER).click();
+    assert.deepEqual(gestes.faits, ["fermer"]);
   });
 
-  test("une autre PR après un renvoi se dit ; la même ne se redit pas", () => {
-    const autre = { numero: 9, url: "https://github.com/chef/cantine/pull/9" };
-    const lignes = suivre([PRIS_LU, EN_PASS_LU, RENVOYE_LU, etape("en pass", { pr: autre, renvoi: { n: 1, raison: RAISON } })]);
-    assert.deepEqual(cles(lignes), ["pris", "pr", "pass", "renvoi", "repris", "pr", "pass"]);
-    assert.deepEqual(lignes[5]?.pr, autre);
-  });
-
-  test("un ticket en attente, WAITING ou mis de côté n'ajoute rien", () => {
-    assert.deepEqual(suivre([etape("en attente"), etape("WAITING"), etape("86")]), []);
-  });
-
-  test("le premier ticket : le plus petit qu'une lecture montre pris ou en pass — jamais un ticket en attente ni un servi", () => {
-    assert.equal(premierPris([etape("en attente", { ticket: 2 }), etape("servi", { ticket: 1 }), etape("en pass", { ticket: 7 }), etape("pris", { ticket: 4 })]), 4);
-    assert.equal(premierPris([etape("en attente"), etape("servi")]), undefined);
-  });
-});
-
-describe("le récit gardé dans le stockage de la vue", () => {
-  test("le premier projet ajouté est raconté, ligne à ligne ; un autre projet ne l'est pas ; un second ajout ne décide plus rien", () => {
-    const stockage = new FauxStockage();
-    let rendus = 0;
-    const recit = tenirLePremierTicket({ stockage, rendre: () => void rendus++, maintenant: () => A });
-    recit.projetAjoute("cantine", false);
-    recit.projetAjoute("parade", false);
-    // Rien n'est encore pris : rien à montrer.
-    recit.observer("cantine", [etape("en attente")]);
-    assert.equal(recit.de("cantine"), undefined);
-    recit.observer("parade", [PRIS_LU]);
-    assert.equal(recit.de("parade"), undefined);
-    recit.observer("cantine", [PRIS_LU]);
-    recit.observer("cantine", [EN_PASS_LU]);
-    assert.deepEqual(cles(recit.de("cantine")?.lignes ?? []), ["pris", "pr", "pass"]);
-    assert.equal(recit.de("cantine")?.ticket, 5);
-    // Un ticket pris plus tard n'est pas le premier : le récit reste sur #5.
-    recit.observer("cantine", [etape("pris", { ticket: 3 }), EN_PASS_LU]);
-    assert.equal(recit.de("cantine")?.ticket, 5);
-    // Gardé : l'app rouverte reprend le récit là où il en était.
-    const rouvert = tenirLePremierTicket({ stockage, rendre: () => {}, maintenant: () => A });
-    assert.deepEqual(rouvert.de("cantine"), recit.de("cantine"));
-    assert.ok(rendus >= 3);
-  });
-
-  test("un chef qui avait déjà un projet : rien n'est raconté, même au projet suivant", () => {
-    const stockage = new FauxStockage();
-    const recit = tenirLePremierTicket({ stockage, rendre: () => {}, maintenant: () => A });
-    recit.projetAjoute("cantine", true);
-    recit.observer("cantine", [PRIS_LU]);
-    recit.projetAjoute("escale", false);
-    recit.observer("escale", [PRIS_LU]);
-    assert.equal(recit.de("cantine"), undefined);
-    assert.equal(recit.de("escale"), undefined);
-  });
-
-  test("rangé : il ne revient plus, ni à la lecture suivante, ni l'app rouverte", () => {
-    const stockage = new FauxStockage();
-    const recit = tenirLePremierTicket({ stockage, rendre: () => {}, maintenant: () => A });
-    recit.projetAjoute("cantine", false);
-    recit.observer("cantine", [PRIS_LU]);
-    recit.ranger();
-    recit.observer("cantine", [EN_PASS_LU]);
-    assert.equal(recit.de("cantine"), undefined);
-    assert.equal(tenirLePremierTicket({ stockage, rendre: () => {}, maintenant: () => A }).de("cantine"), undefined);
-    assert.equal(JSON.parse(stockage.getItem(CLE_DU_PREMIER_TICKET) ?? "{}").range, true);
-  });
-
-  test("une trace illisible ne décide rien : rien n'est raconté, et rien n'est écrit par-dessus", () => {
-    for (const illisible of ["{pas du json", JSON.stringify({ projet: 3, lignes: [] }), JSON.stringify({ projet: "cantine", lignes: [{ cle: "autre", le: A }] })]) {
-      const stockage = new FauxStockage();
-      stockage.setItem(CLE_DU_PREMIER_TICKET, illisible);
-      const recit = tenirLePremierTicket({ stockage, rendre: () => assert.fail("rien ne se redessine"), maintenant: () => A });
-      recit.projetAjoute("cantine", false);
-      recit.observer("cantine", [PRIS_LU]);
-      recit.ranger();
-      assert.equal(recit.de("cantine"), undefined);
-      assert.equal(stockage.getItem(CLE_DU_PREMIER_TICKET), illisible);
-    }
-  });
-
-  test("un stockage qui refuse la lecture ne décide rien ; un stockage plein garde le récit le temps que l'app tourne", () => {
-    const refuse = { getItem: () => { throw new Error("denied"); }, setItem: () => assert.fail("rien ne s'écrit") };
-    const muet = tenirLePremierTicket({ stockage: refuse, rendre: () => {}, maintenant: () => A });
-    muet.projetAjoute("cantine", false);
-    muet.observer("cantine", [PRIS_LU]);
-    assert.equal(muet.de("cantine"), undefined);
-
-    const plein = { getItem: () => null, setItem: () => { throw new Error("quota"); } };
-    const tenu = tenirLePremierTicket({ stockage: plein, rendre: () => {}, maintenant: () => A });
-    tenu.projetAjoute("cantine", false);
-    tenu.observer("cantine", [PRIS_LU]);
-    assert.deepEqual(cles(tenu.de("cantine")?.lignes ?? []), ["pris"]);
+  test("aucun écran ne demande d'ouvrir GitHub ni de taper un label : ni `fire`, ni label, ni GitHub à l'écran", () => {
+    const etats: Etat[] = [
+      { etape: "question", reponse: "" },
+      { etape: "redaction", reponse: "x" },
+      { etape: "redaction", reponse: "x", brouillon: BROUILLON, changements: "y" },
+      { etape: "brouillon", reponse: "x", brouillon: BROUILLON, changements: "" },
+      { etape: "creation", reponse: "x", brouillon: BROUILLON },
+      { etape: "cree", ticket: 7, url: "https://github.com/chef/cantine/issues/7" },
+    ];
+    for (const etat of etats) assert.doesNotMatch(toutLeTexte(poser(etat)), /github|label|\bfire\b/i, etat.etape);
   });
 });
 
-describe("ce que la page en dit", () => {
-  test("son titre et « dismiss » ; une ligne par étape, son mot puis ce qu'il veut dire ; la raison d'un renvoi ; le lien de la PR", () => {
-    const faits: string[] = [];
-    const lignes = suivre([PRIS_LU, EN_PASS_LU, RENVOYE_LU, DE_NOUVEAU, SERVI_LU]);
-    const pose = poserPremierTicket(doc, { ticket: 5, lignes }, { ouvrir: () => void faits.push("ouvrir"), ranger: () => void faits.push("ranger") }) as unknown as Faux;
-    assert.equal(pose.dessous("strong")[0]?.textContent, TITRE(5));
-    const etapes = pose.dessous("li");
-    assert.deepEqual(etapes.map(({ dataset }) => dataset.etape), ["pris", "pr", "pass", "renvoi", "repris", "pass", "servi"]);
-    assert.deepEqual(
-      etapes.map((li) => [li.dessous("strong")[0]?.textContent, li.dessous("span").find(({ className }) => className === "dit")?.textContent]),
-      [
-        [MOTS.pris, PRIS(5)],
-        [MOTS.pr, PR_OUVERTE(6)],
-        [MOTS.pass, EN_PASS],
-        [MOTS.renvoi, RENVOYE],
-        [MOTS.repris, REPRIS(5)],
-        [MOTS.pass, EN_PASS],
-        [MOTS.servi, SERVI(5, 6)],
-      ],
-    );
-    assert.equal(etapes[3]?.dessous("p").find(({ className }) => className === "raison")?.textContent, RAISON);
-    // Le mot de la cuisine, et ce qu'il veut dire en clair : une copie à lui, les gates, la CI, la relecture.
-    assert.match(PRIS(5), /its own copy of the repository/);
-    assert.match(EN_PASS, /gates.*CI.*review/);
-    // Le lien de la PR : sur sa ligne ouverte et sur le service — pas ailleurs.
-    assert.deepEqual(
-      etapes.map((li) => li.dessous("button").map(({ textContent }) => textContent)),
-      [[], [OUVRIR_LA_PR(6)], [], [], [], [], [OUVRIR_LA_PR(6)]],
-    );
-    etapes[6]?.dessous("button")[0]?.click();
-    (pose.dessous("button").find(({ textContent }) => textContent === RANGER) ?? assert.fail("pas de « dismiss »")).click();
-    assert.deepEqual(faits, ["ouvrir", "ranger"]);
-  });
-});
+// Un pont doublé : ce que le second rédige, dans l'ordre ; ce que la création rend. Chaque appel est noté.
+function pont(redactions: Redaction[], creation: Creation = { ticket: 7, url: `https://github.com/${DEPOT}/issues/7` }) {
+  const rediges: Demande[] = [];
+  const crees: Brouillon[] = [];
+  return {
+    rediges,
+    crees,
+    rediger: async (_: string, demande: Demande) => (rediges.push(demande), redactions.shift() ?? { refus: "rien", detail: "" }),
+    creer: async (_: string, brouillon: Brouillon) => (crees.push(brouillon), creation),
+  };
+}
 
-describe("ce que les faits en donnent", () => {
-  test("le rail avec sa PR et son dernier renvoi, puis les servis et leur PR mergée — rien d'illisible, aucune adresse qui ne s'ouvre pas", () => {
-    const brut = {
-      etat: "ouverte",
-      lu: A,
-      dernierTick: A,
-      compteurs: { rail: 2, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 2 },
-      dernierEvenement: null,
-      rail: [
-        { ticket: 5, etat: "pris", titre: "La carte", url: "https://github.com/chef/cantine/issues/5", pr: PR, renvoi: { n: 1, raison: RAISON } },
-        { ticket: 7, etat: "en attente", titre: "Le menu", url: "https://github.com/chef/cantine/issues/7" },
-      ],
-      livres: [
-        { ticket: 3, titre: "Les allergènes", url: null, livre: A, station: null, pr: "https://github.com/chef/cantine/pull/4" },
-        { ticket: 2, titre: "Le pain", url: null, livre: A, station: null, pr: "file:///etc/passwd" },
-      ],
-    };
-    const lus = comprendre(JSON.stringify(brut));
-    assert.ok(!("informe" in lus), "informe" in lus ? lus.informe : "");
-    assert.deepEqual(etapesDesTickets(lus as Faits), [
-      { ticket: 5, etat: "pris", pr: PR, renvoi: { n: 1, raison: RAISON } },
-      { ticket: 7, etat: "en attente", pr: null, renvoi: null },
-      { ticket: 3, etat: "servi", pr: { numero: 4, url: "https://github.com/chef/cantine/pull/4" }, renvoi: null },
-      { ticket: 2, etat: "servi", pr: null, renvoi: null },
-    ]);
-    // Une PR qui n'a pas la forme rend sa carte illisible, comme tout champ du rail : rien n'y est deviné.
-    const informe = comprendre(JSON.stringify({ ...brut, rail: [{ ...brut.rail[0], pr: { numero: "six", url: PR.url } }] }));
-    assert.ok(!("informe" in informe));
-    assert.deepEqual(etapesDesTickets(informe as Faits).filter(({ etat }) => etat !== "servi"), []);
+describe("le premier ticket tenu", () => {
+  test("la réponse part au second ; son brouillon revient — et rien n'est créé avant le « oui »", async () => {
+    const doublure = pont([{ draft: BROUILLON }]);
+    const rendus: string[] = [];
+    const tenus = tenirLesPremiersTickets({ rendre: (projet) => void rendus.push(projet), ...doublure });
+    tenus.commencer("cantine");
+    assert.deepEqual(tenus.de("cantine"), { etape: "question", reponse: "" });
+    // Vide, rien ne part.
+    await tenus.envoyer("cantine");
+    assert.deepEqual(doublure.rediges, []);
+    tenus.ecrire("cantine", "Show the menu first");
+    const envoi = tenus.envoyer("cantine");
+    assert.equal(tenus.de("cantine")?.etape, "redaction");
+    await envoi;
+    assert.deepEqual(doublure.rediges, [{ answer: "Show the menu first" }]);
+    assert.deepEqual(tenus.de("cantine"), { etape: "brouillon", reponse: "Show the menu first", brouillon: BROUILLON, changements: "" });
+    assert.deepEqual(doublure.crees, []);
+    // Une nouvelle question ne revient pas sur un brouillon tenu.
+    tenus.commencer("cantine");
+    assert.equal(tenus.de("cantine")?.etape, "brouillon");
+    assert.ok(rendus.length > 0 && rendus.every((projet) => projet === "cantine"));
+  });
+
+  test("les changements font réécrire, avec le brouillon vu ; la boucle se répète, et toujours rien n'est créé", async () => {
+    const doublure = pont([{ draft: BROUILLON }, { draft: REVU }, { refus: "the second did not write the ticket", detail: "timeout" }]);
+    const tenus = tenirLesPremiersTickets({ rendre: () => {}, ...doublure });
+    tenus.commencer("cantine");
+    tenus.ecrire("cantine", "Show the menu first");
+    await tenus.envoyer("cantine");
+    // Sans changements tapés, rien ne part.
+    await tenus.changer("cantine");
+    assert.equal(doublure.rediges.length, 1);
+    tenus.ecrire("cantine", "Add the prices");
+    await tenus.changer("cantine");
+    assert.deepEqual(doublure.rediges[1], { answer: "Show the menu first", draft: BROUILLON, changes: "Add the prices" });
+    assert.deepEqual(tenus.de("cantine"), { etape: "brouillon", reponse: "Show the menu first", brouillon: REVU, changements: "" });
+    // Une réécriture ratée garde le brouillon vu et les changements tapés, et le dit.
+    tenus.ecrire("cantine", "Shorter title");
+    await tenus.changer("cantine");
+    assert.deepEqual(doublure.rediges[2], { answer: "Show the menu first", draft: REVU, changes: "Shorter title" });
+    assert.deepEqual(tenus.de("cantine"), { etape: "brouillon", reponse: "Show the menu first", brouillon: REVU, changements: "Shorter title", refus: { dit: "the second did not write the ticket", detail: "timeout" } });
+    assert.deepEqual(doublure.crees, []);
+  });
+
+  test("le « oui » crée une fois le brouillon montré ; refusé, il reste, et un second « oui » le reprend", async () => {
+    const doublure = pont([{ draft: BROUILLON }], { refus: "nothing was created: GitHub could not be reached", detail: "gh missing" });
+    const tenus = tenirLesPremiersTickets({ rendre: () => {}, ...doublure });
+    // Pas de brouillon : le « oui » ne crée rien.
+    tenus.commencer("cantine");
+    await tenus.oui("cantine");
+    assert.deepEqual(doublure.crees, []);
+    tenus.ecrire("cantine", "Show the menu first");
+    await tenus.envoyer("cantine");
+    const premier = tenus.oui("cantine");
+    // Parti : un second clic ne crée pas une seconde issue.
+    await tenus.oui("cantine");
+    await premier;
+    assert.deepEqual(doublure.crees, [BROUILLON]);
+    assert.deepEqual(tenus.de("cantine"), { etape: "brouillon", reponse: "Show the menu first", brouillon: BROUILLON, changements: "", refus: { dit: "nothing was created: GitHub could not be reached", detail: "gh missing" } });
+    await tenus.oui("cantine");
+    assert.deepEqual(doublure.crees, [BROUILLON, BROUILLON]);
+    const ok = tenirLesPremiersTickets({ rendre: () => {}, ...pont([{ draft: BROUILLON }]) });
+    ok.commencer("cantine");
+    ok.ecrire("cantine", "Show the menu first");
+    await ok.envoyer("cantine");
+    await ok.oui("cantine");
+    assert.deepEqual(ok.de("cantine"), { etape: "cree", ticket: 7, url: `https://github.com/${DEPOT}/issues/7` });
+  });
+
+  test("un pont qui lève : la rédaction et la création se disent ratées, rien n'est tenu pour fait", async () => {
+    const tenus = tenirLesPremiersTickets({
+      rendre: () => {},
+      rediger: async () => Promise.reject(new Error("ipc closed")),
+      creer: async () => Promise.reject(new Error("ipc closed")),
+    });
+    tenus.commencer("cantine");
+    tenus.ecrire("cantine", "x");
+    await tenus.envoyer("cantine");
+    assert.deepEqual(tenus.de("cantine"), { etape: "question", reponse: "x", refus: { dit: "the app could not ask the second to write the ticket", detail: "ipc closed" } });
+    const creation = tenirLesPremiersTickets({ rendre: () => {}, rediger: async () => ({ draft: BROUILLON }), creer: async () => Promise.reject(new Error("ipc closed")) });
+    creation.commencer("cantine");
+    creation.ecrire("cantine", "x");
+    await creation.envoyer("cantine");
+    await creation.oui("cantine");
+    assert.deepEqual(creation.de("cantine"), { etape: "brouillon", reponse: "x", brouillon: BROUILLON, changements: "", refus: { dit: "nothing was created: GitHub could not be reached", detail: "ipc closed" } });
   });
 });
 
 // La vue jouée entière.
 const CHEMIN = "/home/chef/.config/brigade/app.json";
-const DEPOT = "chef/cantine";
+const A = "2026-11-11T10:04:12.000Z";
 const SECOND: Terminal = { id: 1, projet: "cantine", genre: "second", titre: "second · claude", note: "", arrete: false };
-const demarrage = (projets: Projet[]) => () => ({
-  configuration: pourLaBarre({ chemin: CHEMIN, projets }),
+const demarrage = () => () => ({
+  configuration: pourLaBarre({ chemin: CHEMIN, projets: [] }),
   poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXEMPLE,
@@ -252,98 +259,107 @@ const demarrage = (projets: Projet[]) => () => ({
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
-const PARADE: Projet = { nom: "parade", dossier: "/home/chef/Brigade/parade", depot: "chef/parade", base: "main" };
-const VISITE: Projet = { nom: "brigade", dossier: "/home/chef/Brigade/brigade", depot: DEPOT_DE_LA_VISITE, base: "main" };
-type Entree = Faits["rail"][number];
-const entree = (etat: string, plus: Partial<Entree> = {}): Entree => ({ ticket: 5, etat, titre: "La carte du midi", url: `https://github.com/${DEPOT}/issues/5`, ...plus });
-const lecture = (rail: Entree[], livres: NonNullable<Faits["livres"]> = []): Faits => ({
+const faits = (): Faits => ({
   etat: "ouverte",
   lu: A,
   dernierTick: A,
-  compteurs: { rail: rail.length, auTravail: 0, aLaPass: 0, attend: 0, livres24h: livres.length },
+  compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
   dernierEvenement: null,
-  rail,
+  rail: [],
   cooks: [],
   attend: [],
-  livres,
 });
+const page = (vue: Jouee) => vue.element("parcours-premier-projet");
+const premier = (vue: Jouee) => page(vue).dessous("section").find(({ className }) => className.split(" ").includes("premier-ticket")) ?? assert.fail("pas de premier ticket");
 
-// « Add a project », puis le dépôt chef/cantine : la page de cantine s'ouvre, déjà prête pour Brigade.
-async function ajouterCantine(stockage: FauxStockage, projets: Projet[] = [], reponses: Reponses = {}) {
+// Un ordinateur sans projet : « Add a project », chef/cantine choisi — prêt pour Brigade —, cet ordinateur le cuit.
+async function cantinePrete(reponses: Reponses) {
   let vue: Jouee | undefined;
-  vue = await jouerLaVue(
-    {
-      demarrage: demarrage(projets),
-      stationsDuChef: () => ({ state: "listed", stations: [], unreadable: [] }),
-      compteGitHub: () => ({ login: "octo-chef" }),
-      stationsDuCompte: () => ({ state: "listed", stations: [], unreadable: [] }),
-      depotsDuChef: () => ({ depots: [{ depot: DEPOT, base: "main" }] }),
-      ouvrirDUneStation: (nom, depot, base) => {
-        vue?.dire("surConfiguration", pourLaBarre({ chemin: CHEMIN, projets: [...projets, { nom, dossier: `/home/chef/Brigade/${nom}`, depot, base: base ?? "main" } satisfies Projet] }), []);
-        return { state: "open", project: nom, repository: depot, folder: `/home/chef/Brigade/${nom}`, cloned: true };
-      },
-      projetsServis: () => ({ depots: [DEPOT] }),
-      checkRepoSetup: () => ({ ready: true, missingBindings: [], missingLabels: [] }),
-      espace: () => [SECOND],
-      departDuProjet: () => ({ aucune: true }),
-      ...reponses,
+  vue = await jouerLaVue({
+    demarrage: demarrage(),
+    stationsDuChef: () => ({ state: "listed", stations: [], unreadable: [] }),
+    compteGitHub: () => ({ login: "octo-chef" }),
+    stationsDuCompte: () => ({ state: "listed", stations: [], unreadable: [] }),
+    depotsDuChef: () => ({ depots: [{ depot: DEPOT, base: "main" }] }),
+    ouvrirDUneStation: (nom, depot, base) => {
+      vue?.dire("surConfiguration", pourLaBarre({ chemin: CHEMIN, projets: [{ nom, dossier: `/home/chef/Brigade/${nom}`, depot, base: base ?? "main" } satisfies Projet] }), []);
+      return { state: "open", project: nom, repository: depot, folder: `/home/chef/Brigade/${nom}`, cloned: true };
     },
-    { stockage },
-  );
+    projetsServis: () => ({ depots: [] }),
+    servirUnProjet: (depot) => ({ depots: [depot] }),
+    checkRepoSetup: () => ({ ready: true, missingBindings: [], missingLabels: [] }),
+    espace: () => [SECOND],
+    departDuProjet: () => ({ aucune: true }),
+    ...reponses,
+  });
   (vue.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
   await repos();
-  (vue.element("ajout").dessous("button").find(({ textContent }) => textContent === DEPOT) ?? assert.fail("pas de dépôt")).click();
+  bouton(vue.element("ajout"), DEPOT).click();
   await repos();
-  assert.equal(vue.element("espace").textContent, "cantine");
+  vue.dire("surFaits", { ...tenirFaits(() => new Map()).recevoir({ projet: "cantine", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits()) }] }), demande: vue.dernier("faits")[0] as number });
+  await repos();
+  bouton(page(vue), "this computer").click();
+  await repos();
   return vue;
 }
-async function lire(vue: Jouee, faits: Faits) {
-  vue.dire("surFaits", { ...tenirFaits(() => new Map()).recevoir({ projet: "cantine", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] }), demande: vue.dernier("faits")[0] as number });
+const taper = async (vue: Jouee, texte: string) => {
+  const saisie = champ(premier(vue));
+  saisie.value = texte;
+  saisie.declencher("input");
   await repos();
-}
-const section = (vue: Jouee) => vue.element("premier-ticket");
-const etapesDites = (vue: Jouee) => section(vue).dessous("li").map(({ dataset }) => dataset.etape);
+};
+const gestesDuPont = (vue: Jouee, geste: string) => vue.appels.filter((appel) => appel.geste === geste).map(({ args }) => args);
 
-describe("la vue jouée : le premier ticket du premier projet, raconté à mesure qu'il se passe", () => {
-  test("ajouté sur un ordinateur sans projet : chaque lecture de son rail ajoute sa ligne ; servi, le lien ouvre sa PR ; rangé, il ne revient plus", async () => {
-    const stockage = new FauxStockage();
-    const ouvertes: string[] = [];
-    const vue = await ajouterCantine(stockage, [VISITE], {
-      ouvrirPrDuCook: (projet, ticket) => (ouvertes.push(`cook ${projet}#${ticket}`), false),
-      ouvrirPr: (projet, ticket) => (ouvertes.push(`servi ${projet}#${ticket}`), true),
+describe("la vue jouée : un projet prêt, son premier ticket écrit dans l'app", () => {
+  test("la question sur le projet prêt, la réponse, le brouillon, une réécriture, puis le « oui » : une seule création, après le « oui »", async () => {
+    const redactions: Redaction[] = [{ draft: BROUILLON }, { draft: REVU }];
+    const vue = await cantinePrete({
+      redigerLePremierTicket: () => redactions.shift() ?? { refus: "rien", detail: "" },
+      creerLePremierTicket: () => ({ ticket: 7, url: `https://github.com/${DEPOT}/issues/7` }),
     });
-    await lire(vue, lecture([entree("en attente")]));
-    assert.equal(section(vue).hidden, true);
-    await lire(vue, lecture([entree("pris", { station: "box/claude" })]));
-    assert.equal(section(vue).hidden, false);
-    assert.deepEqual(etapesDites(vue), ["pris"]);
-    await lire(vue, lecture([entree("en pass", { pr: PR })]));
-    await lire(vue, lecture([entree("pris", { pr: PR, renvoi: { n: 1, raison: RAISON } })]));
-    await lire(vue, lecture([entree("en pass", { pr: PR, renvoi: { n: 1, raison: RAISON } })]));
-    await lire(vue, lecture([], [{ ticket: 5, titre: "La carte du midi", url: null, livre: A, station: "box/claude", pr: PR.url }]));
-    assert.deepEqual(etapesDites(vue), ["pris", "pr", "pass", "renvoi", "repris", "pass", "servi"]);
-    assert.ok(section(vue).dessous("p").some(({ textContent }) => textContent === RAISON));
-    const servi = section(vue).dessous("li").at(-1) ?? assert.fail("pas de ligne servie");
-    (servi.dessous("button")[0] ?? assert.fail("pas de lien")).click();
+    // Prêt : le rail reprend la page, et au-dessus le second demande au chef ce qu'il veut changer d'abord.
+    assert.equal(vue.element("main").dataset.parcours, undefined);
+    assert.equal(premier(vue).dataset.etape, "question");
+    assert.equal(premier(vue).dessous("h2")[0]?.textContent, QUESTION(DEPOT));
+    await taper(vue, "Show the menu first");
+    bouton(premier(vue), ENVOYER).click();
     await repos();
-    assert.deepEqual(ouvertes, ["cook cantine#5", "servi cantine#5"]);
-    (section(vue).dessous("button").find(({ textContent }) => textContent === RANGER) ?? assert.fail("pas de « dismiss »")).click();
+    assert.deepEqual(gestesDuPont(vue, "redigerLePremierTicket"), [["cantine", { answer: "Show the menu first" }]]);
+    // Le brouillon montré : son titre et son corps ; rien n'est créé.
+    assert.equal(premier(vue).dataset.etape, "brouillon");
+    assert.equal(premier(vue).dessous("h3")[0]?.textContent, BROUILLON.title);
+    assert.deepEqual(gestesDuPont(vue, "creerLePremierTicket"), []);
+    // Des changements : le second réécrit, avec le brouillon vu ; toujours rien de créé.
+    await taper(vue, "Add the prices");
+    bouton(premier(vue), CHANGER).click();
     await repos();
-    assert.equal(section(vue).hidden, true);
-    await lire(vue, lecture([entree("pris", { ticket: 8 })]));
-    assert.equal(section(vue).hidden, true);
-    // L'app rouverte : rien ne revient.
-    const rouverte = await jouerLaVue({ demarrage: demarrage([VISITE, { nom: "cantine", dossier: "/home/chef/Brigade/cantine", depot: DEPOT, base: "main" }]) }, { stockage });
+    assert.deepEqual(gestesDuPont(vue, "redigerLePremierTicket")[1], ["cantine", { answer: "Show the menu first", draft: BROUILLON, changes: "Add the prices" }]);
+    assert.equal(premier(vue).dessous("h3")[0]?.textContent, REVU.title);
+    assert.deepEqual(gestesDuPont(vue, "creerLePremierTicket"), []);
+    // Le « oui » : une création, du brouillon montré ; l'issue est sur le rail.
+    bouton(premier(vue), OUI).click();
     await repos();
-    assert.equal(rouverte.element("premier-ticket").hidden, true);
+    assert.deepEqual(gestesDuPont(vue, "creerLePremierTicket"), [["cantine", REVU]]);
+    assert.equal(premier(vue).dessous("h2")[0]?.textContent, CREE(7));
+    // Rien n'a été écrit dans le terminal du second : le chef n'a rien à y taper.
+    assert.deepEqual(gestesDuPont(vue, "ecrire"), []);
+    bouton(premier(vue), FERMER).click();
+    await repos();
+    assert.equal(page(vue).hidden, true);
   });
 
-  test("un chef qui avait déjà un projet : son nouveau projet n'a rien de raconté", async () => {
-    const stockage = new FauxStockage();
-    const vue = await ajouterCantine(stockage, [PARADE]);
-    await lire(vue, lecture([entree("pris")]));
-    await lire(vue, lecture([entree("en pass", { pr: PR })]));
-    assert.equal(section(vue).hidden, true);
-    assert.deepEqual(JSON.parse(stockage.getItem(CLE_DU_PREMIER_TICKET) ?? "{}"), { projet: null, lignes: [] });
+  test("une rédaction qui échoue se dit sur la question, la réponse gardée ; « send » la reprend", async () => {
+    const redactions: Redaction[] = [{ refus: "the second did not write the ticket", detail: "not logged in" }, { draft: BROUILLON }];
+    const vue = await cantinePrete({ redigerLePremierTicket: () => redactions.shift() ?? { refus: "rien", detail: "" } });
+    await taper(vue, "Show the menu first");
+    bouton(premier(vue), ENVOYER).click();
+    await repos();
+    assert.equal(premier(vue).dataset.etape, "question");
+    assert.equal(champ(premier(vue)).value, "Show the menu first");
+    assert.ok(premier(vue).dessous("span").some(({ textContent }) => textContent === "the second did not write the ticket"));
+    bouton(premier(vue), ENVOYER).click();
+    await repos();
+    assert.equal(premier(vue).dataset.etape, "brouillon");
+    assert.deepEqual(gestesDuPont(vue, "creerLePremierTicket"), []);
   });
 });

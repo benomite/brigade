@@ -34,7 +34,7 @@ The file boundary runs **between the runtime and what it launches**: its own `gi
 | **Given back, read-only** | to the reviewer, the worktree and `.git` view; to the cook with no GitHub identity, its ticket |
 | **Read-only** | the whole machine and **the account's home**: `.gitconfig`, toolchains, the `claude` binary |
 | **Writable, per project** | what is written under `~` (`~/.npm`, `~/.cache`, `~/.claude.json`, any entry the account lacks, also in `~/.local`, `~/.local/share`, `~/.local/state`) and what `BRIGADE_SANDBOX_PRIVATE` names — stored in `<state>/compte` |
-| **Writable, as is** | `/tmp` (the project's own: `PrivateTmp`) |
+| **Writable, as is** | `/tmp` (the project's own: `PrivateTmp`), and the runtime's temporary directory (`$TMPDIR`) when it lies elsewhere — `/dev/shm`, which `--dev` would otherwise replace |
 | **Replaced** | `~/.claude`: the project's `<state>/claude` — no other project's transcripts or memory |
 | **Max credentials** | `~/.claude/.credentials.json`, mounted **read-only** |
 | **Processes** | its own: neither `ps` nor `/proc/<pid>/environ` shows another cook |
@@ -62,7 +62,8 @@ and `claude` run outside the partition, same account, same clone:
 
 **The runtime refuses to start** if `BRIGADE_STATE_DIR`, `BRIGADE_REPO_DIR`, `BRIGADE_SECRETS_FILE`
 or `BRIGADE_GITHUB_APPS_DIR` lie outside every masked directory, if it would mask the account,
-`/tmp` or the system, if a mask is a file, or if the partition is only half in place.
+`/tmp`, its temporary directory or the system, if its `TMPDIR` would contain the system, if a mask is
+a file, or if the partition is only half in place.
 
 ### The allowlist
 

@@ -1,37 +1,32 @@
-// Le premier ticket du premier projet du chef, raconté pas à pas (#3302) : « cantine » ajouté par « Add a project » — le
-// seul projet du fichier —, cet ordinateur choisi, le dépôt déjà prêt. Puis son rail, lu sur GitHub, lecture après
-// lecture : #5 pris par un cook, sa PR #6 ouverte et en pass, renvoyé par la pass et pourquoi, repris, de nouveau en pass —
-// et, pour l'écran servi, sa PR mergée. Chaque lecture arrive à la vue comme le process principal l'enverrait : la vue
-// raconte ce qu'elle a vu passer.
-import type { Faits } from "../../../app/src/faits.ts";
-import { cuisine, type Ecran } from "./commun.ts";
-import { RENDUS } from "./cuisine-figee.ts";
-import { CHOISIR_LE_RECOMMANDE, parcoursPremierProjet } from "./parcours-premier-projet-commun.ts";
+// Le premier ticket de `cantine`, écrit dans l'app (#3306) : le projet prêt, cet ordinateur choisi, le chef répond à la
+// question du second au-dessus du rail — son brouillon revient. Ce que le second rédige et ce que la création rend sont
+// figés ici, dans la forme du runtime (`runtime/src/premier-ticket/`).
+import type { Brouillon, Creation, Redaction } from "../../../runtime/src/premier-ticket/premier-ticket.ts";
+import type { Etape } from "./commun.ts";
+import { CHOISIR_LE_RECOMMANDE } from "./parcours-premier-projet-commun.ts";
 
-const CANTINE = RENDUS.cantine!.facts;
-const ISSUE = "https://github.com/chef/cantine/issues/5";
-const PR = { numero: 6, url: "https://github.com/chef/cantine/pull/6" };
-const TITRE = "La carte du midi";
-const RAISON = "the review requested changes on `3f2a9c1` (PR #6):\n\nThe price of a dish shows `NaN €` when the dish has no price yet: show “price to come” instead.";
-type Entree = Faits["rail"][number] & { pr?: typeof PR; renvoi?: { n: number; raison: string } };
-const entree = (etat: string, plus: Partial<Entree> = {}): Entree => ({ ticket: 5, etat, titre: TITRE, url: ISSUE, activite: null, attente: null, station: "box/claude", ...plus });
+export const BROUILLON: Brouillon = {
+  title: "Show today's lunch menu on the home page",
+  body: [
+    "## Context",
+    "",
+    "Guests open the site to know what is for lunch, and today they must scroll down to find the menu. The chef wants today's menu to be the first thing they see.",
+    "",
+    "## Acceptance criteria",
+    "",
+    "- When I open the home page, I see today's lunch menu at the top, before anything else.",
+    "- When the menu has not been set for today, I see \"Menu coming soon\" instead.",
+    "- When I open the home page on a phone, the whole menu fits without scrolling sideways.",
+  ].join("\n"),
+};
+export const REDIGE: Redaction = { draft: BROUILLON };
+export const CREE: Creation = { ticket: 12, url: "https://github.com/chef/cantine/issues/12" };
 
-// Les lectures du rail, dans l'ordre où elles arrivent.
-export const PRIS: Faits = { ...CANTINE, livres: [], rail: [entree("pris")] };
-export const EN_PASS: Faits = { ...CANTINE, livres: [], rail: [entree("en pass", { pr: PR })] };
-export const RENVOYE: Faits = { ...CANTINE, livres: [], rail: [entree("pris", { pr: PR, renvoi: { n: 1, raison: RAISON } })] };
-export const DE_NOUVEAU_EN_PASS: Faits = { ...CANTINE, livres: [], rail: [entree("en pass", { pr: PR, renvoi: { n: 1, raison: RAISON } })] };
-export const SERVI: Faits = { ...CANTINE, rail: [], livres: [{ ticket: 5, titre: TITRE, url: ISSUE, livre: "2026-10-13T10:01:00.000Z", station: "box/claude", pr: PR.url, relecture: null }] };
-
-export function premierTicket(dit: string, lectures: Faits[]): Ecran {
-  const base = parcoursPremierProjet(dit, true, [CHOISIR_LE_RECOMMANDE]);
-  return {
-    ...base,
-    donnees: () => {
-      const donnees = base.donnees();
-      // Les lectures suivantes du rail arrivent une fois l'espace du projet ouvert, comme celles que la veille relance.
-      const suivantes = lectures.flatMap((facts) => cuisine({ cantine: { facts, status: "", station: "" } }).faits.filter(({ sur }) => sur === "surFaits"));
-      return { ...donnees, envois: { ...donnees.envois, regarder: { ...donnees.envois.regarder, cantine: [...(donnees.envois.regarder?.cantine ?? []), ...suivantes] } } };
-    },
-  };
-}
+// Du projet prêt au brouillon montré : cet ordinateur choisi, la réponse tapée, envoyée au second.
+export const JUSQU_AU_BROUILLON: Etape[] = [
+  CHOISIR_LE_RECOMMANDE,
+  { saisir: "#parcours-premier-projet .premier-ticket textarea", texte: "Guests should see today's lunch menu first, without scrolling." },
+  { cliquer: "#parcours-premier-projet .premier-ticket p.gestes .action:first-child > button:first-child" },
+];
+// Le « oui » du chef.
+export const OUI: Etape = { cliquer: "#parcours-premier-projet .premier-ticket p.gestes .action > button:first-child" };

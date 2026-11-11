@@ -1,228 +1,240 @@
 // @ts-check
-// Le premier ticket du premier projet du chef, raconté pas à pas, à mesure qu'il se passe (ticket 3302) : plutôt qu'un
-// tutoriel, une ligne courte à chaque vraie étape, au-dessus du rail — un cook l'a pris, et travaille dans sa propre copie ;
-// sa pull request est ouverte ; la pass la juge (gates, CI, relecture) ; elle l'a renvoyé, et pourquoi ; elle l'a mergé —
-// avec le lien de la pull request. Chaque ligne dit le mot de la cuisine (docs/glossary.md), puis ce qu'il veut dire.
-//
-// Ce qui est raconté :
-//   - le premier projet du chef : le premier qu'« Add a project » ajoute quand le fichier des projets n'en a pas d'autre
-//     que la cuisine de démonstration de la visite (visite/visite.js) ; un chef qui en avait déjà n'a rien de raconté ;
-//   - son premier ticket : le premier qu'une lecture du rail montre pris ou en pass, après l'ajout du projet ;
-//   - une étape, quand une lecture du rail la montre (`etapesDesTickets` du tableau, faits.ts) : une étape passée entre
-//     deux lectures n'est pas inventée — sauf le renvoi, dont la marque reste sur l'issue avec son rang et sa raison.
-// Le récit se garde dans le stockage de la vue, d'un lancement à l'autre ; il reste après le service, jusqu'à ce que le
-// chef le range d'un geste — rangé, il ne revient plus. Un stockage illisible ne décide rien : rien n'est raconté, et rien
-// n'est écrit par-dessus.
+// Le premier ticket d'un projet neuf, écrit dans l'app (ticket 3306, épique 3301). Le projet prêt, au-dessus du rail, le
+// second demande au chef ce qu'il veut changer d'abord, avec un champ pour sa réponse. Envoyée, le second écrit l'issue
+// (runtime/src/premier-ticket/, `rediger`) et l'app la montre — son titre et son corps — avec deux gestes : « Yes, put it on
+// the rail », le recommandé, et le champ de ce qui doit changer, avec « ask for changes ». Un changement demandé, le second
+// réécrit et la montre de nouveau ; rien n'est créé avant le « oui ». Sur le « oui », le runtime crée l'issue avec ses
+// labels (`creer`, `fire` compris) : elle est sur le rail. Le chef n'ouvre pas GitHub, ne tape ni ne voit aucun label.
+// Une rédaction ou une création qui échoue se dit en une ligne, sa cause au survol, et le geste reste.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { gestes } from "../parcours-projet/connexion.js";
+import { AU_RETOUR } from "../choix-station/choix-station.js";
+import { OUI as OUI_A } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
-/** @typedef {import("../../faits.ts").EtapeDuTicket} EtapeDuTicket */
-/** @typedef {{ numero: number | null, url: string }} Pr */
+/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Brouillon} Brouillon */
+/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Demande} Demande */
+/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Redaction} Redaction */
+/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Creation} Creation */
+/** @typedef {{ dit: string, detail: string }} Refus */
+// Où en est le premier ticket d'un projet :
+//   question    le second demande ce qu'il faut changer d'abord ; `reponse`, ce que le chef a tapé ; `refus`, la dernière
+//               rédaction qui a échoué
+//   redaction   le second écrit (ou réécrit, avec `brouillon` et `changements`) : le chef n'a rien à faire
+//   brouillon   l'issue écrite, montrée : le « oui » ou les changements ; `changements`, ce que le chef a tapé ; `refus`,
+//               la réécriture ou la création qui a échoué
+//   creation    le « oui » est parti : l'issue se crée
+//   cree        l'issue est sur le rail
 /**
- * Une ligne du récit : l'étape, l'heure où elle a été vue, et ce qu'elle dit de plus — la PR, la raison d'un renvoi et
- * son rang.
- * @typedef {{ cle: "pris" | "repris" | "pr" | "pass" | "renvoi" | "servi", le: string, pr?: Pr, n?: number, raison?: string }} Ligne
- */
-/**
- * Ce qui se garde : le premier projet du chef — nul, le chef en avait déjà un quand celui-ci a été ajouté —, son premier
- * ticket une fois pris, les lignes vues, et s'il est rangé.
- * @typedef {{ projet: string | null, ticket?: number, lignes: Ligne[], range?: true }} Recit
+ * @typedef {{ etape: "question", reponse: string, refus?: Refus }
+ *   | { etape: "redaction", reponse: string, brouillon?: Brouillon, changements?: string }
+ *   | { etape: "brouillon", reponse: string, brouillon: Brouillon, changements: string, refus?: Refus }
+ *   | { etape: "creation", reponse: string, brouillon: Brouillon }
+ *   | { etape: "cree", ticket: number, url: string }} Etat
  */
 
-// La trace, dans le stockage de la vue, du récit du premier ticket.
-export const CLE_DU_PREMIER_TICKET = "brigade.premier-ticket";
-
+// Les mots de docs/glossary.md : le second, le rail, la cuisine (`kitchen`), le ticket.
+export const LE_SECOND = "the second";
+/** @param {string} depot */
+export const QUESTION = (depot) => `${depot} is ready. What do you want to change first?`;
+export const CHAMP_REPONSE = "In your words: what should change, and for whom";
+export const ENVOYER = "send to the second";
+export const PLUS_TARD = "not now";
+export const REDACTION = "The second is writing the ticket from your answer. Nothing is awaited from you.";
+export const REECRITURE = "The second is rewriting the ticket with your changes. Nothing is awaited from you.";
+export const RELIRE = "Is this the right first ticket?";
+export const OUI = OUI_A("put it on the rail");
+export const PRIX_OUI = "the ticket is created in the project's repository and goes on the rail: a cook takes it, on the project's quota";
+export const CHAMP_CHANGEMENTS = "What should change in this ticket";
+export const CHANGER = "ask for changes";
+export const CREATION = "Putting it on the rail…";
 /** @param {number} ticket */
-export const TITRE = (ticket) => `Your first ticket, #${ticket}, step by step`;
-export const RANGER = "dismiss";
-// Le mot de chaque étape, tel que le rail et le glossaire le disent.
-export const MOTS = { pris: "Taken", repris: "Taken again", pr: "Pull request", pass: "In pass", renvoi: "Sent back", servi: "Served" };
-/** @param {number} ticket */
-export const PRIS = (ticket) => `A cook took #${ticket}: a claude session that works in its own copy of the repository (a worktree), so nothing it does touches your files until it is merged.`;
-/** @param {number} ticket */
-export const REPRIS = (ticket) => `A cook took #${ticket} again, in its own copy, to fix what the pass said.`;
-/** @param {number | null} numero */
-export const PR_OUVERTE = (numero) => `The cook handed over its work as a pull request${numero === null ? "" : ` (#${numero})`}: the change it proposes to your repository, open for checking.`;
-export const EN_PASS = "The pass is checking the pull request: the gates (the project's own checks), the CI, and a review by another session that did not write it.";
-export const RENVOYE = "The pass sent the work back to a cook, because:";
-/** @param {number} ticket @param {number | null} numero */
-export const SERVI = (ticket, numero) => `The pass merged the pull request${numero === null ? "" : ` #${numero}`}: #${ticket} is done, and its change is in your repository.`;
-/** @param {number | null} numero */
-export const OUVRIR_LA_PR = (numero) => (numero === null ? "open the pull request" : `open pull request #${numero}`);
+export const CREE = (ticket) => `#${ticket} is on the rail: the kitchen serves it.`;
+export const FERMER = "close";
+// Les champs, tels que la vue les reconnaît pour leur rendre le clavier quand la page est reposée.
+export const CHAMP_DE_LA_REPONSE = "premier-ticket-reponse";
+export const CHAMP_DES_CHANGEMENTS = "premier-ticket-changements";
 
-// Les mots d'état d'un ticket qu'un cook tient, et ceux de la pass (rail/github.ts, `MOT_DE_L_ETAT`).
-const PRIS_MOTS = ["pris"];
-const PASS_MOTS = ["en pass", "base rouge"];
-const SERVI_MOT = "servi";
-
-// Le premier ticket à raconter : le plus petit numéro qu'une lecture montre pris ou en pass — ou rien.
-/** @param {readonly EtapeDuTicket[]} etapes @returns {number | undefined} */
-export function premierPris(etapes) {
-  const tenus = etapes.filter(({ etat }) => PRIS_MOTS.includes(etat) || PASS_MOTS.includes(etat)).map(({ ticket }) => ticket);
-  return tenus.length === 0 ? undefined : Math.min(...tenus);
-}
-
-// Les lignes du récit, une lecture de plus vue : ce que l'étape lue ajoute à ce qui est déjà dit. Un tour du ticket va
-// d'une prise à la pass ; un renvoi en ouvre un autre. Dans un tour, chaque étape ne se dit qu'une fois ; la PR ne se redit
-// pas quand c'est la même, reprise par le cook suivant. Servi, le récit est fini : rien ne s'y ajoute plus.
-/** @param {readonly Ligne[]} lignes @param {EtapeDuTicket} etape @param {string} maintenant @returns {Ligne[]} */
-export function avancer(lignes, etape, maintenant) {
-  if (lignes.some(({ cle }) => cle === "servi")) return [...lignes];
-  const dites = [...lignes];
-  /** @param {Ligne} ligne */
-  const dire = (ligne) => dites.push(ligne);
-  const depuisLeRenvoi = () => {
-    const rang = dites.map(({ cle }) => cle).lastIndexOf("renvoi");
-    return dites.slice(rang + 1);
-  };
-  const pr = etape.pr ?? undefined;
-  if (etape.etat === SERVI_MOT) {
-    dire({ cle: "servi", le: maintenant, ...(pr === undefined ? {} : { pr }) });
-    return dites;
-  }
-  const pris = PRIS_MOTS.includes(etape.etat);
-  const enPass = PASS_MOTS.includes(etape.etat);
-  if (!pris && !enPass) return dites;
-  if (!dites.some(({ cle }) => cle === "pris")) dire({ cle: "pris", le: maintenant });
-  const dejaRenvoye = Math.max(0, ...dites.flatMap(({ cle, n }) => (cle === "renvoi" && n !== undefined ? [n] : [])));
-  if (etape.renvoi !== null && etape.renvoi.n > dejaRenvoye) {
-    dire({ cle: "renvoi", le: maintenant, n: etape.renvoi.n, raison: etape.renvoi.raison });
-    if (pris) dire({ cle: "repris", le: maintenant });
-  }
-  const tour = depuisLeRenvoi();
-  if (pr !== undefined && !dites.some((ligne) => ligne.cle === "pr" && ligne.pr?.url === pr.url) && !tour.some(({ cle }) => cle === "pr")) dire({ cle: "pr", le: maintenant, pr });
-  if (enPass && !tour.some(({ cle }) => cle === "pass")) dire({ cle: "pass", le: maintenant });
-  return dites;
-}
-
-// Un récit relu du stockage, champ pour champ ; rien, s'il n'en a pas la forme.
-/** @param {unknown} brut @returns {Recit | undefined} */
-export function recitLu(brut) {
-  if (typeof brut !== "object" || brut === null) return undefined;
-  const lu = /** @type {Record<string, unknown>} */ (brut);
-  if (lu.projet !== null && typeof lu.projet !== "string") return undefined;
-  if (lu.ticket !== undefined && !Number.isSafeInteger(lu.ticket)) return undefined;
-  if (!Array.isArray(lu.lignes)) return undefined;
-  const cles = Object.keys(MOTS);
-  /** @type {Ligne[]} */
-  const lignes = [];
-  for (const ligne of lu.lignes) {
-    if (typeof ligne !== "object" || ligne === null || !cles.includes(ligne.cle) || typeof ligne.le !== "string") return undefined;
-    lignes.push(ligne);
-  }
-  return { projet: lu.projet, ...(lu.ticket === undefined ? {} : { ticket: /** @type {number} */ (lu.ticket) }), lignes, ...(lu.range === true ? { range: /** @type {const} */ (true) } : {}) };
-}
-
-// Le récit tenu pour la vue, gardé dans `stockage`. `rendre` : il a changé.
-/** @param {{ stockage: { getItem(cle: string): string | null, setItem(cle: string, valeur: string): void } | undefined, rendre: () => void, maintenant?: () => string }} options */
-export function tenirLePremierTicket({ stockage, rendre, maintenant = () => new Date().toISOString() }) {
-  // `illisible` : le stockage tient une trace que la vue ne sait pas lire — rien n'est raconté, rien n'est écrit dessus.
-  let illisible = false;
-  /** @type {Recit | undefined} */
-  let recit;
-  try {
-    const brut = stockage?.getItem(CLE_DU_PREMIER_TICKET) ?? null;
-    if (brut !== null) {
-      recit = recitLu(JSON.parse(brut));
-      illisible = recit === undefined;
-    }
-  } catch {
-    illisible = true;
-  }
-  /** @param {Recit} nouveau */
-  const garder = (nouveau) => {
-    recit = nouveau;
-    try {
-      stockage?.setItem(CLE_DU_PREMIER_TICKET, JSON.stringify(nouveau));
-    } catch {
-      // Un stockage plein ou refusé : le récit se tient le temps que l'app tourne.
-    }
-    rendre();
-  };
-  return {
-    // Un projet qu'« Add a project » vient d'ajouter. `autres` : le fichier des projets en a d'autres que la cuisine de
-    // démonstration — ce n'est pas le premier du chef. Seul le premier ajout décide.
-    /** @param {string} projet @param {boolean} autres */
-    projetAjoute(projet, autres) {
-      if (illisible || recit !== undefined) return;
-      garder({ projet: autres ? null : projet, lignes: [] });
-    },
-    // Une lecture du rail de `projet` : ses tickets, où ils en sont.
-    /** @param {string} projet @param {readonly EtapeDuTicket[] | undefined} etapes */
-    observer(projet, etapes) {
-      if (illisible || recit === undefined || recit.range === true || recit.projet !== projet || etapes === undefined) return;
-      const ticket = recit.ticket ?? premierPris(etapes);
-      if (ticket === undefined) return;
-      const etape = etapes.find((candidate) => candidate.ticket === ticket);
-      const lignes = etape === undefined ? recit.lignes : avancer(recit.lignes, etape, maintenant());
-      if (recit.ticket === ticket && lignes.length === recit.lignes.length) return;
-      garder({ ...recit, ticket, lignes });
-    },
-    // Le récit à montrer sur la page de `projet` : son ticket et ses lignes ; rien s'il n'y en a pas, ou qu'il est rangé.
-    /** @param {string} projet @returns {{ ticket: number, lignes: Ligne[] } | undefined} */
-    de(projet) {
-      if (illisible || recit === undefined || recit.range === true || recit.projet !== projet || recit.ticket === undefined || recit.lignes.length === 0) return undefined;
-      return { ticket: recit.ticket, lignes: recit.lignes };
-    },
-    ranger() {
-      if (illisible || recit === undefined || recit.range === true) return;
-      garder({ ...recit, range: true });
-    },
-  };
-}
-
-/** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
-function cree(doc, balise, texte) {
+/** @param {Fabrique} doc @param {string} balise @param {string} [classe] @param {string} [texte] */
+function cree(doc, balise, classe, texte) {
   const pose = doc.createElement(balise);
+  if (classe !== undefined) pose.className = classe;
   if (texte !== undefined) pose.textContent = texte;
   return pose;
 }
 
-// Ce qu'une ligne dit, après son mot.
-/** @param {Ligne} ligne @param {number} ticket */
-function explication({ cle, pr }, ticket) {
-  const numero = pr?.numero ?? null;
-  if (cle === "pris") return PRIS(ticket);
-  if (cle === "repris") return REPRIS(ticket);
-  if (cle === "pr") return PR_OUVERTE(numero);
-  if (cle === "pass") return EN_PASS;
-  if (cle === "renvoi") return RENVOYE;
-  return SERVI(ticket, numero);
+/** @param {Fabrique} doc @param {{ valeur: string, placeholder: string, champ: string, figee: boolean }} quoi @param {(texte: string) => void} ecrire @param {any} [aAllumer] */
+function champ(doc, { valeur, placeholder, champ: nom, figee }, ecrire, aAllumer) {
+  const saisie = cree(doc, "textarea");
+  saisie.value = valeur;
+  saisie.rows = 3;
+  saisie.placeholder = placeholder;
+  saisie.ariaLabel = placeholder;
+  saisie.disabled = figee;
+  saisie.dataset.champ = nom;
+  saisie.addEventListener("input", () => {
+    ecrire(saisie.value);
+    if (aAllumer !== undefined) aAllumer.disabled = saisie.value.trim() === "";
+  });
+  return saisie;
 }
 
-// Le récit, au-dessus du rail : son titre et le geste qui le range, puis une ligne par étape, dans l'ordre où elles ont
-// été vues — son mot, ce qu'il veut dire, la raison d'un renvoi, et le lien de la PR où elle s'ouvre. `ouvrir` ouvre la
-// PR du ticket : la vue nomme le ticket, le process principal tient l'adresse.
-/** @param {Fabrique} doc @param {{ ticket: number, lignes: readonly Ligne[] }} recit @param {{ ouvrir: () => void, ranger: () => void }} geste */
-export function poserPremierTicket(doc, { ticket, lignes }, geste) {
-  const racine = cree(doc, "section");
-  racine.className = "premier-ticket";
-  racine.ariaLabel = TITRE(ticket);
-  const tete = cree(doc, "p");
-  tete.className = "tete";
-  tete.append(cree(doc, "strong", TITRE(ticket)), boutonAction(doc, RANGER, geste.ranger));
-  const liste = cree(doc, "ol");
-  liste.className = "etapes";
-  for (const ligne of lignes) {
-    const pose = cree(doc, "li");
-    pose.className = "etape";
-    pose.dataset.etape = ligne.cle;
-    const mot = cree(doc, "strong", MOTS[ligne.cle]);
-    mot.className = "mot";
-    const dit = cree(doc, "span", explication(ligne, ticket));
-    dit.className = "dit";
-    pose.append(mot, dit);
-    if (ligne.cle === "renvoi" && ligne.raison !== undefined && ligne.raison.trim() !== "") {
-      const raison = cree(doc, "p", ligne.raison);
-      raison.className = "raison";
-      pose.append(raison);
-    }
-    const pr = ligne.pr;
-    if (pr !== undefined && (ligne.cle === "pr" || ligne.cle === "servi")) pose.append(boutonAction(doc, OUVRIR_LA_PR(pr.numero), geste.ouvrir));
-    liste.append(pose);
+// Le bouton d'un groupe d'action (briques.js), éteint tant que `eteint`.
+/** @param {any} groupe @param {boolean} eteint */
+function eteindre(groupe, eteint) {
+  const le = groupe.children?.[0];
+  if (le !== undefined) le.disabled = eteint;
+  return le;
+}
+
+// Le brouillon montré : son titre, puis son corps tel que le second l'a écrit.
+/** @param {Fabrique} doc @param {Brouillon} brouillon */
+function poserLeBrouillon(doc, brouillon) {
+  const article = cree(doc, "article", "brouillon");
+  article.append(cree(doc, "h3", "titre-du-brouillon", brouillon.title), cree(doc, "div", "corps-du-brouillon", brouillon.body));
+  return article;
+}
+
+/**
+ * @typedef {{
+ *   ecrire: (texte: string) => void,
+ *   envoyer: () => void,
+ *   oui: () => void,
+ *   changer: () => void,
+ *   fermer: () => void,
+ * }} GestesDuPremierTicket
+ */
+
+// Le premier ticket, dans son état, au-dessus du rail. `absente` : la station choisie hors ligne (ticket 3187) — la page dit
+// qu'elle prend le projet à son retour.
+/** @param {Fabrique} doc @param {{ depot: string, etat: Etat, absente?: string }} donnees @param {GestesDuPremierTicket} geste */
+export function poserPremierTicket(doc, { depot, etat, absente }, geste) {
+  const racine = cree(doc, "section", "premier-ticket carte");
+  racine.dataset.etape = etat.etape;
+  racine.ariaLabel = `${depot}: its first ticket`;
+  const qui = cree(doc, "p", "qui", LE_SECOND);
+  const auRetour = absente === undefined ? [] : [cree(doc, "p", "au-retour", AU_RETOUR(absente, depot))];
+  if (etat.etape === "question") {
+    const envoyer = boutonAction(doc, ENVOYER, geste.envoyer, { recommande: true });
+    eteindre(envoyer, etat.reponse.trim() === "");
+    const saisie = champ(doc, { valeur: etat.reponse, placeholder: CHAMP_REPONSE, champ: CHAMP_DE_LA_REPONSE, figee: false }, geste.ecrire, envoyer.children?.[0]);
+    racine.append(qui, cree(doc, "h2", "attendu", QUESTION(depot)), ...auRetour, saisie, gestes(doc, [envoyer, boutonAction(doc, PLUS_TARD, geste.fermer)]));
+    if (etat.refus !== undefined) racine.append(ligneErreur(doc, etat.refus.dit, etat.refus.detail, { classe: "erreur" }));
+    return racine;
   }
-  racine.append(tete, liste);
+  if (etat.etape === "redaction") {
+    racine.append(qui, cree(doc, "h2", "attendu", etat.brouillon === undefined ? REDACTION : REECRITURE), ...auRetour, cree(doc, "p", "reponse", `“${etat.changements ?? etat.reponse}”`));
+    return racine;
+  }
+  if (etat.etape === "cree") {
+    racine.append(cree(doc, "h2", "attendu", CREE(etat.ticket)), ...auRetour, gestes(doc, [boutonAction(doc, FERMER, geste.fermer)]));
+    return racine;
+  }
+  const figee = etat.etape === "creation";
+  const oui = boutonAction(doc, OUI, geste.oui, { recommande: true, prix: PRIX_OUI });
+  eteindre(oui, figee);
+  const changer = boutonAction(doc, CHANGER, geste.changer);
+  const changements = etat.etape === "brouillon" ? etat.changements : "";
+  eteindre(changer, figee || changements.trim() === "");
+  const saisie = champ(doc, { valeur: changements, placeholder: CHAMP_CHANGEMENTS, champ: CHAMP_DES_CHANGEMENTS, figee }, geste.ecrire, changer.children?.[0]);
+  const renvoi = cree(doc, "div", "changements");
+  renvoi.append(saisie, changer);
+  racine.append(qui, cree(doc, "h2", "attendu", RELIRE), ...auRetour, poserLeBrouillon(doc, etat.brouillon), gestes(doc, [oui]), renvoi);
+  if (figee) racine.append(cree(doc, "p", "phrase", CREATION));
+  if (etat.etape === "brouillon" && etat.refus !== undefined) racine.append(ligneErreur(doc, etat.refus.dit, etat.refus.detail, { classe: "erreur" }));
   return racine;
+}
+
+const parti = (/** @type {unknown} */ erreur) => (erreur instanceof Error ? erreur.message : String(erreur));
+
+// Les premiers tickets tenus pour la vue, un par projet prêt que « Add a project » a ouvert, le temps que l'app tourne.
+// `rediger` et `creer` sont les gestes du pont (le process principal joue runtime/src/premier-ticket/) : la vue n'appelle
+// `creer` que sur le « oui » du chef.
+/**
+ * @param {{
+ *   rendre: (projet: string) => void,
+ *   rediger: (projet: string, demande: Demande) => Promise<Redaction>,
+ *   creer: (projet: string, brouillon: Brouillon) => Promise<Creation>,
+ * }} options
+ */
+export function tenirLesPremiersTickets({ rendre, rediger, creer }) {
+  /** @type {Map<string, Etat>} */
+  const tenus = new Map();
+  /** @param {string} projet @param {Etat} etat */
+  const poser = (projet, etat) => {
+    tenus.set(projet, etat);
+    rendre(projet);
+  };
+  return {
+    /** @param {string} projet @returns {Etat | undefined} */
+    de: (projet) => tenus.get(projet),
+    // Le projet est prêt : le second pose sa question, une fois.
+    /** @param {string} projet */
+    commencer(projet) {
+      if (!tenus.has(projet)) tenus.set(projet, { etape: "question", reponse: "" });
+    },
+    // Ce que le chef tape : gardé, sans redessiner — le champ l'a déjà.
+    /** @param {string} projet @param {string} texte */
+    ecrire(projet, texte) {
+      const etat = tenus.get(projet);
+      if (etat?.etape === "question") tenus.set(projet, { ...etat, reponse: texte });
+      else if (etat?.etape === "brouillon") tenus.set(projet, { ...etat, changements: texte });
+    },
+    // La réponse part au second ; son brouillon revient, ou ce qui l'a empêché, et la question reste.
+    /** @param {string} projet */
+    async envoyer(projet) {
+      const etat = tenus.get(projet);
+      if (etat?.etape !== "question" || etat.reponse.trim() === "") return;
+      const reponse = etat.reponse;
+      poser(projet, { etape: "redaction", reponse });
+      /** @type {Redaction} */
+      let rendu;
+      try {
+        rendu = await rediger(projet, { answer: reponse });
+      } catch (erreur) {
+        rendu = { refus: "the app could not ask the second to write the ticket", detail: parti(erreur) };
+      }
+      if (tenus.get(projet)?.etape !== "redaction") return;
+      poser(projet, "draft" in rendu ? { etape: "brouillon", reponse, brouillon: rendu.draft, changements: "" } : { etape: "question", reponse, refus: { dit: rendu.refus, detail: rendu.detail } });
+    },
+    // Les changements partent au second, avec le brouillon vu ; il revient réécrit — rien n'est créé.
+    /** @param {string} projet */
+    async changer(projet) {
+      const etat = tenus.get(projet);
+      if (etat?.etape !== "brouillon" || etat.changements.trim() === "") return;
+      const { reponse, brouillon, changements } = etat;
+      poser(projet, { etape: "redaction", reponse, brouillon, changements });
+      /** @type {Redaction} */
+      let rendu;
+      try {
+        rendu = await rediger(projet, { answer: reponse, draft: brouillon, changes: changements });
+      } catch (erreur) {
+        rendu = { refus: "the app could not ask the second to rewrite the ticket", detail: parti(erreur) };
+      }
+      if (tenus.get(projet)?.etape !== "redaction") return;
+      poser(projet, "draft" in rendu ? { etape: "brouillon", reponse, brouillon: rendu.draft, changements: "" } : { etape: "brouillon", reponse, brouillon, changements, refus: { dit: rendu.refus, detail: rendu.detail } });
+    },
+    // Le « oui » : l'issue se crée, une fois ; refusée, le brouillon reste, et le « oui » aussi.
+    /** @param {string} projet */
+    async oui(projet) {
+      const etat = tenus.get(projet);
+      if (etat?.etape !== "brouillon") return;
+      const { reponse, brouillon, changements } = etat;
+      poser(projet, { etape: "creation", reponse, brouillon });
+      /** @type {Creation} */
+      let rendu;
+      try {
+        rendu = await creer(projet, brouillon);
+      } catch (erreur) {
+        rendu = { refus: "nothing was created: GitHub could not be reached", detail: parti(erreur) };
+      }
+      if (tenus.get(projet)?.etape !== "creation") return;
+      poser(projet, "ticket" in rendu ? { etape: "cree", ticket: rendu.ticket, url: rendu.url } : { etape: "brouillon", reponse, brouillon, changements, refus: { dit: rendu.refus, detail: rendu.detail } });
+    },
+    /** @param {string} projet */
+    oublier: (projet) => tenus.delete(projet),
+  };
 }
