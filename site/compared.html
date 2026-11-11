@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brigade compared — Brigade</title>
+  <meta name="description" content="How Brigade differs from Orchestrator and Paradev, and where it falls short. Every claim about another tool links to its own page, with the date it was read.">
+  <meta property="og:title" content="Brigade compared — Brigade">
+  <meta property="og:description" content="How Brigade differs from Orchestrator and Paradev, and its limits.">
+  <meta property="og:type" content="website">
+  <link rel="canonical" href="https://benomite.github.io/brigade/compared.html">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="logo.svg" alt="" width="36" height="36"> brigade</a>
+    <h1>Brigade compared</h1>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="compared">
+    <h2>The core difference</h2>
+    <p>With the others, you drive a fleet of agents; with Brigade, you decide the product and the kitchen ships.</p>
+    <h2>Our limits, plainly</h2>
+    <ul>
+      <li><strong>Claude only.</strong> Agents run on Claude Code today. Other engines are not supported.</li>
+      <li><strong>A Claude Max subscription is required.</strong> Brigade is free, but the agents run on your own Claude Max quota.</li>
+      <li><strong>No hosted cloud yet.</strong> Brigade runs on your own machine or on a machine you rent; we do not host it for you.</li>
+    </ul>
+    <h2>Orchestrator</h2>
+    <p>Read on 2026-11-11 from <a href="https://github.com/Untrivial-ai/agent-orchestrator">its repository</a> and <a href="https://raw.githubusercontent.com/Untrivial-ai/agent-orchestrator/main/README.md">its README</a>:</p>
+    <ul>
+      <li>It supports many agents: "Supports Claude Code, Codex &amp; 35+ coding agents." Brigade supports Claude only.</li>
+      <li>You tell a main agent what you want built, and it "plans the work, starts a worker for each piece in its own worktree". You pick "the agent and model per task".</li>
+      <li>It has a hosted option: "Run workers in hosted workspaces instead of on your machine." Brigade has none yet.</li>
+      <li>It is under the Apache License 2.0.</li>
+    </ul>
+    <p>Its documentation (docs.orchestrator.inc) could not be loaded when we read it, so we say nothing about what it holds.</p>
+    <h2>Paradev</h2>
+    <p>Read on 2026-11-11 from <a href="https://raw.githubusercontent.com/ParadevAI/Paradev/main/README.md">its README</a>:</p>
+    <ul>
+      <li>It is a "desktop app for running CLI coding agents in parallel", with a worktree per task. It says it "is not a coding agent itself" and works with many agents, Claude Code among them.</li>
+      <li>It is "for developers who already use a coding agent in the terminal and want to run more than one task at once": you create a workspace per task, pick the agent, describe the change, then review, commit and open the pull request yourself. We found no automatic splitting of work in the README.</li>
+      <li>It says "The desktop app is free forever", with a paid Pro plan for some extras such as cloud workspaces.</li>
+    </ul>
+    <p>Its docs site (docs.paradev.com) could not be loaded when we read it.</p>
+    <h2>What Brigade does differently</h2>
+    <p>In Brigade the manager splits the work, an independent pass judges each delivery, and you are asked only for product or design decisions. Everything stays on your GitHub issues and pull requests. See the <a href="faq.html">FAQ</a>.</p>
+    <h2>Autonomy figures</h2>
+    <p>Public autonomy figures are not published yet. What the chef may leave undecided is written in the <a href="https://github.com/benomite/brigade/blob/main/docs/runtime/autonomie.md">autonomy table</a>. We will link the figures here once they exist.</p>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p class="fine"><a href="index.html">Home</a> · <a href="tarifs.html">Pricing</a> · <a href="faq.html">FAQ</a> · <a href="https://github.com/benomite/brigade">benomite/brigade</a></p>
+</footer>
+
+</body>
+</html>
