@@ -523,6 +523,18 @@ nothing is cut. Captures: `docs/captures/2486/`, `docs/captures/3013/`.
 *Code: `app/src/vue/projet/rail/bande-rail.js` (the band), `bandeDuRail` in `app/src/vue/vue.js`. Test:
 `app/test/vue/projet/rail/bande-rail.test.ts`.*
 
+### The first line of the Stations tab (#3189, epic #3182)
+
+The tab starts with one line that tells the truth: `Cooked by <station>, online` when a station actually serves the project
+(it cooks, waits for its next ticket, or has no room left, and GitHub does not say it is out of reach), or `Nobody cooks this
+project:` with a `Choose a station` button when none does. The button opens the existing choose-station form of the page (the
+single place, #3166); the tab has no picker of its own. Green is shown only by a station that serves the project: with none,
+no green badge is in the tab. The local `kitchen` and its empty event log are not the project's state and are not shown.
+Capture: `docs/captures/3189/`.
+
+*Code: `app/src/vue/onglet-stations/` (`premiere-ligne.js`, and `stations-github.js`, the stations as GitHub says them). Tests:
+`app/test/vue/onglet-stations/stations-github.test.ts`.*
+
 ### Every setting of each station, on the Stations tab (#2488, epic #2484)
 
 The **Station settings** block of the Stations tab has one card per station the project declares, in the order of the
@@ -713,7 +725,7 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   A station holding a ticket with a silent sign of life is still `cooking` (GitHub says so until its lease is taken
   back), `not reached`. When the signs of life cannot be read, one line says so — the reason in the hover — and only
   the stations holding a ticket are listed, their pill `no word`. Nothing of the block comes from a station's log, or
-  from a main station. *Rule: `runtime/src/stations-github/stations.ts`. View: `app/src/vue/cooks/stations-github.js`.*
+  from a main station. *Rule: `runtime/src/stations-github/stations.ts`. View: `app/src/vue/onglet-stations/stations-github.js`.*
 - **The head lines** the view reads from `status` are only `rail` (the counts by state) and `cooks`, and the `awaiting`
   block is one head line counting the TODO cards (below). What only a station's log carries — the project switch and
   the manager's state, the idle-kitchen fault, a kitchen `held` or stopped, Served — is not read from GitHub, and the
@@ -758,7 +770,7 @@ answer but a 304) in any hour, under the 1,000 the test allows.
 
 *Code: `app/src/tableau/lecture.ts`, `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`,
 `app/src/vue/cooks/signes-de-vie.ts`, `lireLeTableau` in `app/src/main.ts`. Tests: `app/test/vue/rail/github.test.ts`,
-`app/test/vue/cooks/prises.test.ts`, `app/test/vue/cooks/stations-github.test.ts`, `app/test/vue/cooks/signes-de-vie.test.ts`,
+`app/test/vue/cooks/prises.test.ts`, `app/test/vue/onglet-stations/stations-github.test.ts`, `app/test/vue/cooks/signes-de-vie.test.ts`,
 `runtime/test/stations-github/stations.test.ts`, `app/test/tableau/lecture.test.ts`. Captures: `docs/captures/2220/` —
 `rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`; `docs/captures/2358/` —
 `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and `-apres.png` (one station cooking,

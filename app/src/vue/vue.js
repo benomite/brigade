@@ -111,7 +111,8 @@ import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
-import { poserLesStationsSurGithub } from "./cooks/stations-github.js";
+import { poserLaPremiereLigne } from "./onglet-stations/premiere-ligne.js";
+import { poserLesStationsSurGithub } from "./onglet-stations/stations-github.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
@@ -4411,7 +4412,7 @@ const STATION_ARRETEE = `${CET_ORDINATEUR}'s station is not running`;
 function poserCuisson(projet) {
   const tenu = tenus.get(projet.nom);
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
-  const laCuisine = tenu !== undefined && "tableau" in tenu ? ligneDeLaCuisine(projet, tenu.tableau, heureDe(tenu.a)) : [];
+  const laCuisine = tenu !== undefined && "tableau" in tenu ? ligneDeLaCuisine(stations, tenu.tableau) : [];
   // Les cooks et les agents en cours portent la poêle (ticket 2984) d'une lecture encore vraie seulement : ni hors ligne, ni
   // périmée, ni la cuisine arrêtée.
   const enCuisson = stations !== undefined && !horsLignes.has(projet.nom) && !perimes.has(projet.nom) && tenu !== undefined && "tableau" in tenu && !tenu.tableau.arretee;
@@ -4453,22 +4454,15 @@ function poserCuisson(projet) {
   alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
 }
 
-// La ligne de la cuisine du projet, en tête du bloc de ses stations (ticket 1456) : la carte du projet y est fondue — son
-// état en un mot et son dernier événement ; l'heure de la lecture au survol. Ses compteurs et ses cooks n'y sont pas :
-// les stations les disent. Et, quand la base rouge est en réparation, la ligne que `status` écrit en tête, telle quelle :
-// elle dit pourquoi rien ne cuit.
-/** @param {Projet} projet @param {import("../faits.ts").Tableau} tableau @param {string} heure */
-function ligneDeLaCuisine(projet, tableau, heure) {
-  const ligne = document.createElement("p");
-  ligne.className = "etat-de-la-cuisine";
-  ligne.title = `read at ${heure} · ${tableau.tick}`;
-  const pilule = document.createElement("span");
-  pilule.className = "pilule";
-  if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
-  pilule.append(pastille(tableau.mot ?? tableau.etat, tableau.ton), bloc("strong", tableau.mot ?? tableau.etat));
-  ligne.append(bloc("span", "kitchen"), pilule, bloc("small", `latest event — ${tableau.evenement}`));
+// La première ligne du bloc des stations (ticket 3189) : qui cuit le projet — « Cooked by <station>, online » —, ou que personne
+// ne le cuit, avec le bouton du choix. Rien tant que ses stations ne sont pas lues : ce qui n'est pas lu ne dit pas « nobody ».
+// La cuisine locale et son journal vide n'y sont plus l'état du projet ; reste la ligne que `status` écrit en tête quand la
+// base rouge est en réparation, telle quelle : elle dit pourquoi rien ne cuit.
+/** @param {import("../cuisson.ts").CuissonDuProjet | undefined} stations @param {import("../faits.ts").Tableau} tableau */
+function ligneDeLaCuisine(stations, tableau) {
+  const premiere = stations === undefined ? [] : [poserLaPremiereLigne(document, { lignes: stations.lignes, pastille, ouvrir: () => void ouvrirConfiance() })];
   const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [ligneVide(document, tableau.rienNeCuit, { classe: "rien-ne-cuit" })];
-  return [ligne, ...rienNeCuit];
+  return [...premiere, ...rienNeCuit];
 }
 
 // L'onglet Stations (ticket 2485) : ses trois blocs. Celui de la station locale (ticket 2489) reste posé tant que ce qu'il

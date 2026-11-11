@@ -11,6 +11,7 @@ import { CUISENT, lignesDeCooks, TITRE } from "../stations-de-cuisson.js";
 import { RETENUE } from "../stations-du-compte.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { PAS_ENCORE } from "../lexique.js";
+import { sert } from "./premiere-ligne.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../cuisson.ts").LigneDeStation} Ligne */
@@ -88,7 +89,10 @@ export function poserLesStationsSurGithub(doc, { cuisson, pastille, tete = [], e
       // Atteinte ou non, puis son mot — ou, tue, son dernier signe de vie.
       const etat = cree(doc, "span");
       etat.className = "etat";
+      // Le vert est celui d'une station qui sert le projet : une qui ne le sert pas ne le porte pas, atteinte ou non.
+      const vert = sert(ligne);
       const atteinte = atteinteDe(ligne);
+      if (!vert && atteinte.ton === "vert") atteinte.ton = "gris";
       const joint = cree(doc, "span");
       joint.className = "pilule atteinte";
       joint.dataset.ton = atteinte.ton;
@@ -100,8 +104,9 @@ export function poserLesStationsSurGithub(doc, { cuisson, pastille, tete = [], e
       } else {
         const mot = cree(doc, "span");
         mot.className = "pilule";
-        if (ligne.ton !== undefined) mot.dataset.ton = ligne.ton;
-        mot.append(pastille(ligne.etat, ligne.ton), cree(doc, "strong", ligne.etat));
+        const ton = !vert && ligne.ton === "vert" ? "gris" : ligne.ton;
+        if (ton !== undefined) mot.dataset.ton = ton;
+        mot.append(pastille(ligne.etat, ton), cree(doc, "strong", ligne.etat));
         mot.title = ligne.survol;
         etat.append(mot);
       }

@@ -20,7 +20,8 @@ import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, 
 import { lireStations, type Guide, type StationsLues } from "../../../src/service.ts";
 import type { VuDesStations } from "../../../src/stations/stations.ts";
 import type { TableauLu } from "../../../src/tableau/lecture.ts";
-import { ATTEINTE, AUCUNE, SIGNE_DE_VIE, SIGNES_ILLISIBLES } from "../../../src/vue/cooks/stations-github.js";
+import { CHOISIR, CUIT_PAR, PERSONNE } from "../../../src/vue/onglet-stations/premiere-ligne.js";
+import { ATTEINTE, AUCUNE, SIGNE_DE_VIE, SIGNES_ILLISIBLES } from "../../../src/vue/onglet-stations/stations-github.js";
 import { avecLeRail, type RailSurGithub, type SignesDeVie } from "../../../src/vue/rail/github.ts";
 import { PAS_ANNONCEE } from "../../../src/vue/stations-de-cuisson.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../aides/fausse-vue.ts";
@@ -195,5 +196,46 @@ describe("l'onglet Stations d'un projet sur GitHub seul : ses stations dites de 
     const vue = await ouvrir({ lu: A, tickets: [] }, { lus: [] });
     assert.equal(lignes(vue).length, 0);
     assert.ok(vue.element("rail").dessous("p").some(({ textContent }) => textContent === AUCUNE));
+  });
+});
+
+// La première ligne de l'onglet (#3189) : le vert n'est dit que par une station qui sert le projet.
+const premiere = (vue: Jouee) => vue.element("rail").dessous("p").find(({ className }) => className === "premiere-ligne") ?? assert.fail("pas de première ligne");
+const verts = (vue: Jouee) => vue.element("rail").dessous("span").filter(({ dataset }) => dataset.ton === "vert");
+
+describe("l'onglet Stations : une première ligne qui dit vrai (#3189)", () => {
+  test("servi : « Cooked by <station>, online », en tête, sans bouton ; le vert est celui des stations qui servent", async () => {
+    const vue = await ouvrir();
+    const ligne1 = premiere(vue);
+    assert.equal(ligne1.dataset.sert, "true");
+    assert.ok(ligne1.textContent.includes(CUIT_PAR(["box/claude", "macbook/claude"])));
+    assert.equal(ligne1.dessous("button").length, 0);
+    assert.equal(ligne1.dessous("span").some(({ dataset }) => dataset.ton === "vert"), true);
+    // Ni « Nobody cooks », ni « No station serving », ni la cuisine locale.
+    const texte = vue.element("rail").textContent;
+    for (const faux of [PERSONNE, AUCUNE, "latest event", "the log is empty"]) assert.equal(texte.includes(faux), false, faux);
+  });
+
+  test("non servi : « Nobody cooks this project: choose a station » et son bouton, qui ouvre le formulaire du choix ; aucun vert", async () => {
+    const vue = await ouvrir({ lu: A, tickets: [] }, { lus: [signe("box", "2026-11-03T18:40:00.000Z"), signe("MacBook", "2026-11-03T18:40:00.000Z")] });
+    const ligne1 = premiere(vue);
+    assert.equal(ligne1.dataset.sert, "false");
+    assert.ok(ligne1.textContent.startsWith(PERSONNE));
+    assert.equal(verts(vue).length, 0, "du vert sans station qui serve");
+    const choisir = ligne1.dessous("button").find(({ textContent }) => textContent === CHOISIR) ?? assert.fail("pas de bouton « choose a station »");
+    const formulaire = vue.element("stations-du-projet").dessous("form")[0] ?? assert.fail("pas de formulaire de choix");
+    assert.equal(formulaire.hidden, true);
+    choisir.click();
+    await repos();
+    assert.equal(formulaire.hidden, false);
+    assert.match(formulaire.dessous("h3")[0]?.textContent ?? "", /parade/);
+  });
+
+  test("l'état interne seul — la cuisine locale ouverte, son journal vide, aucune station lue — dit « Nobody cooks », sans « kitchen » ni vert", async () => {
+    const vue = await ouvrir({ lu: A, tickets: [] }, { lus: [] });
+    assert.ok(premiere(vue).textContent.startsWith(PERSONNE));
+    const texte = vue.element("rail").textContent;
+    for (const faux of ["kitchen", "latest event", "the log is empty"]) assert.equal(texte.includes(faux), false, faux);
+    assert.equal(verts(vue).length, 0);
   });
 });

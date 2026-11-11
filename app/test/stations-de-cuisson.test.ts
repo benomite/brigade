@@ -117,8 +117,9 @@ describe("l'onglet Stations : une ligne par station du projet", () => {
     // La carte du projet est fondue dans le bloc des stations (#1456) : sa ligne, en tête, dit l'état de la cuisine ; ses
     // cooks sont ceux des stations, et la carte n'est plus posée.
     assert.throws(() => vue.element("carte"), /aucun élément « carte »/);
-    const cuisine = vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
-    assert.match(cuisine.textContent, /^kitchenopen/);
+    const cuisine = vue.element("rail").dessous("p").find(({ className }) => className === "premiere-ligne") ?? assert.fail("pas de première ligne");
+    assert.match(cuisine.textContent, /^Cooked by box\/claude, atelier\/claude, online/);
+    assert.equal(vue.element("rail").textContent.includes("latest event"), false);
     // Les stations, dans l'ordre de `facts`, sans rôle dit (#1786).
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
     assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "cooking"]);

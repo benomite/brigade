@@ -13,7 +13,7 @@ import { cuissonDe } from "../../src/cuisson.ts";
 import type { StationEnregistree } from "../../src/stations-du-compte.ts";
 import { stationsDeGithub } from "../../src/vue/cooks/prises.ts";
 import { signesDe } from "../../src/vue/cooks/signes-de-vie.ts";
-import { ATTEINTE, poserLesStationsSurGithub } from "../../src/vue/cooks/stations-github.js";
+import { ATTEINTE, poserLesStationsSurGithub } from "../../src/vue/onglet-stations/stations-github.js";
 import { EN_SA_RETENUE, EN_SON_ABSENCE, HORS_LIGNE, ligneDeLEnregistree, projetsDe, type GestesDuCompte } from "../../src/vue/stations-du-compte.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
