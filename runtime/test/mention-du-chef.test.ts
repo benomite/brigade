@@ -55,7 +55,10 @@ test("une carte de TODO mentionne le chef une fois, sur l'issue de son ticket, a
   assert.equal(poste?.numero, 12);
   const lignes = poste?.corps.split("\n") ?? [];
   assert.match(lignes[0] ?? "", /^<!-- brigade:chef-mention card=[0-9a-f]{16} -->$/);
-  assert.deepEqual(lignes.slice(1), ["@benomite One list per project, or one for all projects?"]);
+  assert.deepEqual(lignes.slice(1), [
+    "@benomite One list per project, or one for all projects?",
+    'Reply to this comment (or quote-reply it) to answer with one of: "One list per project." / "One list for all projects.", or in your own words.',
+  ]);
 
   // Revue au tour suivant, la même carte n'écrit rien, et n'est pas relue.
   await mentionneur.passer();

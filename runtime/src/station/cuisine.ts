@@ -46,6 +46,7 @@ import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
 import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
+import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherRetenue } from "../retenue/brancher.ts";
 import { suivreLeTour } from "../retenue/tour.ts";
@@ -298,6 +299,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
     const { chef } = brancherLeChef(ouverte, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
     brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
+    // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
+    brancherReponseParCommentaire(ouverte, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Les tickets récurrents du projet : à leur date, une issue avec `fire`, sous l'identité du manager (#3230).
     brancherRecurrents(ouverte, { repertoireEtat, github: githubs.manager, avertir: dire });
   } catch (erreur) {
