@@ -141,10 +141,11 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
   test("chacune une fois, sans rôle dit : celle de `facts`, celle que la box déclare sans qu'elle s'y soit annoncée, celle que l'app a ajoutée", async () => {
     const vue = await ouvrir();
     assert.deepEqual(lignes(vue).map(({ dataset }) => dataset.station), ["box/claude", "macbook/claude", "pc"]);
-    // Atteinte ou non : la box l'est, le Mac aussi — la box le dit —, le PC ne l'est pas.
+    // Atteinte ou non : la box l'est, le Mac aussi — la box le dit —, le PC ne l'est pas. Le vert n'est qu'à la station qui sert
+    // le projet (#3189) : le Mac, atteint mais pas annoncé, ne cuit pas — gris.
     assert.deepEqual(lignes(vue).map((pose) => [atteinte(pose)?.textContent, atteinte(pose)?.dataset.ton]), [
       [ATTEINTE.oui, "vert"],
-      [ATTEINTE.oui, "vert"],
+      [ATTEINTE.oui, "gris"],
       [ATTEINTE.non, "gris"],
     ]);
     assert.match(atteinte(ligne(vue, "macbook/claude"))?.title ?? "", /it is online on GitHub/);
