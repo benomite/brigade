@@ -292,6 +292,11 @@ export type Pont = {
   listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
   enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
   retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus par `recurring` là où sa cuisine tourne, et chacun
+  // suspendu, repris ou retiré d'un clic (recurrents/recurrents.js, recurrents/recurrents-box.ts). Optionnels : un pont qui
+  // ne les porte pas (le téléphone) ne montre pas la section.
+  listerLesRecurrents?(projet: string): Promise<import("./recurrents/recurrents-box.ts").LectureDesRecurrents>;
+  changerUnRecurrent?(projet: string, geste: import("./recurrents/recurrents-box.ts").Geste, id: string): Promise<import("./recurrents/recurrents-box.ts").EcritureDUnRecurrent>;
   // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
   // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
   listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;
