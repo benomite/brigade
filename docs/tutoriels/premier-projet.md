@@ -1,6 +1,6 @@
 # Tutorial: add a first project and cook its first ticket
 
-From an installed app to a merged pull request: you add a project, open a ticket as a GitHub issue, watch a cook work it, review at the pass, and merge.
+From an installed app to a merged pull request: you add a project, tell the second what to change first, watch a cook work it, review at the pass, and merge.
 
 > **Status: not yet checked on the real app.** Screens, labels and results are written from the documentation and source, not from a recorded run. If a step does not match, trust the screen and report it as an issue on [benomite/brigade](https://github.com/benomite/brigade).
 
@@ -25,10 +25,13 @@ Click **choose its machine**, keep the presets, and click **Start the kitchen**.
 
 ## 3. Open the ticket
 
-1. On the throwaway repository, open an issue, for example titled `Add a CONTRIBUTING.md`, body `Create a CONTRIBUTING.md with a three-line "how to propose a change" section.`
-2. Add the label **`fire`**, which puts a ticket on the rail. For a quick run, add `model:haiku` and `effort:low` too. Create the labels first if they do not exist.
+1. In the app, the second asks what you want to change first. Tell it, for example: `Create a CONTRIBUTING.md with a three-line "how to propose a change" section.`
+2. The second writes the issue on the throwaway repository and shows it to you.
+3. Say yes: the ticket goes on the rail.
 
 **You see**: the ticket as a card in **On the rail**.
+
+**Alternative, on GitHub**: open an issue on the throwaway repository, for example titled `Add a CONTRIBUTING.md`, with the same body, and add the label **`fire`**, which puts it on the rail too. For a quick run, add `model:haiku` and `effort:low` too. Create the labels first if they do not exist.
 
 ## 4. Watch the cook work
 

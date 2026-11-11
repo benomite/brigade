@@ -128,6 +128,10 @@ export type Pont = {
   // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
   departDuProjet(projet: string): Promise<import("../depart-du-projet.ts").Depart>;
   mettreSurLeRail(projet: string, lignes: { ticket: number; priorite: number }[]): Promise<import("../depart-du-projet.ts").Mise | { refus: string; detail?: string }>;
+  // Le premier ticket d'un projet prêt (ticket 3306, runtime/src/premier-ticket/) : le second l'écrit d'après la réponse du chef —
+  // ou le réécrit avec ses changements —, et rien n'est créé ; sur le « oui » seul, l'issue est créée avec ses labels, `fire` compris.
+  redigerLePremierTicket(projet: string, demande: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Demande): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Redaction>;
+  creerLePremierTicket(projet: string, brouillon: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Brouillon): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Creation>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub

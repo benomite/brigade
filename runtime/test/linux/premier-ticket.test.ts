@@ -105,7 +105,11 @@ test("sous Linux, la station du paquet, lancée comme ses unités la lancent, se
   writeFileSync(join(github, "etat.json"), JSON.stringify(avant));
   writeFileSync(join(github, "appels"), "");
 
-  const lancements = join(repertoireTemporaire(t), "lancements");
+  // Le répertoire temporaire de la machine, celui de la station : la cloison
+  // le rend en écriture, et le témoin y note chaque lancement.
+  const temporaire = join(machine, "tmp");
+  mkdirSync(temporaire);
+  const lancements = join(temporaire, "lancements");
   writeFileSync(lancements, "");
 
   // Le projet choisi pour cette station, comme sa commande l'écrit.
@@ -137,6 +141,7 @@ test("sous Linux, la station du paquet, lancée comme ses unités la lancent, se
       ...ENV_GIT,
       ...env,
       HOME,
+      TMPDIR: temporaire,
       BRIGADE_GH_BIN: FAUX_GH,
       FAUX_GITHUB: github,
       FAUX_ORIGINES: origines,

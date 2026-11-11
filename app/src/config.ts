@@ -31,7 +31,7 @@ export type Projet = { nom: string; dossier: string; depot?: string; base?: stri
 // `barreDeMenus` : `false`, le chef a retiré l'état de la cuisine de la barre des menus du Mac et de la zone de
 // notification de Windows (barre-de-menus.ts, #3269) ; absent, il y est.
 // `quotaMax` : le réglage « quotaMax » du fichier, tel qu'écrit — la page des coûts le lit (vue/cost/part.js) et dit
-// « Share unavailable » quand il ne se lit pas : l'app n'en refuse pas le fichier.
+// « No share » quand il ne se lit pas : l'app n'en refuse pas le fichier.
 export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string; barreDeMenus?: boolean; quotaMax?: unknown };
 // Un projet tel qu'il s'écrit dans le fichier.
 export type Declare = { nom: string; dossier: string; depot?: string; base?: string; calibrage?: CalibrageDuProjet };
