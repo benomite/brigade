@@ -311,14 +311,18 @@ delivery, and every delivery of a project without the setting, is merged as befo
 | When the delivery is green (reviewed, CI green), at the merge | What the pass does |
 |---|---|
 | its screens do not all have their before **and** after captures | **sent back to its cook** for them (`brigade:renvoi`, the files to commit named): no card, no chef |
-| it has them, and no open card holds its PR | **not merged**: an issue `Validate its screen`, labelled `chef-todo`, carries the question, the link of the PR and each screen before and after as images; its body opens on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> -->`, and its card comment is `kind=design-validation`. The ticket stays `in-pass` and says its card |
-| a card already holds it | not merged, no second card — even when the base moves and the branch is updated |
+| it has them, and no open card holds its PR | **not merged**: an issue `Validate its screen`, labelled `chef-todo`, carries the question, the link of the PR and each screen before and after as images; its body opens on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, `sha` the head judged green, and its card comment is `kind=design-validation`. The ticket stays `in-pass` and says its card |
+| a card already holds it on this head | not merged, no second card |
+| a card holds it on another head (the base moved, the branch was updated, the new head judged green again — and approved by the second judge if it touches its judges) | not merged: the old card is closed, a new card holds the new head |
 | its files cannot be read, or the card cannot be created | not merged; the station says why, and tries again at its next turn |
 
 Two gestures answer the card, which the app calls (`brigade <projet> design`, [`exploitation.md`](exploitation.md)):
 
-- **`validate <owner>/<repo>#<PR>`** merges the PR, then closes the card. A merge GitHub refuses leaves the
-  card open and says why.
+- **`validate <owner>/<repo>#<PR>`** merges the head the card carries, the one the pass judged green, then
+  closes the card. It merges nothing when the PR's head is no longer that one (an update the pass has not
+  judged yet, a red CI, a cook pushing): the card stays open until the pass judges the new head green and
+  replaces it. It merges nothing either when a send-back follows the card on the ticket: that card is
+  closed. A merge GitHub refuses leaves the card open and says why.
 - **`send-back <owner>/<repo>#<PR> --comment "<what to change>"`** posts a send-back on the ticket with the
   comment as the change to make, removes `in-pass`, and closes the card. A cook takes the ticket up from its
   branch; its next delivery, judged green, comes back as **a new card with its new captures**. A card that a

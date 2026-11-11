@@ -120,7 +120,7 @@ test("setting on: a green design delivery with its captures is not merged; a che
   assert.deepEqual(autres, []);
   assert.equal(titres.get(carte.number), TITRE_DE_CARTE);
   assert.equal(TITRE_DE_CARTE, "Validate its screen");
-  assert.deepEqual(carteDuCorps(carte.corps), { pr: PR, ticket: TICKET });
+  assert.deepEqual(carteDuCorps(carte.corps), { pr: PR, ticket: TICKET, sha });
   assert.match(carte.corps, /Does the screen of #40 look right\?/);
   assert.ok(carte.corps.includes(`Pull request: https://github.com/faux/depot/pull/${PR}`), carte.corps);
   assert.ok(carte.corps.includes(`![rail — avant](https://github.com/faux/depot/blob/${sha}/docs/captures/40/rail-avant.png?raw=true)`), carte.corps);
@@ -136,17 +136,61 @@ test("setting on: a green design delivery with its captures is not merged; a che
   assert.deepEqual(renvois(faux), []);
 });
 
-test("a held delivery gets one card only, however many turns pass, even when its head moves without a new delivery", async () => {
-  const { faux, s } = await retenue();
+test("a held delivery gets one card only, however many turns pass on the same head", async () => {
+  const { faux, s, sha } = await retenue();
   await tours(s, 3);
-  // La base a bougé : GitHub a mis la branche à jour, la tête change, la CI repasse au vert.
-  const avant = faux.pr(PR).sha;
-  faux.pr(PR).sha = faux.sha();
-  await tours(s, 4);
-  assert.notEqual(faux.pr(PR).sha, avant);
+  assert.equal(faux.pr(PR).sha, sha);
   assert.equal(faux.mergee(TICKET), undefined);
   assert.equal(cartes(faux).length, 1);
   assert.equal(ouvertes(faux).length, 1);
+});
+
+test("a held delivery whose head moves and is judged green again gets a new card on the new head; the old one is closed", async () => {
+  const { faux, s, sha } = await retenue();
+  const [premiere] = ouvertes(faux);
+  assert.ok(premiere !== undefined);
+  // La base a bougé : GitHub a mis la branche à jour, la tête change, la CI repasse au vert.
+  const neuve = faux.sha();
+  faux.pr(PR).sha = neuve;
+  faux.poster(PR, "A", `<!-- brigade:verdict station=A verdict=approve sha=${neuve} -->\nApproved by station \`A\`.`);
+  await tours(s, 4, () => ouvertes(faux).some((carte) => carte.number !== premiere.number));
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(faux.ticket(premiere.number).state, "closed");
+  const [seconde, ...autres] = ouvertes(faux);
+  assert.deepEqual(autres, []);
+  assert.deepEqual(carteDuCorps(seconde?.corps ?? ""), { pr: PR, ticket: TICKET, sha: neuve });
+  assert.notEqual(neuve, sha);
+  // Valider la carte neuve merge la tête neuve.
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+});
+
+test("validate after the head moved — its CI pending or red — merges nothing and keeps the card", async () => {
+  for (const ci of ["pending", "red"] as const) {
+    const { faux, sha } = await retenue();
+    faux.pr(PR).sha = faux.sha();
+    (ci === "pending" ? faux.ciEnCours : faux.ciRouge).add(PR);
+    const fin = await design(faux, "validate", `faux/depot#${PR}`);
+    assert.equal(fin.code, 1, ci);
+    assert.match(fin.lignes.join("\n"), new RegExp(`the head of PR #1040 moved since card #\\d+ \\(\`${sha.slice(0, 7)}\` judged green`), ci);
+    assert.equal(faux.mergee(TICKET), undefined, ci);
+    assert.equal(faux.pr(PR).merged, false, ci);
+    assert.equal(ouvertes(faux).length, 1, ci);
+  }
+});
+
+test("validate after a send-back of the pass merges nothing, even on the card's head, and closes the card", async () => {
+  const { faux, sha } = await retenue();
+  // La pass a renvoyé la livraison depuis la carte (une CI rougie, relancée) : le cook n'a pas encore poussé.
+  faux.poster(TICKET, "A", `${MARQUE_DE_RENVOI} n=1 sha=${sha} -->\nStation \`A\`: sent back to a cook (1/2) — red CI.`);
+  assert.equal(faux.pr(PR).sha, sha);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 1);
+  assert.match(fin.lignes.join("\n"), /the delivery of PR #1040 went back to a cook since card #\d+: nothing merged, card #\d+ closed/);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(faux.pr(PR).merged, false);
+  assert.deepEqual(ouvertes(faux), []);
 });
 
 test("a card a send-back of the pass overtook — its CI red after an update — is closed when the next delivery is held on a new card", async () => {
