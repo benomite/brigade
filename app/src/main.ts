@@ -1476,7 +1476,11 @@ ipcMain.handle("gesteDeValidation", async (_, nom: unknown, ticket: unknown, ges
     depot: await depotDuProjet(vise),
     design: faits.chef(vise.nom, ticket)?.design,
     geste,
-    commande: async () => (await duRuntime<typeof import("../../runtime/src/validation-design/commande.ts")>("validation-design", "commande.ts")).principal,
+    // La commande, et la `Sortie` du même runtime : son refus se reconnaît à sa classe, pas à sa forme.
+    commande: async () => {
+      const [{ principal }, { Sortie }] = await Promise.all([duRuntime<typeof import("../../runtime/src/validation-design/commande.ts")>("validation-design", "commande.ts"), duRuntime<typeof import("../../runtime/src/appel.ts")>("appel.ts")]);
+      return { principal, estUneSortie: (erreur: unknown): erreur is InstanceType<typeof Sortie> => erreur instanceof Sortie };
+    },
     env: { ...process.env, BRIGADE_GH_BIN: ghIci },
   });
   if ("fait" in rendu) tableaux.oublier();

@@ -6,13 +6,14 @@
 // Aucun runtime ne tourne, aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { Sortie } from "../../../runtime/src/appel.ts";
 import { principal } from "../../../runtime/src/validation-design/commande.ts";
 import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
 import { carteDuChefDeTodo } from "../../src/carte-todo.ts";
 import { tenirFaits } from "../../src/faits.ts";
 import { lireCeQuiAttendLeChef } from "../../src/tableau/attente-du-chef.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
-import { INCONNUE, jouerLaValidation, SORTE_DE_VALIDATION, validationDuCorps, VIDE, type CommandeDuRuntime } from "../../src/vue/validation-design/validation-design-github.ts";
+import { INCONNUE, jouerLaValidation, SORTE_DE_VALIDATION, validationDuCorps, VIDE, type CommandeChargee, type CommandeDuRuntime } from "../../src/vue/validation-design/validation-design-github.ts";
 
 const DEPOT = "chef/parade";
 const SHA = "3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345";
@@ -97,8 +98,13 @@ async function lue(appeler: AppelGitHub) {
   return attente.lue ? attente.attentes : [];
 }
 
-// La commande du runtime, sur le faux GitHub.
-const commandeSur = (faux: ReturnType<typeof fauxGitHub>): (() => Promise<CommandeDuRuntime>) => async () => (appel) => principal(appel, () => faux.github as never);
+// La commande du runtime, sur le faux GitHub, et sa `Sortie` — ce que main.ts charge du runtime. `appels` : les arguments de
+// chaque appel.
+const estUneSortie = (erreur: unknown): erreur is Sortie => erreur instanceof Sortie;
+const commandeSur =
+  (faux: ReturnType<typeof fauxGitHub>, appels: string[][] = []): (() => Promise<CommandeChargee>) =>
+  async () => ({ principal: (appel) => (appels.push(appel.args), principal(appel, () => faux.github as never)), estUneSortie });
+const chargee = (principal: CommandeDuRuntime) => async (): Promise<CommandeChargee> => ({ principal, estUneSortie });
 
 describe("l'app lit la carte que le runtime pose", () => {
   test("sa question, sa PR, son ticket et les captures avant et après de chaque écran, au commit jugé vert", async () => {
@@ -177,8 +183,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const faux = await carteDEssai();
     const [carte] = await lue(faux.appeler);
     const appels: string[][] = [];
-    const commande = commandeSur(faux);
-    const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: async () => async (appel) => (appels.push(appel.args), (await commande())(appel)) });
+    const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux, appels) });
     assert.deepEqual(appels, [["validate", `${DEPOT}#${PR}`]]);
     assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: merged, card #61 closed — ticket #${TICKET} is served` });
     assert.deepEqual(faux.merges, [[PR, SHA]]);
@@ -190,8 +195,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const faux = await carteDEssai();
     const [carte] = await lue(faux.appeler);
     const appels: string[][] = [];
-    const commande = commandeSur(faux);
-    const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "renvoyer", commentaire: "  The export button is cut off.\r\nKeep it on one line.  " }, env: {}, commande: async () => async (appel) => (appels.push(appel.args), (await commande())(appel)) });
+    const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "renvoyer", commentaire: "  The export button is cut off.\r\nKeep it on one line.  " }, env: {}, commande: commandeSur(faux, appels) });
     assert.deepEqual(appels, [["send-back", `${DEPOT}#${PR}`, "--comment", "The export button is cut off.\nKeep it on one line."]]);
     assert.match("fait" in rendu ? rendu.fait : assert.fail(JSON.stringify(rendu)), /sent back: #58 goes back to a cook with your comment, card #61 closed/);
     assert.deepEqual(faux.merges, []);
@@ -204,7 +208,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const faux = await carteDEssai();
     const [carte] = await lue(faux.appeler);
     let lancee = false;
-    const commande = async () => async () => void (lancee = true);
+    const commande = chargee(async () => void (lancee = true));
     assert.deepEqual(await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "renvoyer", commentaire: "  \n " }, env: {}, commande }), { refus: VIDE, detail: "" });
     assert.deepEqual(await jouerLaValidation({ depot: DEPOT, design: undefined, geste: { geste: "valider" }, env: {}, commande }), { refus: INCONNUE, detail: "" });
     assert.equal(lancee, false);
@@ -229,5 +233,14 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: async () => assert.fail("the runtime is not there") });
     assert.equal("refus" in rendu && rendu.refus, "nothing was done: the kitchen's command could not run");
     assert.match("refus" in rendu ? rendu.detail : "", /the runtime is not there/);
+  });
+
+  test("une erreur qui porte un `code` sans être la `Sortie` du runtime — une erreur système — n'est pas lue comme son refus", async () => {
+    const faux = await carteDEssai();
+    const [carte] = await lue(faux.appeler);
+    const systeme = Object.assign(new Error("spawn gh ENOENT"), { code: -2 });
+    const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: chargee(async ({ redire }) => (redire("brigade : not this line"), Promise.reject(systeme))) });
+    assert.deepEqual(rendu, { refus: "nothing was done: the kitchen's command could not run", detail: "spawn gh ENOENT" });
+    assert.equal(faux.issues.get(61)?.state, "open");
   });
 });

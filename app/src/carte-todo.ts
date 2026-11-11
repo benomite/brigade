@@ -12,7 +12,7 @@
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
 import { LONGUEUR_MAX } from "./discussion.ts";
 import { formeDuChef, type CarteDuChef } from "./tableau/todo-github.ts";
-import { SORTE_DE_VALIDATION } from "./vue/validation-design/validation-design-github.ts";
+import { capturesDeLaValidation, SORTE_DE_VALIDATION } from "./vue/validation-design/validation-design-github.ts";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
 // au plus (`resume`, la forme unique de l'épique #1764 : runtime/src/carte-todo/forme.ts — absent d'un
@@ -94,7 +94,7 @@ export function carteDuChefDeTodo({ sorte, texte, design }: CarteDuChef): CarteD
       prixDuTexte: "",
       ...(design === undefined
         ? { validation: { illisible: "its issue does not say which pull request it validates: validate it on GitHub" } }
-        : { validation: { pr: design.pr, ticket: design.ticket }, captures: capturesDeCarte(design.captures) }),
+        : { validation: { pr: design.pr, ticket: design.ticket }, captures: capturesDeLaValidation(design) }),
     };
   }
   const situation = situationDe(contexte);

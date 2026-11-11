@@ -41,23 +41,19 @@ export const CARTE: AttenteDuChef = {
   url: `https://github.com/${DEPOT}/issues/61`,
   depuis: "2026-10-13T09:40:00.000Z",
   quoi: "carte",
-  ligne: `${QUESTION} — answer on its Todo card, in your own words`,
+  ligne: `${QUESTION} — on its Todo card: Validate, or Send back to the kitchen with a comment`,
   chef: { sorte: "design-validation", texte: TEXTE, design: validationDuCorps(DEPOT, CORPS) ?? undefined },
 };
 
 const IMAGE = `data:image/png;base64,${readFileSync(new URL("../../../docs/captures/2909/tous-les-projets-apres.png", import.meta.url)).toString("base64")}`;
 
-// Le commentaire que les écrans « gestes » tapent.
-export const COMMENTAIRE = "The export button is cut off in the narrow column: keep its label on one line.";
-
 export const OUVRIR_PARADE = { cliquer: '#projets > button[title^="parade — "]' };
-export const TODO = "#rail section.colonne[data-attend]";
 
-export const donnees = (carte: AttenteDuChef = CARTE, reponses: Record<string, unknown> = {}): Donnees => {
+export const donnees = (carte: AttenteDuChef = CARTE): Donnees => {
   const lu = avecLAttenteDuChef(avecLeRail(TABLEAU_FIGE, SUR_GITHUB, SIGNES), { attentes: [carte], illisibles: [] });
   return {
     maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], lireCapture: { image: IMAGE }, ...reponses },
+    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], lireCapture: { image: IMAGE } },
     envois: cuisine({ ...RENDUS, parade: { ...renduDeParade(lu), manager: MANAGER_ALLUME } }),
   };
 };

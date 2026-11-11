@@ -3,8 +3,8 @@
 // (ticket 3184). Dans TODO comme sur le téléphone, la même carte, dans cet ordre : la question ; les captures avant et après de
 // chaque écran, l'une sous l'autre, lues sans un clic ; le lien de la pull request ; « Validate », le geste recommandé ; puis
 // le champ du commentaire et « Send back to the kitchen », éteint tant que le commentaire est vide. Le prix de chaque geste
-// est au survol. Chaque geste part par le process principal, qui joue la commande du runtime
-// (validation-design-github.ts, `jouerLaValidation`) ; fait, la carte quitte TODO (`sansLesValidees`) ; refusé, elle reste,
+// est au survol. Chaque geste part par le pont : sur le desktop, le process principal joue la commande du runtime
+// (validation-design-github.ts, `jouerLaValidation`) ; sur le téléphone, il s'écrit sur GitHub (`validerSurGithub`) ; fait, la carte quitte TODO (`sansLesValidees`) ; refusé, elle reste,
 // et dit pourquoi en une ligne, le détail au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, les captures déjà posées et ce que chaque geste
 // appelle, et rend un élément.

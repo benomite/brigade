@@ -15,6 +15,10 @@
 //   - les gestes de WAITING (#3075) — « waiting for… » sur une carte de TODO, « resume » et « it arrived, back to the
 //     kitchen » sur une carte de WAITING : le téléphone ne joint aucun runtime, il les écrit sur l'issue comme le desktop
 //     sans runtime ici (vue/attente/attente-github.ts, `attenteSurGithub`).
+//   - les deux gestes de la carte « Validate its screen » (ticket 3185) — « Validate » et « Send back to the kitchen » : le
+//     téléphone ne porte pas la commande du runtime que le desktop joue, il écrit sur GitHub ce qu'elle y écrit
+//     (vue/validation-design/validation-design-github.ts, `validerSurGithub`) — la PR mergée et la carte fermée, ou le
+//     renvoi posté sur le ticket et la carte fermée.
 //
 // Une écriture que GitHub refuse, ou qui ne le joint pas, se dit en une ligne, ce que GitHub en a dit au survol, et rien
 // ne la tient pour faite : la lecture n'est relancée qu'après une écriture que GitHub a prise (`ecrit`), comme le desktop
@@ -28,6 +32,7 @@ import { attenteSurGithub } from "./vue/attente/attente-github.ts";
 import type { TableauLu } from "./tableau/lecture.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
+import { validerSurGithub, type RenduDeValidation } from "./vue/validation-design/validation-design-github.ts";
 
 export type Options = {
   // Le jeton GitHub du chef — celui du coffre du téléphone ; nul sans lui, et GitHub dit ce qu'il refuse.
@@ -102,6 +107,16 @@ export function ouvrirLesGestesGitHub(options: Options) {
       if (depot === undefined) return { refus: SANS_DEPOT(projet), detail: "" };
       const rendu = await repondreSurGithub({ depot, ticket, chef, reponse, client });
       if ("repondue" in rendu) options.ecrit?.(projet);
+      return rendu;
+    },
+
+    // Un geste du chef sur la carte « Validate its screen » que la dernière lecture porte : valider, ou renvoyer en cuisine
+    // avec son commentaire, écrit sur GitHub.
+    async gesteDeValidation(projet: string, ticket: unknown, geste: unknown): Promise<RenduDeValidation> {
+      const depot = options.depot(projet);
+      if (depot === undefined) return { refus: SANS_DEPOT(projet), detail: "" };
+      const rendu = await validerSurGithub({ depot, carte: ticket, design: options.chef(projet, ticket)?.design, geste, client });
+      if ("fait" in rendu) options.ecrit?.(projet);
       return rendu;
     },
   };

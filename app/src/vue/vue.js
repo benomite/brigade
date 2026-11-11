@@ -5051,7 +5051,7 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
 
 // La carte « Validate its screen » d'un ticket (validation-design/, ticket 3185) : ses captures posées comme celles de toute
 // carte, lues sans un clic ; « Validate » et « Send back to the kitchen » jouent la commande du runtime par le process
-// principal. `grand` : à la largeur d'un téléphone, sur la carte ouverte depuis la liste.
+// principal — sur le téléphone, ils s'écrivent sur GitHub (gestes-github-telephone.ts). `grand` : à la largeur d'un téléphone, sur la carte ouverte depuis la liste.
 /** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo @param {boolean} grand */
 function poserLaValidation(projet, ticket, todo, grand) {
   const cle = `${projet.nom}#${ticket}`;

@@ -12,6 +12,7 @@
 // qui voit aussi un dépôt privé — et rendue à la vue en `data:` : la page ne demande
 // rien au réseau.
 import { echec, lancer, type Reglages } from "./question.ts";
+import { refusDe, type AppelGitHub, type ReponseGitHub } from "./tableau/client.ts";
 
 // Ce que `facts` donne des captures d'un ticket : `complet`, chaque écran a ses deux
 // captures ; chaque écran, l'adresse de sa capture avant et de sa capture après — nulle,
@@ -83,5 +84,25 @@ export async function lireCapture(reglages: Reglages, adresse: string): Promise<
   const contenu = rendu.sortie.replace(/\s+/g, "");
   // Au-delà d'un mégaoctet, GitHub ne rend pas le contenu d'un fichier : il est vide.
   if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return { sans: `$ ${reglages.gh} ${args.join(" ")} — its output is not the file's content` };
+  return { image: `data:image/png;base64,${contenu}` };
+}
+
+// La même image, lue sur l'API de GitHub par le `GET` de la lecture du téléphone (lecture-github-telephone.ts), qui ne
+// lance aucun `gh` : le contenu du fichier au commit livré, ou pourquoi il ne se lit pas.
+export async function lireCaptureSurLAPI(appeler: AppelGitHub, adresse: string): Promise<Image> {
+  const lue = lireAdresse(adresse);
+  if (lue === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
+  const chemin = `/repos/${lue.depot}/contents/${lue.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${lue.sha}`;
+  let rendu: ReponseGitHub;
+  try {
+    rendu = await appeler(chemin);
+  } catch (erreur) {
+    return { sans: `GitHub did not answer for this screenshot: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  if (rendu.status !== 200) return { sans: refusDe("the reading of this screenshot", rendu).message };
+  const brut = typeof rendu.data === "object" && rendu.data !== null ? (rendu.data as Record<string, unknown>).content : undefined;
+  const contenu = typeof brut === "string" ? brut.replace(/\s+/g, "") : "";
+  // Au-delà d'un mégaoctet, GitHub ne rend pas le contenu d'un fichier : il est vide.
+  if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return { sans: `GET ${chemin} — its answer is not the file's content` };
   return { image: `data:image/png;base64,${contenu}` };
 }

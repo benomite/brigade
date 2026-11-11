@@ -905,13 +905,21 @@ project is read again. Refused by the runtime — the head of the pull
 request moved since the card, GitHub refused the merge — the card stays, says why in one line, the runtime's answer on
 hover, and keeps the comment and both buttons. The pull request, its ticket and the captures are read from the issue's body
 (`<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, then the images): only the images of
-`docs/captures/<ticket>/` on the project's repository at that head are captures of the card. A body that does not say its
-pull request is said on the card in one line, with no gesture. At phone width the card is the same: in the list of cards
-that await the chef it reads `Design validation`, and opened, it shows the same question, captures, link and gestures, its
-buttons 44 px high. The Android app does not run the runtime: there, both gestures are refused in one line (`validate or
-send back from the desktop app`), and the captures are not read. Captures: `docs/captures/3185/`.
+`docs/captures/<ticket>/` on the project's repository at that head are captures of the card. A body that shows none of
+them says so on the card in one line (`no screenshot could be read on this card — open its pull request to see the
+screen`), what the app looks for on hover. A body that does not say its pull request is said on the card in one line, with
+no gesture. At phone width the card is the same: in the list of cards that await the chef it reads `Design validation`,
+and opened, it shows the same question, captures, link and gestures, its buttons 44 px high.
+
+The Android app does not run the runtime: with the GitHub sign-in of the phone, it writes on GitHub what the runtime's
+command writes, with the same checks — `Validate` merges the pull request at the head the card carries and closes the
+card; `Send back to the kitchen` posts the comment on the ticket as what to change, takes `in-pass` off and closes the
+card. Done, the card leaves Todo and its notification goes. The phone reads each capture through the GitHub API, at the
+head the card carries. Captures: `docs/captures/3185/`.
 *Code: `app/src/vue/validation-design/` (`validation-design.js`, the card; `validation-design-github.ts`, the reading of the
-body and `jouerLaValidation`), channel `gesteDeValidation` (`app/src/main.ts`). Tests: `app/test/validation-design/`.*
+body, `jouerLaValidation` for the desktop and `validerSurGithub` for the phone), channel `gesteDeValidation`
+(`app/src/main.ts`; `app/src/gestes-github-telephone.ts` and `app/android/web/pont.js` on the phone). Tests:
+`app/test/validation-design/`.*
 
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
 signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without
