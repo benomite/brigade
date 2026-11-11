@@ -2203,13 +2203,18 @@ test("the station of this runtime: two tickets with no declared zone whose bodie
 
 // #3250 : chaque commit d'un écran écrit aussi le registre de la vue et sa doc,
 // comme `app/src/vue/vue.js` et `docs/app.md` sur ce dépôt. Tenus par la porte
-// de prise (#2963), ces compagnons faisaient attendre à chaque ticket de l'app
-// le merge du précédent. L'historique est donné au dépôt comme `ouvrirDepot`
-// le donnait : la station ne le lit plus.
-test("the station of this runtime: two tickets on disjoint screens whose commits always write the same registry and doc leave together — a shared file outside their zones holds neither (#3250)", async (t) => {
+// de prise comme compagnons de chaque zone (#2963), ils faisaient attendre à
+// chaque ticket de l'app le merge du précédent. Deux écrans disjoints partent
+// ensemble ; un troisième sur l'écran d'un parti attend toujours. L'historique
+// est donné au dépôt comme `ouvrirDepot` le donnait : la station ne le lit plus.
+test("the station of this runtime: two tickets on disjoint screens leave together, the shared registry and doc outside their zones holding neither; a third on one of their screens still waits (#3250)", async (t) => {
+  const corps = {
+    31: "Show the clock on the mirror. Touches `src/ui/clock.ts`.",
+    32: "Dim the screen at night. Touches `src/ui/dim.ts`.",
+    33: "The clock's seconds blink in `src/ui/clock.ts`.",
+  };
   const ecran = (chemin: string) => Array.from({ length: 10 }, () => [chemin, "src/vue.js", "docs/app.md"]);
   const historique = () => [...ecran("src/ui/clock.ts"), ...ecran("src/ui/dim.ts")];
-  const corps = { 31: "Show the clock on the mirror. Touches `src/ui/clock.ts`.", 32: "Dim the screen at night. Touches `src/ui/dim.ts`." };
   assert.deepEqual(await prisEnUnTour(t, corps, () => ["src/ui/clock.ts", "src/ui/dim.ts", "src/vue.js", "docs/app.md"], undefined, { historique }), [31, 32]);
 });
 
