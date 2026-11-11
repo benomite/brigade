@@ -16,7 +16,7 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { RIEN_NE_TOURNE } from "../src/vue/stations-de-cuisson.js";
+import { AU_REPOS } from "../src/vue/stations-tab/stations-tab.js";
 import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
@@ -108,10 +108,11 @@ async function taper(vue: Jouee, titre: string): Promise<void> {
 }
 // Ce qui est à l'écran du projet : le centre, ou le second — jamais les deux sur un écran étroit.
 const vu = (vue: Jouee) => ({ centre: !vue.element("centre").hidden, second: !vue.element("second").hidden });
-const lignes = (vue: Jouee) => vue.element("rail").dessous("li").filter((li) => li.className === "station-de-cuisson");
-const ligne = (vue: Jouee, nom: string) => lignes(vue).find((li) => li.dataset.station === nom) ?? assert.fail(`pas de ligne pour ${nom}`);
-const etatDe = (pose: Faux) => pose.dessous("span").find((span) => span.className === "pilule")?.textContent;
-const cooksDe = (pose: Faux) => (pose.dessous("ul")[0]?.children ?? []).map((li) => li.textContent);
+// Les cartes des stations de l'onglet Stations (#3195) : son état, ce qu'elle tient.
+const lignes = (vue: Jouee) => vue.element("rail").dessous("section").filter((carte) => carte.className === "carte-de-station");
+const ligne = (vue: Jouee, nom: string) => lignes(vue).find((carte) => carte.dataset.station === nom) ?? assert.fail(`pas de carte pour ${nom}`);
+const etatDe = (pose: Faux) => pose.dessous("span").find((span) => span.className === "pilule etat")?.textContent;
+const cooksDe = (pose: Faux) => (pose.dessous("ul")[0]?.children ?? pose.dessous("p").filter(({ className }) => className === "au-repos")).map((li) => li.textContent);
 // Les gestes posés sous un élément : ses boutons, sauf l'icône d'aide qui porte un survol.
 const gestes = (pose: Faux) => pose.dessous("button").filter((bouton) => bouton.className !== "aide");
 // Un élément de la vue, par son `id`, posé dans l'onglet montré.
@@ -209,16 +210,17 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
 });
 
 describe("l'onglet Stations d'un écran étroit, en lecture seule", () => {
-  test("chaque station a sa ligne, son état et ses cooks, et aucun geste", async () => {
+  test("chaque station a sa carte, son état et ses cooks, et aucun geste", async () => {
     const { vue } = await ouvrir();
     await taper(vue, "Stations");
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "saturated"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["online", "stopped by you, for 3 min · 1 cook finishing", "onlineits machine has no room"]);
     assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
-    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [RIEN_NE_TOURNE]);
-    // Rien ne se clique sur une ligne de station.
+    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [AU_REPOS]);
+    // Rien ne se clique sur une carte de station, et « Details » n'y est pas.
     assert.deepEqual(lignes(vue).map((li) => gestes(li).length), [0, 0, 0]);
+    assert.deepEqual(lignes(vue).flatMap((li) => li.dessous("details")), []);
     // Ni la carte du projet, ni Taken et Pass — leurs fiches ont leurs gestes —, ni les serveurs de livraison.
     assert.deepEqual(colonnes(vue), []);
     assert.equal(dansLeRail(vue, "carte"), false);
@@ -247,9 +249,9 @@ describe("sur un écran large, rien ne change", () => {
     await taper(vue, "Stations");
     assert.deepEqual(vu(vue), { centre: true, second: true });
     assert.deepEqual(colonnes(vue), []);
-    // La carte du projet est fondue dans le bloc de ses stations (#1456).
+    // La carte du projet est fondue dans le bloc de ses stations (#1456) ; l'onglet est un seul composant (#3195).
     assert.equal(dansLeRail(vue, "carte"), false);
-    assert.equal(dansLeRail(vue, "cuisson-du-projet"), true);
+    assert.ok(vue.element("rail").children.some(({ dataset }) => dataset.bloc === "stations-tab"));
     assert.deepEqual(lignes(vue).flatMap((li) => gestes(li)).filter((bouton) => /^(stop|start) cooking$/.test(bouton.textContent)), []);
   });
 

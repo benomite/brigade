@@ -125,17 +125,22 @@ const cliquerSurAilleurs = async (jouee: Awaited<ReturnType<typeof laPage>>["jou
   (carte.dessous("button").find((pose) => pose.textContent === "Cook it on a station that has it") ?? assert.fail("pas de bouton")).click();
   for (let tour = 0; tour < 5; tour++) await repos();
 };
-const formulaire = (jouee: Awaited<ReturnType<typeof laPage>>["jouee"]) => jouee.element("rail").dessous("div").find(({ className }) => className === "edition");
+// Les réglages de la station, dans « Details » de sa carte sur Stations (#3195) — ouvert, il porte la capacité offerte ;
+// replié, ils ne sont pas ouverts.
+const formulaire = (jouee: Awaited<ReturnType<typeof laPage>>["jouee"]) => {
+  const carte = jouee.element("rail").dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === "pc/claude");
+  return carte !== undefined && (carte.dessous("details")[0] as unknown as { open?: boolean } | undefined)?.open === true ? carte.dessous("section").find(({ className }) => className === "station-reglee") : undefined;
+};
 const cochees = (forme: Faux) => forme.dessous("input").filter(({ type, checked, ariaLabel }) => type === "checkbox" && checked).map(({ ariaLabel }) => ariaLabel);
 const caseDe = (forme: Faux, capacite: string) => forme.dessous("input").find(({ type, ariaLabel }) => type === "checkbox" && ariaLabel === capacite) ?? assert.fail(`pas de case « ${capacite} »`);
 
-describe("« Cook it on a station that has it » ouvre le formulaire de la station de ce poste", () => {
+describe("« Cook it on a station that has it » ouvre, sur Stations, les réglages de la station de ce poste", () => {
   test("un navigateur qui manque : le formulaire de pc/claude, navigateur-headless offert à côté de code, et rien n'est écrit avant qu'il soit coché", async () => {
     const { jouee, envoyes } = await laPage([enAttente("browser")]);
     assert.equal(formulaire(jouee), undefined);
     await cliquerSurAilleurs(jouee, "browser");
     const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
-    assert.equal(forme.ariaLabel, "edit pc/claude");
+    assert.equal(forme.dataset.station, "pc/claude");
     assert.deepEqual(cochees(forme), ["code"]);
     assert.equal(caseDe(forme, "navigateur-headless").checked, false);
     // Le choix lui-même n'est pas écrit : la carte reste, et rien ne part avant que le chef coche la case.
@@ -155,7 +160,7 @@ describe("« Cook it on a station that has it » ouvre le formulaire de la stati
     const { jouee } = await laPage([enAttente("docker")]);
     await cliquerSurAilleurs(jouee, "docker");
     const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
-    assert.equal(forme.ariaLabel, "edit pc/claude");
+    assert.equal(forme.dataset.station, "pc/claude");
     assert.deepEqual(cochees(forme), ["code"]);
     assert.equal(caseDe(forme, "docker").checked, false);
     assert.equal(forme.dessous("input").filter(({ ariaLabel }) => ariaLabel === "docker").length, 1);

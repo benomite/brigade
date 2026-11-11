@@ -35,6 +35,7 @@ import { commandeDeDemarrage, COMMANDES, INIT, JUGEMENT, jugementDe, lireCourant
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
 import { jouerLaVue, ouvrirOnglet, repos, type Faux } from "./aides/fausse-vue.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
+import { ARRETER, OUI_ARRET } from "../src/vue/stations-tab/stations-tab.js";
 
 const RACINE = join(import.meta.dirname, "../..");
 const CALCULUS: Projet = { nom: "calculus", dossier: "/projets/calculus" };
@@ -1061,7 +1062,8 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     return { vue: jouee, fini, declaree, projet, box };
   }
 
-  const bloc = (vue: Faux) => vue.children.find(({ dataset }) => dataset.bloc === "reglages-station") ?? assert.fail("pas de réglages de station sur Stations");
+  // Les réglages de chaque station, dans « Details » de sa carte sur l'onglet Stations (#3195).
+  const bloc = (vue: Faux) => vue.children.find(({ dataset }) => dataset.bloc === "stations-tab") ?? assert.fail("pas d'onglet des stations");
   const sections = (vue: Faux) => bloc(vue).dessous("section").filter(({ className }) => className === "station-reglee");
   const section = (vue: Faux, nom: string) => sections(vue).find(({ dataset }) => dataset.station === nom) ?? assert.fail(`pas de réglages pour ${nom}`);
   const reglage = (pose: Faux, cle: string) => pose.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === cle) ?? assert.fail(`pas de ligne « ${cle} »`);
@@ -1121,14 +1123,14 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     assert.match(reglage(section(vue, editee), "capacites").textContent, /saved; the other stations are unchanged/);
 
     // La retirer : rien ne part avant la confirmation.
-    // « Remove » est sur la ligne de la station (#2914), sa confirmation s'ouvre dessous.
-    const ligne = () => vue.dessous("li").find(({ className, dataset }) => (className === "station-de-cuisson" || className === "station-declaree") && dataset.station === editee) ?? assert.fail(`pas de ligne pour ${editee}`);
-    bouton(ligne(), "Remove").click();
+    // « Stop cooking here » est sur la carte de la station (#2914, #3195), sa confirmation s'ouvre dessous.
+    const ligne = () => vue.dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === editee) ?? assert.fail(`pas de carte pour ${editee}`);
+    bouton(ligne(), ARRETER).click();
     await fini();
     const confirmation = ligne().children.find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(confirmation.dessous("p").map(({ textContent }) => textContent).join(" "), new RegExp(`Remove ${editee} from calculus\\?`));
+    assert.match(confirmation.dessous("p").map(({ textContent }) => textContent).join(" "), new RegExp(`Stop cooking calculus on ${editee}\\?`));
     assert.equal((await declaree()).length, 3);
-    bouton(confirmation, "Remove").click();
+    bouton(confirmation, OUI_ARRET).click();
     await fini();
     assert.deepEqual(lues(vue), sans(avant, editee));
     assert.deepEqual(await declaree(), sans(auJournal, editee));
@@ -1146,8 +1148,14 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
     const { vue: jouee, fini, declaree } = await cuisine(t, "box/claude:3:code");
     const vue = jouee.element("rail");
     const forme = formulaire(vue, "box/claude");
-    const ligneSeule = vue.dessous("li").find(({ className, dataset }) => (className === "station-de-cuisson" || className === "station-declaree") && dataset.station === "box/claude") ?? assert.fail("pas de ligne pour box/claude");
-    assert.equal(bouton(ligneSeule, "Remove").disabled, true);
+    // La seule station du projet ne se retire pas : confirmé, rien n'est écrit, et la ligne dit pourquoi.
+    const carteSeule = () => vue.dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === "box/claude") ?? assert.fail("pas de carte pour box/claude");
+    bouton(carteSeule(), ARRETER).click();
+    await fini();
+    bouton(carteSeule().children.find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation"), OUI_ARRET).click();
+    await fini();
+    assert.match(bloc(vue).textContent, /nothing was changed: the project's only station/);
+    assert.equal((await declaree()).length, 1);
     // Aucune capacité cochée : refusé avant de partir, rien n'est écrit ; le refus se lit sous sa rangée, et la case
     // revient à la valeur en vigueur.
     cocher(forme, "code", false);

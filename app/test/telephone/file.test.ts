@@ -112,9 +112,9 @@ const cooksDe = (li: Faux) => {
 const stations = (vue: Jouee) =>
   vue
     .element("rail")
-    .dessous("li")
-    .filter((li) => li.className === "station-de-cuisson")
-    .map((li: Faux) => ({ station: li.dataset.station, etat: li.dessous("span").find((span) => span.className === "pilule")?.textContent, cooks: cooksDe(li) }));
+    .dessous("section")
+    .filter((carte) => carte.className === "carte-de-station")
+    .map((carte: Faux) => ({ station: carte.dataset.station, etat: carte.dessous("span").find((span) => span.className === "pilule etat")?.textContent, cooks: cooksDe(carte) }));
 
 describe("la file d'un projet sur le téléphone", () => {
   test("Rail : ce qui attend le chef, le rail, ce qui attend un tiers et ce qui est servi — TODO marquée, la seule", async () => {
@@ -143,8 +143,8 @@ describe("la file d'un projet sur le téléphone", () => {
     const vue = await ouvrir({ etroit: true });
     await taper(vue, "Stations");
     assert.deepEqual(stations(vue), [
-      { station: "box/claude", etat: "cooking", cooks: ["#14Le journal en ajout seul"] },
-      { station: "mac/claude", etat: "cooking", cooks: ["#15La carte des desserts"] },
+      { station: "box/claude", etat: "online", cooks: ["#14Le journal en ajout seul"] },
+      { station: "mac/claude", etat: "online", cooks: ["#15La carte des desserts"] },
     ]);
   });
 

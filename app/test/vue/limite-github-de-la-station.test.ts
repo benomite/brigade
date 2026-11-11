@@ -2,7 +2,7 @@
 // signe de vie à 14:04:25, GitHub la limite de 14:06 à 14:37, et son enregistrement le dit au moment où ses appels
 // s'arrêtent (`heldBy`, runtime/src/enregistrement-station/enregistrer.ts). À 14:23, le chef ouvre l'app : la station est
 // lue par le lecteur même du runtime (`stationDuGist`), et l'app la dit « held by GitHub's limit until 14:37 » — jamais
-// « offline » —, sur sa ligne de l'accueil, sur sa page, et sur l'onglet Cooks de chacun de ses projets, qu'elle garde.
+// « offline » —, sur sa ligne de l'accueil, sur sa page, et sur l'onglet Stations de chacun de ses projets, qu'elle garde.
 // L'heure est celle du chef : ce test la pose en UTC, celle du ticket.
 process.env.TZ = "UTC";
 import assert from "node:assert/strict";
@@ -13,7 +13,8 @@ import { cuissonDe } from "../../src/cuisson.ts";
 import type { StationEnregistree } from "../../src/stations-du-compte.ts";
 import { stationsDeGithub } from "../../src/vue/cooks/prises.ts";
 import { signesDe } from "../../src/vue/cooks/signes-de-vie.ts";
-import { ATTEINTE, poserLesStationsSurGithub } from "../../src/vue/onglet-stations/stations-github.js";
+import { hautDe, servantesDe } from "../../src/vue/stations-tab/etat.js";
+import { poserLOngletDesStations } from "../../src/vue/stations-tab/stations-tab.js";
 import { EN_SA_RETENUE, EN_SON_ABSENCE, HORS_LIGNE, ligneDeLEnregistree, projetsDe, type GestesDuCompte } from "../../src/vue/stations-du-compte.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
@@ -43,13 +44,15 @@ function lueA(instant: number, retenue = true): StationEnregistree {
   return "illisible" in station ? assert.fail(station.illisible) : station;
 }
 
-// L'onglet Cooks d'un projet, tel que la vue le pose d'après les signes de vie du compte.
+// Les cartes de l'onglet Stations d'un projet (#3195), telles que la vue les pose d'après les signes de vie du compte.
 function cooksDe(depot: string, station: StationEnregistree, instant: number) {
   const signes = signesDe({ state: "listed", stations: [station], unreadable: [] });
   assert.ok("lus" in signes);
   const cuisson = cuissonDe(stationsDeGithub([], signes.lus, depot, instant), [], new Date(instant).toISOString());
-  const pastille = (mot: string, ton: string | undefined) => Object.assign(new Faux("span"), { title: `${mot} ${ton ?? ""}` });
-  return poserLesStationsSurGithub(doc, { cuisson: { ...cuisson, surGithub: { illisible: null } }, pastille }) as Faux;
+  const servantes = servantesDe({ projet: depot, lignes: cuisson.lignes, maintenant: instant });
+  const gestes = { choisirQuiCuit() {}, deplacer() {}, versIci() {}, choisir() {}, annuler() {}, arreter() {}, confirmerArret() {}, renoncerArret() {}, basculer() {} };
+  const vu = { projet: depot, poste: "this Mac", lues: true, haut: hautDe({ servantes, deplacement: null, maintenant: instant }), servantes, deplacable: { offert: false, pourquoi: "" }, details: new Map(), ouverts: new Set<string>() };
+  return (poserLOngletDesStations(doc, vu, gestes) as Faux).dessous("section").filter(({ className }) => className === "carte-de-station");
 }
 
 test("a limit window replayed in the app: at 14:23 the station is held by GitHub's limit until 14:37, never offline, and each of its projects keeps it, with the limit line", () => {
@@ -71,24 +74,23 @@ test("a limit window replayed in the app: at 14:23 the station is held by GitHub
     assert.ok(!textes.includes(EN_SON_ABSENCE));
     assert.deepEqual(page.dessous("input").filter(({ checked }) => checked).map(({ ariaLabel }) => ariaLabel), DEPOTS);
 
-    // L'onglet Cooks de chacun de ses projets : la station y est, atteinte et retenue, jamais « no station ».
+    // L'onglet Stations de chacun de ses projets : la station y a sa carte, en ligne et retenue, jamais « nobody ».
     for (const depot of DEPOTS) {
-      const cooks = cooksDe(depot, station, instant);
-      const lignes = cooks.dessous("li").filter(({ className }) => className === "station-de-cuisson");
+      const lignes = cooksDe(depot, station, instant);
       assert.equal(lignes.length, 1, `${depot}: its station is listed`);
       assert.equal(lignes[0]?.dataset.station, "parade-box/claude");
-      assert.equal(lignes[0]?.dataset.etat, "idle");
+      assert.equal(lignes[0]?.dataset.etat, "en-ligne");
       assert.ok(lignes[0]?.textContent.includes("held by GitHub's limit until 14:37"), lignes[0]?.textContent);
-      assert.ok(!lignes[0]?.textContent.includes(ATTEINTE.non));
+      assert.ok(!lignes[0]?.textContent.includes("offline"));
     }
   }
 });
 
-test("the same window read from a registration that did not say its limit — before this ticket: offline at 14:23, and not reached", () => {
+test("the same window read from a registration that did not say its limit — before this ticket: offline at 14:23", () => {
   const station = lueA(a("14:23:00"), false);
   assert.equal(station.available, false);
   assert.match((ligneDeLEnregistree(doc, station, RIEN) as Faux).textContent, /offline · benomite\/brigade/);
-  const ligne = cooksDe("benomite/parade", station, a("14:23:00")).dessous("li").find(({ className }) => className === "station-de-cuisson");
-  assert.equal(ligne?.dataset.etat, "silent");
-  assert.ok(ligne?.textContent.includes(ATTEINTE.non));
+  const [ligne] = cooksDe("benomite/parade", station, a("14:23:00"));
+  assert.equal(ligne?.dataset.etat, "hors-ligne");
+  assert.ok(ligne?.textContent.includes("offline"));
 });

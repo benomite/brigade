@@ -20,10 +20,16 @@ import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../../
 import type { StationVue, VuDesStations } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
 import { NIVEAUX_DITS } from "../../../src/vue/niveaux.js";
-import { type EtatDeLaStationLocale, poserBlocStationLocale, SANS_STATION } from "../../../src/vue/projet/stations/StationLocale.js";
+import { type EtatDeLaStationLocale, type GestesDeLaStationLocale, lignesDeLaStationLocale } from "../../../src/vue/projet/stations/StationLocale.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
+// Les lignes de la station de cet ordinateur, posées dans « Details » de sa carte (#3195) : ici, dans un élément à elles.
+const poserBlocStationLocale = (fabrique: typeof doc, etat: EtatDeLaStationLocale, gestes?: GestesDeLaStationLocale) => {
+  const bloc = new Faux("div");
+  bloc.append(...(lignesDeLaStationLocale(fabrique, etat, gestes) as unknown as Faux[]));
+  return bloc;
+};
 const A = "2026-11-05T21:00:00.000Z";
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", ordinaires: true, limiteCooks: 2 };
 const DOSSIERS = { clone: "/Users/chef/brigade-atelier/clones/parade", worktrees: "/Users/chef/brigade-atelier/worktrees/parade" };
@@ -46,10 +52,9 @@ const etat = (plus: Partial<EtatDeLaStationLocale> = {}): EtatDeLaStationLocale 
   ...plus,
 });
 
-describe("le bloc de la station locale", () => {
+describe("les lignes de la station locale", () => {
   test("ses dossiers, son bac à sable et sa connexion à Claude, chacun avec son niveau — aucun téléphone à appairer", () => {
     const bloc = poserBlocStationLocale(doc, etat()) as unknown as Faux;
-    assert.equal(bloc.dessous("h3")[0]?.textContent, "Local stationmacbook · this computer");
     const poses = lignes(bloc);
     assert.deepEqual(
       poses.map((ligne) => [nomDe(ligne), valeurDe(ligne)]),
@@ -67,12 +72,6 @@ describe("le bloc de la station locale", () => {
     // Connectée, rien à refaire : pas de « log in ». Et rien n'appaire un téléphone.
     assert.deepEqual(boutons(bloc, "log in"), []);
     assert.doesNotMatch(bloc.textContent, /phone/i);
-  });
-
-  test("un appareil sans station le dit en une ligne, sans aucun réglage", () => {
-    const bloc = poserBlocStationLocale(doc, etat({ station: null })) as unknown as Faux;
-    assert.deepEqual(lignes(bloc), []);
-    assert.deepEqual(bloc.dessous("p").map(({ textContent }) => textContent), [SANS_STATION("this computer")]);
   });
 
   test("ce qui n'est pas encore lu le dit ; ce qui ne se lit pas, en une ligne, sa raison au survol", () => {
@@ -162,7 +161,9 @@ describe("la station locale dans l'onglet Stations", () => {
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case")).click();
     await repos();
   };
-  const leBloc = (vue: Jouee) => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "station-locale") ?? assert.fail("pas de bloc de la station locale");
+  // La carte de cet ordinateur sur l'onglet Stations (#3195), et ses lignes, dans « Details ».
+  const carteIci = (vue: Jouee) => vue.element("rail").dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === "macbook") ?? assert.fail("pas de carte de cet ordinateur");
+  const leBloc = (vue: Jouee) => carteIci(vue).dessous("div").find(({ className }) => className === "details-de-station") ?? assert.fail("pas de « Details » de cet ordinateur");
 
   test("sur Stations, la station de ce Mac montre ses trois réglages, lus pour elle seule — la box n'y est pas", async () => {
     const vue = await jouer(station("macbook", "connectee"));
@@ -181,8 +182,20 @@ describe("la station locale dans l'onglet Stations", () => {
     // La connexion perdue de la box ne s'y lit pas.
     assert.deepEqual(boutons(bloc, "log in"), []);
     assert.doesNotMatch(bloc.textContent, /\bbox\b/);
-    // Un seul bloc de ces réglages sur l'onglet.
-    assert.equal(vue.element("rail").children.filter(({ dataset }) => dataset.bloc === "station-locale").length, 1);
+    // Une seule carte porte ces réglages sur l'onglet, et son « Details » est replié.
+    assert.equal(vue.element("rail").dessous("div").filter(({ className, textContent }) => className === "details-de-station" && textContent.includes("clone folder")).length, 1);
+    assert.equal((carteIci(vue).dessous("details")[0] as unknown as { open?: boolean } | undefined)?.open, false);
+    // Ni « Local station », ni la station locale en pseudo-station à elle.
+    assert.doesNotMatch(vue.element("rail").textContent, /Local station/);
+  });
+
+  test("un ordinateur dont la station ne sert pas le projet n'a pas de carte : rien de ses réglages ne se lit sur l'onglet", async () => {
+    const vue = await jouer({ ...station("macbook", "connectee"), projets: [] });
+    await ouvrirLeProjet(vue);
+    await ouvrirOnglet(vue, "Stations");
+    await repos();
+    assert.equal(vue.element("rail").dessous("section").some(({ className, dataset }) => className === "carte-de-station" && dataset.station === "macbook"), false);
+    assert.doesNotMatch(vue.element("rail").textContent, /clone folder|worktrees folder|sandbox ·/);
   });
 
   test("régler le bac à sable sur Stations fait le même appel que la ligne des tickets ordinaires de Settings", async () => {

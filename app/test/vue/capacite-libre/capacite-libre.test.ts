@@ -96,10 +96,13 @@ async function ouvrir() {
 const attendre = async () => {
   for (let tour = 0; tour < 10; tour++) await repos();
 };
-const ligne = (vue: Jouee, nom: string) => vue.element("rail").dessous("li").find(({ className, dataset }) => className === "station-de-cuisson" && dataset.station === nom) ?? assert.fail(`pas de ligne ${nom}`);
-const formulaire = (vue: Jouee, nom: string) => ligne(vue, nom).dessous("div").find(({ className }) => className === "edition") ?? assert.fail(`le formulaire de ${nom} n'est pas ouvert`);
+// La carte d'une station sur l'onglet Stations (#3195), et ses réglages, dans « Details », qu'on déplie.
+const ligne = (vue: Jouee, nom: string) => vue.element("rail").dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === nom) ?? assert.fail(`pas de carte ${nom}`);
+const formulaire = (vue: Jouee, nom: string) => ligne(vue, nom).dessous("section").find(({ className }) => className === "station-reglee") ?? assert.fail(`pas de réglages de ${nom}`);
 const editer = async (vue: Jouee, nom: string) => {
-  (ligne(vue, nom).dessous("button").find(({ className }) => className === "editer") ?? assert.fail(`pas de « edit » sur ${nom}`)).click();
+  const details = ligne(vue, nom).dessous("details")[0] ?? assert.fail(`pas de « Details » sur ${nom}`);
+  (details as unknown as { open: boolean }).open = true;
+  details.declencher("toggle");
   await attendre();
   return formulaire(vue, nom);
 };
@@ -145,20 +148,12 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     const rangee = forme.children.find(({ dataset }) => dataset.cle === "capacites") ?? assert.fail("pas de rangée des capacités");
     assert.ok(rangee.children.some(({ className, textContent }) => className === "dit fait" && /saved/.test(textContent)));
 
-    // La station relue fournit la capacité : sa ligne la dit, son formulaire la coche, celui de l'autre l'offre.
+    // La station relue fournit la capacité : sa rangée la dit, ses cases la cochent, celles de l'autre l'offrent.
     vue.dire("surGuide", guide(declarees(["code", "enregistrement-ecran"])));
     await attendre();
-    assert.deepEqual(
-      ligne(vue, "box/claude")
-        .dessous("li")
-        .filter(({ className }) => className === "capacite mono")
-        .map(({ textContent }) => textContent),
-      ["code", "enregistrement-ecran"],
-    );
-    // Le formulaire reste ouvert après un changement : refermé, puis rouvert, il la coche.
-    bouton(formulaire(vue, "box/claude"), "Close").click();
-    await attendre();
-    forme = await editer(vue, "box/claude");
+    forme = formulaire(vue, "box/claude");
+    const capacites = forme.children.find(({ dataset }) => dataset.cle === "capacites") ?? assert.fail("pas de rangée des capacités");
+    assert.equal(capacites.children[1]?.children[0]?.textContent, "code, enregistrement-ecran");
     assert.deepEqual(cases(forme).slice(0, 2), [
       ["code", true],
       ["enregistrement-ecran", true],
@@ -201,16 +196,11 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     assert.equal(cases(forme).filter(([nom]) => nom === "enregistrement-ecran").length, 1);
     assert.equal(envoyes.length, 1);
 
-    // « Close » : rien de plus n'est envoyé, et le formulaire rouvert ne garde rien de ce qui a été tapé.
-    bouton(forme, "Close").click();
-    await attendre();
-    forme = await editer(vue, "box/claude");
-    assert.deepEqual(cases(forme), avant);
-    assert.equal(refus(forme), undefined);
+    // Rien de plus n'est envoyé.
     assert.equal(envoyes.length, 1);
   });
 
-  test("le formulaire reposé — la confirmation d'un retrait ouverte sur la ligne — garde la case ajoutée, cochée, et ce qui était tapé", async () => {
+  test("les réglages reposés — la confirmation d'un arrêt ouverte sur la carte — gardent la case ajoutée, cochée, et ce qui était tapé", async () => {
     const { vue } = await ouvrir();
     let forme = await editer(vue, "box/claude");
     taper(forme, "enregistrement-ecran");
@@ -218,9 +208,9 @@ describe("une capacité hors du catalogue, tapée dans « What it provides »", 
     await attendre();
     forme = formulaire(vue, "box/claude");
     taper(forme, "machine-vier");
-    // « Remove » est sur la ligne de la station, pas dans son formulaire (#2914) ; sa confirmation s'ouvre sous la ligne.
-    assert.equal(forme.dessous("button").some(({ textContent }) => textContent === "Remove"), false);
-    bouton(ligne(vue, "box/claude"), "Remove").click();
+    // L'arrêter est sur sa carte, pas dans ses réglages (#2914, #3195) ; sa confirmation s'ouvre sur la carte.
+    assert.equal(forme.dessous("button").some(({ textContent }) => /remove|stop/i.test(textContent)), false);
+    bouton(ligne(vue, "box/claude"), "Stop cooking here").click();
     await attendre();
     forme = formulaire(vue, "box/claude");
     assert.ok(ligne(vue, "box/claude").children.some(({ className }) => className === "confirmation"), "la confirmation n'est pas ouverte");

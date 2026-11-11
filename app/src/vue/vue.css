@@ -2156,17 +2156,6 @@ main > header,
   margin: var(--pas-3) var(--pas-4) 0;
 }
 /* La première ligne du bloc des stations (ticket 3189) : qui cuit le projet, ou que personne ne le cuit, avec son bouton. */
-#rail .premiere-ligne {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  margin: 0 0 var(--pas-1);
-  font-size: var(--taille-corps);
-}
-#rail > .premiere-ligne {
-  margin: var(--pas-3) var(--pas-4) 0;
-}
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
    montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
 :is(#rail, #bandeau-sante) .replie {
@@ -2227,296 +2216,18 @@ main > header,
 }
 /* Ce que chaque station déclarée fournit, sous les stations (ticket 1509) : une ligne chacune — son nom et où elle
    tourne, son plafond de cooks, ses capacités en étiquettes. Où elle tourne a trois mots, chacun sa couleur. */
-#declarees-du-projet:empty {
-  display: none;
-}
-#rail .stations-declarees {
-  margin: var(--pas-3) var(--pas-4) 0;
-  padding: var(--pas-2) var(--pas-4) var(--pas-3);
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .stations-declarees h4 {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-1);
-  font-size: var(--taille-corps);
-  font-weight: 600;
-  color: var(--discret);
-}
-#rail .stations-declarees ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#rail .station-declaree {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 110px minmax(200px, 2fr) auto;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-4);
-  padding: var(--pas-2) 0;
-  font-size: var(--taille-corps);
-  border-top: 1px solid var(--trait-doux);
-}
-#rail .station-declaree:first-child {
-  border-top: none;
-}
-#rail .station-declaree .qui {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  min-width: 0;
-}
-#rail :is(.station-declaree, .station-de-cuisson, .station-reglee) .ou {
-  padding: 0 var(--pas-2);
-  font-size: var(--taille-meta);
-  font-weight: 500;
-  line-height: 16px;
-  white-space: nowrap;
-  color: var(--discret);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#rail .station-declaree[data-ou="poste"] .ou,
-#rail :is(.station-de-cuisson, .station-reglee) .ou[data-ou="poste"] {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-#rail .station-declaree[data-ou="ailleurs"] .ou,
-#rail :is(.station-de-cuisson, .station-reglee) .ou[data-ou="ailleurs"] {
-  border-style: dashed;
-}
-#rail :is(.station-declaree, .station-de-cuisson) .plafond {
-  color: var(--texte);
-}
-#rail :is(.station-declaree, .station-de-cuisson) .capacites {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#rail :is(.station-declaree, .station-de-cuisson) .capacite {
-  padding: 0 var(--pas-2);
-  font-size: var(--taille-meta);
-  line-height: 18px;
-  color: var(--texte-doux);
-  background: var(--case);
-  border-radius: var(--rayon-bouton);
-}
 /* Une station s'édite (ticket 1510) : « edit » à droite de sa ligne, et sous elle, sur toute la largeur, son
    formulaire — son plafond et ses capacités en cases (celles de « + station », ticket 1307), chacun une rangée de
    réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920), puis « Close ».
    « Remove » (ticket 2914) est à côté d'« edit », sur la ligne : sa confirmation s'ouvre dessous, sur toute la largeur.
    Ce que le dernier geste a rendu passe dessous. */
-#rail :is(.station-declaree, .fournit-de-station) > .gestes-de-la-station {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-2);
-  white-space: nowrap;
-}
-#rail :is(.station-declaree, .station-de-cuisson) > .confirmation {
-  grid-column: 1 / -1;
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-  margin: var(--pas-2) 0 var(--pas-1);
-  padding: var(--pas-3) var(--pas-4);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-carte);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacites {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--pas-2);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) var(--pas-3);
-  font-size: var(--taille-corps);
-  line-height: inherit;
-  color: var(--texte);
-  background: var(--case);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-  cursor: pointer;
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite:hover {
-  border-color: var(--trait-fort);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite input {
-  margin: 0;
-  accent-color: var(--accent);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite small {
-  grid-column: 2;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
 /* Sous les cases, une capacité hors de ces cases (ticket 1959) : un champ, « Add » et son aide au survol ; un refus
    passe dessous, en une ligne. */
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin-top: var(--pas-2);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre .saisie {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre input[type="text"] {
-  width: 34ch;
-  padding: var(--pas-1) var(--pas-2);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .capacite-libre .action button {
-  white-space: nowrap;
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#rail :is(.station-declaree .edition, .station-de-cuisson .edition, .station-reglee) .gestes button {
-  white-space: nowrap;
-}
-#rail :is(.station-declaree, .station-de-cuisson) > .fait {
-  grid-column: 1 / -1;
-  margin: 0;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
 /* Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune — son nom, son mot et ce qu'il veut dire,
    ses cooks en cours, son bouton, à droite. Ce que le dernier clic a rendu passe dessous, sur toute la ligne. */
-#cuisson-du-projet:empty {
-  display: none;
-}
-#rail .stations-de-cuisson {
-  margin: var(--pas-3) var(--pas-4) 0;
-  padding: var(--pas-3) var(--pas-4);
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .stations-de-cuisson h3 {
-  padding: 0 0 var(--pas-1);
-}
-#rail .stations-de-cuisson > ol {
-  gap: 0;
-}
-#rail .station-de-cuisson {
-  display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(200px, 1.5fr) minmax(200px, 2fr) 150px;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-4);
-  padding: var(--pas-2) 0;
-  border-top: 1px dashed var(--trait);
-}
-#rail .station-de-cuisson:first-child {
-  border-top: 0;
-}
-#rail .station-de-cuisson .nom small {
-  margin-left: var(--pas-2);
-  font-size: var(--taille-meta);
-  color: var(--discret);
-}
-#rail .station-de-cuisson .etat {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  min-width: 0;
-}
-#rail .station-de-cuisson .etat small {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-#rail .station-de-cuisson .cooks {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#rail .station-de-cuisson .cooks li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-  min-width: 0;
-}
-#rail .station-de-cuisson .cooks strong {
-  flex: none;
-  font-size: var(--taille-corps);
-  font-weight: 600;
-}
-#rail .station-de-cuisson .cooks span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--discret);
-}
-#rail .station-de-cuisson .agent .agent-role {
-  font-size: var(--taille-meta);
-  font-weight: 600;
-}
-#rail .station-de-cuisson .agent .agent-fait {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
 /* Chaque station du projet dit si elle est atteinte, ce qu'elle fournit et, quand elle ne cuit pas, pourquoi
    (ticket 1786), toutes de la même façon.
    Ce qu'elle fournit tient sur une ligne, « edit » au bout ; son formulaire s'ouvre dessous, sur toute la largeur. */
-#rail .station-de-cuisson .nom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  min-width: 0;
-}
-#rail .station-de-cuisson .nom small {
-  margin-left: 0;
-}
-#rail .station-de-cuisson :is(.retenue-de-cuisson, .fournit-de-station) {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-  margin: 0;
-  font-size: var(--taille-corps);
-}
-#rail .station-de-cuisson .retenue-de-cuisson .pourquoi {
-  font-weight: 600;
-  color: var(--jaune);
-}
-#rail .station-de-cuisson .retenue-de-cuisson button {
-  white-space: nowrap;
-}
-#rail .station-de-cuisson .fournit-de-station .libelle {
-  color: var(--discret);
-}
-#rail .station-de-cuisson .fournit-de-station .pas-dit {
-  font-style: italic;
-  color: var(--discret);
-}
 /* Sur Rail, en tête, la ligne qui dit ce qui, du côté des cooks, demande un geste (ticket 1185) : une seule ligne,
    et de quoi ouvrir Cooks, à droite. */
 #rail .alerte-de-cuisine {
@@ -3251,22 +2962,6 @@ main > header,
 }
 /* « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : la question en tête, cet
    ordinateur d'abord — le bouton recommandé —, puis une ligne par station appairée, son bouton et ce qu'elle en dit. */
-.etape-station {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--pas-3);
-}
-.etape-station > p {
-  margin: 0;
-}
-.etape-station > p:empty {
-  display: none;
-}
-.etape-station .attendu {
-  font-size: var(--taille-intertitre);
-  font-weight: 600;
-}
 /* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
   margin: var(--pas-4) 0 0;
@@ -3570,12 +3265,6 @@ main > header {
     border-top: 0;
   }
   /* Les colonnes de Rail restent sur une rangée, qui défile de côté (ticket 1556) : rien à changer ici. */
-#rail .station-de-cuisson {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-#rail .station-de-cuisson :is(.etat, .cooks) {
-    grid-column: 1 / -1;
-  }
 }
 /* La ligne d'une version plus haute : en tête de l'app, sur toute sa largeur — la version qui tourne et la dernière,
    où en est la mise à jour, son lien « Download » quand elle ne se fait pas d'elle-même, et « Install now » à droite
@@ -3673,10 +3362,6 @@ main > header {
 }
 /* Le plafond de cooks sous une ligne de station (ticket 1292) : sa rangée de réglage prend toute la ligne, ce qui la
    retient dessous. */
-.station-de-cuisson > :is([data-cle="cooks"], .retenue-de-station) {
-  grid-column: 1 / -1;
-  margin: 0;
-}
 
 /* Le rail qu'une station publie sur GitHub, sur un ordinateur qui ne sert pas le projet (ticket 1435) : sa phrase de tête,
    à hauteur de texte — d'où il vient, ou pourquoi il ne se lit pas —, ses gestes dessous, puis les colonnes du rail. */
@@ -4337,55 +4022,11 @@ main > header {
 #rail[data-onglet="stations"] > .bloc-du-projet > h3 {
   padding: var(--pas-3) var(--pas-4) 0;
 }
-#rail[data-onglet="stations"] .bloc-du-projet .stations-de-cuisson h3 {
-  padding: 0 0 var(--pas-1);
-}
-#rail .bloc-du-projet :is(.ajouter-une-station, .etape-station) {
-  margin: var(--pas-3) var(--pas-4) 0;
-}
-#rail .bloc-du-projet :is(.ajouter-une-station, .etape-station .gestes) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-3);
-  padding: 0;
-}
-#rail .bloc-du-projet .etape-station {
-  padding: var(--pas-3) var(--pas-4);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#rail .bloc-du-projet .etape-station .attendu {
-  margin: 0 0 var(--pas-3);
-  font-weight: 600;
-  color: var(--texte);
-}
-#rail .bloc-du-projet .etape-station .choix-de-station {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-3);
-  padding: 0;
-  list-style: none;
-}
-#rail .bloc-du-projet .etape-station .choix-de-station li {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
 /* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
    ses quatre réglages, chacun une rangée de réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920).
    Ici ne se pose que la place des cartes, alignées sur la liste des stations au-dessus (ticket 2487), et ce qui est à
    elles : les capacités sont des cases. Un réglage qui ne vaut pas est en retrait, par la rangée (`data-retrait`). */
-.reglages-station h3 {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
 /* La carte a l'allure du panneau « edit » de Cooks (plus haut) ; ici, sa marge l'aligne sur la liste. */
-#rail .reglages-station > .station-reglee {
-  margin: var(--pas-3) var(--pas-4) 0;
-}
 #rail .station-reglee h4 {
   display: flex;
   align-items: center;
@@ -4409,32 +4050,11 @@ main > header {
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-/* La station locale (ticket 2489) : son nom à côté du titre, puis ses réglages, des rangées de réglage
-   (composants/reglage) dans une carte ; sa connexion à Claude dit son état en couleur. */
-.bloc-du-projet[data-bloc="station-locale"] h3 small {
-  margin-left: var(--pas-2);
-  font-size: var(--taille-corps);
-  font-weight: 400;
-}
-.bloc-du-projet[data-bloc="station-locale"] h3,
-#rail .bloc-du-projet[data-bloc="station-locale"] h3 {
-  padding-bottom: var(--pas-2);
-}
-/* La carte a l'allure de celles de « Station settings », au-dessus (ticket 2488), alignée comme elles sur la liste. */
-.bloc-du-projet[data-bloc="station-locale"] > .carte {
-  margin: var(--pas-3) var(--pas-4) 0;
-  padding: var(--pas-1) var(--pas-4);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-carte);
-}
-.bloc-du-projet[data-bloc="station-locale"] > .carte > :first-child {
-  border-top: 0;
-}
-.bloc-du-projet[data-bloc="station-locale"] [data-etat="connectee"] {
+/* La connexion à Claude d'une station, dans « Details » de sa carte (tickets 2489, 3195), dit son état en couleur. */
+.details-de-station [data-etat="connectee"] {
   color: var(--vert);
 }
-.bloc-du-projet[data-bloc="station-locale"] [data-etat="perdue"] {
+.details-de-station [data-etat="perdue"] {
   color: var(--rouge-clair);
 }
 /* L'étape « projet » du parcours d'ajout (ticket 2476) : l'attendu en tête, le champ qui cherche parmi les dépôts du
@@ -4544,3 +4164,80 @@ main > header {
 }
 /* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de composants/reglage. */
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
+
+/* Les réglages d'une station que le projet déclare, dans « Details » de sa carte (tickets 2488, 3195) : ses rangées, ses
+   capacités en cases, le champ d'une capacité hors d'elles. */
+#rail .station-reglee {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  margin: var(--pas-2) 0 var(--pas-1);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+#rail .station-reglee .capacites {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--pas-2);
+}
+#rail .station-reglee .capacite {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
+  line-height: inherit;
+  color: var(--texte);
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+#rail .station-reglee .capacite:hover {
+  border-color: var(--trait-fort);
+}
+#rail .station-reglee .capacite input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+#rail .station-reglee .capacite small {
+  grid-column: 2;
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+#rail .station-reglee .capacite-libre {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin-top: var(--pas-2);
+}
+#rail .station-reglee .capacite-libre .saisie {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+}
+#rail .station-reglee .capacite-libre input[type="text"] {
+  width: 34ch;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .station-reglee .capacite-libre .action button {
+  white-space: nowrap;
+}
+#rail .station-reglee .gestes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+}
+#rail .station-reglee .gestes button {
+  white-space: nowrap;
+}

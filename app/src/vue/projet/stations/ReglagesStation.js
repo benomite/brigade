@@ -1,6 +1,6 @@
 // @ts-check
-// Les réglages de chaque station, sur l'onglet Stations (ticket 2488, épique 2484) : pour chaque station que le projet
-// déclare, trois lignes — combien de cooks elle fait tourner à la fois, ce qu'elle fournit, et si elle prend les tickets
+// Les réglages de chaque station, sur l'onglet Stations (ticket 2488, épique 2484), dans « Details » de sa carte
+// (stations-tab/, ticket 3195) : pour chaque station que le projet déclare, trois lignes — combien de cooks elle fait tourner à la fois, ce qu'elle fournit, et si elle prend les tickets
 // ordinaires —, chacune la rangée de réglage de l'app (composants/reglage, ticket 2920), avec
 // son niveau (niveaux.js). Chaque contrôle s'applique dès qu'il change : il n'y a pas de « Save ». Tant que le
 // changement est en route, la rangée le dit dessous et ses contrôles attendent ; refusé, le refus s'y lit et le contrôle
@@ -12,8 +12,7 @@
 //   - Les tickets ordinaires de la station qui tourne sur ce poste sont l'option de ce poste (ordinaires.ts, la même que
 //     Settings) : la case s'écrit aussitôt. Ailleurs, la valeur est ce que `facts` dit de la station, et le survol dit
 //     pourquoi elle ne se change pas d'ici.
-//   - Retirer une station n'est pas ici : « Remove » est sur sa ligne, dans la liste des stations (stations-declarees.js), et nulle
-//     part ailleurs.
+//   - Retirer une station n'est pas ici : c'est « Stop cooking here », sur sa carte, et nulle part ailleurs.
 // Ce que le chef saisit est gardé dans `saisies`, à la vue : un bloc reposé le redonne tel quel. Une saisie dont la
 // station a changé de déclaration depuis repart de la déclaration lue. Ce module ne touche pas `document` : il reçoit de
 // quoi créer un élément (briques.js), et rend un élément.
@@ -21,8 +20,7 @@
 import { survol } from "../../briques.js";
 import { interrupteur } from "../../composants/interrupteur/interrupteur.js";
 import { niveauDe } from "../../niveaux.js";
-import { APPLIQUE, champDuPlafond, choixDeCapacites, controleDesCapacites, ditDe, motDuLieu, ouTourne, plafondDit } from "../../stations-declarees.js";
-import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
+import { APPLIQUE, champDuPlafond, choixDeCapacites, controleDesCapacites, ditDe, ouTourne, plafondDit } from "../../stations-declarees.js";
 import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
@@ -42,10 +40,6 @@ import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.
  * @typedef {{ appliquer(nom: string, cle: string, voulu: Voulu): void, ordinaires(pris: boolean): void }} Gestes
  */
 
-export const TITRE = "Station settings";
-export const AIDE = "Each station the project declares: how many cooks it runs at once, what it provides, and whether it takes ordinary tickets.";
-export const PAS_LUE = "not read yet: the next check of the installation reads them";
-export const AUCUNE = "no station declared: no cook leaves for this project";
 // Les noms des quatre réglages, et leur clé dans la table des niveaux.
 export const REGLAGES = /** @type {const} */ ([
   { cle: "cooks", nom: "cooks at once" },
@@ -113,17 +107,12 @@ function valeurDite(doc, texte, survolDit, mono = false) {
  * @param {Fabrique} doc @param {StationDeclaree} station @param {Saisie} saisie
  * @param {{ ici: boolean, ordinaires?: Ordinaires, ordinairesDit?: Dit, lignes?: readonly { station: string, ordinaires?: boolean }[], gestes: Gestes }} contexte
  */
-function stationReglee(doc, station, saisie, contexte) {
-  const { ici, gestes } = contexte;
+export function reglagesDeLaStation(doc, station, saisie, contexte) {
+  const { gestes } = contexte;
   const section = cree(doc, "section");
   section.className = "station-reglee";
   section.dataset.station = station.nom;
   section.ariaLabel = `${station.nom}'s settings`;
-  const tete = cree(doc, "h4");
-  const nom = cree(doc, "strong", station.nom);
-  nom.className = "mono";
-  tete.append(nom, motDuLieu(doc, station, { ici }));
-  section.append(tete);
   const appliquer = (/** @type {string} */ cle) => (/** @type {Voulu} */ voulu) => gestes.appliquer(station.nom, cle, voulu);
 
   // Le plafond : un nombre, appliqué quand il change ; les capacités : les cases de « edit », et une capacité hors
@@ -164,37 +153,4 @@ function stationReglee(doc, station, saisie, contexte) {
 
   section.append(plafond, capacites, prendre);
   return section;
-}
-
-// Le bloc : son titre, puis les réglages de chaque station déclarée, dans l'ordre de la déclaration — ou la ligne qui dit
-// qu'il n'y en a aucune, ou qu'elles ne sont pas encore lues. Sans `reglages`, la coquille et son titre seuls.
-/**
- * @param {Fabrique} doc
- * @param {{ stations: StationsLues | undefined, ici?: boolean, ordinaires?: Ordinaires, ordinairesDit?: Dit, lignes?: readonly { station: string, ordinaires?: boolean }[], saisies: Map<string, Saisie>, gestes: Gestes }} [reglages]
- */
-export function poserBlocReglagesStation(doc, reglages) {
-  const bloc = doc.createElement("section");
-  bloc.className = "bloc-du-projet reglages-station";
-  bloc.dataset.bloc = "reglages-station";
-  bloc.ariaLabel = TITRE;
-  const titre = doc.createElement("h3");
-  titre.textContent = TITRE;
-  bloc.append(titre);
-  if (reglages === undefined) return bloc;
-  titre.append(survol(doc, AIDE));
-  const { stations, saisies } = reglages;
-  if (stations === undefined || stations.declarees.length === 0) {
-    const vide = ligneVide(doc, stations === undefined ? PAS_LUE : AUCUNE);
-    bloc.append(vide);
-    return bloc;
-  }
-  const contexte = {
-    ici: reglages.ici === true,
-    ...(reglages.ordinaires === undefined ? {} : { ordinaires: reglages.ordinaires }),
-    ...(reglages.ordinairesDit === undefined ? {} : { ordinairesDit: reglages.ordinairesDit }),
-    ...(reglages.lignes === undefined ? {} : { lignes: reglages.lignes }),
-    gestes: reglages.gestes,
-  };
-  bloc.append(...stations.declarees.map((station) => stationReglee(doc, station, saisieDe(saisies, station, stations), contexte)));
-  return bloc;
 }

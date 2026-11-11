@@ -483,9 +483,11 @@ test("cet ordinateur illisible : la raison en une ligne, son détail au survol �
   assert.equal((jouee.dernier("confierAUneStation") as [{ capacites: string[] }])[0].capacites.length, 0);
 });
 
-test("sur l'onglet Stations, « + station » ouvre son parcours, et la box est relue dès que la demande est écrite", async () => {
+test("« + station » ouvre son parcours, et la box est relue dès que la demande est écrite ; sur l'onglet Stations, il n'est pas : l'onglet a son choix (#3195)", async () => {
   const { jouee, bloc } = await laPage(CONFIE);
   await ouvrirOnglet(jouee, "Stations");
+  assert.equal(boutonSous(bloc, "+ station").hidden, true);
+  await ouvrirOnglet(jouee, "Rail");
   const bouton = boutonSous(bloc, "+ station");
   assert.equal(bouton.hidden, false);
   bouton.click();

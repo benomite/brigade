@@ -1,22 +1,15 @@
 // @ts-check
-// Ajouter une station au projet depuis son onglet Stations (ticket 2487, épique 2484), sans passer par l'accueil : l'étape
-// « Who cooks this project? ». Cet ordinateur y est le premier choix, recommandé, en un clic ; puis les stations appairées
-// du compte à qui le projet n'est pas encore choisi, une par bouton. Chaque choix est un geste que l'app fait déjà : cet
+// Donner le projet à une station depuis son onglet Stations (ticket 2487, épique 2484), sans passer par l'accueil : le
+// choix « Choose who cooks it » de l'onglet (stations-tab/, ticket 3195). Cet ordinateur y est le premier choix ; puis les
+// stations appairées du compte à qui le projet n'est pas encore choisi. Chaque choix est un geste que l'app fait déjà : cet
 // ordinateur sert le projet comme la case de Settings le fait (`servirUnProjet`, projets-servis/) ; une station appairée
 // le reçoit dans sa sélection comme la case de sa page sur l'accueil (`choisirLesProjets`, stations-du-compte.js).
-// L'étape « station » du parcours d'ajout d'un projet (épique 2473) n'est pas encore livrée : c'est celle-ci, et ce
-// parcours la reprendra telle quelle — `poserEtapeStation` ne connaît ni l'onglet ni le bloc qui la pose.
 //
-// `tenirLAjoutDeStation` garde l'état du parcours et ses gestes ; `poserEtapeStation` le dessine. Ni l'un ni l'autre ne
-// touche `document` : la vue leur donne une fabrique (briques.js) et les gestes du pont.
+// `tenirLAjoutDeStation` garde l'état du choix et ses gestes ; l'onglet le dessine (stations-tab/choix.js). Ce module ne
+// touche pas `document`.
 
-import { boutonAction, survol } from "../../briques.js";
-import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
-import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
-import { CET_ORDINATEUR, ENREGISTREMENT, ANNULER } from "../../lexique.js";
-import { AU_RETOUR, horsLigneDuCompte } from "../../choix-station/choix-station.js";
+import { AU_RETOUR } from "../../choix-station/choix-station.js";
 
-/** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** Une station appairée, telle que la lecture du compte la rend. @typedef {import("../../../stations-du-compte.ts").StationEnregistree} Station */
 /** @typedef {import("../../../stations-du-compte.ts").Choix} Choix */
 /** @typedef {import("../../projets-servis/projets-servis.js").LectureDesProjetsServis} LectureDesProjetsServis */
@@ -29,14 +22,9 @@ import { AU_RETOUR, horsLigneDuCompte } from "../../choix-station/choix-station.
 /** @typedef {{ projet: string, ici: string, iciOffert: boolean, stations: readonly Station[] }} DonneesDeLEtape */
 /** @typedef {{ servirIci: () => void, confier: (station: Station) => void, annuler: () => void }} GestesDeLEtape */
 
+// La clé du choix de cet ordinateur : celle du choix de station (stations-tab/choix.js).
 export const ICI = "ici";
-export const TITRE = (/** @type {string} */ projet) => `Who cooks ${projet}? Give it to a station.`;
-export const ICI_AIDE = (/** @type {string} */ ici, /** @type {string} */ projet) => `${ici}'s station clones ${projet} here, straight from GitHub, and takes its tickets — at its next turn, within two minutes.`;
-export const APPAIREE_AIDE = (/** @type {string} */ nom, /** @type {string} */ projet) => `${projet} is added to the projects ${nom} serves; it reads the change within a minute.`;
-export const AUCUNE = (/** @type {string} */ projet) => `No other station to offer: every station of yours already has ${projet}.`;
-export const ENVOI = ENREGISTREMENT;
-export { ANNULER };
-export const FAIT = (/** @type {string} */ nom, /** @type {string} */ projet) => `${nom} was given ${projet}: it shows in this list once it takes it.`;
+export const FAIT = (/** @type {string} */ nom, /** @type {string} */ projet) => `${nom} was given ${projet}: it gets its card here once it takes it.`;
 // Ce que la ligne dit du choix écrit : la station hors ligne le prend à son retour (choix-station/).
 /** @param {EtatDeLAjout} etat @param {string} projet */
 export const FAIT_DIT = ({ fait = "", absente }, projet) => (absente ? AU_RETOUR(fait, projet) : FAIT(fait, projet));
@@ -101,53 +89,4 @@ export function tenirLAjoutDeStation({ servirIci, choisir, rendre }) {
     /** @param {string} pour @param {string} depot @param {Station} station */
     confier: (pour, depot, station) => choix(pour, station.id, station.name, () => choisir(station.id, [...(station.selection ?? []), depot]), !station.available),
   };
-}
-
-// L'étape : en tête, ce qu'on attend du chef ; cet ordinateur d'abord, recommandé — « this computer », son nom d'hôte
-// après lui — ; puis les stations appairées, en ligne d'abord — une hors ligne dit depuis quand, et comment la ramener
-// (choix-station/, ticket 3187) ; aucun choix, une ligne le dit. Un choix qui s'écrit grise les boutons ; un refus se dit en une ligne,
-// sa suite au survol. `cancel` referme sans rien écrire.
-/** @param {Fabrique} doc @param {DonneesDeLEtape} donnees @param {EtatDeLAjout} etat @param {GestesDeLEtape} gestes */
-export function poserEtapeStation(doc, { projet, ici, iciOffert, stations }, etat, gestes) {
-  const racine = doc.createElement("section");
-  racine.className = "etape-station";
-  racine.ariaLabel = "Add a station";
-  const attendu = doc.createElement("p");
-  attendu.className = "attendu";
-  attendu.textContent = TITRE(projet);
-  racine.append(attendu);
-
-  const choix = doc.createElement("ul");
-  choix.className = "choix-de-station";
-  /** @param {string} cle @param {string} libelle @param {() => void} geste @param {string} aide @param {{ recommande?: boolean, dit?: string, hote?: string }} [options] */
-  const unChoix = (cle, libelle, geste, aide, { recommande = false, dit, hote } = {}) => {
-    const ligne = doc.createElement("li");
-    ligne.dataset.choix = cle;
-    const action = boutonAction(doc, libelle, geste, { recommande });
-    action.children[0].disabled = etat.enCours !== undefined;
-    ligne.append(action);
-    if (hote !== undefined) ligne.append(Object.assign(doc.createElement("span"), { className: "hote mono", textContent: hote }));
-    ligne.append(survol(doc, aide));
-    if (etat.enCours === cle) ligne.append(Object.assign(doc.createElement("span"), { className: "dit", textContent: ENVOI }));
-    else if (dit !== undefined) ligne.append(Object.assign(doc.createElement("span"), { className: "dit", textContent: dit }));
-    choix.append(ligne);
-  };
-  if (iciOffert) unChoix(ICI, CET_ORDINATEUR, gestes.servirIci, ICI_AIDE(ici, projet), { recommande: true, ...(ici === CET_ORDINATEUR ? {} : { hote: ici }) });
-  const maintenant = Date.now();
-  for (const station of [...stations.filter(({ available }) => available), ...stations.filter(({ available }) => !available)]) {
-    unChoix(station.id, station.name, () => gestes.confier(station), APPAIREE_AIDE(station.name, projet), station.available ? {} : { dit: horsLigneDuCompte(station, maintenant) });
-  }
-  if (choix.children.length > 0) racine.append(choix);
-  else racine.append(ligneVide(doc, AUCUNE(projet), { classe: "aucune" }));
-
-  if (etat.refus !== undefined) {
-    racine.append(ligneErreur(doc, etat.refus.ligne, etat.refus.detail, { classe: "refus" }));
-  }
-  const pied = doc.createElement("p");
-  pied.className = "gestes";
-  const annuler = boutonAction(doc, ANNULER, gestes.annuler);
-  annuler.children[0].disabled = etat.enCours !== undefined;
-  pied.append(annuler);
-  racine.append(pied);
-  return racine;
 }

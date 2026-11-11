@@ -21,7 +21,8 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { FORKER, LECTURE_SEULE, OBTENIR_L_ACCES } from "../src/vue/lecture-seule/lecture-seule.js";
-import { AJOUTER } from "../src/vue/projet/stations/ListeStations.js";
+import { CHOISIR } from "../src/vue/stations-tab/etat.js";
+import { DEPLACER } from "../src/vue/stations-tab/stations-tab.js";
 import { discussionDe } from "./aides/fiches-dites.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -122,12 +123,12 @@ describe("un projet en lecture seule", () => {
     assert.deepEqual(vue.element("arreter-cuisine").dessous("button"), []);
   });
 
-  test("Stations : ses stations se voient, et pas « Add a station »", async () => {
+  test("Stations : ses stations se voient, et pas « Choose who cooks it »", async () => {
     const vue = await ouvrir();
     await lire(vue, true);
     await ouvrirOnglet(vue, "Stations");
-    assert.ok(vue.element("rail").dessous("li").some(({ dataset }) => dataset.station === "box/claude"), "la station se voit");
-    assert.ok(!textes(vue.element("rail")).includes(AJOUTER), textes(vue.element("rail")).join(" | "));
+    assert.ok(vue.element("rail").dessous("section").some(({ dataset }) => dataset.station === "box/claude"), "la station se voit");
+    assert.ok(!textes(vue.element("rail")).includes(CHOISIR), textes(vue.element("rail")).join(" | "));
   });
 
   test("Settings : ce qui se propose au dépôt par une pull request n'est pas posé", async () => {
@@ -150,8 +151,9 @@ describe("un projet en lecture seule", () => {
     assert.ok(textes(bon(vue, 22)).includes("Relaunch"));
     assert.equal(vue.element("interrupteur-projet").hidden, false, "l'interrupteur revient");
     assert.equal(vue.element("arreter-cuisine").dessous("button").length, 1, "l'arrêt de la cuisine revient");
+    // Sur Stations, la station qui le cuit garde ses gestes (#3195) : l'ajout d'une station ne s'offre que quand personne ne le cuit.
     await ouvrirOnglet(vue, "Stations");
-    assert.ok(textes(vue.element("rail")).includes(AJOUTER));
+    assert.ok(textes(vue.element("rail")).includes(DEPLACER));
     await ouvrirOnglet(vue, "Rail");
     await lire(vue, true);
     assert.ok(ligne(vue) !== undefined);

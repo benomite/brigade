@@ -1,6 +1,6 @@
-// Sur l'onglet Stations (#1509, épique #1506) : chaque station que la box du projet déclare, une ligne chacune — son nom,
-// son plafond de cooks, ses capacités, et où elle tourne, la box ou ce poste, sous deux mots distincts. Un projet qui
-// n'en déclare aucune le dit en une ligne, jamais par un blanc. La déclaration arrive avec l'installation du projet
+// Sur l'onglet Stations (#1509, épique #1506, puis #3195) : chaque station que la box du projet déclare a sa carte — son
+// nom, ce qu'elle est en clair (la box, cet ordinateur, un autre ordinateur), et dans « Details » son plafond de cooks et ses
+// capacités. « Stop cooking here », sur sa carte, la retire, après confirmation. La déclaration arrive avec l'installation du projet
 // (`controle.stations`, service.ts) : à l'ouverture de l'espace, puis à chaque contrôle. La vue jouée telle qu'elle est,
 // devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -15,7 +15,10 @@ import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
-import { APPLIQUE, OU, ouTourne, plafondDit, poserLesDeclarees, type Edition } from "../../src/vue/stations-declarees.js";
+import { plafondDit } from "../../src/vue/stations-declarees.js";
+import { ARRETER, OUI_ARRET } from "../../src/vue/stations-tab/stations-tab.js";
+import { ANNULER } from "../../src/vue/lexique.js";
+import type { StationVoulue } from "../../src/service.ts";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-23T10:04:12.000Z";
@@ -76,7 +79,13 @@ const demarrage = (projet: Projet) => () => ({
 });
 
 async function ouvrir(stations: StationsLues | undefined, projet: Projet = PROJET): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: demarrage(projet), espace: () => [], service: () => guide(stations), lireCapture: () => ({ image: "data:image/png;base64,iVBORw0KGgo=" }) });
+  const vue = await jouerLaVue({
+    demarrage: demarrage(projet),
+    espace: () => [],
+    service: () => guide(stations),
+    lireCapture: () => ({ image: "data:image/png;base64,iVBORw0KGgo=" }),
+    changerUneStation: (_: string, nom: string, voulu: StationVoulue) => ({ fait: "retiree" in voulu ? `${nom} no longer serves ${PARADE}` : `${nom} saved` }),
+  });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
@@ -85,150 +94,60 @@ async function ouvrir(stations: StationsLues | undefined, projet: Projet = PROJE
   return vue;
 }
 
-const bloc = (vue: Jouee) => vue.element("rail").dessous("section").find((pose) => pose.className === "stations-de-cuisson");
-// Une ligne de station telle qu'elle se lit : son nom, où elle tourne, ses capacités. Le plafond, lui, est celui des
-// lignes que le journal déclare : la rangée de réglage « Cooks at once » (composants/reglage), son nom et sa valeur.
-const lignesDe = (pose: Faux) => pose.dessous("li").filter(({ className }) => className === "station-de-cuisson");
-const lu = (pose: Faux) =>
-  lignesDe(pose).map((ligne) => ({
-    nom: ligne.dessous("strong").find(({ className }) => className === "mono")?.textContent,
-    ou: ligne.dessous("span").find(({ className }) => className === "ou")?.textContent,
-    plafond: ((rangee) => (rangee === undefined ? undefined : `${rangee.children[0]?.textContent}: ${rangee.children[1]?.textContent}`))(ligne.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks")),
-    capacites: ligne.dessous("li").filter(({ className }) => className === "capacite mono").map(({ textContent }) => textContent),
+// Les cartes de l'onglet : le nom de chacune, ce qu'elle est, et dans « Details » son plafond et ses capacités.
+const cartes = (vue: Jouee) => vue.element("rail").dessous("section").filter(({ className }) => className === "carte-de-station");
+const carte = (vue: Jouee, nom: string) => cartes(vue).find(({ dataset }) => dataset.station === nom) ?? assert.fail(`pas de carte ${nom}`);
+const rangee = (pose: Faux, cle: string) => pose.dessous("div").find(({ className, dataset }) => className === "reglage" && dataset.cle === cle);
+const lu = (vue: Jouee) =>
+  cartes(vue).map((pose) => ({
+    nom: pose.dataset.station,
+    est: pose.dessous("p").find(({ className }) => className === "ce-qu-elle-est")?.textContent,
+    plafond: rangee(pose, "cooks")?.children[1]?.children[0]?.textContent,
+    capacites: rangee(pose, "capacites")?.children[1]?.children[0]?.textContent,
   }));
+const bouton = (pose: Faux, texte: string) => pose.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 
-// Le module seul : une ligne de `stations-declarees.js`, telle qu'il la pose.
-const luSeul = (pose: Faux) =>
-  pose.dessous("li").filter(({ className }) => className === "station-declaree").map((ligne) => {
-    const [, plafond, capacites] = ligne.children;
-    return { plafond: plafond?.textContent, capacites: capacites?.children.map(({ textContent }) => textContent) };
-  });
-
-describe("ce que chaque station déclarée fournit, sur l'onglet Stations", () => {
-  test("une station de la box et deux d'autres postes : leur plafond, leurs capacités, et des mots distincts pour où elles tournent", async () => {
+describe("chaque station que le projet déclare, sur l'onglet Stations", () => {
+  test("une station de la box et deux d'autres postes : une carte chacune, ce qu'elle est, et dans « Details » son plafond et ses capacités", async () => {
     const vue = await ouvrir(DECLAREES);
-    const pose = bloc(vue) ?? assert.fail("pas de stations déclarées sur Stations");
-    assert.deepEqual(lu(pose), [
-      { nom: "box/claude", ou: "box station", plafond: "Cooks at oncethis computer: 3", capacites: ["code", "raisonnement"] },
-      { nom: "mac/claude", ou: "remote", plafond: "Cooks at oncethis computer: 1", capacites: ["navigateur-headless", "chrome-connecté"] },
-      { nom: "pc/claude", ou: "remote", plafond: "Cooks at oncethis computer: 2", capacites: ["code"] },
+    assert.deepEqual(lu(vue), [
+      { nom: "box/claude", est: "always-on box: cooks while your computer sleeps", plafond: plafondDit(3), capacites: "code, raisonnement" },
+      { nom: "mac/claude", est: "another computer: cooks while Brigade is open on it", plafond: plafondDit(1), capacites: "navigateur-headless, chrome-connecté" },
+      { nom: "pc/claude", est: "another computer: cooks while Brigade is open on it", plafond: plafondDit(2), capacites: "code" },
     ]);
-    // Les mots sont distincts.
-    assert.equal(new Set(Object.values(OU)).size, 3);
-    const lignes = lignesDe(pose);
-    // Le survol dit où : la box par le nom que le chef lui connaît, ce poste qui tire son travail de la box.
-    const survols = lignes.map((ligne) => ligne.dessous("span").find(({ className }) => className === "ou")?.title ?? "");
-    assert.match(survols[0] ?? "", /^it runs on the project.s main station$/);
-    assert.match(survols[1] ?? "", /another workstation/);
-    assert.match(survols[2] ?? "", /another workstation/);
+    // Aucune ne s'est encore annoncée : aucune n'est dite en ligne, et la ligne du haut le dit sans vert.
+    assert.deepEqual(cartes(vue).map(({ dataset }) => dataset.etat), ["illisible", "illisible", "illisible"]);
+    assert.match(cartes(vue)[0]?.textContent ?? "", /not signed in yet/);
   });
 
   test("tant que l'installation n'a rien lu, aucune station déclarée n'est posée ; le contrôle suivant pose les stations, sans rouvrir l'espace", async () => {
     const vue = await ouvrir(undefined);
-    assert.deepEqual(lu(bloc(vue) ?? assert.fail("pas de bloc")), []);
+    assert.deepEqual(lu(vue), []);
     vue.dire("surGuide", guide(DECLAREES));
     await repos();
-    assert.deepEqual(lu(bloc(vue) ?? assert.fail("plus de bloc")).map(({ nom }) => nom), ["box/claude", "mac/claude", "pc/claude"]);
+    assert.deepEqual(lu(vue).map(({ nom }) => nom), ["box/claude", "mac/claude", "pc/claude"]);
     // Une installation relue sans contrôle ne les efface pas.
     vue.dire("surGuide", guide(undefined));
     await repos();
-    assert.equal(lu(bloc(vue) ?? assert.fail("plus de bloc")).length, 3);
+    assert.equal(lu(vue).length, 3);
   });
 
-  test("le module se lit seul, sur un faux document", () => {
-    const doc = { createElement: (balise: string) => new Faux(balise) };
-    const pose = poserLesDeclarees(doc as never, { stations: DECLAREES }) as unknown as Faux;
-    assert.deepEqual(luSeul(pose).map(({ plafond }) => plafond), [plafondDit(3), plafondDit(1), plafondDit(2)]);
-    // Une station sans capacité le dit.
-    const sans = poserLesDeclarees(doc as never, { stations: { ...DECLAREES, declarees: [{ nom: "box/claude", moteur: "claude", fournit: [], cooks: 1, distante: false }] } }) as unknown as Faux;
-    assert.deepEqual(luSeul(sans)[0]?.capacites, ["provides nothing"]);
-    // La cuisine tourne sur ce poste : ses stations de la box tournent ici.
-    const [box, mac] = DECLAREES.declarees;
-    assert.equal(ouTourne(box ?? assert.fail(), { ici: true }), "poste");
-    assert.equal(ouTourne(box ?? assert.fail(), { ici: false }), "box");
-    assert.equal(ouTourne(mac ?? assert.fail(), { ici: false }), "ailleurs");
-  });
-
-  // Le formulaire d'une station (#1510), fait de rangées de réglage (#2920) : chaque contrôle s'applique dès qu'il change.
-  test("le formulaire ouvert : deux rangées, aucun « Save » ; un changement envoie la déclaration entière, et sa rangée dit ce qu'il rend", () => {
-    const doc = { createElement: (balise: string) => new Faux(balise) };
-    const appliques: unknown[][] = [];
-    const editee: Edition = { nom: "pc/claude", cooks: "2", fournit: ["code"], choix: [{ capacite: "code", dite: "" }, { capacite: "raisonnement", dite: "" }], envoi: false };
-    const poser = () => {
-      const pose = poserLesDeclarees(doc as never, {
-        stations: DECLAREES,
-        editer: { editee, ouvrir() {}, fermer() {}, appliquer: (...args) => void appliques.push(args), demander() {}, renoncer() {}, retirer() {} },
-      }) as unknown as Faux;
-      return pose.dessous("div").find(({ className }) => className === "edition") ?? assert.fail("pas de formulaire");
-    };
-    let forme = poser();
-    const rangee = (cle: string) => forme.children.find(({ className, dataset }) => className === "reglage" && dataset.cle === cle) ?? assert.fail(`pas de rangée ${cle}`);
-    assert.deepEqual(forme.children.filter(({ className }) => className === "reglage").map(({ dataset }) => dataset.cle), ["cooks", "capacites"]);
-    assert.deepEqual(forme.dessous("button").filter(({ textContent }) => /^(save|saving…)$/i.test(textContent)), []);
-    // « Remove » n'est pas dans le formulaire : il est sur la ligne de la station.
-    assert.deepEqual(forme.dessous("button").map(({ textContent }) => textContent).filter((texte) => /remove/i.test(texte)), []);
-    // Le plafond, au `change` du champ : la déclaration entière, ce plafond dedans.
-    const champ = rangee("cooks").dessous("input")[0] ?? assert.fail("pas de champ");
-    champ.value = "5";
-    champ.declencher("change");
-    // Une case cochée : de même, les capacités dedans.
-    const coche = rangee("capacites").dessous("input").find(({ ariaLabel }) => ariaLabel === "raisonnement") ?? assert.fail("pas de case");
-    coche.checked = true;
-    coche.declencher("change");
-    assert.deepEqual(appliques, [
-      ["pc/claude", "cooks", { cooks: 5, fournit: ["code"] }],
-      ["pc/claude", "capacites", { cooks: 5, fournit: ["code", "raisonnement"] }],
-    ]);
-    // En route : « applying… » sous sa rangée, ses contrôles attendent.
-    Object.assign(editee, { envoi: true, ou: "cooks" });
-    forme = poser();
-    assert.deepEqual(rangee("cooks").children.filter(({ className }) => className.startsWith("dit")).map(({ className, textContent }) => [className, textContent]), [["dit en-cours", APPLIQUE]]);
-    assert.ok(forme.dessous("input").every(({ disabled }) => disabled));
-    // Refusé : le refus sous sa rangée, rien sous l'autre.
-    Object.assign(editee, { envoi: false, ou: "capacites", rendu: { refus: "Nothing was saved: pc/claude provides at least one capability — tick one." } });
-    forme = poser();
-    assert.equal(rangee("capacites").children.find(({ className }) => className === "dit refus")?.dataset.ligne, "erreur");
-    assert.deepEqual(rangee("cooks").children.filter(({ className }) => className.startsWith("dit")), []);
-  });
-
-  // Les deux gestes d'une station sont sur sa ligne (#2914) : « edit » et « Remove », et la confirmation du retrait s'ouvre
-  // dessous, d'un seul motif (composants/confirmation).
-  test("« Remove » est sur la ligne de la station ; sa confirmation s'ouvre dessous, et « Keep it » la referme", () => {
-    const doc = { createElement: (balise: string) => new Faux(balise) };
-    const appels: string[] = [];
-    const editer = (retrait?: string) => ({
-      ...(retrait === undefined ? {} : { retrait }),
-      ouvrir: (nom: string) => void appels.push(`ouvrir ${nom}`),
-      fermer() {},
-      appliquer() {},
-      demander: (nom: string) => void appels.push(`demander ${nom}`),
-      renoncer: () => void appels.push("renoncer"),
-      retirer: (nom: string) => void appels.push(`retirer ${nom}`),
-    });
-    const pose = (retrait?: string, stations = DECLAREES) => poserLesDeclarees(doc as never, { stations, projet: "parade", editer: editer(retrait) }) as unknown as Faux;
-    const ligne = (racine: Faux, nom: string) => racine.dessous("li").find(({ className, dataset }) => className === "station-declaree" && dataset.station === nom) ?? assert.fail(`pas de ligne ${nom}`);
-    const boutons = (racine: Faux, nom: string) => ligne(racine, nom).dessous("button").map(({ textContent }) => textContent);
-
-    const fermee = pose();
-    assert.deepEqual(boutons(fermee, "mac/claude").filter((texte) => ["edit", "Remove"].includes(texte)), ["edit", "Remove"]);
-    ligne(fermee, "mac/claude").dessous("button").find(({ textContent }) => textContent === "Remove")?.click();
-    assert.deepEqual(appels, ["demander mac/claude"]);
-    assert.equal(ligne(fermee, "mac/claude").dessous("section").filter(({ className }) => className === "confirmation").length, 0);
-
-    // Ouverte : le titre dit ce qui part, le prix tient en une ligne, les deux réponses sont « Remove » et « Keep it ».
-    const ouverte = pose("mac/claude");
-    const confirmation = ligne(ouverte, "mac/claude").children.find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(confirmation.dessous("p")[0]?.textContent ?? "", /^Remove mac\/claude from parade\? The other stations stay as they are\.$/);
-    assert.equal(confirmation.dessous("p").filter(({ className }) => className === "prix").length, 1);
-    assert.equal(ligne(ouverte, "pc/claude").children.some(({ className }) => className === "confirmation"), false);
-    confirmation.dessous("button").find(({ textContent }) => textContent === "Keep it")?.click();
-    confirmation.dessous("button").find(({ textContent }) => textContent === "Remove")?.click();
-    assert.deepEqual(appels.slice(1), ["renoncer", "retirer mac/claude"]);
-
-    // La seule station du projet ne se retire pas, et le survol dit pourquoi.
-    const seule = pose(undefined, { ...DECLAREES, declarees: [DECLAREES.declarees[0] ?? assert.fail()] });
-    const retirer = ligne(seule, "box/claude").dessous("button").find(({ textContent }) => textContent === "Remove") ?? assert.fail("pas de Remove");
-    assert.equal(retirer.disabled, true);
-    assert.match(ligne(seule, "box/claude").dessous("button").map(({ ariaLabel }) => ariaLabel ?? "").join(" "), /Not removable/);
+  test("« Stop cooking here » est sur la carte de la station ; sa confirmation s'ouvre dessous, « Cancel » la referme, « yes » la retire", async () => {
+    const vue = await ouvrir(DECLAREES);
+    bouton(carte(vue, "mac/claude"), ARRETER).click();
+    await repos();
+    const confirmation = () => carte(vue, "mac/claude").children.find(({ className }) => className === "confirmation");
+    assert.match(confirmation()?.dessous("p")[0]?.textContent ?? "", /^Stop cooking parade on mac\/claude\?$/);
+    assert.equal(confirmation()?.dessous("p").filter(({ className }) => className === "prix").length, 1);
+    assert.equal(carte(vue, "pc/claude").children.some(({ className }) => className === "confirmation"), false);
+    bouton(confirmation() ?? assert.fail("pas de confirmation"), ANNULER).click();
+    await repos();
+    assert.equal(confirmation(), undefined);
+    assert.equal(vue.appels.some(({ geste }) => geste === "changerUneStation"), false);
+    bouton(carte(vue, "mac/claude"), ARRETER).click();
+    await repos();
+    bouton(confirmation() ?? assert.fail("pas de confirmation"), OUI_ARRET).click();
+    await repos();
+    assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "mac/claude", { retiree: true }]);
   });
 });

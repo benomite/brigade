@@ -269,8 +269,9 @@ describe("le menu de la page d'un projet (#2485, #2921)", () => {
     assert.deepEqual(vue.element("bandeau-sante").children, []);
 
     await ouvrirOnglet(vue, "Stations");
-    // Puis, en bas, toutes les stations et « + station », qui ont quitté l'accueil (#2638).
-    assert.deepEqual(blocs(vue), ["liste-stations", "reglages-station", "station-locale", "toutes-les-stations"]);
+    // L'onglet des stations, un seul composant (#3195) ; puis, en bas, toutes les stations et « + station », qui ont quitté
+    // l'accueil (#2638).
+    assert.deepEqual(blocs(vue), ["stations-tab", "toutes-les-stations"]);
     // Plus en tête de Stations : les plafonds, le closer et les lignes de tous les projets sont dans Settings (#3014).
     assert.deepEqual(vue.element("bandeau-sante").children, []);
 
