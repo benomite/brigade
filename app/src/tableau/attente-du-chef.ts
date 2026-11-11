@@ -33,6 +33,7 @@ import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, mi
 import { blocAwaiting } from "./rail.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
 import { tiersDesCommentaires } from "../vue/attente/attente-github.ts";
+import { SORTE_DE_VALIDATION, validationDuCorps } from "../vue/validation-design/validation-design-github.ts";
 
 const LABEL_FIRE = "fire";
 const LABEL_WAITING = "waiting";
@@ -82,6 +83,7 @@ class HorsLigne extends Error {}
 // La ligne d'une carte du chef : sa question, puis comment y répondre — un choix de la carte, ou ses propres mots.
 function ligneDeLaCarte({ sorte, texte: dit }: CarteDuChef): string {
   const { question, choix } = formeDuChef(dit);
+  if (sorte === SORTE_DE_VALIDATION && question !== null) return `${question} — on its Todo card: Validate, or Send back to the kitchen with a comment`;
   const repondre = choix.length === 0 ? "answer on its Todo card, in your own words" : `answer on its Todo card: ${choix.map(({ texte: libelle }) => `“${libelle}”`).join(" or ")} — or in your own words`;
   return `${question ?? `A ${sorte} card without its question: what does it ask you?`} — ${repondre}`;
 }
@@ -182,7 +184,10 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
         illisibles.push(`#${ticket} carries \`${LABEL_DU_CHEF}\` but is not shown in Todo: ${pourquoi} — write the question on the ticket (the chef sees it once it is written), or take the label off if it is technical`);
         continue;
       }
-      poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef: marque.carte });
+      // La carte « Validate its screen » (ticket 3185) : sa PR et ses captures, lues du corps de son issue.
+      const design = marque.carte.sorte === SORTE_DE_VALIDATION ? validationDuCorps(depot, texte(issue.body)) : null;
+      const chef = design === null ? marque.carte : { ...marque.carte, design };
+      poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef });
     }
     // Les écarts du manager qui ne sont pas déjà dits : depuis la pose de leur label.
     const poses = await Promise.all(

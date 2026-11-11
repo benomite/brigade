@@ -11,6 +11,8 @@
 // commentaire marqué porte ses choix, un par ligne après la question : `- [<geste>] <libellé>`, le geste parmi ceux de la
 // forme unique (runtime/src/carte-todo/forme.ts) — `formeDuChef`. Un commentaire sans choix se lit comme avant ; sa réponse
 // libre joue `resume`. La réponse part du `gh` du chef (tableau-gestes/reponse-github.ts).
+import type { ValidationDesign } from "../vue/validation-design/validation-design-github.ts";
+
 export const LABEL_DU_CHEF = "chef-todo";
 const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)\s*-->\s*([\s\S]*)$/;
 // Une carte du chef pose une question, ou n'est pas dans TODO (#2455) : sans commentaire marqué, ou sans texte, elle n'est
@@ -18,7 +20,9 @@ const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)\s*-->\s*([\s\S]*
 
 // Ce que la vue pose sur une carte du chef : la sorte (`blocked`, `merge-by-hand`, `product-question`, `abandoned`, ou
 // ce que le runtime ajoute un jour) et le texte du commentaire.
-export type CarteDuChef = { sorte: string; texte: string };
+// `design` : sur la carte « Validate its screen » (sorte `design-validation`, ticket 3185), ce que le corps de son issue dit
+// — sa PR, son ticket, ses captures (vue/validation-design/validation-design-github.ts).
+export type CarteDuChef = { sorte: string; texte: string; design?: ValidationDesign };
 
 // Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`).
 export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail"] as const;

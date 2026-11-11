@@ -34,6 +34,9 @@
 // kitchen », « it arrived ») retire `waiting` ; mettre en suspens (« remove from the rail ») retire `fire`. Ce que GitHub
 // refuse, ou un GitHub qui ne répond pas, revient à la vue en une phrase, et rien n'est montré fait. Aucune station n'est
 // jointe pour un geste : pas connecté, rien ne part.
+// Les deux gestes de la carte « Validate its screen » (`gesteDeValidation`, le ticket 3185) passent par les mêmes gestes : la
+// PR mergée, ou le renvoi posté sur le ticket, et la carte fermée. Les captures d'une carte (`lireCapture`) se lisent sur
+// l'API de GitHub, au commit livré, par la même lecture.
 // Les mises à jour ne sont pas ici.
 //
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
@@ -263,7 +266,8 @@ const avecLesGestes = async (faire, sans) => {
 /** @param {string} projet @param {number} ticket */
 async function retirerLaNotification(projet, ticket) {
   try {
-    const { carteRepondue } = await import(new URL("../src/notifications-todo.js", window.location.href).href);
+    // À côté de la vue (src/vue/index.html), comme la lecture : `src/notifications-todo.js`.
+    const { carteRepondue } = await import(new URL("../notifications-todo.js", window.location.href).href);
     await carteRepondue(
       {
         memoire: { lire: async () => JSON.parse((await natif("Pont", "gardees", {})).valeur || "{}"), ecrire: (/** @type {unknown} */ notifiees) => natif("Pont", "garder", { valeur: JSON.stringify(notifiees) }) },
@@ -326,6 +330,10 @@ const connus = {
       return false;
     }
   },
+  lireCapture: async (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {string} */ ecran, /** @type {string} */ moment) => {
+    const ouverte = await laLectureGitHub().catch(() => undefined);
+    return ouverte === undefined ? { sans: "this phone is not signed in to GitHub: the screenshot is not read" } : ouverte.capture(projet, ticket, ecran, moment);
+  },
   faits: (/** @type {number} */ demande) => {
     faitsDemandes = demande;
     avecLaLectureGitHub((ouverte) => ouverte.faits(demande));
@@ -340,6 +348,13 @@ const connus = {
     const rendu = /** @type {any} */ (await avecLesGestes((gestes) => gestes.repondreCarte(projet, ticket, reponse), { refus: SANS_GITHUB, detail: "" }));
     // Répondue dans l'app : sa notification disparaît tout de suite (le ticket 2747).
     if (rendu?.repondue === true) void retirerLaNotification(projet, ticket);
+    return rendu;
+  },
+  // La carte « Validate its screen » (ticket 3185) : « Validate » ou « Send back to the kitchen », écrit sur GitHub. Faite,
+  // sa notification disparaît, comme celle d'une carte répondue.
+  gesteDeValidation: async (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {unknown} */ geste) => {
+    const rendu = /** @type {any} */ (await avecLesGestes((gestes) => gestes.gesteDeValidation(projet, ticket, geste), { refus: SANS_GITHUB, detail: "" }));
+    if (rendu !== undefined && "fait" in rendu) void retirerLaNotification(projet, ticket);
     return rendu;
   },
   // La connexion à GitHub oubliée — le jeton du coffre, le compte et ses projets. La vue revient à l'écran de

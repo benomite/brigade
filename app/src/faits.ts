@@ -26,6 +26,7 @@ import { anciennete, cadenceLue, essaisLus, points, type Anciennete, type EssaiL
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
+import { validationLue } from "./vue/validation-design/validation-design-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
@@ -230,7 +231,10 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
 // La carte du chef lue de GitHub (tableau/todo-github.ts) : sa sorte et son texte, ou rien si elle n'a pas cette forme.
 function chefLu(brut: unknown): CarteDuChef | undefined {
   const lu = typeof brut === "object" && brut !== null ? (brut as Record<string, unknown>) : undefined;
-  return typeof lu?.sorte === "string" && typeof lu.texte === "string" ? { sorte: lu.sorte, texte: lu.texte } : undefined;
+  if (typeof lu?.sorte !== "string" || typeof lu.texte !== "string") return undefined;
+  // La carte « Validate its screen » (ticket 3185) garde ce que le corps de son issue dit, s'il a sa forme.
+  const design = validationLue(lu.design);
+  return { sorte: lu.sorte, texte: lu.texte, ...(design === undefined ? {} : { design }) };
 }
 // Ce qu'une carte du chef attend de lui, en une phrase, selon sa sorte ; une sorte que l'app ne connaît pas est dite telle quelle.
 const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
@@ -238,6 +242,7 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
   "merge-by-hand": "Green, but not merged: merge it yourself.",
   "product-question": "A product question waits for your answer.",
   abandoned: "The kitchen gave this ticket up.",
+  "design-validation": "A design delivery waits for you to validate its screen.",
 };
 const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
 
@@ -1497,6 +1502,7 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
         donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.captures ??
         donnes?.rail.find((candidat) => candidat.ticket === ticket)?.captures ??
         entreeDe(donnes, ticket)?.carte?.captures ??
+        entreeDe(donnes, ticket)?.chef?.design?.captures ??
         undefined;
       return captures?.ecrans.find((candidat) => candidat.ecran === ecran)?.[moment as Moment] ?? undefined;
     },
@@ -1515,7 +1521,8 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(projet: unknown, ticket: unknown): string | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
-      const url = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.pr;
+      // Ou la PR qu'une carte « Validate its screen » valide (ticket 3185).
+      const url = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.pr ?? entreeDe(donnes, ticket)?.chef?.design?.url;
       return url != null && ouvrable(url) ? url : undefined;
     },
     // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une

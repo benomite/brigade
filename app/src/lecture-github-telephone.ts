@@ -26,7 +26,8 @@
 // Et les gestes du chef (#2502) : ce que la vue écrit — répondre à une carte de TODO, reprendre, mettre en suspens —
 // s'écrit sur GitHub par les gestes du téléphone (gestes-github-telephone.ts, le code d'écriture du desktop), sur ce que
 // la dernière lecture de chaque projet a lu : son dépôt, son dernier rail lu, la carte du chef d'un ticket. Une écriture
-// que GitHub a prise relance la lecture, qui la montre ; aucune station n'est jointe pour l'écrire.
+// que GitHub a prise relance la lecture, qui la montre ; aucune station n'est jointe pour l'écrire. Et les captures d'une
+// carte (ticket 3185) : chaque image, à l'adresse que la dernière lecture donne, lue sur l'API de GitHub (`capture`).
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes, type Bande } from "./alertes.ts";
 import { tenirAmont, type Vu as VuAmont } from "./amont.ts";
@@ -35,6 +36,7 @@ import { pourLaBarre, type Affichee } from "./barre.ts";
 import type { Projet } from "./config.ts";
 import { tenirFaits, type Dessinable } from "./faits.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
+import { lireCaptureSurLAPI, type Image } from "./captures.ts";
 import { ouvrirLesGestesGitHub } from "./gestes-github-telephone.ts";
 import type { EnvoiGitHub } from "./priorite.ts";
 import { FICHIER_PROJETS, lireDemande } from "./projets/demande.ts";
@@ -323,6 +325,12 @@ export function ouvrirLaLectureGitHub(options: Options) {
     // Un lien de la ligne d'un projet en lecture seule (ticket 3163) : la page, pour le seul dépôt que sa dernière lecture
     // dit en lecture seule — rien sinon.
     pageDeLaLectureSeule: (projet: unknown, page: unknown): string | undefined => (typeof projet === "string" ? pageDesFaits(derniers.get(projet)?.faits, page) : undefined),
+    // L'image d'une capture d'une carte (ticket 3185) : à l'adresse que la dernière lecture donne pour elle, lue sur l'API
+    // de GitHub — jamais une adresse venue de la vue.
+    capture: (projet: unknown, ticket: unknown, ecran: unknown, moment: unknown): Promise<Image> => {
+      const adresse = typeof projet === "string" ? faits.capture(projet, ticket, ecran, moment) : undefined;
+      return adresse === undefined ? Promise.resolve({ sans: "the reading gave no address for this screenshot: the app has nothing to read" }) : lireCaptureSurLAPI(appeler, adresse);
+    },
     // L'onglet affiché n'a pas de lecture propre sur le téléphone : son contenu vient du rail lu.
     onglet: (_projet: string | undefined, _id: string | undefined, _demande: number) => undefined,
   };

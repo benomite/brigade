@@ -1,0 +1,95 @@
+/* La carte « Validate its screen » (ticket 3185, validation-design.js) : la question, puis les captures avant et après,
+   l'une sous l'autre sur toute la largeur de la carte, lues sans un clic ; le lien de sa PR ; « Validate », le geste
+   recommandé ; le commentaire et « Send back to the kitchen ». Dans TODO, elle est une carte de TODO (carte-attente.css) ;
+   sur le téléphone, la carte ouverte depuis la liste (cartes-du-chef.css). */
+.carte-validation div.captures-de-validation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  min-width: 0;
+}
+.carte-validation div.captures-de-validation div.captures {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--pas-2);
+}
+.carte-validation button.lien-de-la-pr {
+  align-self: flex-start;
+}
+.bon .carte-validation figcaption {
+  color: var(--texte-doux);
+}
+.carte-validation p.validation-illisible {
+  font-style: italic;
+}
+
+/* Sur le téléphone, hors du bon : la carte sur le fond de la page, ses captures et son champ à la taille du pouce. */
+#cartes-du-chef .carte-validation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+}
+#cartes-du-chef .carte-validation p.question-carte {
+  margin: 0;
+  font-size: var(--taille-titre);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#cartes-du-chef .carte-validation figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  min-width: 0;
+  margin: 0;
+}
+#cartes-du-chef .carte-validation img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--trait-fort);
+}
+#cartes-du-chef .carte-validation .place {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 10;
+  font-size: var(--taille-meta);
+  font-style: italic;
+  color: var(--discret);
+  border: 1px dashed var(--trait-fort);
+}
+#cartes-du-chef .carte-validation figcaption {
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
+#cartes-du-chef .carte-validation .action {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+}
+#cartes-du-chef .carte-validation .action > button {
+  flex: 1;
+}
+#cartes-du-chef .carte-validation div.phrase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+#cartes-du-chef .carte-validation textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: var(--pas-3);
+  font: inherit;
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+  background: var(--case);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  resize: none;
+}
+#cartes-du-chef .carte-validation textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

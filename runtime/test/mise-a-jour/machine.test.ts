@@ -134,10 +134,13 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(machine.service().pid, pid1);
     assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get")), ["apt-get install brigade-station 1.0.0"]);
 
-    // 1.1.0 : la même station, une autre version.
+    // 1.1.0 : la même station, une autre version. Rouge, ce que la mise à
+    // jour et la station ont dit nomme la cause : un passage sorti en 0 sans
+    // rien installer ne dit rien d'autre que « 1.0.0 ».
+    const dit = () => `la mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
     machine.publier("1.1.0", suivante);
-    assert.equal(machine.declencher(), 0);
-    assert.equal(machine.installee(), "1.1.0");
+    assert.equal(machine.declencher(), 0, dit());
+    assert.equal(machine.installee(), "1.1.0", dit());
     const pid2 = await enService(machine, "1.1.0");
     assert.notEqual(pid2, pid1);
     await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 1);
@@ -148,8 +151,8 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     // 1.2.0 change l'unité de la station : elle tourne sous la nouvelle.
     assert.equal(machine.envDeLaStation().BRIGADE_ESSAI_UNITE, undefined);
     machine.publier("1.2.0", uniteChangee);
-    assert.equal(machine.declencher(), 0);
-    assert.equal(machine.installee(), "1.2.0");
+    assert.equal(machine.declencher(), 0, dit());
+    assert.equal(machine.installee(), "1.2.0", dit());
     await enService(machine, "1.2.0");
     assert.equal(machine.envDeLaStation().BRIGADE_ESSAI_UNITE, "1.2.0");
     // L'unité changée a été relue avant que la station reparte.

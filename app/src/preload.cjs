@@ -142,6 +142,7 @@ const pont = {
   railDuProjet: (nom) => ipcRenderer.invoke("railDuProjet", nom),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   repondreCarte: (projet, ticket, reponse) => ipcRenderer.invoke("repondreCarte", projet, ticket, reponse),
+  gesteDeValidation: (projet, ticket, geste) => ipcRenderer.invoke("gesteDeValidation", projet, ticket, geste),
   reprendreLeDisjoncteur: (projet) => ipcRenderer.invoke("reprendreLeDisjoncteur", projet),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
   ouvrirLectureSeule: (projet, page) => ipcRenderer.invoke("ouvrirLectureSeule", projet, page),

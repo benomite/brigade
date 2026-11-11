@@ -51,6 +51,7 @@ import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesE
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
+import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
@@ -1462,6 +1463,27 @@ ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse
   if (chef === undefined) return { refus: SANS_FAIT.carte, detail: "" };
   const rendu = await repondreSurGithub({ depot: await depotDuProjet(vise), ticket, chef, reponse, client: clientDesLabels });
   if ("repondue" in rendu) tableaux.oublier();
+  return rendu;
+});
+// Un geste du chef sur la carte « Validate its screen » (vue/validation-design/, ticket 3185) : la commande `design` du runtime
+// (runtime/src/validation-design/commande.ts), importée et jouée ici, sous le `gh` de ce poste — `validate` merge la PR et
+// ferme la carte, `send-back` la renvoie à un cook avec le commentaire du chef. La carte est celle que la dernière lecture
+// porte. Fait, la lecture suivante va à GitHub : la carte fermée quitte TODO.
+ipcMain.handle("gesteDeValidation", async (_, nom: unknown, ticket: unknown, geste: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return undefined;
+  const rendu = await jouerLaValidation({
+    depot: await depotDuProjet(vise),
+    design: faits.chef(vise.nom, ticket)?.design,
+    geste,
+    // La commande, et la `Sortie` du même runtime : son refus se reconnaît à sa classe, pas à sa forme.
+    commande: async () => {
+      const [{ principal }, { Sortie }] = await Promise.all([duRuntime<typeof import("../../runtime/src/validation-design/commande.ts")>("validation-design", "commande.ts"), duRuntime<typeof import("../../runtime/src/appel.ts")>("appel.ts")]);
+      return { principal, estUneSortie: (erreur: unknown): erreur is InstanceType<typeof Sortie> => erreur instanceof Sortie };
+    },
+    env: { ...process.env, BRIGADE_GH_BIN: ghIci },
+  });
+  if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
 // La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :
