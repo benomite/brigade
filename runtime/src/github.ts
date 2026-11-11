@@ -222,6 +222,12 @@ export type GitHub = {
   // Crée la fourche du dépôt sous ce compte, ou rend celle qu'il a déjà :
   // son propriétaire, et l'adresse où pousser (#2935).
   fourcher?(): Promise<{ proprietaire: string; url: string }>;
+  // Notes de version (#3262) : le tag existe-t-il sur le dépôt ? Facultatif : seul le client réel le porte.
+  tagExiste?(tag: string): Promise<boolean>;
+  // La release publiée sur ce tag : son adresse, ou null s'il n'y en a pas.
+  releaseDuTag?(tag: string): Promise<{ url: string } | null>;
+  // Crée la release de ce tag, nommée d'après lui ; rend son adresse.
+  creerRelease?(tag: string, corps: string): Promise<{ url: string }>;
   // Abandonne les requêtes en cours.
   fermer(): void;
 };
@@ -410,7 +416,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -895,6 +901,27 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const { owner, clone_url } = JSON.parse(exiger(await appeler(["-X", "POST", chemin]), chemin, 202).corps) as { owner?: { login?: unknown } | null; clone_url?: unknown };
       if (typeof owner?.login !== "string" || owner.login === "" || typeof clone_url !== "string" || clone_url === "") throw new Error(`gh api ${chemin} : fork without owner or clone address`);
       return { proprietaire: owner.login, url: clone_url };
+    },
+    async tagExiste(tag) {
+      const chemin = `repos/${depot}/git/ref/tags/${encodeURIComponent(tag)}`;
+      const reponse = await lireSousCondition([chemin]);
+      if (reponse.statut === 404) return false;
+      exiger(reponse, chemin);
+      return true;
+    },
+    async releaseDuTag(tag) {
+      const chemin = `repos/${depot}/releases/tags/${encodeURIComponent(tag)}`;
+      const reponse = await lireSousCondition([chemin]);
+      if (reponse.statut === 404) return null;
+      const { html_url } = JSON.parse(exiger(reponse, chemin).corps) as { html_url?: unknown };
+      if (typeof html_url !== "string" || html_url === "") throw new Error(`gh api ${chemin} : release without address`);
+      return { url: html_url };
+    },
+    async creerRelease(tag, corps) {
+      const chemin = `repos/${depot}/releases`;
+      const { html_url } = JSON.parse((await creer(chemin, { tag_name: tag, name: tag, body: corps })).corps) as { html_url?: unknown };
+      if (typeof html_url !== "string" || html_url === "") throw new Error(`gh api ${chemin} : release created without address`);
+      return { url: html_url };
     },
     async proprietaire() {
       const chemin = `repos/${depot}`;
