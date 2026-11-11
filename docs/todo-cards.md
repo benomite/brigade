@@ -2,7 +2,7 @@
 
 A TODO card asks the chef a question (`Awaiting you`, in the words of [the glossary](glossary.md)). The answer should always be a click in the app and on the phone, never a typed command or a trip to GitHub. This page lists every kind of TODO card the app can show, and the gesture that answers it today (epic #3218, ticket #3228).
 
-**Not every kind is answered by a button yet.** Four kinds still send the chef to GitHub, and the breaker line has no phone gesture. That makes five follow-up issues. Each one has a follow-up issue to open, with its draft in [Follow-up issues](#follow-up-issues-to-open).
+**Not every kind is answered by a button yet.** Four kinds still send the chef to GitHub, and the breaker line has no phone gesture. That makes five follow-up issues, whose drafts are in [Follow-up issues](#follow-up-issues-to-open); they are not opened yet (the cook has no GitHub access).
 
 ## What the app can show
 
@@ -27,14 +27,6 @@ On the phone, the list of `Awaiting you` shows only the cards that have a questi
 
 `design-validation` has one fallback: when the body of its issue does not name its pull request, the card says to validate it on GitHub (`carteDuChefDeTodo` in `app/src/carte-todo.ts`). The runtime writes that body (`runtime/src/validation-design/validation-design.ts`), so it is a damaged card, not a kind.
 
-### Kinds the runtime can write but nothing writes today
-
-`runtime/src/github-seul/carte-todo/carte-todo.ts` declares five kinds (`SORTES`): `blocked`, `merge-by-hand`, `product-question`, `abandoned`, `design-validation`. It has a text builder for each of `blocked` (`carteBloque`), `merge-by-hand` (`carteMergeALaMain`), `product-question` (`carteQuestionProduit`) and `abandoned` (`carteAbandon`). No code under `runtime/src` calls these four builders, so no card of `blocked` or `abandoned` is ever written, and `product-question` is written only by the stranger's-issue triage above. The app knows how to word all five (`QUI_M_ATTEND_DU_CHEF` in `app/src/faits.ts`). Were one written with its builder's text, it would have no choice line and would be answered by free text only. No follow-up is opened for them: the app shows no such card. If one of them is wired to a writer, it owes its choice lines.
-
-### The runtime's own queue, which the app does not read
-
-`runtime/src/attend.ts` (`QUI_ATTEND`) and `runtime/src/carte-todo.ts` (`TYPES_DE_CARTE`: `product`, `design`) still describe a queue of the chef's kept in the journal. It has these entries: `merge`, `remontee`, `fermee`, `ecartee`, `illisible`, `question`, `carte`, `abandon`, `connexion`, `session`, `jeton`, `fermeture`, `base`, `setup`, `aside`, `disjoncteur`, `pause`, `renommage`, `retenue`. Their cards are built in `runtime/src/carte-todo/cartes.ts`. The app's reading no longer feeds them: `faits.attend` is overwritten by the GitHub reading (`avecLAttenteDuChef`), and the field it would read them from (`attend[].carte`, `carteDeTodo` in `app/src/carte-todo.ts`) is never given. So the app shows none of these, and they are not rows above. If the runtime's queue is shown again, this audit has to be redone for it.
-
 ### What is not an answer
 
 - `ask the second` is the secondary action of every card, never an answer.
@@ -43,7 +35,7 @@ On the phone, the list of `Awaiting you` shows only the cards that have a questi
 
 ## Follow-up issues to open
 
-The station opens these in `benomite/brigade`, one per kind not yet answered by a button, and links each from its row above. Each states the kind, the current gesture, the reason and the expected button.
+Drafts, not yet opened. The station opens them in `benomite/brigade`, one per kind not yet answered by a button, links each from its row above, then deletes this section. Each states the kind, the current gesture, the reason and the expected button.
 
 1. **Fork PR card `merge-by-hand`: answer it with a button.** Current gesture: app and phone — merge the PR on GitHub, or type an answer that does not merge. Reason: `carteDeLaPRExterne` writes no `- [merge] Merge #N` line. Expected button: `Merge #N` on the card, in the app and on the phone, as for the setup PR; a second choice to close the PR.
 2. **Set aside `blocked-on-human` with a PR: answer it with a button.** Current gesture: app — merge the PR on GitHub; phone — none, the card is not listed. Reason: the card is built from the issue's labels and comments and carries no choice. Expected button: `Merge PR #N` in the app and on the phone.
