@@ -1,6 +1,6 @@
 // The public autonomy page (#3220): it renders what site/autonomie.json holds and computes nothing.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -53,10 +53,20 @@ test("the README opens with the link to the published page", () => {
   assert.ok(debut.includes("https://benomite.github.io/brigade/autonomie.html"));
 });
 
-test("the autonomie workflow runs daily and on demand, and publishes site/", () => {
-  const w = read(".github/workflows/autonomie.yml");
+test("an absent or invalid autonomie.json leaves the page on 'Figures not yet available'", () => {
+  assert.match(read("site/autonomie.html"), /<p id="autonomy-status"[^>]*>Figures not yet available\.<\/p>\s*<div[^>]*id="autonomy-figures" hidden>/);
+  const a = charger();
+  for (const d of [undefined, null, "x", [], { figures: "x" }, { figures: { ...DONNEES.figures, sendBackRate: { value: "c", computedAt: "2026-11-11" } } }]) {
+    const doc = faussDoc();
+    assert.equal(a.render(doc, d), false);
+    assert.equal(doc.els["autonomy-status"].hidden, false);
+  }
+});
+
+test("pages.yml is the only deploy path: daily, on demand, one generator step before the single upload of site/", () => {
+  const w = read(".github/workflows/pages.yml");
   assert.match(w, /schedule:\n\s+- cron: "\d+ \d+ \* \* \*"/);
   assert.match(w, /workflow_dispatch:/);
-  assert.match(w, /actions\/upload-pages-artifact@v\d+\n\s+with:\n\s+path: site\n/);
-  assert.match(w, /actions\/deploy-pages@v\d+/);
+  assert.ok(w.indexOf("replace with #3213 generator") < w.indexOf("actions/upload-pages-artifact"));
+  assert.equal(existsSync(join(ROOT, ".github/workflows/autonomie.yml")), false);
 });

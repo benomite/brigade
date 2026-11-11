@@ -1,4 +1,4 @@
-// Renders site/autonomie.json (the output of the autonomy figures, #3213) without computing anything:
+// Renders site/autonomie.json (input contract: docs/autonomie-page.md, to be produced by #3213) without computing anything:
 // each figure is shown as the file gives it. A missing or unreadable file leaves "Figures not yet available".
 (function (root) {
   var LABELS = [
