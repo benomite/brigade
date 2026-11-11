@@ -1,0 +1,44 @@
+/* La visite guidée du premier lancement (ticket 3165, visite/) : sa bulle, posée par-dessus l'écran, en bas au milieu —
+   sous les cartes du rail, à côté du terminal du second ; et l'élément vivant que l'étape désigne, entouré de l'accent
+   par l'intérieur, pour qu'une rangée qui défile le montre sur ses quatre bords. */
+#visite {
+  position: fixed;
+  left: 50%;
+  bottom: var(--pas-5);
+  transform: translateX(-50%);
+  z-index: 40;
+  width: 26em;
+  max-width: calc(100% - 2 * var(--pas-5));
+}
+.visite {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon-carte);
+  box-shadow: 0 var(--pas-2) var(--pas-5) var(--ombre);
+}
+.visite .rang {
+  margin: 0;
+  font-size: var(--taille-meta);
+  color: var(--discret);
+}
+.visite h3 {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+}
+.visite .dit {
+  margin: 0;
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+.visite .gestes {
+  margin: 0;
+}
+[data-visite] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
