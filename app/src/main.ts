@@ -24,6 +24,7 @@ import { tenirLesEssais } from "./essai.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
+import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -48,6 +49,7 @@ import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/brea
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
 import { gestesDeCarte } from "./gestes-fiche.ts";
+import { mettreSurLeRail, proposerLeDepart } from "./depart-du-projet.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
@@ -55,6 +57,7 @@ import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { jouerLaRevue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { lireLAutonomieDuDepot, tenirLAutonomie } from "./vue/autonomie/autonomie-github.ts";
+import { changerLeJour, lireLeJour, lireLesResumes, publierLeResume, type ResumeHebdomadaire, type ResumesDuProjet } from "./vue/resume-hebdomadaire/resume-cuisine.ts";
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
@@ -850,6 +853,19 @@ ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unkn
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
+// Le départ d'un projet qu'« Add a project » vient d'ouvrir (ticket 3268, depart-du-projet.ts) : ses issues ouvertes lues sur
+// GitHub, triées par le second (son triage, `claude -p`), puis les lignes que le chef garde mises sur le rail — `product`,
+// `prio:<n>` et `fire` —, par le jeton du `gh` de ce poste.
+ipcMain.handle("departDuProjet", async (_, nom: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { sans: `${String(nom)} is no longer in the projects file` };
+  return proposerLeDepart({ depot: await depotDuProjet(vise), dossier: vise.dossier, lire: appelerGitHub, claude: process.env.BRIGADE_CLAUDE_BIN || "claude" });
+});
+ipcMain.handle("mettreSurLeRail", async (_, nom: unknown, lignes: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  return mettreSurLeRail({ depot: await depotDuProjet(vise), lignes, client: clientDesLabels });
+});
 // Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
 // « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (gestes-refus.ts). « Ask the second »
 // passe par `passerAuSecond`, plus haut.
@@ -1456,6 +1472,16 @@ const ecrireUnHumain = async (nom: unknown, geste: { save: unknown } | { remove:
 };
 ipcMain.handle("enregistrerUnHumain", (_, nom: unknown, humain: unknown) => ecrireUnHumain(nom, { save: humain }));
 ipcMain.handle("retirerUnHumain", (_, nom: unknown, login: unknown) => ecrireUnHumain(nom, { remove: login }));
+// Les tickets récurrents du projet, sous Settings (#3231) : lus par `recurring` là où sa cuisine tourne, et chacun suspendu,
+// repris ou retiré par elle (vue/recurrents/recurrents-box.ts).
+ipcMain.handle("listerLesRecurrents", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesRecurrents(vise.nom, lu, lancerSurLaCuisine);
+});
+ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
+});
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributrices.ts).
 ipcMain.handle("listerLesStationsContributrices", (_, nom: unknown) => {
@@ -1468,6 +1494,50 @@ const changerUneStation = (nom: unknown, geste: { refuse: unknown } | { accept: 
 };
 ipcMain.handle("refuserUneStationContributrice", (_, nom: unknown, station: unknown) => changerUneStation(nom, { refuse: station }));
 ipcMain.handle("accepterUneStationContributrice", (_, nom: unknown, station: unknown) => changerUneStation(nom, { accept: station }));
+// Les résumés hebdomadaires de la cuisine d'un projet (#3263, vue/resume-hebdomadaire/resume-cuisine.ts) : le jour du
+// résumé lu dans `projet.json` sur sa branche d'intégration, et changé par une pull request, par le jeton du `gh` de ce
+// poste ; les résumés lus par `report --week` là où sa cuisine tourne, par son passage, et publiés comme les notes d'une
+// version par `release-notes`. Seul un résumé que la dernière lecture a rendu se publie, et seule l'adresse d'un ticket
+// ou d'une release qu'elles ont rendue s'ouvre depuis l'écran.
+const resumesLus = new Map<string, ResumeHebdomadaire[]>();
+const liensDesResumes = new Set<string>();
+ipcMain.handle("lireLesResumesHebdomadaires", async (_, nom: unknown): Promise<ResumesDuProjet> => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  if (vise === undefined) {
+    const sans = { sans: `${String(nom)} is no longer in the projects file` };
+    return { projet: String(nom), jour: sans, resumes: sans };
+  }
+  const jour = await lireLeJour({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), client: clientDesLabels });
+  const resumes = "sans" in jour ? { sans: "weekly summaries unavailable: the summary day was not read", detail: jour.detail ?? jour.sans } : await lireLesResumes({ projet: vise.nom, lu, jour: jour.jour, lancer: lancerSurLaCuisine, maintenant: new Date() });
+  if ("resumes" in resumes) {
+    resumesLus.set(vise.nom, resumes.resumes);
+    for (const { themes, waiting } of resumes.resumes) for (const { ticketUrl } of [...themes.flatMap(({ lines }) => lines), ...waiting]) liensDesResumes.add(ticketUrl);
+  }
+  return { projet: vise.nom, jour, resumes };
+});
+ipcMain.handle("changerLeJourDuResume", async (_, nom: unknown, jour: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  const rendu = await changerLeJour({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), jour, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+});
+ipcMain.handle("publierLeResumeHebdomadaire", async (_, nom: unknown, weekStart: unknown, tag: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  if (vise === undefined) return parti(nom);
+  const resume = resumesLus.get(vise.nom)?.find((garde) => garde.weekStart === weekStart);
+  if (resume === undefined) return { refus: "nothing was published: this summary is no longer read — open the page again" };
+  const rendu = await publierLeResume({ projet: vise.nom, lu, resume, tag, lancer: (lu, commande) => lancerLa({ delaiMs: 60_000 }, lu, commande) });
+  if ("url" in rendu) liensDesResumes.add(rendu.url);
+  return rendu;
+});
+ipcMain.handle("ouvrirTicketDuResume", (_, url: unknown) => {
+  if (typeof url !== "string" || !liensDesResumes.has(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !propositionsDeReglage.has(url)) return false;
   return shell.openExternal(url).then(

@@ -455,6 +455,30 @@ then the repository (`app/test/parcours-projet-bout-en-bout.test.ts` plays it on
 the copy, then the projects file, with the branch GitHub gave), `app/src/vue/parcours-projet/compte.js` (the account,
 `app/src/connexion-github.ts`).*
 
+### A project with open issues: what the second proposes to cook first (#3268)
+
+A repository picked on **Add a project** that has open issues opens on a screen before the questions below, titled
+`Brigade read your <N> open issues — here are the ones to cook first`, `N` being the number of open issues of the
+repository (pull requests do not count). While the app reads them and the second's triage answers, the page says
+`Brigade is reading your open issues. Nothing is awaited from you.` Each proposed issue is a line: `#<number> <title>`, a
+priority (`prio:1`, `prio:2` or `prio:3`, the scale of the second) in a list you can change, and the reason for that
+priority in one line. `drop` removes a line; `put them on the rail` puts every remaining line on the rail, with the
+priorities on screen, and the page goes on to the questions; `not now` goes on without putting anything. Issues that
+already carry `fire` are counted in `N` but not proposed; when all of them do, there is no screen. A project with no open
+issue shows none of this and goes directly to the questions.
+
+There is one triage, the second's: the section `A project just set up` of its role (`app/src/second/role.md`) is given
+as it is to `claude -p` with the issues, and the answer is read as `{number, prio, reason}` per issue. Putting on the rail
+is the second's gesture too: the `prio:<n>` label replaces the issue's (`changerLaPriorite`, as on a ticket's sheet), then
+`product` and `fire` are put on it. A reading or a triage that fails (GitHub, `claude` absent or silent for 100 s, an
+answer that is not a list) is said on the screen with its cause and `Try again` / `not now`: no list and no priority is
+invented. A line GitHub refuses stays on screen with its cause; the others are on the rail.
+
+*Code: `app/src/depart-du-projet.ts` (reading, triage, putting on the rail; channels `departDuProjet` and `mettreSurLeRail`
+in `app/src/main.ts`), `app/src/vue/parcours-premier-projet/depart.js` (the screen), its wiring in `app/src/vue/vue.js`
+(`lireLeDepart`, `mettreLeDepartSurLeRail`). Tests: `app/test/depart-du-projet.test.ts`, `app/test/parcours-premier-projet/`
+(including the timing check on 100 issues, a real process standing in for `claude`).*
+
 ### A project not ready yet: one question at a time on its page (#3166, epic #3164)
 
 A repository picked on **Add a project** opens on its page (#3181). Until the project is ready, that page shows, **in
@@ -897,7 +921,7 @@ repository, and the project opens read-only:
   something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
   to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
   that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
-  its humans, its contributing stations, the duration caps and the closer — is not laid.
+  its humans, its contributing stations, its recurring tickets, the duration caps and the closer — is not laid.
 - **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
   <owner/repo>.`, with two links: `how to get write access` (GitHub's page on inviting a collaborator: the owner invites
   you) and `fork it` (the repository's fork page on GitHub). The main process — on the phone, its bridge
@@ -1591,6 +1615,16 @@ a ticket none of whose cooks declare any comes after the others and is shown as 
 project's rail when it is read, "not communicated" otherwise. **A click on a row opens its project, then the ticket's
 card**, over the rail — the rail's one (#621); if the rail does not carry the ticket, the card opens with what is
 known of it, its number.
+**Each row also shows its share of the weekly Max quota** (#3254, `cost/part.js`), next to its tokens (`2.0%` next to `200,000`).
+The quota is a setting of the app's file (`~/.config/brigade/app.json`, **you** level), `quotaMax`, in weighted tokens —
+Anthropic publishes no figure to read: `{ "tokens": 10000000, "semaine": { "jour": "monday", "heure": 0 }, "poids": { "opus": 5 } }`.
+`semaine` is Monday 00:00 UTC when absent, and a model missing from `poids` weighs 1.0. A ticket's weighted tokens are the sum,
+over the cooks listed for it, of their tokens × the weight of their model (the `model` of `model / effort` in "latest cooks"); its share is
+that over the quota, rounded to one decimal. A cook that declares no tokens makes the share "≥", as for the tokens. **Under the list, one
+line gives the week's cost of all projects**: the weighted tokens of the cooks listed that ended from the week's start up to now, as a
+percentage of the quota (a cook ended before the start is left out; the cooks are the ten per project the box lists). When `tokens` is
+missing, zero or invalid, that line is replaced by the single line "Share unavailable: weekly quota is not configured.", no share is shown on
+the rows, and the tokens stay.
 **An overrun of a threshold is seen at a glance** (#912, `cost/seuils.js`): the thresholds are those `station` writes under
 "chef's decisions" (`seuil-ticket`, `seuil-perdus`), project by project. When the most expensive ticket exceeds its
 project's threshold, or a project's lost tokens exceed theirs, the block turns red and **a single line carries the action, as a button** ("open the card of #7", "open the list");
@@ -1631,6 +1665,27 @@ added / removed, per project
   closer set anywhere: `No project has a closer set.`
 
 The code lives in `app/src/vue/closer/tendance/tendance.js`. Capture: `docs/captures/1682/`.
+
+### The weekly summary of each kitchen (#3263)
+
+*Ticket: #3263 (epic #3251).* **In a project's health strip, under "Cost" and "Closer", a "Weekly summary" row opens the
+page of the weekly summaries** the kitchens write (#3261), in place of the home — "‹ All projects" brings you back. One
+card per project read on this computer:
+
+- **Summary day** — `weeklySummaryDay` of the project's `.claude/brigade/projet.json`, read on its integration branch
+  with this computer's `gh` token: `Monday (default)` when the file does not set it. Choosing another day proposes it by
+  a pull request, like a duration cap — it applies once merged. A value that is not a day, or a file that does not read,
+  says so in one line and selects nothing: it is not taken as Monday.
+- **Its summaries, latest first** — `report --week <weekStart>` where the project's kitchen runs, for the last 6 weeks
+  starting on the summary day (a summary written on another day, before the setting changed, is not looked for). One
+  button per week found; the latest is shown: its themes as headings, each line followed by its ticket's number, which
+  opens the issue; then **Autonomy**, only when the week's figures were counted; and last **Waiting for the chef**. A week
+  whose summary does not read is named in one line, the runtime's answer on hover.
+- **Publish as release notes** asks for a version tag, then runs `release-notes <tag> <summary.json>` (#3262) once, on the
+  summary's record: the page says the release is published, with "open the release"; `already published` or a refusal
+  is said instead, in the runtime's words, the detail on hover. A runtime without the command asks to be updated.
+
+The code lives in `app/src/vue/resume-hebdomadaire/`. Captures: `docs/captures/3263/`.
 
 ### The app's code: up to date, or behind
 
@@ -2883,6 +2938,20 @@ detail on hover. The block is `app/src/vue/reglages-stations/`; it calls three b
 `accepterUneStationContributrice(project, station)`, each write answering `{ok}` or `{refus}`. The desktop app carries them to the
 runtime's `contributor-stations` command where the project's kitchen runs, in `app/src/stations-contributrices.ts`. A bridge
 without `listerLesStationsContributrices` (the phone) does not show the block.
+
+Under the contributor stations, the **recurring tickets** section (#3231, epic #3216) lists the project's recurring tickets
+(`recurring`, #3230) — one row each: its title, its rhythm in words (`every day`, `every week on Monday`, `every month on
+the 15th`) and `next` with the date of its next occurrence (`next Mon, Oct 19`, the year added when it is not this one); a
+paused one says `paused` and shows no date. Each row has two one-click gestures, with no confirmation: `pause` (or `resume`
+on a paused one) and `remove`. The row changes on what the runtime answers — paused, resumed with its next date, or gone;
+a refusal is one line on that row, the detail on hover, and the row stays as it was. With none, the section says `No
+recurring tickets yet.`; a list that cannot be read says `recurring tickets unavailable` in one line, the detail on hover.
+The section is `app/src/vue/recurrents/recurrents.js`; it calls two bridge methods — `listerLesRecurrents(project)` and
+`changerUnRecurrent(project, pause | resume | remove, id)`, a gesture answering `{recurrent}`, `{retire}` or `{refus}`. The
+desktop app carries them to the runtime's `recurring` command where the project's kitchen runs — `recurring`, `recurring
+pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vue/recurrents/recurrents-box.ts`; a project
+with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
+phone) does not show the section.
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown

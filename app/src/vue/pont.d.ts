@@ -121,6 +121,10 @@ export type Pont = {
   // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
   // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
   gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
+  // Le départ d'un projet qu'« Add a project » vient d'ouvrir (ticket 3268, depart-du-projet.ts) : ses issues ouvertes et ce que le
+  // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
+  departDuProjet(projet: string): Promise<import("../depart-du-projet.ts").Depart>;
+  mettreSurLeRail(projet: string, lignes: { ticket: number; priorite: number }[]): Promise<import("../depart-du-projet.ts").Mise | { refus: string; detail?: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
@@ -286,12 +290,24 @@ export type Pont = {
   reglagesDuProjet(projet: string): Promise<import("../reglages-du-projet.ts").LectureDesReglages>;
   proposerUnReglage(projet: string, choix: import("../reglages-du-projet.ts").ChoixDeReglage): Promise<import("../reglages-du-projet.ts").RenduDuReglage>;
   ouvrirLaProposition(url: string): Promise<boolean>;
+  // Les résumés hebdomadaires de la cuisine d'un projet et le jour de leur écriture (ticket 3263,
+  // resume-hebdomadaire/resume-cuisine.ts) ; le jour changé par une PR, qui s'ouvre par `ouvrirLaProposition` ; un
+  // résumé publié comme les notes d'une version ; puis l'issue d'un ticket qu'ils nomment, ou la release publiée.
+  lireLesResumesHebdomadaires(projet: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet>;
+  changerLeJourDuResume(projet: string, jour: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").RenduDuJour>;
+  publierLeResumeHebdomadaire(projet: string, weekStart: string, tag: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").RenduDeLaPublication>;
+  ouvrirTicketDuResume(url: string): Promise<boolean>;
   // Les humains du projet, sous Settings (ticket 2930) : ceux que son `projet.json` déclare, et chaque changement — ajouté, changé
   // ou retiré — écrit par une PR, qui rend son lien ou un refus d'une ligne (settings-humans/humains.js, humains-du-projet.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre pas la section.
   listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
   enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
   retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus par `recurring` là où sa cuisine tourne, et chacun
+  // suspendu, repris ou retiré d'un clic (recurrents/recurrents.js, recurrents/recurrents-box.ts). Optionnels : un pont qui
+  // ne les porte pas (le téléphone) ne montre pas la section.
+  listerLesRecurrents?(projet: string): Promise<import("./recurrents/recurrents-box.ts").LectureDesRecurrents>;
+  changerUnRecurrent?(projet: string, geste: import("./recurrents/recurrents-box.ts").Geste, id: string): Promise<import("./recurrents/recurrents-box.ts").EcritureDUnRecurrent>;
   // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
   // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
   listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;

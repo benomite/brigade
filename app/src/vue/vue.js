@@ -95,6 +95,7 @@ import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
+import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
 import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
 import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
@@ -112,6 +113,7 @@ import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
+import { monterLesRecurrents, serviceDesRecurrents } from "./recurrents/recurrents.js";
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
@@ -132,6 +134,7 @@ import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
+import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
 import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, poserPret, progression, SECOND_ABSENT, DEMANDE_DU_PREMIER, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
@@ -178,6 +181,8 @@ const PARAMETRES = "parametres";
 const COUTS = "couts";
 // Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
 const RATIOS = "ratios";
+// Et celle des résumés hebdomadaires (ticket 3263) : lue par le process principal, sans onglet.
+const RESUMES = "resumes";
 // Les onglets de la page d'un projet (ticket 1184), Rail et Stations.
 const RAIL = "rail";
 // Le menu du projet (ticket 2485, 2921) : Rail · Stations · Settings (projet/menu/menu.js).
@@ -276,6 +281,9 @@ const propositionsDuSecond = tenirLesChoix();
 // second de chaque projet : au travail, ou au repos à son invite.
 const sectionDuParcours = element("parcours-premier-projet");
 const parcoursDesProjets = tenirLesParcours({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
+// Le départ d'un projet qui arrive avec des issues ouvertes (ticket 3268, parcours-premier-projet/depart.js) : l'écran des
+// propositions du second, avant les questions du parcours.
+const departsDesProjets = tenirLesDeparts({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
 /** @type {Map<string, string>} */
 const aGuider = new Map();
 /** @type {Set<string>} */
@@ -570,14 +578,30 @@ ouvrirLesRatios.ariaLabel = "the added / removed ratio of all projects";
   ouvrirLesRatios.append(bloc("strong", "Closer"), bloc("span", RATIOS_DE_L_ACCUEIL), suite);
 }
 ratiosDeLAccueil.append(ouvrirLesRatios);
-// Les deux lignes de tous les projets, dans le bandeau de santé de chacun (ticket 2638) : elles valent pour l'ensemble.
+// Les résumés hebdomadaires de la cuisine de chaque projet (ticket 3263), de même : une ligne « Weekly summary » ouvre leur
+// page (resume-hebdomadaire/), lue et publiée par le process principal.
+const resumesDeLAccueil = document.createElement("section");
+resumesDeLAccueil.id = "resumes-de-tous";
+resumesDeLAccueil.ariaLabel = TITRE_DES_RESUMES;
+const ouvrirLesResumes = /** @type {HTMLButtonElement} */ (bloc("button", ""));
+ouvrirLesResumes.type = "button";
+ouvrirLesResumes.className = "ligne";
+ouvrirLesResumes.ariaLabel = "the weekly summaries of all projects";
+{
+  const suite = bloc("span", "›");
+  suite.className = "ouvrir";
+  suite.ariaHidden = "true";
+  ouvrirLesResumes.append(bloc("strong", TITRE_DES_RESUMES), bloc("span", RESUMES_DE_L_ACCUEIL), suite);
+}
+resumesDeLAccueil.append(ouvrirLesResumes);
+// Les lignes de tous les projets, dans le bandeau de santé de chacun (ticket 2638) : elles valent pour l'ensemble.
 const TOUS_LES_PROJETS = "All projects";
 const deTousLesProjets = document.createElement("section");
 deTousLesProjets.id = "de-tous-les-projets";
 deTousLesProjets.className = "bloc-du-projet";
 deTousLesProjets.ariaLabel = TOUS_LES_PROJETS;
 deTousLesProjets.dataset.bloc = "de-tous-les-projets";
-deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil);
+deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil, resumesDeLAccueil);
 // L'accueil a les projets et la station de cet ordinateur (ticket 2638, épique 2497) — chacun son composant, sous
 // accueil/ —, puis toutes les stations (ticket 3195). La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
 // version plus haute, en tête de l'app (mise-a-jour/bandeau.js), dit la version qui tourne et l'installe.
@@ -615,6 +639,19 @@ retourDesRatios.className = "retour";
 const corpsDesRatios = document.createElement("div");
 corpsDesRatios.ariaLive = "polite";
 pageDesRatios.append(retourDesRatios, corpsDesRatios);
+const pageDesResumes = document.createElement("section");
+pageDesResumes.id = "resumes";
+pageDesResumes.ariaLabel = TITRE_DES_RESUMES;
+const retourDesResumes = /** @type {HTMLButtonElement} */ (bouton("‹ All projects", undefined, "discret"));
+retourDesResumes.className = "retour";
+const resumesDeTous = tenirLesResumesHebdomadaires(document, {
+  lire: (nom) => brigade.lireLesResumesHebdomadaires(nom),
+  changerJour: (nom, jour) => brigade.changerLeJourDuResume(nom, jour),
+  publier: (nom, resume, tag) => brigade.publierLeResumeHebdomadaire(nom, resume.weekStart, tag),
+  ouvrir: (url) => void brigade.ouvrirTicketDuResume(url),
+  ouvrirProposition: (url) => void brigade.ouvrirLaProposition(url),
+});
+pageDesResumes.append(retourDesResumes, resumesDeTous.element);
 
 // La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
 // ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
@@ -925,9 +962,9 @@ let telephoneVu;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
 let stationOuverte;
-// La page de l'app ouverte à la place de l'accueil : celle des coûts de tous les projets (ticket 1022), ou celle de
-// leurs ratios ajouté / retiré (ticket 1682). Aucune : l'accueil — ou un projet, une station.
-/** @type {typeof COUTS | typeof RATIOS | undefined} */
+// La page de l'app ouverte à la place de l'accueil : celle des coûts de tous les projets (ticket 1022), celle de
+// leurs ratios ajouté / retiré (ticket 1682), ou celle de leurs résumés hebdomadaires (ticket 3263). Aucune : l'accueil — ou un projet, une station.
+/** @type {typeof COUTS | typeof RATIOS | typeof RESUMES | undefined} */
 let pageDeLApp;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
@@ -5615,7 +5652,7 @@ function poserCout() {
     poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
     autonomieDeTous.poser(),
     poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus, ouvrirTicketDepuisLesCouts),
-    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts),
+    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts, configuration.quotaMax),
     poserCourbe(document, projets, coutsLus),
   );
 }
@@ -7665,7 +7702,7 @@ function reprendreLEcran() {
   if (projet !== undefined) courant = projet;
   else if (lu.ajout === true) ajoute = true;
   else if (typeof lu.station === "string") stationOuverte = lu.station;
-  else if (lu.page === COUTS || lu.page === RATIOS) pageDeLApp = lu.page;
+  else if (lu.page === COUTS || lu.page === RATIOS || lu.page === RESUMES) pageDeLApp = lu.page;
 }
 
 // La fenêtre s'est rechargée (ticket 3159) : les terminaux ouverts avant sont restés au process principal, chacun dans son
@@ -8033,6 +8070,8 @@ function suivreLeParcours(nom) {
     aGuider.delete(nom);
     if (lectureSeuleDe(projet) !== undefined) return;
     parcoursDesProjets.commencer(nom, depot, dejaCuit(projet, depot));
+    departsDesProjets.commencer(nom);
+    void lireLeDepart(nom);
     // Les stations du compte se proposent à « qui le cuit » : relues, la question se repose.
     void lireLesEnregistrees().then(() => poserLeProjetAPreparer());
     void lirePreparation(projet);
@@ -8044,6 +8083,31 @@ function suivreLeParcours(nom) {
   const etape = depots.get(nom)?.etape;
   if ((parcours.station === "ajoutee" || parcours.station === "inutile") && etape !== "prepare" && etape !== "en-route") void lirePreparation(projet);
   if (courant?.nom === nom) poserLeProjetAPreparer();
+}
+
+// Les issues ouvertes du projet et ce que le second en propose, lus par l'app (depart-du-projet.ts) : le départ le montre, ou
+// s'efface quand il n'y a rien à proposer. Une lecture qui échoue se dit sur l'écran, jamais un écran vide.
+/** @param {string} nom */
+async function lireLeDepart(nom) {
+  try {
+    departsDesProjets.recu(nom, await brigade.departDuProjet(nom));
+  } catch (erreur) {
+    departsDesProjets.recu(nom, { sans: "the app could not ask the second for its proposals", detail: erreur instanceof Error ? erreur.message : String(erreur) });
+  }
+}
+
+// Le bouton unique : les lignes restantes, avec les priorités montrées à l'écran, sur le rail.
+/** @param {string} nom */
+async function mettreLeDepartSurLeRail(nom) {
+  const mise = departsDesProjets.commencerLaMise(nom);
+  if (mise === undefined) return;
+  try {
+    const rendu = await brigade.mettreSurLeRail(nom, mise.lignes.map(({ ticket, priorite }) => ({ ticket, priorite })));
+    if ("fait" in rendu) departsDesProjets.mise(nom, rendu.fait, rendu.refus);
+    else departsDesProjets.miseRatee(nom, rendu.refus, rendu.detail ?? "");
+  } catch (erreur) {
+    departsDesProjets.miseRatee(nom, "nothing was put on the rail: the app could not reach GitHub", erreur instanceof Error ? erreur.message : String(erreur));
+  }
 }
 
 // La question est posée sur ce projet : sa page n'a qu'elle.
@@ -8115,6 +8179,28 @@ function poserLeProjetAPreparer() {
   if (parcours.pret !== undefined) {
     delete principal.dataset.parcours;
     sectionDuParcours.replaceChildren(poserPret(document, parcours.depot, { ...parcours.pret, ...(parcours.absente === undefined ? {} : { absente: parcours.absente }) }, { ecrire: () => ecrireLePremierTicket(projet), fermer: () => parcoursDesProjets.fermer(nom) }));
+    sectionDuParcours.hidden = false;
+    return;
+  }
+  const depart = departsDesProjets.de(nom);
+  if (depart !== undefined) {
+    principal.dataset.parcours = "depart";
+    sectionDuParcours.replaceChildren(
+      poserLeDepart(
+        document,
+        { depot: parcours.depot, etat: depart },
+        {
+          changer: (ticket, priorite) => departsDesProjets.changer(nom, ticket, priorite),
+          lacher: (ticket) => departsDesProjets.lacher(nom, ticket),
+          mettre: () => void mettreLeDepartSurLeRail(nom),
+          passer: () => departsDesProjets.passer(nom),
+          relire: () => {
+            departsDesProjets.relire(nom);
+            void lireLeDepart(nom);
+          },
+        },
+      ),
+    );
     sectionDuParcours.hidden = false;
     return;
   }
@@ -8306,6 +8392,19 @@ function ouvrirRatios() {
 }
 ouvrirLesRatios.addEventListener("click", () => ouvrirRatios());
 retourDesRatios.addEventListener("click", () => ouvrirTous());
+// La page des résumés hebdomadaires de tous les projets, de même : chaque projet qui se lit, lu à l'ouverture.
+function ouvrirResumes() {
+  courant = undefined;
+  ajoute = false;
+  stationOuverte = undefined;
+  pageDeLApp = RESUMES;
+  marquer();
+  resumesDeTous.poser(configuration.projets.filter((projet) => seLit(projet)).map(({ nom }) => nom));
+  tous.replaceChildren(pageDesResumes);
+  retourDesResumes.focus();
+}
+ouvrirLesResumes.addEventListener("click", () => ouvrirResumes());
+retourDesResumes.addEventListener("click", () => ouvrirTous());
 
 // La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
 /** @param {string} id */
@@ -8513,6 +8612,7 @@ async function ouvrir(projet) {
   poserLesReglagesDuProjet(projet);
   void lireLesReglages(projet);
   void monterLesHumains(document, element("humains-du-projet"), { projet: projet.nom, service: serviceDuPont(brigade, projet.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
+  void monterLesRecurrents(document, element("recurrents-du-projet"), { projet: projet.nom, service: serviceDesRecurrents(brigade, projet.nom) });
   void monterLesStations(document, element("stations-contributrices"), { projet: projet.nom, service: serviceDesStations(brigade, projet.nom) });
   brigade.regarder(projet.nom, ++demande);
   if (!seLit(projet) && projet.sansStation !== true) void lireLeRailPublie(projet);
@@ -8931,6 +9031,7 @@ function afficher() {
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
   else if (pageDeLApp === COUTS && !ajoute) ouvrirCouts();
   else if (pageDeLApp === RATIOS && !ajoute) ouvrirRatios();
+  else if (pageDeLApp === RESUMES && !ajoute) ouvrirResumes();
   // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (premier-lancement.js). Sur le téléphone,
   // aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
   else if (ajoute || (configuration.projets.length === 0 && telephone === undefined && !avecPremier())) ouvrirAjout();
