@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { lancerLeTriage, lireLaReponse, mettreSurLeRail, proposerLeDepart, triageDuSecond, type LancerLeTriage } from "../src/depart-du-projet.ts";
+import { DELAI_DU_TRIAGE_MS, lancerLeTriage, lireLaReponse, mettreSurLeRail, proposerLeDepart, triageDuSecond, type LancerLeTriage } from "../src/depart-du-projet.ts";
 import { ROLE_DU_SECOND } from "../src/second/lancement.ts";
 import type { AppelGitHub, ReponseGitHub } from "../src/tableau/client.ts";
 import type { ClientDeLaPriorite } from "../src/priorite.ts";
@@ -84,6 +84,19 @@ describe("le triage du second", () => {
     assert.ok(lent.erreur.includes("no answer within"));
     const absent = await lancerLeTriage("/nulle/part/claude", ["-p"], "", process.cwd(), 1_000);
     assert.equal(absent.code, null);
+  });
+});
+
+describe("la borne du triage", () => {
+  test("un triage plus lent que la borne : le processus est tué et l'écran rend la cause — jamais une attente sans fin ; la borne tient sous les deux minutes du critère", async () => {
+    assert.ok(DELAI_DU_TRIAGE_MS < 120_000);
+    const issues = Array.from({ length: 100 }, (_, i) => issue(i + 1));
+    // Le vrai lanceur, un processus qui dort bien au-delà de la borne (ramenée à 300 ms) : la même voie que la borne de 100 s.
+    const lancer: LancerLeTriage = (_commande, _args, entree, _dossier, delaiMs) => lancerLeTriage(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], entree, process.cwd(), delaiMs);
+    const debut = performance.now();
+    const rendu = await proposerLeDepart({ ...base, lire: GitHub([issues]), lancer, delaiMs: 300 });
+    assert.ok(performance.now() - debut < 5_000);
+    assert.ok("sans" in rendu && rendu.detail?.includes("no answer within"), JSON.stringify(rendu));
   });
 });
 
