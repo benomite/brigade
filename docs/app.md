@@ -361,7 +361,7 @@ word for it:
 With nothing served in 24 h either, the step says so and outlines the column where it would happen. Until the rail is
 read, the steps that need an example say `Reading the rail…`, and follow the next reading. Each step has `next` and
 `skip the tour`; the last has a single call to action, `add your own project`, which opens **Add a project** (the
-guided first-project path is another ticket of the epic).
+project added there opens the guided path of a first own project, #3166, below).
 
 **The tour is shown once.** Started, it leaves a mark in the view's storage (`brigade.visite`): on later launches,
 whether it was finished, skipped or left halfway, nothing is added again and the tour does not start — even if
@@ -376,6 +376,48 @@ lands, the add goes through it.
 *Code: `app/src/vue/visite/visite.js` (steps, bubble, the first-launch mark) and its wiring in `app/src/vue/vue.js`
 (`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
 Captures: `docs/captures/3165/`.*
+
+### Your first own project: a guided path, station then setup (#3166, epic #3164)
+
+When you add, by its folder, **a first project your GitHub account can write to**, the app does not leave you on the
+recap of **Add a project**: the project's space opens on a guided path, a card at the top of the space, under its menu —
+the rail stays under it, the second on the right. Its steps, numbered and marked like those of the add path:
+
+| Step | What it says | Its gesture |
+|---|---|---|
+| The station that cooks it | `This computer will cook the tickets of <owner/repo>; other stations — a server, another computer — can be added later, from the Stations tab.` | one button, `add this computer`: this computer's station serves the repository, by the gesture of the add path's station step and of **Add a station** (`servirUnProjet`) |
+| Its setup for Brigade | only when the project is not set up yet (the reading of #2628, `checkRepoSetup`): what is awaited, and from whom — below | the button of the state, if any |
+| Ready | the add path's recap: the project, its station, `Next: the kitchen takes the first ticket you label fire.` | `close` |
+
+A project already set up skips the setup step: once the station is added, the path goes to Ready. While the setup step
+is open, the notice of a project not set up (`Set up for Brigade`, #2628) is not laid on the project: the step alone says
+what happens. Each state of the setup step says in one sentence what is awaited and from whom:
+
+| State | What the step says | Read from |
+|---|---|---|
+| reading | `Reading whether <owner/repo> is set up for Brigade… Nothing is awaited from you.` | `checkRepoSetup` not answered yet |
+| unreadable | `Whether <owner/repo> is set up for Brigade could not be read. Waiting for you to try again.`, the reason on hover, `Try again` | `checkRepoSetup` failed — it is never taken for set up |
+| the second starts | `Waiting for the second to start: it reads your repository first, in its column.` | the second's terminal has no title yet |
+| the second reads | `The second is reading your repository and preparing the setup. Nothing is awaited from you yet.` | the title `claude` gives its terminal starts with a working sign (`◐`…), as `app/src/saisie.ts` reads it |
+| you answer | `Waiting for you to answer the second, in its column: it asks only what reading your repository could not settle.` | the title starts with `✳` (at its prompt), or the second proposes choices or a gesture (#1520, #1521) |
+| you merge | `Waiting for you to merge the setup pull request: its card is in Awaiting you.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
+| the second cannot start | `The second could not start: its column says why. Waiting for you to set the project up from here instead.`, `Set up for Brigade` | the second's terminal says it cannot start (#1435) |
+| set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
+
+The setup is re-read at each reading of the project's rail while it is not set up: once the setup pull request is merged,
+the next reading says it is (#3170), and the path moves to Ready.
+
+**What opens the path.** The add is decided by the project's first reading, the one that says whether this computer's
+GitHub account can write to its repository (`lectureSeule`, #3163). Until it arrives, **Add a project** stays as it was,
+`Who cooks this project?` included; a reading that fails decides nothing, the next one does. The path does not open when
+the reading says the account cannot write (the project opens read-only, #3163), nor when another project of the file is
+already your own — the one the tour adds (benomite/brigade, #3165) and those read read-only do not count. A station chosen
+on **Add a project** before the reading arrived is kept: the path starts at the step after it. The path is held while the
+app runs; it is not written anywhere.
+
+*Code: `app/src/vue/parcours-premier-projet/` (the path, its states, its card), its wiring in `app/src/vue/vue.js`
+(`suivreLePremierProjet`, `poserLePremierProjet`). Tests: `app/test/parcours-premier-projet/`. Captures:
+`docs/captures/3166/`.*
 
 ### One add-a-project path, on first launch and on Add a project (#2475, epic #2473)
 

@@ -73,9 +73,22 @@ export function poserParcoursProjet(doc, etat, geste, { bienvenue = false, etape
   }
   const titre = cree(doc, "h2", TITRE);
   titre.className = "attendu";
+  const liste = poserLesEtapes(
+    doc,
+    etapes.map((etape) => ({ id: etape.id, titre: etape.titre, faite: etape.faite(etat), poser: () => etape.poser(doc, etat, geste) })),
+  );
+  racine.append(titre, liste);
+  return racine;
+}
+
+// La liste numérotée des étapes, chacune avec son état : faite, courante — la première qui ne l'est pas, sous un trait
+// de l'accent —, ou à venir. Seules la faite et la courante se déplient (`poser`). Le parcours d'ajout la pose, et le
+// parcours du premier projet (parcours-premier-projet/, ticket 3166) aussi : mêmes étapes, mêmes mots, même trait.
+/** @param {Fabrique} doc @param {readonly { id: string, titre: string, faite: boolean, poser: () => any[] }[]} etapes */
+export function poserLesEtapes(doc, etapes) {
   const liste = cree(doc, "ol");
   liste.className = "etapes-du-parcours";
-  const courante = etapes.findIndex((etape) => !etape.faite(etat));
+  const courante = etapes.findIndex((etape) => !etape.faite);
   etapes.forEach((etape, rang) => {
     const ou = courante === -1 || rang < courante ? "faite" : rang === courante ? "courante" : "a-venir";
     const ligne = cree(doc, "li");
@@ -94,11 +107,10 @@ export function poserParcoursProjet(doc, etat, geste, { bienvenue = false, etape
     if (ou !== "a-venir") {
       const corps = cree(doc, "div");
       corps.className = "corps-d-etape";
-      corps.append(...etape.poser(doc, etat, geste));
+      corps.append(...etape.poser());
       ligne.append(corps);
     }
     liste.append(ligne);
   });
-  racine.append(titre, liste);
-  return racine;
+  return liste;
 }

@@ -35,6 +35,7 @@
     <link rel="stylesheet" href="projets-servis/projets-servis.css" />
     <link rel="stylesheet" href="reglages-stations/stations.css" />
     <link rel="stylesheet" href="visite/visite.css" />
+    <link rel="stylesheet" href="parcours-premier-projet/parcours-premier-projet.css" />
     <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
     <script type="importmap">
       {
@@ -97,6 +98,9 @@
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
       </header>
+      <!-- Le parcours guidé du premier projet à soi (ticket 3166) : la station, puis la mise en place s'il le faut, puis prêt —
+           en tête de l'espace, ce qui est attendu et de qui. -->
+      <section id="parcours-premier-projet" aria-label="Your first project" aria-live="polite" hidden></section>
       <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
            une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. Elles sont de
            l'onglet Cooks (ticket 1184) — sauf tant que le projet ne cuit nulle part : elles sont alors ce qui t'attend. -->

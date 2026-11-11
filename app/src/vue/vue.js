@@ -122,6 +122,7 @@ import { poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { poserParcoursProjet } from "./parcours-projet/parcours.js";
+import { ajouterLaStation, carteDeSetup, estUnPremierProjet, poserParcoursPremierProjet, tenirLeParcoursPremierProjet, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
@@ -253,6 +254,18 @@ const marquerLaCible = marqueurDeCible();
 // Le projet que le premier lancement ajoute pour la visite : son espace s'ouvre sur elle dès qu'il est dans le fichier.
 /** @type {string | undefined} */
 let visiteAOuvrir;
+// Le parcours guidé du premier projet à soi (ticket 3166, parcours-premier-projet/) : sa carte en tête de l'espace du
+// projet, où il en est, et le projet qu'un ajout vient de poser, en attendant que sa lecture dise si le compte GitHub
+// peut écrire dans son dépôt — elle seule ouvre le parcours.
+const sectionPremierProjet = element("parcours-premier-projet");
+const premierProjet = tenirLeParcoursPremierProjet({ rendre: () => poserLePremierProjet() });
+/** @type {{ projet: string, depot: string } | undefined} */
+let ajoutAGuider;
+// Une lecture de la mise en place du premier projet est en route : une seule à la fois.
+let preparationDuPremierEnLecture = false;
+// Le dernier titre que `claude` a donné au terminal du second de chaque projet : au travail, ou au repos à son invite.
+/** @type {Map<string, string>} */
+const titresDesSeconds = new Map();
 // Ce que le second de chaque projet propose, tel que son canal le dit (ticket 1520) : ses choix, sous son terminal — ou
 // le geste qu'il nomme (ticket 1521).
 const propositionsDuSecond = tenirLesChoix();
@@ -1269,6 +1282,14 @@ function vue(id) {
       return false;
     });
     xterm.onResize(({ cols, rows }) => brigade.redimensionner(id, cols, rows));
+    // Le titre que `claude` donne au terminal du second dit s'il tourne ou attend le chef : le parcours du premier projet
+    // le dit (ticket 3166).
+    xterm.onTitleChange((titre) => {
+      const { terminal } = vue(id);
+      if (terminal.genre !== "second") return;
+      titresDesSeconds.set(terminal.projet, titre);
+      if (premierProjet.etat?.projet === terminal.projet) poserLePremierProjet();
+    });
     /** @type {Terminal} */
     const terminal = { id, projet: "", genre: "shell", titre: "", note: "", arrete: false };
     tenue = { terminal, xterm, ajuste, cadre };
@@ -1859,6 +1880,8 @@ function lireOnglet() {
 /** @param {Terminal} terminal */
 function recevoir(terminal) {
   vue(terminal.id).terminal = terminal;
+  // Un second qui ne part pas, ou repart : le parcours du premier projet le dit.
+  if (terminal.genre === "second" && premierProjet.etat?.projet === terminal.projet) poserLePremierProjet();
 }
 
 // « + shell » demande où ouvrir : ce poste, la box, ou une station du projet. Là où il n'y a que ce
@@ -5128,6 +5151,9 @@ function avisDuDepot(projet, lieu) {
     void lireLeDepot(projet);
     return undefined;
   }
+  // Le parcours du premier projet est ouvert sur ce projet (ticket 3166) : son étape dit seule la mise en place — ce que fait
+  // le second, ce qu'on attend du chef —, l'avis n'y ajoute pas un second geste.
+  if (premierProjet.etat?.projet === projet.nom) return undefined;
   const preparer = () => void preparerLeDepot(projet);
   return lieu === "page" ? poserAvisDeDepot(document, "page", etat, preparer) : poserAvisDuTodo(document, etat, preparer);
 }
@@ -5135,20 +5161,24 @@ function avisDuDepot(projet, lieu) {
 /** @param {Projet} projet @param {import("./page-projet/depot-non-prepare.js").Etat} etat */
 function poserLeDepot(projet, etat) {
   depots.set(projet.nom, etat);
+  if (premierProjet.etat?.projet === projet.nom) poserLePremierProjet();
   if (courant?.nom !== projet.nom) return;
   poserAlertes(projet);
   poserRail(projet);
 }
 
-/** @param {Projet} projet */
+// Rend la phrase d'une lecture qui n'a pas abouti — le parcours du premier projet la dit (ticket 3166) —, rien si elle a abouti.
+/** @param {Projet} projet @returns {Promise<string | undefined>} */
 async function lireLeDepot(projet) {
   const lire = /** @type {any} */ (brigade).checkRepoSetup;
-  if (typeof lire !== "function" || projet.depot === undefined) return;
+  if (typeof lire !== "function" || projet.depot === undefined) return NON_ATTEINT("the setup check");
   try {
     poserLeDepot(projet, apresLaLectureDuDepot(await lire(projet.depot)));
-  } catch {
-    // Une lecture qui échoue ne dit rien de plus : le projet est tenu pour préparé, la prochaine ouverture relit.
+    return undefined;
+  } catch (erreur) {
+    // Une lecture qui échoue ne dit rien de plus sur la page : le projet est tenu pour préparé, la prochaine ouverture relit.
     depots.delete(projet.nom);
+    return phraseDuRefus(erreur);
   }
 }
 
@@ -7341,6 +7371,7 @@ function marquer() {
   colonneSecond.hidden = courant === undefined;
   lireOnglet();
   poserLaVisite();
+  poserLePremierProjet();
 }
 
 // Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638) : l'écran se regarde, et
@@ -7659,6 +7690,124 @@ function rejouerLaVisite() {
   void ouvrir(projet);
 }
 
+// Le premier projet à soi (ticket 3166, parcours-premier-projet/) : la lecture d'un projet arrive. Celle du projet qu'un
+// ajout vient de poser décide du parcours — en lecture seule, ou s'il n'est pas le premier à soi, rien ne s'ouvre ; une
+// lecture ratée ne décide rien, la suivante décidera. Le parcours ouvert : chaque lecture relit si le projet est prêt
+// pour Brigade, tant qu'il ne l'est pas — la PR de mise en place mergée, il l'est (ticket 3170).
+/** @param {string} nom */
+function suivreLePremierProjet(nom) {
+  const tenu = tenus.get(nom);
+  const lu = tenu !== undefined && "tableau" in tenu;
+  const projet = projetDe(nom);
+  if (ajoutAGuider?.projet === nom && lu && projet !== undefined) {
+    const { depot } = ajoutAGuider;
+    ajoutAGuider = undefined;
+    if (lectureSeuleDe(projet) === undefined && estUnPremierProjet(configuration.projets, nom, (autre) => lectureSeuleDe(autre) !== undefined)) {
+      // Une station déjà choisie sur l'écran d'ajout, avant que la lecture n'arrive : le parcours part de la suite.
+      const choisie = ajoutDuParcours.projet === nom ? ajoutDuParcours.station : undefined;
+      premierProjet.commencer(nom, depot, choisie);
+      void lirePreparationDuPremier(projet);
+      // L'écran d'ajout montrait ce projet : son espace s'ouvre sur le parcours, qui prend la suite de l'ajout.
+      if (ajoute && ajoutDuParcours.projet === nom) {
+        ajoutDuParcours = {};
+        void ouvrir(projet);
+      } else reposerLAvisDuDepot(projet);
+      return;
+    }
+  }
+  const parcours = premierProjet.etat;
+  if (parcours?.projet !== nom || projet === undefined) return;
+  const etape = depots.get(nom)?.etape;
+  if (lu && parcours.station === "ajoutee" && etape !== "prepare" && etape !== "en-route") void lirePreparationDuPremier(projet);
+  poserLePremierProjet();
+}
+
+/** @param {Projet} projet */
+async function lirePreparationDuPremier(projet) {
+  if (preparationDuPremierEnLecture) return;
+  preparationDuPremierEnLecture = true;
+  try {
+    const echec = await lireLeDepot(projet);
+    if (premierProjet.etat?.projet === projet.nom) premierProjet.illisible(echec);
+  } finally {
+    preparationDuPremierEnLecture = false;
+  }
+}
+
+// L'avis d'un projet pas préparé (ticket 2628) se tait tant que le parcours est ouvert sur lui : ouvert ou fermé, il se repose.
+/** @param {Projet} projet */
+function reposerLAvisDuDepot(projet) {
+  if (courant?.nom !== projet.nom) return;
+  poserAlertes(projet);
+  poserRail(projet);
+}
+
+// Ce que la vue sait du second du projet : il ne part pas, il propose au chef, et ce que le titre de son terminal dit.
+/** @param {string} nom @returns {import("./parcours-premier-projet/parcours-premier-projet.js").Second} */
+function secondDuPremier(nom) {
+  const second = [...vues.values()].find(({ terminal }) => terminal.projet === nom && terminal.genre === "second")?.terminal;
+  const titre = travailDuSecond(titresDesSeconds.get(nom));
+  return {
+    ...(second?.empeche === undefined ? {} : { empeche: true }),
+    ...(propositionsDuSecond.aMontrer(nom) === undefined && propositionsDuSecond.geste(nom) === undefined ? {} : { propose: true }),
+    ...(titre === undefined ? {} : { titre }),
+  };
+}
+
+// La carte du parcours, en tête de l'espace de son projet ; ailleurs, rien.
+function poserLePremierProjet() {
+  const parcours = premierProjet.etat;
+  const projet = parcours === undefined ? undefined : projetDe(parcours.projet);
+  if (parcours === undefined || projet === undefined || courant?.nom !== projet.nom) {
+    sectionPremierProjet.hidden = true;
+    return sectionPremierProjet.replaceChildren();
+  }
+  const preparation = depots.get(projet.nom);
+  const tenu = tenus.get(projet.nom);
+  const carte = tenu !== undefined && "tableau" in tenu ? carteDeSetup(tenu.tableau.rail.colonnes) : undefined;
+  const vu = vuDuParcours({
+    station: parcours.station,
+    ...(preparation === undefined ? {} : { preparation }),
+    ...(parcours.illisible === undefined ? {} : { illisible: parcours.illisible }),
+    carte: carte !== undefined,
+    second: secondDuPremier(projet.nom),
+  });
+  if (vu.etape === "setup") premierProjet.setupMontre();
+  sectionPremierProjet.replaceChildren(
+    poserParcoursPremierProjet(
+      document,
+      {
+        depot: parcours.depot,
+        vu,
+        setupVu: parcours.setupVu || vu.etape === "setup",
+        ...(parcours.cuitPar === undefined ? {} : { cuitPar: parcours.cuitPar }),
+        ...(parcours.illisible === undefined ? {} : { illisible: parcours.illisible }),
+        ...(preparation?.etape === "refus" ? { refus: preparation.dit } : {}),
+      },
+      {
+        // Cet ordinateur sert le dépôt, par le geste de l'étape « station » de l'ajout et de « Add a station ».
+        ajouterCetOrdinateur: async () => {
+          if (premierProjet.etat?.station === "en-cours") return;
+          premierProjet.station("en-cours");
+          premierProjet.station(await ajouterLaStation(() => servirIciLeDepot(parcours.depot)));
+          const etape = depots.get(projet.nom)?.etape;
+          if (premierProjet.etat?.station === "ajoutee" && etape !== "prepare" && etape !== "en-route") void lirePreparationDuPremier(projet);
+        },
+        relire: () => void lirePreparationDuPremier(projet),
+        preparer: () => void preparerLeDepot(projet),
+        ouvrirLaCarte: () => {
+          if (carte !== undefined) ouvrirFiche(projet, carte, sectionPremierProjet);
+        },
+        fermer: () => {
+          premierProjet.fermer();
+          reposerLAvisDuDepot(projet);
+        },
+      },
+    ),
+  );
+  sectionPremierProjet.hidden = false;
+}
+
 async function relireLePremier() {
   const demandee = ++lectureDuPremier;
   delete premier.stations;
@@ -7877,6 +8026,11 @@ formulaire.addEventListener("submit", async (soumission) => {
   ajoutDuParcours = { depot: projetDe(issue.nom)?.depot ?? saisie.depot, projet: issue.nom };
   poserLeParcoursDeLAjout();
   void lireLesEnregistrees();
+  // Un premier projet à soi ouvre son parcours guidé (ticket 3166) — quand sa lecture dit que le compte peut y écrire.
+  if (telephone === undefined && ajoutDuParcours.depot !== undefined) {
+    ajoutAGuider = { projet: issue.nom, depot: ajoutDuParcours.depot };
+    suivreLePremierProjet(issue.nom);
+  }
 });
 
 // L'écran d'ajout, rendu vide : ce qui vient d'être ajouté n'y reste pas.
@@ -8000,6 +8154,7 @@ brigade.surSortie((id, donnees) => {
 brigade.surProposition?.((projet, proposition) => {
   propositionsDuSecond.recevoir(projet, proposition);
   if (projet === courant?.nom) montrer();
+  if (premierProjet.etat?.projet === projet) poserLePremierProjet();
 });
 brigade.surEtat((terminal) => {
   if (terminal.genre === "shell" && terminal.arrete) {
@@ -8091,6 +8246,7 @@ brigade.surFaits((recue) => {
   if (horsLigne && (gardee === undefined || !("tableau" in gardee))) tenus.delete(recue.projet);
   else if (!((muette || horsLigne || ratee) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
+  suivreLePremierProjet(recue.projet);
   poserLesCartesDuChef();
   if (courant?.nom === recue.projet) {
     dessiner();

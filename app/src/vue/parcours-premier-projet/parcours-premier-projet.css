@@ -1,0 +1,23 @@
+/* Le parcours guidé du premier projet à soi (ticket 3166, parcours-premier-projet/) : la carte du parcours d'ajout
+   (.parcours-projet, vue.css), en tête de l'espace du projet, sous son menu — le rail reste dessous, le second à droite.
+   Ce qui est attendu, et de qui, en tête de l'étape courante. */
+#parcours-premier-projet {
+  padding: var(--pas-4) var(--pas-4) 0;
+}
+.parcours-premier-projet .attendu {
+  margin: 0;
+  font-weight: 600;
+  color: var(--texte);
+}
+.parcours-premier-projet .corps-d-etape .attendu {
+  font-size: var(--taille-intertitre);
+}
+.parcours-premier-projet .gestes {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: 0;
+}
+.parcours-premier-projet .gestes > span:not(.action):not(.survol) {
+  color: var(--discret);
+}
