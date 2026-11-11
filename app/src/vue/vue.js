@@ -94,7 +94,8 @@ import { poserTete } from "./cost/tete.js";
 import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, revenir, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
-import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
+import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
+import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
@@ -885,6 +886,17 @@ let CONFIRMES = [];
 // porte plus l'oublie. Ce n'est qu'un relais : ce que la carte dit après un redémarrage vient du tableau (ticket 1841).
 /** @type {Map<string, { question: string | null, etat: import("./carte-todo.js").Etat }>} */
 const reponsesAuxCartes = new Map();
+// Les cartes « Validate its screen » (validation-design/, ticket 3185) : le geste en route d'ici, et le commentaire tapé,
+// par `<projet>#<numéro>` ; et, par projet, les numéros des cartes que le chef a validées ou renvoyées — elles quittent TODO
+// tout de suite, et sont oubliées dès qu'une lecture ne les porte plus.
+/** @type {Map<string, import("./validation-design/validation-design.js").Etat>} */
+const validations = new Map();
+/** @type {Map<string, string>} */
+const commentairesDeValidation = new Map();
+/** @type {Map<string, Set<number>>} */
+const validees = new Map();
+/** @param {string} projet */
+const valideesDe = (projet) => validees.get(projet) ?? new Set();
 // Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend. Une carte
 // partie de TODO ne l'emporte pas (ticket 2151) : un brouillon non vide y reste, sur une carte résolue, jusqu'à ce que le
 // chef l'écarte — avec ce que sa carte demandait (`questionsDesBrouillons`).
@@ -3207,6 +3219,8 @@ async function lireCapture(projet, ticket, ecran, moment, cle) {
     capturesLues.set(cle, { sans: erreur instanceof Error ? erreur.message : String(erreur) });
   }
   if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(courant);
+  // Une carte ouverte depuis la liste du téléphone pose ses captures aussi (ticket 3185).
+  if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) poserLesCartesDuChef();
 }
 
 // La fiche d'un ticket, par-dessus le rail : pour l'instant son en-tête — son numéro, son titre
@@ -4709,7 +4723,8 @@ function poserLeRail(projet) {
     return poser(...marque, ...sans);
   }
   const { hors } = tenu.tableau.rail;
-  const lues = tenu.tableau.rail.colonnes;
+  oublierLesValidees(projet, tenu.tableau.rail.colonnes);
+  const lues = sansLesValidees(tenu.tableau.rail.colonnes, valideesDe(projet.nom));
   oublierLesReponsesPerimees(projet, lues);
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], autres: undefined, vide: "not known while the station is unreachable" }));
@@ -4862,6 +4877,19 @@ function oublierLesReponsesPerimees(projet, colonnes) {
   for (const [cle, { question }] of reponsesAuxCartes) if (cle.startsWith(`${projet.nom}#`) && portees.get(cle) !== question) reponsesAuxCartes.delete(cle);
 }
 
+// Une carte validée ou renvoyée d'ici que la lecture ne porte plus est oubliée : elle a quitté TODO pour de bon.
+/** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
+function oublierLesValidees(projet, colonnes) {
+  const faites = validees.get(projet.nom);
+  if (faites === undefined) return;
+  const portees = new Set(colonnes.flatMap(({ cartes, autres }) => [...cartes, ...(autres ?? [])]).map(({ ticket }) => ticket));
+  for (const ticket of faites) {
+    if (portees.has(ticket)) continue;
+    faites.delete(ticket);
+    validations.delete(`${projet.nom}#${ticket}`);
+  }
+}
+
 // Les cartes de TODO que des colonnes portent, par projet et ticket, et la question de chacune.
 /** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes @returns {Map<string, string | null>} */
 const cartesPortees = (projet, colonnes) => new Map(colonnes.flatMap(({ cartes, autres }) => [...cartes, ...(autres ?? [])]).flatMap(({ ticket, todo }) => (todo === undefined ? [] : [[`${projet.nom}#${ticket}`, todo.question]])));
@@ -5000,6 +5028,7 @@ function etatDeLaCarte(projet, ticket, todo) {
 /** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo */
 function poserLaCarteDeTodo(projet, ticket, todo) {
   const cle = `${projet.nom}#${ticket}`;
+  if (estUneValidation(todo)) return poserLaValidation(projet, ticket, todo, false);
   const etat = etatDeLaCarte(projet, ticket, todo);
   const second = demandesAuSecond.get(cle);
   return poserCarteDeTodo(
@@ -5020,6 +5049,61 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
   );
 }
 
+// La carte « Validate its screen » d'un ticket (validation-design/, ticket 3185) : ses captures posées comme celles de toute
+// carte, lues sans un clic ; « Validate » et « Send back to the kitchen » jouent la commande du runtime par le process
+// principal. `grand` : à la largeur d'un téléphone, sur la carte ouverte depuis la liste.
+/** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo @param {boolean} grand */
+function poserLaValidation(projet, ticket, todo, grand) {
+  const cle = `${projet.nom}#${ticket}`;
+  const second = demandesAuSecond.get(cle);
+  return poserCarteDeValidation(
+    document,
+    ticket,
+    todo,
+    validations.get(cle) ?? VALIDATION_AU_REPOS,
+    { captures: todo.captures === undefined ? [] : poserCaptures(projet, ticket, todo.captures), commentaire: commentairesDeValidation.get(cle) ?? "", cle, grand, ...(second === undefined ? {} : { second }), ...(lectureSeuleDe(projet) === undefined ? {} : { lectureSeule: true }) },
+    {
+      valider: () => void validerLaCarte(projet, ticket, { geste: "valider" }),
+      renvoyer: (commentaire) => void validerLaCarte(projet, ticket, { geste: "renvoyer", commentaire }),
+      ecrire: (texte) => void commentairesDeValidation.set(cle, texte),
+      ouvrirPr: () => void brigade.ouvrirPr(projet.nom, ticket),
+      // Dans TODO, comme toute carte, « ask the second » (ticket 3133) ; la carte ouverte du téléphone n'en a pas.
+      ...(grand ? {} : { demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)) }),
+    },
+  );
+}
+
+// Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont
+// relus ; refusé, elle garde ses gestes et son commentaire, et dit pourquoi.
+/** @param {Projet} projet @param {number} ticket @param {import("./validation-design/validation-design-github.ts").GesteDeValidation} geste */
+async function validerLaCarte(projet, ticket, geste) {
+  const cle = `${projet.nom}#${ticket}`;
+  if (validations.get(cle)?.etape === "envoi") return;
+  lacherLaCarteDe(projet.nom, ticket);
+  /** @param {import("./validation-design/validation-design.js").Etat} etat */
+  const poser = (etat) => {
+    validations.set(cle, etat);
+    if (courant?.nom === projet.nom) poserRail(projet);
+    poserLesCartesDuChef();
+  };
+  poser({ etape: "envoi", geste: geste.geste });
+  /** @type {import("./validation-design/validation-design-github.ts").RenduDeValidation | undefined} */
+  let rendu;
+  try {
+    rendu = await brigade.gesteDeValidation(projet.nom, ticket, geste);
+  } catch (erreur) {
+    rendu = { refus: "nothing was done: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  const suite = apresLaValidation(rendu);
+  if (suite.etape === "fait") {
+    commentairesDeValidation.delete(cle);
+    validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
+    if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
+  }
+  poser(suite);
+  if (suite.etape === "fait") lireLesFaits();
+}
+
 // Les cartes qui attendent le chef, à la largeur d'un téléphone (cartes-du-chef/, ticket 2915) : celles de la colonne
 // « Awaiting you » de chaque projet lu, avec leur question — une carte déjà répondue n'y est plus. La vue montrée est la
 // liste, une carte ouverte (le brouillon et ce qui a refusé sa réponse sont ceux de la carte), ou l'envoi qu'on vient de faire.
@@ -5036,6 +5120,8 @@ function lesCartesDuChef() {
     return (colonne?.cartes ?? []).flatMap((carte) => {
       const { todo } = carte;
       if (!carte.attendu || todo === undefined || (todo.question === null && todo.choix.length === 0)) return [];
+      // Validée ou renvoyée d'ici (ticket 3185) : elle a quitté la liste.
+      if (estUneValidation(todo)) return valideesDe(projet.nom).has(carte.ticket) ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
       const etat = etatDeLaCarte(projet, carte.ticket, todo);
       const vu = vuDeLaCarte(todo, etat).vu;
       return etat.etape === "postee" || vu === "attente" || vu === "jouee" ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
@@ -5066,6 +5152,13 @@ function poserLesCartesDuChef() {
     const lue = cartes.find((un) => un.projet === nom && un.ticket === ticket);
     const projet = configuration.projets.find((un) => un.nom === nom);
     if (lue === undefined || projet === undefined) return retour();
+    // La carte « Validate its screen » (ticket 3185) : la même que dans TODO, ses boutons en 44 px.
+    if (estUneValidation(lue.todo)) {
+      const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DU_COMMENTAIRE;
+      cartesDuChef.replaceChildren(...poserLaCarteAPart(document, { carte: lue, total: cartes.length, retour }, poserLaValidation(projet, ticket, lue.todo, true)));
+      if (enMain) /** @type {HTMLElement | null} */ (cartesDuChef.querySelector(`[data-champ="${CHAMP_DU_COMMENTAIRE}"]`))?.focus();
+      return;
+    }
     const etat = etatDeLaCarte(projet, ticket, lue.todo);
     const refus = etat.etape === "refus" ? { dit: etat.dit, detail: etat.detail } : undefined;
     const clavier = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DE_LA_CARTE_DU_CHEF;

@@ -12,6 +12,7 @@
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
 import { LONGUEUR_MAX } from "./discussion.ts";
 import { formeDuChef, type CarteDuChef } from "./tableau/todo-github.ts";
+import { SORTE_DE_VALIDATION } from "./vue/validation-design/validation-design-github.ts";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
 // au plus (`resume`, la forme unique de l'épique #1764 : runtime/src/carte-todo/forme.ts — absent d'un
@@ -31,7 +32,10 @@ export type EnvoiVu = { commentaire: number; reponse: string; le: string } & ({ 
 // libre, ses captures, absentes sans écran.
 export type ChoixDeCarte = { texte: string; prix: string };
 // `contexte` : ce que le commentaire d'une carte du chef lue de GitHub dit après sa question (#2434) — absent ailleurs.
-export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu };
+// `validation` : la carte « Validate its screen » (vue/validation-design/, ticket 3185) — la PR qu'elle valide, ou pourquoi
+// son issue ne la dit pas (`illisible`) — absente ailleurs.
+export type ValidationDeCarte = { pr: number; ticket: number } | { illisible: string };
+export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu; validation?: ValidationDeCarte };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -76,9 +80,23 @@ function situationDe(contexte: string): string | undefined {
 // La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
 // libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
 // commentaire vide : il n'y a rien à quoi répondre.
-export function carteDuChefDeTodo({ sorte, texte }: CarteDuChef): CarteDeTodo | undefined {
+export function carteDuChefDeTodo({ sorte, texte, design }: CarteDuChef): CarteDeTodo | undefined {
   const { question, choix, contexte } = formeDuChef(texte);
   if (question === null) return undefined;
+  // La carte « Validate its screen » (ticket 3185) : sa question, ses captures et sa PR, et ses deux gestes — valider, ou
+  // renvoyer en cuisine avec un commentaire —, ni choix ni réponse libre. Son lien de PR est dit sur la carte, pas en
+  // contexte. Une issue dont le corps ne dit pas sa PR ne se valide pas d'ici : la carte le dit.
+  if (sorte === SORTE_DE_VALIDATION) {
+    return {
+      sorte,
+      question,
+      choix: [],
+      prixDuTexte: "",
+      ...(design === undefined
+        ? { validation: { illisible: "its issue does not say which pull request it validates: validate it on GitHub" } }
+        : { validation: { pr: design.pr, ticket: design.ticket }, captures: capturesDeCarte(design.captures) }),
+    };
+  }
   const situation = situationDe(contexte);
   return {
     sorte,
@@ -93,7 +111,8 @@ export function carteDuChefDeTodo({ sorte, texte }: CarteDuChef): CarteDeTodo | 
 // La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.
 export function carteLueDuChef({ sorte, texte }: CarteDuChef): CarteLue | undefined {
   const { question, choix } = formeDuChef(texte);
-  return question === null ? undefined : { type: sorte, question, choix, captures: null };
+  // La carte « Validate its screen » ne se répond pas : ses deux gestes sont la commande du runtime (vue/validation-design/).
+  return question === null || sorte === SORTE_DE_VALIDATION ? undefined : { type: sorte, question, choix, captures: null };
 }
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";

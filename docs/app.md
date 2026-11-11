@@ -886,6 +886,33 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 `app/src/tableau-gestes/reponse-github.ts`. Test: `app/test/tableau-gestes/reponse-github.test.ts` (#2061 and #1554 rewritten
 with choices, a click on each gesture against a fake GitHub).*
 
+**The card `Validate its screen` (#3185, epic #3180).** On a project where a human validates the designs, the pass holds a
+green design delivery for the chef instead of merging it (#3184, `docs/runtime/pass.md`): a `chef-todo` issue titled
+`Validate its screen`, its marked comment of kind `design-validation`. In Todo, its line says `A design delivery waits for
+you to validate its screen.`, then the card shows, in this order: the question (`Does the screen of #<ticket> look
+right? …`); the before and after captures of each screen the delivery changes, one under the other, read without a click
+(each image read by this computer's `gh`, as for any Todo card); `Pull request #<PR>`, which opens the pull request; then its
+two gestures, each with its price on hover:
+
+| gesture | what it plays | then |
+|---|---|---|
+| `Validate` (the recommended button) | the runtime's `design` command, `validate <owner>/<repo>#<PR>`: the pull request is merged at the head the pass judged green, the card is closed | the card leaves Todo |
+| `Send back to the kitchen`, under a comment field — off while the comment is empty | `send-back <owner>/<repo>#<PR> --comment <comment>`: the comment goes on the ticket as what to change, a cook takes the ticket up again, the card is closed | the card leaves Todo |
+
+The app plays the command itself, in its own process, with this computer's `gh` (no box, no station) — nothing to type on
+GitHub. Under them, in Todo, `ask the second`, as on every Todo card (#3133). Done, the card leaves Todo at once and the
+project is read again. Refused by the runtime — the head of the pull
+request moved since the card, GitHub refused the merge — the card stays, says why in one line, the runtime's answer on
+hover, and keeps the comment and both buttons. The pull request, its ticket and the captures are read from the issue's body
+(`<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, then the images): only the images of
+`docs/captures/<ticket>/` on the project's repository at that head are captures of the card. A body that does not say its
+pull request is said on the card in one line, with no gesture. At phone width the card is the same: in the list of cards
+that await the chef it reads `Design validation`, and opened, it shows the same question, captures, link and gestures, its
+buttons 44 px high. The Android app does not run the runtime: there, both gestures are refused in one line (`validate or
+send back from the desktop app`), and the captures are not read. Captures: `docs/captures/3185/`.
+*Code: `app/src/vue/validation-design/` (`validation-design.js`, the card; `validation-design-github.ts`, the reading of the
+body and `jouerLaValidation`), channel `gesteDeValidation` (`app/src/main.ts`). Tests: `app/test/validation-design/`.*
+
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
 signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without
 an assignee, it awaits the chef — `chef` in the repository's `.claude/brigade/projet.json`, or, without it, the

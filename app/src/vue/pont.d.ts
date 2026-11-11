@@ -346,6 +346,9 @@ export type Pont = {
   compter(projet: string): Promise<Compte | undefined>;
   // La réponse du chef à la carte de TODO d'un ticket (carte-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
   repondreCarte(projet: string, ticket: number, reponse: import("../carte-todo.ts").Reponse): Promise<import("../carte-todo.ts").Rendu | undefined>;
+  // Un geste du chef sur la carte « Validate its screen » d'un ticket (validation-design/, ticket 3185) : valider, ou renvoyer
+  // en cuisine avec un commentaire — la commande `design` du runtime, jouée par le process principal. Rien pour un projet inconnu.
+  gesteDeValidation(projet: string, ticket: number, geste: import("./validation-design/validation-design-github.ts").GesteDeValidation): Promise<import("./validation-design/validation-design-github.ts").RenduDeValidation | undefined>;
   // « Resume », sur la ligne du disjoncteur de TODO (github/breaker-resume.ts) : `/resume` posté sur l'issue
   // `brigade:breaker-open` du dépôt du projet. Rend la reprise demandée, ou pourquoi rien n'est parti ; rien pour un
   // projet que l'app ne connaît plus.

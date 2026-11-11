@@ -342,6 +342,9 @@ const connus = {
     if (rendu?.repondue === true) void retirerLaNotification(projet, ticket);
     return rendu;
   },
+  // La carte « Validate its screen » (ticket 3185) : ses deux gestes sont la commande `design` du runtime, que le téléphone
+  // ne porte pas — rien ne part, et la carte le dit en une ligne.
+  gesteDeValidation: async () => ({ refus: "nothing was done: this phone does not run the kitchen's runtime — validate or send back from the desktop app", detail: "" }),
   // La connexion à GitHub oubliée — le jeton du coffre, le compte et ses projets. La vue revient à l'écran de
   // connexion à GitHub.
   oublierLeTelephone: async () => {

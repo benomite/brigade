@@ -33,7 +33,9 @@ export const compte = (n) => `${n} ${n === 1 ? "card" : "cards"}`;
 
 // Ce que la carte demande, en quelques mots : le genre de sa question, et ses choix.
 /** @param {CarteDeTodo} todo */
-export function genreDeLaCarte({ sorte, choix, question }) {
+export function genreDeLaCarte({ sorte, choix, question, validation }) {
+  // La carte « Validate its screen » (ticket 3185) : deux gestes, valider ou renvoyer en cuisine.
+  if (validation !== undefined) return "Design validation";
   const options = `${choix.length} ${choix.length === 1 ? "option" : "options"}`;
   if (question === null || choix.length === 0) return "Review only you can make";
   return `${sorte === "design" ? "Design choice" : "Product choice"} · ${options}`;
@@ -142,6 +144,16 @@ export function poserLaCarte(doc, { carte, total, brouillon, enRoute, refus, ret
   if (enRoute) corps.append(cree(doc, "p", "mot-des-cartes", EN_ROUTE));
   if (refus !== undefined) corps.append(ligneErreur(doc, refus.dit, refus.detail, { classe: "refus", alerte: true }));
   return Object.assign([entete(doc, total, retour), corps], { saisie });
+}
+
+// Une carte ouverte qui se pose ailleurs (la carte « Validate its screen », validation-design/, ticket 3185) : l'en-tête et le
+// numéro de la carte ouverte, puis ce qu'elle pose.
+/** @param {Fabrique} doc @param {{ carte: Carte, total: number, retour: () => void }} vue @param {any[]} elements */
+export function poserLaCarteAPart(doc, { carte, total, retour }, elements) {
+  const corps = cree(doc, "div", "corps-des-cartes");
+  corps.dataset.vu = "carte";
+  corps.append(cree(doc, "span", "numero-de-carte", `#${carte.ticket} · ${carte.projet}`), ...elements);
+  return [entete(doc, total, retour), corps];
 }
 
 // L'envoi : la coche, « Sent to the kitchen. », et où en est le projet. `reste` : les cartes qui l'attendent encore sur lui.
