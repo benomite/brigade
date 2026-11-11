@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brigade's own autonomy figures — Brigade</title>
+  <meta name="description" content="Brigade builds itself. These are the live autonomy figures of the benomite/brigade repository, each linked to the pull requests it is computed from.">
+  <meta property="og:title" content="Brigade's own autonomy figures">
+  <meta property="og:description" content="Live figures of the benomite/brigade repository, cooked by its own kitchen.">
+  <meta property="og:type" content="website">
+  <link rel="canonical" href="https://benomite.github.io/brigade/autonomie.html">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="logo.svg" alt="" width="36" height="36"> brigade</a>
+    <h1>Brigade builds itself</h1>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="autonomy">
+    <p>This repository, <a href="https://github.com/benomite/brigade">benomite/brigade</a>, is cooked by its own kitchen. These figures are read from the generated file <a href="autonomie.json">autonomie.json</a> and refreshed every day. Each figure links to the pull requests it is computed from.</p>
+    <p id="autonomy-status" class="fine">Figures not yet available.</p>
+    <div class="receipt" id="autonomy-figures" hidden></div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p class="fine"><a href="index.html">Home</a> · <a href="tarifs.html">Pricing</a> · <a href="faq.html">FAQ</a> · <a href="https://github.com/benomite/brigade">benomite/brigade</a></p>
+</footer>
+
+<script src="autonomie.js"></script>
+</body>
+</html>

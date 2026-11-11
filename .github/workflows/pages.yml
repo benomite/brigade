@@ -1,5 +1,6 @@
 # Le site public de brigade (#1553, #2872) : `site/` est publié sur GitHub Pages, et rien d'autre du dépôt
 # (l'artefact est `site/` lui-même, vérifié par runtime/test/pages-site.test.ts).
+# Les chiffres d'autonomie (#3220) y sont régénérés chaque jour : docs/autonomie-page.md.
 # Réglage à activer une fois par le chef : Settings → Pages → Source : GitHub Actions.
 name: pages
 
@@ -9,6 +10,9 @@ on:
     paths: [site/**, .github/workflows/pages.yml]
   pull_request:
     paths: [site/**, .github/workflows/pages.yml]
+  # The daily refresh of the autonomy page (#3220): same build, same deploy, so no deploy can drop site/autonomie.json.
+  schedule:
+    - cron: "17 4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -25,6 +29,10 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
+      # PLACEHOLDER: replace with #3213 generator. It must write site/autonomie.json as docs/autonomie-page.md describes.
+      # It fails nothing and writes no figure for now: the page then says "Figures not yet available".
+      - name: Generate the autonomy figures
+        run: echo "::warning::#3213 is not merged - no autonomy figures generated."
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
