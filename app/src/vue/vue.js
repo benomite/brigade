@@ -120,6 +120,7 @@ import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
+import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { poserParcoursProjet } from "./parcours-projet/parcours.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
@@ -243,6 +244,14 @@ const colonneSecond = element("second");
 const noteSecond = element("note-second");
 const outilsDuSecond = element("outils-du-second");
 const choixDuSecond = element("choix-du-second");
+// La visite guidée du premier lancement (ticket 3165, visite/) : sa bulle par-dessus l'écran, l'étape où elle en est, et
+// la trace, dans le stockage de la vue, qu'elle a été montrée.
+const sectionVisite = element("visite");
+const visite = tenirLaVisite({ stockage: window.localStorage ?? undefined, rendre: () => poserLaVisite() });
+const marquerLaCible = marqueurDeCible();
+// Le projet que le premier lancement ajoute pour la visite : son espace s'ouvre sur elle dès qu'il est dans le fichier.
+/** @type {string | undefined} */
+let visiteAOuvrir;
 // Ce que le second de chaque projet propose, tel que son canal le dit (ticket 1520) : ses choix, sous son terminal — ou
 // le geste qu'il nomme (ticket 1521).
 const propositionsDuSecond = tenirLesChoix();
@@ -2798,6 +2807,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   const pose = { numero, hors: horsColonne, ...(etat === undefined ? {} : { mot: motDEtat ?? etat, ...(horsColonne ? {} : { etat: etatDeColonne ?? etatDuTon(ton) }) }) };
   // Une carte qui attend un autre humain (« Awaiting others ») garde la carte d'attente, sans dire qu'elle t'attend (ticket 3071).
   const bon = attendu ? carteAttente(document, { ...pose, attendu: carte.qui === undefined }) : bonDeLaFamille(document, pose);
+  bon.dataset.ticket = String(ticket);
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
   // clique déjà — son numéro, sa PR, ses remarques — garde son geste ; un texte
   // qu'on y sélectionne pour le recopier n'ouvre rien. Au clavier, Entrée ou Espace sur la carte.
@@ -4585,6 +4595,8 @@ function poserRail(projet) {
   // La ligne du disjoncteur passe de la bande à TODO, ou l'inverse : la bande se repose, elle ne la dit qu'une fois.
   const avant = disjoncteursEnTodo.delete(projet.nom);
   poserLeRail(projet);
+  // La visite désigne un élément du rail qui vient d'être reposé.
+  poserLaVisite();
   if (disjoncteursEnTodo.has(projet.nom) !== avant && courant?.nom === projet.nom) poserAlertes(projet);
 }
 /** @param {Projet} projet */
@@ -4694,6 +4706,8 @@ function poserLeRail(projet) {
       const colonne = document.createElement("section");
       colonne.className = "colonne";
       colonne.dataset.ton = ton;
+      // La visite (ticket 3165) désigne une colonne par son nom, et une carte par son ticket.
+      colonne.dataset.colonne = nom;
       // Livré s'allonge tout le jour : ses cartes défilent dans leur hauteur, les autres colonnes restent en vue.
       if (defile) colonne.dataset.defile = "";
       if (nom === COLONNE_QUI_T_ATTEND) colonne.dataset.attend = "";
@@ -7271,7 +7285,7 @@ async function retrouverLesTerminaux() {
 function marquer() {
   retenirLEcran();
   const refuse = configuration.refus !== undefined;
-  const affichee = ajoute ? barre.children.length - 1 : courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
+  const affichee = ajoute ? [...barre.children].findIndex(({ id }) => id === "entree-ajout") : courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
   [...barre.children].forEach((entree, rang) => (entree.ariaCurrent = String(rang === affichee)));
   // La fiche d'un projet ne reste pas ouverte quand le chef en quitte l'espace.
   if (ouverte !== undefined && ouverte.projet.nom !== courant?.nom) fermerFiche();
@@ -7292,6 +7306,7 @@ function marquer() {
   principal.hidden = !refuse && courant === undefined;
   colonneSecond.hidden = courant === undefined;
   lireOnglet();
+  poserLaVisite();
 }
 
 // Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638) : l'écran se regarde, et
@@ -7561,6 +7576,53 @@ function poserLePremier() {
   if (ecranDuPremier === undefined || ecranDuPremier.parentElement !== tous || tous.hidden) return;
   ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
+  ajouterLaCuisineDeLaVisite();
+}
+
+// Le premier lancement, le compte GitHub lu (ticket 3165) : sans rien taper, benomite/brigade s'ajoute — par l'ouverture
+// que le premier écran fait d'un clic, sa copie dite sous la tête, son échec avec « Try again » — puis son espace s'ouvre
+// sur la visite. Une seule fois : la visite montrée laisse sa trace, et l'app ne l'ajoute plus.
+function ajouterLaCuisineDeLaVisite() {
+  const compte = compteDuParcours.etat.compte;
+  if (!avecPremier() || compte === undefined || !("login" in compte) || premier.ouverture !== undefined || visiteAOuvrir !== undefined || !visite.aDecouvrir()) return;
+  visiteAOuvrir = PROJET_DE_LA_VISITE;
+  void ouvrirDUneStation("", PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE);
+}
+
+// La bulle de l'étape, sur l'espace du projet visité ; ailleurs, rien. L'étape désigne ce que le rail montre à l'instant.
+function poserLaVisite() {
+  const enCours = visite.etat;
+  if (enCours === undefined || courant?.nom !== enCours.projet) {
+    marquerLaCible(undefined);
+    sectionVisite.hidden = true;
+    return sectionVisite.replaceChildren();
+  }
+  const tenu = tenus.get(enCours.projet);
+  const etapes = etapesDeLaVisite(tenu !== undefined && "tableau" in tenu ? tenu.tableau.rail.colonnes : undefined);
+  const etape = etapes[enCours.rang] ?? etapes[0];
+  marquerLaCible(etape === undefined ? undefined : trouverLaCible({ rail, second: colonneSecond }, etape.cible));
+  sectionVisite.replaceChildren(
+    poserVisite(document, { etapes, rang: enCours.rang }, {
+      suivante: () => visite.suivante(etapes.length),
+      passer: () => visite.fermer(),
+      // Le seul appel à agir de la dernière étape : l'ajout d'un projet, le même que « + ».
+      ajouter: () => {
+        visite.fermer();
+        ouvrirAjout();
+      },
+    }),
+  );
+  sectionVisite.hidden = false;
+}
+
+// Rejouée : sur benomite/brigade s'il est dans le fichier, sinon sur le projet ouvert, sinon sur le premier — sur Rail.
+function rejouerLaVisite() {
+  const projet = configuration.projets.find(({ depot }) => depot === DEPOT_DE_LA_VISITE) ?? courant ?? configuration.projets[0];
+  if (projet === undefined) return;
+  visite.commencer(projet.nom);
+  if (courant?.nom === projet.nom) return choisirOnglet(RAIL);
+  retenir(projet.nom, RAIL);
+  void ouvrir(projet);
 }
 
 async function relireLePremier() {
@@ -7836,6 +7898,11 @@ function gestesDuRailPublie(projet) {
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
+  // Le projet que le premier lancement a ajouté pour la visite (ticket 3165) : son espace s'ouvre sur elle.
+  if (visiteAOuvrir === projet.nom) {
+    visiteAOuvrir = undefined;
+    visite.commencer(projet.nom);
+  }
   enregistreesARelire = true;
   stationOuverte = undefined;
   pageDeLApp = undefined;
@@ -8251,6 +8318,13 @@ function afficher() {
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);
+  // Rejouer la visite (ticket 3165), sous « + » : finie ou passée, elle repart de sa première étape. Le téléphone n'a pas
+  // de visite ; sans projet, elle n'a rien à montrer.
+  if (telephone === undefined && configuration.projets.length > 0) {
+    const tour = icone("?", REJOUER, rejouerLaVisite);
+    tour.id = "entree-visite";
+    barre.append(tour);
+  }
   // La case du logo est neuve : ce que la dernière lecture des clones en dit y est reposé.
   poserCode();
 
