@@ -10,6 +10,7 @@
 // Le message tient sur une ligne : sous Windows, un `claude.cmd` ne reçoit
 // aucun argument sur plusieurs lignes (`sans-invite.ts`, `ligneDeCmd`).
 import { etatDuDepot, lireLeDepot, type LectureDuDepot, type Trouvaille } from "./lecture-depot.ts";
+import { messageDuPremierTicket } from "./premier-ticket.ts";
 
 // Ce à quoi chaque chose sert dans Brigade, en une ou deux phrases.
 export const SERT = {
@@ -41,6 +42,8 @@ export function messageDeMiseEnPlace(lecture: LectureDuDepot): string {
     proposition(lecture),
     "Tell the chef, in French, each item and what it is for in Brigade, in one or two sentences, so that the setup walks them through their own project. Say plainly which items could not be read, and why.",
     "Then ask them to confirm or correct each item found, and ask for each item not read; once they have answered, carry out the setup yourself with the app's `brigade:init` skill, with those values. If this conversation already started the setup, pick it up where it stands instead of starting over.",
+    // Le projet prêt, le premier ticket (#3170).
+    messageDuPremierTicket(),
   ].join(" ");
 }
 
