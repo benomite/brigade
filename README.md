@@ -20,7 +20,7 @@ Brigade works through everything it can do while you are away from your computer
 
 Brigade is open source (MIT) and free. The agents run on your own Claude subscription. Ready to try it? Jump to **[Try it](#try-it)**.
 
-You write a ticket and put the label `fire` on it. A **cook** (a `claude` session) takes it in its own git worktree, implements it and opens a pull request. The **pass** judges that pull request — gates, CI, an independent review — and merges it. You decide what matters; brigade does the cooking.
+You tell the **second** what to change, and it writes the ticket and puts it on the **rail**. A **cook** (a `claude` session) takes it in its own git worktree, implements it and opens a pull request. The **pass** judges that pull request — gates, CI, an independent review — and merges it. You decide what matters; brigade does the cooking.
 
 ![The brigade app: your stations, and the cooks working on them](docs/captures/1598/accueil-stations-apres.png)
 
@@ -37,7 +37,9 @@ You need two accounts:
 2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
 3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
 4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it, prepares it with a ticket of its own, and tells you when it is ready.
-5. **Cook a first ticket**: on GitHub, open an issue in that repository and put the label `fire` on it. A cook takes it, opens a pull request, and the pass judges it and merges it.
+5. **Cook a first ticket**: in the app, the second asks what you want to change first. It writes the issue, shows it to you, and when you say yes it goes on the rail. A cook takes it, opens a pull request, and the pass judges it and merges it.
+
+**Alternative, on GitHub**: open an issue in that repository and put the label `fire` on it. It goes on the rail the same way.
 
 No command to type, no file to edit. Every screen is described in **[docs/installation.md](docs/installation.md)**.
 
