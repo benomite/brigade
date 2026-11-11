@@ -131,16 +131,17 @@ function cree(doc, balise, texte) {
 // aucune sur une carte sans écran, et rien n'en tient la place. `brouillon` : ce que le chef a déjà
 // tapé ; `cle` marque le champ, pour qu'un rail redessiné lui rende le clavier. `second` : la demande
 // au second de ce ticket, partie de la carte ou de sa fiche — absente, rien n'est parti. Envoyée ou
-// jouée, elle ne pose plus ses choix ni son champ : la réponse rappelée, et où elle en est.
+// jouée, elle ne pose plus ses choix ni son champ : la réponse rappelée, et où elle en est. `lectureSeule` : le projet est
+// en lecture seule (ticket 3163) — la question se lit, ni choix ni champ ne la tranchent d'ici.
 /**
  * @param {Fabrique} doc
  * @param {number} ticket
  * @param {CarteDeTodo} carte
  * @param {Etat} etat
- * @param {{ captures: any[], brouillon: string, cle: string, second?: { envoi: true } | { parti: string } | { refus: string } }} posees
+ * @param {{ captures: any[], brouillon: string, cle: string, second?: { envoi: true } | { parti: string } | { refus: string }, lectureSeule?: boolean }} posees
  * @param {{ repondre: (reponse: Reponse) => void, ecrire: (texte: string) => void, demander: () => void, copier?: (texte: string) => Promise<unknown> | undefined }} gestes
  */
-export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon, cle, second }, gestes) {
+export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon, cle, second, lectureSeule = false }, gestes) {
   const vu = vuDeLaCarte(carte, etat);
   const enRoute = vu.vu === "envoi";
   const { question, resume } = carte;
@@ -229,7 +230,8 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     ou.className = "ou-en-est";
     ou.append(cree(doc, "span", vu.vu === "attente" ? EN_ATTENTE : JOUEE), survol(doc, vu.vu === "attente" ? EN_ATTENTE_DETAIL : vu.dit));
     racine.append(...tete, ...captures, rappel, ou, ...reste);
-  } else racine.append(...tete, ...captures, choix, ouvrir, phrase, ...reste);
+  } else if (lectureSeule) racine.append(...tete, ...captures, ...reste);
+  else racine.append(...tete, ...captures, choix, ouvrir, phrase, ...reste);
   if (enRoute) {
     const envoi = cree(doc, "span", EN_ROUTE);
     envoi.className = "en-route";

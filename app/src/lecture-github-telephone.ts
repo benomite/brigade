@@ -34,6 +34,7 @@ import { mettreAPart } from "./attend.ts";
 import { pourLaBarre, type Affichee } from "./barre.ts";
 import type { Projet } from "./config.ts";
 import { tenirFaits, type Dessinable } from "./faits.ts";
+import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirLesGestesGitHub } from "./gestes-github-telephone.ts";
 import type { EnvoiGitHub } from "./priorite.ts";
 import { FICHIER_PROJETS, lireDemande } from "./projets/demande.ts";
@@ -319,6 +320,9 @@ export function ouvrirLaLectureGitHub(options: Options) {
     regarder: (projet: string, demande: number) => regarderLes([projet], demande, projet),
     // « réessayer maintenant » : GitHub est relu tout de suite.
     relire: () => lire(),
+    // Un lien de la ligne d'un projet en lecture seule (ticket 3163) : la page, pour le seul dépôt que sa dernière lecture
+    // dit en lecture seule — rien sinon.
+    pageDeLaLectureSeule: (projet: unknown, page: unknown): string | undefined => (typeof projet === "string" ? pageDesFaits(derniers.get(projet)?.faits, page) : undefined),
     // L'onglet affiché n'a pas de lecture propre sur le téléphone : son contenu vient du rail lu.
     onglet: (_projet: string | undefined, _id: string | undefined, _demande: number) => undefined,
   };

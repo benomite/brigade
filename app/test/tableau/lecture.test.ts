@@ -188,6 +188,48 @@ test("un dépôt qui n'est pas `<owner>/<repo>` : un échec, et rien ne part ver
   assert.deepEqual(chemins, []);
 });
 
+// #3163 : un dépôt où le compte de l'app ne peut pas écrire s'ouvre en lecture seule — `facts` le dit, et le rail reste lu.
+const avecLeDepot = (depot: ReponseGitHub | Error): AppelGitHub => {
+  const { appeler } = github();
+  return async (chemin, entetes) => {
+    if (chemin !== `/repos/${DEPOT}`) return appeler(chemin, entetes);
+    if (depot instanceof Error) throw depot;
+    return depot;
+  };
+};
+
+test("un dépôt où le compte ne peut pas écrire (`permissions.push` faux) : `facts` porte `lectureSeule` avec le dépôt, et tout le reste se lit", async () => {
+  const lecture = lu(await lire(avecLeDepot(ok({ default_branch: "main", permissions: { admin: false, push: false, pull: true } }))));
+  assert.deepEqual(lecture.faits.lectureSeule, { depot: DEPOT });
+  assert.equal(lecture.lignesDuRail.length, 3);
+  assert.equal(lecture.avantLeRail?.issues.length, 6);
+});
+
+test("un dépôt où le compte écrit : rien de `lectureSeule` — et l'accès gagné rend la vue ordinaire à la lecture suivante", async () => {
+  assert.equal(lu(await lire(avecLeDepot(ok({ default_branch: "main", permissions: { push: true } })))).faits.lectureSeule, undefined);
+  // La même mémoire des lectures d'une lecture à l'autre, comme main.ts la tient : la permission est relue chaque fois.
+  const memoire = new Map();
+  let push = false;
+  const { appeler } = github();
+  const suivant: AppelGitHub = async (chemin, entetes) => (chemin === `/repos/${DEPOT}` ? { status: 200, data: { default_branch: "main", permissions: { push } }, etag: `"${push}"` } : appeler(chemin, entetes));
+  assert.deepEqual(lu(await lireLeTableauDuDepot({ depot: DEPOT, appeler: suivant, maintenant: () => LU_LE, memoire })).faits.lectureSeule, { depot: DEPOT });
+  push = true;
+  assert.equal(lu(await lireLeTableauDuDepot({ depot: DEPOT, appeler: suivant, maintenant: () => LU_LE, memoire })).faits.lectureSeule, undefined);
+});
+
+test("ce que GitHub ne dit pas de l'écriture ne décide rien : sans `permissions`, refusé ou injoignable, pas de `lectureSeule`, et le rail se lit", async () => {
+  for (const depot of [ok({ default_branch: "main" }), { status: 403, data: { message: "Forbidden" } }, new Error("socket hang up")]) {
+    // La base du rail se lit d'abord sur ce même chemin (un ticket est en pass) : seule la lecture de l'écriture échoue.
+    const { appeler } = github();
+    const avecLaBase = avecLeDepot(depot);
+    let lues = 0;
+    const lecture = lu(await lire(async (chemin, entetes) => (chemin === `/repos/${DEPOT}` && ++lues === 1 ? appeler(chemin, entetes) : avecLaBase(chemin, entetes))));
+    assert.equal(lues, 2, "la permission est demandée");
+    assert.equal(lecture.faits.lectureSeule, undefined, String(depot));
+    assert.equal(lecture.lignesDuRail.length, 3);
+  }
+});
+
 // Le graphe des imports d'un module qui restent à l'exécution — ceux de types seuls sont effacés —, de proche en
 // proche, en chemins relatifs à la racine du dépôt.
 const RACINE = resolve(import.meta.dirname, "..", "..", "..");
@@ -208,6 +250,7 @@ function graphe(entree: string): string[] {
 
 test("la lecture du rail ne joint ni box ni station : ses modules ne chargent que les états de GitHub du runtime, et la règle des stations vues de GitHub (#2358)", () => {
   assert.deepEqual(graphe("app/src/tableau/lecture.ts"), [
+    "app/src/tableau/ecriture.ts",
     "app/src/tableau/lecture.ts",
     "app/src/tableau/mise-de-cote-github.ts",
     "app/src/tableau/rail-github.ts",

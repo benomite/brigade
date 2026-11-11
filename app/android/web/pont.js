@@ -314,6 +314,18 @@ const connus = {
       return false;
     }
   },
+  // Les deux liens de la ligne d'un projet en lecture seule (ticket 3163) : la page que sa dernière lecture donne.
+  ouvrirLectureSeule: async (/** @type {string} */ projet, /** @type {string} */ page) => {
+    const ouverte = await laLectureGitHub().catch(() => undefined);
+    const url = ouverte?.pageDeLaLectureSeule(projet, page);
+    if (typeof url !== "string") return false;
+    try {
+      await natif("Pont", "ouvrir", { url });
+      return true;
+    } catch {
+      return false;
+    }
+  },
   choisirDossier: async () => undefined,
   ajouter: async () => ({ etat: "pas-ajoute", titre: (await connexionGardee()) === undefined ? `Nothing was added: ${AUCUNE_STATION}.` : "Nothing was added: a project is added from a computer, and this phone reads it from GitHub." }),
   faits: (/** @type {number} */ demande) => {

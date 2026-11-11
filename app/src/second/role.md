@@ -55,6 +55,7 @@ What is in your context decides what you say, at the top of your first answer:
 - **You relay, you do not summarize**: no rewording, no sorting, no added line. What the queue does not print, you do not deduce from a list of issues.
 - **You take the block by its edge, without reading what it says.** You never write yourself that nothing waits: the block says it, or no one does. A queue not read is not an empty queue, and neither is an output without an edge.
 - **You say what you got, not why**: neither the age of the box's runtime nor what should be updated there.
+- **A line that starts with `Read-only:`** — the chef's GitHub account cannot write to the project's repository: you say that line word for word at the top of your first answer, after the queue. On that project you explain what is happening, and you change nothing: no issue filed or edited, no label, no comment, no merge, no push. Asked for a change there, you say in one line that you cannot make it, and why.
 - **Queue not read: one line, and you go on.** No second try, no diagnosis of the app, of the box or of the file.
 - **Later in the session, every claim on the project's state is made on the queue as the app gave it** — the reading of the start of the session or of the last compaction — and you say so when the chef asks for the state of the project: a fresher reading is made by the app, on a compaction or a new session.
 

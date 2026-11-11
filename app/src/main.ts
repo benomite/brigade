@@ -39,6 +39,7 @@ import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { INTERVALLE_PAR_PROJET_MS, lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
+import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
@@ -458,6 +459,7 @@ const pluginApp = process.env.BRIGADE_CLAUDE_BIN
       marketplace: join(dirname(cheminConfiguration()), DOSSIER_DU_PLUGIN),
       commandes: emplacements.commandes,
       versionDeLApp: app.getVersion(),
+      lieux: { node: emplacements.node, runtime: emplacements.runtime },
       dire: (ligne) => console.error(ligne),
     });
 // Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et
@@ -1479,6 +1481,16 @@ ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse
 // une adresse https seulement, pour un projet que l'app connaît. Rend si elle a été ouverte.
 ipcMain.handle("ouvrirBilan", (_, nom: unknown, url: unknown) => {
   if (connu(nom) === undefined || typeof url !== "string" || !/^https:\/\/[^\s]+$/.test(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
+// Les deux liens de la ligne d'un projet en lecture seule (ticket 3163) : la page n'est ouverte que pour le dépôt que la
+// dernière lecture du projet dit en lecture seule (tableau/lecture.ts, `lectureSeule`).
+ipcMain.handle("ouvrirLectureSeule", (_, nom: unknown, page: unknown) => {
+  const url = connu(nom) === undefined ? undefined : pageDesFaits(tableaux.dernier(nom)?.faits, page);
+  if (url === undefined) return false;
   return shell.openExternal(url).then(
     () => true,
     () => false,

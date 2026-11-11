@@ -142,6 +142,8 @@ describe("le geste", { concurrency: 4 }, () => {
     const ecritures: string[] = [];
     const client: ClientGitHub = async (requete) => {
       if (requete.methode !== "GET") ecritures.push(requete.chemin);
+      // La branche d'intégration n'a pas encore de `CLAUDE.md` (#3170).
+      if (requete.chemin.includes("/contents/")) return { statut: 404, corps: { message: "Not Found" }, scopes: null };
       return requete.chemin.includes("?") ? { statut: 500, corps: { message: "Server Error" }, scopes: null } : { statut: 200, corps: {}, scopes: null };
     };
     await assert.rejects(runRepoSetup(depot(t, "# Projet\n"), client), { message: `GitHub did not let the labels be read on ${DEPOT} (HTTP 500: Server Error).` });

@@ -719,6 +719,38 @@ answer but a 304) in any hour, under the 1,000 the test allows.
 `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and `-apres.png` (one station cooking,
 one idle, one silent).*
 
+### A project you cannot write to opens read-only (#3163)
+
+Each reading of a project's rail also reads what this computer's GitHub account may do with its repository:
+`permissions.push` of `GET /repos/<owner>/<repo>`, the same path the rail reads for its base, so a reread is a 304 that
+costs nothing (`app/src/tableau/ecriture.ts`). When GitHub says `push: false`, `facts` carries `lectureSeule` with the
+repository, and the project opens read-only:
+
+- **Everything is seen**: the rail, its cards, Todo, the stations and the cooks, as for any project.
+- **No gesture is offered**, absent rather than greyed: no choice, field or `send` on a Todo card (its question is read),
+  no `Relaunch` or `Close as already done`, no WAITING gesture, no `Add a station`, no breaker `Resume`, no project
+  switch, no `stop the kitchen` or `resume the kitchen`, no `Set up for Brigade`. A ticket's sheet keeps only what opens
+  something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
+  to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
+  that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
+  its humans, its contributing stations, the duration caps and the closer — is not laid.
+- **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
+  <owner/repo>.`, with two links: `how to get write access` (GitHub's page on inviting a collaborator: the owner invites
+  you) and `fork it` (the repository's fork page on GitHub). The main process — on the phone, its bridge
+  (`app/android/web/pont.js`) — opens them only for the repository the latest reading says read-only
+  (`app/src/lecture-seule.ts`).
+- **The second** can still be talked to. Its opening reads the same permission, and when the account cannot write, its
+  context carries the same `Read-only:` line and what follows from it: it explains what is happening there and changes
+  nothing — no issue, label, comment, merge or push (`app/src/second/file.ts`, `app/src/second/role.md`).
+- **Write access gained**, the next reading no longer carries `lectureSeule`: the line goes and the gestures come back,
+  without reopening the project. When GitHub does not say (no `permissions` in its answer, a refusal, no answer), nothing
+  is decided in its place: the view stays the ordinary one, and the rail is still read.
+
+*Code: `app/src/tableau/ecriture.ts`, `app/src/tableau/lecture.ts`, `lectureSeule` in `app/src/faits.ts`,
+`app/src/vue/lecture-seule/lecture-seule.js`, `lectureSeuleDe` in `app/src/vue/vue.js`, `ouvrirLectureSeule` in
+`app/src/main.ts`. Tests: `app/test/lecture-seule.test.ts`, `app/test/tableau/lecture.test.ts`,
+`app/test/second/file.test.ts`.*
+
 ### The chef's TODO, read from GitHub (#2221, epic #2209)
 
 Todo is what awaits the chef, read from GitHub alone (#2460): no Kitchen board feeds it any more (#2061), every item is a
@@ -2370,7 +2402,9 @@ at the head of its TODO: one sentence saying what is missing (`Not set up for Br
 missing.`, the names on hover) and one recommended button, `Set up for Brigade` — the same single gesture as adding a
 project (`runRepoSetup`). While it runs the button waits and the notice says so; on failure the notice gives one
 sentence and `Try again`; once done it leaves on both views without a reload. The state is read once per project with
-`checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. Modules:
+`checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. The bindings section counts when
+the local copy's `CLAUDE.md` has it, or else the `CLAUDE.md` of the integration branch on GitHub: once the setup's PR is
+merged, the next reading says the project is set up, without pulling the copy (#3170). Modules:
 `app/src/vue/page-projet/depot-non-prepare.js`, `app/src/vue/todo/avis-todo.js`. Captures:
 `docs/captures/2628/`.
 
@@ -2389,13 +2423,22 @@ stations replace them.
   then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
   `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
   **a pull request you merge**. Your own checkout is never touched. Replayed once merged, it says `unchanged`.
+  The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
+  puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
+  card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
+  gives the session its last message: the pull request's address, why you are the one to merge it (it sets what
+  will judge every future delivery: the integration branch, the checks, the file zones), and that the project
+  shows as ready once it is merged. Replayed on the same pull request, it adds no second issue or card.
   A project's second whose `CLAUDE.md` has no bindings block starts the setup on its own, with nothing to type
   (#3167): its launch (`runtime/src/second-init/demarrage.ts`, from `planDuSecond`) gives it a first message with what
   it read in the repository — the integration branch (`origin`'s default branch), the checks (the `test`, `typecheck`
   and `lint` scripts, or the stack's test command) and the file zones (the workspaces, or the first-level folders) —
   each with what it is for in Brigade. What cannot be read is said so, with why, and left for the questions. Once you
   have answered, the second runs this `/brigade:init` itself; merge its PR — at your next message, the same session
-  takes its role again (#2689). It leaves the plugin once adding a project sets
+  takes its role again (#2689). The project is then ready, and the second offers to fire a first ticket (#3170,
+  `runtime/src/second-init/premier-ticket.ts`, carried by the same first message): it asks what you want done, drafts a
+  title and observable acceptance criteria with you, then creates it with `gh issue create` and the labels `product`,
+  `prio:1` and `fire` — a cook takes it from the rail, and you watch it in the board. It leaves the plugin once adding a project sets
   the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in

@@ -291,6 +291,21 @@ describe("ce que le téléphone envoie et lit de GitHub", () => {
 
   // La WebView n'a rien de Node : la lecture posée par la construction de l'APK, et tout ce qu'elle importe, se charge
   // dans un Node privé de `process` (packaging/android.ts, `poserLesModules`).
+  test("un dépôt où le compte ne peut pas écrire : le rail le dit en lecture seule, et ses deux liens s'ouvrent pour lui seul (#3163)", async () => {
+    const { envoyer } = github(MONDE, (chemin) => (chemin === "/repos/chef/parade" ? { status: 200, data: { owner: { login: "chef", type: "User" }, permissions: { push: false, pull: true } } } : undefined));
+    const { lecture, rail } = telephone({ envoyer });
+    await lecture.faits(1);
+    await lecture.regarder("parade", 2);
+    assert.deepEqual(tableauDe(rail("parade")).lectureSeule, { depot: "chef/parade" });
+    assert.equal(lecture.pageDeLaLectureSeule("parade", "fork"), "https://github.com/chef/parade/fork");
+    assert.match(lecture.pageDeLaLectureSeule("parade", "acces") ?? "", /^https:\/\/docs\.github\.com\//);
+    // `cantine` : GitHub n'y dit rien de l'écriture — ni ligne, ni lien.
+    await lecture.tous(3);
+    assert.equal(tableauDe(rail("cantine")).lectureSeule, undefined);
+    assert.equal(lecture.pageDeLaLectureSeule("cantine", "fork"), undefined);
+    assert.equal(lecture.pageDeLaLectureSeule("parade", "ailleurs"), undefined);
+  });
+
   test("la lecture posée se charge sans rien de Node, comme dans la WebView", (t) => {
     const www = mkdtempSync(join(tmpdir(), "lecture-github-telephone-"));
     t.after(() => rmSync(www, { recursive: true, force: true }));

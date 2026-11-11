@@ -1,6 +1,8 @@
 // Un dépôt est-il prêt pour brigade, et le geste unique qui l'y prépare (#2626).
 // Prêt veut dire deux choses : le `CLAUDE.md` du dépôt porte la section
-// `## Équipe multi-agents`, d'où les rôles lisent leurs bindings, et le dépôt
+// `## Équipe multi-agents`, d'où les rôles lisent leurs bindings — celui de la
+// copie locale, ou celui de la branche d'intégration sur GitHub, où la PR de la
+// mise en place l'a mergée (#3170) —, et le dépôt
 // a les labels dont les rôles se servent — `product`, `triage` et les `prio:`.
 //
 //   checkRepoSetup(repo)   → { ready, missingBindings, missingLabels }
@@ -23,6 +25,7 @@ import { Sortie, type Appel } from "../appel.ts";
 import { clientGh, type ClientGitHub, type ReponseGitHub } from "../proteger-branche.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { ETIQUETTES, planDesLabels, type EtiquetteLue } from "../etiquettes.ts";
+import { claudeMdDeLaBase } from "../second-init/premier-ticket.ts";
 
 // `dir` : le clone dont on lit et écrit le `CLAUDE.md`. `github` : `<owner>/<repo>`.
 // `branch` : la branche d'intégration que la section déclare, quand elle la crée.
@@ -75,7 +78,9 @@ async function labelPresent(client: ClientGitHub, depot: string, nom: string): P
 
 export async function checkRepoSetup(repo: Repo, client: ClientGitHub = ghDe(process.env)): Promise<RepoSetup> {
   const claudeMd = lireClaudeMd(repo);
-  const missingBindings = claudeMd === null || !SECTION.test(claudeMd);
+  // La mise en place livre la section par une PR (#3170) : une fois mergée, la branche d'intégration la porte avant la
+  // copie locale, que rien ne tire.
+  const missingBindings = (claudeMd === null || !SECTION.test(claudeMd)) && !SECTION.test((await claudeMdDeLaBase(client, { github: repo.github, branch: repo.branch })) ?? "");
   const missingLabels: string[] = [];
   for (const { name } of LABELS_DES_ROLES) if (!(await labelPresent(client, repo.github, name))) missingLabels.push(name);
   return { ready: !missingBindings && missingLabels.length === 0, missingBindings, missingLabels };

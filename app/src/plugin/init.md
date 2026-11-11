@@ -36,17 +36,17 @@ Un seul `AskUserQuestion`, **uniquement sur ce que tu n'as pas pu déduire** —
 ## 3. Écris — par le script, jamais à la main
 
 ```bash
-bash "@SCRIPT@" --test "<commande de test>" --install "<commande d'installation>" \
+"@NODE@" "@SETUP_PR@" "@SCRIPT@" --test "<commande de test>" --install "<commande d'installation>" \
   --base "<branche d'intégration>" --zones "<zones>" --dev-local "<comment lancer et tester en local>" --doc "<doc vivante, ou none>"
 ```
 
-Omets `--install` si le projet n'installe rien. Les valeurs sont en anglais (elles vont dans `CLAUDE.md`). La dernière ligne de sa sortie est `pr <url>` ou `unchanged`. Un code de sortie non nul : recopie son erreur, dis le geste qui la lève, et arrête-toi — ne refais pas son travail à la main.
+Omets `--install` si le projet n'installe rien. Les valeurs sont en anglais (elles vont dans `CLAUDE.md`). La commande joue le script, qui ouvre la pull request de setup, puis pose sa carte dans le TODO du chef, et rend sur sa sortie le message de fin. Un code de sortie non nul : recopie son erreur, dis le geste qui la lève, et arrête-toi — ne refais pas son travail à la main.
 
 ## 4. Résume
 
 - les labels posés ;
 - ce qui a été écrit, et ce qui était déjà là ;
-- **l'URL de la PR, à merger** : le projet n'est prêt qu'une fois qu'elle est sur la branche d'intégration. Une fois mergée, le second de l'onglet Second reprend son rôle dès le message suivant, sans rien taper ni invoquer.
+- **le message de fin que la commande a rendu, dit en français et sans rien en retirer** : l'URL de la PR ; que c'est à l'utilisateur de la merger, et pas à toi, parce qu'elle règle ce qui jugera chaque livraison à venir ; qu'elle l'attend en carte dans son TODO ; et qu'une fois mergée, le projet se montre prêt. Une fois mergée, le second de l'onglet Second reprend son rôle dès le message suivant, sans rien taper ni invoquer.
 
 Rien d'autre en fin de message : aucune commande de rôle à lancer, aucune offre de priorités, de modèle ni d'effort — ils sont au manager.
 

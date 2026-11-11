@@ -11,6 +11,7 @@
 // aucun argument sur plusieurs lignes (`sans-invite.ts`, `ligneDeCmd`).
 import { ACCEPTANCES, questionsInOrder, type UnsettledPoint } from "./questions.ts";
 import { etatDuDepot, lireLeDepot, type LectureDuDepot, type Trouvaille } from "./lecture-depot.ts";
+import { messageDuPremierTicket } from "./premier-ticket.ts";
 
 // Ce à quoi chaque chose sert dans Brigade, en une ou deux phrases.
 export const SERT = {
@@ -70,6 +71,8 @@ export function messageDeMiseEnPlace(lecture: LectureDuDepot): string {
     "Tell the chef, in French, each item and what it is for in Brigade, in one or two sentences, so that the setup walks them through their own project. Say plainly which items could not be read, and why.",
     questions(lecture),
     "If this conversation already started the setup, pick it up where it stands instead of starting over.",
+    // Le projet prêt, le premier ticket (#3170).
+    messageDuPremierTicket(),
   ].join(" ");
 }
 

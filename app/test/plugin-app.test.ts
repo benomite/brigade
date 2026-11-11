@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Projet } from "../src/config.ts";
-import { COMMANDES, ESPACE, PROPRES, SCRIPT_INIT, ID, lancerVraiment, MARKETPLACE, poserLeMarketplace, REGLAGES_LOCAUX, sansPluginApp, tenirLePluginApp, versionDuPlugin, type Lancer } from "../src/plugin-app.ts";
+import { COMMANDES, ESPACE, LIEUX_PAR_DEFAUT, PR_DE_SETUP, PROPRES, SCRIPT_INIT, ID, lancerVraiment, MARKETPLACE, poserLeMarketplace, REGLAGES_LOCAUX, sansPluginApp, tenirLePluginApp, versionDuPlugin, type Lancer } from "../src/plugin-app.ts";
 
 const COMMANDES_DU_DEPOT = join(import.meta.dirname, "..", "..", "commands");
 const CLAUDE = "claude-doublure";
@@ -108,7 +108,14 @@ test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiée
   // barres obliques — sous Windows aussi, où `bash` est celui de Git (#2608).
   const script = join(marketplace, "scripts", SCRIPT_INIT);
   assert.equal(readFileSync(script, "utf8"), readFileSync(join(PROPRES, SCRIPT_INIT), "utf8"));
-  assert.equal(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(PROPRES, "init.md"), "utf8").replaceAll("@SCRIPT@", script.replaceAll("\\", "/")));
+  // Il lance le script par la commande du runtime qui pose la carte de sa PR dans le TODO (#3169), avec le `node` donné.
+  const prDeSetup = join(LIEUX_PAR_DEFAUT.runtime, ...PR_DE_SETUP);
+  assert.ok(existsSync(prDeSetup), prDeSetup);
+  assert.equal(
+    readFileSync(join(marketplace, "commands", "init.md"), "utf8"),
+    readFileSync(join(PROPRES, "init.md"), "utf8").replaceAll("@SCRIPT@", script.replaceAll("\\", "/")).replaceAll("@SETUP_PR@", prDeSetup.replaceAll("\\", "/")).replaceAll("@NODE@", "node"),
+  );
+  assert.ok(readFileSync(join(marketplace, "commands", "init.md"), "utf8").includes(`"node" "${prDeSetup.replaceAll("\\", "/")}" "${script.replaceAll("\\", "/")}" --test`));
   assert.notEqual(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(COMMANDES_DU_DEPOT, "init.md"), "utf8"));
   const catalogue = JSON.parse(readFileSync(join(marketplace, ".claude-plugin", "marketplace.json"), "utf8"));
   assert.equal(catalogue.name, MARKETPLACE);
