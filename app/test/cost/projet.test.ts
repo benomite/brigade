@@ -1,7 +1,7 @@
 // Ce qu'un projet a coûté n'est plus sur sa page (#1699) : il était sous Settings → Reliability, à côté de la
 // fiabilité de ses cooks (#1022) — ses tokens perdus, ses tickets les plus chers. Quand la fiabilité est devenue une
 // section de l'onglet Cooks, il n'y a pas suivi : la page des coûts de l'app porte les mêmes blocs, chaque projet
-// nommé (cost/perdus.test.ts, cost/chers.test.ts), et un second chiffre de tokens perdus, compté autrement, aurait
+// nommé (cost/perdus.test.ts), et un second chiffre de tokens perdus, compté autrement, aurait
 // côtoyé celui de la fiabilité. Le projet n'a toujours pas d'onglet Cost. La vue est jouée telle qu'elle est
 // (aides/fausse-vue.ts).
 import assert from "node:assert/strict";

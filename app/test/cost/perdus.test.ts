@@ -1,6 +1,9 @@
 // Les tokens perdus de la page des coûts de l'app (vue/cost/perdus.js, #911, #1022) : le total des essais rouges et des
 // cooks interrompus que `station` liste, la liste derrière le chiffre, et « not communicated » quand la
-// box ne dit rien. Le module est lu seul, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts).
+// box ne dit rien. Les cinq tickets les plus chers de la même page (vue/cost/chers.js, #910, #1022) : triés du plus cher
+// au moins cher, coupés à cinq, chacun avec son numéro, son titre, ses tokens et ses essais, « not communicated » pour ce
+// que la box ne dit pas, et un clic qui ouvre sa fiche. Les modules sont lus seuls, puis la vue jouée telle qu'elle est
+// (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
@@ -12,6 +15,7 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
+import { COMBIEN, cooksDe, plusChers, poserChers } from "../../src/vue/cost/chers.js";
 import { INTERROMPU, perdus, perdusDe, poserPerdus, ROUGE } from "../../src/vue/cost/perdus.js";
 import { NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
@@ -23,6 +27,7 @@ const n = (chiffres: string) => chiffres.replaceAll(" ", " ");
 // Un cook de « derniers cooks », mot pour mot (runtime/src/montrer-station.ts) ; sans tokens, un cook qui n'a rien déclaré.
 const cook = (ticket: number, fin: string, tokens?: string) =>
   `  2026-10-13T09:48:02.000Z  #${ticket}  r-${ticket}  sonnet / medium  ${fin}  ${tokens === undefined ? "" : `31 tours · ${n(tokens)} tokens · 9,2 min  `}https://github.com/chef/p/pull/${ticket}`;
+const fini = (ticket: number, tokens?: string) => cook(ticket, "fini", tokens);
 const station = (...cooks: string[]) =>
   [
     "station               box/claude — moteur claude, fournit : claude",
@@ -123,6 +128,65 @@ describe("le bloc", () => {
   });
 });
 
+describe("ce que `station` dit de chaque cook", () => {
+  test("les cooks finis, leur ticket et leurs tokens — pas le cook en cours, ni le bloc suivant", () => {
+    assert.deepEqual(cooksDe(station(fini(30, "412 806"), fini(12), fini(30, "1 000"))), [
+      { ticket: 30, tokens: 412_806 },
+      { ticket: 12, tokens: null },
+      { ticket: 30, tokens: 1_000 },
+    ]);
+    assert.deepEqual(cooksDe("station  x"), []);
+  });
+});
+
+describe("les tickets les plus chers", () => {
+  test("du plus cher au moins cher, coupés à cinq — un ticket somme ses essais", () => {
+    const parade = station(fini(1, "100"), fini(2, "900"), fini(3, "300"), fini(4, "700"), fini(5, "500"), fini(6, "200"), fini(2, "50"));
+    const chers = plusChers([PARADE], new Map([["parade", lu("parade", parade)]]));
+    assert.equal(COMBIEN, 5);
+    assert.deepEqual(chers.map(({ ticket, tokens, essais }) => [ticket, tokens, essais]), [
+      [2, 950, 2],
+      [4, 700, 1],
+      [5, 500, 1],
+      [3, 300, 1],
+      [6, 200, 1],
+    ]);
+  });
+
+  test("tous projets confondus ; un coût que la box ne dit pas passe après les autres, et un cook muet rend la somme minimale", () => {
+    const lectures = new Map([
+      ["parade", lu("parade", station(fini(7), fini(8, "10")))],
+      ["cantine", lu("cantine", station(fini(9, "5"), fini(9)))],
+    ]);
+    const chers = plusChers([PARADE, CANTINE], lectures);
+    assert.deepEqual(chers.map(({ projet, ticket, tokens, minimum }) => [projet.nom, ticket, tokens, minimum]), [
+      ["parade", 8, 10, false],
+      ["cantine", 9, 5, true],
+      ["parade", 7, null, true],
+    ]);
+  });
+
+  test("une box injoignable ou sans cook ne donne aucun ticket", () => {
+    const lectures = new Map<string, any>([
+      ["parade", { projet: "parade", demande: 0, a: A, erreur: "spawn node ENOENT", atteinte: false, cas: null }],
+      ["cantine", lu("cantine", station())],
+    ]);
+    assert.deepEqual(plusChers([PARADE, CANTINE], lectures), []);
+  });
+
+  test("le bloc : une ligne par ticket, numéro, titre, tokens, essais ; « not communicated » pour ce qui manque ; un clic ouvre la fiche", () => {
+    const lectures = new Map([["parade", lu("parade", station(fini(30, "412 806"), fini(30, "1 000"), fini(12)))]]);
+    const ouverts: [string, number][] = [];
+    const bloc = poserChers(doc, [PARADE], lectures, (_projet, ticket) => (ticket === 30 ? "Le titre" : undefined), (projet, ticket) => ouverts.push([projet, ticket]));
+    const lignes = bloc.dessous("button");
+    assert.deepEqual(lignes.map((l: Faux) => l.dessous("span").map((s: Faux) => s.textContent).slice(1)), [
+      ["#30", "Le titre", "413,806", "2 attempts"],
+      ["#12", NON_COMMUNIQUE, NON_COMMUNIQUE, "1 attempt"],
+    ]);
+    lignes[0]?.click();
+    assert.deepEqual(ouverts, [["parade", 30]]);
+  });
+});
 describe("la page des coûts de l'app jouée (#1022)", () => {
   const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade" };
 
@@ -182,5 +246,21 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
     assert.deepEqual(vue.dernier("espace"), ["parade"]);
     assert.equal(vue.element("fiche").hidden, false);
     assert.ok(vue.element("fiche").dessous("span").some(({ textContent }) => textContent === "#7"));
+  });
+
+  test("cliquer une ligne ouvre son projet, puis la fiche de son ticket, par-dessus le rail", async () => {
+    const vue = await ouvrirLaPage();
+    const demande = vue.dernier("onglet")[2] as number;
+    vue.dire("surContenu", { ...lu("parade", station(fini(30, "412 806"), fini(12, "9"))), demande }, undefined);
+    await repos();
+    const lignes = vue.element("cout").dessous("button").filter(({ className }) => className.startsWith("ticket-cher"));
+    assert.equal(lignes.length, 2);
+    assert.equal(vue.element("fiche").hidden, true);
+    lignes[0]?.click();
+    await repos();
+    assert.deepEqual(vue.dernier("espace"), ["parade"]);
+    assert.equal(vue.element("espace").textContent, "parade");
+    assert.equal(vue.element("fiche").hidden, false);
+    assert.ok(vue.element("fiche").dessous("span").some(({ textContent }) => textContent === "#30"));
   });
 });
