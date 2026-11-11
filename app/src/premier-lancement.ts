@@ -4,8 +4,9 @@
 // (`runtime/src/appairage/stations-du-chef.ts`, #1428), la copie locale aussi
 // (`runtime/src/projets/copie-locale.ts`, #1429) — elle reprend une copie qui existe, ou clone le
 // dépôt dans le dossier que l'app gère, et dit où elle en est. Ce module fait le reste : la copie
-// ouverte, le projet entre dans le fichier des projets (config.ts), avec son dépôt et la branche
-// que son origine désigne, comme l'écran d'ajout l'y aurait écrit. La vue l'ouvre alors.
+// ouverte, le projet entre dans le fichier des projets (config.ts), avec son dépôt et sa branche
+// d'intégration : la branche par défaut que GitHub a donnée du dépôt, quand la vue la passe (l'écran
+// « Add a project », #3181), sinon celle que l'origine de la copie désigne. La vue l'ouvre alors.
 import type { Configuration, Declare } from "./config.ts";
 import type { CopieLocale, OptionsDOuverture, Progres } from "../../runtime/src/projets/copie-locale.ts";
 
@@ -19,7 +20,7 @@ export type Ouverture = CopieLocale | { state: "failed"; project: string; reposi
 export type OptionsDOuvrir = {
   // L'opération du runtime, chargée depuis son dossier (emplacements.ts).
   ouvrirLaCopie: (options: Pick<OptionsDOuverture, "repository" | "project" | "folder" | "progres">) => Promise<CopieLocale>;
-  // La branche d'intégration que l'origine de la copie désigne (ajout.ts, `lireClone`).
+  // La branche d'intégration que l'origine de la copie désigne (ajout.ts, `lireClone`), quand GitHub n'en a pas donné.
   lireLaBase: (dossier: string) => Promise<string | undefined>;
   configuration: () => Configuration;
   // Rend la raison, si le projet n'a pas été ajouté (suivi.ts).
@@ -30,12 +31,13 @@ export type OptionsDOuvrir = {
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.trim() !== "";
 
-// Ouvre un projet qu'une station porte. Un projet que le fichier a déjà, la copie reprend son
-// dossier ; sinon elle est faite, puis le projet y est ajouté. Ne lève pas : un échec est un état.
-export function ouvrirDUneStation(options: OptionsDOuvrir): (nom: unknown, depot: unknown) => Promise<Ouverture> {
+// Ouvre un projet qu'une station porte, ou un dépôt choisi dans « Add a project ». Un projet que le
+// fichier a déjà, la copie reprend son dossier ; sinon elle est faite, puis le projet y est ajouté.
+// `base` : la branche par défaut que GitHub a donnée du dépôt. Ne lève pas : un échec est un état.
+export function ouvrirDUneStation(options: OptionsDOuvrir): (nom: unknown, depot: unknown, base?: unknown) => Promise<Ouverture> {
   // Une ouverture à la fois : un clone en cours ne se double pas d'un second.
   let enCours: string | undefined;
-  return async (nom, depot) => {
+  return async (nom, depot, donnee) => {
     const project = texte(nom) ? nom.trim() : "";
     const repository = texte(depot) ? depot.trim() : "";
     if (project === "" || repository === "") {
@@ -49,7 +51,7 @@ export function ouvrirDUneStation(options: OptionsDOuvrir): (nom: unknown, depot
       const deja = options.configuration().projets.find((projet) => projet.nom === project);
       const copie = await options.ouvrirLaCopie({ repository, project, ...(deja === undefined ? {} : { folder: deja.dossier }), progres: (etape) => options.progres(repository, etape) });
       if (copie.state !== "open" || (deja !== undefined && deja.dossier === copie.folder)) return copie;
-      const base = await options.lireLaBase(copie.folder).catch(() => undefined);
+      const base = texte(donnee) ? donnee.trim() : await options.lireLaBase(copie.folder).catch(() => undefined);
       const refus = options.ajouter({ nom: copie.project, dossier: copie.folder, depot: copie.repository, ...(base === undefined ? {} : { base }) });
       if (refus === undefined) return copie;
       return { state: "failed", project, repository, cause: "not-added", reason: `${repository} is in ${copie.folder}, but the app could not add ${project} to its projects file.`, detail: refus };

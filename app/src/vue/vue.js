@@ -118,10 +118,11 @@ import { poserAge, poserEssais } from "./cadence.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
-import { poserPremierLancement } from "./premier-lancement.js";
+import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
-import { poserParcoursProjet } from "./parcours-projet/parcours.js";
+import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
+import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
@@ -313,7 +314,7 @@ const ajoutDeStation = tenirLAjoutDeStation({
   rendre: () => reposerLOngletStations(),
 });
 // La station de cet ordinateur sert un dépôt, par le geste de la case de Settings — puis la liste qu'il sert se relit.
-// « Add a station » et l'étape « station » du parcours d'ajout (ticket 2477) le font tous deux.
+// « Add a station » le fait.
 /** @param {string} depot @returns {Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis>} */
 async function servirIciLeDepot(depot) {
   const rendu = (await brigade.servirUnProjet?.(depot, true)) ?? { refus: NON_ATTEINT(`${CET_ORDINATEUR}'s station`) };
@@ -347,14 +348,6 @@ const signalement = tenirLeSignalement({ doc: document, pont: brigade, actif: ()
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const ajout = element("ajout");
-const parcoursDeLAjout = element("parcours-de-l-ajout");
-const formulaire = /** @type {HTMLFormElement} */ (element("formulaire"));
-const ou = element("ou");
-const choisi = element("choisi");
-const depot = /** @type {HTMLInputElement} */ (element("depot"));
-const base = /** @type {HTMLInputElement} */ (element("base"));
-const envoi = /** @type {HTMLButtonElement} */ (element("ajouter"));
-const issueAjout = element("issue-ajout");
 const relecture = element("relecture");
 // Posé dans le conteneur caché de ce qui était sous cette machine : le code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
 const code = document.createElement("div");
@@ -804,8 +797,6 @@ const fermes = new Set();
 /** @type {Projet | undefined} */
 let courant;
 let ajoute = false;
-// Le dossier choisi pour le projet à ajouter.
-let dossier = "";
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let demande = 0;
 // L'onglet de contenu dont la commande est lue, et sa demande. Indéfini : à relire.
@@ -7431,8 +7422,6 @@ async function lireLesEnregistrees() {
   if (lu !== undefined) etatDesEnregistrees.stations = lu;
   suivreLesAttendus();
   poserStationsDeLAccueil();
-  // L'étape « station » du parcours d'ajout les propose : un projet qui attend sa station les y voit arriver.
-  if (ajoute && ajoutDuParcours.depot !== undefined && ajoutDuParcours.station === undefined) poserLeParcoursDeLAjout();
   // La page d'un projet dit les stations du compte qui refusent de l'avoir (ticket 1790).
   if (courant !== undefined) {
     poserStationsDuProjet();
@@ -7519,7 +7508,7 @@ async function choisirPourUneEnregistree(id, depots) {
 
 // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.js) : tant que le fichier n'a aucun
 // projet, l'app s'ouvre sur les stations du chef et leurs projets, lus par le runtime, à la place de l'accueil —
-// « T » reste l'entrée affichée, et y ramène ; « + » mène à l'ajout par un dossier. Un projet s'ouvre d'un clic :
+// « T » reste l'entrée affichée, et y ramène ; « + » mène à l'écran « Add a project ». Un projet s'ouvre d'un clic :
 // sa copie se fait, chaque étape se dit sous sa station, puis il entre dans le fichier, et son espace s'ouvre. Une
 // connexion à GitHub qui manque se fait d'un bouton ; faite, les stations sont relues — et une ouverture qu'elle
 // retenait repart d'elle-même.
@@ -7531,59 +7520,23 @@ let lectureDuPremier = 0;
 // Le projet ouvert, que le fichier n'a peut-être pas encore rendu : son espace s'ouvre dès qu'il y est.
 /** @type {string | undefined} */
 let premierAOuvrir;
-// Le parcours d'ajout d'un projet (parcours-projet/, ticket 2475), monté par le premier lancement et par l'écran
-// d'ajout : le compte GitHub de cet ordinateur, lu une fois à l'ouverture de l'un ou l'autre, et relu au bout d'une
-// connexion — ou d'un changement de compte, qui en est une. Chaque lecture repose les deux.
+// Le compte GitHub de cet ordinateur (parcours-projet/compte.js, ticket 2475), que disent le premier lancement et l'écran
+// « Add a project » : lu une fois à l'ouverture de l'un ou l'autre, et relu au bout d'une connexion — ou d'un changement de
+// compte, qui en est une. Chaque lecture repose les deux.
 const compteDuParcours = tenirLeCompte({ pont: brigade, rendre: () => poserLePremier() });
-// Le projet que l'ajout vient d'écrire, en attente de la station qui le cuit (étape « station », ticket 2477) : son
-// dépôt, son nom dans le fichier, et la machine qui l'a reçu. Vide, aucun projet n'attend.
-/** @type {{ depot?: string, projet?: string, station?: string }} */
-let ajoutDuParcours = {};
-/** @returns {import("./parcours-projet/parcours.js").EtatDuParcours} */
-const etatDuParcours = () => ({ ...compteDuParcours.etat, ...(premier.connexion === undefined ? {} : { connexion: premier.connexion }), ...etatDeLaStationDuParcours() });
-// Ce que l'étape « station » lit : le dépôt ajouté, cet ordinateur — son nom à l'écran, l'id de sa station —, et les
-// stations du compte, telles que l'accueil les a lues : absentes, leur lecture est en route ; un pont qui ne les lit
-// pas (le téléphone) n'en a aucune.
-/** @returns {import("./parcours-projet/etape-station.js").EtatPourLaStation} */
-function etatDeLaStationDuParcours() {
-  const { depot, station } = ajoutDuParcours;
-  if (depot === undefined) return {};
-  /** @type {import("../stations-du-compte.ts").StationsDuCompte | undefined} */
-  const lues = brigade.stationsDuCompte === undefined ? { state: "listed", stations: [], unreadable: [] } : enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
-  const locale = projetsVus?.locale ?? undefined;
-  return {
-    depot,
-    ici: POSTE.nom,
-    ...(locale === undefined ? {} : { locale }),
-    ...(station === undefined ? {} : { station }),
-    ...(lues === undefined ? {} : { appairees: lues.state === "listed" ? lues.stations : { refus: [lues.reason, "detail" in lues ? lues.detail : undefined].filter(Boolean).join(" — ") } }),
-  };
-}
+/** @returns {import("./parcours-projet/compte.js").EtatDuCompte} */
+const etatDuParcours = () => ({ ...compteDuParcours.etat, ...(premier.connexion === undefined ? {} : { connexion: premier.connexion }) });
 /** @type {import("./premier-lancement.js").GestesDuPremier} */
 const gestesDuPremier = {
-  ouvrir: (station, projet, depot) => void ouvrirDUneStation(station, projet, depot),
+  ouvrir: (station, projet, depot, base) => void ouvrirDUneStation(station, projet, depot, base),
   seConnecter: () => void seConnecterAGitHub(),
   changerDeCompte: () => void seConnecterAGitHub(),
   relireLeCompte: () => void compteDuParcours.lire(),
-  // L'étape « station » : cet ordinateur sert le dépôt ajouté — s'il a une station —, ou une station appairée le reçoit
-  // dans sa sélection, par les gestes que l'app a déjà. Confié, le projet ajouté ouvre sa page, comme l'ajout le faisait.
-  ...(brigade.servirUnProjet === undefined ? {} : { servirIci: (depot) => servirIciLeDepot(depot) }),
-  choisir: (id, depots) => choisirPourUneEnregistree(id, depots),
-  stationChoisie: (nom) => {
-    // Confié, le parcours finit sur son récap (ticket 2478) : le projet, sa station et la suite — il n'ouvre plus la page du projet.
-    ajoutDuParcours.station = nom;
-    poserLePremier();
-  },
   relire: () => void relireLePremier(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
-  ajouterUnDossier: () => ouvrirAjout(),
-  // Le dossier tapé sur le premier écran : l'écran d'ajout s'ouvre dessus, son dépôt et sa branche lus dans son clone.
-  ouvrirUnDossier: (pris) => {
-    ouvrirAjout();
-    void prendreLeDossier(pris);
-  },
+  ajouterUnProjet: () => ouvrirAjout(),
 };
-// Le desktop porte le premier lancement ; un pont qui ne le porte pas garde l'ajout par un dossier.
+// Le desktop porte le premier lancement ; un pont qui ne le porte pas s'ouvre sur l'écran « Add a project ».
 const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
 
 function ouvrirPremier() {
@@ -7605,8 +7558,8 @@ function poserLePremier() {
   if (premier.connexion === undefined) delete etatDesEnregistrees.connexion;
   else etatDesEnregistrees.connexion = premier.connexion;
   poserStationsDeLAccueil();
-  // L'écran d'ajout porte le même parcours : le compte lu, la connexion en route s'y disent aussi.
-  if (ajoute) poserLeParcoursDeLAjout();
+  // L'écran « Add a project » dit aussi le compte, la connexion en route et le dépôt qui s'ouvre.
+  if (ajoute) poserLAjout();
   if (ecranDuPremier === undefined || ecranDuPremier.parentElement !== tous || tous.hidden) return;
   ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
@@ -7676,23 +7629,27 @@ async function relireLePremier() {
   poserLePremier();
 }
 
-/** @param {string} station @param {string} projet @param {string} depot */
-async function ouvrirDUneStation(station, projet, depot) {
-  premier.ouverture = { station, projet, depot };
+// `base` : la branche par défaut que GitHub a donnée du dépôt (l'écran « Add a project ») — à défaut, celle que l'origine
+// de sa copie désigne.
+/** @param {string} station @param {string} projet @param {string} depot @param {string} [base] */
+async function ouvrirDUneStation(station, projet, depot, base) {
+  premier.ouverture = { station, projet, depot, ...(base === undefined ? {} : { base }) };
   poserLePremier();
   /** @type {import("../premier-lancement.ts").Ouverture} */
   let issue;
   try {
-    issue = (await brigade.ouvrirDUneStation?.(projet, depot)) ?? { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app gave no answer.` };
+    issue = (await brigade.ouvrirDUneStation?.(projet, depot, ...(base === undefined ? [] : [base]))) ?? { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app gave no answer.` };
   } catch (erreur) {
     const detail = erreur instanceof Error ? erreur.message : String(erreur);
     issue = { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app failed while opening it.`, detail };
   }
   if (issue.state === "failed") {
-    premier.ouverture = { station, projet, depot, echec: issue };
+    premier.ouverture = { station, projet, depot, ...(base === undefined ? {} : { base }), echec: issue };
     return poserLePremier();
   }
   delete premier.ouverture;
+  // Cloné à l'instant : où, en une ligne — la page du projet s'ouvre dessous.
+  if ("cloned" in issue && issue.cloned) poserAvis({ titre: CLONE_DANS(issue.folder), lignes: [] });
   // Ajouté, il est déjà arrivé par `surConfiguration` — sinon, son espace s'ouvre dès qu'il y arrive.
   const ouvert = projetDe(issue.project);
   if (ouvert !== undefined) return void ouvrir(ouvert);
@@ -7724,7 +7681,9 @@ function connecteAGitHub() {
   const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
   void relireLePremier();
   if (!enregistreesAbsentes) void lireLesEnregistrees();
-  if (retenue !== undefined) void ouvrirDUneStation(retenue.station, retenue.projet, retenue.depot);
+  // Les dépôts de l'écran « Add a project » se lisent du compte qui vient de se connecter.
+  if (ajoute) void lireLesDepotsDeLAjout();
+  if (retenue !== undefined) void ouvrirDUneStation(retenue.station, retenue.projet, retenue.depot, retenue.base);
 }
 
 brigade.surOuverture?.((depot, etape) => {
@@ -7801,91 +7760,96 @@ function proposer(liste, choix, aucun) {
   liste.value = choix.includes(garde) ? garde : "";
 }
 
-// Ce qu'un champ a de refusé, dit sous lui — ou rien.
-/** @param {string} champ @param {string} [raison] */
-function signaler(champ, raison = "") {
-  element(`refus-${champ}`).textContent = raison;
-  element(champ).ariaInvalid = String(raison !== "");
-}
+// L'écran « Add a project » (ticket 3181, parcours-projet/ajout.js) : il ne fait que choisir le dépôt. Ses dépôts se
+// relisent à chaque ouverture — les derniers poussés d'abord —, la recherche et le collage restent d'un passage à l'autre.
+// Un dépôt choisi s'ouvre comme un projet du premier lancement : sa copie reprise ou clonée, il entre dans la colonne de
+// gauche, et sa page s'ouvre (`ouvrirDUneStation`).
+/** @type {import("./parcours-projet/ajout.js").EtatDeLAjout} */
+const etatDeLAjout = { saisie: { recherche: "", colle: "" } };
+let lectureDesDepotsDeLAjout = 0;
+/** @type {import("./parcours-projet/ajout.js").GestesDeLAjout} */
+const gestesDeLAjout = {
+  ...gestesDuPremier,
+  choisir: (choisi) => choisirLeDepot(choisi),
+  coller: (texte) => void collerUnDepot(texte),
+  relire: () => void lireLesDepotsDeLAjout(),
+};
 
-// Ajouter un projet à l'app sans écrire de JSON : son dossier se choisit, son dépôt et sa branche
-// en viennent. Le formulaire ne demande aucune station : ajouté, le parcours au-dessus demande qui le
-// cuit (ticket 2477). Ce qui a été saisi reste, d'un passage à l'autre.
 function ouvrirAjout() {
-  // Le récap d'un projet déjà confié ne reste pas sur l'écran d'un nouvel ajout.
-  if (ajoutDuParcours.station !== undefined) ajoutDuParcours = {};
+  // Reposé sur lui-même — le fichier des projets a changé pendant qu'il est montré —, il ne relit pas les dépôts.
+  const dejaLa = ajoute;
   courant = undefined;
   ajoute = true;
   stationOuverte = undefined;
   pageDeLApp = undefined;
+  delete etatDeLAjout.refus;
+  // Une ouverture ratée, laissée là, ne reste pas sur un nouvel ajout ; celle qui court, si.
+  if (premier.ouverture?.echec !== undefined) delete premier.ouverture;
   marquer();
-  poserLeParcoursDeLAjout();
+  poserLAjout();
+  // Le téléphone n'ajoute aucun projet : il ne lit ni compte ni dépôts.
+  if (telephone !== undefined) return;
   compteDuParcours.lireUneFois();
-  ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
-  choisi.textContent = dossier === "" ? "no folder chosen" : dossier;
+  if (!dejaLa) void lireLesDepotsDeLAjout();
 }
 
-// Le parcours d'ajout, en tête de l'écran d'ajout : le même que le premier lancement, sans sa phrase d'accueil. Sous
-// lui, pour l'heure, l'ajout par un dossier.
-function poserLeParcoursDeLAjout() {
-  parcoursDeLAjout.replaceChildren(poserParcoursProjet(document, etatDuParcours(), gestesDuPremier));
+function poserLAjout() {
+  ajout.replaceChildren(poserLEcranDAjout(document, { ...etatDeLAjout, ...etatDuParcours(), ...(telephone === undefined ? {} : { telephone: true }), ...(premier.ouverture === undefined ? {} : { ouverture: premier.ouverture }) }, gestesDeLAjout));
 }
 
-// Ce que le clone a proposé pour un champ : le chef qui l'a changé garde ce qu'il a écrit.
-/** @type {{ depot: string, base: string }} */
-const lusDuClone = { depot: "", base: "" };
-element("dossier").addEventListener("click", async () => {
-  const pris = await brigade.choisirDossier();
-  if (pris !== undefined) await prendreLeDossier(pris);
-});
-/** @param {string} pris */
-async function prendreLeDossier(pris) {
-  dossier = pris;
-  choisi.textContent = pris;
-  signaler("dossier");
-  // Son dépôt et sa branche, lus dans son clone — tant que le chef n'en a pas écrit d'autres.
-  const lu = await brigade.lireClone(pris);
-  if (lu === undefined || dossier !== pris) return;
-  for (const [champ, saisi] of /** @type {const} */ ([["depot", depot], ["base", base]])) {
-    if (saisi.value !== "" && saisi.value !== lusDuClone[champ]) continue;
-    lusDuClone[champ] = lu[champ] ?? "";
-    saisi.value = lusDuClone[champ];
-    signaler(champ, lu.raisons[champ] ?? "");
+// Les dépôts du compte, lus sur GitHub : la dernière lecture demandée l'emporte ; ratée, l'écran le dit et offre de relire.
+async function lireLesDepotsDeLAjout() {
+  const demandee = ++lectureDesDepotsDeLAjout;
+  delete etatDeLAjout.depots;
+  if (ajoute) poserLAjout();
+  /** @type {NonNullable<import("./parcours-projet/ajout.js").EtatDeLAjout["depots"]>} */
+  let lus;
+  try {
+    lus = (await brigade.depotsDuChef()) ?? { refus: "the app gave no answer" };
+  } catch (erreur) {
+    lus = { refus: erreur instanceof Error ? erreur.message : String(erreur) };
   }
+  if (demandee !== lectureDesDepotsDeLAjout) return;
+  etatDeLAjout.depots = lus;
+  if (ajoute) poserLAjout();
 }
 
-// Ce qu'il est advenu de l'ajout, sous le formulaire.
-/** @param {import("../ajout.ts").Issue | { etat: "en-cours", titre: string }} issue */
-function poserIssue(issue) {
-  issueAjout.dataset.etat = issue.etat;
-  if (issue.etat === "champs") return issueAjout.replaceChildren(bloc("strong", "Nothing was written: what is missing is flagged under its field."));
-  if (issue.etat === "ajoute") return issueAjout.replaceChildren();
-  issueAjout.replaceChildren(bloc("strong", issue.titre));
+// Un dépôt choisi : le projet porte son nom, en minuscules, comme au premier lancement, et sa branche d'intégration est
+// celle que GitHub donne.
+/** @param {{ depot: string, base: string }} choisi */
+function choisirLeDepot(choisi) {
+  delete etatDeLAjout.refus;
+  const lu = lireLeProjet("", choisi.depot);
+  if ("refus" in lu) {
+    etatDeLAjout.refus = lu.refus;
+    return poserLAjout();
+  }
+  void ouvrirDUneStation("", lu.nom, lu.depot, choisi.base);
 }
 
-formulaire.addEventListener("submit", async (soumission) => {
-  soumission.preventDefault();
-  const saisie = { dossier, depot: depot.value, base: base.value };
-  envoi.disabled = true;
-  const issue = await brigade.ajouter(saisie).finally(() => (envoi.disabled = false));
-  for (const champ of /** @type {const} */ (["dossier", "depot", "base"])) signaler(champ, issue.etat === "champs" ? issue.champs[champ] : "");
-  poserIssue(issue);
-  if (issue.etat !== "ajoute") return;
-  // Ajouté : la liste est déjà arrivée par `surConfiguration`. Le parcours demande qui le cuit, sans quitter l'écran
-  // (étape « station », ticket 2477) ; les stations du compte se relisent pour s'y proposer.
-  vider();
-  ajoutDuParcours = { depot: projetDe(issue.nom)?.depot ?? saisie.depot, projet: issue.nom };
-  poserLeParcoursDeLAjout();
-  void lireLesEnregistrees();
-});
-
-// L'écran d'ajout, rendu vide : ce qui vient d'être ajouté n'y reste pas.
-function vider() {
-  formulaire.reset();
-  depot.value = base.value = "";
-  dossier = "";
-  lusDuClone.depot = lusDuClone.base = "";
-  choisi.textContent = "no folder chosen";
+// Un dépôt collé — lien GitHub ou `owner/name`, public et pas au chef compris — : lu sur GitHub, puis ouvert ; ce qui
+// n'en est pas un, ou que GitHub ne rend pas, se dit sous le champ.
+/** @param {string} texte */
+async function collerUnDepot(texte) {
+  const nom = depotCollePar(texte);
+  delete etatDeLAjout.refus;
+  if (nom === null) {
+    etatDeLAjout.refus = PAS_UN_DEPOT;
+    return poserLAjout();
+  }
+  /** @type {{ depot: string, base: string } | { refus: string }} */
+  let resolu;
+  try {
+    resolu = (await brigade.lireUnDepot(nom)) ?? { refus: `${nom} could not be read on GitHub: the app gave no answer.` };
+  } catch (erreur) {
+    resolu = { refus: `${nom} could not be read on GitHub: ${erreur instanceof Error ? erreur.message : String(erreur)}.` };
+  }
+  if ("refus" in resolu) {
+    etatDeLAjout.refus = resolu.refus;
+    return poserLAjout();
+  }
+  etatDeLAjout.saisie.colle = "";
+  choisirLeDepot(resolu);
 }
 
 // Le rail qu'une station publie sur GitHub pour un projet qu'aucune station connue ne sert ici (ticket 1435,

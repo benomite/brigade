@@ -153,9 +153,7 @@ The app reads each form in both languages, whole; a line mixing the two in one f
 |---|---|
 | `Tous les projets` | `All projects` |
 | `Ajouter un projet` | `Add a project` |
-| `Son dossier sur ce poste` | `Its folder on this workstation` |
 | `Son dépôt GitHub` / `Sa branche d'intégration` | `Its GitHub repository` / `Its integration branch` |
-| `Choisir…` | `Choose…` |
 | `Sur le rail` | `On the rail` |
 | `Au travail` | `Taken` |
 | `Pass` | `Pass` |

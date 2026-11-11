@@ -51,7 +51,7 @@ import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesE
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
-import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
+import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
@@ -693,19 +693,6 @@ function projet(nom: unknown): Projet {
 }
 
 ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
-// Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
-// décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
-ipcMain.handle("choisirDossier", async () => {
-  if (fenetre === undefined) return undefined;
-  const { filePaths } = await dialog.showOpenDialog(fenetre, { title: "The project folder", properties: ["openDirectory", "createDirectory"] });
-  return filePaths[0];
-});
-// Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone par le `git`
-// du poste (ajout.ts) — ou pourquoi ils restent à écrire. Rien ne part ailleurs.
-ipcMain.handle("lireClone", (_, dossier: unknown) => (typeof dossier === "string" && dossier !== "" ? lireClone("git", dossier) : undefined));
-// L'ajout : les champs, puis le fichier des projets (ajout.ts). Aucune station n'est choisie, aucune
-// machine n'est jointe : le projet a son onglet, et sa cuisine se confie depuis sa page.
-ipcMain.handle("ajouter", (_, saisie: unknown) => ajouterALApp(saisie, suivi.ajouter));
 // Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
 // de la palette, par son nom, ou une couleur libre `#rrggbb` (couleurs.ts). Écrite, elle arrive par
 // `surConfiguration`, avec ce qu'elle a de trop proche. Rend la raison, si elle ne l'a pas été.
@@ -1225,8 +1212,8 @@ const preparation = preparationDuDepot({
 });
 ipcMain.handle("checkRepoSetup", (_, depot: unknown) => preparation.verifier(depot));
 ipcMain.handle("runRepoSetup", (_, depot: unknown) => preparation.installer(depot));
-ipcMain.handle("ouvrirDUneStation", async (_, nom: unknown, depot: unknown) => {
-  const ouverture = await ouvrirUnProjetDUneStation(nom, depot);
+ipcMain.handle("ouvrirDUneStation", async (_, nom: unknown, depot: unknown, base: unknown) => {
+  const ouverture = await ouvrirUnProjetDUneStation(nom, depot, base);
   return ouverture.state === "failed" && "link" in ouverture ? retenirLaPage(ouverture) : ouverture;
 });
 const connexionGitHub = tenirConnexionGitHub({
@@ -1241,7 +1228,7 @@ const connexionGitHub = tenirConnexionGitHub({
     dire("connexionGitHub", fin);
   },
 });
-// Le compte GitHub que le `gh` de cet ordinateur tient, pour l'étape du compte du parcours d'ajout (#2475,
+// Le compte GitHub que le `gh` de cet ordinateur tient, pour le premier lancement et « Add a project » (#2475, #3181,
 // connexion-github.ts) — relu par la vue au bout d'une connexion, et donc d'un changement de compte.
 ipcMain.handle("compteGitHub", async () => {
   const { echecDeGh } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
