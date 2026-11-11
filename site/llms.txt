@@ -7,6 +7,7 @@ It needs a GitHub repository and a Claude subscription. It is MIT licensed and c
 - [Home](https://benomite.github.io/brigade/): what Brigade does and how it works
 - [Pricing](https://benomite.github.io/brigade/tarifs.html): what is paid, and to whom
 - [FAQ](https://benomite.github.io/brigade/faq.html): what it is, who it is for, what it costs and needs, how it differs from alternatives
+- [Brigade compared](https://benomite.github.io/brigade/compared.html): how it differs from Orchestrator and Paradev, and its limits
 - [Install steps](https://benomite.github.io/brigade/#install): install Brigade and cook a first ticket
 - [README](https://github.com/benomite/brigade/blob/main/README.md): overview in the repository
 - [Documentation](https://github.com/benomite/brigade/blob/main/docs/index.md): the full docs
