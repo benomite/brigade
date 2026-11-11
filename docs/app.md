@@ -2250,7 +2250,7 @@ hook's 45 s, so that `claude` never kills it silent) is said in that context, in
 the hook still exits 0: it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
 **The role is given again once `/brigade:init` is merged (#2689).** A second opened on a project not set up yet has no
-bindings in its context: its role stops at "type `/brigade:init`, then merge the PR". So the launch settings also carry
+bindings in its context: it starts the setup, which ends with a PR to merge (#3167, below). So the launch settings also carry
 `app/src/second/role-apres-init.ts` twice. At each start (`SessionStart`), it notes whether the folder's `CLAUDE.md` has the
 `## Équipe multi-agents` section — what `claude` just loaded — in a file of the computer's temporary folder, per session.
 At each of your messages (`UserPromptSubmit`), for a session born without the section only, it reads `CLAUDE.md` on the
@@ -2350,9 +2350,13 @@ stations replace them.
   then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
   `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
   **a pull request you merge**. Your own checkout is never touched. Replayed once merged, it says `unchanged`.
-  A project's second whose `CLAUDE.md` has no bindings block says so in its first message, with this one
-  gesture: type `/brigade:init` in its tab, then merge the PR — at your next message, the same session takes its role
-  again (#2689). It leaves the plugin once adding a project sets
+  A project's second whose `CLAUDE.md` has no bindings block starts the setup on its own, with nothing to type
+  (#3167): its launch (`runtime/src/second-init/demarrage.ts`, from `planDuSecond`) gives it a first message with what
+  it read in the repository — the integration branch (`origin`'s default branch), the checks (the `test`, `typecheck`
+  and `lint` scripts, or the stack's test command) and the file zones (the workspaces, or the first-level folders) —
+  each with what it is for in Brigade. What cannot be read is said so, with why, and left for the questions. Once you
+  have answered, the second runs this `/brigade:init` itself; merge its PR — at your next message, the same session
+  takes its role again (#2689). It leaves the plugin once adding a project sets
   the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
