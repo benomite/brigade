@@ -53,6 +53,7 @@ import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
+import { lireLAutonomieDuDepot, tenirLAutonomie } from "./vue/autonomie/autonomie-github.ts";
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
@@ -906,6 +907,27 @@ ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
   const lue = await discussionDeGitHub(reglagesGh(), await depotDuProjet(vise), ticket);
   if (!("sans" in lue)) liensLus.set(`${vise.nom}#${String(ticket)}`, lue.liens);
   return lue;
+});
+// Les chiffres d'autonomie d'un projet, ou de tous ceux que la vue nomme (vue/autonomie/autonomie-github.ts, #3222) : lus
+// de GitHub par le jeton du `gh` de ce poste, sous le même budget et les mêmes lectures conditionnelles que le rail, chaque
+// dépôt gardé dix minutes. Un clic de la vue n'ouvre que l'adresse d'un ticket qu'une de ces lectures a rendue.
+const autonomie = tenirLAutonomie({
+  lire: (depot) => lireLAutonomieDuDepot({ depot, appeler: lectureConditionnelle(appelerSousBudget, memoireDuRail(depot)), maintenant: new Date() }),
+  fraicheurMs: 10 * 60_000,
+});
+const liensDAutonomie = new Set<string>();
+ipcMain.handle("lireAutonomie", async (_, noms: unknown, jours: unknown) => {
+  const vises = (Array.isArray(noms) ? noms : []).flatMap((nom) => connu(nom) ?? []);
+  const lue = await autonomie.chiffres(await Promise.all(vises.map(async (projet) => ({ nom: projet.nom, depot: await depotDuProjet(projet) }))), Number(jours));
+  if ("chiffres" in lue) for (const { url } of lue.chiffres.avecHumain) liensDAutonomie.add(url);
+  return lue;
+});
+ipcMain.handle("ouvrirTicketDAutonomie", (_, url: unknown) => {
+  if (typeof url !== "string" || !liensDAutonomie.has(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
 });
 ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) => {
   const vise = connu(nom);

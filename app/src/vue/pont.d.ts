@@ -123,6 +123,10 @@ export type Pont = {
   gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
+  // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
+  // (vue/autonomie/autonomie-github.ts) ; puis l'issue d'un ticket qu'ils nomment, ouverte dans le navigateur.
+  lireAutonomie(projets: string[], jours: number): Promise<import("./autonomie/autonomie-github.ts").LectureDAutonomie>;
+  ouvrirTicketDAutonomie(url: string): Promise<boolean>;
   // L'issue d'un ticket et sa discussion (discussion.ts), lues sur la box du projet à l'ouverture de
   // sa fiche : le corps, puis les commentaires dans l'ordre, le markdown rendu — ou pourquoi on n'en
   // lit rien. Rien, pour un projet qui a quitté le fichier.
