@@ -525,6 +525,34 @@ project reopened after a restart opens on its rail, with the notice of #2628 if 
 `app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`, `ecrireLePremierTicket`). Tests:
 `app/test/parcours-premier-projet/`. Captures: `docs/captures/3166/`.*
 
+### Your first ticket, told step by step as it really happens (#3302)
+
+Rather than a tutorial, the first ticket of the chef's first project is told above its rail, one short line at each
+real step, as the readings of the rail show it: the kitchen word first, then what it means.
+
+| Word | What the line says | When |
+|---|---|---|
+| `Taken` | a cook took the ticket: a claude session that works in its own copy of the repository (a worktree) | a reading shows it taken (or already in pass) |
+| `Pull request` | the cook handed over its work as a pull request, with `open pull request #N` | the reading carries its open pull request |
+| `In pass` | the pass is checking it: the gates, the CI, and a review by another session | a reading shows it in pass |
+| `Sent back` | the pass sent the work back to a cook, and why — the station's reason, word for word | the issue carries a send-back (`brigade:renvoi`) of a higher rank than the last one told |
+| `Taken again` | a cook took it again, to fix what the pass said | taken, right after a send-back |
+| `Served` | the pass merged the pull request, with `open pull request #N` | the ticket is among the served ones, with its merged pull request |
+
+**Which project, which ticket.** The chef's first project is the first one **Add a project** adds while the projects
+file has no other project than the tour's demo kitchen (`benomite/brigade`); a chef who already had one is told nothing.
+Its first ticket is the first one a reading shows taken or in pass. A step that passed between two readings is not
+made up — except a send-back, whose comment stays on the issue with its rank and reason. The send-back is read from the
+comments the rail reading already fetches for a taken or in-pass ticket (`app/src/vue/rail/renvoi.ts`): no extra call.
+
+**Dismissed for good.** The story is kept in the view's storage (`brigade.premier-ticket`), across restarts, and stays
+after the ticket is served until `dismiss`; dismissed, it never comes back. A stored trace the app cannot read decides
+nothing: nothing is told, and nothing is written over it.
+
+*Code: `app/src/vue/premier-ticket/`, `etapesDesTickets` in `app/src/faits.ts`, its wiring in `app/src/vue/vue.js`
+(`suivreLeParcours`, `poserLePremierTicket`). Tests: `app/test/premier-ticket/`, `app/test/vue/rail/renvoi.test.ts`.
+Captures: `docs/captures/3302/`.*
+
 ### The age of the rail is always on screen (#2054)
 
 The Rail tab reads the project's GitHub repository at most once a minute (#3007), with no gesture. At the end of the band at the top
