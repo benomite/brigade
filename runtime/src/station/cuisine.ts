@@ -38,6 +38,7 @@ import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { brancherRapportHebdo } from "../rapport-hebdo-qualite.ts";
 import { brancherRecurrents } from "../recurrents/planificateur.ts";
+import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
@@ -300,6 +301,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Les tickets récurrents du projet : à leur date, une issue avec `fire`, sous l'identité du manager (#3230).
     brancherRecurrents(ouverte, { repertoireEtat, github: githubs.manager, avertir: dire });
+    // Le résumé hebdomadaire de ce que la cuisine a servi, au jour de `weeklySummaryDay`, mentionne le chef sur GitHub (#3261).
+    brancherResumeHebdomadaire(ouverte, { projet, depot: rail.depot, repertoireEtat, github: githubs.station, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();

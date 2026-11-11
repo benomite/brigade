@@ -654,3 +654,27 @@ npm --prefix runtime run report   # read-only; exits 0 (an empty day too), 1 if 
 
 The data, for the app and the chef's channel, is `rapportDuJour(base, now)` in
 `runtime/src/autonomie/rapport/rapport.ts`: `{ from, to, vide, groups: [{ row, title, entries: [{ seq, at, ticket, decision, summary, link }] }] }`.
+
+## The weekly kitchen summary (#3261)
+
+Once a week, on the day the project's `weeklySummaryDay` names (`monday` to `sunday`, Monday when unset; UTC days),
+each project's kitchen writes what it served over the seven days before, for a product owner
+(`runtime/src/resume-hebdomadaire/`). The served tickets are the issues closed that week by a merged pull request, read
+from GitHub; each becomes one line — its title without commit prefix, file path, commit hash or pull request wording,
+led by "Fixed:" for a fix (a `bug` label or a title starting with fix) — under a theme: the epic the ticket names
+(`Epic: #N`), else "Improvements" or "Fixes". The rewriting is a rule, not a model. Then, when tickets were counted, the
+week's autonomy figures (#3222: served without a human, median lead time, sent back at least once), and last what waits
+for the chef — the cards of their queue, the same ones the chef's mention reads (#2746).
+
+The record — `{ project, weekStart, weekEnd, themes: [{ title, lines: [{ text, ticketNumber, ticketUrl }] }], autonomy?,
+waiting: [{ text, ticketNumber, ticketUrl }], markdown }` — is kept in `<BRIGADE_STATE_DIR>/resume-hebdomadaire/<weekStart>.json`.
+The chef is notified through the TODO cards' channel: a GitHub @-mention, which GitHub Mobile notifies. The summary has
+no ticket to carry it, so an issue does — titled `Weekly kitchen summary — <project>, <weekStart> to <weekEnd>`, the
+summary as its body —, closed at once so the kitchen never takes it for a ticket. A GitHub read that fails writes
+nothing and is retried ten minutes later the same day; a summary written but not notified (no chef resolved, a refused
+write) is only renotified; a summary file that does not read is left as is. Each case is said on the service log.
+
+```sh
+npm --prefix runtime run report -- --week 2026-11-02   # the stored summary of the week starting that day, as JSON; exits 1 if there is none
+```
+
