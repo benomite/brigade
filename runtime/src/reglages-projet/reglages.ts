@@ -122,6 +122,10 @@ export type ReglagesProjet = SeuilsDuProjet & {
   chef?: string;
   // Les humains du projet et leurs rôles (#2759, `humains/humains.ts`).
   humans?: Humain[];
+  // Un humain valide les designs et les visuels (#3184) : une livraison design
+  // verte attend sa carte « Validate its screen » au lieu d'être mergée par la
+  // pass (`validation-design/`). Absent : non.
+  humanValidatesDesigns?: boolean;
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -165,7 +169,7 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
 // accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
 // sa réécriture le retire.
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "githubOnlyState", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -317,6 +321,10 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
       throw erreur;
     }
   }
+  if (objet.humanValidatesDesigns !== undefined) {
+    if (typeof objet.humanValidatesDesigns !== "boolean") throw invalide("humanValidatesDesigns", "must be `true` or `false`");
+    reglages.humanValidatesDesigns = objet.humanValidatesDesigns;
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -335,7 +343,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -360,6 +368,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(commonPaths === undefined || commonPaths.length === 0 ? {} : { commonPaths }),
       ...(chef === undefined ? {} : { chef }),
       ...(humans === undefined || humans.length === 0 ? {} : { humans: humans.map(({ login, roles }) => ({ login, roles })) }),
+      ...(humanValidatesDesigns === undefined ? {} : { humanValidatesDesigns }),
       ...Object.fromEntries(desSeuils),
     },
     null,
