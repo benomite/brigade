@@ -17,6 +17,7 @@ import { execFile } from "node:child_process";
 import { depotDeLOrigine } from "../ajout.ts";
 import { blocDuChef, lireCeQuiAttendLeChef } from "../tableau/attente-du-chef.ts";
 import { corpsLu, type AppelGitHub } from "../tableau/client.ts";
+import { ecritureSurLeDepot } from "../tableau/ecriture.ts";
 import { EVENEMENT, type Cible } from "./crochet-de-la-file.ts";
 
 // Ce que la lecture entière a pour se faire, toutes ses vagues d'appels comprises — sous le délai du crochet
@@ -35,6 +36,14 @@ export function contexteDeLaFile(cible: Cible, lecture: Lecture, moment = "at th
   if (!lecture.lue && lecture.horsLigne === true) return non("file non lue : GitHub pas joint", lecture.raison);
   if (!lecture.lue) return non("file non lue : GitHub n'a pas rendu ce qui attend le chef", lecture.raison);
   return `${entete} Read at ${lecture.lu}, on ${lecture.depot}.\n\n${lecture.texte.replace(/\s+$/, "")}`;
+}
+
+// Ce que le second sait d'un dépôt où le compte GitHub du poste ne peut pas écrire (#3163) : la ligne que la vue pose en
+// tête du projet, et ce qu'elle implique pour lui — on lui parle pour comprendre, il ne change rien. Rien quand le compte
+// y écrit, ou quand GitHub ne l'a pas dit (`ecritureSurLeDepot`).
+export function contexteDeLEcriture(depot: string, ecriture: boolean | null): string {
+  if (ecriture !== false) return "";
+  return `Read-only: your GitHub account cannot write to ${depot}. The chef can talk with you to understand what is happening on this project, but you cannot change anything there: no issue filed or edited, no label, no comment, no merge, no push. Say so at the top of your first answer, and again whenever the chef asks for a change there.`;
 }
 
 // Le format que `claude` attend d'un crochet `SessionStart` : du JSON sur la sortie standard.
@@ -74,8 +83,11 @@ export async function lireLaFile(appeler: AppelGitHub, depot: string, maintenant
 // session, dont l'`origin` donne le dépôt quand le fichier des projets ne le donne pas.
 export async function jouer(gh: string, cible: Cible, dossier: string, delaiMs: number = DELAI_MS): Promise<string> {
   const depot = cible.depot || (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", dossier));
-  const lecture: Lecture = depot === undefined ? { lue: false, raison: "", sansDepot: true } : await lireLaFile(appelParGh(gh, delaiMs), depot);
-  return sortieDuCrochet(contexteDeLaFile(cible, lecture));
+  if (depot === undefined) return sortieDuCrochet(contexteDeLaFile(cible, { lue: false, raison: "", sansDepot: true }));
+  const appeler = appelParGh(gh, delaiMs);
+  const [lecture, ecriture] = await Promise.all([lireLaFile(appeler, depot), ecritureSurLeDepot(depot, appeler)]);
+  const ecrit = contexteDeLEcriture(depot, ecriture);
+  return sortieDuCrochet(`${contexteDeLaFile(cible, lecture)}${ecrit === "" ? "" : `\n\n${ecrit}`}`);
 }
 
 // À la main : `node app/src/second/file.ts <nom> [<depot> [<gh>]]`, dans le dossier du projet, rend ce que `claude`

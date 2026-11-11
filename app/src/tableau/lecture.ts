@@ -14,6 +14,7 @@
 // raison en une phrase, que l'app montre telle quelle.
 import { avecLeRail, lireLeRailSurGithub, SIGNES_PAS_LUS, type SignesDeVie } from "../vue/rail/github.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
+import { ecritureSurLeDepot } from "./ecriture.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./rail-github.ts";
 
 // Une rubrique de `status` : son titre, et ses lignes.
@@ -66,6 +67,9 @@ export type TableauLu = {
   // Absent quand les issues avant le rail n'ont pas été lues.
   avantLeRail?: AvantLeRailPublie;
 };
+// Ce que `facts` porte d'un dépôt où le compte GitHub de l'app ne peut pas écrire (#3163) : la vue ouvre alors le projet en
+// lecture seule, sans aucun geste, et le dit en une ligne.
+export type LectureSeule = { depot: string };
 // `horsLigne` : GitHub n'a pas été joint du tout — pas de réseau, une seule cause (#1818). Ce n'est pas une panne : la vue
 // garde le dernier rail lu, et le dit hors ligne. Un GitHub joint qui refuse en est une.
 export type TableauNonLu = { lu: false; depot: string; luLe: string; raison: string; horsLigne?: true };
@@ -190,7 +194,11 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     return reponse.data;
   };
   const avantLeRail = await lireAvantLeRail(depot, lire, lu.luLe).catch(() => undefined);
-  return avantLeRail === undefined ? lu : { ...lu, avantLeRail };
+  // Un dépôt où le compte ne peut pas écrire s'ouvre en lecture seule (#3163) ; relu à chaque lecture — un 304 ne coûte
+  // rien —, l'accès gagné rend la vue ordinaire à la suivante. Ce qui ne se lit pas ne décide rien : le rail reste lu.
+  const lectureSeule: LectureSeule | undefined = (await ecritureSurLeDepot(depot, lecteur)) === false ? { depot } : undefined;
+  const complete = lectureSeule === undefined ? lu : { ...lu, faits: { ...lu.faits, lectureSeule } };
+  return avantLeRail === undefined ? complete : { ...complete, avantLeRail };
 }
 
 // Ce que la vue reçoit de l'activité des cooks d'un projet, à chaque lecture de son rail (#1846, vue/activite-du-cook.js) :

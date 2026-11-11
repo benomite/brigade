@@ -147,6 +147,7 @@ const pont = {
   repondreCarte: (projet, ticket, reponse) => ipcRenderer.invoke("repondreCarte", projet, ticket, reponse),
   reprendreLeDisjoncteur: (projet) => ipcRenderer.invoke("reprendreLeDisjoncteur", projet),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
+  ouvrirLectureSeule: (projet, page) => ipcRenderer.invoke("ouvrirLectureSeule", projet, page),
   regarder: (projet, demande) => ipcRenderer.send("regarder", projet, demande),
   tous: (demande) => ipcRenderer.send("tous", demande),
   onglet: (projet, id, demande) => ipcRenderer.send("onglet", projet, id, demande),
