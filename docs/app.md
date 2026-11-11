@@ -376,6 +376,31 @@ lands, the add goes through it.
 (`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
 Captures: `docs/captures/3165/`.*
 
+### The kitchen's words, explained the first time you meet them (#3308, epic #3304)
+
+The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
+its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Rail** under the tabs, above the
+figures line; **Cooks** under the figures line (`Cooks 1 running`); **Pass**, **Awaiting you** (the TODO) and **Waiting**
+(WAITING) under their column's title; **Second** under the second's tab. The lines are those of the glossary's entry —
+`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
+third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
+station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
+
+- **Shown once.** An explanation shown is seen: it is written in your record at once, and stays on screen until `got it`
+  or until the app reloads. Reloaded, or opened on another device, the app does not show it again; a word you have not
+  met yet still shows its own. A word of the rail is met only when the rail is on screen — not under Settings.
+- **Kept per chef, by the runtime.** The record is kept where the project's kitchen runs (`explanations.json` in its state
+  directory), under this computer's GitHub account — the runtime's `explanations --chef <login>`, `explanations seen
+  <word> --chef <login>` and `explanations reset --chef <login>` (`runtime/src/explications/`). It is read each time the
+  project opens.
+- **Nothing to read, nothing shown.** A project with no station, no GitHub account signed in, a runtime from before the
+  command, or a record that cannot be read: no explanation is shown and nothing is written — Settings says why. A bridge
+  without `lireLesExplications` (the phone) shows none, and Settings has no row.
+
+*Code: `app/src/vue/explications/explications.js` (the lines, the record held per project, the Settings row), its wiring
+in `app/src/vue/vue.js`, `app/src/vue/explications/explications-box.ts` (the runtime command, from the main process).
+Tests: `app/test/explications/`, `runtime/test/explications/`. Captures: `docs/captures/3308/`.*
+
 ### On first launch: try on a sample project (#3227, epic #3217)
 
 Next to `open this project`, the first-launch screen offers **`try on a sample project`**. One click creates a small
@@ -2968,6 +2993,13 @@ desktop app carries them to the runtime's `recurring` command where the project'
 pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vue/recurrents/recurrents-box.ts`; a project
 with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
 phone) does not show the section.
+
+Under the recurring tickets, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
+words — rail, pass, cook, second, TODO, WAITING — you have seen explained (`3 of 6 seen`, what it means on hover), with
+one button, `show all the explanations again`: it clears your record, and each word is explained again the next time you
+meet it, on this device and on your other ones (`each explanation shows again the next time you meet its word, on all
+your devices` under the row). A record that cannot be read says why in one line, the button off; a seen explanation the
+runtime did not keep is said under the row. See "The kitchen's words, explained the first time you meet them".
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown

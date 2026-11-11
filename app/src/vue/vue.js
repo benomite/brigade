@@ -162,6 +162,7 @@ import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, caseDIci, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneLectureSeule } from "./lecture-seule/lecture-seule.js";
+import { MOT_DE_LA_COLONNE, poserExplication, poserLaRangeeDesExplications, serviceDesExplications, tenirLesExplications } from "./explications/explications.js";
 import { CET_ORDINATEUR, ANNULER, OUI, REESSAYER, AJOUTER_UN_PROJET, PAS_ENCORE, LECTURE_DE, NON_ATTEINT } from "./lexique.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -262,6 +263,8 @@ const fermerShell = element("fermer-shell");
 const listeMachines = element("machines");
 const colonneSecond = element("second");
 const noteSecond = element("note-second");
+const explicationSecond = element("explication-second");
+const explicationsDuChef = element("explications-du-chef");
 const outilsDuSecond = element("outils-du-second");
 const choixDuSecond = element("choix-du-second");
 // La visite guidée du premier lancement (ticket 3165, visite/) : sa bulle par-dessus l'écran, l'étape où elle en est, et
@@ -831,6 +834,42 @@ const fermes = new Set();
 // Aucun : c'est « Tous les projets » qui est affiché — ou l'écran d'ajout.
 /** @type {Projet | undefined} */
 let courant;
+
+// Les explications des mots de la cuisine (ticket 3308, explications/) : la première fois que le chef rencontre rail, pass,
+// cook, second, TODO ou WAITING, une ligne l'explique à côté du mot. Ce qu'il en a vu est gardé par le runtime du projet,
+// pour lui, sur tous ses appareils ; lu à chaque ouverture du projet. Ce qui change à l'écran se repose.
+const explications = tenirLesExplications({ service: serviceDesExplications(brigade), rendre: (projet) => rendreLesExplications(projet) });
+/** @param {string} projet */
+function rendreLesExplications(projet) {
+  if (courant?.nom !== projet) return;
+  poserRail(courant);
+  poserLExplicationDuSecond();
+  poserLesExplicationsDuChef(projet);
+}
+// Sous l'onglet du second, l'explication du mot « second », quand sa colonne est à l'écran, dépliée.
+function poserLExplicationDuSecond() {
+  const explique = courant !== undefined && courant.refus === undefined && !colonneSecond.hidden && !colonneSecond.hasAttribute("data-replie") && telephoneVu === undefined ? explicationDe(courant.nom, "second") : [];
+  explicationSecond.hidden = explique.length === 0;
+  explicationSecond.replaceChildren(...explique);
+}
+// L'explication d'un mot à l'écran, si elle s'y montre : marquée vue à ce moment-là.
+/** @param {string} projet @param {import("./explications/explications-box.ts").MotExplique} mot @returns {HTMLElement[]} */
+function explicationDe(projet, mot) {
+  return explications.aMontrer(projet, mot) ? [poserExplication(document, mot, () => explications.ecarter(projet, mot))] : [];
+}
+// Celle d'un mot du rail, seulement quand le rail est à l'écran : posé sous Settings ou une page, il n'est pas rencontré.
+/** @param {string} projet @param {import("./explications/explications-box.ts").MotExplique} mot @returns {HTMLElement[]} */
+function explicationDuRail(projet, mot) {
+  const visible = actif();
+  return visible === PARAMETRES || ONGLETS.some(({ id }) => id === visible) ? [] : explicationDe(projet, mot);
+}
+// Sa rangée de Settings, qui les remontre toutes ; cachée tant que le registre n'est pas lu, et sur un pont qui ne le porte pas.
+/** @param {string} projet */
+function poserLesExplicationsDuChef(projet) {
+  const etat = explications.etat(projet);
+  explicationsDuChef.hidden = etat === undefined || (etat.vus === null && etat.sans === undefined);
+  explicationsDuChef.replaceChildren(...(explicationsDuChef.hidden ? [] : [poserLaRangeeDesExplications(document, { etat, remontrer: () => void explications.effacer(projet) })]));
+}
 let ajoute = false;
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let demande = 0;
@@ -1489,6 +1528,8 @@ function poserSecond(ouvrable, montre) {
   principal.toggleAttribute("data-conversation", conversation);
   // Le téléphone n'a ni terminal ni shell ni second.
   teteDuSecond.hidden = telephoneVu !== undefined;
+  // Sous son onglet, l'explication du mot « second » (ticket 3308).
+  poserLExplicationDuSecond();
   const note =
     courant !== undefined && courant.refus !== undefined
       ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
@@ -4927,6 +4968,9 @@ function poserLeRail(projet) {
       const tete = document.createElement("h4");
       tete.append(pastilleDEtat(document, etatDuTon(ton), nom), bloc("span", compte));
       colonne.append(tete);
+      // Pass, Awaiting you — le TODO — et Waiting — WAITING — : l'explication de leur mot, sous leur titre (ticket 3308).
+      const motDeLaColonne = MOT_DE_LA_COLONNE[nom];
+      if (motDeLaColonne !== undefined && muet === undefined) colonne.append(...explicationDuRail(projet.nom, motDeLaColonne));
       const avecDisjoncteur = nom === COLONNE_QUI_T_ATTEND && disjoncteur !== undefined;
       if (avecDisjoncteur) {
         disjoncteursEnTodo.add(projet.nom);
@@ -4982,7 +5026,10 @@ function poserLeRail(projet) {
     ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a)),
     ...panneDuRail(projet, tenu.tableau),
     ...teteDuRail(projet),
+    // Sous l'onglet Rail, l'explication du rail ; sous la bande et ses cooks en cours, celle du cook (ticket 3308).
+    ...explicationDuRail(projet.nom, "rail"),
     bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
+    ...explicationDuRail(projet.nom, "cook"),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]),
   );
@@ -8627,6 +8674,8 @@ async function ouvrir(projet) {
   void lireLesReglages(projet);
   void monterLesHumains(document, element("humains-du-projet"), { projet: projet.nom, service: serviceDuPont(brigade, projet.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
   void monterLesRecurrents(document, element("recurrents-du-projet"), { projet: projet.nom, service: serviceDesRecurrents(brigade, projet.nom) });
+  poserLesExplicationsDuChef(projet.nom);
+  void explications.lire(projet.nom);
   void monterLesStations(document, element("stations-contributrices"), { projet: projet.nom, service: serviceDesStations(brigade, projet.nom) });
   brigade.regarder(projet.nom, ++demande);
   if (!seLit(projet) && projet.sansStation !== true) void lireLeRailPublie(projet);

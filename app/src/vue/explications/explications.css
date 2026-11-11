@@ -1,0 +1,20 @@
+/* Les explications des mots de la cuisine (ticket 3308, explications/) : une ligne à côté du mot — le mot, sa ligne du
+   glossaire, « got it » —, discrète, dans la langue des lignes de l'écran ; elle passe à la ligne plutôt que d'être coupée. */
+.explication {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pas-1) var(--pas-2);
+  margin: var(--pas-1) 0 var(--pas-2);
+  padding: var(--pas-1) var(--pas-2);
+  border-left: 2px solid var(--accent);
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
+.explication .mot {
+  color: var(--texte);
+  font-weight: 600;
+}
+.explication .dit {
+  flex: 0 1 auto;
+}

@@ -25,6 +25,7 @@ import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/si
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
+import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -1496,6 +1497,22 @@ ipcMain.handle("listerLesRecurrents", (_, nom: unknown) => {
 ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unknown) => {
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
+});
+// Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
+// marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
+// (vue/explications/explications-box.ts).
+const compteDesExplications = () => compteConnecte.login();
+ipcMain.handle("lireLesExplications", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesExplications(vise.nom, lu, compteDesExplications, lancerSurLaCuisine);
+});
+ipcMain.handle("marquerUneExplication", (_, nom: unknown, mot: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : ecrireLesExplications(vise.nom, lu, compteDesExplications, { vu: mot }, lancerSurLaCuisine);
+});
+ipcMain.handle("remontrerLesExplications", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : ecrireLesExplications(vise.nom, lu, compteDesExplications, { effacer: true }, lancerSurLaCuisine);
 });
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributrices.ts).

@@ -34,6 +34,7 @@
     <link rel="stylesheet" href="vue.css" />
     <link rel="stylesheet" href="settings-humans/humains.css" />
     <link rel="stylesheet" href="recurrents/recurrents.css" />
+    <link rel="stylesheet" href="explications/explications.css" />
     <link rel="stylesheet" href="identites-github.css" />
     <link rel="stylesheet" href="projets-servis/projets-servis.css" />
     <link rel="stylesheet" href="autonomie/chiffres.css" />
@@ -128,6 +129,8 @@
             <div id="humains-du-projet" aria-live="polite" hidden></div>
             <div id="stations-contributrices" aria-live="polite" hidden></div>
             <div id="recurrents-du-projet" aria-live="polite" hidden></div>
+            <!-- Les explications des mots de la cuisine (ticket 3308) : les remontrer toutes. -->
+            <div id="explications-du-chef" hidden></div>
             <div id="retrait" aria-label="Remove this project from the app's sidebar" hidden></div>
           </section>
           <!-- La cuisine, sa section à elle comme dans l'artboard `Settings.dc.html` : sa seule rangée n'est pas entre des réglages. -->
@@ -166,6 +169,8 @@
       <!-- « + shell » : la machine où l'ouvrir — ce poste, la box, les stations du projet. -->
       <div id="machines" role="group" aria-label="Open a shell on" hidden></div>
       <p id="note-second" aria-live="polite"></p>
+      <!-- L'explication du mot « second », la première fois que le chef le rencontre (ticket 3308, explications/). -->
+      <div id="explication-second" hidden></div>
       <!-- Le second ne part pas, ou part sans tous ses outils : chacun nommé, et ce qui l'obtient (ticket 1435). -->
       <div id="outils-du-second" hidden></div>
       <p id="bandeau" hidden></p>
