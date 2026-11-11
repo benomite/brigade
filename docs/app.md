@@ -10,18 +10,9 @@ line `Caps, closer and all projects` held** (#2921, `app/src/vue/projet/bandeau-
 closer (#2491), then the Cost and Closer rows of all projects — has left the Rail tab (#3013) and the Stations tab: it is
 **a section of its own in Settings**, under the Kitchen group, titled `Caps, closer and all projects` and shown unfolded
 (#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/projet/`
-(`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations lists the project's stations** (#2487), kept up to date by
-the same readings as ever — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
-to a station.* **This computer comes first**, as the recommended button, labelled `this computer` with its host name
-after it, when its station does not serve the project yet; then the stations paired with your account that the project
-is not chosen for, online ones first — an offline one says since when and how to bring it back (#3187), and once given
-the project, the line says it takes it when it comes back. Each choice is a
-gesture the app already makes: this computer serves the project as its Settings box does, a paired station gets it in its
-selection as on its home page; what each does is in its `?`. Once written, the step closes and one line says which machine
-was given the project — the station joins the list once it takes it; a refusal stays in the step, in one line, its detail
-in a hover; `cancel` closes without writing anything. The narrow screen, which sets nothing, and a project whose
-repository the app does not know have no button. Under the list, **Station settings** sets each station (#2488, below), and under it, the **Local station** block shows what only
-this computer's station has (see "This computer's station, on the Stations tab", #2489).
+(`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
+station that serves the project, and the station choice — see "The Stations tab" below. Nothing else: **All stations**
+and `+ station`, which were under it since #2638, are back on the home, a block of their own (#3195).
 
 **Removed with the Kitchen tab (#2921)**: what only the Cooks sub-tab carried is gone from the app — the reliability of the
 cooks, the closer's section and its launch, the raw reading of `station` and the app's reading of it every thirty seconds,
@@ -48,7 +39,10 @@ under the calibration ceiling (anchor `#triage-du-projet`): one line with the la
 to TODO`), the days when opened; one line, nothing to open, when there is no day (`no day yet`) or every day is 0. The
 Rail no longer carries it (#1458): it is the kanban, plus one alert line at the top when the stations hold tickets back
 (repository access, refusal). Clicking it opens Cooks. Captures: `docs/captures/1457/`.
-**On Cooks, one block per station of the project** (#1185, #1270), at the top of the tab, wherever it runs — the box, the Mac,
+**Replaced by the Stations tab of #3195** (below): what follows about one block per station — its `reached`/`absent`
+pills, `check again`, `edit`, `Remove`, the *what each station provides* block and its `not read yet` line — is history,
+not behaviour; the cards of the tickets in flight became one line each on the station's card, and the per-station settings
+moved into its `Details`. **On Cooks, one block per station of the project** (#1185, #1270), at the top of the tab, wherever it runs — the box, the Mac,
 another computer (`remote`). **Every station serving the project is there, each once** (#1786): the stations of `facts`, then
 those the journal declares that have not signed in yet, then those the app added to the project that the journal does not
 declare yet — a station of the app is recognised by the name the journal gives it (`macbook/claude`), or else by its machine
@@ -421,7 +415,7 @@ Pick the repository of your project.
 - **On the phone**, which adds no project, the screen says one line: `A project is added from a computer, and this phone
   reads it from GitHub.`
 
-Who cooks the project is asked on its page (below, #3166; later, the Stations tab, `Add a station`), not on this screen.
+Who cooks the project is asked on its page (below, #3166; later, the Stations tab, `Choose who cooks it`, #3195), not on this screen.
 
 A newcomer signed in to GitHub is in their new project's page two clicks after opening **Add a project**: the **+**,
 then the repository (`app/test/parcours-projet-bout-en-bout.test.ts` plays it on the view).
@@ -441,7 +435,7 @@ name, and the second stays on the right.
 
 | Question | Asked when | What it says | Its gesture |
 |---|---|---|---|
-| Who cooks it — `Who cooks <owner/repo>?` | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | one sentence for the recommended choice: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`); with neither, nothing is recommended (`None of your stations is online right now: the one you choose takes the project when it comes back.`) | one button per choice — `this computer` first, its host name beside it, then your stations, online ones first —, the recommended one set apart; an offline station is never recommended, and says beside it since when it is offline and how to bring it back (#3187). One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of `Add a station` — and the page moves on; an offline station chosen, the page says `<name> is offline: it takes <owner/repo> when it comes back.` A refusal is said in one line, its cause and its gesture, GitHub's answer on hover |
+| Who cooks it — `Who cooks <owner/repo>?` (the station choice of the Stations tab, `stations-tab/choix.js`, #3195) | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | one sentence for the recommended choice: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`); with neither, nothing is recommended (`None of your stations is online right now: the one you choose takes the project when it comes back.`) | one button per choice — `this computer` first, its host name beside it, then your stations, online ones first —, the recommended one set apart; an offline station is never recommended, and says beside it since when it is offline and how to bring it back (#3187). One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of the Stations tab's `Choose who cooks it` — and the page moves on; an offline station chosen, the page says `<name> is offline: it takes <owner/repo> when it comes back.` A refusal is said in one line, its cause and its gesture, GitHub's answer on hover |
 | Its setup for Brigade — `<owner/repo> is being set up for Brigade` | the project is not set up yet (the reading of #2628, `checkRepoSetup`) | what is awaited, and from whom — below | the button of the state, if any |
 
 The line counts only the questions the project has: one already set up, or already cooked by a station, shows `1 of 1`.
@@ -523,22 +517,86 @@ nothing is cut. Captures: `docs/captures/2486/`, `docs/captures/3013/`.
 *Code: `app/src/vue/projet/rail/bande-rail.js` (the band), `bandeDuRail` in `app/src/vue/vue.js`. Test:
 `app/test/vue/projet/rail/bande-rail.test.ts`.*
 
-### The first line of the Stations tab (#3189, epic #3182)
+### The Stations tab: who cooks it, is it working, how to change it (#3195, epic #3194)
 
-The tab starts with one line that tells the truth: `Cooked by <station>, online` when a station actually serves the project
-(it cooks, waits for its next ticket, or has no room left, and GitHub does not say it is out of reach), or `Nobody cooks this
-project:` with a `Choose a station` button when none does. The button opens the existing choose-station form of the page (the
-single place, #3166); the tab has no picker of its own. Green is shown only by a station that serves the project: with none,
-no green badge is in the tab. The local `kitchen` and its empty event log are not the project's state and are not shown.
-Capture: `docs/captures/3189/`.
+The Stations tab of a project is **one component** (`app/src/vue/stations-tab/`). It answers three questions, in this order.
 
-*Code: `app/src/vue/onglet-stations/` (`premiere-ligne.js`, and `stations-github.js`, the stations as GitHub says them). Tests:
-`app/test/vue/onglet-stations/stations-github.test.ts`.*
+**One line at the top, in exactly one of four states** — never two statements side by side:
+
+| State | The line | Green | Its gestures |
+|---|---|---|---|
+| A station cooks it | `Cooked by <station> · online · N cooks at work`, or `… · online · idle, nothing on the rail` | yes | none |
+| A move in progress | `Moving from <A> to <B>: waiting for <what>, since <HH:MM> UTC`; not done after a minute, a second line: `Not done after a minute: <what blocks it>` | no (yellow) | none |
+| The station that serves it is offline | `<station> cooks this project, but it is offline for <duration>: nothing cooks`; how to bring it back on hover | no (red) | `Move to this computer`, one click, when this computer can take it |
+| Nobody serves it | `Nobody cooks this project` | no (grey) | `Choose who cooks it`, the only button |
+
+Green is said only by a station that is online and cooks or waits for its next ticket — the rule of #3189 (`enLigneDe`): a
+station that takes the project's tickets, and that nothing says is out of reach. *What the move waits for* follows its
+step as the stations publish it (`projets.ts`, `demenagementDe`): `B to take the kitchen over`, `A to close its kitchen`,
+`B to open the kitchen`. *What blocks it*, past a minute: what the station said of it, else the one of the two that is
+offline, else the one that has not answered, and for how long. The line follows the move from the click on: until the
+stations publish it, the move the app just asked for is followed; it ends when B serves the project and A no longer does,
+and the line switches to `Cooked by B`. A move refused by the runtime or by B leaves the line as it was, and says why in
+one line under it.
+
+**One card per station that serves the project, and only those**: the stations its cooking names (`facts`, or its stations
+on GitHub — a station that refuses the project included, with its reason), the paired stations whose own document says
+they serve it, and the stations the project declares that nothing else names yet (`not signed in yet`). Each once: a line
+of `facts` is the paired station that bears its name, or its take name (`<machine>/claude`); when the project cooks on this
+computer, its box line is this computer's station. This computer comes first. A paired station that does not serve the
+project has no card and is named nowhere on the tab — except as the origin `A` of a move in progress; the station a move
+goes to has its card, `starting`, without gestures. Each card:
+
+- its name — `this computer` and its host name for this computer's station —, what it is in plain words (`this Mac: cooks
+  while the app is open`, `always-on box: cooks while your computer sleeps`, `another computer: cooks while Brigade is open
+  on it`), and its state now: `online` (green), `offline for 3 h`, `stopped by you, for 12 min`, `not seen by the kitchen`,
+  `refusing it`, `not signed in yet`, `starting`; beside it, what still holds it back (`its machine has no room`, `held by
+  GitHub's limit until 14:37`, a refusal's reason);
+- what it holds for this project now: one line per cook (its ticket, its title) and per agent (the pass, the manager…), the
+  pan at the end of each while it cooks (#2984) — or `idle`;
+- **`Move to another station`** and **`Stop cooking here`**. Move opens the station choice under the top line (below);
+  offered only when the app can move the project's kitchen (`deplacementDe` in `vue.js`), its reason on hover otherwise.
+  Stop asks first, inline on the card, with what it costs in one line (`<station> takes no more of <project>'s tickets;
+  its cooks in flight finish.`); confirmed, it goes through the gesture the app already has for that station — this
+  computer's Settings box (`servirUnProjet`), a paired station's selection (`choisirLesProjets`), or the removal of a
+  declared station (`changerUneStation`, #2914; the project's only declared station is not removed, and the line says
+  why). What it did, or its refusal, reads in one line under the top line;
+- **`Details`**, folded by default: the technical settings and readings, each line with its control — for this computer
+  its clone and worktrees folders, its sandbox (`sandbox · ordinary tickets`, `cooks at once`) and its Claude connection
+  (#2489, below); for another station, its Claude connection as it publishes it; for a declared station, its cooks at once,
+  what it provides and its ordinary tickets (#2488, below); and the project's cap on the station as its box gives it, with
+  what saturates it (#1292). None of them shows outside the fold as the project's state. The fold stays open across
+  readings once opened; `Cook it on a station that has it` (#1511) opens it on the station of this workstation, the
+  missing capability offered.
+
+**The station choice** is a single piece (`app/src/vue/stations-tab/choix.js`), the one the page of a project that is not
+ready yet asks (`1 of 2: who cooks it`, #3166, `parcours-premier-projet/`): one button per machine, this computer first —
+`this computer`, its host name after it —, then the other stations, online ones first; the recommended one stands out; an
+offline one is never recommended and says since when, and how to bring it back (#3187). A choice being written greys the
+buttons and says `Saving…` on its line; a refusal reads in one line, its detail on hover; `Cancel` closes it. From
+`Move to another station`, the choice lists where the kitchen can go and says its price in one line (`Its cooks in flight
+stop and their tickets go back to the rail; its whole journal follows it.`); a click moves the kitchen
+(`demenagerLaCuisine`). From `Choose who cooks it`, it lists this computer, if its station does not serve the project yet,
+and the paired stations the project is not chosen for; a click gives it the project (`servirUnProjet`, `choisirLesProjets`).
+
+**Gone from the tab**: the local `kitchen` pseudo-station and its empty log, the `Its stations` list, `Add a station`, the
+`Station settings` and `Local station` blocks with their `not read yet` lines, the station line at the head of the page
+(`Cooks on …`, `does not serve this project`, `move the kitchen`, `+ station`, the `kitchen moves to …` sentence — they
+stay on Rail), and any line naming a station that does not serve the project. Before the stations are read, the tab says
+`Reading your stations on GitHub…` and nothing else. On a narrow screen, the tab is read-only: the line and the cards,
+no gesture and no `Details` (#1186). **All stations** and its `+ station`, which list every paired station, are no longer
+under the tab (#3195): they belong to the account, not to a project, and are the last block of the home.
+
+Captures, before and after, of each of the four states: `docs/captures/stations-tab/` (`cuit`, `deplacement`, `hors-ligne`,
+`personne`), from the screens `stations-tab-*` of `scripts/capture-ecran/`.
+
+*Code: `app/src/vue/stations-tab/` — `etat.js` (the stations that serve, the move followed, the top line: `servantesDe`,
+`deplacementSuivi`, `hautDe`), `stations-tab.js` (the tab), `choix.js` (the station choice) —, `ongletDesStations` in
+`app/src/vue/vue.js`. Tests: `app/test/stations-tab/`.*
 
 ### Every setting of each station, on the Stations tab (#2488, epic #2484)
 
-The **Station settings** block of the Stations tab has one card per station the project declares, in the order of the
-declaration: its name and where it runs (`this workstation`, `box station`, `remote` — the words of Cooks), then four
+In the **`Details`** of the card of each station the project declares (#3195 — the **Station settings** block is gone), three
 lines, each the same row as in Settings — the setting's name and its **level** (`this computer`, from
 `app/src/vue/niveaux.js`), the value in force, and its control:
 
@@ -555,24 +613,24 @@ lines, each the same row as in Settings — the setting's name and its **level**
   greyed — a box station takes every ticket it can cook. On a remote station, what `facts` says of it, greyed, the
   reason on hover; `not said` when its main station does not say it.
 
-Removing a station is not a row of this block (#2914): `Remove` sits on the station's own line, next to `edit`, in the
-list above (`stations-declarees.js`), and nowhere else. It asks first, inline under the line, with what it costs in one
-line (`Remove pc/claude from parade?`); confirmed, the station is removed from the declaration. The project's only station
-cannot be removed, the reason on hover.
+Removing a station is not one of these rows (#2914): it is `Stop cooking here` on the station's card (#3195), and nowhere
+else. It asks first, inline on the card, with what it costs in one line (`Stop cooking parade on pc/claude?`); confirmed,
+the station is removed from the declaration. The project's only station is not removed: the line says why.
 
 Each line is the app's settings row (`rangeeDeReglage`, `app/src/vue/composants/reglage/reglage.js`). Every one of these
 settings lives on a station, none in the project's repository: no change opens a pull request. Nothing is stored by the
-block: each change goes through the storage that already existed, and a reload of the app shows it as written. Captures:
-`docs/captures/2488/`.
+block: each change goes through the storage that already existed, and a reload of the app shows it as written. The boxes
+offer what the station declares, what the other stations provide, and what this computer can declare (read once per
+project). Captures: `docs/captures/2488/` (before #3195).
 
-*Code: `app/src/vue/projet/stations/ReglagesStation.js`, `reglagesDesStations` in `app/src/vue/vue.js`. Test:
+*Code: `app/src/vue/projet/stations/ReglagesStation.js` (`reglagesDeLaStation`), `reglagesDeLaStationDeclaree` in `app/src/vue/vue.js`. Test:
 `app/test/vue/projet/reglages-station.test.ts`.*
 
 ### This computer's station, on the Stations tab (#2489, epic #2484)
 
-At the bottom of the **Stations** tab, under **Station settings**, the **Local station** block shows what only this computer's station has, titled
-with its name and `this Mac` (`this PC`), its lines in a card like those of **Station settings** above it. The other
-stations have none of it. Each setting is the app's settings row (`composants/reglage`, #2920) —
+In the **`Details`** of this computer's card on the **Stations** tab (#3195 — the **Local station** block is gone), the
+lines that only this computer's station has. The other stations show only their Claude connection, as they publish it,
+without a control. Each setting is the app's settings row (`composants/reglage`, #2920) —
 its name with its level label (`this computer` for all of them, `app/src/vue/niveaux.js`), its value, what it implies on
 hover, its one control, and under it what the control returned. A control applies as soon as it changes — no Save button —:
 `applying…` under its row while the change runs, both sandbox controls waiting; a refusal in one line under the row that
@@ -584,10 +642,10 @@ changed, the control re-read at the value in force. None of them is kept in the 
 | `sandbox · ordinary tickets`, `cooks at once` | `taken` / `not taken`, the cap or `no limit`; the sandbox unavailable, and why, under it | the checkbox and the number of Settings' **this computer** group — the same call, `reglerOrdinaires`, written to the projects file. Off a Mac, `none on this PC`; a project that does not cook here, one line that says so |
 | `Claude connection` | `connected`, `lost`, `unknown` — as the station publishes it on GitHub | lost: `log in`, the button of the station's Max-connection breakdown (the same login as on the station's page) |
 
-The sandbox's `ordinary tickets` is the same option as the `ordinary tickets` line of this computer's card in **Station
-settings**: ticked in one, the other reads it at once. They are read when the tab opens, then every thirty seconds while it is re-laid; a reading that fails is one line, its
-detail on hover. A device with no station (a phone, a workstation) says so in one line. The block is
-`app/src/vue/projet/stations/StationLocale.js`. It has no `paired phones` line any more: the phone signs in to GitHub, no
+The sandbox's `ordinary tickets` is the same option as the `ordinary tickets` line of this computer's declared station, in
+the same fold: ticked in one, the other reads it at once. They are read when the tab opens, then every thirty seconds while it is re-laid; a reading that fails is one line, its
+detail on hover. A device with no station has no card for this computer. The lines are
+`lignesDeLaStationLocale` in `app/src/vue/projet/stations/StationLocale.js`. It has no `paired phones` line any more: the phone signs in to GitHub, no
 station pairs it (#2500). Settings still shows its own **this computer** lines until a separate ticket
 removes them.
 
@@ -708,24 +766,22 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   rail, Taken, Pass (`base red` when the base is red), Waiting — in `prio:` order, then by number. A taken card says the
   station that holds it and since its claim; a card in pass, who cooked it and since its PR, and its PR number on its
   `right now` line; a queued card, since its issue was created.
-- **Cooks** (#2358): every station of the project as GitHub tells it, the box and a computer by the same rule, in the
-  same line — none is the main station, none carries "move the kitchen" or a stop button. A station of the project is
+- **Stations** (#2358, shown since #3195 as the cards of the Stations tab, above): every station of the project as GitHub
+  tells it, the box and a computer by the same rule — none is the main station. A station of the project is
   one the app chose the repository for (`selection` of its registration gist), or one holding a claim comment on an
   issue (`<!-- brigade:prise station=… -->`,
   the earliest claim wins, a release comment or the removal of `taken` or `fire` drops it — `app/src/vue/cooks/prises.ts`
   says it as the runtime's `prise.ts` does); its name is the one of its claims, `<machine>/claude`. Its sign of life is
   the `lastSeen` it rewrites in its registration gist every two minutes, read by the main process at that pace
-  (`app/src/vue/cooks/signes-de-vie.ts`). Each line says:
-  - **cooking**, `reached` — it holds a ticket: its cooks are the cards of the tickets it holds, taken or in pass with
-    their PR, within one reading of the board;
-  - **idle**, `reached` — it holds none, and its sign of life is fresh (at most two missed refreshes, the registration
-    contract's rule);
-  - **not reached**, and `last sign of life <date> UTC` on screen — it holds none and has gone silent, or stopped.
-    "open Brigade on that computer" is in the hover.
-  A station holding a ticket with a silent sign of life is still `cooking` (GitHub says so until its lease is taken
-  back), `not reached`. When the signs of life cannot be read, one line says so — the reason in the hover — and only
-  the stations holding a ticket are listed, their pill `no word`. Nothing of the block comes from a station's log, or
-  from a main station. *Rule: `runtime/src/stations-github/stations.ts`. View: `app/src/vue/onglet-stations/stations-github.js`.*
+  (`app/src/vue/cooks/signes-de-vie.ts`). Its words, as the tab reads them (`app/src/vue/stations-tab/etat.js`):
+  - **cooking** — it holds a ticket: its card lists the tickets it holds, taken or in pass, within one reading of the
+    board; online;
+  - **idle** — it holds none, and its sign of life is fresh (at most two missed refreshes, the registration contract's
+    rule): online, ready to cook;
+  - **silent** — it holds none and has gone silent, or stopped: `offline for <duration>` since its last sign of life.
+  A station holding a ticket with a silent sign of life is still `cooking` for GitHub until its lease is taken back; its
+  card says it offline. Nothing of it comes from a station's log, or from a main station.
+  *Rule: `runtime/src/stations-github/stations.ts`. View: `app/src/vue/stations-tab/`.*
 - **The head lines** the view reads from `status` are only `rail` (the counts by state) and `cooks`, and the `awaiting`
   block is one head line counting the TODO cards (below). What only a station's log carries — the project switch and
   the manager's state, the idle-kitchen fault, a kitchen `held` or stopped, Served — is not read from GitHub, and the
@@ -770,7 +826,7 @@ answer but a 304) in any hour, under the 1,000 the test allows.
 
 *Code: `app/src/tableau/lecture.ts`, `app/src/vue/rail/github.ts`, `app/src/vue/cooks/prises.ts`,
 `app/src/vue/cooks/signes-de-vie.ts`, `lireLeTableau` in `app/src/main.ts`. Tests: `app/test/vue/rail/github.test.ts`,
-`app/test/vue/cooks/prises.test.ts`, `app/test/vue/onglet-stations/stations-github.test.ts`, `app/test/vue/cooks/signes-de-vie.test.ts`,
+`app/test/vue/cooks/prises.test.ts`, `app/test/vue/limite-github-de-la-station.test.ts`, `app/test/vue/cooks/signes-de-vie.test.ts`,
 `runtime/test/stations-github/stations.test.ts`, `app/test/tableau/lecture.test.ts`. Captures: `docs/captures/2220/` —
 `rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`; `docs/captures/2358/` —
 `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and `-apres.png` (one station cooking,
@@ -785,7 +841,7 @@ repository, and the project opens read-only:
 
 - **Everything is seen**: the rail, its cards, Todo, the stations and the cooks, as for any project.
 - **No gesture is offered**, absent rather than greyed: no choice, field or `send` on a Todo card (its question is read),
-  no `Relaunch` or `Close as already done`, no WAITING gesture, no `Add a station`, no breaker `Resume`, no project
+  no `Relaunch` or `Close as already done`, no WAITING gesture, no `Choose who cooks it`, no breaker `Resume`, no project
   switch, no `stop the kitchen` or `resume the kitchen`, no `Set up for Brigade`. A ticket's sheet keeps only what opens
   something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
   to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
@@ -1277,14 +1333,17 @@ projects are not affected.
 
 ## All projects at a glance
 
-**Two blocks, and nothing else (#2638, epic #2497).** The home shows exactly two blocks: **Projects** — the project
-rows described below — and **This computer's station** (filled by #2640, below). Each block
-is its own component: `app/src/vue/accueil/projets/BlocDesProjets.js` and `app/src/vue/accueil/station/BlocDeLaStation.js`.
-What the home used to show besides went elsewhere, or was removed:
+**Three blocks, and nothing else (#2638, epic #2497, #3195).** The home shows exactly three blocks: **Projects** — the
+project rows described below —, **This computer's station** (filled by #2640, below), and **All stations** (#3195). The first two
+are each their own component: `app/src/vue/accueil/projets/BlocDesProjets.js` and `app/src/vue/accueil/station/BlocDeLaStation.js`.
 
 - **All stations** — the list of stations, the stations under your GitHub account, the station versions and "+ station"
-  with its pairing code field — is the last block of **a project's Stations tab**, under the project's own stations and
-  this computer's station. The stations under your account are read again each time that tab opens.
+  with its pairing code field — is the last block of the home. From #2638 it was the last block of a project's Stations
+  tab; it came back to the home with #3195, since it is about the account and not about a project. The stations under
+  your account are read again each time the home opens.
+
+What the home used to show besides went elsewhere, or was removed:
+
 - The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
   block, **All projects**, of **a project's health strip**, its `Caps, closer and all projects` section of Settings (#3014). Their pages are unchanged.
 - The **App** section (the running version, **Update now** / **Later**) is removed: a higher version is said, with
@@ -1293,8 +1352,8 @@ What the home used to show besides went elsewhere, or was removed:
 - The **health row** (`Max ✓ · GitHub ✓`) is removed. The main process still computes it (`sante` of
   `app/src/accueil.ts`); the view no longer shows it.
 
-With no project at all, the station lists and "+ station" have no tab to live in: on a computer, the first launch
-shows its stations and their projects (`premier-lancement.js`). Captures: `docs/captures/2638/`.
+With no project at all, the first launch takes the home's place on a computer and shows its stations and their
+projects (`premier-lancement.js`). Captures: `docs/captures/2638/`.
 
 **The station block (#2640, epic #2497).** Three states, in `BlocDeLaStation.js`. **No station on this computer**: one
 recommended button, **Install this computer's station**, and no other setting. A click runs `installerLaStation` of the
@@ -1332,7 +1391,7 @@ THIS COMPUTER'S STATION
   held, runtime off, station unreachable —, **yellow** when a decision awaits you, **green**
   otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project that no station serves
   on this computer. Not read is never green.
-- **In All stations, under a project's Stations tab** (#2638), **one row per paired station**: its name, its dot, its state (`online`, or
+- **In All stations, on the home** (#3195), **one row per paired station**: its name, its dot, its state (`online`, or
   `offline for 12 min`), what it is doing — its cooks in progress, `saturated`, `update failed`,
   `Max connection lost`, or `idle` — and the projects it carries. Its machine (system, kernel) and its
   version can only be read **on hover**. Dot **red** when its Max connection is lost,
@@ -1697,7 +1756,7 @@ and outside it. The Java side (`Notifications.java`, `SondeWorker.java`, `Pont.j
 
 ### Your stations: paired with a code, read on GitHub
 
-**At the bottom of a project's Stations tab** (#2638), the "All stations" list shows the ones you have paired, one line each —
+**On the home, in its last block** (#3195), the "All stations" list shows the ones you have paired, one line each —
 its name, its state, what it is doing and the projects it carries; its machine and version on hover
 (see "All projects at a glance"):
 
@@ -1859,8 +1918,8 @@ the line reads "not reached" with
 ### Your stations under your GitHub account, and the projects each serves (#1706)
 
 A station installed on one of your machines, its `gh` signed in to your GitHub account, registers itself under that
-account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **In All stations, at the bottom of a
-project's Stations tab, they are in the list of stations** (#1778, #2638), read each time that tab opens — **one row per computer**:
+account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **In All stations, on the home, they
+are in the list of stations** (#1778, #3195), read each time the home opens — **one row per computer**:
 
 ```
 ● macbook-air-de-benoit  online · idle · benomite/brigade        ›

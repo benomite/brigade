@@ -1,7 +1,9 @@
 // @ts-check
-// La station locale (ticket 2489, épique 2484) : le bloc « Local station » de l'onglet Stations. Ce que la station de cet
-// ordinateur a de plus que les autres, et elle seule : ses dossiers — le clone du projet et les worktrees de ses cooks —,
-// son bac à sable — les tickets ordinaires qu'elle y prend, et combien de cooks à la fois — et sa connexion à Claude.
+// La station locale (ticket 2489, épique 2484) : sur l'onglet Stations, dans « Details » de la carte de cet ordinateur
+// (stations-tab/, ticket 3195). Ce que la station de cet ordinateur a de plus que les autres, et elle seule : ses dossiers —
+// le clone du projet et les worktrees de ses cooks —, son bac à sable — les tickets ordinaires qu'elle y prend, et combien
+// de cooks à la fois — et sa connexion à Claude. Une autre station n'en montre que sa connexion à Claude, telle qu'elle la
+// publie, sans geste d'ici (`connexionALaStation`).
 // Chaque réglage est la rangée de réglage de l'app (composants/reglage, ticket 2920) : son nom et l'étiquette de son niveau
 // (niveaux.js), sa valeur — ce qu'elle implique au survol —, son seul contrôle, et dessous ce que le contrôle a rendu.
 // Un contrôle s'applique dès qu'il change — il n'y a pas de « Save » — : tant que le changement est en route, sa rangée
@@ -19,7 +21,6 @@ import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { ditDuReglage, rangeeDeReglage } from "../../composants/reglage/reglage.js";
 import { niveauDe } from "../../niveaux.js";
 import { bouton } from "../../composants/bouton/bouton.js";
-import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
 import { LECTURE, NON_ATTEINT, CET_ORDINATEUR } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
@@ -52,9 +53,6 @@ import { LECTURE, NON_ATTEINT, CET_ORDINATEUR } from "../../lexique.js";
  * @typedef {{ regler(actif: boolean, limite: number | null, ou: Bac): void, seConnecter(cle: string): void }} GestesDeLaStationLocale
  */
 
-export const TITRE = "Local station";
-
-export const SANS_STATION = (/** @type {string} */ poste) => `${poste} runs no station: nothing of it to set here`;
 export { LECTURE };
 export const CLONE = (/** @type {string} */ projet) => `where ${CET_ORDINATEUR}'s station keeps ${projet}'s clone. The station chooses it: it is read here, it does not change`;
 export const WORKTREES = (/** @type {string} */ projet) => `where ${CET_ORDINATEUR}'s station puts the worktrees of ${projet}'s cooks — each cook writes only in its own. The station chooses it: it is read here, it does not change`;
@@ -107,6 +105,9 @@ function bacASable(doc, { poste, projet, ordinaires, refusOrdinaires = "", regla
   limite.step = "1";
   limite.value = ordinaires.limite === null ? "" : String(ordinaires.limite);
   limite.ariaLabel = `Cooks ${poste} runs at once`;
+  // L'onglet se repose sous les doigts du chef : le champ se retrouve par sa clé, le clavier lui est rendu.
+  limite.dataset.cle = `limite:${projet}`;
+  limite.dataset.champ = "cooks";
   // Un changement en route : les deux contrôles attendent sa réponse.
   const enCours = reglageDit !== undefined && "enCours" in reglageDit.dit;
   limite.disabled = enCours;
@@ -146,25 +147,15 @@ function connexion(doc, station, dite, gestes) {
   return rangee(doc, { nom: "Claude connection", cle: "claude", valeur: [valeur, ...(station === undefined ? [] : [survol(doc, vu.survol)])], controle, dessous: dite === "" ? [] : [avec(doc, "p", dite, "dit")] });
 }
 
-/** @param {Fabrique} doc @param {EtatDeLaStationLocale} [etat] @param {GestesDeLaStationLocale} [gestes] */
-export function poserBlocStationLocale(doc, etat, gestes = { regler: () => {}, seConnecter: () => {} }) {
-  const bloc = doc.createElement("section");
-  bloc.className = "bloc-du-projet";
-  bloc.dataset.bloc = "station-locale";
-  bloc.ariaLabel = TITRE;
-  const titre = avec(doc, "h3", TITRE);
-  bloc.append(titre);
-  if (etat === undefined) return bloc;
-  if (etat.station === null) {
-    bloc.append(ligneVide(doc, SANS_STATION(etat.poste)));
-    return bloc;
-  }
-  // Son nom, et ce qu'elle est pour le chef : cet ordinateur. Ses réglages, dans une carte, comme ceux de chaque station
-  // au-dessus (« Station settings », ReglagesStation.js).
-  titre.append(avec(doc, "small", etat.station === undefined ? etat.poste : `${etat.station.nom} · ${etat.poste}`));
-  const carte = doc.createElement("div");
-  carte.className = "carte";
-  carte.append(...dossiers(doc, etat), ...bacASable(doc, etat, gestes), connexion(doc, etat.station, etat.connexionDite ?? "", gestes));
-  bloc.append(carte);
-  return bloc;
+// Les lignes de cet ordinateur : ses dossiers, son bac à sable, sa connexion à Claude — chacune une rangée de réglage.
+/** @param {Fabrique} doc @param {EtatDeLaStationLocale} etat @param {GestesDeLaStationLocale} [gestes] @returns {any[]} */
+export function lignesDeLaStationLocale(doc, etat, gestes = { regler: () => {}, seConnecter: () => {} }) {
+  const station = etat.station === null ? undefined : etat.station;
+  return [...dossiers(doc, etat), ...bacASable(doc, etat, gestes), connexion(doc, station, etat.connexionDite ?? "", gestes)];
+}
+
+// La connexion à Claude d'une autre station, telle qu'elle la publie : elle se refait sur sa machine, pas d'ici.
+/** @param {Fabrique} doc @param {Station} station */
+export function connexionALaStation(doc, station) {
+  return connexion(doc, { ...station, pannes: [] }, "", { regler: () => {}, seConnecter: () => {} });
 }

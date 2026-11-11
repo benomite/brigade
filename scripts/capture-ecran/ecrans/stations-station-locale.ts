@@ -36,7 +36,8 @@ export function ecranDeLaStationLocale({ dit, max, pannes, ordinaires }: { dit: 
     dit,
     largeur: 1440,
     hauteur: 1300,
-    etapes: [{ cliquer: '#projets > button[title^="parade"]' }, { cliquer: "#onglets-du-projet > button:nth-child(2)" }],
+    // Ses lignes sont dans « Details » de la carte de ce Mac (#3195) : le pli s'ouvre d'un clic.
+    etapes: [{ cliquer: '#projets > button[title^="parade"]' }, { cliquer: "#onglets-du-projet > button:nth-child(2)" }, { cliquer: '#rail .carte-de-station[data-station="macbook"] summary' }],
     donnees: () => ({
       maintenant: MAINTENANT,
       reponses: {

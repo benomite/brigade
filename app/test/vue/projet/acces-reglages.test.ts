@@ -13,7 +13,9 @@ import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
 import { BANNIERE } from "../../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
+import { calibrageRecommande, EFFORTS, MODELES } from "../../../src/projets/projets.ts";
+import type { Guide, StationsLues } from "../../../src/service.ts";
+import type { StationVue } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
 import { NIVEAUX } from "../../../src/vue/niveaux.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../aides/fausse-vue.ts";
@@ -21,7 +23,25 @@ import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../aides/f
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade" }];
+// La station de cet ordinateur sert parade, et le projet la déclare : sa carte, sur Stations, porte ses réglages (#3195).
+const A = "2026-11-11T10:00:00.000Z";
+const MACBOOK: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "2.4.0", projets: [PARADE], max: "connectee" };
+const DECLAREES: StationsLues = { proposees: [], absent: null, declarees: [{ nom: "macbook/claude", moteur: "claude", fournit: ["code"], cooks: 2, distante: false }] };
+const GUIDE: Guide = {
+  projet: PARADE,
+  deplie: false,
+  titre: "parade is installed",
+  lecture: { etat: "lue", a: A },
+  etapes: [],
+  courante: null,
+  annonces: { etat: "lues", liste: [] },
+  demarrage: { refus: "nothing to start: the station of this computer runs with the app" },
+  termine: true,
+  controle: { a: A, stations: DECLAREES },
+};
 const demarrage = () => ({
+  stations: { a: A, stations: [MACBOOK] },
+  projetsDesStations: { a: A, projets: [], locale: "gmac", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrageRecommande([]) },
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
@@ -35,7 +55,7 @@ const demarrage = () => ({
 
 
 async function ouvrir(): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }] });
+  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], service: () => GUIDE });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
   return vue;
@@ -83,9 +103,10 @@ const montres = (dans: Faux): Faux[] => [dans, ...dans.descendants()].filter(mon
 
 // Où un réglage nommé par l'épique se trouve : il porte soit son bloc (`data-bloc`), soit sa clé (`data-cle`, une ligne).
 type Reglage = { nom: string; bloc?: string; cle?: string };
+// Ceux d'une station sont dans « Details » de sa carte, sur Stations (#3195) : le clic qui ouvre le pli est le second.
 const REGLAGES: readonly Reglage[] = [
-  { nom: "station settings", bloc: "reglages-station" },
-  { nom: "local station settings", bloc: "station-locale" },
+  { nom: "station settings", cle: "capacites" },
+  { nom: "local station settings", cle: "dossier" },
   { nom: "duration caps", bloc: "plafonds-duree" },
   { nom: "closer settings", bloc: "closer" },
   { nom: "project colors", cle: "couleurs" },

@@ -10,6 +10,8 @@
 //      le dépôt, le chef qui lui répond, la PR de mise en place qui attend son merge —, avec le bouton du geste quand il y en a un.
 // Prêt : le rail reprend la page, et une seule ligne propose d'écrire le premier ticket avec le second.
 // Un projet où le compte ne peut pas écrire (ticket 3163) n'ouvre rien de tout cela.
+// La question « qui le cuit » est le choix de station de l'onglet Stations (stations-tab/choix.js, ticket 3195) : les mêmes
+// choix, la même liste ; cette page n'y ajoute que sa phrase.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction, survol } from "../briques.js";
@@ -17,19 +19,16 @@ import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { gestes } from "../parcours-projet/connexion.js";
 import { refusDit } from "../projets-servis/projets-servis.js";
 import { PREPARER } from "../page-projet/depot-non-prepare.js";
-import { CET_ORDINATEUR, ENREGISTREMENT, LECTURE_DE, REESSAYER } from "../lexique.js";
-import { AU_RETOUR, horsLigneDuCompte } from "../choix-station/choix-station.js";
+import { CET_ORDINATEUR, LECTURE_DE, REESSAYER } from "../lexique.js";
+import { AU_RETOUR } from "../choix-station/choix-station.js";
+import { ICI, poserLesChoix } from "../stations-tab/choix.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../page-projet/depot-non-prepare.js").Etat} Preparation */
-/** Une station appairée du compte, telle que sa lecture la rend. @typedef {import("../../stations-du-compte.ts").StationEnregistree} StationDuCompte */
 // La question « qui le cuit » : à poser ; pas à poser, une station le cuit déjà (`inutile`) ; le choix qui s'écrit
 // (`enCours`, la clé du choix) ; répondue (`ajoutee`) ; ou refusée, sa ligne et son détail.
 /** @typedef {"a-faire" | "inutile" | "ajoutee" | { enCours: string } | { ligne: string, detail: string }} Station */
-// Un choix de station : `cle` — `ICI`, ou l'id de la station appairée —, son nom, si elle est hors ligne, et si c'est le
-// choix recommandé. `hote` : le nom d'hôte de cet ordinateur, dit après « this computer ». `absente` : hors ligne, depuis
-// quand et le geste qui la ramène (choix-station/).
-/** @typedef {{ cle: string, nom: string, horsLigne: boolean, recommande: boolean, hote?: string, absente?: string }} Choix */
+/** @typedef {import("../stations-tab/choix.js").Choix} Choix */
 // Ce que la vue sait du second du projet : il ne part pas (`empeche`), il propose des choix au chef (`propose`), et ce
 // que le titre de son terminal dit — au travail, ou au repos à son invite (`travailDuSecond`).
 /** @typedef {{ empeche?: boolean, propose?: boolean, titre?: "travail" | "repos" }} Second */
@@ -58,7 +57,7 @@ import { AU_RETOUR, horsLigneDuCompte } from "../choix-station/choix-station.js"
  * }} GestesDuParcours
  */
 
-export const ICI = "ici";
+export { choixDeStation, ICI } from "../stations-tab/choix.js";
 export const QUESTION_STATION = "who cooks it";
 export const QUESTION_SETUP = "its setup for Brigade";
 /** @param {number} rang @param {number | undefined} total @param {string} question */
@@ -128,26 +127,6 @@ export function carteDeSetup(colonnes) {
   return (colonnes ?? []).flatMap(({ cartes, autres = [] }) => [...cartes, ...autres]).find((carte) => (carte.titre ?? carte.fiche?.titre) === TITRE_DE_LA_CARTE_DE_SETUP);
 }
 
-// Les choix de « qui le cuit » : cet ordinateur d'abord — s'il a une station (`ici`), son nom d'hôte (`hote`) après
-// lui —, puis les stations du compte, en ligne d'abord. Le recommandé peut cuire maintenant : la première station du compte en ligne,
-// sinon cet ordinateur ; une station hors ligne ne l'est jamais, et sans aucune, rien ne l'est. `stations` : celles du
-// compte à qui le dépôt n'est pas encore choisi, hors celle de cet ordinateur (`stationsAProposer`,
-// projet/stations/AjoutStation.js). `maintenant` : l'instant d'où se compte le temps hors ligne.
-/** @param {{ ici: boolean, hote?: string, stations: readonly StationDuCompte[], maintenant?: number }} offerts @returns {Choix[]} */
-export function choixDeStation({ ici, hote = "", stations, maintenant = Date.now() }) {
-  const enLigne = stations.find(({ available }) => available)?.id;
-  /** @type {Choix[]} */
-  const appairees = [...stations.filter(({ available }) => available), ...stations.filter(({ available }) => !available)].map((station) => ({
-    cle: station.id,
-    nom: station.name,
-    horsLigne: !station.available,
-    recommande: station.id === enLigne,
-    ...(station.available ? {} : { absente: horsLigneDuCompte(station, maintenant) }),
-  }));
-  /** @type {Choix[]} */
-  const cetOrdinateur = ici ? [{ cle: ICI, nom: CET_ORDINATEUR, horsLigne: false, recommande: enLigne === undefined, ...(hote === "" ? {} : { hote }) }] : [];
-  return [...cetOrdinateur, ...appairees];
-}
 
 // Où en est le parcours, d'après ce qui est lu. `preparation` : la lecture de ticket 2628 (absente, pas encore lue) ;
 // `illisible` : la dernière a échoué, sa phrase ; `carte` : la PR de mise en place attend son merge.
@@ -190,10 +169,8 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
-// La question « qui le cuit » : la phrase du choix recommandé, puis un bouton par choix — cet ordinateur en tête, son nom
-// d'hôte à côté, le recommandé distingué ; une station hors ligne dit à côté depuis quand, et comment la ramener. Un choix
-// qui s'écrit grise les boutons ; un refus se dit en une ligne, sa cause et son geste (stations-du-compte.ts), ce que
-// GitHub a répondu au survol.
+// La question « qui le cuit » : la phrase du choix recommandé, puis le choix de station de l'onglet Stations
+// (stations-tab/choix.js) — un refus y dit sa cause et son geste (stations-du-compte.ts), ce que GitHub a répondu au survol.
 /** @param {Fabrique} doc @param {Station} station @param {readonly Choix[]} choix @param {GestesDuParcours} geste */
 function corpsDeLaStation(doc, station, choix, geste) {
   if (choix.length === 0) return [cree(doc, "p", AUCUN_CHOIX)];
@@ -201,24 +178,8 @@ function corpsDeLaStation(doc, station, choix, geste) {
   const dit = cree(doc, "p", recommande === undefined ? AUCUNE_EN_LIGNE : recommande.cle === ICI ? ICI_DIT : STATION_DIT(recommande.nom));
   dit.className = "phrase";
   const enCours = typeof station === "object" && "enCours" in station ? station.enCours : undefined;
-  const liste = cree(doc, "ul");
-  liste.className = "choix-de-station";
-  liste.append(
-    ...choix.map((un) => {
-      const ligne = cree(doc, "li");
-      ligne.dataset.choix = un.cle;
-      const action = boutonAction(doc, un.nom, () => geste.choisir(un), { recommande: un.recommande });
-      const bouton = action.children?.[0];
-      if (bouton !== undefined) bouton.disabled = enCours !== undefined;
-      ligne.append(action);
-      if (un.hote !== undefined) ligne.append(Object.assign(cree(doc, "span", un.hote), { className: "hote mono" }));
-      const note = enCours === un.cle ? ENREGISTREMENT : un.absente;
-      if (note !== undefined) ligne.append(Object.assign(cree(doc, "span", note), { className: "dit" }));
-      return ligne;
-    }),
-  );
-  const refus = typeof station === "object" && "ligne" in station ? [ligneErreur(doc, station.ligne, station.detail, { classe: "erreur", alerte: true })] : [];
-  return [dit, liste, ...refus];
+  const refus = typeof station === "object" && "ligne" in station ? station : undefined;
+  return [dit, ...poserLesChoix(doc, { choix, ...(enCours === undefined ? {} : { enCours }), ...(refus === undefined ? {} : { refus }) }, geste.choisir)];
 }
 
 // La mise en place : ce qui est attendu, et de qui — une phrase ; ce qui en dit plus au survol ; le bouton, quand le

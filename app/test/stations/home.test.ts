@@ -1,5 +1,5 @@
-// Toutes les stations, la vue jouée — sur l'accueil jusqu'au ticket 2638, en bas de l'onglet Stations de chaque projet
-// depuis : une ligne chacune, telle que le process principal l'a dite (accueil.ts) — un clic ouvre sa page —, et
+// Toutes les stations, la vue jouée — en bas de l'onglet Stations de chaque projet depuis le ticket 2638, de retour sur
+// l'accueil depuis le ticket 3195 : une ligne chacune, telle que le process principal l'a dite (accueil.ts) — un clic ouvre sa page —, et
 // « + station », sous la liste, qui ouvre le champ où le chef tape le code qu'une station neuve affiche.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -54,10 +54,10 @@ async function laHome(accueil: Accueil | undefined, appairer: (code: string) => 
   return { jouee, section, bouton };
 }
 
-test("toutes les stations, en bas de l'onglet Stations, une ligne chacune : sa pastille, son nom, son état, ce qu'elle fait et ses projets — sa machine et sa version au survol seulement", async () => {
+test("toutes les stations, le dernier bloc de l'accueil, une ligne chacune : sa pastille, son nom, son état, ce qu'elle fait et ses projets — sa machine et sa version au survol seulement", async () => {
   const { jouee, section } = await laHome(ACCUEIL);
-  // Le dernier bloc de l'onglet, sous ceux du projet (#2638) : son titre, puis ses lignes.
-  assert.equal(jouee.element("rail").children.at(-1), section());
+  // Le dernier bloc de l'accueil, sous la station de cet ordinateur (#3195) : son titre, puis ses lignes.
+  assert.equal(jouee.element("tous").children.at(-1), section());
   assert.equal(section().children[0]?.textContent, "All stations");
   assert.deepEqual(lignes(section()), [
     { texte: "boxonline · 2 cooks · parade›", survol: "Linux 6.1.0 · version 1.4.0", ton: "vert" },
@@ -65,7 +65,7 @@ test("toutes les stations, en bas de l'onglet Stations, une ligne chacune : sa p
   ]);
   // Ni la machine ni la version ne s'écrivent à plat sur les lignes : les versions ont leur propre ligne dessous (#2191).
   assert.doesNotMatch(section().children[0]?.textContent ?? "", /Linux|macOS|version/);
-  // Relu, l'accueil remplace ses lignes, l'onglet montré.
+  // Relu, l'accueil remplace ses lignes, sous les yeux.
   jouee.dire("surAccueil", { ...ACCUEIL, stations: [{ id: "g1", nom: "box", ton: "jaune", dit: "online · saturated · 2 cooks · parade", phrase: "saturated", survol: "Linux 6.1.0 · version 1.4.0" }] });
   await repos();
   assert.deepEqual(lignes(section()).map(({ texte }) => texte), ["boxonline · saturated · 2 cooks · parade›"]);

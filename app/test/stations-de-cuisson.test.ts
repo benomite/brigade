@@ -1,7 +1,7 @@
-// L'onglet Stations couvre chaque station du projet (#1185) : chaque cook avec sa station, une ligne par station — son
-// état, ses cooks en cours, pour la box comme pour le Mac ou un autre
-// ordinateur —, et la ligne mise à jour par la lecture qui suit le clic, sans recharger la page. Chaque station y est
-// un bloc, et ses cooks en cours une ligne chacun, et seulement les siens (#1270). Sur l'onglet Rail,
+// L'onglet Stations couvre chaque station qui sert le projet (#1185, #3195) : chaque cook avec sa station, une carte par
+// station — son état, ses cooks en cours, pour la box comme pour le Mac ou un autre ordinateur —, et la carte mise à jour
+// par la lecture qui suit, sans recharger la page. Ses cooks en cours y sont une ligne chacun, et seulement les siens
+// (#1270) ; une station qui refuse le projet n'en a pas : la ligne d'alerte de Rail dit pourquoi. Sur l'onglet Rail,
 // une seule ligne dit ce qui, du côté des cooks, demande un geste — une station saturée, un projet refusé, l'accès
 // au dépôt bloqué —, avec de quoi ouvrir Stations ; aucune quand rien ne le demande.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
@@ -18,7 +18,8 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { RIEN_NE_TOURNE, BAISSER_LE_PLAFOND, OUVRIR_COOKS, PLAFOND } from "../src/vue/stations-de-cuisson.js";
+import { BAISSER_LE_PLAFOND, OUVRIR_COOKS, PLAFOND } from "../src/vue/stations-de-cuisson.js";
+import { AU_REPOS } from "../src/vue/stations-tab/stations-tab.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
@@ -97,12 +98,17 @@ function recevoir(vue: Jouee, faits: Faits, stations: DuRuntime[]): void {
   vue.dire("surFaits", { ...dessinable(faits, stations), demande: vue.dernier("faits")[0] as number });
 }
 
-const lignes = (vue: Jouee) => vue.element("rail").dessous("li").filter((li) => li.className === "station-de-cuisson");
-const ligne = (vue: Jouee, nom: string) => lignes(vue).find((li) => li.dataset.station === nom) ?? assert.fail(`pas de ligne pour ${nom}`);
-const etatDe = (pose: Faux) => pose.dessous("span").find((span) => span.className === "pilule")?.textContent;
+// Les cartes des stations (#3195) : son état — au mot de sa pilule —, ses cooks.
+const lignes = (vue: Jouee) => vue.element("rail").dessous("section").filter((carte) => carte.className === "carte-de-station");
+const ligne = (vue: Jouee, nom: string) => lignes(vue).find((carte) => carte.dataset.station === nom) ?? assert.fail(`pas de carte pour ${nom}`);
+const etatDe = (pose: Faux) => pose.dessous("span").find((span) => span.className === "pilule etat")?.dessous("strong")[0]?.textContent;
+const noteDe = (pose: Faux) => pose.dessous("small").find((small) => small.className === "note")?.textContent;
+const haut = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "haut-des-stations") ?? assert.fail("pas de ligne du haut");
 const boutonDe = (pose: Faux) => pose.dessous("button").find((bouton) => bouton.ariaLabel?.includes(" on ") === true);
-// Les lignes de cooks d'un bloc : le numéro et le titre de chacune — ou, sans cook, ce qui le dit.
+// Les lignes de cooks d'une carte : le numéro et le titre de chacune — ou, sans cook, ce qui le dit.
 const cooksDe = (pose: Faux) => {
+  const auRepos = pose.dessous("p").find((p) => p.className === "au-repos");
+  if (auRepos !== undefined) return [auRepos.textContent];
   const liste = pose.dessous("ul").find((ul) => ul.className.startsWith("cooks")) ?? assert.fail("pas de liste de cooks");
   const lignesDeCooks = liste.children.filter((li) => li.className !== "agent");
   if (liste.className === "cooks vide") return lignesDeCooks.map((li) => li.textContent);
@@ -110,25 +116,23 @@ const cooksDe = (pose: Faux) => {
 };
 const alertes = (vue: Jouee) => vue.element("rail").dessous("p").filter((p) => p.className === "alerte-de-cuisine");
 
-describe("l'onglet Stations : une ligne par station du projet", () => {
-  test("chaque cook est nommé avec sa station, et chaque station a sa ligne : son état, ses cooks", async () => {
+describe("l'onglet Stations : une carte par station qui sert le projet", () => {
+  test("chaque cook est nommé avec sa station, et chaque station a sa carte : son état, ses cooks", async () => {
     const { vue } = await ouvrir();
     await ouvrirOnglet(vue, "Stations");
     // La carte du projet est fondue dans le bloc des stations (#1456) : sa ligne, en tête, dit l'état de la cuisine ; ses
     // cooks sont ceux des stations, et la carte n'est plus posée.
     assert.throws(() => vue.element("carte"), /aucun élément « carte »/);
-    const cuisine = vue.element("rail").dessous("p").find(({ className }) => className === "premiere-ligne") ?? assert.fail("pas de première ligne");
-    assert.match(cuisine.textContent, /^Cooked by box\/claude, atelier\/claude, online/);
+    assert.match(haut(vue).textContent, /^Cooked by box\/claude, atelier\/claude · online · 1 cook at work/);
     assert.equal(vue.element("rail").textContent.includes("latest event"), false);
     // Les stations, dans l'ordre de `facts`, sans rôle dit (#1786).
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "cooking"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["online", "stopped by you, for 3 min · 1 cook finishing", "online"]);
     assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
-    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [RIEN_NE_TOURNE]);
-    // Arrêtée, la station dit par qui, depuis quand, et ce qui y finit ; elle se dit distante.
-    assert.match(ligne(vue, "mac/claude").textContent, /remote/);
-    assert.match(ligne(vue, "mac/claude").textContent, /by you, for 3 min · 1 cook finishing/);
+    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [AU_REPOS]);
+    // Arrêtée, la station dit par qui, depuis quand, et ce qui y finit ; elle se dit sur un autre ordinateur.
+    assert.match(ligne(vue, "mac/claude").textContent, /another computer/);
     // Aucune n'a de bouton : une station cuit tant qu'elle déclare des places, et s'arrête sur sa machine.
     assert.deepEqual(lignes(vue).map((li) => boutonDe(li)), [undefined, undefined, undefined]);
   });
@@ -143,9 +147,11 @@ describe("l'onglet Stations : une ligne par station du projet", () => {
     const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
     const { vue } = await ouvrir([station("box/claude", { cuisson: "saturated", cooks: [COOK_14] }), station("atelier/claude", { cuisson: "refused", refus })]);
     await ouvrirOnglet(vue, "Stations");
-    assert.deepEqual(lignes(vue).map(etatDe), ["saturated", "refused"]);
+    // Saturée, elle est en ligne et dit que sa machine n'a plus de place ; refusant le projet, l'atelier le dit, et pourquoi
+    // (#3195).
+    assert.deepEqual([etatDe(ligne(vue, "box/claude")), noteDe(ligne(vue, "box/claude"))], ["online", "its machine has no room"]);
+    assert.deepEqual([etatDe(ligne(vue, "atelier/claude")), noteDe(ligne(vue, "atelier/claude"))], ["refusing it", "This computer cannot run the project's cooks in Claude Code's sandbox."]);
     assert.deepEqual(lignes(vue).map((li) => boutonDe(li)), [undefined, undefined]);
-    assert.match(ligne(vue, "atelier/claude").textContent, /cannot run the project's cooks/);
   });
 });
 
@@ -162,15 +168,15 @@ describe("l'onglet Stations : un bloc par station, et ses tickets en cours (#127
   ];
   const FAITS_QUATRE: Faits = { ...FAITS, compteurs: { ...FAITS.compteurs, auTravail: 3 }, cooks: [COOK_14, COOK_15, COOK_16] };
 
-  test("les quatre états, un bloc chacun : son mot, sans bouton, et les cartes de ses tickets en cours, rien d'autre", async () => {
+  test("les quatre états, une carte chacun : son mot, sans bouton de cuisine, et ses tickets en cours, rien d'autre", async () => {
     const { vue } = await ouvrir(QUATRE, FAITS_QUATRE);
     await ouvrirOnglet(vue, "Stations");
-    // Exactement un bloc par station du projet, dans l'ordre de `facts`, sans rôle dit (#1786).
+    // Exactement une carte par station du projet, dans l'ordre de `facts`, sans rôle dit (#1786).
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude", "pc/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "saturated", "refused"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["online", "stopped by you, for 3 min · 1 cook finishing", "online", "refusing it"]);
     assert.deepEqual(lignes(vue).map((li) => boutonDe(li)), [undefined, undefined, undefined, undefined]);
-    // Chacun porte les tickets en cours sur sa station, et seulement celles-là : #21, sur le rail, n'est nulle part.
-    assert.deepEqual(lignes(vue).map(cooksDe), [["#14Le journal en ajout seul"], ["#15La carte des desserts"], ["#16Le menu du soir"], [RIEN_NE_TOURNE]]);
+    // Chacune porte les tickets en cours sur sa station, et seulement celles-là : #21, sur le rail, n'est nulle part.
+    assert.deepEqual(lignes(vue).map(cooksDe), [["#14Le journal en ajout seul"], ["#15La carte des desserts"], ["#16Le menu du soir"], [AU_REPOS]]);
     assert.doesNotMatch(vue.element("rail").textContent, /#21/);
     // Aucune sortie brute de commande dans un bloc : ni `pre`, ni ligne lancée, ni code de sortie.
     for (const bloc of lignes(vue)) {
@@ -184,15 +190,15 @@ describe("l'onglet Stations : un bloc par station, et ses tickets en cours (#127
     await ouvrirOnglet(vue, "Stations");
     recevoir(vue, { ...FAITS_QUATRE, cooks: [COOK_15, COOK_16] }, [station("box/claude"), ...QUATRE.slice(1)]);
     await repos();
-    assert.deepEqual(cooksDe(ligne(vue, "box/claude")), [RIEN_NE_TOURNE]);
+    assert.deepEqual(cooksDe(ligne(vue, "box/claude")), [AU_REPOS]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
   });
 });
 
-describe("deux stations du projet : chacune a sa ligne (#1289)", () => {
+describe("deux stations du projet : chacune a sa carte (#1289)", () => {
   const DEUX = (box: Partial<DuRuntime>, mac: Partial<DuRuntime>): DuRuntime[] => [station("box/claude", { cooks: [COOK_14], ...box }), station("mac/claude", { distante: true, cooks: [COOK_15], ...mac })];
 
-  test("deux stations, deux lignes, chacune à son nom, son état et ses cooks ; la lecture d'une station arrêtée ne touche pas l'autre", async () => {
+  test("deux stations, deux cartes, chacune à son nom, son état et ses cooks ; la lecture d'une station arrêtée ne touche pas l'autre", async () => {
     const { vue } = await ouvrir(DEUX({}, {}));
     await ouvrirOnglet(vue, "Stations");
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude"]);
@@ -201,18 +207,18 @@ describe("deux stations du projet : chacune a sa ligne (#1289)", () => {
     const texteAvant = ligne(vue, "mac/claude").textContent;
     recevoir(vue, FAITS, DEUX({ cuisson: "stopped", arreteeDepuis: "2026-10-20T10:04:05.000Z" }, {}));
     await repos();
-    assert.deepEqual(lignes(vue).map(etatDe), ["stopped", "cooking"]);
+    assert.deepEqual(lignes(vue).map((li) => li.dataset.etat), ["hors-ligne", "en-ligne"]);
+    assert.match(etatDe(ligne(vue, "box/claude")) ?? "", /^stopped by you/);
     assert.equal(ligne(vue, "mac/claude").textContent, texteAvant);
   });
 });
 
-describe("aucun vert dans l'onglet quand aucune station ne sert le projet (#3189)", () => {
-  test("une station locale arrêtée : « Nobody cooks this project », et nulle part de vert dans le rail", async () => {
+describe("aucun vert dans l'onglet quand aucune station ne cuit le projet (#3189, #3195)", () => {
+  test("sa seule station arrêtée : elle le cuit, mais rien ne cuit — et nulle part de vert dans le rail", async () => {
     const { vue } = await ouvrir([station("box/claude", { cuisson: "stopped", arreteeDepuis: ARRETEE })]);
     await ouvrirOnglet(vue, "Stations");
-    const premiere = vue.element("rail").dessous("p").find(({ className }) => className === "premiere-ligne") ?? assert.fail("pas de première ligne");
-    assert.match(premiere.textContent, /^Nobody cooks this project:/);
-    assert.deepEqual(lignes(vue).map(etatDe), ["stopped"]);
+    assert.match(haut(vue).textContent, /^box\/claude cooks this project, but it is stopped by you, for 3 min: nothing cooks/);
+    assert.deepEqual(lignes(vue).map(etatDe), ["stopped by you, for 3 min"]);
     const verts = [...vue.element("rail").descendants()].filter((e) => e.dataset.ton === "vert");
     assert.deepEqual(verts.map((e) => e.className), []);
   });
@@ -249,7 +255,7 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     await repos();
     assert.deepEqual(vue.element("onglets-du-projet").children.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent), ["Stations"]);
     assert.deepEqual(alertes(vue), []);
-    assert.equal(etatDe(ligne(vue, "box/claude")), "saturated");
+    assert.deepEqual([etatDe(ligne(vue, "box/claude")), noteDe(ligne(vue, "box/claude"))], ["online", "its machine has no room"]);
   });
 
   test("une station qui refuse le projet : une seule ligne", async () => {
@@ -281,7 +287,7 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
 });
 
 // Sa rangée est la rangée de réglage de l'app (#2920) ; sans déclaration lue de la station, rien ne la règle.
-describe("la ligne de station dit le plafond du projet, sans le régler (ticket 1292)", () => {
+describe("« Details » de la carte d'une station dit le plafond du projet, sans le régler (ticket 1292)", () => {
   const accueil = (plafond: { dit: string; nombre: number | null; parLeChef: boolean }, retenue?: { depuis: string; ressources: string; detail: string }) => ({
     projets: [],
     sante: { ton: "vert" as const, dit: "", survol: "" },
@@ -301,7 +307,7 @@ describe("la ligne de station dit le plafond du projet, sans le régler (ticket 
     await repos();
     await ouvrirOnglet(vue, "Stations");
     const pose = ligne(vue, "box/claude");
-    const rangee = () => ligne(vue, "box/claude").children.find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks") ?? assert.fail("pas de rangée du plafond");
+    const rangee = () => ligne(vue, "box/claude").dessous("div").find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks") ?? assert.fail("pas de rangée du plafond");
     assert.equal(rangee().children[0]?.children.at(-1)?.className.includes("niveau"), true);
     assert.deepEqual([rangee().children[0]?.textContent.startsWith(PLAFOND), rangee().children[1]?.textContent], [true, "3 at most — 8 cores"]);
     assert.match(pose.textContent, /Saturated on CPU — load of 19\.4 for at most 12\. /);
@@ -339,7 +345,7 @@ describe("le bloc de chaque station montre ce qu'elle fait tourner hors de ses c
     // Les agents viennent d'abord, puis la ligne du cook ; une autre station n'en a aucun.
     const posees = box.dessous("ul").find((ul) => ul.className === "cooks")?.children ?? assert.fail("pas de lignes");
     assert.deepEqual(posees.map((li) => li.className), ["agent", "agent", "agent", ""]);
-    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [RIEN_NE_TOURNE]);
+    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [AU_REPOS]);
     assert.deepEqual(agentsDe(ligne(vue, "mac/claude")), []);
   });
 
@@ -349,11 +355,11 @@ describe("le bloc de chaque station montre ce qu'elle fait tourner hors de ses c
     await ouvrirOnglet(vue, "Stations");
     assert.deepEqual(agentsDe(ligne(vue, "box/claude")).map((agent) => agent.dataset.role), ["pass"]);
     assert.deepEqual(ligne(vue, "box/claude").dessous("ul").filter((ul) => ul.className === "cooks vide"), []);
-    assert.equal(ligne(vue, "box/claude").textContent.includes(RIEN_NE_TOURNE), false);
+    assert.equal(ligne(vue, "box/claude").dessous("p").some((p) => p.className === "au-repos"), false);
 
     recevoir(vue, { ...FAITS, cooks: [], agents: [] }, seule);
     await repos();
     assert.deepEqual(agentsDe(ligne(vue, "box/claude")), []);
-    assert.deepEqual(cooksDe(ligne(vue, "box/claude")), [RIEN_NE_TOURNE]);
+    assert.deepEqual(cooksDe(ligne(vue, "box/claude")), [AU_REPOS]);
   });
 });

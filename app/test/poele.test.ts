@@ -162,7 +162,8 @@ describe("la poêle sur le rail : à côté du bon d'un ticket au travail, tant 
 });
 
 describe("la poêle sur Stations : à côté de chaque cook et de chaque agent qui tourne", () => {
-  const cuisson = (vue: Jouee, nom: string) => vue.element("rail").dessous("li").find((li) => li.className === "station-de-cuisson" && li.dataset.station === nom) ?? assert.fail(`pas de ligne pour ${nom}`);
+  // La carte de la station sur l'onglet Stations (#3195).
+  const cuisson = (vue: Jouee, nom: string) => vue.element("rail").dessous("section").find((carte) => carte.className === "carte-de-station" && carte.dataset.station === nom) ?? assert.fail(`pas de carte pour ${nom}`);
   const lignes = (pose: Faux) => (pose.dessous("ul").find((ul) => ul.className.startsWith("cooks")) ?? assert.fail("pas de liste de cooks")).children;
 
   test("sur la station qui cuit, le cook, la pass, le manager qui qualifie et le closer la portent ; sur celle qu'on a arrêtée, le cook qui finit non", async () => {

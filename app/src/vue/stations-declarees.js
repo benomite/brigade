@@ -1,29 +1,16 @@
 // @ts-check
-// Ce que chaque station déclarée fournit, sur l'onglet Stations, sous ses stations (ticket 1509, épique 1506) : une ligne
-// par station que la box du projet déclare, dans l'ordre de sa déclaration — son nom, où elle tourne, son plafond de
-// cooks et ses capacités. Où elle tourne a trois mots distincts : sur la box (« box station ») ; sur ce poste
-// (« this workstation » : la cuisine du projet y tourne) ; sur un autre poste (« remote »). Un projet qui ne déclare aucune station le dit en une ligne, jamais par un blanc ; une déclaration
-// pas encore lue aussi.
-// Chaque ligne s'édite (ticket 1510) : « edit » ouvre sous elle son formulaire — deux rangées de réglage
-// (composants/reglage, ticket 2920) : son plafond, et ses capacités en cases (celles de « + station », ticket 1307),
-// cochées comme elle les déclare, avec un champ pour en ajouter une hors de ces cases (ticket 1959, capacite-libre/).
-// Chaque contrôle s'applique dès qu'il change : il envoie la déclaration de la station, cette seule valeur changée — il
-// n'y a pas de « Save ». Le geste ne change qu'elle (service.ts, `changerUneStation`). La déclaration vit sur sa station
-// principale, pas dans le dépôt : aucun changement n'ouvre de PR. « Remove » est l'autre geste de la ligne (ticket 2914) : il
-// est sur la ligne de la station, jamais dans son formulaire, et sa confirmation s'ouvre dessous, en ligne.
+// Les réglages d'une station que le projet déclare (tickets 1509, 1510, 2488) : son plafond de cooks et ses capacités, chacun
+// un contrôle qui s'applique dès qu'il change — il envoie la déclaration de la station, cette seule valeur changée (service.ts,
+// `changerUneStation`). Les capacités sont des cases (celles de « + station », ticket 1307), cochées comme elle les déclare,
+// avec un champ pour en ajouter une hors de ces cases (ticket 1959, capacite-libre/). La déclaration vit sur sa station
+// principale, pas dans le dépôt : aucun changement n'ouvre de PR. Ils se posent dans « Details » de la carte de la station,
+// sur l'onglet Stations (projet/stations/ReglagesStation.js, stations-tab/, ticket 3195).
 // La déclaration vient de `installation stations --json`, que le contrôle de l'installation lit (service.ts) : la vue la
 // pose, elle n'en déduit rien d'autre.
-// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
+// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { boutonAction, caseACocher, survol } from "./briques.js";
-import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
-import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
+import { caseACocher } from "./briques.js";
 import { casesDuFormulaire, champDeCapaciteLibre } from "./capacite-libre/capacite-libre.js";
-import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
-import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
-import { ditDuReglage, rangeeDeReglage } from "./composants/reglage/reglage.js";
-import { niveauDe } from "./niveaux.js";
-import { CET_ORDINATEUR } from "./lexique.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../service.ts").StationsLues} StationsLues */
@@ -38,31 +25,10 @@ import { CET_ORDINATEUR } from "./lexique.js";
  * @typedef {{ nom: string, cooks: string, fournit: string[], choix: { capacite: string, dite: string }[], envoi: boolean, ou?: string, rendu?: StationChangee }} Edition
  */
 /** Ce qu'un changement envoie : la déclaration entière de la station, une seule valeur changée. @typedef {{ cooks: number, fournit: string[] }} Voulu */
-/**
- * Ce que la vue donne pour éditer : le formulaire ouvert, la station dont le retrait attend son « yes » (`retrait`), ce que
- * le dernier changement a rendu sur une station fermée (son plafond réglé sur sa ligne, stations-de-cuisson.js, ou son
- * retrait), et les gestes — la vue les envoie au process principal, puis repose le bloc. `appliquer` : la rangée `cle` a
- * changé, `voulu` part. `demander` / `renoncer` ouvrent et referment la confirmation du retrait, `retirer` le fait.
- * @typedef {{ editee?: Edition, retrait?: string, dernier?: { nom: string, ou: string, envoi?: boolean, rendu?: StationChangee }, ouvrir(nom: string): void, fermer(): void, appliquer(nom: string, cle: string, voulu: Voulu): void, demander(nom: string): void, renoncer(): void, retirer(nom: string): void }} Editer
- */
 
-export const TITRE = "what each station provides";
-export const AIDE = "The stations the project declares: how many cooks each runs at once, what it provides to the tickets that need it, and where it runs.";
-export const AUCUNE = "no station declared: no cook leaves for this project";
-export const PAS_LUE = "not read yet: the next check of the installation reads them";
-// Les mots du formulaire d'une station.
-export const EDITER = "edit";
-export const PLAFOND = "Cooks at once";
-export const FOURNIT = "What it provides";
-export const RETIRER = "Remove";
-export const FERMER = "Close";
 // Ce qu'une rangée dit tant que son changement est en route.
 export const APPLIQUE = "applying…";
 export const SEULE = "the project's only station: without one, no cook leaves — declare another before removing it";
-
-// Les trois mots d'une station, selon où elle tourne, et ce qu'ils veulent dire, au survol.
-/** @type {Readonly<Record<Ou, string>>} */
-export const OU = { box: "box station", poste: "this workstation", ailleurs: "remote" };
 
 const s = (/** @type {number} */ combien) => (combien > 1 ? "s" : "");
 // Le plafond d'une station, dans les mots du formulaire qui le déclare (« cooks at once »).
@@ -82,13 +48,6 @@ function cree(doc, balise, texte) {
 export function ouTourne(station, { ici }) {
   if (!station.distante) return ici ? "poste" : "box";
   return "ailleurs";
-}
-
-/** @param {Ou} ou @param {boolean} distante */
-function survolDe(ou, distante) {
-  if (ou === "box") return "it runs on the project's main station";
-  if (ou === "ailleurs") return `remote: another workstation plays it and pulls its work from the main station — ${CET_ORDINATEUR} does not`;
-  return distante ? "remote: another workstation plays it and pulls its work from the main station" : `the project's kitchen runs on ${CET_ORDINATEUR}: this station runs with it`;
 }
 
 // Les cases du formulaire : celles que la station déclare, dans son ordre, puis ce que les autres stations du projet
@@ -183,166 +142,4 @@ export function controleDesCapacites(doc, station, edition, changer) {
     partir();
   });
   return [cases, libre];
-}
-
-// Le formulaire ouvert d'une station, sous sa ligne : ses deux rangées de réglage, puis son geste — le fermer.
-// Ce que le chef saisit est gardé dans `editee` au fil de la frappe : un bloc reposé le redonne tel quel.
-/**
- * @param {Fabrique} doc @param {StationDeclaree} station @param {Edition} editee @param {Editer} editer
- */
-function formulaireDe(doc, station, editee, editer) {
-  const forme = cree(doc, "div");
-  forme.className = "edition";
-  forme.ariaLabel = `edit ${station.nom}`;
-  const appliquer = (/** @type {string} */ cle) => (/** @type {Voulu} */ voulu) => editer.appliquer(station.nom, cle, voulu);
-  const plafond = rangeeDeReglage(doc, {
-    nom: PLAFOND,
-    cle: "cooks",
-    niveau: niveauDe(doc, "cooks"),
-    valeur: [cree(doc, "strong", plafondDit(station.cooks))],
-    controle: [champDuPlafond(doc, station, editee, `station:${station.nom}`, appliquer("cooks"))],
-    dessous: ditDuReglage(doc, ditDe(editee, "cooks")),
-  });
-  const fournit = cree(doc, "strong", station.fournit.length === 0 ? "provides nothing" : station.fournit.join(", "));
-  if (station.fournit.length > 0) fournit.className = "mono";
-  const capacites = rangeeDeReglage(doc, {
-    nom: FOURNIT,
-    cle: "capacites",
-    niveau: niveauDe(doc, "capacites"),
-    valeur: [fournit],
-    controle: controleDesCapacites(doc, station, editee, appliquer("capacites")),
-    dessous: ditDuReglage(doc, ditDe(editee, "capacites")),
-  });
-  forme.append(plafond, capacites);
-  const gestes = cree(doc, "div");
-  gestes.className = "gestes";
-  gestes.append(boutonAction(doc, FERMER, () => editer.fermer()));
-  forme.append(gestes);
-  return forme;
-}
-
-/** @param {Fabrique} doc @param {string} fait */
-function uneLigneFaite(doc, fait) {
-  const pose = cree(doc, "p", fait);
-  pose.className = "fait";
-  return pose;
-}
-
-// Une station : son nom et où elle tourne, son plafond, ses capacités — et, à éditer, son bouton et son formulaire.
-/**
- * @param {Fabrique} doc @param {StationDeclaree} station
- * @param {{ ici: boolean, projet?: string, seule?: boolean, editer?: Editer }} projet
- */
-function ligneDe(doc, station, projet) {
-  const ligne = cree(doc, "li");
-  ligne.className = "station-declaree";
-  ligne.dataset.station = station.nom;
-  const ou = ouTourne(station, projet);
-  ligne.dataset.ou = ou;
-  const nom = cree(doc, "strong", station.nom);
-  nom.className = "mono";
-  const qui = cree(doc, "span");
-  qui.className = "qui";
-  qui.append(nom, motDuLieu(doc, station, projet));
-  const plafond = cree(doc, "span", plafondDit(station.cooks));
-  plafond.className = "plafond";
-  ligne.append(qui, plafond, ...ceQuElleFournit(doc, station, projet));
-  return ligne;
-}
-
-// Où tourne une station, en un mot — ce qu'il veut dire au survol.
-/** @param {Fabrique} doc @param {StationDeclaree} station @param {{ ici: boolean }} projet */
-export function motDuLieu(doc, station, projet) {
-  const ou = ouTourne(station, projet);
-  const mot = cree(doc, "span", OU[ou]);
-  mot.className = "ou";
-  mot.dataset.ou = ou;
-  mot.title = survolDe(ou, station.distante);
-  return mot;
-}
-
-// Ce qu'une station fournit — ses capacités en liste —, et, à éditer, ses deux gestes (« edit », « Remove ») avec ce qu'ils ouvrent
-// sous elle, ou ce que le dernier geste y a rendu. Le bloc de ses stations sur Stations (stations-de-cuisson.js, ticket 1786) le pose dans la ligne de chacune.
-/**
- * @param {Fabrique} doc @param {StationDeclaree} station
- * @param {{ ici: boolean, projet?: string, seule?: boolean, editer?: Editer }} projet
- */
-export function ceQuElleFournit(doc, station, projet) {
-  const capacites = cree(doc, "ul");
-  capacites.ariaLabel = `what ${station.nom} provides`;
-  if (station.fournit.length === 0) {
-    capacites.className = "capacites vide";
-    capacites.append(ligneVide(doc, "provides nothing", { balise: "li", classe: "" }));
-  } else {
-    capacites.className = "capacites";
-    capacites.append(
-      ...station.fournit.map((capacite) => {
-        const pose = cree(doc, "li", capacite);
-        pose.className = "capacite mono";
-        return pose;
-      }),
-    );
-  }
-  const { editer } = projet;
-  if (editer === undefined) return [capacites];
-  const ouverte = editer.editee?.nom === station.nom ? editer.editee : undefined;
-  // Les deux gestes de la station, sur sa ligne et nulle part ailleurs : « edit » ouvre son formulaire dessous, « Remove »
-  // sa confirmation. Un changement en route, ou la seule station du projet : « Remove » attend, et dit pourquoi au survol.
-  const enRoute = ouverte?.envoi === true || (editer.dernier?.nom === station.nom && editer.dernier.envoi === true);
-  const bouton = boutonDeLaFamille(doc, EDITER, undefined);
-  bouton.className = "editer";
-  bouton.ariaLabel = `edit ${station.nom}`;
-  bouton.ariaExpanded = ouverte === undefined ? "false" : "true";
-  bouton.addEventListener("click", () => (ouverte === undefined ? editer.ouvrir(station.nom) : editer.fermer()));
-  const retirer = boutonAction(doc, RETIRER, () => editer.demander(station.nom), { sorte: "danger" });
-  retirer.className = "action retrait";
-  retirer.firstChild.ariaLabel = `${RETIRER} ${station.nom}`;
-  retirer.firstChild.disabled = enRoute || projet.seule === true;
-  if (projet.seule === true) retirer.append(survol(doc, `Not removable: ${SEULE}.`));
-  const gestes = cree(doc, "span");
-  gestes.className = "gestes-de-la-station";
-  gestes.append(bouton, retirer);
-  /** @type {any[]} */
-  const dessous = [];
-  if (ouverte !== undefined) dessous.push(formulaireDe(doc, station, ouverte, editer));
-  if (editer.retrait === station.nom) {
-    dessous.push(
-      confirmationDeGeste(
-        doc,
-        { titre: `Remove ${station.nom}${projet.projet === undefined ? "" : ` from ${projet.projet}`}? The other stations stay as they are.`, prix: "its cooks take no new ticket — a ticket that needs what only it provides waits", oui: RETIRER, non: "Keep it" },
-        { oui: () => editer.retirer(station.nom), non: () => editer.renoncer() },
-      ),
-    );
-  }
-  // Ce que le retrait a rendu reste dit sous la ligne : fait, ou refusé.
-  const retrait = editer.dernier?.nom === station.nom ? ditDe(editer.dernier, "retrait") : undefined;
-  if (retrait !== undefined && !("enCours" in retrait)) dessous.push("refus" in retrait ? ligneErreur(doc, retrait.refus, retrait.detail ?? "") : uneLigneFaite(doc, retrait.fait));
-  return [capacites, gestes, ...dessous];
-}
-
-// Le bloc : son titre, puis une ligne par station déclarée — ou la ligne qui dit qu'il n'y en a aucune, ou qu'elles ne
-// sont pas encore lues. `stations` : ce que le dernier contrôle de l'installation a lu, absent tant qu'il n'a rien lu.
-// `ici` : sa cuisine tourne sur ce poste.
-// `projet` : son nom, que la confirmation d'un retrait dit ; `editer` : de quoi éditer chaque ligne — absent, le bloc se lit.
-/**
- * @param {Fabrique} doc
- * @param {{ stations: StationsLues | undefined, ici?: boolean, projet?: string, editer?: Editer }} options
- */
-export function poserLesDeclarees(doc, { stations, ici = false, projet: nom, editer }) {
-  const section = cree(doc, "section");
-  section.className = "stations-declarees";
-  section.ariaLabel = TITRE;
-  const tete = cree(doc, "h4", TITRE);
-  tete.append(survol(doc, AIDE));
-  section.append(tete);
-  if (stations === undefined || stations.declarees.length === 0) {
-    const vide = ligneVide(doc, stations === undefined ? PAS_LUE : AUCUNE);
-    section.append(vide);
-    return section;
-  }
-  const projet = { ici, ...(nom === undefined ? {} : { projet: nom }), seule: stations.declarees.length === 1, ...(editer === undefined ? {} : { editer }) };
-  const liste = cree(doc, "ol");
-  liste.append(...stations.declarees.map((station) => ligneDe(doc, station, projet)));
-  section.append(liste);
-  return section;
 }

@@ -1,0 +1,155 @@
+/* L'onglet Stations d'un projet (ticket 3195, stations-tab/) : la ligne du haut, le choix de station, une carte par station
+   qui sert le projet. Les jetons de l'app seulement ; la pilule, la confirmation, la ligne vide et le pli « Details » sont
+   ceux de leurs composants. */
+#rail .onglet-des-stations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  padding: var(--pas-4);
+  max-width: 60rem;
+}
+#rail .onglet-des-stations p {
+  margin: 0;
+}
+
+/* La ligne du haut : une phrase, sa pastille ; vert seulement quand une station cuit ou attend son prochain ticket. */
+.haut-des-stations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-left: 3px solid var(--gris);
+  border-radius: var(--rayon-carte);
+}
+.haut-des-stations[data-ton="vert"] {
+  border-left-color: var(--vert);
+}
+.haut-des-stations[data-ton="jaune"] {
+  border-left-color: var(--jaune);
+}
+.haut-des-stations[data-ton="rouge"] {
+  border-left-color: var(--rouge);
+}
+.haut-des-stations .phrase {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+}
+.haut-des-stations .bloque {
+  color: var(--jaune);
+}
+.onglet-des-stations .gestes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+  padding: 0;
+}
+.onglet-des-stations .dit-des-stations {
+  color: var(--discret);
+}
+
+/* Le choix de station : ce qu'on attend du chef, une machine par bouton, son prix s'il en a un, « Cancel ». */
+.choix-des-stations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.choix-des-stations .attendu {
+  font-weight: 600;
+  color: var(--texte);
+}
+.choix-des-stations .choix-de-station {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.choix-des-stations .choix-de-station > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+}
+.choix-des-stations :is(.hote, .dit, .prix) {
+  color: var(--discret);
+}
+
+/* Une carte par station : son nom et son état en tête, ce qu'elle est, ce qu'elle tient, ses gestes, « Details ». */
+.cartes-des-stations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+}
+.carte-de-station {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+  color: var(--texte);
+}
+.carte-de-station > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pas-2);
+}
+.carte-de-station h4 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+  margin: 0;
+  font-size: var(--taille-intertitre);
+}
+.carte-de-station h4 .hote,
+.carte-de-station .ce-qu-elle-est {
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+.carte-de-station .cooks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.carte-de-station .cooks li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+  min-width: 0;
+}
+.carte-de-station .cooks span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--texte-doux);
+}
+.carte-de-station .agent .agent-fait {
+  color: var(--discret);
+}
+#rail .carte-de-station .replie {
+  margin: 0;
+}
+.carte-de-station .details-de-station {
+  display: flex;
+  flex-direction: column;
+}
+/* Saturée, ce qui la sature (ticket 1292), dans « Details ». */
+.carte-de-station .retenue-de-station {
+  color: var(--jaune);
+}
