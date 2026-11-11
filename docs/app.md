@@ -428,6 +428,30 @@ then the repository (`app/test/parcours-projet-bout-en-bout.test.ts` plays it on
 the copy, then the projects file, with the branch GitHub gave), `app/src/vue/parcours-projet/compte.js` (the account,
 `app/src/connexion-github.ts`).*
 
+### A project with open issues: what the second proposes to cook first (#3268)
+
+A repository picked on **Add a project** that has open issues opens on a screen before the questions below, titled
+`Brigade read your <N> open issues — here are the ones to cook first`, `N` being the number of open issues of the
+repository (pull requests do not count). While the app reads them and the second's triage answers, the page says
+`Brigade is reading your open issues. Nothing is awaited from you.` Each proposed issue is a line: `#<number> <title>`, a
+priority (`prio:1`, `prio:2` or `prio:3`, the scale of the second) in a list you can change, and the reason for that
+priority in one line. `drop` removes a line; `put them on the rail` puts every remaining line on the rail, with the
+priorities on screen, and the page goes on to the questions; `not now` goes on without putting anything. Issues that
+already carry `fire` are counted in `N` but not proposed; when all of them do, there is no screen. A project with no open
+issue shows none of this and goes directly to the questions.
+
+There is one triage, the second's: the section `A project just set up` of its role (`app/src/second/role.md`) is given
+as it is to `claude -p` with the issues, and the answer is read as `{number, prio, reason}` per issue. Putting on the rail
+is the second's gesture too: the `prio:<n>` label replaces the issue's (`changerLaPriorite`, as on a ticket's sheet), then
+`product` and `fire` are put on it. A reading or a triage that fails (GitHub, `claude` absent or silent for 100 s, an
+answer that is not a list) is said on the screen with its cause and `Try again` / `not now`: no list and no priority is
+invented. A line GitHub refuses stays on screen with its cause; the others are on the rail.
+
+*Code: `app/src/depart-du-projet.ts` (reading, triage, putting on the rail; channels `departDuProjet` and `mettreSurLeRail`
+in `app/src/main.ts`), `app/src/vue/parcours-premier-projet/depart.js` (the screen), its wiring in `app/src/vue/vue.js`
+(`lireLeDepart`, `mettreLeDepartSurLeRail`). Tests: `app/test/depart-du-projet.test.ts`, `app/test/parcours-premier-projet/`
+(including the timing check on 100 issues, a real process standing in for `claude`).*
+
 ### A project not ready yet: one question at a time on its page (#3166, epic #3164)
 
 A repository picked on **Add a project** opens on its page (#3181). Until the project is ready, that page shows, **in
