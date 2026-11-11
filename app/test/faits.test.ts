@@ -285,11 +285,12 @@ describe("les faits que l'app dessine", () => {
               // Autant de cartes que `livrés 24 h` : celles de `livres`, le plus récent en haut, partis du rail ou non.
               compte: "3",
               cartes: [
-                { ticket: 216, etat: "servi", mot: "served", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T10:03:58.000Z")} · ${RELU_216.resume.split(". ")[0]}.`, pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Le relevé des mesures", { pr: true }) },
-                { ticket: 201, etat: "servi", mot: "served", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T07:12:40.000Z")} · ${RELU_201.resume}`, pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Les grants sous plafond", { pr: true }) },
+                { ticket: 216, etat: "servi", mot: "served", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], essayable: true, ligne: `served at ${heureHM("2026-10-12T10:03:58.000Z")} · ${RELU_216.resume.split(". ")[0]}.`, pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Le relevé des mesures", { pr: true }) },
+                { ticket: 201, etat: "servi", mot: "served", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], essayable: true, ligne: `served at ${heureHM("2026-10-12T07:12:40.000Z")} · ${RELU_201.resume}`, pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Les grants sous plafond", { pr: true }) },
                 {
                   ticket: 188,
                   etat: "servi",
+                  essayable: true,
                   mot: "served",
                   ton: "vert",
                   titre: "Une fiche sans zone",
@@ -732,6 +733,7 @@ describe("Livré, d'après `livres`", () => {
     assert.deepEqual(livreCol(dessine)?.cartes[0], {
       ticket: 30,
       etat: "servi",
+      essayable: true,
       mot: "served",
       ton: "vert",
       titre: "Ticket 30",
@@ -769,6 +771,7 @@ describe("Livré, d'après `livres`", () => {
     assert.deepEqual(carte, {
       ticket: 378,
       etat: "servi",
+      essayable: true,
       mot: "served",
       ton: "vert",
       ouvrable: false,

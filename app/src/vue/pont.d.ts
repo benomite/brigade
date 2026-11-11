@@ -175,6 +175,10 @@ export type Pont = {
   // « it arrived, back to the kitchen » (`attente-arrivee`) part sur le tableau de la cuisine : il rend
   // ce qui est posté (`fait`, le commentaire au survol), ou pourquoi rien ne l'est.
   // Un geste d'une carte mise de côté (gestes-refus.ts, ticket 3147) : `relancer` retire `served-elsewhere` de l'issue, `clore` la ferme comme terminée.
+  // Essayer une livraison depuis sa carte (essai.ts, ticket 3215) : la déclaration du projet et ses essais par ticket (rien : le projet n'est plus connu).
+  essais(projet: string): Promise<import("../essai.ts").VuDesEssais | undefined>;
+  essayer(projet: string, ticket: number): Promise<void>;
+  arreterEssai(projet: string, ticket: number): Promise<void>;
   refus(projet: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
@@ -399,6 +403,8 @@ export type Pont = {
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
   surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
+  // Un essai du projet nommé a changé : la vue relit `essais`.
+  surEssais(recevoir: (projet: string) => void): void;
   surFaits(recevoir: (recue: Dessinable) => void): void;
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :
   // vide, les quatre états ont été lus et vont bien.

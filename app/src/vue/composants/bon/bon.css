@@ -300,3 +300,26 @@
 .bon .signaler .signale {
   color: var(--bon-discret);
 }
+
+/* Essayer une livraison depuis sa carte (essai/essai.js, ticket 3215) : le bouton, où la version se trouve, ou la raison de l'échec et la fin de la sortie. */
+.bon .essai {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+  margin-top: var(--pas-2);
+}
+.bon .essai-sans-declaration,
+.bon .essai-ou,
+.bon .essai-echec {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.bon .essai-fin {
+  flex-basis: 100%;
+  margin: 0;
+  max-height: 12em;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
