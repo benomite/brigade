@@ -20,6 +20,7 @@ import { promisify } from "node:util";
 import { EFFORTS, MODELES, type Calibrage } from "../calibrage.ts";
 import { HumainsInvalides, humainsDe, type Humain } from "../humains/humains.ts";
 import { LOGIN } from "../humains/login.ts";
+import { JOURS_DU_RESUME, type JourDuResume } from "../resume-hebdomadaire/jour.ts";
 import { execFile } from "../sans-invite.ts";
 import { refusEn } from "../zones.ts";
 import { nomPrive, valeurPrivee, type Prive } from "./prive.ts";
@@ -126,6 +127,9 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // verte attend sa carte « Validate its screen » au lieu d'être mergée par la
   // pass (`validation-design/`). Absent : non.
   humanValidatesDesigns?: boolean;
+  // Le jour du résumé hebdomadaire de la cuisine (#3261, `resume-hebdomadaire/`).
+  // Absent : lundi.
+  weeklySummaryDay?: JourDuResume;
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -169,7 +173,7 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
 // accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
 // sa réécriture le retire.
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "githubOnlyState", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -325,6 +329,10 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     if (typeof objet.humanValidatesDesigns !== "boolean") throw invalide("humanValidatesDesigns", "must be `true` or `false`");
     reglages.humanValidatesDesigns = objet.humanValidatesDesigns;
   }
+  if (objet.weeklySummaryDay !== undefined) {
+    if (typeof objet.weeklySummaryDay !== "string" || !(JOURS_DU_RESUME as readonly string[]).includes(objet.weeklySummaryDay)) throw invalide("weeklySummaryDay", `must be a day of the week: ${JOURS_DU_RESUME.map((jour) => `\`${jour}\``).join(", ")}`);
+    reglages.weeklySummaryDay = objet.weeklySummaryDay as JourDuResume;
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -343,7 +351,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -369,6 +377,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(chef === undefined ? {} : { chef }),
       ...(humans === undefined || humans.length === 0 ? {} : { humans: humans.map(({ login, roles }) => ({ login, roles })) }),
       ...(humanValidatesDesigns === undefined ? {} : { humanValidatesDesigns }),
+      ...(weeklySummaryDay === undefined ? {} : { weeklySummaryDay }),
       ...Object.fromEntries(desSeuils),
     },
     null,

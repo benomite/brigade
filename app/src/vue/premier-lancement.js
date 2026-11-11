@@ -20,6 +20,7 @@ import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { REESSAYER, LECTURE_DE, PAS_ENCORE } from "./lexique.js";
+import { boutonDuProjetDEssai } from "./essai/projet-d-essai.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
 export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDetail, ROUVRIR_LA_PAGE, tapeLeCode } from "./parcours-projet/connexion.js";
@@ -45,6 +46,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   connexion?: Connexion,
  *   compte?: CompteGitHub,
  *   saisie?: { projet: string },
+ *   essai?: import("./essai/projet-d-essai.js").EtatDeLEssai,
  * }} EtatDuPremier
  */
 /**
@@ -54,6 +56,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   relire: () => void,
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnProjet: () => void,
+ *   essayer?: () => void,
  * } & GestesDuCompte} GestesDuPremier
  */
 
@@ -206,7 +209,9 @@ function formulaireDuProjet(doc, etat, geste) {
   // Tant qu'aucun compte n'est connecté, le geste recommandé est celui du compte.
   const bouton = boutonAction(doc, OUVRIR_CE_PROJET, ouvrir, { recommande: compte !== "" });
   bouton.children[0].disabled = enCours;
-  racine.append(...champ("projet-du-premier", PROJET, PROJET_EXEMPLE, "projet"), refus, gestes(doc, [bouton]));
+  // À côté, le projet d'essai (ticket 3227) : rien à taper.
+  const essayer = geste.essayer === undefined ? [] : [boutonDuProjetDEssai(doc, etat.essai ?? {}, { essayer: geste.essayer })];
+  racine.append(...champ("projet-du-premier", PROJET, PROJET_EXEMPLE, "projet"), refus, gestes(doc, [bouton, ...essayer]));
   if (etat.ouverture?.station === "") racine.append(...ouvertureDite(doc, etat.ouverture, etat, geste));
   return racine;
 }

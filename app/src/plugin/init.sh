@@ -4,7 +4,7 @@
 # `init.md` next to it, once the session has settled what it cannot compute (the test command).
 #
 #   bash init.sh --test <command> [--install <command>] [--base <branch>]
-#                [--zones <text>] [--dev-local <text>] [--doc <text>]
+#                [--zones <text>] [--dev-local <text>] [--doc <text>] [--badge yes|no]
 #
 # What it does, each step convergent — replayed, it only fills what is missing:
 #   1. the labels of the catalogue (labels.tsv, the runtime's runtime/src/etiquettes.ts), on GitHub
@@ -12,6 +12,11 @@
 #   2. in a throwaway worktree on `brigade/init`, from the integration branch: the bindings block
 #      `## Équipe multi-agents` at the end of `CLAUDE.md`, `.claude/brigade/gates.sh` and
 #      `.claude/brigade/worktree-setup.sh` — each only if absent, nothing already there is rewritten;
+#      With `--badge yes|no` (the chef's answer to "add a Cooked by Brigade badge to your README?"),
+#      the badge is offered once: `yes` puts its snippet as the first content of `README.md`, `no`
+#      leaves the README as it is, and either way `.claude/brigade/badge` records that it was offered.
+#      That file present, the badge is never offered nor inserted again — a badge the chef deleted
+#      by hand is never put back (#3255).
 #   3. a commit, a push and a pull request against the integration branch: the user merges it.
 # The user's checkout is never touched: no branch switched, no file written in it.
 #
@@ -19,7 +24,10 @@
 # of it. Anything else goes to stderr. Exit code 0 only when one of the two was reached.
 set -euo pipefail
 
-TEST=""; INSTALL=""; BASE=""; ZONES=""; DEV_LOCAL=""; DOC=""
+TEST=""; INSTALL=""; BASE=""; ZONES=""; DEV_LOCAL=""; DOC=""; BADGE=""
+# The canonical site URL (the `canonical` link of site/index.html) and the two badge images, served by
+# that site from site/ (site/badge-cooked-by-brigade-{clair,sombre}.svg).
+SITE_URL="https://benomite.github.io/brigade/"
 while [ $# -gt 0 ]; do
   case "$1" in
     --test) TEST="${2:-}"; shift 2 ;;
@@ -28,9 +36,11 @@ while [ $# -gt 0 ]; do
     --zones) ZONES="${2:-}"; shift 2 ;;
     --dev-local) DEV_LOCAL="${2:-}"; shift 2 ;;
     --doc) DOC="${2:-}"; shift 2 ;;
+    --badge) BADGE="${2:-}"; shift 2 ;;
     *) echo "brigade init: unknown argument: $1" >&2; exit 64 ;;
   esac
 done
+case "$BADGE" in ""|yes|no) ;; *) echo "brigade init: --badge is yes or no" >&2; exit 64 ;; esac
 # A gate that runs nothing is a false green: the session asks the user rather than guessing.
 [ -n "$TEST" ] || { echo "brigade init: --test is required (the command that runs the project tests)" >&2; exit 64; }
 
@@ -121,6 +131,27 @@ if [ ! -e .claude/brigade/worktree-setup.sh ]; then
   echo "written: .claude/brigade/worktree-setup.sh" >&2
 else
   echo "unchanged: .claude/brigade/worktree-setup.sh already there" >&2
+fi
+# The badge: offered once. The record is what stops a second offer, whatever became of the snippet.
+BADGE_RECORD=.claude/brigade/badge
+if [ -n "$BADGE" ] && [ ! -e "$BADGE_RECORD" ]; then
+  if [ "$BADGE" = yes ]; then
+    SNIPPET="<a href=\"${SITE_URL}\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"${SITE_URL}badge-cooked-by-brigade-sombre.svg\"><source media=\"(prefers-color-scheme: light)\" srcset=\"${SITE_URL}badge-cooked-by-brigade-clair.svg\"><img alt=\"Cooked by Brigade\" src=\"${SITE_URL}badge-cooked-by-brigade-clair.svg\" height=\"28\"></picture></a>"
+    README="$(git ls-files | grep -iE '^readme(\.md)?$' | head -1 || true)"
+    README="${README:-README.md}"
+    if [ -f "$README" ]; then
+      { printf '%s\n\n' "$SNIPPET"; cat "$README"; } >"$README.new"
+      mv "$README.new" "$README"
+    else
+      printf '%s\n' "$SNIPPET" >"$README"
+    fi
+    git add "$README"
+    echo "written: $README, the Cooked by Brigade badge" >&2
+  fi
+  echo "offered: $BADGE" >.claude/brigade/badge
+  git add "$BADGE_RECORD"
+else
+  [ -z "$BADGE" ] || echo "unchanged: the badge was already offered" >&2
 fi
 chmod +x .claude/brigade/gates.sh .claude/brigade/worktree-setup.sh
 git add CLAUDE.md .claude/brigade/gates.sh .claude/brigade/worktree-setup.sh

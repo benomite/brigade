@@ -110,6 +110,10 @@ export type GitHub = {
   // Les retraits de label de l'issue, tous labels confondus, du plus ancien au
   // plus récent : ce que la prise lit pour savoir si le chef a lâché le ticket.
   retraitsDeLabels?(numero: number): Promise<{ label: string; createdAt: string }[]>;
+  // Les événements de l'issue tels que l'API REST de GitHub les rend, du plus
+  // ancien au plus récent : ce que les chiffres d'autonomie lisent (#3222) pour
+  // le résumé hebdomadaire (#3261). Facultatif : seul le client réel le porte.
+  evenements?(numero: number): Promise<unknown[]>;
   // Les labels que l'issue porte, posés par un compte qui a l'écriture sur le
   // dépôt (le chef, ou le second sous son compte) : ce que GitHub dit de qui a
   // posé le label, pas de qui a écrit l'issue (#2619).
@@ -613,6 +617,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
         .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
         .filter((brut) => brut.event === "unlabeled" && typeof brut.label?.name === "string" && typeof brut.created_at === "string")
         .map((brut) => ({ label: brut.label?.name as string, createdAt: brut.created_at as string }));
+    },
+    async evenements(numero) {
+      const pages = await lireLaListe(`repos/${depot}/issues/${numero}/events?per_page=100`);
+      return pages.flatMap((page) => JSON.parse(page.corps) as unknown[]);
     },
     async labelsPosesParDeConfiance(numero) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/events?per_page=100`);

@@ -2158,7 +2158,7 @@ test("the paths a body names are kept only when they name the repository: a trac
 
 // Une station du dépôt, trois places, dont les cooks ne partent jamais : ce
 // qu'elle prend en un tour se lit au `taken` que ses prises posent.
-async function prisEnUnTour(t: TestContext, corps: Record<number, string>, fichiers: () => string[], avertir: (texte: string) => void = (texte) => assert.fail(texte)): Promise<number[]> {
+async function prisEnUnTour(t: TestContext, corps: Record<number, string>, fichiers: () => string[], avertir: (texte: string) => void = (texte) => assert.fail(texte), autresDuDepot: object = {}): Promise<number[]> {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -2180,6 +2180,7 @@ async function prisEnUnTour(t: TestContext, corps: Record<number, string>, fichi
       changes: () => [],
       diff: () => "",
       fichiers,
+      ...autresDuDepot,
     },
     ...reglagesDuFauxClaude(repertoire, () => assert.fail("no cook leaves")),
     avertir,
@@ -2198,6 +2199,23 @@ const corpsQuiSeRessemblent = {
 
 test("the station of this runtime: two tickets with no declared zone whose bodies both say “e.g.” and “and/or” leave together; one naming the same tracked file as a cooking ticket waits (#2826)", async (t) => {
   assert.deepEqual(await prisEnUnTour(t, corpsQuiSeRessemblent, () => ["src/ui/clock.ts", "src/app.ts"]), [21, 22]);
+});
+
+// #3250 : chaque commit d'un écran écrit aussi le registre de la vue et sa doc,
+// comme `app/src/vue/vue.js` et `docs/app.md` sur ce dépôt. Tenus par la porte
+// de prise comme compagnons de chaque zone (#2963), ils faisaient attendre à
+// chaque ticket de l'app le merge du précédent. Deux écrans disjoints partent
+// ensemble ; un troisième sur l'écran d'un parti attend toujours. L'historique
+// est donné au dépôt comme `ouvrirDepot` le donnait : la station ne le lit plus.
+test("the station of this runtime: two tickets on disjoint screens leave together, the shared registry and doc outside their zones holding neither; a third on one of their screens still waits (#3250)", async (t) => {
+  const corps = {
+    31: "Show the clock on the mirror. Touches `src/ui/clock.ts`.",
+    32: "Dim the screen at night. Touches `src/ui/dim.ts`.",
+    33: "The clock's seconds blink in `src/ui/clock.ts`.",
+  };
+  const ecran = (chemin: string) => Array.from({ length: 10 }, () => [chemin, "src/vue.js", "docs/app.md"]);
+  const historique = () => [...ecran("src/ui/clock.ts"), ...ecran("src/ui/dim.ts")];
+  assert.deepEqual(await prisEnUnTour(t, corps, () => ["src/ui/clock.ts", "src/ui/dim.ts", "src/vue.js", "docs/app.md"], undefined, { historique }), [31, 32]);
 });
 
 test("the station of this runtime: tracked files that cannot be read leave a ticket with no declared zone holding every path its body names, and the station says so (#2826)", async (t) => {

@@ -142,6 +142,12 @@ const pont = {
   // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).
   compteGitHub: () => ipcRenderer.invoke("compteGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
+  // Le projet d'essai du premier lancement (ticket 3227) : ce qui en est noté et son service, le créer, le supprimer, et
+  // la permission de suppression que `gh` fait accorder — sa fin arrive par `surPermissionDeSuppression`.
+  projetDEssai: () => ipcRenderer.invoke("projetDEssai"),
+  creerLeProjetDEssai: () => ipcRenderer.invoke("creerLeProjetDEssai"),
+  supprimerLeProjetDEssai: (depot) => ipcRenderer.invoke("supprimerLeProjetDEssai", depot),
+  demanderLaPermissionDeSuppression: () => ipcRenderer.invoke("demanderLaPermissionDeSuppression"),
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706), et les projets que chacune sert, écrits dans
   // son gist.
   stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
@@ -184,6 +190,7 @@ const pont = {
   surAccueil: (recevoir) => void ipcRenderer.on("accueil", (_, vu) => recevoir(vu)),
   surOuverture: (recevoir) => void ipcRenderer.on("ouverture", (_, depot, etape) => recevoir(depot, etape)),
   surConnexionGitHub: (recevoir) => void ipcRenderer.on("connexionGitHub", (_, fin) => recevoir(fin)),
+  surPermissionDeSuppression: (recevoir) => void ipcRenderer.on("permissionDeSuppression", (_, fin) => recevoir(fin)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
 contextBridge.exposeInMainWorld("brigade", pont);
