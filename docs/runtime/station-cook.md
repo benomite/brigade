@@ -164,6 +164,19 @@ had played: #3033 translated the preparation ticket's title, which `0-en-premier
 quoted in French; #3052 read one more GitHub route, which the fake GitHub of the app's phone tests did
 not serve.
 
+**The cook delivers what the user sees with its captures.** Its instructions (the first cook's and the
+resuming cook's) tell it that a diff changing what the user sees — under `app/src/vue/`, `site/` or
+`docs/maquettes/` — or a ticket labelled `cook:design` is a design delivery: the review blocks one that
+changes the app's view with no capture, and the pass sends back to a cook any design delivery missing
+one when the project has a human validate its designs (`validation-design/`). For each screen it
+changes, the cook takes the before capture before touching it and the after capture with
+`scripts/capture-ecran/`, and commits them as `docs/captures/<ticket>/<screen>-avant.png` and
+`-apres.png`; a repo without the tool is said in its report. The paths come from the constants the pass
+judges with (`captures.ts`). The rule was written only in `agents/cook-design.md`, which a cook reads
+only under the design profile — not when that profile is busy, not when the ticket has no zone, not for
+the site. It was the first send-back reason (#3259: 6 of the 18 send-backs over 21 merged tickets — #3195,
+#3212, #3215, #3219, #3220, #3221 — each sent back by the pass for its captures).
+
 **The cook rereads its diff as the reviewer will, before committing.** Its instructions
 (`CONSIGNE_DE_RELECTURE`, both the first cook's and the resuming cook's) name what the reviewer holds
 as blocking: what the ticket asks and the diff does not do, a criterion the ticket writes out and the

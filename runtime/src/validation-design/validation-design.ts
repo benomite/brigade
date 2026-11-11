@@ -26,7 +26,7 @@
 // livraison que la pass retient pour le chef (`SorteDeRetenue`) : le ticket
 // sensible (#3223, `sensible/`) s'en sert aussi.
 import { DE_CONFIANCE } from "../alimenter.ts";
-import { capturesLivrees, capturesManquantes, direCaptures, dossierDesCaptures, estDInterface, type CapturesDEcran } from "../captures.ts";
+import { capturesLivrees, capturesManquantes, direCaptures, dossierDesCaptures, estDInterface, VISUELS, type CapturesDEcran } from "../captures.ts";
 import { LABEL_IN_PASS } from "../github-etat/etats.ts";
 import { CHEF_TODO, corpsDeCarte, type Sorte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { GitHub, PR } from "../github.ts";
@@ -43,9 +43,6 @@ export const SORTE_DE_CARTE = "design-validation";
 export function designsValidesParUnHumain(config: unknown): boolean {
   return typeof config === "object" && config !== null && (config as { humanValidatesDesigns?: unknown }).humanValidatesDesigns === true;
 }
-
-// Ce qui, hors de la vue de l'app, se voit : le site et les maquettes.
-const VISUELS = ["site", "docs/maquettes"];
 
 // Une livraison design change ce que l'utilisateur voit : la vue de l'app, ou
 // un ticket désigné pour le cook design (`estDInterface`), le site, une
