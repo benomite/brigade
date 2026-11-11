@@ -144,6 +144,7 @@ import { ORDINAIRES_EN_COURS, reglagesDeLaStation, saisieDe } from "./projet/sta
 import { connexionALaStation, lignesDeLaStationLocale } from "./projet/stations/StationLocale.js";
 import { monterLePanneau } from "./projet/panneau-second/panneau-second.js";
 import { poserAjout, poserBlocDesProjets } from "./accueil/projets/BlocDesProjets.js";
+import { poserBlocDeLaPromesse } from "./accueil/promesse/BlocDeLaPromesse.js";
 import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
@@ -574,6 +575,7 @@ deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeL
 // L'accueil a les projets et la station de cet ordinateur (ticket 2638, épique 2497) — chacun son composant, sous
 // accueil/ —, puis toutes les stations (ticket 3195). La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
 // version plus haute, en tête de l'app (mise-a-jour/bandeau.js), dit la version qui tourne et l'installe.
+const blocDeLaPromesse = poserBlocDeLaPromesse(document);
 const blocDesProjets = poserBlocDesProjets(document, projetsDeLAccueil);
 // Les premiers réglages de la station qu'on vient d'installer : se connecter à GitHub (le geste que l'app a déjà), puis
 // choisir les projets qu'elle sert, sur sa page.
@@ -7499,7 +7501,7 @@ function ouvrirTous() {
   poserRatios();
   poserBlocStation();
   poserStationsDeLAccueil();
-  tous.replaceChildren(blocDesProjets, blocDeLaStation.racine, stationsDeLAccueil);
+  tous.replaceChildren(blocDeLaPromesse, blocDesProjets, blocDeLaStation.racine, stationsDeLAccueil);
   brigade.tous(++demande);
   void lireLesEnregistrees();
 }
