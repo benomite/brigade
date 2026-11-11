@@ -29,7 +29,7 @@ export type Projet = { nom: string; dossier: string; depot?: string; base?: stri
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
 // `quotaMax` : le réglage « quotaMax » du fichier, tel qu'écrit — la page des coûts le lit (vue/cost/part.js) et dit
-// « Share unavailable » quand il ne se lit pas : l'app n'en refuse pas le fichier.
+// « Share not shown » quand il ne se lit pas : l'app n'en refuse pas le fichier.
 export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string; quotaMax?: unknown };
 // Un projet tel qu'il s'écrit dans le fichier.
 export type Declare = { nom: string; dossier: string; depot?: string; base?: string; calibrage?: CalibrageDuProjet };
