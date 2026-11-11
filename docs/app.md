@@ -393,8 +393,8 @@ for you" and opens the project holding it (at a phone's width, the list of cards
 "Close" and lands on "All projects".
 
 *Code: `app/src/vue/absence/absence.js` and its wiring in `app/src/vue/vue.js` (`poserLAbsence`); the autonomy list is
-`chiffresDeLAutonomie` of `resume-hebdomadaire.js`. Tests: `app/test/absence/`. Captures: `docs/captures/3305/` (the screen is
-new: there is no "before").*
+`chiffresDeLAutonomie` of `resume-hebdomadaire.js`. Tests: `app/test/absence/`. Captures: `docs/captures/3305/` (before: the app opened on the same
+data, without the screen; after: with it).*
 
 ### On first launch: try on a sample project (#3227, epic #3217)
 
