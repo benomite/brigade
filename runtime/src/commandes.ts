@@ -23,6 +23,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live", mots: { "--suivre": "--follow" } },
   { nom: "facts", ancien: "faits", description: "The machine-readable form of status, for the app" },
   { nom: "rail", description: "The ticket rail; remove <ticket>, choose, answer, human" },
+  { nom: "release-notes", description: "Publish a weekly summary as the release notes of a version: <tag> <summary.json> creates the GitHub Release of that tag, once, on this explicit call only" },
   { nom: "log", ancien: "journal", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
   { nom: "station", description: "A station's settings: cooks <N>, stop <station>, start <station>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
   { nom: "setting", description: "The project's settings, from its repository, for the app; a change is refused: make it by a pull request on GitHub" },

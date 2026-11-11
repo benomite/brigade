@@ -14,6 +14,7 @@
     "status": "node src/status.ts",
     "facts": "node src/faits.ts",
     "rail": "node src/montrer-rail.ts",
+    "release-notes": "node src/release-notes-cli.ts",
     "log": "node src/relire.ts",
     "station": "node src/montrer-station.ts",
     "setting": "node src/reglage-cli.ts",
