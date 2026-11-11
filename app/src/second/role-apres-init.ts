@@ -2,7 +2,8 @@
 //
 // L'app donne le rôle au début de la session (role.md, et la file par le crochet `SessionStart` de file.ts). Le second
 // y lit ses bindings dans le `## Équipe multi-agents` du `CLAUDE.md` que `claude` a chargé : une session ouverte sur un
-// projet pas encore préparé n'en a pas, et son rôle s'arrête à « type `/brigade:init`, then merge the pull request ».
+// projet pas encore préparé n'en a pas : son lancement y démarre la mise en place (runtime/src/second-init/demarrage.ts, #3167),
+// qui finit par une PR à merger.
 // Une fois la PR de l'init mergée, rien ne le lui redisait : la même session répondait en assistant quelconque.
 //
 // Deux moments, deux crochets (crochet-du-role.ts) :

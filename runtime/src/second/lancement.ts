@@ -40,6 +40,7 @@ import { constants } from "node:os";
 import { resolve, win32 } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { lancementSousWindows, premiereLigne, spawn } from "../sans-invite.ts";
+import { argumentsDeMiseEnPlace } from "../second-init/demarrage.ts";
 import { enListe, poste, programmesDe, variable, verifierLesOutils, type OptionsDesOutils, type Outil, type OutilVu } from "./outils.ts";
 
 export type LancementDuSecond = { command: string; args: string[]; verbatim: boolean; folder: string; env: Record<string, string> };
@@ -114,7 +115,8 @@ export function planDuSecond(options: OptionsDuSecond): PlanDuSecond {
     return vu?.present ? vu.path : null;
   };
   const claude = chemin("claude") as string;
-  const args = [...(options.args ?? [])];
+  // Un dépôt pas encore préparé : le second part sur la mise en place, avec ce qu'il y a lu (#3167).
+  const args = [...(options.args ?? []), ...argumentsDeMiseEnPlace(dossier, options.args ?? [])];
   const ajouts: Record<string, string> = {};
   let launch: LancementDuSecond = { command: claude, args, verbatim: false, folder: dossier, env: ajouts };
 
