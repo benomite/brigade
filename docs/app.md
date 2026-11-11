@@ -308,7 +308,7 @@ Open one of your projects on this PC: one click, no folder to choose.
 
 - **A project opens in one click, with no folder to choose.** The runtime's operation
   (`runtime/src/projets/copie-locale.ts`, #1429) reuses a copy that already exists, or clones the
-  repository into the folder the app manages (`~/.local/share/brigade/projects/<name>`, or
+  repository into the folder the app manages (`~/Brigade/<name>`, or
   `BRIGADE_PROJECTS_DIR`). Each of its steps is said under the station, in its sentence —
   `Cloning benomite/parade into … — 42%.` —, and the other projects wait: one clone at a time.
   Opened, the project enters the projects file with its repository and the branch its origin points
@@ -399,10 +399,11 @@ Pick the repository of your project.
   regardless of case; nothing is typed to pick one of yours.
 - **One click on a repository** opens it as a station's project opens on first launch (above): the runtime reuses a
   copy that already exists — the folder the projects file already gives the project, or the one the app manages —, or
-  clones it into the folder the app manages (`~/.local/share/brigade/projects/<name>`, or `BRIGADE_PROJECTS_DIR`). The
+  clones it into the folder the app manages (`~/Brigade/<name>`, or `BRIGADE_PROJECTS_DIR`). The
   project enters the projects file — the left column — under the repository's name, in lower case, and its page opens:
   the screen is left as soon as the project is there. A fresh clone is said in one line over the page, `Cloned into
-  <folder>`, until `Got it`. While it runs, the clone's step is said under the list and no other repository can be
+  ~/Brigade/<name>` (the home folder written `~`), until `Got it`. The folder can be changed later: the project's
+  `dossier` in the projects file, which the app re-reads as soon as it changes. While it runs, the clone's step is said under the list and no other repository can be
   picked; a failure says why in the runtime's sentence, with `Try again`, and the screen stays.
 - **The integration branch** is the repository's default branch as GitHub gives it in the list (or in the read of a
   pasted repository) — it is not asked. It can be changed later in the project's Settings (`Integration branch`).

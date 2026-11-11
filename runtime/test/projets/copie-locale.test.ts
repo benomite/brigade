@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { origineDu, ouvrirLaCopieLocale, principal, type CopieLocale, type OptionsDOuverture, type Progres } from "../../src/projets/copie-locale.ts";
+import { origineDu, ouvrirLaCopieLocale, principal, racineDesCopies, type CopieLocale, type OptionsDOuverture, type Progres } from "../../src/projets/copie-locale.ts";
 import { appeler, depotGit, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -76,6 +76,11 @@ test("sans copie locale, ouvrir le projet le clone dans le dossier que l'app gè
   const pourcents = etapes.flatMap((etape) => (etape.percent === undefined ? [] : [etape.percent]));
   assert.equal(pourcents.at(-1), 100, JSON.stringify(etapes));
   assert.equal(etapes.at(-1)?.sentence, `Cloning acme/shop into ${dossier} — 100%.`);
+});
+
+test("sans BRIGADE_PROJECTS_DIR, les copies vont dans ~/Brigade (#3181)", () => {
+  assert.equal(racineDesCopies({}, "/home/chef"), join("/home/chef", "Brigade"));
+  assert.equal(racineDesCopies({ BRIGADE_PROJECTS_DIR: "/ailleurs" }, "/home/chef"), "/ailleurs");
 });
 
 test("la commande ouvre le projet sans qu'on lui donne de dossier : celui de BRIGADE_PROJECTS_DIR, une ligne par étape puis l'état", async (t) => {

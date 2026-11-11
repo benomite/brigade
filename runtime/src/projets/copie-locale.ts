@@ -13,8 +13,8 @@
 // suivante chercherait une copie.
 //
 // Le dossier géré : `<racine>/<nom du projet>`, où la racine est
-// `BRIGADE_PROJECTS_DIR`, à défaut `~/.local/share/brigade/projects` — à côté
-// de l'atelier de la station (`station/configuration.ts`), hors de
+// `BRIGADE_PROJECTS_DIR`, à défaut `~/Brigade` — un dossier que le chef voit et
+// que l'écran « Add a project » nomme en une ligne (#3181), hors de
 // `~/.config/brigade`, qu'aucun cook ni second du bac à sable ne lit.
 //
 // Le clone dit où il en est (`progres`) : une phrase par étape, et le
@@ -72,7 +72,7 @@ export type OptionsDOuverture = {
   progres?: (etape: Progres) => void;
 };
 
-export const COPIES_SOUS_LE_COMPTE = join(".local", "share", "brigade", "projects");
+export const COPIES_SOUS_LE_COMPTE = "Brigade";
 
 // La racine des copies que l'app gère.
 export function racineDesCopies(env: NodeJS.ProcessEnv = process.env, maison = homedir()): string {

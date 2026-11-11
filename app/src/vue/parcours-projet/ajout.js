@@ -61,9 +61,11 @@ export const AUCUN = "No repository matches.";
 export const COLLER = "or paste a public repository: its GitHub link, or owner/name";
 export const AJOUTER = "add";
 export const DEPUIS_UN_ORDINATEUR = "A project is added from a computer, and this phone reads it from GitHub.";
-// La ligne qui dit où le dépôt choisi vient d'être cloné : dans le dossier que l'app gère (runtime/src/projets/copie-locale.ts).
+// La ligne qui dit où le dépôt choisi vient d'être cloné : dans le dossier que l'app gère (runtime/src/projets/copie-locale.ts),
+// `~/Brigade/<name>` — le dossier du compte écrit `~`, sous macOS, Linux ou Windows.
+const MAISON = /^(?:\/home|\/Users)\/[^/]+(?=\/|$)|^[A-Za-z]:\\Users\\[^\\]+(?=\\|$)/i;
 /** @param {string} dossier */
-export const CLONE_DANS = (dossier) => `Cloned into ${dossier}`;
+export const CLONE_DANS = (dossier) => `Cloned into ${dossier.replace(MAISON, "~")}`;
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {

@@ -22,7 +22,7 @@ import { REESSAYER } from "../src/vue/premier-lancement.js";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const CHEMIN = "/home/chef/.config/brigade/app.json";
-const COPIES = "/home/chef/.local/share/brigade/projects";
+const COPIES = "/home/chef/Brigade";
 const AUCUNE = { state: "listed" as const, stations: [], unreadable: [], reason: "No station is paired with this GitHub account yet." };
 // Les dépôts du compte, tels que GitHub les rend : les derniers poussés d'abord — le sien, puis celui d'une organisation.
 const DEPOTS = [
@@ -98,7 +98,10 @@ describe("un nouveau venu connecté à GitHub est dans la page de son projet deu
     assert.equal(vue.element("projets").children.find((entree) => entree.ariaLabel === "parade")?.ariaCurrent, "true", "et c'est sa page qui est ouverte");
     assert.equal(vue.element("avis").hidden, false);
     assert.equal(vue.element("avis").dessous("strong")[0]?.textContent, CLONE_DANS(`${COPIES}/parade`));
+    assert.equal(vue.element("avis").dessous("strong")[0]?.textContent, "Cloned into ~/Brigade/parade", "le dossier du compte s'écrit ~");
     assert.equal(CLONE_DANS("/x/parade"), "Cloned into /x/parade");
+    assert.equal(CLONE_DANS("/Users/chef/Brigade/parade"), "Cloned into ~/Brigade/parade");
+    assert.equal(CLONE_DANS("C:\\Users\\chef\\Brigade\\parade"), "Cloned into ~\\Brigade\\parade");
     // Rien d'autre n'a été demandé : ni dossier, ni connexion, ni station.
     assert.equal(vue.appels.some(({ geste }) => ["choisirDossier", "lireClone", "ajouter", "seConnecterAGitHub", "ajouterAUneStation", "confierAUneStation", "servirUnProjet"].includes(geste)), false);
   });
