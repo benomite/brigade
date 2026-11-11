@@ -29,6 +29,8 @@ export type GitHubDesStations = {
 const PAR_PAGE = 100;
 const PAGES_MAX = 30;
 const ABSENT = /\(HTTP 404\)/;
+// La ligne où `gh` nomme la permission qui manque au compte.
+const PORTEE = /[^\n]*needs the "[\w:]+" scope[^\n]*/;
 
 class Absent extends Error {}
 
@@ -44,8 +46,10 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
     new Promise((resoudre, rejeter) => {
       const enfant = execFile(reglages.gh, ["api", ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre(sortie);
-        if (ABSENT.test(erreurs)) return rejeter(new Absent());
-        rejeter(new Error(echec(reglages, erreur, erreurs)));
+        // Un 404 qui dit la permission qui manque (« needs the "gist" scope ») n'est pas un gist disparu : sa phrase reste.
+        const portee = erreurs.match(PORTEE)?.[0].trim();
+        if (ABSENT.test(erreurs) && portee === undefined) return rejeter(new Absent());
+        rejeter(new Error(portee ?? echec(reglages, erreur, erreurs)));
       });
       // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
       enfant.stdin?.on("error", () => {});

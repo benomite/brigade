@@ -3,9 +3,9 @@
 // d'autre que son ouverture — sa copie, puis le fichier des projets — n'est appelé. La page du projet dit en
 // une phrase qu'aucune station ne fait sa cuisine, et offre le geste qui la lui confie ; une fois
 // confiée, elle nomme ses stations, et permet d'en ajouter une autre. Le choix (#1107) dit en une
-// phrase ce que le chef fait, propose la machine toujours allumée, puis des renforts facultatifs, et
-// arrive rempli : les cooks tirés des cœurs de la station, le calibrage repris des autres projets,
-// chacun avec d'où il vient — on peut lancer sans rien toucher.
+// phrase ce que le chef fait, propose une machine en ligne — cet ordinateur en tête, une station hors ligne jamais
+// cochée d'office (#3187) —, et arrive rempli : les cooks tirés des cœurs de la machine choisie, avec d'où ils
+// viennent — on peut lancer sans rien toucher. Le calibrage n'y est pas : il part tel que l'app le recommande.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,7 +20,7 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
-import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type Ajout, type DefautsDeLaMachine, type VuDesProjets } from "../../src/projets/projets.ts";
+import { calibrageRecommande, EFFORTS, machineProposee, MODELES, stationRecommandee, type Ajout, type DefautsDeLaMachine, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
@@ -92,9 +92,9 @@ const capacites = (ou: Faux) =>
 const champsVus = (ou: Faux) => visibles(ou, "input").concat(visibles(ou, "select")).map(({ ariaLabel, type, value, checked }) => `${ariaLabel}=${type === "checkbox" || type === "radio" ? checked : value}`);
 
 // L'espace de « parade », ouvert par sa case de la barre.
-async function laPage(projetsDesStations: VuDesProjets | undefined, projet: Projet = PARADE, confier: () => Ajout = () => ({ ajoute: "parade" }), defauts: () => DefautsDeLaMachine = () => DEFAUTS) {
+async function laPage(projetsDesStations: VuDesProjets | undefined, projet: Projet = PARADE, confier: () => Ajout = () => ({ ajoute: "parade" }), defauts: () => DefautsDeLaMachine = () => DEFAUTS, stations: VuDesStations = STATIONS) {
   const jouee = await jouerLaVue({
-    demarrage: () => demarrage([projet], projetsDesStations),
+    demarrage: () => ({ ...demarrage([projet], projetsDesStations), stations }),
     confierAUneStation: confier,
     defautsDeStation: defauts,
     depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "main" }] }),
@@ -178,12 +178,12 @@ test("le choix dit en tête ce que le chef fait, puis les machines — la toujou
   // Le dépôt et la branche sont ceux du projet : ils ne se redemandent pas.
   assert.equal(parLibelle(formulaire, "repository"), undefined);
   assert.equal(jouee.appels.some(({ geste }) => geste === "depotsDuChef"), false);
-  // Une case par machine, toutes de la même façon ; l'app propose la toujours allumée.
+  // Une machine à choisir, toutes de la même façon ; l'app propose la toujours allumée.
   const [stations] = formulaire.dessous("fieldset");
-  assert.equal(stations?.dessous("legend")[0]?.textContent, "Stations");
+  assert.equal(stations?.dessous("legend")[0]?.textContent, "Machine");
   assert.doesNotMatch(formulaire.textContent, /main/i);
   assert.deepEqual(
-    machines(stations ?? assert.fail(), "checkbox").map(({ nom, recommandee, dit, choisie }) => [nom, recommandee, dit, choisie]),
+    machines(stations ?? assert.fail(), "radio").map(({ nom, recommandee, dit, choisie }) => [nom, recommandee, dit, choisie]),
     [
       ["parade-box", true, "always on: it keeps cooking while your computer sleeps · Linux 6.1.0", true],
       ["macbook", false, "stops when you close the app on this computer · macOS 25.0.0", false],
@@ -194,7 +194,7 @@ test("le choix dit en tête ce que le chef fait, puis les machines — la toujou
   assert.equal(boutonSous(formulaire, "Start the kitchen on parade-box").type, "submit");
 });
 
-test("chaque valeur arrive posée avec d'où elle vient, le calibrage replié sous « advanced settings » : lancer sans rien toucher part tel quel", async () => {
+test("chaque valeur arrive posée avec d'où elle vient, sans « Advanced settings » : lancer sans rien toucher part tel quel, avec le calibrage recommandé", async () => {
   const { jouee, bloc } = await laPage(SANS_PROJET);
   boutonSous(bloc, "choose its machine").click();
   await repos();
@@ -205,18 +205,10 @@ test("chaque valeur arrive posée avec d'où elle vient, le calibrage replié so
   const champ = cooks.parentElement ?? assert.fail();
   assert.equal(champ.dessous("label")[0]?.textContent, "Cooks at once");
   assert.equal(champ.dessous("small")[0]?.textContent, "recommended — from parade-box's 8 cores: two are kept for the kitchen itself, then about two per cook");
-  // Le calibrage, replié, dit quand même ce qui partira ; déplié, ce qu'il règle et d'où il vient.
-  const avances = formulaire.dessous("details")[0] ?? assert.fail("pas de réglages avancés");
-  assert.equal((avances as unknown as { open: boolean }).open, false);
-  assert.equal(avances.dessous("summary")[0]?.textContent, "Advanced settingsmanager sonnet / medium · reviewer sonnet / medium");
-  assert.match(avances.textContent, /the manager, which judges the tickets and splits the epics, and of the reviewer, which reviews the deliveries — and so the share of your quota they use/);
-  assert.match(avances.textContent, /recommended — the starting value measured on brigade's own box, for lack of another project on your stations/);
-  assert.deepEqual(avances.dessous("select").map(({ ariaLabel, value }) => [ariaLabel, value]), [
-    ["manager model", "sonnet"],
-    ["manager effort", "medium"],
-    ["reviewer model", "sonnet"],
-    ["reviewer effort", "medium"],
-  ]);
+  // Ni le modèle ni l'effort du manager et du reviewer (#3187) : ils restent dans les réglages du projet.
+  assert.deepEqual(formulaire.dessous("details"), []);
+  assert.deepEqual(formulaire.dessous("select").filter((liste) => montre(formulaire, liste)), []);
+  assert.doesNotMatch(formulaire.textContent, /Advanced settings|manager|reviewer/i);
   // Aucun libellé dans un champ, coupé par sa largeur : chacun est écrit au-dessus du sien, ou à côté.
   for (const saisie of [...formulaire.dessous("input"), ...formulaire.dessous("select")]) assert.equal((saisie as unknown as { placeholder?: string }).placeholder ?? "", "", saisie.ariaLabel);
 
@@ -237,54 +229,109 @@ test("chaque valeur arrive posée avec d'où elle vient, le calibrage replié so
   assert.match(bloc.textContent, /parade is asked of parade-box: it prepares it within a minute/);
 });
 
-test("le calibrage proposé est celui qui tourne déjà sur les autres projets, et dit lequel", async () => {
+test("le calibrage qui part est celui qui tourne déjà sur les autres projets, sans qu'il se règle ici", async () => {
   const calibrage = { manager: { modele: "opus", effort: "medium" }, reviewer: { modele: "sonnet", effort: "high" }, dit: "what cantine runs on, your project most recently given to a station" };
-  const { bloc } = await laPage({ ...SANS_PROJET, calibrage });
+  const { jouee, bloc } = await laPage({ ...SANS_PROJET, calibrage });
   boutonSous(bloc, "choose its machine").click();
   await repos();
-  const avances = bloc.dessous("details")[0] ?? assert.fail("pas de réglages avancés");
-  assert.deepEqual(avances.dessous("select").map(({ value }) => value), ["opus", "medium", "sonnet", "high"]);
-  assert.match(avances.textContent, /recommended — what cantine runs on, your project most recently given to a station/);
-  assert.equal(avances.dessous("summary")[0]?.textContent, "Advanced settingsmanager opus / medium · reviewer sonnet / high");
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  assert.equal(visibles(formulaire, "select").length, 0);
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ manager: object; reviewer: object }];
+  assert.deepEqual([saisie.manager, saisie.reviewer], [calibrage.manager, calibrage.reviewer]);
 });
 
-test("une autre machine : ses cooks suivent ses cœurs, le bouton la nomme ; ce que le chef a changé reste le sien", async () => {
+test("une autre machine : ses cooks suivent ses cœurs à elle, le bouton la nomme ; ce que le chef a changé reste le sien", async () => {
   const { jouee, bloc } = await laPage(SANS_PROJET);
   boutonSous(bloc, "choose its machine").click();
   await repos();
   const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  const cases = () => machines(formulaire.dessous("fieldset")[0] ?? assert.fail(), "checkbox");
+  const cases = () => machines(formulaire.dessous("fieldset")[0] ?? assert.fail(), "radio");
+  // Deux stations, deux nombres de cœurs : chacune ses cooks, jamais ceux de l'autre (#3187).
   const mac = cases()[1]?.champ ?? assert.fail("pas de macbook");
   mac.checked = true;
   mac.declencher("change");
-  const box = cases()[0]?.champ ?? assert.fail("pas de parade-box");
-  box.checked = false;
-  box.declencher("change");
+  assert.deepEqual(cases().map(({ nom, choisie }) => [nom, choisie]), [["parade-box", false], ["macbook", true]]);
   assert.equal(parLibelle(formulaire, "cooks at once")?.value, "5", "12 cœurs, 5 cooks");
+  assert.match(formulaire.textContent, /recommended — from macbook's 12 cores/);
   boutonSous(formulaire, "Start the kitchen on macbook");
-  // Cochée de nouveau, la première machine s'ajoute à la suite.
   const retour = cases()[0]?.champ ?? assert.fail();
   retour.checked = true;
   retour.declencher("change");
+  assert.equal(parLibelle(formulaire, "cooks at once")?.value, "3", "8 cœurs, 3 cooks");
+  assert.match(formulaire.textContent, /recommended — from parade-box's 8 cores/);
+  boutonSous(formulaire, "Start the kitchen on parade-box");
 
-  // Le chef tape ses cooks et change un effort : sa valeur reste, et sa provenance ne se dit plus.
+  // Le chef tape ses cooks : sa valeur reste d'une relecture à l'autre, et sa provenance ne se dit plus.
   const cooks = parLibelle(formulaire, "cooks at once") ?? assert.fail();
   cooks.value = "2";
   cooks.declencher("input");
-  const effort = parLibelle(formulaire, "reviewer effort") ?? assert.fail();
-  effort.value = "high";
-  effort.declencher("change");
   jouee.dire("surProjetsDesStations", { ...SANS_PROJET, a: "2026-10-19T12:01:00.000Z" });
   await repos();
   assert.equal(parLibelle(formulaire, "cooks at once")?.value, "2");
-  assert.equal(parLibelle(formulaire, "reviewer effort")?.value, "high");
   assert.doesNotMatch(formulaire.textContent, /recommended — from/);
-  assert.match(formulaire.dessous("summary")[0]?.textContent ?? "", /reviewer sonnet \/ high$/);
+  assert.deepEqual(cases().map(({ nom, choisie }) => [nom, choisie]), [["parade-box", true], ["macbook", false]]);
 
   await Promise.all(formulaire.declencher("submit"));
   await repos();
-  const [saisie] = jouee.dernier("confierAUneStation") as [{ stations: string[]; cooks: string; reviewer: object }];
-  assert.deepEqual([saisie.stations, saisie.cooks, saisie.reviewer], [["g2", "g1"], "2", { modele: "sonnet", effort: "high" }]);
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ stations: string[]; cooks: string }];
+  assert.deepEqual([saisie.stations, saisie.cooks], [["g1"], "2"]);
+});
+
+// Ce qui a mené le chef à ne pas pouvoir donner un projet à sa box (#3187) : une station hors ligne cochée et recommandée,
+// cet ordinateur nommé par son seul nom d'hôte, ses cooks tirés des cœurs d'une autre.
+const HORS_LIGNE = { ...BOX, etat: "hors-ligne", dit: "offline for 22 min", ligne: "offline for 22 min · version 1.4.0 · no project" } as const;
+const ICI_ET_BOX_ETEINTE = { ...SANS_PROJET, locale: "g2", recommandee: stationRecommandee([HORS_LIGNE, MAC]) ?? null, machines: { g1: machineProposee(HORS_LIGNE), g2: machineProposee(MAC) } };
+
+test("une station hors ligne n'est ni cochée d'office ni recommandée ; cet ordinateur vient d'abord, nommé « this computer », son nom d'hôte ensuite", async () => {
+  const { jouee, bloc } = await laPage(ICI_ET_BOX_ETEINTE, PARADE, undefined, undefined, { a: A, stations: [HORS_LIGNE, MAC] });
+  boutonSous(bloc, "choose its machine").click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  const lignes = machines(formulaire, "radio");
+  assert.deepEqual(
+    lignes.map(({ nom, recommandee, choisie }) => [nom, recommandee, choisie]),
+    [
+      ["this computer", false, true],
+      ["parade-box", false, false],
+    ],
+  );
+  const [ici, box] = lignes;
+  assert.deepEqual(ici?.champ.parentElement?.dessous("span").filter(({ className }) => className.includes("hote")).map(({ textContent }) => textContent), ["macbook"]);
+  // Hors ligne, une ligne à elle dit depuis quand, et le geste qui la ramène.
+  assert.deepEqual(box?.champ.parentElement?.dessous("small").map(({ textContent }) => textContent), [
+    "always on: it keeps cooking while your computer sleeps · Linux 6.1.0",
+    "Offline for 22 min: switch parade-box on, or start its brigade-station service there: it starts with the machine",
+  ]);
+  // Les cooks de cet ordinateur, de ses 12 cœurs à lui ; le bouton dit la machine cochée.
+  assert.equal(parLibelle(formulaire, "cooks at once")?.value, "5");
+  assert.match(formulaire.textContent, /recommended — from macbook's 12 cores/);
+  boutonSous(formulaire, "Start the kitchen on this computer");
+
+  // Choisie quand même, la station hors ligne reçoit le projet : la page dit qu'elle le prend à son retour.
+  const eteinte = box?.champ ?? assert.fail();
+  eteinte.checked = true;
+  eteinte.declencher("change");
+  assert.equal(parLibelle(formulaire, "cooks at once")?.value, "3", "les cœurs de parade-box, pas ceux de cet ordinateur");
+  boutonSous(formulaire, "Start the kitchen on parade-box");
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ stations: string[]; cooks: string }];
+  assert.deepEqual([saisie.stations, saisie.cooks], [["g1"], "3"]);
+  assert.match(bloc.textContent, /parade-box is offline: it takes parade when it comes back\./);
+});
+
+test("aucune station en ligne : aucune n'est cochée d'office, aucune n'est recommandée", async () => {
+  const MAC_ETEINT = { ...MAC, etat: "hors-ligne", dit: "offline for 3 min" } as const;
+  const { bloc } = await laPage({ ...ICI_ET_BOX_ETEINTE, recommandee: stationRecommandee([HORS_LIGNE, MAC_ETEINT]) ?? null }, PARADE, undefined, undefined, { a: A, stations: [HORS_LIGNE, MAC_ETEINT] });
+  boutonSous(bloc, "choose its machine").click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  assert.deepEqual(machines(formulaire, "radio").map(({ recommandee, choisie }) => [recommandee, choisie]), [[false, false], [false, false]]);
+  assert.equal(formulaire.dessous("span").some(({ textContent }) => textContent === "recommended"), false);
+  assert.doesNotMatch(formulaire.textContent, /recommended — /);
+  boutonSous(formulaire, "Start the kitchen");
 });
 
 test("ce qui manque se lit sous le choix, et rien ne se ferme", async () => {

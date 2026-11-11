@@ -13,7 +13,8 @@
 import { boutonAction, survol } from "../../briques.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
-import { ENREGISTREMENT, ANNULER } from "../../lexique.js";
+import { CET_ORDINATEUR, ENREGISTREMENT, ANNULER } from "../../lexique.js";
+import { AU_RETOUR, horsLigneDuCompte } from "../../choix-station/choix-station.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** Une station appairée, telle que la lecture du compte la rend. @typedef {import("../../../stations-du-compte.ts").StationEnregistree} Station */
@@ -21,8 +22,8 @@ import { ENREGISTREMENT, ANNULER } from "../../lexique.js";
 /** @typedef {import("../../projets-servis/projets-servis.js").LectureDesProjetsServis} LectureDesProjetsServis */
 // L'état du parcours, pour un projet. `ouvert` : l'étape est posée. `enCours` : le choix qui s'écrit — `ICI`, ou l'id
 // de la station appairée —, les boutons attendent. `refus` : pourquoi le dernier choix n'a rien écrit. `fait` : le nom
-// de la machine qui vient de recevoir le projet.
-/** @typedef {{ ouvert: boolean, enCours?: string, refus?: { ligne: string, detail: string }, fait?: string }} EtatDeLAjout */
+// de la machine qui vient de recevoir le projet ; `absente` : elle était hors ligne, elle le prend à son retour (ticket 3187).
+/** @typedef {{ ouvert: boolean, enCours?: string, refus?: { ligne: string, detail: string }, fait?: string, absente?: true }} EtatDeLAjout */
 // Ce que l'étape propose. `ici` : le nom que l'écran donne à cet ordinateur ; `iciOffert` : sa station peut recevoir le
 // projet — elle existe, et ne le sert pas déjà. `stations` : les stations appairées à proposer (`stationsAProposer`).
 /** @typedef {{ projet: string, ici: string, iciOffert: boolean, stations: readonly Station[] }} DonneesDeLEtape */
@@ -32,11 +33,13 @@ export const ICI = "ici";
 export const TITRE = (/** @type {string} */ projet) => `Who cooks ${projet}? Give it to a station.`;
 export const ICI_AIDE = (/** @type {string} */ ici, /** @type {string} */ projet) => `${ici}'s station clones ${projet} here, straight from GitHub, and takes its tickets — at its next turn, within two minutes.`;
 export const APPAIREE_AIDE = (/** @type {string} */ nom, /** @type {string} */ projet) => `${projet} is added to the projects ${nom} serves; it reads the change within a minute.`;
-export const HORS_LIGNE = "offline: it takes the project once it is back";
 export const AUCUNE = (/** @type {string} */ projet) => `No other station to offer: every station of yours already has ${projet}.`;
 export const ENVOI = ENREGISTREMENT;
 export { ANNULER };
 export const FAIT = (/** @type {string} */ nom, /** @type {string} */ projet) => `${nom} was given ${projet}: it shows in this list once it takes it.`;
+// Ce que la ligne dit du choix écrit : la station hors ligne le prend à son retour (choix-station/).
+/** @param {EtatDeLAjout} etat @param {string} projet */
+export const FAIT_DIT = ({ fait = "", absente }, projet) => (absente ? AU_RETOUR(fait, projet) : FAIT(fait, projet));
 
 // Les stations appairées à proposer : celles à qui le projet n'est pas encore choisi — le dépôt sans égard à la casse,
 // comme GitHub —, hors celle de cet ordinateur (`locale`), que l'étape propose à part, en tête.
@@ -68,8 +71,8 @@ export function tenirLAjoutDeStation({ servirIci, choisir, rendre }) {
     rendre();
   };
   // Un choix à la fois : tant qu'il s'écrit, les autres attendent. Écrit, l'étape se referme et dit qui a reçu le projet.
-  /** @param {string} pour @param {string} cle @param {string} nom @param {() => Promise<{ refus: string, detail?: string } | object>} ecrire */
-  const choix = (pour, cle, nom, ecrire) => {
+  /** @param {string} pour @param {string} cle @param {string} nom @param {() => Promise<{ refus: string, detail?: string } | object>} ecrire @param {boolean} [absente] */
+  const choix = (pour, cle, nom, ecrire, absente = false) => {
     if (projet !== pour || !etat.ouvert || etat.enCours !== undefined) return;
     poser(pour, { ouvert: true, enCours: cle });
     void ecrire()
@@ -80,7 +83,7 @@ export function tenirLAjoutDeStation({ servirIci, choisir, rendre }) {
           const [ligne = rendu.refus, ...suite] = rendu.refus.replace(/^brigade: /, "").split(" — ");
           return poser(pour, { ouvert: true, refus: { ligne: `nothing was written: ${ligne.replace(/^not saved: /, "")}`, detail: [...suite, ...("detail" in rendu && rendu.detail !== undefined ? [rendu.detail] : [])].join(" — ") } });
         }
-        poser(pour, { ouvert: false, fait: nom });
+        poser(pour, { ouvert: false, fait: nom, ...(absente ? { absente: /** @type {const} */ (true) } : {}) });
       });
   };
 
@@ -96,12 +99,13 @@ export function tenirLAjoutDeStation({ servirIci, choisir, rendre }) {
     /** @param {string} pour @param {string} depot @param {string} ici */
     servirIci: (pour, depot, ici) => choix(pour, ICI, ici, () => servirIci(depot)),
     /** @param {string} pour @param {string} depot @param {Station} station */
-    confier: (pour, depot, station) => choix(pour, station.id, station.name, () => choisir(station.id, [...(station.selection ?? []), depot])),
+    confier: (pour, depot, station) => choix(pour, station.id, station.name, () => choisir(station.id, [...(station.selection ?? []), depot]), !station.available),
   };
 }
 
-// L'étape : en tête, ce qu'on attend du chef ; cet ordinateur d'abord, recommandé ; puis les stations appairées — une
-// hors ligne le dit ; aucun choix, une ligne le dit. Un choix qui s'écrit grise les boutons ; un refus se dit en une ligne,
+// L'étape : en tête, ce qu'on attend du chef ; cet ordinateur d'abord, recommandé — « this computer », son nom d'hôte
+// après lui — ; puis les stations appairées, en ligne d'abord — une hors ligne dit depuis quand, et comment la ramener
+// (choix-station/, ticket 3187) ; aucun choix, une ligne le dit. Un choix qui s'écrit grise les boutons ; un refus se dit en une ligne,
 // sa suite au survol. `cancel` referme sans rien écrire.
 /** @param {Fabrique} doc @param {DonneesDeLEtape} donnees @param {EtatDeLAjout} etat @param {GestesDeLEtape} gestes */
 export function poserEtapeStation(doc, { projet, ici, iciOffert, stations }, etat, gestes) {
@@ -115,19 +119,24 @@ export function poserEtapeStation(doc, { projet, ici, iciOffert, stations }, eta
 
   const choix = doc.createElement("ul");
   choix.className = "choix-de-station";
-  /** @param {string} cle @param {string} libelle @param {() => void} geste @param {string} aide @param {{ recommande?: boolean, dit?: string }} [options] */
-  const unChoix = (cle, libelle, geste, aide, { recommande = false, dit } = {}) => {
+  /** @param {string} cle @param {string} libelle @param {() => void} geste @param {string} aide @param {{ recommande?: boolean, dit?: string, hote?: string }} [options] */
+  const unChoix = (cle, libelle, geste, aide, { recommande = false, dit, hote } = {}) => {
     const ligne = doc.createElement("li");
     ligne.dataset.choix = cle;
     const action = boutonAction(doc, libelle, geste, { recommande });
     action.children[0].disabled = etat.enCours !== undefined;
-    ligne.append(action, survol(doc, aide));
+    ligne.append(action);
+    if (hote !== undefined) ligne.append(Object.assign(doc.createElement("span"), { className: "hote mono", textContent: hote }));
+    ligne.append(survol(doc, aide));
     if (etat.enCours === cle) ligne.append(Object.assign(doc.createElement("span"), { className: "dit", textContent: ENVOI }));
     else if (dit !== undefined) ligne.append(Object.assign(doc.createElement("span"), { className: "dit", textContent: dit }));
     choix.append(ligne);
   };
-  if (iciOffert) unChoix(ICI, ici, gestes.servirIci, ICI_AIDE(ici, projet), { recommande: true });
-  for (const station of stations) unChoix(station.id, station.name, () => gestes.confier(station), APPAIREE_AIDE(station.name, projet), station.available ? {} : { dit: HORS_LIGNE });
+  if (iciOffert) unChoix(ICI, CET_ORDINATEUR, gestes.servirIci, ICI_AIDE(ici, projet), { recommande: true, ...(ici === CET_ORDINATEUR ? {} : { hote: ici }) });
+  const maintenant = Date.now();
+  for (const station of [...stations.filter(({ available }) => available), ...stations.filter(({ available }) => !available)]) {
+    unChoix(station.id, station.name, () => gestes.confier(station), APPAIREE_AIDE(station.name, projet), station.available ? {} : { dit: horsLigneDuCompte(station, maintenant) });
+  }
   if (choix.children.length > 0) racine.append(choix);
   else racine.append(ligneVide(doc, AUCUNE(projet), { classe: "aucune" }));
 

@@ -86,9 +86,9 @@ its **space** opens, with the tabs **Rail** and **Cooks**.
 ### 3. Say where it cooks, and start the kitchen
 
 The space says `No station cooks <project> yet.` Click **choose its machine**, choose this computer
-(`stops when you close the app on this computer`). Keep the preset number of cooks and the
-`sonnet` / `medium` calibration under **Advanced settings**, then click **Start the kitchen on
-`<station>`**.
+(`stops when you close the app on this computer`). Keep the preset number of cooks, then click
+**Start the kitchen on this computer**. The manager and reviewer calibration goes out as recommended
+(`sonnet` / `medium` for a first project) and is changed in the project's settings.
 
 If the page warns that the machine has no sandbox, **continue without sandbox** is yours to decide
 for a first run on your own repository.

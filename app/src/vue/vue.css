@@ -628,9 +628,8 @@ main > header,
   color: var(--texte-doux);
 }
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
-   chaque partie sous son petit titre — les stations, les cooks, les réglages
-   avancés —, une machine par ligne, entière, cliquable d'un bout à l'autre. Aucun libellé n'est
-   coupé : un libellé est au-dessus de son champ, et une ligne trop longue passe à la suivante. */
+   chaque partie sous son petit titre — la machine (choix-station/choix-station.css), ses cooks —. Aucun
+   libellé n'est coupé : un libellé est au-dessus de son champ, et une ligne trop longue passe à la suivante. */
 #stations-du-projet .confiance {
   display: flex;
   flex-direction: column;
@@ -667,56 +666,16 @@ main > header,
   font-weight: 700;
   color: var(--texte);
 }
-.confiance .machines {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-.confiance .machine {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-3) var(--pas-4);
-  background: var(--case);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-  cursor: pointer;
-}
-.confiance .machine:hover {
-  border-color: var(--trait-fort);
-}
-.confiance .machine[data-choisie="true"] {
-  border-color: var(--accent);
-}
-.confiance .machine input {
-  margin: 0;
-  accent-color: var(--accent);
-}
-.confiance .machine small {
-  grid-column: 2;
-  color: var(--discret);
-  overflow-wrap: anywhere;
-}
-.confiance .nom-de-machine {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2);
-  font-size: var(--taille-intertitre);
-}
 .confiance .champ {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--pas-2);
 }
-.confiance .champ label,
-.confiance .calibre span {
+.confiance .champ label {
   font-weight: 600;
 }
-.confiance small,
-.confiance .avances p {
+.confiance small {
   color: var(--discret);
 }
 .confiance input:not([type="radio"], [type="checkbox"]),
@@ -769,38 +728,6 @@ main > header,
 }
 .confiance .capacite small {
   grid-column: 2;
-}
-.confiance .avances {
-  border-top: 1px dashed var(--trait);
-  padding-top: var(--pas-4);
-}
-.confiance summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-1) var(--pas-3);
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-}
-.confiance summary .valeurs {
-  font-size: var(--taille-corps);
-  font-weight: 400;
-  color: var(--discret);
-}
-.confiance .avances[open] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-}
-.confiance .avances p {
-  margin: 0;
-}
-.confiance .calibre {
-  display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-2);
 }
 .confiance .lancer {
   display: flex;

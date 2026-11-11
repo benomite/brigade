@@ -12,8 +12,10 @@ closer (#2491), then the Cost and Closer rows of all projects — has left the R
 (#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations lists the project's stations** (#2487), kept up to date by
 the same readings as ever — and, under it, **`Add a station`**: one click opens, in the tab, the step *Who cooks <project>? Give it
-to a station.* **This computer comes first**, as the recommended button, when its station does not serve the project yet;
-then the stations paired with your account that the project is not chosen for — an offline one says so. Each choice is a
+to a station.* **This computer comes first**, as the recommended button, labelled `this computer` with its host name
+after it, when its station does not serve the project yet; then the stations paired with your account that the project
+is not chosen for, online ones first — an offline one says since when and how to bring it back (#3187), and once given
+the project, the line says it takes it when it comes back. Each choice is a
 gesture the app already makes: this computer serves the project as its Settings box does, a paired station gets it in its
 selection as on its home page; what each does is in its `?`. Once written, the step closes and one line says which machine
 was given the project — the station joins the list once it takes it; a refusal stays in the step, in one line, its detail
@@ -439,7 +441,7 @@ name, and the second stays on the right.
 
 | Question | Asked when | What it says | Its gesture |
 |---|---|---|---|
-| Who cooks it — `Who cooks <owner/repo>?` | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | the recommended choice first, with one sentence: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`) | one button per choice, the recommended one first and set apart; an offline station says so beside it. One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of `Add a station` — and the page moves on. A refusal is said in one line, its detail on hover |
+| Who cooks it — `Who cooks <owner/repo>?` | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | one sentence for the recommended choice: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`); with neither, nothing is recommended (`None of your stations is online right now: the one you choose takes the project when it comes back.`) | one button per choice — `this computer` first, its host name beside it, then your stations, online ones first —, the recommended one set apart; an offline station is never recommended, and says beside it since when it is offline and how to bring it back (#3187). One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of `Add a station` — and the page moves on; an offline station chosen, the page says `<name> is offline: it takes <owner/repo> when it comes back.` A refusal is said in one line, its cause and its gesture, GitHub's answer on hover |
 | Its setup for Brigade — `<owner/repo> is being set up for Brigade` | the project is not set up yet (the reading of #2628, `checkRepoSetup`) | what is awaited, and from whom — below | the button of the state, if any |
 
 The line counts only the questions the project has: one already set up, or already cooked by a station, shows `1 of 1`.
@@ -1883,7 +1885,12 @@ project's Stations tab, they are in the list of stations** (#1778, #2638), read 
   the next launch, your projects are again what the brigade knows. **Ticking or unticking writes at once** the whole selection into the
   station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
   it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
-  line says so under the boxes, the detail on hover, and nothing changes.
+  line says so under the boxes, the detail on hover, and nothing changes. **The line says the cause and its gesture**
+  (#3187, `refusDeLEcriture` in `app/src/stations-du-compte.ts`): the “gist” permission missing from this computer's
+  GitHub sign-in (sign in to GitHub again on this computer; the `gh auth refresh -h github.com -s gist` command is on
+  hover), a sign-in no longer valid, GitHub's hourly limit, no network, the station's registration gone from GitHub
+  (start the station so it registers again), or any other answer of GitHub (choose again in a minute, its answer on
+  hover). A 404 that names the missing permission is told as the permission, not as a gist gone.
 - **A repository another station already serves** (#1790, epic #1785; changed by #2713): the ticked station opens its
   own kitchen and cooks there, like every station that serves the project. Before #2713 it joined the one that ran,
   or refused in one sentence, and said which in its tracking (`brigade-projets-suivi.json` of the same gist, `rejoindre`). The app reads it there with the
@@ -1894,8 +1901,14 @@ project's Stations tab, they are in the list of stations** (#1778, #2638), read 
   station — the station that serves it stays the main one, and nothing says the kitchen runs on this computer.
   Refused, the box says "refused" and the runtime's sentence is under the boxes, whole; the project's page keeps its
   stations, with "<station> was not added: <sentence>" under its first line.
-- **An offline station stays editable**: one line says it serves these projects once it is back. A held one too:
+- **An offline station stays editable**: one line says it serves these projects once it is back, and one more says since
+  when it is offline and how to bring it back (`Offline for 22 min: switch box on, or start its brigade-station service
+  there: it starts with the machine`; a Mac or a PC: `open Brigade on <name>, or log in there`). A held one too:
   its line says it reads these choices once GitHub's limit lifts, and keeps serving its projects.
+- **Online or offline is what the station is doing** (#3187, `avecLeurEtat`): online when its last sign of life is
+  fresh — its registration's, by the contract's rule, or its presence's, which a running station writes every 30 s
+  under the same name. Offline, the app keeps since when (`offlineSince`). A running box is never shown offline because
+  its registration is late.
 - Under the list, with no heading, only what the reading of the account has to add. **No station at all**, neither
   paired nor registered: the sentence to install one on the machine that will cook, and the installation command of
   each system (`docs/installation-station.md`), each with "copy", and "read again". **This computer signed in to no
@@ -1999,22 +2012,26 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
 
 - **At the top, a sentence says what you are doing**: `Choose the machine that cooks <projet>.`,
   and that everything is already set to what is recommended: you change what you want, or you launch as is.
-- **Then the stations**, one checkbox per paired station, all of them the same. Each says what
-  choosing it implies: `always on: it keeps cooking while your computer sleeps` for a
-  server, `stops when you close the app on this computer` for the app on a Mac or a PC. **The
-  server station is ticked by default**, marked `recommended`; with no server, the first readable
-  machine. Every station cooks, takes, reviews and merges.
-- **The number of cooks at a time comes preset**, drawn from the cores of the station — those it
-  publishes in its gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, by the very rule
+- **Then the machine**, one choice per paired station, all of them the same (#3187: one machine;
+  more are added with "+ station"). **This computer comes first**, labelled `this computer`, its host
+  name after it. Each says what choosing it implies: `always on: it keeps cooking while your computer
+  sleeps` for a server, `stops when you close the app on this computer` for the app on a Mac or a PC.
+  **A station that can cook now is chosen by default**: the online server, marked `recommended`;
+  without one, this computer if its station is online, otherwise the first online one. **An offline
+  station is never chosen by default nor marked `recommended`**; with none online, nothing is. An
+  offline station says, on a line of its own, since when and how to bring it back (`Offline for 22
+  min: switch box on, or start its brigade-station service there: it starts with the machine`). It
+  can still be chosen: the request is written, and the page says `<name> is offline: it takes
+  <projet> when it comes back.` Every station cooks, takes, reviews and merges. The machines and these
+  rules are in `app/src/vue/choix-station/`.
+- **The number of cooks at a time comes preset**, drawn from the cores of the chosen station itself —
+  those it publishes in its gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, by the very rule
   the station applies: `max(1, ⌊(cores − 2) / 2⌋)`, 3 for 8 cores. Below:
   `recommended — from <station>'s 8 cores: …`. A station that does not publish its cores yet: 2,
-  and the line says so. Ticking another station makes the number follow, as long as you have not typed it.
-- **The calibration of the manager and the reviewer is folded under "Advanced settings"**, with what it
-  sets: the model and the effort that judge, split and review — and therefore what they take from your
-  quota. Folded, the line says what will go out (`manager sonnet / medium · reviewer sonnet / medium`).
-  It takes up **that of the project most recently handed to a station** from the app
-  (`recommended — what <projet> runs on, …`), or failing that **the measured starting value**,
-  `sonnet` / `medium` (#425).
+  and the line says so. Choosing another machine makes the number follow its own cores, as long as you have not typed it.
+- **No manager or reviewer setting** (#3187): the calibration that goes out is the one the app
+  recommends — **that of the project most recently handed to a station** from the app, or failing that
+  **the measured starting value**, `sonnet` / `medium` (#425). It is changed in the project's settings.
 - **A proposed value is visible as such**: its `recommended — …` line disappears as soon as you
   change it, and what you changed stays yours when the stations are re-read.
 - **The button says what it does**: `Start the kitchen on <station>`. Nothing goes out with an empty
