@@ -37,6 +37,7 @@ import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/clo
 import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { brancherRapportHebdo } from "../rapport-hebdo-qualite.ts";
+import { brancherRecurrents } from "../recurrents/planificateur.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
@@ -297,6 +298,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
     const { chef } = brancherLeChef(ouverte, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
     brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
+    // Les tickets récurrents du projet : à leur date, une issue avec `fire`, sous l'identité du manager (#3230).
+    brancherRecurrents(ouverte, { repertoireEtat, github: githubs.manager, avertir: dire });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();
