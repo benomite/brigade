@@ -2402,7 +2402,9 @@ at the head of its TODO: one sentence saying what is missing (`Not set up for Br
 missing.`, the names on hover) and one recommended button, `Set up for Brigade` — the same single gesture as adding a
 project (`runRepoSetup`). While it runs the button waits and the notice says so; on failure the notice gives one
 sentence and `Try again`; once done it leaves on both views without a reload. The state is read once per project with
-`checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. Modules:
+`checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. The bindings section counts when
+the local copy's `CLAUDE.md` has it, or else the `CLAUDE.md` of the integration branch on GitHub: once the setup's PR is
+merged, the next reading says the project is set up, without pulling the copy (#3170). Modules:
 `app/src/vue/page-projet/depot-non-prepare.js`, `app/src/vue/todo/avis-todo.js`. Captures:
 `docs/captures/2628/`.
 
@@ -2433,7 +2435,10 @@ stations replace them.
   and `lint` scripts, or the stack's test command) and the file zones (the workspaces, or the first-level folders) —
   each with what it is for in Brigade. What cannot be read is said so, with why, and left for the questions. Once you
   have answered, the second runs this `/brigade:init` itself; merge its PR — at your next message, the same session
-  takes its role again (#2689). It leaves the plugin once adding a project sets
+  takes its role again (#2689). The project is then ready, and the second offers to fire a first ticket (#3170,
+  `runtime/src/second-init/premier-ticket.ts`, carried by the same first message): it asks what you want done, drafts a
+  title and observable acceptance criteria with you, then creates it with `gh issue create` and the labels `product`,
+  `prio:1` and `fire` — a cook takes it from the rail, and you watch it in the board. It leaves the plugin once adding a project sets
   the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
