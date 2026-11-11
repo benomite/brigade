@@ -56,7 +56,7 @@ const prioriteDe = (labels: readonly string[]): number | null => {
 // Une liste de GitHub, page après page, jusqu'à une page qui n'est pas pleine — dix au plus. Une réponse qui n'est pas
 // une liste lève : jamais un rail vide à sa place.
 const PAR_PAGE = 100;
-async function toutesLesPages(lire: (chemin: string) => Promise<unknown>, chemin: string): Promise<Brut[]> {
+export async function toutesLesPages(lire: (chemin: string) => Promise<unknown>, chemin: string): Promise<Brut[]> {
   const toutes: Brut[] = [];
   for (let page = 1; page <= 10; page++) {
     const brute = await lire(`${chemin}${chemin.includes("?") ? "&" : "?"}per_page=${PAR_PAGE}&page=${page}`);
@@ -70,12 +70,13 @@ async function toutesLesPages(lire: (chemin: string) => Promise<unknown>, chemin
 
 const VINGT_QUATRE_HEURES = 24 * 3600 * 1000;
 
-// Les tickets servis dans les 24 h avant `maintenant`, d'après les PR fermées, la plus récemment mise à jour d'abord :
+// Les tickets servis dans les 24 h avant `maintenant` — ou la fenêtre `fenetreMs`, celle des chiffres d'autonomie
+// (vue/autonomie/autonomie-github.ts) —, d'après les PR fermées, la plus récemment mise à jour d'abord :
 // une lecture, page après page jusqu'à une PR plus ancienne que la fenêtre. Seule une PR mergée sert un ticket — une
 // issue fermée sans PR mergée (not planned, doublon) n'est jamais servie. La station est celle que la PR dit avoir
 // cuisiné (« Cooked by station `x` »). Le plus récemment mergé d'abord, un seul service par ticket.
-async function lireLesServis(lire: (chemin: string) => Promise<unknown>, depot: string, maintenant: number): Promise<ServiSurGithub[]> {
-  const depuis = maintenant - VINGT_QUATRE_HEURES;
+export async function lireLesServis(lire: (chemin: string) => Promise<unknown>, depot: string, maintenant: number, fenetreMs = VINGT_QUATRE_HEURES): Promise<ServiSurGithub[]> {
+  const depuis = maintenant - fenetreMs;
   const servis = new Map<number, ServiSurGithub>();
   for (let page = 1; page <= 10; page++) {
     const brute = await lire(`/repos/${depot}/pulls?state=closed&sort=updated&direction=desc&per_page=${PAR_PAGE}&page=${page}`);

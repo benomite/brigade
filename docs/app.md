@@ -1440,6 +1440,25 @@ on GitHub. A `status` that the home no longer reads is dropped: the row says aga
 hover of the **T** icon (see "The app's code: up to date, or behind") —, the "Projects on
 your stations" list and the "add a project" path, on a station's page.
 
+### Autonomy figures
+
+*Ticket: #3222, epic #3213.* Brigade's goal is autonomy (CLAUDE.md); **three figures say whether it holds**, over the
+**last 7 days** or the **last 30 days**, chosen by two buttons: **served without a human** — the share of the tickets merged
+in the period whose path from `fire` to merge never asked the chef anything (no TODO card, no `blocked-on-human`) —,
+**lead time** — the median time from `fire` to merge —, and **send-back rate** — the share of those deliveries the pass sent
+back at least once (sent back twice counts once). **A project's figures** are a block of its `Caps, closer and all projects`
+section of Settings, above the rows of all projects; **those of all projects together**, their tickets pooled, sit on the
+cost page, right under the tokens. **"served with a human" unfolds the tickets that asked the chef something**, each with
+the question it asked and a button that opens its issue: each is a failure to fix. A period with no merged ticket says so
+in one line, with no figure; a reading that fails says so in one line, its detail on hover; a project that could not be
+read is named under the figures of all projects. A ticket merged with no `fire` before its merge is left out.
+
+**Everything is read from GitHub** — the merged pull requests, then the events and comments of each served ticket's issue —
+with the token of this computer's `gh`, under the rail's budget and conditional reads; nothing is read from the machine, so a
+new computer shows the same figures. One reading covers 30 days and both periods, kept ten minutes per repository. The
+computation is the runtime's, `runtime/src/autonomie/chiffres/chiffres.ts`; the reading is `app/src/vue/autonomie/autonomie-github.ts`,
+the block `app/src/vue/autonomie/chiffres.js`.
+
 ### The cost of all projects
 
 *Tickets: #908 to #912, #1022, #2638.* **In a project's health strip, the "Cost" row opens the cost page of all
