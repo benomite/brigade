@@ -5,7 +5,7 @@ import { ecran as avecQuota } from "./cout-part.ts";
 
 export const ecran: Ecran = {
   ...avecQuota,
-  dit: "La page du coût de tous les projets sans quota Max : les tokens de chaque ticket cher, sans part, et « Share not shown: weekly quota is not configured. » (#3254)",
+  dit: "La page du coût de tous les projets sans quota Max : les tokens de chaque ticket cher, sans part, et « No share: the weekly quota is not configured. » (#3254)",
   donnees: () => {
     const base = avecQuota.donnees();
     const demarrage = base.reponses.demarrage as { configuration: { quotaMax?: unknown } };

@@ -37,7 +37,7 @@ You need two accounts:
 2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
 3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
 4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it, prepares it with a ticket of its own, and tells you when it is ready.
-5. **Cook a first ticket**: on GitHub, open an issue in that repository and put the label `fire` on it. A cook takes it, opens a pull request, and the pass judges it and merges it.
+5. **Cook a first ticket**: once the project is ready, the second asks you, in the app, what you want to change first. It writes the ticket from your answer and shows it to you; say yes, and it goes on the rail. A cook takes it, opens a pull request, and the pass judges it and merges it.
 
 No command to type, no file to edit. Every screen is described in **[docs/installation.md](docs/installation.md)**.
 
