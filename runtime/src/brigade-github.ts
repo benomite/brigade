@@ -52,7 +52,7 @@ import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
 import { aDesGates, jouerGates, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
-import { gatesQuiNeJugentPas } from "./fondation/fondation.ts";
+import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
@@ -2094,6 +2094,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const abandon = new AbortController();
 
   const ciDesPR = lecteurDeLaCiDesPR(depot, base);
+  // Les tickets de fondation du dépôt, lus seulement quand des gates ne jouent
+  // rien (#3188) : les issues de toujours, celles qui portent le label.
+  const lireFondations = async () => (await options.github.issuesDepuis(new Date(0).toISOString())).filter((issue) => issue.labels.includes(LABEL_FONDATION));
 
   // Le lieu des gates de la tête d'une PR : la branche du ticket, telle que
   // l'origine la porte, dans un worktree à elle. Il ne se joue que sur la tête
@@ -2115,8 +2118,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     };
     if (depot.tete(branche) !== pr.sha) return refus(`the station's clone holds \`${branche}\` at another head than PR #${pr.number}'s \`${pr.sha.slice(0, 7)}\``);
     if (!aDesGates(worktree)) return refus(`the project has no \`${SCRIPT_GATES}\`: with no CI either, nothing would judge this delivery`);
-    // Des gates qui ne jouent rien encore, avant que la fondation ne soit servie (#3188).
-    const vides = await gatesQuiNeJugentPas(worktree, ticket, (numero) => options.github.issue(numero));
+    // Des gates qui ne jouent rien — aucune commande de test, ou provisoires tant que la fondation n'est pas servie (#3188).
+    const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
     if (vides !== null) return refus(vides);
     const secrets = lireSecrets(worktree, reglage.secrets ?? null);
     if (!secrets.pret) return refus(`the secrets the project declares cannot be given to its gates — ${secrets.problemes.join("; ")}`);
@@ -2172,7 +2175,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const reglage = options.gates;
     if (depot.lancerGit === undefined || reglage === undefined) return { refus: "this station cannot run git or the gates in a cook's worktree" };
     if (!aDesGates(worktree)) return { refus: `the project has no \`${SCRIPT_GATES}\`: nothing would show the base is green` };
-    const vides = await gatesQuiNeJugentPas(worktree, ticket, (numero) => options.github.issue(numero));
+    const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
     if (vides !== null) return { refus: vides };
     const secrets = lireSecrets(worktree, reglage.secrets ?? null);
     if (!secrets.pret) return { refus: `the secrets the project declares cannot be given to its gates — ${secrets.problemes.join("; ")}` };

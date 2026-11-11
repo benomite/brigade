@@ -172,14 +172,17 @@ base, the stale-branch pruning).
   goes back to a cook like a red CI. The `pending` status is the claim: a fresh one (under 90 min, `GATES_PERIMEES_MS`)
   is awaited, and one left by a station that died during the gates is taken over once it expires. A project with CI on
   its PRs keeps requiring it, and in doubt the CI is awaited.
-- **A new project's provisional gates** (#3188): while the `CLAUDE.md` of the PR's tree carries the
-  `**Gates provisoires**` binding that `/brigade:init` writes on an empty repository, and the foundation ticket it names
-  is not closed, the station does not run the gates of an ordinary delivery: they run nothing, so no status is posted,
-  the PR is not merged, and the station says why ("nothing checked — the gates run nothing until the foundation ticket
-  #n is merged"), retrying like any gates not run. The delivery of the ticket labelled `foundation` is not held: the
-  gates it brings run on its branch and the review judges it. Once the foundation ticket is closed, every delivery is
-  judged by the real gates. A cook's "already served" claim is not confirmed on provisional gates either
-  (`runtime/src/fondation/fondation.ts`).
+- **Gates that run nothing never pass a delivery** (#3188). Before running the gates of a PR's head (or of the base, to
+  confirm a cook's "already served" claim), the station reads the tree's `gates.sh` and `CLAUDE.md`. The gates run
+  nothing when `gates.sh` launches no command (only comments, `set`, `cd`, assignments, `:`, `true` or an `exit`), or
+  when `CLAUDE.md` carries the `**Gates provisoires**` binding that `/brigade:init` writes on a new project
+  (`commands/init.md`, step 5). Then the station reads the repository's issues labelled `foundation`: while one is open,
+  no delivery but its own is merged, and the station says why ("nothing checked — the gates run nothing until the
+  foundation ticket #n is merged"), posts no status and retries like any gates not run. The foundation ticket's own
+  delivery is not held: the gates it brings run on its branch and the review judges it. Once it is closed, gates that
+  launch a command are the real ones and judge every delivery, binding forgotten or not; a `gates.sh` with no command
+  still reports "nothing checked — the gates run no test command", never green, and so does the binding with no
+  `foundation` ticket ever filed (`runtime/src/fondation/fondation.ts`).
 - **An outside PR is judged, never merged** (#2933). A PR opened from a fork (`isCrossRepository` in the turn's
   snapshot, a head repository other than the project's in REST) is no ticket's PR, whatever its branch is called. A
   station fetches its head from `refs/pull/<n>/head` into a detached worktree, runs the review and the project's gates
