@@ -98,6 +98,7 @@ import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATI
 import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
 import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
+import { apresRendu as apresLaRevue, CHAMP_DE_LA_NOTE, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
@@ -867,6 +868,12 @@ const reponsesAuxCartes = new Map();
 const validations = new Map();
 /** @type {Map<string, string>} */
 const commentairesDeValidation = new Map();
+// Les cartes « review before merge » (carte-sensible/, ticket 3224) : la même chose — le geste en route et la note tapée ;
+// mergées ou renvoyées d'ici, elles quittent TODO avec les validées (`validees`).
+/** @type {Map<string, import("./carte-sensible/carte-sensible.js").Etat>} */
+const revues = new Map();
+/** @type {Map<string, string>} */
+const notesDeRevue = new Map();
 /** @type {Map<string, Set<number>>} */
 const validees = new Map();
 /** @param {string} projet */
@@ -2745,7 +2752,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     const { phrase, details } = ligneDuRefus(document, carte.ligne ?? "", carte.refus.brut);
     tete.after(...(details === undefined ? [phrase] : [phrase, details]));
   }
-  const etiquettes = poserEtiquettes(document, carte, avecStation);
+  // Un ticket au label `sensitive` (ticket 3224) : sa marque, la première de ses étiquettes.
+  const etiquettes = carte.sensible === true ? marquerSensible(document, poserEtiquettes(document, carte, avecStation)) : poserEtiquettes(document, carte, avecStation);
   if (etiquettes !== null) bon.append(etiquettes);
   // Sur le rail, en attente : sa priorité, sous son numéro
   if (carte.prio !== undefined) {
@@ -4994,6 +5002,7 @@ function oublierLesValidees(projet, colonnes) {
     if (portees.has(ticket)) continue;
     faites.delete(ticket);
     validations.delete(`${projet.nom}#${ticket}`);
+    revues.delete(`${projet.nom}#${ticket}`);
   }
 }
 
@@ -5136,6 +5145,7 @@ function etatDeLaCarte(projet, ticket, todo) {
 function poserLaCarteDeTodo(projet, ticket, todo) {
   const cle = `${projet.nom}#${ticket}`;
   if (estUneValidation(todo)) return poserLaValidation(projet, ticket, todo, false);
+  if (estUneRevue(todo)) return poserLaRevue(projet, ticket, todo, false);
   const etat = etatDeLaCarte(projet, ticket, todo);
   const second = demandesAuSecond.get(cle);
   return poserCarteDeTodo(
@@ -5179,6 +5189,60 @@ function poserLaValidation(projet, ticket, todo, grand) {
       ...(grand ? {} : { demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)) }),
     },
   );
+}
+
+// La carte « review before merge » d'un ticket sensible (carte-sensible/, ticket 3224) : « Pull request #N » l'ouvre d'un
+// clic ; « Merge » et « Send back » jouent la commande `sensitive` du runtime par le process principal. `grand` : à la
+// largeur d'un téléphone, sur la carte ouverte depuis la liste.
+/** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo @param {boolean} grand */
+function poserLaRevue(projet, ticket, todo, grand) {
+  const cle = `${projet.nom}#${ticket}`;
+  const second = demandesAuSecond.get(cle);
+  return poserCarteSensible(
+    document,
+    ticket,
+    todo,
+    revues.get(cle) ?? REVUE_AU_REPOS,
+    { note: notesDeRevue.get(cle) ?? "", cle, grand, ...(second === undefined ? {} : { second }), ...(lectureSeuleDe(projet) === undefined ? {} : { lectureSeule: true }) },
+    {
+      merger: () => void repondreALaRevue(projet, ticket, { geste: "merger" }),
+      renvoyer: (note) => void repondreALaRevue(projet, ticket, { geste: "renvoyer", note }),
+      ecrire: (texte) => void notesDeRevue.set(cle, texte),
+      ouvrirPr: () => void brigade.ouvrirPr(projet.nom, ticket),
+      ...(grand ? {} : { demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)) }),
+    },
+  );
+}
+
+// Une réponse du chef sur une carte « review before merge », une seule à la fois : faite, la carte quitte TODO et les faits
+// sont relus ; refusée, elle garde ses gestes et sa note, et dit pourquoi.
+/** @param {Projet} projet @param {number} ticket @param {import("./carte-sensible/carte-sensible-github.ts").GesteSensible} geste */
+async function repondreALaRevue(projet, ticket, geste) {
+  const cle = `${projet.nom}#${ticket}`;
+  if (revues.get(cle)?.etape === "envoi") return;
+  lacherLaCarteDe(projet.nom, ticket);
+  /** @param {import("./carte-sensible/carte-sensible.js").Etat} etat */
+  const poser = (etat) => {
+    revues.set(cle, etat);
+    if (courant?.nom === projet.nom) poserRail(projet);
+    poserLesCartesDuChef();
+  };
+  poser({ etape: "envoi", geste: geste.geste });
+  /** @type {import("./carte-sensible/carte-sensible-github.ts").RenduSensible | undefined} */
+  let rendu;
+  try {
+    rendu = brigade.gesteSensible === undefined ? { refus: REVUE_SANS_PONT, detail: "" } : await brigade.gesteSensible(projet.nom, ticket, geste);
+  } catch (erreur) {
+    rendu = { refus: "nothing was done: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  const suite = apresLaRevue(rendu);
+  if (suite.etape === "fait") {
+    notesDeRevue.delete(cle);
+    validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
+    if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
+  }
+  poser(suite);
+  if (suite.etape === "fait") lireLesFaits();
 }
 
 // Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont
@@ -5330,7 +5394,7 @@ function lesCartesDuChef() {
       const { todo } = carte;
       if (!carte.attendu || todo === undefined || (todo.question === null && todo.choix.length === 0)) return [];
       // Validée ou renvoyée d'ici (ticket 3185) : elle a quitté la liste.
-      if (estUneValidation(todo)) return valideesDe(projet.nom).has(carte.ticket) ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
+      if (estUneValidation(todo) || estUneRevue(todo)) return valideesDe(projet.nom).has(carte.ticket) ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
       const etat = etatDeLaCarte(projet, carte.ticket, todo);
       const vu = vuDeLaCarte(todo, etat).vu;
       return etat.etape === "postee" || vu === "attente" || vu === "jouee" ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
@@ -5366,6 +5430,13 @@ function poserLesCartesDuChef() {
       const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DU_COMMENTAIRE;
       cartesDuChef.replaceChildren(...poserLaCarteAPart(document, { carte: lue, total: cartes.length, retour }, poserLaValidation(projet, ticket, lue.todo, true)));
       if (enMain) /** @type {HTMLElement | null} */ (cartesDuChef.querySelector(`[data-champ="${CHAMP_DU_COMMENTAIRE}"]`))?.focus();
+      return;
+    }
+    // La carte « review before merge » (ticket 3224) : la même que dans TODO, ses boutons en 44 px.
+    if (estUneRevue(lue.todo)) {
+      const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DE_LA_NOTE;
+      cartesDuChef.replaceChildren(...poserLaCarteAPart(document, { carte: lue, total: cartes.length, retour }, poserLaRevue(projet, ticket, lue.todo, true)));
+      if (enMain) /** @type {HTMLElement | null} */ (cartesDuChef.querySelector(`[data-champ="${CHAMP_DE_LA_NOTE}"]`))?.focus();
       return;
     }
     const etat = etatDeLaCarte(projet, ticket, lue.todo);

@@ -1,0 +1,61 @@
+/* Le ticket sensible (ticket 3224, carte-sensible.js). Sur sa carte du rail, la marque « sensitive », la première de ses
+   étiquettes (composants/bon) : en trait plein rouge et à l'encre grasse — elle se lit sans la couleur. Dans TODO, la carte
+   « review before merge » est une carte de TODO (carte-attente.css) : la question, le lien de sa PR, « Merge », le geste
+   recommandé, puis la note et « Send back ». Sur le téléphone, la carte ouverte depuis la liste (cartes-du-chef.css). */
+.bon .etiquette-sensible {
+  font-weight: 700;
+  color: var(--bon-encre);
+  border-color: var(--rouge);
+  border-width: 2px;
+  line-height: 14px;
+}
+.carte-sensible button.lien-de-la-pr {
+  align-self: flex-start;
+}
+.carte-sensible p.revue-illisible {
+  font-style: italic;
+}
+
+/* Sur le téléphone, hors du bon : la carte sur le fond de la page, son champ et ses boutons à la taille du pouce. */
+#cartes-du-chef .carte-sensible {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+}
+#cartes-du-chef .carte-sensible p.question-carte {
+  margin: 0;
+  font-size: var(--taille-titre);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#cartes-du-chef .carte-sensible .action {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+}
+#cartes-du-chef .carte-sensible .action > button {
+  flex: 1;
+}
+#cartes-du-chef .carte-sensible div.phrase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+#cartes-du-chef .carte-sensible textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: var(--pas-3);
+  font: inherit;
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+  background: var(--case);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  resize: none;
+}
+#cartes-du-chef .carte-sensible textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

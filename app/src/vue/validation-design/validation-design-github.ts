@@ -122,6 +122,13 @@ export async function jouerLaValidation({ depot, design, geste, commande, env }:
   if ("refus" in lu || design === undefined) return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const cible = `${depot}#${design.pr}`;
   const args = lu.geste === "valider" ? ["validate", cible] : ["send-back", cible, "--comment", lu.commentaire];
+  return jouerLaCommande({ args, commande, env, parDefaut: lu.geste === "valider" ? `PR #${design.pr} validated` : `PR #${design.pr} sent back` });
+}
+
+// Une commande du runtime que le process principal joue, avec ses arguments : ce qu'elle a dit en dernier — `parDefaut`, si
+// elle n'a rien dit —, ou pourquoi rien n'est fait. La carte « review before merge » (vue/carte-sensible/, ticket 3224) joue
+// la sienne par ce même chemin.
+export async function jouerLaCommande({ args, commande, env, parDefaut }: { args: string[]; commande: () => Promise<CommandeChargee>; env: Record<string, string | undefined>; parDefaut: string }): Promise<RenduDeValidation> {
   const dits: string[] = [];
   const redits: string[] = [];
   let chargee: CommandeChargee | undefined;
@@ -132,7 +139,7 @@ export async function jouerLaValidation({ depot, design, geste, commande, env }:
     if (chargee?.estUneSortie(erreur) !== true) return { refus: "nothing was done: the kitchen's command could not run", detail: message(erreur) };
     return { refus: `nothing was done: ${sansPrefixe(redits[0] ?? `the command ended with code ${erreur.code}`)}`, detail: redits.join("\n") };
   }
-  return { fait: dits.at(-1) ?? (lu.geste === "valider" ? `PR #${design.pr} validated` : `PR #${design.pr} sent back`) };
+  return { fait: dits.at(-1) ?? parDefaut };
 }
 
 // ── Les deux gestes sur le téléphone, sur l'API de GitHub ──

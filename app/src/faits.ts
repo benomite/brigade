@@ -28,6 +28,7 @@ import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { CarteDuChef } from "./tableau/todo-github.ts";
 import { validationLue } from "./vue/validation-design/validation-design-github.ts";
+import { revueLue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
@@ -235,7 +236,9 @@ function chefLu(brut: unknown): CarteDuChef | undefined {
   if (typeof lu?.sorte !== "string" || typeof lu.texte !== "string") return undefined;
   // La carte « Validate its screen » (ticket 3185) garde ce que le corps de son issue dit, s'il a sa forme.
   const design = validationLue(lu.design);
-  return { sorte: lu.sorte, texte: lu.texte, ...(design === undefined ? {} : { design }) };
+  // La carte « review before merge » (ticket 3224) aussi.
+  const sensible = revueLue(lu.sensible);
+  return { sorte: lu.sorte, texte: lu.texte, ...(design === undefined ? {} : { design }), ...(sensible === undefined ? {} : { sensible }) };
 }
 // Ce qu'une carte du chef attend de lui, en une phrase, selon sa sorte ; une sorte que l'app ne connaît pas est dite telle quelle.
 const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
@@ -244,6 +247,7 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
   "product-question": "A product question waits for your answer.",
   abandoned: "The kitchen gave this ticket up.",
   "design-validation": "A design delivery waits for you to validate its screen.",
+  "review-before-merge": "A sensitive ticket waits for your review before merge.",
 };
 const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
 
@@ -370,7 +374,7 @@ export type Faits = {
   // `depuis` : l'heure de son entrée dans cet état — sa prise, son entrée en pass… (#1811) ; absent d'un runtime d'avant.
   // `essais` : d'un ticket pris, ses essais depuis sa première prise, le plus ancien d'abord (#1893) ; absent pour tout autre.
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; illisible?: string }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; illisible?: string; sensible?: true }[];
   cooks?: Cook[];
   attend?: Attendu[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -442,11 +446,12 @@ export type Faits = {
 // `age` : sur une carte de Taken ou de Pass, depuis combien de temps elle y est (cadence.ts) — absent pour une autre, et
 // d'un runtime qui ne dit pas l'entrée du ticket dans sa colonne.
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
+// `sensible` : son ticket porte le label `sensitive` (ticket 3224) — la carte le marque.
 // `miseDeCote` : sur une carte de TODO d'un projet GitHub seul, le label qui met son ticket de côté, et les `#N` de sa
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -802,6 +807,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...requisLus(lu.requiert),
           ...(lu.station == null ? {} : { station: texte(lu.station, `${lequel}.station`) }),
           ...(lu.requires == null ? {} : { requires: textesLus(lu.requires, `${lequel}.requires`) }),
+          // Un ticket au label `sensitive` (ticket 3224) : sa carte le dit.
+          ...(lu.sensible === true ? { sensible: true as const } : {}),
         }), ({ ticket, titre }, illisible) => ({ ticket, etat: ILLISIBLE_ETAT, titre, url: "", illisible }));
       }),
       ...(racine.cooks === undefined
@@ -1180,6 +1187,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(titre === undefined ? {} : { titre }),
       ...(connu?.station === undefined ? {} : { station: connu.station }),
       ...(connu?.requires === undefined ? {} : { requiert: connu.requires }),
+      ...(connu?.sensible === true ? { sensible: true as const } : {}),
       ouvrable: url != null && ouvrable(url),
       attendu: dit !== undefined,
       attend: dit ?? [],
@@ -1249,6 +1257,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...ligneEnWaiting(tiers, tiers?.relance != null && relance < 0),
       ...colore(TONS_DE_TICKET, connu.etat),
       ...(titre === "" ? {} : { titre }),
+      ...(connu.sensible === true ? { sensible: true as const } : {}),
       ouvrable: ouvrable(url),
       attendu: false,
       attend: [],
@@ -1525,8 +1534,9 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(projet: unknown, ticket: unknown): string | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
-      // Ou la PR qu'une carte « Validate its screen » valide (ticket 3185).
-      const url = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.pr ?? entreeDe(donnes, ticket)?.chef?.design?.url;
+      // Ou la PR qu'une carte « Validate its screen » valide (ticket 3185), ou qu'une carte « review before merge » retient (ticket 3224).
+      const chef = entreeDe(donnes, ticket)?.chef;
+      const url = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.pr ?? chef?.design?.url ?? chef?.sensible?.url;
       return url != null && ouvrable(url) ? url : undefined;
     },
     // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une

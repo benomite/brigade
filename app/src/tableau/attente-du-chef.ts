@@ -33,6 +33,7 @@ import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, mi
 import { blocAwaiting } from "./rail.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
 import { tiersDesCommentaires } from "../vue/attente/attente-github.ts";
+import { revueDuCorps, SORTE_SENSIBLE } from "../vue/carte-sensible/carte-sensible-github.ts";
 import { SORTE_DE_VALIDATION, validationDuCorps } from "../vue/validation-design/validation-design-github.ts";
 
 const LABEL_FIRE = "fire";
@@ -84,6 +85,7 @@ class HorsLigne extends Error {}
 function ligneDeLaCarte({ sorte, texte: dit }: CarteDuChef): string {
   const { question, choix } = formeDuChef(dit);
   if (sorte === SORTE_DE_VALIDATION && question !== null) return `${question} — on its Todo card: Validate, or Send back to the kitchen with a comment`;
+  if (sorte === SORTE_SENSIBLE && question !== null) return `${question} — on its Todo card: Merge, or Send back with a note`;
   const repondre = choix.length === 0 ? "answer on its Todo card, in your own words" : `answer on its Todo card: ${choix.map(({ texte: libelle }) => `“${libelle}”`).join(" or ")} — or in your own words`;
   return `${question ?? `A ${sorte} card without its question: what does it ask you?`} — ${repondre}`;
 }
@@ -186,7 +188,9 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       }
       // La carte « Validate its screen » (ticket 3185) : sa PR et ses captures, lues du corps de son issue.
       const design = marque.carte.sorte === SORTE_DE_VALIDATION ? validationDuCorps(depot, texte(issue.body)) : null;
-      const chef = design === null ? marque.carte : { ...marque.carte, design };
+      // La carte « review before merge » d'un ticket sensible (ticket 3224) : sa PR et son ticket, lus du corps de son issue.
+      const sensible = marque.carte.sorte === SORTE_SENSIBLE ? revueDuCorps(depot, texte(issue.body)) : null;
+      const chef = { ...marque.carte, ...(design === null ? {} : { design }), ...(sensible === null ? {} : { sensible }) };
       poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef });
     }
     // Les écarts du manager qui ne sont pas déjà dits : depuis la pose de leur label.
