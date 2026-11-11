@@ -101,11 +101,23 @@ test("une station injoignable se dit en une ligne, rouge : ni code de sortie, ni
   for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /exit code|ENOENT|spawn/);
 });
 
+test("l'accueil s'ouvre sur la promesse, ce qu'elle veut dire, la gratuité et les quatre mots de la cuisine, chacun expliqué (#3219)", async () => {
+  const { vue } = await lAccueil();
+  const [promesse] = vue.element("tous").children;
+  assert.equal(promesse?.id, "accueil-promesse");
+  assert.equal(promesse?.children[0]?.textContent, "You decide. The kitchen ships.");
+  assert.match(promesse?.children[1]?.textContent ?? "", /write the ticket.*cook takes it.*pass merges it.*only for product choices/);
+  assert.equal(promesse?.children[2]?.textContent, "Open source, free, no Brigade account — just GitHub and your Claude subscription.");
+  const mots = promesse?.children[3]?.children.map(({ textContent }) => textContent) ?? [];
+  assert.deepEqual(mots.map((m) => m.split(" — ")[0]), ["rail", "cook", "pass", "second"]);
+  for (const m of mots) assert.ok((m.split(" — ")[1] ?? "").length > 10, m);
+});
+
 test("l'accueil a trois blocs, les projets, la station de cet ordinateur, puis toutes les stations, et rien d'autre (#2638, #3195)", async () => {
   const { vue, projets } = await lAccueil();
   const tous = vue.element("tous");
   assert.deepEqual(
-    tous.children.map(({ id, children }) => [id, children[0]?.children[0]?.textContent ?? children[0]?.textContent]),
+    tous.children.slice(1).map(({ id, children }) => [id, children[0]?.children[0]?.textContent ?? children[0]?.textContent]),
     [
       ["accueil-bloc-projets", "Projects"],
       ["accueil-bloc-station", "This computer's station"],
@@ -113,10 +125,10 @@ test("l'accueil a trois blocs, les projets, la station de cet ordinateur, puis t
       ["toutes-les-stations", "All stations"],
     ],
   );
-  assert.equal(projets().parentElement, tous.children[0], "les lignes des projets sont dans leur bloc");
+  assert.equal(projets().parentElement, tous.children[1], "les lignes des projets sont dans leur bloc");
   // Hors de toutes les stations : ni « + station », ni Cost, ni Closer (Kitchen > Health), ni version de l'app, ni santé
   // (retirées) : ni sur l'accueil, ni cachées dans la page.
-  for (const autre of tous.children.slice(0, 2)) assert.doesNotMatch(visible(autre), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
+  for (const autre of tous.children.slice(1, 3)) assert.doesNotMatch(visible(autre), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
   for (const parti of ["de-tous-les-projets", "accueil-app", "sante", "hors-de-l-accueil"]) assert.throws(() => vue.element(parti), parti);
 });
 
@@ -183,7 +195,7 @@ test("la ligne d'un projet dit ce qui s'y passe et, quand le chef est attendu, c
   const attend = (ligne: Faux) => ligne.children.filter(({ className }) => className === "attend").map(({ textContent }) => textContent);
   assert.deepEqual(lignes.map(attend), [["1 awaiting you"], ["5 awaiting you"], []], "une pastille par projet que le chef attend, aucune pour les autres");
   assert.equal(lignes[0]?.children.find(({ className }) => className === "maintenant")?.textContent, "1 decision awaits you · #867 cooking");
-  const bloc = vue.element("tous").children[0] as Faux;
+  const bloc = vue.element("tous").children[1] as Faux;
   const entete = bloc.children[0] as Faux;
   assert.deepEqual(entete.children.map(({ textContent }) => textContent), ["Projects", "Add a project"], "le bouton est dans l'en-tête du bloc");
   assert.equal(projets().dessous("button").filter(({ className }) => className !== "ligne").length, 0, "plus de bouton sous la liste");

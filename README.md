@@ -3,8 +3,14 @@
     <source media="(prefers-color-scheme: dark)" srcset="docs/logo/brigade-logo-sombre.svg">
     <img src="docs/logo/brigade-logo-clair.svg" alt="" height="40" align="absmiddle">
   </picture>
-  brigade — a team of AI agents that works your GitHub tickets
+  brigade — You decide. The kitchen ships.
 </h1>
+
+You write the ticket, a **cook** takes it, the **pass** merges it: you are called only for product choices. Open source, free, no Brigade account — just GitHub and your Claude subscription.
+
+The kitchen's words, once: the **rail** is the line of your tickets, from queued to served; a **cook** is a Claude session that takes one ticket and opens its pull request; the **pass** is the check that judges a pull request (gates, CI, review) and merges it; the **second** is your product assistant, who helps you write the tickets.
+
+Brigade is a team of AI agents that works your GitHub tickets.
 
 Presentation and downloads: **[benomite.github.io/brigade](https://benomite.github.io/brigade/)**.
 
