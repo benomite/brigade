@@ -57,6 +57,8 @@ Related terms built on « cuisine »:
 | `sans progrès` | `no progress` | Time since the worktree last moved |
 | `brûle` | `burns` | What a ticket spends |
 | `fiche` | `card` | The ticket's machine-readable card (`attend`, `zone`) |
+| `sensible` | `sensitive` | A ticket marked as touching a migration, security, a payment or the deletion of user data. See [sensitive-tickets.md](sensitive-tickets.md) |
+| `relecture avant merge` | `review before merge` | The TODO card a sensitive ticket waits on after the pass. See [sensitive-tickets.md](sensitive-tickets.md) |
 | `carte` (de projet) | `tile` | A project's summary in All projects |
 | `bon` | `slip` | One entry of Awaiting you |
 | `découpage` | `split` | Cutting an epic into tickets |
@@ -94,6 +96,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
 | — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |
 | — | `design` | A green design delivery held for the chef's validation (#3184) | `validate <owner>/<repo>#<PR>`, `send-back <owner>/<repo>#<PR> --comment <what to change>` — new, with no old name |
+| — | `sensitive` | A green delivery of a ticket labelled `sensitive`, held on its `review before merge` card (#3223) | `merge <owner>/<repo>#<PR>`, `send-back <owner>/<repo>#<PR> --note <note>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |

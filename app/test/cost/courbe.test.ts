@@ -187,7 +187,7 @@ describe("la courbe, sur la page des coûts de l'app", () => {
   test("sous les chiffres de tête, la courbe lit `station` de chaque box ; sans jours, sa zone dit « not communicated »", async () => {
     const vue = await ouvrirLaPage();
     const blocs = vue.element("cout").children.at(-1) ?? assert.fail("pas de blocs");
-    assert.deepEqual(blocs.children.map(({ className }) => className), ["tete-cout", "perdus-cout", "chers-cout", "courbe-cout"]);
+    assert.deepEqual(blocs.children.map(({ className }) => className), ["tete-cout", "chiffres-autonomie", "perdus-cout", "chers-cout", "courbe-cout"]);
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, LECTURE);
     const demande = vue.dernier("onglet")[2] as number;
 
