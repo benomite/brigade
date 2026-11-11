@@ -16,5 +16,6 @@
       "model": "opus",
       "effort": "high"
     }
-  }
+  },
+  "humanValidatesDesigns": true
 }

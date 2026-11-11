@@ -36,6 +36,7 @@ export const COMMANDES: readonly DeLaBox[] = [
     description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>; a GitHub-only ticket is named <owner>/<repo>#<issue>, which also takes arrived; <owner>/<repo> lists its TODO and WAITING cards",
     mots: { poser: "set", reprendre: "resume", "--quoi": "--what", "--de": "--from", "--relance": "--remind" },
   },
+  { nom: "design", description: "A green design delivery held for the chef's validation (its card “Validate its screen”): validate <owner>/<repo>#<PR> merges it, send-back <owner>/<repo>#<PR> --comment <what to change> sends it back to a cook; both close the card" },
   { nom: "report", description: "The daily report of the decisions brigade took and told about, the last 24 hours (read-only)" },
   { nom: "guardrails", ancien: "garde-fous", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
   { nom: "base", description: "Show the integration base; replay its gates when red", mots: { rejouer: "replay" } },
