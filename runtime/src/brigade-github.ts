@@ -87,6 +87,7 @@ import { PRIO_REPARATION } from "./reparation.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
+import { retenirLeSensible } from "./sensible/sensible.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -1414,6 +1415,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                         retenue = true;
                         return { fait: false, motif };
                       }
+                    }
+                    // Un ticket \`sensitive\` attend la revue du chef avant son merge (#3223).
+                    const sensible = await retenirLeSensible(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha } });
+                    if (sensible !== null) {
+                      retenue = true;
+                      return { fait: false, motif: sensible };
                     }
                     chrono.marquer(ticket.number, "merge");
                     return github.merger(numero, sha);

@@ -25,7 +25,9 @@ export const CHEF_TODO = "chef-todo";
 // Les sortes de carte, telles que le marqueur les écrit.
 // `design-validation` : une livraison design verte que la pass retient pour
 // l'humain qui valide les designs (#3184, `validation-design/`).
-export const SORTES = ["blocked", "merge-by-hand", "product-question", "abandoned", "design-validation"] as const;
+// `review-before-merge` : la livraison verte d'un ticket `sensitive`, que la
+// pass retient pour le chef (#3223, `sensible/`).
+export const SORTES = ["blocked", "merge-by-hand", "product-question", "abandoned", "design-validation", "review-before-merge"] as const;
 export type Sorte = (typeof SORTES)[number];
 
 const MARQUE = /^<!-- brigade:todo kind=([a-z-]+) -->/;
