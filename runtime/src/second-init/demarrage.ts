@@ -20,6 +20,9 @@ export const SERT = {
   zones: "They split the repository into parts with their own rules: each ticket names the zone it writes in, so that cooks working at the same time do not touch the same files.",
 } as const;
 
+// The badge question (#3255): asked once, last. Its answer is passed to the skill as `--badge yes|no`; `.claude/brigade/badge` records that it was offered.
+export const BADGE = "Unless `.claude/brigade/badge` already exists in the repository (the badge was offered before: never offer it again), ask whether to add a \"Cooked by Brigade\" badge at the top of the project's README (recommend yes) and pass the answer to the skill as `--badge yes` or `--badge no`.";
+
 const TITRES = { branche: "Integration branch", checks: "Checks", zones: "File zones" } as const;
 
 const enCode = (valeur: string | string[]) => (Array.isArray(valeur) ? valeur : [valeur]).map((mot) => `\`${mot}\``).join(", ");
@@ -52,12 +55,13 @@ export function pointsDeLaMiseEnPlace(lecture: LectureDuDepot): UnsettledPoint[]
 // La suite du message : ce que le second demande au chef, et comment.
 function questions(lecture: LectureDuDepot): string {
   const aPoser = questionsInOrder(pointsDeLaMiseEnPlace(lecture));
-  if (aPoser.length === 0) return "Everything was read, so there is nothing to ask: show the chef the three items and carry out the setup yourself with the app's `brigade:init` skill, with those values.";
+  if (aPoser.length === 0) return `Everything was read, so there is nothing to ask about the items: show the chef the three items, then ${BADGE} Then carry out the setup yourself with the app's \`brigade:init\` skill, with those values and the badge answer.`;
   const liste = aPoser.map((q, rang) => `(${rang + 1}) ${q.text}`).join(" ");
   return [
     "Ask the chef only what could not be read — never an item that was found — one question at a time, in this order, and wait for the answer before the next one:",
     liste,
     `Each question states its recommended answer, in French for the chef. A reply that is one of ${ACCEPTANCES.map((mot) => `"${mot}"`).join(", ")} alone accepts the recommendation: record the recommended value. Any other reply: record what the chef wrote.`,
+    BADGE,
     "Once they have answered all of them, carry out the setup yourself with the app's `brigade:init` skill, with the items found and these answers.",
   ].join(" ");
 }

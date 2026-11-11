@@ -2668,7 +2668,7 @@ stations replace them.
   (`app/src/plugin/init.sh`, under `scripts/`) does the writing: the rail's labels on the repository at once,
   then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
   `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
-  **a pull request you merge**. Your own checkout is never touched. Replayed once merged, it says `unchanged`.
+  **a pull request you merge**; the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
   The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
   puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
   card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
