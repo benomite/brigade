@@ -5,8 +5,8 @@
 // publiée, lu par le process principal (mise-a-jour/android.ts), ou la page des versions s'il ne se lit pas — et « Sign
 // in with the same GitHub account » : depuis le ticket 2500, le téléphone n'a pas de code d'appairage, il se connecte au même
 // compte GitHub. Déclinée, ou son lien suivi, elle ne revient plus : le choix est gardé dans le stockage de la vue
-// (`localStorage`). Aucune détection d'un téléphone déjà connecté : rien ne le publie (décision du ticket). Ce module
-// ne touche pas `document`.
+// (`localStorage`). Aucune détection d'un téléphone déjà connecté : rien ne le publie (décision du manager sur le
+// ticket 3303, option B, 2026-11-11). Ce module ne touche pas `document`.
 
 import { boutonAction } from "../briques.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";

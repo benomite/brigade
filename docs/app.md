@@ -1838,9 +1838,11 @@ another project, before that ticket is served, or on the phone itself.
 - **`no thanks`**, or following the link, hides the offer for good: the choice is kept in the view's storage
   (`localStorage`, key `brigade.offre-telephone`). A storage that cannot be read does not show the offer, so that a
   refusal is never forgotten.
-- **Narrowed by the ticket's decision:** the app does not know whether a phone is already signed in — nothing publishes
-  it —, so the offer is hidden only by that stored choice; and no pairing entry exists elsewhere (Settings has none),
-  which stays as it is.
+- **Criteria 3 and 4 narrowed by the decision on #3303** (the manager's answer to the cook's question, comment of
+  2026-11-11, option B): the app does not detect whether a phone is already signed in — no marker is added, nothing
+  publishes it —, so the offer is hidden only by that stored choice, on this computer: a cleared storage or another
+  computer shows it again. No pairing entry is added elsewhere (Settings has none, as before): once the offer is
+  declined, the app shows the Android link nowhere else.
 
 *Code: `app/src/vue/offre-telephone/offre-telephone.js`, its wiring in `app/src/vue/vue.js`, `app/src/main.ts`
 (`lienDeLApk`) and `app/src/preload.cjs`. Tests: `app/test/vue/offre-telephone.test.ts`,
