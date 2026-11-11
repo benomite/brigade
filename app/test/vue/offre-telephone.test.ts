@@ -257,7 +257,7 @@ describe("sur la page du projet", () => {
   // `case` : 1 pour parade, 2 pour cantine.
   async function laPage(
     projets: ProjetVu[],
-    { stockage = new FauxStockage(), lien = async () => APK, rang = 1, connecte = async () => ({ connecte: false }) }: { stockage?: FauxStockage; lien?: () => Promise<string>; rang?: number; connecte?: () => Promise<unknown> } = {},
+    { stockage = new FauxStockage(), lien = async () => APK, rang = 1, connecte = async () => ({ connecte: false }) }: { stockage?: FauxStockage; lien?: () => Promise<string>; rang?: number; connecte?: () => Promise<{ connecte: boolean } | { illisible: string }> } = {},
   ) {
     const jouee = await jouerLaVue({ demarrage: () => demarrage(projets), espace: () => [], lienDeLApk: lien, telephoneConnecte: connecte, ouvrirLaPage: () => true }, { stockage });
     (jouee.element("projets").children.at(rang) ?? assert.fail("pas de case du projet")).click();
