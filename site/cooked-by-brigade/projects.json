@@ -1,0 +1,11 @@
+{
+  "projects": [
+    {
+      "name": "Brigade",
+      "repository": "benomite/brigade",
+      "description": "A free, open-source app that runs Claude Code agents on your GitHub issues.",
+      "url": "https://github.com/benomite/brigade",
+      "figures": null
+    }
+  ]
+}
