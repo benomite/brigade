@@ -358,6 +358,10 @@ export type Pont = {
   // en cuisine avec un commentaire — la commande `design` du runtime, jouée par le process principal ; sur le téléphone, écrit
   // sur GitHub (gestes-github-telephone.ts). Rien pour un projet inconnu.
   gesteDeValidation(projet: string, ticket: number, geste: import("./validation-design/validation-design-github.ts").GesteDeValidation): Promise<import("./validation-design/validation-design-github.ts").RenduDeValidation | undefined>;
+  // Une réponse du chef sur la carte « review before merge » d'un ticket sensible (carte-sensible/, ticket 3224) : merger, ou
+  // renvoyer avec une note — la commande `sensitive` du runtime, jouée par le process principal. Absent du téléphone, qui ne
+  // porte pas le runtime. Rien pour un projet inconnu.
+  gesteSensible?(projet: string, ticket: number, geste: import("./carte-sensible/carte-sensible-github.ts").GesteSensible): Promise<import("./carte-sensible/carte-sensible-github.ts").RenduSensible | undefined>;
   // « Resume », sur la ligne du disjoncteur de TODO (github/breaker-resume.ts) : `/resume` posté sur l'issue
   // `brigade:breaker-open` du dépôt du projet. Rend la reprise demandée, ou pourquoi rien n'est parti ; rien pour un
   // projet que l'app ne connaît plus.

@@ -1034,6 +1034,30 @@ Captures: `docs/captures/3212/`.
 *Code: `app/src/vue/validation-design/detail-de-validation.js` (the detail and its zoom), opened from `validation-design.js`
 (the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-de-validation.test.ts`.*
 
+**A sensitive ticket, and its card `review before merge` (#3224, epic #3214).** A ticket labelled `sensitive`
+([sensitive-tickets.md](sensitive-tickets.md)) carries the tag `sensitive` on its card of the rail, first of its tags,
+outlined in red, what it means on hover; a ticket without the label carries none. The pass does not merge its green
+delivery (#3223, `docs/runtime/pass.md`): a `chef-todo` issue titled `review before merge`, its marked comment of kind
+`review-before-merge`. In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
+in this order: the question (`#<ticket> is sensitive: review PR #<PR> before it is merged. …`); `Pull request #<PR>`, which
+opens the pull request in one click; then its two answers, each with its price on hover:
+
+| answer | what it plays | then |
+|---|---|---|
+| `Merge` (the recommended button) | the runtime's `sensitive` command, `merge <owner>/<repo>#<PR>`: the pull request is merged, the card is closed | the card leaves Todo |
+| `Send back`, under a note field — off while the note is empty | `send-back <owner>/<repo>#<PR> --note <note>`: a cook takes the ticket up again with the note, the card is closed | the card leaves Todo |
+
+As for `Validate its screen`, the app plays the command itself, with this computer's `gh`; done, the card leaves Todo at
+once and the project is read again; refused, the card stays, says why in one line, the runtime's answer on hover, and
+keeps the note and both buttons. The pull request and its ticket are read from the issue's body (`<!-- brigade:sensitive-review
+pr=<PR> ticket=<ticket> sha=<sha> -->`); a body that does not say its pull request is said on the card in one line, with no
+answer. In the list of cards that await the chef it reads `Review before merge`. The Android app does not run the runtime
+and does not answer this card yet: its two buttons say in one line to answer it from the desktop app. Captures:
+`docs/captures/3224/`.
+*Code: `app/src/vue/carte-sensible/` (`carte-sensible.js`, the tag and the card; `carte-sensible-github.ts`, the reading of
+the body and `jouerLaRevue`; `label.ts`, the label read by `app/src/vue/rail/github.ts`), channel `gesteSensible`
+(`app/src/main.ts`). Tests: `app/test/carte-sensible.test.ts`.*
+
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
 signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without
 an assignee, it awaits the chef — `chef` in the repository's `.claude/brigade/projet.json`, or, without it, the

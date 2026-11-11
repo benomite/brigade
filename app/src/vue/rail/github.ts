@@ -19,6 +19,7 @@ import type { ActiviteDuCook, TableauLu } from "../../tableau/lecture.ts";
 import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, SANS_RAISON, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
 import { etatDeLaBaseGithub, MOT_DE_L_ETAT, ticketDeLaPR } from "../../tableau/rail-github.ts";
 import { stationsDeGithub, tenantDeLIssue, type Prise } from "../cooks/prises.ts";
+import { estSensible } from "../carte-sensible/label.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
@@ -38,7 +39,8 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 export type PrDuTicket = { numero: number; url: string; le: string };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
-export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote };
+// `sensible` : l'issue porte le label `sensitive` (ticket 3224).
+export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; sensible?: true };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
 export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
 export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[] };
@@ -152,7 +154,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const prise = TENUS.has(etat)
       ? tenantDeLIssue(liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)), liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)))
       : null;
-    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(miseDeCote === undefined ? {} : { miseDeCote }) });
+    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(estSensible(labels) ? { sensible: true as const } : {}) });
   }
   return { lu, tickets, servis };
 }
@@ -243,6 +245,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [] }: Ra
         ...(ticket.etat === "pris" && ticket.prise !== null ? { depuis: ticket.prise.le } : {}),
         ...((ticket.etat === "en pass" || ticket.etat === "base rouge") && ticket.pr !== null && ticket.pr.le !== "" ? { depuis: ticket.pr.le } : {}),
         ...activiteDe(ticket),
+        ...(ticket.sensible === true ? { sensible: true } : {}),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),
       stations: stationsDeGithub(cooks, "lus" in signes ? signes.lus : null, lu.depot, Date.parse(luLe)),
