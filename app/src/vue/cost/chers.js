@@ -153,7 +153,9 @@ export function poserChers(doc, projets, lectures, titres, ouvrir, quotaBrut, ma
   else ligneDeLaSemaine.className = "part-semaine";
   if (chers.length === 0) {
     const vide = ligneVide(doc, projets.some(({ nom }) => !lectures.has(nom)) ? LECTURE : NON_COMMUNIQUE, { classe: "sans" });
-    bloc.append(cree(doc, "h2", TITRE), vide, ligneDeLaSemaine);
+    // Tant qu'un projet n'est pas lu, la semaine n'est pas dite : « 0.0% » dirait ce qu'on n'a pas lu.
+    if (partDeLaSemaine === null || !projets.some(({ nom }) => !lectures.has(nom))) bloc.append(cree(doc, "h2", TITRE), vide, ligneDeLaSemaine);
+    else bloc.append(cree(doc, "h2", TITRE), vide);
     return bloc;
   }
   // Le ticket le plus cher, mis en évidence au-dessus du seuil de son projet (seuils.js).

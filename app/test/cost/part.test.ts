@@ -107,3 +107,9 @@ describe("le réglage `quotaMax` du fichier des projets", () => {
     assert.equal(quotaLu(lue.quotaMax).tokens, null);
   });
 });
+
+describe("tant qu'un projet n'est pas lu", () => {
+  test("la semaine n'est pas dite : « 0.0% » dirait ce qu'on n'a pas lu", () => {
+    assert.deepEqual(textes(bloc(new Map(), QUOTA), "p", "part-semaine"), []);
+  });
+});
