@@ -368,9 +368,15 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
   });
 
   test("devant une épique ambiguë, le manager pose une question au lieu d'inventer — et rien d'autre n'attend la réponse", async (t) => {
-    const c = brigade(t, { manager: { suite: ["decoupe-question"] }, issues: [issue(30, ["epic"]), issue(31, [])] });
+    const c = brigade(t, { manager: { suite: ["decoupe-question"] }, issues: [issue(30, ["epic"])] });
     epique(c, 30, "Que ce soit plus rapide.");
-    await jusqua(() => c.dits(30).length === 1 && c.labels(31).includes("fire"));
+    await jusqua(() => c.dits(30).length === 1);
+    // Déposé une fois la question posée : le découpage tourne hors du tour du
+    // manager (#3156), et un #31 présent dès le départ faisait course avec lui
+    // pour la ligne `decoupe-question` de la suite — son jugement la prenait
+    // parfois, sous Windows, et l'épique ne posait jamais sa question.
+    c.gh.poser(issue(31, []));
+    await jusqua(() => c.labels(31).includes("fire"));
 
     assert.match(c.dits(30)[0] ?? "", /epic not split: a question/);
     assert.match(c.dits(30)[0] ?? "", /“Faster”: on which screen, and measured how\?/);
