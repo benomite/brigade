@@ -121,6 +121,10 @@ export type Pont = {
   // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
   // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
   gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
+  // Le départ d'un projet qu'« Add a project » vient d'ouvrir (ticket 3268, depart-du-projet.ts) : ses issues ouvertes et ce que le
+  // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
+  departDuProjet(projet: string): Promise<import("../depart-du-projet.ts").Depart>;
+  mettreSurLeRail(projet: string, lignes: { ticket: number; priorite: number }[]): Promise<import("../depart-du-projet.ts").Mise | { refus: string; detail?: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub

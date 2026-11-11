@@ -133,6 +133,7 @@ import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
+import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
 import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, poserPret, progression, SECOND_ABSENT, DEMANDE_DU_PREMIER, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
@@ -279,6 +280,9 @@ const propositionsDuSecond = tenirLesChoix();
 // second de chaque projet : au travail, ou au repos à son invite.
 const sectionDuParcours = element("parcours-premier-projet");
 const parcoursDesProjets = tenirLesParcours({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
+// Le départ d'un projet qui arrive avec des issues ouvertes (ticket 3268, parcours-premier-projet/depart.js) : l'écran des
+// propositions du second, avant les questions du parcours.
+const departsDesProjets = tenirLesDeparts({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
 /** @type {Map<string, string>} */
 const aGuider = new Map();
 /** @type {Set<string>} */
@@ -8065,6 +8069,8 @@ function suivreLeParcours(nom) {
     aGuider.delete(nom);
     if (lectureSeuleDe(projet) !== undefined) return;
     parcoursDesProjets.commencer(nom, depot, dejaCuit(projet, depot));
+    departsDesProjets.commencer(nom);
+    void lireLeDepart(nom);
     // Les stations du compte se proposent à « qui le cuit » : relues, la question se repose.
     void lireLesEnregistrees().then(() => poserLeProjetAPreparer());
     void lirePreparation(projet);
@@ -8076,6 +8082,31 @@ function suivreLeParcours(nom) {
   const etape = depots.get(nom)?.etape;
   if ((parcours.station === "ajoutee" || parcours.station === "inutile") && etape !== "prepare" && etape !== "en-route") void lirePreparation(projet);
   if (courant?.nom === nom) poserLeProjetAPreparer();
+}
+
+// Les issues ouvertes du projet et ce que le second en propose, lus par l'app (depart-du-projet.ts) : le départ le montre, ou
+// s'efface quand il n'y a rien à proposer. Une lecture qui échoue se dit sur l'écran, jamais un écran vide.
+/** @param {string} nom */
+async function lireLeDepart(nom) {
+  try {
+    departsDesProjets.recu(nom, await brigade.departDuProjet(nom));
+  } catch (erreur) {
+    departsDesProjets.recu(nom, { sans: "the app could not ask the second for its proposals", detail: erreur instanceof Error ? erreur.message : String(erreur) });
+  }
+}
+
+// Le bouton unique : les lignes restantes, avec les priorités montrées à l'écran, sur le rail.
+/** @param {string} nom */
+async function mettreLeDepartSurLeRail(nom) {
+  const mise = departsDesProjets.commencerLaMise(nom);
+  if (mise === undefined) return;
+  try {
+    const rendu = await brigade.mettreSurLeRail(nom, mise.lignes.map(({ ticket, priorite }) => ({ ticket, priorite })));
+    if ("fait" in rendu) departsDesProjets.mise(nom, rendu.fait, rendu.refus);
+    else departsDesProjets.miseRatee(nom, rendu.refus, rendu.detail ?? "");
+  } catch (erreur) {
+    departsDesProjets.miseRatee(nom, "nothing was put on the rail: the app could not reach GitHub", erreur instanceof Error ? erreur.message : String(erreur));
+  }
 }
 
 // La question est posée sur ce projet : sa page n'a qu'elle.
@@ -8147,6 +8178,28 @@ function poserLeProjetAPreparer() {
   if (parcours.pret !== undefined) {
     delete principal.dataset.parcours;
     sectionDuParcours.replaceChildren(poserPret(document, parcours.depot, { ...parcours.pret, ...(parcours.absente === undefined ? {} : { absente: parcours.absente }) }, { ecrire: () => ecrireLePremierTicket(projet), fermer: () => parcoursDesProjets.fermer(nom) }));
+    sectionDuParcours.hidden = false;
+    return;
+  }
+  const depart = departsDesProjets.de(nom);
+  if (depart !== undefined) {
+    principal.dataset.parcours = "depart";
+    sectionDuParcours.replaceChildren(
+      poserLeDepart(
+        document,
+        { depot: parcours.depot, etat: depart },
+        {
+          changer: (ticket, priorite) => departsDesProjets.changer(nom, ticket, priorite),
+          lacher: (ticket) => departsDesProjets.lacher(nom, ticket),
+          mettre: () => void mettreLeDepartSurLeRail(nom),
+          passer: () => departsDesProjets.passer(nom),
+          relire: () => {
+            departsDesProjets.relire(nom);
+            void lireLeDepart(nom);
+          },
+        },
+      ),
+    );
     sectionDuParcours.hidden = false;
     return;
   }

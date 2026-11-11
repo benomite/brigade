@@ -48,6 +48,7 @@ import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/brea
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
 import { gestesDeCarte } from "./gestes-fiche.ts";
+import { mettreSurLeRail, proposerLeDepart } from "./depart-du-projet.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
@@ -850,6 +851,19 @@ ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unkn
   const rendu = await retirerLeLabel(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
+});
+// Le départ d'un projet qu'« Add a project » vient d'ouvrir (ticket 3268, depart-du-projet.ts) : ses issues ouvertes lues sur
+// GitHub, triées par le second (son triage, `claude -p`), puis les lignes que le chef garde mises sur le rail — `product`,
+// `prio:<n>` et `fire` —, par le jeton du `gh` de ce poste.
+ipcMain.handle("departDuProjet", async (_, nom: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { sans: `${String(nom)} is no longer in the projects file` };
+  return proposerLeDepart({ depot: await depotDuProjet(vise), dossier: vise.dossier, lire: appelerGitHub, claude: process.env.BRIGADE_CLAUDE_BIN || "claude" });
+});
+ipcMain.handle("mettreSurLeRail", async (_, nom: unknown, lignes: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  return mettreSurLeRail({ depot: await depotDuProjet(vise), lignes, client: clientDesLabels });
 });
 // Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
 // « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (gestes-refus.ts). « Ask the second »
