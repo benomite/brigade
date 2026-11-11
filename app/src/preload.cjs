@@ -45,6 +45,8 @@ const pont = {
   lireQuestion: (projet, ticket) => ipcRenderer.invoke("lireQuestion", projet, ticket),
   situation: (carte) => ipcRenderer.invoke("situation", carte),
   gestesDeFiche: (carte) => ipcRenderer.invoke("gestesDeFiche", carte),
+  departDuProjet: (projet) => ipcRenderer.invoke("departDuProjet", projet),
+  mettreSurLeRail: (projet, lignes) => ipcRenderer.invoke("mettreSurLeRail", projet, lignes),
   gesteDeFiche: (projet, id, ticket, valeur) => ipcRenderer.invoke("gesteDeFiche", projet, id, ticket, valeur),
   lireHistoire: (projet, ticket) => ipcRenderer.invoke("lireHistoire", projet, ticket),
   lireAutonomie: (projets, jours) => ipcRenderer.invoke("lireAutonomie", projets, jours),
@@ -111,6 +113,9 @@ const pont = {
   listerLesHumains: (projet) => ipcRenderer.invoke("listerLesHumains", projet),
   enregistrerUnHumain: (projet, humain) => ipcRenderer.invoke("enregistrerUnHumain", projet, humain),
   retirerUnHumain: (projet, login) => ipcRenderer.invoke("retirerUnHumain", projet, login),
+  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus, et chacun suspendu, repris ou retiré (recurrents-box.ts).
+  listerLesRecurrents: (projet) => ipcRenderer.invoke("listerLesRecurrents", projet),
+  changerUnRecurrent: (projet, geste, id) => ipcRenderer.invoke("changerUnRecurrent", projet, geste, id),
   // Les stations contributrices du projet, sous Settings (ticket 2936) : lues, refusées ou réacceptées (stations-contributrices.ts).
   listerLesStationsContributrices: (projet) => ipcRenderer.invoke("listerLesStationsContributrices", projet),
   refuserUneStationContributrice: (projet, station) => ipcRenderer.invoke("refuserUneStationContributrice", projet, station),
@@ -123,6 +128,10 @@ const pont = {
   changerReglageDuCloser: (projet, cle, saisie) => ipcRenderer.invoke("changerReglageDuCloser", projet, cle, saisie),
   changerVerificationDuCloser: (projet, geste, saisie) => ipcRenderer.invoke("changerVerificationDuCloser", projet, geste, saisie),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
+  lireLesResumesHebdomadaires: (projet) => ipcRenderer.invoke("lireLesResumesHebdomadaires", projet),
+  changerLeJourDuResume: (projet, jour) => ipcRenderer.invoke("changerLeJourDuResume", projet, jour),
+  publierLeResumeHebdomadaire: (projet, weekStart, tag) => ipcRenderer.invoke("publierLeResumeHebdomadaire", projet, weekStart, tag),
+  ouvrirTicketDuResume: (url) => ipcRenderer.invoke("ouvrirTicketDuResume", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
   appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),

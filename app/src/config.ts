@@ -30,7 +30,9 @@ export type Projet = { nom: string; dossier: string; depot?: string; base?: stri
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
 // `barreDeMenus` : `false`, le chef a retiré l'état de la cuisine de la barre des menus du Mac et de la zone de
 // notification de Windows (barre-de-menus.ts, #3269) ; absent, il y est.
-export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string; barreDeMenus?: boolean };
+// `quotaMax` : le réglage « quotaMax » du fichier, tel qu'écrit — la page des coûts le lit (vue/cost/part.js) et dit
+// « Share unavailable » quand il ne se lit pas : l'app n'en refuse pas le fichier.
+export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string; barreDeMenus?: boolean; quotaMax?: unknown };
 // Un projet tel qu'il s'écrit dans le fichier.
 export type Declare = { nom: string; dossier: string; depot?: string; base?: string; calibrage?: CalibrageDuProjet };
 
@@ -67,7 +69,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
   } catch (erreur) {
     return refuse(`unreadable JSON: ${(erreur as Error).message}`);
   }
-  const { projets: liste, barreDeMenus } = (contenu ?? {}) as { projets?: unknown; barreDeMenus?: unknown };
+  const { projets: liste, barreDeMenus, quotaMax } = (contenu ?? {}) as { projets?: unknown; barreDeMenus?: unknown; quotaMax?: unknown };
   if (!Array.isArray(liste)) return refuse("“projets” must be a list");
   if (barreDeMenus !== undefined && typeof barreDeMenus !== "boolean") return refuse("“barreDeMenus” must be true or false — whether the kitchen's state shows in the menu bar or the notification area");
 
@@ -97,7 +99,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuse(`${lequel}: “base” must be a non-empty string — its integration branch`);
     projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(couleurs === undefined ? {} : { couleurs }), ...(typeof sigle === "string" ? { sigle: sigle.trim() } : {}) });
   }
-  return { chemin, projets, ...(barreDeMenus === undefined ? {} : { barreDeMenus }) };
+  return { chemin, projets, ...(barreDeMenus === undefined ? {} : { barreDeMenus }), ...(quotaMax === undefined ? {} : { quotaMax }) };
 }
 
 // Le calibrage écrit d'un projet, s'il est entier — sinon l'app n'en lit rien, et ne le refuse pas.
