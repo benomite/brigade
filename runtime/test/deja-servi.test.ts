@@ -91,7 +91,7 @@ async function cookSansCommit(t: TestContext, message: string, { git: reponses, 
       preparer: async (run) => {
         const worktree = join(repertoire, run);
         mkdirSync(join(worktree, ".claude", "brigade"), { recursive: true });
-        writeFileSync(join(worktree, ".claude", "brigade", "gates.sh"), `#!/bin/sh\nexit ${gates}\n`, { mode: 0o755 });
+        writeFileSync(join(worktree, ".claude", "brigade", "gates.sh"), `#!/bin/sh\ntest -d .\nexit ${gates}\n`, { mode: 0o755 });
         return { worktree, branche: `cook/${TICKET}-github` };
       },
       reprendre: async (run) => join(repertoire, run),
