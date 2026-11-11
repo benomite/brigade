@@ -15,6 +15,7 @@ const pont = {
   demarrage: () => ipcRenderer.invoke("demarrage"),
   colorer: (projet, role, couleur) => ipcRenderer.invoke("colorer", projet, role, couleur),
   changerSigle: (projet, sigle) => ipcRenderer.invoke("changerSigle", projet, sigle),
+  changerBarreDeMenus: (actif) => ipcRenderer.invoke("changerBarreDeMenus", actif),
   ordinaires: (projet) => ipcRenderer.invoke("ordinaires", projet),
   reglerOrdinaires: (projet, actif, limite) => ipcRenderer.invoke("reglerOrdinaires", projet, actif, limite),
   ranger: (projet, rang) => ipcRenderer.invoke("ranger", projet, rang),
@@ -180,6 +181,8 @@ const pont = {
   surGuide: (recevoir) => void ipcRenderer.on("guide", (_, guide) => recevoir(guide)),
   surAlertes: (recevoir) => void ipcRenderer.on("alertes", (_, bande) => recevoir(bande)),
   surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
+  // Une question cliquée dans le menu de la barre des menus (barre-de-menus.ts) : sa carte s'ouvre.
+  surOuvrirCarte: (recevoir) => void ipcRenderer.on("ouvrirCarte", (_, projet, ticket) => recevoir(projet, ticket)),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),

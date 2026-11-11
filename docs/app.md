@@ -2796,6 +2796,32 @@ which each read brings up to date (`app/src/reglages-perso/`, on the module of #
 - Nothing here reads or writes a project's `projet.json`: the project's shared settings change by a
   pull request ([`reglages.md`](reglages.md), §1).
 
+### The kitchen's state in the menu bar and the notification area (#3269)
+
+The chef sees how the kitchen is doing without opening the window. On a Mac the app puts an icon in the **menu bar**,
+on Windows in the **notification area**. It says in one line how many cooks are working and how many questions wait
+for you, across all your projects: `3 cooking · 1 for you`. On a Mac the line sits next to the icon; Windows shows no
+text next to a notification-area icon, so the number of questions waiting is painted on the icon, in an orange disc
+(`+` above 9), and the whole line is on hover.
+
+- **The counts** come from what the app already reads: the last `facts` of each project a station serves, read every
+  30 s whatever the screen. A project's cooks are counted as the home counts them; its questions are the entries of its
+  `awaiting` (what TODO shows). A project not read yet counts for nothing, and the line says how many are not:
+  `1 cooking · 0 for you · 1 not read`. Nothing read at all, it says `not read yet`, never a zero.
+- **A click on the icon** opens its menu: the line, then one entry per question waiting — its project, its ticket and
+  its question (`brigade #7 — Open the beta to everyone?`) — or `nothing waits for you`, then **Open brigade**. A click
+  on a question brings the window to the front, opens the project and the card's sheet. A runtime from before
+  `awaiting` gives the number of decisions without naming them: its entry (`brigade — 2 awaiting you`) opens the project.
+- **It can be turned off in Settings**: in each project's Settings, a `Menu bar` row (`Notification area` on Windows),
+  under `you`, with a switch. It is one setting for the whole app, kept in `app.json` as `barreDeMenus` and following
+  you to your other devices ([`reglages.md`](reglages.md), §3). Turned off, the icon goes at once; turned back on, it
+  comes back with what is read.
+- An icon the system refuses does not stop the app: the reason is said once in the terminal that started it.
+
+The module is `app/src/barre-de-menus.ts` (the line, the menu, the disc); `main.ts` wires it to Electron's `Tray`. The
+icon is `app/src/icones/barre-de-menus.png` and its `@2x`, cut from the app's icon by `app/packaging/icones.ts`. Tests:
+`app/test/barre-de-menus.test.ts`, `app/test/barre-de-menus-reglage.test.ts`.
+
 ### The Settings tab, and the log by its action
 
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
@@ -2811,6 +2837,8 @@ GitHub Apps, the projects it serves, the app's code) are not shown in Settings; 
 - its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette — and
   `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first, which the app keeps in
   its projects file.
+- `Menu bar` (`Notification area` on Windows): whether the kitchen's state shows there — a `you` row that holds for the
+  whole app, the same in every project's Settings (see "The kitchen's state in the menu bar and the notification area").
 
 Under these, a section of its own, **`Caps, closer and all projects`** (#3014): the duration caps, the closer and the
 Cost and Closer rows of all projects, as the folded line at the top of the Rail tab, then of the Stations tab, showed

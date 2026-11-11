@@ -4,8 +4,9 @@ import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions, type NativeImage } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
+import { avecPastille, tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
 import { lireFeu } from "./feu.ts";
@@ -121,6 +122,9 @@ if (chemin !== undefined) process.env.PATH = chemin;
 const role = roleDe({ plateforme, runtime: emplacements.runtime, env: process.env });
 // Le répertoire de la station de cet ordinateur : `station/`, à côté du fichier des projets.
 const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
+// L'icône de la barre des menus ne se pose qu'une fois l'app prête : avant, Electron n'en crée pas
+// (`poserLaBarreDeMenus`, plus bas). Déclaré ici : ce qui suit la redit dès qu'il change.
+let barrePrete = false;
 // Où cuit chaque projet (poste/cuisine-ici.ts) : un projet que la station de cet ordinateur sert
 // se lit ici, par son geste ; les autres sont lus du tableau de leur cuisine sur GitHub.
 // C'est relu à chaque lecture : une cuisine qui change de place est lue à la nouvelle dès la
@@ -130,6 +134,7 @@ const cuisines = tenirCuisinesIci({
   surChangement: () => {
     dire("configuration", affichee(), []);
     direLAccueil(accueil.relire());
+    poserLaBarreDeMenus();
   },
 });
 // Un projet dont quelque chose se lit : une station le sert, sur cet ordinateur ou ailleurs.
@@ -353,6 +358,15 @@ function direLaBande(bande: { projet: string }): void {
   dernieresBandes.set(bande.projet, bande);
   dire("alertes", bande);
 }
+// Ramener la fenêtre au premier plan : rend faux quand il n'y en a plus.
+function ramener(): boolean {
+  if (fenetre === undefined || fenetre.isDestroyed()) return false;
+  if (fenetre.isMinimized()) fenetre.restore();
+  fenetre.show();
+  fenetre.focus();
+  app.focus({ steal: true });
+  return true;
+}
 // L'urgence d'un projet — toute sa cuisine attend le chef — se dit au système, une notification par
 // annonce du runtime, la fenêtre devant, derrière ou réduite (notification.ts). Son clic ramène la
 // fenêtre au premier plan, et la vue ouvre le projet sur sa ligne d'urgence et son geste. Ce que le
@@ -370,14 +384,63 @@ const urgences = tenirNotifications({
     notification.show();
   },
   ouvrir: (projet) => {
-    if (fenetre === undefined || fenetre.isDestroyed()) return;
-    if (fenetre.isMinimized()) fenetre.restore();
-    fenetre.show();
-    fenetre.focus();
-    app.focus({ steal: true });
-    dire("urgence", projet);
+    if (ramener()) dire("urgence", projet);
   },
 });
+// L'état de la cuisine hors de la fenêtre (barre-de-menus.ts, #3269) : une icône dans la barre des menus du Mac — la ligne
+// « 3 cooking · 1 for you » à côté d'elle —, dans la zone de notification de Windows — le nombre de questions peint
+// dessus, la ligne au survol. Son menu liste les questions qui attendent ; une question cliquée ramène la fenêtre sur sa
+// carte (`ouvrirCarte`, que la vue ouvre comme une notification touchée sur le téléphone). Elle compte sur les derniers
+// `faits` lus de chaque projet qui se lit, et se redit à chaque lecture ; le chef la retire dans Settings.
+const ICONE_DE_LA_BARRE = join(import.meta.dirname, "icones", "barre-de-menus.png");
+// L'icône avec la pastille de `questions`, à chaque échelle qu'elle porte (16 px, et 32 px pour un écran à 200 %).
+function pastillee(image: NativeImage, questions: number): NativeImage {
+  if (questions <= 0) return image;
+  const peinte = nativeImage.createEmpty();
+  for (const scaleFactor of image.getScaleFactors()) {
+    const { width, height } = image.getSize(scaleFactor);
+    const bitmap = image.toBitmap({ scaleFactor });
+    if (width !== height || bitmap.length !== width * height * 4) continue;
+    peinte.addRepresentation({ scaleFactor, width, height, buffer: avecPastille(bitmap, width, questions) });
+  }
+  return peinte.isEmpty() ? image : peinte;
+}
+function entreeDuMenu(entree: Entree): MenuItemConstructorOptions {
+  switch (entree.genre) {
+    case "separateur":
+      return { type: "separator" };
+    case "texte":
+      return { label: entree.libelle, enabled: false };
+    case "carte":
+      return { label: entree.libelle, click: () => void (ramener() && dire("ouvrirCarte", entree.projet, entree.ticket)) };
+    case "projet":
+      return { label: entree.libelle, click: () => void (ramener() && dire("urgence", entree.projet)) };
+    case "app":
+      return { label: entree.libelle, click: () => void ramener() };
+  }
+}
+const barreDeMenus = tenirBarreDeMenus({
+  creer: () => {
+    const image = nativeImage.createFromPath(ICONE_DE_LA_BARRE);
+    if (image.isEmpty()) throw new Error(`its icon could not be read: ${ICONE_DE_LA_BARRE}`);
+    const icone = new Tray(image);
+    // Sous Windows, le clic gauche n'ouvre pas le menu de lui-même : sur un Mac, si.
+    if (!estUnMac(plateforme)) icone.on("click", () => icone.popUpContextMenu());
+    return {
+      poser: (ligne, questions) => {
+        icone.setToolTip(`brigade — ${ligne}`);
+        if (estUnMac(plateforme)) icone.setTitle(` ${ligne}`);
+        else icone.setImage(pastillee(image, questions));
+      },
+      menu: (entrees) => icone.setContextMenu(Menu.buildFromTemplate(entrees.map(entreeDuMenu))),
+      retirer: () => icone.destroy(),
+    };
+  },
+});
+function poserLaBarreDeMenus(): void {
+  if (!barrePrete) return;
+  barreDeMenus.poser(suivi.configuration().barreDeMenus !== false, projets().filter(lisible).map(({ nom }) => ({ nom, faits: faits.dernier(nom)?.faits })));
+}
 const veilleDesFaits = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
   intervalleMs: 30_000,
@@ -392,6 +455,7 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
     // Une annonce d'urgence que le runtime vient de faire se dit au système.
     const lus = faits.dernier(lecture.projet);
     if (lus !== undefined) urgences.recevoir(lecture.projet, lus.faits);
+    poserLaBarreDeMenus();
   },
 });
 
@@ -505,6 +569,8 @@ const suivi = suivreConfiguration({
     void retards.relire(true);
     // L'accueil a une ligne par projet du fichier, tel qu'il est maintenant.
     direLAccueil(accueil.relire());
+    // La barre des menus aussi — et le chef l'a peut-être allumée ou éteinte.
+    poserLaBarreDeMenus();
     // Le second de chaque projet qui s'ouvre est suivi dans son dossier tel qu'il est maintenant.
     propositionsDuSecond?.suivre(projets());
     // Un projet qui vient d'y entrer reçoit le plugin de l'app.
@@ -593,6 +659,7 @@ const projetsDesStations = tenirProjets({
     if (servis === servisLus) return;
     servisLus = servis;
     dire("configuration", affichee(), []);
+    poserLaBarreDeMenus();
     voir();
   },
 });
@@ -706,6 +773,9 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
   const voulue = choix(role, couleur);
   return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
 });
+// L'état de la cuisine dans la barre des menus (barre-de-menus.ts) : allumé ou éteint, écrit dans le fichier des projets —
+// il revient par `surConfiguration`, et l'icône se pose ou se retire. Rend la raison, si rien n'a été écrit.
+ipcMain.handle("changerBarreDeMenus", (_, actif: unknown) => suivi.changerBarreDeMenus(actif));
 // Le sigle d'un projet, celui de sa case dans la barre (sigle.ts) : la vue nomme le projet et le sigle que le
 // chef a écrit — `null`, il le rend à celui que l'app tire de son nom. Écrit, il arrive par `surConfiguration`.
 // Rend la raison, s'il ne l'a pas été.
@@ -1692,6 +1762,7 @@ ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) =
 app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   suivi.fermer();
+  barreDeMenus.fermer();
   preferences.fermer();
   terminaux.fermer();
   propositionsDuSecond?.arreter();
@@ -1748,6 +1819,9 @@ void app.whenReady().then(() => {
     backgroundColor: "#121418",
     webPreferences: { preload: join(import.meta.dirname, "preload.cjs") },
   });
+  // L'icône de la barre des menus, avec ce qui est déjà lu ; chaque lecture de `faits` la redit ensuite.
+  barrePrete = true;
+  poserLaBarreDeMenus();
   // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
   void retards.relire();
   // La première vérification des versions publiées, puis une tous les quarts d'heure.
