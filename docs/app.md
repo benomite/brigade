@@ -663,6 +663,27 @@ station the section is read-only: the same lines, never a button.
 *Code: `app/src/vue/station/page/sections/identite.js` (it reads `contexte.identite`, which the page shell supplies). Test:
 `app/test/vue/station/identite.test.ts`.*
 
+### Try a delivery from its card, in one click (#3215)
+
+A project says how it is tried in `.brigade/try.json` at its root: a `command` key (a shell command, run in the
+delivery's checkout) and an optional `url` key (an http(s) address, opened once the command runs), e.g.
+`{"command": "npm install && npm run dev", "url": "http://localhost:5173"}`. The app reads it each time the rail is read
+(`app/src/essai.ts`).
+
+- A card in **Pass** or **Served** shows `try it` when the file is there and valid; cards in other states show nothing.
+  Without the file the cards show no button and one line says to create `.brigade/try.json` with a `command` key and an
+  optional `url` key, with the example; a file that cannot be read or is malformed says why, in one line.
+- `try it` checks out the delivery into a git worktree **under the app's data folder** (`<data>/essais/<project>/<ticket>`,
+  one per delivery, detached), never inside the working copy: the working copy, its branch and its uncommitted changes are
+  not touched. The delivery is the ticket's `origin/cook/<n>-…` branch (local one if there is no remote), or, once the branch
+  is gone, the merge commit that names it. Tried again, the worktree is removed and recreated. If the data folder lies
+  inside the working copy, nothing is created.
+- Running, the card says where the version is — `running at <url>` (the address is also opened in the browser), or
+  `it runs in the opened window or process` — and carries a single `stop`: one click ends the command and all its child
+  processes (its process group; `taskkill /T` on Windows), and the card is back to `try it`. Quitting the app ends them too.
+- If the command cannot start, exits with an error, or the checkout fails, the card shows a one-line reason and the last
+  ten lines of the output (its end, not its start); nothing is left running. A command that exits with code 0 just ends.
+
 ### Cards never vanish while GitHub holds them (#2151)
 
 The chef's main screen does not lose a card because a reading went wrong:

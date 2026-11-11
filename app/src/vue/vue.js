@@ -121,6 +121,7 @@ import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
+import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
@@ -1085,6 +1086,16 @@ const demandesAuSecond = new Map();
 // Le geste en route (`envoi`) ou refusé (`refus`) d'une carte mise de côté (ticket 3147), par `projet#ticket`.
 /** @type {Map<string, { envoi: "relancer" | "clore" } | { refus: string }>} */
 const refusDeCartes = new Map();
+// Ce que le process principal a lu des essais de chaque projet (essai.ts, ticket 3215) : sa déclaration `.brigade/try.json` et ses essais par ticket.
+/** @type {Map<string, import("../essai.ts").VuDesEssais>} */
+const essaisDeProjets = new Map();
+/** @param {Projet} projet */
+async function lireLesEssais(projet) {
+  const vu = await brigade.essais?.(projet.nom);
+  if (vu === undefined) return;
+  essaisDeProjets.set(projet.nom, vu);
+  if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(projet);
+}
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
 const situations = new Map();
@@ -2812,6 +2823,17 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   if (carte.refus !== undefined && lectureSeuleDe(projet) === undefined) bon.append(poserLesGestesDuRefus(projet, ticket));
+  // En pass ou livrée : « try it » quand le projet dit comment il s'essaie (essai.ts) — sa phrase, sinon.
+  if (carte.essayable === true) {
+    bon.append(
+      ...poserLEssai(
+        document,
+        essaisDeProjets.get(projet.nom),
+        ticket,
+        { essayer: () => void brigade.essayer(projet.nom, ticket), arreter: () => void brigade.arreterEssai(projet.nom, ticket) },
+      ),
+    );
+  }
   bon.append(...poserGestesDAttente(projet, carte), ...signalerLaCarte(projet, carte));
   return bon;
 }
@@ -8483,6 +8505,11 @@ brigade.surAmont((vu) => {
   amonts.set(vu.projet, vu);
   if (courant?.nom === vu.projet && !rail.hidden && tenus.has(vu.projet)) poserRail(courant);
 });
+// Un essai a changé, ou la déclaration du projet : elle est relue (essai.ts).
+brigade.surEssais?.((nom) => {
+  const projet = configuration.projets.find((candidat) => candidat.nom === nom);
+  if (projet !== undefined) void lireLesEssais(projet);
+});
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
   enLecture.delete(recue.projet);
@@ -8509,6 +8536,7 @@ brigade.surFaits((recue) => {
   // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
   if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {
+    void lireLesEssais(courant);
     dessiner();
     void poserOrdinaires(courant);
   }
