@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { answer, nextQuestion, startQueue, type UnsettledPoint } from "../../src/second-init/questions.ts";
+import { answer, nextQuestion, questionsInOrder, startQueue, type UnsettledPoint } from "../../src/second-init/questions.ts";
 
 const lang: UnsettledPoint = { id: "lang", question: "Which language do your tickets use?", recommended: "English" };
 const ci: UnsettledPoint = { id: "ci", question: "Should a green CI be required before a merge?", recommended: "yes" };
@@ -28,21 +28,32 @@ describe("second-init question queue", () => {
     queue = answer(queue, "ok");
     assert.equal(nextQuestion(queue), null);
     assert.deepEqual(queue.answers, [
-      { id: "lang", value: "French", accepted: false },
-      { id: "ci", value: "yes", accepted: true },
+      { id: "lang", value: "French" },
+      { id: "ci", value: "yes" },
     ]);
   });
 
   test("one word accepting records the recommended value", () => {
-    for (const word of ["yes", "ok", "OK", " Oui ", "yes."]) {
+    for (const word of ["yes", "ok", "OK", " Oui ", "yes.", "d'accord"]) {
       const queue = answer(startQueue([lang]), word);
-      assert.deepEqual(queue.answers, [{ id: "lang", value: "English", accepted: true }], word);
+      assert.deepEqual(queue.answers, [{ id: "lang", value: "English" }], word);
     }
   });
 
   test("any other reply records what the user wrote", () => {
     const queue = answer(startQueue([lang]), "  Spanish, mostly ");
-    assert.deepEqual(queue.answers, [{ id: "lang", value: "Spanish, mostly", accepted: false }]);
+    assert.deepEqual(queue.answers, [{ id: "lang", value: "Spanish, mostly" }]);
+  });
+
+  test("a bare letter or a longer phrase is an answer, not an acceptance", () => {
+    for (const word of ["o", "y", "accept", "yes but in French"]) {
+      assert.deepEqual(answer(startQueue([lang]), word).answers, [{ id: "lang", value: word }], word);
+    }
+  });
+
+  test("questionsInOrder lists the unsettled points' questions, settled ones left out", () => {
+    assert.deepEqual(questionsInOrder([{ ...lang, settled: "English" }, ci]).map((q) => q.id), ["ci"]);
+    assert.deepEqual(questionsInOrder([]), []);
   });
 
   test("a blank reply answers nothing and keeps the question", () => {

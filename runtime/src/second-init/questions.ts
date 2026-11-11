@@ -20,7 +20,6 @@ export interface Question {
 export interface Answer {
   id: string;
   value: string;
-  accepted: boolean;
 }
 
 export interface QuestionQueue {
@@ -29,10 +28,12 @@ export interface QuestionQueue {
   answers: readonly Answer[];
 }
 
-const ACCEPTANCES = new Set(["yes", "y", "ok", "okay", "oui", "o", "d'accord", "accept", "accepted"]);
+// The one-word replies that accept the recommendation. Whole words only: a bare
+// letter could be a real answer.
+export const ACCEPTANCES = ["yes", "ok", "okay", "oui", "d'accord"] as const;
 
-export function isAcceptance(reply: string): boolean {
-  return ACCEPTANCES.has(reply.trim().toLowerCase().replace(/[.!]+$/, ""));
+function isAcceptance(reply: string): boolean {
+  return (ACCEPTANCES as readonly string[]).includes(reply.trim().toLowerCase().replace(/[.!]+$/, ""));
 }
 
 export function startQueue(points: readonly UnsettledPoint[]): QuestionQueue {
@@ -45,7 +46,7 @@ export function nextQuestion(queue: QuestionQueue): Question | null {
   if (point === undefined) return null;
   return {
     id: point.id,
-    text: `${point.question} (recommended: ${point.recommended} — reply "yes" to accept)`,
+    text: `${point.question} (recommended: ${point.recommended} — reply "yes" or "oui" to accept)`,
     recommended: point.recommended,
   };
 }
@@ -59,6 +60,17 @@ export function answer(queue: QuestionQueue, reply: string): QuestionQueue {
   const accepted = isAcceptance(written);
   return {
     pending: queue.pending.slice(1),
-    answers: [...queue.answers, { id: point.id, value: accepted ? point.recommended : written, accepted }],
+    answers: [...queue.answers, { id: point.id, value: accepted ? point.recommended : written }],
   };
+}
+
+// Every question still to ask, in order, as the queue yields them one by one.
+export function questionsInOrder(points: readonly UnsettledPoint[]): Question[] {
+  const questions: Question[] = [];
+  let queue = startQueue(points);
+  for (let q = nextQuestion(queue); q !== null; q = nextQuestion(queue)) {
+    questions.push(q);
+    queue = answer(queue, q.recommended);
+  }
+  return questions;
 }
