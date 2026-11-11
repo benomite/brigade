@@ -330,6 +330,27 @@ Two gestures answer the card, which the app calls (`brigade <projet> design`, [`
 
 The chef's send-back counts among the ticket's send-backs, like the pass's.
 
+### A sensitive ticket, reviewed by the chef before merge
+
+A ticket is **sensitive** when it carries the label `sensitive` (the chef, the second or the manager can
+set it). The pass cooks and judges it exactly as any other, but **does not merge its green delivery**
+(#3223, `runtime/src/sensible/`): an issue `review before merge`, labelled `chef-todo`, carries the
+question and the link of the PR; its body opens on `<!-- brigade:sensitive-review pr=<PR> ticket=<ticket>
+sha=<sha> -->` and its card comment is `kind=review-before-merge`. The ticket stays `in-pass` and says its
+card. The card is the design one's: one card per head judged green, never a second however many times the
+pass runs; a new head judged green closes the old card and posts a new one; a card that cannot be created
+is not merged, said, and tried again at the next turn. A ticket without the label is merged as before.
+A sensitive design delivery on a project where a human validates designs waits on its one
+`Validate its screen` card, which already holds it for the chef.
+
+Two answers, `brigade <projet> sensitive` ([`exploitation.md`](exploitation.md)), act like the design
+gestures:
+
+- **`merge <owner>/<repo>#<PR>`** merges the head the card carries, then closes the card.
+- **`send-back <owner>/<repo>#<PR> --note "<note>"`** posts a send-back on the ticket with the note, which
+  the cook reads with the ticket, removes `in-pass`, and closes the card; a cook takes the ticket up again.
+  An empty note is refused.
+
 ### Green means green once merged
 
 **A delivery is judged on the merge of its branch with the base of the moment, always.** At each
