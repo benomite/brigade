@@ -33,14 +33,16 @@ Annonce ce que tu as déduit en quelques lignes.
 
 Un seul `AskUserQuestion`, **uniquement sur ce que tu n'as pas pu déduire** — le plus souvent rien. La commande de test introuvable, tu la demandes : ne la devine jamais, une gate qui ne lance rien est un faux vert. Le bloc existe déjà ? Ses valeurs font foi : ne repose aucune question dont la réponse y est écrite.
 
+Pose aussi, dans ce même `AskUserQuestion`, **la question du badge**, sauf si `.claude/brigade/badge` existe déjà sur la branche d'intégration (le badge a déjà été proposé : ne le repropose jamais, qu'il ait été refusé ou retiré du README à la main) : « Ajouter un badge « Cooked by Brigade » en haut du README du projet ? » — recommandé : oui. La réponse devient `--badge yes` ou `--badge no`.
+
 ## 3. Écris — par le script, jamais à la main
 
 ```bash
 "@NODE@" "@SETUP_PR@" "@SCRIPT@" --test "<commande de test>" --install "<commande d'installation>" \
-  --base "<branche d'intégration>" --zones "<zones>" --dev-local "<comment lancer et tester en local>" --doc "<doc vivante, ou none>"
+  --base "<branche d'intégration>" --zones "<zones>" --dev-local "<comment lancer et tester en local>" --doc "<doc vivante, ou none>" --badge <yes|no>
 ```
 
-Omets `--install` si le projet n'installe rien. Les valeurs sont en anglais (elles vont dans `CLAUDE.md`). La commande joue le script, qui ouvre la pull request de setup, puis pose sa carte dans le TODO du chef, et rend sur sa sortie le message de fin. Un code de sortie non nul : recopie son erreur, dis le geste qui la lève, et arrête-toi — ne refais pas son travail à la main.
+Omets `--install` si le projet n'installe rien, et `--badge` si le badge a déjà été proposé. Le badge ne s'écrit que s'il est accepté, en première ligne du README, dans la même PR ; un badge retiré à la main n'est jamais remis. Les valeurs sont en anglais (elles vont dans `CLAUDE.md`). La commande joue le script, qui ouvre la pull request de setup, puis pose sa carte dans le TODO du chef, et rend sur sa sortie le message de fin. Un code de sortie non nul : recopie son erreur, dis le geste qui la lève, et arrête-toi — ne refais pas son travail à la main.
 
 ## 4. Résume
 

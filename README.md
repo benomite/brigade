@@ -33,7 +33,7 @@ You need two accounts:
 - a **GitHub account**, with a repository you can push to (a throwaway one is fine for a first run);
 - a **Claude account**: the cooks run on a Claude Max session, and an API key does not fit.
 
-1. **Download the app** (macOS, Apple silicon, or Windows x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)** and open it.
+1. **Download the app** (macOS on Apple silicon, Windows x64, or Linux x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)** and open it. On Linux, see **[docs/installation-linux.md](docs/installation-linux.md)**.
 2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
 3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
 4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it, prepares it with a ticket of its own, and tells you when it is ready.
@@ -53,7 +53,9 @@ The full vision is in [`docs/superpowers/specs/2026-11-07-vision.md`](docs/super
 
 - [`docs/index.md`](docs/index.md) — the documentation index, organized by what you want to do.
 - [`docs/tutoriels/installer-sur-mac.md`](docs/tutoriels/installer-sur-mac.md) — tutorial: install brigade on a Mac.
+- [`docs/installation-linux.md`](docs/installation-linux.md) — install brigade on Linux x64 (AppImage).
 - [`docs/tutoriels/premier-projet.md`](docs/tutoriels/premier-projet.md) — tutorial: add a first project and cook its first ticket.
+- [`docs/tutoriels/erreur-de-production-a-ticket-corrige.md`](docs/tutoriels/erreur-de-production-a-ticket-corrige.md) — tutorial: from a production error in Sentry to a fixed ticket.
 - [`docs/app.md`](docs/app.md) — the app, screen by screen.
 - [`docs/runtime/README.md`](docs/runtime/README.md) — the runtime (station, rail, pass): index of its pages.
 - [`docs/glossary.md`](docs/glossary.md) — the word for each object (*cook*, *rail*, *station*, *pass*…).

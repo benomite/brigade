@@ -200,6 +200,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/installation.test.ts", test: "une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt »" },
   { file: "test/limite-github.test.ts", test: "contre un GitHub presque épuisé, les sondages partent jusqu'à la réserve puis attendent, avant que GitHub ne refuse, sans lancer `gh` ; la fenêtre passée, ils reprennent" },
   { file: "test/limite-github.test.ts", test: "la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire" },
+  { file: "test/linux/premier-ticket.test.ts", test: "sous Linux, la station du paquet, lancée comme ses unités la lancent, sert un premier ticket : elle clone le projet, y lance un cook dans sa cloison et livre une PR" },
   { file: "test/main.test.ts", test: "avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude`" },
   { file: "test/main.test.ts", test: "avec deux stations du même nom, le runtime refuse de démarrer, et rien n'est écrit" },
   { file: "test/main.test.ts", test: "avec un bail qui n'est pas un nombre de secondes, le runtime refuse de démarrer, et rien n'est écrit" },

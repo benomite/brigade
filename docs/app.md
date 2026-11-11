@@ -376,6 +376,33 @@ lands, the add goes through it.
 (`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
 Captures: `docs/captures/3165/`.*
 
+### On first launch: try on a sample project (#3227, epic #3217)
+
+Next to `open this project`, the first-launch screen offers **`try on a sample project`**. One click creates a small
+**private** repository on the GitHub account of this computer's `gh` — `brigade-sample`, or `brigade-sample-2`… when
+the name is taken —, with a minimal project (a function, its test, and the bindings section of its `CLAUDE.md`) and
+**exactly one open ticket**, `Greet with an exclamation mark`, labelled like the second's first ticket
+(`product`, `prio:1`, `fire`). The app then takes it to the rail with its own gestures, with no command typed and no
+file edited: the repository's setup (`runRepoSetup`, as in Add a project), this computer's station serving it
+(`servirUnProjet`), and its space opened. Each step is said in a card at the bottom right of the window; a step that
+fails says why in one line, with `Try again`, which picks up the same repository.
+
+The card stays over every screen while the sample exists: the repository's name, which opens its page on GitHub, its
+ticket on the rail and `open its ticket`. The app records **the time of its first launch** once, in
+`sample-project.json` next to the projects file (a second launch does not change it). GitHub is read again every
+minute until the pull request of the ticket's branch is merged; then the card says **`Your first ticket was served in
+N minutes.`**, the minutes between the first launch and the merge.
+
+**`delete the sample repository`** deletes it in one click, and only it: the app sends the name it recorded, and the
+runtime refuses any other before calling GitHub. Without the `delete_repo` permission, nothing is deleted: `gh auth
+refresh` asks for it — the one-time code to type, as when connecting —, and once granted the deletion runs again by
+itself. Deleted, the card says so once and no longer offers deletion.
+
+*Code: `runtime/src/essai-projet/projet-d-essai.ts` (creation, record, served read, deletion),
+`app/src/vue/essai/projet-d-essai.js` (button, card, the flow from the button to the rail) and its wiring in
+`app/src/main.ts`, `app/src/preload.cjs`, `app/src/vue/vue.js` and `app/src/vue/premier-lancement.js`. Tests:
+`runtime/test/essai-projet/`, `app/test/essai/`. Captures: `docs/captures/3227/`.*
+
 ### Add a project: pick a repository, one click opens it (#3181)
 
 **Add a project** (the **+** at the foot of the bar, or the button of the Projects block) does one thing: pick the
@@ -2668,7 +2695,7 @@ stations replace them.
   (`app/src/plugin/init.sh`, under `scripts/`) does the writing: the rail's labels on the repository at once,
   then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
   `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
-  **a pull request you merge**. Your own checkout is never touched. Replayed once merged, it says `unchanged`.
+  **a pull request you merge**; the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
   The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
   puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
   card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
