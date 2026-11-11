@@ -18,7 +18,6 @@
 // et du reviewer —, lancés ici sans journal.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { compagnons } from "./compagnons.ts";
 import { fiche, type Fiche } from "./fiche.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { attendusDuBlocage, attendusOuverts, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
@@ -323,11 +322,6 @@ export type OptionsDeStation = {
   // déclarée ne garde que les chemins de son corps qui nomment le dépôt
   // (`cheminsDuDepot`). Absents ou illisibles, elle les garde tous.
   fichiersSuivis?: () => string[];
-  // Les fichiers des derniers commits de la base (#2963) : un ticket parti
-  // tient aussi les compagnons de sa zone (`compagnons.ts`), ce que les
-  // livraisons qui la touchent écrivent presque toujours avec elle. Absent ou
-  // illisible, il ne tient que sa zone, comme avant.
-  historique?: () => string[][];
   // Le manager, à qui va la question d'un cook bloqué avant tout
   // `blocked-on-human` (#2894). Absent, le blocage attend, puis compte pour un
   // cook sans livraison : il ne va jamais au chef sans lui.
@@ -1534,33 +1528,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       return suivisDuTour;
     };
-    // L'historique de la base, lu au premier besoin, une fois par tour (#2963).
-    // Illisible, aucune zone n'a de compagnon ce tour, et la station le dit.
-    let historiqueDuTour: string[][] | undefined;
-    const historiqueLu = (): string[][] => {
-      if (historiqueDuTour !== undefined) return historiqueDuTour;
-      try {
-        historiqueDuTour = options.historique?.() ?? [];
-      } catch (erreur) {
-        historiqueDuTour = [];
-        avertir(`brigade : the base's history could not be read on ${nom} — this turn, a ticket holds its zone without the files its deliveries write with it: ${message(erreur)}`);
-      }
-      return historiqueDuTour;
-    };
-    // Ce qu'un ticket parti tient : sa zone, et ses compagnons — les fichiers
-    // partagés qu'aucune zone ne nomme et que ses livraisons écrivent quand
-    // même. Deux tickets d'écrans disjoints partaient ensemble, écrivaient
-    // tous deux le registre de la vue et sa feuille de style, et le second
-    // livré revenait en conflit avec la base, une fois par merge de l'autre
-    // (#2963 : #2921, #2922, #2930).
-    const tenus = new Map<number, Promise<string[]>>();
-    const tenuParLeTicket = (numero: number): Promise<string[]> => {
-      const deja = tenus.get(numero);
-      if (deja !== undefined) return deja;
-      const lu = zoneDuTicket(numero).then((zone) => [...zone, ...compagnons(zone, historiqueLu())]);
-      tenus.set(numero, lu);
-      return lu;
-    };
+    // Un ticket parti ne tient que sa zone, et non plus ses compagnons — les
+    // fichiers partagés qu'aucune zone ne nomme (#2963). Toutes les zones de
+    // l'app lues le 2026-11-11 avaient les mêmes (`app/src/vue/vue.js`,
+    // `docs/app.md`) : chaque ticket de l'app attendait le merge du précédent,
+    // et cinq d'entre eux ont attendu 883 min leur prise, un à la fois, quand
+    // quatre écrans partis ensemble le même jour écrivaient tous `vue.js` sans
+    // un renvoi pour conflit (#3250).
     // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
     const prisCeTour = new Set<number>();
     const zoneDuTicket = (numero: number): Promise<string[]> => {
@@ -1581,9 +1555,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Une zone tenue : un de ses chemins en recoupe un que change une PR
     // ouverte qui n'est pas celle du ticket, ou un de la zone d'un ticket en
     // cuisson, ici ou sur une autre station — un cook tient sa zone avant
-    // d'avoir sa PR (#2741). Compagnons compris (#2963), sauf pour un ticket
-    // qui revient avec sa PR ouverte : deux retours sur un même fichier
-    // partagé s'attendraient l'un l'autre sans fin.
+    // d'avoir sa PR (#2741).
     // Le ticket d'une branche `cook/<n>-…` est fermé. Une branche sans numéro,
     // une issue que le client ne lit pas ou que la lecture manque : on ne sait
     // pas, la PR continue de tenir sa zone.
@@ -1598,11 +1570,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     };
     const ticketFerme = async (branche: string): Promise<boolean> => (await fermetureDe(branche)) !== null;
     const tenue = async (ticket: TicketLu): Promise<string | null> => {
-      const declaree = await zoneDuTicket(ticket.number);
-      if (declaree.length === 0) return null;
+      const zone = await zoneDuTicket(ticket.number);
+      if (zone.length === 0) return null;
       ouvertes ??= await github.prsOuvertes();
       const propre = brancheDuTicket(ticket.number);
-      const zone = ouvertes.some((ouverte) => ouverte.branche === propre) ? declaree : await tenuParLeTicket(ticket.number);
       // Une PR dont le ticket est fermé ne tient plus de zone : personne ne la sert (#3096).
       let pr: (typeof ouvertes)[number] | undefined;
       for (const ouverte of ouvertes) {
@@ -1614,7 +1585,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (pr !== undefined) return pr.branche;
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
-        const sienne = await tenuParLeTicket(autre.number).catch(() => []);
+        const sienne = await zoneDuTicket(autre.number).catch(() => []);
         if (sienne.some((chemin) => zone.some((entree) => secoupent(entree, chemin)))) return brancheDuTicket(autre.number);
       }
       return null;
@@ -1994,7 +1965,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "historique" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -2629,7 +2600,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), ...(depot.historique === undefined ? {} : { historique: () => depot.historique?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
