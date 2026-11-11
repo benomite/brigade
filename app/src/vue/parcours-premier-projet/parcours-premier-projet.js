@@ -8,14 +8,13 @@
 //   2. sa mise en place pour Brigade, seulement s'il ne l'est pas (la lecture de ticket 2628, `checkRepoSetup`) : le second
 //      la fait dans sa colonne, à droite, et la page dit à chaque instant ce qui est attendu et de qui — le second qui lit
 //      le dépôt, le chef qui lui répond, la PR de mise en place qui attend son merge —, avec le bouton du geste quand il y en a un.
-// Prêt : le rail reprend la page, et une seule ligne propose d'écrire le premier ticket avec le second.
+// Prêt : le rail reprend la page, et le second demande au-dessus ce que le chef veut changer d'abord (premier-ticket/, ticket 3306).
 // Un projet où le compte ne peut pas écrire (ticket 3163) n'ouvre rien de tout cela.
 // La question « qui le cuit » est le choix de station de l'onglet Stations (stations-tab/choix.js, ticket 3195) : les mêmes
 // choix, la même liste ; cette page n'y ajoute que sa phrase.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction, survol } from "../briques.js";
-import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { gestes } from "../parcours-projet/connexion.js";
 import { refusDit } from "../projets-servis/projets-servis.js";
 import { PREPARER } from "../page-projet/depot-non-prepare.js";
@@ -94,14 +93,6 @@ export const EN_ROUTE = (depot) => `The app is setting ${depot} up for Brigade. 
 export const REFUS = (dit) => `The setup failed: ${dit.replace(/\.$/, "")}. Waiting for you to try again.`;
 export const EMPECHE = "The second could not start: its column says why. Waiting for you to set the project up from here instead.";
 
-// Prêt : la ligne au-dessus du rail, et ce que son bouton écrit dans le second — sans Entrée, le chef la donne.
-/** @param {string} depot */
-export const PRET = (depot) => `${depot} is ready.`;
-export const ECRIRE_LE_PREMIER = "write its first ticket with the second";
-export const DEMANDE_DU_PREMIER = "Let's write the first ticket of this project together.";
-export const ECRIT = "Written in the second, without Enter — it is waiting for your Enter.";
-export const SECOND_ABSENT = "Nothing was written: the second is not running — its column says why.";
-export const FERMER = "close";
 
 // Le titre de la carte qui attend le merge de la PR de mise en place, mot pour mot comme le runtime pose son issue
 // (runtime/src/second-init/pr-de-setup.ts, `TITRE`, ticket 3169).
@@ -215,7 +206,7 @@ function corpsDuSetup(doc, depot, { attente, qui }, raisons, geste) {
 }
 
 // La question montrée, à la place du rail : la ligne de progression, la question, puis son corps. `vu` n'est jamais
-// « pret » ici : prêt, le rail reprend la page (`poserPret`).
+// « pret » ici : prêt, le rail reprend la page, sous le premier ticket (premier-ticket/).
 /**
  * @param {Fabrique} doc
  * @param {{ depot: string, vu: Exclude<Vu, { etape: "pret" }>, progression: string, station: Station, choix: readonly Choix[], illisible?: string, refus?: string, absente?: string }} donnees
@@ -246,28 +237,11 @@ function auRetour(doc, depot, absente) {
   return [dit];
 }
 
-// Prêt : une seule ligne au-dessus du rail — écrire le premier ticket avec le second ; écrit, elle le dit ; une demande
-// qui n'a rien écrit dit pourquoi.
-/** @param {Fabrique} doc @param {string} depot @param {{ ecrit?: true | string, absente?: string }} etat @param {{ ecrire: () => void, fermer: () => void }} geste */
-export function poserPret(doc, depot, { ecrit, absente }, geste) {
-  const ligne = cree(doc, "p");
-  ligne.className = "pret-du-projet gestes";
-  ligne.dataset.etape = "pret";
-  const dit = cree(doc, "span", ecrit === true ? ECRIT : PRET(depot));
-  dit.className = "phrase";
-  ligne.append(dit);
-  if (absente !== undefined) ligne.append(Object.assign(cree(doc, "span", AU_RETOUR(absente, depot)), { className: "au-retour" }));
-  if (ecrit !== true) ligne.append(boutonAction(doc, ECRIRE_LE_PREMIER, geste.ecrire, { recommande: true }));
-  if (typeof ecrit === "string") ligne.append(ligneErreur(doc, ecrit, "", { classe: "erreur" }));
-  ligne.append(boutonAction(doc, FERMER, geste.fermer));
-  return ligne;
-}
-
 // Les parcours tenus pour la vue, un par projet que « Add a project » a ouvert : son dépôt ; où en est « qui le cuit » et
 // la station qui l'a reçu ; la phrase d'une lecture de la mise en place qui a échoué ; si la mise en place a demandé
-// quelque chose (`setupVu`) ; et, prêt, la ligne qui reste au-dessus du rail (`pret`). Tenus le temps que l'app tourne.
+// quelque chose (`setupVu`) ; et, prêt, le premier ticket qui reste au-dessus du rail (`pret`, premier-ticket/). Tenus le temps que l'app tourne.
 // `absente` : la station choisie était hors ligne — son nom, tant que la page le dit.
-/** @typedef {{ depot: string, station: Station, illisible?: string, setupVu: boolean, pret?: { ecrit?: true | string }, absente?: string }} Parcours */
+/** @typedef {{ depot: string, station: Station, illisible?: string, setupVu: boolean, pret?: {}, absente?: string }} Parcours */
 /** @param {{ rendre: (projet: string) => void }} options */
 export function tenirLesParcours({ rendre }) {
   /** @type {Map<string, Parcours>} */
@@ -296,14 +270,14 @@ export function tenirLesParcours({ rendre }) {
       if (tenus.get(projet)?.illisible === phrase) return;
       changer(projet, ({ illisible: _, ...reste }) => (phrase === undefined ? reste : { ...reste, illisible: phrase }));
     },
-    // La mise en place a attendu quelque chose du chef ou du second : prêt, la ligne du premier ticket le suivra. Rien
+    // La mise en place a attendu quelque chose du chef ou du second : prêt, le premier ticket le suivra. Rien
     // n'est redessiné — c'est le dessin qui le dit.
     /** @param {string} projet */
     setupMontre(projet) {
       const avant = tenus.get(projet);
       if (avant !== undefined) tenus.set(projet, { ...avant, setupVu: true });
     },
-    // Prêt : la question part, le rail reprend la page. La ligne du premier ticket reste, si le chef a répondu à
+    // Prêt : la question part, le rail reprend la page. Le premier ticket reste, si le chef a répondu à
     // quelque chose ; sinon, le parcours est fini — il n'y avait rien à faire.
     /** @param {string} projet */
     pret(projet) {
@@ -313,8 +287,6 @@ export function tenirLesParcours({ rendre }) {
       else tenus.delete(projet);
       rendre(projet);
     },
-    /** @param {string} projet @param {true | string} ecrit */
-    ecrit: (projet, ecrit) => changer(projet, (avant) => ({ ...avant, pret: { ecrit } })),
     /** @param {string} projet */
     fermer(projet) {
       if (tenus.delete(projet)) rendre(projet);
