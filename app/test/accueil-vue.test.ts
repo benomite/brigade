@@ -143,7 +143,7 @@ test("la vue jouée ne retient pas le process : ses minuteries n'ajoutent rien d
   assert.equal(tenues(), avant);
 });
 
-test("le bloc Projects de l'accueil : un seul bouton par ligne, son état et ses stations ; « Add a project » ouvre le parcours d'ajout", async () => {
+test("le bloc Projects de l'accueil : un seul bouton par ligne, son état et ses stations ; « Add a project » ouvre l'écran d'ajout", async () => {
   const stations = { stations: [{ id: "s1", nom: "parade-box", machine: "", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "", projets: ["brigade", "espace"], max: null }], projets: [] } as unknown as VuDesStations;
   const vue = await jouerLaVue({ demarrage: () => demarrage(ACCUEIL, undefined, stations), espace: () => [] });
   const bloc = vue.element("accueil-projets");
@@ -155,8 +155,8 @@ test("le bloc Projects de l'accueil : un seul bouton par ligne, son état et ses
   assert.ok(ajout, "« Add a project » est sur l'accueil");
   ajout.click();
   await repos();
-  assert.equal(vue.element("ajout").hidden, false, "le parcours d'ajout s'ouvre");
-  assert.equal(vue.element("parcours-de-l-ajout").dessous("section").length > 0, true);
+  assert.equal(vue.element("ajout").hidden, false, "l'écran d'ajout s'ouvre");
+  assert.equal(vue.element("ajout").dessous("section").length > 0, true);
 });
 
 test("le bloc de la station, dans la vue jouée : sans id local il n'est pas installé, avec lui il lie sa page et liste les autres (#2640)", async () => {

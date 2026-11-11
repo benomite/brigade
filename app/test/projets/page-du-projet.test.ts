@@ -1,6 +1,6 @@
 // Ajouter un projet à l'app, puis confier sa cuisine à une station depuis sa page (#983), la vue
-// jouée. L'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni station, ni machine,
-// ni autre machine, et rien d'autre que le fichier des projets n'est appelé. La page du projet dit en
+// jouée. L'écran d'ajout ne demande que le dépôt (#3181) : ni station, ni machine, ni dossier, et rien
+// d'autre que son ouverture — sa copie, puis le fichier des projets — n'est appelé. La page du projet dit en
 // une phrase qu'aucune station ne fait sa cuisine, et offre le geste qui la lui confie ; une fois
 // confiée, elle nomme ses stations, et permet d'en ajouter une autre. Le choix (#1107) dit en une
 // phrase ce que le chef fait, propose la machine toujours allumée, puis des renforts facultatifs, et
@@ -106,73 +106,53 @@ async function laPage(projetsDesStations: VuDesProjets | undefined, projet: Proj
   return { jouee, bloc: jouee.element("stations-du-projet") };
 }
 
-test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni station, ni machine", async () => {
-  const jouee = await jouerLaVue({ demarrage: () => demarrage([], SANS_PROJET), espace: () => [] });
-  const formulaire = jouee.element("formulaire");
-  // Sans projet, l'app s'ouvre sur les stations du chef (#1434) : l'ajout par un dossier est au « + » de la barre.
+test("l'écran d'ajout ne demande que le dépôt (#3181) : ni station, ni machine, ni dossier, ni branche", async () => {
+  const jouee = await jouerLaVue({ demarrage: () => demarrage([], SANS_PROJET), compteGitHub: () => ({ login: "benomite" }), depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "v2" }] }), espace: () => [] });
+  // Sans projet, l'app s'ouvre sur les stations du chef (#1434) : l'ajout est au « + » de la barre.
   (jouee.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
   await repos();
   assert.equal(jouee.element("ajout").hidden, false);
-  for (const parti of ["box", "declarer", "nom", "sauvegardes", "manager-modele", "reviewer-effort"]) assert.throws(() => jouee.element(parti), new RegExp(`aucun élément « ${parti} »`), parti);
-  // Ce qui se saisit dans l'écran, tel que la page le pose.
+  for (const parti of ["box", "declarer", "nom", "sauvegardes", "manager-modele", "reviewer-effort", "formulaire", "dossier", "depot", "base", "parcours-de-l-ajout"]) assert.throws(() => jouee.element(parti), new RegExp(`aucun élément « ${parti} »`), parti);
+  // La page ne pose plus rien dans l'écran : la vue y pose le choix du dépôt (parcours-projet/ajout.js).
   const page = readFileSync(join(import.meta.dirname, "../../src/vue/index.html"), "utf8");
-  const ecran = page.slice(page.indexOf('<form id="formulaire"'), page.indexOf("</form>"));
-  assert.deepEqual([...ecran.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/g)].map(([, id]) => id), ["depot", "base"]);
-  assert.doesNotMatch(ecran, /\bbox|machine/i);
-  assert.equal(formulaire.hidden, false);
-  assert.match(ecran, /<button type="submit" id="ajouter"[^>]*>Add a project<\/button>/);
+  assert.match(page, /<section id="ajout" aria-label="Add a project" hidden><\/section>/);
+  const ecran = jouee.element("ajout");
+  assert.deepEqual(ecran.dessous("input").map((champ) => champ.type), ["search", "text"]);
+  assert.deepEqual(ecran.dessous("select"), []);
+  assert.doesNotMatch(ecran.textContent, /\bbox|machine|station|folder|branch/i);
 });
 
-test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n'appelle que le fichier des projets, le parcours demande qui le cuit (#2477), et confié, sa page s'ouvre", async () => {
+test("un dépôt choisi n'appelle que son ouverture — sa copie, puis le fichier des projets — : aucun geste vers une station, et sa page s'ouvre", async () => {
   let jouee: Jouee | undefined;
   jouee = await jouerLaVue({
     demarrage: () => demarrage([], SANS_PROJET),
     espace: () => [],
-    choisirDossier: () => "/tmp/parade",
-    lireClone: () => ({ depot: "benomite/parade", base: "v2", raisons: {} }),
-    ajouter: (saisie) => {
-      // Le fichier change d'abord : la liste arrive par `surConfiguration`, comme dans l'app.
-      jouee?.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: saisie.dossier, depot: saisie.depot, base: saisie.base }] }), []);
-      return { etat: "ajoute", nom: "parade" };
-    },
-    servirUnProjet: (depot) => ({ depots: [depot] }),
     compteGitHub: () => ({ login: "benomite" }),
+    depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "v2" }] }),
+    ouvrirDUneStation: (nom, depot, base) => {
+      // Le fichier change d'abord : la liste arrive par `surConfiguration`, comme dans l'app.
+      jouee?.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom, dossier: "/tmp/parade", depot, base: base ?? "" }] }), []);
+      return { state: "open", project: nom, repository: depot, folder: "/tmp/parade", cloned: false };
+    },
   });
-  // Sans projet, l'app s'ouvre sur le premier lancement : l'ajout par un dossier est au « + » de la barre.
   (jouee.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
   await repos();
-  jouee.element("dossier").click();
-  await repos();
-  await repos();
-  assert.equal(jouee.element("depot").value, "benomite/parade");
-  assert.equal(jouee.element("base").value, "v2");
   const appelesAvant = jouee.appels.length;
-  await Promise.all(jouee.element("formulaire").declencher("submit"));
+  (jouee.element("ajout").dessous("button").find((bouton) => bouton.textContent === "benomite/parade") ?? assert.fail("pas de dépôt")).click();
   await repos();
   await repos();
-  assert.deepEqual(jouee.dernier("ajouter"), [{ dossier: "/tmp/parade", depot: "benomite/parade", base: "v2" }]);
+  assert.deepEqual(jouee.dernier("ouvrirDUneStation"), ["parade", "benomite/parade", "v2"]);
   // Ajouter ne lance rien d'autre : aucun geste vers une station, aucune machine jointe. Sa page lit le rail que
   // sa station publierait sur GitHub (#1435), et le tableau de la cuisine de son dépôt (#1588) ; l'accueil, les stations du
-  // compte GitHub (#1706), les GitHub Apps de la station de cet ordinateur (#2317), les projets qu'elle sert (#2359) :
-  // des lectures, pas des gestes.
+  // compte GitHub (#1706), les GitHub Apps de la station de cet ordinateur (#2317), les projets qu'elle sert (#2359), ses
+  // humains et les stations qui y contribuent : des lectures, pas des gestes.
   assert.deepEqual(
-    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ajouter", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "railDuProjet", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis"].includes(geste)),
+    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "railDuProjet", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "listerLesHumains", "listerLesStationsContributrices"].includes(geste)),
     [],
   );
   assert.equal(jouee.appels.some(({ geste }) => geste === "confierAUneStation" || geste === "ajouterAUneStation"), false);
-  // L'écran reste celui de l'ajout : son parcours demande qui cuit le projet, cet ordinateur en tête.
-  assert.equal(jouee.element("ajout").hidden, false);
-  const etape = jouee.element("parcours-de-l-ajout").dessous("li").find((ligne) => ligne.dataset.etape === "station") ?? assert.fail("pas d'étape « station »");
-  assert.equal(etape.dataset.etat, "courante");
-  assert.ok([...etape.descendants()].some((pose) => pose.textContent === "Who cooks this project?"));
-  const ici = [...etape.descendants()].find((pose) => pose.dataset.station === "ici") ?? assert.fail("cet ordinateur n'est pas proposé");
-  // Un clic : la station de cet ordinateur sert le dépôt, par le geste de Settings, et le parcours finit sur son récap (#2478).
-  ici.dessous("button")[0]!.click();
-  await repos();
-  await repos();
-  assert.deepEqual(jouee.dernier("servirUnProjet"), ["benomite/parade", true]);
-  const recap = jouee.element("parcours-de-l-ajout").dessous("li").find((ligne) => ligne.dataset.etape === "recap") ?? assert.fail("pas d'étape « recap »");
-  assert.equal(recap.dataset.etat, "courante", "le récap clôt le parcours");
+  assert.equal(jouee.element("ajout").hidden, true);
+  assert.equal(jouee.element("espace").textContent, "parade");
 });
 
 test("sans station, la page le dit en une phrase et offre le geste qui la lui confie, parmi les stations appairées", async () => {

@@ -1,6 +1,7 @@
 // Ouvrir un projet qu'une station porte, depuis le premier lancement (#1434) : la copie est celle du runtime
 // (#1429) — reprise ou clonée, ses étapes relayées —, puis le projet entre dans le vrai fichier des projets avec son
-// dépôt et la branche que son origine désigne. Un projet que le fichier a déjà garde son dossier ; un échec du
+// dépôt et sa branche d'intégration — celle que GitHub a donnée, quand l'écran « Add a project » la passe (#3181),
+// sinon celle que son origine désigne. Un projet que le fichier a déjà garde son dossier ; un échec du
 // runtime passe tel quel ; un fichier qui refuse le projet le dit ; un second clic pendant un clone ne clone rien.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -57,6 +58,24 @@ test("sans copie : le runtime clone, ses étapes partent à la vue, et le projet
     lireConfiguration(suivi.configuration().chemin, dossier).projets.map(({ nom, dossier: ou }) => [nom, ou]),
     [["parade", copie]],
   );
+});
+
+test("un dépôt choisi dans « Add a project » (#3181) : sa branche d'intégration est celle que GitHub a donnée, l'origine de la copie n'est pas relue", async (t) => {
+  const { dossier, suivi, lu } = unFichier(t);
+  const copie = join(dossier, "projects", "parade");
+  const runtime = unRuntime(() => (mkdirSync(copie, { recursive: true }), { state: "open", project: "parade", repository: "benomite/parade", folder: copie, cloned: false }));
+  const ouvrir = ouvrirDUneStation({ ...runtime, lireLaBase: async () => assert.fail("la branche vient de GitHub"), configuration: suivi.configuration, ajouter: suivi.ajouter, progres: () => {} });
+  assert.deepEqual(await ouvrir("parade", "benomite/parade", " trunk "), { state: "open", project: "parade", repository: "benomite/parade", folder: copie, cloned: false });
+  assert.deepEqual(lu().projets, [{ nom: "parade", dossier: copie, depot: "benomite/parade", base: "trunk" }]);
+});
+
+test("une branche donnée vide ou qui n'est pas un texte ne décide pas : c'est celle de l'origine de la copie", async (t) => {
+  const { dossier, suivi, lu } = unFichier(t);
+  const copie = join(dossier, "projects", "parade");
+  const runtime = unRuntime(() => (mkdirSync(copie, { recursive: true }), { state: "open", project: "parade", repository: "benomite/parade", folder: copie, cloned: true }));
+  const ouvrir = ouvrirDUneStation({ ...runtime, lireLaBase: async () => "v2", configuration: suivi.configuration, ajouter: suivi.ajouter, progres: () => {} });
+  assert.equal((await ouvrir("parade", "benomite/parade", "  ")).state, "open");
+  assert.deepEqual(lu().projets, [{ nom: "parade", dossier: copie, depot: "benomite/parade", base: "v2" }]);
 });
 
 test("un projet que le fichier a déjà : sa copie est reprise par son dossier, et rien n'est réécrit", async (t) => {

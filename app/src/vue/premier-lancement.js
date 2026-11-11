@@ -3,21 +3,19 @@
 // projets », tant que le fichier des projets n'en a aucun. Le chef y retrouve les stations qu'il a appairées et les
 // projets que chacune porte, tels que le runtime les lit sur GitHub (ticket 1428), et en ouvre un d'un clic — sans dossier
 // à choisir : sa copie est reprise ou clonée par le runtime (ticket 1429), et l'écran dit où elle en est.
-// En tête de l'écran, le parcours d'ajout d'un projet (parcours-projet/, ticket 2475), le même que l'écran d'ajout monte,
-// avec la phrase d'accueil du premier lancement : son compte GitHub y est lu de cet ordinateur, jamais tapé, et une
-// connexion qui manque s'y fait d'un bouton. Sous lui, toujours une phrase sur les stations : ce qu'on en attend du chef,
+// En tête de l'écran, la phrase d'accueil, puis le compte GitHub de cet ordinateur (parcours-projet/compte.js) : lu,
+// jamais tapé, et une connexion qui manque s'y fait d'un bouton. Sous lui, toujours une phrase sur les stations : ce qu'on en attend du chef,
 // ou pourquoi rien ne se lit — sa raison en une phrase, son détail au survol, et le bouton de la page qui la lève quand
 // le runtime en nomme une. L'écran n'est jamais vide.
-// Sous elle, le projet qu'il veut cuisiner — un dépôt `owner/repo`, ou un nom seul que complète le compte connecté, ou un
-// dossier de ce poste. Rien n'y est prérempli ; son exemple est neutre. L'écran d'ajout par un dossier reste à un clic,
-// sous la liste.
+// Sous elle, le projet qu'il veut cuisiner — un dépôt `owner/repo`, ou un nom seul que complète le compte connecté. Rien
+// n'y est prérempli ; son exemple est neutre. L'écran « Add a project », qui choisit parmi ses dépôts (ticket 3181), reste
+// à un clic, sous la liste.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "./briques.js";
 import { phrase } from "./onboarding/parcours.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./parcours-projet/connexion.js";
-import { SE_CONNECTER } from "./parcours-projet/compte.js";
-import { poserParcoursProjet } from "./parcours-projet/parcours.js";
+import { poserLeCompte, SE_CONNECTER } from "./parcours-projet/compte.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
@@ -33,17 +31,17 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
 /** @typedef {import("../premier-lancement.ts").Progres} Progres */
 /** @typedef {import("../connexion-github.ts").CompteGitHub} CompteGitHub */
 /** @typedef {import("./parcours-projet/connexion.js").Connexion} Connexion */
-/** @typedef {import("./parcours-projet/parcours.js").GestesDuParcours} GestesDuParcours */
+/** @typedef {import("./parcours-projet/compte.js").GestesDuCompte} GestesDuCompte */
 
 // Ce que la vue tient de l'écran. `stations` : absentes, leur lecture est en route. `ouverture` : le projet qu'un
-// clic ouvre — l'étape de sa copie, puis, ratée, ce que le runtime en dit. `connexion` : la connexion à GitHub
+// clic ouvre — sa branche d'intégration quand GitHub l'a donnée, l'étape de sa copie, puis, ratée, ce que le runtime en dit. `connexion` : la connexion à GitHub
 // lancée — en route, son code à taper, ou pourquoi elle n'a pas abouti. `compte` : le compte GitHub de cet
-// ordinateur, que le parcours dit — absent, sa lecture est en route.
+// ordinateur, que l'écran dit en tête — absent, sa lecture est en route.
 /**
  * @typedef {{
  *   poste: string,
  *   stations?: StationsDuChef,
- *   ouverture?: { station: string, projet: string, depot: string, etape?: Progres, echec?: Extract<Ouverture, { state: "failed" }> },
+ *   ouverture?: { station: string, projet: string, depot: string, base?: string, etape?: Progres, echec?: Extract<Ouverture, { state: "failed" }> },
  *   connexion?: Connexion,
  *   compte?: CompteGitHub,
  *   saisie?: { projet: string },
@@ -51,13 +49,12 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  */
 /**
  * @typedef {{
- *   ouvrir: (station: string, projet: string, depot: string) => void,
+ *   ouvrir: (station: string, projet: string, depot: string, base?: string) => void,
  *   seConnecter: () => void,
  *   relire: () => void,
  *   ouvrirLaPage: (url: string) => void,
- *   ajouterUnDossier: () => void,
- *   ouvrirUnDossier: (dossier: string) => void,
- * } & GestesDuParcours} GestesDuPremier
+ *   ajouterUnProjet: () => void,
+ * } & GestesDuCompte} GestesDuPremier
  */
 
 export const PROJET = "The project to work on";
@@ -71,22 +68,22 @@ export const LECTURE = LECTURE_DE("the stations you have paired, on GitHub");
 export const OUVRIR_UN_PROJET = (poste) => `Open one of your projects on ${poste}: one click, no folder to choose.`;
 export const RELIRE = "read again";
 export { REESSAYER };
-export const PAR_UN_DOSSIER = "add a project from a folder instead";
+export const PAR_SES_DEPOTS = "pick one of your repositories instead";
+export const BIENVENUE = "Welcome to brigade. Add the first project its kitchen will cook.";
 export const SANS_PROJET = PAS_ENCORE("project on this station");
 export const DEPOT_INCONNU = "its station does not say which GitHub repository it is, so it cannot be cloned from here";
 export const SANS_CUISINE = "does not cook";
 /** @param {string} projet */
 export const ouvertureDe = (projet) => `Opening ${projet}…`;
 
-// Ce que le chef a tapé, lu : un dossier (chemin absolu, `~/…`, `./…` ou lecteur Windows), un dépôt `owner/repo` — ou
-// un nom seul, complété par le compte connecté —, sinon pourquoi rien ne s'ouvre. Rien n'est deviné : l'adresse de GitHub se
-// reconnaît, le reste se refuse.
-/** @param {string} compte @param {string} projet @returns {{ dossier: string } | { depot: string, nom: string } | { refus: string }} */
+// Ce que le chef a tapé, lu : un dépôt `owner/repo` — ou un nom seul, complété par le compte connecté —, sinon pourquoi
+// rien ne s'ouvre. Rien n'est deviné : l'adresse de GitHub se reconnaît, le reste se refuse. Le nom du projet est celui du
+// dépôt, en minuscules : l'écran « Add a project » (parcours-projet/ajout.js) le nomme de même.
+/** @param {string} compte @param {string} projet @returns {{ depot: string, nom: string } | { refus: string }} */
 export function lireLeProjet(compte, projet) {
   const dit = projet.trim();
   const qui = compte.trim();
   if (dit === "") return { refus: PROJET_MANQUE };
-  if (/^(?:[/~.]|[A-Za-z]:[\\/]|\\\\)/.test(dit)) return { dossier: dit };
   const sansAdresse = dit.replace(/^https?:\/\/github\.com\//, "").replace(/\/+$/, "").replace(/\.git$/, "");
   const complet = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+$/.test(sansAdresse) ? sansAdresse : /^[A-Za-z0-9_.-]+$/.test(sansAdresse) && qui !== "" ? `${qui}/${sansAdresse}` : undefined;
   if (complet === undefined) return { refus: /^[A-Za-z0-9_.-]+$/.test(sansAdresse) ? COMPTE_MANQUE : PROJET_ILLISIBLE };
@@ -103,9 +100,12 @@ function cree(doc, balise, texte) {
 }
 
 // Où en est le projet qu'un clic ouvre — sa copie en cours, ou ce qui l'a empêchée, avec ses gestes. Sous sa station, ou
-// sous le formulaire quand il vient de là (station vide).
-/** @param {Fabrique} doc @param {NonNullable<EtatDuPremier["ouverture"]>} ouverture @param {EtatDuPremier} etat @param {GestesDuPremier} geste */
-function ouvertureDite(doc, ouverture, etat, geste) {
+// sous le formulaire quand il vient de là (station vide) — ou sous la liste de l'écran « Add a project » (ajout.js).
+/**
+ * @param {Fabrique} doc @param {NonNullable<EtatDuPremier["ouverture"]>} ouverture @param {{ connexion?: Connexion }} etat
+ * @param {Pick<GestesDuPremier, "ouvrir" | "seConnecter" | "ouvrirLaPage">} geste
+ */
+export function ouvertureDite(doc, ouverture, etat, geste) {
   if (ouverture.echec === undefined) {
     const dit = cree(doc, "p", ouverture.etape?.sentence ?? ouvertureDe(ouverture.projet));
     dit.className = "ouverture";
@@ -117,11 +117,11 @@ function ouvertureDite(doc, ouverture, etat, geste) {
   const lien = "link" in echec ? echec.link : undefined;
   return [
     refus,
-    // Le bouton de la connexion, dit des mots de l'étape du compte : un même geste, un même nom sur l'écran.
+    // Le bouton de la connexion, dit des mots du compte : un même geste, un même nom sur l'écran.
     ...("action" in echec && echec.action !== undefined ? connexionDite(doc, etat.connexion, SE_CONNECTER, geste) : []),
     gestes(doc, [
       ...(lien === undefined ? [] : [boutonAction(doc, boutonDeLaPage(lien), () => geste.ouvrirLaPage(lien), { recommande: !("action" in echec && echec.action !== undefined) })]),
-      boutonAction(doc, REESSAYER, () => geste.ouvrir(ouverture.station, ouverture.projet, ouverture.depot)),
+      boutonAction(doc, REESSAYER, () => geste.ouvrir(ouverture.station, ouverture.projet, ouverture.depot, ouverture.base)),
     ]),
   ];
 }
@@ -172,9 +172,9 @@ function stationDite(doc, station, etat, geste) {
   return carte;
 }
 
-// Le formulaire : le projet du chef, un champ vide à l'exemple neutre — son compte est celui que le parcours dit
-// connecté, jamais tapé. Ce qui est tapé se garde dans `etat.saisie` d'un affichage à l'autre. Un dépôt s'ouvre par la copie du runtime, un dossier par l'écran
-// d'ajout ; ce qui ne se lit pas le dit sous le champ, en une phrase.
+// Le formulaire : le projet du chef, un champ vide à l'exemple neutre — son compte est celui que l'écran dit en tête
+// connecté, jamais tapé. Ce qui est tapé se garde dans `etat.saisie` d'un affichage à l'autre. Un dépôt s'ouvre par la
+// copie du runtime ; ce qui ne se lit pas le dit sous le champ, en une phrase.
 /** @param {Fabrique} doc @param {EtatDuPremier} etat @param {GestesDuPremier} geste */
 function formulaireDuProjet(doc, etat, geste) {
   const saisie = etat.saisie ?? { projet: "" };
@@ -200,11 +200,10 @@ function formulaireDuProjet(doc, etat, geste) {
     const lu = lireLeProjet(compte, saisie.projet);
     if ("refus" in lu) return void phraseVers(doc, refus, lu.refus);
     phraseVers(doc, refus, "");
-    if ("dossier" in lu) return geste.ouvrirUnDossier(lu.dossier);
     geste.ouvrir("", lu.nom, lu.depot);
   };
   const enCours = etat.ouverture !== undefined && etat.ouverture.echec === undefined;
-  // Tant qu'aucun compte n'est connecté, le geste recommandé est celui de l'étape du compte.
+  // Tant qu'aucun compte n'est connecté, le geste recommandé est celui du compte.
   const bouton = boutonAction(doc, OUVRIR_CE_PROJET, ouvrir, { recommande: compte !== "" });
   bouton.children[0].disabled = enCours;
   racine.append(...champ("projet-du-premier", PROJET, PROJET_EXEMPLE, "projet"), refus, gestes(doc, [bouton]));
@@ -218,16 +217,21 @@ function phraseVers(doc, pose, texte) {
   pose.replaceChildren(...(texte === "" ? [] : [phrase(doc, "span", texte)]));
 }
 
-// L'écran entier, d'après ce que la vue tient : le parcours d'ajout et sa phrase d'accueil, puis la phrase des
-// stations et ce qui suit de leur état. Une connexion qui manque se fait de l'étape du compte : la phrase des stations
-// le dit, sans second bouton.
+// L'écran entier, d'après ce que la vue tient : la phrase d'accueil et le compte, puis la phrase des stations et ce qui
+// suit de leur état. Une connexion qui manque se fait du compte, en tête : la phrase des stations le dit, sans second
+// bouton.
 /** @param {Fabrique} doc @param {EtatDuPremier} etat @param {GestesDuPremier} geste */
 export function poserPremierLancement(doc, etat, geste) {
   const racine = cree(doc, "div");
   racine.className = "premier-lancement";
   // Au premier lancement, chaque bouton est le grand, 44 px (composants/bouton, ticket 2916).
   racine.dataset.boutons = "grands";
-  racine.append(poserParcoursProjet(doc, { ...(etat.compte === undefined ? {} : { compte: etat.compte }), ...(etat.connexion === undefined ? {} : { connexion: etat.connexion }) }, geste, { bienvenue: true }));
+  const accueil = cree(doc, "p", BIENVENUE);
+  accueil.className = "bienvenue";
+  const compte = cree(doc, "div");
+  compte.className = "compte-du-premier";
+  compte.append(...poserLeCompte(doc, { ...(etat.compte === undefined ? {} : { compte: etat.compte }), ...(etat.connexion === undefined ? {} : { connexion: etat.connexion }) }, geste));
+  racine.append(accueil, compte);
   const { stations } = etat;
   /** @param {string} texte @param {string} [detail] */
   const enTete = (texte, detail) => {
@@ -241,7 +245,7 @@ export function poserPremierLancement(doc, etat, geste) {
   } else if (stations.state === "sign-in-required") {
     racine.append(enTete(stations.reason), formulaire());
   } else if (stations.state === "unavailable") {
-    // La page qui lève la panne n'est offerte qu'une fois : l'étape du compte, qui bute sur la même, l'offre déjà.
+    // La page qui lève la panne n'est offerte qu'une fois : le compte, qui bute sur la même, l'offre déjà.
     const lien = etat.compte !== undefined && "lien" in etat.compte && etat.compte.lien === stations.link ? undefined : stations.link;
     const compteLu = etat.compte !== undefined && "login" in etat.compte;
     racine.append(
@@ -259,6 +263,6 @@ export function poserPremierLancement(doc, etat, geste) {
       racine.append(illisibles);
     }
   }
-  racine.append(gestes(doc, [boutonAction(doc, PAR_UN_DOSSIER, geste.ajouterUnDossier)]));
+  racine.append(gestes(doc, [boutonAction(doc, PAR_SES_DEPOTS, geste.ajouterUnProjet)]));
   return racine;
 }

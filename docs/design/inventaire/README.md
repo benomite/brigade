@@ -4,7 +4,7 @@ The screen states of `scripts/capture-ecran/ecrans/` (#2899, epic #2898).
 
 ## Dead states
 
-These 77 states were deleted from `scripts/capture-ecran/ecrans/` by #2899: no code path of the app could reach them any more. The last six rows were added by #2921, with the Kitchen tab.
+These states were deleted from `scripts/capture-ecran/ecrans/`, first 77 by #2899: no code path of the app could reach them any more. Six rows were added by #2921, with the Kitchen tab, and the last one by #3181.
 
 ### Unreachable since a feature was deleted
 
@@ -83,6 +83,7 @@ PR #2459 (#2061) removed the app's reading of the Kitchen board, the issue in wh
 | `cooks-cahier-vide` | the notebook block of the Cooks tab | #2921 |
 | `cooks-plafond-reglage` | the calibration ceiling block of the Cooks tab (the same ceiling is a row of Settings) | #2921 |
 | `telephone-file-cooks` | the narrow screen's Cooks tab | #2921 |
+| `ajout-station`, `ajout-station-sans-station` | the « who cooks it » step of the « Add a project » screen, which only picks the repository now | #3181 |
 
 ### Unreachable since they were added
 
@@ -111,11 +112,11 @@ What the app says and draws differently from one screen to another, read from th
 
 | What is named | The words, and where | Capture |
 |---|---|---|
-| The computer the app runs on | « this computer » (`identites-github.js`, `projets-servis/projets-servis.js`, `accueil/station/BlocDeLaStation.js`, `parcours-projet/etape-station.js`), « this machine » (`station/page/NiveauReglage.js`, `station/page/sections/capacites-et-cuisiniers.js`), « this Mac » (the same two files and `vue.js`); the same page says « this computer » in `station/page/NoteSurPlace.js` and « that machine » in the same sentence | `stations-reglages.png`, `reglages-mac.png`, `stations-station-locale.png`, `ajout-station.png` |
+| The computer the app runs on | « this computer » (`identites-github.js`, `projets-servis/projets-servis.js`, `accueil/station/BlocDeLaStation.js`), « this machine » (`station/page/NiveauReglage.js`, `station/page/sections/capacites-et-cuisiniers.js`), « this Mac » (the same two files and `vue.js`); the same page says « this computer » in `station/page/NoteSurPlace.js` and « that machine » in the same sentence | `stations-reglages.png`, `reglages-mac.png`, `stations-station-locale.png`, `ajout-station.png` |
 | Giving up an open action | « Cancel » (`stations-declarees.js`), « cancel » (`second/geste.js`, `vue.js` for the ticket confirmations) (« Cancel the cleanup » went with the closer's launch, #2921) | `second-geste-confirmation.png`, `cooks-github-stations.png` |
 | Saving a form | Gone with #2920: no settings screen has a « Save » button any more — each setting is a row of `composants/reglage` that applies as soon as its control changes | `stations-reglages.png`, `onglet-stations.png`, `cooks-specialisations.png` |
 | Trying again after a failure | « Retry » (`page-projet/depot-non-prepare.js`), « Try again » (`accueil/station/BlocDeLaStation.js`) | `depot-non-prepare.png`, `stations-station-locale-perdue.png` |
-| Adding a project | « Add a project » on the sidebar footer (`vue.js:8816`), on the screen title (`parcours-projet/parcours.js`) and in `accueil/projets/projets.js`; « Add to the app » on the button of the form (`index.html`); « Add to the kitchen » at the end of the same path (`vue.js:7326`) | `ajout-station.png`, `ajout.png`, `barre-des-projets.png` |
+| Adding a project | « Add a project » on the sidebar footer (`vue.js:8816`), on the screen title (`parcours-projet/ajout.js`) and in `accueil/projets/projets.js` | `ajout.png`, `barre-des-projets.png` |
 | Moving to the new version of the app | « Install now » (`mise-a-jour/bandeau.js`), « Update now » (`station/page/sections/identite.js`) | `mise-a-jour-prete-mac.png`, `nouvelle-version-mac.png` |
 | The cleanup run by the closer | « cleanup » (`closer/lancement/lancement.js`, `closer/derive/derive.js`, `closer/bilan/bilan.js`), « closing pass » (`projet/bandeau-sante/Closer.js`), « closer » for the cook that runs it | `closer.png`, `closer-attente.png`, `projet-sante-closer.png` |
 | Nothing was read | « unavailable » (`premier-lancement.js`, `rail-publie.js`, `stations-du-compte.js`, `station/page/sections/connexions.js`), « could not reach » (`identites-github.js`, `projets-servis/projets-servis.js`), « not reached » (`stations-de-cuisson.js`), « failed » (`activite-du-cook.js`, `cost/perdus.js`, `onboarding/parcours.js`) | `rail-publie-indisponible.png`, `premier-lancement-indisponible.png`, `cooks-box-hors-fichier.png` |
@@ -135,11 +136,11 @@ What the app says and draws differently from one screen to another, read from th
 | Settings rows (`#etat .apps-github .champ .action > button`, `.reglages-du-projet .action > button`, `#rail .plafond-de-calibrage .action > button`) | 3px 12px | 12px | `--trait-fort` | none | `reglages-du-projet.png`, `reglages-pc.png` |
 | Duration caps (`[data-bloc="plafonds-duree"] .plafond .action > button`, `vue.css:7217`) | 4px 14px | 12px | `--trait-fort` | none | `projet-sante.png` |
 | Project path (`#stations-du-projet .parcours button`, `vue.css:811`) | 3px 10px | inherited | `--trait` | `--bouton` | `parcours-pret.png` |
-| Station step and recap (`.etape-station button`, `.etape-recap button`, `vue.css:5082`, `5143`) | 4px 12px | inherited | `--trait` | `--bouton` | `ajout-station.png` |
+| Station step (`.etape-station button`, `vue.css:5082`) | 4px 12px | inherited | `--trait` | `--bouton` | `onglet-stations-ajout.png` |
 | Close pass confirmation (`#rail .closer-lancement .confirmation .reponses button`, `vue.css:5873`) | 3px 10px | 12px | `--trait-fort` | `--bouton` | `closer-attente.png` |
 | Voucher confirmation (`#rail .bon .confirmation > button`, `vue.css:4145`) | 3px 8px | 12px | `--bon-trait` | none | `rail-file.png` |
 | Second's choices and gesture (`.choix-du-second button.choix`, `.geste-du-second button.geste`, `vue.css:6368`, `6406`) | 6px 10px | 12px | `--trait` | `--bouton` | `second-choix.png`, `second-geste.png` |
-| Trust form (`.confiance .lancer button`, `vue.css:1060`) | 10px 16px, `min-height` 44px | 14px | `--trait` | `--bouton` | `ajout-station.png` |
+| Trust form (`.confiance .lancer button`, `vue.css:1060`) | 10px 16px, `min-height` 44px | 14px | `--trait` | `--bouton` | no capture since #3181 |
 | GitHub connection (`#connexion-github .gestes button`, `vue.css:6166`) | 8px 16px | 14px | `--trait` | `--bouton` | `premier-lancement-connexion.png` |
 | Form (`#formulaire button`, `vue.css:2085`) | 6px 12px | 13px | not set in this rule | not set in this rule | `premier-lancement.png` |
 | Machines list (`#machines > button`, `vue.css:1151`) | 4px 10px | inherited | `--trait`, radius 4px | none | `demenager-choix.png` |
@@ -191,11 +192,11 @@ The rules below each draw a « nothing here » line, under ten different class n
 | `#etat .groupe > .vide` (`2182`) | `--discret`, margin 0 0 6px | `reglages-pc.png` |
 | `#rail .station-de-cuisson .aucun-cook` (`3543`) | 12px, `--discret` | `cooks-github-stations.png` |
 | `.courbe-cout .sans` (`1498`) | 12px, `--discret` | `cout.png` |
-| `.etape-projet .aucun` (`7824`) | 13px, `--discret` | `ajout-station-sans-station.png` |
+| `.etape-projet .aucun` (`7824`) | 13px, `--discret` | no capture since #3181 |
 | `#rail .causes-fiabilite .sans` (`5399`) | 14px, `--discret` | `fiabilite.png` |
 | `.alerte-cout.sans` (`5310`) | `--discret`, left border `--trait-fort` | `cout.png` |
 | `#blocages-du-projet .sans-geste` (`538`) | `--texte-doux` | `projet-blocages.png` |
-| `#rail .bloc-du-projet .etape-station .aucune` (`7488`) | `--texte-doux` | `ajout-station-sans-station.png` |
+| `#rail .bloc-du-projet .etape-station .aucune` (`7488`) | `--texte-doux` | no capture since #3181 |
 | `#etat .projets-servis .aucun` (`2347`) | `--jaune` | `reglages-pc.png` |
 | `.carte .sans-faits` (`2608`) | `--jaune`, weight 600 | `projet-temps-vide.png` |
 | `#rail > .rien-ne-cuit` (`3109`) | weight 600, margin 0 0 4px | `rail-file.png` |
@@ -241,7 +242,6 @@ The rules below each draw a « nothing here » line, under ten different class n
 | `:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafond .action > button` | 4px 14px | 7218 |
 | `#stations-du-projet .parcours button:not(.recommande)` | 3px 10px | 812 |
 | `.etape-station button:not(.aide)` | 4px 12px | 5083 |
-| `.etape-recap button` | 4px 12px | 5144 |
 | `#rail .closer-lancement .confirmation .reponses button` | 3px 10px | 5874 |
 | `#rail .bon .confirmation > button` | 3px 8px | 4146 |
 | `.choix-du-second button.choix` | 6px 10px | 6373 |

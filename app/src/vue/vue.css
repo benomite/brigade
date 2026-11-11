@@ -51,12 +51,10 @@ input[type="checkbox"] {
 pre,
 code,
 #projets button,
-#formulaire input,
-#formulaire select,
-#choisi,
 .carte dd,
 #rail h4 > span:last-child,
-.premier-lancement .formulaire-du-premier input {
+.premier-lancement .formulaire-du-premier input,
+.ajout-d-un-projet .depot button {
   font-family: var(--police-mono);
 }
 code {
@@ -91,7 +89,6 @@ pre.propos {
 .carte,
 #etat > .groupe,
 #tous .liste,
-#formulaire,
 #stations-du-projet .confiance {
   background: var(--carte);
   border: 1px solid var(--trait);
@@ -1376,14 +1373,14 @@ main > header,
 }
 /* Le premier lancement, sur un ordinateur neuf (ticket 1434) : en tête la phrase de ce qu'on attend du chef — ou
    pourquoi rien ne se lit —, puis une carte par station, ses projets en boutons. Ce qui se passe sous une station —
-   la copie en cours, sa raison d'échouer — se lit sous ses projets ; l'ajout par un dossier, discret, ferme l'écran. */
+   la copie en cours, sa raison d'échouer — se lit sous ses projets ; le bouton vers « Add a project », discret, ferme l'écran. */
 .premier-lancement {
   display: flex;
   flex-direction: column;
   gap: var(--pas-4);
   max-width: 640px;
 }
-/* La phrase des stations, sous le parcours : un titre de section, pas celui des sections de « Tous les projets ». */
+/* La phrase des stations, sous le compte : un titre de section, pas celui des sections de « Tous les projets ». */
 #tous .premier-lancement > .tete-des-stations {
   margin-top: var(--pas-2);
   font-size: var(--taille-intertitre);
@@ -1420,85 +1417,80 @@ main > header,
 .premier-lancement :is(h3) .survol {
   margin-left: var(--pas-2);
 }
-/* Le parcours d'ajout d'un projet (ticket 2475) : le même au premier lancement et sur l'écran d'ajout, une carte. En
-   tête « Add a project » — précédé, au premier lancement, de sa phrase d'accueil —, puis ses étapes numérotées, chacune
-   avec son état ; la courante sous un trait de l'accent, comme le parcours d'un projet neuf, celles à venir discrètes. */
-.parcours-projet.carte {
+/* Le premier lancement, en tête : sa phrase d'accueil, puis le compte GitHub de cet ordinateur (parcours-projet/compte.js). */
+.premier-lancement > .bienvenue {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  color: var(--texte-doux);
+}
+.compte-du-premier {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+.compte-du-premier p {
+  margin: 0;
+}
+.compte-du-premier .dit {
+  color: var(--texte-doux);
+}
+/* L'écran « Add a project » (ticket 3181, parcours-projet/ajout.js) : une carte. En tête son titre et l'attendu, puis le
+   champ qui cherche parmi les dépôts du compte, une rangée par dépôt — les derniers poussés d'abord —, et le champ où
+   coller un dépôt public, avec « add ». Ce que l'ouverture du dépôt choisi dit se lit dessous. */
+.ajout-d-un-projet.carte {
   gap: var(--pas-3);
   max-width: 640px;
   padding: var(--pas-4) var(--pas-5);
 }
-.parcours-projet > .bienvenue {
-  font-size: var(--taille-intertitre);
-  color: var(--texte-doux);
-}
-.parcours-projet h2 {
+.ajout-d-un-projet h2 {
   font-size: var(--taille-titre);
   font-weight: 700;
   color: var(--texte);
 }
-.parcours-projet .etapes-du-parcours {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.parcours-projet .etape-du-parcours {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin-left: calc(-1 * var(--pas-3));
-  padding-left: var(--pas-2);
-  border-left: 4px solid transparent;
-}
-.parcours-projet .etape-du-parcours.courante {
-  border-left-color: var(--accent);
-}
-.parcours-projet .titre-d-etape {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-  margin: 0;
-  color: var(--texte);
-}
-.parcours-projet .titre-d-etape :is(.numero, .etat),
-.parcours-projet .etape-du-parcours[data-etat="a-venir"] .titre-d-etape {
-  color: var(--discret);
-}
-.parcours-projet .etape-du-parcours[data-etat="faite"] .titre-d-etape .etat {
-  color: var(--vert);
-}
-.parcours-projet .corps-d-etape {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  min-width: 0;
-}
-.parcours-projet .corps-d-etape p {
+.ajout-d-un-projet p {
   margin: 0;
 }
-.parcours-projet :is(.dit, .code-de-connexion) {
+.ajout-d-un-projet :is(.attendu, .dit, .ouverture, .code-de-connexion) {
   color: var(--texte-doux);
 }
-.parcours-projet .compte-connecte,
-.parcours-projet .code-de-connexion strong {
+.ajout-d-un-projet .code-de-connexion strong {
+  font-size: var(--taille-intertitre);
   color: var(--texte);
 }
-.parcours-projet .code-de-connexion strong {
-  font-size: var(--taille-intertitre);
-}
-.parcours-projet .gestes {
+.ajout-d-un-projet .gestes {
   gap: var(--pas-2);
   padding: 0;
 }
-/* Sur l'écran d'ajout, le parcours d'abord ; l'ajout par un dossier dessous. */
-#parcours-de-l-ajout {
-  margin-bottom: var(--pas-4);
+.ajout-d-un-projet input {
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
 }
-#parcours-de-l-ajout > .parcours-projet {
-  max-width: 604px;
+.ajout-d-un-projet input::placeholder {
+  color: var(--discret);
+}
+.ajout-d-un-projet .depots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  max-height: 360px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.ajout-d-un-projet .aucun {
+  color: var(--discret);
+}
+.ajout-d-un-projet .coller {
+  display: flex;
+  gap: var(--pas-2);
+}
+.ajout-d-un-projet .colle {
+  flex: 1;
 }
 /* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
 #toutes-les-stations .ajout-de-station {
@@ -1734,83 +1726,6 @@ main > header,
   overflow-y: auto;
   padding: var(--pas-5);
   user-select: text;
-}
-#formulaire {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  max-width: 604px;
-  padding: var(--pas-5) var(--pas-5);
-}
-#formulaire h3 {
-  font-size: var(--taille-intertitre);
-  font-weight: 700;
-}
-#formulaire p {
-  margin: 0;
-}
-#formulaire label,
-#formulaire div {
-  margin-top: var(--pas-3);
-  font-weight: 600;
-}
-#formulaire div label {
-  margin: 0;
-}
-#formulaire small,
-#ou {
-  color: var(--discret);
-}
-#formulaire input,
-#formulaire select {
-  padding: var(--pas-2) var(--pas-3);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#formulaire select {
-  background: var(--bouton);
-}
-#formulaire [aria-invalid="true"] {
-  border-color: var(--rouge);
-}
-#formulaire button {
-  align-self: flex-start;
-}
-#formulaire div button,
-#formulaire div input,
-#formulaire div select {
-  margin: 0 0 0 var(--pas-2);
-}
-#formulaire div input,
-#formulaire div select {
-  font-weight: 400;
-}
-#choisi {
-  margin-left: var(--pas-2);
-  font-size: var(--taille-corps);
-  font-weight: 400;
-  overflow-wrap: anywhere;
-}
-#formulaire button[type="submit"] {
-  margin-top: var(--pas-3);
-}
-/* Un champ signalé : rien n'est parti tant qu'il l'est. */
-/* Ce qu'il est advenu de l'ajout : ce que l'app en dit. */
-#issue-ajout {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin-top: var(--pas-3);
-}
-#issue-ajout:empty {
-  display: none;
-}
-#issue-ajout[data-etat="champs"] strong,
-#issue-ajout[data-etat="pas-ajoute"] strong {
-  color: var(--rouge-clair);
 }
 /* Le fichier des projets n'a pas pu être relu : dit par-dessus tout, tant que ça dure. */
 #relecture {
@@ -3412,8 +3327,8 @@ main > header,
   gap: var(--pas-2);
   align-items: center;
 }
-/* L'étape « station » du parcours d'ajout (ticket 2477, parcours-projet/etape-station.js) : la question en tête, cet
-   ordinateur d'abord — le bouton recommandé —, puis une ligne par station appairée, son bouton et son état. */
+/* « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : la question en tête, cet
+   ordinateur d'abord — le bouton recommandé —, puis une ligne par station appairée, son bouton et ce qu'elle en dit. */
 .etape-station {
   display: flex;
   flex-direction: column;
@@ -3429,55 +3344,6 @@ main > header,
 .etape-station .attendu {
   font-size: var(--taille-intertitre);
   font-weight: 600;
-}
-.etape-station .ici,
-.etape-station .station {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
-.etape-station .aide,
-.etape-station .autres,
-.etape-station .lecture,
-.etape-station .etat {
-  color: var(--discret);
-}
-.etape-station .stations {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.etape-station .en-ligne {
-  color: var(--vert);
-}
-.etape-station .hors-ligne {
-  color: var(--gris);
-}
-/* L'étape « récap » du parcours d'ajout (ticket 2478, parcours-projet/etape-recap.js) : la phrase de l'attendu en tête, le
-   projet et sa station, une ligne chacun, puis ce qui se passe ensuite. Sans station, la ligne le dit et un bouton revient. */
-.etape-recap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--pas-3);
-}
-.etape-recap > p {
-  margin: 0;
-}
-.etape-recap .attendu {
-  font-size: var(--taille-intertitre);
-  font-weight: 600;
-}
-.etape-recap .ligne-recap {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-}
-.etape-recap .etiquette {
-  color: var(--discret);
 }
 /* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
@@ -3820,7 +3686,7 @@ main > header {
   flex: none;
 }
 /* La connexion du téléphone à GitHub (l'app Android, ticket 2500) : sur une installation neuve, tout l'écran — une
-   carte, comme le formulaire d'ajout, ce qu'on attend du chef en tête, puis « sign in with GitHub » (recommandé) ;
+   carte, comme l'écran d'ajout, ce qu'on attend du chef en tête, puis « sign in with GitHub » (recommandé) ;
    lancée, le code à taper et « open the GitHub page again » ; ratée, la ligne qui dit pourquoi, en rouge.
    Connecté, il ne garde qu'une ligne, en bandeau, en tête des projets. */
 #connexion-github {

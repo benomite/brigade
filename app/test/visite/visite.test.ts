@@ -323,8 +323,6 @@ describe("la vue jouée : l'ordinateur neuf, puis le lancement suivant", () => {
       ouvertures(vue).map(({ args }) => args),
       [[PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE]],
     );
-    // Rien n'a été cliqué ni tapé : seul le pont a été appelé.
-    assert.equal(vue.appels.some(({ geste }) => geste === "choisirDossier"), false);
     await brigadeAjoute(vue);
     assert.equal(vue.element("espace").textContent, PROJET_DE_LA_VISITE);
     assert.equal(bulle(vue).hidden, false);

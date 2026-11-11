@@ -326,8 +326,6 @@ const connus = {
       return false;
     }
   },
-  choisirDossier: async () => undefined,
-  ajouter: async () => ({ etat: "pas-ajoute", titre: (await connexionGardee()) === undefined ? `Nothing was added: ${AUCUNE_STATION}.` : "Nothing was added: a project is added from a computer, and this phone reads it from GitHub." }),
   faits: (/** @type {number} */ demande) => {
     faitsDemandes = demande;
     avecLaLectureGitHub((ouverte) => ouverte.faits(demande));
