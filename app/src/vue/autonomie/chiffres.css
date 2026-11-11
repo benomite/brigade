@@ -1,0 +1,108 @@
+/* Les chiffres d'autonomie (ticket 3222) : un titre et le choix de la période sur une ligne, puis trois chiffres côte à
+   côte, dans la carte de la page des coûts (.tete-cout .chiffre) ; sous le premier, « served with a human » déplie la
+   liste des tickets qui ont demandé quelque chose au chef, chacun avec sa question. Seules des variables de jetons.css
+   portent une taille, un espacement ou une couleur. */
+.chiffres-autonomie {
+  display: grid;
+  gap: var(--pas-2);
+}
+.chiffres-autonomie .tete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pas-2);
+}
+.chiffres-autonomie h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: 0;
+  font-size: var(--taille-corps);
+  font-weight: 600;
+  color: var(--discret);
+}
+.chiffres-autonomie .periodes {
+  display: inline-flex;
+  gap: var(--pas-1);
+}
+.chiffres-autonomie .periodes [aria-pressed="true"] {
+  color: var(--texte);
+  border-color: var(--trait);
+  background: var(--carte);
+}
+.chiffres-autonomie .corps {
+  display: grid;
+  gap: var(--pas-2);
+}
+.chiffres-autonomie .figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--pas-3);
+}
+.chiffres-autonomie .figure {
+  min-width: 0;
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.chiffres-autonomie h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: 0;
+  font-size: var(--taille-corps);
+  font-weight: 600;
+  color: var(--discret);
+}
+.chiffres-autonomie .valeur {
+  margin: var(--pas-1) 0 0;
+  font-size: var(--taille-chiffre);
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+}
+.chiffres-autonomie .dit {
+  margin: 0;
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+.chiffres-autonomie button.avec-humain {
+  margin-top: var(--pas-2);
+}
+.chiffres-autonomie ul.avec-humain {
+  display: grid;
+  gap: var(--pas-2);
+  list-style: none;
+  margin: 0;
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.chiffres-autonomie ul.avec-humain li {
+  display: grid;
+  gap: var(--pas-1);
+  min-width: 0;
+}
+.chiffres-autonomie ul.avec-humain li + li {
+  padding-top: var(--pas-2);
+  border-top: 1px dashed var(--trait);
+}
+.chiffres-autonomie button.ticket {
+  justify-self: start;
+  max-width: 100%;
+}
+.chiffres-autonomie .question {
+  margin: 0;
+  padding-left: var(--pas-3);
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+  overflow-wrap: anywhere;
+}
+.chiffres-autonomie .question.sans {
+  font-style: italic;
+  color: var(--discret);
+}

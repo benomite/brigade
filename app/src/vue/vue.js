@@ -91,6 +91,7 @@ import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
+import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -5525,11 +5526,22 @@ function basculerPerdus() {
 }
 /** @param {{ nom: string, couleurs?: { onglet?: string, accent?: string } }} projet */
 const projetDuCout = ({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent });
+// Les chiffres d'autonomie de tous les projets ensemble (autonomie/chiffres.js, ticket 3222), à côté de leur coût : ceux
+// que la page des coûts montre, lus de GitHub.
+/** @type {ReturnType<typeof tenirLesChiffresDAutonomie> | undefined} */
+let autonomieDeTous;
+const ouvrirTicketDAutonomie = (/** @type {string} */ url) => void brigade.ouvrirTicketDAutonomie(url);
 function poserCout() {
   if (pageDeLApp !== COUTS) return corpsDesCouts.replaceChildren();
   const projets = configuration.projets.filter((projet) => seLit(projet)).map(projetDuCout);
+  autonomieDeTous ??= tenirLesChiffresDAutonomie(document, {
+    tous: true,
+    lire: (jours) => brigade.lireAutonomie(configuration.projets.filter((projet) => seLit(projet)).map(({ nom }) => nom), jours),
+    ouvrir: ouvrirTicketDAutonomie,
+  });
   corpsDesCouts.replaceChildren(
     poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
+    autonomieDeTous.poser(),
     poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus, ouvrirTicketDepuisLesCouts),
     poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts),
     poserCourbe(document, projets, coutsLus),
@@ -6720,6 +6732,15 @@ const etatsDuCloser = new Map();
 const verificationsDuCloser = new Map();
 /** @type {Set<string>} */
 const candidatsOuverts = new Set();
+// Les chiffres d'autonomie de chaque projet (autonomie/chiffres.js, ticket 3222), dans sa section, lus de GitHub.
+/** @type {Map<string, ReturnType<typeof tenirLesChiffresDAutonomie>>} */
+const autonomieDesProjets = new Map();
+/** @param {Projet} projet */
+function autonomieDuProjet(projet) {
+  const tenue = autonomieDesProjets.get(projet.nom) ?? tenirLesChiffresDAutonomie(document, { lire: (jours) => brigade.lireAutonomie([projet.nom], jours), ouvrir: ouvrirTicketDAutonomie });
+  autonomieDesProjets.set(projet.nom, tenue);
+  return tenue;
+}
 // `garder` : une relecture ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
 /** @param {Projet} projet @param {boolean} [garder] */
 function poserLeBandeauDeSante(projet, garder = true) {
@@ -6743,6 +6764,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
       ouvrir: (url) => void brigade.ouvrirLaProposition(url),
     }),
     poserLeCloserDeSante(projet),
+    autonomieDuProjet(projet).poser(),
     deTousLesProjets,
   );
   if (Date.now() - (plafondsLusLe.get(projet.nom) ?? 0) > 60_000) void lireLesPlafondsDuree(projet);
