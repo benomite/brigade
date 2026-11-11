@@ -127,6 +127,7 @@ import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
+import { poserLeProjetDEssai, tenirLeProjetDEssai } from "./essai/projet-d-essai.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
@@ -7923,6 +7924,25 @@ const gestesDuPremier = {
 };
 // Le desktop porte le premier lancement ; un pont qui ne le porte pas s'ouvre sur l'écran « Add a project ».
 const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
+// Le projet d'essai (ticket 3227, essai/projet-d-essai.js) : « try on a sample project » sur le premier lancement le crée et
+// le mène jusqu'au rail par les gestes de l'app — sa mise en place, la station de cet ordinateur, l'ouverture de son
+// espace. Son encart, par-dessus tout écran, dit où il en est ; GitHub est relu chaque minute tant que son ticket attend
+// son merge.
+const sectionEssai = element("projet-d-essai");
+const essai = tenirLeProjetDEssai({ pont: brigade, rendre: () => poserLEncartDEssai(), ouvrir: (projet, depot, base) => ouvrirDUneStation("", projet, depot, base) });
+premier.essai = essai.etat;
+gestesDuPremier.essayer = () => void essai.essayer();
+function poserLEncartDEssai() {
+  const poses = poserLeProjetDEssai(document, essai.etat, { essayer: () => void essai.essayer(), supprimer: () => void essai.supprimer(), ouvrirLaPage: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url) });
+  sectionEssai.replaceChildren(...poses);
+  sectionEssai.hidden = poses.length === 0;
+  poserLePremier();
+}
+brigade.surPermissionDeSuppression?.((fin) => void essai.apresLaPermission(fin));
+void essai.lire();
+setInterval(() => {
+  if (essai.aSuivre()) void essai.lire();
+}, 60_000);
 
 function ouvrirPremier() {
   courant = undefined;
@@ -7956,7 +7976,8 @@ function poserLePremier() {
 // sur la visite. Une seule fois : la visite montrée laisse sa trace, et l'app ne l'ajoute plus.
 function ajouterLaCuisineDeLaVisite() {
   const compte = compteDuParcours.etat.compte;
-  if (!avecPremier() || compte === undefined || !("login" in compte) || premier.ouverture !== undefined || visiteAOuvrir !== undefined || !visite.aDecouvrir()) return;
+  // Un projet d'essai en route : c'est lui qui s'ouvre.
+  if (!avecPremier() || compte === undefined || !("login" in compte) || premier.ouverture !== undefined || visiteAOuvrir !== undefined || essai.etat.etape !== undefined || !visite.aDecouvrir()) return;
   visiteAOuvrir = PROJET_DE_LA_VISITE;
   void ouvrirDUneStation("", PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE);
 }

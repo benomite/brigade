@@ -38,7 +38,7 @@ const DELAI_MS = 120_000;
 // --- GitHub, tel que l'étape lui parle : une requête, une réponse. Le runtime
 // passe par `gh` ; les tests, par un GitHub simulé.
 
-export type RequeteGitHub = { methode: "GET" | "POST" | "PUT" | "PATCH"; chemin: string; corps?: unknown };
+export type RequeteGitHub = { methode: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; chemin: string; corps?: unknown };
 // `scopes` : ceux du jeton, quand GitHub les dit — il ne les dit que d'un
 // jeton OAuth ou classique ; null sinon.
 export type ReponseGitHub = { statut: number; corps: unknown; scopes: string[] | null };

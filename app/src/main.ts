@@ -1298,6 +1298,40 @@ ipcMain.handle("ouvrirLaPage", (_, url: unknown) => {
     () => false,
   );
 });
+// Le projet d'essai du premier lancement (#3227, runtime/src/essai-projet/) : l'instant du premier lancement, noté
+// une fois ; le dépôt privé créé sur le compte du `gh` de cet ordinateur avec un seul ticket prêt à cuire ; son service lu
+// sur GitHub ; sa suppression — du seul dépôt noté —, et la permission `delete_repo` que `gh` fait accorder quand elle
+// manque, comme la connexion (connexion-github.ts). Tout ce qui en est gardé est à côté du fichier des projets.
+const projetDEssai = () => duRuntime<typeof import("../../runtime/src/essai-projet/projet-d-essai.ts")>("essai-projet", "projet-d-essai.ts");
+const ghDeLEssai = async () => (await duRuntime<typeof import("../../runtime/src/proteger-branche.ts")>("proteger-branche.ts")).clientGh(ghIci, process.env);
+const dossierDeLEssai = dirname(cheminConfiguration());
+void projetDEssai().then(
+  ({ noterLePremierLancement }) => {
+    const lu = noterLePremierLancement(dossierDeLEssai, new Date());
+    if ("illisible" in lu) console.error(`brigade: the first launch is not recorded — ${lu.illisible}`);
+  },
+  (erreur: unknown) => console.error(`brigade: the first launch is not recorded — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
+);
+// Ses pages — le dépôt, son ticket, sa PR — s'ouvrent depuis l'écran.
+const retenirLEssai = <T extends object>(rendu: T): T => {
+  const projet = "sample" in rendu ? (rendu.sample as { url: string; ticketUrl?: string; pullRequest?: string } | undefined) : undefined;
+  for (const page of [projet?.url, projet?.ticketUrl, projet?.pullRequest]) if (page) pagesDuPremier.add(page);
+  return rendu;
+};
+ipcMain.handle("projetDEssai", async () => retenirLEssai(await (await projetDEssai()).suivreLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai)));
+ipcMain.handle("creerLeProjetDEssai", async () => retenirLEssai(await (await projetDEssai()).creerLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai, new Date())));
+ipcMain.handle("supprimerLeProjetDEssai", async (_, depot: unknown) => (await projetDEssai()).supprimerLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai, depot, new Date()));
+const permissionDeSuppression = tenirConnexionGitHub({
+  commande: async () => [ghIci, "auth", "refresh", "--hostname", "github.com", "--scopes", (await projetDEssai()).PERMISSION],
+  env: process.env,
+  ouvrir: (adresse) => shell.openExternal(adresse),
+  apres: (fin) => dire("permissionDeSuppression", fin),
+});
+ipcMain.handle("demanderLaPermissionDeSuppression", async () => {
+  const debut = await permissionDeSuppression();
+  if ("page" in debut) pagesDuPremier.add(debut.page);
+  return debut;
+});
 // Le rail qu'une station publie dans son gist pour un projet qu'aucune station connue ne sert ici (#1435), lu par
 // l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui que l'app lit sur GitHub, pour
 // tout projet. Tant qu'il ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
