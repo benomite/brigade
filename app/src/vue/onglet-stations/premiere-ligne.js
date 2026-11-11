@@ -23,7 +23,7 @@ const SERT = new Set(["cooking", "idle", "saturated"]);
 export const sert = ({ etat, presente, distante }) => SERT.has(etat) && (etat === "idle" ? presente === true || (presente === undefined && !distante) : presente !== false);
 
 // Le seul endroit où le vert se refuse : une station qui ne sert pas le projet ne porte pas de vert, atteinte ou non.
-/** @param {Pick<Ligne, "etat" | "presente" | "distante"> | undefined} ligne @param {string | undefined} ton */
+/** @template {string | undefined} T @param {Pick<Ligne, "etat" | "presente" | "distante"> | undefined} ligne @param {T} ton @returns {T | "gris"} */
 export const tonDe = (ligne, ton) => (ton === "vert" && (ligne === undefined || !sert(ligne)) ? "gris" : ton);
 
 /**
