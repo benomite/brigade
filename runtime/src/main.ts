@@ -33,6 +33,7 @@ import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherLeChef } from "./chef/chef.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
+import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
 import { brancherRetenue } from "./retenue/brancher.ts";
@@ -264,6 +265,8 @@ try {
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
   const { chef } = brancherLeChef(runtime, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat });
   brancherMentionDuChef(runtime, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages });
+  // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
+  brancherReponseParCommentaire(runtime, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
