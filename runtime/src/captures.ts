@@ -29,6 +29,9 @@ import { possede } from "./zones.ts";
 
 export const DOSSIER_CAPTURES = "docs/captures";
 
+// Ce qui, hors de la vue de l'app, se voit : le site et les maquettes.
+export const VISUELS = ["site", "docs/maquettes"];
+
 // Le dossier où le cook pose les captures d'un ticket.
 export const dossierDesCaptures = (ticket: number) => `${DOSSIER_CAPTURES}/${ticket}`;
 
