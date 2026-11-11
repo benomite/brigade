@@ -11,6 +11,7 @@ import { ALLUMAGE } from "../../src/allumage.ts";
 import { mettreAPart } from "../../src/attend.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
+import type { CompteGitHub } from "../../src/connexion-github.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
@@ -303,7 +304,7 @@ const ouvertures = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "o
 const rejouer = (vue: Jouee) => vue.poses().find(({ id }) => id === "entree-visite") ?? assert.fail("pas d'entrée pour rejouer la visite");
 
 // Un premier lancement : le fichier sans projet, le compte GitHub de cet ordinateur lu, la copie de brigade faite.
-async function premierLancement(stockage: FauxStockage, compte: () => unknown = () => ({ login: "newcomer" })) {
+async function premierLancement(stockage: FauxStockage, compte: () => CompteGitHub = () => ({ login: "newcomer" })) {
   const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => AUCUNE, compteGitHub: compte, ouvrirDUneStation: () => OUVERT, espace: () => [SECOND] }, { stockage });
   await repos();
   return vue;
