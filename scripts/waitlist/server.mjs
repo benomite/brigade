@@ -1,6 +1,7 @@
 // The only endpoint of the waiting list (#3271): POST /signup, with an email. It never returns a stored email or the count:
 // the list is read with report.mjs, on the machine that holds the file.
 // Usage: WAITLIST_DB=/path/waitlist.sqlite [PORT=8787] [WAITLIST_ORIGIN=https://benomite.github.io] node scripts/waitlist/server.mjs
+import { pathToFileURL } from "node:url";
 import { createServer } from "node:http";
 import { openStore } from "./store.mjs";
 
@@ -26,7 +27,7 @@ export function createWaitlistServer(store, origin) {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const file = process.env.WAITLIST_DB;
   if (!file) { console.error("WAITLIST_DB is required (the path of the SQLite file)."); process.exit(1); }
   const port = Number(process.env.PORT ?? 8787);
