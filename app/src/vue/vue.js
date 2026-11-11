@@ -95,6 +95,7 @@ import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } fr
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
 import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
+import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
 import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
@@ -120,6 +121,7 @@ import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
+import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
@@ -239,6 +241,7 @@ const contenu = element("contenu");
 const centre = element("centre");
 const rail = element("rail");
 const fiche = element("fiche");
+const detailDeValidation = element("detail-de-validation");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const interrupteurProjet = element("interrupteur-projet");
@@ -867,6 +870,11 @@ const commentairesDeValidation = new Map();
 const validees = new Map();
 /** @param {string} projet */
 const valideesDe = (projet) => validees.get(projet) ?? new Set();
+// Le détail en grand d'une carte « Validate its screen » (validation-design/detail-de-validation.js, ticket 3212), ouvert
+// d'un clic sur la carte : son projet, son ticket, et ce qu'il montre — côte à côte ou l'une sur l'autre, la capture
+// ouverte seule, le zoom de chaque écran —, gardé d'une pose à l'autre.
+/** @type {{ projet: string, ticket: number, affichage: import("./validation-design/detail-de-validation.js").Affichage } | undefined} */
+let detailOuvert;
 // Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend. Une carte
 // partie de TODO ne l'emporte pas (ticket 2151) : un brouillon non vide y reste, sur une carte résolue, jusqu'à ce que le
 // chef l'écarte — avec ce que sa carte demandait (`questionsDesBrouillons`).
@@ -1078,6 +1086,16 @@ const demandesAuSecond = new Map();
 // Le geste en route (`envoi`) ou refusé (`refus`) d'une carte mise de côté (ticket 3147), par `projet#ticket`.
 /** @type {Map<string, { envoi: "relancer" | "clore" } | { refus: string }>} */
 const refusDeCartes = new Map();
+// Ce que le process principal a lu des essais de chaque projet (essai.ts, ticket 3215) : sa déclaration `.brigade/try.json` et ses essais par ticket.
+/** @type {Map<string, import("../essai.ts").VuDesEssais>} */
+const essaisDeProjets = new Map();
+/** @param {Projet} projet */
+async function lireLesEssais(projet) {
+  const vu = await brigade.essais?.(projet.nom);
+  if (vu === undefined) return;
+  essaisDeProjets.set(projet.nom, vu);
+  if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(projet);
+}
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
 const situations = new Map();
@@ -2805,6 +2823,17 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   if (carte.refus !== undefined && lectureSeuleDe(projet) === undefined) bon.append(poserLesGestesDuRefus(projet, ticket));
+  // En pass ou livrée : « try it » quand le projet dit comment il s'essaie (essai.ts) — sa phrase, sinon.
+  if (carte.essayable === true) {
+    bon.append(
+      ...poserLEssai(
+        document,
+        essaisDeProjets.get(projet.nom),
+        ticket,
+        { essayer: () => void brigade.essayer(projet.nom, ticket), arreter: () => void brigade.arreterEssai(projet.nom, ticket) },
+      ),
+    );
+  }
   bon.append(...poserGestesDAttente(projet, carte), ...signalerLaCarte(projet, carte));
   return bon;
 }
@@ -3038,9 +3067,18 @@ function poserCaptures(projet, ticket, { ecrans, incomplete }) {
 }
 
 /** @param {Projet} projet @param {number} ticket @param {string} ecran @param {import("../captures.ts").Capture} capture */
-function poserCapture(projet, ticket, ecran, { moment, legende, livree, version }) {
+function poserCapture(projet, ticket, ecran, capture) {
   const figure = document.createElement("figure");
-  figure.dataset.moment = moment;
+  figure.dataset.moment = capture.moment;
+  const titre = document.createElement("figcaption");
+  titre.textContent = capture.legende;
+  figure.append(poserImage(projet, ticket, ecran, capture), titre);
+  return figure;
+}
+
+// L'image d'une capture, lue une fois par le process principal — ou sa place, qui dit qu'elle manque, se lit ou ne se lit pas.
+/** @param {Projet} projet @param {number} ticket @param {string} ecran @param {import("../captures.ts").Capture} capture */
+function poserImage(projet, ticket, ecran, { moment, legende, livree, version }) {
   const cle = `${projet.nom}#${ticket}:${ecran}:${moment}@${version}`;
   if (livree && !capturesLues.has(cle)) void lireCapture(projet, ticket, ecran, moment, cle);
   const lue = livree ? capturesLues.get(cle) : undefined;
@@ -3048,17 +3086,13 @@ function poserCapture(projet, ticket, ecran, { moment, legende, livree, version 
     const image = /** @type {HTMLImageElement} */ (document.createElement("img"));
     image.src = lue.image;
     image.alt = legende;
-    figure.append(image);
-  } else {
-    const place = bloc("span", !livree ? "missing" : lue === undefined ? "loading…" : "not available");
-    place.className = "place";
-    if (lue !== undefined && "sans" in lue) place.title = lue.sans;
-    figure.append(place);
+    image.draggable = false;
+    return image;
   }
-  const titre = document.createElement("figcaption");
-  titre.textContent = legende;
-  figure.append(titre);
-  return figure;
+  const place = bloc("span", !livree ? "missing" : lue === undefined ? "loading…" : "not available");
+  place.className = "place";
+  if (lue !== undefined && "sans" in lue) place.title = lue.sans;
+  return place;
 }
 
 /** @param {Projet} projet @param {number} ticket @param {string} ecran @param {"avant" | "apres"} moment @param {string} cle */
@@ -3070,8 +3104,9 @@ async function lireCapture(projet, ticket, ecran, moment, cle) {
     capturesLues.set(cle, { sans: erreur instanceof Error ? erreur.message : String(erreur) });
   }
   if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(courant);
-  // Une carte ouverte depuis la liste du téléphone pose ses captures aussi (ticket 3185).
+  // Une carte ouverte depuis la liste du téléphone pose ses captures aussi (ticket 3185), et son détail en grand (ticket 3212).
   if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) poserLesCartesDuChef();
+  if (detailOuvert?.projet === projet.nom && detailOuvert.ticket === ticket) poserLeDetail();
 }
 
 // La fiche d'un ticket, par-dessus le rail : pour l'instant son en-tête — son numéro, son titre
@@ -5138,6 +5173,7 @@ function poserLaValidation(projet, ticket, todo, grand) {
       renvoyer: (commentaire) => void validerLaCarte(projet, ticket, { geste: "renvoyer", commentaire }),
       ecrire: (texte) => void commentairesDeValidation.set(cle, texte),
       ouvrirPr: () => void brigade.ouvrirPr(projet.nom, ticket),
+      ouvrir: () => ouvrirLeDetail(projet.nom, ticket),
       // Dans TODO, comme toute carte, « ask the second » (ticket 3133) ; la carte ouverte du téléphone n'en a pas.
       ...(grand ? {} : { demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)) }),
     },
@@ -5156,6 +5192,8 @@ async function validerLaCarte(projet, ticket, geste) {
     validations.set(cle, etat);
     if (courant?.nom === projet.nom) poserRail(projet);
     poserLesCartesDuChef();
+    // Fait depuis son détail, la carte a quitté TODO : son détail se ferme (`poserLeDetail` ne la trouve plus).
+    if (detailOuvert?.projet === projet.nom && detailOuvert.ticket === ticket) poserLeDetail();
   };
   poser({ etape: "envoi", geste: geste.geste });
   /** @type {import("./validation-design/validation-design-github.ts").RenduDeValidation | undefined} */
@@ -5174,6 +5212,105 @@ async function validerLaCarte(projet, ticket, geste) {
   poser(suite);
   if (suite.etape === "fait") lireLesFaits();
 }
+
+// La carte « Validate its screen » d'un ticket, telle que la dernière lecture de son projet la porte — partie de TODO
+// (validée ou renvoyée d'ici, ou plus lue), rien.
+/** @param {string} nom @param {number} ticket */
+function laValidation(nom, ticket) {
+  const projet = configuration.projets.find((un) => un.nom === nom);
+  const tenu = tenus.get(nom);
+  if (projet === undefined || tenu === undefined || !("tableau" in tenu) || valideesDe(nom).has(ticket)) return undefined;
+  const todo = tenu.tableau.rail.colonnes
+    .flatMap(({ cartes }) => cartes)
+    .find((carte) => carte.ticket === ticket && estUneValidation(carte.todo))?.todo;
+  return todo === undefined ? undefined : { projet, todo };
+}
+
+// Les cartes « Validate its screen » qui attendent le chef, dans l'ordre de sa liste (`lesCartesDuChef`) : celle qui suit
+// la carte ouverte — la première, après la dernière —, autre qu'elle.
+/** @param {string} nom @param {number} ticket */
+function validationSuivante(nom, ticket) {
+  const attendent = lesCartesDuChef().filter(({ todo }) => estUneValidation(todo));
+  const ici = attendent.findIndex((carte) => carte.projet === nom && carte.ticket === ticket);
+  return [...attendent.slice(ici + 1), ...attendent.slice(0, Math.max(ici, 0))].find((carte) => carte.projet !== nom || carte.ticket !== ticket);
+}
+
+/** @param {string} projet @param {number} ticket */
+function ouvrirLeDetail(projet, ticket) {
+  lacherLaCarteDe(projet, ticket);
+  detailOuvert = { projet, ticket, affichage: affichageNeuf() };
+  poserLeDetail();
+  detailDeValidation.focus();
+}
+
+function fermerLeDetail() {
+  const ferme = detailOuvert;
+  detailOuvert = undefined;
+  poserLeDetail();
+  // Le commentaire tapé dans le détail est celui de la carte : elle le reprend.
+  if (ferme === undefined) return;
+  const projet = configuration.projets.find((un) => un.nom === ferme.projet);
+  if (projet !== undefined && courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(projet);
+  poserLesCartesDuChef();
+}
+
+// Le détail ouvert, posé dans son état ; sa carte partie de TODO, il se ferme. Le clavier qui était dans son champ y reste.
+function poserLeDetail() {
+  const lue = detailOuvert === undefined ? undefined : laValidation(detailOuvert.projet, detailOuvert.ticket);
+  if (detailOuvert === undefined || lue === undefined) {
+    detailOuvert = undefined;
+    detailDeValidation.hidden = true;
+    return detailDeValidation.replaceChildren();
+  }
+  const { ticket, affichage } = detailOuvert;
+  const { projet, todo } = lue;
+  const cle = `${projet.nom}#${ticket}`;
+  const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DU_COMMENTAIRE && detailDeValidation.contains(document.activeElement);
+  const suivante = validationSuivante(projet.nom, ticket);
+  const ecrans = todo.captures?.ecrans ?? [];
+  detailDeValidation.hidden = false;
+  detailDeValidation.replaceChildren(
+    poserDetailDeValidation(
+      document,
+      ticket,
+      todo,
+      validations.get(cle) ?? VALIDATION_AU_REPOS,
+      affichage,
+      {
+        images: (ecran, moment) => {
+          const capture = ecrans.find((un) => un.ecran === ecran)?.[moment];
+          return capture === undefined ? bloc("span", "missing") : poserImage(projet, ticket, ecran, capture);
+        },
+        commentaire: commentairesDeValidation.get(cle) ?? "",
+        cle,
+        grand: etroit(),
+        ...(suivante === undefined ? {} : { suivante: suivante.ticket }),
+        ...(lectureSeuleDe(projet) === undefined ? {} : { lectureSeule: true }),
+      },
+      {
+        fermer: fermerLeDetail,
+        reposer: poserLeDetail,
+        suivante: () => {
+          if (suivante !== undefined) ouvrirLeDetail(suivante.projet, suivante.ticket);
+        },
+        valider: () => void validerLaCarte(projet, ticket, { geste: "valider" }),
+        renvoyer: (commentaire) => void validerLaCarte(projet, ticket, { geste: "renvoyer", commentaire }),
+        ecrire: (texte) => void commentairesDeValidation.set(cle, texte),
+        ouvrirPr: () => void brigade.ouvrirPr(projet.nom, ticket),
+      },
+    ),
+  );
+  if (enMain) /** @type {HTMLElement | null} */ (detailDeValidation.querySelector(`[data-champ="${CHAMP_DU_COMMENTAIRE}"]`))?.focus();
+}
+
+// Échap ferme le détail — ou, une capture ouverte seule, rend l'avant et l'après.
+detailDeValidation.addEventListener("keydown", (evenement) => {
+  if (evenement.key !== "Escape" || detailOuvert === undefined) return;
+  evenement.stopPropagation();
+  if (detailOuvert.affichage.seule === undefined) return fermerLeDetail();
+  delete detailOuvert.affichage.seule;
+  poserLeDetail();
+});
 
 // Les cartes qui attendent le chef, à la largeur d'un téléphone (cartes-du-chef/, ticket 2915) : celles de la colonne
 // « Awaiting you » de chaque projet lu, avec leur question — une carte déjà répondue n'y est plus. La vue montrée est la
@@ -8368,6 +8505,11 @@ brigade.surAmont((vu) => {
   amonts.set(vu.projet, vu);
   if (courant?.nom === vu.projet && !rail.hidden && tenus.has(vu.projet)) poserRail(courant);
 });
+// Un essai a changé, ou la déclaration du projet : elle est relue (essai.ts).
+brigade.surEssais?.((nom) => {
+  const projet = configuration.projets.find((candidat) => candidat.nom === nom);
+  if (projet !== undefined) void lireLesEssais(projet);
+});
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
   enLecture.delete(recue.projet);
@@ -8391,7 +8533,10 @@ brigade.surFaits((recue) => {
   marquerPastille(recue.projet);
   suivreLeParcours(recue.projet);
   poserLesCartesDuChef();
+  // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
+  if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {
+    void lireLesEssais(courant);
     dessiner();
     void poserOrdinaires(courant);
   }

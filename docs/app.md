@@ -663,6 +663,27 @@ station the section is read-only: the same lines, never a button.
 *Code: `app/src/vue/station/page/sections/identite.js` (it reads `contexte.identite`, which the page shell supplies). Test:
 `app/test/vue/station/identite.test.ts`.*
 
+### Try a delivery from its card, in one click (#3215)
+
+A project says how it is tried in `.brigade/try.json` at its root: a `command` key (a shell command, run in the
+delivery's checkout) and an optional `url` key (an http(s) address, opened once the command runs), e.g.
+`{"command": "npm install && npm run dev", "url": "http://localhost:5173"}`. The app reads it each time the rail is read
+(`app/src/essai.ts`).
+
+- A card in **Pass** or **Served** shows `try it` when the file is there and valid; cards in other states show nothing.
+  Without the file the cards show no button and one line says to create `.brigade/try.json` with a `command` key and an
+  optional `url` key, with the example; a file that cannot be read or is malformed says why, in one line.
+- `try it` checks out the delivery into a git worktree **under the app's data folder** (`<data>/essais/<project>/<ticket>`,
+  one per delivery, detached), never inside the working copy: the working copy, its branch and its uncommitted changes are
+  not touched. The delivery is the ticket's `origin/cook/<n>-…` branch (local one if there is no remote), or, once the branch
+  is gone, the merge commit that names it. Tried again, the worktree is removed and recreated. If the data folder lies
+  inside the working copy, nothing is created.
+- Running, the card says where the version is — `running at <url>` (the address is also opened in the browser), or
+  `it runs in the opened window or process` — and carries a single `stop`: one click ends the command and all its child
+  processes (its process group; `taskkill /T` on Windows), and the card is back to `try it`. Quitting the app ends them too.
+- If the command cannot start, exits with an error, or the checkout fails, the card shows a one-line reason and the last
+  ten lines of the output (its end, not its start); nothing is left running. A command that exits with code 0 just ends.
+
 ### Cards never vanish while GitHub holds them (#2151)
 
 The chef's main screen does not lose a card because a reading went wrong:
@@ -993,6 +1014,25 @@ head the card carries. Captures: `docs/captures/3185/`.
 body, `jouerLaValidation` for the desktop and `validerSurGithub` for the phone), channel `gesteDeValidation`
 (`app/src/main.ts`; `app/src/gestes-github-telephone.ts` and `app/android/web/pont.js` on the phone). Tests:
 `app/test/validation-design/`.*
+
+**The large detail of a `Validate its screen` card (#3212).** A click on the card, or on one of its captures, opens its
+detail over the app (in Todo, it opens the detail instead of the ticket's sheet; its buttons and its comment field keep
+their gesture; Enter or Space on its captures opens it too). In this order: the question; `One over the other`, `Next
+validation (#<card>)` when another design validation awaits you, and `Close`; for each screen, `Zoom out`, `Zoom in` and
+`Fit`, then its before and after captures side by side, each as large as the window allows; then `Pull request #<PR>`,
+`Validate`, and the comment field with `Send back to the kitchen` — the card's gestures, with the same comment. Each
+capture zooms with the wheel (around the pointer), by pinching, by its buttons or by a double click (a second one fits it
+again), and pans by dragging; the before and after of a screen share one view, so zooming or panning one does the same on
+the other, at the same spot. `One over the other` puts them in one frame and `Show after` / `Show before` switches between
+them in place, at the same zoom; `Side by side` goes back. `Full size` under a capture opens it alone over the whole
+detail, zoomable the same way; `Back to before and after`, or Escape, returns. Escape, or `Close`, closes the detail. A
+gesture done from the detail closes it and the card leaves Todo, as on the card; refused, the detail stays and says why
+in one line. `Next validation` opens the next card that awaits you (the order of the phone's list), without going back
+to Todo. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
+one under the other, pinch to zoom, its two gestures 44 px high. On a read-only project the detail shows no gesture.
+Captures: `docs/captures/3212/`.
+*Code: `app/src/vue/validation-design/detail-de-validation.js` (the detail and its zoom), opened from `validation-design.js`
+(the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-de-validation.test.ts`.*
 
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
 signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without

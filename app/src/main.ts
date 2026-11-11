@@ -20,6 +20,7 @@ import { noteDeLaPassation, passerAuSecond } from "./passation-second.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
+import { tenirLesEssais } from "./essai.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
@@ -926,6 +927,26 @@ ipcMain.handle("passerAuSecond", (_, nom: unknown, ticket: unknown, question: un
   const lire = async (numero: number) => discussionDeGitHub(reglagesGh(), await depotDuProjet(vise), numero);
   return passerAuSecond((message) => terminaux.inscrire(vise, message, noteDeLaPassation), lire, vise, ticket, question);
 });
+// Essayer une livraison depuis sa carte (essai.ts, #3215) : son worktree vit sous le dossier de l'app, jamais dans la copie
+// de travail du projet. Chaque changement d'un essai est redit à la vue, qui relit.
+const essais = tenirLesEssais({
+  dossierDonnees: dirname(cheminConfiguration()),
+  ouvrir: (url) => void shell.openExternal(url).catch(() => undefined),
+  surChangement: (projet) => dire("essais", projet),
+});
+ipcMain.handle("essais", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? undefined : essais.vu(vise.dossier, vise.nom);
+});
+ipcMain.handle("essayer", async (_, nom: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise !== undefined && typeof ticket === "number" && Number.isInteger(ticket)) await essais.essayer(vise.dossier, vise.nom, ticket);
+});
+ipcMain.handle("arreterEssai", async (_, nom: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise !== undefined && typeof ticket === "number") await essais.arreter(vise.nom, ticket);
+});
+app.on("before-quit", () => void essais.toutArreter());
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
   if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
   return shell.openExternal(url).then(

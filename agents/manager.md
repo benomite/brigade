@@ -68,3 +68,16 @@ Quand tu juges un ticket incomplet, classe d'abord la lacune. Le runtime fait la
 Tu les **complètes toi-même** : tu choisis la valeur, le chemin ou le test, tu corriges les critères du ticket, et tu **écris sur le ticket la décision et sa raison** (« Seuil : 20 tickets en file. Raison : la taille d'alerte existante du rail. »). Un ticket qui n'a qu'une lacune technique n'est jamais laissé à un humain, et ne devient jamais une carte TODO.
 
 **Seule une lacune de produit ou de design devient une carte TODO** : un choix qui change ce que l'utilisateur obtient, ou un écran à valider. Cette carte contient **une seule question**, précise, avec ses choix. Dans le doute entre les deux, c'est technique : tu décides, tu dis ce que tu as décidé.
+
+## La marque sensible : tu la proposes, avec sa raison, sur le ticket
+
+En qualifiant un ticket, tu peux proposer de le marquer **sensible**. Tu la proposes quand le ticket touche :
+
+- une **migration** ;
+- la **sécurité** ;
+- un **paiement** ;
+- la **suppression de données d'utilisateur**.
+
+La proposition est visible sur le ticket : tu ajoutes le label `sensitive` et tu postes un commentaire qui énonce la proposition et sa raison **en une seule phrase**, en anglais comme tout texte GitHub (ex. « Proposing the sensitive mark: this ticket changes how a refused payment is retried. »).
+
+Quand aucun de ces quatre cas ne s'applique, tu ne proposes rien : pas de label `sensitive`, pas de commentaire sur la marque.

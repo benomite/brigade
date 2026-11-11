@@ -6,6 +6,8 @@
 // est au survol. Chaque geste part par le pont : sur le desktop, le process principal joue la commande du runtime
 // (validation-design-github.ts, `jouerLaValidation`) ; sur le téléphone, il s'écrit sur GitHub (`validerSurGithub`) ; fait, la carte quitte TODO (`sansLesValidees`) ; refusé, elle reste,
 // et dit pourquoi en une ligne, le détail au survol.
+// Un clic sur la carte, ou sur l'une de ses captures, l'ouvre en grand : detail-de-validation.js (ticket 3212), qui reprend ses
+// deux gestes (`poserLesGestes`).
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, les captures déjà posées et ce que chaque geste
 // appelle, et rend un élément.
 
@@ -90,13 +92,14 @@ function cree(doc, balise, classe, texte) {
 // `cle` marque le champ. `lectureSeule` : le projet est en lecture seule — la carte se lit, rien ne la tranche d'ici.
 // `grand` : à la largeur d'un téléphone, les boutons en 44 px. `second` : dans TODO, la carte finit par « ask the second »,
 // comme toute carte de TODO (ticket 3133) — la demande en route, ou ce qu'elle a donné ; `demander` la passe au second.
+// `ouvrir` : un clic sur la carte ouvre son détail en grand (ticket 3212).
 /**
  * @param {Fabrique} doc
  * @param {number} ticket
  * @param {CarteDeTodo} carte
  * @param {Etat} etat
  * @param {{ captures: any[], commentaire: string, cle: string, lectureSeule?: boolean, grand?: boolean, second?: { envoi: true } | { parti: string } | { refus: string } }} posees
- * @param {{ valider: () => void, renvoyer: (commentaire: string) => void, ecrire: (texte: string) => void, ouvrirPr: () => void, demander?: () => void }} gestes
+ * @param {{ valider: () => void, renvoyer: (commentaire: string) => void, ecrire: (texte: string) => void, ouvrirPr: () => void, ouvrir?: () => void, demander?: () => void }} gestes
  */
 export function poserCarteDeValidation(doc, ticket, carte, etat, { captures, commentaire, cle, lectureSeule = false, grand = false, second }, gestes) {
   const posee = poserLaCarte(doc, ticket, carte, etat, { captures, commentaire, cle, lectureSeule, grand }, gestes);
@@ -107,13 +110,12 @@ export function poserCarteDeValidation(doc, ticket, carte, etat, { captures, com
 /**
  * @param {Fabrique} doc @param {number} ticket @param {CarteDeTodo} carte @param {Etat} etat
  * @param {{ captures: any[], commentaire: string, cle: string, lectureSeule: boolean, grand: boolean }} posees
- * @param {{ valider: () => void, renvoyer: (commentaire: string) => void, ecrire: (texte: string) => void, ouvrirPr: () => void }} gestes
+ * @param {{ valider: () => void, renvoyer: (commentaire: string) => void, ecrire: (texte: string) => void, ouvrirPr: () => void, ouvrir?: () => void }} gestes
  */
 function poserLaCarte(doc, ticket, carte, etat, { captures, commentaire, cle, lectureSeule, grand }, gestes) {
   const racine = carteDeReponse(doc, { sorte: carte.sorte });
   racine.className = `${racine.className} carte-validation`;
   racine.ariaLabel = `the screen #${ticket} asks you to validate`;
-  const enRoute = etat.etape === "envoi";
   const { validation } = carte;
   if (carte.question !== null) racine.append(cree(doc, "p", "question-carte", carte.question));
   if (validation === undefined || "illisible" in validation) {
@@ -122,12 +124,46 @@ function poserLaCarte(doc, ticket, carte, etat, { captures, commentaire, cle, le
   }
   const ecrans = cree(doc, "div", "captures-de-validation");
   ecrans.append(...captures);
+  // Un clic sur la carte, ou sur l'une de ses captures, ouvre son détail en grand (detail-de-validation.js, ticket 3212) —
+  // et non la fiche du ticket : ce qui s'y clique déjà, ses boutons et son champ, garde son geste. Au clavier, Entrée ou
+  // Espace sur ses captures.
+  if (gestes.ouvrir !== undefined) {
+    const ouvrir = gestes.ouvrir;
+    racine.dataset.ouvrable = "";
+    racine.addEventListener("click", (/** @type {Event} */ evenement) => {
+      evenement.stopPropagation();
+      const cible = /** @type {Element | null | undefined} */ (evenement.target);
+      if (cible?.closest?.("button, a, summary, input, textarea, select")) return;
+      ouvrir();
+    });
+    ecrans.tabIndex = 0;
+    ecrans.title = "opens the screens in large, to zoom on them";
+    ecrans.addEventListener("keydown", (/** @type {KeyboardEvent} */ evenement) => {
+      if (evenement.key !== "Enter" && evenement.key !== " ") return;
+      evenement.preventDefault();
+      evenement.stopPropagation();
+      ouvrir();
+    });
+  }
   const lien = bouton(doc, LIEN(validation.pr), gestes.ouvrirPr, { sorte: "discret" });
   lien.className = `${lien.className} lien-de-la-pr`.trim();
   lien.title = "opens the pull request on GitHub";
   racine.append(ecrans, lien);
   if (lectureSeule) return racine;
 
+  racine.append(...poserLesGestes(doc, validation, etat, { commentaire, cle, grand }, gestes));
+  return racine;
+}
+
+// Les deux gestes d'une carte « Validate its screen », sur la carte comme sur son détail (detail-de-validation.js) :
+// « Validate », le commentaire et « Send back to the kitchen » — puis, s'il y a lieu, le geste en route ou ce qui l'a refusé.
+/**
+ * @param {Fabrique} doc @param {{ pr: number, ticket: number }} validation @param {Etat} etat
+ * @param {{ commentaire: string, cle: string, grand: boolean }} posees
+ * @param {{ valider: () => void, renvoyer: (commentaire: string) => void, ecrire: (texte: string) => void }} gestes
+ */
+export function poserLesGestes(doc, validation, etat, { commentaire, cle, grand }, gestes) {
+  const enRoute = etat.etape === "envoi";
   const valider = boutonAction(doc, VALIDER, gestes.valider, { recommande: true, grand, prix: PRIX_VALIDER(validation.pr) });
   const boutonValider = valider.children?.[0];
   if (boutonValider !== undefined) boutonValider.disabled = enRoute;
@@ -149,8 +185,10 @@ function poserLaCarte(doc, ticket, carte, etat, { captures, commentaire, cle, le
     if (boutonRenvoyer !== undefined) boutonRenvoyer.disabled = saisie.value.trim() === "";
   });
   phrase.append(saisie, renvoyer);
-  racine.append(valider, phrase);
-  if (enRoute) racine.append(cree(doc, "span", "en-route", etat.geste === "valider" ? EN_VALIDATION : EN_RENVOI));
-  if (etat.etape === "refus") racine.append(ligneErreur(doc, etat.dit, etat.detail, { classe: "refus" }));
-  return racine;
+  return [
+    valider,
+    phrase,
+    ...(enRoute ? [cree(doc, "span", "en-route", etat.geste === "valider" ? EN_VALIDATION : EN_RENVOI)] : []),
+    ...(etat.etape === "refus" ? [ligneErreur(doc, etat.dit, etat.detail, { classe: "refus" })] : []),
+  ];
 }

@@ -14,6 +14,7 @@
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lieuDe, lignesDuRail, motDEtat, porter, priorite, type Porte } from "./bon.ts";
+import { sEssaie } from "./essai.ts";
 import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllisible, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRefusee, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
@@ -445,7 +446,7 @@ export type Faits = {
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string } } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -1200,6 +1201,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
       ...(dit !== undefined && donne?.chef !== undefined ? { chef: donne.chef } : {}),
       ...(refusee ? { refus: { brut: brutDuRefus } } : {}),
+      // En pass ou livrée, et sur le rail : « try it » (essai.ts, #3215) — pas une carte qui t'attend.
+      ...(dit === undefined && connu?.illisible === undefined && sEssaie(connu?.etat) ? { essayable: true as const } : {}),
       ...(miseDeCote === undefined ? {} : { miseDeCote: { label: miseDeCote.label, liens: miseDeCote.raison === null ? [] : miseDeCote.liens.map(({ numero }) => numero) } }),
       ...(duChef !== undefined ? { todo: duChef } : dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte) } : {}),
       // Confié à un humain : sa tâche (vue/attente-capacite/).
@@ -1287,6 +1290,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       attend: [],
       ...(pr === null ? {} : { pr: ouvrable(pr) }),
       livraison: livraison(relecture),
+      ...(illisible === undefined ? { essayable: true as const } : {}),
       ...(captures === undefined ? {} : { captures: capturesDeCarte(captures) }),
       dit: [
         { libelle: "served", valeur: avant(quand, faits.lu) },

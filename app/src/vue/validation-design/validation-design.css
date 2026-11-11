@@ -1,7 +1,7 @@
 /* La carte « Validate its screen » (ticket 3185, validation-design.js) : la question, puis les captures avant et après,
    l'une sous l'autre sur toute la largeur de la carte, lues sans un clic ; le lien de sa PR ; « Validate », le geste
    recommandé ; le commentaire et « Send back to the kitchen ». Dans TODO, elle est une carte de TODO (carte-attente.css) ;
-   sur le téléphone, la carte ouverte depuis la liste (cartes-du-chef.css). */
+   sur le téléphone, la carte ouverte depuis la liste (cartes-du-chef.css). Un clic l'ouvre en grand (ticket 3212), plus bas. */
 .carte-validation div.captures-de-validation {
   display: flex;
   flex-direction: column;
@@ -92,4 +92,212 @@
 #cartes-du-chef .carte-validation textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Un clic sur la carte, ou sur ses captures, ouvre son détail en grand (ticket 3212). */
+.carte-validation[data-ouvrable] div.captures-de-validation {
+  cursor: zoom-in;
+}
+.carte-validation[data-ouvrable] div.captures-de-validation:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Le détail en grand (detail-de-validation.js) : par-dessus toute l'app, sur un voile ; la question en tête, les captures de
+   chaque écran à la plus grande taille que la fenêtre laisse, le lien de la PR et les deux gestes au pied. Chaque écran prend
+   toute la hauteur de la zone des captures ; plusieurs écrans s'y font défiler. */
+#detail-de-validation {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  padding: var(--pas-4);
+  background: var(--ombre);
+}
+#detail-de-validation[hidden] {
+  display: none;
+}
+#detail-de-validation:focus {
+  outline: none;
+}
+#detail-de-validation .detail-de-validation {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--fond);
+  border: 1px solid var(--discret);
+  border-radius: var(--rayon-bouton);
+  box-shadow: 0 8px 32px var(--ombre);
+}
+#detail-de-validation header.tete-du-detail {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--pas-3);
+}
+#detail-de-validation p.question-carte {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#detail-de-validation div.gestes-du-detail {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--pas-2);
+}
+#detail-de-validation div.ecrans-du-detail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-4);
+  overflow-y: auto;
+}
+#detail-de-validation section.ecran-du-detail {
+  flex: 0 0 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+#detail-de-validation div.barre-de-zoom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2);
+}
+#detail-de-validation div.paire {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--pas-3);
+}
+#detail-de-validation figure.capture-zoomable {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  margin: 0;
+}
+#detail-de-validation div.cadre {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--terminal);
+  border: 1px solid var(--trait-fort);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+#detail-de-validation div.cadre:active {
+  cursor: grabbing;
+}
+#detail-de-validation div.cadre > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: 50% 50%;
+}
+#detail-de-validation div.cadre > img[hidden] {
+  display: none;
+}
+#detail-de-validation div.cadre > .place {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--taille-meta);
+  font-style: italic;
+  color: var(--discret);
+}
+#detail-de-validation figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pas-2);
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
+#detail-de-validation footer.pied-du-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--pas-3);
+}
+#detail-de-validation footer.pied-du-detail div.phrase {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pas-2);
+}
+#detail-de-validation footer.pied-du-detail textarea {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  padding: var(--pas-2);
+  font: inherit;
+  color: var(--texte);
+  background: var(--case);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  resize: none;
+}
+#detail-de-validation footer.pied-du-detail textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#detail-de-validation footer.pied-du-detail .refus {
+  flex-basis: 100%;
+}
+
+/* Sur le téléphone : plein écran, sans voile ni bord ; l'avant et l'après l'un sous l'autre, le pincement zoome. */
+@media (max-width: 720px) {
+  #detail-de-validation {
+    padding: 0;
+  }
+  #detail-de-validation .detail-de-validation {
+    padding: var(--pas-3);
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  #detail-de-validation header.tete-du-detail {
+    flex-direction: column;
+  }
+  #detail-de-validation div.gestes-du-detail {
+    align-self: stretch;
+    justify-content: flex-start;
+  }
+  #detail-de-validation div.paire {
+    flex-direction: column;
+  }
+  #detail-de-validation footer.pied-du-detail {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #detail-de-validation footer.pied-du-detail div.phrase {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+  }
+  #detail-de-validation footer.pied-du-detail .action {
+    display: flex;
+  }
+  #detail-de-validation footer.pied-du-detail .action > button {
+    flex: 1;
+  }
 }

@@ -59,6 +59,10 @@ const pont = {
   repondreQuestion: (projet, ticket, reponse) => ipcRenderer.invoke("repondreQuestion", projet, ticket, reponse),
   geste: (projet, id, oui) => ipcRenderer.invoke("geste", projet, id, oui),
   confirmer: (projet, id) => ipcRenderer.invoke("confirmer", projet, id),
+  // Essayer une livraison (essai.ts, #3215) : l'état des essais d'un projet, « try it », « stop » ; `surEssais` dit qu'il a changé.
+  essais: (projet) => ipcRenderer.invoke("essais", projet),
+  essayer: (projet, ticket) => ipcRenderer.invoke("essayer", projet, ticket),
+  arreterEssai: (projet, ticket) => ipcRenderer.invoke("arreterEssai", projet, ticket),
   refus: (projet, id, ticket) => ipcRenderer.invoke("refus", projet, id, ticket),
   attente: (projet, id, ticket, saisie) => ipcRenderer.invoke("attente", projet, id, ticket, saisie),
   ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
@@ -162,6 +166,7 @@ const pont = {
   surEtat: (recevoir) => void ipcRenderer.on("etat", (_, terminal) => recevoir(terminal)),
   surActivites: (recevoir) => void ipcRenderer.on("activites", (_, publiees) => recevoir(publiees)),
   surContenu: (recevoir) => void ipcRenderer.on("contenu", (_, lecture, manager) => recevoir(lecture, manager)),
+  surEssais: (recevoir) => void ipcRenderer.on("essais", (_, projet) => recevoir(projet)),
   surFaits: (recevoir) => void ipcRenderer.on("faits", (_, recue) => recevoir(recue)),
   surGuide: (recevoir) => void ipcRenderer.on("guide", (_, guide) => recevoir(guide)),
   surAlertes: (recevoir) => void ipcRenderer.on("alertes", (_, bande) => recevoir(bande)),
