@@ -4,6 +4,7 @@ import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { menuDeLApp } from "./aide-communaute.ts";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions, type NativeImage } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { avecPastille, tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
@@ -1926,6 +1927,8 @@ void app.whenReady().then(() => {
   const iconeWindows = app.isPackaged ? join(dirname(process.execPath), "Brigade.ico") : icone;
   // Sans garde sur `isPackaged` seul : le .dmg n'est pas reconnu empaqueté et ne livre pas ce fichier.
   if (estUnMac(plateforme) && !app.isPackaged) poserLIconeDuDock(iconeDock, (chemin) => app.dock?.setIcon(chemin));
+  // L'entrée d'aide : les Discussions du dépôt (#3258).
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuDeLApp((url) => shell.openExternal(url), estUnMac(plateforme))));
   fenetre = new BrowserWindow({
     ...(plateforme === "win32" ? { icon: iconeWindows } : {}),
     width: 1280,

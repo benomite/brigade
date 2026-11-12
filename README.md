@@ -14,6 +14,8 @@ The kitchen's words, once: the **rail** is the line of your tickets, from queued
 
 Brigade is a team of AI agents that works your GitHub tickets.
 
+Questions, sharing and ideas: **[GitHub Discussions](https://github.com/benomite/brigade/discussions)** is the place to ask a question, share what you cook and propose ideas.
+
 Presentation and downloads: **[benomite.github.io/brigade](https://benomite.github.io/brigade/)**.
 
 Brigade works through everything it can do while you are away from your computer, and calls you on your phone only for the choices that are yours.
