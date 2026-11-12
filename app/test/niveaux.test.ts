@@ -38,6 +38,8 @@ describe("le niveau de chaque réglage montré", () => {
     for (const cle of ["depot", "branche", "manager", "reviewer", "plafond", "closer", "closer-cooks", "closer-tokens", "closer-lines"]) assert.equal(NIVEAUX[cle], "project", cle);
     for (const cle of ["cooks", "dossier", "capacites", "ordinaires"]) assert.equal(NIVEAUX[cle], "machine", cle);
     for (const cle of ["couleurs", "sigle"]) assert.equal(NIVEAUX[cle], "you", cle);
+    // L'état de la cuisine dans la barre des menus (#3269) : une préférence d'affichage du chef.
+    assert.equal(NIVEAUX["barre-de-menus"], "you");
   });
 
   test("un réglage que la table ne connaît pas ne se rend pas", () => {

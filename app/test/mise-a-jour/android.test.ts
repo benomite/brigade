@@ -2,7 +2,7 @@
 // asset, read against the running version. Every failure is "no update", and never delays launch.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkAtLaunch, checkForUpdate, type CheckOptions } from "../../src/mise-a-jour/android.ts";
+import { apkLink, checkAtLaunch, checkForUpdate, type CheckOptions, RELEASES_URL } from "../../src/mise-a-jour/android.ts";
 
 const manifest = (over: Record<string, unknown> = {}) => ({
   version: "1.4.0",
@@ -94,4 +94,16 @@ test("launch proceeds when the check fails: nobody is told, nothing throws", asy
   await new Promise((r) => setImmediate(r));
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(offers, []);
+});
+
+// The desktop's phone offer (#3303): the latest apkUrl whatever version runs, the releases page on any failure.
+test("apkLink gives the manifest's apkUrl, whatever its version", async () => {
+  assert.equal(await apkLink({ fetch: serving(manifest({ version: "0.1" })) }), manifest().apkUrl);
+});
+
+test("apkLink gives the releases page when the manifest cannot be read", async () => {
+  assert.equal(await apkLink({ fetch: serving("not json") }), RELEASES_URL);
+  assert.equal(await apkLink({ fetch: serving(manifest(), 404) }), RELEASES_URL);
+  assert.equal(await apkLink({ fetch: serving(manifest({ apkUrl: "http://example.org/brigade.apk" })) }), RELEASES_URL);
+  assert.equal(await apkLink({ fetch: (async () => Promise.reject(new Error("offline"))) as typeof fetch }), RELEASES_URL);
 });

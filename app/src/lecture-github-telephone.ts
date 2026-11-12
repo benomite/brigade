@@ -38,7 +38,7 @@ import { tenirFaits, type Dessinable } from "./faits.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { lireCaptureSurLAPI, type Image } from "./captures.ts";
 import { ouvrirLesGestesGitHub } from "./gestes-github-telephone.ts";
-import type { EnvoiGitHub } from "./priorite.ts";
+import { clientDeLaPriorite, type EnvoiGitHub } from "./priorite.ts";
 import { FICHIER_PROJETS, lireDemande } from "./projets/demande.ts";
 import { nomDuProjet } from "./projets/projets.ts";
 import { avecCeQuiAttendLeChef } from "./tableau/attente-du-chef.ts";
@@ -47,6 +47,7 @@ import { clientGitHub, corpsLu, refusDe, type AppelGitHub, type Envoi, type Repo
 import { activitesPubliees, lireLeTableauDuDepot, type ActivitesPubliees, type LectureDuTableauDuDepot, type TableauLu } from "./tableau/lecture.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { AMONT, FAITS, lectureDuTableau, STATUS } from "./tableau/rail.ts";
+import { poserLaTrace } from "./telephone-connecte.ts";
 import { FICHIER_SELECTION, selectionLue } from "../../runtime/src/enregistrement-station/contrat.ts";
 
 // Un projet du chef, tel que GitHub le dit : son nom, et son dépôt `<owner>/<repo>`.
@@ -191,6 +192,18 @@ export function ouvrirLaLectureGitHub(options: Options) {
   const derniers = new Map<string, TableauLu>();
   const accueil = tenirAccueil({ projets: () => projets.map(({ nom }) => ({ nom, servi: true })), maintenant: () => maintenant().getTime() });
   let liste: ListeLue | undefined;
+  // La trace du téléphone connecté (#3303, telephone-connecte.ts) : posée une fois par lancement, après une liste lue ;
+  // ratée, elle se repose à la lecture suivante. Sans `ecrire`, rien ne part.
+  let tracee = false;
+  const poserLaTraceUneFois = async () => {
+    if (tracee || options.ecrire === undefined) return;
+    try {
+      await poserLaTrace({ client: clientDeLaPriorite({ jeton: options.jeton, appeler: lireLesGists, envoyer: options.ecrire }), maintenant });
+      tracee = true;
+    } catch {
+      // Rien de posé : la lecture suivante réessaie, et la liste des projets n'en dépend pas.
+    }
+  };
   // Les demandes de la vue : celle des faits (la barre), celle de l'écran affiché, les projets dont il lit `status`, et
   // celui dont l'espace est ouvert — ce qui est avant son rail se lit aussi.
   let demandeFaits: number | undefined;
@@ -222,6 +235,7 @@ export function ouvrirLaLectureGitHub(options: Options) {
     try {
       const lus = await lireLesProjetsDuCompte(lireLesGists);
       liste = { a, lue: true };
+      await poserLaTraceUneFois();
       if (JSON.stringify(lus) !== JSON.stringify(projets)) {
         projets = lus;
         options.garder?.(lus);

@@ -4,7 +4,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterProjet, changerCouleur, changerOrdinaires, changerSigle, colorerProjets, creerConfiguration, lireConfiguration, poserPreferences, preferencesDuFichier, rangerProjet, retirerProjet, type Configuration, type Declare } from "./config.ts";
+import { ajouterProjet, changerBarreDeMenus, changerCouleur, changerOrdinaires, changerSigle, colorerProjets, creerConfiguration, lireConfiguration, poserPreferences, preferencesDuFichier, rangerProjet, retirerProjet, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./couleurs.ts";
 import type { Preferences } from "./reglages-perso/partage.ts";
 
@@ -82,6 +82,8 @@ export function suivreConfiguration(options: {
     changerCouleur: (nom: string, role: Role, couleur: string) => ecrire(() => changerCouleur(chemin, nom, role, couleur, maison)),
     // Change le sigle d'un projet dans la barre — `null` le rend à celui que l'app tire de son nom. Rend la raison, s'il ne l'a pas été.
     changerSigle: (nom: string, sigle: unknown) => ecrire(() => changerSigle(chemin, nom, sigle, maison)),
+    // Montre ou retire l'état de la cuisine de la barre des menus (barre-de-menus.ts). Rend la raison, si rien n'a été écrit.
+    changerBarreDeMenus: (actif: unknown) => ecrire(() => changerBarreDeMenus(chemin, actif, maison)),
     // Règle les tickets ordinaires du Mac pour un projet. Rend la raison, si rien n'a été écrit.
     changerOrdinaires: (nom: string, actif: unknown, limite: unknown) => ecrire(() => changerOrdinaires(chemin, nom, actif, limite, maison)),
     // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.

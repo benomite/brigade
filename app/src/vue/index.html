@@ -40,6 +40,7 @@
     <link rel="stylesheet" href="resume-hebdomadaire/resume-hebdomadaire.css" />
     <link rel="stylesheet" href="reglages-stations/stations.css" />
     <link rel="stylesheet" href="visite/visite.css" />
+    <link rel="stylesheet" href="absence/absence.css" />
     <link rel="stylesheet" href="essai/projet-d-essai.css" />
     <link rel="stylesheet" href="parcours-premier-projet/parcours-premier-projet.css" />
     <link rel="stylesheet" href="premier-ticket/premier-ticket.css" />
@@ -105,6 +106,8 @@
       <section id="choix-du-projet" aria-label="What its station lacks" aria-live="polite" hidden></section>
       <!-- Le temps de l'ajout au premier ticket servi (ticket 1401) : court tant qu'aucun n'est servi, figé ensuite. -->
       <section id="delai-du-projet" aria-label="Time to its first served ticket" hidden></section>
+      <!-- L'offre du téléphone (ticket 3303) : sur le premier projet, juste après son premier ticket servi. -->
+      <section id="offre-telephone" aria-label="Your phone" hidden></section>
       <section id="blocages-du-projet" aria-label="What blocks it" aria-live="polite" hidden></section>
       <p id="note" aria-live="polite" hidden></p>
       <!-- Le centre : l'onglet montré (ticket 1184). Rail : ce qui t'attend, puis On the rail, TODO, WAITING, Served ;
@@ -128,6 +131,7 @@
             <div id="reglages-du-projet" aria-live="polite" hidden></div>
             <div id="sigle" aria-label="The project's label in the bar" hidden></div>
             <div id="couleurs" aria-label="The project colors" hidden></div>
+            <div id="barre-de-menus" aria-label="The kitchen's state in the menu bar" hidden></div>
             <div id="reglages-du-projet-en-plus" aria-live="polite" hidden></div>
             <div id="humains-du-projet" aria-live="polite" hidden></div>
             <div id="stations-contributrices" aria-live="polite" hidden></div>
@@ -180,6 +184,7 @@
     </div>
     <p id="relecture" aria-live="polite" hidden></p>
     <section id="avis" aria-live="polite" hidden></section>
+    <section id="absence" aria-label="Since you were away" aria-live="polite" hidden></section>
     <section id="visite" aria-label="Tour of a real kitchen" aria-live="polite" hidden></section>
     <section id="projet-d-essai" aria-label="Your sample project" aria-live="polite" hidden></section>
   </body>
