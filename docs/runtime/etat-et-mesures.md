@@ -443,10 +443,14 @@ leaves out): replayed, median 14 min, p75 47 min, and claim wait the slowest pha
 ticket).
 
 **A ticket's lost time** (#2670) is all of its time except the cook that delivered — its last cooking — and the
-pass, CI and merge of that merged delivery. It splits into three losses: `attente` (`waiting for a claim`), the
-qualification wait and every claim wait; `ratees` (`failed cooks`); `renvois` (`send-backs`), each send-back and,
-before the delivered cook, the cooking, pass wait, review and CI of a delivery that was sent back. A record of
-before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
+pass, CI and merge of that merged delivery. It splits into four losses: `qualification` (`waiting for the manager's
+judgement`), the qualification wait, from filing to `fire`; `attente` (`waiting for a claim`), every claim wait;
+`ratees` (`failed cooks`); `renvois` (`send-backs`), each send-back and, before the delivered cook, the cooking, pass
+wait, review and CI of a delivery that was sent back. The record's `perdu.attente` holds both waits, as before: the
+qualification loss is its `attenteQualification`, the claim wait the rest. Until #3422 both counted as waiting for a
+claim: the 15 min BOBL-tech/mirrorlab#732 waited between its filing and the manager's `fire` read as a wait for a
+cook. Its cause is corrected in the manager: a new issue is judged before the rest of the manager's turn
+(`docs/runtime/manager.md`, "A new issue is judged first"). A record of before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
 2026-11-06 and 07 lost a median 7.7 min, 57 % of it waiting for a claim.
 
 **Over the lost-time threshold, a correction ticket** (`runtime/src/temps-max/`, #2515, on lost time since
@@ -459,8 +463,8 @@ the last 10 merged, and every one merged in the 24 h before the last. Over the t
 issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:medium` (`high` until
 #2575: the ten corrections #2535 to #2573 cooked a median 10.9 min each, so each one added to the recent
 tickets a ticket over the max it was there to bring down), with the median lost time, the loss that weighs
-most — waiting for a claim, failed cooks or send-backs — with its total, its share of the lost time, its
-median per ticket and how many tickets it hit, the three losses, and the tickets concerned, the ten that lost
+most — waiting for the manager's judgement, waiting for a claim, failed cooks or send-backs — with its total, its
+share of the lost time, its median per ticket and how many tickets it hit, the four losses, and the tickets concerned, the ten that lost
 the most to it first. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
 GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
 the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest
@@ -542,18 +546,26 @@ A quality or lost-time ticket carries its evidence (`runtime/src/preuve-mesure.t
 it reads neither the project's issues, nor its `temps-tickets.json`, nor the station's journal, and stopped
 blocked on #2832 and #2837. When it files one, the station appends an "Evidence" section, gathered from the
 project's GitHub and its own journal: every recent ticket measured, with the reason of each send-back and failed
-cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its loss,
+cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its four losses,
 and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
 heartbeat), 40 at most. Over 40, the events cited are those in the claim waits of the five tickets that waited
-longest for a claim, an equal share each, in the journal's order (#3156): from filing — or from `fire` set over an
-hour later, as the measure counts it — to the first claim, and from each cook given back to the next claim, as
-GitHub dates them. The first 40 of BOBL-tech/espace's window all fell in its first hour, and #840's 40 min wait
-for a claim, an afternoon later, had no line to say it. With no wait read on GitHub, the first 40 of the window.
+longest for a claim (#3156): from filing — or from `fire` set over an hour later, as the measure counts it — to the
+first claim, and from each cook given back to the next claim, as GitHub dates them. Each of these waits gets an
+equal share, the longest wait first, taken from its first and its last events in turn — what opened it and what
+lifted it —, and the events cited are listed in the journal's order (#3422). The first 40 of BOBL-tech/espace's
+window all fell in its first hour, and #840's 40 min wait for a claim, an afternoon later, had no line to say it.
+With a share per ticket, its waits laid end to end, the lines of BOBL-tech/mirrorlab#706 all fell in its 45 s
+before its first claim, and its 549 min wait after a cook given back had none. With no wait read on GitHub, the
+first 40 of the window.
 The lost time counts as a failed cook every cook given back without a delivery, so its evidence also names the
 stops the quality does not count as a try — a block the manager answered, a stop on an open ticket, a stop the
 cook did not cause —, each with the cook's words (#3036), when its station comment quotes them — in English only:
 words the cook wrote in French and nothing translated are not quoted (#3033). Before, BOBL-tech/mirrorlab#670 read
 "first try" over 5 min of failed cooks, and the cook's question that cost them was written nowhere in the ticket.
+It also names, with their station, the cooks given back to another station or to the next round with no wait: a
+station that cannot run the ticket's gates (#3057), a station whose base branch is missing on the remote (#2876),
+a cook stopped with its station (#2543) (#3422). BOBL-tech/mirrorlab#706 read "first try" over 6 min of failed
+cook, then waited 549 min for a claim, and its evidence did not say which stop had given it back.
 A read that fails is named on its line, with its error: the ticket is filed all the same.
 When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,
 #2783), the cook can reach neither its issues nor its state: the section copies the tickets (numbers, reasons),

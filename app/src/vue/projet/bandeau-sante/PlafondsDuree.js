@@ -29,7 +29,7 @@ export const AIDE =
 export const EN_COURS = "opening the pull request…";
 export const PERDU_MAX = { nom: "Lost time per ticket", source: "median of recent tickets, published by the station", fige: "not editable here yet" };
 export const PERDU_MAX_POURQUOI =
-  "The station caps the median lost time of recent tickets (waiting for a claim, failed cooks, send-backs) with lostTimeMaxMin, read from its own clone of projet.json, outside the drift thresholds this block changes: it cannot be changed from the app yet. A ticket's total time has no cap, its size varies.";
+  "The station caps the median lost time of recent tickets (waiting for the manager's judgement, waiting for a claim, failed cooks, send-backs) with lostTimeMaxMin, read from its own clone of projet.json, outside the drift thresholds this block changes: it cannot be changed from the app yet. A ticket's total time has no cap, its size varies.";
 export const AUTRES = "Other drift thresholds";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */

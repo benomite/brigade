@@ -68,6 +68,10 @@ const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", ..
 
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
+// Pendant un tour, la liste des issues ouvertes se relit au plus une fois par
+// cet intervalle : une issue déposée entre-temps est jugée avant la suite du
+// tour, pas au tour suivant (#3422).
+const RESONDAGE_MS = 30_000;
 const QUOTA = "quota";
 
 export type ConfigManager = {
@@ -831,14 +835,85 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     })();
   };
 
+  // Une issue que le manager n'a jamais vue, et que le code laisse à juger :
+  // elle attend son jugement, et `fire` avec lui.
+  const neuve = (issue: IssueOuverte) => issueDuManager(base, issue.number) === null && trier(issue, null).quoi === "juger";
+
   // Un tour : chaque issue ouverte est triée par le code, et seules celles
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
+  //
+  // Les issues neuves passent d'abord, avant le suivi des épiques et les
+  // issues déjà vues, et le tour relit la liste toutes les `RESONDAGE_MS` :
+  // une issue déposée pendant qu'il tourne est jugée à la relecture suivante.
+  // Avant, le tour servait les issues ouvertes de la plus ancienne à la plus
+  // récente, après avoir relu sur GitHub les tickets de chaque épique : une
+  // issue déposée attendait la fin du tour en cours, puis tout le tour suivant.
+  // BOBL-tech/mirrorlab#732, déposée à 15:40:33, n'a été jugée qu'à 15:55:45 :
+  // aucun jugement en 5 min, puis la station relancée à 15:45:25 n'a lancé le
+  // sien que 10 min plus tard. 15 de ses 16,5 min de temps perdu (#3422).
   const tour = async () => {
     if (!managerAllume(base)) return;
     const sondage = await github.ouvertes();
+    let sondeA = maintenant().getTime();
+    // Tant qu'une issue attend quelque chose qui ne la modifie pas — un quota,
+    // un « reprendre », un GitHub qui répond de nouveau —, le sondage reste
+    // inconditionnel.
+    let complet = true;
+    // Les issues que ce tour a déjà servies.
+    const faites = new Set<number>();
+    // Sert une issue du tour ; faux : le tour s'arrête là.
+    const servirLa = async (sondee: IssueOuverte): Promise<boolean> => {
+      faites.add(sondee.number);
+      // Son découpage tourne encore : le tour passe à la suivante.
+      if (decoupages.has(sondee.number)) {
+        complet = false;
+        return true;
+      }
+      const servie = { issue: sondee } as Servie;
+      servies.set(sondee.number, servie);
+      try {
+        const suite = await servir(sondee);
+        if (suite === "arret") return false;
+        // Le travail de cet état, une autre station l'a fait : il ne reste
+        // rien à faire ici, et rien à attendre d'elle.
+        if (suite === "reste" && !servie.cedee) complet = false;
+        if (suite === "fait" && !(await finir(sondee.number))) complet = false;
+      } finally {
+        servies.delete(sondee.number);
+      }
+      return true;
+    };
+    // Les neuves d'une liste que ce tour n'a pas servies, une fois chacune, dans l'ordre du rail.
+    const neuves = (liste: readonly IssueOuverte[]) => [...new Map(liste.filter((issue) => lisible(issue) && !faites.has(issue.number) && neuve(issue)).map((issue) => [issue.number, issue])).values()].sort(ordre);
+    // Les neuves d'une relecture de la liste, si la dernière date d'au moins
+    // `RESONDAGE_MS`. Une relecture qui échoue n'arrête pas le tour : ses
+    // neuves attendent la suivante, ou le tour d'après.
+    const resonder = async (): Promise<IssueOuverte[]> => {
+      if (maintenant().getTime() - sondeA < RESONDAGE_MS) return [];
+      sondeA = maintenant().getTime();
+      try {
+        const relu = await github.ouvertes();
+        return relu.inchange ? [] : neuves(relu.issues);
+      } catch (erreur) {
+        if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : le manager n'a pas relu les issues ouvertes pendant son tour — ${message(erreur)}`);
+        return [];
+      }
+    };
+    // Sert les neuves d'une liste, et celles que les relectures montrent entre-temps.
+    const servirLesNeuves = async (liste: readonly IssueOuverte[]): Promise<boolean> => {
+      for (let file = neuves(liste); file.length > 0; file = neuves([...file, ...(await resonder())])) {
+        if (arrete || !managerAllume(base)) return false;
+        if (!(await servirLa(file[0] as IssueOuverte))) return false;
+      }
+      return true;
+    };
+    if (!sondage.inchange) {
+      ouvertesDuTour = sondage.issues.filter(lisible);
+      if (!(await servirLesNeuves(sondage.issues))) return;
+    }
     // L'avancement de chaque épique se lit sur GitHub, à chaque tour, avant
-    // tout jugement : une épique dont tous les tickets sont fermés se ferme, et
-    // ce tour ne la sert plus (#2618).
+    // les issues déjà vues : une épique dont tous les tickets sont fermés se
+    // ferme, et ce tour ne la sert plus (#2618).
     const vues = sondage.inchange ? confirmees : sondage.issues;
     const terminees = vues === null ? new Set<number>() : await decoupage.suivre(vues.filter(lisible));
     if (arrete) return;
@@ -853,32 +928,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     decoupage.observer(issues.filter(lisible));
     constater(presentes);
 
-    // Tant qu'une issue attend quelque chose qui ne la modifie pas — un quota,
-    // un « reprendre », un GitHub qui répond de nouveau —, le sondage reste
-    // inconditionnel.
-    let complet = true;
     // Les remises que ce tour verra toutes : celle que le chef écrit pendant
     // qu'il tourne est au suivant.
     const remises = remisesEnAttente(base);
     for (const sondee of issues.filter(lisible).sort(ordre)) {
       if (arrete || !managerAllume(base)) return;
-      // Son découpage tourne encore : le tour passe à la suivante.
-      if (decoupages.has(sondee.number)) {
-        complet = false;
-        continue;
-      }
-      const servie = { issue: sondee } as Servie;
-      servies.set(sondee.number, servie);
-      try {
-        const suite = await servir(sondee);
-        if (suite === "arret") return;
-        // Le travail de cet état, une autre station l'a fait : il ne reste
-        // rien à faire ici, et rien à attendre d'elle.
-        if (suite === "reste" && !servie.cedee) complet = false;
-        if (suite === "fait" && !(await finir(sondee.number))) complet = false;
-      } finally {
-        servies.delete(sondee.number);
-      }
+      if (faites.has(sondee.number)) continue;
+      if (!(await servirLesNeuves(await resonder()))) return;
+      if (!(await servirLa(sondee))) return;
     }
     if (arrete || !complet) return;
     // Ce qu'un tour complet laisse en attente n'a plus rien à attendre du

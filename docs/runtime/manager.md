@@ -197,6 +197,17 @@ their filing — as a split launches them — were filed from 16:08:54 (#843 to 
 the turn; the station's journal of that hour was not read (a cook cannot reach it), so it is not proven. One
 split at a time per epic; what it leaves to do, the next wake-up takes back.
 
+**A new issue is judged first** (#3422). The turn serves the issues the manager has never seen and that the code
+leaves to a judgement before it reads the tickets of each epic on GitHub and before the issues it has already seen;
+and during a turn it reads the open issues again, at most every 30 s, so that an issue filed meanwhile is judged
+before the rest of the turn, not at the next one. Before, the turn read every epic's tickets, then served the open
+issues from the oldest to the newest: a new issue waited for the end of the turn in progress, then for the whole
+next turn, and that time counted in its lost time, as the wait for the manager's judgement. BOBL-tech/mirrorlab#732,
+filed at 15:40:33 on 2026-11-12, was judged at 15:55:45: no judgement in the 5 min before its station stopped at
+15:45:17, then the restarted station launched its first judgement 10 min after it started — 15 of the ticket's
+16.5 min of lost time. The station's journal shows no other event in those 15 min; what the turn spent them on is
+not proven (a cook cannot read that journal), only that a new issue no longer waits behind it.
+
 **The tickets of a split never await each other** (#3130): two tickets whose zones overlap (the project's
 common paths aside), or one the answer makes await another, are **joined into one ticket** by the code —
 its title the titles joined by `; `, all their criteria, zones and capabilities, the highest model and effort

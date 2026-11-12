@@ -89,6 +89,18 @@ describe("capturer un écran de l'app", { skip: SANS_NAVIGATEUR }, () => {
     }
   });
 
+  test("l'étape survoler ouvre la bulle de l'élément : la capture change, et un sélecteur qui n'en trouve pas un seul échoue", async () => {
+    const tous = await ecrans();
+    const bulle = tous.get("projet-sante-temps-perdu");
+    assert.ok(bulle !== undefined, "l'écran projet-sante-temps-perdu existe");
+    const sans = { ...bulle, etapes: bulle.etapes.filter((etape) => !("survoler" in etape)) };
+    assert.ok(!(await capturer(bulle)).equals(await capturer(sans)), "survolée ou non, la capture est la même");
+
+    for (const selecteur of [".absent-de-la-page", "button"]) {
+      await assert.rejects(capturer({ ...bulle, etapes: [...sans.etapes, { survoler: selecteur }] }), /étape « survoler .+ » : \d+ élément\(s\) trouvé\(s\), il en faut un/, selecteur);
+    }
+  });
+
   // `unshare -rn` : un espace de noms réseau neuf, sans aucune interface montée — pas même lo.
   const UNSHARE = (() => {
     try {

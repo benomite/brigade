@@ -12,6 +12,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { mesurerQualite, type QualiteDuTicket } from "../src/mesure-qualite.ts";
 import { avecLaPreuve, preuveDeMesure, TITRE_PREUVE, type GitHubDeLaPreuve } from "../src/preuve-mesure.ts";
 import type { GitHubDeLaBrigade } from "../src/routage-temps-perdu.ts";
+import { corpsDeLIncapacite } from "../src/routage-station/routage-station.ts";
 import { corpsDeLAttente } from "../src/attente-ticket/attente-ticket.ts";
 import { corpsDeLaReponseAuBlocage } from "../src/blocage-au-manager.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
@@ -110,13 +111,25 @@ test("a lost-time ticket body built from a fixture gives, per measured ticket, i
     assert.match(corps, new RegExp(`- #${numero}: `));
     assert.ok(corps.includes(`filed ${depot.deposeAt}, fire ${depot.fireAt ?? "none on GitHub"}, first claim ${depot.priseAt}`), `#${numero}`);
   }
-  assert.match(corps, /- #101: 2 send-backs — lost 20 min of 60 min \(claim wait 20 min, failed cooks 0 min, send-backs 0 min\)/);
+  assert.match(corps, /- #101: 2 send-backs — lost 20 min of 60 min \(manager's judgement 0 min, claim wait 20 min, failed cooks 0 min, send-backs 0 min\)/);
   assert.match(corps, /send-back: the review requested changes: the test asserts nothing/);
   assert.match(corps, /failed cook: the cook committed nothing/);
   assert.match(corps, /### Station journal, 2026-11-07T09:00:00.000Z to 2026-11-07T13:00:00.000Z/);
   assert.match(corps, /- 2026-11-07T09:30:00.000Z `station.held` station=box\/a reason=quota\n- 2026-11-07T10:10:00.000Z `station.released` station=box\/a/);
   // Ni l'événement d'avant la fenêtre, ni le battement du runtime.
   assert.doesNotMatch(corps, /box\/before|runtime\.ticked/);
+});
+
+// BOBL-tech/mirrorlab#732 (#3422) : 15,4 de ses 16,5 min d'attente avant sa
+// prise étaient celle du jugement du manager, et la preuve les disait toutes
+// « claim wait ».
+test("the lost-time evidence gives a ticket's wait for the manager's judgement apart from its claim wait", async (t) => {
+  const enregistrements = temps().map((e) => (e.ticket === 102 ? { ...e, attenteQualification: 15 * 60, attentePrise: 5 * 60 } : e));
+  const ticket = ticketDeCorrection(enregistrements, 2);
+  assert.ok(ticket);
+  const corps = await avecLaPreuve(ticket.corps, () => preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: journalDeLaStation(t) })("temps-perdu", enregistrements, QUALITES));
+  assert.match(corps, /- #102: 1 failed cook — lost 20 min of 60 min \(manager's judgement 15 min, claim wait 5 min, failed cooks 0 min, send-backs 0 min\)/);
+  assert.match(corps, /^- waiting for the manager's judgement: 15 min \(19%\), median 0 min per ticket, in 1 tickets$/m);
 });
 
 // BOBL-tech/espace#840 (#3156) : 40 min d'attente d'une prise l'après-midi,
@@ -157,6 +170,44 @@ test("over 40 journal events, the lost-time evidence cites those in the claim wa
   assert.doesNotMatch(sansDepot, /box\/noise-40|wait-104|events in this window/);
 });
 
+// BOBL-tech/mirrorlab#706 (#3422) : 45 s d'attente avant sa première prise,
+// puis 549 min après un cook rendu. Ses attentes mises bout à bout, les lignes
+// citées tombaient toutes dans la première, et la seconde n'en avait aucune.
+// Chaque attente a sa part, la plus longue d'abord, prise par ses deux bouts.
+test("the lost-time evidence cites each claim wait of a ticket, the longest first, from its start and from its end", async (t) => {
+  const enregistrements = temps();
+  const depots: Record<number, DepotDuTicket> = {
+    ...DEPOTS,
+    // 101 : déposé à 9:19, pris à 9:20, rendu à 9:25, repris à 9:55.
+    101: {
+      deposeAt: "2026-11-07T09:19:00.000Z",
+      fireAt: "2026-11-07T09:19:00.000Z",
+      priseAt: "2026-11-07T09:20:00.000Z",
+      faits: [{ quoi: "prise", at: "2026-11-07T09:20:00.000Z" }, { quoi: "rendu", at: "2026-11-07T09:25:00.000Z" }, { quoi: "prise", at: "2026-11-07T09:55:00.000Z" }],
+    },
+  };
+  const repertoire = repertoireTemporaire(t);
+  let maintenant = new Date("2026-11-07T08:00:00.000Z");
+  const journal = ouvrirJournal(repertoire, { maintenant: () => maintenant });
+  const noter = (at: Date, raison: string) => {
+    maintenant = at;
+    journal.ajouter({ project: "p", ticket: null, author: "runtime", type: "station.held", payload: { station: "box/a", reason: raison } } as Parameters<typeof journal.ajouter>[0]);
+  };
+  for (let i = 0; i < 30; i++) noter(new Date(Date.UTC(2026, 10, 7, 9, 19, i)), `short-${i}`);
+  for (let i = 0; i < 60; i++) noter(new Date(Date.UTC(2026, 10, 7, 9, 25, i * 20)), `long-${i}`);
+  journal.fermer();
+  const github: GitHubDeLaPreuve = { commentaires: async (numero) => COMMENTAIRES[numero] ?? [], depotDuTicket: async (numero) => depots[numero] ?? null };
+  const corps = await preuveDeMesure({ github, repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
+  // #102 à #104 ont attendu une prise sans un événement dedans : la section ne les suit pas.
+  assert.match(corps, /_90 events in this window: the 40 cited fall in the claim waits of #101, the tickets that waited longest for a claim/);
+  const cites = (prefixe: string, n: number) => Array.from({ length: n }, (_, i) => i).filter((i) => corps.includes(`reason=${prefixe}-${i}\n`));
+  // 20 lignes chacune : les 10 premières et les 10 dernières de chaque attente.
+  const bouts = (n: number) => [...Array.from({ length: 10 }, (_, i) => i), ...Array.from({ length: 10 }, (_, i) => n - 10 + i)];
+  assert.deepEqual(cites("long", 60), bouts(60));
+  assert.deepEqual(cites("short", 30), bouts(30));
+  assert.match(corps, /- and 50 more$/);
+});
+
 // BOBL-tech/mirrorlab#670 (#3036) : son cook s'est arrêté bloqué, le manager a
 // répondu, et un cook suivant a livré. La mesure comptait 5 min de cook raté ;
 // la preuve disait « first try », sans la question du cook.
@@ -185,7 +236,7 @@ test("a lost-time ticket's evidence names every cook stopped without a delivery 
   const corps = await preuveDeMesure({ github, repertoireEtat: journalDeLaStation(t), projetMesure: "BOBL-tech/mirrorlab" })("temps-perdu", enregistrements, QUALITES);
   assert.match(
     corps,
-    /- BOBL-tech\/mirrorlab#103: 3 failed cooks — lost 25 min of 60 min \(claim wait 20 min, failed cooks 5 min, send-backs 0 min\)\n.*\n {2}- failed cook, not counted as a try: blocked, answered by the manager: Which fixture should the new screen read\? The ticket names none\.\n {2}- failed cook, not counted as a try: stopped on an open ticket: This builds on #101, not yet merged\.\n {2}- failed cook, not counted as a try: stopped, not the cook's doing: the Max quota is spent\n/,
+    /- BOBL-tech\/mirrorlab#103: 3 failed cooks — lost 25 min of 60 min \(manager's judgement 0 min, claim wait 20 min, failed cooks 5 min, send-backs 0 min\)\n.*\n {2}- failed cook, not counted as a try: blocked, answered by the manager: Which fixture should the new screen read\? The ticket names none\.\n {2}- failed cook, not counted as a try: stopped on an open ticket: This builds on #101, not yet merged\.\n {2}- failed cook, not counted as a try: stopped, not the cook's doing: the Max quota is spent\n/,
   );
   assert.doesNotMatch(corps, /mirrorlab#103: first try|Not a station/);
   // 102 garde son cook raté compté pour un essai, sans arrêt de plus.
@@ -194,6 +245,35 @@ test("a lost-time ticket's evidence names every cook stopped without a delivery 
   const qualite = await preuveDeMesure({ github })("qualite", enregistrements, QUALITES);
   assert.match(qualite, /- #103: first try\n/);
   assert.doesNotMatch(qualite, /not counted as a try/);
+});
+
+// BOBL-tech/mirrorlab#706 (#3422) : 6 min de cook raté, puis 549 min
+// d'attente d'une prise, et la preuve disait « first try ». Son cook avait
+// été rendu sans marque que la preuve lise : une station qui ne joue pas ses
+// gates, une station sans sa base, un cook arrêté avec sa station rendent le
+// ticket à une autre, ou à la ronde suivante. Chacun y est nommé, avec sa station.
+test("a lost-time ticket's evidence names the cooks given back for another station or with their station, and which station", async (t) => {
+  const enregistrements = temps().map((e) => (e.ticket === 103 ? { ...e, perdu: { attente: 20 * 60, ratees: 5 * 60, renvois: 0 } } : e));
+  const commentaires: Record<number, { body: string; association: string }[]> = {
+    ...COMMENTAIRES,
+    103: [
+      { body: corpsDeLIncapacite({ station: "box/claude", vers: ["mac/claude"], question: "The gates cannot run on this station: the e2e browsers are not installed." }), association: "OWNER" },
+      { body: "Station `mac/claude`: its base branch `v2` does not exist on the remote, so no worktree can be prepared. This is the station's configuration, not the ticket's: the ticket is given back for another station, and is not counted among its 3 tries.", association: "OWNER" },
+      { body: "Station `box/claude`: the cook stopped with its station — the station is stopping (SIGTERM)\n\nThe station is stopping: the ticket is given back with no wait, for the next round of a station; this stop is not counted among the ticket's 3 tries.", association: "OWNER" },
+      // Un inconnu qui imite la station ne compte pas.
+      { body: "Station `fake/x`: the cook stopped with its station — not a station", association: "NONE" },
+    ],
+  };
+  const github: GitHubDeLaPreuve = { commentaires: async (numero) => commentaires[numero] ?? [], depotDuTicket: async (numero) => DEPOTS[numero] ?? null };
+  const corps = await preuveDeMesure({ github, repertoireEtat: journalDeLaStation(t), projetMesure: "BOBL-tech/mirrorlab" })("temps-perdu", enregistrements, QUALITES);
+  assert.match(
+    corps,
+    /- BOBL-tech\/mirrorlab#103: 3 failed cooks — lost 25 min of 60 min \(manager's judgement 0 min, claim wait 20 min, failed cooks 5 min, send-backs 0 min\)\n.*\n {2}- failed cook, not counted as a try: station `box\/claude` cannot run its gates, given back for another station: The gates cannot run on this station: the e2e browsers are not installed\.\n {2}- failed cook, not counted as a try: station `mac\/claude` has no base branch `v2` on the remote, given back for another station\n {2}- failed cook, not counted as a try: stopped with its station `box\/claude`: the station is stopping \(SIGTERM\)\n/,
+  );
+  assert.doesNotMatch(corps, /mirrorlab#103: first try|fake\/x/);
+  // La qualité ne les compte pas pour un essai : 103 y reste du premier coup.
+  const qualite = await preuveDeMesure({ github })("qualite", enregistrements, QUALITES);
+  assert.match(qualite, /- #103: first try\n/);
 });
 
 test("a read that fails names its error in the evidence and invents nothing: comments, filing, journal", async (t) => {

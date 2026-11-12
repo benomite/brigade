@@ -79,24 +79,34 @@ export function ticketsLesPlusLents(tickets: readonly TempsTicket[], combien: nu
 }
 
 // Le temps perdu d'un ticket (#2670) : tout son temps sauf le cook qui a livré
-// et la pass, la CI et le merge de la livraison mergée. Il se partage en trois
-// pertes : l'attente avant la prise (celle de la qualification et celles d'une
-// prise), les cooks ratés, et les renvois — chaque livraison renvoyée, de son
-// cook à la reprise.
+// et la pass, la CI et le merge de la livraison mergée. Il se partage en quatre
+// pertes : l'attente du jugement du manager (du dépôt à `fire`), l'attente
+// d'une prise, les cooks ratés, et les renvois — chaque livraison renvoyée, de
+// son cook à la reprise. Les deux attentes n'en faisaient qu'une, « waiting for
+// a claim » : les 15 min de BOBL-tech/mirrorlab#732 entre son dépôt et le
+// verdict du manager passaient pour l'attente d'un cook (#3422).
 export const PERTES = [
+  ["qualification", "waiting for the manager's judgement"],
   ["attente", "waiting for a claim"],
   ["ratees", "failed cooks"],
   ["renvois", "send-backs"],
 ] as const;
 export type Perte = (typeof PERTES)[number][0];
+export type PertesLues = Record<Perte, number>;
 
 // Les pertes d'un ticket, en secondes : celles que la mesure a écrites
 // (`perdu`) ; pour un enregistrement d'avant #2670, tirées de ses phases —
 // sans les cooks et passes des livraisons renvoyées, qu'il ne distingue pas.
-export function pertesDuTicket(t: TempsTicket): Pertes {
+// `perdu.attente` tient les deux attentes d'avant une prise : celle du manager
+// est son `attenteQualification`, le reste l'attente d'une prise.
+export function pertesDuTicket(t: TempsTicket): PertesLues {
   const perdu = t.perdu;
-  if (perdu !== undefined && PERTES.every(([p]) => typeof perdu[p] === "number" && Number.isFinite(perdu[p]))) return perdu;
-  return { attente: (t.attenteQualification ?? 0) + (t.attentePrise ?? 0), ratees: t.cuissonsRatees ?? 0, renvois: t.renvois ?? 0 };
+  const ecrites: Pertes =
+    perdu !== undefined && (["attente", "ratees", "renvois"] as const).every((p) => typeof perdu[p] === "number" && Number.isFinite(perdu[p]))
+      ? perdu
+      : { attente: (t.attenteQualification ?? 0) + (t.attentePrise ?? 0), ratees: t.cuissonsRatees ?? 0, renvois: t.renvois ?? 0 };
+  const qualification = Math.min(Math.max(0, t.attenteQualification ?? 0), ecrites.attente);
+  return { qualification, attente: ecrites.attente - qualification, ratees: ecrites.ratees, renvois: ecrites.renvois };
 }
 
 export const tempsPerdu = (t: TempsTicket): number => PERTES.reduce((somme, [p]) => somme + pertesDuTicket(t)[p], 0);

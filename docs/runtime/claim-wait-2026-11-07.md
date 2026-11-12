@@ -10,6 +10,8 @@
 `attenteQualification` (from filing to `fire`, when `fire` comes within the hour) and `attentePrise` (from
 `fire`, or filing, to the first claim the issue bears) — `marquesDuDepot` in `runtime/src/temps-ticket/mesure.ts`.
 The claim wait ends at the first claim, read on GitHub at the merge (#2732), whichever station took it.
+Since #3422, `attenteQualification` is a loss of its own, `waiting for the manager's judgement`, and this loss
+holds `attentePrise` only.
 
 ## Which station claims mirrorscreen's tickets
 
