@@ -2,14 +2,14 @@
 // le geste quand il y en a un —, le projet « stuck » sur « Tous les projets », et rien de tout cela pour un projet calme.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { diagnostiquer, type RailBloque, type StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import { diagnostiquer, MOTS_DU_GESTE, type RailBloque, type StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
 import { ligneDeProjet } from "../../src/accueil.ts";
 import { comprendre, tableau, type Faits } from "../../src/faits.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type TableauLu } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
 import { etatDeLaLigne, ETATS } from "../../src/vue/accueil/projets/projets.js";
-import { ligneDuRailBloque } from "../../src/vue/rail-bloque/ligne-du-rail-bloque.js";
+import { GESTES, ligneDuRailBloque } from "../../src/vue/rail-bloque/ligne-du-rail-bloque.js";
 import { railBloqueLu } from "../../src/vue/rail-bloque/rail-bloque.ts";
 import { avecLeRail, type RailSurGithub } from "../../src/vue/rail/github.ts";
 import { Faux } from "../aides/fausse-vue.ts";
@@ -63,6 +63,10 @@ describe("la ligne en tête du rail", () => {
     assert.deepEqual(muet?.dessous("button"), []);
     const [seule] = ligneDuRailBloque(doc, bloque([]), null) as unknown as Faux[];
     assert.deepEqual(seule?.dessous("button"), []);
+  });
+
+  test("les mots des gestes sont ceux du runtime : le bouton dit ce que la phrase de `status` dit", () => {
+    assert.deepEqual(GESTES, MOTS_DU_GESTE);
   });
 
   test("rien de bloqué, ou des tickets non pris qui ne se lisent pas : aucune ligne sur le rail", () => {

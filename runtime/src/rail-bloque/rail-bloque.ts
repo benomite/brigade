@@ -186,7 +186,7 @@ export function diagnostiquer(options: { depot: string; nonPris: readonly Ticket
 
 // La ligne que la file du second porte, dans le bloc `awaiting` de `status` — dans
 // l'app (tableau/rail.ts, `blocAwaiting`) comme sur la station (`status.ts`).
-export const TITRE_DE_LA_FILE = "  STUCK RAIL  ";
+const TITRE_DE_LA_FILE = "  STUCK RAIL  ";
 export const ligneDeLaFile = (bloque: Pick<RailBloque, "phrase">) => `${TITRE_DE_LA_FILE}${bloque.phrase}`;
 // Celle d'un rail qui n'a pas pu être lu : jamais un rail dit calme faute de l'avoir lu.
 export const ligneNonLue = (depot: string, raison: string) => `${TITRE_DE_LA_FILE}not checked: the \`fire\` tickets of ${depot} could not be read on GitHub — ${raison}`;

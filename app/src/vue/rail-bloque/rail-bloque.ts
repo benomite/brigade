@@ -71,4 +71,3 @@ export const bloqueDe = (railBloque: RailBloqueLu | undefined): RailBloque | und
 export const ditALAccueil = ({ tickets, depuis }: Pick<RailBloque, "tickets" | "depuis">, maintenant: number) =>
   `${tickets.length} ticket${tickets.length === 1 ? "" : "s"} no manager takes, for ${dureeCourte(maintenant - Date.parse(depuis))}`;
 
-export { MOTS_DU_GESTE };

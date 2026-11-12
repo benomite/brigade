@@ -28,7 +28,7 @@ export type Lire = (chemin: string) => Promise<unknown>;
 
 // Le chemin des issues `fire`, page par page — celui que l'app lit déjà (vue/rail/github.ts) : une relecture
 // conditionnelle ne coûte rien.
-export const cheminDesFeux = (depot: string, page: number) => `/repos/${depot}/issues?state=open&labels=${LABEL_FIRE}&sort=created&direction=asc&per_page=${PAR_PAGE}&page=${page}`;
+const cheminDesFeux = (depot: string, page: number) => `/repos/${depot}/issues?state=open&labels=${LABEL_FIRE}&sort=created&direction=asc&per_page=${PAR_PAGE}&page=${page}`;
 
 async function lesFeux(depot: string, lire: Lire): Promise<Brut[]> {
   const issues: Brut[] = [];
