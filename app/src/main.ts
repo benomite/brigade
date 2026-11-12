@@ -1288,9 +1288,10 @@ ipcMain.handle("rangerUneApp", async (_, roleDeLApp: unknown, id: unknown, cle: 
     return { refus: erreur instanceof AppRefusee ? erreur.message : `the ${roleDeLApp} App could not be stored (${codeDe(erreur)})` };
   }
 });
-// Les projets que la station de cet ordinateur sert elle-même sur GitHub seul, depuis Settings (#2359,
-// vue/projets-servis/) : la liste qu'elle tient dans son répertoire, lue et écrite par ce que le runtime en fait
-// (station-ordinateur/projets-servis.ts). Elle la relit à son tour suivant. Un téléphone n'a pas de station : rien.
+// Les projets que la station de cet ordinateur sert (#2359) : sa seule liste, sa configuration (#3402), lue et écrite par
+// ce que le runtime en fait (station-ordinateur/projets-servis.ts) — lue par son bloc (vue/projets-servis/), écrite par
+// l'onglet Stations d'un projet (vue/projet/stations/). Ses cuisines la relisent dans les deux secondes. Un téléphone
+// n'a pas de station : rien.
 const projetsServisDuRuntime = () => duRuntime<typeof import("../../runtime/src/station-ordinateur/projets-servis.ts")>("station-ordinateur", "projets-servis.ts");
 ipcMain.handle("projetsServis", async () => {
   if (role.role !== "station") return undefined;

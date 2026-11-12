@@ -103,10 +103,14 @@ function horsLigneDe({ etat, vueLe, dit, presente }, maintenant) {
  * Une station appairée dite hors ligne l'est, quoi que dise la cuisson. `ici` : le projet cuit sur ce poste — sa station
  * de la box est celle de cet ordinateur (config.ts, `ici`). `lu` : l'instant de la lecture de la cuisson, d'où se compte
  * depuis quand une ligne s'est tue (à défaut, `maintenant`).
- * @param {{ projet: string, lignes?: readonly LigneDeStation[], stations?: readonly StationVue[], declarees?: readonly { nom: string, distante: boolean }[], locale?: string | null, ici?: boolean, vers?: string, maintenant: number, lu?: number }} lu
+ * `iciSert` : ce que la liste de la station de cet ordinateur dit du projet, lue sur ce disque (ticket 3402) — indéfinie
+ * si elle ne l'est pas. Elle fait foi pour cet ordinateur, avant que sa station ne publie ce qu'elle sert : sans le
+ * projet, cet ordinateur n'a pas de carte ; avec lui, il en a une, au nom de sa station (`hote`, le nom d'hôte que la
+ * station publie, à défaut).
+ * @param {{ projet: string, lignes?: readonly LigneDeStation[], stations?: readonly StationVue[], declarees?: readonly { nom: string, distante: boolean }[], locale?: string | null, ici?: boolean, vers?: string, maintenant: number, lu?: number, iciSert?: boolean, hote?: string }} lu
  * @returns {Servante[]}
  */
-export function servantesDe({ projet, lignes = [], stations = [], declarees = [], locale, ici = false, vers, maintenant, lu = maintenant }) {
+export function servantesDe({ projet, lignes = [], stations = [], declarees = [], locale, ici = false, vers, maintenant, lu = maintenant, iciSert, hote = CET_ORDINATEUR }) {
   /** @type {Servante[]} */
   const servantes = [];
   const prises = new Set();
@@ -146,7 +150,17 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
     servantes.push({ id: "", nom, ici: ici && !distante, sorte: ici && !distante ? "ici" : distante ? "ordinateur" : "box", etat: "illisible", dit: PAS_ANNONCEE, cooks: [], agents: [] });
   }
   if (vers !== undefined && !servantes.some(({ nom }) => nom === vers)) servantes.push({ id: "", nom: vers, ici: false, sorte: "ordinateur", etat: "demarre", dit: "", cooks: [], agents: [] });
-  return [...servantes.filter((servante) => servante.ici), ...servantes.filter((servante) => !servante.ici)];
+  // La liste de cet ordinateur fait foi pour lui : retiré, sa carte part ; ajouté, il a la sienne dès qu'elle est écrite.
+  const gardees = iciSert === false ? servantes.filter((servante) => !servante.ici) : servantes;
+  if (iciSert === true && !gardees.some((servante) => servante.ici)) {
+    const sienne = stations.find(({ id }) => id === locale);
+    gardees.push(
+      sienne === undefined
+        ? { id: "", nom: hote, ici: true, sorte: "ici", etat: "illisible", dit: PAS_ANNONCEE, cooks: [], agents: [] }
+        : { id: sienne.id, nom: sienne.nom, ici: true, sorte: "ici", etat: sienne.etat, dit: sienne.dit, cooks: [], agents: [] },
+    );
+  }
+  return [...gardees.filter((servante) => servante.ici), ...gardees.filter((servante) => !servante.ici)];
 }
 
 /**

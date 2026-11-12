@@ -23,7 +23,8 @@ const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "parad
 const ligne = { station: "parade-box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, presente: true, cooks: [COOK_14] };
 const faits = (cuit: boolean): Faits => ({ ...PARADE.facts, cooks: cuit ? [COOK_14] : [], stations: cuit ? [ligne] : [] }) as unknown as Faits;
 
-export function ongletDesStations(dit: string, { stations, projet, cuit = false }: { stations: StationVue[]; projet: ProjetVu; cuit?: boolean }): Ecran {
+// `servisIci` : la liste de la station de ce Mac, lue sur son disque (#3402) — vide par défaut.
+export function ongletDesStations(dit: string, { stations, projet, cuit = false, servisIci = [] }: { stations: StationVue[]; projet: ProjetVu; cuit?: boolean; servisIci?: string[] }): Ecran {
   const vu: VuDesProjets = { a: MAINTENANT, projets: [projet], locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
   return {
     dit,
@@ -35,7 +36,7 @@ export function ongletDesStations(dit: string, { stations, projet, cuit = false 
       reponses: {
         demarrage: { ...demarrage(configuration([{ ...PROJETS[0]!, depot: "chef/parade" }, PROJETS[1]!])), stations: { a: MAINTENANT, stations } satisfies VuDesStations, projetsDesStations: vu },
         espace: [],
-        projetsServis: { depots: [] },
+        projetsServis: { depots: servisIci },
         stationsDuCompte: { state: "listed", stations: [], unreadable: [] },
       },
       envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: faits(cuit) } }),
