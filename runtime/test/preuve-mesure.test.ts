@@ -198,7 +198,8 @@ test("the lost-time evidence cites each claim wait of a ticket, the longest firs
   journal.fermer();
   const github: GitHubDeLaPreuve = { commentaires: async (numero) => COMMENTAIRES[numero] ?? [], depotDuTicket: async (numero) => depots[numero] ?? null };
   const corps = await preuveDeMesure({ github, repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
-  assert.match(corps, /_90 events in this window: the 40 cited fall in the claim waits of #101, /);
+  // #102 à #104 ont attendu une prise sans un événement dedans : la section ne les suit pas.
+  assert.match(corps, /_90 events in this window: the 40 cited fall in the claim waits of #101, the tickets that waited longest for a claim/);
   const cites = (prefixe: string, n: number) => Array.from({ length: n }, (_, i) => i).filter((i) => corps.includes(`reason=${prefixe}-${i}\n`));
   // 20 lignes chacune : les 10 premières et les 10 dernières de chaque attente.
   const bouts = (n: number) => [...Array.from({ length: 10 }, (_, i) => i), ...Array.from({ length: 10 }, (_, i) => n - 10 + i)];

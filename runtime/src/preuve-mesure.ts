@@ -101,6 +101,18 @@ const motsDuCook = (corps: string) => {
 // La station que nomme un commentaire de station (« Station `box/a`: … »), ou sa marque.
 const stationDe = (corps: string) => /^Station `([^`]+)`:/m.exec(corps)?.[1] ?? /station=([A-Za-z0-9._/-]+)/.exec(corps)?.[1] ?? "unknown";
 
+// Les commentaires que `brigade-github.ts` écrit quand la base de la station
+// manque sur l'origine (#2876), et quand le cook s'arrête avec sa station (#2543).
+const BASE_ABSENTE = /^Station `[^`]+`: its base branch `([^`]+)` does not exist on the remote/;
+const ARRETEE_AVEC_SA_STATION = /^Station `[^`]+`: the cook stopped with its station — /;
+
+// Ce que dit l'arrêt d'une station sans sa base : laquelle, et quelle branche.
+const direBaseAbsente = (corps: string) => `station \`${stationDe(corps)}\` has no base branch \`${BASE_ABSENTE.exec(corps)?.[1] ?? ""}\` on the remote, given back for another station`;
+// D'une station qui ne joue pas les gates du ticket : laquelle, et les mots du cook.
+const direIncapacite = (corps: string) => `station \`${stationDe(corps)}\` cannot run its gates, given back for another station: ${motsDuCook(corps)}`;
+// D'un cook arrêté avec sa station : laquelle, et pourquoi elle s'arrêtait.
+const direArretAvecSaStation = (corps: string) => `stopped with its station \`${stationDe(corps)}\`: ${raisonDe(corps)}`;
+
 // Les cooks rendus sans livraison que la qualité ne compte pas pour un essai,
 // et ce qui les a arrêtés : le début de leur commentaire, et ce qu'il dit de l'arrêt.
 // Les trois derniers rendent le ticket à une autre station, ou à la ronde
@@ -113,9 +125,9 @@ const ARRETS: readonly (readonly [(corps: string) => boolean, (corps: string) =>
   [commence(MARQUE_DE_REPONSE), (corps) => `blocked, answered by the manager: ${motsDuCook(corps)}`],
   [commence(MARQUE_D_ATTENTE_DE_TICKET), (corps) => `stopped on an open ticket: ${motsDuCook(corps)}`],
   [commence(MARQUE_D_ATTENTE), (corps) => `stopped, not the cook's doing: ${raisonDe(corps)}`],
-  [commence(MARQUE_D_INCAPACITE), (corps) => `station \`${stationDe(corps)}\` cannot run its gates, given back for another station: ${motsDuCook(corps)}`],
-  [(corps) => /^Station `[^`]+`: its base branch `[^`]+` does not exist on the remote/.test(corps), (corps) => `station \`${stationDe(corps)}\` has no base branch \`${/its base branch `([^`]+)`/.exec(corps)?.[1] ?? ""}\` on the remote, given back for another station`],
-  [(corps) => /^Station `[^`]+`: the cook stopped with its station — /.test(corps), (corps) => `stopped with its station \`${stationDe(corps)}\`: ${raisonDe(corps)}`],
+  [commence(MARQUE_D_INCAPACITE), direIncapacite],
+  [(corps) => BASE_ABSENTE.test(corps), direBaseAbsente],
+  [(corps) => ARRETEE_AVEC_SA_STATION.test(corps), direArretAvecSaStation],
 ];
 
 // Les raisons des renvois et des cooks sans livraison, des commentaires de
@@ -226,11 +238,11 @@ function attentesDuTicket(p: PreuveDuTicket): { debut: number; fin: number }[] {
     .filter(({ debut, fin }) => !Number.isNaN(debut) && !Number.isNaN(fin) && fin >= debut);
 }
 
-// Combien des tickets qui ont le plus attendu une prise la section suit dans le journal.
-
 // Ce qu'un ticket a attendu avant une prise : le jugement du manager, puis un
 // cook. Les attentes que la section suit partent du dépôt, et couvrent les deux.
 const avantLaPrise = (pertes: { qualification: number; attente: number }) => pertes.qualification + pertes.attente;
+
+// Combien des tickets qui ont le plus attendu une prise la section suit dans le journal.
 const TICKETS_SUIVIS = 5;
 
 // Les événements que la section cite, au plus `EVENEMENTS_CITES`, dans l'ordre
@@ -254,8 +266,16 @@ function evenementsCites(
   if (evenements.length <= EVENEMENTS_CITES) return premiers;
   const instants = evenements.map((e) => Date.parse(e.at));
   const dedans = ({ debut, fin }: { debut: number; fin: number }) => instants.flatMap((at, rang) => (at >= debut && at <= fin ? [rang] : []));
-  // Les premiers et les derniers tour à tour.
-  const deuxBouts = (rangs: number[]) => rangs.map((_, i) => (i % 2 === 0 ? rangs[i / 2] : rangs[rangs.length - 1 - (i - 1) / 2]) as number);
+  // Les rangs d'une attente, pris par ses deux bouts tour à tour : le premier,
+  // le dernier, le deuxième, l'avant-dernier…
+  const deuxBouts = (rangs: readonly number[]): number[] => {
+    const ordre: number[] = [];
+    for (let debut = 0, fin = rangs.length - 1; debut <= fin; debut++, fin--) {
+      ordre.push(rangs[debut] as number);
+      if (fin > debut) ordre.push(rangs[fin] as number);
+    }
+    return ordre;
+  };
   const suivis = tickets
     .map((p) => ({ ticket: p.temps.ticket, attente: avantLaPrise(pertesDuTicket(p.temps)), attentes: attentesDuTicket(p).map((a) => ({ duree: a.fin - a.debut, rangs: dedans(a) })) }))
     .filter(({ attente, attentes }) => attente > 0 && attentes.some(({ rangs }) => rangs.length > 0))

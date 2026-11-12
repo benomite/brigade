@@ -449,7 +449,8 @@ judgement`), the qualification wait, from filing to `fire`; `attente` (`waiting 
 wait, review and CI of a delivery that was sent back. The record's `perdu.attente` holds both waits, as before: the
 qualification loss is its `attenteQualification`, the claim wait the rest. Until #3422 both counted as waiting for a
 claim: the 15 min BOBL-tech/mirrorlab#732 waited between its filing and the manager's `fire` read as a wait for a
-cook. A record of before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
+cook. Its cause is corrected in the manager: a new issue is judged before the rest of the manager's turn
+(`docs/runtime/manager.md`, "A new issue is judged first"). A record of before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
 2026-11-06 and 07 lost a median 7.7 min, 57 % of it waiting for a claim.
 
 **Over the lost-time threshold, a correction ticket** (`runtime/src/temps-max/`, #2515, on lost time since

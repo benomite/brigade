@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { medianeDesRecents, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, SEUIL_PERDU_PAR_DEFAUT_MIN, seuilDuProjet, phaseLaPlusLenteDesTickets, phaseLaPlusLenteDuTicket, tempsPerdu, ticketsLesPlusLents, ticketsRecents, totauxParPerte } from "../../src/temps-max/mesure.ts";
 import { lesTempsDesTickets, type TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
+import { rattraperLaPrise } from "../../src/temps-ticket/mesure.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
 const m = (n: number) => n * 60;
@@ -51,6 +52,13 @@ test("the wait for the manager's judgement, from filing to fire, is its own loss
   // prend rien au manager ; une qualification plus longue que l'attente écrite
   // n'en prend pas plus qu'elle.
   assert.deepEqual(pertesDuTicket({ ...t(1, 10), attenteQualification: m(2), perdu: { attente: m(1), ratees: 0, renvois: 0 } }), { qualification: m(1), attente: 0, ratees: 0, renvois: 0 });
+  // La prise rattrapée sur GitHub (`rattraperLaPrise`) retire de `perdu.attente`
+  // ce qui était une cuisson, jamais plus que l'attente d'une prise : le
+  // jugement du manager reste entier, l'attente d'une prise seule rétrécit.
+  const avant = { ...t(1, 0), mergedAt: "2026-11-12T16:10:00Z", depuis: "2026-11-12T15:40:33Z", claimedAt: "2026-11-12T16:00:00Z", attenteQualification: m(15), attentePrise: m(4.5), perdu: { attente: m(19.5), ratees: 0, renvois: 0 } };
+  const rattrape = rattraperLaPrise(avant, "2026-11-12T15:57:00Z");
+  assert.equal(rattrape.perdu?.attente, m(16.5));
+  assert.deepEqual(pertesDuTicket(rattrape), { qualification: m(15), attente: m(1.5), ratees: 0, renvois: 0 });
   // À égalité, la perte la plus tôt dans la vie du ticket : le manager avant la prise.
   assert.equal(perteLaPlusLourde([{ ...t(1, 10), attenteQualification: m(2), attentePrise: m(2) }])?.nom, "waiting for the manager's judgement");
   assert.deepEqual(

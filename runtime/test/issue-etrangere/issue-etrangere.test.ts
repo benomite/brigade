@@ -52,7 +52,8 @@ function brigade(t: TestContext, options: Options) {
 }
 
 // L'issue d'un inconnu (#30), et celle d'un membre (#31), servie comme avant.
-const ETRANGERE = { issues: [issue(30, []), issue(31, [])], manager: { suite: ["trie-ticket"], humains: () => PRODUIT } } satisfies Options;
+// #31, l'issue neuve d'un membre, est jugée avant le tri de #30 (#3422).
+const ETRANGERE = { issues: [issue(30, []), issue(31, [])], manager: { suite: ["juge-ticket", "trie-ticket"], humains: () => PRODUIT } } satisfies Options;
 function avecUnInconnu(t: TestContext) {
   const c = brigade(t, ETRANGERE);
   c.gh.decrire(30, { body: "The CSV export drops its last row.", association: "NONE" });
