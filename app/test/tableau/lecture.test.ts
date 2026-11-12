@@ -23,9 +23,10 @@ const issue = (number: number, labels: string[], extra: object = {}) => ({
 });
 const prise = (id: number, station: string, le: string) => ({ id, body: `<!-- brigade:prise station=${station} -->\nTaken by station \`${station}\`.`, author_association: "OWNER", created_at: le });
 
-// Le rail : #1 en attente (prio:2), #2 pris par box/claude (prio:1), #3 en pass par la PR #40, cuisiné par mac/claude —
-// et une PR que l'API des issues rend comme une issue.
-const AU_FEU = [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })];
+// Le rail : #1 en attente (prio:2), calibré par le manager — rien ne le bloque (le rail bloqué, #3358 :
+// test/rail-bloque/) —, #2 pris par box/claude (prio:1), #3 en pass par la PR #40, cuisiné par mac/claude — et une PR que
+// l'API des issues rend comme une issue.
+const AU_FEU = [issue(1, ["fire", "prio:2", "model:sonnet", "effort:medium"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })];
 // Les issues ouvertes : le rail, et ce qui est avant lui — une de chaque état, une PR.
 const OUVERTES = [
   ...AU_FEU,
@@ -258,6 +259,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
     "app/src/vue/carte-sensible/label.ts",
     "app/src/vue/cooks/prises.ts",
+    // Le rail bloqué : les tickets qu'aucun manager n'a pris, et le diagnostic, sans E/S (ticket 3358).
+    "app/src/vue/rail-bloque/rail-bloque.ts",
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
@@ -265,6 +268,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // La liste des tickets d'une épique, sans E/S : une épique n'est pas sur le rail (#2618).
     "runtime/src/epique.ts",
     "runtime/src/github-etat/etats.ts",
+    "runtime/src/rail-bloque/lecture.ts",
+    "runtime/src/rail-bloque/rail-bloque.ts",
     "runtime/src/stations-github/stations.ts",
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.

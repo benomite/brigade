@@ -23,8 +23,9 @@ const dit = (body: string, created_at: string): Commentaire => ({ body, created_
 // Le projet du 2026-11-05 : #8 en pass, sa livraison touche à ce qui la juge (PR #2326) ; #12, `served-elsewhere`, pose une question
 // de produit avec ses choix ; #7, `served-elsewhere` après ses renvois, ne demande rien au chef ; #20, une carte `chef-todo` ;
 // #30, écarté par le manager avec `question` ; #31, `decision`, mais en WAITING ; #1683, l'issue du tableau de la cuisine.
+// #1, sur le rail, calibré par le manager : rien ne le bloque (le rail bloqué, #3358 : test/rail-bloque/).
 const MONDE: Record<number, Issue> = {
-  1: { labels: ["fire"] },
+  1: { labels: ["fire", "model:sonnet", "effort:medium"] },
   7: { labels: ["fire", "served-elsewhere"], commentaires: [dit("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the PR conflicts with the base\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", "2026-11-05T01:00:00Z")] },
   8: { labels: ["fire", "in-pass", "blocked-on-human"], commentaires: [dit("Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", "2026-11-05T09:00:00Z")] },
   12: {
@@ -159,7 +160,7 @@ describe("l'app et le second ne se contredisent pas : la même lecture, les mêm
   });
 
   test("un Todo vide : l'app et le second disent tous deux « nothing awaits the chef »", async () => {
-    const monde = { 1: { labels: ["fire"] } };
+    const monde = { 1: { labels: ["fire", "model:sonnet", "effort:medium"] } };
     const lu = await lueParLApp(github(monde));
     assert.ok(lu.lu);
     assert.match(statusDuTableau(lu), /^awaiting {3}nothing awaits the chef\nend awaiting$/m);

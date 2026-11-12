@@ -46,7 +46,8 @@ const MONDE: Monde = {
   },
   depots: {
     "chef/parade": {
-      1: { labels: ["fire", "prio:2"] },
+      // #1, calibré par le manager : rien ne le bloque (le rail bloqué, ticket 3358, se compte à l'heure de chaque lecteur).
+      1: { labels: ["fire", "prio:2", "model:sonnet", "effort:medium"] },
       6: { labels: [] },
       12: { labels: ["fire", "served-elsewhere"], commentaires: [dit("<!-- brigade:todo kind=product-question -->\nDoes the export keep the old column order?\n- [merge] Yes, merge PR #40 as delivered\n- [close] No, we drop the export", "2026-11-06T07:00:00Z")] },
       20: { labels: ["chef-todo"], commentaires: [dit("<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", "2026-11-06T08:00:00Z")] },

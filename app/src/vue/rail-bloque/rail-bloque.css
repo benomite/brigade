@@ -1,0 +1,8 @@
+/* La ligne du rail bloqué (ticket 3358), en tête du rail : la panne de la cuisine oisive (vue.css, `.panne-du-rail`) —
+   rouge, épaisse, marquée FAULT —, sa phrase prend la place, son geste à droite. */
+#rail .rail-bloque strong {
+  flex: 1;
+}
+#rail .rail-bloque .action {
+  flex: none;
+}

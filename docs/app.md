@@ -3735,6 +3735,18 @@ section. With the section laid, `right now` is not repeated under it.
   cause is read (the alerts, what awaits you). It is gone at the first reading of `facts` that no longer carries it;
   without it — or from a runtime from before this field — the head of the rail is exactly what it was. A box that
   does not answer shows none: its last reading is no longer new.
+- **A stuck rail is a fault** (#3358, `app/src/vue/rail-bloque/`, diagnosis in `runtime/src/rail-bloque/`). When `fire`
+  tickets have gone untaken by any manager — no manager claim, no `model:` or `effort:` label, no manager comment —
+  for more than five minutes, the head of the rail opens with a red `FAULT` line: how many tickets, for how long, and
+  the cause read from the stations' signs of life — `8 tickets on the rail, no manager has taken them for 14 h: its
+  station box/claude is stopped.` The cause is one of: no station serves the project; its station is stopped, offline
+  or out of GitHub quota; the manager runs but takes nothing; or not known when the stations cannot be read. When a
+  gesture unblocks it — **Start the station**, **Add the project to a station** — it is the line's recommended button,
+  which opens the Stations tab; otherwise, and on a read-only project, there is no button. On "All projects" the
+  project is **stuck**, in red (`8 tickets no manager takes, for 14 h`, the whole sentence on hover). The same sentence
+  is under the head of the `awaiting` block of the app's `status`, of the second's queue, and of
+  `brigade <project> status` on a GitHub-only station. Tickets whose comments cannot be read are said there as `not
+  checked`, never as a calm rail.
 - **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/projet/rail/bande-rail.js`, #1836). An empty rail does
   not mean a finished project. In the band at the top of the Rail tab (#2486, #3013), **Backlog 18 issues** counts
   the open issues of the repository that are not on the rail yet — a number, no bar. It is read from GitHub with the rest of the rail

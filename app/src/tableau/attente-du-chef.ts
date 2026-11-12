@@ -31,6 +31,7 @@ import type { AppelGitHub } from "./client.ts";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lecture.ts";
 import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
+import type { RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
 import { tiersDesCommentaires } from "../vue/attente/attente-github.ts";
 import { revueDuCorps, SORTE_SENSIBLE } from "../vue/carte-sensible/carte-sensible-github.ts";
@@ -238,8 +239,9 @@ export const fileDuChef = (attentes: readonly AttenteDuChef[]): LigneDeLaFile[] 
 
 // Le bloc `awaiting` de ce qui attend le chef, de sa tête à `end awaiting` : ce que le second relaie, et ce que le TODO
 // de l'app lit.
-export const blocDuChef = ({ lu, attentes, illisibles }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[] }): string[] =>
-  blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu });
+// `railBloque` : le rail bloqué (vue/rail-bloque/, #3358), sous la tête du bloc.
+export const blocDuChef = ({ lu, attentes, illisibles, depot, railBloque }: { lu: string; attentes: readonly AttenteDuChef[]; illisibles: readonly string[]; depot?: string; railBloque?: RailBloqueLu }): string[] =>
+  blocAwaiting({ file: fileDuChef(attentes), bilans: [...illisibles], lu, ...(depot === undefined ? {} : { depot }), ...(railBloque === undefined ? {} : { railBloque }) });
 
 // Le rail, avec ce qu'attend chaque issue en WAITING : rien à changer sans elles.
 function avecEnWaiting(rail: unknown, enWaiting: readonly EnWaiting[]): { rail?: Brut[] } {

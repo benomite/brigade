@@ -31,12 +31,16 @@ import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
+import { avecLeRailBloque, railBloqueDuStatus } from "./rail-bloque/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
 const JOURS_DE_TODO = 7;
 
-export function principal({ args: tapes, env, dire, redire }: Appel): void {
+// Asynchrone depuis le rail bloqué (#3358), qui se lit sur GitHub ; son type reste celui de toute commande.
+export const principal = (appel: Appel): void | Promise<void> => photoEtRail(appel);
+
+async function photoEtRail({ args: tapes, env, dire, redire }: Appel): Promise<void> {
   const brut = enAnglais("status", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
@@ -62,16 +66,18 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
 
   let journal;
   let photo;
+  const maintenant = new Date();
   try {
     const ageMaxSauvegardeMs = ageMaxDeLaSauvegarde(env);
     journal = ouvrirEnLecture(env.BRIGADE_STATE_DIR);
-    photo = photographier(journal, env, jours, ageMaxSauvegardeMs, new Date(), env.NO_COLOR === undefined);
+    photo = photographier(journal, env, jours, ageMaxSauvegardeMs, maintenant, env.NO_COLOR === undefined);
   } catch (erreur) {
     journal?.fermer();
     if (erreur instanceof LectureImpossible) echouer(erreur.code, erreur.message);
     throw erreur;
   }
-  for (const ligne of photo.lignes) dire(ligne);
+  // Le rail bloqué (#3358) : des tickets `fire` qu'aucun manager n'a pris, sous la tête du bloc `awaiting` — la file du second.
+  for (const ligne of avecLeRailBloque(photo.lignes, await railBloqueDuStatus(env, maintenant))) dire(ligne);
 
   if (option === undefined) {
     journal.fermer();

@@ -25,6 +25,7 @@ import type { VuDesProjets } from "./projets/projets.ts";
 import { plafondsDe, retenuesDe, type PlafondVu, type RetenueVue } from "./plafond.ts";
 import { raisonDe, type RaisonDeStation } from "./stations/raison.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
+import { bloqueDe, ditALAccueil } from "./vue/rail-bloque/rail-bloque.ts";
 
 // Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris.
 export type Ton = "vert" | "jaune" | "rouge" | "gris";
@@ -123,12 +124,15 @@ function cuit(faits: Faits, repare: number | undefined): string[] {
 
 export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined, status: StatusLu | undefined): LigneDeProjet {
   const { nom } = projet;
-  if (!projet.servi) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
+  // Le rail bloqué (vue/rail-bloque/, #3358) : des tickets qu'aucun manager ne prend — aussi quand aucune station ne le
+  // sert, puisque c'est sa cause. Il bloque le projet, en tête de sa ligne ; sa phrase entière au survol.
+  const railBloque = lu !== undefined && "faits" in lu ? bloqueDe(lu.faits.railBloque) : undefined;
+  if (!projet.servi && railBloque === undefined) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
   if (lu === undefined) return { nom, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's station every 30 s" };
   if ("injoignable" in lu) return { nom, ton: "rouge", dit: "station unreachable", survol: `its station did not answer at ${heure(lu.a)} — the app tries again every 30 s; open it to see why` };
   if ("illisible" in lu) return { nom, ton: "gris", dit: "not read: its station does not answer as the app expects", survol: `tried at ${heure(lu.a)} — open it to see what its station returned` };
   const { faits } = lu;
-  const bloquant = bloque(faits, status?.texte);
+  const bloquant = [...(railBloque === undefined ? [] : [ditALAccueil(railBloque, Date.parse(faits.lu))]), ...bloque(faits, status?.texte)];
   const attendu = attend(faits, status);
   // La dérive se lit dans les lignes `drift` de `status` : un mot sur la ligne, ce qu'elle dit au survol.
   // Elle ne change pas la pastille — rien n'attend le chef, rien ne bloque.
@@ -139,7 +143,7 @@ export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined
     nom,
     ton: bloquant.length > 0 ? "rouge" : attendu.length > 0 ? "jaune" : "vert",
     dit: derive.length === 0 ? dit : `${dit} · drifting`,
-    survol: `read at ${heure(lu.a)} — ${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
+    survol: `read at ${heure(lu.a)} — ${railBloque === undefined ? "" : `${railBloque.phrase} — `}${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
     ...(faits.compteurs.attend > 0 ? { attend: faits.compteurs.attend } : {}),
   };
 }
