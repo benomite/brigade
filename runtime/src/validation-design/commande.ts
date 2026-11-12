@@ -1,7 +1,8 @@
 // La commande des livraisons design retenues pour le chef (#3184), que l'app
 // appelle sur la carte « Validate its screen » :
 //   npm --prefix runtime run design -- validate <owner>/<repo>#<PR>                          merge la PR, ferme la carte
-//     (la tête a bougé depuis la carte : la validation est gardée, la pass merge la PR une fois sa tête verte)
+//     (la tête a bougé depuis la carte : la validation est gardée, la pass merge la PR une fois sa tête verte ;
+//      la PR en conflit avec sa base : la validation est gardée, la cuisine met la PR à jour de sa base, puis la merge)
 //   npm --prefix runtime run design -- send-back <owner>/<repo>#<PR> --comment "<à changer>"  la renvoie à un cook, ferme la carte
 // Rien ne passe par la box ni par son répertoire d'état : chaque geste s'écrit
 // sur GitHub, sous le `gh` du poste (`BRIGADE_GH_BIN`, sinon `gh`).
@@ -10,7 +11,7 @@ import { lireCible } from "../attente-github/attente-github.ts";
 import { brancheDuTicket } from "../brigade-github.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { GesteRefuse } from "../rail.ts";
-import { renvoyerLeDesign, valider, validationGardee, type GitHubDesGestes } from "./validation-design.ts";
+import { renvoyerLeDesign, valider, validationEnConflit, validationGardee, type GitHubDesGestes } from "./validation-design.ts";
 
 const USAGE = [
   "usage: npm --prefix runtime run design -- <gesture> <owner>/<repo>#<PR> …",
@@ -39,8 +40,9 @@ export async function principal({ args, env, dire, redire }: Appel, ouvrir: Ouvr
   const nom = `${cible.depot}#${cible.numero}`;
   try {
     if (commentaire === null) {
-      const { carte, ticket, enAttente } = await valider(github, cible.numero, brancheDuTicket);
-      dire(enAttente ? validationGardee(nom, carte) : `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served`);
+      const { carte, ticket, enAttente, enConflit } = await valider(github, cible.numero, brancheDuTicket);
+      if (enConflit) dire(validationEnConflit(nom, carte, cible.numero));
+      else dire(enAttente ? validationGardee(nom, carte) : `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served`);
     } else {
       const { carte, ticket, suivi } = await renvoyerLeDesign(github, cible.numero, commentaire, brancheDuTicket);
       if (suivi !== undefined) dire(`${nom} was already merged: your comment is the follow-up ticket #${suivi}, card #${carte} closed`);

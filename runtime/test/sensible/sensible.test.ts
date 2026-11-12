@@ -243,6 +243,22 @@ test("merge after the branch was updated from its base merges nothing at once: t
   assert.equal(cartes(faux).length, 1);
 });
 
+test("merge on a PR that conflicts with the base: the answer is recorded, the card leaves TODO, and the kitchen updates the PR on the base, then merges it (#3426)", async () => {
+  const { faux, s } = await retenu();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  faux.pr(PR).enConflit = true;
+  const fin = await sensitive(faux, "merge", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot#${PR}: your answer is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.equal(faux.pr(PR).merged, false);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.ok((faux.commentaires.get(TICKET) ?? []).some((c) => c.body.startsWith(`<!-- brigade:sensitive-review-validee carte=${carte.number} pr=${PR} `) && c.body.includes("If a cook has to resolve the conflict, a new card asks the chef again.")));
+  await tours(s, 6, () => faux.mergee(TICKET) !== undefined);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.equal(cartes(faux).length, 1);
+});
+
 test("a card GitHub refuses to create: nothing is merged, the station says why, and the next turn posts the card", async () => {
   const faux = enPass([...CALIBRE, LABEL_SENSITIVE]);
   const avertis: string[] = [];

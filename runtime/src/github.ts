@@ -203,6 +203,12 @@ export type GitHub = {
   // condition que sa tête soit encore `sha` (`brigade-github.ts`). Facultatif :
   // seul le client réel le porte.
   mettreAJour?(numero: number, sha: string): Promise<void>;
+  // Les fichiers qui changent de `de` à `a` (depuis leur ancêtre commun), et
+  // si la liste est complète : GitHub n'en rend que 300. Null si GitHub ne
+  // connaît pas l'un des deux commits. Ce que la pass lit pour savoir si la
+  // mise à jour d'une PR validée a changé son écran (#3426). Facultatif : seul
+  // le client réel le porte.
+  fichiersEntre?(de: string, a: string): Promise<{ fichiers: string[]; complet: boolean } | null>;
   fermerIssue(numero: number): Promise<void>;
   // Ferme une PR sans toucher à sa branche. Facultatif : seul le client réel le porte.
   fermerPR?(numero: number): Promise<void>;
@@ -303,6 +309,8 @@ type Reponse = { statut: number; entetes: Map<string, string>; corps: string };
 const OCTETS_GARDES = 32 * 1024 * 1024;
 // Au-delà, une réponse ne se garde pas (un gros diff).
 const TAILLE_GARDEE = 1024 * 1024;
+// La comparaison de deux commits ne liste pas plus de fichiers que ceux-là.
+const FICHIERS_D_UNE_COMPARAISON = 300;
 // `pleine` : la dernière page d'une liste, remplie jusqu'à `per_page`. Une
 // entrée de plus irait sur une page suivante, que l'ETag de celle-ci ne dit
 // pas : elle se relit sans condition.
@@ -865,6 +873,15 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async mettreAJour(numero, sha) {
       const chemin = `repos/${depot}/pulls/${numero}/update-branch`;
       exiger(await appeler(["-X", "PUT", "-f", `expected_head_sha=${sha}`, chemin]), chemin, 202);
+    },
+    async fichiersEntre(de, a) {
+      const chemin = `repos/${depot}/compare/${de}...${a}`;
+      const reponse = await lireSousCondition([chemin]);
+      if (reponse.statut === 404) return null;
+      const { files } = JSON.parse(exiger(reponse, chemin).corps) as { files?: unknown };
+      if (!Array.isArray(files)) throw new Error(`gh api ${chemin} : the comparison does not list its files`);
+      const fichiers = (files as Array<{ filename?: unknown; previous_filename?: unknown }>).flatMap(({ filename, previous_filename }) => [filename, previous_filename].filter((chemin): chemin is string => typeof chemin === "string" && chemin !== ""));
+      return { fichiers, complet: files.length < FICHIERS_D_UNE_COMPARAISON };
     },
     async merger(numero, sha) {
       const chemin = `repos/${depot}/pulls/${numero}/merge`;

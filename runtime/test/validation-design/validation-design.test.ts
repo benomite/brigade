@@ -34,7 +34,7 @@ function enPass(fichiers: string[], labels: string[] = CALIBRE) {
 
 // La station A, sous ce réglage, ses relectures attendues à chaque tour ; ses
 // cartes gardent leur titre, que le faux oublie. Le cook d'un renvoi pousse une
-// tête neuve.
+// tête neuve, hors de conflit avec la base.
 function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pannes: Partial<GitHubDuTour> = {}) {
   const titres = new Map<number, string>();
   const bas = { ...faux.pour("A"), ouvertes: gestes(faux).ouvertes, prDeBranche: fauxClient(faux, "A").prDeBranche, ...pannes };
@@ -57,7 +57,8 @@ function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pann
     cuisiner: async (ticket) => {
       faux.cuissons.push({ station: "A", issue: ticket.number });
       const ouverte = faux.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
-      if (ouverte !== undefined) ouverte.sha = faux.sha();
+      // Le cook d'un renvoi pour conflit remet la branche sur sa base.
+      if (ouverte !== undefined) Object.assign(ouverte, { sha: faux.sha(), enConflit: false });
       return { branche: brancheDuTicket(ticket.number) };
     },
     juger: async () => ({ verdict: "approve", motif: "" }),
@@ -409,6 +410,157 @@ test("validate refused by GitHub keeps the card open and says why", async () => 
   assert.match(fin.lignes.join("\n"), /GitHub refused to merge PR #1040 — HTTP 405 — Head branch is out of date; card #\d+ stays open/);
   assert.equal(faux.mergee(TICKET), undefined);
   assert.equal(ouvertes(faux).length, 1);
+});
+
+// ── La PR en conflit avec sa base au moment de valider (#3426) ──
+
+// La carte posée, la PR tombée en conflit avec sa base pendant qu'elle attendait
+// le chef ; `deContenu` : la station ne sait pas la mettre à jour seule.
+async function enConflit(deContenu = false) {
+  const tenue = await retenue();
+  Object.assign(tenue.faux.pr(PR), { enConflit: true, conflitDeContenu: deContenu });
+  const [carte] = ouvertes(tenue.faux);
+  assert.ok(carte !== undefined);
+  return { ...tenue, carte };
+}
+
+test("validate a card whose PR conflicts with the base: no “nothing was done”, the validation is recorded on the ticket, the card leaves TODO, and the chef is told the kitchen first updates the PR on the base, then merges it", async () => {
+  const { faux, carte, sha } = await enConflit();
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot#${PR} validated: your validation is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.equal(faux.pr(PR).merged, false);
+  // La carte n'est plus dans TODO : fermée, sans `chef-todo`, elle dit ce qui suit.
+  assert.deepEqual(ouvertes(faux), []);
+  assert.equal(faux.ticket(carte.number).state, "closed");
+  assert.equal(faux.ticket(carte.number).labels.has(CHEF_TODO), false);
+  assert.equal((faux.commentaires.get(carte.number) ?? []).at(-1)?.body, `Validated by the chef: the answer is recorded — merge pending. PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it.`);
+  // La validation est écrite sur le ticket, sur la tête que la carte montrait.
+  const [gardee, ...autres] = validees(faux);
+  assert.deepEqual(autres, []);
+  assert.equal(
+    gardee?.body,
+    `<!-- brigade:validation-design-validee carte=${carte.number} pr=${PR} sha=${sha} -->\nValidated by the chef on card #${carte.number} — merge pending. PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it once its checks are green, without a new card. If the update changes the screen, or cannot be done without changing it, a new card asks the chef again, with the new captures.`,
+  );
+});
+
+test("a PR GitHub refuses to merge because it fell into conflict after it was read: the validation is recorded all the same", async () => {
+  const { faux, carte } = await enConflit();
+  faux.pr(PR).enConflit = false;
+  const client = gestes(faux);
+  const lignes: string[] = [];
+  const merger: GitHub["merger"] = async () => {
+    faux.pr(PR).enConflit = true;
+    return { fait: false, motif: "HTTP 405 — Pull Request is not mergeable" };
+  };
+  await principal({ args: ["validate", `faux/depot#${PR}`], env: {}, dire: (ligne) => lignes.push(ligne), redire: (ligne) => lignes.push(ligne) }, () => ({ ...client, merger }));
+  assert.deepEqual(lignes, [`faux/depot#${PR} validated: your validation is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.equal(validees(faux).length, 1);
+  assert.deepEqual(ouvertes(faux), []);
+});
+
+test("validated in conflict, the station updates the PR on the base without changing its screen: once its checks are green it is merged with no further action of the chef, the ticket is served, and no card comes back to TODO", async () => {
+  const { faux, s, sha } = await enConflit();
+  faux.ciEnCours.add(PR);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  await tours(s, 4, () => faux.pr(PR).sha !== sha);
+  assert.notEqual(faux.pr(PR).sha, sha, "the station updated the PR on the base");
+  assert.equal(faux.pr(PR).enConflit, false);
+  // Ses checks tournent encore : rien de mergé.
+  await tours(s, 2);
+  assert.equal(faux.mergee(TICKET), undefined);
+  faux.ciEnCours.delete(PR);
+  await tours(s, 4, () => faux.ticket(TICKET).state === "closed");
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.equal(faux.ticket(TICKET).state, "closed");
+  assert.equal(cartes(faux).length, 1);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.deepEqual(renvois(faux), []);
+});
+
+test("validated in conflict, a conflict the station cannot resolve goes to a cook, who resolves it without changing the screen: the recorded validation holds, the PR is merged and the ticket served, no new card", async () => {
+  const { faux, s } = await enConflit(true);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  await tours(s, 16, () => faux.ticket(TICKET).state === "closed");
+  const [renvoi, ...autres] = renvois(faux);
+  assert.deepEqual(autres, []);
+  assert.match(renvoi?.body ?? "", /^<!-- brigade:renvoi n=1 sha=[0-9a-f]+ conflit -->/);
+  assert.deepEqual(faux.cuissons.map(({ issue }) => issue), [TICKET]);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.equal(faux.ticket(TICKET).state, "closed");
+  assert.equal(cartes(faux).length, 1);
+});
+
+test("validated in conflict, the update on the base changes the screen: nothing is merged, a new card with the new head's captures asks the chef again and says why", async () => {
+  const { faux, s, carte, sha } = await enConflit();
+  faux.changesEntre = (de) => (de === sha ? ["app/src/vue/rail.js", "README.md"] : []);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  await tours(s, 8, () => ouvertes(faux).length > 0);
+  const [seconde, ...autres] = ouvertes(faux);
+  assert.ok(seconde !== undefined);
+  assert.deepEqual(autres, []);
+  assert.notEqual(seconde.number, carte.number);
+  const tete = faux.pr(PR).sha;
+  assert.notEqual(tete, sha);
+  assert.deepEqual(carteDuCorps(seconde.corps), { pr: PR, ticket: TICKET, sha: tete });
+  const pourquoi = `The update of PR #${PR} on the base changed its screen since the chef validated it on card #${carte.number}: \`app/src/vue/rail.js\` changed (\`${sha.slice(0, 7)}\` → \`${tete.slice(0, 7)}\`). The chef is asked again, on the new captures.`;
+  assert.ok(seconde.corps.includes(pourquoi), seconde.corps);
+  assert.ok(seconde.corps.includes(`![rail — après](https://github.com/faux/depot/blob/${tete}/docs/captures/40/rail-apres.png?raw=true)`), seconde.corps);
+  assert.match(carteEnCours([...seconde.labels], faux.commentaires.get(seconde.number) ?? [])?.texte ?? "", new RegExp(`The update of PR #${PR} on the base changed its screen`));
+  // La validation d'avant ne tient plus : la PR attend le chef, tour après tour.
+  await tours(s, 3);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
+  assert.equal(cartes(faux).length, 2);
+});
+
+test("validated in conflict, the conflict cannot be resolved without changing the screen: the cook's delivery comes back as a new card with its new captures, saying why", async () => {
+  const { faux, s, carte, sha } = await enConflit(true);
+  faux.changesEntre = (de) => (de === sha ? [`docs/captures/${TICKET}/rail-apres.png`, "app/src/vue/rail.js"] : []);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  await tours(s, 16, () => ouvertes(faux).length > 0);
+  assert.equal(renvois(faux).length, 1);
+  const [seconde] = ouvertes(faux);
+  assert.ok(seconde !== undefined);
+  assert.notEqual(seconde.number, carte.number);
+  const tete = faux.pr(PR).sha;
+  assert.deepEqual(carteDuCorps(seconde.corps), { pr: PR, ticket: TICKET, sha: tete });
+  assert.ok(seconde.corps.includes(`PR #${PR} could not be updated on the base without changing its screen since the chef validated it on card #${carte.number}: \`app/src/vue/rail.js\`, \`docs/captures/40/rail-apres.png\` changed`), seconde.corps);
+  assert.ok(seconde.corps.includes(`![rail — après](https://github.com/faux/depot/blob/${tete}/docs/captures/40/rail-apres.png?raw=true)`), seconde.corps);
+  assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("validated in conflict, the comparison of the heads that GitHub does not give: nothing is merged and the station says why; a validated head GitHub no longer knows asks the chef again, saying why", async () => {
+  const avertis: string[] = [];
+  const faux = enPass(ECRAN);
+  let panne = true;
+  const bas = faux.pour("A");
+  const { s } = station(faux, true, avertis, {
+    fichiersEntre: async (de, a) => {
+      if (panne) throw new Error("HTTP 502");
+      return bas.fichiersEntre?.(de, a) ?? null;
+    },
+  });
+  await tours(s, 3);
+  faux.pr(PR).enConflit = true;
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  await tours(s, 4);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.match(avertis.join("\n"), /pass de #40 sur A — HTTP 502/);
+  assert.deepEqual(ouvertes(faux), []);
+  // GitHub ne connaît plus la tête validée : le chef est redemandé, et la carte dit pourquoi.
+  panne = false;
+  faux.changesEntre = () => null;
+  await tours(s, 4, () => ouvertes(faux).length > 0);
+  const [seconde] = ouvertes(faux);
+  assert.ok(seconde !== undefined);
+  assert.match(seconde.corps, /GitHub no longer knows the head the chef validated \(`[0-9a-f]{7}`\), so the kitchen cannot tell the screen is unchanged\./);
+  assert.equal(faux.mergee(TICKET), undefined);
 });
 
 test("send back with a PR number and a comment sends the delivery back to a cook with the comment as the change to make and closes the card; the next delivery comes back as a new card with new captures", async () => {

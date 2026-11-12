@@ -17,6 +17,11 @@ import type { Essai, Parcours } from "./renvois.ts";
 
 // Les marques des commentaires de la station (`brigade-github.ts`), qui les écrit avec ces constantes.
 export const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
+// Ce que la marque d'un renvoi pour conflit avec la base porte de plus :
+// `<!-- brigade:renvoi n=… sha=… conflit -->`. Il ne compte pas dans le budget
+// des renvois (#2726), et ne défait pas la validation d'un écran (#3426).
+export const MARQUE_DE_CONFLIT = " conflit";
+export const estUnRenvoiPourConflit = (corps: string) => corps.startsWith(MARQUE_DE_RENVOI) && (corps.split("\n", 1)[0] ?? "").endsWith(`${MARQUE_DE_CONFLIT} -->`);
 export const MARQUE_D_ECHEC = "<!-- brigade:echec";
 // Un arrêt que le cook n'a pas causé — quota, limite GitHub, station relancée — : le ticket attend, puis repart (#2508).
 export const MARQUE_D_ATTENTE = "<!-- brigade:attente";
