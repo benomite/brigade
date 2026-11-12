@@ -41,6 +41,9 @@ export type Pont = {
   // Change le sigle d'un projet, celui de sa case dans la barre (sigle.ts) — `null` le rend à celui que l'app tire
   // de son nom. Rend la raison, s'il ne l'a pas été. Écrit, il arrive par `surConfiguration`.
   changerSigle(projet: string, sigle: string | null): Promise<string | undefined>;
+  // Montre ou retire l'état de la cuisine de la barre des menus du Mac, de la zone de notification de Windows
+  // (barre-de-menus.ts, ticket 3269). Rend la raison, si rien n'a été écrit. Écrit, il arrive par `surConfiguration`. Pas sur le téléphone.
+  changerBarreDeMenus?(actif: boolean): Promise<string | undefined>;
   // Le bloc « tickets ordinaires » de cet ordinateur pour un projet (ordinaires.ts) — rien, quand l'option n'existe pas ici.
   ordinaires(projet: string): Promise<Bloc | undefined>;
   // Règle l'option et la limite de cooks de cet ordinateur (`null` : aucune). Rend la raison, si rien n'a été écrit.
@@ -233,7 +236,8 @@ export type Pont = {
   // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
   // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
   surTelephone?(recevoir: (telephone: Telephone) => void): void;
-  // L'app Android seule (le ticket 2747) : le chef a touché la notification d'une carte de TODO — sa fiche s'ouvre.
+  // Le chef a touché la notification d'une carte de TODO sur le téléphone (le ticket 2747), ou cliqué une question dans le
+  // menu de la barre des menus sur un ordinateur (ticket 3269) — sa fiche s'ouvre.
   surOuvrirCarte?(recevoir: (projet: string, ticket: number) => void): void;
   // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;

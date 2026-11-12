@@ -334,6 +334,7 @@ const videProjet = element("vide-project");
 const retrait = element("retrait");
 const couleurs = element("couleurs");
 const sigle = element("sigle");
+const barreDeMenus = element("barre-de-menus");
 const ordinaires = element("ordinaires");
 // Les GitHub Apps de la station de cet ordinateur, une ligne par rôle (ticket 2317, identites-github.js) : relues à
 // l'ouverture de chaque projet ; un appareil sans station (le téléphone) n'en pose aucune.
@@ -1216,6 +1217,8 @@ let nonRetire = { projet: "", refus: "" };
 let couleurRefusee = { projet: "", refus: "" };
 // Pourquoi le dernier sigle écrit ne l'a pas été, et pour quel projet — rien, s'il l'a été.
 let sigleRefuse = { projet: "", refus: "" };
+// Le dernier refus du réglage de la barre des menus, sous sa ligne.
+let barreDeMenusRefusee = "";
 // Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
 /** @type {VuDuCode | undefined} */
 let codeVu;
@@ -2484,6 +2487,28 @@ async function siglerProjet(projet, voulu) {
   const refus = await brigade.changerSigle(projet.nom, voulu);
   sigleRefuse = { projet: projet.nom, refus: refus ?? "" };
   if (courant?.nom === projet.nom) poserSigle(courant);
+}
+
+// L'état de la cuisine dans la barre des menus du Mac, la zone de notification de Windows (ticket 3269) : une ligne de
+// toi, la même dans les Settings de chaque projet — elle vaut pour toute l'app. Un interrupteur la pose ou la retire ; le
+// process principal l'écrit dans le fichier des projets, et elle revient par `surConfiguration`. Le téléphone n'en a pas.
+function poserBarreDeMenus() {
+  if (telephone !== undefined || brigade.changerBarreDeMenus === undefined) {
+    barreDeMenus.hidden = true;
+    return barreDeMenus.replaceChildren();
+  }
+  barreDeMenus.hidden = false;
+  const allumee = configuration.barreDeMenus !== false;
+  const ou = POSTE.mac ? "menu bar" : "notification area";
+  const bascule = interrupteurDeLApp(document, { texte: allumee ? "on" : "off", allume: allumee, libelle: `Show the kitchen's state in the ${ou}` }, (voulue) => void reglerBarreDeMenus(voulue));
+  const aide = `how many cooks are working and how many questions wait for you — "3 cooking · 1 for you" — in the ${ou}; a click lists the questions, and opens the app on the one you pick. For the whole app, not this project only`;
+  barreDeMenus.replaceChildren(rangeeDeReglage(POSTE.mac ? "Menu bar" : "Notification area", [bloc("span", allumee ? "shown" : "hidden"), survol(document, aide)], [bascule], refusDeReglage(barreDeMenusRefusee), { cle: "barre-de-menus", niveau: niveauDe(document, "barre-de-menus") }));
+}
+/** @param {boolean} voulue */
+async function reglerBarreDeMenus(voulue) {
+  const refus = await brigade.changerBarreDeMenus?.(voulue);
+  barreDeMenusRefusee = refus ?? "";
+  poserBarreDeMenus();
 }
 
 // Une couleur choisie : le process principal l'écrit dans le fichier des projets, et elle revient
@@ -8652,6 +8677,7 @@ async function ouvrir(projet) {
   void lireRetrait(projet);
   poserSigle(projet);
   poserCouleurs(projet);
+  poserBarreDeMenus();
   void poserOrdinaires(projet);
   void identitesGithub.lire();
   void servis.lire();
