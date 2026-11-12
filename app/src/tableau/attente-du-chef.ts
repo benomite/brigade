@@ -122,10 +122,11 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     return toutes;
   };
   // Les issues ouvertes qui portent `label` — la vérification tient même d'une réponse que GitHub n'aurait pas filtrée.
+  // Une PR de fork porte sa carte `chef-todo` elle-même (runtime/src/pr-externe/pr-externe.ts) : seule cette liste la garde.
   const issuesAuLabel = async (label: string) =>
     (await pages(`/repos/${depot}/issues?state=open&labels=${label}&sort=created&direction=asc`)).filter((issue) => {
       const labels = labelsDe(issue);
-      return issue.pull_request === undefined && typeof issue.number === "number" && labels.includes(label) && !labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE);
+      return (issue.pull_request === undefined || label === LABEL_DU_CHEF) && typeof issue.number === "number" && labels.includes(label) && !labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE);
     });
   const enAttente = (issue: Brut) => labelsDe(issue).includes(LABEL_WAITING);
   const commentaires = (numero: number) => pages(`/repos/${depot}/issues/${numero}/comments`);
