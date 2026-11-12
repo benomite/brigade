@@ -87,14 +87,15 @@ export function poserReprise(doc, etat, reprendre) {
 }
 
 // La ligne, en tête de TODO : `marque`, la pastille que la vue pose ; `dit`, ce qui ne va pas ; `releve`, ce que la
-// station en écrit, mot pour mot — au survol, jamais à plat.
+// station en écrit, mot pour mot — au survol, jamais à plat ; `pourquoi`, ce même relevé écrit sous la ligne : un téléphone n'a
+// pas de survol (ticket 3371).
 /**
  * @param {Fabrique} doc
- * @param {{ marque: any, dit: string, releve?: string }} ligne
+ * @param {{ marque: any, dit: string, releve?: string, pourquoi?: string }} ligne
  * @param {Etat} etat
  * @param {(() => void) | undefined} reprendre — absent, la ligne n'a pas de « Resume » : un projet en lecture seule (ticket 3163)
  */
-export function poserLigneDuDisjoncteur(doc, { marque, dit, releve }, etat, reprendre) {
+export function poserLigneDuDisjoncteur(doc, { marque, dit, releve, pourquoi }, etat, reprendre) {
   const racine = cree(doc, "div");
   racine.className = "ligne-disjoncteur";
   racine.ariaLabel = TITRE;
@@ -102,13 +103,16 @@ export function poserLigneDuDisjoncteur(doc, { marque, dit, releve }, etat, repr
   const tete = cree(doc, "p");
   tete.className = "dit";
   tete.append(marque, cree(doc, "strong", dit), ...(releve === undefined || releve.trim() === "" ? [] : [survol(doc, releve)]));
-  if (reprendre === undefined) {
-    racine.append(tete);
-    return racine;
+  racine.append(tete);
+  if (pourquoi !== undefined && pourquoi.trim() !== "") {
+    const raison = cree(doc, "p", pourquoi);
+    raison.className = "pourquoi";
+    racine.append(raison);
   }
+  if (reprendre === undefined) return racine;
   const controle = cree(doc, "div");
   controle.className = "controle";
   controle.append(...poserReprise(doc, etat, reprendre));
-  racine.append(tete, controle);
+  racine.append(controle);
   return racine;
 }

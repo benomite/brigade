@@ -7,7 +7,8 @@
 //   1. un commentaire est posté sur l'issue : `<!-- brigade:reponse gesture=<geste> -->`, puis le libellé du choix, ou le
 //      texte du chef — il reste dans l'issue, c'est là que le cook le lit ;
 //   2. le geste est joué :
-//      - `resume` (un choix, ou tout texte libre) : `served-elsewhere` et `chef-todo` retirés — le ticket revient sur le rail ;
+//      - `resume` (un choix, ou tout texte libre) : `served-elsewhere`, `blocked-on-human`, `question`, `decision` et `chef-todo`
+//        retirés — le ticket revient sur le rail, ou au manager qui le juge (#3370) ;
 //      - `merge` : la PR que la carte nomme est mergée — celle que le libellé du choix nomme (`#N`), sinon la PR ouverte
 //        du ticket ; aucune, rien ne part. `blocked-on-human` est retiré : la mise de côté de la station levée (#3368) ;
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
@@ -31,7 +32,9 @@ export type ClientDeLaReponse = { lire: AppelGitHub; ecrire: (methode: MethodeDE
 const LABEL_FIRE = "fire";
 // Ce que chaque geste retire de l'issue, en plus de jouer ce qu'il joue.
 const RETIRES: Readonly<Record<GesteDuChef, readonly string[]>> = {
-  resume: [SERVED_ELSEWHERE, LABEL_DU_CHEF],
+  // Le ticket revient sur le rail : la mise de côté, de la station ou du manager, est levée (#3369) ; la question ou la décision
+  // que le manager attendait est répondue, il le juge de nouveau (#3370).
+  resume: [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN, "question", "decision", LABEL_DU_CHEF],
   // Mergée, la livraison mise de côté parce qu'elle touche à ce qui la juge n'est plus retenue (#3368).
   merge: [BLOCKED_ON_HUMAN, LABEL_DU_CHEF],
   drop: [LABEL_FIRE, LABEL_DU_CHEF],

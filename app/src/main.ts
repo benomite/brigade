@@ -17,6 +17,7 @@ import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
 import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
 import { situationDe } from "./histoire.ts";
+import { LiensLus } from "./liens-lus.ts";
 import { commenter, demanderAuSecond, noteDeLaQuestion } from "./discussion.ts";
 import { noteDeLaPassation, passerAuSecond } from "./passation-second.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
@@ -1005,12 +1006,12 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
 // que l'une d'elles, jamais une adresse qu'elle aurait composée.
 // Le commentaire du chef part sur l'issue du ticket, au clic, par le jeton du `gh` de ce poste (gestes-github.ts) : la
 // vue nomme le projet, le ticket et le texte ; le geste se compose ici (discussion.ts).
-const liensLus = new Map<string, readonly string[]>();
+const liensLus = new LiensLus();
 ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const lue = await discussionDeGitHub(reglagesGh(), await depotDuProjet(vise), ticket);
-  if (!("sans" in lue)) liensLus.set(`${vise.nom}#${String(ticket)}`, lue.liens);
+  if (!("sans" in lue)) liensLus.discussion(`${vise.nom}#${String(ticket)}`, lue.liens);
   return lue;
 });
 // Les chiffres d'autonomie d'un projet, ou de tous ceux que la vue nomme (vue/autonomie/autonomie-github.ts, #3222) : lus
@@ -1075,7 +1076,7 @@ ipcMain.handle("arreterEssai", async (_, nom: unknown, ticket: unknown) => {
 });
 app.on("before-quit", () => void essais.toutArreter());
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
-  if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
+  if (typeof url !== "string" || !liensLus.connait(`${String(nom)}#${String(ticket)}`, url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
   return shell.openExternal(url).then(
     () => true,
     () => false,
@@ -1088,7 +1089,14 @@ ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, ecran: unknown,
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const adresse = faits.capture(vise.nom, ticket, ecran, moment);
-  return adresse === undefined ? { sans: "the station gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
+  if (adresse === undefined) return { sans: "the station gave no address for this screenshot: the app has nothing to read" };
+  return lireCapture(reglagesGh(), adresse).then((lue) => {
+    // Le lien d'une capture qui ne se lit pas : la vue ne l'ouvre que par `ouvrirLien`, qui ne connaît que ce qu'une lecture a rendu.
+    if ("sans" in lue && lue.lien !== undefined) {
+      liensLus.capture(`${vise.nom}#${String(ticket)}`, lue.lien);
+    }
+    return lue;
+  });
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.

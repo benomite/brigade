@@ -179,6 +179,14 @@ button to click twice, until the reading that no longer says the breaker open ta
 labeled issue being open, the line says why in one line (`resume not requested: …`), GitHub's answer on hover, and gives
 `Resume` back to try again. On Rail the alert band does not repeat the line; on the other tabs, where there is no Todo,
 the band carries it with the same `Resume` (`app/src/vue/todo-breaker-line.js`). Captures: `docs/captures/2140/`.
+**On the phone the breaker line is at the head of `Awaiting you`, with the same `Resume`** (#3371). The phone has no
+station to ask: its reading lists the repository's open issues labeled `brigade:breaker-open` (`app/src/lecture-github-telephone.ts`,
+`avecLeDisjoncteur`). An open one says the kitchen held, with a `kitchen` line built from the issue the station wrote (how long,
+how many failures in a row, the failing ticket, its exit code: `cuisineRetenueParLeDisjoncteur`); the band's breaker alert follows,
+and the list shows it with that line written under it (a phone has no hover). `Resume` posts `/resume` on that issue through
+`reprendreLeDisjoncteur` of `app/src/gestes-github-telephone.ts`, the code the desktop runs. A reading of the issues that fails
+says nothing of the breaker: the rail stays as read, and the next reading, thirty seconds later, asks again. Captures:
+`docs/captures/3371/`.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the
@@ -558,6 +566,17 @@ The setup is read again at each reading of the project's rail while it is not se
 merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and above it the second asks for
 the project's first ticket (#3306). That panel comes only when you answered a question; a project that had nothing left
 to do opens on its rail.
+
+**Ready, but no station serves it (#3400).** When the setup was read not done and then done — its pull request merged,
+or `Set up for Brigade` — and no station serves the project, the page asks at once, above the rail: `Which station
+serves <owner/repo>?`, then `<owner/repo> is set up for Brigade, but no station serves it: its fire tickets wait on the
+rail until one does.` The choices are those of `Who cooks it` (`this computer` first, then your stations), and `not now`.
+`this computer` adds the project to this computer's served projects (`servirUnProjet`, the Settings group `projects
+this Mac serves`): the page says `This computer serves <owner/repo>: its station takes its fire tickets at its next
+turn, within two minutes.` and `close`. A station serves the project when this computer's list has it, a station says it
+serves it, or its stations say where it cooks; a station it was only given to does not serve it yet. Nothing is asked
+while this computer's list or your stations are not read, nor when a station already serves it; `not now` is not asked
+again while the app runs.
 
 **The first ticket, written in the app (#3306).** You never open GitHub and never see or type a label:
 
@@ -969,7 +988,9 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
     "Merge PR #2416 by hand? It changes what judges it." with one button, `Merge PR #2416` (#3368): one click merges the
     PR and removes `blocked-on-human`, and the card leaves Todo; a merge GitHub refuses is said on the card, which stays.
-    On the phone the card is in the list, with the same button.
+    On the phone the card is in the list, with the same button. Set aside by the station with no PR to merge (#3369),
+    the card reads "Lift the hold?" with two buttons: `Back to the kitchen` removes `blocked-on-human` (the ticket is
+    back on the rail) and `Close it` closes the issue; either way the card leaves Todo, on the phone as in the app.
   - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
     is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
     (**On the rail**, `86`). Its card says at the top **"Will not start: <reason in plain words>."** (#3147) — every
@@ -1048,9 +1069,9 @@ question. On the repository's open issues, read with the token of this computer'
 | `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — answer on its Todo card: “Merge PR #N” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
-| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the box's words: `set aside by the manager, it carries question — to decide: answer it then remove the label, the manager judges it; or close the issue` |
+| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again |
 
-A `fire` + `blocked-on-human` ticket without a PR reads like the manager's `blocked-on-human`, its reason first. An issue
+A `fire` + `blocked-on-human` ticket without a PR reads `Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3369). An issue
 carrying `waiting` waits for a third party, not the chef; an issue carrying `kitchen-board` (left from the old path) is
 never an item; a technical `hors-cuisine` stays on the rail (#2422). Items go oldest first: since the comment that says
 them, or since their label was put. They are written as the `awaiting` block of `status` (the line of each ticket, then
@@ -1240,7 +1261,7 @@ Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`, `app/test/vue/todo/
 `app/test/lecture-github-telephone.test.ts`, `app/test/gestes-github.test.ts`.*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
-is the question "Merge PR #N by hand? It changes what judges it." with its `Merge PR #N` button (#3368); a technical
+is the question "Merge PR #N by hand? It changes what judges it." with its `Merge PR #N` button (#3368), or, with no PR, "Lift the hold?" with `Back to the kitchen` and `Close it` (#3369); a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
 set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
 carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures:

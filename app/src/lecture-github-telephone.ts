@@ -37,6 +37,7 @@ import type { Projet } from "./config.ts";
 import { tenirFaits, type Dessinable } from "./faits.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { lireCaptureSurLAPI, type Image } from "./captures.ts";
+import { cuisineRetenueParLeDisjoncteur, LABEL_DU_DISJONCTEUR, lireLesIssuesDuDisjoncteur } from "./github/breaker-resume.ts";
 import { ouvrirLesGestesGitHub } from "./gestes-github-telephone.ts";
 import { clientDeLaPriorite, type EnvoiGitHub } from "./priorite.ts";
 import { FICHIER_PROJETS, lireDemande } from "./projets/demande.ts";
@@ -217,13 +218,30 @@ export function ouvrirLaLectureGitHub(options: Options) {
     if (vu !== undefined) dire("surAccueil", vu);
   };
 
+  // Le disjoncteur ouvert, lu de GitHub seul : la station publie une issue `brigade:breaker-open` quand il s'ouvre (#2138). Ouverte,
+  // elle fait dire à la cuisine qu'elle est retenue, et à sa ligne `kitchen`, en tête de `status`, « breaker OPEN » et pourquoi — d'où la bande, la ligne de « Awaiting you » et
+  // son « Resume » (alertes.ts). Une lecture qui échoue ne dit rien du disjoncteur : le rail reste tel qu'il est lu, et la
+  // lecture suivante, trente secondes après, la refait.
+  async function avecLeDisjoncteur(lu: TableauLu, lecteur: AppelGitHub): Promise<TableauLu> {
+    let issue;
+    try {
+      [issue] = await lireLesIssuesDuDisjoncteur(lecteur, lu.depot, LABEL_DU_DISJONCTEUR);
+    } catch {
+      return lu;
+    }
+    if (issue === undefined) return lu;
+    // La cuisine est « retenue » (runtime/src/etat.ts) : l'alerte du disjoncteur ne se lit que de cet état, et de la ligne `kitchen`.
+    return { ...lu, faits: { ...lu.faits, etat: "retenue" }, cuisine: { rubriques: [{ titre: "kitchen", lignes: [cuisineRetenueParLeDisjoncteur(issue, lu.luLe)] }, ...lu.cuisine.rubriques] } };
+  }
+
   // La lecture du desktop pour un projet : son rail, puis ce qui attend le chef. Ne lève pas.
   async function lireLeProjet({ depot }: ProjetDuCompte): Promise<LectureDuTableauDuDepot> {
     try {
       const lu = await lireLeTableauDuDepot({ depot, appeler, memoire: memoire(depot), maintenant });
       const lecteur = lectureConditionnelle(appeler, memoire(depot));
       // Les cartes du compte connecté, et celles d'un autre humain sous « Awaiting others », comme au desktop (#2985).
-      return await avecCeQuiAttendLeChef(lu, lecteur, partageDesCartesAssignees({ appeler: lecteur, depot, login: async () => options.compte ?? null }));
+      const lue = await avecCeQuiAttendLeChef(lu, lecteur, partageDesCartesAssignees({ appeler: lecteur, depot, login: async () => options.compte ?? null }));
+      return lue.lu ? await avecLeDisjoncteur(lue, appeler) : lue;
     } catch (erreur) {
       return { lu: false, depot, luLe: maintenant().toISOString(), raison: `The rail of ${depot} was not read from GitHub: ${ditDe(erreur)}.` };
     }

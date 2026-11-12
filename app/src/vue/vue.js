@@ -100,9 +100,9 @@ import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as
 import { garderLeClavier } from "./garder-le-clavier.js";
 import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
-import { apresRendu as apresLaValidation, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
+import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
-import { apresRendu as apresLaRevue, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
+import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
@@ -141,6 +141,7 @@ import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
 import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
 import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, progression, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
+import { poserLaDemandeDeStation, tenirLesDemandesDeStation } from "./installation-projet/installation-projet.js";
 import { poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
 import { poserRecitDuPremierTicket, tenirLeRecitDuPremierTicket } from "./recit-premier-ticket/recit-premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
@@ -324,6 +325,10 @@ const premiersTickets = tenirLesPremiersTickets({
   rediger: (nom, demande) => brigade.redigerLePremierTicket(nom, demande),
   creer: (nom, brouillon) => brigade.creerLePremierTicket(nom, brouillon),
 });
+// Un projet dont la mise en place vient de passer, qu'aucune station ne sert (ticket 3400, installation-projet/) : sa page
+// demande aussitôt laquelle le sert, cet ordinateur en tête. Rangée par « not now », la question ne revient pas.
+const sectionDeLaDemande = element("installation-projet");
+const demandesDeStation = tenirLesDemandesDeStation({ rendre: (nom) => void (courant?.nom === nom && poserLaDemandeDeStationIci()) });
 /** @type {Map<string, string>} */
 const aGuider = new Map();
 /** @type {Set<string>} */
@@ -378,6 +383,7 @@ function poserLesProjetsServisIci() {
   projetsServis.hidden = etat === undefined;
   projetsServis.replaceChildren(...(etat === undefined ? [] : [poserLesProjetsServis(document, { etat, projets: configuration.projets, ici: POSTE.nom }, servis.gestes)]));
   poserLesGroupes();
+  poserLaDemandeDeStationIci();
   // L'onglet Stations dit si cet ordinateur cuit le projet d'après cette liste (ticket 3399) : il la suit.
   reposerLOngletStations();
 }
@@ -3270,7 +3276,31 @@ function poserImage(projet, ticket, ecran, { moment, legende, livree, version })
   }
   const place = bloc("span", !livree ? "missing" : lue === undefined ? "loading…" : "not available");
   place.className = "place";
-  if (lue !== undefined && "sans" in lue) place.title = lue.sans;
+  if (lue === undefined || !("sans" in lue)) return place;
+  // Une capture qui ne se lit pas dit pourquoi en une ligne, et donne le fichier à ouvrir sur GitHub — jamais un « not available » seul.
+  place.title = lue.sans;
+  const lignes = lue.sans.split("\n").map((ligne) => ligne.trim()).filter((ligne) => ligne !== "");
+  const raison = (lignes.find((ligne) => !ligne.startsWith("$ ") && !ligne.startsWith("→")) ?? lignes[0] ?? "").slice(0, 140);
+  place.textContent = `not available — ${raison}`;
+  const lien = lue.lien;
+  if (lien !== undefined) {
+    const ouvre = /** @type {HTMLAnchorElement} */ (document.createElement("a"));
+    ouvre.href = lien;
+    ouvre.target = "_blank";
+    ouvre.rel = "noopener";
+    ouvre.textContent = "open the file on GitHub";
+    // Un clic ne remonte pas à la carte, qui s'ouvrirait en grand : il ouvre le fichier, par le process principal quand il y en a un.
+    ouvre.addEventListener("click", (clic) => {
+      clic.stopPropagation();
+      if (brigade.ouvrirLien === undefined) return;
+      clic.preventDefault();
+      // Refusé par le process principal, le lien s'ouvre par la navigation de la page plutôt que de rester mort.
+      void Promise.resolve(brigade.ouvrirLien(projet.nom, ticket, lien)).then((ouvert) => {
+        if (ouvert === false) window.open(lien, "_blank", "noopener");
+      });
+    });
+    place.append(" ", ouvre);
+  }
   return place;
 }
 
@@ -5410,7 +5440,7 @@ function poserLaRevue(projet, ticket, todo, grand) {
 /** @param {Projet} projet @param {number} ticket @param {import("./carte-sensible/carte-sensible-github.ts").GesteSensible} geste */
 async function repondreALaRevue(projet, ticket, geste) {
   const cle = `${projet.nom}#${ticket}`;
-  if (revues.get(cle)?.etape === "envoi") return;
+  if (revues.get(cle)?.etape === "envoi" || revues.get(cle)?.etape === "fait") return;
   lacherLaCarteDe(projet.nom, ticket);
   /** @param {import("./carte-sensible/carte-sensible.js").Etat} etat */
   const poser = (etat) => {
@@ -5426,14 +5456,16 @@ async function repondreALaRevue(projet, ticket, geste) {
   } catch (erreur) {
     rendu = { refus: "nothing was done: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  const suite = apresLaRevue(rendu);
-  if (suite.etape === "fait") {
-    notesDeRevue.delete(cle);
-    validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
-    if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
-  }
-  poser(suite);
-  if (suite.etape === "fait") lireLesFaits();
+  const rendue = apresLaRevue(rendu);
+  if (rendue.etape !== "fait") return poser(rendue);
+  // Fait : la carte garde un court moment la confirmation de ce qui a été fait (ticket 3386), puis quitte TODO.
+  poser({ ...rendue, geste: geste.geste });
+  await new Promise((fini) => setTimeout(fini, CONFIRMATION_REVUE_MS));
+  notesDeRevue.delete(cle);
+  validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
+  if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
+  poser(rendue);
+  lireLesFaits();
 }
 
 // Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont
@@ -5441,7 +5473,7 @@ async function repondreALaRevue(projet, ticket, geste) {
 /** @param {Projet} projet @param {number} ticket @param {import("./validation-design/validation-design-github.ts").GesteDeValidation} geste */
 async function validerLaCarte(projet, ticket, geste) {
   const cle = `${projet.nom}#${ticket}`;
-  if (validations.get(cle)?.etape === "envoi") return;
+  if (validations.get(cle)?.etape === "envoi" || validations.get(cle)?.etape === "fait") return;
   lacherLaCarteDe(projet.nom, ticket);
   /** @param {import("./validation-design/validation-design.js").Etat} etat */
   const poser = (etat) => {
@@ -5459,14 +5491,16 @@ async function validerLaCarte(projet, ticket, geste) {
   } catch (erreur) {
     rendu = { refus: "nothing was done: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  const suite = apresLaValidation(rendu);
-  if (suite.etape === "fait") {
-    commentairesDeValidation.delete(cle);
-    validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
-    if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
-  }
-  poser(suite);
-  if (suite.etape === "fait") lireLesFaits();
+  const rendue = apresLaValidation(rendu);
+  if (rendue.etape !== "fait") return poser(rendue);
+  // Fait : la carte, ou son détail, garde un court moment la confirmation de ce qui a été fait (ticket 3386), puis quitte TODO.
+  poser({ ...rendue, geste: geste.geste });
+  await new Promise((fini) => setTimeout(fini, CONFIRMATION_VALIDATION_MS));
+  commentairesDeValidation.delete(cle);
+  validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
+  if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
+  poser(rendue);
+  lireLesFaits();
 }
 
 // La carte « Validate its screen » d'un ticket, telle que la dernière lecture de son projet la porte — partie de TODO
@@ -5602,6 +5636,17 @@ function lesCartesDuChef() {
     });
   });
 }
+// Les lignes du disjoncteur ouvert, en tête de la liste (ticket 3371) : une par projet dont la dernière bande le dit ouvert, avec
+// ce que la station en écrit — écrit sous la ligne, un téléphone n'ayant pas de survol — et son « Resume » — le même que celui de TODO sur le desktop (todo-breaker-line.js). Un projet en
+// lecture seule n'a que la ligne.
+function lesLignesDuDisjoncteur() {
+  return configuration.projets.filter((projet) => seLit(projet)).flatMap((projet) => {
+    const alerte = alerteDuDisjoncteur(projet.nom);
+    if (alerte === undefined) return [];
+    const dit = configuration.projets.length > 1 ? `${projet.nom}: ${alerte.dit}` : alerte.dit;
+    return [poserLigneDuDisjoncteur(document, { marque: pastille(alerte.dit, alerte.ton), dit, ...(alerte.releve === undefined ? {} : { pourquoi: alerte.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined)];
+  });
+}
 function poserLesCartesDuChef() {
   if (cartesDuChef.hidden) return;
   const cartes = lesCartesDuChef();
@@ -5666,6 +5711,7 @@ function poserLesCartesDuChef() {
     ...poserLaListeDesCartes(document, {
       cartes,
       avis,
+      tete: lesLignesDuDisjoncteur(),
       ...(cuisent === undefined ? {} : { ailleurs: AILLEURS(cuisent) }),
       ouvrir: (carte) => {
         vueDesCartes = { vu: "carte", carte };
@@ -5725,6 +5771,7 @@ function avisDuDepot(projet, lieu) {
 /** @param {Projet} projet @param {import("./page-projet/depot-non-prepare.js").Etat} etat */
 function poserLeDepot(projet, etat) {
   depots.set(projet.nom, etat);
+  demandesDeStation.preparation(projet.nom, etat.etape);
   if (courant?.nom !== projet.nom) return;
   poserLeProjetAPreparer();
   poserAlertes(projet);
@@ -5769,6 +5816,7 @@ async function reprendreLeDisjoncteur(projet) {
   /** @param {import("./todo-breaker-line.js").Etat} etat */
   const poser = (etat) => {
     reprises.set(projet.nom, etat);
+    poserLesCartesDuChef();
     if (courant?.nom !== projet.nom) return;
     poserAlertes(projet);
     poserRail(projet);
@@ -7927,6 +7975,7 @@ function marquer() {
   lireOnglet();
   poserLaVisite();
   poserLeProjetAPreparer();
+  poserLaDemandeDeStationIci();
   poserLeRecitDuPremierTicket();
 }
 
@@ -8369,6 +8418,78 @@ async function lirePreparation(projet) {
   } finally {
     preparationsEnLecture.delete(projet.nom);
   }
+}
+
+// Une station sert le projet : celle de cet ordinateur l'a dans sa liste (projets-servis/), une station dit le servir
+// (stations/stations.ts), ses stations disent où il cuit (`cuitSur`), ou sa cuisine tourne ici. Une station à qui il est
+// seulement demandé ne le sert pas encore.
+/** @param {Projet} projet @param {string} depot @param {readonly string[]} servisIci */
+function serviParUneStation(projet, depot, servisIci) {
+  const cle = depot.toLowerCase();
+  const dit = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.cuitSur;
+  return (
+    servisIci.some((servi) => servi.toLowerCase() === cle) ||
+    (stationsVues?.stations ?? []).some(({ projets }) => projets.includes(projet.nom)) ||
+    (dit !== undefined && dit !== null) ||
+    projet.ici === true
+  );
+}
+
+// La question du ticket 3400, au-dessus du rail du projet affiché. Sa mise en place vient de passer : elle se juge dès que
+// la liste de cet ordinateur et les stations sont lues — jamais sur une lecture manquante, ni pendant que le parcours
+// pose sa propre question « qui le cuit ».
+function poserLaDemandeDeStationIci() {
+  const projet = courant;
+  const fermer = () => {
+    sectionDeLaDemande.hidden = true;
+    sectionDeLaDemande.replaceChildren();
+  };
+  if (projet === undefined || lectureSeuleDe(projet) !== undefined) return fermer();
+  const nom = projet.nom;
+  const depot = projet.depot ?? projetsVus?.projets.find((candidat) => candidat.nom === nom)?.depot;
+  const etat = demandesDeStation.de(nom);
+  if (etat === undefined || depot === undefined) return fermer();
+  const lecture = servis.etat?.lecture;
+  const servisIci = lecture !== undefined && "depots" in lecture ? lecture.depots : undefined;
+  if (etat.etape === "a-juger") {
+    const parcours = parcoursDesProjets.de(nom);
+    const questionDuParcours = parcours !== undefined && parcours.pret === undefined && parcours.station !== "ajoutee" && parcours.station !== "inutile";
+    if (servisIci === undefined || stationsVues === undefined || questionDuParcours) return fermer();
+    const servi = serviParUneStation(projet, depot, servisIci);
+    // Posée : les stations du compte se proposent après cet ordinateur — relues, la question se repose.
+    if (!servi) void lireLesEnregistrees().then(() => poserLaDemandeDeStationIci());
+    return demandesDeStation.juger(nom, servi);
+  }
+  const lues = enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
+  const choix = choixDeStation({
+    ici: servisIci !== undefined,
+    hote: POSTE.nom === CET_ORDINATEUR ? "" : POSTE.nom,
+    stations: lues?.state === "listed" ? stationsAProposer(lues.stations, depot, projetsVus?.locale) : [],
+    maintenant: Date.now(),
+  });
+  sectionDeLaDemande.replaceChildren(
+    poserLaDemandeDeStation(
+      document,
+      { depot, etat, choix },
+      {
+        // Cet ordinateur : le geste de la case de Settings (`servirUnProjet`) ; une station du compte : sa sélection.
+        choisir: async (un) => {
+          if (demandesDeStation.de(nom)?.etape === "enCours") return;
+          demandesDeStation.choisir(nom, un.cle);
+          const appairee = lues?.state === "listed" ? lues.stations.find(({ id }) => id === un.cle) : undefined;
+          const rendu = await ajouterLaStation(un.nom, () =>
+            un.cle === ICI ? servirIciLeDepot(depot)
+            : appairee === undefined ? Promise.resolve({ refus: `${un.nom} is no longer one of your stations` })
+            : choisirPourUneEnregistree(appairee.id, [...(appairee.selection ?? []), depot]),
+          );
+          demandesDeStation.choisi(nom, rendu, { nom: un.nom, ici: un.cle === ICI, absente: un.horsLigne });
+        },
+        ecarter: () => demandesDeStation.ecarter(nom),
+        fermer: () => demandesDeStation.fermer(nom),
+      },
+    ),
+  );
+  sectionDeLaDemande.hidden = false;
 }
 
 // La question posée ou levée : l'avis d'un projet pas préparé (ticket 2628) et le rail se reposent.
@@ -8951,6 +9072,8 @@ brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
   marquerSignal(projet);
   // La pastille dit la même chose que la bande, en un mot.
   marquerPastille(projet);
+  // Le disjoncteur a changé : sa ligne en tête de « Awaiting you » aussi.
+  if (JSON.stringify(disjoncteur) !== disjoncteurAvant) poserLesCartesDuChef();
   const bascule = JSON.stringify(etatsDuManager.get(projet)) !== JSON.stringify(etatDuManager);
   etatsDuManager.set(projet, etatDuManager);
   if (courant?.nom !== projet) return;
@@ -9073,6 +9196,7 @@ void Promise.resolve(brigade.statutDeLaStation?.()).then(
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;
+  poserLaDemandeDeStationIci();
   poserLesVersions();
   poserBlocStation();
   if (stationOuverte !== undefined) poserPageDeStation();

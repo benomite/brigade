@@ -27,7 +27,7 @@ import { carteDuCommentaire, type CarteDuChef } from "../src/tableau/todo-github
 import type { Terminal } from "../src/terminaux.ts";
 import { INCONNUE, jouerLaRevue, revueDuCorps, SANS_NOTE, SORTE_SENSIBLE } from "../src/vue/carte-sensible/carte-sensible-github.ts";
 import { estSensible, LABEL_SENSIBLE } from "../src/vue/carte-sensible/label.ts";
-import { CHAMP, MARQUE, MERGER, RENVOYER } from "../src/vue/carte-sensible/carte-sensible.js";
+import { CHAMP, CONFIRMATION_MS, MARQUE, MERGE, MERGER, RENVOYE, RENVOYER } from "../src/vue/carte-sensible/carte-sensible.js";
 import { avecLeRail, lireLeRailSurGithub } from "../src/vue/rail/github.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -196,12 +196,16 @@ describe("la carte « review before merge »", () => {
     assert.ok(!vue.appels.some(({ geste }) => geste === "gesteSensible"));
   });
 
-  test("« Merge » part par le pont ; fait, la carte quitte TODO aussitôt, et les faits sont relus", async () => {
+  test("« Merge » part par le pont ; fait, la carte dit « merged ✓ » puis quitte TODO, et les faits sont relus", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
     const vue = await ouvrir({ gesteSensible: () => ({ fait: "chef/parade#41 merged, card #62 closed — ticket #30 is served" }) });
     const avant = vue.appels.filter(({ geste }) => geste === "relireBox").length;
     bouton(laCarte(vue) ?? assert.fail("pas de carte"), MERGER).click();
     await repos();
     assert.deepEqual(vue.dernier("gesteSensible"), ["parade", 62, { geste: "merger" }]);
+    assert.equal(bouton(laCarte(vue) ?? assert.fail("partie sans un mot"), MERGE).disabled, true);
+    t.mock.timers.tick(CONFIRMATION_MS);
+    await repos();
     assert.equal(carteDuTicket(vue, 62), undefined, "plus dans TODO");
     assert.ok(vue.appels.filter(({ geste }) => geste === "relireBox").length > avant, "les faits sont relus");
     (vue as Jouee & { lire: () => void }).lire();
@@ -209,13 +213,17 @@ describe("la carte « review before merge »", () => {
     assert.equal(carteDuTicket(vue, 62), undefined, "la lecture qui la porte encore ne la ramène pas");
   });
 
-  test("« Send back » part avec la note ; fait, la carte quitte TODO", async () => {
+  test("« Send back » part avec la note ; fait, la carte dit « sent back ✓ » puis quitte TODO", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
     const vue = await ouvrir({ gesteSensible: () => ({ fait: "chef/parade#41 sent back" }) });
     const carte = laCarte(vue) ?? assert.fail("pas de carte");
     taper(carte, "Keep the audit log.");
     bouton(carte, RENVOYER).click();
     await repos();
     assert.deepEqual(vue.dernier("gesteSensible"), ["parade", 62, { geste: "renvoyer", note: "Keep the audit log." }]);
+    assert.equal(bouton(laCarte(vue) ?? assert.fail("partie sans un mot"), RENVOYE).disabled, true);
+    t.mock.timers.tick(CONFIRMATION_MS);
+    await repos();
     assert.equal(carteDuTicket(vue, 62), undefined);
   });
 

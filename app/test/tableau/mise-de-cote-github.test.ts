@@ -56,6 +56,13 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
     assert.deepEqual(lue, { label: "blocked-on-human", raison: "Merge PR #40 by hand? It changes what judges it.", liens: [{ numero: 40, url: "https://github.com/acme/kitchen/pull/40" }], auChef: true, pr: { numero: 40, url: "https://github.com/acme/kitchen/pull/40" }, chef: { sorte: "merge-by-hand", texte: "Merge PR #40 by hand? It changes what judges it.\n- [merge] Merge PR #40" } });
   });
 
+  test("`blocked-on-human` sans PR (#3369) : la carte du chef offre `Back to the kitchen` et `Close it`", () => {
+    const lue = miseDeCoteDe(DEPOT, "blocked-on-human", [commentaire("Station `box/claude`: blocked-on-human, the copy needs the chef's call.")]);
+    assert.equal(lue.auChef, true);
+    assert.deepEqual(lue.chef, { sorte: "hold", texte: "blocked-on-human, the copy needs the chef's call.\n- [resume] Back to the kitchen\n- [close] Close it" });
+    assert.deepEqual(miseDeCoteDe(DEPOT, "blocked-on-human", []).chef, { sorte: "hold", texte: "Lift the hold?\n- [resume] Back to the kitchen\n- [close] Close it" });
+  });
+
   test("aucun commentaire ne nomme le label — posé à la main : pas de raison, et aucun lien", () => {
     assert.deepEqual(miseDeCoteDe(DEPOT, "served-elsewhere", [commentaire("Taken by station `box/claude`."), commentaire("served-elsewheres are elsewhere")]), { label: "served-elsewhere", raison: null, liens: [], auChef: false, pr: null });
   });
