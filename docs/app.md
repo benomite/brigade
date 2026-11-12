@@ -691,7 +691,7 @@ The Stations tab of a project is **one component** (`app/src/vue/stations-tab/`)
 | A station cooks it | `Cooked by <station> · online · N cooks at work`, or `… · online · idle, nothing on the rail` | yes | `Add a station` (#3402) |
 | A move in progress | `Moving from <A> to <B>: waiting for <what>, since <HH:MM> UTC`; not done after a minute, a second line: `Not done after a minute: <what blocks it>` | no (yellow) | none |
 | The station that serves it is offline | `<station> cooks this project, but it is offline for <duration>: nothing cooks`; how to bring it back on hover | no (red) | `Move to this computer`, one click, when this computer can take it; `Add a station` (#3402) |
-| Nobody serves it | `Nobody cooks this project` | no (grey) | `Choose who cooks it`, the only button |
+| Nobody serves it | `No station cooks this project · N fire tickets waiting` — the count is the rail counter of its last reading, left out when the rail is not read | no (grey) | `Cook it on this computer` (recommended), when this computer's station does not serve it yet; then `Choose who cooks it` |
 
 Green is said only by a station that is online and cooks or waits for its next ticket — the rule of #3189 (`enLigneDe`): a
 station that takes the project's tickets, and that nothing says is out of reach. *What the move waits for* follows its
@@ -707,8 +707,12 @@ on GitHub — a station that refuses the project included, with its reason), the
 they serve it, and the stations the project declares that nothing else names yet (`not signed in yet`). Each once: a line
 of `facts` is the paired station that bears its name, or its take name (`<machine>/claude`); when the project cooks on this
 computer, its box line is this computer's station. This computer comes first. **For this computer, its station's list
-decides** (#3402): the list is read on this disk, so a project just added to it has this computer's card at once, before
-its station publishes it, and a project just removed from it has none, even while the station still publishes it. A paired station that does not serve the
+decides** (#3402, #3399): the list (Settings, `projects this Mac serves`) is read on this disk, so a project just added to
+it has this computer's card at once, before its station publishes it, and a project just removed from it has none, even
+while the station still publishes it. A kitchen that runs here for the project while it is not on that list cooks nothing
+— no card, no `Cooked by`, and the project header does not say it cooks here either. `Cook it on this computer` puts it
+on that list, by the same gesture as that Settings group, and both places then agree. While the list is not read, the
+cooking lines are taken as they are. A paired station that does not serve the
 project has no card and is named nowhere on the tab — except as the origin `A` of a move in progress; the station a move
 goes to has its card, `starting`, without gestures. Each card:
 

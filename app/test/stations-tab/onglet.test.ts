@@ -93,7 +93,7 @@ describe("l'onglet Stations : une ligne en tête, une carte par station qui sert
     assert.equal(box.children.filter((enfant) => enfant !== details).some(({ textContent }) => textContent.includes("Claude connection")), false);
   });
 
-  test("aucune station ne le sert : « Nobody cooks this project » et un seul bouton, qui ouvre le choix — cet ordinateur d'abord", async () => {
+  test("aucune station ne le sert : « No station cooks this project » et un seul bouton, qui ouvre le choix — cet ordinateur d'abord", async () => {
     const vue = await laPage([{ ...BOX, projets: [] }, MAC], vuDes({ ...SUR_LA_BOX, suiviPar: undefined, cuitSur: null, stations: [] }));
     assert.equal(phrase(vue), PERSONNE);
     assert.notEqual(haut(vue).dataset.ton, "vert");

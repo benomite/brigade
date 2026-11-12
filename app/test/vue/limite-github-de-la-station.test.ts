@@ -50,7 +50,7 @@ function cooksDe(depot: string, station: StationEnregistree, instant: number) {
   assert.ok("lus" in signes);
   const cuisson = cuissonDe(stationsDeGithub([], signes.lus, depot, instant), [], new Date(instant).toISOString());
   const servantes = servantesDe({ projet: depot, lignes: cuisson.lignes, maintenant: instant });
-  const gestes = { choisirQuiCuit() {}, deplacer() {}, versIci() {}, choisir() {}, annuler() {}, arreter() {}, confirmerArret() {}, renoncerArret() {}, basculer() {} };
+  const gestes = { choisirQuiCuit() {}, cuireIci() {}, deplacer() {}, versIci() {}, choisir() {}, annuler() {}, arreter() {}, confirmerArret() {}, renoncerArret() {}, basculer() {} };
   const vu = { projet: depot, poste: "this Mac", lues: true, haut: hautDe({ servantes, deplacement: null, maintenant: instant }), servantes, deplacable: { offert: false, pourquoi: "" }, details: new Map(), ouverts: new Set<string>() };
   return (poserLOngletDesStations(doc, vu, gestes) as Faux).dessous("section").filter(({ className }) => className === "carte-de-station");
 }
