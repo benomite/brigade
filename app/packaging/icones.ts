@@ -68,6 +68,10 @@ const entrees = tailles.map((t, i) => {
 });
 writeFileSync(join(sortie, "Brigade.ico"), Buffer.concat([tete, ...entrees, ...images]));
 writeFileSync(join(sortie, "Brigade-1024.png"), png(icone, 1024));
+// L'icône de la barre des menus et de la zone de notification (src/barre-de-menus.ts, #3269) : dans `src/`, que les
+// deux paquets livrent ; 16 px et sa version @2x, qu'Electron prend sur un écran Retina.
+writeFileSync(join(ici, "..", "src", "icones", "barre-de-menus.png"), png(icone, 16));
+writeFileSync(join(ici, "..", "src", "icones", "barre-de-menus@2x.png"), png(icone, 32));
 // L'icône du Dock sous `npm start`, avec la marge de la grille Mac.
 writeFileSync(join(sortie, "Brigade-dock-1024.png"), png(iconeMac, 1024));
 

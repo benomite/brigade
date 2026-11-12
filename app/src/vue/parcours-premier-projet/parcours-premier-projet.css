@@ -50,20 +50,32 @@ main[data-parcours] #interrupteur-projet {
 .parcours-premier-projet .hote {
   color: var(--texte-doux);
 }
-.parcours-premier-projet .au-retour,
-.pret-du-projet .au-retour {
+.parcours-premier-projet .au-retour {
   margin: 0;
   color: var(--texte-doux);
 }
-.parcours-premier-projet .gestes,
-.pret-du-projet {
+.parcours-premier-projet .gestes {
   display: flex;
   align-items: center;
   gap: var(--pas-2);
   margin: 0;
   padding: 0;
 }
-.pret-du-projet .phrase {
-  font-weight: 600;
-  color: var(--texte);
+.depart-du-projet .lignes-de-depart {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+.depart-du-projet .ligne-de-depart {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--pas-1) var(--pas-2);
+  align-items: center;
+}
+.depart-du-projet .ligne-de-depart .raison {
+  grid-column: 1 / -1;
+  color: var(--discret);
 }

@@ -34,8 +34,12 @@ const STOCKAGE: Record<string, string> = {
   sigle: FICHIER_DES_PROJETS,
   couleurs: FICHIER_DES_PROJETS,
   retrait: FICHIER_DES_PROJETS,
+  // L'état de la cuisine dans la barre des menus (#3269) : `barreDeMenus`, une préférence du chef pour toute l'app.
+  "barre-de-menus": FICHIER_DES_PROJETS,
   // Les stations contributrices que le chef refuse (#2936) : une liste que garde la station, dans son répertoire d'état.
   "stations-contributrices": STATION,
+  // Les tickets récurrents du projet (#3231) : `recurring.json`, que garde la station dans son répertoire d'état.
+  "recurrents-du-projet": STATION,
   // Les plafonds et le closer (#3014) : `drift.*` et `closer.*` de projet.json, et les vérifications en plus du closer dans
   // closer-checks.md, chacun changé par une PR ; les lignes de tous les projets n'ouvrent que leurs pages.
   "bandeau-sante": `${PROJET_JSON} and .claude/brigade/closer-checks.md`,
@@ -68,6 +72,6 @@ describe("Settings : les réglages du projet seulement", () => {
   // cette liste se vide — et que tout autre bloc hors de projet.json soit vu.
   test("les blocs qui ne sont pas encore dans projet.json sont ceux-là, et eux seuls", () => {
     const dehors = BLOCS.filter((id) => STOCKAGE[id] !== PROJET_JSON).sort();
-    assert.deepEqual(dehors, ["arreter-cuisine", "bandeau-sante", "couleurs", "retrait", "sigle", "stations-contributrices"]);
+    assert.deepEqual(dehors, ["arreter-cuisine", "bandeau-sante", "barre-de-menus", "couleurs", "recurrents-du-projet", "retrait", "sigle", "stations-contributrices"]);
   });
 });

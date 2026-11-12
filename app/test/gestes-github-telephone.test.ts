@@ -80,7 +80,8 @@ function github(panne: Panne = () => undefined) {
     if (panneLue === "injoignable") throw new Error("Unable to resolve host \"api.github.com\": No address associated with hostname");
     if (panneLue !== undefined) return panneLue;
     // Ce que le téléphone lit : le gist où une station garde les projets du chef, puis le rail et TODO de parade.
-    if (recue.methode === "GET" && recue.url.startsWith(`${API}gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(recue.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }] : [] };
+    // La trace de ce téléphone, déjà posée (#3303, telephone-connecte.ts) : la lecture n'écrit rien d'autre que le geste.
+    if (recue.methode === "GET" && recue.url.startsWith(`${API}gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(recue.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }, { id: "t1", files: { "brigade-telephone.json": { filename: "brigade-telephone.json" } } }] : [] };
     if (recue.methode === "GET" && recue.url === `${API}gists/g1`) return { status: 200, data: { id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json", content: PROJETS_DU_GIST } } } };
     const chemin = recue.url.slice(`${API}repos/${DEPOT}`.length);
     const page = Number(/[?&]page=(\d+)/.exec(chemin)?.[1] ?? "1");
