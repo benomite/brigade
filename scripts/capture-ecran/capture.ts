@@ -136,6 +136,13 @@ async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }
       await poser(`après « defiler ${etape.defiler} »`);
       continue;
     }
+    if ("survoler" in etape) {
+      // Un survol de la souris : `mouseenter` sur l'élément, comme le pointeur qui s'y pose — une bulle d'aide s'ouvre.
+      const trouves = (await evaluer(`(() => { const trouves = document.querySelectorAll(${JSON.stringify(etape.survoler)}); if (trouves.length === 1) trouves[0].dispatchEvent(new MouseEvent("mouseenter")); return trouves.length; })()`)) as number;
+      if (trouves !== 1) throw new Error(`étape « survoler ${etape.survoler} » : ${trouves} élément(s) trouvé(s), il en faut un`);
+      await poser(`après « survoler ${etape.survoler} »`);
+      continue;
+    }
     // Un clic, ou un texte tapé dans un champ — sa valeur posée, et l'`input` que la frappe déclencherait ; dans une
     // liste (`select`), une valeur choisie, et le `change` que le choix déclencherait aussi (#1739) ; `valider` : le champ
     // quitté ou validé par Entrée, son `change` aussi — un réglage s'applique là (#2920).
