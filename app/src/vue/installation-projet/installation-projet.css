@@ -1,0 +1,50 @@
+/* Un projet dont la mise en place vient de passer, qu'aucune station ne sert (ticket 3400, installation-projet/) : au-dessus
+   du rail, la question — quelle station le sert —, sa raison en une phrase, un bouton par machine, cet ordinateur en tête,
+   et « not now ». */
+#installation-projet {
+  padding: var(--pas-3) var(--pas-4) 0;
+}
+.installation-projet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  max-width: 44rem;
+  padding: var(--pas-3) var(--pas-4);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+  background: var(--carte);
+}
+.installation-projet .attendu {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  color: var(--texte);
+}
+.installation-projet .phrase {
+  margin: 0;
+  color: var(--texte);
+}
+.installation-projet .choix-de-station {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.installation-projet .choix-de-station > li {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+}
+.installation-projet .dit {
+  color: var(--discret);
+}
+.installation-projet .hote {
+  color: var(--texte-doux);
+}
+.installation-projet .gestes {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+}

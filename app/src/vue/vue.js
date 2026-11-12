@@ -141,6 +141,7 @@ import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
 import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
 import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, progression, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
+import { poserLaDemandeDeStation, tenirLesDemandesDeStation } from "./installation-projet/installation-projet.js";
 import { poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
 import { poserRecitDuPremierTicket, tenirLeRecitDuPremierTicket } from "./recit-premier-ticket/recit-premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
@@ -324,6 +325,10 @@ const premiersTickets = tenirLesPremiersTickets({
   rediger: (nom, demande) => brigade.redigerLePremierTicket(nom, demande),
   creer: (nom, brouillon) => brigade.creerLePremierTicket(nom, brouillon),
 });
+// Un projet dont la mise en place vient de passer, qu'aucune station ne sert (ticket 3400, installation-projet/) : sa page
+// demande aussitôt laquelle le sert, cet ordinateur en tête. Rangée par « not now », la question ne revient pas.
+const sectionDeLaDemande = element("installation-projet");
+const demandesDeStation = tenirLesDemandesDeStation({ rendre: (nom) => void (courant?.nom === nom && poserLaDemandeDeStationIci()) });
 /** @type {Map<string, string>} */
 const aGuider = new Map();
 /** @type {Set<string>} */
@@ -378,6 +383,7 @@ function poserLesProjetsServisIci() {
   projetsServis.hidden = etat === undefined;
   projetsServis.replaceChildren(...(etat === undefined ? [] : [poserLesProjetsServis(document, { etat, projets: configuration.projets, ici: POSTE.nom }, servis.gestes)]));
   poserLesGroupes();
+  poserLaDemandeDeStationIci();
 }
 // « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : cet ordinateur d'abord, par le
 // geste de la case de Settings — puis la liste qu'il sert se relit ; une station appairée, par celui de sa page sur
@@ -5707,6 +5713,7 @@ function avisDuDepot(projet, lieu) {
 /** @param {Projet} projet @param {import("./page-projet/depot-non-prepare.js").Etat} etat */
 function poserLeDepot(projet, etat) {
   depots.set(projet.nom, etat);
+  demandesDeStation.preparation(projet.nom, etat.etape);
   if (courant?.nom !== projet.nom) return;
   poserLeProjetAPreparer();
   poserAlertes(projet);
@@ -7908,6 +7915,7 @@ function marquer() {
   lireOnglet();
   poserLaVisite();
   poserLeProjetAPreparer();
+  poserLaDemandeDeStationIci();
   poserLeRecitDuPremierTicket();
 }
 
@@ -8350,6 +8358,78 @@ async function lirePreparation(projet) {
   } finally {
     preparationsEnLecture.delete(projet.nom);
   }
+}
+
+// Une station sert le projet : celle de cet ordinateur l'a dans sa liste (projets-servis/), une station dit le servir
+// (stations/stations.ts), ses stations disent où il cuit (`cuitSur`), ou sa cuisine tourne ici. Une station à qui il est
+// seulement demandé ne le sert pas encore.
+/** @param {Projet} projet @param {string} depot @param {readonly string[]} servisIci */
+function serviParUneStation(projet, depot, servisIci) {
+  const cle = depot.toLowerCase();
+  const dit = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.cuitSur;
+  return (
+    servisIci.some((servi) => servi.toLowerCase() === cle) ||
+    (stationsVues?.stations ?? []).some(({ projets }) => projets.includes(projet.nom)) ||
+    (dit !== undefined && dit !== null) ||
+    projet.ici === true
+  );
+}
+
+// La question du ticket 3400, au-dessus du rail du projet affiché. Sa mise en place vient de passer : elle se juge dès que
+// la liste de cet ordinateur et les stations sont lues — jamais sur une lecture manquante, ni pendant que le parcours
+// pose sa propre question « qui le cuit ».
+function poserLaDemandeDeStationIci() {
+  const projet = courant;
+  const fermer = () => {
+    sectionDeLaDemande.hidden = true;
+    sectionDeLaDemande.replaceChildren();
+  };
+  if (projet === undefined || lectureSeuleDe(projet) !== undefined) return fermer();
+  const nom = projet.nom;
+  const depot = projet.depot ?? projetsVus?.projets.find((candidat) => candidat.nom === nom)?.depot;
+  const etat = demandesDeStation.de(nom);
+  if (etat === undefined || depot === undefined) return fermer();
+  const lecture = servis.etat?.lecture;
+  const servisIci = lecture !== undefined && "depots" in lecture ? lecture.depots : undefined;
+  if (etat.etape === "a-juger") {
+    const parcours = parcoursDesProjets.de(nom);
+    const questionDuParcours = parcours !== undefined && parcours.pret === undefined && parcours.station !== "ajoutee" && parcours.station !== "inutile";
+    if (servisIci === undefined || stationsVues === undefined || questionDuParcours) return fermer();
+    const servi = serviParUneStation(projet, depot, servisIci);
+    // Posée : les stations du compte se proposent après cet ordinateur — relues, la question se repose.
+    if (!servi) void lireLesEnregistrees().then(() => poserLaDemandeDeStationIci());
+    return demandesDeStation.juger(nom, servi);
+  }
+  const lues = enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
+  const choix = choixDeStation({
+    ici: servisIci !== undefined,
+    hote: POSTE.nom === CET_ORDINATEUR ? "" : POSTE.nom,
+    stations: lues?.state === "listed" ? stationsAProposer(lues.stations, depot, projetsVus?.locale) : [],
+    maintenant: Date.now(),
+  });
+  sectionDeLaDemande.replaceChildren(
+    poserLaDemandeDeStation(
+      document,
+      { depot, etat, choix },
+      {
+        // Cet ordinateur : le geste de la case de Settings (`servirUnProjet`) ; une station du compte : sa sélection.
+        choisir: async (un) => {
+          if (demandesDeStation.de(nom)?.etape === "enCours") return;
+          demandesDeStation.choisir(nom, un.cle);
+          const appairee = lues?.state === "listed" ? lues.stations.find(({ id }) => id === un.cle) : undefined;
+          const rendu = await ajouterLaStation(un.nom, () =>
+            un.cle === ICI ? servirIciLeDepot(depot)
+            : appairee === undefined ? Promise.resolve({ refus: `${un.nom} is no longer one of your stations` })
+            : choisirPourUneEnregistree(appairee.id, [...(appairee.selection ?? []), depot]),
+          );
+          demandesDeStation.choisi(nom, rendu, { nom: un.nom, ici: un.cle === ICI, absente: un.horsLigne });
+        },
+        ecarter: () => demandesDeStation.ecarter(nom),
+        fermer: () => demandesDeStation.fermer(nom),
+      },
+    ),
+  );
+  sectionDeLaDemande.hidden = false;
 }
 
 // La question posée ou levée : l'avis d'un projet pas préparé (ticket 2628) et le rail se reposent.
@@ -9054,6 +9134,7 @@ void Promise.resolve(brigade.statutDeLaStation?.()).then(
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;
+  poserLaDemandeDeStationIci();
   poserLesVersions();
   poserBlocStation();
   if (stationOuverte !== undefined) poserPageDeStation();
