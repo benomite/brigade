@@ -1,4 +1,4 @@
-// Le rôle du second part avec l'app installée : le .dmg du Mac et l'installeur de Windows portent `src/` entier,
+// Le rôle du second part avec l'app installée : le .dmg du Mac, l'installeur de Windows et l'AppImage Linux portent `src/` entier,
 // donc `src/second/role.md`, là où le lancement du second le cherche (second/lancement.ts). L'app n'est pas une
 // archive asar : `claude` lit ce fichier comme n'importe quel autre.
 import assert from "node:assert/strict";
@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { test, type TestContext } from "node:test";
 import { APP, assembler as assemblerPourMac } from "../../packaging/construire.ts";
+import { assembler as assemblerPourLinux } from "../../packaging/linux.ts";
 import { assembler as assemblerPourWindows } from "../../packaging/windows.ts";
 import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
 import { PAQUETS } from "../aides/posix.ts";
@@ -62,4 +63,25 @@ test("l'app installée par l'installeur de Windows porte le rôle du second, tel
   const installee = assemblerPourWindows({ version: "1.0.0", electron: join(racine, "electron"), node: join(racine, "node.exe") }, join(racine, "Brigade"));
 
   assert.equal(readFileSync(join(installee, "resources", "app", DANS_L_APP), "utf8"), readFileSync(ROLE_DU_SECOND, "utf8"));
+});
+
+test("l'AppImage Linux porte le rôle du second, tel qu'il est dans le dépôt", (t) => {
+  const racine = dossier(t);
+  mkdirSync(join(racine, "electron", "resources"), { recursive: true });
+  // Un ELF x86-64 : son en-tête suffit.
+  const elf = Buffer.alloc(64);
+  elf.write("\x7fELF", 0, "latin1");
+  elf[4] = 2;
+  elf[5] = 1;
+  elf.writeUInt16LE(0x3e, 18);
+  writeFileSync(join(racine, "electron", "electron"), elf);
+  writeFileSync(join(racine, "node"), elf);
+  writeFileSync(join(racine, "pty.node"), elf);
+
+  const appdir = assemblerPourLinux(
+    { version: "1.0.0", electron: join(racine, "electron"), node: join(racine, "node"), pty: join(racine, "pty.node"), executer: () => assert.fail("node-pty is given, nothing is compiled") },
+    join(racine, "Brigade.AppDir"),
+  );
+
+  assert.equal(readFileSync(join(appdir, "resources", "app", DANS_L_APP), "utf8"), readFileSync(ROLE_DU_SECOND, "utf8"));
 });

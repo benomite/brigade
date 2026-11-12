@@ -2,12 +2,15 @@
 //
 //   node scripts/app-release/paquets.ts notes --produit app|station --version <v> [--signe] [--commit <sha>]
 //   node scripts/app-release/paquets.ts renommer --version <v> --dossier <dir>
+//   node scripts/app-release/paquets.ts fichiers --version <v> [--plateforme Mac|Windows|Linux|Android] [--signe]
 //
 // `notes` writes the release notes (Markdown) on stdout: one table, a row per package, with its
 // platform and the steps to open it when it is unsigned. Without `--commit` it is a dry run on
 // no particular commit; nothing is published either way. `renommer` gives the files that the
 // builds wrote (`Brigade-<v>-arm64.dmg`, …) the names the release carries, which include the
-// platform, and rewrites the names inside `latest-mac.yml` and `latest.yml` to match.
+// platform, and rewrites the names inside `latest-mac.yml` and `latest.yml` to match. `fichiers`
+// prints the release names of the app's packages, one per line: `app-release-linux` uploads the
+// Linux one by that name.
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -26,7 +29,8 @@ export type Paquet = {
   ouverture: string;
 };
 
-// The three unsigned-app instructions, worded as #1525 words them in the app's banner.
+// The unsigned-app instructions, worded as #1525 words them in the app's banner. The Linux one is
+// the station's install script; the app's AppImage has its own (`ouvertureAppImage`).
 export const OUVERTURE: Record<Plateforme, string> = {
   Mac: "Gatekeeper blocks it: right-click Brigade in Applications, choose Open, then Open again. On macOS 15 and later, open System Settings > Privacy & Security and click Open Anyway.",
   Windows: "SmartScreen warns about an unknown app: click More info, then Run anyway.",
@@ -34,10 +38,17 @@ export const OUVERTURE: Record<Plateforme, string> = {
   Android: "Allow your browser or file manager to install unknown apps when Android asks, then open the file. It is signed with a debug key.",
 };
 
+// The AppImage is never signed: its row applies to both paths.
+export const ouvertureAppImage = (nom: string) =>
+  `Make it executable, \`chmod +x ${nom}\`, then run it. Where FUSE is missing, run it with \`--appimage-extract-and-run\`.`;
+
 export function paquetsDeLApp(version: string, signe: boolean): Paquet[] {
+  // Built by app/packaging/linux.ts under its release name, attached by app-release-linux.
+  const appImage = `brigade-${version}-linux-x64.AppImage`;
   return [
     { construit: `Brigade-${version}-arm64.dmg`, nom: `Brigade-${version}-mac-arm64.dmg`, plateforme: "Mac", quoi: "App, Apple silicon", ouverture: OUVERTURE.Mac },
     { construit: `Brigade-${version}-x64-setup.exe`, nom: `Brigade-${version}-windows-x64-setup.exe`, plateforme: "Windows", quoi: "App, installer", ouverture: OUVERTURE.Windows },
+    { construit: appImage, nom: appImage, plateforme: "Linux", quoi: "App, AppImage (x64)", ouverture: ouvertureAppImage(appImage) },
     // The only .apk is unsigned (debug key): the signed path builds none.
     ...(signe ? [] : [{ construit: `Brigade-${version}.apk`, nom: `Brigade-${version}-android.apk`, plateforme: "Android" as const, quoi: "App", ouverture: OUVERTURE.Android }]),
   ];
@@ -72,7 +83,7 @@ export function notes({ produit, version, signe, commit }: OptionsNotes): string
     produit === "station"
       ? "The station is a Linux package, and a runtime for macOS and for Windows, each set up by its install script: nothing is signed by an app store, so there is no warning to click through."
       : signe
-        ? "These builds are signed: the Mac app is notarized and the Windows installer is signed, so they open without a warning. The steps below only apply to an unsigned build."
+        ? "These builds are signed: the Mac app is notarized and the Windows installer is signed, so they open without a warning. The steps below only apply to an unsigned build, and to the Linux AppImage, which is not signed."
         : "These builds are unsigned: the first time you open one, your system warns you. Follow the steps of its row.";
   const lignes = [
     `${titre}${origine}.`,
@@ -108,6 +119,15 @@ export function renommer(dossier: string, version: string): string[] {
   return renommes;
 }
 
+// The release names of the app's packages, for one platform or all.
+export function fichiers(version: string, signe: boolean, plateforme?: Plateforme): string[] {
+  return paquetsDeLApp(version, signe)
+    .filter((p) => plateforme === undefined || p.plateforme === plateforme)
+    .map((p) => p.nom);
+}
+
+const PLATEFORMES: readonly string[] = ["Mac", "Windows", "Linux", "Android"] satisfies Plateforme[];
+
 function option(args: string[], nom: string): string | undefined {
   const i = args.indexOf(nom);
   return i === -1 ? undefined : args[i + 1];
@@ -116,7 +136,9 @@ function option(args: string[], nom: string): string | undefined {
 if (import.meta.main) {
   const [commande, ...args] = process.argv.slice(2);
   const usage = () => {
-    console.error("usage: paquets.ts notes --produit app|station --version <v> [--signe] [--commit <sha>]\n       paquets.ts renommer --version <v> --dossier <dir>");
+    console.error(
+      "usage: paquets.ts notes --produit app|station --version <v> [--signe] [--commit <sha>]\n       paquets.ts renommer --version <v> --dossier <dir>\n       paquets.ts fichiers --version <v> [--plateforme Mac|Windows|Linux|Android] [--signe]",
+    );
     process.exit(2);
   };
   const version = option(args, "--version");
@@ -129,5 +151,9 @@ if (import.meta.main) {
     const dossier = option(args, "--dossier");
     if (dossier === undefined) usage();
     for (const nom of renommer(dossier as string, version as string)) console.log(`renamed to ${nom}`);
+  } else if (commande === "fichiers") {
+    const plateforme = option(args, "--plateforme");
+    if (plateforme !== undefined && !PLATEFORMES.includes(plateforme)) usage();
+    for (const nom of fichiers(version as string, args.includes("--signe"), plateforme as Plateforme | undefined)) console.log(nom);
   } else usage();
 }
