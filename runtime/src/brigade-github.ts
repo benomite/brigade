@@ -32,7 +32,7 @@ import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-ser
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
 import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
 import { lireLeGeste, poserLaCarteDeLaStation } from "./carte-station/carte-station.ts";
-import { faireLesGestesGitHub, lireLesGestesGitHub } from "./geste-station/geste-station.ts";
+import { faireLesGestesGitHub, lireLesGestesDuManager } from "./geste-station/geste-station.ts";
 import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis, MARQUE_DE_DECISION, MARQUE_DE_REPONSE, REPONSES_AVANT_DECISION, sectionDeLaDecision, type ConsulterLeManager, type ReponseDuManager } from "./blocage-au-manager.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
@@ -808,10 +808,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped, blocked on a gesture to ${geste.sorte === "install" ? "install something" : geste.sorte === "service" ? "start a service" : "create or migrate a database"}. Nothing here is for the chef: ${suite}.\n\nThe ticket waits until ${new Date(reprise).toISOString()}, then a cook resumes it from its branch. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
       return "liberee";
     }
-    // Un geste sur GitHub que la station fait elle-même : jamais une carte (#3136).
-    const gestesGitHub = avis.issue === "geste" ? lireLesGestesGitHub(avis.geste, options.depotServi ?? null) : null;
+    // Un geste sur GitHub que la station fait elle-même : jamais une carte
+    // (#3136). Qu'elle ne peut pas faire tel quel — un gabarit, une commande
+    // illisible —, le ticket dit pourquoi, sur le chemin d'échec (#3374).
+    const gestesGitHub = avis.issue === "geste" ? lireLesGestesDuManager(avis, options.depotServi ?? null) : null;
     if (gestesGitHub !== null) {
-      const fait = await faireLesGestesGitHub(github, { station: nom, ticket: issue, gestes: gestesGitHub });
+      if ("refus" in gestesGitHub) return { echec: `the cook asked for a GitHub gesture the station makes, and the station could not make it: ${gestesGitHub.refus}` };
+      const fait = await faireLesGestesGitHub(github, { station: nom, ticket: issue, gestes: gestesGitHub.gestes });
       if ("echec" in fait) return { echec: fait.echec };
       avertir(`brigade : #${issue} sur ${nom} — the cook asked for a GitHub gesture: the station made it (${fait.fait.join(" ")}), the ticket goes back to a cook`);
       return "liberee";

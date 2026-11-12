@@ -16,10 +16,21 @@
 // Un appel GitHub qui échoue n'est pas avalé : la station rend l'échec avec
 // l'erreur, que son chemin d'échec écrit sur le ticket — jamais une carte qui
 // demande au chef de lancer la commande à la main.
+//
+// Le 2026-11-12, le cook de #3228 a demandé cinq issues de suivi : le manager a
+// écrit une commande gabarit (`--title "<title>" --body "<body>"`), la station
+// a ouvert une seule issue, titrée `<title>` ; puis « lance `gh issue create`
+// cinq fois » est allé au chef (#3374). Les issues que le cook demande, le
+// manager les liste (`issues_a_ouvrir`) : la station les ouvre toutes, avec
+// les titres et les corps du cook, et poste une ligne `#<numéro> = <ce qu'elle
+// suit>` par issue. Un gabarit, ou un geste GitHub que la station fait mais
+// qu'elle ne sait pas lire, n'ouvre rien et ne va pas au chef : le ticket dit
+// pourquoi en une ligne, sur le chemin d'échec.
+import type { Avis } from "../blocage-au-manager.ts";
 import { A_LA_MAIN, type GitHubDuTour } from "../brigade-github.ts";
 
 export type GesteGitHub =
-  | { sorte: "issue"; titre: string; corps: string; labels: string[] }
+  | { sorte: "issue"; titre: string; corps: string; labels: string[]; suit?: string }
   | { sorte: "commentaire"; numero: number; corps: string }
   | { sorte: "labels"; numero: number; poser: string[]; retirer: string[] }
   | { sorte: "relance"; run: number };
@@ -144,11 +155,67 @@ function lireLaCommande(commande: string, depot: string | null): GesteGitHub | n
 // un geste que la station fait : le geste entier reste alors au chef, comme
 // avant — la station n'en fait pas la moitié.
 export function lireLesGestesGitHub(geste: string, depot: string | null = null): GesteGitHub[] | null {
-  const citees = [...geste.matchAll(/`(gh\s[^`]*)`/g)].map((lu) => (lu[1] as string).trim());
-  const commandes = citees.length > 0 ? citees : [/^(?:run\s+)?(gh\s.*?)\.?$/is.exec(geste.trim())?.[1] ?? ""].filter((c) => c !== "");
+  const commandes = commandesDuGeste(geste);
   if (commandes.length === 0) return null;
   const lus = commandes.map((commande) => lireLaCommande(commande, depot));
   return lus.every((lu): lu is GesteGitHub => lu !== null) ? lus : null;
+}
+
+function commandesDuGeste(geste: string): string[] {
+  const citees = [...geste.matchAll(/`(gh\s[^`]*)`/g)].map((lu) => (lu[1] as string).trim());
+  return citees.length > 0 ? citees : [/^(?:run\s+)?(gh\s.*?)\.?$/is.exec(geste.trim())?.[1] ?? ""].filter((c) => c !== "");
+}
+
+// Un gabarit à la place d'une valeur : `<title>`, `<body>`, `...`.
+const gabarit = (valeur: string) => /^(?:<[^<>\n]{1,40}>|\.{3}|…)$/.test(valeur.trim());
+
+// Le geste ne nomme que des commandes `gh` d'une sorte que la station fait, sur
+// le dépôt servi — même illisibles : rien n'y est pour le chef.
+function gesteDeLaStation(geste: string, depot: string | null): boolean {
+  const commandes = commandesDuGeste(geste);
+  return (
+    commandes.length > 0 &&
+    commandes.every((commande) => {
+      if (!/^gh\s+(?:issue\s+create|(?:issue|pr)\s+(?:comment|edit)|run\s+rerun)\b/.test(commande)) return false;
+      const vise = /(?:^|\s)(?:-R|--repo)(?:=|\s+)["']?([^\s"']+)/.exec(commande)?.[1];
+      return vise === undefined || (depot !== null && vise.toLowerCase() === depot.toLowerCase());
+    })
+  );
+}
+
+// Pourquoi une issue à ouvrir ne l'est pas, ou null : `rang` la nomme.
+function issueRefusee({ titre, corps }: { titre: string; corps: string }, rang: string, corpsExige: boolean): string | null {
+  if (titre.trim() === "") return `${rang} has no title`;
+  if (gabarit(titre)) return `the title of ${rang} is the placeholder “${titre.trim()}”, not the cook's title`;
+  if (corpsExige && corps.trim() === "") return `${rang} (“${titre.trim()}”) has no body`;
+  if (gabarit(corps)) return `the body of ${rang} (“${titre.trim()}”) is the placeholder “${corps.trim()}”, not the cook's content`;
+  return null;
+}
+
+// Les gestes GitHub que l'avis `geste` du manager demande à la station : les
+// issues qu'il a listées pour le cook, ou ses commandes `gh`. `refus` : un
+// geste que la station fait, mais qu'elle ne peut pas faire tel quel — un
+// gabarit, une commande illisible — ; rien n'est fait, et pourquoi tient en une
+// ligne. Null : aucun geste de la station, la carte reste au chef.
+export function lireLesGestesDuManager(avis: Extract<Avis, { issue: "geste" }>, depot: string | null = null): { gestes: GesteGitHub[] } | { refus: string } | null {
+  const demandees = avis.issues ?? [];
+  if (demandees.length > 0) {
+    for (const [rang, issue] of demandees.entries()) {
+      const refus = issueRefusee(issue, `follow-up issue ${rang + 1} of ${demandees.length}`, true);
+      if (refus !== null) return { refus };
+    }
+    return { gestes: demandees.map(({ titre, corps, labels, suit }) => ({ sorte: "issue", titre, corps, labels, suit: suit === "" ? titre : suit })) };
+  }
+  const gestes = lireLesGestesGitHub(avis.geste, depot);
+  if (gestes !== null) {
+    for (const geste of gestes) {
+      const refus = geste.sorte === "issue" ? issueRefusee(geste, "the issue to open", false) : null;
+      if (refus !== null) return { refus };
+    }
+    return { gestes };
+  }
+  if (gesteDeLaStation(avis.geste, depot)) return { refus: `the manager named a GitHub gesture the station makes, but not as commands it can run whole, with their real values: ${avis.geste}` };
+  return null;
 }
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -157,7 +224,7 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 async function faire(github: GitHubDuGeste, geste: GesteGitHub): Promise<string> {
   if (geste.sorte === "issue") {
     const ouverte = await github.creerIssue({ titre: geste.titre, corps: geste.corps, labels: geste.labels });
-    return `Issue #${ouverte} is open: “${geste.titre}”.`;
+    return `#${ouverte} = ${geste.suit ?? geste.titre}`;
   }
   if (geste.sorte === "commentaire") {
     await github.commenter(geste.numero, geste.corps);
