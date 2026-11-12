@@ -63,6 +63,7 @@ import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts"
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
+import { apkLink } from "./mise-a-jour/android.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { voir as voirManager } from "./manager.ts";
@@ -1328,6 +1329,22 @@ ipcMain.handle("ouvrirLaPage", (_, url: unknown) => {
     () => true,
     () => false,
   );
+});
+// Le lien de l'app Android que l'offre du téléphone montre (#3303, mise-a-jour/android.ts) : l'`apkUrl` de la dernière
+// version publiée, ou la page des versions s'il ne se lit pas — et lui seul, ensuite, s'ouvre par `ouvrirLaPage`.
+ipcMain.handle("lienDeLApk", async () => {
+  const lien = await apkLink();
+  pagesDuPremier.add(lien);
+  return lien;
+});
+// Un téléphone déjà connecté au compte GitHub de cet ordinateur (#3303, telephone-connecte.ts) : la trace que l'app
+// Android pose dans un gist, lue par le `gh` du poste. `illisible` quand la liste ne se lit pas : l'offre ne se montre pas.
+ipcMain.handle("telephoneConnecte", async (): Promise<{ connecte: boolean } | { illisible: string }> => {
+  try {
+    return { connecte: (await githubDesStations({ gh: ghIci, delaiMs: 30_000 }).telephone?.()) === true };
+  } catch (erreur) {
+    return { illisible: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
 });
 // Le projet d'essai du premier lancement (#3227, runtime/src/essai-projet/) : l'instant du premier lancement, noté
 // une fois ; le dépôt privé créé sur le compte du `gh` de cet ordinateur avec un seul ticket prêt à cuire ; son service lu

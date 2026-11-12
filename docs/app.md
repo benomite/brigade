@@ -1823,6 +1823,38 @@ and keeps asking through a lost network until the code expires. On the desktop, 
 `app/src/vue/connexion-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
 `telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
 
+### Right after the first served ticket: the phone offer (#3303)
+
+On the page of the chef's **first project** — of the projects read, the one whose station records the earliest add
+(`delai.ajouteLe`, #1401) —, once its first ticket is served, a line under *First ticket served …* says **Brigade can
+call you on your phone when it needs you**, with `set up my phone` (recommended) and `no thanks`. It is not shown on
+another project, before that ticket is served, on the phone itself, or when a phone is already signed in.
+
+- **`set up my phone`** shows, in the same line, `download the Android app` and *Sign in with the same GitHub account*:
+  there is no pairing code since #2500, the phone signs in to the same GitHub account. The link is the `apkUrl` of
+  `latest-android.json` (`apkLink`, `app/src/mise-a-jour/android.ts`), read by the main process whatever version runs;
+  when the manifest cannot be read, it is the releases page, `https://github.com/benomite/brigade/releases`. Nothing
+  goes through Settings.
+- **`no thanks`**, or following the link, hides the offer for good: the choice is kept in the view's storage
+  (`localStorage`, key `brigade.offre-telephone`). A storage that cannot be read does not show the offer, so that a
+  refusal is never forgotten.
+- **A phone already signed in hides it.** Once signed in, the Android app leaves a trace on the chef's GitHub account:
+  a secret gist, described `brigade — phone`, holding `brigade-telephone.json`
+  (`{ "brigade": "telephone", "format": 1, "connecteLe": "<ISO>" }`, `app/src/telephone-connecte.ts`). It writes it
+  once, after its first list of gists read, only if no gist of the account holds that file; a write that fails is
+  retried at its next read. The desktop reads the account's gists for that file with its own `gh`
+  (`telephoneConnecte`, `app/src/stations/github.ts`) before showing the offer. Until that read says no phone is signed
+  in — not read yet, or unreadable —, the offer is not shown; an answer other than "signed in" is read again after
+  5 minutes, so a phone signed in while the offer shows takes it away. A phone signed in with an app older than this
+  trace leaves none until it is updated.
+- **Pairing stays where it is**: on the phone, its *sign in with GitHub* screen (#2500). The desktop has no other
+  pairing entry; declining the offer changes nothing there.
+
+*Code: `app/src/vue/offre-telephone/offre-telephone.js`, its wiring in `app/src/vue/vue.js`, `app/src/main.ts`
+(`lienDeLApk`, `telephoneConnecte`) and `app/src/preload.cjs`; the trace in `app/src/telephone-connecte.ts`, posed by
+`app/src/lecture-github-telephone.ts`. Tests: `app/test/vue/offre-telephone.test.ts`, `app/test/telephone-connecte.test.ts`,
+`app/test/stations/stations.test.ts`, `app/test/mise-a-jour/android.test.ts`. Captures: `docs/captures/3303/`.*
+
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
 Signed in, **the phone reads the chef's projects, each project's rail and its TODO on GitHub alone** — no station is
