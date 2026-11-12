@@ -59,6 +59,13 @@ none was sent back for a conflict. Two tickets that write one shared file outsid
 together; if the second delivered comes back in conflict, the pass first updates its branch itself (#2726),
 then sends it back for the conflict.
 
+**The cook merges the base before delivering** (#3360). Its instructions ask it, just before its final
+gates, to fetch `origin/<base>` and merge it into its branch (a merge, never a rebase: a sent-back branch
+is already pushed under its PR), to resolve the conflicts itself and to commit the merge. A conflict
+with a PR merged while it cooked is resolved by that cook, instead of reaching the pass, where only a new
+cook could resolve it.
+*Code: `consigneDeLaBase`, `runtime/src/claude.ts`.*
+
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
 
