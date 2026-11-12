@@ -9220,7 +9220,9 @@ function afficher() {
     "Your projects are the ones from before, and nothing is closed. The app re-reads it as soon as it changes.",
   ].join("\n");
   // La barre est reposée : les faits d'avant répondaient à une autre liste, ils sont relus.
-  tenus.clear();
+  // Un rail déjà lu ne se vide jamais (ticket 3337) : sa dernière lecture reste à l'écran pendant la relecture, seuls les
+  // projets qui ont quitté la liste perdent la leur. Sans lecture avant, « first read in progress » ne vaut qu'une fois.
+  for (const nom of [...tenus.keys()]) if (!configuration.projets.some((projet) => projet.nom === nom)) tenus.delete(nom);
   muets.clear();
   pastilles.clear();
   signalees.clear();

@@ -137,6 +137,23 @@ describe("une lecture ratée ne vide aucune colonne (#2151)", () => {
   });
 });
 
+describe("un rail lu ne se vide jamais pendant qu'une relecture se fait (#3337)", () => {
+  test("le fichier des projets relu garde le rail à l'écran : jamais « first read in progress », et la lecture qui suit le remplace", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, lu(FAITS, 0));
+    const lus = contenu(vue);
+    assert.ok(lus.flatMap(([, tickets]) => tickets ?? []).length === 2, JSON.stringify(lus));
+
+    vue.dire("surConfiguration", demarrage(true)().configuration, []);
+    await repos();
+    assert.deepEqual(contenu(vue), lus);
+    assert.doesNotMatch(vue.element("rail").textContent, /first read/);
+
+    recevoir(vue, lu(ARRIVE, 4));
+    assert.ok(carteDuTicket(vue, 30) !== undefined);
+  });
+});
+
 describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () => {
   test("une lecture qui arrive pendant qu'il tape ne retire, ne redessine ni ne déplace la carte : la même, son texte dedans ; le clavier parti, la lecture est posée", async () => {
     const vue = await ouvrir();
