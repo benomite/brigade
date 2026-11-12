@@ -102,6 +102,7 @@ import { affichageNeuf, poserDetailDeValidation } from "./validation-design/deta
 import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { apresRendu as apresLaRevue, CHAMP_DE_LA_NOTE, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
+import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { poserLesAutres } from "./todo/autres.js";
@@ -2965,6 +2966,12 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     const duChef = carteDeReponse(document, { sorte: carte.chef.sorte, source: "github" });
     duChef.append(detailsDeCarte(document, carte.chef.texte));
     bon.append(duChef);
+  }
+  // Toute autre carte qui t'attend — ni carte de TODO, ni carte mise de côté, qui a la sienne — finit par « ask the second »
+  // comme les autres (ticket 3363) : un geste du chef que la carte ne rend pas en carte de TODO se passe au second d'un clic.
+  if (attendu && carte.todo === undefined && carte.refus === undefined) {
+    const second = demandesAuSecond.get(cleDuBon);
+    bon.append(rangeeDuSecond(document, ticket, second, () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, null))));
   }
   // La file ne dit pas tout : un repère discret, le détail est dans la fiche.
   if (carte.repere === true) {
