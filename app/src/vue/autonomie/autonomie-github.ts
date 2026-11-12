@@ -14,12 +14,12 @@ import { lireLesServisSurLaFenetre, toutesLesPages } from "../rail/github.ts";
 const JOUR_MS = 24 * 3600 * 1000;
 // Les lectures d'issues en vol à la fois, par dépôt.
 const EN_PARALLELE = 6;
-// Les pages de PR fermées lues au plus : 10 000 PR. Au-delà, la lecture s'arrête et le dit (#3379).
+// Les pages de PR fermées lues au plus : 10 000 PR. Au-delà, la lecture s'arrête et le dit.
 const PAGES_DE_PR_AU_PLUS = 100;
 
 // Un ticket servi avec un humain, nommé avec son projet.
 export type ServiAvecHumain = ChiffresDAutonomie["avecHumain"][number] & { projet: string };
-// Un dépôt lu en partie (#3379) : ses tickets ne sont lus que depuis cet instant, et pourquoi la lecture s'est arrêtée.
+// Un dépôt lu en partie : ses tickets ne sont lus que depuis cet instant, et pourquoi la lecture s'est arrêtée.
 export type Partiel = { depuis: string; raison: string };
 // Ce que GitHub tient d'un dépôt, et jusqu'où on l'a lu : `partiel` est null quand la plus longue période est entière.
 export type DonneesLues = DonneesDuDepot & { partiel: Partiel | null };
@@ -30,7 +30,7 @@ export type LectureDAutonomie = { jours: number; chiffres: Omit<ChiffresDAutonom
 export const SANS_LECTURE = "Autonomy figures not reached.";
 
 // Les issues déjà lues d'un dépôt, par ticket, avec l'instant de merge pour lequel on les a lues : un ticket servi ne se
-// relit pas (#3379).
+// relit pas.
 export type IssuesLues = Map<number, { livre: string; evenements: unknown[]; commentaires: unknown[] }>;
 
 // Ce que GitHub tient d'un dépôt pour ses chiffres, sur la plus longue période offerte. Une lecture que GitHub arrête (quota,
@@ -84,7 +84,7 @@ export async function lireLAutonomieDuDepot(options: { depot: string; appeler: A
 }
 
 // Les chiffres d'un ou de plusieurs projets, chaque dépôt lu au plus une fois par `fraicheurMs` ; deux demandes du même
-// dépôt pendant sa lecture attendent la même. Les issues déjà lues d'un dépôt se gardent au-delà (`lues`, #3379) : une
+// dépôt pendant sa lecture attendent la même. Les issues déjà lues d'un dépôt se gardent au-delà (`lues`) : une
 // relecture ne dépense que les PR et les tickets servis depuis. Une lecture partielle ne se garde pas : la suivante la refait.
 export function tenirLAutonomie(options: { lire: (depot: string, lues: IssuesLues) => Promise<DonneesLues>; fraicheurMs: number; maintenant?: () => Date }) {
   const { lire, fraicheurMs, maintenant = () => new Date() } = options;

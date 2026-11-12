@@ -109,7 +109,7 @@ export function tenirLesChiffresDAutonomie(doc, { lire, ouvrir, tous = false, ma
     const { chiffres, manquants, partiels } = lecture;
     const contenu = doc.createElement("div");
     contenu.className = "corps";
-    // Des chiffres sur une période lue en partie le disent avant tout, avec la part qu'ils couvrent (#3379).
+    // Des chiffres sur une période lue en partie le disent avant tout, avec la part qu'ils couvrent.
     if (partiels.length > 0) {
       contenu.append(ligneErreur(doc, PARTIEL(jours, partiels), partiels.map(({ projet, raison }) => `${projet}: ${raison}`).join("\n"), { classe: "partiels" }));
     }

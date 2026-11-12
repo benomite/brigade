@@ -84,7 +84,7 @@ export async function lireLesServis(lire: (chemin: string) => Promise<unknown>, 
   return (await lireLesServisParPages(lire, depot, maintenant, fenetreMs, 10, false)).servis;
 }
 
-// La même lecture, pour une fenêtre longue (#3379) : jusqu'à `pagesMax` pages, et sans lever quand elle s'arrête avant
+// La même lecture, pour une fenêtre longue : jusqu'à `pagesMax` pages, et sans lever quand elle s'arrête avant
 // d'avoir couvert la fenêtre — plafond atteint, ou page qui ne se lit pas après la première. `couvertDepuis` dit alors
 // l'instant jusqu'où les PR sont toutes lues (les pages sont triées par mise à jour, et une PR est mise à jour au moins
 // à son merge : toute PR mergée après la dernière mise à jour lue l'a été) ; null quand la fenêtre est entière.
