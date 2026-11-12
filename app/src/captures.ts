@@ -84,17 +84,34 @@ const sans = (adresse: string, pourquoi: string): Image => {
   const lien = lienDeLaCapture(adresse);
   return lien === undefined ? { sans: pourquoi } : { sans: pourquoi, lien };
 };
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+const SHA_BLOB = /^[0-9a-f]{40,64}$/;
 export async function lireCapture(reglages: Reglages, adresse: string): Promise<Image> {
   const lue = lireAdresse(adresse);
   if (lue === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
-  const args = ["api", `repos/${lue.depot}/contents/${lue.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${lue.sha}`, "--jq", ".content"];
-  const rendu = await lancer(reglages, args);
-  const { erreur } = rendu;
-  if (erreur !== null) return sans(adresse, echec(reglages, args, { ...rendu, erreur }));
-  const contenu = rendu.sortie.replace(/\s+/g, "");
-  // Au-delà d'un mégaoctet, GitHub ne rend pas le contenu d'un fichier : il est vide.
-  if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return sans(adresse, `$ ${reglages.gh} ${args.join(" ")} — its output is not the file's content`);
-  return { image: `data:image/png;base64,${contenu}` };
+  const fichier = `repos/${lue.depot}/contents/${lue.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${lue.sha}`;
+  const lire = (chemin: string, jq: string) => {
+    const args = ["api", chemin, "--jq", jq];
+    return lancer(reglages, args).then((rendu) => ({ args, rendu }));
+  };
+  const premiere = await lire(fichier, ".content");
+  if (premiere.rendu.erreur !== null) return sans(adresse, echec(reglages, premiere.args, { ...premiere.rendu, erreur: premiere.rendu.erreur }));
+  const contenu = premiere.rendu.sortie.replace(/\s+/g, "");
+  if (contenu !== "" && BASE64.test(contenu)) return { image: `data:image/png;base64,${contenu}` };
+  // Au-delà d'un mégaoctet, l'API des fichiers ne rend pas le contenu : il est vide. Le fichier se lit alors par son blob, qui le rend jusqu'à 100 Mo.
+  if (contenu === "") {
+    const empreinte = await lire(fichier, ".sha");
+    if (empreinte.rendu.erreur !== null) return sans(adresse, echec(reglages, empreinte.args, { ...empreinte.rendu, erreur: empreinte.rendu.erreur }));
+    const sha = empreinte.rendu.sortie.trim();
+    if (SHA_BLOB.test(sha)) {
+      const blob = await lire(`repos/${lue.depot}/git/blobs/${sha}`, ".content");
+      if (blob.rendu.erreur !== null) return sans(adresse, echec(reglages, blob.args, { ...blob.rendu, erreur: blob.rendu.erreur }));
+      const gros = blob.rendu.sortie.replace(/\s+/g, "");
+      if (gros !== "" && BASE64.test(gros)) return { image: `data:image/png;base64,${gros}` };
+      return sans(adresse, `$ ${reglages.gh} ${blob.args.join(" ")} — its output is not the file's content`);
+    }
+  }
+  return sans(adresse, `$ ${reglages.gh} ${premiere.args.join(" ")} — its output is not the file's content`);
 }
 
 // La même image, lue sur l'API de GitHub par le `GET` de la lecture du téléphone (lecture-github-telephone.ts), qui ne
@@ -110,9 +127,23 @@ export async function lireCaptureSurLAPI(appeler: AppelGitHub, adresse: string):
     return sans(adresse, `GitHub did not answer for this screenshot: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
   if (rendu.status !== 200) return sans(adresse, refusDe("the reading of this screenshot", rendu).message);
-  const brut = typeof rendu.data === "object" && rendu.data !== null ? (rendu.data as Record<string, unknown>).content : undefined;
-  const contenu = typeof brut === "string" ? brut.replace(/\s+/g, "") : "";
-  // Au-delà d'un mégaoctet, GitHub ne rend pas le contenu d'un fichier : il est vide.
-  if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return sans(adresse, `GET ${chemin} — its answer is not the file's content`);
-  return { image: `data:image/png;base64,${contenu}` };
+  const donnees = typeof rendu.data === "object" && rendu.data !== null ? (rendu.data as Record<string, unknown>) : {};
+  const contenu = typeof donnees.content === "string" ? donnees.content.replace(/\s+/g, "") : "";
+  if (contenu !== "" && BASE64.test(contenu)) return { image: `data:image/png;base64,${contenu}` };
+  // Au-delà d'un mégaoctet, l'API des fichiers ne rend pas le contenu : il est vide. Le fichier se lit alors par son blob, qui le rend jusqu'à 100 Mo.
+  if (contenu === "" && typeof donnees.sha === "string" && SHA_BLOB.test(donnees.sha)) {
+    const cheminBlob = `/repos/${lue.depot}/git/blobs/${donnees.sha}`;
+    let blob: ReponseGitHub;
+    try {
+      blob = await appeler(cheminBlob);
+    } catch (erreur) {
+      return sans(adresse, `GitHub did not answer for this screenshot: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+    if (blob.status !== 200) return sans(adresse, refusDe("the reading of this screenshot", blob).message);
+    const brutBlob = typeof blob.data === "object" && blob.data !== null ? (blob.data as Record<string, unknown>).content : undefined;
+    const gros = typeof brutBlob === "string" ? brutBlob.replace(/\s+/g, "") : "";
+    if (gros !== "" && BASE64.test(gros)) return { image: `data:image/png;base64,${gros}` };
+    return sans(adresse, `GET ${cheminBlob} — its answer is not the file's content`);
+  }
+  return sans(adresse, `GET ${chemin} — its answer is not the file's content`);
 }

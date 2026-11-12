@@ -148,6 +148,32 @@ describe("l'image d'une capture, lue par le `gh` du poste", () => {
   });
 });
 
+describe("une capture de plus d'un mégaoctet, que l'API des fichiers rend sans contenu", () => {
+  const BLOB = "b".repeat(40);
+  const gh = (t: TestContext, reponses: Record<string, string>, code = 0) => {
+    const racine = mkdtempSync(join(tmpdir(), "captures-"));
+    t.after(() => rmSync(racine, { recursive: true, force: true }));
+    const bin = join(racine, "gh");
+    const cas = Object.entries(reponses).map(([motif, sortie]) => `*${motif}*) printf '%s' '${sortie}'; exit ${motif.includes("blobs") ? code : 0};;`);
+    writeFileSync(bin, ["#!/bin/sh", 'printf "%s\\n" "$*" >> "' + racine + '/appels"', 'case "$*" in', ...cas, "esac"].join("\n"));
+    chmodSync(bin, 0o755);
+    return { reglages: { gh: bin, delaiMs: 60_000 }, appels: () => readFileSync(join(racine, "appels"), "utf8").split("\n").filter(Boolean) };
+  };
+
+  test("le contenu vide, la capture se lit par son blob", { skip: SANS_POSIX }, async (t) => {
+    const { reglages, appels } = gh(t, { ".sha": BLOB, "git/blobs": "iVBORw0KGgo=", ".content": "" });
+    assert.deepEqual(await lireCapture(reglages, adresse("fiche-avant.png")), { image: "data:image/png;base64,iVBORw0KGgo=" });
+    assert.equal(appels().length, 3);
+    assert.match(appels()[2] ?? "", new RegExp(`^api repos/benomite/brigade/git/blobs/${BLOB} `));
+  });
+
+  test("un blob refusé dit son refus et donne le fichier", { skip: SANS_POSIX }, async (t) => {
+    const { reglages } = gh(t, { ".sha": BLOB, "git/blobs": "HTTP 403: rate limit exceeded", ".content": "" }, 1);
+    const rendu = await lireCapture(reglages, adresse("fiche-avant.png"));
+    assert.ok("sans" in rendu && /HTTP 403/.test(rendu.sans) && rendu.lien !== undefined);
+  });
+});
+
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
