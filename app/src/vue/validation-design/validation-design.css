@@ -105,7 +105,7 @@
 
 /* Le détail en grand (detail-de-validation.js) : par-dessus toute l'app, sur un voile ; la question en tête, les captures de
    chaque écran à la plus grande taille que la fenêtre laisse, le lien de la PR et les deux gestes au pied. Chaque écran prend
-   toute la hauteur de la zone des captures ; plusieurs écrans s'y font défiler. */
+   toute la hauteur de la zone des captures ; plusieurs écrans passent de l'un à l'autre (« Screen 2 of 4 », ticket 3350). */
 #detail-de-validation {
   position: fixed;
   inset: 0;
@@ -154,6 +154,11 @@
 }
 /* Le brief (ticket 3330) : ce qui était demandé à gauche, coupé à deux lignes, ce qui a été fait à droite, un point par ligne.
    Il ne prend que sa hauteur : les captures gardent le reste. */
+#detail-de-validation span.rang-de-l-ecran {
+  align-self: center;
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
 #detail-de-validation section.brief-du-detail {
   flex: none;
   display: grid;
@@ -200,7 +205,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--pas-4);
-  overflow-y: auto;
 }
 #detail-de-validation section.ecran-du-detail {
   flex: 0 0 100%;

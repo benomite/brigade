@@ -27,6 +27,9 @@ import {
   ECHELLE_MAX,
   ENTIERE,
   FAIT,
+  ECRAN_N_SUR,
+  ECRAN_PRECEDENT,
+  ECRAN_SUIVANT,
   FERMER,
   MONTRER,
   PLEINE_TAILLE,
@@ -330,6 +333,44 @@ for (const [ecran, ouvrir] of [
       await repos();
       assert.equal(detail(fait).hidden, true);
       assert.equal(carteDuTicket(fait, 61), undefined);
+    });
+
+    test("plusieurs écrans (ticket 3350) : un seul à la fois, « Screen 2 of 3 », précédent et suivant au clic et aux flèches ; le brief, les captures et les gestes restent", async () => {
+      const autre = (nom: string) => `| ![${nom} — avant](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/${nom}-avant.png?raw=true) | ![${nom} — après](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/${nom}-apres.png?raw=true) |`;
+      const vue = await ouvrir(false, {}, [...BRIEF, autre("todo"), autre("rail-bis")]);
+      const ici = detail(vue);
+      const rang = () => ici.dessous("span").find(({ className }) => className === "rang-de-l-ecran")?.textContent;
+      const nomsDesEcrans = () => ici.dessous("section").filter(({ className }) => className === "ecran-du-detail").map(({ ariaLabel }) => ariaLabel);
+      assert.equal(rang(), ECRAN_N_SUR(0, 3));
+      assert.equal(rang(), "Screen 1 of 3");
+      assert.equal(nomsDesEcrans().length, 1, "un seul écran posé");
+      assert.equal(bouton(ici, ECRAN_PRECEDENT).disabled, true);
+      bouton(ici, ECRAN_SUIVANT).click();
+      assert.equal(rang(), "Screen 2 of 3");
+      assert.equal(nomsDesEcrans().length, 1);
+      const deuxieme = nomsDesEcrans()[0];
+      ici.declencher("keydown", { key: "ArrowRight" });
+      assert.equal(rang(), "Screen 3 of 3");
+      assert.notEqual(nomsDesEcrans()[0], deuxieme);
+      assert.equal(bouton(ici, ECRAN_SUIVANT).disabled, true);
+      ici.declencher("keydown", { key: "ArrowRight" });
+      assert.equal(rang(), "Screen 3 of 3", "pas au-delà du dernier");
+      ici.declencher("keydown", { key: "ArrowLeft" });
+      assert.equal(rang(), "Screen 2 of 3");
+      assert.equal(nomsDesEcrans()[0], deuxieme);
+      ici.declencher("keydown", { key: "ArrowLeft", target: ici.dessous("textarea")[0] });
+      assert.equal(rang(), "Screen 2 of 3", "dans le champ du commentaire, les flèches ne changent pas d'écran");
+      assert.equal(images(ici).length, 2);
+      assert.ok(briefDe(ici));
+      bouton(ici, VALIDER);
+      bouton(ici, RENVOYER);
+      bouton(ici, "Pull request #60");
+    });
+
+    test("un seul écran : ni indicateur ni boutons de passage", async () => {
+      const ici = detail(await ouvrir());
+      sans(ici, ECRAN_SUIVANT);
+      assert.equal(ici.dessous("span").some(({ className }) => className === "rang-de-l-ecran"), false);
     });
 
     test("deux cartes attendent : « Next validation » ouvre la suivante sans repasser par TODO, puis revient à la première", async () => {
