@@ -41,6 +41,9 @@ export type Pont = {
   // Change le sigle d'un projet, celui de sa case dans la barre (sigle.ts) — `null` le rend à celui que l'app tire
   // de son nom. Rend la raison, s'il ne l'a pas été. Écrit, il arrive par `surConfiguration`.
   changerSigle(projet: string, sigle: string | null): Promise<string | undefined>;
+  // Montre ou retire l'état de la cuisine de la barre des menus du Mac, de la zone de notification de Windows
+  // (barre-de-menus.ts, ticket 3269). Rend la raison, si rien n'a été écrit. Écrit, il arrive par `surConfiguration`. Pas sur le téléphone.
+  changerBarreDeMenus?(actif: boolean): Promise<string | undefined>;
   // Le bloc « tickets ordinaires » de cet ordinateur pour un projet (ordinaires.ts) — rien, quand l'option n'existe pas ici.
   ordinaires(projet: string): Promise<Bloc | undefined>;
   // Règle l'option et la limite de cooks de cet ordinateur (`null` : aucune). Rend la raison, si rien n'a été écrit.
@@ -121,6 +124,14 @@ export type Pont = {
   // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
   // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
   gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
+  // Le départ d'un projet qu'« Add a project » vient d'ouvrir (ticket 3268, depart-du-projet.ts) : ses issues ouvertes et ce que le
+  // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
+  departDuProjet(projet: string): Promise<import("../depart-du-projet.ts").Depart>;
+  mettreSurLeRail(projet: string, lignes: { ticket: number; priorite: number }[]): Promise<import("../depart-du-projet.ts").Mise | { refus: string; detail?: string }>;
+  // Le premier ticket d'un projet prêt (ticket 3306, runtime/src/premier-ticket/) : le second l'écrit d'après la réponse du chef —
+  // ou le réécrit avec ses changements —, et rien n'est créé ; sur le « oui » seul, l'issue est créée avec ses labels, `fire` compris.
+  redigerLePremierTicket(projet: string, demande: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Demande): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Redaction>;
+  creerLePremierTicket(projet: string, brouillon: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Brouillon): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Creation>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
@@ -225,7 +236,8 @@ export type Pont = {
   // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
   // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
   surTelephone?(recevoir: (telephone: Telephone) => void): void;
-  // L'app Android seule (le ticket 2747) : le chef a touché la notification d'une carte de TODO — sa fiche s'ouvre.
+  // Le chef a touché la notification d'une carte de TODO sur le téléphone (le ticket 2747), ou cliqué une question dans le
+  // menu de la barre des menus sur un ordinateur (ticket 3269) — sa fiche s'ouvre.
   surOuvrirCarte?(recevoir: (projet: string, ticket: number) => void): void;
   // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;
@@ -286,12 +298,30 @@ export type Pont = {
   reglagesDuProjet(projet: string): Promise<import("../reglages-du-projet.ts").LectureDesReglages>;
   proposerUnReglage(projet: string, choix: import("../reglages-du-projet.ts").ChoixDeReglage): Promise<import("../reglages-du-projet.ts").RenduDuReglage>;
   ouvrirLaProposition(url: string): Promise<boolean>;
+  // Les résumés hebdomadaires de la cuisine d'un projet et le jour de leur écriture (ticket 3263,
+  // resume-hebdomadaire/resume-cuisine.ts) ; le jour changé par une PR, qui s'ouvre par `ouvrirLaProposition` ; un
+  // résumé publié comme les notes d'une version ; puis l'issue d'un ticket qu'ils nomment, ou la release publiée.
+  lireLesResumesHebdomadaires(projet: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet>;
+  changerLeJourDuResume(projet: string, jour: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").RenduDuJour>;
+  publierLeResumeHebdomadaire(projet: string, weekStart: string, tag: string): Promise<import("./resume-hebdomadaire/resume-cuisine.ts").RenduDeLaPublication>;
+  ouvrirTicketDuResume(url: string): Promise<boolean>;
   // Les humains du projet, sous Settings (ticket 2930) : ceux que son `projet.json` déclare, et chaque changement — ajouté, changé
   // ou retiré — écrit par une PR, qui rend son lien ou un refus d'une ligne (settings-humans/humains.js, humains-du-projet.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre pas la section.
   listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
   enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
   retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus par `recurring` là où sa cuisine tourne, et chacun
+  // suspendu, repris ou retiré d'un clic (recurrents/recurrents.js, recurrents/recurrents-box.ts). Optionnels : un pont qui
+  // ne les porte pas (le téléphone) ne montre pas la section.
+  listerLesRecurrents?(projet: string): Promise<import("./recurrents/recurrents-box.ts").LectureDesRecurrents>;
+  changerUnRecurrent?(projet: string, geste: import("./recurrents/recurrents-box.ts").Geste, id: string): Promise<import("./recurrents/recurrents-box.ts").EcritureDUnRecurrent>;
+  // Les explications des mots de la cuisine (ticket 3308) : les mots dont le chef de cet ordinateur a vu l'explication, gardés
+  // par chef là où la cuisine du projet tourne ; un mot vu, et tout remontré depuis Settings (explications/explications-box.ts).
+  // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucune explication.
+  lireLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").LectureDesExplications>;
+  marquerUneExplication?(projet: string, mot: import("./explications/explications-box.ts").MotExplique): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
+  remontrerLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
   // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
   listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;
@@ -338,6 +368,12 @@ export type Pont = {
   // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès), ou celle qui dit comment obtenir
   // un outil qui manque au second (ticket 1435) ; rend faux pour toute autre.
   ouvrirLaPage?(url: string): Promise<boolean>;
+  // Le lien de l'app Android que l'offre du téléphone montre (ticket 3303, mise-a-jour/android.ts) : l'`apkUrl` de la
+  // dernière version publiée, ou la page des versions de brigade s'il ne se lit pas ; `ouvrirLaPage` l'ouvre ensuite.
+  lienDeLApk?(): Promise<string>;
+  // Un téléphone déjà connecté au compte GitHub de cet ordinateur (ticket 3303, telephone-connecte.ts) : la trace que
+  // l'app Android pose dans un gist ; `illisible` quand la liste des gists ne se lit pas.
+  telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
   // Le projet d'essai du premier lancement (ticket 3227, runtime/src/essai-projet/) : ce qui en est noté, son ticket servi
   // et la durée depuis le premier lancement ; le créer — un dépôt privé et un seul ticket prêt à cuire — ; supprimer le
   // dépôt noté, et lui seul ; la permission `delete_repo` que `gh` fait accorder, sa fin par `surPermissionDeSuppression`.

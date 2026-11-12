@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>November 2026: a cook that finds the ticket already done closes it as served — Brigade</title>
+  <meta name="description" content="The story of ticket #3146 of benomite/brigade, from issue to merge in sixteen minutes, with one send-back from the pass: a test guard over the 2 s limit.">
+  <meta property="og:title" content="November 2026: a cook that finds the ticket already done closes it as served">
+  <meta property="og:description" content="Ticket #3146 of benomite/brigade, from issue to merge, with one send-back from the pass.">
+  <meta property="og:type" content="article">
+  <link rel="canonical" href="https://benomite.github.io/brigade/stories/2026-11-already-served.html">
+  <link rel="icon" href="../logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="brand" href="../index.html"><img src="../logo.svg" alt="" width="36" height="36"> brigade</a>
+    <h1>A cook that finds the ticket already done closes it as served</h1>
+    <p class="lead">Story of <time datetime="2026-11">November 2026</time> · ticket <a href="https://github.com/benomite/brigade/issues/3146">#3146</a> · pull request <a href="https://github.com/benomite/brigade/pull/3148">#3148</a></p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="ticket">
+    <h2>The ticket</h2>
+    <p>Issue <a href="https://github.com/benomite/brigade/issues/3146">#3146</a> starts from something seen on a served project on 2026-11-09. A ticket's fix had already landed on <code>main</code> through another pull request. Three cooks in a row took the ticket, found the fix there and stopped, saying "no code change is needed, the fix is already on main". The station counted each of them as a cook without a delivery, and after three it set the ticket aside as <code>served-elsewhere</code>. The ticket then sat on the rail with no cook and no question.</p>
+    <p>The issue puts it in one line: "A cook that proves the work is already done has served the ticket. That is not a failure." Its acceptance criteria ask that such a ticket be closed as served, with a comment naming the commit or pull request that satisfied it, but only once the claim is checked: the commit is on the integration branch and the gates are green.</p>
+  </section>
+
+  <section id="timeline">
+    <h2>From issue to merge</h2>
+    <p class="fine">All times are UTC, on 2026-11-10, as GitHub records them on the issue, the pull request and its checks.</p>
+    <ol>
+      <li><time datetime="2026-11-10T10:02:09Z">10:02</time> — <strong>Issue opened.</strong> <a href="https://github.com/benomite/brigade/issues/3146">#3146</a>, "A cook that finds the ticket already done on main closes it as served, not as a failure".</li>
+      <li><time datetime="2026-11-10T10:04:52Z">10:04</time> — <strong>The manager puts it on the rail</strong>: <code>fire</code>, calibrated <code>sonnet</code> / <code>medium</code>, because "It is a bounded change to existing station logic (…), not a new product surface".</li>
+      <li><time datetime="2026-11-10T10:05:30Z">10:05</time> — <strong>Taken</strong> by station <code>box/claude</code>: a cook starts on the ticket.</li>
+      <li><time datetime="2026-11-10T10:09:04Z">10:09</time> — <strong>The cook delivers.</strong> Pull request <a href="https://github.com/benomite/brigade/pull/3148">#3148</a> opens with commit <code>e43b950</code>: the station recognizes a cook that ends with <code>&lt;deja-servi&gt;</code>, checks its claim and closes the ticket as served.</li>
+      <li><time datetime="2026-11-10T10:09:55Z">10:09</time> — <strong>The pass: the review approves.</strong> The reviewer read the whole diff, found that it "does what the ticket asks", and left four remarks, none blocking.</li>
+      <li><time datetime="2026-11-10T10:12:02Z">10:12</time> — <strong>The pass: one CI check is red.</strong> <code>windows tests (1/8)</code> fails; every other check of <code>e43b950</code> is green, the gates included.</li>
+      <li><time datetime="2026-11-10T10:12:21Z">10:12</time> — <strong>Sent back to a cook (1/2)</strong>: "the CI is red on <code>e43b950</code>: windows tests (1/8) (failed step: Tests du runtime)".</li>
+      <li><time datetime="2026-11-10T10:13:01Z">10:13</time> — <strong>Taken again</strong> by station <code>box/claude</code>.</li>
+      <li><time datetime="2026-11-10T10:13:28Z">10:13</time> — <strong>The cook fixes it</strong> with commit <code>be1ab01</code>: one line of <code>runtime/test/deja-servi.test.ts</code>.</li>
+      <li><time datetime="2026-11-10T10:18:32Z">10:18</time> — <strong>Merged.</strong> Pull request <a href="https://github.com/benomite/brigade/pull/3148">#3148</a> lands on <code>main</code>, every check of <code>be1ab01</code> green, and the issue closes two seconds later.</li>
+    </ol>
+  </section>
+
+  <section id="send-back">
+    <h2>What the pass sent back, and why</h2>
+    <p>The review had nothing blocking to say. The send-back came from the CI. On Windows, the runtime test <code>garde-duree.test.ts</code>, which walks the whole test folder, failed with:</p>
+    <p><code>test/deja-servi.test.ts:114 : garde delaiMs: 30_000 = 30000 ms, la limite est 2000 ms</code></p>
+    <p>The new test gave its fake gates a 30 s guard. The repository's rule is that no guard in a test exceeds 2 s. The gates of the pull request had not played <code>garde-duree.test.ts</code>, because a test that walks a folder instead of importing what it checks is never close to a diff; only the Windows CI, which plays every file, saw it.</p>
+    <p>The second cook changed that one line, <code>gates: { delaiMs: 30_000 }</code> to <code>gates: { delaiMs: 1_500 }</code>, with the commit message "la garde des gates du test déjà-servi tient sous la limite de 2 s". Nothing else moved, and the pull request merged on that commit.</p>
+  </section>
+
+  <section id="after">
+    <h2>After the merge</h2>
+    <p>The same morning, #3146 was one of the tickets counted in the quality ticket <a href="https://github.com/benomite/brigade/issues/3150">#3150</a>, opened by a station because the first-try rate had fallen to 65%, under its 70% threshold. Its fix, commit <code>a000db7</code> merged with <a href="https://github.com/benomite/brigade/pull/3152">#3152</a>, says: "the cook plays the tests that guard a whole folder, which no diff makes close — the cause of #3089, #3090 and #3146's red runtime tests".</p>
+  </section>
+
+  <section id="links">
+    <h2>Read it yourself</h2>
+    <ul>
+      <li>The issue: <a href="https://github.com/benomite/brigade/issues/3146">benomite/brigade#3146</a></li>
+      <li>The pull request: <a href="https://github.com/benomite/brigade/pull/3148">benomite/brigade#3148</a></li>
+    </ul>
+    <p><a href="index.html">All stories</a></p>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p class="fine"><a href="../index.html">Home</a> · <a href="index.html">Stories</a> · <a href="../faq.html">FAQ</a> · <a href="https://github.com/benomite/brigade">benomite/brigade</a></p>
+</footer>
+
+</body>
+</html>

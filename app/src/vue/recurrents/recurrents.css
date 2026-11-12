@@ -1,0 +1,61 @@
+/* Les tickets récurrents du projet sous Settings (ticket 3231) : la tête, qui porte le nom de la section et son aide au
+   survol ; puis une rangée par ticket récurrent, alignée sur les colonnes des rangées de réglage — son titre ; son rythme
+   en mots et sa prochaine date, ou « paused » ; « pause » ou « resume », et « remove » ; dessous, le refus du dernier
+   geste. Ni cadre ni titre de plus : le groupe du projet les porte. */
+#etat #recurrents-du-projet {
+  margin: 0;
+}
+#etat .recurrents-du-projet > :is(.tete, .recurrent) {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(0, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  margin: 0;
+  padding: var(--pas-2) 0;
+  border-top: 1px solid var(--trait-doux);
+}
+#etat .recurrents-du-projet .tete > .nom {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  color: var(--discret);
+}
+#etat .recurrents-du-projet > :is(.aucun, .indisponible) {
+  margin: 0;
+  padding: var(--pas-2) 0;
+  border-top: 1px solid var(--trait-doux);
+}
+#etat .recurrents-du-projet .recurrent > .titre {
+  font-weight: 600;
+  color: var(--texte);
+  overflow-wrap: anywhere;
+}
+#etat .recurrents-du-projet .recurrent > .quand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  font-size: var(--taille-corps);
+  color: var(--texte);
+}
+#etat .recurrents-du-projet .recurrent > .quand > :is(.prochaine, .etat-suspendu) {
+  color: var(--texte-doux);
+}
+#etat .recurrents-du-projet .recurrent.suspendu > :is(.titre, .quand > .rythme) {
+  color: var(--texte-doux);
+}
+#etat .recurrents-du-projet .recurrent > .controle {
+  display: flex;
+  gap: var(--pas-2);
+}
+#etat .recurrents-du-projet .recurrent .action > button {
+  white-space: nowrap;
+}
+#etat .recurrents-du-projet .recurrent > .indisponible {
+  grid-column: 2 / -1;
+  margin: 0;
+}
+/* Un projet en lecture seule (ticket 3163, docs/app.md) n'offre aucun geste : la section n'est pas posée, comme les autres
+   blocs de Settings qui en portent. */
+#etat[data-lecture-seule] #recurrents-du-projet {
+  display: none !important;
+}

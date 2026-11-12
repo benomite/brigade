@@ -374,7 +374,9 @@ export type Faits = {
   // `depuis` : l'heure de son entrée dans cet état — sa prise, son entrée en pass… (#1811) ; absent d'un runtime d'avant.
   // `essais` : d'un ticket pris, ses essais depuis sa première prise, le plus ancien d'abord (#1893) ; absent pour tout autre.
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; illisible?: string; sensible?: true }[];
+  // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
+  // absents sans eux, et d'un runtime d'avant ces champs.
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Attendu[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -515,7 +517,15 @@ export type Tableau = {
   // Ce que les cooks ont appris au projet (apprentissage.ts) : ses leçons et ses profils, que la page
   // Reliability pose sous les causes corrigées — vides, elle le dit en une phrase.
   apprentissage: Apprentissage;
+  // Où en est chaque ticket pris, en pass ou servi, que le récit du premier ticket suit (ticket 3302,
+  // vue/premier-ticket/) — absent d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ).
+  etapesDesTickets?: EtapeDuTicket[];
 };
+
+// Un ticket tel que le récit du premier ticket le suit (ticket 3302) : son mot d'état (`pris`, `en pass`, `base rouge`,
+// `servi`…), la PR qui le livre — `numero` nul quand l'adresse ne le dit pas ; nulle sans PR, ou quand son adresse n'est
+// pas en https et ne s'ouvre pas —, et son dernier renvoi à un cook — nul sans renvoi.
+export type EtapeDuTicket = { ticket: number; etat: string; pr: { numero: number | null; url: string } | null; renvoi: { n: number; raison: string } | null };
 
 // Ce qu'une lecture de `faits` donne à la vue : le tableau ; ou, sous un `titre`
 // qui dit lequel, ce que la box a `rendu` à la place des faits, mot pour mot, et
@@ -809,6 +819,22 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.requires == null ? {} : { requires: textesLus(lu.requires, `${lequel}.requires`) }),
           // Un ticket au label `sensitive` (ticket 3224) : sa carte le dit.
           ...(lu.sensible === true ? { sensible: true as const } : {}),
+          ...(lu.pr === undefined
+            ? {}
+            : {
+                pr: (() => {
+                  const dit = objet(lu.pr, `${lequel}.pr`);
+                  return { numero: entier(dit.numero, `${lequel}.pr.numero`), url: texte(dit.url, `${lequel}.pr.url`) };
+                })(),
+              }),
+          ...(lu.renvoi === undefined
+            ? {}
+            : {
+                renvoi: (() => {
+                  const dit = objet(lu.renvoi, `${lequel}.renvoi`);
+                  return { n: entier(dit.n, `${lequel}.renvoi.n`), raison: texte(dit.raison, `${lequel}.renvoi.raison`) };
+                })(),
+              }),
         }), ({ ticket, titre }, illisible) => ({ ticket, etat: ILLISIBLE_ETAT, titre, url: "", illisible }));
       }),
       ...(racine.cooks === undefined
@@ -1417,7 +1443,17 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.coutDesGates === undefined ? {} : { coutDesGates: faits.coutDesGates }),
     ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
     apprentissage: apprentissageDe(faits.apprentissage),
+    etapesDesTickets: etapesDesTickets(faits),
   };
+}
+
+// Où en est chaque ticket que `faits` rend, pour le récit du premier ticket (ticket 3302) : ceux du rail, puis les servis
+// des 24 h — leur PR mergée. Un ticket illisible n'en est pas : rien n'y est deviné.
+export function etapesDesTickets(faits: Faits): EtapeDuTicket[] {
+  const prDe = (url: string, numero?: number) => (ouvrable(url) ? { numero: numero ?? (Number(/\/pull\/(\d+)\/?$/.exec(url)?.[1]) || null), url } : null);
+  const duRail = faits.rail.flatMap(({ ticket, etat, pr, renvoi, illisible }) => (illisible !== undefined ? [] : [{ ticket, etat, pr: pr === undefined ? null : prDe(pr.url, pr.numero), renvoi: renvoi ?? null }]));
+  const servis = (faits.livres ?? []).flatMap(({ ticket, pr, illisible }) => (illisible !== undefined ? [] : [{ ticket, etat: "servi", pr: pr === null ? null : prDe(pr), renvoi: null }]));
+  return [...duRail, ...servis];
 }
 
 // La bannière d'arrêt : posée sur le « stop » du chef, avec ce qu'il implique

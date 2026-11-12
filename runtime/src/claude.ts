@@ -11,6 +11,7 @@ import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
 import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
+import { CONSIGNE_DU_BRIEF } from "./validation-design/brief.ts";
 
 // Ce qu'un cook ne doit pas faire lui-même : seule la pass merge, et c'est la
 // station qui pousse. Garde-fou de bonne foi, pas une clôture — la clôture est
@@ -174,7 +175,21 @@ export const CONSIGNE_DE_RELECTURE = "Avant de commiter, relis ton diff comme le
 function consigneDesCaptures(ticket: number): string {
   const dossier = dossierDesCaptures(ticket);
   const visuels = [VUE_DE_L_APP, ...VISUELS].map((chemin) => `\`${chemin}/\``).join(", ");
-  return `Si ton diff change ce que l'utilisateur voit — sous ${visuels} — ou si le ticket porte le label \`${LABEL_COOK_DESIGN}\`, ta livraison est une livraison design : la relecture bloque une livraison qui change la vue de l'app sans aucune capture, et la pass renvoie au cook toute livraison design à qui il en manque une quand le projet fait valider ses designs par un humain. Pour chaque écran que ton diff change, prends sa capture avant — avant d'y toucher — et sa capture après, avec l'outil de \`scripts/capture-ecran/\` (son README dit l'appel), regarde-les, et commite-les sur ta branche à \`${dossier}/<écran>-avant.png\` et \`${dossier}/<écran>-apres.png\`. Si le dépôt n'a pas cet outil, ou qu'il ne sait pas rendre l'écran, dis-le dans ton compte-rendu.`;
+  return `Si ton diff change ce que l'utilisateur voit — sous ${visuels} — ou si le ticket porte le label \`${LABEL_COOK_DESIGN}\`, ta livraison est une livraison design : la relecture bloque une livraison qui change la vue de l'app sans aucune capture, et la pass renvoie au cook toute livraison design à qui il en manque une quand le projet fait valider ses designs par un humain. Pour chaque écran que ton diff change, prends sa capture avant — avant d'y toucher — et sa capture après, avec l'outil de \`scripts/capture-ecran/\` (son README dit l'appel), regarde-les, et commite-les sur ta branche à \`${dossier}/<écran>-avant.png\` et \`${dossier}/<écran>-apres.png\`. Si le dépôt n'a pas cet outil, ou qu'il ne sait pas rendre l'écran, dis-le dans ton compte-rendu. ${CONSIGNE_DU_BRIEF}`;
+}
+
+// Comment un cook livre une branche qui se fusionne : à jour de la base qui a
+// bougé pendant sa cuisson (#3360). Le conflit avec la base était le premier
+// motif de renvoi : 14 renvois sur 45 tickets mesurés. Rejoués sur l'historique
+// de la base, 4 d'entre eux (#3169, #3170, #3303, #3347) étaient déjà en
+// conflit avec la base telle qu'elle était quand le cook a commité sa
+// livraison : une PR mergée pendant sa cuisson écrivait les mêmes lignes, ce
+// que la mise à jour de la PR par la pass (#2726) ne résout pas, et le cook,
+// jamais invité à fusionner la base, livrait une PR déjà en conflit — un cook
+// entier de plus pour le résoudre. Une fusion, pas un rebase : la branche d'un
+// renvoi est déjà poussée sous sa PR.
+function consigneDeLaBase(base: string): string {
+  return `Juste avant tes gates finales, mets ta branche à jour de la base, qui a bougé pendant que tu cuisais : \`git fetch origin ${base}\`, puis \`git merge origin/${base}\` — une fusion, jamais un rebase : ta branche est peut-être déjà poussée sous sa PR. Si la fusion bute sur des conflits, résous-les toi-même en gardant ce que la base a apporté et ce que ton ticket ajoute, rejoue les tests de ce qui a bougé, et commite la fusion : une livraison en conflit avec la base revient à un cook entier. Si git te refuse le fetch ou la fusion, dis-le dans ton compte-rendu et livre ta branche telle quelle.`;
 }
 
 // Comment un cook lit le dépôt. Lu dans les sessions des cooks de #2486 à
@@ -230,7 +245,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     ...(mission.joint === undefined ? [] : [mission.joint, ""]),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
     `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le. ${CONSIGNE_DES_LECTURES}`,
-    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${consigneDesCaptures(ticket)} ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${consigneDeLaBase(base)} ${consigneDesCaptures(ticket)} ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis ?? mission.joint)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,

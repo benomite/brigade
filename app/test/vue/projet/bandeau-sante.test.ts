@@ -376,7 +376,7 @@ describe("le bandeau de santé, dans la vue", () => {
     assert.match(texte(partieDe(duCloser, "passes")), /−1,234 lines/);
     assert.ok(partieDe(duCloser, "en-plus"));
     assert.ok(ligneDe(duCloser, "maxRemovedLines"));
-    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the cost of all projects", "the added / removed ratio of all projects"]);
+    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the cost of all projects", "the added / removed ratio of all projects", "the weekly summaries of all projects"]);
   });
 
   test("ni sur Rail, ni sur Stations : la section n'est posée que Settings ouvert, et se repose à sa réouverture", async () => {

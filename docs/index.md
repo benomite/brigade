@@ -26,6 +26,8 @@ contribute and the release notes — go back to the [repository root](../README.
 - [Tutorial: add a first project and cook its first ticket](tutoriels/premier-projet.md) — add one
   project, open one ticket as a GitHub issue, watch a cook work it, review the delivery at the pass,
   and merge.
+- [Tutorial: from a production error to a fixed ticket](tutoriels/erreur-de-production-a-ticket-corrige.md) — connect
+  Sentry to GitHub so a production error opens an issue labelled `fire`, and follow it to the merged fix.
 - [Install brigade and cook your first ticket](installation.md#your-first-ticket) — the same path,
   step by step, in the app's own screens.
 - [The app, screen by screen](app.md) — what each part of the app shows and what you can do there.
