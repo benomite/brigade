@@ -488,8 +488,9 @@ describe("le clic d'une carte de T'attend (#452)", () => {
   test("« demander au second », depuis sa fiche, nomme le projet et le ticket au process principal, et l'écrit dans le second, à droite — le rail et l'onglet ouvert dessous restent posés", async () => {
     const vue = await ouvrir({ demander: () => ({ ...SECOND, note: "demande écrite dans le second, sans Entrée" }) });
     recevoir(vue);
-    // Aucune carte ne porte le geste : il est sur la fiche — celle de tout ticket (#639).
-    assert.deepEqual(vue.element("rail").dessous("button").filter((pose) => pose.className === "demander"), []);
+    // Le geste est sur la fiche — celle de tout ticket (#639) — et sur la carte qui t'attend (#3363), pas sur les autres.
+    const avecLeGeste = bons(vue.element("rail")).filter((bon) => bon.dessous("button").some((pose) => pose.className === "demander"));
+    assert.deepEqual(avecLeGeste.map((bon) => bon === bonDe(vue, 12)), [true]);
     for (const bon of bons(vue.element("rail"))) {
       bon.click();
       await repos();
