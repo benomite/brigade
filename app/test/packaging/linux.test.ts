@@ -13,6 +13,7 @@ import { cheminSansNode } from "../../packaging/essai-windows.ts";
 import { APP } from "../../packaging/construire.ts";
 import { APPRUN, assembler, construire, EXECUTABLE, estElfX64, type Executer, nomDeLAppImage, PTY_LINUX } from "../../packaging/linux.ts";
 import { emplacementsDe, NODE_DU_PAQUET } from "../../src/emplacements.ts";
+import { PAQUETS } from "../aides/posix.ts";
 
 const LINUX = join(APP, "packaging", "linux.ts");
 
@@ -89,7 +90,7 @@ test("le nom de l'AppImage : brigade-<version>-linux-x64.AppImage", () => {
   assert.equal(nomDeLAppImage("1.2.3"), "brigade-1.2.3-linux-x64.AppImage");
 });
 
-test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, le node et le pty.node de linux-x64", (t) => {
+test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, le node et le pty.node de linux-x64", { skip: PAQUETS }, (t) => {
   const { racine, electron, app, runtime, node, ptyCompile } = sources(t);
   const appdir = assembler({ version: "1.2.3+gabc", electron, node, pty: ptyCompile, app, runtime, executer: rienALancer }, join(racine, "arbre", "Brigade.AppDir"));
   assert.equal(existsSync(join(appdir, EXECUTABLE)), true);
@@ -138,7 +139,7 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
   assert.equal(statSync(join(ressources, NODE_DU_PAQUET)).mode & 0o777, 0o755);
 });
 
-test("l'app de l'AppImage se sait installée, et lance le runtime et le node du paquet", (t) => {
+test("l'app de l'AppImage se sait installée, et lance le runtime et le node du paquet", { skip: PAQUETS }, (t) => {
   const { racine, electron, app, runtime, node, ptyCompile } = sources(t);
   const ressources = join(assembler({ version: "1.2.3", electron, node, pty: ptyCompile, app, runtime, executer: rienALancer }, join(racine, "Brigade.AppDir")), "resources");
   const emplacements = emplacementsDe({ ressources, src: join(ressources, "app", "src"), env: {} });
@@ -149,7 +150,7 @@ test("l'app de l'AppImage se sait installée, et lance le runtime et le node du 
   assert.equal(existsSync(emplacements.node), true);
 });
 
-test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arbre de l'app", (t) => {
+test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arbre de l'app", { skip: PAQUETS }, (t) => {
   const { racine, electron, app, runtime, node } = sources(t);
   const appels: { commande: string; args: readonly string[]; cwd: string | undefined }[] = [];
   // Le faux `npm rebuild` écrit ce que node-gyp écrit : build/Release/pty.node, et ses restes.
@@ -171,7 +172,7 @@ test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arb
   assert.equal(existsSync(join(pty, "build")), false, "ni le build, ni ses restes");
 });
 
-test("assembler : une compilation de node-pty qui échoue, ou qui n'écrit rien de x86-64, fait échouer la construction en disant pourquoi", (t) => {
+test("assembler : une compilation de node-pty qui échoue, ou qui n'écrit rien de x86-64, fait échouer la construction en disant pourquoi", { skip: PAQUETS }, (t) => {
   const { racine, electron, app, runtime, node } = sources(t);
   const echoue: Executer = () => ({ status: 1, stdout: "", stderr: "gyp ERR! stack Error: not found: make" });
   assert.throws(
@@ -192,7 +193,7 @@ test("assembler : refuse un Electron qui n'est pas celui de Linux", (t) => {
   assert.throws(() => assembler({ version: "1.2.3", electron: app, node, pty: ptyCompile, app, runtime, executer: rienALancer }, join(racine, "a")), /not an Electron for Linux/);
 });
 
-test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le runtime d'AppImage suivi du squashfs de l'AppDir", (t) => {
+test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le runtime d'AppImage suivi du squashfs de l'AppDir", { skip: PAQUETS }, (t) => {
   const { racine, electron, app, runtime, node, ptyCompile, runtimeAppImage } = sources(t);
   const appels: { commande: string; args: readonly string[] }[] = [];
   // Le faux mksquashfs écrit, à la place du squashfs, la liste de ce qu'il a reçu.
@@ -216,7 +217,7 @@ test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le run
   assert.equal(statSync(appimage).mode & 0o777, 0o755, "exécutable");
 });
 
-test("construire : un mksquashfs absent ou qui échoue fait échouer la construction, en disant pourquoi", (t) => {
+test("construire : un mksquashfs absent ou qui échoue fait échouer la construction, en disant pourquoi", { skip: PAQUETS }, (t) => {
   const { racine, electron, app, runtime, node, ptyCompile, runtimeAppImage } = sources(t);
   const options = { version: "1.2.3", electron, node, pty: ptyCompile, app, runtime, runtimeAppImage, sortie: join(racine, "construit") };
   const absent: Executer = () => ({ status: null, stdout: "", stderr: "spawnSync mksquashfs ENOENT" });
