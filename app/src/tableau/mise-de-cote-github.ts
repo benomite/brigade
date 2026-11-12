@@ -42,7 +42,7 @@ export type LienDeLigne = { numero: number; url: string };
 // Ce que la carte dit d'un ticket mis de côté : le label qui le met de côté, la ligne qui dit pourquoi — nulle quand aucun
 // commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
 // `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`, ou celle
-// de la PR à merger, avec son bouton.
+// de la PR à merger, ou celle de la retenue sans PR (#3369), avec ses boutons.
 // `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
 export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
 
@@ -135,6 +135,11 @@ function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { d
 const SORTE_DU_MERGE = "merge-by-hand";
 const carteDuMerge = (numero: number, raison: string | null): CarteDuChef => ({ sorte: SORTE_DU_MERGE, texte: `${raison ?? `Merge PR #${numero} by hand?`}\n- [merge] Merge PR #${numero}` });
 
+// La carte du chef d'un ticket que la station a mis de côté sans PR à merger (#3369) : lever la retenue, ou fermer l'issue.
+// `resume` retire `blocked-on-human` (tableau-gestes/reponse-github.ts) : le ticket revient sur le rail.
+const SORTE_DE_LA_RETENUE = "hold";
+const carteDeLaRetenue = (raison: string | null): CarteDuChef => ({ sorte: SORTE_DE_LA_RETENUE, texte: `${raison ?? "Lift the hold?"}\n- [resume] Back to the kitchen\n- [close] Close it` });
+
 // Depuis quand un ticket mis de côté par `label` l'est : l'heure du commentaire qui le dit (ce qui attend le chef,
 // attente-du-chef.ts) — nulle quand aucun ne le dit.
 export function miseDeCoteLe(label: string, commentaires: readonly Brut[]): string | null {
@@ -154,6 +159,6 @@ export function miseDeCoteDe(depot: string, label: string, commentaires: readonl
   const pr = juges === null ? null : { numero: Number(juges[1]), url: `https://github.com/${depot}/pull/${juges[1]}` };
   const liens = numeros.map((numero) => (numero === pr?.numero ? pr : { numero, url: `https://github.com/${depot}/issues/${numero}` }));
   const complete = label !== SERVED_ELSEWHERE || question !== null || dit === undefined ? "" : sansStation(nettoyer(dit.body as string));
-  const chef = question ?? (pr === null ? null : carteDuMerge(pr.numero, raison));
+  const chef = question ?? (pr !== null ? carteDuMerge(pr.numero, raison) : label === BLOCKED_ON_HUMAN ? carteDeLaRetenue(raison) : null);
   return { label, raison, ...(complete === "" ? {} : { complete }), liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(chef === null ? {} : { chef }) };
 }
