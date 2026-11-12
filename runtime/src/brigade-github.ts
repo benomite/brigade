@@ -45,7 +45,7 @@ import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
-import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
+import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
@@ -117,6 +117,8 @@ export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise =
 // labels et l'ouverture d'une PR.
 export type GitHubDuTour = GitHubDeLaFusion &
   Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> &
+  // De quoi balayer les cartes de validation sans objet (#3390). Absents, la station ne les balaie pas.
+  Partial<Pick<GitHub, "ouvertes" | "prDeBranche">> &
   // Les statuts de commit où se lisent et s'écrivent les gates d'une tête
   // (#2456). Absents, la station ne les joue pas.
   Partial<GitHubDesGates> &
@@ -418,6 +420,8 @@ export const RATTRAPAGE_PAR_MERGE = 10;
 // après ce délai (#2456).
 // Le délai entre deux balayages des PR ouvertes dont le ticket est fermé (#3097).
 export const BALAYAGE_DES_PR_MS = 10 * 60_000;
+// Le délai entre deux balayages des cartes de validation sans objet (#3390).
+export const BALAYAGE_DES_CARTES_MS = 60_000;
 export const RELANCE_DES_GATES_MS = 30 * 60_000;
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
@@ -676,6 +680,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     // Lue une fois par tour : la porte de zone ne la relit pas.
     return ouvertes;
+  };
+
+  // Une carte de validation dont le ticket est fermé ou la PR mergée ou fermée
+  // n'a plus rien à demander au chef : la station la ferme (#3390). Au plus une
+  // fois par BALAYAGE_DES_CARTES_MS ; un échec attend le balayage suivant.
+  let dernierBalayageDesCartes = Number.NEGATIVE_INFINITY;
+  const fermerLesCartesCaduquesDuTour = async () => {
+    const { ouvertes, prDeBranche } = github;
+    if (github.issue === undefined || ouvertes === undefined || prDeBranche === undefined || instant() - dernierBalayageDesCartes < BALAYAGE_DES_CARTES_MS) return;
+    dernierBalayageDesCartes = instant();
+    await fermerLesCartesCaduques([DESIGN, SENSIBLE], { ...github, ouvertes: ouvertes.bind(github), prDeBranche: prDeBranche.bind(github), issue: github.issue.bind(github), commenter: github.commenter.bind(github), delabelliser: github.delabelliser.bind(github), fermerIssue: github.fermerIssue.bind(github) }, brancheDuTicket, (carte, erreur) => avertir(`brigade : card #${carte} on ${nom} has nothing left to validate but could not be closed — ${message(erreur)}; retried at the next sweep`));
   };
 
   // Le ticket dont la livraison est mergée est servi : fermé, puis délesté de
@@ -1321,6 +1336,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return null;
     });
 
+    await fermerLesCartesCaduquesDuTour().catch((echec) => avertir(`brigade : the validation cards without an object could not be swept on ${nom} — ${message(echec)}`));
+
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
@@ -1439,6 +1456,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     // Rien de ce qui touche ses juges ne se merge sur une tête
                     // que le second juge n'a pas approuvée (#2555).
                     if (juges.length > 0 && secondJugementDe(await github.commentaires(numero), sha)?.verdict !== "approve") return { fait: false, motif: `the second judge has not approved \`${sha.slice(0, 7)}\`` };
+                    // Une livraison dont le ticket est fermé ou la PR mergée ou fermée n'a rien à faire valider : pas de carte (#3390).
+                    const sansObjet = await livraisonSansObjet(github, ticket.number, numero, brancheDuTicket);
+                    if (sansObjet !== null) {
+                      retenue = true;
+                      return { fait: false, motif: `no card to validate: ${sansObjet}` };
+                    }
                     // Une livraison design attend l'humain qui valide les designs du projet (#3184).
                     if (options.designsValidesParUnHumain?.() === true) {
                       const motif = await retenirLeDesign(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, fichiers: sienne?.fichiers ?? null, renvoyer: (raison) => renvoyer(ticket, sha, raison, 1, "review") });

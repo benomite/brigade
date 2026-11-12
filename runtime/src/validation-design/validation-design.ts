@@ -241,6 +241,55 @@ export async function fermerLaCarteDepassee(sorte: SorteDeRetenue, github: Pick<
   return derniere.carte;
 }
 
+// Pourquoi une carte de validation n'a plus rien à demander : son ticket est
+// fermé, ou sa PR mergée ou fermée (#3390). Le chef qui a validé voit sa carte
+// partir, pas revenir : la pass n'en pose pas pour une telle livraison, et
+// `fermerLesCartesCaduques` ferme celle qui existe. Null si la livraison est
+// encore à valider. Une lecture que GitHub ne donne pas (ticket ou PR
+// introuvable, autre PR en tête de la branche) ne décide pas : null ; une
+// lecture qui échoue lève.
+export async function livraisonSansObjet(github: Partial<Pick<GitHub, "issue" | "prDeBranche">>, ticket: number, pr: number, brancheDuTicket: (ticket: number) => string): Promise<string | null> {
+  if (github.issue === undefined || github.prDeBranche === undefined) return null;
+  if ((await github.issue(ticket))?.state === "closed") return `ticket #${ticket} is closed`;
+  const lue = await github.prDeBranche(brancheDuTicket(ticket));
+  if (lue === null || lue.number !== pr) return null;
+  if (lue.merged) return `PR #${pr} is merged`;
+  return lue.state === "closed" ? `PR #${pr} is closed` : null;
+}
+
+// Ferme, sans attendre le chef, chaque carte ouverte de ces sortes qui n'a plus
+// rien à demander (`livraisonSansObjet`) : la carte d'une PR mergée par un autre
+// chemin, ou posée par une pass qui avait lu la PR avant son merge (#3390). Le
+// sondage ne se confirme pas : une PR qui se merge ne change pas la liste des
+// issues ouvertes. Une carte dont la lecture ou la fermeture échoue est dite à
+// `echec` et reprise au balayage suivant ; rend les cartes fermées.
+export async function fermerLesCartesCaduques(
+  sortes: readonly SorteDeRetenue[],
+  github: Pick<GitHub, "ouvertes" | "commenter" | "delabelliser" | "fermerIssue"> & Partial<Pick<GitHub, "issue" | "prDeBranche">>,
+  brancheDuTicket: (ticket: number) => string,
+  echec: (carte: number, erreur: unknown) => void,
+): Promise<number[]> {
+  const sondage = await github.ouvertes();
+  if (sondage.inchange) throw new Error("GitHub did not return the list of open issues");
+  const fermees: number[] = [];
+  for (const issue of sondage.issues) {
+    if (!DE_CONFIANCE.includes(issue.association)) continue;
+    for (const sorte of sortes) {
+      const lue = carteDuCorpsDe(sorte, issue.body);
+      if (lue === null) continue;
+      try {
+        const raison = await livraisonSansObjet(github, lue.ticket, lue.pr, brancheDuTicket);
+        if (raison === null) continue;
+        await fermerLaCarte(github, issue.number, `Closed by the kitchen: ${raison}, there is nothing left to answer on this card.`);
+        fermees.push(issue.number);
+      } catch (erreur) {
+        echec(issue.number, erreur);
+      }
+    }
+  }
+  return fermees;
+}
+
 // Retient la livraison verte pour le chef, sur une carte de cette sorte : la
 // carte qui la tient déjà, sinon une neuve — jamais deux. Rend le motif pour
 // lequel la pass ne la merge pas ; null si le chef a déjà répondu pour elle
