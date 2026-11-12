@@ -22,8 +22,35 @@ import { LABEL_DU_CHEF } from "../../tableau/todo-github.ts";
 // La sorte de la carte, telle que le runtime l'écrit (runtime/src/validation-design/validation-design.ts, `SORTE_DE_CARTE`).
 export const SORTE_DE_VALIDATION = "design-validation";
 
-// Ce que la carte valide : sa PR et son adresse, le ticket livré, la tête jugée verte, et les captures de chaque écran.
-export type ValidationDesign = { pr: number; ticket: number; sha: string; url: string; captures: CapturesLues };
+// Ce que la carte valide : sa PR et son adresse, le ticket livré, la tête jugée verte, les captures de chaque écran, et son brief.
+export type ValidationDesign = { pr: number; ticket: number; sha: string; url: string; captures: CapturesLues; brief?: BriefDeValidation };
+// Le brief (ticket 3330) : ce que le ticket demandait, en deux lignes au plus, et ce que le cook a changé à l'écran, un point
+// par ligne — nul quand la carte n'en porte aucun. Le runtime l'écrit dans le corps de la carte, avant ses captures
+// (runtime/src/validation-design/brief.ts, `lignesDuBrief`) ; une carte posée avant ce ticket ne dit que son titre de ticket.
+export type BriefDeValidation = { demande: string; fait: string[] | null };
+export const POINTS_MAX = 5;
+
+const TITRE_DEMANDE = "### What was asked";
+const TITRE_FAIT = "### What was done";
+const TICKET_DE_LA_CARTE = /^Ticket: #[1-9][0-9]* — (.+)$/;
+
+// Le brief que le corps de la carte porte : chaque partie va de son titre au titre suivant. Sans « What was asked », le
+// titre du ticket que la carte nomme ; sans point sous « What was done », aucun résumé.
+export function briefDuCorps(corps: string): BriefDeValidation {
+  const lignes = corps.replace(/\r\n?/g, "\n").split("\n");
+  const partie = (titre: string) => {
+    const debut = lignes.findIndex((ligne) => ligne.trim() === titre);
+    if (debut === -1) return null;
+    const fin = lignes.findIndex((ligne, rang) => rang > debut && ligne.startsWith("### "));
+    return lignes.slice(debut + 1, fin === -1 ? undefined : fin);
+  };
+  const aPlat = (texte: string) => texte.replace(/\s+/g, " ").trim();
+  const demandee = partie(TITRE_DEMANDE);
+  const titre = lignes.map((ligne) => TICKET_DE_LA_CARTE.exec(ligne.trim())?.[1]).find((lu) => lu !== undefined);
+  const demande = demandee === null ? aPlat(titre ?? "") : aPlat(demandee.join(" "));
+  const points = (partie(TITRE_FAIT) ?? []).filter((ligne) => ligne.startsWith("- ")).map((ligne) => aPlat(ligne.slice(2))).filter((point) => point !== "");
+  return { demande, fait: points.length === 0 ? null : points.slice(0, POINTS_MAX) };
+}
 
 const MARQUE = /^\s*<!-- brigade:validation-design pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
 const IMAGE = /!\[[^\]]*\]\((https:\/\/github\.com\/[^)\s]+)\)/g;
@@ -58,6 +85,7 @@ export function validationDuCorps(depot: string, corps: string): ValidationDesig
     sha,
     url: `https://github.com/${depot}/pull/${pr}`,
     captures: { complet: lus.length > 0 && lus.every(({ avant, apres }) => avant !== null && apres !== null), ecrans: lus },
+    brief: briefDuCorps(corps),
   };
 }
 
@@ -81,7 +109,17 @@ export function validationLue(brut: unknown): ValidationDesign | undefined {
     const e = typeof un === "object" && un !== null ? (un as Record<string, unknown>) : {};
     return typeof e.ecran === "string" && adresse(e.avant) && adresse(e.apres) ? [{ ecran: e.ecran, avant: e.avant, apres: e.apres }] : [];
   });
-  return { pr: lu.pr, ticket: lu.ticket, sha: lu.sha, url: lu.url, captures: { complet: captures.complet, ecrans } };
+  const brief = briefLu(lu.brief);
+  return { pr: lu.pr, ticket: lu.ticket, sha: lu.sha, url: lu.url, captures: { complet: captures.complet, ecrans }, ...(brief === undefined ? {} : { brief }) };
+}
+
+// Le brief relu des faits — ou rien, s'il n'en a pas la forme.
+function briefLu(brut: unknown): BriefDeValidation | undefined {
+  const lu = typeof brut === "object" && brut !== null ? (brut as Record<string, unknown>) : undefined;
+  if (lu === undefined || typeof lu.demande !== "string") return undefined;
+  if (lu.fait === null) return { demande: lu.demande, fait: null };
+  if (!Array.isArray(lu.fait) || lu.fait.length === 0 || !lu.fait.every((point) => typeof point === "string")) return undefined;
+  return { demande: lu.demande, fait: (lu.fait as string[]).slice(0, POINTS_MAX) };
 }
 
 // ── Les deux gestes ──

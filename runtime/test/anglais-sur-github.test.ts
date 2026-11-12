@@ -30,6 +30,7 @@ import { corpsDeLaFermeture, titreDeLaFermeture } from "../src/closer-github-pas
 import { mesurerRatio } from "../src/closing/ratio.ts";
 import { corps as corpsDeLaPreparation, TITRE as TITRE_DE_LA_PREPARATION } from "../src/preparation-depot/ticket.ts";
 import { direALArrivee } from "../src/projections/rail.ts";
+import { corpsDeCeQuiEstFait, lignesDuBrief } from "../src/validation-design/brief.ts";
 import { nomDuProjet } from "../src/geste.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
@@ -192,4 +193,8 @@ describe("in English on GitHub", { concurrency: 8 }, () => {
       corpsDeLaPreparation({ projet: "shop", depot: "acme/shop", base: "main", presents: { ".claude/brigade/gates.sh": true } }),
     ]);
   });
+});
+
+test("the design card's brief: the cook's summary posted on its PR, and the brief the card carries, with or without a summary (#3330)", () => {
+  enAnglais([corpsDeCeQuiEstFait(["The TODO column takes the full width"]), lignesDuBrief("Show the count on the rail", ["The rail shows the count"]).join("\n"), lignesDuBrief("Show the count on the rail", null).join("\n")]);
 });

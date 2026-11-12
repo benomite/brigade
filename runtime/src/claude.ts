@@ -11,6 +11,7 @@ import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
 import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
+import { CONSIGNE_DU_BRIEF } from "./validation-design/brief.ts";
 
 // Ce qu'un cook ne doit pas faire lui-même : seule la pass merge, et c'est la
 // station qui pousse. Garde-fou de bonne foi, pas une clôture — la clôture est
@@ -174,7 +175,7 @@ export const CONSIGNE_DE_RELECTURE = "Avant de commiter, relis ton diff comme le
 function consigneDesCaptures(ticket: number): string {
   const dossier = dossierDesCaptures(ticket);
   const visuels = [VUE_DE_L_APP, ...VISUELS].map((chemin) => `\`${chemin}/\``).join(", ");
-  return `Si ton diff change ce que l'utilisateur voit — sous ${visuels} — ou si le ticket porte le label \`${LABEL_COOK_DESIGN}\`, ta livraison est une livraison design : la relecture bloque une livraison qui change la vue de l'app sans aucune capture, et la pass renvoie au cook toute livraison design à qui il en manque une quand le projet fait valider ses designs par un humain. Pour chaque écran que ton diff change, prends sa capture avant — avant d'y toucher — et sa capture après, avec l'outil de \`scripts/capture-ecran/\` (son README dit l'appel), regarde-les, et commite-les sur ta branche à \`${dossier}/<écran>-avant.png\` et \`${dossier}/<écran>-apres.png\`. Si le dépôt n'a pas cet outil, ou qu'il ne sait pas rendre l'écran, dis-le dans ton compte-rendu.`;
+  return `Si ton diff change ce que l'utilisateur voit — sous ${visuels} — ou si le ticket porte le label \`${LABEL_COOK_DESIGN}\`, ta livraison est une livraison design : la relecture bloque une livraison qui change la vue de l'app sans aucune capture, et la pass renvoie au cook toute livraison design à qui il en manque une quand le projet fait valider ses designs par un humain. Pour chaque écran que ton diff change, prends sa capture avant — avant d'y toucher — et sa capture après, avec l'outil de \`scripts/capture-ecran/\` (son README dit l'appel), regarde-les, et commite-les sur ta branche à \`${dossier}/<écran>-avant.png\` et \`${dossier}/<écran>-apres.png\`. Si le dépôt n'a pas cet outil, ou qu'il ne sait pas rendre l'écran, dis-le dans ton compte-rendu. ${CONSIGNE_DU_BRIEF}`;
 }
 
 // Comment un cook lit le dépôt. Lu dans les sessions des cooks de #2486 à
