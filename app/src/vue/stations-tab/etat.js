@@ -3,7 +3,9 @@
 // module tient ce que l'onglet dit, sans rien poser : la vue lui donne ce qu'elle a lu, il rend un état.
 //   - Les stations qui servent le projet : celles que sa cuisson nomme (cuisson.ts) — une qui le refuse comprise : elle est
 //     des siennes, et sa carte dit pourquoi elle ne le cuit pas —, et celles qui le disent dans leur document sur GitHub (`StationVue.projets`, stations/stations.ts) — elles seules ont une
-//     carte. Une station qui ne le sert pas n'est nommée que comme l'origine d'un déménagement en cours.
+//     carte. Une station qui ne le sert pas n'est nommée que comme l'origine d'un déménagement en cours. Celle de cet
+//     ordinateur le sert quand sa liste de projets servis porte son dépôt (projets-servis/, ticket 3399) : une cuisine qui
+//     tourne ici pour le projet sans qu'il soit sur la liste ne le cuit pas, quoi que dise sa ligne de cuisson.
 //   - La ligne du haut, dans exactement un de quatre états : `cuit` (une station en ligne le cuit, ou attend son prochain
 //     ticket), `deplacement` (un déménagement de sa cuisine en route), `hors-ligne` (celles qui le servent sont toutes hors
 //     ligne : rien ne cuit), `personne` (aucune ne le sert). Seul `cuit` est vert.
@@ -42,7 +44,7 @@ import { RETENUE } from "../stations-du-compte.js";
  * @typedef {{ etat: "cuit", vert: true, stations: string[], cooks: number }
  *   | { etat: "deplacement", vert: false, de: string, vers: string, attend: string, depuis: number, bloque: string | null }
  *   | { etat: "hors-ligne", vert: false, station: string, ici: boolean, sorte: Sorte, dit: string }
- *   | { etat: "personne", vert: false }} Haut
+ *   | { etat: "personne", vert: false, fire?: number }} Haut
  */
 
 // Au-delà d'une minute, un déménagement qui n'est pas fini dit ce qui le bloque.
@@ -102,11 +104,13 @@ function horsLigneDe({ etat, vueLe, dit, presente }, maintenant) {
  *   - enfin la station où sa cuisine déménage (`vers`), qui démarre tant qu'elle ne le sert pas.
  * Une station appairée dite hors ligne l'est, quoi que dise la cuisson. `ici` : le projet cuit sur ce poste — sa station
  * de la box est celle de cet ordinateur (config.ts, `ici`). `lu` : l'instant de la lecture de la cuisson, d'où se compte
- * depuis quand une ligne s'est tue (à défaut, `maintenant`).
- * @param {{ projet: string, lignes?: readonly LigneDeStation[], stations?: readonly StationVue[], declarees?: readonly { nom: string, distante: boolean }[], locale?: string | null, ici?: boolean, vers?: string, maintenant: number, lu?: number }} lu
+ * depuis quand une ligne s'est tue (à défaut, `maintenant`). `serviIci` : la liste des projets que sert la station de cet
+ * ordinateur porte le dépôt du projet (projets-servis/) — `false`, ni sa ligne de cuisson ni son document ne lui donnent
+ * de carte ; `true`, elle en a une même sans eux ; non lue (`undefined`), on s'en tient à ce qu'elles disent.
+ * @param {{ projet: string, lignes?: readonly LigneDeStation[], stations?: readonly StationVue[], declarees?: readonly { nom: string, distante: boolean }[], locale?: string | null, ici?: boolean, vers?: string, maintenant: number, lu?: number, serviIci?: boolean }} lu
  * @returns {Servante[]}
  */
-export function servantesDe({ projet, lignes = [], stations = [], declarees = [], locale, ici = false, vers, maintenant, lu = maintenant }) {
+export function servantesDe({ projet, lignes = [], stations = [], declarees = [], locale, ici = false, vers, maintenant, lu = maintenant, serviIci }) {
   /** @type {Servante[]} */
   const servantes = [];
   const prises = new Set();
@@ -115,6 +119,9 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
     // soit le nom sous lequel le journal la déclare — une seule carte pour cet ordinateur.
     const iciMeme = ici && !ligne.distante && locale !== null && locale !== undefined && !prises.has(locale) ? stations.find(({ id }) => id === locale) : undefined;
     const appairee = appaireeDe(stations, ligne.station) ?? iciMeme;
+    // La station de cet ordinateur fait tourner le projet sans le servir : elle ne le cuit pas (ticket 3399).
+    const deCetOrdinateur = appairee === undefined ? ici && !ligne.distante : locale !== null && locale !== undefined && appairee.id === locale;
+    if (deCetOrdinateur && serviIci === false) continue;
     if (appairee !== undefined) prises.add(appairee.id);
     const refuse = ligne.etat === REFUSE;
     const horsLigne = appairee?.etat === "hors-ligne" || !enLigneDe(ligne);
@@ -135,14 +142,16 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
       agents: ligne.agents,
     });
   }
+  // Ce qu'une station appairée sert : son document sur GitHub ; celle de cet ordinateur, sa liste, quand elle est lue.
+  const sertLe = (/** @type {StationVue} */ station) => (serviIci !== undefined && locale !== null && locale !== undefined && station.id === locale ? serviIci : station.projets.includes(projet));
   for (const station of stations) {
-    if (prises.has(station.id) || !(station.projets.includes(projet) || station.nom === vers)) continue;
-    const sert = station.projets.includes(projet);
+    if (prises.has(station.id) || !(sertLe(station) || station.nom === vers)) continue;
+    const sert = sertLe(station);
     servantes.push({ id: station.id, nom: station.nom, ici: station.id === locale, sorte: sorteDe(station, locale), etat: sert ? station.etat : "demarre", dit: station.dit, cooks: [], agents: [] });
   }
   const nommee = (/** @type {string} */ nom) => lignes.some(({ station }) => station === nom) || servantes.some((servante) => servante.nom === nom || nomDePrise(servante.nom) === nom);
   for (const { nom, distante } of declarees) {
-    if (nommee(nom)) continue;
+    if (nommee(nom) || (serviIci === false && ici && !distante)) continue;
     servantes.push({ id: "", nom, ici: ici && !distante, sorte: ici && !distante ? "ici" : distante ? "ordinateur" : "box", etat: "illisible", dit: PAS_ANNONCEE, cooks: [], agents: [] });
   }
   if (vers !== undefined && !servantes.some(({ nom }) => nom === vers)) servantes.push({ id: "", nom: vers, ici: false, sorte: "ordinateur", etat: "demarre", dit: "", cooks: [], agents: [] });
@@ -186,11 +195,12 @@ export function blocageDe({ de, vers, etape, dit, deEnLigne, versEnLigne, depuis
 
 /**
  * La ligne du haut, dans exactement un de quatre états. Un déménagement en route l'emporte ; puis les stations en ligne qui
- * servent le projet ; puis celles qui le servent, toutes hors ligne ; sinon, personne.
- * @param {{ servantes: readonly Servante[], deplacement: Deplacement | null, maintenant: number }} lu
+ * servent le projet ; puis celles qui le servent, toutes hors ligne ; sinon, personne — et, lu, combien de tickets `fire`
+ * attendent sur son rail (`fire`, le compteur « rail » de son tableau).
+ * @param {{ servantes: readonly Servante[], deplacement: Deplacement | null, maintenant: number, fire?: number }} lu
  * @returns {Haut}
  */
-export function hautDe({ servantes, deplacement, maintenant }) {
+export function hautDe({ servantes, deplacement, maintenant, fire }) {
   if (deplacement !== null) {
     const bloque = maintenant - deplacement.depuis >= UNE_MINUTE_MS ? blocageDe(deplacement, maintenant) : null;
     return { etat: "deplacement", vert: false, de: deplacement.de, vers: deplacement.vers, attend: attenduDe(deplacement), depuis: deplacement.depuis, bloque };
@@ -199,7 +209,7 @@ export function hautDe({ servantes, deplacement, maintenant }) {
   if (enLigne.length > 0) return { etat: "cuit", vert: true, stations: enLigne.map(({ nom }) => nom), cooks: enLigne.reduce((somme, { cooks }) => somme + cooks.length, 0) };
   const absente = servantes.find(({ etat }) => etat !== "demarre");
   if (absente !== undefined) return { etat: "hors-ligne", vert: false, station: absente.nom, ici: absente.ici, sorte: absente.sorte, dit: absente.dit };
-  return { etat: "personne", vert: false };
+  return { etat: "personne", vert: false, ...(fire === undefined ? {} : { fire }) };
 }
 
 // Les mots de la ligne du haut.
@@ -217,14 +227,17 @@ export const EN_DEPLACEMENT = (de, vers, attend, depuis) => `Moving from ${de} t
 export const BLOQUE = (bloque) => `Not done after a minute: ${bloque}`;
 /** @param {string} station @param {string} dit */
 export const HORS_LIGNE = (station, dit) => `${station} cooks this project, but it is ${dit}: nothing cooks`;
-export const PERSONNE = "Nobody cooks this project";
+export const PERSONNE = "No station cooks this project";
+/** @param {number} combien */
+export const FIRE_EN_ATTENTE = (combien) => `${combien} fire ticket${combien === 1 ? "" : "s"} waiting`;
 export const CHOISIR = "Choose who cooks it";
 export const VERS_ICI = `Move to ${CET_ORDINATEUR}`;
+export const CUIRE_ICI = `Cook it on ${CET_ORDINATEUR}`;
 
 /** @param {Haut} haut */
 export function phraseDuHaut(haut) {
   if (haut.etat === "cuit") return CUIT_PAR(haut.stations, haut.cooks);
   if (haut.etat === "deplacement") return EN_DEPLACEMENT(haut.de, haut.vers, haut.attend, haut.depuis);
   if (haut.etat === "hors-ligne") return HORS_LIGNE(haut.station, haut.dit);
-  return PERSONNE;
+  return haut.fire === undefined ? PERSONNE : `${PERSONNE} · ${FIRE_EN_ATTENTE(haut.fire)}`;
 }

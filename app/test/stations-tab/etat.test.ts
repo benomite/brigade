@@ -1,5 +1,5 @@
 // L'onglet Stations d'un projet (#3195) : la ligne du haut, dans exactement un de quatre états — « Cooked by », « Moving from
-// A to B », la station qui le sert hors ligne, « Nobody cooks » —, verte seulement quand une station en ligne le cuit ou
+// A to B », la station qui le sert hors ligne, « No station cooks » —, verte seulement quand une station en ligne le cuit ou
 // attend son prochain ticket. Les stations qui le servent ont une carte, elles seules. Un déménagement pas fini au bout
 // d'une minute dit ce qui le bloque : l'horloge est passée en argument, aucun test n'attend.
 import assert from "node:assert/strict";
@@ -17,6 +17,7 @@ import {
   HORS_LIGNE,
   nomDePrise,
   PAS_ANNONCEE,
+  FIRE_EN_ATTENTE,
   PERSONNE,
   phraseDuHaut,
   REFUSANT,
@@ -77,7 +78,7 @@ describe("la ligne du haut : un seul de quatre états (#3195)", () => {
     assert.equal(phraseDuHaut(haut), HORS_LIGNE("box/claude", "offline for 3 h"));
   });
 
-  test("aucune station ne le sert : « Nobody cooks this project », sans vert", () => {
+  test("aucune station ne le sert : « No station cooks this project », sans vert", () => {
     const servantes = servantesDe({ projet: "parade", stations: [MAC, station("gpc", "pc", ["cantine"])], locale: "gmac", maintenant: MAINTENANT });
     assert.deepEqual(servantes, []);
     const haut = hautDe({ servantes, deplacement: null, maintenant: MAINTENANT });
@@ -200,5 +201,55 @@ describe("le déménagement suivi, de son départ à son arrivée (#3195)", () =
     const sans: Servante[] = servantesDe({ projet: "parade", stations: [BOX, MAC], locale: "gmac", maintenant: MAINTENANT });
     assert.equal(deplacementSuivi({ publie: refuse, demande, servantes: sans, stations: [BOX, MAC] }), null);
     assert.equal(hautDe({ servantes: sans, deplacement: null, maintenant: MAINTENANT }).etat, "cuit");
+  });
+});
+
+// Une station qui fait tourner le projet sans le servir ne le cuit pas (#3399) : celle de cet ordinateur le sert quand sa
+// liste de projets servis porte son dépôt (`serviIci`), quoi que disent sa ligne de cuisson et son document.
+describe("cet ordinateur fait tourner le projet sans le servir (#3399)", () => {
+  // La cuisine du projet tourne ici : `facts` nomme la ligne de ce Mac, acceptée et au repos.
+  const ICI = { projet: "parade", lignes: [ligne("macbook/claude", "idle", { distante: false, presente: true })], stations: [MAC], locale: "gmac", ici: true, maintenant: MAINTENANT };
+
+  test("sa liste ne porte pas le projet : aucune carte, et « No station cooks this project · 8 fire tickets waiting », jamais « Cooked by »", () => {
+    const servantes = servantesDe({ ...ICI, serviIci: false });
+    assert.deepEqual(servantes, []);
+    const haut = hautDe({ servantes, deplacement: null, maintenant: MAINTENANT, fire: 8 });
+    assert.equal(haut.etat, "personne");
+    assert.equal(phraseDuHaut(haut), "No station cooks this project · 8 fire tickets waiting");
+    assert.equal(phraseDuHaut(haut).includes("Cooked by"), false);
+    assert.equal(haut.vert, false);
+  });
+
+  test("même tue ou nommée par son document, elle ne le cuit pas — ni « cooks this project, but it is offline »", () => {
+    for (const lignes of [[ligne("macbook/claude", "silent", { distante: false, presente: false })], [ligne("macbook/claude", "cooking", { distante: false, presente: true })]]) {
+      assert.deepEqual(servantesDe({ ...ICI, lignes, stations: [{ ...MAC, projets: ["parade"] }], serviIci: false }), []);
+    }
+    // Déclarée par le projet sans s'être annoncée, celle de ce poste n'a pas de carte non plus.
+    assert.deepEqual(servantesDe({ ...ICI, lignes: [], declarees: [{ nom: "macbook/claude", distante: false }], serviIci: false }), []);
+  });
+
+  test("les autres stations restent ce qu'elles disent : la box qui le sert le cuit", () => {
+    const servantes = servantesDe({ ...ICI, lignes: [...ICI.lignes, ligne("parade-box/claude", "idle", { presente: true })], stations: [BOX, MAC], serviIci: false });
+    assert.deepEqual(servantes.map(({ nom }) => nom), ["parade-box"]);
+    assert.equal(phraseDuHaut(hautDe({ servantes, deplacement: null, maintenant: MAINTENANT })), CUIT_PAR(["parade-box"], 0));
+  });
+
+  test("sa liste porte le projet : ce Mac le cuit, qu'une ligne de cuisson le nomme ou non", () => {
+    for (const lignes of [ICI.lignes, []]) {
+      const servantes = servantesDe({ ...ICI, lignes, serviIci: true });
+      assert.deepEqual(servantes.map(({ nom, ici, etat }) => ({ nom, ici, etat })), [{ nom: "macbook", ici: true, etat: "en-ligne" }]);
+      assert.equal(phraseDuHaut(hautDe({ servantes, deplacement: null, maintenant: MAINTENANT, fire: 8 })), "Cooked by macbook · online · idle, nothing on the rail");
+    }
+  });
+
+  test("sa liste pas lue : rien n'est décidé à sa place, la ligne de cuisson dit ce qu'elle dit", () => {
+    assert.deepEqual(servantesDe(ICI), servantesDe({ ...ICI, serviIci: true }));
+    assert.equal(phraseDuHaut(hautDe({ servantes: servantesDe(ICI), deplacement: null, maintenant: MAINTENANT })), CUIT_PAR(["macbook"], 0));
+  });
+
+  test("le nombre de tickets `fire` se dit au singulier comme au pluriel ; non lu, il ne se dit pas", () => {
+    assert.equal(FIRE_EN_ATTENTE(1), "1 fire ticket waiting");
+    assert.equal(FIRE_EN_ATTENTE(0), "0 fire tickets waiting");
+    assert.equal(phraseDuHaut(hautDe({ servantes: [], deplacement: null, maintenant: MAINTENANT })), PERSONNE);
   });
 });

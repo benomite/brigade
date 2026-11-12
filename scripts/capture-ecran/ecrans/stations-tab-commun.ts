@@ -23,7 +23,9 @@ const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "parad
 const ligne = { station: "parade-box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, presente: true, cooks: [COOK_14] };
 const faits = (cuit: boolean): Faits => ({ ...PARADE.facts, cooks: cuit ? [COOK_14] : [], stations: cuit ? [ligne] : [] }) as unknown as Faits;
 
-export function ongletDesStations(dit: string, { stations, projet, cuit = false }: { stations: StationVue[]; projet: ProjetVu; cuit?: boolean }): Ecran {
+// `ici` : sa cuisine tourne sur ce Mac (poste/cuisine-ici.ts) ; `servis` : les dépôts que la station de ce Mac sert (projets-servis/) ;
+// `facts` : ce que `facts` dit de la cuisson, à la place de ce que `cuit` en dit.
+export function ongletDesStations(dit: string, { stations, projet, cuit = false, ici = false, servis = [], facts }: { stations: StationVue[]; projet: ProjetVu; cuit?: boolean; ici?: boolean; servis?: string[]; facts?: Faits }): Ecran {
   const vu: VuDesProjets = { a: MAINTENANT, projets: [projet], locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
   return {
     dit,
@@ -33,12 +35,12 @@ export function ongletDesStations(dit: string, { stations, projet, cuit = false 
     donnees: () => ({
       maintenant: MAINTENANT,
       reponses: {
-        demarrage: { ...demarrage(configuration([{ ...PROJETS[0]!, depot: "chef/parade" }, PROJETS[1]!])), stations: { a: MAINTENANT, stations } satisfies VuDesStations, projetsDesStations: vu },
+        demarrage: { ...demarrage(configuration([{ ...PROJETS[0]!, depot: "chef/parade" }, PROJETS[1]!]), (nom) => ici && nom === "parade"), stations: { a: MAINTENANT, stations } satisfies VuDesStations, projetsDesStations: vu },
         espace: [],
-        projetsServis: { depots: [] },
+        projetsServis: { depots: servis },
         stationsDuCompte: { state: "listed", stations: [], unreadable: [] },
       },
-      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: faits(cuit) } }),
+      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: facts ?? faits(cuit) } }),
     }),
   };
 }
