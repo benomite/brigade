@@ -157,6 +157,43 @@ test("over 40 journal events, the lost-time evidence cites those in the claim wa
   assert.doesNotMatch(sansDepot, /box\/noise-40|wait-104|events in this window/);
 });
 
+// BOBL-tech/mirrorlab#706 (#3422) : 45 s d'attente avant sa première prise,
+// puis 549 min après un cook rendu. Ses attentes mises bout à bout, les lignes
+// citées tombaient toutes dans la première, et la seconde n'en avait aucune.
+// Chaque attente a sa part, la plus longue d'abord, prise par ses deux bouts.
+test("the lost-time evidence cites each claim wait of a ticket, the longest first, from its start and from its end", async (t) => {
+  const enregistrements = temps();
+  const depots: Record<number, DepotDuTicket> = {
+    ...DEPOTS,
+    // 101 : déposé à 9:19, pris à 9:20, rendu à 9:25, repris à 9:55.
+    101: {
+      deposeAt: "2026-11-07T09:19:00.000Z",
+      fireAt: "2026-11-07T09:19:00.000Z",
+      priseAt: "2026-11-07T09:20:00.000Z",
+      faits: [{ quoi: "prise", at: "2026-11-07T09:20:00.000Z" }, { quoi: "rendu", at: "2026-11-07T09:25:00.000Z" }, { quoi: "prise", at: "2026-11-07T09:55:00.000Z" }],
+    },
+  };
+  const repertoire = repertoireTemporaire(t);
+  let maintenant = new Date("2026-11-07T08:00:00.000Z");
+  const journal = ouvrirJournal(repertoire, { maintenant: () => maintenant });
+  const noter = (at: Date, raison: string) => {
+    maintenant = at;
+    journal.ajouter({ project: "p", ticket: null, author: "runtime", type: "station.held", payload: { station: "box/a", reason: raison } } as Parameters<typeof journal.ajouter>[0]);
+  };
+  for (let i = 0; i < 30; i++) noter(new Date(Date.UTC(2026, 10, 7, 9, 19, i)), `short-${i}`);
+  for (let i = 0; i < 60; i++) noter(new Date(Date.UTC(2026, 10, 7, 9, 25, i * 20)), `long-${i}`);
+  journal.fermer();
+  const github: GitHubDeLaPreuve = { commentaires: async (numero) => COMMENTAIRES[numero] ?? [], depotDuTicket: async (numero) => depots[numero] ?? null };
+  const corps = await preuveDeMesure({ github, repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
+  assert.match(corps, /_90 events in this window: the 40 cited fall in the claim waits of #101, /);
+  const cites = (prefixe: string, n: number) => Array.from({ length: n }, (_, i) => i).filter((i) => corps.includes(`reason=${prefixe}-${i}\n`));
+  // 20 lignes chacune : les 10 premières et les 10 dernières de chaque attente.
+  const bouts = (n: number) => [...Array.from({ length: 10 }, (_, i) => i), ...Array.from({ length: 10 }, (_, i) => n - 10 + i)];
+  assert.deepEqual(cites("long", 60), bouts(60));
+  assert.deepEqual(cites("short", 30), bouts(30));
+  assert.match(corps, /- and 50 more$/);
+});
+
 // BOBL-tech/mirrorlab#670 (#3036) : son cook s'est arrêté bloqué, le manager a
 // répondu, et un cook suivant a livré. La mesure comptait 5 min de cook raté ;
 // la preuve disait « first try », sans la question du cook.

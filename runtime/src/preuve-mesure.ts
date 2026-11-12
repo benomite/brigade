@@ -221,6 +221,13 @@ const TICKETS_SUIVIS = 5;
 // tombaient tous dans sa première heure, et l'attente de 40 min d'un ticket
 // déposé l'après-midi n'avait aucune ligne pour la dire (#3156). Sans attente
 // lue sur GitHub, ou sans événement dedans, les premiers de la fenêtre.
+//
+// Les parts vont à chaque attente, la plus longue d'abord, pas à chaque
+// ticket : celles d'un ticket mises bout à bout, ses lignes tombaient
+// toutes dans sa première attente, de 45 s, et ses 549 min d'attente après un
+// cook rendu n'en avaient aucune (BOBL-tech/mirrorlab#706, #3422). Dans une
+// attente, ses premiers et ses derniers événements tour à tour : ce qui l'a
+// ouverte, et ce qui l'a levée.
 function evenementsCites(
   evenements: readonly EvenementDuJournal[],
   tickets: readonly PreuveDuTicket[],
@@ -228,25 +235,29 @@ function evenementsCites(
   const premiers = { cites: evenements.slice(0, EVENEMENTS_CITES), suivis: [] };
   if (evenements.length <= EVENEMENTS_CITES) return premiers;
   const instants = evenements.map((e) => Date.parse(e.at));
-  const dedans = (attentes: { debut: number; fin: number }[]) =>
-    instants.flatMap((at, rang) => (attentes.some(({ debut, fin }) => at >= debut && at <= fin) ? [rang] : []));
-  const files = tickets
-    .map((p) => ({ ticket: p.temps.ticket, attente: pertesDuTicket(p.temps).attente, attentes: attentesDuTicket(p) }))
-    .filter(({ attente }) => attente > 0)
+  const dedans = ({ debut, fin }: { debut: number; fin: number }) => instants.flatMap((at, rang) => (at >= debut && at <= fin ? [rang] : []));
+  // Les premiers et les derniers tour à tour.
+  const deuxBouts = (rangs: number[]) => rangs.map((_, i) => (i % 2 === 0 ? rangs[i / 2] : rangs[rangs.length - 1 - (i - 1) / 2]) as number);
+  const suivis = tickets
+    .map((p) => ({ ticket: p.temps.ticket, attente: pertesDuTicket(p.temps).attente, attentes: attentesDuTicket(p).map((a) => ({ duree: a.fin - a.debut, rangs: dedans(a) })) }))
+    .filter(({ attente, attentes }) => attente > 0 && attentes.some(({ rangs }) => rangs.length > 0))
     .sort((a, b) => b.attente - a.attente)
-    .map(({ ticket, attentes }) => ({ ticket, rangs: dedans(attentes) }))
-    .filter(({ rangs }) => rangs.length > 0)
     .slice(0, TICKETS_SUIVIS);
+  const files = suivis
+    .flatMap(({ attentes }) => attentes)
+    .filter(({ rangs }) => rangs.length > 0)
+    .sort((a, b) => b.duree - a.duree)
+    .map(({ rangs }) => deuxBouts(rangs));
   const pris = new Set<number>();
-  for (let tour = 0; pris.size < EVENEMENTS_CITES && files.some(({ rangs }) => rangs.length > tour); tour++) {
-    for (const { rangs } of files) {
+  for (let tour = 0; pris.size < EVENEMENTS_CITES && files.some((rangs) => rangs.length > tour); tour++) {
+    for (const rangs of files) {
       const rang = rangs[tour];
       if (rang !== undefined && pris.size < EVENEMENTS_CITES) pris.add(rang);
     }
   }
   if (pris.size === 0) return premiers;
   const cites = [...pris].sort((a, b) => a - b).flatMap((rang) => evenements[rang] ?? []);
-  return { cites, suivis: files.map(({ ticket }) => ticket) };
+  return { cites, suivis: suivis.map(({ ticket }) => ticket) };
 }
 
 // La section d'un ticket du temps perdu : par ticket, ses instants, sa perte et

@@ -545,10 +545,14 @@ project's GitHub and its own journal: every recent ticket measured, with the rea
 cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its loss,
 and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
 heartbeat), 40 at most. Over 40, the events cited are those in the claim waits of the five tickets that waited
-longest for a claim, an equal share each, in the journal's order (#3156): from filing — or from `fire` set over an
-hour later, as the measure counts it — to the first claim, and from each cook given back to the next claim, as
-GitHub dates them. The first 40 of BOBL-tech/espace's window all fell in its first hour, and #840's 40 min wait
-for a claim, an afternoon later, had no line to say it. With no wait read on GitHub, the first 40 of the window.
+longest for a claim (#3156): from filing — or from `fire` set over an hour later, as the measure counts it — to the
+first claim, and from each cook given back to the next claim, as GitHub dates them. Each of these waits gets an
+equal share, the longest wait first, taken from its first and its last events in turn — what opened it and what
+lifted it —, and the events cited are listed in the journal's order (#3422). The first 40 of BOBL-tech/espace's
+window all fell in its first hour, and #840's 40 min wait for a claim, an afternoon later, had no line to say it.
+With a share per ticket, its waits laid end to end, the lines of BOBL-tech/mirrorlab#706 all fell in its 45 s
+before its first claim, and its 549 min wait after a cook given back had none. With no wait read on GitHub, the
+first 40 of the window.
 The lost time counts as a failed cook every cook given back without a delivery, so its evidence also names the
 stops the quality does not count as a try — a block the manager answered, a stop on an open ticket, a stop the
 cook did not cause —, each with the cook's words (#3036), when its station comment quotes them — in English only:
