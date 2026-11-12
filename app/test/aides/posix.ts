@@ -15,9 +15,8 @@ export const SANS_POSIX: string | false = SOUS_WINDOWS ? "Windows runs no script
 export const CODE_DE_LA_BOX: string | false = SOUS_WINDOWS ? "this test runs the box's runtime code or the runtime's test tools, written for the Linux box (POSIX paths, a git config with POSIX paths)" : false;
 
 // Le paquet de l'app et sa mise à jour ne sont pas de ce poste : le .dmg se construit, se signe et
-// s'installe par les outils de macOS, l'AppImage s'assemble avec les bits d'exécution et le lien
-// symbolique d'un AppDir Linux, que Windows ne garde pas (#3339), et les prérequis de l'APK se
-// cherchent comme sur une machine de construction POSIX. Le paquet Windows est un autre ticket.
+// s'installe par les outils de macOS, et les prérequis de l'APK se cherchent comme sur une machine
+// de construction POSIX. Le paquet Windows est un autre ticket.
 export const PAQUETS: string | false = SOUS_WINDOWS ? "the app's packages and their update are built with macOS and POSIX tools: the Windows package is a separate ticket" : false;
 
 // Un lien vers un fichier absent : Windows doit savoir, en le créant, s'il mène à un fichier ou à

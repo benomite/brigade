@@ -65,7 +65,7 @@ test("l'app installée par l'installeur de Windows porte le rôle du second, tel
   assert.equal(readFileSync(join(installee, "resources", "app", DANS_L_APP), "utf8"), readFileSync(ROLE_DU_SECOND, "utf8"));
 });
 
-test("l'AppImage Linux porte le rôle du second, tel qu'il est dans le dépôt", { skip: PAQUETS }, (t) => {
+test("l'AppImage Linux porte le rôle du second, tel qu'il est dans le dépôt", (t) => {
   const racine = dossier(t);
   mkdirSync(join(racine, "electron", "resources"), { recursive: true });
   // Un ELF x86-64 : son en-tête suffit.
