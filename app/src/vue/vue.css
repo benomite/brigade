@@ -2315,12 +2315,11 @@ main > header,
   font-weight: 400;
   color: var(--discret);
 }
-/* TODO plein (ticket 3327) : à partir de quatre cartes, la colonne passe en tête de la rangée et prend deux pistes, à partir de dix,
-   trois — assez pour que le titre et la question d'une carte se lisent sans être coupés, et toujours en vue : ce sont les autres
-   colonnes qui cèdent, la rangée défile de côté (ticket 1556), pas TODO. Ses cartes se rangent en grille, plusieurs par ligne, et
+/* TODO plein (ticket 3327) : à partir de quatre cartes, la colonne garde sa place (l'ordre du ticket 2093) et prend deux pistes, à partir de dix,
+   trois — assez pour que le titre et la question d'une carte se lisent sans être coupés, et jamais coupés : la rangée défile de côté
+   (ticket 1556), TODO ne rogne pas. Ses cartes se rangent en grille, plusieurs par ligne, et
    se font compactes (carte-attente.css). De une à trois cartes, rien ne change. */
 #rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) {
-  order: -1;
   grid-column: span 2;
 }
 #rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(10)) {
