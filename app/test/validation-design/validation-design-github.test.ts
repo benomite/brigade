@@ -244,16 +244,27 @@ describe("les deux gestes jouent la commande du runtime", () => {
     assert.equal(faux.issues.get(61)?.state, "open");
   });
 
-  test("un refus du runtime — la tête de la PR a bougé — se dit en une ligne, son détail au survol, et la carte reste", async () => {
+  test("un refus du runtime — la PR fermée sans merge — se dit en une ligne, son détail au survol, et la carte reste", async () => {
+    const faux = await carteDEssai();
+    const [carte] = await lue(faux.appeler);
+    faux.pr.state = "closed";
+    const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux) });
+    assert.ok("refus" in rendu);
+    assert.match(rendu.refus, /^nothing was done: PR #60 is closed without being merged/);
+    assert.match(rendu.detail, /^brigade : PR #60 is closed without being merged/);
+    assert.deepEqual(faux.merges, []);
+    assert.equal((await lue(faux.appeler)).length, 1, "la carte reste dans TODO");
+  });
+
+  test("« Validate » après une mise à jour de la branche depuis sa base (ticket 3332) : rien ne se merge tout de suite, la validation est gardée sur le ticket, la carte quitte TODO et dit ce qui suit", async () => {
     const faux = await carteDEssai();
     const [carte] = await lue(faux.appeler);
     faux.pr.sha = "b".repeat(40);
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux) });
-    assert.ok("refus" in rendu);
-    assert.match(rendu.refus, /^nothing was done: the head of PR #60 moved since card #61/);
-    assert.match(rendu.detail, /^brigade : the head of PR #60 moved/);
+    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #61 closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
     assert.deepEqual(faux.merges, []);
-    assert.equal((await lue(faux.appeler)).length, 1, "la carte reste dans TODO");
+    assert.deepEqual(await lue(faux.appeler), [], "la carte a quitté TODO");
+    assert.ok(faux.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=61 pr=${PR} sha=${SHA} -->\nValidated by the chef on card #61 — merge pending.`)));
   });
 
   test("une commande qui ne se charge pas, ou qui lève, se dit : rien n'est fait", async () => {

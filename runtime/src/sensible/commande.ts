@@ -39,8 +39,8 @@ export async function principal({ args, env, dire, redire }: Appel, ouvrir: Ouvr
   const nom = `${cible.depot}#${cible.numero}`;
   try {
     if (note === null) {
-      const { carte, ticket } = await merger(github, cible.numero, brancheDuTicket);
-      dire(`${nom} merged, card #${carte} closed — ticket #${ticket} is served`);
+      const { carte, ticket, enAttente } = await merger(github, cible.numero, brancheDuTicket);
+      dire(enAttente ? `${nom}: your answer is kept, card #${carte} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` : `${nom} merged, card #${carte} closed — ticket #${ticket} is served`);
     } else {
       const { carte, ticket } = await renvoyer(github, cible.numero, note, brancheDuTicket);
       dire(`${nom} sent back: #${ticket} goes back to a cook with your note, card #${carte} closed — its next delivery comes back as a new card`);

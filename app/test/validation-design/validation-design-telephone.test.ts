@@ -227,11 +227,14 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
     assert.equal(monde.issues.get(CARTE)?.state, "closed");
   });
 
-  test("la tête de la PR a bougé depuis la carte : rien n'est mergé, la carte reste, et le dit", async () => {
+  test("la branche mise à jour depuis sa base depuis la carte (ticket 3332) : rien n'est mergé tout de suite, la validation est gardée sur le ticket, la carte se ferme et le dit", async () => {
     const { runtime, telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void (monde.pr.sha = "b".repeat(40)));
-    assert.deepEqual(telephone, { refus: "refus" in runtime ? runtime.refus : assert.fail("le runtime a validé"), detail: "" });
-    assert.match("refus" in telephone ? telephone.refus : "", /^nothing was done: the head of PR #60 moved since card #61/);
-    assert.deepEqual(monde.ecrites, []);
+    assert.deepEqual(telephone, runtime);
+    assert.deepEqual(telephone, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #${CARTE} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
+    assert.deepEqual(monde.merges, []);
+    assert.ok(monde.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=${CARTE} pr=${PR} sha=${SHA} -->\nValidated by the chef on card #${CARTE} — merge pending.`)));
+    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
   test("la livraison est repartie en cuisine depuis la carte : rien n'est mergé, la carte se ferme", async () => {

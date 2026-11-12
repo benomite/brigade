@@ -312,21 +312,30 @@ delivery, and every delivery of a project without the setting, is merged as befo
 |---|---|
 | its screens do not all have their before **and** after captures | **sent back to its cook** for them (`brigade:renvoi`, the files to commit named): no card, no chef |
 | it has them, and no open card holds its PR | **not merged**: an issue `Validate its screen`, labelled `chef-todo`, carries the question, the link of the PR, its brief (#3330: `### What was asked`, the ticket's title and the first paragraph of its body, cut to 240 characters; `### What was done`, the points the cook's station posted on the PR, or a line saying no summary is available) and each screen before and after as images; its body opens on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, `sha` the head judged green, and its card comment is `kind=design-validation`. The ticket stays `in-pass` and says its card |
-| a card already holds it on this head | not merged, no second card |
-| a card holds it on another head (the base moved, the branch was updated, the new head judged green again — and approved by the second judge if it touches its judges) | not merged: the old card is closed, a new card holds the new head |
+| a card already holds it, on this head or on another one with no send-back since the card (the branch was updated from its base: the screen is the same) | not merged, no second card (#3332) |
+| the chef validated it (`<!-- brigade:validation-design-validee carte=<card> pr=<PR> sha=<sha> -->` on the ticket) and no send-back follows that validation | **merged**, without a new card, whatever its head (#3332) |
+| a send-back follows the card or the validation (a cook changed the delivery) | the card, if still open, is closed at the send-back; the next delivery, judged green, gets **a new card** |
 | its files, its ticket's issue or its PR's comments cannot be read, or the card cannot be created | not merged; the station says why, and tries again at its next turn |
 
 Two gestures answer the card, which the app calls (`brigade <projet> design`, [`exploitation.md`](exploitation.md)):
 
 - **`validate <owner>/<repo>#<PR>`** merges the head the card carries, the one the pass judged green, then
-  closes the card. It merges nothing when the PR's head is no longer that one (an update the pass has not
-  judged yet, a red CI, a cook pushing): the card stays open until the pass judges the new head green and
-  replaces it. It merges nothing either when a send-back follows the card on the ticket: that card is
-  closed. A merge GitHub refuses leaves the card open and says why.
+  closes the card. When the PR's head is no longer that one and no send-back follows the card — the branch
+  was updated from its base — it merges nothing at once: the validation is written on the ticket
+  (`Validated by the chef on card #<card> — merge pending.`), the card is closed and says the same, and the
+  pass merges the PR once it judges its head green, without asking the chef again (#3332). The validation
+  holds through any number of updates; only a send-back after it (a cook then changes the delivery) ends
+  it, and the next delivery comes back as a new card. It merges nothing when a
+  send-back follows the card on the ticket: that card is closed. A merge GitHub refuses leaves the card
+  open and says why.
+
+  As for the review's approval (`github-etat/fusion.ts`), an update from the base is told from new work by
+  the send-back: a cook works on a delivery only after one.
 - **`send-back <owner>/<repo>#<PR> --comment "<what to change>"`** posts a send-back on the ticket with the
   comment as the change to make, removes `in-pass`, and closes the card. A cook takes the ticket up from its
   branch; its next delivery, judged green, comes back as **a new card with its new captures**. A card that a
-  send-back of the pass overtook (a red CI after an update) is closed when the next card is posted.
+  send-back of the pass overtakes (a red CI after an update) is closed at that send-back: it leaves the
+  chef's TODO at once (#3332); if GitHub does not close it, the station says so and the next card closes it.
 
 If the PR was merged anyway, `send-back` has no delivery to send back: it opens a follow-up ticket with the
 chef's comment and closes the card, and `validate` closes the card saying the PR is merged (#3347).
@@ -344,16 +353,19 @@ set it). The pass cooks and judges it exactly as any other, but **does not merge
 (#3223, `runtime/src/sensible/`): an issue `review before merge`, labelled `chef-todo`, carries the
 question and the link of the PR; its body opens on `<!-- brigade:sensitive-review pr=<PR> ticket=<ticket>
 sha=<sha> -->` and its card comment is `kind=review-before-merge`. The ticket stays `in-pass` and says its
-card. The card is the design one's: one card per head judged green, never a second however many times the
-pass runs; a new head judged green closes the old card and posts a new one; a card that cannot be created
+card. The card is the design one's: one card per delivery, never a second however many times the pass
+runs or the branch is updated from its base; a send-back closes it, and the next delivery gets a new one; a card that cannot be created
 is not merged, said, and tried again at the next turn. A ticket without the label is merged as before.
 A sensitive design delivery on a project where a human validates designs waits on its one
-`Validate its screen` card, which already holds it for the chef.
+`Validate its screen` card, which already holds it for the chef: the chef's validation on it, kept after
+an update from the base, answers for both, and the pass merges without a `review before merge` card (#3332).
 
 Two answers, `brigade <projet> sensitive` ([`exploitation.md`](exploitation.md)), act like the design
 gestures:
 
-- **`merge <owner>/<repo>#<PR>`** merges the head the card carries, then closes the card.
+- **`merge <owner>/<repo>#<PR>`** merges the head the card carries, then closes the card; when the branch
+  was updated from its base since the card, the answer is kept on the ticket (`Merge accepted by the chef
+  on card #<card> — merge pending.`) and the pass merges once the head is green, as for `validate`.
 - **`send-back <owner>/<repo>#<PR> --note "<note>"`** posts a send-back on the ticket with the note, which
   the cook reads with the ticket, removes `in-pass`, and closes the card; a cook takes the ticket up again.
   An empty note is refused.
