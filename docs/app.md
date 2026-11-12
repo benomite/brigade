@@ -179,6 +179,14 @@ button to click twice, until the reading that no longer says the breaker open ta
 labeled issue being open, the line says why in one line (`resume not requested: …`), GitHub's answer on hover, and gives
 `Resume` back to try again. On Rail the alert band does not repeat the line; on the other tabs, where there is no Todo,
 the band carries it with the same `Resume` (`app/src/vue/todo-breaker-line.js`). Captures: `docs/captures/2140/`.
+**On the phone the breaker line is at the head of `Awaiting you`, with the same `Resume`** (#3371). The phone has no
+station to ask: its reading lists the repository's open issues labeled `brigade:breaker-open` (`app/src/lecture-github-telephone.ts`,
+`avecLeDisjoncteur`). An open one says the kitchen held, with a `kitchen` line built from the issue the station wrote (how long,
+how many failures in a row, the failing ticket, its exit code: `cuisineRetenueParLeDisjoncteur`); the band's breaker alert follows,
+and the list shows it with that line written under it (a phone has no hover). `Resume` posts `/resume` on that issue through
+`reprendreLeDisjoncteur` of `app/src/gestes-github-telephone.ts`, the code the desktop runs. A reading of the issues that fails
+says nothing of the breaker: the rail stays as read, and the next reading, thirty seconds later, asks again. Captures:
+`docs/captures/3371/`.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the

@@ -357,6 +357,8 @@ const connus = {
     if (rendu !== undefined && "fait" in rendu) void retirerLaNotification(projet, ticket);
     return rendu;
   },
+  // « Resume » sur la ligne du disjoncteur, en tête de « Awaiting you » : `/resume` posté sur l'issue du disjoncteur, sur GitHub.
+  reprendreLeDisjoncteur: (/** @type {string} */ projet) => avecLesGestes((gestes) => gestes.reprendreLeDisjoncteur(projet), { refus: SANS_GITHUB, detail: "" }),
   // La connexion à GitHub oubliée — le jeton du coffre, le compte et ses projets. La vue revient à l'écran de
   // connexion à GitHub.
   oublierLeTelephone: async () => {

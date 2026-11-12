@@ -5614,6 +5614,17 @@ function lesCartesDuChef() {
     });
   });
 }
+// Les lignes du disjoncteur ouvert, en tête de la liste (ticket 3371) : une par projet dont la dernière bande le dit ouvert, avec
+// ce que la station en écrit — écrit sous la ligne, un téléphone n'ayant pas de survol — et son « Resume » — le même que celui de TODO sur le desktop (todo-breaker-line.js). Un projet en
+// lecture seule n'a que la ligne.
+function lesLignesDuDisjoncteur() {
+  return configuration.projets.filter((projet) => seLit(projet)).flatMap((projet) => {
+    const alerte = alerteDuDisjoncteur(projet.nom);
+    if (alerte === undefined) return [];
+    const dit = configuration.projets.length > 1 ? `${projet.nom}: ${alerte.dit}` : alerte.dit;
+    return [poserLigneDuDisjoncteur(document, { marque: pastille(alerte.dit, alerte.ton), dit, ...(alerte.releve === undefined ? {} : { pourquoi: alerte.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined)];
+  });
+}
 function poserLesCartesDuChef() {
   if (cartesDuChef.hidden) return;
   const cartes = lesCartesDuChef();
@@ -5678,6 +5689,7 @@ function poserLesCartesDuChef() {
     ...poserLaListeDesCartes(document, {
       cartes,
       avis,
+      tete: lesLignesDuDisjoncteur(),
       ...(cuisent === undefined ? {} : { ailleurs: AILLEURS(cuisent) }),
       ouvrir: (carte) => {
         vueDesCartes = { vu: "carte", carte };
@@ -5782,6 +5794,7 @@ async function reprendreLeDisjoncteur(projet) {
   /** @param {import("./todo-breaker-line.js").Etat} etat */
   const poser = (etat) => {
     reprises.set(projet.nom, etat);
+    poserLesCartesDuChef();
     if (courant?.nom !== projet.nom) return;
     poserAlertes(projet);
     poserRail(projet);
@@ -9036,6 +9049,8 @@ brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
   marquerSignal(projet);
   // La pastille dit la même chose que la bande, en un mot.
   marquerPastille(projet);
+  // Le disjoncteur a changé : sa ligne en tête de « Awaiting you » aussi.
+  if (JSON.stringify(disjoncteur) !== disjoncteurAvant) poserLesCartesDuChef();
   const bascule = JSON.stringify(etatsDuManager.get(projet)) !== JSON.stringify(etatDuManager);
   etatsDuManager.set(projet, etatDuManager);
   if (courant?.nom !== projet) return;
