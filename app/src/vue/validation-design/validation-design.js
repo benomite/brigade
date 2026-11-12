@@ -26,12 +26,12 @@ import { rangeeDuSecond } from "../todo-carte/demander-au-second.js";
 //   repos   rien n'est parti d'ici
 //   envoi   un geste part : les boutons et le champ attendent
 //   refus   rien n'a été fait (`dit`, et `detail` au survol) : la carte reste, ses gestes aussi
-//   fait    le runtime l'a fait : la carte quitte TODO
+//   fait    le runtime l'a fait (`geste`) : la carte dit ce qui a été fait, un court moment, puis quitte TODO
 /**
  * @typedef {{ etape: "repos" }
  *   | { etape: "envoi", geste: GesteDeValidation["geste"] }
  *   | { etape: "refus", dit: string, detail: string }
- *   | { etape: "fait", dit: string }} Etat
+ *   | { etape: "fait", dit: string, geste?: GesteDeValidation["geste"] }} Etat
  */
 
 /** @type {Etat} */
@@ -42,6 +42,11 @@ export const RENVOYER = "Send back to the kitchen";
 export const CHAMP = "What to change on the screen";
 export const EN_VALIDATION = "validating…";
 export const EN_RENVOI = "sending back to the kitchen…";
+// Le geste fait : le bouton cliqué le dit, au lieu de disparaître sans un mot (ticket 3386).
+export const VALIDE = "validated ✓";
+export const RENVOYE = "back to the kitchen ✓";
+// Le temps que la carte garde sa confirmation avant de quitter TODO.
+export const CONFIRMATION_MS = 1200;
 // Le champ du commentaire, tel que la vue le reconnaît pour lui rendre le clavier quand la page est reposée.
 export const CHAMP_DU_COMMENTAIRE = "commentaire-validation";
 /** @param {number} pr */
@@ -164,9 +169,13 @@ function poserLaCarte(doc, ticket, carte, etat, { captures, commentaire, cle, le
  */
 export function poserLesGestes(doc, validation, etat, { commentaire, cle, grand }, gestes) {
   const enRoute = etat.etape === "envoi";
-  const valider = boutonAction(doc, VALIDER, gestes.valider, { recommande: true, grand, prix: PRIX_VALIDER(validation.pr) });
+  const fait = etat.etape === "fait";
+  const geste = etat.etape === "envoi" || etat.etape === "fait" ? etat.geste : undefined;
+  const dit = (/** @type {GesteDeValidation["geste"]} */ lequel, /** @type {string} */ libelle) =>
+    geste !== lequel ? libelle : enRoute ? (lequel === "valider" ? EN_VALIDATION : EN_RENVOI) : fait ? (lequel === "valider" ? VALIDE : RENVOYE) : libelle;
+  const valider = boutonAction(doc, dit("valider", VALIDER), gestes.valider, { recommande: true, grand, prix: PRIX_VALIDER(validation.pr) });
   const boutonValider = valider.children?.[0];
-  if (boutonValider !== undefined) boutonValider.disabled = enRoute;
+  if (boutonValider !== undefined) boutonValider.disabled = enRoute || fait;
 
   const phrase = cree(doc, "div", "phrase renvoi");
   const saisie = cree(doc, "textarea");
@@ -174,12 +183,12 @@ export function poserLesGestes(doc, validation, etat, { commentaire, cle, grand 
   saisie.rows = 2;
   saisie.placeholder = CHAMP;
   saisie.ariaLabel = `what to change on the screen of #${validation.ticket}`;
-  saisie.disabled = enRoute;
+  saisie.disabled = enRoute || fait;
   saisie.dataset.cle = cle;
   saisie.dataset.champ = CHAMP_DU_COMMENTAIRE;
-  const renvoyer = boutonAction(doc, RENVOYER, () => gestes.renvoyer(saisie.value), { grand, prix: PRIX_RENVOYER(validation.ticket) });
+  const renvoyer = boutonAction(doc, dit("renvoyer", RENVOYER), () => gestes.renvoyer(saisie.value), { grand, prix: PRIX_RENVOYER(validation.ticket) });
   const boutonRenvoyer = renvoyer.children?.[0];
-  if (boutonRenvoyer !== undefined) boutonRenvoyer.disabled = enRoute || commentaire.trim() === "";
+  if (boutonRenvoyer !== undefined) boutonRenvoyer.disabled = enRoute || fait || commentaire.trim() === "";
   saisie.addEventListener("input", () => {
     gestes.ecrire(saisie.value);
     if (boutonRenvoyer !== undefined) boutonRenvoyer.disabled = saisie.value.trim() === "";
