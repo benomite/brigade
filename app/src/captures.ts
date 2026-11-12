@@ -73,17 +73,27 @@ export function capturesDeCarte(lues: CapturesLues): CapturesDeCarte {
 
 // L'image d'une capture, lue par le `gh` du poste au commit livré — ou pourquoi elle ne
 // l'est pas.
-export type Image = { image: string } | { sans: string };
+// `lien` : la page du fichier sur GitHub, que le chef ouvre quand l'image ne se lit pas ici — nul quand l'adresse n'est pas celle d'un fichier.
+export type Image = { image: string } | { sans: string; lien?: string };
+export function lienDeLaCapture(adresse: string): string | undefined {
+  const lue = lireAdresse(adresse);
+  return lue === undefined ? undefined : `https://github.com/${lue.depot}/blob/${lue.sha}/${lue.chemin.split("/").map(encodeURIComponent).join("/")}`;
+}
+// Une image qui ne se lit pas : pourquoi, et la page du fichier.
+const sans = (adresse: string, pourquoi: string): Image => {
+  const lien = lienDeLaCapture(adresse);
+  return lien === undefined ? { sans: pourquoi } : { sans: pourquoi, lien };
+};
 export async function lireCapture(reglages: Reglages, adresse: string): Promise<Image> {
   const lue = lireAdresse(adresse);
   if (lue === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
   const args = ["api", `repos/${lue.depot}/contents/${lue.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${lue.sha}`, "--jq", ".content"];
   const rendu = await lancer(reglages, args);
   const { erreur } = rendu;
-  if (erreur !== null) return { sans: echec(reglages, args, { ...rendu, erreur }) };
+  if (erreur !== null) return sans(adresse, echec(reglages, args, { ...rendu, erreur }));
   const contenu = rendu.sortie.replace(/\s+/g, "");
   // Au-delà d'un mégaoctet, GitHub ne rend pas le contenu d'un fichier : il est vide.
-  if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return { sans: `$ ${reglages.gh} ${args.join(" ")} — its output is not the file's content` };
+  if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return sans(adresse, `$ ${reglages.gh} ${args.join(" ")} — its output is not the file's content`);
   return { image: `data:image/png;base64,${contenu}` };
 }
 
@@ -97,12 +107,12 @@ export async function lireCaptureSurLAPI(appeler: AppelGitHub, adresse: string):
   try {
     rendu = await appeler(chemin);
   } catch (erreur) {
-    return { sans: `GitHub did not answer for this screenshot: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+    return sans(adresse, `GitHub did not answer for this screenshot: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
-  if (rendu.status !== 200) return { sans: refusDe("the reading of this screenshot", rendu).message };
+  if (rendu.status !== 200) return sans(adresse, refusDe("the reading of this screenshot", rendu).message);
   const brut = typeof rendu.data === "object" && rendu.data !== null ? (rendu.data as Record<string, unknown>).content : undefined;
   const contenu = typeof brut === "string" ? brut.replace(/\s+/g, "") : "";
   // Au-delà d'un mégaoctet, GitHub ne rend pas le contenu d'un fichier : il est vide.
-  if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return { sans: `GET ${chemin} — its answer is not the file's content` };
+  if (contenu === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(contenu)) return sans(adresse, `GET ${chemin} — its answer is not the file's content`);
   return { image: `data:image/png;base64,${contenu}` };
 }

@@ -1088,7 +1088,15 @@ ipcMain.handle("lireCapture", (_, nom: unknown, ticket: unknown, ecran: unknown,
   const vise = connu(nom);
   if (vise === undefined) return undefined;
   const adresse = faits.capture(vise.nom, ticket, ecran, moment);
-  return adresse === undefined ? { sans: "the station gave no address for this screenshot: the app has nothing to read" } : lireCapture(reglagesGh(), adresse);
+  if (adresse === undefined) return { sans: "the station gave no address for this screenshot: the app has nothing to read" };
+  return lireCapture(reglagesGh(), adresse).then((lue) => {
+    // Le lien d'une capture qui ne se lit pas : la vue ne l'ouvre que par `ouvrirLien`, qui ne connaît que ce qu'une lecture a rendu.
+    if ("sans" in lue && lue.lien !== undefined) {
+      const cle = `${vise.nom}#${String(ticket)}`;
+      liensLus.set(cle, [...(liensLus.get(cle) ?? []), lue.lien]);
+    }
+    return lue;
+  });
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.

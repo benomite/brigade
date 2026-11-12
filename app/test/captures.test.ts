@@ -140,6 +140,7 @@ describe("l'image d'une capture, lue par le `gh` du poste", () => {
   test("un `gh` en échec, une sortie qui n'est pas un contenu, une adresse étrangère : rien n'est montré, et pourquoi est dit", { skip: SANS_POSIX }, async (t) => {
     const enEchec = await lireCapture(essai(t, "HTTP 404: Not Found", 1).reglages, adresse("fiche-avant.png"));
     assert.ok("sans" in enEchec && /HTTP 404/.test(enEchec.sans) && /exit code 1/.test(enEchec.sans));
+    assert.equal("sans" in enEchec && enEchec.lien, `https://github.com/benomite/brigade/blob/${SHA}/docs/captures/30/fiche-avant.png`);
     const vide = await lireCapture(essai(t, "").reglages, adresse("fiche-avant.png"));
     assert.ok("sans" in vide && /not the file's content/.test(vide.sans));
     const { reglages } = essai(t, "iVBORw0KGgo=");
@@ -207,8 +208,17 @@ describe("la carte d'un ticket d'interface, dans la vue", () => {
   test("une image qui ne se lit pas le dit à sa place, son pourquoi au survol", async () => {
     const vue = await ouvrir({ lireCapture: () => ({ sans: "gh: HTTP 404" }) });
     const [figure] = bonDe(vue, 30).dessous("figure");
-    assert.equal(figure?.children[0]?.textContent, "not available");
+    assert.equal(figure?.children[0]?.textContent, "not available — gh: HTTP 404");
     assert.equal(figure?.children[0]?.title, "gh: HTTP 404");
+  });
+
+  test("une image qui ne se lit pas donne aussi le fichier à ouvrir sur GitHub, par une adresse que le process principal a rendue", async () => {
+    const lien = `https://github.com/benomite/brigade/blob/${SHA}/docs/captures/30/fiche-avant.png`;
+    const vue = await ouvrir({ lireCapture: () => ({ sans: "$ gh api x\nHTTP 404: Not Found\n→ exit code 1", lien }) });
+    const [figure] = bonDe(vue, 30).dessous("figure");
+    const place = figure?.children[0];
+    assert.equal(place?.textContent, "not available — HTTP 404: Not Found open the file on GitHub");
+    assert.equal((place?.children[0] as unknown as { href: string }).href, lien);
   });
 
   test("un ticket qui n'est pas d'interface n'a aucune zone de captures, pas même vide", async () => {

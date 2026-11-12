@@ -368,7 +368,7 @@ describe("les gestes du téléphone et ses captures", () => {
     assert.deepEqual(await lireCaptureSurLAPI(monde.appeler, avant), { image: `data:image/png;base64,${PNG}` });
     const ailleurs = avant.replace(SHA, "a".repeat(40));
     assert.match(JSON.stringify(await lireCaptureSurLAPI(monde.appeler, ailleurs)), /"sans":"GitHub refused the reading of this screenshot \(HTTP 404\)/);
-    assert.deepEqual(await lireCaptureSurLAPI(async () => ({ status: 200, data: { content: "", encoding: "none" } }), avant), { sans: `GET /repos/${DEPOT}/contents/docs/captures/58/rail-avant.png?ref=${SHA} — its answer is not the file's content` });
+    assert.deepEqual(await lireCaptureSurLAPI(async () => ({ status: 200, data: { content: "", encoding: "none" } }), avant), { sans: `GET /repos/${DEPOT}/contents/docs/captures/58/rail-avant.png?ref=${SHA} — its answer is not the file's content`, lien: `https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/rail-avant.png` });
     assert.match(JSON.stringify(await lireCaptureSurLAPI(async () => Promise.reject(new Error("Unable to resolve host")), avant)), /GitHub did not answer for this screenshot: Unable to resolve host/);
     assert.match(JSON.stringify(await lireCaptureSurLAPI(monde.appeler, "https://example.com/x.png")), /is not a file on GitHub/);
   });
