@@ -31,16 +31,14 @@ import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
-import { avecLeRailBloque, railBloqueDuStatus } from "./rail-bloque/status.ts";
+import { avecLeRailBloque, railBloqueCherche, railBloqueDuStatus } from "./rail-bloque/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
 const JOURS_DE_TODO = 7;
 
-// Asynchrone depuis le rail bloqué (#3358), qui se lit sur GitHub ; son type reste celui de toute commande.
-export const principal = (appel: Appel): void | Promise<void> => photoEtRail(appel);
-
-async function photoEtRail({ args: tapes, env, dire, redire }: Appel): Promise<void> {
+// Synchrone, sauf sur une station GitHub seul : le rail bloqué (#3358) s'y lit sur GitHub avant que rien ne s'écrive.
+export function principal({ args: tapes, env, dire, redire }: Appel): void | Promise<void> {
   const brut = enAnglais("status", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
@@ -77,28 +75,41 @@ async function photoEtRail({ args: tapes, env, dire, redire }: Appel): Promise<v
     throw erreur;
   }
   // Le rail bloqué (#3358) : des tickets `fire` qu'aucun manager n'a pris, sous la tête du bloc `awaiting` — la file du second.
-  for (const ligne of avecLeRailBloque(photo.lignes, await railBloqueDuStatus(env, maintenant))) dire(ligne);
+  const { lignes, dernierSeq } = photo;
+  const lu = journal;
+  if (!railBloqueCherche(env)) return ecrire(lignes);
+  return railBloqueDuStatus(env, maintenant).then((rail) => ecrire(avecLeRailBloque(lignes, rail)), (erreur: unknown) => {
+    lu.fermer();
+    throw erreur;
+  });
 
-  if (option === undefined) {
-    journal.fermer();
-  } else {
-    // Les gestionnaires précèdent l'annonce : qui la lit peut signaler sans courir.
-    // Un second signal, ou l'autre des deux, ne doit pas refermer le journal.
-    let arreter = () => {};
-    let arrete = false;
-    const arretPropre = () => {
-      if (arrete) return;
-      arrete = true;
-      arreter();
+  function ecrire(lignesDeLaPhoto: readonly string[]): void {
+    for (const ligne of lignesDeLaPhoto) dire(ligne);
+    suivreOuFermer(lu, dernierSeq);
+  }
+
+  function suivreOuFermer(journal: Journal, depuis: number): void {
+    if (option === undefined) {
       journal.fermer();
-    };
-    for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, arretPropre);
-    dire(`\nsuivi en direct${ticket === undefined ? "" : ` du ticket #${ticket}`} — Ctrl-C pour arrêter`);
-    arreter = suivre(journal, {
-      depuis: photo.dernierSeq,
-      ticket: ticket === undefined ? undefined : Number(ticket),
-      ecrire: (ligne) => dire(ligne),
-    });
+    } else {
+      // Les gestionnaires précèdent l'annonce : qui la lit peut signaler sans courir.
+      // Un second signal, ou l'autre des deux, ne doit pas refermer le journal.
+      let arreter = () => {};
+      let arrete = false;
+      const arretPropre = () => {
+        if (arrete) return;
+        arrete = true;
+        arreter();
+        journal.fermer();
+      };
+      for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, arretPropre);
+      dire(`\nsuivi en direct${ticket === undefined ? "" : ` du ticket #${ticket}`} — Ctrl-C pour arrêter`);
+      arreter = suivre(journal, {
+        depuis,
+        ticket: ticket === undefined ? undefined : Number(ticket),
+        ecrire: (ligne) => dire(ligne),
+      });
+    }
   }
 }
 

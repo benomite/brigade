@@ -30,10 +30,13 @@ export async function lignesDuRailBloque(options: { depot: string; lire: Lire; s
   return bloque === null ? [] : [ligneDeLaFile(bloque)];
 }
 
+// `status` le cherche-t-il ? Sur une station GitHub seul, au dépôt nommé : ailleurs, `status` reste sans lecture de GitHub.
+export const railBloqueCherche = (env: Record<string, string | undefined>): boolean => Boolean(env.BRIGADE_GITHUB_REPO) && lireGitHubSeul(env.BRIGADE_STATE_DIR)?.etat === "accepted";
+
 // Ce que `status` ajoute : rien hors d'une station GitHub seul, ou sans dépôt nommé.
 export async function railBloqueDuStatus(env: Record<string, string | undefined>, maintenant: Date): Promise<string[]> {
   const depot = env.BRIGADE_GITHUB_REPO;
-  if (!depot || lireGitHubSeul(env.BRIGADE_STATE_DIR)?.etat !== "accepted") return [];
+  if (!depot || !railBloqueCherche(env)) return [];
   const gh = env.BRIGADE_GH_BIN || "gh";
   const client = clientGh(gh, env as NodeJS.ProcessEnv);
   const lire: Lire = async (chemin) => {
