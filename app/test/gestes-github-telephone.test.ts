@@ -191,6 +191,8 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       `POST /repos/${DEPOT}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
       `DELETE /repos/${DEPOT}/issues/40/labels/served-elsewhere`,
       `DELETE /repos/${DEPOT}/issues/40/labels/blocked-on-human`,
+      `DELETE /repos/${DEPOT}/issues/40/labels/question`,
+      `DELETE /repos/${DEPOT}/issues/40/labels/decision`,
       `DELETE /repos/${DEPOT}/issues/40/labels/chef-todo`,
     ]);
     assert.deepEqual(etat.issues[40]?.labels, ["fire"]);
@@ -304,7 +306,7 @@ describe("sans station joignable, les trois gestes passent par GitHub seul", () 
     assert.ok("repondue" in (await gestes.repondreCarte(PROJET, 40, clic(40, 1))));
     assert.ok("fait" in (await gestes.geste(PROJET, "cuisine", 31)));
     assert.ok("fait" in (await gestes.geste(PROJET, "retirer", 22)));
-    assert.equal(monde.recues.length, 6);
+    assert.equal(monde.recues.length, 8);
     for (const { url, entetes } of monde.recues) {
       assert.ok(url.startsWith(API), `${url} is GitHub's API`);
       assert.deepEqual(entetes, url.includes("/comments") ? { ...ENTETES, "Content-Type": "application/json" } : ENTETES);
@@ -485,6 +487,8 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
       `POST /repos/${DEPOT}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
       `DELETE /repos/${DEPOT}/issues/40/labels/served-elsewhere`,
       `DELETE /repos/${DEPOT}/issues/40/labels/blocked-on-human`,
+      `DELETE /repos/${DEPOT}/issues/40/labels/question`,
+      `DELETE /repos/${DEPOT}/issues/40/labels/decision`,
       `DELETE /repos/${DEPOT}/issues/40/labels/chef-todo`,
     ]);
     assert.ok("repondue" in dit);

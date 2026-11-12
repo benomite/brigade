@@ -10,8 +10,8 @@
 //   - une issue au label `chef-todo` : la carte que son dernier commentaire marqué pose (tableau/todo-github.ts, #2217) ;
 //     une carte dont la question ne se lit pas (pas de commentaire marqué, ou sans texte) n'est pas une entrée : elle est
 //     dite au second, dans le bloc, avec pourquoi (`illisibles`) ;
-//   - une issue que le manager a écartée et qui porte le label du chef — `question`, `decision`, `blocked-on-human` —, dans
-//     les mots du bloc `awaiting` de la box (runtime/src/attend.ts, `GESTES_D_ECART_EN`) : depuis la pose de son label.
+//   - une issue que le manager a écartée et qui porte le label du chef — `question`, `decision`, `blocked-on-human` — : depuis
+//     la pose de son label, sa carte pose la question du manager, avec ses boutons (#3370, `carteDeLEcart`).
 // Une issue au label `waiting` attend un tiers, pas le chef : elle n'est jamais une entrée, quoi qu'elle porte d'autre
 // (#3075) ; l'issue du tableau de la cuisine non plus.
 //
@@ -29,7 +29,7 @@ import type { AttenduDAutrui, Tiers } from "../faits.ts";
 import type { Partage } from "../vue/cartes-assignees/cartes-assignees.ts";
 import type { AppelGitHub } from "./client.ts";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lecture.ts";
-import { BLOCKED_ON_HUMAN, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
+import { BLOCKED_ON_HUMAN, carteDeLEcart, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
 import type { RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
@@ -200,12 +200,14 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       labelsDEcart.flatMap((label, rang) =>
         (ecartees[rang] ?? [])
           .filter((issue) => !dits.has(issue.number as number) && !labelsDe(issue).includes(LABEL_WAITING))
-          .map((issue) => pages(`/repos/${depot}/issues/${issue.number}/events`).then((evenements) => ({ issue, label: label as keyof typeof ECARTS, evenements }))),
+          .map((issue) => Promise.all([pages(`/repos/${depot}/issues/${issue.number}/events`), commentaires(issue.number as number)]).then(([evenements, lus]) => ({ issue, label: label as keyof typeof ECARTS, evenements, lus }))),
       ),
     );
-    for (const { issue, label, evenements } of poses) {
+    // Sa carte pose la question du manager, avec ses boutons (#3370, mise-de-cote-github.ts, `carteDeLEcart`).
+    for (const { issue, label, evenements, lus } of poses) {
       const pose = evenements.filter(({ event, label: lequel }) => event === "labeled" && objet(lequel)?.name === label).at(-1);
-      poser({ ...entree(issue), depuis: date(pose?.created_at) ?? creee(issue), quoi: "ecart", ligne: ECARTS[label] });
+      const chef = carteDeLEcart(label, lus);
+      poser({ ...entree(issue), depuis: date(pose?.created_at) ?? creee(issue), quoi: "ecart", ligne: ligneDeLaCarte(chef), chef });
     }
     // La plus ancienne d'abord, comme le bloc de la box.
     const instant = (iso: string) => Date.parse(iso);
