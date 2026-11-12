@@ -47,9 +47,11 @@ const CANTINE = depot("chef/cantine", [
   { n: 4, titre: "Opening hours", servi: 120, duree: 2 },
 ]);
 
-const lecture = (donnees: DonneesDuDepot[], projets: Record<string, string>): LectureDAutonomie => {
+const lecture = (donnees: DonneesDuDepot[], projets: Record<string, string>, partiels: { projet: string; depuis: string; raison: string }[] = []): LectureDAutonomie => {
   const chiffres = chiffresDAutonomie(donnees, 7, new Date(MAINTENANT));
-  return { jours: 7, chiffres: { ...chiffres, avecHumain: chiffres.avecHumain.map((servi) => ({ ...servi, projet: projets[servi.depot] ?? servi.depot })) }, manquants: [] };
+  return { jours: 7, chiffres: { ...chiffres, avecHumain: chiffres.avecHumain.map((servi) => ({ ...servi, projet: projets[servi.depot] ?? servi.depot })) }, manquants: [], partiels };
 };
 export const DE_TOUS = lecture([PARADE, CANTINE], { "chef/parade": "parade", "chef/cantine": "cantine" });
 export const DE_PARADE = lecture([PARADE], { "chef/parade": "parade" });
+// La même lecture, GitHub ayant refusé une page de PR (#3379) : « parade » n'est compté que depuis quatre jours.
+export const DE_PARADE_PARTIEL = lecture([PARADE], { "chef/parade": "parade" }, [{ projet: "parade", depuis: il(96), raison: "GitHub answered HTTP 403 on /repos/chef/parade/pulls?state=closed&page=8" }]);
