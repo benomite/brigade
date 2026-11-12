@@ -36,7 +36,7 @@ const QUESTION_1554 = [
   "- [close] No, we drop the export",
 ].join("\n");
 
-type Issue = { labels: Set<string>; state: "open" | "closed"; commentaires: { id: number; body: string; author_association: string; created_at: string }[] };
+type Issue = { pr?: true; labels: Set<string>; state: "open" | "closed"; commentaires: { id: number; body: string; author_association: string; created_at: string }[] };
 type PR = { state: "open" | "closed"; merged: boolean; ref: string; body: string };
 
 // Un faux GitHub qui tient son monde : les lectures du rail (vue/rail/github.ts) et les écritures de la réponse.
@@ -50,7 +50,8 @@ function monde() {
   const prs = new Map<number, PR>([[1560, { state: "open", merged: false, ref: "cook/1554-export", body: "Closes #1554" }]]);
   const ecrits: { methode: string; chemin: string; corps?: unknown }[] = [];
   const ok = (data: unknown, status = 200): ReponseGitHub => ({ status, data });
-  const issueJson = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${DEPOT}/issues/${numero}`, created_at: "2026-11-01T00:00:00Z", labels: [...issue.labels].map((name) => ({ name })) });
+  const issueJson = (numero: number, issue: Issue) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${DEPOT}/issues/${numero}`, created_at: "2026-11-01T00:00:00Z", labels: [...issue.labels].map((name) => ({ name })), ...(issue.pr === true ? { pull_request: {} } : {}) });
+  const refusees = new Set<number>();
   const prJson = (numero: number, pr: PR) => ({ number: numero, state: pr.state, merged: pr.merged, html_url: `https://github.com/${DEPOT}/pull/${numero}`, created_at: "2026-11-04T00:00:00Z", head: { ref: pr.ref }, body: pr.body });
   const lire = async (chemin: string): Promise<ReponseGitHub> => {
     // Les issues ouvertes au label demandé : le rail (`fire`) comme ce qui attend le chef (attente-du-chef.ts).
@@ -84,6 +85,7 @@ function monde() {
       return ok({});
     }
     const pr = prs.get(Number(numero));
+    if (methode === "PUT" && reste === "/merge" && refusees.has(Number(numero))) return ok({ message: "Pull Request is not mergeable" }, 405);
     if (methode === "PUT" && reste === "/merge" && pr !== undefined) {
       Object.assign(pr, { state: "closed", merged: true });
       // Le mot-clé de la PR ferme son issue, comme GitHub le fait.
@@ -93,7 +95,7 @@ function monde() {
     }
     return ok({ message: "Not Found" }, 404);
   };
-  return { issues, prs, ecrits, client: { lire, ecrire } satisfies ClientDeLaReponse };
+  return { issues, prs, ecrits, refusees, client: { lire, ecrire } satisfies ClientDeLaReponse };
 }
 
 // Le Todo que la vue dessine de la lecture de ce monde.
@@ -218,6 +220,34 @@ describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un s
     assert.deepEqual([...(leMonde.issues.get(40)?.labels ?? [])], ["prio:2"]);
     assert.equal(leMonde.issues.get(40)?.state, "open");
     assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 40));
+  });
+
+  // La carte d'une PR de fork (runtime/src/pr-externe/pr-externe.ts) est posée sur la PR elle-même.
+  const CARTE_DE_FORK = ["<!-- brigade:todo kind=merge-by-hand -->", "merge #77?", "- [merge] Merge #77", "", "Recommended answer: **yes**"].join("\n");
+  const avecLaPRDeFork = () => {
+    const leMonde = monde();
+    leMonde.issues.set(77, { pr: true, labels: new Set(["chef-todo"]), state: "open", commentaires: [{ id: 7, body: CARTE_DE_FORK, author_association: "OWNER", created_at: "2026-11-05T03:00:00Z" }] });
+    leMonde.prs.set(77, { state: "open", merged: false, ref: "patch-1", body: "A fix from a fork" });
+    return leMonde;
+  };
+
+  test("merge d'une PR de fork : sa carte est dans Todo avec le bouton `Merge #77` ; un clic merge la PR, et la carte part", async () => {
+    const leMonde = avecLaPRDeFork();
+    assert.deepEqual(carteDe(await todo(leMonde.client), 77).todo?.choix.map(({ texte }) => texte), ["Merge #77"]);
+    const rendu = await cliquer(leMonde, 77, "Merge #77");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(leMonde.prs.get(77)?.merged, true);
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 77));
+  });
+
+  test("merge d'une PR de fork refusé par GitHub : la raison est dite, la carte reste", async () => {
+    const leMonde = avecLaPRDeFork();
+    leMonde.refusees.add(77);
+    const rendu = await cliquer(leMonde, 77, "Merge #77");
+    assert.ok("refus" in rendu, JSON.stringify(rendu));
+    assert.match(rendu.detail ?? "", /Pull Request is not mergeable/);
+    assert.equal(leMonde.prs.get(77)?.merged, false);
+    assert.ok((await todo(leMonde.client)).some(({ ticket }) => ticket === 77));
   });
 
   test("close : l'issue est fermée", async () => {

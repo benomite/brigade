@@ -102,7 +102,7 @@ export function carteDeLaPRExterne(pr: PRExterne, verdict: VerdictExterne): Cart
   const gates = verdict.gates === "none" ? "its gates did not run" : `its gates are ${verdict.gates}`;
   return {
     sorte: "merge-by-hand",
-    texte: [`merge #${pr.number}?`, "", `Recommended answer: **${reponse}** — on \`${pr.sha.slice(0, 7)}\`, ${revue} and ${gates} (the kitchen's comment above says why).`, "", "This PR comes from a fork: the kitchen never merges it. Merge it by hand, or close it."].join("\n"),
+    texte: [`merge #${pr.number}?`, `- [merge] Merge #${pr.number}`, "", `Recommended answer: **${reponse}** — on \`${pr.sha.slice(0, 7)}\`, ${revue} and ${gates} (the kitchen's comment above says why).`, "", "This PR comes from a fork: the kitchen never merges it. Only you merge it, with the button above, or close it."].join("\n"),
   };
 }
 
