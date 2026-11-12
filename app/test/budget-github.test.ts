@@ -267,3 +267,59 @@ test("the desktop's fetch reads GitHub's budget headers, and leaves out those it
   const illisible = await parFetch({ fetch: faux({ "x-ratelimit-remaining": "beaucoup", "x-ratelimit-limit": "5000", "x-ratelimit-reset": "1793000000", "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" }) })("https://api.github.com/x", {});
   assert.deepEqual(illisible, { status: 200, data: [] });
 });
+
+// #3414 : « read again » after the reset time, and a pause that says who spends the quota.
+const lireSousBudget = (budget: BudgetGitHub, appeler: AppelGitHub, horloge: { t: number }) =>
+  lectureSousBudget({ budget, depot: "chef/un", maintenant: () => horloge.t, dernier: () => undefined, lire: async () => {
+    const reponse = await budget.appeler(appeler)("/repos/chef/un");
+    return reponse.status === 200 ? { lu: true } as unknown as LectureDuTableauDuDepot : { lu: false, depot: "chef/un", luLe: new Date(horloge.t).toISOString(), raison: "refused" };
+  } });
+
+test("the pause time on screen is never earlier than the real one; once it has passed, one read draws the rail", async () => {
+  const horloge = { t: DEBUT };
+  const reprise = DEBUT + 54 * MINUTE + 20_000;
+  let limite: LimiteGitHub = { restant: 542, total: 5_000, repriseLe: reprise };
+  const budget = tenirLeBudgetGitHub({ maintenant: () => horloge.t });
+  const appeler: AppelGitHub = async () => ({ status: 200, data: [], limite });
+  await budget.appeler(appeler)("/repos/chef/un");
+  const pause = await lireSousBudget(budget, appeler, horloge);
+  assert.match(pause.lu ? "" : pause.raison, /is not read until 2026-11-09 08:55 UTC/, "08:54:20 is shown as 08:55, not 08:54");
+  horloge.t = reprise;
+  limite = { restant: 4_994, total: 5_000, repriseLe: reprise + HEURE };
+  assert.equal((await lireSousBudget(budget, appeler, horloge)).lu, true, "one read at the reset time draws the rail");
+});
+
+test("if GitHub still refuses after the reset time, the message names the new wait, not the passed time", async () => {
+  const horloge = { t: DEBUT };
+  const reprise = DEBUT + 10 * MINUTE;
+  const budget = tenirLeBudgetGitHub({ maintenant: () => horloge.t });
+  let reponse: ReponseGitHub = { status: 403, data: { message: "API rate limit exceeded" }, limite: { restant: 0, total: 5_000, repriseLe: reprise } };
+  const appeler: AppelGitHub = async () => reponse;
+  await lireSousBudget(budget, appeler, horloge);
+  horloge.t = reprise + 5 * MINUTE;
+  reponse = { status: 403, data: { message: "API rate limit exceeded" }, limite: { restant: 0, total: 5_000, repriseLe: reprise } };
+  const lue = await lireSousBudget(budget, appeler, horloge);
+  assert.match(lue.lu ? "" : lue.raison, /is not read until 2026-11-09 08:16 UTC/, "the wait is counted from now, not the passed 08:10");
+});
+
+test("the pause says something else uses the quota when the app counted only a small part of what was spent", async () => {
+  const horloge = { t: DEBUT };
+  const budget = tenirLeBudgetGitHub({ maintenant: () => horloge.t });
+  let restant = 4_000;
+  const appeler: AppelGitHub = async () => ({ status: 200, data: [], limite: { restant, total: 5_000, repriseLe: DEBUT + 50 * MINUTE } });
+  for (let i = 0; i < 5; i++) await budget.appeler(appeler)("/repos/chef/un");
+  restant = 542;
+  await budget.appeler(appeler)("/repos/chef/un");
+  const lue = await lireSousBudget(budget, appeler, horloge);
+  assert.match(lue.lu ? "" : lue.raison, /Something else uses the quota on this account: GitHub counts 4458 requests spent, the app only 6\./);
+  // When the app spent most of what was spent, the message does not blame anything else.
+  const seul = tenirLeBudgetGitHub({ maintenant: () => horloge.t });
+  let reste = 10;
+  const presque: AppelGitHub = async () => ({ status: 200, data: [], limite: { restant: reste, total: 10, repriseLe: DEBUT + HEURE } });
+  for (let i = 0; i < 5; i++) await seul.appeler(presque)("/repos/chef/un");
+  reste = 1;
+  await seul.appeler(presque)("/repos/chef/un");
+  const sans = await lireSousBudget(seul, presque, horloge);
+  assert.match(sans.lu ? "" : sans.raison, /is not read until/);
+  assert.doesNotMatch(sans.lu ? "" : sans.raison, /Something else/);
+});

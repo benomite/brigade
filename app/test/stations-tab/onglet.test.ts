@@ -1,7 +1,8 @@
 // L'onglet Stations d'un projet (#3195), la vue jouée : une seule ligne en tête, une carte par station qui sert le projet,
 // « Details » replié, et « Move to another station » qui ouvre le choix — cet ordinateur d'abord — puis suit le déménagement
 // sur la ligne du haut jusqu'à son terme, ou dit ce qui le bloque passée la minute (horloge simulée). Ni la cuisine locale,
-// ni un second « add a station », ni « not read yet », ni une station qui ne sert pas le projet.
+// ni « + station », ni « not read yet », ni une station qui ne sert pas le projet ; « Add a station » (#3402) est le seul
+// geste d'ajout.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
@@ -16,7 +17,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type Demenagement, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
-import { ARRETER, DEPLACER, DETAILS } from "../../src/vue/stations-tab/stations-tab.js";
+import { AJOUTER, ARRETER, DEPLACER, DETAILS } from "../../src/vue/stations-tab/stations-tab.js";
 import { CHOISIR, PERSONNE, VERS_ICI } from "../../src/vue/stations-tab/etat.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
@@ -69,7 +70,9 @@ describe("l'onglet Stations : une ligne en tête, une carte par station qui sert
     assert.equal(haut(vue).dataset.ton, "vert");
     assert.deepEqual(cartes(vue).map(({ ariaLabel }) => ariaLabel), ["parade-box"]);
     const texte = onglet(vue).textContent;
-    for (const absent of ["macbook", "Add a station", "+ station", "not read yet", "Local station", "All stations", "Station settings", "kitchen", "does not serve"]) assert.equal(texte.includes(absent), false, absent);
+    for (const absent of ["macbook", "+ station", "not read yet", "Local station", "All stations", "Station settings", "kitchen", "does not serve"]) assert.equal(texte.includes(absent), false, absent);
+    // Un seul geste d'ajout, sous la ligne du haut : « Add a station » (#3402), qui ouvre le même choix que « Choose who cooks it ».
+    assert.deepEqual(haut(vue).dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), [AJOUTER]);
     // L'en-tête du projet ne redit pas, au-dessus de l'onglet, qui le cuit.
     assert.equal(vue.element("stations-du-projet").hidden, true);
   });

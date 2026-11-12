@@ -24,6 +24,7 @@ import { tenirLaVidange } from "../mise-a-jour/vidange.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { sourceDesProjets } from "../projets-station/source.ts";
 import { servirLesProjetsChoisis, type ServiceDeLOrdinateur } from "../station-ordinateur/servir.ts";
+import { migrerLAncienneListe } from "../station-ordinateur/projets-servis.ts";
 import { machineDe } from "../projets/preparer.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
@@ -147,6 +148,15 @@ const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConne
 let seVide = (): boolean => false;
 // Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas) : leurs cooks en vol aussi retiennent sa relance.
 let choisis: ServiceDeLOrdinateur | null = null;
+// Ses projets n'ont qu'une liste, sa configuration (#3402) : l'ancienne liste de
+// l'ordinateur (`projets-servis.json`) y passe avant que ses cuisines ne la lisent.
+try {
+  const { migres, ecartes } = migrerLAncienneListe(racine);
+  if (migres.length > 0) dire(`brigade : station — ${migres.join(", ")} passé${migres.length > 1 ? "s" : ""} de projets-servis.json dans sa configuration : une seule liste de ses projets`);
+  for (const { depot, pourquoi } of ecartes) dire(`brigade : station — ${depot} n'est pas passé de projets-servis.json dans sa configuration — ${pourquoi}`);
+} catch (erreur) {
+  dire(`brigade : station — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+}
 const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(fenetreDeDepartMs === null ? {} : { fenetreDeDepartMs }), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }), ...(relaisMs === undefined ? {} : { intervalleRelaisMs: Number(relaisMs) }) });
 const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], sauver: async () => [...(await station.sauver()), ...((await choisis?.sauver?.()) ?? [])], dire });
 if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();

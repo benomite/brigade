@@ -1,7 +1,7 @@
 // L'onglet Stations d'un projet que la station de cet ordinateur fait tourner sans le servir (#3399) : sa cuisine tourne ici
 // et `facts` nomme sa ligne, au repos, mais sa liste de projets servis ne porte que d'autres dépôts. L'onglet ne dit pas
 // « Cooked by … idle » : personne ne le cuit, et combien de tickets `fire` attendent. « Cook it on this computer » le met
-// sur la liste par le geste de la case de Settings ; l'onglet dit alors que ce Mac le cuit, et Settings le coche. Derrière le
+// sur la liste que Settings montre ; l'onglet dit alors que ce Mac le cuit, et Settings le dit `served`. Derrière le
 // pont, la liste est celle du runtime, écrite pour de bon dans un répertoire du test.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -22,7 +22,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
-import { SERVI } from "../../src/vue/projets-servis/projets-servis.js";
+import { PAS_SERVI, SERVI } from "../../src/vue/projets-servis/projets-servis.js";
 import { CHOISIR, CUIRE_ICI, PERSONNE } from "../../src/vue/stations-tab/etat.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
@@ -123,8 +123,9 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
     assert.equal(vue.element("stations-du-projet").textContent.includes("Cooks on"), false);
   });
 
-  test("« Cook it on this computer » l'ajoute à la liste de ce Mac : l'onglet dit que ce Mac le cuit, et Settings le coche", async () => {
+  test("« Cook it on this computer » l'ajoute à la liste de ce Mac : l'onglet dit que ce Mac le cuit, et Settings le dit servi", async () => {
     const { vue, racine } = await laPage();
+    assert.equal(ligneServie(vue).dessous("span").find(({ className }) => className === "pas-servi")?.textContent, PAS_SERVI);
     bouton(haut(vue), CUIRE_ICI).click();
     for (let tour = 0; tour < 6; tour++) await repos();
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "servirUnProjet").map(({ args }) => args), [[DEPOT, true]]);
@@ -133,10 +134,8 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
     assert.equal(haut(vue).dataset.ton, "vert");
     assert.deepEqual(cartes(vue).map(({ ariaLabel }) => ariaLabel), ["macbook"]);
     assert.equal(haut(vue).dessous("button").some(({ textContent }) => textContent === CUIRE_ICI), false);
-    // Les deux endroits disent la même chose : la case de parade, dans « projects this computer serves », est cochée.
-    const ligne = ligneServie(vue);
-    assert.equal(ligne.dessous("input").find(({ type }) => type === "checkbox")?.checked, true);
-    assert.equal(ligne.children[1]?.textContent, SERVI);
+    // Les deux endroits disent la même chose : parade, dans « projects this computer serves », y est `served`.
+    assert.equal(ligneServie(vue).dessous("strong").find(({ className }) => className === "servi")?.textContent, SERVI);
   });
 
   test("le rail pas encore lu, la ligne ne compte aucun ticket qu'elle n'a pas lu", async () => {

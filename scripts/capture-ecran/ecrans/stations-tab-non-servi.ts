@@ -13,6 +13,6 @@ export const ecran = ongletDesStations("L'onglet Stations de « parade », que c
   stations: [{ ...BOX, projets: [] }, MAC],
   projet: { ...CONFIE, suiviPar: undefined, stations: [], cuitSur: null } as never,
   ici: true,
-  servis: ["chef/cantine"],
+  servisIci: ["chef/cantine"],
   facts,
 });
