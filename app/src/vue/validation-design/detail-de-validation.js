@@ -1,6 +1,7 @@
 // @ts-check
 // Le détail d'une carte « Validate its screen » (ticket 3212, après 3185) : un clic sur la carte, ou sur l'une de ses
-// captures, l'ouvre en grand par-dessus l'app — en plein écran sur le téléphone. Dans cet ordre : la question ; les captures
+// captures, l'ouvre en grand par-dessus l'app — en plein écran sur le téléphone. Dans cet ordre : la question ; le brief
+// (ticket 3330), ce que le ticket demandait et ce que le cook a changé à l'écran, pour savoir où regarder ; les captures
 // avant et après de chaque écran côte à côte, à la plus grande taille que la fenêtre permet ; le lien de la pull request et
 // les deux gestes de la carte, « Validate » et le commentaire avec « Send back to the kitchen ».
 // Chaque capture se zoome — molette, pincement, ou ses boutons — et se déplace au glisser. L'avant et l'après d'un écran
@@ -38,6 +39,11 @@ export const RETOUR = "Back to before and after";
 export const MONTRER = (moment) => (moment === "avant" ? "Show before" : "Show after");
 /** @param {number} ticket */
 export const SUIVANTE = (ticket) => `Next validation (#${ticket})`;
+
+export const DEMANDE = "What was asked";
+export const FAIT = "What was done";
+export const SANS_DEMANDE = "this card does not say what its ticket asked — open its pull request";
+export const SANS_RESUME = "No summary of what was done is available: the cook wrote none for this delivery.";
 
 export const ECHELLE_MAX = 8;
 /** @type {Vue} */
@@ -121,6 +127,7 @@ export function poserDetailDeValidation(doc, ticket, carte, etat, affichage, { i
   enTete.append(fermer);
   tete.append(enTete);
   racine.append(tete);
+  if (carte.brief !== undefined) racine.append(poserBrief(doc, carte.brief));
 
   const zone = cree(doc, "div", "ecrans-du-detail");
   if (captures?.incomplete !== undefined) {
@@ -152,6 +159,28 @@ export function poserDetailDeValidation(doc, ticket, carte, etat, affichage, { i
   }
   racine.append(pied);
   return racine;
+}
+
+// Le brief, en deux parties titrées : ce que le ticket demandait, coupé à deux lignes (en entier au survol), et ce que le
+// cook a changé à l'écran, un point par ligne — ou qu'il n'en a rien dit.
+/** @param {Fabrique} doc @param {import("../../carte-todo.ts").BriefDeCarte} brief */
+function poserBrief(doc, { demande, fait }) {
+  const bloc = cree(doc, "section", "brief-du-detail");
+  bloc.ariaLabel = "what the ticket asked and what was done on the screen";
+  const demandee = cree(doc, "div", "partie-du-brief");
+  const texte = cree(doc, "p", "demande-du-ticket", demande === "" ? SANS_DEMANDE : demande);
+  if (demande !== "") texte.title = demande;
+  demandee.append(cree(doc, "h3", undefined, DEMANDE), texte);
+  const faite = cree(doc, "div", "partie-du-brief");
+  faite.append(cree(doc, "h3", undefined, FAIT));
+  if (fait === null) faite.append(cree(doc, "p", "sans-resume", SANS_RESUME));
+  else {
+    const liste = cree(doc, "ul", "fait-a-l-ecran");
+    liste.append(...fait.map((point) => cree(doc, "li", undefined, point)));
+    faite.append(liste);
+  }
+  bloc.append(demandee, faite);
+  return bloc;
 }
 
 // Un écran : ses captures (l'avant et l'après, ou celle ouverte seule), qui partagent la vue de l'écran, et sa barre — zoomer,

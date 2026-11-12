@@ -254,3 +254,31 @@
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
+/* Dans un TODO plein (ticket 3327 ; le rail pose le conteneur `todo-plein` sur chaque carte), la carte se fait compacte : la question à la
+   taille du corps, le champ sur une ligne avec « send », sans la ligne de sa sorte (« A product question waits for your answer. »)
+   quand la carte pose sa question — le titre et la question disent la même chose, la place est pour eux. Sans question, la ligne
+   reste : elle est tout ce que la carte dit. */
+@container todo-plein (min-width: 0px) {
+  .bon[data-carte="attente"] .carte-todo {
+    gap: var(--pas-1);
+  }
+  .bon[data-carte="attente"] .carte-todo p.question-carte {
+    font-size: var(--taille-corps);
+    line-height: 1.3;
+  }
+  .bon:has(> .carte-todo > p.question-carte) > p.ligne-carte {
+    display: none;
+  }
+  .bon .carte-todo p.secondaire {
+    margin: 0;
+  }
+  .bon .carte-todo div.phrase {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .bon .carte-todo div.phrase textarea {
+    flex: 1;
+    height: 3.4em;
+    min-height: 0;
+  }
+}

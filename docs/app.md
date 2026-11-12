@@ -1159,7 +1159,10 @@ body, `jouerLaValidation` for the desktop and `validerSurGithub` for the phone),
 **The large detail of a `Validate its screen` card (#3212).** A click on the card, or on one of its captures, opens its
 detail over the app (in Todo, it opens the detail instead of the ticket's sheet; its buttons and its comment field keep
 their gesture; Enter or Space on its captures opens it too). In this order: the question; `One over the other`, `Next
-validation (#<card>)` when another design validation awaits you, and `Close`; for each screen, `Zoom out`, `Zoom in` and
+validation (#<card>)` when another design validation awaits you, and `Close`; the brief (#3330), read from the card's
+body: `What was asked`, cut to two lines (whole on hover), and `What was done`, the cook's points one per line — or "No
+summary of what was done is available" when the card carries none (a card posted before #3330 shows its ticket's title
+as what was asked); for each screen, `Zoom out`, `Zoom in` and
 `Fit`, then its before and after captures side by side, each as large as the window allows; then `Pull request #<PR>`,
 `Validate`, and the comment field with `Send back to the kitchen` — the card's gestures, with the same comment. Each
 capture zooms with the wheel (around the pointer), by pinching, by its buttons or by a double click (a second one fits it
@@ -1170,8 +1173,9 @@ detail, zoomable the same way; `Back to before and after`, or Escape, returns. E
 gesture done from the detail closes it and the card leaves Todo, as on the card; refused, the detail stays and says why
 in one line. `Next validation` opens the next card that awaits you (the order of the phone's list), without going back
 to Todo. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
-one under the other, pinch to zoom, its two gestures 44 px high. On a read-only project the detail shows no gesture.
-Captures: `docs/captures/3212/`.
+one under the other, pinch to zoom, its two gestures 44 px high, the brief in one column and the detail scrolling so
+the captures keep half the screen. On a read-only project the detail shows no gesture.
+Captures: `docs/captures/3212/`, `docs/captures/3330/`.
 *Code: `app/src/vue/validation-design/detail-de-validation.js` (the detail and its zoom), opened from `validation-design.js`
 (the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-de-validation.test.ts`.*
 

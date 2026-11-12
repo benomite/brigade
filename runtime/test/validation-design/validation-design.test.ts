@@ -14,6 +14,7 @@ import type { GitHub } from "../../src/github.ts";
 import { MARQUE_DE_RENVOI } from "../../src/qualite-github.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier } from "../../src/reglages-projet/reglages.ts";
 import { principal } from "../../src/validation-design/commande.ts";
+import { corpsDeCeQuiEstFait, SANS_RESUME } from "../../src/validation-design/brief.ts";
 import { carteDuCorps, designsValidesParUnHumain, estUneLivraisonDesign, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -134,6 +135,47 @@ test("setting on: a green design delivery with its captures is not merged; a che
   assert.ok((faux.commentaires.get(TICKET) ?? []).some((c) => c.body.includes(`card #${carte.number}`)));
   assert.deepEqual(avertis, []);
   assert.deepEqual(renvois(faux), []);
+});
+
+test("the card opens with a brief: what was asked, from the ticket's title and body, and what was done, the cook's points the station posted on the PR (#3330)", async () => {
+  const faux = enPass(ECRAN);
+  faux.ticket(TICKET).corps = "## Context\n\nThe chef cannot tell what changed between the captures.\n\n## Acceptance criteria\n\n- a long list";
+  faux.poster(PR, "A", corpsDeCeQuiEstFait(["the TODO column takes the full width", "cards show their question on one line"]));
+  const { s } = station(faux, true);
+  await tours(s, 3);
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  const brief = "### What was asked\n\nticket 40 — The chef cannot tell what changed between the captures.\n\n### What was done\n\n- the TODO column takes the full width\n- cards show their question on one line\n\n### Captures";
+  assert.ok(carte.corps.includes(brief), carte.corps);
+  assert.doesNotMatch(carte.corps, /a long list/);
+});
+
+test("a PR with no summary from its cook gets a card whose brief says none is available, and still says what was asked", async () => {
+  const { faux } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.ok(carte.corps.includes(`### What was asked\n\nticket 40 — the ticket's body\n\n### What was done\n\n_${SANS_RESUME}_`), carte.corps);
+});
+
+test("the ticket's issue that GitHub does not give when the card is posted: no card, nothing merged, the station says why, and the next turn posts it", async () => {
+  const faux = enPass(ECRAN);
+  const avertis: string[] = [];
+  const bas = faux.pour("A");
+  let panne = true;
+  const { s } = station(faux, true, avertis, {
+    issue: async (numero) => {
+      if (panne && numero === TICKET) throw new Error("gh api : HTTP 502");
+      return bas.issue!(numero);
+    },
+  });
+  await tours(s, 3);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.ok(avertis.some((ligne) => ligne.includes("HTTP 502")), avertis.join("\n"));
+  panne = false;
+  await tours(s, 3, () => ouvertes(faux).length > 0);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
 });
 
 test("a held delivery gets one card only, however many turns pass on the same head", async () => {

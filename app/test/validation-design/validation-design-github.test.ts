@@ -8,12 +8,13 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { Sortie } from "../../../runtime/src/appel.ts";
 import { principal } from "../../../runtime/src/validation-design/commande.ts";
+import { corpsDeCeQuiEstFait } from "../../../runtime/src/validation-design/brief.ts";
 import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
 import { carteDuChefDeTodo } from "../../src/carte-todo.ts";
 import { tenirFaits } from "../../src/faits.ts";
 import { lireCeQuiAttendLeChef } from "../../src/tableau/attente-du-chef.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
-import { INCONNUE, jouerLaValidation, SORTE_DE_VALIDATION, validationDuCorps, VIDE, type CommandeChargee, type CommandeDuRuntime } from "../../src/vue/validation-design/validation-design-github.ts";
+import { briefDuCorps, INCONNUE, jouerLaValidation, SORTE_DE_VALIDATION, validationDuCorps, VIDE, type CommandeChargee, type CommandeDuRuntime } from "../../src/vue/validation-design/validation-design-github.ts";
 
 const DEPOT = "chef/parade";
 const SHA = "3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345";
@@ -25,6 +26,8 @@ type IssueFausse = { title: string; body: string; labels: Set<string>; state: "o
 // Un faux GitHub qui tient le ticket, sa PR verte, et ce que le runtime y écrit.
 function fauxGitHub() {
   const issues = new Map<number, IssueFausse>([[TICKET, { title: "Export the journal as CSV", body: "", labels: new Set(["fire", "in-pass"]), state: "open", comments: [] }]]);
+  // Les commentaires de la PR : ce que la station y a posté, dont ce que le cook a changé à l'écran (ticket 3330).
+  const surLaPR: IssueFausse["comments"] = [];
   let prochaine = 61;
   const pr = { number: PR, url: `https://github.com/${DEPOT}/pull/${PR}`, base: "main", sha: SHA, state: "open" as "open" | "closed", merged: false, enRetard: false, mergeePar: null };
   const merges: Array<[number, string]> = [];
@@ -38,10 +41,10 @@ function fauxGitHub() {
     commenter: async (numero: number, corps: string) => void sienne(numero).comments.push({ body: corps, author: "brigade", association: "OWNER", createdAt: "2026-11-11T12:00:00Z" }),
     delabelliser: async (numero: number, label: string) => void sienne(numero).labels.delete(label),
     fermerIssue: async (numero: number) => void (sienne(numero).state = "closed"),
-    commentaires: async (numero: number) => sienne(numero).comments,
+    commentaires: async (numero: number) => (numero === PR ? surLaPR : sienne(numero).comments),
     issue: async (numero: number) => {
       const lue = issues.get(numero);
-      return lue === undefined ? null : { number: numero, title: lue.title, labels: [...lue.labels], state: lue.state, createdAt: "2026-11-11T12:00:00Z", updatedAt: "2026-11-11T12:00:00Z", url: `https://github.com/${DEPOT}/issues/${numero}` };
+      return lue === undefined ? null : { number: numero, title: lue.title, labels: [...lue.labels], state: lue.state, createdAt: "2026-11-11T12:00:00Z", updatedAt: "2026-11-11T12:00:00Z", url: `https://github.com/${DEPOT}/issues/${numero}`, body: lue.body };
     },
     ouvertes: async () => ({
       inchange: false as const,
@@ -73,12 +76,14 @@ function fauxGitHub() {
     if (commentaires !== null) return { status: 200, data: sienne(Number(commentaires[1])).comments.map(({ body, createdAt }) => ({ body, created_at: createdAt })) };
     return { status: 404, data: null };
   };
-  return { github, appeler, issues, merges, pr };
+  return { github, appeler, issues, merges, pr, surLaPR };
 }
 
-// La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures.
-async function carteDEssai() {
+// La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures. `avant` : ce
+// qui se passe sur le faux avant que la pass ne la pose.
+async function carteDEssai(avant: (faux: ReturnType<typeof fauxGitHub>) => void = () => {}) {
   const faux = fauxGitHub();
+  avant(faux);
   const motif = await retenirLeDesign(faux.github, {
     depot: DEPOT,
     station: "box/claude",
@@ -153,6 +158,30 @@ describe("l'app lit la carte que le runtime pose", () => {
     // Ce qui n'a pas la forme d'une carte n'est pas gardé.
     tenus.recevoir({ projet: "parade", demande: 1, a: "2026-11-11T12:01:00Z", sorties: [{ commande: "facts", texte: JSON.stringify({ ...faits, attend: [{ ticket: 61, titre: "x", url: carte?.url, chef: { ...carte?.chef, design: { pr: "60" } } }] }) }] });
     assert.equal(tenus.chef("parade", 61)?.design, undefined);
+  });
+
+  test("son brief (ticket 3330) : ce que le ticket demandait et ce que le cook a changé à l'écran, posté sur la PR — sur la carte de TODO et dans les faits", async () => {
+    const faux = await carteDEssai((avant) => {
+      (avant.issues.get(TICKET) ?? assert.fail("pas de ticket")).body = "## Context\n\nThe chef copies the journal by hand every week.\n\n## Acceptance criteria\n\n- a CSV button";
+      avant.surLaPR.push({ body: corpsDeCeQuiEstFait(["the rail shows an Export as CSV button", "an empty journal greys it out"]), author: "brigade", association: "OWNER", createdAt: "2026-11-11T11:00:00Z" });
+    });
+    const [carte] = await lue(faux.appeler);
+    const attendu = { demande: "Export the journal as CSV — The chef copies the journal by hand every week.", fait: ["the rail shows an Export as CSV button", "an empty journal greys it out"] };
+    assert.deepEqual(carte?.chef?.design?.brief, attendu);
+    assert.deepEqual(carteDuChefDeTodo(carte?.chef ?? assert.fail("pas de carte"))?.brief, attendu);
+    const tenus = tenirFaits(() => new Map());
+    const faits = { etat: "ouverte", lu: "2026-11-11T12:00:00Z", dernierTick: "2026-11-11T12:00:00Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [{ ticket: 61, titre: carte?.titre, url: carte?.url, chef: carte?.chef }] };
+    tenus.recevoir({ projet: "parade", demande: 0, a: "2026-11-11T12:00:00Z", sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
+    assert.deepEqual(tenus.chef("parade", 61)?.design?.brief, attendu);
+  });
+
+  test("sans résumé posté sur la PR, le brief n'a rien de fait et garde ce qui était demandé ; une carte d'avant le ticket 3330 garde le titre de son ticket", async () => {
+    const faux = await carteDEssai();
+    const [carte] = await lue(faux.appeler);
+    assert.deepEqual(carte?.chef?.design?.brief, { demande: "Export the journal as CSV", fait: null });
+    const ancienne = [`<!-- brigade:validation-design pr=${PR} ticket=${TICKET} sha=${SHA} -->`, "**Does the screen of #58 look right?**", "", "Ticket: #58 — Export the journal as CSV", `Pull request: https://github.com/${DEPOT}/pull/${PR}`].join("\n");
+    assert.deepEqual(briefDuCorps(ancienne), { demande: "Export the journal as CSV", fait: null });
+    assert.deepEqual(briefDuCorps("nothing"), { demande: "", fait: null });
   });
 
   test("une image d'un autre dépôt, d'un autre commit ou hors du dossier du ticket n'est pas une capture de la carte", () => {

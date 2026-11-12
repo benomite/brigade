@@ -6,6 +6,7 @@
 // en 44 px. Le zoom se lit d'abord en lui-même (`zoomer`, `deplacer`), puis la vue est jouée telle qu'elle est, devant un faux
 // document et un faux pont (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
@@ -21,13 +22,16 @@ import { validationDuCorps } from "../../src/vue/validation-design/validation-de
 import {
   AJUSTER,
   COTE_A_COTE,
+  DEMANDE,
   deplacer,
   ECHELLE_MAX,
   ENTIERE,
+  FAIT,
   FERMER,
   MONTRER,
   PLEINE_TAILLE,
   RETOUR,
+  SANS_RESUME,
   SUIVANTE,
   SUPERPOSER,
   transformDe,
@@ -41,16 +45,17 @@ const A = "2026-11-11T12:04:12.000Z";
 const DEPOT = "chef/parade";
 const SHA = "3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345";
 const question = (ticket: number, pr: number) => `Does the screen of #${ticket} look right? Validate it and PR #${pr} is merged; send it back with what to change and a cook takes it up again.`;
-const corps = (ticket: number, pr: number) =>
+const corps = (ticket: number, pr: number, brief: readonly string[] = []) =>
   [
     `<!-- brigade:validation-design pr=${pr} ticket=${ticket} sha=${SHA} -->`,
+    ...brief,
     `| ![rail — avant](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/${ticket}/rail-avant.png?raw=true) | ![rail — après](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/${ticket}/rail-apres.png?raw=true) |`,
   ].join("\n");
-const attente = (carte: number, ticket: number, pr: number) => ({
+const attente = (carte: number, ticket: number, pr: number, brief: readonly string[] = []) => ({
   ticket: carte,
   titre: "Validate its screen",
   url: `https://github.com/${DEPOT}/issues/${carte}`,
-  chef: { sorte: "design-validation", texte: `${question(ticket, pr)}\n\nPull request: https://github.com/${DEPOT}/pull/${pr}`, design: validationDuCorps(DEPOT, corps(ticket, pr)) },
+  chef: { sorte: "design-validation", texte: `${question(ticket, pr)}\n\nPull request: https://github.com/${DEPOT}/pull/${pr}`, design: validationDuCorps(DEPOT, corps(ticket, pr, brief)) },
 });
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 const IMAGE = { image: "data:image/png;base64,iVBORw0KGgo=" };
@@ -69,8 +74,8 @@ const demarrage = (telephone: boolean) => () => ({
 });
 
 // Une carte (#61, la PR #60 de #58), ou deux (et #65, la PR #64 de #59).
-const faits = (deux: boolean): Faits => {
-  const attend = [attente(61, 58, 60), ...(deux ? [attente(65, 59, 64)] : [])];
+const faits = (deux: boolean, brief: readonly string[] = []): Faits => {
+  const attend = [attente(61, 58, 60, brief), ...(deux ? [attente(65, 59, 64)] : [])];
   return {
     etat: "ouverte",
     lu: "2026-11-11T12:04:11.000Z",
@@ -82,10 +87,10 @@ const faits = (deux: boolean): Faits => {
     attend,
   } as unknown as Faits;
 };
-const dessinable = (deux: boolean): Dessinable => tenirFaits(() => new Map()).recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits(deux)) }] });
-function lire(vue: Jouee, deux: boolean): void {
+const dessinable = (deux: boolean, brief: readonly string[] = []): Dessinable => tenirFaits(() => new Map()).recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits(deux, brief)) }] });
+function lire(vue: Jouee, deux: boolean, brief: readonly string[] = []): void {
   const demandes = vue.appels.filter(({ geste }) => geste === "faits" || geste === "relireBox");
-  vue.dire("surFaits", { ...dessinable(deux), demande: demandes.at(-1)?.args[0] as number });
+  vue.dire("surFaits", { ...dessinable(deux, brief), demande: demandes.at(-1)?.args[0] as number });
 }
 
 const laCarte = (ou: Faux) => ou.dessous("section").find(({ className }) => className.includes("carte-validation")) ?? assert.fail("pas de carte de validation");
@@ -97,11 +102,11 @@ const transforms = (ou: Faux) => images(ou).map((image) => image.style.getProper
 const cadres = (ou: Faux) => ou.dessous("div").filter(({ className }) => className === "cadre");
 
 // Le large : le projet ouvert, la carte dans TODO ; un clic sur sa capture avant ouvre le détail.
-async function ouvrirLarge(deux = false, reponses: Reponses = {}): Promise<Jouee> {
+async function ouvrirLarge(deux = false, reponses: Reponses = {}, brief: readonly string[] = []): Promise<Jouee> {
   const vue = await jouerLaVue({ demarrage: demarrage(false), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], lireCapture: () => IMAGE, ...reponses } as never);
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
-  lire(vue, deux);
+  lire(vue, deux, brief);
   await repos();
   const carte = laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte dans TODO"));
   assert.equal(detail(vue).hidden, true, "fermé avant le clic");
@@ -110,9 +115,9 @@ async function ouvrirLarge(deux = false, reponses: Reponses = {}): Promise<Jouee
   return vue;
 }
 // Le téléphone : la carte ouverte depuis la liste, puis un clic sur elle.
-async function ouvrirAuTelephone(deux = false, reponses: Reponses = {}): Promise<Jouee> {
+async function ouvrirAuTelephone(deux = false, reponses: Reponses = {}, brief: readonly string[] = []): Promise<Jouee> {
   const vue = await jouerLaVue({ demarrage: demarrage(true), espace: () => [], machines: () => [], lireCapture: () => IMAGE, ...reponses } as never, { ecran: new FauxEcran(true) });
-  lire(vue, deux);
+  lire(vue, deux, brief);
   await repos();
   (vue.element("cartes-du-chef").dessous("button").find(({ className }) => className === "carte-a-ouvrir") ?? assert.fail("pas de carte dans la liste")).click();
   await repos();
@@ -121,6 +126,12 @@ async function ouvrirAuTelephone(deux = false, reponses: Reponses = {}): Promise
   await repos();
   return vue;
 }
+
+// Le brief que la pass écrit dans le corps de la carte (runtime/src/validation-design/brief.ts, `lignesDuBrief`).
+const DEMANDEE = "Show the count on the rail — The chef cannot tell how many tickets wait.";
+const BRIEF = ["### What was asked", "", DEMANDEE, "", "### What was done", "", "- the rail shows the count", "- cards show their question on one line", ""];
+const CSS = readFileSync(new URL("../../src/vue/validation-design/validation-design.css", import.meta.url), "utf8");
+const briefDe = (ou: Faux) => ou.dessous("section").find(({ className }) => className === "brief-du-detail") ?? assert.fail("pas de brief");
 
 describe("le zoom d'une capture", () => {
   test("zoomer autour d'un point garde sous lui le même point de l'image ; l'échelle reste entre 1 et le plafond", () => {
@@ -161,6 +172,43 @@ for (const [ecran, ouvrir] of [
       assert.equal(bouton(ici, RENVOYER).disabled, true);
       sans(ici, SUIVANTE(65));
       assert.equal(vue.element("fiche").hidden, true, "la fiche du ticket ne s'ouvre pas");
+    });
+
+    test("le brief en tête, au-dessus des captures (ticket 3330) : ce qui était demandé et ce qui a été fait, un point par ligne ; le lien de la PR et les gestes restent", async () => {
+      const vue = await ouvrir(false, {}, BRIEF);
+      const ici = detail(vue);
+      const racine = ici.dessous("div").find(({ className }) => className === "detail-de-validation") ?? assert.fail("pas de détail");
+      const ordre = racine.children.map(({ className }) => className);
+      assert.ok(ordre.indexOf("brief-du-detail") !== -1 && ordre.indexOf("brief-du-detail") < ordre.indexOf("ecrans-du-detail"), ordre.join(", "));
+      const brief = briefDe(ici);
+      assert.deepEqual(brief.dessous("h3").map(({ textContent }) => textContent), [DEMANDE, FAIT]);
+      assert.deepEqual(brief.dessous("p").map(({ textContent }) => textContent), [DEMANDEE]);
+      assert.deepEqual(brief.dessous("li").map(({ textContent }) => textContent), ["the rail shows the count", "cards show their question on one line"]);
+      assert.equal(brief.dessous("p").some(({ textContent }) => textContent === SANS_RESUME), false);
+      bouton(ici, "Pull request #60").click();
+      assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 61]);
+      bouton(ici, VALIDER);
+      bouton(ici, RENVOYER);
+      assert.equal(images(ici).length, 2);
+    });
+
+    test("une carte sans résumé de ce qui a été fait — posée avant le ticket 3330 — le dit, et montre encore ce qui était demandé", async () => {
+      const vue = await ouvrir(false, {}, ["Ticket: #58 — Export the journal as CSV", "Pull request: https://github.com/chef/parade/pull/60"]);
+      const brief = briefDe(detail(vue));
+      assert.deepEqual(brief.dessous("h3").map(({ textContent }) => textContent), [DEMANDE, FAIT]);
+      assert.deepEqual(brief.dessous("p").map(({ textContent }) => textContent), ["Export the journal as CSV", SANS_RESUME]);
+      assert.deepEqual(brief.dessous("li"), []);
+    });
+
+    test("ce qui était demandé est coupé à deux lignes à l'affichage, et se lit en entier au survol", async () => {
+      const long = `Export the journal as CSV — ${"the chef copies the journal by hand every week ".repeat(6).trim()}`;
+      const vue = await ouvrir(false, {}, ["### What was asked", "", long, "", "### What was done", "", "- the rail shows the count", ""]);
+      const demandee = briefDe(detail(vue)).dessous("p").find(({ className }) => className === "demande-du-ticket") ?? assert.fail("pas de demande");
+      assert.equal(demandee.textContent, long);
+      assert.equal(demandee.title, long);
+      const regle = /#detail-de-validation p\.demande-du-ticket \{([^}]*)\}/.exec(CSS)?.[1] ?? assert.fail("pas de règle pour la demande");
+      assert.match(regle, /-webkit-line-clamp: 2;/);
+      assert.match(regle, /overflow: hidden;/);
     });
 
     test("zoomer l'une zoome l'autre au même endroit — boutons, molette, glisser — ; « Fit » rend l'image entière", async () => {

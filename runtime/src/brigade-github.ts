@@ -44,6 +44,7 @@ import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instanta
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
+import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
 import { DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
@@ -253,7 +254,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[] } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -853,15 +854,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // déjà la livraison, il n'en faut pas une seconde.
         const ouverte = await github.prDuTicket(issue);
         let refusee: string | null = null;
+        let livree = ouverte !== null && ouverte.state === "open" ? ouverte.number : null;
         if (ouverte === null || ouverte.state !== "open") {
           // Une PR que GitHub refuse (422, tête introuvable…) n'est pas rejouée à
           // chaque tour : le ticket retourne à un cook avec le motif, et suit la
           // voie des échecs (#2610).
           try {
-            await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+            const adresse = await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+            livree = numeroDeLaPR(adresse);
           } catch (erreur) {
             if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
             refusee = `GitHub refused the pull request of \`${fait.branche}\`: ${message(erreur)}`;
+          }
+        }
+        // Ce que le cook a changé à l'écran, posté sur la PR : la pass le
+        // recopie sur la carte « Validate its screen » (#3330). Non posté, la
+        // carte dit qu'aucun résumé n'est disponible ; la livraison part quand même.
+        if (refusee === null && fait.aLEcran !== undefined) {
+          if (livree === null) avertir(`brigade : #${issue} sur ${nom} — the cook's summary of what it changed on the screen is not posted: the pull request's number could not be read`);
+          else {
+            try {
+              await github.commenter(livree, corpsDeCeQuiEstFait(fait.aLEcran));
+            } catch (erreur) {
+              if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+              avertir(`brigade : #${issue} sur ${nom} — the cook's summary of what it changed on the screen could not be posted on PR #${livree}: ${message(erreur)}`);
+            }
           }
         }
         if (refusee === null) {
@@ -2476,7 +2493,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     } catch (erreur) {
       return { echec: `its branch could not be pushed: ${message(erreur)}` };
     }
-    return { branche };
+    // Ce qu'il a changé à l'écran, pour le brief de la carte du chef (#3330).
+    const aLEcran = lirePointsALEcran(messageFinal);
+    return aLEcran === null ? { branche } : { branche, aLEcran };
   };
 
   // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,

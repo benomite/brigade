@@ -48,7 +48,7 @@ export async function retenirLeSensible(github: GitHubDeLaRetenue, livraison: Pi
   // Une livraison design sensible attend sa seule carte « Validate its
   // screen » : la validation du chef, gardée après une mise à jour de la
   // branche, répond aussi pour elle — jamais une seconde carte (#3332).
-  return tenirPourLeChef(SENSIBLE, github, livraison, [], [DESIGN]);
+  return tenirPourLeChef(SENSIBLE, github, livraison, undefined, [DESIGN]);
 }
 
 // Les deux réponses du chef sur la carte, nommée par sa PR.
