@@ -41,7 +41,7 @@ import {
   ZOOMER,
   zoomer,
 } from "../../src/vue/validation-design/detail-de-validation.js";
-import { RENVOYER, VALIDER } from "../../src/vue/validation-design/validation-design.js";
+import { CONFIRMATION_MS, RENVOYE, RENVOYER, VALIDE, VALIDER } from "../../src/vue/validation-design/validation-design.js";
 import { carteDuTicket, Faux, FauxEcran, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-11-11T12:04:12.000Z";
@@ -303,17 +303,23 @@ for (const [ecran, ouvrir] of [
       assert.equal(carte.dessous("textarea")[0]?.value, "The button is cut off.");
     });
 
-    test("« Validate » depuis le détail : le geste part, le détail se ferme et la carte quitte TODO", async () => {
+    test("« Validate » depuis le détail : le geste part, le détail le confirme, puis se ferme et la carte quitte TODO", async (t) => {
+      t.mock.timers.enable({ apis: ["setTimeout"] });
       const vue = await ouvrir(false, { gesteDeValidation: () => ({ fait: "chef/parade#60 validated" }) });
       bouton(detail(vue), VALIDER).click();
       await repos();
       assert.deepEqual(vue.dernier("gesteDeValidation"), ["parade", 61, { geste: "valider" }]);
+      assert.equal(detail(vue).hidden, false, "le détail reste, avec sa confirmation");
+      assert.equal(bouton(detail(vue), VALIDE).disabled, true);
+      t.mock.timers.tick(CONFIRMATION_MS);
+      await repos();
       assert.equal(detail(vue).hidden, true);
       assert.equal(carteDuTicket(vue, 61), undefined);
       assert.ok(!vue.element("cartes-du-chef").dessous("button").some(({ className }) => className === "carte-a-ouvrir"));
     });
 
-    test("« Send back to the kitchen » depuis le détail envoie le commentaire ; refusé, le détail reste et dit pourquoi", async () => {
+    test("« Send back to the kitchen » depuis le détail envoie le commentaire ; refusé, le détail reste et dit pourquoi", async (t) => {
+      t.mock.timers.enable({ apis: ["setTimeout"] });
       const refuse = await ouvrir(false, { gesteDeValidation: () => ({ refus: "nothing was done: the head of PR #60 moved since card #61", detail: "brigade : moved" }) });
       const champ = detail(refuse).dessous("textarea")[0] ?? assert.fail("pas de champ");
       champ.value = "The button is cut off.";
@@ -330,6 +336,9 @@ for (const [ecran, ouvrir] of [
       saisie.value = "The button is cut off.";
       saisie.declencher("input");
       bouton(detail(fait), RENVOYER).click();
+      await repos();
+      assert.equal(bouton(detail(fait), RENVOYE).disabled, true, "« back to the kitchen ✓ » avant de partir");
+      t.mock.timers.tick(CONFIRMATION_MS);
       await repos();
       assert.equal(detail(fait).hidden, true);
       assert.equal(carteDuTicket(fait, 61), undefined);
