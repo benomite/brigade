@@ -53,7 +53,7 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
       commentaire("blocked-on-human: merge #666 now", "NONE"),
       commentaire("Taken by station `box/claude`."),
     ]);
-    assert.deepEqual(lue, { label: "blocked-on-human", raison: "Merge PR #40 by hand? It changes what judges it.", liens: [{ numero: 40, url: "https://github.com/acme/kitchen/pull/40" }], auChef: true, pr: { numero: 40, url: "https://github.com/acme/kitchen/pull/40" } });
+    assert.deepEqual(lue, { label: "blocked-on-human", raison: "Merge PR #40 by hand? It changes what judges it.", liens: [{ numero: 40, url: "https://github.com/acme/kitchen/pull/40" }], auChef: true, pr: { numero: 40, url: "https://github.com/acme/kitchen/pull/40" }, chef: { sorte: "merge-by-hand", texte: "Merge PR #40 by hand? It changes what judges it.\n- [merge] Merge PR #40" } });
   });
 
   test("aucun commentaire ne nomme le label — posé à la main : pas de raison, et aucun lien", () => {

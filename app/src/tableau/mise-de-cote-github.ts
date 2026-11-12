@@ -10,9 +10,9 @@
 // (`SANS_RAISON`), et reste dans TODO.
 //
 // Ce qui entre dans TODO (#2422) : seul ce qui demande quelque chose au chef. `blocked-on-human` — la livraison touche à ce
-// qui la juge : la merger à la main — est une question à lui, avec son geste (« Merge PR #N by hand? »). `served-elsewhere`
-// n'en est une que si un commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217, todo-github.ts) en pose
-// une ; pour une cause technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de
+// qui la juge : la merger à la main — est une question à lui, avec son bouton (« Merge PR #N by hand? », `Merge PR #N`,
+// #3368). `served-elsewhere` n'en est une que si un commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217,
+// todo-github.ts) en pose une ; pour une cause technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de
 // mise de côté, avec sa ligne : c'est le travail du second. Un `kitchen-board` n'est jamais une carte.
 //
 // Les commentaires de la station (runtime/src/brigade-github.ts, runtime/src/github-seul/renvois/renvois.ts) se disent en
@@ -41,7 +41,8 @@ const LONGUEUR_MAX = 160;
 export type LienDeLigne = { numero: number; url: string };
 // Ce que la carte dit d'un ticket mis de côté : le label qui le met de côté, la ligne qui dit pourquoi — nulle quand aucun
 // commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
-// `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`.
+// `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`, ou celle
+// de la PR à merger, avec son bouton.
 // `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
 export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
 
@@ -128,6 +129,12 @@ function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { d
   return { dit: question?.commentaire ?? dit, question: question?.carte ?? null };
 }
 
+// La carte du chef d'une livraison qui touche à ce qui la juge (#3368) : sa question, et un seul choix, `Merge PR #N`, que la
+// réponse joue sur GitHub (tableau-gestes/reponse-github.ts) — la PR mergée, `blocked-on-human` retiré —, dans l'app comme
+// sur le téléphone, qui ne liste que les cartes qui posent une question.
+const SORTE_DU_MERGE = "merge-by-hand";
+const carteDuMerge = (numero: number, raison: string | null): CarteDuChef => ({ sorte: SORTE_DU_MERGE, texte: `${raison ?? `Merge PR #${numero} by hand?`}\n- [merge] Merge PR #${numero}` });
+
 // Depuis quand un ticket mis de côté par `label` l'est : l'heure du commentaire qui le dit (ce qui attend le chef,
 // attente-du-chef.ts) — nulle quand aucun ne le dit.
 export function miseDeCoteLe(label: string, commentaires: readonly Brut[]): string | null {
@@ -147,5 +154,6 @@ export function miseDeCoteDe(depot: string, label: string, commentaires: readonl
   const pr = juges === null ? null : { numero: Number(juges[1]), url: `https://github.com/${depot}/pull/${juges[1]}` };
   const liens = numeros.map((numero) => (numero === pr?.numero ? pr : { numero, url: `https://github.com/${depot}/issues/${numero}` }));
   const complete = label !== SERVED_ELSEWHERE || question !== null || dit === undefined ? "" : sansStation(nettoyer(dit.body as string));
-  return { label, raison, ...(complete === "" ? {} : { complete }), liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(question === null ? {} : { chef: question }) };
+  const chef = question ?? (pr === null ? null : carteDuMerge(pr.numero, raison));
+  return { label, raison, ...(complete === "" ? {} : { complete }), liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(chef === null ? {} : { chef }) };
 }
