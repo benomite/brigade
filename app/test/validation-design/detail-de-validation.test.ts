@@ -344,6 +344,27 @@ for (const [ecran, ouvrir] of [
   });
 }
 
+describe("la frappe dans le détail (ticket 3348)", () => {
+  test("le rail redessiné pendant que le chef tape dans le détail ne prend pas le clavier à son champ pour le rendre à celui de la carte cachée", async () => {
+    const vue = await ouvrirLarge();
+    const champ = detail(vue).dessous("textarea")[0] ?? assert.fail("pas de champ");
+    (document as unknown as { activeElement: unknown }).activeElement = champ;
+    try {
+      lire(vue, false, []);
+      await repos();
+      const carte = laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte dans TODO"));
+      assert.equal(carte.dessous("textarea")[0]?.focalise, 0, "la carte cachée n'a pas pris le clavier");
+      champ.value = "The button is cut off.";
+      champ.declencher("input");
+      (document as unknown as { activeElement: unknown }).activeElement = undefined;
+      bouton(detail(vue), FERMER).click();
+      assert.equal(laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte")).dessous("textarea")[0]?.value, "The button is cut off.");
+    } finally {
+      (document as unknown as { activeElement: unknown }).activeElement = undefined;
+    }
+  });
+});
+
 describe("sur la carte", () => {
   test("un clic sur son champ ou ses boutons garde son geste et n'ouvre pas le détail", async () => {
     const vue = await jouerLaVue({ demarrage: demarrage(false), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], lireCapture: () => IMAGE } as never);

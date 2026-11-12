@@ -180,6 +180,12 @@ export class Faux {
     return autre !== null && (autre === this || [...this.descendants()].includes(autre));
   }
 
+  // Ceux posés dessous qui sont d'une de ces balises — `input, textarea` : la vue n'en demande pas plus.
+  querySelectorAll(selecteur: string): Faux[] {
+    const balises = selecteur.split(",").map((balise) => balise.trim());
+    return [...this.descendants()].filter(({ balise }) => balises.includes(balise));
+  }
+
   // Tout ce qui est posé dessous, dans l'ordre de la page.
   *descendants(): Generator<Faux> {
     for (const enfant of this.children) {
