@@ -1666,7 +1666,11 @@ read is named under the figures of all projects. A ticket merged with no `fire` 
 
 **Everything is read from GitHub** — the merged pull requests, then the events and comments of each served ticket's issue —
 with the token of this computer's `gh`, under the rail's budget and conditional reads; nothing is read from the machine, so a
-new computer shows the same figures. One reading covers 30 days and both periods, kept ten minutes per repository. The
+new computer shows the same figures. One reading covers 30 days and both periods, kept ten minutes per repository, and reads every closed pull request of the
+period (up to 10,000), not only the latest 1,000. The issues already read are kept beyond those ten minutes, so opening the
+block again only reads the pull requests and tickets served since (#3379). **When GitHub stops a reading** (quota, error, more
+than 10,000 pull requests), the figures are computed on the part read, and a line above them says from when each project is
+counted: never figures presented as the whole period over a shorter span. The
 computation is the runtime's, `runtime/src/autonomie/chiffres/chiffres.ts`; the reading is `app/src/vue/autonomie/autonomie-github.ts`,
 the block `app/src/vue/autonomie/chiffres.js`.
 
