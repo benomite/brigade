@@ -11,6 +11,7 @@
 // Et, pour les stations de l'onglet Cooks (ticket 2358), le signe de vie de chacune : l'enregistrement qu'elle réécrit dans son
 // gist, sous le compte du chef, que le process principal lit à son pas (vue/cooks/signes-de-vie.ts) — reçu ici, pas lu.
 import { porteListe } from "../../../../runtime/src/epique.ts";
+import { lireLesNonPris } from "../../../../runtime/src/rail-bloque/lecture.ts";
 import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
 import type { Cook } from "../../faits.ts";
@@ -21,6 +22,7 @@ import { etatDeLaBaseGithub, MOT_DE_L_ETAT, ticketDeLaPR } from "../../tableau/r
 import { stationsDeGithub, tenantDeLIssue, type Prise } from "../cooks/prises.ts";
 import { estSensible } from "../carte-sensible/label.ts";
 import { dernierRenvoi, type Renvoi } from "./renvoi.ts";
+import { railBloqueDe, type NonPrisLus } from "../rail-bloque/rail-bloque.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
@@ -46,7 +48,9 @@ export type PrDuTicket = { numero: number; url: string; le: string };
 export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; sensible?: true; renvoi?: Renvoi };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
 export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
-export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[] };
+// `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, runtime/src/rail-bloque/), ou pourquoi ils ne se
+// lisent pas ; absent d'une lecture qui ne les a pas cherchés.
+export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[]; nonPris?: NonPrisLus };
 // Les signes de vie des stations du compte, tels que le process principal les a lus — ou pourquoi ils ne l'ont pas été,
 // en une phrase.
 export type SignesDeVie = { lus: SigneDeVie[] } | { illisible: string };
@@ -198,7 +202,10 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const renvoi = dernierRenvoi(deLaPrise ?? deLaMiseDeCote ?? []);
     tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }) });
   }
-  return { lu, tickets, servis };
+  // Les tickets qu'aucun manager n'a pris (ticket 3358) : la lecture du runtime, sur les issues déjà lues — leurs
+  // commentaires et leurs événements se relisent sous condition. Ce qui ne se lit pas est dit, et le rail reste lu.
+  const nonPris: NonPrisLus = await lireLesNonPris({ depot, lire, issues }).catch((erreur: unknown) => ({ illisible: erreur instanceof Error ? erreur.message : String(erreur) }));
+  return { lu, tickets, servis, nonPris };
 }
 
 // Une heure comme `status` l'écrit dans ses lignes : `2026-11-04 02:58 UTC` (bon.ts, `HEURE_EN`).
@@ -255,7 +262,7 @@ function cookDe(ticket: TicketSurGithub): ActiviteDuCook[] {
 // et leurs signes de vie (ticket 2358) : `stationsSurGithub` dit à l'onglet Cooks quand ces signes ne se lisent pas. Un
 // ticket mis de côté qui ne demande rien au chef reste sur le rail, dans sa colonne, avec sa ligne (ticket 2422) ; celui
 // qui lui demande quelque chose est dans TODO, que `avecLAttenteDuChef` pose (tableau/attente-du-chef.ts, ticket 2460).
-export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [] }: RailSurGithub, signes: SignesDeVie = SIGNES_PAS_LUS): TableauLu {
+export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonPris }: RailSurGithub, signes: SignesDeVie = SIGNES_PAS_LUS): TableauLu {
   const ranges = [...tickets].sort((a, b) => (a.priorite ?? Number.POSITIVE_INFINITY) - (b.priorite ?? Number.POSITIVE_INFINITY) || a.ticket - b.ticket);
   const cooks: (Cook & { le: string })[] = ranges.flatMap(({ ticket, titre, prise }) => (prise === null ? [] : [{ ticket, titre, station: prise.station, le: prise.le }]));
   const compteurs = objet(lu.faits.compteurs) ?? {};
@@ -295,6 +302,8 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [] }: Ra
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),
       stations: stationsDeGithub(cooks, "lus" in signes ? signes.lus : null, lu.depot, Date.parse(luLe)),
       stationsSurGithub: { illisible: "illisible" in signes ? signes.illisible : null },
+      // Le rail bloqué (ticket 3358) : sa cause, des signes de vie des stations du compte.
+      ...railBloqueDe(lu.depot, nonPris, "lus" in signes ? { lues: signes.lus } : { illisibles: signes.illisible }, Date.parse(luLe)),
       agents: [],
     },
     lignesDuRail: ranges.flatMap((ticket) => {

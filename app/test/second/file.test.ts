@@ -63,9 +63,10 @@ const DEPOT = "acme/brigade";
 const LU = "2026-11-05T12:00:00.000Z";
 
 // Ce que GitHub tient du projet : #8, en pass, sa livraison touche à ce qui la juge — la PR #2326 attend le chef ; #20, une
-// carte `chef-todo` ; #1, sur le rail, n'attend rien. Rendu par chemin de l'API, comme `gh api` le rend.
+// carte `chef-todo` ; #1, sur le rail, calibré par le manager, n'attend rien — ni le chef, ni un manager (le rail bloqué,
+// #3358 : test/rail-bloque/). Rendu par chemin de l'API, comme `gh api` le rend.
 const FIRE = [
-  { number: 1, title: "Ticket 1", html_url: `https://github.com/${DEPOT}/issues/1`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }] },
+  { number: 1, title: "Ticket 1", html_url: `https://github.com/${DEPOT}/issues/1`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "model:sonnet" }, { name: "effort:medium" }] },
   { number: 8, title: "Ticket 8", html_url: `https://github.com/${DEPOT}/issues/8`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "in-pass" }, { name: "blocked-on-human" }] },
 ];
 const CHEF = [{ number: 20, title: "Ticket 20", html_url: `https://github.com/${DEPOT}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "chef-todo" }] }];

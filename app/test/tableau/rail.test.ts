@@ -61,7 +61,8 @@ const prise = (id: number, station: string, le: string) => ({ id, body: `<!-- br
 // #35 en WAITING ; #60, une épique, avant le rail ; #24, une carte du chef (`chef-todo`) qui pose une question.
 // `chemins` : ce qui a été demandé.
 function github(chemins: string[] = []): AppelGitHub {
-  const auFeu = [issue(30, ["fire", "prio:0"]), issue(23, ["fire", "taken"]), issue(17, ["fire", "in-pass"]), issue(35, ["fire", "waiting", "taken"])];
+  // #30, calibré par le manager : rien ne le bloque (le rail bloqué, #3358 : test/rail-bloque/).
+  const auFeu = [issue(30, ["fire", "prio:0", "model:sonnet", "effort:medium"]), issue(23, ["fire", "taken"]), issue(17, ["fire", "in-pass"]), issue(35, ["fire", "waiting", "taken"])];
   return async (chemin) => {
     chemins.push(chemin);
     if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return ok(auFeu);
