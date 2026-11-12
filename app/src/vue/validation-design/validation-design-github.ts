@@ -175,8 +175,8 @@ export async function validerSurGithub({ depot, carte, design, geste, client }: 
   const nom = `${depot}#${design.pr}`;
   try {
     if (lu.geste === "valider") {
-      const { ticket } = await validerLaCarte(github, carte, design);
-      return { fait: `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served` };
+      const { ticket, enAttente } = await validerLaCarte(github, carte, design);
+      return { fait: enAttente ? `${nom} validated: your validation is kept, card #${carte} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` : `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served` };
     }
     const { ticket } = await renvoyerLaCarte(github, carte, design, lu.commentaire);
     return { fait: `${nom} sent back: #${ticket} goes back to a cook with your comment, card #${carte} closed — its next delivery comes back as a new card` };
@@ -264,25 +264,32 @@ async function fermerLaCarte(github: GitHubDeLaValidation, carte: number, mot: s
   await github.fermer(carte);
 }
 
-// Valider (runtime : `valider`) : merge la tête que la pass a jugée verte et que la carte porte, puis ferme la carte.
-async function validerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign): Promise<{ ticket: number }> {
+// Valider (runtime : `valider`) : merge la tête que la pass a jugée verte et que la carte porte, puis ferme la carte. La tête
+// a bougé sans qu'un renvoi suive la carte — la branche mise à jour depuis sa base — : la validation s'écrit sur le ticket,
+// la carte se ferme, et la pass merge la PR une fois sa tête verte (ticket 3332) — `enAttente`.
+async function validerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign): Promise<{ ticket: number; enAttente: boolean }> {
   const { pr, ticket, sha } = design;
   await carteQuiTient(github, carte, design);
   const lue = await prDeLaCarte(github, design);
   if (!lue.merged) {
     if (lue.state !== "open") throw new Refus(`PR #${pr} is closed without being merged: there is nothing to validate`);
-    if (lue.sha !== sha) throw new Refus(`the head of PR #${pr} moved since card #${carte} (\`${sha.slice(0, 7)}\` judged green, \`${lue.sha.slice(0, 7)}\` now): nothing merged — the pass posts a new card once it judges the new head green`);
     const retenue = derniereRetenue(await github.commentaires(ticket), carte);
     if (retenue === null || retenue.renvoyee) {
       const pourquoi = retenue === null ? `ticket #${ticket} does not say card #${carte}` : `the delivery of PR #${pr} went back to a cook since card #${carte}`;
       await fermerLaCarte(github, carte, `Closed by the kitchen: ${pourquoi}. Its next delivery comes back as a new card.`);
       throw new Refus(`${pourquoi}: nothing merged, card #${carte} closed — its next delivery comes back as a new card`);
     }
+    if (lue.sha !== sha) {
+      const de = `\`${sha.slice(0, 7)}\` → \`${lue.sha.slice(0, 7)}\``;
+      await github.commenter(ticket, `<!-- brigade:validation-design-validee carte=${carte} pr=${pr} sha=${sha} -->\nValidated by the chef on card #${carte} — merge pending. The branch of PR #${pr} was updated since the card (${de}), with no new delivery of a cook: the answer is kept, and the pass merges PR #${pr} once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`);
+      await fermerLaCarte(github, carte, `Validated by the chef: the answer is kept — merge pending. The branch of PR #${pr} was updated since this card (${de}) and is being checked again: the pass merges it once its head is green.`);
+      return { ticket, enAttente: true };
+    }
     const merge = await github.merger(pr, sha);
     if (!merge.fait) throw new Refus(`GitHub refused to merge PR #${pr} — ${merge.motif}; card #${carte} stays open`);
   }
   await fermerLaCarte(github, carte, `Validated by the chef: PR #${pr} is merged.`);
-  return { ticket };
+  return { ticket, enAttente: false };
 }
 
 // Renvoyer (runtime : `renvoyerLeDesign`) : la livraison repart à un cook, le commentaire du chef comme ce qu'il faut

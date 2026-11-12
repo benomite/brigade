@@ -1078,13 +1078,12 @@ two gestures, each with its price on hover:
 
 | gesture | what it plays | then |
 |---|---|---|
-| `Validate` (the recommended button) | the runtime's `design` command, `validate <owner>/<repo>#<PR>`: the pull request is merged at the head the pass judged green, the card is closed | the card leaves Todo |
+| `Validate` (the recommended button) | the runtime's `design` command, `validate <owner>/<repo>#<PR>`: the pull request is merged at the head the pass judged green, the card is closed. If the branch was updated from its base since the card, nothing is merged at once: the validation is kept on the ticket, `merge pending`, and the pass merges once the new head is green (#3332) | the card leaves Todo; when the merge is pending, the ticket and the closed card say so (`Validated by the chef on card #<card> — merge pending.`) until the pass merges |
 | `Send back to the kitchen`, under a comment field — off while the comment is empty | `send-back <owner>/<repo>#<PR> --comment <comment>`: the comment goes on the ticket as what to change, a cook takes the ticket up again, the card is closed | the card leaves Todo |
 
 The app plays the command itself, in its own process, with this computer's `gh` (no box, no station) — nothing to type on
 GitHub. Under them, in Todo, `ask the second`, as on every Todo card (#3133). Done, the card leaves Todo at once and the
-project is read again. Refused by the runtime — the head of the pull
-request moved since the card, GitHub refused the merge — the card stays, says why in one line, the runtime's answer on
+project is read again. Refused by the runtime — GitHub refused the merge, the pull request was closed — the card stays, says why in one line, the runtime's answer on
 hover, and keeps the comment and both buttons. The pull request, its ticket and the captures are read from the issue's body
 (`<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, then the images): only the images of
 `docs/captures/<ticket>/` on the project's repository at that head are captures of the card. A body that shows none of
@@ -1095,7 +1094,7 @@ and opened, it shows the same question, captures, link and gestures, its buttons
 
 The Android app does not run the runtime: with the GitHub sign-in of the phone, it writes on GitHub what the runtime's
 command writes, with the same checks — `Validate` merges the pull request at the head the card carries and closes the
-card; `Send back to the kitchen` posts the comment on the ticket as what to change, takes `in-pass` off and closes the
+card, or keeps the validation on the ticket when the branch was updated since the card; `Send back to the kitchen` posts the comment on the ticket as what to change, takes `in-pass` off and closes the
 card. Done, the card leaves Todo and its notification goes. The phone reads each capture through the GitHub API, at the
 head the card carries. Captures: `docs/captures/3185/`.
 *Code: `app/src/vue/validation-design/` (`validation-design.js`, the card; `validation-design-github.ts`, the reading of the

@@ -44,7 +44,7 @@ import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instanta
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
-import { designsValidesParUnHumain, retenirLeDesign } from "./validation-design/validation-design.ts";
+import { DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
@@ -86,7 +86,7 @@ import { PRIO_REPARATION } from "./reparation.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
-import { retenirLeSensible } from "./sensible/sensible.ts";
+import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -1087,6 +1087,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
+    // La carte qui retenait sa livraison pour le chef n'attend plus rien de
+    // lui : elle quitte TODO tout de suite (#3332). Une fermeture qui échoue se
+    // dit ; la carte suivante la fermera, comme avant.
+    for (const sorte of [DESIGN, SENSIBLE]) {
+      try {
+        await fermerLaCarteDepassee(sorte, github, ticket.number);
+      } catch (erreur) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — its “${sorte.titre}” card could not be closed after the send-back, the next card closes it: ${message(erreur)}`);
+      }
+    }
     // De retour en cuisine : le temps jusqu'au cook suivant est celui du renvoi (#2662).
     if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "renvoi");
   };
@@ -1388,7 +1398,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             }
           }
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
-          if (tentees.get(pr.number) !== tentee) {
+          // Une livraison retenue pour le chef ne se retente sur la même tête
+          // que quand le chef a répondu depuis : une réponse gardée de plus sur
+          // le ticket (#3332).
+          const retenueSur = (gardees: number) => `${tentee} retenue ${gardees}`;
+          const deja = tentees.get(pr.number);
+          const aRetenter = deja !== tentee && (deja === undefined || !deja.startsWith(`${tentee} retenue `) || deja !== retenueSur(await reponsesGardees([DESIGN, SENSIBLE], github, ticket.number, pr.number)));
+          if (aRetenter) {
             // Le merge demandé à GitHub ouvre sa phase ; mergée, le temps du ticket s'écrit.
             const fusion = await enSerie(() =>
               fusionner(
@@ -1437,9 +1453,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               attendues.set(pr.number, tentee);
             } else {
               attendues.delete(pr.number);
-              if (fusion.issue !== "non-approuvee" && fusion.issue !== "close") bouge = true;
+              if (fusion.issue !== "non-approuvee" && fusion.issue !== "close" && !retenue) bouge = true;
             }
-            if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
+            if (fusion.issue === "refusee" && retenue) tentees.set(pr.number, retenueSur(await reponsesGardees([DESIGN, SENSIBLE], github, ticket.number, pr.number)));
+            else if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee" && !retenue) avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
