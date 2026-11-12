@@ -2,8 +2,9 @@
 // L'onglet Stations d'un projet, posé (ticket 3195, épique 3194) : un seul composant, qui répond à trois questions.
 //   1. Qui le cuit, et est-ce que ça marche : une ligne en tête, dans exactement un de quatre états (etat.js, `hautDe`) —
 //      verte seulement quand une station en ligne le cuit ou attend son prochain ticket. Hors ligne, elle dit que rien ne
-//      cuit, comment ramener la station, et offre de déménager vers cet ordinateur d'un clic ; personne, un seul bouton,
-//      « Choose who cooks it ».
+//      cuit, comment ramener la station, et offre de déménager vers cet ordinateur d'un clic ; personne, combien de tickets
+//      `fire` attendent, « Cook it on this computer » — recommandé, quand cet ordinateur ne le sert pas encore (ticket 3399)
+//      — et « Choose who cooks it ».
 //   2. Une carte par station qui sert le projet, elles seules : son nom, ce qu'elle est en clair, son état à l'instant, ce
 //      qu'elle tient du projet (les tickets de ses cooks, ou « idle »), ses deux gestes — « Move to another station »,
 //      « Stop cooking here » — et « Details », replié, qui porte ses réglages et ses lectures, chacun avec son contrôle.
@@ -19,7 +20,7 @@ import { marque } from "../composants/pastille/pastille.js";
 import { ANNULER, CET_ORDINATEUR, ENREGISTREMENT, LECTURE_DE, OUI } from "../lexique.js";
 import { lignesDeCooks } from "../stations-de-cuisson.js";
 import { poserLesChoix } from "./choix.js";
-import { BLOQUE, CHOISIR, phraseDuHaut, VERS_ICI } from "./etat.js";
+import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
 
 /** @typedef {import("../composants/poele/poele.js").Fabrique} Fabrique */
 /** @typedef {import("./etat.js").Haut} Haut */
@@ -31,7 +32,8 @@ import { BLOQUE, CHOISIR, phraseDuHaut, VERS_ICI } from "./etat.js";
  *   `projet`      son nom ; `poste` : le nom que l'écran donne à cet ordinateur (« this Mac »).
  *   `lues`        les stations sont lues : sans elles, l'onglet ne dit ni qui cuit ni que personne ne cuit.
  *   `haut`        la ligne du haut ; `ramener` : comment ramener la station hors ligne, au survol ; `versIci` : cet ordinateur
- *                 peut reprendre sa cuisine — le bouton qui l'y déménage est offert.
+ *                 peut reprendre sa cuisine — le bouton qui l'y déménage est offert ; `cuireIci` : personne ne le cuit et cet
+ *                 ordinateur peut le servir — « Cook it on this computer » est offert.
  *   `servantes`   une carte chacune ; `enCuisson` : la lecture de leurs cooks dit encore vrai (la poêle, ticket 2984).
  *   `choix`       le choix ouvert : son titre, ses choix, s'il déménage la cuisine (son prix se dit), celui qui s'écrit, le
  *                 refus du dernier.
@@ -50,6 +52,7 @@ import { BLOQUE, CHOISIR, phraseDuHaut, VERS_ICI } from "./etat.js";
  *   haut: Haut,
  *   ramener?: string,
  *   versIci?: boolean,
+ *   cuireIci?: boolean,
  *   servantes: readonly Servante[],
  *   enCuisson?: boolean,
  *   choix?: { titre: string, choix: readonly Choix[], deplacement: boolean, enCours?: string, refus?: { ligne: string, detail: string } },
@@ -67,6 +70,7 @@ import { BLOQUE, CHOISIR, phraseDuHaut, VERS_ICI } from "./etat.js";
  *   choisirQuiCuit(): void,
  *   deplacer(): void,
  *   versIci(): void,
+ *   cuireIci(): void,
  *   choisir(choix: Choix): void,
  *   annuler(): void,
  *   arreter(id: string): void,
@@ -143,11 +147,13 @@ function ligneDuHaut(doc, vu, gestes) {
     bloque.className = "bloque";
     ligne.append(bloque);
   }
-  // Les gestes : choisir qui le cuit ; ou, rien ne cuisant, le déménager ici d'un clic — vers une autre station, c'est le
-  // geste de sa carte. Un choix ouvert les remplace.
+  // Les gestes : le cuire ici d'un clic, ou choisir qui le cuit ; ou, rien ne cuisant, le déménager ici d'un clic — vers une
+  // autre station, c'est le geste de sa carte. Un choix ouvert les remplace.
   if (vu.choix !== undefined || vu.lecture === true) return ligne;
+  const ici = haut.etat === "personne" && vu.cuireIci === true;
   const boutons = [
-    ...(haut.etat === "personne" && vu.quiCuit === true ? [boutonAction(doc, CHOISIR, gestes.choisirQuiCuit, { recommande: true })] : []),
+    ...(ici ? [boutonAction(doc, CUIRE_ICI, gestes.cuireIci, { recommande: true })] : []),
+    ...(haut.etat === "personne" && vu.quiCuit === true ? [boutonAction(doc, CHOISIR, gestes.choisirQuiCuit, { recommande: !ici })] : []),
     ...(haut.etat === "hors-ligne" && vu.versIci === true ? [boutonAction(doc, VERS_ICI, gestes.versIci, { recommande: true })] : []),
     ...((haut.etat === "cuit" || haut.etat === "hors-ligne") && vu.quiCuit === true ? [boutonAction(doc, AJOUTER, gestes.choisirQuiCuit)] : []),
   ];

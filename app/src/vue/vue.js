@@ -394,6 +394,15 @@ function poserLesProjetsServisIci() {
   poserLesGroupes();
   poserLaDemandeDeStationIci();
 }
+// La station de cet ordinateur sert-elle le dépôt du projet, d'après sa liste ? Liste non lue, ou dépôt inconnu : on ne
+// sait pas (`undefined`).
+/** @param {Projet} projet @returns {boolean | undefined} */
+function serviParCetOrdinateur(projet) {
+  const depot = (projet.depot ?? projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.depot ?? "").toLowerCase();
+  const lecture = servis.etat?.lecture;
+  if (depot === "" || lecture === undefined || !("depots" in lecture)) return undefined;
+  return lecture.depots.some((servi) => servi.toLowerCase() === depot);
+}
 // « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : cet ordinateur d'abord, par sa
 // liste — puis elle se relit ; une station appairée, par le geste de sa page sur l'accueil. Le parcours change : l'onglet
 // se repose, s'il est montré.
@@ -4592,10 +4601,8 @@ function ongletDesStations(projet) {
   const lues = cuisson !== undefined || (stationsVues !== undefined && projetsVus !== undefined) || declarees.has(projet.nom);
   const lesDeclarees = declarees.get(projet.nom)?.declarees ?? [];
   const luLe = tenu === undefined ? Number.NaN : Date.parse(tenu.a);
-  // Ce que la liste de la station de cet ordinateur dit du projet (ticket 3402) : elle fait foi pour sa carte.
-  const depotDuProjet = (projet.depot ?? vuDuProjet?.depot ?? "").toLowerCase();
-  const listeIci = servis.etat?.lecture;
-  const iciSert = depotDuProjet !== "" && listeIci !== undefined && "depots" in listeIci ? listeIci.depots.some((depot) => depot.toLowerCase() === depotDuProjet) : undefined;
+  // Ce que la liste de la station de cet ordinateur dit du projet (tickets 3399, 3402) : elle fait foi pour sa carte.
+  const iciSert = serviParCetOrdinateur(projet);
   const base = {
     projet: projet.nom,
     lignes: cuisson?.lignes ?? [],
@@ -4611,7 +4618,9 @@ function ongletDesStations(projet) {
   const deplacement = deplacementSuivi({ publie: vuDuProjet?.demenagement, demande: deplacementsDemandes.get(projet.nom), servantes: sans, stations });
   if (deplacement === null) deplacementsDemandes.delete(projet.nom);
   const servantes = deplacement === null ? sans : servantesDe({ ...base, vers: deplacement.vers });
-  const haut = hautDe({ servantes, deplacement, maintenant });
+  // Les tickets `fire` qui attendent : le compteur « rail » de son tableau, lu ; sinon, la ligne n'en dit rien.
+  const fire = tenu !== undefined && "tableau" in tenu ? tenu.tableau.compteurs.find(({ libelle }) => libelle === "rail")?.nombre : undefined;
+  const haut = hautDe({ servantes, deplacement, maintenant, ...(fire === undefined ? {} : { fire }) });
   clearTimeout(minuteDuDeplacement);
   if (haut.etat === "deplacement" && haut.bloque === null) minuteDuDeplacement = setTimeout(reposerLOngletStations, haut.depuis + UNE_MINUTE_MS - maintenant);
 
@@ -4628,6 +4637,8 @@ function ongletDesStations(projet) {
   const ramenee = haut.etat === "hors-ligne" ? RAMENER(haut.station, haut.sorte !== "box") : "";
   const versIciParDeplacement = deplacable.offert && choixDuMove.some(({ cle }) => cle === locale);
   const versIci = !lecture && haut.etat === "hors-ligne" && !haut.ici && (versIciParDeplacement || ajout?.donnees.iciOffert === true);
+  // Personne ne le cuit : cet ordinateur le sert d'un clic, par sa liste — celle de Settings (ticket 3399).
+  const cuireIci = !lecture && haut.etat === "personne" && ajout?.donnees.iciOffert === true;
 
   /** @type {import("./stations-tab/stations-tab.js").VuDeLOnglet["choix"]} */
   let choix;
@@ -4672,6 +4683,7 @@ function ongletDesStations(projet) {
       haut,
       ramener: ramenee,
       versIci,
+      cuireIci,
       servantes,
       enCuisson: cuisson !== undefined && !horsLignes.has(projet.nom) && !perimes.has(projet.nom) && tenu !== undefined && "tableau" in tenu && !tenu.tableau.arretee,
       ...(choix === undefined ? {} : { choix }),
@@ -4691,6 +4703,11 @@ function ongletDesStations(projet) {
           demenagement = { projet: projet.nom, part: false };
           return void demenager(projet, locale, { nomme: sienneIci?.nom ?? POSTE.nom, depuis: ou.nom, garder: false });
         }
+        if (ajout === undefined) return;
+        ajout.gestes.ouvrir();
+        ajout.gestes.servirIci();
+      },
+      cuireIci: () => {
         if (ajout === undefined) return;
         ajout.gestes.ouvrir();
         ajout.gestes.servirIci();
@@ -6654,8 +6671,9 @@ function ajoutsDuProjet(projet) {
 
 // Où cuit un projet de l'app : la station que ses stations disent le servir (projets.ts, `cuitSur`) —
 // pas celle que la demande nomme : un déménagement refusé le laisse cuire là où il cuisait —, à
-// défaut celle qui porte son suivi ; ou la station de cet ordinateur, qui le sert sans l'app (ticket 1122). `ici` : c'est
-// cet ordinateur. Aucune : on ne sait pas encore où il cuit.
+// défaut celle qui porte son suivi ; ou la station de cet ordinateur, qui le sert sans l'app (ticket 1122) — pas quand sa
+// liste de projets servis, lue, ne le porte pas : elle le fait tourner sans le cuire (ticket 3399). `ici` : c'est cet
+// ordinateur. Aucune : on ne sait pas encore où il cuit.
 /** @param {Projet} projet @param {ReturnType<typeof cuisineDe>["stations"]} stations @returns {{ id: string | null, nom: string, ici: boolean } | undefined} */
 function ouCuit(projet, stations) {
   const locale = projetsVus?.locale ?? null;
@@ -6664,7 +6682,7 @@ function ouCuit(projet, stations) {
   const suiviPar = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.suiviPar;
   const sienne = stations.find(({ id }) => id === suiviPar?.id) ?? stations.find(({ bloquee }) => !bloquee);
   if (sienne !== undefined) return { id: sienne.id, nom: sienne.nom, ici: sienne.id === locale || projet.ici === true };
-  if (projet.ici === true) return { id: null, nom: "", ici: true };
+  if (projet.ici === true && serviParCetOrdinateur(projet) !== false) return { id: null, nom: "", ici: true };
   return undefined;
 }
 
