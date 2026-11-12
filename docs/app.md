@@ -376,6 +376,31 @@ lands, the add goes through it.
 (`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
 Captures: `docs/captures/3165/`.*
 
+### The kitchen's words, explained the first time you meet them (#3308, epic #3304)
+
+The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
+its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Rail** under the tabs, above the
+figures line; **Cooks** under the figures line (`Cooks 1 running`); **Pass**, **Awaiting you** (the TODO) and **Waiting**
+(WAITING) under their column's title; **Second** under the second's tab. The lines are those of the glossary's entry —
+`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
+third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
+station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
+
+- **Shown once.** An explanation shown is seen: it is written in your record at once, and stays on screen until `got it`
+  or until the app reloads. Reloaded, or opened on another device, the app does not show it again; a word you have not
+  met yet still shows its own. A word of the rail is met only when the rail is on screen — not under Settings.
+- **Kept per chef, by the runtime.** The record is kept where the project's kitchen runs (`explanations.json` in its state
+  directory), under this computer's GitHub account — the runtime's `explanations --chef <login>`, `explanations seen
+  <word> --chef <login>` and `explanations reset --chef <login>` (`runtime/src/explications/`). It is read each time the
+  project opens.
+- **Nothing to read, nothing shown.** A project with no station, no GitHub account signed in, a runtime from before the
+  command, or a record that cannot be read: no explanation is shown and nothing is written — Settings says why. A bridge
+  without `lireLesExplications` (the phone) shows none, and Settings has no row.
+
+*Code: `app/src/vue/explications/explications.js` (the lines, the record held per project, the Settings row), its wiring
+in `app/src/vue/vue.js`, `app/src/vue/explications/explications-box.ts` (the runtime command, from the main process).
+Tests: `app/test/explications/`, `runtime/test/explications/`. Captures: `docs/captures/3308/`.*
+
 ### Coming back after some days: "Since you were away" (#3305)
 
 *Ticket: #3305 (builds on #3251 and #3213).* **When the chef opens the app more than 3 days (72 hours) after the previous
@@ -561,6 +586,34 @@ project reopened after a restart opens on its rail, with the notice of #2628 if 
 ticket), `runtime/src/premier-ticket/` (the draft and the creation, loaded by `app/src/main.ts`), their wiring in
 `app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/parcours-premier-projet/`,
 `app/test/premier-ticket/`, `runtime/test/premier-ticket/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
+
+### Your first ticket, told step by step as it really happens (#3302)
+
+Rather than a tutorial, the first ticket of the chef's first project is told above its rail, one short line at each
+real step, as the readings of the rail show it: the kitchen word first, then what it means.
+
+| Word | What the line says | When |
+|---|---|---|
+| `Taken` | a cook took the ticket: a claude session that works in its own copy of the repository (a worktree) | a reading shows it taken (or already in pass) |
+| `Pull request` | the cook handed over its work as a pull request, with `open pull request #N` | the reading carries its open pull request |
+| `In pass` | the pass is checking it: the gates, the CI, and a review by another session | a reading shows it in pass |
+| `Sent back` | the pass sent the work back to a cook, and why — the station's reason, word for word | the issue carries a send-back (`brigade:renvoi`) of a higher rank than the last one told |
+| `Taken again` | a cook took it again, to fix what the pass said | taken, right after a send-back |
+| `Served` | the pass merged the pull request, with `open pull request #N` | the ticket is among the served ones, with its merged pull request |
+
+**Which project, which ticket.** The chef's first project is the first one **Add a project** adds while the projects
+file has no other project than the tour's demo kitchen (`benomite/brigade`); a chef who already had one is told nothing.
+Its first ticket is the first one a reading shows taken or in pass. A step that passed between two readings is not
+made up — except a send-back, whose comment stays on the issue with its rank and reason. The send-back is read from the
+comments the rail reading already fetches for a taken or in-pass ticket (`app/src/vue/rail/renvoi.ts`): no extra call.
+
+**Dismissed for good.** The story is kept in the view's storage (`brigade.recit-premier-ticket`), across restarts, and stays
+after the ticket is served until `dismiss`; dismissed, it never comes back. A stored trace the app cannot read decides
+nothing: nothing is told, and nothing is written over it.
+
+*Code: `app/src/vue/recit-premier-ticket/`, `etapesDesTickets` in `app/src/faits.ts`, its wiring in `app/src/vue/vue.js`
+(`suivreLeParcours`, `poserLeRecitDuPremierTicket`). Tests: `app/test/recit-premier-ticket/`, `app/test/vue/rail/renvoi.test.ts`.
+Captures: `docs/captures/3302/`.*
 
 ### The age of the rail is always on screen (#2054)
 
@@ -3047,6 +3100,13 @@ desktop app carries them to the runtime's `recurring` command where the project'
 pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vue/recurrents/recurrents-box.ts`; a project
 with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
 phone) does not show the section.
+
+Under the recurring tickets, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
+words — rail, pass, cook, second, TODO, WAITING — you have seen explained (`3 of 6 seen`, what it means on hover), with
+one button, `show all the explanations again`: it clears your record, and each word is explained again the next time you
+meet it, on this device and on your other ones (`each explanation shows again the next time you meet its word, on all
+your devices` under the row). A record that cannot be read says why in one line, the button off; a seen explanation the
+runtime did not keep is said under the row. See "The kitchen's words, explained the first time you meet them".
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown

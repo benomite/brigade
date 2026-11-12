@@ -5,6 +5,7 @@
 // place du rail, puis la mise en place, puis prêt ; un projet déjà prêt passe la mise en place ; un projet qu'une station
 // cuit déjà passe « qui le cuit » ; un projet où le compte ne peut pas écrire n'ouvre rien de tout cela.
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import { TITRE as TITRE_DE_LA_PR_DE_SETUP } from "../../../runtime/src/second-init/pr-de-setup.ts";
 import type { StationEnregistree } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
@@ -580,7 +581,8 @@ describe("le délai du départ, de bout en bout (#3268)", () => {
     const issues = Array.from({ length: 100 }, (_, i) => ({ number: i + 1, title: `Issue ${i + 1}`, body: "x".repeat(2_000), labels: [] }));
     const lireGitHub: AppelGitHub = async (chemin) => ({ status: 200, data: /[?&]page=1(&|$)/.test(chemin) ? issues : [] });
     // Le vrai chemin de l'app (proposerLeDepart) ; seul `claude` est remplacé par un faux processus, qui lit la consigne sur son entrée.
-    const lancer: LancerLeTriage = (_commande, _args, entree, dossier, delaiMs) => lancerLeTriage(process.execPath, [new URL("../aides/faux-triage.ts", import.meta.url).pathname], entree, dossier, delaiMs);
+    // Un chemin du système, et non le `pathname` d'une URL : sous Windows, celui-ci (`/D:/a/…`) ne mène à aucun fichier (#3329).
+    const lancer: LancerLeTriage = (_commande, _args, entree, dossier, delaiMs) => lancerLeTriage(process.execPath, [join(import.meta.dirname, "../aides/faux-triage.ts")], entree, dossier, delaiMs);
     // Le chrono part avant que le dépôt soit choisi dans « Add a project » : le projet ajouté, sa lecture, le triage, l'écran.
     const debut = performance.now();
     const vue = await choisirCantine({
