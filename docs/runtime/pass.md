@@ -337,6 +337,13 @@ Two gestures answer the card, which the app calls (`brigade <projet> design`, [`
   send-back of the pass overtakes (a red CI after an update) is closed at that send-back: it leaves the
   chef's TODO at once (#3332); if GitHub does not close it, the station says so and the next card closes it.
 
+If the PR was merged anyway, `send-back` has no delivery to send back: it opens a follow-up ticket with the
+chef's comment and closes the card, and `validate` closes the card saying the PR is merged (#3347).
+
+The open card is the guard of the merge, not the setting alone: while a card holds a PR (open, no send-back
+after it), the pass merges nothing for it, even on a station that does not read `humanValidatesDesigns` as
+`true` (#3347).
+
 The chef's send-back counts among the ticket's send-backs, like the pass's.
 
 ### A sensitive ticket, reviewed by the chef before merge
