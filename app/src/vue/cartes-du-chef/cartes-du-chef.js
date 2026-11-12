@@ -77,12 +77,15 @@ function entete(doc, cartes, retour) {
 }
 
 // La liste : une carte par chose qui attend, d'un seul toucher (le bouton est la carte). `avis` : ce que la lecture des
-// projets a de pire à dire (GitHub qui refuse le téléphone…), posé sous la liste. `ailleurs` : la ligne sous la liste.
-/** @param {Fabrique} doc @param {{ cartes: Carte[], ailleurs?: string, avis?: any[], ouvrir: (carte: Carte) => void }} liste */
-export function poserLaListe(doc, { cartes, ailleurs, avis = [], ouvrir }) {
+// projets a de pire à dire (GitHub qui refuse le téléphone…), posé sous la liste. `ailleurs` : la ligne sous la liste. `tete` :
+// ce qui attend le chef sans être une carte — la ligne du disjoncteur ouvert et son « Resume » (todo-breaker-line.js) —, en
+// tête de la liste ; avec elle, la liste ne dit pas que rien ne t'attend.
+/** @param {Fabrique} doc @param {{ cartes: Carte[], ailleurs?: string, avis?: any[], tete?: any[], ouvrir: (carte: Carte) => void }} liste */
+export function poserLaListe(doc, { cartes, ailleurs, avis = [], tete = [], ouvrir }) {
   const corps = cree(doc, "div", "corps-des-cartes");
   corps.dataset.vu = "liste";
-  corps.append(cree(doc, "p", "mot-des-cartes", cartes.length === 0 ? RIEN_N_ATTEND : EN_TETE));
+  corps.append(...tete);
+  if (cartes.length > 0 || tete.length === 0) corps.append(cree(doc, "p", "mot-des-cartes", cartes.length === 0 ? RIEN_N_ATTEND : EN_TETE));
   for (const carte of cartes) {
     const touche = cree(doc, "button", "carte-a-ouvrir");
     touche.type = "button";
