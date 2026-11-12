@@ -3265,7 +3265,31 @@ function poserImage(projet, ticket, ecran, { moment, legende, livree, version })
   }
   const place = bloc("span", !livree ? "missing" : lue === undefined ? "loading…" : "not available");
   place.className = "place";
-  if (lue !== undefined && "sans" in lue) place.title = lue.sans;
+  if (lue === undefined || !("sans" in lue)) return place;
+  // Une capture qui ne se lit pas dit pourquoi en une ligne, et donne le fichier à ouvrir sur GitHub — jamais un « not available » seul.
+  place.title = lue.sans;
+  const lignes = lue.sans.split("\n").map((ligne) => ligne.trim()).filter((ligne) => ligne !== "");
+  const raison = (lignes.find((ligne) => !ligne.startsWith("$ ") && !ligne.startsWith("→")) ?? lignes[0] ?? "").slice(0, 140);
+  place.textContent = `not available — ${raison}`;
+  const lien = lue.lien;
+  if (lien !== undefined) {
+    const ouvre = /** @type {HTMLAnchorElement} */ (document.createElement("a"));
+    ouvre.href = lien;
+    ouvre.target = "_blank";
+    ouvre.rel = "noopener";
+    ouvre.textContent = "open the file on GitHub";
+    // Un clic ne remonte pas à la carte, qui s'ouvrirait en grand : il ouvre le fichier, par le process principal quand il y en a un.
+    ouvre.addEventListener("click", (clic) => {
+      clic.stopPropagation();
+      if (brigade.ouvrirLien === undefined) return;
+      clic.preventDefault();
+      // Refusé par le process principal, le lien s'ouvre par la navigation de la page plutôt que de rester mort.
+      void Promise.resolve(brigade.ouvrirLien(projet.nom, ticket, lien)).then((ouvert) => {
+        if (ouvert === false) window.open(lien, "_blank", "noopener");
+      });
+    });
+    place.append(" ", ouvre);
+  }
   return place;
 }
 

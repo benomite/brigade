@@ -140,10 +140,37 @@ describe("l'image d'une capture, lue par le `gh` du poste", () => {
   test("un `gh` en échec, une sortie qui n'est pas un contenu, une adresse étrangère : rien n'est montré, et pourquoi est dit", { skip: SANS_POSIX }, async (t) => {
     const enEchec = await lireCapture(essai(t, "HTTP 404: Not Found", 1).reglages, adresse("fiche-avant.png"));
     assert.ok("sans" in enEchec && /HTTP 404/.test(enEchec.sans) && /exit code 1/.test(enEchec.sans));
+    assert.equal("sans" in enEchec && enEchec.lien, `https://github.com/benomite/brigade/blob/${SHA}/docs/captures/30/fiche-avant.png`);
     const vide = await lireCapture(essai(t, "").reglages, adresse("fiche-avant.png"));
     assert.ok("sans" in vide && /not the file's content/.test(vide.sans));
     const { reglages } = essai(t, "iVBORw0KGgo=");
     assert.ok("sans" in (await lireCapture(reglages, "https://exemple.test/x.png")));
+  });
+});
+
+describe("une capture de plus d'un mégaoctet, que l'API des fichiers rend sans contenu", () => {
+  const BLOB = "b".repeat(40);
+  const gh = (t: TestContext, reponses: Record<string, string>, code = 0) => {
+    const racine = mkdtempSync(join(tmpdir(), "captures-"));
+    t.after(() => rmSync(racine, { recursive: true, force: true }));
+    const bin = join(racine, "gh");
+    const cas = Object.entries(reponses).map(([motif, sortie]) => `*${motif}*) printf '%s' '${sortie}'; exit ${motif.includes("blobs") ? code : 0};;`);
+    writeFileSync(bin, ["#!/bin/sh", 'printf "%s\\n" "$*" >> "' + racine + '/appels"', 'case "$*" in', ...cas, "esac"].join("\n"));
+    chmodSync(bin, 0o755);
+    return { reglages: { gh: bin, delaiMs: 60_000 }, appels: () => readFileSync(join(racine, "appels"), "utf8").split("\n").filter(Boolean) };
+  };
+
+  test("le contenu vide, la capture se lit par son blob", { skip: SANS_POSIX }, async (t) => {
+    const { reglages, appels } = gh(t, { ".sha": BLOB, "git/blobs": "iVBORw0KGgo=", ".content": "" });
+    assert.deepEqual(await lireCapture(reglages, adresse("fiche-avant.png")), { image: "data:image/png;base64,iVBORw0KGgo=" });
+    assert.equal(appels().length, 3);
+    assert.match(appels()[2] ?? "", new RegExp(`^api repos/benomite/brigade/git/blobs/${BLOB} `));
+  });
+
+  test("un blob refusé dit son refus et donne le fichier", { skip: SANS_POSIX }, async (t) => {
+    const { reglages } = gh(t, { ".sha": BLOB, "git/blobs": "HTTP 403: rate limit exceeded", ".content": "" }, 1);
+    const rendu = await lireCapture(reglages, adresse("fiche-avant.png"));
+    assert.ok("sans" in rendu && /HTTP 403/.test(rendu.sans) && rendu.lien !== undefined);
   });
 });
 
@@ -207,8 +234,17 @@ describe("la carte d'un ticket d'interface, dans la vue", () => {
   test("une image qui ne se lit pas le dit à sa place, son pourquoi au survol", async () => {
     const vue = await ouvrir({ lireCapture: () => ({ sans: "gh: HTTP 404" }) });
     const [figure] = bonDe(vue, 30).dessous("figure");
-    assert.equal(figure?.children[0]?.textContent, "not available");
+    assert.equal(figure?.children[0]?.textContent, "not available — gh: HTTP 404");
     assert.equal(figure?.children[0]?.title, "gh: HTTP 404");
+  });
+
+  test("une image qui ne se lit pas donne aussi le fichier à ouvrir sur GitHub, par une adresse que le process principal a rendue", async () => {
+    const lien = `https://github.com/benomite/brigade/blob/${SHA}/docs/captures/30/fiche-avant.png`;
+    const vue = await ouvrir({ lireCapture: () => ({ sans: "$ gh api x\nHTTP 404: Not Found\n→ exit code 1", lien }) });
+    const [figure] = bonDe(vue, 30).dessous("figure");
+    const place = figure?.children[0];
+    assert.equal(place?.textContent, "not available — HTTP 404: Not Found open the file on GitHub");
+    assert.equal((place?.children[0] as unknown as { href: string }).href, lien);
   });
 
   test("un ticket qui n'est pas d'interface n'a aucune zone de captures, pas même vide", async () => {

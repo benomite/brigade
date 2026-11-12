@@ -368,7 +368,13 @@ describe("les gestes du téléphone et ses captures", () => {
     assert.deepEqual(await lireCaptureSurLAPI(monde.appeler, avant), { image: `data:image/png;base64,${PNG}` });
     const ailleurs = avant.replace(SHA, "a".repeat(40));
     assert.match(JSON.stringify(await lireCaptureSurLAPI(monde.appeler, ailleurs)), /"sans":"GitHub refused the reading of this screenshot \(HTTP 404\)/);
-    assert.deepEqual(await lireCaptureSurLAPI(async () => ({ status: 200, data: { content: "", encoding: "none" } }), avant), { sans: `GET /repos/${DEPOT}/contents/docs/captures/58/rail-avant.png?ref=${SHA} — its answer is not the file's content` });
+    assert.deepEqual(await lireCaptureSurLAPI(async () => ({ status: 200, data: { content: "", encoding: "none" } }), avant), { sans: `GET /repos/${DEPOT}/contents/docs/captures/58/rail-avant.png?ref=${SHA} — its answer is not the file's content`, lien: `https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/rail-avant.png` });
+    const BLOB = "c".repeat(40);
+    const gros = async (chemin: string) => (chemin.includes("/git/blobs/") ? { status: 200, data: { content: PNG } } : { status: 200, data: { content: "", sha: BLOB } });
+    assert.deepEqual(await lireCaptureSurLAPI(gros, avant), { image: `data:image/png;base64,${PNG}` });
+    const limite = async (chemin: string) => (chemin.includes("/git/blobs/") ? { status: 403, data: { message: "API rate limit exceeded" } } : { status: 200, data: { content: "", sha: BLOB } });
+    const refuse = await lireCaptureSurLAPI(limite, avant);
+    assert.ok("sans" in refuse && /HTTP 403.*rate limit/.test(refuse.sans) && refuse.lien !== undefined);
     assert.match(JSON.stringify(await lireCaptureSurLAPI(async () => Promise.reject(new Error("Unable to resolve host")), avant)), /GitHub did not answer for this screenshot: Unable to resolve host/);
     assert.match(JSON.stringify(await lireCaptureSurLAPI(monde.appeler, "https://example.com/x.png")), /is not a file on GitHub/);
   });
