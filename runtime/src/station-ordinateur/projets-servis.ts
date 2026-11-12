@@ -1,27 +1,37 @@
-// Les projets que la station d'un ordinateur sert elle-même, sur GitHub seul
-// (#2357, épique #2356) : une liste de dépôts (`<owner>/<repo>`) tenue dans son
-// état local, `<BRIGADE_STATION_DIR>/projets-servis.json`. Le sélecteur de
-// l'app l'écrira par cette interface ; la commande `cli.ts` la lit et l'écrit.
+// Les projets qu'une station sert : une seule liste, son fichier de
+// configuration (`<BRIGADE_STATION_DIR>/projets`, `station/configuration.ts`),
+// une ligne par projet (#3402). Ses cuisines la lisent (`station/station.ts`),
+// le service GitHub seul de l'ordinateur aussi (`servir.ts`), et l'app la lit et
+// l'écrit par cette interface, depuis l'onglet Stations d'un projet.
 //
-//   { "brigade": "projets-servis", "format": 1, "depots": ["acme/shop"] }
+// Il y en avait deux : ce fichier, et `projets-servis.json` (#2357), qu'aucune
+// cuisine ne lisait ni aucune présence ne publiait — l'app disait servi un
+// projet que la station ne publiait pas, et retirer l'un laissait l'autre le
+// servir. `projets-servis.json` n'est plus qu'une ancienne liste : ses dépôts
+// passent dans le fichier (`migrerLAncienneListe`), puis il est mis de côté.
 //
-// Une installation neuve n'a pas le fichier : la liste est vide, et la station
-// ne sert rien. Chaque écriture remplace le fichier d'un coup (écrit à côté,
-// puis renommé) : une lecture concurrente lit l'ancienne liste ou la nouvelle,
-// jamais une moitié. La liste survit donc au redémarrage de la station.
+// L'app ajoute une ligne écrite comme à la main (`<nom> <owner>/<repo>`), hors
+// du bloc que la station réécrit seule d'après sa sélection (`projets/bloc.ts`) ;
+// elle retire la ligne du dépôt, dans le bloc ou hors de lui. Chaque écriture
+// remplace le fichier d'un coup (écrit à côté, puis renommé) : une lecture
+// concurrente lit l'ancienne liste ou la nouvelle, jamais une moitié.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { nomDuDepot } from "../projets/ajout-de-station.ts";
+import { DEBUT } from "../projets/bloc.ts";
+import { CONFIGURATION, lireConfiguration } from "../station/configuration.ts";
 
-export const FICHIER_DES_PROJETS_SERVIS = "projets-servis.json";
+// L'ancienne liste, que plus rien ne lit une fois migrée.
+export const ANCIENNE_LISTE = "projets-servis.json";
+// Où elle est mise de côté, une fois ses dépôts passés dans la configuration.
+export const ANCIENNE_LISTE_MIGREE = `${ANCIENNE_LISTE}.migrated`;
 const FORMAT = 1;
 const DEPOT = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-// Un fichier qui ne se lit pas : la station ne devine rien, elle ne sert rien,
-// et le dit.
+// Un fichier qui ne se lit pas : la station ne devine rien, n'écrit rien, et le dit.
 export class ProjetsServisIllisibles extends Error {
   constructor(fichier: string, pourquoi: string) {
-    super(`${fichier} cannot be read — ${pourquoi}: this station serves no project until it is fixed or removed`);
+    super(`${fichier} cannot be read — ${pourquoi}: this station's served projects stay as they are until it is fixed`);
     this.name = "ProjetsServisIllisibles";
   }
 }
@@ -34,7 +44,18 @@ export class DepotRefuse extends Error {
   }
 }
 
-export const cheminDesProjetsServis = (racine: string) => join(racine, FICHIER_DES_PROJETS_SERVIS);
+// Un dépôt dont le nom de projet est déjà celui d'un autre projet de la station :
+// deux lignes du même nom, la seconde ne serait pas servie. Dit en une phrase.
+export class NomDejaPris extends DepotRefuse {
+  constructor(depot: string, nom: string, autre: string) {
+    super(depot);
+    this.message = `this station already serves a project named ${nom}, from ${autre}: ${depot} would take the same name`;
+    this.name = "NomDejaPris";
+  }
+}
+
+export const cheminDesProjetsServis = (racine: string) => join(racine, CONFIGURATION);
+export const cheminDeLAncienneListe = (racine: string) => join(racine, ANCIENNE_LISTE);
 
 const minuscules = (depot: string) => depot.toLowerCase();
 
@@ -48,15 +69,60 @@ export function depotServable(brut: string): string {
   return depot;
 }
 
-// La liste, dans l'ordre où les dépôts y sont entrés. Lève
-// `ProjetsServisIllisibles` sur un fichier qui n'est pas la liste.
-export function lireProjetsServis(racine: string): string[] {
+// Le texte de la configuration : vide si elle n'existe pas encore ; illisible, une erreur.
+function lireTexte(racine: string): string {
   const fichier = cheminDesProjetsServis(racine);
-  if (!existsSync(fichier)) return [];
+  try {
+    return readFileSync(fichier, "utf8");
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw new ProjetsServisIllisibles(fichier, erreur instanceof Error ? erreur.message : String(erreur));
+  }
+}
+
+function ecrireTexte(racine: string, texte: string): void {
+  mkdirSync(racine, { recursive: true });
+  const fichier = cheminDesProjetsServis(racine);
+  const aCote = `${fichier}.${process.pid}.ecriture`;
+  writeFileSync(aCote, texte);
+  renameSync(aCote, fichier);
+}
+
+// Les projets que le texte sert : nom et dépôt, dans l'ordre de leurs lignes.
+const projetsDe = (texte: string) => lireConfiguration(texte).projets.map(({ nom, depot }) => ({ nom, depot }));
+
+// Le texte, une ligne écrite comme à la main ajoutée hors du bloc de la station
+// — juste avant lui, s'il y en a un.
+function avecLaLigne(texte: string, ligne: string): string {
+  const lignes = texte === "" ? [] : texte.replace(/\n*$/, "").split("\n");
+  const bloc = lignes.indexOf(DEBUT);
+  if (bloc === -1) return `${[...lignes, ligne].join("\n")}\n`;
+  let ou = bloc;
+  while (ou > 0 && lignes[ou - 1]?.trim() === "") ou--;
+  return `${[...lignes.slice(0, ou), ligne, ...lignes.slice(ou)].join("\n")}\n`;
+}
+
+// Ajoute le dépôt au texte, s'il n'y est pas ; ou dit pourquoi il ne le peut pas.
+function ajouterAuTexte(texte: string, depot: string): string {
+  const projets = projetsDe(texte);
+  if (projets.some((projet) => minuscules(projet.depot) === minuscules(depot))) return texte;
+  const nom = nomDuDepot(depot) as string;
+  const pris = projets.find((projet) => projet.nom === nom);
+  if (pris !== undefined) throw new NomDejaPris(depot, nom, pris.depot);
+  return avecLaLigne(texte, `${nom} ${depot}`);
+}
+
+// Les dépôts de l'ancienne liste, ou null : elle n'est plus là — l'app et la
+// station la migrent toutes deux, l'une a pu la mettre de côté. Lève
+// `ProjetsServisIllisibles` sur un fichier qui n'est pas la liste : il n'est
+// alors ni migré ni mis de côté.
+function lireLAncienneListe(racine: string): string[] | null {
+  const fichier = cheminDeLAncienneListe(racine);
   let lu: { brigade?: unknown; format?: unknown; depots?: unknown };
   try {
     lu = JSON.parse(readFileSync(fichier, "utf8")) as typeof lu;
   } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new ProjetsServisIllisibles(fichier, erreur instanceof Error ? erreur.message : String(erreur));
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "projets-servis") throw new ProjetsServisIllisibles(fichier, "it is not a list of served projects");
@@ -65,30 +131,73 @@ export function lireProjetsServis(racine: string): string[] {
   return lu.depots;
 }
 
-function ecrire(racine: string, depots: readonly string[]): void {
-  mkdirSync(racine, { recursive: true });
-  const fichier = cheminDesProjetsServis(racine);
-  const aCote = `${fichier}.${process.pid}.ecriture`;
-  writeFileSync(aCote, `${JSON.stringify({ brigade: "projets-servis", format: FORMAT, depots }, null, 2)}\n`);
-  renameSync(aCote, fichier);
+// Ce que la migration a fait : les dépôts passés dans la configuration, et ceux
+// qui n'ont pas pu y entrer, chacun avec sa raison.
+export type Migration = { migres: string[]; ecartes: Array<{ depot: string; pourquoi: string }> };
+
+// Passe les dépôts de l'ancienne liste dans la configuration — ceux qui y sont
+// déjà n'y entrent pas deux fois —, puis la met de côté : plus rien ne la lit.
+// Sans ancienne liste, rien ne change. Une ancienne liste ou une configuration
+// illisible lève `ProjetsServisIllisibles`, et rien n'est écrit.
+export function migrerLAncienneListe(racine: string): Migration {
+  const migration: Migration = { migres: [], ecartes: [] };
+  if (!existsSync(cheminDeLAncienneListe(racine))) return migration;
+  const anciens = lireLAncienneListe(racine);
+  if (anciens === null) return migration;
+  const avant = lireTexte(racine);
+  let texte = avant;
+  for (const brut of anciens) {
+    try {
+      const depot = depotServable(brut);
+      const suivant = ajouterAuTexte(texte, depot);
+      if (suivant !== texte) migration.migres.push(depot);
+      texte = suivant;
+    } catch (erreur) {
+      migration.ecartes.push({ depot: brut, pourquoi: erreur instanceof Error ? erreur.message : String(erreur) });
+    }
+  }
+  if (texte !== avant) ecrireTexte(racine, texte);
+  try {
+    renameSync(cheminDeLAncienneListe(racine), join(racine, ANCIENNE_LISTE_MIGREE));
+  } catch (erreur) {
+    // L'autre l'a mise de côté entre-temps : ses dépôts sont déjà dans la configuration.
+    if ((erreur as NodeJS.ErrnoException).code !== "ENOENT") throw erreur;
+  }
+  return migration;
 }
 
-// Ajoute un dépôt à la liste, s'il n'y est pas déjà (sans égard à la casse).
-// Rend la liste écrite.
+// La liste, dans l'ordre des lignes de la configuration : l'ancienne liste y
+// passe d'abord. Lève `ProjetsServisIllisibles` sur un fichier qui ne se lit pas.
+export function lireProjetsServis(racine: string): string[] {
+  migrerLAncienneListe(racine);
+  return projetsDe(lireTexte(racine)).map(({ depot }) => depot);
+}
+
+// Ajoute un dépôt à la liste, s'il n'y est pas déjà (sans égard à la casse) :
+// sa ligne, `<nom> <owner>/<repo>`. Rend la liste écrite.
 export function ajouterProjetServi(racine: string, brut: string): string[] {
   const depot = depotServable(brut);
-  const depots = lireProjetsServis(racine);
-  if (depots.some((deja) => minuscules(deja) === minuscules(depot))) return depots;
-  const suivants = [...depots, depot];
-  ecrire(racine, suivants);
-  return suivants;
+  migrerLAncienneListe(racine);
+  const avant = lireTexte(racine);
+  const texte = ajouterAuTexte(avant, depot);
+  if (texte !== avant) ecrireTexte(racine, texte);
+  return projetsDe(texte).map((projet) => projet.depot);
 }
 
-// Retire un dépôt de la liste (sans égard à la casse). Rend la liste écrite.
+// Retire un dépôt de la liste (sans égard à la casse) : chacune de ses lignes,
+// écrite à la main ou dans le bloc de la station. Rend la liste écrite.
 export function retirerProjetServi(racine: string, brut: string): string[] {
   const depot = minuscules(normaliser(brut));
-  const depots = lireProjetsServis(racine);
-  const suivants = depots.filter((deja) => minuscules(deja) !== depot);
-  if (suivants.length !== depots.length) ecrire(racine, suivants);
-  return suivants;
+  migrerLAncienneListe(racine);
+  const avant = lireTexte(racine);
+  const sienne = (ligne: string) => {
+    const champs = ligne.trim().split(/\s+/);
+    return !champs[0]?.startsWith("#") && champs[1] !== undefined && minuscules(champs[1]) === depot;
+  };
+  const texte = avant
+    .split("\n")
+    .filter((ligne) => !sienne(ligne))
+    .join("\n");
+  if (texte !== avant) ecrireTexte(racine, texte);
+  return projetsDe(texte).map((projet) => projet.depot);
 }

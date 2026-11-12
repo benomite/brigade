@@ -688,9 +688,9 @@ The Stations tab of a project is **one component** (`app/src/vue/stations-tab/`)
 
 | State | The line | Green | Its gestures |
 |---|---|---|---|
-| A station cooks it | `Cooked by <station> · online · N cooks at work`, or `… · online · idle, nothing on the rail` | yes | none |
+| A station cooks it | `Cooked by <station> · online · N cooks at work`, or `… · online · idle, nothing on the rail` | yes | `Add a station` (#3402) |
 | A move in progress | `Moving from <A> to <B>: waiting for <what>, since <HH:MM> UTC`; not done after a minute, a second line: `Not done after a minute: <what blocks it>` | no (yellow) | none |
-| The station that serves it is offline | `<station> cooks this project, but it is offline for <duration>: nothing cooks`; how to bring it back on hover | no (red) | `Move to this computer`, one click, when this computer can take it |
+| The station that serves it is offline | `<station> cooks this project, but it is offline for <duration>: nothing cooks`; how to bring it back on hover | no (red) | `Move to this computer`, one click, when this computer can take it; `Add a station` (#3402) |
 | Nobody serves it | `Nobody cooks this project` | no (grey) | `Choose who cooks it`, the only button |
 
 Green is said only by a station that is online and cooks or waits for its next ticket — the rule of #3189 (`enLigneDe`): a
@@ -706,7 +706,9 @@ one line under it.
 on GitHub — a station that refuses the project included, with its reason), the paired stations whose own document says
 they serve it, and the stations the project declares that nothing else names yet (`not signed in yet`). Each once: a line
 of `facts` is the paired station that bears its name, or its take name (`<machine>/claude`); when the project cooks on this
-computer, its box line is this computer's station. This computer comes first. A paired station that does not serve the
+computer, its box line is this computer's station. This computer comes first. **For this computer, its station's list
+decides** (#3402): the list is read on this disk, so a project just added to it has this computer's card at once, before
+its station publishes it, and a project just removed from it has none, even while the station still publishes it. A paired station that does not serve the
 project has no card and is named nowhere on the tab — except as the origin `A` of a move in progress; the station a move
 goes to has its card, `starting`, without gestures. Each card:
 
@@ -720,10 +722,14 @@ goes to has its card, `starting`, without gestures. Each card:
 - **`Move to another station`** and **`Stop cooking here`**. Move opens the station choice under the top line (below);
   offered only when the app can move the project's kitchen (`deplacementDe` in `vue.js`), its reason on hover otherwise.
   Stop asks first, inline on the card, with what it costs in one line (`<station> takes no more of <project>'s tickets;
-  its cooks in flight finish.`); confirmed, it goes through the gesture the app already has for that station — this
-  computer's Settings box (`servirUnProjet`), a paired station's selection (`choisirLesProjets`), or the removal of a
-  declared station (`changerUneStation`, #2914; the project's only declared station is not removed, and the line says
-  why). What it did, or its refusal, reads in one line under the top line;
+  its cooks in flight finish.`); confirmed, it goes through the gesture the app has for that station
+  (`projet/stations/ArretStation.js`, #3402) — this computer's list (`servirUnProjet`), after its station's selection if
+  that holds the project too, or the station would write its line back; a paired station's selection
+  (`choisirLesProjets`); or the removal of a declared station (`changerUneStation`, #2914; the project's only declared
+  station is not removed, and the line says why). What it did, or why nothing changed, reads in one line under the top
+  line: `<station> no longer takes <project>'s tickets`, or `nothing was changed: …` — the list read back still holding
+  the project included (`nothing was changed: <station> still has <project> in the projects it serves`). The card and its
+  button stay whenever nothing changed;
 - **`Details`**, folded by default: the technical settings and readings, each line with its control — for this computer
   its clone and worktrees folders, its sandbox (`sandbox · ordinary tickets`, `cooks at once`) and its Claude connection
   (#2489, below); for another station, its Claude connection as it publishes it; for a declared station, its cooks at once,
@@ -739,11 +745,15 @@ offline one is never recommended and says since when, and how to bring it back (
 buttons and says `Saving…` on its line; a refusal reads in one line, its detail on hover; `Cancel` closes it. From
 `Move to another station`, the choice lists where the kitchen can go and says its price in one line (`Its cooks in flight
 stop and their tickets go back to the rail; its whole journal follows it.`); a click moves the kitchen
-(`demenagerLaCuisine`). From `Choose who cooks it`, it lists this computer, if its station does not serve the project yet,
+(`demenagerLaCuisine`). From `Choose who cooks it` — or `Add a station` when a station already cooks it, titled
+`Which station also cooks <project>?` (#3402) —, it lists this computer, if its station does not serve the project yet,
 and the paired stations the project is not chosen for; a click gives it the project (`servirUnProjet`, `choisirLesProjets`).
+With none of them left, it says `No other station can take it: each of yours already cooks it.` Given to this computer,
+the project enters its station's list, and the list it gives back must hold it, or nothing is said done; refused, the
+choice stays open, the reason in one line, its buttons still there.
 
-**Gone from the tab**: the local `kitchen` pseudo-station and its empty log, the `Its stations` list, `Add a station`, the
-`Station settings` and `Local station` blocks with their `not read yet` lines, the station line at the head of the page
+**Gone from the tab**: the local `kitchen` pseudo-station and its empty log, the `Its stations` list, the old `Add a station`
+step (the button is back since #3402, opening the station choice), the `Station settings` and `Local station` blocks with their `not read yet` lines, the station line at the head of the page
 (`Cooks on …`, `does not serve this project`, `move the kitchen`, `+ station`, the `kitchen moves to …` sentence — they
 stay on Rail), and any line naming a station that does not serve the project. Before the stations are read, the tab says
 `Reading your stations on GitHub…` and nothing else. On a narrow screen, the tab is read-only: the line and the cards,
@@ -755,7 +765,8 @@ Captures, before and after, of each of the four states: `docs/captures/stations-
 
 *Code: `app/src/vue/stations-tab/` — `etat.js` (the stations that serve, the move followed, the top line: `servantesDe`,
 `deplacementSuivi`, `hautDe`), `stations-tab.js` (the tab), `choix.js` (the station choice) —, `ongletDesStations` in
-`app/src/vue/vue.js`. Tests: `app/test/stations-tab/`.*
+`app/src/vue/vue.js`; `app/src/vue/projet/stations/AjoutStation.js` and `ArretStation.js` (adding and stopping a station).
+Tests: `app/test/stations-tab/`, `app/test/vue/projet/stations-servies.test.ts`, `app/test/vue/projet/arret-station.test.ts`.*
 
 ### Every setting of each station, on the Stations tab (#2488, epic #2484)
 
@@ -3199,31 +3210,32 @@ Captures: `docs/captures/2317/`.
 
 ### The projects this computer serves, in Settings (#2359, epic #2356)
 
-**A computer's station cooks only the projects you choose for it**, straight from GitHub (`runtime/src/station-ordinateur/`,
-#2357). You choose them in Settings' **this computer** group, under a line `projects this Mac serves` (`this PC` under
-Windows):
+**A computer's station cooks only the projects on its list**, straight from GitHub. Since #3402 the station has **one
+list**, its configuration file (`<station dir>/projets`, one line per project — `runtime/src/station-ordinateur/
+projets-servis.ts`): its kitchens read it, its GitHub-only service reads it (`servir.ts`, for a project whose clone is
+not there yet), and the app reads and writes it. The old `projets-servis.json` is no longer read: its repositories move
+into the configuration the first time the station starts or the app reads the list, then the file is set aside as
+`projets-servis.json.migrated`. A repository whose project name another line already has stays out, and the station's log
+says so.
 
-- **On a fresh install, none is chosen**, and the line says so in plain words, in yellow: `this Mac serves no project`.
-  Its station then takes no ticket. Once one project or more is chosen, it says `serves 1 project` (`serves 2 projects`…).
-  What choosing does — the station clones the project on this computer and takes its tickets, at its next turn, within
-  two minutes — is on hover.
+**The list changes on a project's Stations tab only** (`Add a station`, `Stop cooking here`, above). The block below
+reads it with no control; since #2494 it is no longer shown in Settings, and waits, hidden, with the other lines that
+were under **This machine**. It lays a line `projects this Mac serves` (`this PC` under Windows), then:
+
+- **On a fresh install, none is served**, and the line says so in plain words, in yellow: `this Mac serves no project`.
+  Its station then takes no ticket. With one project or more, it says `serves 1 project` (`serves 2 projects`…). What the
+  list does, and that a project is added or removed on its Stations tab, is on hover.
 - **One line per project of the app**, in the order of the bar: its name and its repository (`chef/parade`), `served`
-  (green) or `not served`, and a checkbox. Ticking it adds the repository to the station's list; unticking it removes
-  it — the station's cooks in flight on it finish and deliver. The line says `saving…` until the station has written
-  the list, and every box waits meanwhile: one project at a time. **The value shown is always the list written**, re-read
-  each time a project's space opens: chosen, closed and reopened, a project is still ticked.
-- A project whose repository the app does not know (added by hand without `depot`) has its checkbox muted, the reason on
-  hover. A repository on the station's list that no project of the app carries keeps its line, ticked, so that you see
-  everything this computer cooks and can untick it.
-- **What does not write is said**: a repository the station refuses reads `nothing was written: …` under its line, the
-  rest of the station's sentence on hover, and the box stays unticked. A list the station cannot read says `projects
-  served here unavailable`, the reason on hover — never `serves no project`.
+  (green) or `not served`. **The value shown is always the list written**, re-read each time a project's space opens.
+- A project whose repository the app does not know (added by hand without `depot`) says so on hover. A repository on the
+  station's list that no project of the app carries keeps its line, `served`, so that you see everything this computer
+  cooks; its hover says it changes from its Stations tab once it is one of the app's projects.
+- A list the station cannot read says `projects served here unavailable`, the reason on hover — never `serves no project`.
 
-The list lives in the station's own state (`<station dir>/projets-servis.json`), never in the projects file nor in the
-repository. Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules
-are `app/src/vue/projets-servis/projets-servis.js` and, in the main process, `projetsServis` / `servirUnProjet`
+Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules are
+`app/src/vue/projets-servis/projets-servis.js` and, in the main process, `projetsServis` / `servirUnProjet`
 (`app/src/main.ts`), which call `lireProjetsServis`, `ajouterProjetServi` and `retirerProjetServi` of the runtime.
-Captures: `docs/captures/2359/`.
+Captures: `docs/captures/2359/`, `docs/captures/3402/`.
 
 ## Buttons write, they do not send
 

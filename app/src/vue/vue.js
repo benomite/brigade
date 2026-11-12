@@ -125,7 +125,7 @@ import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/Stat
 import { ligneDAlerte, plafondLu } from "./stations-de-cuisson.js";
 import { deplacementSuivi, estUnOrdinateur, hautDe, nomDePrise, servantesDe, UNE_MINUTE_MS } from "./stations-tab/etat.js";
 import { choixDuDeplacement } from "./stations-tab/choix.js";
-import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET } from "./stations-tab/stations-tab.js";
+import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET, QUI_D_AUTRE } from "./stations-tab/stations-tab.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
@@ -156,6 +156,7 @@ import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { MENU, STATIONS } from "./projet/menu/menu.js";
 import { interrupteur as interrupteurDeLApp } from "./composants/interrupteur/interrupteur.js";
 import { FAIT_DIT, stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
+import { arreter, gesteDArret, SANS_GESTE } from "./projet/stations/ArretStation.js";
 import { ORDINAIRES_EN_COURS, reglagesDeLaStation, saisieDe } from "./projet/stations/ReglagesStation.js";
 import { connexionALaStation, lignesDeLaStationLocale } from "./projet/stations/StationLocale.js";
 import { monterLePanneau } from "./projet/panneau-second/panneau-second.js";
@@ -373,28 +374,35 @@ function poserLesAppsGithub() {
   appsGithub.replaceChildren(...(etat === undefined ? [] : [poserLesIdentites(document, etat, identitesGithub.gestes)]));
   poserLesGroupes();
 }
-// Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : une ligne par
-// projet de l'app, et, la liste vide, la ligne qui dit que cet ordinateur n'en sert aucun. Relus à l'ouverture de
-// chaque projet ; un appareil sans station (le téléphone) n'en pose aucun.
+// Les projets que la station de cet ordinateur sert (ticket 2359, projets-servis/), lus sans rien régler : une ligne par
+// projet de l'app, et, la liste vide, la ligne qui dit que cet ordinateur n'en sert aucun. Ils se changent sur l'onglet
+// Stations de chaque projet (ticket 3402). Relus à l'ouverture de chaque projet ; un appareil sans station (le téléphone)
+// n'en pose aucun.
 const projetsServis = element("projets-servis");
-const servis = tenirLesProjetsServis({ pont: brigade, rendre: () => poserLesProjetsServisIci() });
+const servis = tenirLesProjetsServis({
+  pont: brigade,
+  rendre: () => {
+    poserLesProjetsServisIci();
+    // L'onglet Stations la lit aussi : la carte de cet ordinateur suit la liste (ticket 3402).
+    reposerLOngletStations();
+  },
+});
 function poserLesProjetsServisIci() {
   const etat = servis.etat;
   projetsServis.hidden = etat === undefined;
-  projetsServis.replaceChildren(...(etat === undefined ? [] : [poserLesProjetsServis(document, { etat, projets: configuration.projets, ici: POSTE.nom }, servis.gestes)]));
+  projetsServis.replaceChildren(...(etat === undefined ? [] : [poserLesProjetsServis(document, { etat, projets: configuration.projets, ici: POSTE.nom })]));
   poserLesGroupes();
   poserLaDemandeDeStationIci();
 }
-// « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : cet ordinateur d'abord, par le
-// geste de la case de Settings — puis la liste qu'il sert se relit ; une station appairée, par celui de sa page sur
-// l'accueil. Le parcours change : l'onglet se repose, s'il est montré.
+// « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : cet ordinateur d'abord, par sa
+// liste — puis elle se relit ; une station appairée, par le geste de sa page sur l'accueil. Le parcours change : l'onglet
+// se repose, s'il est montré.
 const ajoutDeStation = tenirLAjoutDeStation({
   servirIci: (depot) => servirIciLeDepot(depot),
   choisir: (id, depots) => choisirPourUneEnregistree(id, depots),
   rendre: () => reposerLOngletStations(),
 });
-// La station de cet ordinateur sert un dépôt, par le geste de la case de Settings — puis la liste qu'il sert se relit.
-// « Add a station » le fait.
+// La station de cet ordinateur sert un dépôt : il entre dans sa liste — puis la liste se relit. « Add a station » le fait.
 /** @param {string} depot @returns {Promise<import("./projets-servis/projets-servis.js").LectureDesProjetsServis>} */
 async function servirIciLeDepot(depot) {
   const rendu = (await brigade.servirUnProjet?.(depot, true)) ?? { refus: NON_ATTEINT(`${CET_ORDINATEUR}'s station`) };
@@ -4537,11 +4545,13 @@ function poserCuisson(projet) {
 
 // L'onglet Stations (ticket 3195, stations-tab/) : un seul composant — la ligne du haut, une carte par station qui sert le
 // projet, le choix de station. Ce qu'il montre se tire de ce que l'app lit déjà : la cuisson du projet (ses faits), les
-// stations appairées et ce que leurs suivis disent du projet (son déménagement), les stations du compte. Ses gestes sont
-// ceux que l'app a déjà : « Choose who cooks it » est l'ajout d'une station (projet/stations/AjoutStation.js) ; « Move to
-// another station », le déménagement de sa cuisine (`demenager`) ; « Stop cooking here », la case de Settings pour cet
-// ordinateur, la sélection d'une station du compte, ou le retrait d'une station que le projet déclare. Les stations du
-// compte se relisent à chaque ouverture de l'onglet. Sur un écran étroit, l'onglet se lit sans rien régler (ticket 1186).
+// stations appairées et ce que leurs suivis disent du projet (son déménagement), les stations du compte, et la liste de la
+// station de cet ordinateur (ticket 3402). Ses gestes sont ceux que l'app a déjà : « Choose who cooks it » et « Add a
+// station » sont l'ajout d'une station (projet/stations/AjoutStation.js) ; « Move to another station », le déménagement de
+// sa cuisine (`demenager`) ; « Stop cooking here », la liste de cet ordinateur, la sélection d'une station du compte, ou le
+// retrait d'une station que le projet déclare (projet/stations/ArretStation.js) ; le bloc des projets servis, caché avec
+// ce qui était sous « This machine » (ticket 2494), la lit sans la changer. Les stations du compte se relisent à chaque
+// ouverture de l'onglet. Sur un écran étroit, l'onglet se lit sans rien régler (ticket 1186).
 let enregistreesARelire = true;
 // Par projet : les stations dont « Details » est déplié — la lecture suivante le garde déplié.
 /** @type {Map<string, Set<string>>} */
@@ -4582,7 +4592,21 @@ function ongletDesStations(projet) {
   const lues = cuisson !== undefined || (stationsVues !== undefined && projetsVus !== undefined) || declarees.has(projet.nom);
   const lesDeclarees = declarees.get(projet.nom)?.declarees ?? [];
   const luLe = tenu === undefined ? Number.NaN : Date.parse(tenu.a);
-  const base = { projet: projet.nom, lignes: cuisson?.lignes ?? [], stations, declarees: lesDeclarees.map(({ nom, distante }) => ({ nom, distante })), locale, ici: projet.ici === true, maintenant, ...(Number.isNaN(luLe) ? {} : { lu: luLe }) };
+  // Ce que la liste de la station de cet ordinateur dit du projet (ticket 3402) : elle fait foi pour sa carte.
+  const depotDuProjet = (projet.depot ?? vuDuProjet?.depot ?? "").toLowerCase();
+  const listeIci = servis.etat?.lecture;
+  const iciSert = depotDuProjet !== "" && listeIci !== undefined && "depots" in listeIci ? listeIci.depots.some((depot) => depot.toLowerCase() === depotDuProjet) : undefined;
+  const base = {
+    projet: projet.nom,
+    lignes: cuisson?.lignes ?? [],
+    stations,
+    declarees: lesDeclarees.map(({ nom, distante }) => ({ nom, distante })),
+    locale,
+    ici: projet.ici === true,
+    maintenant,
+    ...(Number.isNaN(luLe) ? {} : { lu: luLe }),
+    ...(iciSert === undefined ? {} : { iciSert, hote: POSTE.nom }),
+  };
   const sans = servantesDe(base);
   const deplacement = deplacementSuivi({ publie: vuDuProjet?.demenagement, demande: deplacementsDemandes.get(projet.nom), servantes: sans, stations });
   if (deplacement === null) deplacementsDemandes.delete(projet.nom);
@@ -4611,7 +4635,7 @@ function ongletDesStations(projet) {
     choix = { titre: OU_DEPLACER(projet.nom, ou.ici && ou.nom === "" ? POSTE.nom : ou.nom), choix: choixDuMove, deplacement: true, ...(demenagement.vers === undefined ? {} : { enCours: demenagement.vers }) };
   } else if (!lecture && ajout !== undefined && etatDeLAjout.ouvert) {
     const offerts = choixDeStation({ ici: ajout.donnees.iciOffert, hote: sienneIci?.nom ?? "", stations: ajout.donnees.stations, maintenant });
-    choix = { titre: QUI_CUIT_ONGLET(projet.nom), choix: offerts, deplacement: false, ...(etatDeLAjout.enCours === undefined ? {} : { enCours: etatDeLAjout.enCours }), ...(etatDeLAjout.refus === undefined ? {} : { refus: etatDeLAjout.refus }) };
+    choix = { titre: servantes.length > 0 ? QUI_D_AUTRE(projet.nom) : QUI_CUIT_ONGLET(projet.nom), choix: offerts, deplacement: false, ...(etatDeLAjout.enCours === undefined ? {} : { enCours: etatDeLAjout.enCours }), ...(etatDeLAjout.refus === undefined ? {} : { refus: etatDeLAjout.refus }) };
   }
 
   // Ce que le dernier geste a rendu : l'arrêt d'une station, le déménagement, l'ajout — refusé, sa raison.
@@ -4704,50 +4728,46 @@ function ongletDesStations(projet) {
   return pose;
 }
 
-// « Stop cooking here » : la station ne prend plus les tickets du projet, par le geste que l'app a déjà pour elle — cet
-// ordinateur, par la case de Settings ; une station du compte, par sa sélection ; une station que le projet déclare, par
-// son retrait (ticket 2914). Aucun de ces gestes : rien ne part, la ligne dit pourquoi.
+// « Stop cooking here » : la station ne prend plus les tickets du projet, par le geste que l'app a pour elle
+// (projet/stations/ArretStation.js) — cet ordinateur, par sa liste, et sa sélection si elle le porte ; une station du compte,
+// par sa sélection ; une station que le projet déclare, par son retrait (ticket 2914). Aucun de ces gestes : rien ne part,
+// la ligne dit pourquoi. Ce que le geste rend est relu : un projet encore servi le dit, le bouton reste.
 /** @param {Projet} projet @param {import("./stations-tab/etat.js").Servante | undefined} station */
 async function arreterLaStation(projet, station) {
   if (station === undefined || arretDemande?.projet !== projet.nom || arretDemande.enCours) return;
-  const depot = (projet.depot ?? projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.depot ?? "").toLowerCase();
-  const lecture = servis.etat?.lecture;
-  const servisIci = lecture !== undefined && "depots" in lecture ? lecture.depots : [];
+  const depot = projet.depot ?? projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.depot ?? "";
   const lues = enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
   const enregistree = lues?.state === "listed" ? lues.stations.find(({ id }) => id === station.id) : undefined;
-  const declaree = declarees.get(projet.nom)?.declarees.find(({ nom }) => nom === station.nom || nom === nomDePrise(station.nom));
-  /** @type {(() => Promise<{ refus: string, detail?: string } | object>) | undefined} */
-  const ecrire =
-    station.ici && servisIci.some((servi) => servi.toLowerCase() === depot)
-      ? async () => (await brigade.servirUnProjet?.(depot, false)) ?? { refus: NON_ATTEINT(`${CET_ORDINATEUR}'s station`) }
-      : enregistree !== undefined && (enregistree.selection ?? []).some((choisi) => choisi.toLowerCase() === depot)
-        ? async () => (await brigade.choisirLesProjets?.(enregistree.id, (enregistree.selection ?? []).filter((choisi) => choisi.toLowerCase() !== depot))) ?? { refus: "the app gave no answer" }
-        : declaree !== undefined && (declarees.get(projet.nom)?.declarees.length ?? 0) > 1
-          ? async () => {
-              const rendu = await brigade.changerUneStation(projet.nom, declaree.nom, { retiree: true });
-              return "refus" in rendu ? rendu : {};
-            }
-          : undefined;
-  if (ecrire === undefined) {
+  const lesDeclarees = declarees.get(projet.nom)?.declarees ?? [];
+  const lue = servis.etat?.lecture;
+  const servisIci = lue !== undefined && "depots" in lue ? lue.depots : undefined;
+  const declaree = lesDeclarees.find(({ nom }) => nom === station.nom || nom === nomDePrise(station.nom));
+  const geste = gesteDArret(
+    {
+      projet: projet.nom,
+      depot,
+      station: { nom: station.nom, ici: station.ici },
+      ...(servisIci === undefined ? {} : { liste: servisIci }),
+      ...(enregistree === undefined ? {} : { selection: { id: enregistree.id, depots: enregistree.selection ?? [] } }),
+      ...(declaree === undefined ? {} : { declaree: { nom: declaree.nom, seule: lesDeclarees.length <= 1 } }),
+    },
+    {
+      retirerIci: async (un) => (await brigade.servirUnProjet?.(un, false)) ?? { refus: NON_ATTEINT(`${CET_ORDINATEUR}'s station`) },
+      choisir: async (id, depots) => (await brigade.choisirLesProjets?.(id, depots)) ?? { refus: "the app gave no answer" },
+      retirerDeclaree: (nom) => brigade.changerUneStation(projet.nom, nom, { retiree: true }),
+    },
+  );
+  if (geste === undefined || "seule" in geste) {
     arretDemande = undefined;
     // La seule station que le projet déclare ne se retire pas (stations-declarees.js) : sans elle, aucun cook ne part.
-    arretDitPour = { projet: projet.nom, texte: declaree !== undefined ? `nothing was changed: ${SEULE}` : `nothing was changed: the app has no gesture that stops ${station.nom} from here`, refus: true, detail: "" };
+    arretDitPour = { projet: projet.nom, texte: geste === undefined ? SANS_GESTE(station.nom) : `nothing was changed: ${SEULE}`, refus: true, detail: "" };
     return reposerLOngletStations();
   }
   arretDemande.enCours = true;
   reposerLOngletStations();
-  /** @type {{ refus: string, detail?: string } | object} */
-  let rendu;
-  try {
-    rendu = await ecrire();
-  } catch (erreur) {
-    rendu = { refus: "the app failed while saving", detail: rateDit(erreur) };
-  }
+  const dit = await arreter(geste);
   arretDemande = undefined;
-  arretDitPour =
-    "refus" in rendu
-      ? { projet: projet.nom, texte: `nothing was changed: ${String(rendu.refus).replace(/^not saved: /, "")}`, refus: true, detail: "detail" in rendu ? String(rendu.detail ?? "") : "" }
-      : { projet: projet.nom, texte: `${station.nom} no longer takes ${projet.nom}'s tickets`, refus: false, detail: "" };
+  arretDitPour = { projet: projet.nom, ...dit };
   void servis.lire();
   void lireLesEnregistrees();
   if (courant?.nom === projet.nom) reposerLOngletStations();

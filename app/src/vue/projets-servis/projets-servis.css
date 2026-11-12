@@ -1,6 +1,6 @@
 /* Les projets que sert la station de cet ordinateur (ticket 2359, projets-servis/) : des rangées de réglage
-   (composants/reglage, ticket 2920), une case par projet. Ici ne se dit que ce qui est à elles : son dépôt, et s'il est
-   servi. */
+   (composants/reglage, ticket 2920), une par projet, lue sans contrôle (ticket 3402). Ici ne se dit que ce qui est à
+   elles : son dépôt, et s'il est servi. */
 .projets-servis .depot {
   font-size: var(--taille-corps);
 }
