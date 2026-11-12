@@ -400,7 +400,8 @@ async function pontDeLAPK(monde: Monde) {
         if (plugin === "Pont") return methode === "gardees" ? { valeur: JSON.stringify({ [`${DEPOT}#${CARTE}`]: { id: 7, projet: PROJET, depot: DEPOT, ticket: CARTE, question: "Does the screen of #58 look right?" } }) } : {};
         if (plugin !== "CapacitorHttp" || methode !== "request") return assert.fail(`unexpected call: ${plugin}.${methode}`);
         assert.equal(passees.headers.Authorization, `Bearer ${JETON}`);
-        if (passees.url.startsWith(`${API}/gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(passees.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }] : [], headers: {} };
+        // La trace de ce téléphone, déjà posée (#3303, telephone-connecte.ts) : la lecture n'écrit rien d'autre que le geste.
+        if (passees.url.startsWith(`${API}/gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(passees.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }, { id: "t1", files: { "brigade-telephone.json": { filename: "brigade-telephone.json" } } }] : [], headers: {} };
         if (passees.url === `${API}/gists/g1`) return { status: 200, data: { id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json", content: PROJETS_DU_GIST } } }, headers: {} };
         if (passees.url === `${API}/repos/${DEPOT}`) return { status: 200, data: { full_name: DEPOT, owner: { login: "chef" }, permissions: { push: true } }, headers: {} };
         if (passees.url === `${API}/user`) return { status: 200, data: { login: "chef" }, headers: {} };

@@ -1,0 +1,74 @@
+/* L'écran « since you were away » (ticket 3305, absence/) : une page qui couvre l'app, devant tout autre écran. Ses
+   titres et ses listes reprennent ceux de la page des résumés hebdomadaires. */
+#absence {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: auto;
+  padding: var(--pas-5);
+  background: var(--fond);
+}
+.absence {
+  display: grid;
+  gap: var(--pas-3);
+  max-width: 960px;
+  margin: 0 auto;
+}
+.absence h2 {
+  margin: 0;
+  font-size: var(--taille-titre);
+}
+.absence .attendu {
+  margin: 0;
+  color: var(--texte-doux);
+}
+.absence .absence-du-projet {
+  display: grid;
+  gap: var(--pas-2);
+  padding: var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.absence .absence-du-projet > h3 {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  color: var(--texte);
+}
+.absence h4 {
+  margin: var(--pas-2) 0 0;
+  font-size: var(--taille-corps);
+  font-weight: 600;
+}
+.absence .semaine {
+  margin: 0;
+  color: var(--discret);
+}
+.absence ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.absence li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+  color: var(--texte-doux);
+}
+.absence li::before {
+  content: "–";
+  color: var(--discret);
+}
+.absence .autonomie .nom {
+  min-width: 180px;
+  color: var(--discret);
+}
+.absence .autonomie .valeur {
+  color: var(--texte);
+}
+.absence .fermer-l-absence {
+  justify-self: start;
+}

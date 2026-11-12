@@ -401,6 +401,26 @@ station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's
 in `app/src/vue/vue.js`, `app/src/vue/explications/explications-box.ts` (the runtime command, from the main process).
 Tests: `app/test/explications/`, `runtime/test/explications/`. Captures: `docs/captures/3308/`.*
 
+### Coming back after some days: "Since you were away" (#3305)
+
+*Ticket: #3305 (builds on #3251 and #3213).* **When the chef opens the app more than 3 days (72 hours) after the previous
+opening, a "Since you were away" screen is shown first, before any other screen.** At exactly 3 days or less it is not
+shown, and neither is it on the very first launch (no stored date). The date of the last opening is kept in the view's
+storage (`brigade.derniere-ouverture`) and rewritten at every opening, once the decision is taken: closed, the screen does
+not come back until another gap of more than 3 days. A storage that cannot be read shows nothing.
+
+For each project that is read on this computer, the screen lists what was served during the away period — the lines of its
+weekly summaries whose week reaches into the absence, worded by the summary itself (`runtime/src/resume-hebdomadaire/resume.ts`,
+nothing is reworded in the app) — and what waits for the chef, with its count: the cards of `lesCartesDuChef`, the list the
+app already treats as awaiting the chef. The autonomy figures of those weeks are shown when the summaries carry them; when
+they do not, the block is not there at all. One button closes the screen: when something waits it reads "See what is waiting
+for you" and opens the project holding it (at a phone's width, the list of cards of the home page); when nothing waits it reads
+"Close" and lands on "All projects".
+
+*Code: `app/src/vue/absence/absence.js` and its wiring in `app/src/vue/vue.js` (`poserLAbsence`); the autonomy list is
+`chiffresDeLAutonomie` of `resume-hebdomadaire.js`. Tests: `app/test/absence/`. Captures: `docs/captures/3305/` (before: the app opened on the same
+data, without the screen; after: with it).*
+
 ### On first launch: try on a sample project (#3227, epic #3217)
 
 Next to `open this project`, the first-launch screen offers **`try on a sample project`**. One click creates a small
@@ -1848,6 +1868,38 @@ and keeps asking through a lost network until the code expires. On the desktop, 
 `app/src/vue/connexion-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
 `telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
 
+### Right after the first served ticket: the phone offer (#3303)
+
+On the page of the chef's **first project** — of the projects read, the one whose station records the earliest add
+(`delai.ajouteLe`, #1401) —, once its first ticket is served, a line under *First ticket served …* says **Brigade can
+call you on your phone when it needs you**, with `set up my phone` (recommended) and `no thanks`. It is not shown on
+another project, before that ticket is served, on the phone itself, or when a phone is already signed in.
+
+- **`set up my phone`** shows, in the same line, `download the Android app` and *Sign in with the same GitHub account*:
+  there is no pairing code since #2500, the phone signs in to the same GitHub account. The link is the `apkUrl` of
+  `latest-android.json` (`apkLink`, `app/src/mise-a-jour/android.ts`), read by the main process whatever version runs;
+  when the manifest cannot be read, it is the releases page, `https://github.com/benomite/brigade/releases`. Nothing
+  goes through Settings.
+- **`no thanks`**, or following the link, hides the offer for good: the choice is kept in the view's storage
+  (`localStorage`, key `brigade.offre-telephone`). A storage that cannot be read does not show the offer, so that a
+  refusal is never forgotten.
+- **A phone already signed in hides it.** Once signed in, the Android app leaves a trace on the chef's GitHub account:
+  a secret gist, described `brigade — phone`, holding `brigade-telephone.json`
+  (`{ "brigade": "telephone", "format": 1, "connecteLe": "<ISO>" }`, `app/src/telephone-connecte.ts`). It writes it
+  once, after its first list of gists read, only if no gist of the account holds that file; a write that fails is
+  retried at its next read. The desktop reads the account's gists for that file with its own `gh`
+  (`telephoneConnecte`, `app/src/stations/github.ts`) before showing the offer. Until that read says no phone is signed
+  in — not read yet, or unreadable —, the offer is not shown; an answer other than "signed in" is read again after
+  5 minutes, so a phone signed in while the offer shows takes it away. A phone signed in with an app older than this
+  trace leaves none until it is updated.
+- **Pairing stays where it is**: on the phone, its *sign in with GitHub* screen (#2500). The desktop has no other
+  pairing entry; declining the offer changes nothing there.
+
+*Code: `app/src/vue/offre-telephone/offre-telephone.js`, its wiring in `app/src/vue/vue.js`, `app/src/main.ts`
+(`lienDeLApk`, `telephoneConnecte`) and `app/src/preload.cjs`; the trace in `app/src/telephone-connecte.ts`, posed by
+`app/src/lecture-github-telephone.ts`. Tests: `app/test/vue/offre-telephone.test.ts`, `app/test/telephone-connecte.test.ts`,
+`app/test/stations/stations.test.ts`, `app/test/mise-a-jour/android.test.ts`. Captures: `docs/captures/3303/`.*
+
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
 Signed in, **the phone reads the chef's projects, each project's rail and its TODO on GitHub alone** — no station is
@@ -2892,6 +2944,32 @@ which each read brings up to date (`app/src/reglages-perso/`, on the module of #
 - Nothing here reads or writes a project's `projet.json`: the project's shared settings change by a
   pull request ([`reglages.md`](reglages.md), §1).
 
+### The kitchen's state in the menu bar and the notification area (#3269)
+
+The chef sees how the kitchen is doing without opening the window. On a Mac the app puts an icon in the **menu bar**,
+on Windows in the **notification area**. It says in one line how many cooks are working and how many questions wait
+for you, across all your projects: `3 cooking · 1 for you`. On a Mac the line sits next to the icon; Windows shows no
+text next to a notification-area icon, so the number of questions waiting is painted on the icon, in an orange disc
+(`+` above 9), and the whole line is on hover.
+
+- **The counts** come from what the app already reads: the last `facts` of each project a station serves, read every
+  30 s whatever the screen. A project's cooks are counted as the home counts them; its questions are the entries of its
+  `awaiting` (what TODO shows). A project not read yet counts for nothing, and the line says how many are not:
+  `1 cooking · 0 for you · 1 not read`. Nothing read at all, it says `not read yet`, never a zero.
+- **A click on the icon** opens its menu: the line, then one entry per question waiting — its project, its ticket and
+  its question (`brigade #7 — Open the beta to everyone?`) — or `nothing waits for you`, then **Open brigade**. A click
+  on a question brings the window to the front, opens the project and the card's sheet. A runtime from before
+  `awaiting` gives the number of decisions without naming them: its entry (`brigade — 2 awaiting you`) opens the project.
+- **It can be turned off in Settings**: in each project's Settings, a `Menu bar` row (`Notification area` on Windows),
+  under `you`, with a switch. It is one setting for the whole app, kept in `app.json` as `barreDeMenus` and following
+  you to your other devices ([`reglages.md`](reglages.md), §3). Turned off, the icon goes at once; turned back on, it
+  comes back with what is read.
+- An icon the system refuses does not stop the app: the reason is said once in the terminal that started it.
+
+The module is `app/src/barre-de-menus.ts` (the line, the menu, the disc); `main.ts` wires it to Electron's `Tray`. The
+icon is `app/src/icones/barre-de-menus.png` and its `@2x`, cut from the app's icon by `app/packaging/icones.ts`. Tests:
+`app/test/barre-de-menus.test.ts`, `app/test/barre-de-menus-reglage.test.ts`.
+
 ### The Settings tab, and the log by its action
 
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
@@ -2907,6 +2985,8 @@ GitHub Apps, the projects it serves, the app's code) are not shown in Settings; 
 - its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette — and
   `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first, which the app keeps in
   its projects file.
+- `Menu bar` (`Notification area` on Windows): whether the kitchen's state shows there — a `you` row that holds for the
+  whole app, the same in every project's Settings (see "The kitchen's state in the menu bar and the notification area").
 
 Under these, a section of its own, **`Caps, closer and all projects`** (#3014): the duration caps, the closer and the
 Cost and Closer rows of all projects, as the folded line at the top of the Rail tab, then of the Stations tab, showed

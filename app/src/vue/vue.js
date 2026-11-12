@@ -95,6 +95,7 @@ import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
+import { absenceALAperture, poserAbsence } from "./absence/absence.js";
 import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
 import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
@@ -109,6 +110,7 @@ import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
+import { poserLOffre, premierProjetServi, tenirLOffre } from "./offre-telephone/offre-telephone.js";
 import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
@@ -267,11 +269,31 @@ const explicationSecond = element("explication-second");
 const explicationsDuChef = element("explications-du-chef");
 const outilsDuSecond = element("outils-du-second");
 const choixDuSecond = element("choix-du-second");
+// Le stockage de la vue, ou rien quand son accès est refusé : la lecture de `window.localStorage` lève alors (SecurityError),
+// et chacun de ses usagers fait sans lui plutôt que de casser la vue au démarrage.
+/** @returns {Storage | undefined} */
+function stockageDeLaVue() {
+  try {
+    return window.localStorage ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 // La visite guidée du premier lancement (ticket 3165, visite/) : sa bulle par-dessus l'écran, l'étape où elle en est, et
 // la trace, dans le stockage de la vue, qu'elle a été montrée.
 const sectionVisite = element("visite");
-const visite = tenirLaVisite({ stockage: window.localStorage ?? undefined, rendre: () => poserLaVisite() });
+const visite = tenirLaVisite({ stockage: stockageDeLaVue(), rendre: () => poserLaVisite() });
 const marquerLaCible = marqueurDeCible();
+// L'écran « since you were away » (ticket 3305, absence/) : décidé une fois, à l'ouverture — la date de la dernière ouverture
+// est alors réécrite —, et montré avant tout autre écran. Vaut la date de l'ancienne ouverture quand l'écran vient.
+const absenceDepuis = absenceALAperture({ stockage: window.localStorage ?? undefined });
+const sectionAbsence = element("absence");
+/** @type {Map<string, import("./resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet>} */
+const resumesDeLAbsence = new Map();
+/** @type {Set<string>} */
+const lecturesDeLAbsence = new Set();
+let absenceFermee = false;
+let absencePosee = "";
 // Le projet que le premier lancement ajoute pour la visite : son espace s'ouvre sur elle dès qu'il est dans le fichier.
 /** @type {string | undefined} */
 let visiteAOuvrir;
@@ -309,7 +331,7 @@ const panneauDuSecond = monterLePanneau({
   document,
   colonne: colonneSecond,
   tete: teteDuSecond,
-  stockage: window.localStorage ?? undefined,
+  stockage: stockageDeLaVue(),
   disponible: () => {
     const rail = principal.getBoundingClientRect?.().width;
     const panneau = colonneSecond.getBoundingClientRect?.().width;
@@ -326,6 +348,7 @@ const videProjet = element("vide-project");
 const retrait = element("retrait");
 const couleurs = element("couleurs");
 const sigle = element("sigle");
+const barreDeMenus = element("barre-de-menus");
 const ordinaires = element("ordinaires");
 // Les GitHub Apps de la station de cet ordinateur, une ligne par rôle (ticket 2317, identites-github.js) : relues à
 // l'ouverture de chaque projet ; un appareil sans station (le téléphone) n'en pose aucune.
@@ -671,6 +694,17 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+// L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
+// ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
+// ou suivie, gardée rangée dans le stockage de la vue.
+const offreDuTelephone = element("offre-telephone");
+const offre = tenirLOffre({
+  stockage: stockageDeLaVue(),
+  lire: async () => brigade.lienDeLApk?.(),
+  connecte: async () => brigade.telephoneConnecte?.(),
+  ouvrir: (lien) => void brigade.ouvrirLaPage?.(lien),
+  rendre: () => poserLOffreDuTelephone(courant),
+});
 const bandeauSante = element("bandeau-sante");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
@@ -1233,6 +1267,8 @@ let nonRetire = { projet: "", refus: "" };
 let couleurRefusee = { projet: "", refus: "" };
 // Pourquoi le dernier sigle écrit ne l'a pas été, et pour quel projet — rien, s'il l'a été.
 let sigleRefuse = { projet: "", refus: "" };
+// Le dernier refus du réglage de la barre des menus, sous sa ligne.
+let barreDeMenusRefusee = "";
 // Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
 /** @type {VuDuCode | undefined} */
 let codeVu;
@@ -1401,6 +1437,7 @@ const montreADroite = () => {
 };
 
 function montrer() {
+  poserLAbsence();
   const visible = actif();
   const relaye = ONGLETS.find(({ id }) => id === visible);
   const droite = montreADroite();
@@ -2503,6 +2540,28 @@ async function siglerProjet(projet, voulu) {
   const refus = await brigade.changerSigle(projet.nom, voulu);
   sigleRefuse = { projet: projet.nom, refus: refus ?? "" };
   if (courant?.nom === projet.nom) poserSigle(courant);
+}
+
+// L'état de la cuisine dans la barre des menus du Mac, la zone de notification de Windows (ticket 3269) : une ligne de
+// toi, la même dans les Settings de chaque projet — elle vaut pour toute l'app. Un interrupteur la pose ou la retire ; le
+// process principal l'écrit dans le fichier des projets, et elle revient par `surConfiguration`. Le téléphone n'en a pas.
+function poserBarreDeMenus() {
+  if (telephone !== undefined || brigade.changerBarreDeMenus === undefined) {
+    barreDeMenus.hidden = true;
+    return barreDeMenus.replaceChildren();
+  }
+  barreDeMenus.hidden = false;
+  const allumee = configuration.barreDeMenus !== false;
+  const ou = POSTE.mac ? "menu bar" : "notification area";
+  const bascule = interrupteurDeLApp(document, { texte: allumee ? "on" : "off", allume: allumee, libelle: `Show the kitchen's state in the ${ou}` }, (voulue) => void reglerBarreDeMenus(voulue));
+  const aide = `how many cooks are working and how many questions wait for you — "3 cooking · 1 for you" — in the ${ou}; a click lists the questions, and opens the app on the one you pick. For the whole app, not this project only`;
+  barreDeMenus.replaceChildren(rangeeDeReglage(POSTE.mac ? "Menu bar" : "Notification area", [bloc("span", allumee ? "shown" : "hidden"), survol(document, aide)], [bascule], refusDeReglage(barreDeMenusRefusee), { cle: "barre-de-menus", niveau: niveauDe(document, "barre-de-menus") }));
+}
+/** @param {boolean} voulue */
+async function reglerBarreDeMenus(voulue) {
+  const refus = await brigade.changerBarreDeMenus?.(voulue);
+  barreDeMenusRefusee = refus ?? "";
+  poserBarreDeMenus();
 }
 
 // Une couleur choisie : le process principal l'écrit dans le fichier des projets, et elle revient
@@ -6865,6 +6924,16 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  poserLOffreDuTelephone(projet);
+}
+
+// L'offre du téléphone, sur la page du premier projet servi seulement — ni sur le téléphone, ni rangée, ni quand un
+// téléphone est déjà connecté : la trace n'est lue qu'une fois le reste tenu.
+/** @param {Projet | undefined} projet */
+function poserLOffreDuTelephone(projet) {
+  const montree = projet !== undefined && telephoneVu === undefined && premierProjetServi(projetsVus?.projets ?? []) === projet.nom && offre.montrable();
+  offreDuTelephone.hidden = !montree;
+  offreDuTelephone.replaceChildren(...(montree ? [poserLOffre(document, offre.etat, offre)] : []));
 }
 setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
@@ -8073,6 +8142,60 @@ function ajouterLaCuisineDeLaVisite() {
   void ouvrirDUneStation("", PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE);
 }
 
+// L'écran « since you were away » : par projet qui se lit, ce que ses résumés disent de l'absence et ce qui attend le chef
+// (`lesCartesDuChef`, la liste que l'app tient déjà pour ce qui attend le chef). Reposé seulement quand ce qu'il dit change.
+// Son bouton le ferme, et mène à ce qui attend le chef : sa page, ou — à la largeur d'un téléphone — la liste des cartes ; sans
+// rien qui attende, à l'accueil.
+function poserLAbsence() {
+  if (absenceDepuis === undefined || absenceFermee) return;
+  const projets = configuration.projets.filter((projet) => seLit(projet));
+  const cartes = lesCartesDuChef();
+  const entrees = projets.map(({ nom }) => ({
+    projet: nom,
+    lecture: resumesDeLAbsence.get(nom),
+    attentes: cartes.filter(({ projet }) => projet === nom).map(({ ticket, todo }) => {
+      const titre = todo.resume ?? todo.question ?? undefined;
+      return titre === undefined ? { ticket } : { ticket, titre };
+    }),
+  }));
+  const signature = JSON.stringify(entrees);
+  if (signature === absencePosee && !sectionAbsence.hidden) return;
+  absencePosee = signature;
+  for (const { nom } of projets) {
+    if (resumesDeLAbsence.has(nom) || lecturesDeLAbsence.has(nom)) continue;
+    lecturesDeLAbsence.add(nom);
+    void Promise.resolve()
+      .then(() => brigade.lireLesResumesHebdomadaires(nom))
+      .then(
+        (lue) => lue,
+        (/** @type {unknown} */ erreur) => ({ projet: nom, jour: { sans: NON_ATTEINT("weekly summaries") }, resumes: { sans: NON_ATTEINT("weekly summaries"), detail: erreur instanceof Error ? erreur.message : String(erreur) } }),
+      )
+      .then((lue) => {
+        resumesDeLAbsence.set(nom, lue);
+        poserLAbsence();
+      });
+  }
+  sectionAbsence.replaceChildren(
+    poserAbsence(
+      document,
+      { depuis: absenceDepuis, projets: entrees },
+      {
+        fermer: (attend) => {
+          absenceFermee = true;
+          sectionAbsence.hidden = true;
+          sectionAbsence.replaceChildren();
+          const premier = attend ? cartes[0] : undefined;
+          const ouvert = premier === undefined ? undefined : projetDe(premier.projet);
+          if (ouvert !== undefined && !etroit()) void ouvrir(ouvert);
+          else ouvrirTous();
+          montrer();
+        },
+      },
+    ),
+  );
+  sectionAbsence.hidden = false;
+}
+
 // La bulle de l'étape, sur l'espace du projet visité ; ailleurs, rien. L'étape désigne ce que le rail montre à l'instant.
 function poserLaVisite() {
   const enCours = visite.etat;
@@ -8667,6 +8790,7 @@ async function ouvrir(projet) {
   void lireRetrait(projet);
   poserSigle(projet);
   poserCouleurs(projet);
+  poserBarreDeMenus();
   void poserOrdinaires(projet);
   void identitesGithub.lire();
   void servis.lire();
