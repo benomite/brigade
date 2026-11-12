@@ -14,8 +14,9 @@ const PLAFOND = Number(/^ {4}timeout-minutes:\s*(\d+)\s*$/m.exec(JOB)?.[1]);
 // Les pas, chacun du `- ` qui l'ouvre au suivant.
 const PAS = JOB.split(/^ {6}- /m).slice(1);
 
-// Ce que le job fait hors des pas plafonnés : le checkout, node, et son ménage.
-const MARGE_MIN = 1;
+// Ce que le job fait hors des pas plafonnés : le checkout, node, et son ménage. Le checkout extrait les captures de
+// docs/captures/, qui grossissent à chaque livraison design : une minute n'y suffisait plus (#3344).
+const MARGE_MIN = 4;
 
 test("each step that runs npm in windows app tests has its own cap", () => {
   const npm = PAS.filter((pas) => /^\s*run: npm /m.test(pas));

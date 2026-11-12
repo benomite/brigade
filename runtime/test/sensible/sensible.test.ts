@@ -225,14 +225,22 @@ test("send back with an empty note is refused and changes nothing; so is an answ
   assert.equal(faux.mergee(TICKET), undefined);
 });
 
-test("merge after the head moved merges nothing and keeps the card", async () => {
-  const { faux } = await retenu();
+test("merge after the branch was updated from its base merges nothing at once: the answer is kept on the ticket, the card leaves TODO, and the pass merges the new head once green, without a new card", async () => {
+  const { faux, s } = await retenu();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
   faux.pr(PR).sha = faux.sha();
+  faux.ciEnCours.add(PR);
   const fin = await sensitive(faux, "merge", `faux/depot#${PR}`);
-  assert.equal(fin.code, 1);
-  assert.match(fin.lignes.join("\n"), /the head of PR #1041 moved since card #\d+/);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot#${PR}: your answer is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
   assert.equal(faux.pr(PR).merged, false);
-  assert.equal(ouvertes(faux).length, 1);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.ok((faux.commentaires.get(TICKET) ?? []).some((c) => c.body.startsWith(`<!-- brigade:sensitive-review-validee carte=${carte.number} pr=${PR} `) && c.body.includes("Merge accepted by the chef on card")));
+  faux.ciEnCours.delete(PR);
+  await tours(s, 4, () => faux.mergee(TICKET) !== undefined);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.equal(cartes(faux).length, 1);
 });
 
 test("a card GitHub refuses to create: nothing is merged, the station says why, and the next turn posts the card", async () => {
