@@ -97,9 +97,9 @@ describe("les chiffres d'autonomie lus de GitHub (#3222)", () => {
     assert.ok("chiffres" in reprise);
   });
 
-  test("une réponse de GitHub qui n'est pas 200 fait échouer la lecture du dépôt, jamais des chiffres sans ses tickets", async () => {
+  test("une réponse de GitHub qui n'est pas 200 fait échouer la lecture du dépôt quand rien n'a pu se lire, jamais des chiffres sans ses tickets", async () => {
     const { appeler } = github();
-    const enPanne: AppelGitHub = (chemin) => (chemin.includes("/issues/13/") ? Promise.resolve({ status: 403, data: {} }) : appeler(chemin));
+    const enPanne: AppelGitHub = (chemin) => (chemin.includes("/issues/") ? Promise.resolve({ status: 403, data: {} }) : appeler(chemin));
     await assert.rejects(lireLAutonomieDuDepot({ depot: "chef/parade", appeler: enPanne, maintenant: MAINTENANT }), /HTTP 403/);
   });
 
@@ -107,5 +107,91 @@ describe("les chiffres d'autonomie lus de GitHub (#3222)", () => {
     const autonomie = tenirLAutonomie({ lire: () => Promise.reject(new Error("not read")), fraicheurMs: 1 });
     assert.deepEqual(await autonomie.chiffres([], 3), { jours: 3, sans: SANS_LECTURE, detail: "no such period: 3 days" });
     assert.deepEqual(await autonomie.chiffres([], 7), { jours: 7, sans: SANS_LECTURE, detail: "no project to read" });
+  });
+
+  // Un dépôt de 1 334 PR mergées en 30 jours (#3379), une par ticket, servies 100 par page, la plus récemment mise à jour d'abord.
+  const MERGEES = 1334;
+  const grosDepot = (options: { panneAPartirDeLaPage?: number; ticketEnPanne?: number } = {}) => {
+    const prs = Array.from({ length: MERGEES }, (_, i) => {
+      const quand = il(((i + 1) * 30 * JOUR) / (MERGEES + 1));
+      return { number: 1000 + i, title: `#${i + 1} — Ticket ${i + 1}`, merged_at: quand, updated_at: quand, head: { ref: `cook/${i + 1}-github` }, body: `Closes #${i + 1}`, html_url: `https://github.com/chef/gros/pull/${1000 + i}` };
+    });
+    const chemins: string[] = [];
+    const appeler: AppelGitHub = async (chemin) => {
+      chemins.push(chemin);
+      const ok = (data: unknown) => ({ status: 200, data });
+      if (chemin.startsWith("/repos/chef/gros/pulls?state=closed")) {
+        const page = Number(/&page=(\d+)/.exec(chemin)![1]);
+        if (options.panneAPartirDeLaPage !== undefined && page >= options.panneAPartirDeLaPage) return { status: 403, data: {} };
+        return ok(prs.slice((page - 1) * 100, page * 100));
+      }
+      const issue = /\/issues\/(\d+)\/(events|comments)\?/.exec(chemin);
+      if (issue !== null) {
+        if (Number(issue[1]) === options.ticketEnPanne) return { status: 403, data: {} };
+        const ticket = Number(issue[1]);
+        const tot = Date.parse(prs[ticket - 1]!.merged_at) - 2 * HEURE;
+        return ok(chemin.includes("page=1") && issue[2] === "events" ? [{ event: "labeled", label: { name: "fire" }, created_at: new Date(tot).toISOString() }] : []);
+      }
+      return { status: 404, data: {} };
+    };
+    return { chemins, appeler };
+  };
+
+  test("plus de 1 000 PR mergées sur la période : chaque ticket des 30 jours est compté, la période est entière", async () => {
+    const { appeler } = grosDepot();
+    const autonomie = tenirLAutonomie({ lire: (depot, lues) => lireLAutonomieDuDepot({ depot, appeler, maintenant: MAINTENANT, lues }), fraicheurMs: 10 * 60_000, maintenant: () => MAINTENANT });
+    const mois = await autonomie.chiffres([{ nom: "gros", depot: "chef/gros" }], 30);
+    assert.ok("chiffres" in mois);
+    assert.equal(mois.chiffres.tickets, MERGEES);
+    assert.deepEqual(mois.partiels, []);
+    assert.equal(mois.chiffres.delaiMedianMs, 2 * HEURE);
+  });
+
+  test("une page de PR qui ne se lit pas : les chiffres ne portent que sur ce qui est lu, et la lecture dit depuis quand", async () => {
+    const { appeler } = grosDepot({ panneAPartirDeLaPage: 8 });
+    const autonomie = tenirLAutonomie({ lire: (depot, lues) => lireLAutonomieDuDepot({ depot, appeler, maintenant: MAINTENANT, lues }), fraicheurMs: 10 * 60_000, maintenant: () => MAINTENANT });
+    const mois = await autonomie.chiffres([{ nom: "gros", depot: "chef/gros" }], 30);
+    assert.ok("chiffres" in mois);
+    assert.equal(mois.chiffres.tickets, 699);
+    assert.equal(mois.partiels.length, 1);
+    assert.equal(mois.partiels[0]!.projet, "gros");
+    assert.match(mois.partiels[0]!.raison, /HTTP 403/);
+    assert.equal(mois.partiels[0]!.depuis, new Date(MAINTENANT.getTime() - (700 * 30 * JOUR) / (MERGEES + 1)).toISOString());
+    // La semaine est entière dans ce qui est lu : aucune mention.
+    const semaine = await autonomie.chiffres([{ nom: "gros", depot: "chef/gros" }], 7);
+    assert.ok("chiffres" in semaine);
+    assert.deepEqual(semaine.partiels, []);
+  });
+
+  test("une première page de PR qui ne se lit pas fait échouer la lecture : rien n'est lu", async () => {
+    const { appeler } = grosDepot({ panneAPartirDeLaPage: 1 });
+    await assert.rejects(lireLAutonomieDuDepot({ depot: "chef/gros", appeler, maintenant: MAINTENANT }), /HTTP 403/);
+  });
+
+  test("un ticket dont l'issue ne se lit pas borne la période lue : les plus anciens sont laissés de côté, dits, jamais comptés sans leur issue", async () => {
+    const { appeler } = grosDepot({ ticketEnPanne: 600 });
+    const donnees = await lireLAutonomieDuDepot({ depot: "chef/gros", appeler, maintenant: MAINTENANT });
+    assert.ok(donnees.partiel !== null);
+    assert.match(donnees.partiel.raison, /HTTP 403/);
+    assert.ok(donnees.servis.length < MERGEES);
+    assert.ok(donnees.servis.every(({ livre }) => Date.parse(livre) > Date.parse(donnees.partiel!.depuis)));
+    assert.ok(donnees.servis.every(({ ticket }) => donnees.issues[ticket] !== undefined));
+    assert.ok(!donnees.servis.some(({ ticket }) => ticket === 600));
+  });
+
+  test("rouvrir le bloc ne relit aucune issue déjà lue, même après la fraîcheur du dépôt", async () => {
+    const { chemins, appeler } = github();
+    let instant = MAINTENANT;
+    const autonomie = tenirLAutonomie({ lire: (depot, lues) => lireLAutonomieDuDepot({ depot, appeler, maintenant: instant, lues }), fraicheurMs: 10 * 60_000, maintenant: () => instant });
+    const projets = [{ nom: "parade", depot: "chef/parade" }];
+    await autonomie.chiffres(projets, 30);
+    const issues = () => chemins.filter((chemin) => chemin.includes("/issues/")).length;
+    assert.equal(issues(), 4);
+    instant = new Date(MAINTENANT.getTime() + 11 * 60_000);
+    const relue = await autonomie.chiffres(projets, 30);
+    assert.ok("chiffres" in relue);
+    assert.equal(relue.chiffres.tickets, 2);
+    assert.equal(issues(), 4);
+    assert.equal(chemins.filter((chemin) => chemin.includes("/pulls?")).length, 2);
   });
 });

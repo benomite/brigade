@@ -81,12 +81,37 @@ const VINGT_QUATRE_HEURES = 24 * 3600 * 1000;
 // issue fermée sans PR mergée (not planned, doublon) n'est jamais servie. La station est celle que la PR dit avoir
 // cuisiné (« Cooked by station `x` »). Le plus récemment mergé d'abord, un seul service par ticket.
 export async function lireLesServis(lire: (chemin: string) => Promise<unknown>, depot: string, maintenant: number, fenetreMs = VINGT_QUATRE_HEURES): Promise<ServiSurGithub[]> {
+  return (await lireLesServisParPages(lire, depot, maintenant, fenetreMs, 10, false)).servis;
+}
+
+// La même lecture, pour une fenêtre longue (#3379) : jusqu'à `pagesMax` pages, et sans lever quand elle s'arrête avant
+// d'avoir couvert la fenêtre — plafond atteint, ou page qui ne se lit pas après la première. `couvertDepuis` dit alors
+// l'instant jusqu'où les PR sont toutes lues (les pages sont triées par mise à jour, et une PR est mise à jour au moins
+// à son merge : toute PR mergée après la dernière mise à jour lue l'a été) ; null quand la fenêtre est entière.
+// `raison` dit pourquoi elle s'est arrêtée. Une première page qui ne se lit pas lève : rien n'est lu.
+export type ServisLus = { servis: ServiSurGithub[]; couvertDepuis: number | null; raison: string | null };
+export const lireLesServisSurLaFenetre = (lire: (chemin: string) => Promise<unknown>, depot: string, maintenant: number, fenetreMs: number, pagesMax: number): Promise<ServisLus> =>
+  lireLesServisParPages(lire, depot, maintenant, fenetreMs, pagesMax, true);
+
+async function lireLesServisParPages(lire: (chemin: string) => Promise<unknown>, depot: string, maintenant: number, fenetreMs: number, pagesMax: number, partiel: boolean): Promise<ServisLus> {
   const depuis = maintenant - fenetreMs;
   const servis = new Map<number, ServiSurGithub>();
-  for (let page = 1; page <= 10; page++) {
-    const brute = await lire(`/repos/${depot}/pulls?state=closed&sort=updated&direction=desc&per_page=${PAR_PAGE}&page=${page}`);
-    if (!Array.isArray(brute)) throw new Error("GitHub's answer is not a list");
-    const lue = liste(brute);
+  // Jusqu'où les pages lues couvrent : la mise à jour de la dernière PR de la dernière page lue.
+  let lueJusque = maintenant;
+  let couvertDepuis: number | null = null;
+  let raison: string | null = null;
+  for (let page = 1; page <= pagesMax; page++) {
+    let lue: Brut[];
+    try {
+      const brute = await lire(`/repos/${depot}/pulls?state=closed&sort=updated&direction=desc&per_page=${PAR_PAGE}&page=${page}`);
+      if (!Array.isArray(brute)) throw new Error("GitHub's answer is not a list");
+      lue = liste(brute);
+    } catch (erreur) {
+      if (!partiel || page === 1) throw erreur;
+      raison = erreur instanceof Error ? erreur.message : String(erreur);
+      couvertDepuis = lueJusque;
+      break;
+    }
     for (const pr of lue) {
       const mergeLe = texte(pr.merged_at);
       const instant = Date.parse(mergeLe);
@@ -107,8 +132,20 @@ export async function lireLesServis(lire: (chemin: string) => Promise<unknown>, 
     // Triées par mise à jour, une page dont la dernière PR est plus ancienne que la fenêtre n'a plus rien après elle.
     const derniere = Date.parse(texte(lue[lue.length - 1]?.updated_at));
     if (lue.length < PAR_PAGE || (!Number.isNaN(derniere) && derniere < depuis)) break;
+    if (Number.isNaN(derniere)) {
+      // Une page pleine dont la dernière PR n'a pas de date : on ne sait pas jusqu'où la lecture couvre.
+      if (!partiel) continue;
+      couvertDepuis = lueJusque;
+      raison = "GitHub gave no update date for a pull request";
+      break;
+    }
+    lueJusque = derniere;
+    if (page === pagesMax && partiel) {
+      couvertDepuis = derniere;
+      raison = `more than ${pagesMax * PAR_PAGE} closed pull requests in the period`;
+    }
   }
-  return [...servis.values()].sort((a, b) => Date.parse(b.livre) - Date.parse(a.livre));
+  return { servis: [...servis.values()].sort((a, b) => Date.parse(b.livre) - Date.parse(a.livre)), couvertDepuis, raison };
 }
 
 // Le rail d'un projet : ses tickets au label `fire`, chacun dans son état, avec sa PR et sa station. Un ticket qui porte

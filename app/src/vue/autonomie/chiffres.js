@@ -38,6 +38,9 @@ export const SOURCE = "Read from GitHub only: the merged pull requests, and the 
 /** @param {number} jours */
 export const AUCUN = (jours) => `no ticket merged in the ${periodeDite(jours)}`;
 export const SANS_QUESTION = "question not written on the ticket";
+/** @param {number} jours @param {{ projet: string, depuis: string }[]} partiels */
+export const PARTIEL = (jours, partiels) =>
+  `not read over the whole ${periodeDite(jours)}: ${partiels.map(({ projet, depuis }) => `${projet} counted only from ${depuis.slice(0, 16).replace("T", " ")} UTC`).join(", ")}`;
 export const FRAICHEUR_MS = 10 * 60_000;
 
 export const SANS_LECTURE = NON_ATTEINT("autonomy figures");
@@ -103,9 +106,13 @@ export function tenirLesChiffresDAutonomie(doc, { lire, ouvrir, tous = false, ma
     const lecture = lues.get(jours)?.lecture ?? null;
     if (lecture === null) return ligneVide(doc, LECTURE_DE("GitHub"), { classe: "lecture" });
     if ("sans" in lecture) return ligneErreur(doc, lecture.sans, lecture.detail);
-    const { chiffres, manquants } = lecture;
+    const { chiffres, manquants, partiels } = lecture;
     const contenu = doc.createElement("div");
     contenu.className = "corps";
+    // Des chiffres sur une période lue en partie le disent avant tout, avec la part qu'ils couvrent (#3379).
+    if (partiels.length > 0) {
+      contenu.append(ligneErreur(doc, PARTIEL(jours, partiels), partiels.map(({ projet, raison }) => `${projet}: ${raison}`).join("\n"), { classe: "partiels" }));
+    }
     if (chiffres.tickets === 0) contenu.append(ligneVide(doc, AUCUN(jours)));
     else contenu.append(figures(chiffres));
     if (manquants.length > 0) {
