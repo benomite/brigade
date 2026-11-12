@@ -95,6 +95,7 @@ import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
+import { absenceALAperture, poserAbsence } from "./absence/absence.js";
 import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
 import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
@@ -280,6 +281,16 @@ function stockageDeLaVue() {
 const sectionVisite = element("visite");
 const visite = tenirLaVisite({ stockage: stockageDeLaVue(), rendre: () => poserLaVisite() });
 const marquerLaCible = marqueurDeCible();
+// L'écran « since you were away » (ticket 3305, absence/) : décidé une fois, à l'ouverture — la date de la dernière ouverture
+// est alors réécrite —, et montré avant tout autre écran. Vaut la date de l'ancienne ouverture quand l'écran vient.
+const absenceDepuis = absenceALAperture({ stockage: window.localStorage ?? undefined });
+const sectionAbsence = element("absence");
+/** @type {Map<string, import("./resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet>} */
+const resumesDeLAbsence = new Map();
+/** @type {Set<string>} */
+const lecturesDeLAbsence = new Set();
+let absenceFermee = false;
+let absencePosee = "";
 // Le projet que le premier lancement ajoute pour la visite : son espace s'ouvre sur elle dès qu'il est dans le fichier.
 /** @type {string | undefined} */
 let visiteAOuvrir;
@@ -1387,6 +1398,7 @@ const montreADroite = () => {
 };
 
 function montrer() {
+  poserLAbsence();
   const visible = actif();
   const relaye = ONGLETS.find(({ id }) => id === visible);
   const droite = montreADroite();
@@ -8081,6 +8093,60 @@ function ajouterLaCuisineDeLaVisite() {
   if (!avecPremier() || compte === undefined || !("login" in compte) || premier.ouverture !== undefined || visiteAOuvrir !== undefined || essai.etat.etape !== undefined || !visite.aDecouvrir()) return;
   visiteAOuvrir = PROJET_DE_LA_VISITE;
   void ouvrirDUneStation("", PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE);
+}
+
+// L'écran « since you were away » : par projet qui se lit, ce que ses résumés disent de l'absence et ce qui attend le chef
+// (`lesCartesDuChef`, la liste que l'app tient déjà pour ce qui attend le chef). Reposé seulement quand ce qu'il dit change.
+// Son bouton le ferme, et mène à ce qui attend le chef : sa page, ou — à la largeur d'un téléphone — la liste des cartes ; sans
+// rien qui attende, à l'accueil.
+function poserLAbsence() {
+  if (absenceDepuis === undefined || absenceFermee) return;
+  const projets = configuration.projets.filter((projet) => seLit(projet));
+  const cartes = lesCartesDuChef();
+  const entrees = projets.map(({ nom }) => ({
+    projet: nom,
+    lecture: resumesDeLAbsence.get(nom),
+    attentes: cartes.filter(({ projet }) => projet === nom).map(({ ticket, todo }) => {
+      const titre = todo.resume ?? todo.question ?? undefined;
+      return titre === undefined ? { ticket } : { ticket, titre };
+    }),
+  }));
+  const signature = JSON.stringify(entrees);
+  if (signature === absencePosee && !sectionAbsence.hidden) return;
+  absencePosee = signature;
+  for (const { nom } of projets) {
+    if (resumesDeLAbsence.has(nom) || lecturesDeLAbsence.has(nom)) continue;
+    lecturesDeLAbsence.add(nom);
+    void Promise.resolve()
+      .then(() => brigade.lireLesResumesHebdomadaires(nom))
+      .then(
+        (lue) => lue,
+        (/** @type {unknown} */ erreur) => ({ projet: nom, jour: { sans: NON_ATTEINT("weekly summaries") }, resumes: { sans: NON_ATTEINT("weekly summaries"), detail: erreur instanceof Error ? erreur.message : String(erreur) } }),
+      )
+      .then((lue) => {
+        resumesDeLAbsence.set(nom, lue);
+        poserLAbsence();
+      });
+  }
+  sectionAbsence.replaceChildren(
+    poserAbsence(
+      document,
+      { depuis: absenceDepuis, projets: entrees },
+      {
+        fermer: (attend) => {
+          absenceFermee = true;
+          sectionAbsence.hidden = true;
+          sectionAbsence.replaceChildren();
+          const premier = attend ? cartes[0] : undefined;
+          const ouvert = premier === undefined ? undefined : projetDe(premier.projet);
+          if (ouvert !== undefined && !etroit()) void ouvrir(ouvert);
+          else ouvrirTous();
+          montrer();
+        },
+      },
+    ),
+  );
+  sectionAbsence.hidden = false;
 }
 
 // La bulle de l'étape, sur l'espace du projet visité ; ailleurs, rien. L'étape désigne ce que le rail montre à l'instant.
