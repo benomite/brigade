@@ -16,7 +16,8 @@
 // Le temps perdu compte en cook raté tout cook rendu sans livraison, pas
 // seulement ceux que la qualité compte pour un essai : un blocage auquel le
 // manager a répondu, une attente d'un ticket ouvert, un arrêt que le cook n'a
-// pas causé. Sans eux, la preuve de BOBL-tech/mirrorlab#670 disait « first
+// pas causé, une station qui ne joue pas ses gates ou sans sa base, un cook
+// arrêté avec sa station (#3422). Sans eux, la preuve de BOBL-tech/mirrorlab#670 disait « first
 // try » sous 5 min de cooks ratés, sans un mot de la question du cook qui les
 // avait coûtées : la cause ne se lisait nulle part (#3036). Chacun y est donc
 // nommé, avec les mots du cook.
@@ -37,6 +38,7 @@ import { MARQUE_DE_REPONSE } from "./blocage-au-manager.ts";
 import { ouvrirJournal } from "./journal.ts";
 import type { QualiteDuTicket } from "./mesure-qualite.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "./qualite-github.ts";
+import { MARQUE_D_INCAPACITE } from "./routage-station/routage-station.ts";
 import { dureeDuTicket, pertesDuTicket, tempsPerdu, ticketsRecents } from "./temps-max/mesure.ts";
 import type { TempsTicket } from "./temps-ticket/ligne-status.ts";
 import { type DepotDuTicket, RAIL_PLUS_TARD_MS } from "./temps-ticket/mesure.ts";
@@ -96,12 +98,24 @@ const motsDuCook = (corps: string) => {
   return mots ? court(mots) : raisonDe(corps);
 };
 
+// La station que nomme un commentaire de station (« Station `box/a`: … »), ou sa marque.
+const stationDe = (corps: string) => /^Station `([^`]+)`:/m.exec(corps)?.[1] ?? /station=([A-Za-z0-9._/-]+)/.exec(corps)?.[1] ?? "unknown";
+
 // Les cooks rendus sans livraison que la qualité ne compte pas pour un essai,
-// et ce qui les a arrêtés : la marque de leur commentaire, et ce qu'elle dit de l'arrêt.
-const ARRETS: readonly (readonly [string, string, (corps: string) => string])[] = [
-  [MARQUE_DE_REPONSE, "blocked, answered by the manager", motsDuCook],
-  [MARQUE_D_ATTENTE_DE_TICKET, "stopped on an open ticket", motsDuCook],
-  [MARQUE_D_ATTENTE, "stopped, not the cook's doing", raisonDe],
+// et ce qui les a arrêtés : le début de leur commentaire, et ce qu'il dit de l'arrêt.
+// Les trois derniers rendent le ticket à une autre station, ou à la ronde
+// suivante, sans attente (`brigade-github.ts`) : la preuve de
+// BOBL-tech/mirrorlab#706 taisait son cook rendu, « first try » sous 6 min de
+// cook raté, puis 549 min d'attente d'une prise dont rien ne disait la station
+// qu'elle attendait (#3422).
+const commence = (debut: string) => (corps: string) => corps.startsWith(debut);
+const ARRETS: readonly (readonly [(corps: string) => boolean, (corps: string) => string])[] = [
+  [commence(MARQUE_DE_REPONSE), (corps) => `blocked, answered by the manager: ${motsDuCook(corps)}`],
+  [commence(MARQUE_D_ATTENTE_DE_TICKET), (corps) => `stopped on an open ticket: ${motsDuCook(corps)}`],
+  [commence(MARQUE_D_ATTENTE), (corps) => `stopped, not the cook's doing: ${raisonDe(corps)}`],
+  [commence(MARQUE_D_INCAPACITE), (corps) => `station \`${stationDe(corps)}\` cannot run its gates, given back for another station: ${motsDuCook(corps)}`],
+  [(corps) => /^Station `[^`]+`: its base branch `[^`]+` does not exist on the remote/.test(corps), (corps) => `station \`${stationDe(corps)}\` has no base branch \`${/its base branch `([^`]+)`/.exec(corps)?.[1] ?? ""}\` on the remote, given back for another station`],
+  [(corps) => /^Station `[^`]+`: the cook stopped with its station — /.test(corps), (corps) => `stopped with its station \`${stationDe(corps)}\`: ${raisonDe(corps)}`],
 ];
 
 // Les raisons des renvois et des cooks sans livraison, des commentaires de
@@ -112,8 +126,8 @@ export function raisonsDesCommentaires(commentaires: readonly { body: string; as
     renvois: siens.filter(({ body }) => body.startsWith(MARQUE_DE_RENVOI)).map(({ body }) => raisonDe(body)),
     echecs: siens.filter(({ body }) => body.startsWith(MARQUE_D_ECHEC)).map(({ body }) => raisonDe(body)),
     arrets: siens.flatMap(({ body }) => {
-      const arret = ARRETS.find(([marque]) => body.startsWith(marque));
-      return arret === undefined ? [] : [`${arret[1]}: ${arret[2](body)}`];
+      const arret = ARRETS.find(([estLui]) => estLui(body));
+      return arret === undefined ? [] : [arret[1](body)];
     }),
   };
 }

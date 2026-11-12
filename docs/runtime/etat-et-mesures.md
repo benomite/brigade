@@ -558,6 +558,10 @@ stops the quality does not count as a try — a block the manager answered, a st
 cook did not cause —, each with the cook's words (#3036), when its station comment quotes them — in English only:
 words the cook wrote in French and nothing translated are not quoted (#3033). Before, BOBL-tech/mirrorlab#670 read
 "first try" over 5 min of failed cooks, and the cook's question that cost them was written nowhere in the ticket.
+It also names, with their station, the cooks given back to another station or to the next round with no wait: a
+station that cannot run the ticket's gates (#3057), a station whose base branch is missing on the remote (#2876),
+a cook stopped with its station (#2543) (#3422). BOBL-tech/mirrorlab#706 read "first try" over 6 min of failed
+cook, then waited 549 min for a claim, and its evidence did not say which stop had given it back.
 A read that fails is named on its line, with its error: the ticket is filed all the same.
 When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,
 #2783), the cook can reach neither its issues nor its state: the section copies the tickets (numbers, reasons),
