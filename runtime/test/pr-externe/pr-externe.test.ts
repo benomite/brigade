@@ -143,7 +143,7 @@ test("the station serves a fork PR: review and gates without the project's secre
   assert.ok(faux.ticket(77).labels.has(CHEF_TODO));
   const carte = (faux.commentaires.get(77) ?? []).filter((c) => c.body.startsWith("<!-- brigade:todo kind=merge-by-hand -->"));
   assert.equal(carte.length, 1);
-  assert.match(carte[0]?.body ?? "", /^<!-- brigade:todo kind=merge-by-hand -->\nmerge #77\?\n\nRecommended answer: \*\*yes\*\*/);
+  assert.match(carte[0]?.body ?? "", /^<!-- brigade:todo kind=merge-by-hand -->\nmerge #77\?\n- \[merge\] Merge #77\n\nRecommended answer: \*\*yes\*\*/);
   // Jamais de merge, ni de mise à jour de sa branche : seulement l'assignation.
   assert.deepEqual(interdits, ["assigner 77 sam"]);
   // Son verdict ne passe pas par le statut des gates d'une tête de ticket.
