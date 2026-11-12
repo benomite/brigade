@@ -249,6 +249,10 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
   abandoned: "The kitchen gave this ticket up.",
   "design-validation": "A design delivery waits for you to validate its screen.",
   "review-before-merge": "A sensitive ticket waits for your review before merge.",
+  // Les écarts du manager (#3370, tableau/mise-de-cote-github.ts, `carteDeLEcart`).
+  "manager-question": "The manager set this ticket aside with a question for you.",
+  "manager-decision": "The manager set this ticket aside for your decision.",
+  "manager-blocked-on-human": "The manager holds this ticket until you lift the hold.",
 };
 const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
 

@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { mettreAPart } from "../../src/attend.ts";
 import { comprendre, tableau as tableauDe, type Faits } from "../../src/faits.ts";
 import { contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
-import { avecCeQuiAttendLeChef, blocDuChef, ECARTS, lireCeQuiAttendLeChef, type AttenteLue } from "../../src/tableau/attente-du-chef.ts";
+import { avecCeQuiAttendLeChef, blocDuChef, lireCeQuiAttendLeChef, type AttenteLue } from "../../src/tableau/attente-du-chef.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
@@ -38,6 +38,9 @@ const MONDE: Record<number, Issue> = {
   1683: { labels: ["fire", "served-elsewhere", "kitchen-board"] },
 };
 
+// La ligne de #30, écarté par le manager avec `question` sans commentaire qui la pose : sa carte demande la réponse (#3370).
+const ECART_30 = "The manager set this ticket aside with a question: what is your answer? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words";
+
 // Un faux GitHub : les issues ouvertes au label demandé, leurs commentaires, leurs événements — et, pour le rail de l'app,
 // ses PR. `appels` : chaque chemin demandé.
 function github(monde: Record<number, Issue> = MONDE, appels: string[] = []): AppelGitHub {
@@ -66,7 +69,7 @@ describe("ce qui attend le chef, lu de GitHub", () => {
     assert.deepEqual(
       attentes.map(({ ticket, quoi, depuis, ligne }) => ({ ticket, quoi, depuis, ligne })),
       [
-        { ticket: 30, quoi: "ecart", depuis: "2026-11-05T06:00:00Z", ligne: ECARTS.question },
+        { ticket: 30, quoi: "ecart", depuis: "2026-11-05T06:00:00Z", ligne: ECART_30 },
         { ticket: 12, quoi: "mise-de-cote", depuis: "2026-11-05T08:00:00Z", ligne: "Does the export keep the old column order? — answer on its Todo card: “Yes, merge PR #1560 as delivered” or “No, we drop the export” — or in your own words" },
         { ticket: 8, quoi: "mise-de-cote", depuis: "2026-11-05T09:00:00Z", ligne: "Merge PR #2326 by hand? It changes what judges it. — answer on its Todo card: “Merge PR #2326” — or in your own words" },
         { ticket: 20, quoi: "carte", depuis: "2026-11-05T10:00:00Z", ligne: "Which token does the box use for the registry? — answer on its Todo card, in your own words" },
@@ -80,7 +83,7 @@ describe("ce qui attend le chef, lu de GitHub", () => {
   test("le bloc `awaiting`, bords compris : sa tête, une ligne par entrée — son numéro, depuis quand, sa ligne, son titre", async () => {
     assert.deepEqual(blocDuChef(await lue()), [
       "awaiting   4 decisions await the chef — the oldest for 6 h 00",
-      `  #30  for 6 h 00  ${ECARTS.question}  Ticket 30`,
+      `  #30  for 6 h 00  ${ECART_30}  Ticket 30`,
       "  #12  for 4 h 00  Does the export keep the old column order? — answer on its Todo card: “Yes, merge PR #1560 as delivered” or “No, we drop the export” — or in your own words  Ticket 12",
       "  #8  for 3 h 00  Merge PR #2326 by hand? It changes what judges it. — answer on its Todo card: “Merge PR #2326” — or in your own words  Ticket 8",
       "  #20  for 2 h 00  Which token does the box use for the registry? — answer on its Todo card, in your own words  Ticket 20",
@@ -131,6 +134,51 @@ describe("ce qui attend le chef, lu de GitHub", () => {
     const injoint = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: async () => assert.fail("getaddrinfo ENOTFOUND api.github.com"), maintenant });
     assert.equal(injoint.lue, false);
     assert.equal(!injoint.lue && injoint.horsLigne, true);
+  });
+});
+
+describe("l'écart du manager : sa question, avec ses boutons (#3370)", () => {
+  const ecarte = (commentaires: Commentaire[], label = "decision"): Record<number, Issue> => ({ 60: { labels: [label], commentaires, evenements: [{ event: "labeled", label: { name: label }, created_at: "2026-11-05T06:00:00Z" }] } });
+  const carteDe = async (monde: Record<number, Issue>) => (await lue(github(monde))).attentes.find(({ ticket }) => ticket === 60);
+
+  test("la question du dernier commentaire du dépôt qui en pose une, ses choix et ce qui la précise ; ni la prise d'une station, ni un inconnu", async () => {
+    const question = dit("<!-- brigade:manager -->\n**Manager — set aside: a decision.**\n\nThe export can keep the old column order or follow the new one.\nWhich column order does the export keep?\n- [resume] Keep the old order\n- [drop] Not now", "2026-11-05T06:00:00Z");
+    const prise = dit("<!-- brigade:manager-prise station=box/claude etat=04bee3fe jeton=0dd01e18 fait -->\nManager work on this issue done by station `box/claude`. Done?", "2026-11-05T07:00:00Z");
+    const inconnu = { body: "Is this a good idea?", created_at: "2026-11-05T08:00:00Z", author_association: "NONE" };
+    const entree = await carteDe(ecarte([question, prise, inconnu]));
+    assert.deepEqual(entree?.chef, {
+      sorte: "manager-decision",
+      texte: "Which column order does the export keep?\n- [resume] Keep the old order\n- [drop] Not now\n\nManager — set aside: a decision.\n\nThe export can keep the old column order or follow the new one.",
+    });
+    assert.equal(entree?.quoi, "ecart");
+    assert.equal(entree?.ligne, "Which column order does the export keep? — answer on its Todo card: “Keep the old order” or “Not now” — or in your own words");
+  });
+
+  test("une question sans choix : `Back to the kitchen` et `Close it` ; aucune question sur l'issue, ou une réponse du chef après elle : la carte demande ce que son label attend", async () => {
+    const question = dit("Should the invoices be exported as CSV or XLSX?", "2026-11-05T06:00:00Z");
+    assert.equal((await carteDe(ecarte([question], "question")))?.chef?.texte, "Should the invoices be exported as CSV or XLSX?\n- [resume] Back to the kitchen\n- [close] Close it");
+    assert.deepEqual((await carteDe(ecarte([dit("No question here.", "2026-11-05T06:00:00Z")], "blocked-on-human")))?.chef, { sorte: "manager-blocked-on-human", texte: "Lift the hold?\n- [resume] Back to the kitchen\n- [close] Close it" });
+    const repondue = dit("<!-- brigade:reponse gesture=resume -->\nCSV", "2026-11-05T07:00:00Z");
+    assert.equal((await carteDe(ecarte([question, repondue], "question")))?.chef?.texte, "The manager set this ticket aside with a question: what is your answer?\n- [resume] Back to the kitchen\n- [close] Close it");
+  });
+
+  test("ses commentaires que GitHub ne rend pas : la lecture dit pourquoi, jamais une carte sans sa question", async () => {
+    const monde = ecarte([dit("Which one?", "2026-11-05T06:00:00Z")]);
+    const refuse: AppelGitHub = async (chemin, entetes) => (chemin.includes("/issues/60/comments") ? { status: 502, data: {} } : github(monde)(chemin, entetes));
+    const lecture = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: refuse, maintenant });
+    assert.deepEqual(lecture, { lue: false, raison: `What awaits the chef in ${DEPOT} was not read from GitHub: GitHub answered HTTP 502 on /repos/${DEPOT}/issues/60/comments.` });
+  });
+
+  test("dans l'app, la carte de Todo montre la question du manager, un bouton par choix et le champ libre", async () => {
+    const monde = ecarte([dit("Which column order does the export keep?\n- [resume] Keep the old order\n- [close] Drop the export", "2026-11-05T06:00:00Z")]);
+    const lu = await lueParLApp(github(monde));
+    assert.ok(lu.lu);
+    const faits = comprendre(JSON.stringify(lu.faits));
+    assert.ok(!("informe" in faits));
+    const carte = tableauDe(faits as Faits, undefined, { texte: statusDuTableau(lu), a: LU }).rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes.find(({ ticket }) => ticket === 60);
+    assert.equal(carte?.todo?.question, "Which column order does the export keep?");
+    assert.deepEqual(carte?.todo?.choix.map(({ texte: libelle }) => libelle), ["Keep the old order", "Drop the export"]);
+    assert.ok((carte?.todo?.prixDuTexte ?? "") !== "", "the card offers its free answer");
   });
 });
 
