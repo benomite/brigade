@@ -145,9 +145,9 @@ test("un dépôt choisi n'appelle que son ouverture — sa copie, puis le fichie
   // Ajouter ne lance rien d'autre : aucun geste vers une station, aucune machine jointe. Sa page lit le rail que
   // sa station publierait sur GitHub (#1435), et le tableau de la cuisine de son dépôt (#1588) ; l'accueil, les stations du
   // compte GitHub (#1706), les GitHub Apps de la station de cet ordinateur (#2317), les projets qu'elle sert (#2359), ses
-  // humains et les stations qui y contribuent : des lectures, pas des gestes.
+  // humains, les stations qui y contribuent et les explications que le chef a vues (#3308) : des lectures, pas des gestes.
   assert.deepEqual(
-    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "railDuProjet", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "listerLesHumains", "listerLesStationsContributrices", "listerLesRecurrents"].includes(geste)),
+    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "railDuProjet", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "listerLesHumains", "listerLesStationsContributrices", "listerLesRecurrents", "lireLesExplications"].includes(geste)),
     [],
   );
   assert.equal(jouee.appels.some(({ geste }) => geste === "confierAUneStation" || geste === "ajouterAUneStation"), false);

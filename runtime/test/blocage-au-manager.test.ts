@@ -199,3 +199,13 @@ test("a manager answer with no English version of the cook's question: the card 
   assert.match(carte, /The cook's question not quoted: the manager gave no English version of it\./);
   assert.ok(commentaires.every((corps) => !corps.includes(QUESTION_FR)));
 });
+
+test("the follow-up issues the manager lists are read whole, with the cook's titles, bodies, labels and what each tracks", () => {
+  const geste = { issue: "geste", geste: "Open the cook's follow-up issues" };
+  assert.deepEqual(lireAvis(JSON.stringify({ ...geste, issues_a_ouvrir: [{ titre: " A  finding ", corps: "Details.\n\nMore.", labels: ["bug", 3, ""], suit: "the finding" }, "not an object"] })), {
+    avis: { ...geste, issues: [{ titre: "A finding", corps: "Details.\n\nMore.", labels: ["bug"], suit: "the finding" }, { titre: "", corps: "", labels: [], suit: "" }] },
+  });
+  assert.deepEqual(lireAvis(JSON.stringify({ ...geste, issues_a_ouvrir: [] })), { avis: geste });
+  assert.deepEqual(lireAvis(JSON.stringify({ ...geste, issues_a_ouvrir: null })), { avis: geste });
+  assert.deepEqual(lireAvis(JSON.stringify({ ...geste, issues_a_ouvrir: "five issues" })), { illisible: "a gesture whose `issues_a_ouvrir` is not a list" });
+});

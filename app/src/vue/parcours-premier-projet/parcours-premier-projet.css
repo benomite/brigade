@@ -50,22 +50,16 @@ main[data-parcours] #interrupteur-projet {
 .parcours-premier-projet .hote {
   color: var(--texte-doux);
 }
-.parcours-premier-projet .au-retour,
-.pret-du-projet .au-retour {
+.parcours-premier-projet .au-retour {
   margin: 0;
   color: var(--texte-doux);
 }
-.parcours-premier-projet .gestes,
-.pret-du-projet {
+.parcours-premier-projet .gestes {
   display: flex;
   align-items: center;
   gap: var(--pas-2);
   margin: 0;
   padding: 0;
-}
-.pret-du-projet .phrase {
-  font-weight: 600;
-  color: var(--texte);
 }
 .depart-du-projet .lignes-de-depart {
   list-style: none;

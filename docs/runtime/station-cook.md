@@ -59,6 +59,13 @@ none was sent back for a conflict. Two tickets that write one shared file outsid
 together; if the second delivered comes back in conflict, the pass first updates its branch itself (#2726),
 then sends it back for the conflict.
 
+**The cook merges the base before delivering** (#3360). Its instructions ask it, just before its final
+gates, to fetch `origin/<base>` and merge it into its branch (a merge, never a rebase: a sent-back branch
+is already pushed under its PR), to resolve the conflicts itself and to commit the merge. A conflict
+with a PR merged while it cooked is resolved by that cook, instead of reaching the pass, where only a new
+cook could resolve it.
+*Code: `consigneDeLaBase`, `runtime/src/claude.ts`.*
+
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
 
@@ -176,6 +183,15 @@ judges with (`captures.ts`). The rule was written only in `agents/cook-design.md
 only under the design profile — not when that profile is busy, not when the ticket has no zone, not for
 the site. It was the first send-back reason (#3259: 6 of the 18 send-backs over 21 merged tickets — #3195,
 #3212, #3215, #3219, #3220, #3221 — each sent back by the pass for its captures).
+
+**The cook says what it changed on the screen (#3330).** The same instructions ask it, for a design
+delivery, to write in its last message, between `<a-l-ecran>` and `</a-l-ecran>`, 1 to 5 points, one per
+line, in English and plain words about what is visible on the screen ("the TODO column takes the full
+width"), with no file name, test or technical detail. When its run ends, the station reads them (five at
+most, bullets dropped) and posts them on the PR it delivers, under `<!-- brigade:a-l-ecran -->`; a cook
+that writes none posts nothing, and a comment GitHub refuses is said, the delivery going to the pass all
+the same. The pass copies the last of them onto the `Validate its screen` card ([`pass.md`](pass.md)).
+*Code: `runtime/src/validation-design/brief.ts`.*
 
 **The cook rereads its diff as the reviewer will, before committing.** Its instructions
 (`CONSIGNE_DE_RELECTURE`, both the first cook's and the resuming cook's) name what the reviewer holds

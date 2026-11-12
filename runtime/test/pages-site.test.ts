@@ -71,3 +71,13 @@ test("the FAQ page answers the six questions", () => {
   const faq = readFileSync(join(SITE, "faq.html"), "utf8");
   assert.equal([...faq.matchAll(/<h2>[^<]+\?<\/h2>\s*<p>/g)].length, 6);
 });
+
+// The waiting list for cloud stations (#3271): the home page only points to the chef's Tally form, nothing on the site collects an email.
+test("the home page has a cloud-stations section that reaches the Tally form and says signing up is free, with no commitment", () => {
+  const html = readFileSync(join(SITE, "index.html"), "utf8");
+  const section = html.match(/<section id="cloud">([\s\S]*?)<\/section>/)?.[1] ?? "";
+  assert.match(section, /coming later[^<]*keeps cooking when your computer sleeps/);
+  assert.match(section, /<a [^>]*href="https:\/\/tally\.so\/r\/BEdbJK"/);
+  assert.match(section, /free and carries no commitment/);
+  assert.doesNotMatch(html, /<form|data-endpoint|waitlist\.js/);
+});

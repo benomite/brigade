@@ -28,9 +28,11 @@ export type Projet = { nom: string; dossier: string; depot?: string; base?: stri
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
+// `barreDeMenus` : `false`, le chef a retiré l'état de la cuisine de la barre des menus du Mac et de la zone de
+// notification de Windows (barre-de-menus.ts, #3269) ; absent, il y est.
 // `quotaMax` : le réglage « quotaMax » du fichier, tel qu'écrit — la page des coûts le lit (vue/cost/part.js) et dit
-// « Share unavailable » quand il ne se lit pas : l'app n'en refuse pas le fichier.
-export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string; quotaMax?: unknown };
+// « No share » quand il ne se lit pas : l'app n'en refuse pas le fichier.
+export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string; barreDeMenus?: boolean; quotaMax?: unknown };
 // Un projet tel qu'il s'écrit dans le fichier.
 export type Declare = { nom: string; dossier: string; depot?: string; base?: string; calibrage?: CalibrageDuProjet };
 
@@ -67,8 +69,9 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
   } catch (erreur) {
     return refuse(`unreadable JSON: ${(erreur as Error).message}`);
   }
-  const { projets: liste, quotaMax } = (contenu ?? {}) as { projets?: unknown; quotaMax?: unknown };
+  const { projets: liste, barreDeMenus, quotaMax } = (contenu ?? {}) as { projets?: unknown; barreDeMenus?: unknown; quotaMax?: unknown };
   if (!Array.isArray(liste)) return refuse("“projets” must be a list");
+  if (barreDeMenus !== undefined && typeof barreDeMenus !== "boolean") return refuse("“barreDeMenus” must be true or false — whether the kitchen's state shows in the menu bar or the notification area");
 
   const projets: Projet[] = [];
   for (const [rang, declare] of liste.entries()) {
@@ -96,7 +99,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuse(`${lequel}: “base” must be a non-empty string — its integration branch`);
     projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(couleurs === undefined ? {} : { couleurs }), ...(typeof sigle === "string" ? { sigle: sigle.trim() } : {}) });
   }
-  return { chemin, projets, ...(quotaMax === undefined ? {} : { quotaMax }) };
+  return { chemin, projets, ...(barreDeMenus === undefined ? {} : { barreDeMenus }), ...(quotaMax === undefined ? {} : { quotaMax }) };
 }
 
 // Le calibrage écrit d'un projet, s'il est entier — sinon l'app n'en lit rien, et ne le refuse pas.
@@ -284,6 +287,18 @@ export function changerOrdinaires(chemin: string, nom: string, actif: unknown, l
   declare.ordinaires = actif;
   if (limite === null) delete declare.limiteCooks;
   else declare.limiteCooks = limite as number;
+  return reecrire(chemin, ecrit(ouvert.contenu));
+}
+
+// Montre ou retire l'état de la cuisine de la barre des menus du Mac et de la zone de notification de Windows
+// (barre-de-menus.ts, #3269) — rien d'autre du fichier. Rend la raison, si rien n'a été écrit.
+export function changerBarreDeMenus(chemin: string, actif: unknown, maison = homedir()): string | undefined {
+  if (typeof actif !== "boolean") return "nothing was written: whether the kitchen's state shows in the menu bar is true or false";
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const contenu = ouvert.contenu as { barreDeMenus?: boolean };
+  if ((contenu.barreDeMenus ?? true) === actif) return undefined;
+  contenu.barreDeMenus = actif;
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 

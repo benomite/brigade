@@ -23,11 +23,12 @@ import { parseArgs } from "node:util";
 import { NOM } from "./construire.ts";
 import { CLE_DE_DESINSTALLATION, DESINSTALLEUR, EXE, NODE_EXE } from "./windows.ts";
 
-// Le PATH sans aucun dossier qui porte un `node.exe` : la machine, pour l'app, n'a pas de Node.
-export function cheminSansNode(chemin: string, existe: (fichier: string) => boolean = existsSync): string {
+// Le PATH sans aucun dossier qui porte un `node.exe` (un `node` sous Linux, essai-linux.ts) : la
+// machine, pour l'app, n'a pas de Node.
+export function cheminSansNode(chemin: string, existe: (fichier: string) => boolean = existsSync, node = "node.exe"): string {
   return chemin
     .split(delimiter)
-    .filter((dossier) => dossier !== "" && !existe(join(dossier, "node.exe")))
+    .filter((dossier) => dossier !== "" && !existe(join(dossier, node)))
     .join(delimiter);
 }
 
@@ -39,7 +40,7 @@ export const ECRAN_PRINCIPAL = `(() => {
   return visibles.length === 0 ? "" : document.body.innerText.trim().split("\\n").filter((l) => l.trim() !== "").slice(0, 3).join(" | ") || "(no text)";
 })()`;
 
-class Echec extends Error {
+export class Echec extends Error {
   readonly code: number;
   constructor(message: string, code = 1) {
     super(message);
@@ -54,7 +55,7 @@ const refuser = (motif: string): never => {
 };
 
 // Attend qu'une condition rende autre chose que `undefined`, à un dixième de seconde près.
-async function jusqua<T>(quoi: string, delaiMs: number, lire: () => T | undefined | Promise<T | undefined>): Promise<T> {
+export async function jusqua<T>(quoi: string, delaiMs: number, lire: () => T | undefined | Promise<T | undefined>): Promise<T> {
   const fin = performance.now() + delaiMs;
   for (;;) {
     const lu = await lire();
@@ -75,7 +76,7 @@ function cibleDuRaccourci(raccourci: string): string {
 }
 
 // Une commande du protocole des DevTools, sur la page : sa réponse.
-function devtools(adresse: string): { envoyer(methode: string, params?: object): Promise<Record<string, unknown>>; fermer(): void } {
+export function devtools(adresse: string): { envoyer(methode: string, params?: object): Promise<Record<string, unknown>>; fermer(): void } {
   const socket = new WebSocket(adresse);
   const ouverte = new Promise<void>((fait, rate) => {
     socket.addEventListener("open", () => fait());

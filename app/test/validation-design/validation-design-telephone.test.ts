@@ -86,7 +86,8 @@ function fauxGitHub(panne: Panne = () => undefined) {
     commenter: async (numero: number, corps: string) => void sienne(numero).comments.push({ body: corps, association: "OWNER" }),
     delabelliser: async (numero: number, label: string) => void sienne(numero).labels.delete(label),
     fermerIssue: async (numero: number) => void (sienne(numero).state = "closed"),
-    commentaires: async (numero: number) => sienne(numero).comments,
+    // La PR n'a aucun commentaire : son cook n'a rien dit de l'écran (ticket 3330).
+    commentaires: async (numero: number) => (numero === PR ? [] : sienne(numero).comments),
     issue: async (numero: number) => {
       const lue = issues.get(numero);
       return lue === undefined ? null : { number: numero, title: lue.title, labels: [...lue.labels], state: lue.state, createdAt: "2026-11-11T12:00:00Z", updatedAt: "2026-11-11T12:00:00Z", url: `https://github.com/${DEPOT}/issues/${numero}` };
@@ -116,6 +117,12 @@ function fauxGitHub(panne: Panne = () => undefined) {
       const label = parametres.get("labels");
       const data = page > 1 ? [] : [...issues].filter(([, { state, labels }]) => state === "open" && (label === null || labels.has(label))).map(([number, { title, body, labels }]) => ({ number, title, body, labels: [...labels].map((name) => ({ name })), html_url: `https://github.com/${DEPOT}/issues/${number}`, created_at: "2026-11-11T12:00:00Z", author_association: "OWNER" }));
       return { status: 200, data };
+    }
+    if (methode === "POST" && ici === "/issues") {
+      const { title, body } = corps as { title: string; body: string };
+      const numero = prochaine++;
+      issues.set(numero, { title, body, labels: new Set(), state: "open", comments: [] });
+      return { status: 201, data: { number: numero } };
     }
     const issue = /^\/issues\/(\d+)(.*)$/.exec(ici ?? "");
     if (issue !== null) {
@@ -220,11 +227,14 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
     assert.equal(monde.issues.get(CARTE)?.state, "closed");
   });
 
-  test("la tête de la PR a bougé depuis la carte : rien n'est mergé, la carte reste, et le dit", async () => {
+  test("la branche mise à jour depuis sa base depuis la carte (ticket 3332) : rien n'est mergé tout de suite, la validation est gardée sur le ticket, la carte se ferme et le dit", async () => {
     const { runtime, telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void (monde.pr.sha = "b".repeat(40)));
-    assert.deepEqual(telephone, { refus: "refus" in runtime ? runtime.refus : assert.fail("le runtime a validé"), detail: "" });
-    assert.match("refus" in telephone ? telephone.refus : "", /^nothing was done: the head of PR #60 moved since card #61/);
-    assert.deepEqual(monde.ecrites, []);
+    assert.deepEqual(telephone, runtime);
+    assert.deepEqual(telephone, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #${CARTE} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
+    assert.deepEqual(monde.merges, []);
+    assert.ok(monde.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=${CARTE} pr=${PR} sha=${SHA} -->\nValidated by the chef on card #${CARTE} — merge pending.`)));
+    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
   test("la livraison est repartie en cuisine depuis la carte : rien n'est mergé, la carte se ferme", async () => {
@@ -248,6 +258,15 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
     assert.ok("fait" in telephone);
     assert.deepEqual(monde.merges, []);
     assert.equal(monde.issues.get(CARTE)?.state, "closed");
+  });
+
+  test("la PR déjà mergée : « Send back » ouvre un ticket de suite avec le commentaire du chef et ferme la carte, au lieu d'échouer", async () => {
+    const { runtime, telephone, monde } = await deuxFois(RENVOI, (monde) => void Object.assign(monde.pr, { state: "closed", merged: true }));
+    assert.deepEqual(telephone, runtime);
+    assert.match("fait" in telephone ? telephone.fait : assert.fail("renvoyée"), /was already merged: your comment is the follow-up ticket #62, card #61 closed/);
+    assert.match(monde.issues.get(62)?.body ?? "", /The export button is cut off\./);
+    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(TICKET)?.comments.length, 1, "le ticket ne reçoit aucun renvoi : sa livraison est mergée");
   });
 
   test("un merge que GitHub refuse : la carte reste ouverte, et dit ce que GitHub a répondu", async () => {
@@ -400,7 +419,8 @@ async function pontDeLAPK(monde: Monde) {
         if (plugin === "Pont") return methode === "gardees" ? { valeur: JSON.stringify({ [`${DEPOT}#${CARTE}`]: { id: 7, projet: PROJET, depot: DEPOT, ticket: CARTE, question: "Does the screen of #58 look right?" } }) } : {};
         if (plugin !== "CapacitorHttp" || methode !== "request") return assert.fail(`unexpected call: ${plugin}.${methode}`);
         assert.equal(passees.headers.Authorization, `Bearer ${JETON}`);
-        if (passees.url.startsWith(`${API}/gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(passees.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }] : [], headers: {} };
+        // La trace de ce téléphone, déjà posée (#3303, telephone-connecte.ts) : la lecture n'écrit rien d'autre que le geste.
+        if (passees.url.startsWith(`${API}/gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(passees.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }, { id: "t1", files: { "brigade-telephone.json": { filename: "brigade-telephone.json" } } }] : [], headers: {} };
         if (passees.url === `${API}/gists/g1`) return { status: 200, data: { id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json", content: PROJETS_DU_GIST } } }, headers: {} };
         if (passees.url === `${API}/repos/${DEPOT}`) return { status: 200, data: { full_name: DEPOT, owner: { login: "chef" }, permissions: { push: true } }, headers: {} };
         if (passees.url === `${API}/user`) return { status: 200, data: { login: "chef" }, headers: {} };

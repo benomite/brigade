@@ -5,6 +5,7 @@
 // place du rail, puis la mise en place, puis prêt ; un projet déjà prêt passe la mise en place ; un projet qu'une station
 // cuit déjà passe « qui le cuit » ; un projet où le compte ne peut pas écrire n'ouvre rien de tout cela.
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import { TITRE as TITRE_DE_LA_PR_DE_SETUP } from "../../../runtime/src/second-init/pr-de-setup.ts";
 import type { StationEnregistree } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
@@ -23,13 +24,9 @@ import {
   ajouterLaStation,
   carteDeSetup,
   choixDeStation,
-  DEMANDE_DU_PREMIER,
   DEMARRAGE,
-  ECRIRE_LE_PREMIER,
-  ECRIT,
   EMPECHE,
   EN_ROUTE,
-  FERMER,
   AUCUNE_EN_LIGNE,
   ICI,
   ICI_DIT,
@@ -39,12 +36,9 @@ import {
   MERGER,
   OUVRIR_LA_CARTE,
   poserParcoursPremierProjet,
-  poserPret,
-  PRET,
   progression,
   REFUS,
   REPONDRE,
-  SECOND_ABSENT,
   STATION_DIT,
   tenirLesParcours,
   TITRE_DE_LA_CARTE_DE_SETUP,
@@ -55,6 +49,7 @@ import {
   type GestesDuParcours,
 } from "../../src/vue/parcours-premier-projet/parcours-premier-projet.js";
 import { REESSAYER } from "../../src/vue/lexique.js";
+import { PLUS_TARD, poserPremierTicket, QUESTION as QUESTION_DU_PREMIER } from "../../src/vue/premier-ticket/premier-ticket.js";
 import { REFUS_RESEAU } from "../../src/stations-du-compte.ts";
 import { CONTINUER, LACHER, METTRE, PASSER, poserLeDepart, tenirLesDeparts, TITRE as TITRE_DU_DEPART, type Etat as EtatDuDepart } from "../../src/vue/parcours-premier-projet/depart.js";
 import { lancerLeTriage, proposerLeDepart, type LancerLeTriage } from "../../src/depart-du-projet.ts";
@@ -194,8 +189,9 @@ describe("ce que la page dit", () => {
   test("une station choisie hors ligne : la page dit en clair qu'elle prend le projet à son retour (#3187)", () => {
     const setup = poserParcoursPremierProjet(doc, { depot: DEPOT, vu: { etape: "setup", attente: "lit", qui: "second" }, progression: "", station: "ajoutee", choix: [], absente: "atelier" }, gestesVides()) as unknown as Faux;
     assert.ok(setup.dessous("p").some(({ textContent }) => textContent === "atelier is offline: it takes chef/cantine when it comes back."));
-    const pret = poserPret(doc, DEPOT, { absente: "atelier" }, { ecrire: () => {}, fermer: () => {} }) as unknown as Faux;
-    assert.ok(pret.dessous("span").some(({ textContent }) => textContent === "atelier is offline: it takes chef/cantine when it comes back."));
+    // Prêt, au-dessus du rail, la question du premier ticket le dit aussi (ticket 3306).
+    const pret = poserPremierTicket(doc, { depot: DEPOT, etat: { etape: "question", reponse: "" }, absente: "atelier" }, { ecrire: () => {}, envoyer: () => {}, oui: () => {}, changer: () => {}, fermer: () => {} }) as unknown as Faux;
+    assert.ok(pret.dessous("p").some(({ textContent }) => textContent === "atelier is offline: it takes chef/cantine when it comes back."));
   });
 
   test("un choix qui s'écrit grise les boutons ; refusé, une ligne et son détail, les boutons rendus", () => {
@@ -233,20 +229,6 @@ describe("ce que la page dit", () => {
     assert.match(REPONDRE, /^The second is waiting for your answer/);
     assert.match(MERGER, /^The setup pull request is waiting for your merge/);
   });
-
-  test("prêt : une seule ligne, écrire le premier ticket avec le second ; écrit, elle le dit ; sans second, pourquoi", () => {
-    const faits: string[] = [];
-    const geste = { ecrire: () => void faits.push("ecrire"), fermer: () => void faits.push("fermer") };
-    const ligne = poserPret(doc, DEPOT, {}, geste) as unknown as Faux;
-    assert.equal(ligne.balise, "p");
-    assert.equal(ligne.dessous("span").find(({ className }) => className === "phrase")?.textContent, PRET(DEPOT));
-    assert.deepEqual(boutons(ligne), [ECRIRE_LE_PREMIER, FERMER]);
-    ligne.dessous("button")[0]?.click();
-    assert.deepEqual(faits, ["ecrire"]);
-    assert.deepEqual(boutons(poserPret(doc, DEPOT, { ecrit: true }, geste) as unknown as Faux), [FERMER]);
-    assert.ok((poserPret(doc, DEPOT, { ecrit: true }, geste) as unknown as Faux).dessous("span").some(({ textContent }) => textContent === ECRIT));
-    assert.ok((poserPret(doc, DEPOT, { ecrit: SECOND_ABSENT }, geste) as unknown as Faux).dessous("span").some(({ textContent }) => textContent === SECOND_ABSENT));
-  });
 });
 
 describe("ce que le parcours lit et tient", () => {
@@ -277,7 +259,7 @@ describe("ce que le parcours lit et tient", () => {
     assert.deepEqual(await ajouterLaStation("this computer", async () => Promise.reject(new Error("ipc closed"))), { ligne: "this computer could not be given the project.", detail: "ipc closed" });
   });
 
-  test("le parcours tenu : commencé, répondu, prêt — la ligne du premier ticket seulement si le chef a répondu à quelque chose", () => {
+  test("le parcours tenu : commencé, répondu, prêt — le premier ticket seulement si le chef a répondu à quelque chose", () => {
     const rendus: string[] = [];
     const tenus = tenirLesParcours({ rendre: (projet) => void rendus.push(projet) });
     tenus.commencer("cantine", DEPOT, false);
@@ -289,8 +271,6 @@ describe("ce que le parcours lit et tient", () => {
     assert.equal("illisible" in (tenus.de("cantine") ?? {}), false);
     tenus.pret("cantine");
     assert.deepEqual(tenus.de("cantine")?.pret, {});
-    tenus.ecrit("cantine", true);
-    assert.deepEqual(tenus.de("cantine")?.pret, { ecrit: true });
     tenus.fermer("cantine");
     assert.equal(tenus.de("cantine"), undefined);
     // Rien demandé au chef — une station le cuisait, la mise en place était faite : prêt, rien ne reste.
@@ -419,19 +399,17 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     await repos();
     assert.equal(vue.element("fiche").hidden, false);
     assert.ok([...vue.element("fiche").descendants()].some(({ textContent }) => textContent === TITRE_DE_LA_PR_DE_SETUP));
-    // Mergée : la lecture suivante dit le projet prêt. Le rail reprend la page, une ligne propose le premier ticket.
+    // Mergée : la lecture suivante dit le projet prêt. Le rail reprend la page ; au-dessus, le second demande au chef ce
+    // qu'il veut changer d'abord (ticket 3306, premier-ticket/).
     pret = true;
     await lire(vue);
     await repos();
     assert.equal(principal(vue).dataset.parcours, undefined);
     assert.equal(page(vue).hidden, false);
-    assert.equal(page(vue).dessous("p").find(({ className }) => className.includes("pret-du-projet"))?.dataset.etape, "pret");
-    assert.ok(page(vue).dessous("span").some(({ textContent }) => textContent === PRET(DEPOT)));
-    bouton(page(vue), ECRIRE_LE_PREMIER).click();
-    await repos();
-    assert.deepEqual(vue.dernier("ecrire"), [SECOND.id, DEMANDE_DU_PREMIER]);
-    assert.ok(page(vue).dessous("span").some(({ textContent }) => textContent === ECRIT));
-    bouton(page(vue), FERMER).click();
+    const premier = page(vue).dessous("section").find(({ className }) => className.includes("premier-ticket")) ?? assert.fail("pas de premier ticket");
+    assert.equal(premier.dataset.etape, "question");
+    assert.equal(premier.dessous("h2")[0]?.textContent, QUESTION_DU_PREMIER(DEPOT));
+    bouton(page(vue), PLUS_TARD).click();
     await repos();
     assert.equal(page(vue).hidden, true);
   });
@@ -477,7 +455,7 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     await repos();
     assert.equal(principal(vue).dataset.parcours, undefined);
     assert.equal(page(vue).dessous("section").some(({ className }) => className.includes("parcours-premier-projet")), false);
-    assert.ok(page(vue).dessous("span").some(({ textContent }) => textContent === PRET(DEPOT)));
+    assert.ok(page(vue).dessous("h2").some(({ textContent }) => textContent === QUESTION_DU_PREMIER(DEPOT)));
   });
 
   test("une station le cuit déjà : « qui le cuit » n'est pas posée, la mise en place est la seule question", async () => {
@@ -522,17 +500,6 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     bouton(question(vue), REESSAYER).click();
     await repos();
     assert.equal(attenteDe(vue), "demarrage");
-  });
-
-  test("le second ne tourne pas : « write its first ticket with the second » n'écrit rien et dit pourquoi", async () => {
-    const vue = await choisirCantine({ espace: () => [{ ...SECOND, arrete: true }], servirUnProjet: (depot) => ({ depots: [depot] }), checkRepoSetup: () => PRETE });
-    await lire(vue);
-    bouton(question(vue), "this computer").click();
-    await repos();
-    bouton(page(vue), ECRIRE_LE_PREMIER).click();
-    await repos();
-    assert.equal(vue.appels.some(({ geste }) => geste === "ecrire"), false);
-    assert.ok(page(vue).dessous("span").some(({ textContent }) => textContent === SECOND_ABSENT));
   });
 });
 
@@ -614,7 +581,8 @@ describe("le délai du départ, de bout en bout (#3268)", () => {
     const issues = Array.from({ length: 100 }, (_, i) => ({ number: i + 1, title: `Issue ${i + 1}`, body: "x".repeat(2_000), labels: [] }));
     const lireGitHub: AppelGitHub = async (chemin) => ({ status: 200, data: /[?&]page=1(&|$)/.test(chemin) ? issues : [] });
     // Le vrai chemin de l'app (proposerLeDepart) ; seul `claude` est remplacé par un faux processus, qui lit la consigne sur son entrée.
-    const lancer: LancerLeTriage = (_commande, _args, entree, dossier, delaiMs) => lancerLeTriage(process.execPath, [new URL("../aides/faux-triage.ts", import.meta.url).pathname], entree, dossier, delaiMs);
+    // Un chemin du système, et non le `pathname` d'une URL : sous Windows, celui-ci (`/D:/a/…`) ne mène à aucun fichier (#3329).
+    const lancer: LancerLeTriage = (_commande, _args, entree, dossier, delaiMs) => lancerLeTriage(process.execPath, [join(import.meta.dirname, "../aides/faux-triage.ts")], entree, dossier, delaiMs);
     // Le chrono part avant que le dépôt soit choisi dans « Add a project » : le projet ajouté, sa lecture, le triage, l'écran.
     const debut = performance.now();
     const vue = await choisirCantine({

@@ -17,13 +17,24 @@ const SHA = "3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345";
 const capture = (fichier: string) => `https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/${fichier}?raw=true`;
 export const QUESTION = "Does the screen of #58 look right? Validate it and PR #60 is merged; send it back with what to change and a cook takes it up again.";
 export const TEXTE = `${QUESTION}\n\nPull request: https://github.com/${DEPOT}/pull/60`;
-// Le corps de l'issue, tel que runtime/src/validation-design/validation-design.ts (`corpsDeLaCarte`) l'écrit.
+// Le corps de l'issue, tel que runtime/src/validation-design/validation-design.ts (`corpsDeLaCarte`) l'écrit — son brief
+// (ticket 3330) avant ses captures.
 export const CORPS = [
   `<!-- brigade:validation-design pr=60 ticket=58 sha=${SHA} -->`,
   `**${QUESTION}**`,
   "",
   "Ticket: #58 — Export the journal as CSV",
   `Pull request: https://github.com/${DEPOT}/pull/60`,
+  "",
+  "### What was asked",
+  "",
+  "Export the journal as CSV — The chef keeps the kitchen's journal in a spreadsheet and copies it by hand every week: the rail should offer the journal as a CSV file to download, from the project it belongs to.",
+  "",
+  "### What was done",
+  "",
+  "- the rail shows an Export as CSV button under the project's name",
+  "- the button says how many entries the file holds",
+  "- an empty journal greys the button out and says why",
   "",
   "### Captures",
   "",
