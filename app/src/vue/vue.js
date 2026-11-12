@@ -5112,9 +5112,7 @@ function placerLaRangee(projet, grille, defile) {
     grille.scrollTop = defile.haut;
     return;
   }
-  // La première à gauche À L'ÉCRAN, pas dans le DOM : un TODO plein passe en tête de la rangée (ticket 3327).
-  const actives = /** @type {HTMLElement[]} */ ([...grille.children]).filter((colonne) => colonne.dataset.actif !== undefined);
-  const active = actives.reduce((premiere, colonne) => (premiere === undefined || colonne.getBoundingClientRect?.().left < premiere.getBoundingClientRect().left ? colonne : premiere), /** @type {HTMLElement | undefined} */ (undefined));
+  const active = /** @type {HTMLElement | undefined} */ ([...grille.children].find((colonne) => /** @type {HTMLElement} */ (colonne).dataset.actif !== undefined));
   if (active === undefined || active.getBoundingClientRect === undefined) return;
   rangeesPlacees.add(projet.nom);
   grille.scrollLeft = Math.max(0, active.getBoundingClientRect().left - grille.getBoundingClientRect().left + grille.scrollLeft - 16);
