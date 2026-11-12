@@ -559,6 +559,17 @@ merged, the next reading says it is (#3170). **Ready**, the rail takes the page 
 the project's first ticket (#3306). That panel comes only when you answered a question; a project that had nothing left
 to do opens on its rail.
 
+**Ready, but no station serves it (#3400).** When the setup was read not done and then done — its pull request merged,
+or `Set up for Brigade` — and no station serves the project, the page asks at once, above the rail: `Which station
+serves <owner/repo>?`, then `<owner/repo> is set up for Brigade, but no station serves it: its fire tickets wait on the
+rail until one does.` The choices are those of `Who cooks it` (`this computer` first, then your stations), and `not now`.
+`this computer` adds the project to this computer's served projects (`servirUnProjet`, the Settings group `projects
+this Mac serves`): the page says `This computer serves <owner/repo>: its station takes its fire tickets at its next
+turn, within two minutes.` and `close`. A station serves the project when this computer's list has it, a station says it
+serves it, or its stations say where it cooks; a station it was only given to does not serve it yet. Nothing is asked
+while this computer's list or your stations are not read, nor when a station already serves it; `not now` is not asked
+again while the app runs.
+
 **The first ticket, written in the app (#3306).** You never open GitHub and never see or type a label:
 
 | State | What the panel shows |
