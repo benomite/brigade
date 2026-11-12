@@ -37,7 +37,9 @@ jobs:
   # #2086, quand il passait en deux, le job ne laissait derrière le plafond de 2 min de ses tests que
   # 60 s au checkout, à node, à `npm ci` et au contrôle de types : sur f069d50 (236 fichiers de test,
   # 214 à #2086), il est mort muet, deux fois. Chaque pas qui joue `npm` a son plafond, et celui du job
-  # couvre leur somme et une minute pour le reste ; app/test/ci-windows.test.ts les tient d'accord.
+  # couvre leur somme et quatre minutes pour le reste ; app/test/ci-windows.test.ts les tient d'accord.
+  # Une minute ne suffit plus (#3344) : le checkout extrait les captures de docs/captures/ (152 Mo sur
+  # b7a5957, chaque livraison design en ajoute), et sur b7a5957 le job est mort muet, sans un journal.
   # Passé le plafond du pas, le job est rouge, et son journal dit lequel : `test:en-cours` joue la
   # même suite avec un reporter qui écrit chaque DEBUT de test (app/test/aides/reporter-en-cours.ts) ;
   # le dernier DEBUT sans FIN du journal est le test qui bloque.
@@ -46,7 +48,7 @@ jobs:
     # l'état de la base — ils ne tournent que sur `main` et n'y bloquent rien (#2240).
     name: windows app tests
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 13
     steps:
       # Git for Windows extrait en `\r\n` par défaut : les tests qui relisent une source ou une doc
       # du dépôt y attendent les `\n` du dépôt.
