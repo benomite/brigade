@@ -3210,7 +3210,7 @@ were under **This machine**. It lays a line `projects this Mac serves` (`this PC
   (green) or `not served`. **The value shown is always the list written**, re-read each time a project's space opens.
 - A project whose repository the app does not know (added by hand without `depot`) says so on hover. A repository on the
   station's list that no project of the app carries keeps its line, `served`, so that you see everything this computer
-  cooks; its hover says to add it to the app to change it from its Stations tab.
+  cooks; its hover says it changes from its Stations tab once it is one of the app's projects.
 - A list the station cannot read says `projects served here unavailable`, the reason on hover — never `serves no project`.
 
 Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules are

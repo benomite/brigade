@@ -43,7 +43,7 @@ export const AIDE = (/** @type {string} */ ici) =>
 export const SERVI = "served";
 export const PAS_SERVI = "not served";
 export const SANS_DEPOT = "The app does not know this project's GitHub repository: add it again from its repository to serve it here.";
-export const HORS_DE_L_APP = "Not one of this app's projects: the station serves it because it is on its list. Add it to the app to change it from its Stations tab.";
+export const HORS_DE_L_APP = "Not one of this app's projects: the station serves it because it is on its list. It changes from its Stations tab once it is one of the app's projects.";
 export const ILLISIBLE = NON_ATTEINT("projects served here");
 
 // Un dépôt se compare sans égard à la casse, comme la station le fait (projets-servis.ts).

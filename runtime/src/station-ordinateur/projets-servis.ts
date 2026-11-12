@@ -112,14 +112,17 @@ function ajouterAuTexte(texte: string, depot: string): string {
   return avecLaLigne(texte, `${nom} ${depot}`);
 }
 
-// Les dépôts de l'ancienne liste. Lève `ProjetsServisIllisibles` sur un fichier
-// qui n'est pas la liste : il n'est alors ni migré ni mis de côté.
-function lireLAncienneListe(racine: string): string[] {
+// Les dépôts de l'ancienne liste, ou null : elle n'est plus là — l'app et la
+// station la migrent toutes deux, l'une a pu la mettre de côté. Lève
+// `ProjetsServisIllisibles` sur un fichier qui n'est pas la liste : il n'est
+// alors ni migré ni mis de côté.
+function lireLAncienneListe(racine: string): string[] | null {
   const fichier = cheminDeLAncienneListe(racine);
   let lu: { brigade?: unknown; format?: unknown; depots?: unknown };
   try {
     lu = JSON.parse(readFileSync(fichier, "utf8")) as typeof lu;
   } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new ProjetsServisIllisibles(fichier, erreur instanceof Error ? erreur.message : String(erreur));
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "projets-servis") throw new ProjetsServisIllisibles(fichier, "it is not a list of served projects");
@@ -140,6 +143,7 @@ export function migrerLAncienneListe(racine: string): Migration {
   const migration: Migration = { migres: [], ecartes: [] };
   if (!existsSync(cheminDeLAncienneListe(racine))) return migration;
   const anciens = lireLAncienneListe(racine);
+  if (anciens === null) return migration;
   const avant = lireTexte(racine);
   let texte = avant;
   for (const brut of anciens) {
@@ -153,7 +157,12 @@ export function migrerLAncienneListe(racine: string): Migration {
     }
   }
   if (texte !== avant) ecrireTexte(racine, texte);
-  renameSync(cheminDeLAncienneListe(racine), join(racine, ANCIENNE_LISTE_MIGREE));
+  try {
+    renameSync(cheminDeLAncienneListe(racine), join(racine, ANCIENNE_LISTE_MIGREE));
+  } catch (erreur) {
+    // L'autre l'a mise de côté entre-temps : ses dépôts sont déjà dans la configuration.
+    if ((erreur as NodeJS.ErrnoException).code !== "ENOENT") throw erreur;
+  }
   return migration;
 }
 
