@@ -65,7 +65,11 @@ base, the stale-branch pruning).
   `gh run rerun` (`runtime/src/geste-station/`). The station makes it, posts the result (the new issue's number…) on
   the ticket, where the resuming cook reads it, removes `blocked-on-human`, and the ticket goes back to a cook — no
   card. A GitHub call that fails counts as a cook without a delivery, its error written on the ticket (`brigade:echec`),
-  never a card asking the chef to run the command. Seen on 2026-11-10 (#3136). After two technical answers, the third block goes back to the manager
+  never a card asking the chef to run the command. Seen on 2026-11-10 (#3136). The issues a cook asks to open, the
+  manager lists in `issues_a_ouvrir`, each with the cook's title and body and what it tracks: the station opens them all
+  and posts one line `#<number> = <what it tracks>` per issue. A placeholder title or body (`<title>`, `<body>`), or a
+  `gh` gesture of these kinds the station cannot read whole (“run `gh issue create` five times”), opens nothing and
+  counts as a cook without a delivery, the reason in one line — never a card (#3374). After two technical answers, the third block goes back to the manager
   with both answers, and its decision is appended to the ticket's body once (`<!-- brigade:decision-du-manager -->`);
   a block on a ticket that already carries it, or a decision the station cannot write, counts as a cook without a
   delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
@@ -219,6 +223,18 @@ base, the stale-branch pruning).
   traffic (claims, send-backs, verdicts, merges) never mentions the chef. With no chef resolved, nothing is mentioned and
   the station says so once (`runtime/src/mention-du-chef/`). Under a single GitHub identity that is the chef's own, GitHub
   does not notify the chef of their own comments: the per-role identities post as an app.
+- **A TODO card is answered by replying to its comment on GitHub** (#3253). The mention comment says so on its last
+  line. The kitchen reads the comments of every issue that has a card in the chef's queue at each runtime tick (60 s by
+  default), and a comment answers a question when it is not a bot's nor the kitchen's (a `<!-- brigade:` line that is
+  not quoted, or its own answer comment) and comes after the question's comment. It answers the question its leading
+  `>` quote block reproduces (GitHub's "Quote reply"); with no quote, the only open question, or the oldest open one
+  when the issue has several. A quote that reproduces no open question is no reply. The text left once the quote is
+  removed is one of the card's choices (whitespace and case ignored) and is recorded as that choice, as if clicked in
+  the app, or else is recorded as the chef's own words. The author must be the chef, or the declared human whose role
+  answers the card's question (the routing above); anyone else is ignored and the card stays in TODO. A question that
+  already has an answer from a comment (`todo.answered` carries its card key as `question`) is not reopened by a later
+  comment. A question is open while its card is in the queue and its marked comment is on the issue
+  (`runtime/src/reponse-par-commentaire/`).
 - **The chef is resolved by default** (#2928). In order: `chef` declared in `.claude/brigade/projet.json`
   ([settings](../reglages.md)), source `declared`; else the repository owner when the owner is a user, source
   `repo owner`; else — the owner is an organization — the author of the merged pull request that first added

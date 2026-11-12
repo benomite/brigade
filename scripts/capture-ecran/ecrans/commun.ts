@@ -30,6 +30,8 @@ export type Envoi = { sur: string; args: unknown[]; demande?: "faits" | "vue" | 
 // `<projet>/<onglet>`.
 export type Donnees = {
   maintenant: string;
+  // Ce que le stockage de la vue (`localStorage`) garde déjà à l'ouverture : la trace de la dernière ouverture, par exemple.
+  stockage?: Record<string, string>;
   reponses: Record<string, unknown>;
   envois: { faits?: Envoi[]; tous?: Envoi[]; regarder?: Record<string, Envoi[]>; onglet?: Record<string, Envoi[]> };
 };

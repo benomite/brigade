@@ -172,7 +172,11 @@ défaire : `sudo apt purge brigade-station`, puis, si la machine resservira, `su
 Les tests (`runtime/test/paquet/`) construisent un paquet, l'ouvrent, y lancent la station et ses portes telles que
 son unité la lance, et jouent `postinst` et `prerm` sur des doublures des commandes du système ;
 `runtime/test/deploy/installer-station.test.ts` joue de même `installer-station.sh`, sous Linux et
-sous macOS. Ils ne remplacent pas cet essai : aucun n'installe le paquet pour de vrai.
+sous macOS. `runtime/test/linux/premier-ticket.test.ts`, sous Linux seulement, lance le runtime du
+paquet ouvert tel que ses unités le lancent — la station, sa porte réseau, la cloison `bwrap` de ses
+cooks — et lui fait servir un premier ticket de bout en bout, GitHub et `claude` en doublures : le
+projet cloné sous l'état de la station, un cook lancé dans sa cloison, une PR livrée. Ils ne
+remplacent pas cet essai : aucun n'installe le paquet pour de vrai.
 
 ### La mise à jour, sur une machine de test
 

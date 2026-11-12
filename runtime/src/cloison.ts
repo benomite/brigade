@@ -7,6 +7,7 @@
 // worktree du lancement. Seul module qui sait comment `bwrap` se pilote.
 import { execFileSync } from "./sans-invite.ts";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";
 import type { EtatDeCloison } from "./events/partition.ts";
@@ -115,6 +116,12 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   if (masques.length === 0) {
     throw new ConfigInvalide(`BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “${delimiter}” (/var/lib/brigade${delimiter}/etc/brigade)`);
   }
+  // Le répertoire temporaire du runtime, là où lui et ce qu'il lance écrivent
+  // (le juge y part, `$TMPDIR` d'un cook y mène) : rendu en écriture comme
+  // /tmp. Hors de /tmp — /dev/shm, que `--dev` remplace —, il ne serait sinon
+  // qu'une place vide.
+  const temporaire = resolve(env.TMPDIR || tmpdir());
+  if (sous(temporaire, "/usr")) throw new ConfigInvalide(`invalid TMPDIR: “${temporaire}” would open the system to writing in the partition — set a temporary directory of its own`);
   for (const masque of masques) {
     const refuser = (pourquoi: string): never => {
       throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_HIDDEN: “${masque}” ${pourquoi}`);
@@ -123,7 +130,7 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
     // Un répertoire vide prend sa place : un fichier ne se masque pas ainsi,
     // et `bwrap` refuserait chaque lancement.
     if (existsSync(masque) && !statSync(masque).isDirectory()) refuser("is not a directory — hide the one that contains it");
-    for (const [garde, quoi] of [[home, "the account's home directory: neither `claude` nor `git` would find anything there any more"], ["/tmp", "/tmp"], ["/usr", "the system"]] as const) {
+    for (const [garde, quoi] of [[home, "the account's home directory: neither `claude` nor `git` would find anything there any more"], ["/tmp", "/tmp"], [temporaire, `the temporary directory (${temporaire})`], ["/usr", "the system"]] as const) {
       if (sous(masque, garde)) refuser(`would hide ${quoi}`);
     }
   }
@@ -302,6 +309,7 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
           // Dans l'ordre : un montage recouvre ceux qui le précèdent.
           ...["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"],
           ...lie("--bind", "/tmp"),
+          ...(sous("/tmp", temporaire) || !existsSync(temporaire) ? [] : lie("--bind", temporaire)),
           ...leCompte(),
           // Un répertoire qui n'existe pas ne cache rien, et `bwrap` ne peut
           // pas le créer sur une machine en lecture seule : il échouerait.

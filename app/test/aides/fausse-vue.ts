@@ -67,6 +67,9 @@ export class Faux {
     this.balise = balise;
   }
 
+  get tagName(): string {
+    return this.balise.toUpperCase();
+  }
   get textContent(): string {
     return this.#noeuds.map((noeud) => (typeof noeud === "string" ? noeud : noeud.textContent)).join("");
   }
@@ -178,6 +181,12 @@ export class Faux {
   // Lui-même, ou posé dessous.
   contains(autre: Faux | null): boolean {
     return autre !== null && (autre === this || [...this.descendants()].includes(autre));
+  }
+
+  // Ceux posés dessous qui sont d'une de ces balises — `input, textarea` : la vue n'en demande pas plus.
+  querySelectorAll(selecteur: string): Faux[] {
+    const balises = selecteur.split(",").map((balise) => balise.trim());
+    return [...this.descendants()].filter(({ balise }) => balises.includes(balise));
   }
 
   // Tout ce qui est posé dessous, dans l'ordre de la page.

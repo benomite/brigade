@@ -376,6 +376,51 @@ lands, the add goes through it.
 (`ajouterLaCuisineDeLaVisite`, `poserLaVisite`, `rejouerLaVisite`). Tests: `app/test/visite/visite.test.ts`.
 Captures: `docs/captures/3165/`.*
 
+### The kitchen's words, explained the first time you meet them (#3308, epic #3304)
+
+The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
+its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Rail** under the tabs, above the
+figures line; **Cooks** under the figures line (`Cooks 1 running`); **Pass**, **Awaiting you** (the TODO) and **Waiting**
+(WAITING) under their column's title; **Second** under the second's tab. The lines are those of the glossary's entry —
+`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
+third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
+station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
+
+- **Shown once.** An explanation shown is seen: it is written in your record at once, and stays on screen until `got it`
+  or until the app reloads. Reloaded, or opened on another device, the app does not show it again; a word you have not
+  met yet still shows its own. A word of the rail is met only when the rail is on screen — not under Settings.
+- **Kept per chef, by the runtime.** The record is kept where the project's kitchen runs (`explanations.json` in its state
+  directory), under this computer's GitHub account — the runtime's `explanations --chef <login>`, `explanations seen
+  <word> --chef <login>` and `explanations reset --chef <login>` (`runtime/src/explications/`). It is read each time the
+  project opens.
+- **Nothing to read, nothing shown.** A project with no station, no GitHub account signed in, a runtime from before the
+  command, or a record that cannot be read: no explanation is shown and nothing is written — Settings says why. A bridge
+  without `lireLesExplications` (the phone) shows none, and Settings has no row.
+
+*Code: `app/src/vue/explications/explications.js` (the lines, the record held per project, the Settings row), its wiring
+in `app/src/vue/vue.js`, `app/src/vue/explications/explications-box.ts` (the runtime command, from the main process).
+Tests: `app/test/explications/`, `runtime/test/explications/`. Captures: `docs/captures/3308/`.*
+
+### Coming back after some days: "Since you were away" (#3305)
+
+*Ticket: #3305 (builds on #3251 and #3213).* **When the chef opens the app more than 3 days (72 hours) after the previous
+opening, a "Since you were away" screen is shown first, before any other screen.** At exactly 3 days or less it is not
+shown, and neither is it on the very first launch (no stored date). The date of the last opening is kept in the view's
+storage (`brigade.derniere-ouverture`) and rewritten at every opening, once the decision is taken: closed, the screen does
+not come back until another gap of more than 3 days. A storage that cannot be read shows nothing.
+
+For each project that is read on this computer, the screen lists what was served during the away period — the lines of its
+weekly summaries whose week reaches into the absence, worded by the summary itself (`runtime/src/resume-hebdomadaire/resume.ts`,
+nothing is reworded in the app) — and what waits for the chef, with its count: the cards of `lesCartesDuChef`, the list the
+app already treats as awaiting the chef. The autonomy figures of those weeks are shown when the summaries carry them; when
+they do not, the block is not there at all. One button closes the screen: when something waits it reads "See what is waiting
+for you" and opens the project holding it (at a phone's width, the list of cards of the home page); when nothing waits it reads
+"Close" and lands on "All projects".
+
+*Code: `app/src/vue/absence/absence.js` and its wiring in `app/src/vue/vue.js` (`poserLAbsence`); the autonomy list is
+`chiffresDeLAutonomie` of `resume-hebdomadaire.js`. Tests: `app/test/absence/`. Captures: `docs/captures/3305/` (before: the app opened on the same
+data, without the screen; after: with it).*
+
 ### On first launch: try on a sample project (#3227, epic #3217)
 
 Next to `open this project`, the first-launch screen offers **`try on a sample project`**. One click creates a small
@@ -455,6 +500,30 @@ then the repository (`app/test/parcours-projet-bout-en-bout.test.ts` plays it on
 the copy, then the projects file, with the branch GitHub gave), `app/src/vue/parcours-projet/compte.js` (the account,
 `app/src/connexion-github.ts`).*
 
+### A project with open issues: what the second proposes to cook first (#3268)
+
+A repository picked on **Add a project** that has open issues opens on a screen before the questions below, titled
+`Brigade read your <N> open issues — here are the ones to cook first`, `N` being the number of open issues of the
+repository (pull requests do not count). While the app reads them and the second's triage answers, the page says
+`Brigade is reading your open issues. Nothing is awaited from you.` Each proposed issue is a line: `#<number> <title>`, a
+priority (`prio:1`, `prio:2` or `prio:3`, the scale of the second) in a list you can change, and the reason for that
+priority in one line. `drop` removes a line; `put them on the rail` puts every remaining line on the rail, with the
+priorities on screen, and the page goes on to the questions; `not now` goes on without putting anything. Issues that
+already carry `fire` are counted in `N` but not proposed; when all of them do, there is no screen. A project with no open
+issue shows none of this and goes directly to the questions.
+
+There is one triage, the second's: the section `A project just set up` of its role (`app/src/second/role.md`) is given
+as it is to `claude -p` with the issues, and the answer is read as `{number, prio, reason}` per issue. Putting on the rail
+is the second's gesture too: the `prio:<n>` label replaces the issue's (`changerLaPriorite`, as on a ticket's sheet), then
+`product` and `fire` are put on it. A reading or a triage that fails (GitHub, `claude` absent or silent for 100 s, an
+answer that is not a list) is said on the screen with its cause and `Try again` / `not now`: no list and no priority is
+invented. A line GitHub refuses stays on screen with its cause; the others are on the rail.
+
+*Code: `app/src/depart-du-projet.ts` (reading, triage, putting on the rail; channels `departDuProjet` and `mettreSurLeRail`
+in `app/src/main.ts`), `app/src/vue/parcours-premier-projet/depart.js` (the screen), its wiring in `app/src/vue/vue.js`
+(`lireLeDepart`, `mettreLeDepartSurLeRail`). Tests: `app/test/depart-du-projet.test.ts`, `app/test/parcours-premier-projet/`
+(including the timing check on 100 issues, a real process standing in for `claude`).*
+
 ### A project not ready yet: one question at a time on its page (#3166, epic #3164)
 
 A repository picked on **Add a project** opens on its page (#3181). Until the project is ready, that page shows, **in
@@ -486,10 +555,26 @@ column on the right (#3164); each state says in one sentence what is awaited and
 | set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
 
 The setup is read again at each reading of the project's rail while it is not set up: once the setup pull request is
-merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and a single line above it offers
-the next step: `<owner/repo> is ready.`, `write its first ticket with the second` — which writes the request in the
-second, without Enter, and shows it on the right — and `close`. That line comes only when you answered a question; a
-project that had nothing left to do opens on its rail.
+merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and above it the second asks for
+the project's first ticket (#3306). That panel comes only when you answered a question; a project that had nothing left
+to do opens on its rail.
+
+**The first ticket, written in the app (#3306).** You never open GitHub and never see or type a label:
+
+| State | What the panel shows |
+|---|---|
+| the question | `the second`, then `<owner/repo> is ready. What do you want to change first?`, a field for your answer, `send to the second` (lit once the field is not empty) and `not now` |
+| the second writes | `The second is writing the ticket from your answer. Nothing is awaited from you.`, and your answer; after a change, `The second is rewriting the ticket with your changes.` |
+| the draft | `Is this the right first ticket?`, the issue's title and body, `Yes, put it on the rail` (recommended; what it does on hover), then a field `What should change in this ticket` and `ask for changes` |
+| putting it on the rail | the same draft, every gesture waiting, `Putting it on the rail…` |
+| on the rail | `#<n> is on the rail: the kitchen serves it.` and `close` |
+
+The second writes the draft with `claude -p` in the project's folder, launched like its triage of #3268, from your answer
+— and, on `ask for changes`, from the draft you saw and your changes: the draft is shown again, and nothing is created.
+Only `yes` creates the issue, from this computer's `gh`, with the labels of the second's first ticket (`product`,
+`prio:1`, `fire`): it is on the rail. A draft the app cannot read, or a creation GitHub refuses, says so in one line,
+the cause on hover, and the gesture stays. The second in its column does not offer a first ticket any more: it leaves
+it to this panel.
 
 **What opens it.** The project's first reading decides, the one that says whether this computer's GitHub account can
 write to its repository (`lectureSeule`, #3163): a project you cannot write to shows none of this and opens read-only; a
@@ -497,9 +582,38 @@ reading that fails decides nothing, the next one does. Write access lost on the 
 repository picked on **Add a project** opens it, and it is held while the app runs: it is not written anywhere, and a
 project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
 
-*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states, the ready line), its wiring in
-`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`, `ecrireLePremierTicket`). Tests:
-`app/test/parcours-premier-projet/`. Captures: `docs/captures/3166/`.*
+*Code: `app/src/vue/parcours-premier-projet/` (the questions, their states), `app/src/vue/premier-ticket/` (the first
+ticket), `runtime/src/premier-ticket/` (the draft and the creation, loaded by `app/src/main.ts`), their wiring in
+`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/parcours-premier-projet/`,
+`app/test/premier-ticket/`, `runtime/test/premier-ticket/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
+
+### Your first ticket, told step by step as it really happens (#3302)
+
+Rather than a tutorial, the first ticket of the chef's first project is told above its rail, one short line at each
+real step, as the readings of the rail show it: the kitchen word first, then what it means.
+
+| Word | What the line says | When |
+|---|---|---|
+| `Taken` | a cook took the ticket: a claude session that works in its own copy of the repository (a worktree) | a reading shows it taken (or already in pass) |
+| `Pull request` | the cook handed over its work as a pull request, with `open pull request #N` | the reading carries its open pull request |
+| `In pass` | the pass is checking it: the gates, the CI, and a review by another session | a reading shows it in pass |
+| `Sent back` | the pass sent the work back to a cook, and why — the station's reason, word for word | the issue carries a send-back (`brigade:renvoi`) of a higher rank than the last one told |
+| `Taken again` | a cook took it again, to fix what the pass said | taken, right after a send-back |
+| `Served` | the pass merged the pull request, with `open pull request #N` | the ticket is among the served ones, with its merged pull request |
+
+**Which project, which ticket.** The chef's first project is the first one **Add a project** adds while the projects
+file has no other project than the tour's demo kitchen (`benomite/brigade`); a chef who already had one is told nothing.
+Its first ticket is the first one a reading shows taken or in pass. A step that passed between two readings is not
+made up — except a send-back, whose comment stays on the issue with its rank and reason. The send-back is read from the
+comments the rail reading already fetches for a taken or in-pass ticket (`app/src/vue/rail/renvoi.ts`): no extra call.
+
+**Dismissed for good.** The story is kept in the view's storage (`brigade.recit-premier-ticket`), across restarts, and stays
+after the ticket is served until `dismiss`; dismissed, it never comes back. A stored trace the app cannot read decides
+nothing: nothing is told, and nothing is written over it.
+
+*Code: `app/src/vue/recit-premier-ticket/`, `etapesDesTickets` in `app/src/faits.ts`, its wiring in `app/src/vue/vue.js`
+(`suivreLeParcours`, `poserLeRecitDuPremierTicket`). Tests: `app/test/recit-premier-ticket/`, `app/test/vue/rail/renvoi.test.ts`.
+Captures: `docs/captures/3302/`.*
 
 ### The age of the rail is always on screen (#2054)
 
@@ -897,7 +1011,7 @@ repository, and the project opens read-only:
   something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
   to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
   that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
-  its humans, its contributing stations, the duration caps and the closer — is not laid.
+  its humans, its contributing stations, its recurring tickets, the duration caps and the closer — is not laid.
 - **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
   <owner/repo>.`, with two links: `how to get write access` (GitHub's page on inviting a collaborator: the owner invites
   you) and `fork it` (the repository's fork page on GitHub). The main process — on the phone, its bridge
@@ -1017,13 +1131,13 @@ two gestures, each with its price on hover:
 
 | gesture | what it plays | then |
 |---|---|---|
-| `Validate` (the recommended button) | the runtime's `design` command, `validate <owner>/<repo>#<PR>`: the pull request is merged at the head the pass judged green, the card is closed | the card leaves Todo |
+| `Validate` (the recommended button) | the runtime's `design` command, `validate <owner>/<repo>#<PR>`: the pull request is merged at the head the pass judged green, the card is closed. If the branch was updated from its base since the card, nothing is merged at once: the validation is kept on the ticket, `merge pending`, and the pass merges once the new head is green (#3332) | the card leaves Todo; when the merge is pending, the ticket and the closed card say so (`Validated by the chef on card #<card> — merge pending.`) until the pass merges |
 | `Send back to the kitchen`, under a comment field — off while the comment is empty | `send-back <owner>/<repo>#<PR> --comment <comment>`: the comment goes on the ticket as what to change, a cook takes the ticket up again, the card is closed | the card leaves Todo |
 
 The app plays the command itself, in its own process, with this computer's `gh` (no box, no station) — nothing to type on
 GitHub. Under them, in Todo, `ask the second`, as on every Todo card (#3133). Done, the card leaves Todo at once and the
-project is read again. Refused by the runtime — the head of the pull
-request moved since the card, GitHub refused the merge — the card stays, says why in one line, the runtime's answer on
+project is read again. Refused by the runtime — GitHub refused the merge, the pull
+request was closed — the card stays, says why in one line, the runtime's answer on
 hover, and keeps the comment and both buttons. The pull request, its ticket and the captures are read from the issue's body
 (`<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, then the images): only the images of
 `docs/captures/<ticket>/` on the project's repository at that head are captures of the card. A body that shows none of
@@ -1045,7 +1159,10 @@ body, `jouerLaValidation` for the desktop and `validerSurGithub` for the phone),
 **The large detail of a `Validate its screen` card (#3212).** A click on the card, or on one of its captures, opens its
 detail over the app (in Todo, it opens the detail instead of the ticket's sheet; its buttons and its comment field keep
 their gesture; Enter or Space on its captures opens it too). In this order: the question; `One over the other`, `Next
-validation (#<card>)` when another design validation awaits you, and `Close`; for each screen, `Zoom out`, `Zoom in` and
+validation (#<card>)` when another design validation awaits you, and `Close`; the brief (#3330), read from the card's
+body: `What was asked`, cut to two lines (whole on hover), and `What was done`, the cook's points one per line — or "No
+summary of what was done is available" when the card carries none (a card posted before #3330 shows its ticket's title
+as what was asked); for each screen, `Zoom out`, `Zoom in` and
 `Fit`, then its before and after captures side by side, each as large as the window allows; then `Pull request #<PR>`,
 `Validate`, and the comment field with `Send back to the kitchen` — the card's gestures, with the same comment. Each
 capture zooms with the wheel (around the pointer), by pinching, by its buttons or by a double click (a second one fits it
@@ -1055,9 +1172,12 @@ them in place, at the same zoom; `Side by side` goes back. `Full size` under a c
 detail, zoomable the same way; `Back to before and after`, or Escape, returns. Escape, or `Close`, closes the detail. A
 gesture done from the detail closes it and the card leaves Todo, as on the card; refused, the detail stays and says why
 in one line. `Next validation` opens the next card that awaits you (the order of the phone's list), without going back
-to Todo. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
-one under the other, pinch to zoom, its two gestures 44 px high. On a read-only project the detail shows no gesture.
-Captures: `docs/captures/3212/`.
+to Todo. When the ticket asks for several screens, the detail shows one at a time: `Screen 2 of 4` says where you are, and
+`Previous screen` / `Next screen`, or the left and right arrows (not while typing in the comment field), move between them;
+the brief, the captures and the gestures stay whichever screen is shown. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
+one under the other, pinch to zoom, its two gestures 44 px high, the brief in one column and the detail scrolling so
+the captures keep half the screen. On a read-only project the detail shows no gesture.
+Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 *Code: `app/src/vue/validation-design/detail-de-validation.js` (the detail and its zoom), opened from `validation-design.js`
 (the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-de-validation.test.ts`.*
 
@@ -1591,6 +1711,16 @@ a ticket none of whose cooks declare any comes after the others and is shown as 
 project's rail when it is read, "not communicated" otherwise. **A click on a row opens its project, then the ticket's
 card**, over the rail — the rail's one (#621); if the rail does not carry the ticket, the card opens with what is
 known of it, its number.
+**Each row also shows its share of the weekly Max quota** (#3254, `cost/part.js`), next to its tokens (`2.0%` next to `200,000`).
+The quota is a setting of the app's file (`~/.config/brigade/app.json`, **you** level), `quotaMax`, in weighted tokens —
+Anthropic publishes no figure to read: `{ "tokens": 10000000, "semaine": { "jour": "monday", "heure": 0 }, "poids": { "opus": 5 } }`.
+`semaine` is Monday 00:00 UTC when absent, and a model missing from `poids` weighs 1.0. A ticket's weighted tokens are the sum,
+over the cooks listed for it, of their tokens × the weight of their model (the `model` of `model / effort` in "latest cooks"); its share is
+that over the quota, rounded to one decimal. A cook that declares no tokens makes the share "≥", as for the tokens. **Under the list, one
+line gives the week's cost of all projects**: the weighted tokens of the cooks listed that ended from the week's start up to now, as a
+percentage of the quota (a cook ended before the start is left out; the cooks are the ten per project the box lists). When `tokens` is
+missing, zero or invalid, that line is replaced by the single line "No share: the weekly quota is not configured.", no share is shown on
+the rows, and the tokens stay.
 **An overrun of a threshold is seen at a glance** (#912, `cost/seuils.js`): the thresholds are those `station` writes under
 "chef's decisions" (`seuil-ticket`, `seuil-perdus`), project by project. When the most expensive ticket exceeds its
 project's threshold, or a project's lost tokens exceed theirs, the block turns red and **a single line carries the action, as a button** ("open the card of #7", "open the list");
@@ -1631,6 +1761,27 @@ added / removed, per project
   closer set anywhere: `No project has a closer set.`
 
 The code lives in `app/src/vue/closer/tendance/tendance.js`. Capture: `docs/captures/1682/`.
+
+### The weekly summary of each kitchen (#3263)
+
+*Ticket: #3263 (epic #3251).* **In a project's health strip, under "Cost" and "Closer", a "Weekly summary" row opens the
+page of the weekly summaries** the kitchens write (#3261), in place of the home — "‹ All projects" brings you back. One
+card per project read on this computer:
+
+- **Summary day** — `weeklySummaryDay` of the project's `.claude/brigade/projet.json`, read on its integration branch
+  with this computer's `gh` token: `Monday (default)` when the file does not set it. Choosing another day proposes it by
+  a pull request, like a duration cap — it applies once merged. A value that is not a day, or a file that does not read,
+  says so in one line and selects nothing: it is not taken as Monday.
+- **Its summaries, latest first** — `report --week <weekStart>` where the project's kitchen runs, for the last 6 weeks
+  starting on the summary day (a summary written on another day, before the setting changed, is not looked for). One
+  button per week found; the latest is shown: its themes as headings, each line followed by its ticket's number, which
+  opens the issue; then **Autonomy**, only when the week's figures were counted; and last **Waiting for the chef**. A week
+  whose summary does not read is named in one line, the runtime's answer on hover.
+- **Publish as release notes** asks for a version tag, then runs `release-notes <tag> <summary.json>` (#3262) once, on the
+  summary's record: the page says the release is published, with "open the release"; `already published` or a refusal
+  is said instead, in the runtime's words, the detail on hover. A runtime without the command asks to be updated.
+
+The code lives in `app/src/vue/resume-hebdomadaire/`. Captures: `docs/captures/3263/`.
 
 ### The app's code: up to date, or behind
 
@@ -1750,6 +1901,38 @@ HTTP — github.com does not answer a WebView (CORS) —, asks again at the pace
 and keeps asking through a lost network until the code expires. On the desktop, nothing of this is shown. The screen is
 `app/src/vue/connexion-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
 `telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
+
+### Right after the first served ticket: the phone offer (#3303)
+
+On the page of the chef's **first project** — of the projects read, the one whose station records the earliest add
+(`delai.ajouteLe`, #1401) —, once its first ticket is served, a line under *First ticket served …* says **Brigade can
+call you on your phone when it needs you**, with `set up my phone` (recommended) and `no thanks`. It is not shown on
+another project, before that ticket is served, on the phone itself, or when a phone is already signed in.
+
+- **`set up my phone`** shows, in the same line, `download the Android app` and *Sign in with the same GitHub account*:
+  there is no pairing code since #2500, the phone signs in to the same GitHub account. The link is the `apkUrl` of
+  `latest-android.json` (`apkLink`, `app/src/mise-a-jour/android.ts`), read by the main process whatever version runs;
+  when the manifest cannot be read, it is the releases page, `https://github.com/benomite/brigade/releases`. Nothing
+  goes through Settings.
+- **`no thanks`**, or following the link, hides the offer for good: the choice is kept in the view's storage
+  (`localStorage`, key `brigade.offre-telephone`). A storage that cannot be read does not show the offer, so that a
+  refusal is never forgotten.
+- **A phone already signed in hides it.** Once signed in, the Android app leaves a trace on the chef's GitHub account:
+  a secret gist, described `brigade — phone`, holding `brigade-telephone.json`
+  (`{ "brigade": "telephone", "format": 1, "connecteLe": "<ISO>" }`, `app/src/telephone-connecte.ts`). It writes it
+  once, after its first list of gists read, only if no gist of the account holds that file; a write that fails is
+  retried at its next read. The desktop reads the account's gists for that file with its own `gh`
+  (`telephoneConnecte`, `app/src/stations/github.ts`) before showing the offer. Until that read says no phone is signed
+  in — not read yet, or unreadable —, the offer is not shown; an answer other than "signed in" is read again after
+  5 minutes, so a phone signed in while the offer shows takes it away. A phone signed in with an app older than this
+  trace leaves none until it is updated.
+- **Pairing stays where it is**: on the phone, its *sign in with GitHub* screen (#2500). The desktop has no other
+  pairing entry; declining the offer changes nothing there.
+
+*Code: `app/src/vue/offre-telephone/offre-telephone.js`, its wiring in `app/src/vue/vue.js`, `app/src/main.ts`
+(`lienDeLApk`, `telephoneConnecte`) and `app/src/preload.cjs`; the trace in `app/src/telephone-connecte.ts`, posed by
+`app/src/lecture-github-telephone.ts`. Tests: `app/test/vue/offre-telephone.test.ts`, `app/test/telephone-connecte.test.ts`,
+`app/test/stations/stations.test.ts`, `app/test/mise-a-jour/android.test.ts`. Captures: `docs/captures/3303/`.*
 
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
@@ -2708,10 +2891,9 @@ stations replace them.
   and `lint` scripts, or the stack's test command) and the file zones (the workspaces, or the first-level folders) —
   each with what it is for in Brigade. What cannot be read is said so, with why, and left for the questions. Once you
   have answered, the second runs this `/brigade:init` itself; merge its PR — at your next message, the same session
-  takes its role again (#2689). The project is then ready, and the second offers to fire a first ticket (#3170,
-  `runtime/src/second-init/premier-ticket.ts`, carried by the same first message): it asks what you want done, drafts a
-  title and observable acceptance criteria with you, then creates it with `gh issue create` and the labels `product`,
-  `prio:1` and `fire` — a cook takes it from the rail, and you watch it in the board. It leaves the plugin once adding a project sets
+  takes its role again (#2689). The project is then ready, and its first ticket is written in the app, above the rail
+  (#3306): the same first message (`runtime/src/second-init/premier-ticket.ts`) tells the second not to offer it nor
+  create it itself, and to send you to that question. It leaves the plugin once adding a project sets
   the repository up in one gesture (#2584), not before.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
@@ -2796,6 +2978,32 @@ which each read brings up to date (`app/src/reglages-perso/`, on the module of #
 - Nothing here reads or writes a project's `projet.json`: the project's shared settings change by a
   pull request ([`reglages.md`](reglages.md), §1).
 
+### The kitchen's state in the menu bar and the notification area (#3269)
+
+The chef sees how the kitchen is doing without opening the window. On a Mac the app puts an icon in the **menu bar**,
+on Windows in the **notification area**. It says in one line how many cooks are working and how many questions wait
+for you, across all your projects: `3 cooking · 1 for you`. On a Mac the line sits next to the icon; Windows shows no
+text next to a notification-area icon, so the number of questions waiting is painted on the icon, in an orange disc
+(`+` above 9), and the whole line is on hover.
+
+- **The counts** come from what the app already reads: the last `facts` of each project a station serves, read every
+  30 s whatever the screen. A project's cooks are counted as the home counts them; its questions are the entries of its
+  `awaiting` (what TODO shows). A project not read yet counts for nothing, and the line says how many are not:
+  `1 cooking · 0 for you · 1 not read`. Nothing read at all, it says `not read yet`, never a zero.
+- **A click on the icon** opens its menu: the line, then one entry per question waiting — its project, its ticket and
+  its question (`brigade #7 — Open the beta to everyone?`) — or `nothing waits for you`, then **Open brigade**. A click
+  on a question brings the window to the front, opens the project and the card's sheet. A runtime from before
+  `awaiting` gives the number of decisions without naming them: its entry (`brigade — 2 awaiting you`) opens the project.
+- **It can be turned off in Settings**: in each project's Settings, a `Menu bar` row (`Notification area` on Windows),
+  under `you`, with a switch. It is one setting for the whole app, kept in `app.json` as `barreDeMenus` and following
+  you to your other devices ([`reglages.md`](reglages.md), §3). Turned off, the icon goes at once; turned back on, it
+  comes back with what is read.
+- An icon the system refuses does not stop the app: the reason is said once in the terminal that started it.
+
+The module is `app/src/barre-de-menus.ts` (the line, the menu, the disc); `main.ts` wires it to Electron's `Tray`. The
+icon is `app/src/icones/barre-de-menus.png` and its `@2x`, cut from the app's icon by `app/packaging/icones.ts`. Tests:
+`app/test/barre-de-menus.test.ts`, `app/test/barre-de-menus-reglage.test.ts`.
+
 ### The Settings tab, and the log by its action
 
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
@@ -2811,6 +3019,8 @@ GitHub Apps, the projects it serves, the app's code) are not shown in Settings; 
 - its label and its two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette — and
   `Remove this project from the app's sidebar`: `Remove from the app…`, which asks for a `yes` first, which the app keeps in
   its projects file.
+- `Menu bar` (`Notification area` on Windows): whether the kitchen's state shows there — a `you` row that holds for the
+  whole app, the same in every project's Settings (see "The kitchen's state in the menu bar and the notification area").
 
 Under these, a section of its own, **`Caps, closer and all projects`** (#3014): the duration caps, the closer and the
 Cost and Closer rows of all projects, as the folded line at the top of the Rail tab, then of the Stations tab, showed
@@ -2883,6 +3093,27 @@ detail on hover. The block is `app/src/vue/reglages-stations/`; it calls three b
 `accepterUneStationContributrice(project, station)`, each write answering `{ok}` or `{refus}`. The desktop app carries them to the
 runtime's `contributor-stations` command where the project's kitchen runs, in `app/src/stations-contributrices.ts`. A bridge
 without `listerLesStationsContributrices` (the phone) does not show the block.
+
+Under the contributor stations, the **recurring tickets** section (#3231, epic #3216) lists the project's recurring tickets
+(`recurring`, #3230) — one row each: its title, its rhythm in words (`every day`, `every week on Monday`, `every month on
+the 15th`) and `next` with the date of its next occurrence (`next Mon, Oct 19`, the year added when it is not this one); a
+paused one says `paused` and shows no date. Each row has two one-click gestures, with no confirmation: `pause` (or `resume`
+on a paused one) and `remove`. The row changes on what the runtime answers — paused, resumed with its next date, or gone;
+a refusal is one line on that row, the detail on hover, and the row stays as it was. With none, the section says `No
+recurring tickets yet.`; a list that cannot be read says `recurring tickets unavailable` in one line, the detail on hover.
+The section is `app/src/vue/recurrents/recurrents.js`; it calls two bridge methods — `listerLesRecurrents(project)` and
+`changerUnRecurrent(project, pause | resume | remove, id)`, a gesture answering `{recurrent}`, `{retire}` or `{refus}`. The
+desktop app carries them to the runtime's `recurring` command where the project's kitchen runs — `recurring`, `recurring
+pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vue/recurrents/recurrents-box.ts`; a project
+with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
+phone) does not show the section.
+
+Under the recurring tickets, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
+words — rail, pass, cook, second, TODO, WAITING — you have seen explained (`3 of 6 seen`, what it means on hover), with
+one button, `show all the explanations again`: it clears your record, and each word is explained again the next time you
+meet it, on this device and on your other ones (`each explanation shows again the next time you meet its word, on all
+your devices` under the row). A record that cannot be read says why in one line, the button off; a seen explanation the
+runtime did not keep is said under the row. See "The kitchen's words, explained the first time you meet them".
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
 Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown

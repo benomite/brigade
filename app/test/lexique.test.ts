@@ -19,6 +19,8 @@ const pages = fichiers(VUE).filter((chemin) => chemin.endsWith(".html"));
 // `sauf` : une chaîne qui n'est pas dite à l'écran (une valeur comparée, un état de donnée).
 type Regle = { chose: string; remplace: RegExp; mot: string; sauf?: (chaine: Chaine) => boolean };
 const COMPARAISON = /(===|!==|case|state:)\s*$/;
+// Un réglage que le chef n'a pas écrit n'est pas une lecture ratée : la ligne de #3254 garde ses mots (cost/part.js).
+const QUOTA_ABSENT = "Share unavailable: weekly quota is not configured.";
 const REGLES: Regle[] = [
   { chose: "this computer", remplace: /\bthis (machine|mac|pc)\b/i, mot: "CET_ORDINATEUR" },
   { chose: "Cancel", remplace: /^(cancel|no|Cancel the .*)$/, mot: "ANNULER" },
@@ -28,7 +30,7 @@ const REGLES: Regle[] = [
   { chose: "Add a project", remplace: /\badd .*to the (app|kitchen)\b/i, mot: "AJOUTER_UN_PROJET" },
   { chose: "Update now", remplace: /\binstall now\b/i, mot: "METTRE_A_JOUR" },
   { chose: "closing pass", remplace: /\bclean-?up\b/i, mot: "PASSE_DE_FERMETURE" },
-  { chose: "not reached", remplace: /\b(unavailable|could not reach|couldn't reach)\b/i, mot: "NON_ATTEINT", sauf: ({ texte, avant }) => texte === "unavailable" && COMPARAISON.test(avant) },
+  { chose: "not reached", remplace: /\b(unavailable|could not reach|couldn't reach)\b/i, mot: "NON_ATTEINT", sauf: ({ texte, avant }) => (texte === "unavailable" && COMPARAISON.test(avant)) || texte === QUOTA_ABSENT },
   { chose: "empty lines", remplace: /^((no|none|nothing)\b.*\byet|(No|None|Nothing)\b[^.]*\byet(?!\.))/, mot: "PAS_ENCORE" },
   { chose: "running reads", remplace: /^reading\b.*…$/, mot: "LECTURE_DE" },
 ];

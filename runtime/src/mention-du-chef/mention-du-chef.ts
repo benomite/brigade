@@ -33,19 +33,19 @@ import { lireRail } from "../projections/rail.ts";
 import type { CauseReveil, Runtime } from "../runtime.ts";
 
 // Une carte à mentionner : son ticket, sa sorte, ce qui la nomme, et sa ligne.
-export type CarteAMentionner = { ticket: number; sorte: string; cle: string; ligne: string };
+export type CarteAMentionner = { ticket: number; sorte: string; cle: string; ligne: string; choix: string[] };
 
 const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
 
 // Ce que la carte demande au chef, sur une ligne : sa question, ou — une carte
 // à un seul geste n'en pose pas — ce qu'elle dit. Une carte que sa forme
 // refuse se dit par sa ligne du bloc `awaiting`.
-function ligneDeLaCarte(attente: AttenteDeTicket): { sorte: string; ligne: string } {
+export function ligneDeLaCarte(attente: AttenteDeTicket): { sorte: string; ligne: string; choix: string[] } {
   try {
     const carte = carteDeLAttente(attente);
-    return { sorte: carte.type, ligne: surUneLigne(carte.question ?? carte.resume) };
+    return { sorte: carte.type, ligne: surUneLigne(carte.question ?? carte.resume), choix: carte.choix.map(({ texte }) => surUneLigne(texte)) };
   } catch {
-    return { sorte: attente.quoi, ligne: surUneLigne(direAttenteEn(attente)) };
+    return { sorte: attente.quoi, ligne: surUneLigne(direAttenteEn(attente)), choix: [] };
   }
 }
 
@@ -60,19 +60,24 @@ export function cartesAMentionner(base: Base, maintenant = new Date()): CarteAMe
   return tickets.flatMap((ticket) => {
     const attente = attenteDeLaCarte(attentes, ticket);
     if (attente === undefined) return [];
-    const { sorte, ligne } = ligneDeLaCarte(attente);
-    return [{ ticket, sorte, cle: cleDeLaCarte(sorte, ligne), ligne }];
+    const { sorte, ligne, choix } = ligneDeLaCarte(attente);
+    return [{ ticket, sorte, cle: cleDeLaCarte(sorte, ligne), ligne, choix }];
   });
 }
 
 export const marque = (cle: string) => `<!-- brigade:chef-mention card=${cle} -->`;
 
-// Le commentaire : la marque, puis le chef mentionné et la question, sur une ligne.
-export const corpsDeLaMention = (chef: string, { cle, ligne }: CarteAMentionner) => `${marque(cle)}\n@${chef} ${ligne}`;
+// La ligne qui dit comment répondre depuis GitHub (#3253) : répondre au
+// commentaire, ou le citer, vaut réponse (reponse-par-commentaire/).
+const commentRepondre = (choix: readonly string[]) =>
+  `Reply to this comment (or quote-reply it) to answer${choix.length > 0 ? ` with one of: ${choix.map((texte) => `"${texte}"`).join(" / ")}, or` : ""} in your own words.`;
+
+// Le commentaire : la marque, puis le chef mentionné et la question, sur une ligne, puis comment répondre.
+export const corpsDeLaMention = (chef: string, { cle, ligne, choix }: CarteAMentionner) => `${marque(cle)}\n@${chef} ${ligne}\n${commentRepondre(choix)}`;
 
 // Une marque fait foi posée par le dépôt : son propriétaire, ses membres, ses
 // collaborateurs, ou l'un des comptes d'application de ses rôles.
-const deLaCuisine = ({ association, author }: { association: string; author: string }) => DE_CONFIANCE.includes(association) || author.endsWith("[bot]");
+export const deLaCuisine = ({ association, author }: { association: string; author: string }) => DE_CONFIANCE.includes(association) || author.endsWith("[bot]");
 
 export type GitHubDeLaMention = Pick<GitHub, "commentaires" | "commenter" | "assigner">;
 

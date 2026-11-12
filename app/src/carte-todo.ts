@@ -38,7 +38,10 @@ export type ChoixDeCarte = { texte: string; prix: string };
 // `revue` : la carte « review before merge » d'un ticket sensible (vue/carte-sensible/, ticket 3224) — la PR qu'elle retient,
 // ou pourquoi son issue ne la dit pas (`illisible`) — absente ailleurs.
 export type ValidationDeCarte = { pr: number; ticket: number } | { illisible: string };
-export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu; validation?: ValidationDeCarte; revue?: ValidationDeCarte };
+// `brief` : en tête du détail en grand d'une carte « Validate its screen » (ticket 3330), ce que le ticket demandait et ce
+// que le cook a changé à l'écran — `fait` nul, il n'en a rien dit.
+export type BriefDeCarte = { demande: string; fait: string[] | null };
+export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu; validation?: ValidationDeCarte; revue?: ValidationDeCarte; brief?: BriefDeCarte };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -97,7 +100,7 @@ export function carteDuChefDeTodo({ sorte, texte, design, sensible }: CarteDuChe
       prixDuTexte: "",
       ...(design === undefined
         ? { validation: { illisible: "its issue does not say which pull request it validates: validate it on GitHub" } }
-        : { validation: { pr: design.pr, ticket: design.ticket }, captures: capturesDeLaValidation(design) }),
+        : { validation: { pr: design.pr, ticket: design.ticket }, captures: capturesDeLaValidation(design), ...(design.brief === undefined ? {} : { brief: design.brief }) }),
     };
   }
   // La carte « review before merge » d'un ticket sensible (ticket 3224) : sa question, sa PR, et ses deux réponses — merger,

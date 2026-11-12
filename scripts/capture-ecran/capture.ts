@@ -2,7 +2,7 @@
 // navigateur sans tête, devant un faux pont et des données figées — ni `claude`, ni box, ni réseau.
 //   node scripts/capture-ecran/capture.ts <écran> <fichier.png>
 //   node scripts/capture-ecran/capture.ts --liste
-// Les écrans sont dans ecrans/ (README.md). Le même écran, sur un code inchangé, donne le même PNG
+// Les écrans sont dans ecrans/ (`--liste` les donne). Le même écran, sur un code inchangé, donne le même PNG
 // à l'octet près : l'heure, le fuseau, la langue, la taille et les polices sont arrêtés.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";

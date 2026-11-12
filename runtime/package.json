@@ -20,6 +20,7 @@
     "setting": "node src/reglage-cli.ts",
     "humans": "node src/humains-cli.ts",
     "recurring": "node src/recurrents-cli.ts",
+    "explanations": "node src/explications-cli.ts",
     "contributor-stations": "node src/contributor-stations-cli.ts",
     "switch": "node src/interrupteur-cli.ts",
     "manager": "node src/manager-cli.ts",

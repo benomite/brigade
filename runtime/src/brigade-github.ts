@@ -32,7 +32,7 @@ import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-ser
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
 import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
 import { lireLeGeste, poserLaCarteDeLaStation } from "./carte-station/carte-station.ts";
-import { faireLesGestesGitHub, lireLesGestesGitHub } from "./geste-station/geste-station.ts";
+import { faireLesGestesGitHub, lireLesGestesDuManager } from "./geste-station/geste-station.ts";
 import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis, MARQUE_DE_DECISION, MARQUE_DE_REPONSE, REPONSES_AVANT_DECISION, sectionDeLaDecision, type ConsulterLeManager, type ReponseDuManager } from "./blocage-au-manager.ts";
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
@@ -44,7 +44,8 @@ import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instanta
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
-import { designsValidesParUnHumain, retenirLeDesign } from "./validation-design/validation-design.ts";
+import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
+import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
@@ -86,7 +87,7 @@ import { PRIO_REPARATION } from "./reparation.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
-import { retenirLeSensible } from "./sensible/sensible.ts";
+import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -253,7 +254,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[] } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -807,10 +808,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped, blocked on a gesture to ${geste.sorte === "install" ? "install something" : geste.sorte === "service" ? "start a service" : "create or migrate a database"}. Nothing here is for the chef: ${suite}.\n\nThe ticket waits until ${new Date(reprise).toISOString()}, then a cook resumes it from its branch. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
       return "liberee";
     }
-    // Un geste sur GitHub que la station fait elle-même : jamais une carte (#3136).
-    const gestesGitHub = avis.issue === "geste" ? lireLesGestesGitHub(avis.geste, options.depotServi ?? null) : null;
+    // Un geste sur GitHub que la station fait elle-même : jamais une carte
+    // (#3136). Qu'elle ne peut pas faire tel quel — un gabarit, une commande
+    // illisible —, le ticket dit pourquoi, sur le chemin d'échec (#3374).
+    const gestesGitHub = avis.issue === "geste" ? lireLesGestesDuManager(avis, options.depotServi ?? null) : null;
     if (gestesGitHub !== null) {
-      const fait = await faireLesGestesGitHub(github, { station: nom, ticket: issue, gestes: gestesGitHub });
+      if ("refus" in gestesGitHub) return { echec: `the cook asked for a GitHub gesture the station makes, and the station could not make it: ${gestesGitHub.refus}` };
+      const fait = await faireLesGestesGitHub(github, { station: nom, ticket: issue, gestes: gestesGitHub.gestes });
       if ("echec" in fait) return { echec: fait.echec };
       avertir(`brigade : #${issue} sur ${nom} — the cook asked for a GitHub gesture: the station made it (${fait.fait.join(" ")}), the ticket goes back to a cook`);
       return "liberee";
@@ -853,15 +857,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // déjà la livraison, il n'en faut pas une seconde.
         const ouverte = await github.prDuTicket(issue);
         let refusee: string | null = null;
+        let livree = ouverte !== null && ouverte.state === "open" ? ouverte.number : null;
         if (ouverte === null || ouverte.state !== "open") {
           // Une PR que GitHub refuse (422, tête introuvable…) n'est pas rejouée à
           // chaque tour : le ticket retourne à un cook avec le motif, et suit la
           // voie des échecs (#2610).
           try {
-            await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+            const adresse = await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+            livree = numeroDeLaPR(adresse);
           } catch (erreur) {
             if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
             refusee = `GitHub refused the pull request of \`${fait.branche}\`: ${message(erreur)}`;
+          }
+        }
+        // Ce que le cook a changé à l'écran, posté sur la PR : la pass le
+        // recopie sur la carte « Validate its screen » (#3330). Non posté, la
+        // carte dit qu'aucun résumé n'est disponible ; la livraison part quand même.
+        if (refusee === null && fait.aLEcran !== undefined) {
+          if (livree === null) avertir(`brigade : #${issue} sur ${nom} — the cook's summary of what it changed on the screen is not posted: the pull request's number could not be read`);
+          else {
+            try {
+              await github.commenter(livree, corpsDeCeQuiEstFait(fait.aLEcran));
+            } catch (erreur) {
+              if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+              avertir(`brigade : #${issue} sur ${nom} — the cook's summary of what it changed on the screen could not be posted on PR #${livree}: ${message(erreur)}`);
+            }
           }
         }
         if (refusee === null) {
@@ -1087,6 +1107,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
+    // La carte qui retenait sa livraison pour le chef n'attend plus rien de
+    // lui : elle quitte TODO tout de suite (#3332). Une fermeture qui échoue se
+    // dit ; la carte suivante la fermera, comme avant.
+    for (const sorte of [DESIGN, SENSIBLE]) {
+      try {
+        await fermerLaCarteDepassee(sorte, github, ticket.number);
+      } catch (erreur) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — its “${sorte.titre}” card could not be closed after the send-back, the next card closes it: ${message(erreur)}`);
+      }
+    }
     // De retour en cuisine : le temps jusqu'au cook suivant est celui du renvoi (#2662).
     if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "renvoi");
   };
@@ -1388,7 +1418,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             }
           }
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
-          if (tentees.get(pr.number) !== tentee) {
+          // Une livraison retenue pour le chef ne se retente sur la même tête
+          // que quand le chef a répondu depuis : une réponse gardée de plus sur
+          // le ticket (#3332). Ses commentaires se relisent sous ETag : un
+          // ticket où rien n'a bougé coûte un 304, que GitHub ne compte pas.
+          const retenueSur = (gardees: number) => `${tentee} retenue ${gardees}`;
+          const deja = tentees.get(pr.number);
+          const aRetenter = deja !== tentee && (deja === undefined || !deja.startsWith(`${tentee} retenue `) || deja !== retenueSur(await reponsesGardees([DESIGN, SENSIBLE], github, ticket.number, pr.number)));
+          if (aRetenter) {
             // Le merge demandé à GitHub ouvre sa phase ; mergée, le temps du ticket s'écrit.
             const fusion = await enSerie(() =>
               fusionner(
@@ -1408,6 +1445,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       if (motif !== null) {
                         retenue = true;
                         return { fait: false, motif };
+                      }
+                    }
+                    // Une carte de validation ouverte retient sa PR même si le réglage ne se lit plus ici (#3347).
+                    else {
+                      const carte = await carteEnAttenteDuChef(DESIGN, github, ticket.number, numero);
+                      if (carte !== null) {
+                        retenue = true;
+                        return { fait: false, motif: `held for the chef's validation of its screen (card #${carte})` };
                       }
                     }
                     // Un ticket \`sensitive\` attend la revue du chef avant son merge (#3223).
@@ -1437,9 +1482,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               attendues.set(pr.number, tentee);
             } else {
               attendues.delete(pr.number);
-              if (fusion.issue !== "non-approuvee" && fusion.issue !== "close") bouge = true;
+              if (fusion.issue !== "non-approuvee" && fusion.issue !== "close" && !retenue) bouge = true;
             }
-            if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
+            if (fusion.issue === "refusee" && retenue) tentees.set(pr.number, retenueSur(await reponsesGardees([DESIGN, SENSIBLE], github, ticket.number, pr.number)));
+            else if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee" && !retenue) avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
@@ -2458,7 +2504,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     } catch (erreur) {
       return { echec: `its branch could not be pushed: ${message(erreur)}` };
     }
-    return { branche };
+    // Ce qu'il a changé à l'écran, pour le brief de la carte du chef (#3330).
+    const aLEcran = lirePointsALEcran(messageFinal);
+    return aLEcran === null ? { branche } : { branche, aLEcran };
   };
 
   // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,

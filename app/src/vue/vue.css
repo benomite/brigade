@@ -316,6 +316,29 @@ main > header,
 #stations-du-projet p {
   margin: 0;
 }
+/* L'offre du téléphone (ticket 3303) : une ligne sous le délai, ses gestes au bout ; le lien et le compte côte à côte. */
+#offre-telephone {
+  padding: var(--pas-2) var(--pas-4);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#offre-telephone .offre-telephone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-3);
+  margin: 0;
+  padding: 0;
+  color: var(--texte);
+}
+#offre-telephone .lien-apk {
+  color: var(--bleu);
+  text-decoration: underline;
+  cursor: pointer;
+}
+#offre-telephone .lecture,
+#offre-telephone .meme-compte {
+  color: var(--texte-doux);
+}
 /* Le temps de l'ajout au premier ticket servi (ticket 1401) : une ligne douce ; verte une fois figé. */
 #delai-du-projet {
   padding: var(--pas-2) var(--pas-4);
@@ -2292,6 +2315,26 @@ main > header,
   font-weight: 400;
   color: var(--discret);
 }
+/* TODO plein (ticket 3327) : à partir de quatre cartes, la colonne garde sa place (l'ordre du ticket 2093) et prend deux pistes, à partir de dix,
+   trois — assez pour que le titre et la question d'une carte se lisent sans être coupés, et jamais coupés : la rangée défile de côté
+   (ticket 1556), TODO ne rogne pas. Ses cartes se rangent en grille, plusieurs par ligne, et
+   se font compactes (carte-attente.css). De une à trois cartes, rien ne change. */
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) {
+  grid-column: span 2;
+}
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(10)) {
+  grid-column: span 3;
+}
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) > ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  align-items: start;
+}
+/* Chaque carte d'un TODO plein est le conteneur `todo-plein` : la feuille de la carte d'attente (composants/carte-attente) la compacte
+   quand elle est dans l'un d'eux, sans nommer le rail. */
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) > ol > li {
+  container: todo-plein / inline-size;
+}
 /* « Awaiting others » ferme TODO (tickets 2985, 3071) : le bloc replié du rail, dans la colonne, sous ses cartes. Dépliées,
    les cartes d'un autre humain sont des cartes de TODO, avec en plus qui elles attendent. */
 #rail .colonne > .replie.autres {
@@ -3008,6 +3051,9 @@ main > header,
   border-radius: var(--rayon-carte);
   cursor: pointer;
 }
+.chers-cout .avec-part .ticket-cher {
+  grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 4.5em 6em;
+}
 .chers-cout .ticket-cher:hover {
   border-color: var(--trait-fort);
 }
@@ -3024,11 +3070,16 @@ main > header,
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.chers-cout :is(.tokens, .essais) {
+.chers-cout :is(.tokens, .part, .essais) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 .chers-cout :is(.essais) {
+  color: var(--discret);
+}
+/* La semaine, ou la ligne qui dit qu'aucune part ne se lit, sous la liste. */
+.chers-cout :is(.part-semaine, .part-indisponible) {
+  margin: var(--pas-2) 0 0;
   color: var(--discret);
 }
 /* Les tokens perdus — de la page des coûts, ou du projet sous sa fiabilité : un chiffre, et derrière lui la liste des cooks perdus. */

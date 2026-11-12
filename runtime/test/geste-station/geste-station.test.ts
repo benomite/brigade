@@ -11,7 +11,7 @@ import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import type { GitHub } from "../../src/github.ts";
-import { lireLesGestesGitHub } from "../../src/geste-station/geste-station.ts";
+import { lireLesGestesDuManager, lireLesGestesGitHub } from "../../src/geste-station/geste-station.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
@@ -24,7 +24,7 @@ const TECHNIQUE = JSON.stringify({ issue: "technique", reponse: "go on", decisio
 // dont le manager lit le geste `geste` ; les suivants bloquent sur une question
 // technique, à laquelle le manager répond. `echec` : l'erreur que GitHub rend
 // à l'appel du geste.
-async function demande(t: TestContext, { question, geste, tours = 2, echec = null }: { question: string; geste: string; tours?: number; echec?: Error | null }) {
+async function demande(t: TestContext, { question, geste, issues, tours = 2, echec = null }: { question: string; geste: string; issues?: unknown[]; tours?: number; echec?: Error | null }) {
   const repertoire = mkdtempSync(join(tmpdir(), "geste-station-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -37,7 +37,7 @@ async function demande(t: TestContext, { question, geste, tours = 2, echec = nul
     let message: string;
     if (consulte) {
       consultations += 1;
-      message = consultations === 1 ? JSON.stringify({ issue: "geste", geste, question_en: question }) : TECHNIQUE;
+      message = consultations === 1 ? JSON.stringify({ issue: "geste", geste, ...(issues === undefined ? {} : { issues_a_ouvrir: issues }), question_en: question }) : TECHNIQUE;
     } else {
       cooks.push(args);
       message = `I stopped.\n<livrable>\n<bloque>${cooks.length === 1 ? question : "Do I go on?"}</bloque>\n</livrable>`;
@@ -121,7 +121,7 @@ test("the 2026-11-10 case: the cook asks for an issue opened and its number reco
   assert.deepEqual(lu.appels.filter((appel) => appel.startsWith("creerIssue")), ["creerIssue Closing pass drops the last comment"], "the station opened it, once");
   assert.equal(lu.faux.ticket(900).corps, "Found by the cook of #75.");
   assert.deepEqual([...lu.faux.ticket(900).labels], ["bug", "triage"]);
-  repris(lu, "Issue #900 is open: “Closing pass drops the last comment”.");
+  repris(lu, "#900 = Closing pass drops the last comment");
 });
 
 test("comment: the station posts it where the cook asked, says so on the ticket, and the cook resumes", async (t) => {
@@ -161,8 +161,64 @@ test("a gesture that fails midway says what was already done, so nothing is redo
   const lu = await demande(t, { question: "Open an issue, then mark #999.", geste: '`gh issue create --title "A finding"` then `gh issue edit 999 --add-label regression`', tours: 1 });
   assert.deepEqual(lu.faux.creations, [900]);
   const [rapport] = lu.commentaires(TICKET).filter((corps) => corps.startsWith(MARQUE_D_ECHEC));
-  assert.match(rapport ?? "", /\(change the labels of #999\), and the station's GitHub call failed: #999 inconnu \(already done: Issue #900 is open: “A finding”\.\)/);
+  assert.match(rapport ?? "", /\(change the labels of #999\), and the station's GitHub call failed: #999 inconnu \(already done: #900 = A finding\)/);
   sansCarte(lu);
+});
+
+// Le cas de #3228 : cinq issues de suivi demandées par le cook.
+const SUIVIS = [
+  { titre: "Closing pass drops the last comment", corps: "The closing pass reads one comment short.", suit: "the dropped last comment", labels: ["bug"] },
+  { titre: "Pass ignores the design label", corps: "A `cook:design` delivery goes to review without its captures.", suit: "design deliveries without captures" },
+  { titre: "Manager retranslates the cook's question", corps: "The card quotes the question twice.", suit: "the doubled question on the card" },
+  { titre: "Station restart loses the wait", corps: "A waiting ticket is taken at once after a restart.", suit: "waits lost on restart" },
+  { titre: "Gates time out on the app suite", corps: "The app suite exceeds the gates' clock on a loaded station.", suit: "" },
+];
+
+test("the #3228 case: the cook asks for five follow-up issues — the station opens the five with the cook's titles and bodies, posts one `<number> = <what it tracks>` line per issue, and the cook resumes with that list; nothing in TODO", async (t) => {
+  const lu = await demande(t, {
+    question: "Before I deliver, open these five follow-up issues and give me their numbers.",
+    geste: "Open the five follow-up issues the cook listed",
+    issues: SUIVIS,
+  });
+  assert.deepEqual(lu.faux.creations, [900, 901, 902, 903, 904]);
+  assert.deepEqual(
+    lu.appels.filter((appel) => appel.startsWith("creerIssue")),
+    SUIVIS.map(({ titre }) => `creerIssue ${titre}`),
+  );
+  assert.deepEqual(lu.faux.creations.map((n) => lu.faux.ticket(n).corps), SUIVIS.map(({ corps }) => corps));
+  assert.deepEqual([...lu.faux.ticket(900).labels], ["bug"]);
+  const lignes = ["#900 = the dropped last comment", "#901 = design deliveries without captures", "#902 = the doubled question on the card", "#903 = waits lost on restart", "#904 = Gates time out on the app suite"];
+  const poste = lu.commentaires(TICKET).find((corps) => corps.startsWith(TITRE_DU_GESTE)) ?? "";
+  assert.deepEqual(poste.split("\n").filter((ligne) => ligne.startsWith("- ")), lignes.map((ligne) => `- ${ligne}`), "one line per issue");
+  for (const ligne of lignes) repris(lu, ligne);
+});
+
+// Rien d'ouvert, aucune carte : le ticket dit pourquoi en une ligne.
+function refuse(lu: Awaited<ReturnType<typeof demande>>, pourquoi: RegExp) {
+  assert.deepEqual(lu.faux.creations, [], "no issue is opened");
+  const [rapport] = lu.commentaires(TICKET).filter((corps) => corps.startsWith(MARQUE_D_ECHEC));
+  const ligne = (rapport ?? "").split("\n")[1] ?? "";
+  assert.match(ligne, /^Station `box`: the cook stopped without a delivery — the cook asked for a GitHub gesture the station makes, and the station could not make it: /);
+  assert.match(ligne, pourquoi);
+  assert.equal(lu.ticket.labels.has(LABEL_TAKEN), false, "the ticket is given back to the kitchen");
+  sansCarte(lu);
+}
+
+test("a template command (`--title \"<title>\" --body \"<body>\"`) opens no placeholder issue: the ticket says why in one line, and no card reaches the chef", async (t) => {
+  const lu = await demande(t, { question: "Open my five follow-up issues.", geste: 'For each of the five issues, run `gh issue create --title "<title>" --body "<body>" --label product-question`', tours: 1 });
+  refuse(lu, /the title of the issue to open is the placeholder “<title>”, not the cook's title$/);
+});
+
+test("a listed follow-up issue with a placeholder or no body opens none of them: the station never opens half the list", async (t) => {
+  const lu = await demande(t, { question: "Open my follow-up issues.", geste: "Open the cook's follow-up issues", issues: [SUIVIS[0], { titre: "Second finding", corps: "<body>", suit: "the second finding" }], tours: 1 });
+  refuse(lu, /the body of follow-up issue 2 of 2 \(“Second finding”\) is the placeholder “<body>”, not the cook's content$/);
+  const vide = await demande(t, { question: "Open my follow-up issues.", geste: "Open the cook's follow-up issues", issues: [{ titre: "A finding" }], tours: 1 });
+  refuse(vide, /follow-up issue 1 of 1 \(“A finding”\) has no body$/);
+});
+
+test("“run `gh issue create` five times” is a GitHub gesture the station makes, written so it cannot run it: the ticket says why, never a card asking the chef to run the commands", async (t) => {
+  const lu = await demande(t, { question: "Open my five follow-up issues.", geste: "Gesture for the chef: run `gh issue create` five times, once per finding of the cook", tours: 1 });
+  refuse(lu, /not as commands it can run whole, with their real values: Gesture for the chef: run `gh issue create` five times/);
 });
 
 test("only the gh commands the station makes are read; any other gesture stays the chef's, whole", () => {
@@ -190,4 +246,15 @@ test("only the gh commands the station makes are read; any other gesture stays t
   }
   assert.equal(lireLesGestesGitHub('`gh issue create -R faux/depot -t "A"`', null), null, "with no served repo known, no repo is assumed");
   assert.notEqual(lireLesGestesGitHub('`gh issue create -R Faux/Depot -t "A"`', "faux/depot"), null);
+});
+
+test("a gesture that is not the station's stays the chef's card; one the station makes but cannot read is refused, never carded", () => {
+  const avis = (geste: string) => ({ issue: "geste" as const, geste });
+  for (const chef of ["Run `gh auth refresh -s project` under the station's account", "Grant the station write access to the repo", "`gh issue create -t A` then `gh secret set TOKEN`", '`gh issue create --repo other/repo --title "A"`']) {
+    assert.equal(lireLesGestesDuManager(avis(chef), "faux/depot"), null, chef);
+  }
+  for (const station of ["Run gh issue create five times", "`gh issue comment 3`", "`gh issue edit 3 --title B`", '`gh issue create -R faux/depot --title "$(cat t)"`']) {
+    assert.ok("refus" in (lireLesGestesDuManager(avis(station), "faux/depot") ?? {}), station);
+  }
+  assert.deepEqual(lireLesGestesDuManager(avis("`gh issue create -t A -b B`"), null), { gestes: [{ sorte: "issue", titre: "A", corps: "B", labels: [] }] });
 });

@@ -14,7 +14,11 @@
 //   - `produit` ou `design` — seul le chef tranche : `blocked-on-human`, et le
 //     commentaire porte la question sur une ligne ;
 //   - `geste` — rien à décider, mais un geste que seul le chef peut faire : la
-//     carte nomme ce geste exact, jamais la question du cook seule.
+//     carte nomme ce geste exact, jamais la question du cook seule. Un geste
+//     sur GitHub — ouvrir des issues, commenter, un label — la station le fait
+//     elle-même (`geste-station/`) : les issues que le cook demande, le
+//     manager les liste dans `issues_a_ouvrir`, avec les titres et les corps
+//     du cook (#3374).
 //
 // Le même ticket ne boucle pas : après deux réponses techniques, la troisième
 // revient au manager avec les deux d'avant, et sa décision s'écrit dans le
@@ -37,7 +41,12 @@ export const ISSUES_DE_L_AVIS = ["technique", "produit", "design", "geste"] as c
 export type Avis =
   | { issue: "technique"; reponse: string; decision: string }
   | { issue: "produit" | "design"; question: string }
-  | { issue: "geste"; geste: string };
+  | { issue: "geste"; geste: string; issues?: IssueDemandee[] };
+
+// Une issue que le cook demande d'ouvrir, telle que le manager l'a recopiée :
+// son titre, son corps, ses labels, et ce qu'elle suit, en quelques mots. Lue
+// sans être jugée : la station refuse un titre vide ou un gabarit (#3374).
+export type IssueDemandee = { titre: string; corps: string; labels: string[]; suit: string };
 
 // Ce que la station rend d'une consultation : l'avis, ou pourquoi il n'y en a
 // pas. `questionEn` : la question du cook, que le manager a traduite en
@@ -87,6 +96,7 @@ export function consigneDuBlocage(mission: { depot: string; issue: IssueAJuger; 
     "- `produit` — un choix entre plusieurs voies qui change ce que l'utilisateur obtient : seul le chef tranche. `question` : la question au chef, sur une ligne.",
     "- `design` — un écran ou un rendu que seul le chef peut valider. `question` : la question au chef, sur une ligne.",
     "- `geste` — rien à décider, mais un geste que seul le chef peut faire : un accès à accorder, un secret, un réglage. `geste` nomme le geste exact — la commande à lancer ou le réglage à poser, et où —, jamais la question du cook recopiée.",
+    "- Un geste sur GitHub — ouvrir une issue, commenter, poser ou retirer un label, relancer un check — n'est jamais pour le chef : la station le fait elle-même, puis rend le ticket au cook. Réponds `geste`, et écris chaque commande `gh` entre backticks, entière, avec ses vraies valeurs. Quand le cook demande d'ouvrir des issues (de suivi, pour un constat…), liste-les toutes dans `issues_a_ouvrir`, une entrée par issue : `titre` et `corps` sont ceux que le cook a écrits, recopiés — jamais un gabarit comme `<title>` ou `<body>` —, `suit` dit en quelques mots ce qu'elle suit, `labels` est facultatif.",
     "",
     ...precedentes,
     "## La question du cook",
@@ -103,7 +113,7 @@ export function consigneDuBlocage(mission: { depot: string; issue: IssueAJuger; 
     '{"issue": "technique", "reponse": "the answer to the cook\'s question", "decision": "what you decided, and what the cook does now", "question_en": "the cook\'s question, translated into English"}',
     "```",
     "",
-    'ou `{"issue": "produit", "question": "…?", "question_en": "…"}`, `{"issue": "design", "question": "…?", "question_en": "…"}`, `{"issue": "geste", "geste": "…", "question_en": "…"}`.',
+    'ou `{"issue": "produit", "question": "…?", "question_en": "…"}`, `{"issue": "design", "question": "…?", "question_en": "…"}`, `{"issue": "geste", "geste": "…", "question_en": "…"}`, `{"issue": "geste", "geste": "open the follow-up issues the cook asked for", "issues_a_ouvrir": [{"titre": "…", "corps": "…", "suit": "…", "labels": ["…"]}], "question_en": "…"}`.',
     "",
     "`reponse`, `decision`, `question` et `geste` sont écrits sur l'issue, que le cook et le chef lisent : en anglais. `question_en` est la question du cook, traduite fidèlement en anglais, sans rien y ajouter : c'est elle que l'issue cite.",
     "",
@@ -135,11 +145,22 @@ function lireLAvis(lu: Record<string, unknown>): { avis: Avis } | { illisible: s
   if (issue === "geste") {
     const geste = phrase(lu.geste);
     if (!geste) return { illisible: "a gesture with no `geste`" };
-    return { avis: { issue, geste: surUneLigne(geste) } };
+    if (lu.issues_a_ouvrir === undefined || lu.issues_a_ouvrir === null) return { avis: { issue, geste: surUneLigne(geste) } };
+    if (!Array.isArray(lu.issues_a_ouvrir)) return { illisible: "a gesture whose `issues_a_ouvrir` is not a list" };
+    const issues = lu.issues_a_ouvrir.map(issueDemandee);
+    return { avis: { issue, geste: surUneLigne(geste), ...(issues.length === 0 ? {} : { issues }) } };
   }
   const question = phrase(lu.question);
   if (!question) return { illisible: `a ${issue} question with no \`question\`` };
   return { avis: { issue: issue as "produit" | "design", question: surUneLigne(question) } };
+}
+
+const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur.trim() : "");
+
+function issueDemandee(brute: unknown): IssueDemandee {
+  const lue = brute !== null && typeof brute === "object" && !Array.isArray(brute) ? (brute as Record<string, unknown>) : {};
+  const labels = Array.isArray(lue.labels) ? lue.labels.map(texte).filter((l) => l !== "") : [];
+  return { titre: surUneLigne(texte(lue.titre)), corps: texte(lue.corps), labels, suit: surUneLigne(texte(lue.suit)) };
 }
 
 // La réponse technique du manager, postée sur l'issue : la question du cook,

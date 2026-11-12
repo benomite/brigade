@@ -15,6 +15,7 @@ import { repondre } from "./faux-gh-gists.ts";
 import { duree, ligneDe, ligneDeVersion, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
 import { ceQueFournitCetOrdinateur } from "../../src/stations/fournit.ts";
+import { DESCRIPTION_DU_TELEPHONE, FICHIER_TELEPHONE } from "../../src/telephone-connecte.ts";
 
 const SOURCES = join(import.meta.dirname, "../../src/stations");
 const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
@@ -108,6 +109,17 @@ test("les durées se disent à la minute", () => {
 });
 
 describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
+  // La trace du téléphone connecté (#3303, telephone-connecte.ts), lue par le `gh` du poste.
+  test("un gist qui porte la trace du téléphone : connecté ; aucun : non ; un `gh` en panne : lève", { skip: SANS_POSIX }, async (t) => {
+    const github = unGitHub(t);
+    const lus = githubDesStations({ gh: github.gh, delaiMs: 30_000 });
+    github.station("box", publie());
+    assert.equal(await lus.telephone?.(), false);
+    writeFileSync(join(github.repertoire, "t.gist.json"), JSON.stringify({ id: "t", description: DESCRIPTION_DU_TELEPHONE, public: false, updated_at: new Date().toISOString(), files: { [FICHIER_TELEPHONE]: { filename: FICHIER_TELEPHONE, content: "{}" } } }));
+    assert.equal(await lus.telephone?.(), true);
+    github.panne(true);
+    await assert.rejects(lus.telephone?.() ?? Promise.resolve());
+  });
   test("le code tapé appaire la station : elle apparaît sur la home, « online · version X · no project »", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie());
