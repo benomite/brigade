@@ -15,6 +15,8 @@
 //   - les gestes de WAITING (#3075) — « waiting for… » sur une carte de TODO, « resume » et « it arrived, back to the
 //     kitchen » sur une carte de WAITING : le téléphone ne joint aucun runtime, il les écrit sur l'issue comme le desktop
 //     sans runtime ici (vue/attente/attente-github.ts, `attenteSurGithub`).
+//   - « Resume » sur la ligne du disjoncteur, en tête de « Awaiting you » : `/resume` posté sur l'issue `brigade:breaker-open`
+//     du dépôt (github/breaker-resume.ts), le même code que le desktop ;
 //   - les deux gestes de la carte « Validate its screen » (ticket 3185) — « Validate » et « Send back to the kitchen » : le
 //     téléphone ne porte pas la commande du runtime que le desktop joue, il écrit sur GitHub ce qu'elle y écrit
 //     (vue/validation-design/validation-design-github.ts, `validerSurGithub`) — la PR mergée et la carte fermée, ou le
@@ -26,6 +28,7 @@
 import type { Rendu } from "./carte-todo.ts";
 import { ACTIONS, gestesDeCarte, type Actions, type Propose } from "./gestes-fiche.ts";
 import { retirerLeLabel, SANS_FAIT, surGithub, type Ecrit } from "./gestes-github.ts";
+import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur, type RenduDeLaReprise } from "./github/breaker-resume.ts";
 import { clientDeLaPriorite, type EnvoiGitHub, type MethodeDEcriture } from "./priorite.ts";
 import { corpsLu, type AppelGitHub } from "./tableau/client.ts";
 import { attenteSurGithub } from "./vue/attente/attente-github.ts";
@@ -81,6 +84,9 @@ export function ouvrirLesGestesGitHub(options: Options) {
     return rendu;
   }
 
+  // Le client du disjoncteur : ses lectures par le `GET` du téléphone, son commentaire par l'écriture native.
+  const disjoncteur = clientDuDisjoncteurGitHub({ jeton: options.jeton, appeler: options.appeler, poster: (adresse, entetes, corps) => options.envoyer("POST", adresse, entetes, corps) });
+
   return {
     // Les gestes de la fiche de cette carte que le téléphone joue.
     gestesDeFiche: (carte: unknown): Propose[] => gestesDeCarte(carte, ACTIONS_DU_TELEPHONE),
@@ -108,6 +114,14 @@ export function ouvrirLesGestesGitHub(options: Options) {
       const rendu = await repondreSurGithub({ depot, ticket, chef, reponse, client });
       if ("repondue" in rendu) options.ecrit?.(projet);
       return rendu;
+    },
+
+    // « Resume » sur la ligne du disjoncteur : `/resume` sur l'issue du disjoncteur du dépôt de ce projet. Rien n'est écrit
+    // pour un projet dont la dernière lecture ne dit pas le dépôt.
+    async reprendreLeDisjoncteur(projet: string): Promise<RenduDeLaReprise> {
+      const depot = options.depot(projet);
+      if (depot === undefined) return { refus: SANS_DEPOT(projet), detail: "" };
+      return reprendreLeDisjoncteur(depot, disjoncteur);
     },
 
     // Un geste du chef sur la carte « Validate its screen » que la dernière lecture porte : valider, ou renvoyer en cuisine

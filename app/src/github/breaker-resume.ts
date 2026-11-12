@@ -6,13 +6,15 @@
 // (tableau/client.ts) ; ce qui les porte est donné par la plateforme. Il ne parle qu'à GitHub :
 // aucune box, aucune station n'est jointe.
 import { clientGitHub, refusDe, type AppelGitHub, type Poste } from "../tableau/client.ts";
+import { dureeEn } from "../tableau/rail.ts";
 
 // Le label de l'issue que la station ouvre avec le disjoncteur, et le corps exact que sa veille attend.
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
 export const CORPS_DE_LA_REPRISE = "/resume";
 
-// Une issue ouverte du dépôt qui porte le label : son numéro, son adresse — nulle quand GitHub ne la donne pas.
-export type IssueDuDisjoncteur = { numero: number; url: string | null };
+// Une issue ouverte du dépôt qui porte le label : son numéro, son adresse — nulle quand GitHub ne la donne pas —, et son
+// corps, où la station dit pourquoi le disjoncteur s'est ouvert (runtime/src/breaker-issue.ts, `corpsDeLIssue`).
+export type IssueDuDisjoncteur = { numero: number; url: string | null; corps?: string | null };
 // Ce que le geste demande à GitHub : les issues ouvertes qui portent un label, la plus récente d'abord ; poster un
 // commentaire sur l'une, et rendre son adresse. Chacun lève quand GitHub refuse, ou ne répond pas.
 export type ClientDuDisjoncteur = {
@@ -55,19 +57,38 @@ export type OptionsDuClient = {
 
 const objet = (valeur: unknown): Record<string, unknown> => (typeof valeur === "object" && valeur !== null ? (valeur as Record<string, unknown>) : {});
 
+// Les issues ouvertes du dépôt qui portent ce label, la plus récente d'abord — lues par le `GET` de l'app. Lève quand GitHub
+// refuse, ou ne répond pas.
+export async function lireLesIssuesDuDisjoncteur(appeler: AppelGitHub, depot: string, label: string): Promise<IssueDuDisjoncteur[]> {
+  // GitHub les rend de la plus récente à la plus ancienne ; une PR qui porterait le label n'est pas une issue.
+  const reponse = await appeler(`/repos/${depot}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=10`);
+  if (reponse.status !== 200) throw refusDe(`the reading of the issues labeled \`${label}\``, reponse);
+  if (!Array.isArray(reponse.data)) throw new Error("GitHub's answer is not a list of issues");
+  return reponse.data.flatMap((brute): IssueDuDisjoncteur[] => {
+    const { number, html_url, pull_request, body } = objet(brute);
+    if (typeof number !== "number" || pull_request !== undefined) return [];
+    return [{ numero: number, url: typeof html_url === "string" ? html_url : null, corps: typeof body === "string" ? body : null }];
+  });
+}
+
+// La valeur de la ligne `kitchen` de `status` que le disjoncteur ouvert fait dire (runtime/src/etat.ts, `decrireCuisine`),
+// d'après l'issue que la station a ouverte : depuis quand, et pourquoi — le ticket qui a échoué et son code de sortie, tels
+// que le corps de l'issue les écrit. Un corps qui ne les dit pas laisse la ligne sans eux, et nomme l'issue.
+export function cuisineRetenueParLeDisjoncteur(issue: IssueDuDisjoncteur, lu: string): string {
+  const corps = issue.corps ?? "";
+  const champ = (nom: string) => new RegExp(`^- \\*\\*${nom}\\*\\*: (.+)$`, "m").exec(corps)?.[1]?.trim();
+  const ouvert = champ("Opened at");
+  const depuis = ouvert === undefined || Number.isNaN(Date.parse(ouvert)) ? undefined : dureeEn(Date.parse(lu) - Date.parse(ouvert));
+  const compte = /(\d+ failures? in a row)/.exec(corps)?.[1];
+  const ticket = champ("Failing ticket");
+  const code = champ("Exit code");
+  const pourquoi = [compte, ticket === undefined ? undefined : `failing ticket ${ticket}`, code === undefined ? undefined : `exit code ${code}`].filter((dit) => dit !== undefined).join(", ");
+  return `open · breaker OPEN${depuis === undefined ? "" : ` for ${depuis}`} (${pourquoi === "" ? `see issue #${issue.numero}` : pourquoi})`;
+}
+
 export function clientDuDisjoncteurGitHub({ jeton, poster, appeler }: OptionsDuClient): ClientDuDisjoncteur {
   return {
-    async issuesOuvertes(depot, label) {
-      // GitHub les rend de la plus récente à la plus ancienne ; une PR qui porterait le label n'est pas une issue.
-      const reponse = await appeler(`/repos/${depot}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=10`);
-      if (reponse.status !== 200) throw refusDe(`the reading of the issues labeled \`${label}\``, reponse);
-      if (!Array.isArray(reponse.data)) throw new Error("GitHub's answer is not a list of issues");
-      return reponse.data.flatMap((brute): IssueDuDisjoncteur[] => {
-        const { number, html_url, pull_request } = objet(brute);
-        if (typeof number !== "number" || pull_request !== undefined) return [];
-        return [{ numero: number, url: typeof html_url === "string" ? html_url : null }];
-      });
-    },
+    issuesOuvertes: (depot, label) => lireLesIssuesDuDisjoncteur(appeler, depot, label),
     async commenter(depot, issue, corps) {
       // Les en-têtes et le jeton de la lecture : le même client, porté par un `POST`.
       const envoi = clientGitHub({ jeton, envoyer: (adresse, entetes) => poster(adresse, { ...entetes, "Content-Type": "application/json" }, { body: corps }) });

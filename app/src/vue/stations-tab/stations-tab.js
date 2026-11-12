@@ -8,6 +8,7 @@
 //      qu'elle tient du projet (les tickets de ses cooks, ou « idle »), ses deux gestes — « Move to another station »,
 //      « Stop cooking here » — et « Details », replié, qui porte ses réglages et ses lectures, chacun avec son contrôle.
 //   3. Comment le changer : le choix de station (choix.js), ouvert sous la ligne du haut — qui le cuit, ou où déménager.
+//      Quand une station le sert déjà, « Add a station » ouvre le même choix pour en ajouter une (ticket 3402).
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), ce qu'elle a lu et les gestes.
 
 import { boutonAction, replie, survol } from "../briques.js";
@@ -40,7 +41,8 @@ import { BLOQUE, CHOISIR, phraseDuHaut, VERS_ICI } from "./etat.js";
  *   `details`     les lignes de « Details » de chaque station, par sa clé (`cleDe`) ; `ouverts` : celles dont « Details » est
  *                 déplié ; `arret.id` : la clé de la station qui s'arrête.
  *   `lecture`     l'écran étroit : il se lit sans rien régler (ticket 1186) — ni geste, ni « Details ».
- *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163).
+ *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163) ; et,
+ *                 quand une station le sert déjà, « Add a station » (ticket 3402).
  * @typedef {{
  *   projet: string,
  *   poste: string,
@@ -93,6 +95,12 @@ export const DEMARRE = "starting";
 // Le choix ouvert, son titre.
 /** @param {string} projet */
 export const QUI_CUIT = (projet) => `Who cooks ${projet}?`;
+// Ajouter une station quand une autre le cuit déjà : le même choix, son titre (ticket 3402).
+export const AJOUTER = "Add a station";
+/** @param {string} projet */
+export const QUI_D_AUTRE = (projet) => `Which station also cooks ${projet}?`;
+// Le choix ouvert sans aucune station à proposer : chacune le sert déjà, ou aucune n'est connue.
+export const AUCUN_CHOIX = "No other station can take it: each of yours already cooks it.";
 /** @param {string} projet @param {string} de */
 export const OU_DEPLACER = (projet, de) => `Move ${projet}'s kitchen from ${de} to:`;
 // Ce que coûte un déménagement, dit sous son choix (le prix de la confirmation d'un geste qui coûte).
@@ -141,6 +149,7 @@ function ligneDuHaut(doc, vu, gestes) {
   const boutons = [
     ...(haut.etat === "personne" && vu.quiCuit === true ? [boutonAction(doc, CHOISIR, gestes.choisirQuiCuit, { recommande: true })] : []),
     ...(haut.etat === "hors-ligne" && vu.versIci === true ? [boutonAction(doc, VERS_ICI, gestes.versIci, { recommande: true })] : []),
+    ...((haut.etat === "cuit" || haut.etat === "hors-ligne") && vu.quiCuit === true ? [boutonAction(doc, AJOUTER, gestes.choisirQuiCuit)] : []),
   ];
   if (boutons.length > 0) {
     const pied = cree(doc, "p");
@@ -174,6 +183,7 @@ function leChoix(doc, choix, gestes) {
   racine.append(attendu);
   const etat = { choix: choix.choix, ...(choix.enCours === undefined ? {} : { enCours: choix.enCours }), ...(choix.refus === undefined ? {} : { refus: choix.refus }) };
   racine.append(...poserLesChoix(doc, etat, gestes.choisir));
+  if (choix.choix.length === 0) racine.append(ligneVide(doc, AUCUN_CHOIX, { classe: "aucun-choix" }));
   if (choix.deplacement) {
     const prix = cree(doc, "p", PRIX_DU_DEPLACEMENT);
     prix.className = "prix";

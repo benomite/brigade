@@ -2,8 +2,9 @@
 // Donner le projet à une station depuis son onglet Stations (ticket 2487, épique 2484), sans passer par l'accueil : le
 // choix « Choose who cooks it » de l'onglet (stations-tab/, ticket 3195). Cet ordinateur y est le premier choix ; puis les
 // stations appairées du compte à qui le projet n'est pas encore choisi. Chaque choix est un geste que l'app fait déjà : cet
-// ordinateur sert le projet comme la case de Settings le fait (`servirUnProjet`, projets-servis/) ; une station appairée
-// le reçoit dans sa sélection comme la case de sa page sur l'accueil (`choisirLesProjets`, stations-du-compte.js).
+// ordinateur ajoute le projet à la liste de sa station (`servirUnProjet`, la configuration de la station, ticket 3402) ;
+// une station appairée le reçoit dans sa sélection comme la case de sa page sur l'accueil (`choisirLesProjets`,
+// stations-du-compte.js). « Add a station » l'ouvre aussi quand d'autres le cuisent déjà.
 //
 // `tenirLAjoutDeStation` garde l'état du choix et ses gestes ; l'onglet le dessine (stations-tab/choix.js). Ce module ne
 // touche pas `document`.
@@ -15,8 +16,9 @@ import { AU_RETOUR } from "../../choix-station/choix-station.js";
 /** @typedef {import("../../projets-servis/projets-servis.js").LectureDesProjetsServis} LectureDesProjetsServis */
 // L'état du parcours, pour un projet. `ouvert` : l'étape est posée. `enCours` : le choix qui s'écrit — `ICI`, ou l'id
 // de la station appairée —, les boutons attendent. `refus` : pourquoi le dernier choix n'a rien écrit. `fait` : le nom
-// de la machine qui vient de recevoir le projet ; `absente` : elle était hors ligne, elle le prend à son retour (ticket 3187).
-/** @typedef {{ ouvert: boolean, enCours?: string, refus?: { ligne: string, detail: string }, fait?: string, absente?: true }} EtatDeLAjout */
+// de la machine qui vient de recevoir le projet ; `absente` : elle était hors ligne, elle le prend à son retour (ticket 3187) ;
+// `ici` : c'est cet ordinateur, dont la liste vient de s'écrire — sa carte est déjà là (ticket 3402).
+/** @typedef {{ ouvert: boolean, enCours?: string, refus?: { ligne: string, detail: string }, fait?: string, absente?: true, ici?: true }} EtatDeLAjout */
 // Ce que l'étape propose. `ici` : le nom que l'écran donne à cet ordinateur ; `iciOffert` : sa station peut recevoir le
 // projet — elle existe, et ne le sert pas déjà. `stations` : les stations appairées à proposer (`stationsAProposer`).
 /** @typedef {{ projet: string, ici: string, iciOffert: boolean, stations: readonly Station[] }} DonneesDeLEtape */
@@ -25,9 +27,12 @@ import { AU_RETOUR } from "../../choix-station/choix-station.js";
 // La clé du choix de cet ordinateur : celle du choix de station (stations-tab/choix.js).
 export const ICI = "ici";
 export const FAIT = (/** @type {string} */ nom, /** @type {string} */ projet) => `${nom} was given ${projet}: it gets its card here once it takes it.`;
+export const FAIT_ICI = (/** @type {string} */ nom, /** @type {string} */ projet) => `${nom} now serves ${projet}.`;
+// La station de cet ordinateur a répondu sans garder le dépôt dans sa liste.
+export const PAS_GARDE = (/** @type {string} */ ici, /** @type {string} */ depot) => `${ici}'s station did not keep ${depot} in the projects it serves`;
 // Ce que la ligne dit du choix écrit : la station hors ligne le prend à son retour (choix-station/).
 /** @param {EtatDeLAjout} etat @param {string} projet */
-export const FAIT_DIT = ({ fait = "", absente }, projet) => (absente ? AU_RETOUR(fait, projet) : FAIT(fait, projet));
+export const FAIT_DIT = ({ fait = "", absente, ici }, projet) => (ici ? FAIT_ICI(fait, projet) : absente ? AU_RETOUR(fait, projet) : FAIT(fait, projet));
 
 // Les stations appairées à proposer : celles à qui le projet n'est pas encore choisi — le dépôt sans égard à la casse,
 // comme GitHub —, hors celle de cet ordinateur (`locale`), que l'étape propose à part, en tête.
@@ -71,7 +76,7 @@ export function tenirLAjoutDeStation({ servirIci, choisir, rendre }) {
           const [ligne = rendu.refus, ...suite] = rendu.refus.replace(/^brigade: /, "").split(" — ");
           return poser(pour, { ouvert: true, refus: { ligne: `nothing was written: ${ligne.replace(/^not saved: /, "")}`, detail: [...suite, ...("detail" in rendu && rendu.detail !== undefined ? [rendu.detail] : [])].join(" — ") } });
         }
-        poser(pour, { ouvert: false, fait: nom, ...(absente ? { absente: /** @type {const} */ (true) } : {}) });
+        poser(pour, { ouvert: false, fait: nom, ...(absente ? { absente: /** @type {const} */ (true) } : {}), ...(cle === ICI ? { ici: /** @type {const} */ (true) } : {}) });
       });
   };
 
@@ -84,8 +89,13 @@ export function tenirLAjoutDeStation({ servirIci, choisir, rendre }) {
     annuler: (pour) => {
       if (pour === projet && etat.enCours === undefined) poser(pour, { ouvert: false });
     },
+    // Relue, la liste que la station rend dit si elle le sert : sans lui, rien n'est dit fait (ticket 3402).
     /** @param {string} pour @param {string} depot @param {string} ici */
-    servirIci: (pour, depot, ici) => choix(pour, ICI, ici, () => servirIci(depot)),
+    servirIci: (pour, depot, ici) =>
+      choix(pour, ICI, ici, async () => {
+        const rendu = await servirIci(depot);
+        return "depots" in rendu && !rendu.depots.some((servi) => servi.toLowerCase() === depot.toLowerCase()) ? { refus: PAS_GARDE(ici, depot) } : rendu;
+      }),
     /** @param {string} pour @param {string} depot @param {Station} station */
     confier: (pour, depot, station) => choix(pour, station.id, station.name, () => choisir(station.id, [...(station.selection ?? []), depot]), !station.available),
   };

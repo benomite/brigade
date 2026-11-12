@@ -145,7 +145,7 @@ describe("le commentaire marqué porte ses choix", () => {
     // Sans choix, la carte garde son champ, dont la réponse joue `resume`.
     const carte = carteDuChefDeTodo({ sorte: "product-question", texte: "Which plan?" });
     assert.deepEqual(carte?.choix, []);
-    assert.match(carte?.prixDuTexte ?? "", /removes `served-elsewhere` and `chef-todo`/);
+    assert.match(carte?.prixDuTexte ?? "", /removes what holds the ticket \(`served-elsewhere`, `blocked-on-human`, `question`, `decision`, `chef-todo`\)/);
     // Un commentaire marqué sans texte n'a rien à quoi répondre.
     assert.equal(carteDuChefDeTodo({ sorte: "blocked", texte: "  " }), undefined);
   });
@@ -334,6 +334,39 @@ describe("un clic joue son geste sur GitHub, après le commentaire de la répons
     assert.ok("repondue" in rendu, JSON.stringify(rendu));
     assert.equal(leMonde.issues.get(3369)?.state, "closed");
     assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 3369));
+  });
+
+  // Un ticket que le manager a écarté avec `question` (#3370) : hors du rail, son commentaire pose la question et ses choix.
+  const ecarte = (leMonde: ReturnType<typeof monde>) => {
+    const question = "<!-- brigade:manager -->\n**Manager — a question before this ticket goes on the rail.**\n\nShould the export keep the old column order?\n- [resume] Yes, keep the old order\n- [close] No, drop the export";
+    leMonde.issues.set(3370, { labels: new Set(["question"]), state: "open", commentaires: [{ id: 9, body: question, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" }] });
+  };
+
+  test("écart du manager — sa carte pose sa question, un bouton par choix et le champ libre ; un clic poste la réponse, retire `question`, et la carte quitte Todo", async () => {
+    const leMonde = monde();
+    ecarte(leMonde);
+    const carte = carteDe(await todo(leMonde.client), 3370);
+    assert.equal(carte.todo?.question, "Should the export keep the old column order?");
+    const { racine } = posee(3370, carte.todo ?? assert.fail("the card asks its question"));
+    assert.deepEqual(boutons(racine).map(({ textContent }) => textContent), ["Yes, keep the old order", "No, drop the export"]);
+    assert.ok(racine.dessous("textarea").length === 1, "the card has its free answer field");
+    const rendu = await cliquer(leMonde, 3370, "Yes, keep the old order");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(dernierCommentaire(leMonde, 3370), "<!-- brigade:reponse gesture=resume -->\nYes, keep the old order");
+    assert.deepEqual([...(leMonde.issues.get(3370)?.labels ?? [])], []);
+    assert.equal(leMonde.issues.get(3370)?.state, "open");
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 3370));
+  });
+
+  test("écart du manager — le texte libre : la réponse du chef dans l'issue, `question` retiré, la carte quitte Todo", async () => {
+    const leMonde = monde();
+    ecarte(leMonde);
+    const carte = carteDe(await todo(leMonde.client), 3370);
+    const rendu = await repondreSurGithub({ depot: DEPOT, ticket: 3370, chef: carte.chef, reponse: { question: carte.todo?.question ?? null, texte: "Keep it, but add a header row." }, client: leMonde.client });
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(dernierCommentaire(leMonde, 3370), commentaireDeReponse("resume", "Keep it, but add a header row."));
+    assert.ok(!leMonde.issues.get(3370)?.labels.has("question"));
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 3370));
   });
 
   test("drop : `fire` retiré — le ticket sort du rail, son issue reste ouverte", async () => {

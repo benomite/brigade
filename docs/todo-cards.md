@@ -2,7 +2,7 @@
 
 A TODO card asks the chef a question (`Awaiting you`, in the words of [the glossary](glossary.md)). The answer should always be a click in the app and on the phone, never a typed command or a trip to GitHub. This page lists every kind of TODO card the app can show, and the gesture that answers it today (epic #3218, ticket #3228).
 
-**Not every kind is answered by a button yet.** Four kinds still send the chef to GitHub, and the breaker line has no phone gesture. Each of these five rows links the follow-up issue that tracks it.
+The breaker line is answered by a button on the phone too (#3371).
 
 ## What the app can show
 
@@ -10,7 +10,7 @@ The app reads what awaits the chef from GitHub alone (`app/src/tableau/attente-d
 
 A button is a choice written on the card as a line `- [<gesture>] <label>` (`app/src/tableau/todo-github.ts`, `formeDuChef`). A card whose text carries no such line has no choice button: its answer is the free text field, which posts the typed words on the issue and puts the ticket back to the kitchen (`resume`). Typing an answer to a question is not a typed command, but it is not a one-click answer either: a card that can only be answered that way is marked as such.
 
-On the phone, the list of `Awaiting you` shows only the cards that have a question or a choice (`app/src/vue/cartes-du-chef/`, `lesCartesDuChef` in `app/src/vue/vue.js`). Its gestures are the five of `app/src/gestes-github-telephone.ts`: answer a card, validate or send back a design card, resume, remove from the rail, and the WAITING gestures. A card without a question or a choice is not in that list.
+On the phone, the list of `Awaiting you` shows only the cards that have a question or a choice (`app/src/vue/cartes-du-chef/`, `lesCartesDuChef` in `app/src/vue/vue.js`). Its gestures are the six of `app/src/gestes-github-telephone.ts`: answer a card, validate or send back a design card, resume the breaker, resume, remove from the rail, and the WAITING gestures. A card without a question or a choice is not in that list. The breaker line, which is not a card, sits at the head of that list when the breaker is open (#3371).
 
 ## The kinds
 
@@ -22,8 +22,8 @@ On the phone, the list of `Awaiting you` shows only the cards that have a questi
 | `merge-by-hand` of a fork PR (`runtime/src/pr-externe/pr-externe.ts`) | Merge #N? | **Button** — `Merge #N` (merges the PR; a refused merge says why and the card stays) | **Button** — `Merge #N` |
 | Set aside by the station, `blocked-on-human`, with a PR to merge (`app/src/tableau/mise-de-cote-github.ts`) | Merge PR #N by hand? | **Button** — `Merge PR #N` (merges the PR and removes `blocked-on-human`; a refused merge says why and the card stays) | **Button** — `Merge PR #N` |
 | Set aside by the station, `blocked-on-human`, without a PR (`app/src/tableau/mise-de-cote-github.ts`) | Lift the hold? | **Buttons** — `Back to the kitchen` (removes `blocked-on-human`: the ticket is back on the rail) and `Close it` (closes the issue) | **Buttons** — `Back to the kitchen` and `Close it` |
-| Set aside by the manager: `question`, `decision` or `blocked-on-human` label (`ECARTS` in `app/src/tableau/attente-du-chef.ts`) | Answer or decide on the issue, then remove the label | **Not yet button-answered.** The answer is written on GitHub and the label removed there. Reason: no gesture reads the answer or removes the label from the app. Follow-up issue: [#3370](https://github.com/benomite/brigade/issues/3370) | **Not yet button-answered, and not listed** (follow-up issue: [#3370](https://github.com/benomite/brigade/issues/3370)) |
-| Breaker line (`app/src/vue/todo-breaker-line.js`), a line at the head of `Awaiting you`, not a card | The breaker stopped every cook after failures in a row: resume? | **Button** — `Resume` | **Not yet button-answered.** The phone's list shows cards only, and `gestes-github-telephone.ts` has no breaker gesture. Reason: the app plays `reprendreLeDisjoncteur` in its main process only. Follow-up issue: [#3371](https://github.com/benomite/brigade/issues/3371) |
+| Set aside by the manager: `question`, `decision` or `blocked-on-human` label, off the rail (`carteDeLEcart` in `app/src/tableau/mise-de-cote-github.ts`, #3370) | The manager's question: the last line ending in `?` of the latest comment by a repository author that asks one, unless an answer of the chef follows it; with no question on the issue, what its label waits for (`Lift the hold?` for `blocked-on-human`) | **Buttons** — one per choice the comment writes as `- [<gesture>] <label>`, else `Back to the kitchen` (removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again) and `Close it` (closes the issue); the free answer field with `send` posts your words and lifts the hold the same way | **Buttons** — the same, and the free answer |
+| Breaker line (`app/src/vue/todo-breaker-line.js`), a line at the head of `Awaiting you`, not a card | The breaker stopped every cook after failures in a row: resume? | **Button** — `Resume` | **Button** — `Resume`, at the head of the phone's list, with why written under the line. The phone reads the station's open `brigade:breaker-open` issue (`app/src/lecture-github-telephone.ts`) and `reprendreLeDisjoncteur` of `gestes-github-telephone.ts` posts `/resume` on it, as the desktop does. |
 
 `design-validation` has one fallback: when the body of its issue does not name its pull request, the card says to validate it on GitHub (`carteDuChefDeTodo` in `app/src/carte-todo.ts`). The runtime writes that body (`runtime/src/validation-design/validation-design.ts`), so it is a damaged card, not a kind.
 

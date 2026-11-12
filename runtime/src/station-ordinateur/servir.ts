@@ -1,5 +1,8 @@
-// La station d'un ordinateur sert les projets de sa liste (`projets-servis.ts`)
-// comme la box sert les siens sur l'état GitHub seul (#2357, épique #2356) :
+// La station d'un ordinateur sert les projets de sa liste (`projets-servis.ts`,
+// son fichier de configuration, la seule liste de ses projets depuis #3402) que
+// ses cuisines ne servent pas déjà — un projet dont le clone manque, que sa
+// cuisine refuse tant qu'il n'est pas là —, comme la box sert les siens sur
+// l'état GitHub seul (#2357, épique #2356) :
 // pour chacun, elle le clone dans ses propres lieux (`station/configuration.ts`,
 // `lieuxDuProjet`), puis fait tourner le tour GitHub seul de la box
 // (`brigade-github.ts`, `stationDuDepot`) — prendre, cuisiner, relire, merger —
@@ -70,7 +73,7 @@ export type OptionsDuService = {
   intervalleMs?: number;
   // Vrai tant que la station se vide pour sa mise à jour (#2189) : aucun ticket neuf n'est pris.
   retenue?: () => boolean;
-  // Les dépôts que les cuisines de la station servent déjà, par l'ancien chemin
+  // Les dépôts que les cuisines de la station servent déjà, sur la même liste
   // (`station/station.ts`) : ils ne sont pas servis une seconde fois ici, sur le même clone.
   dejaServis?: () => readonly string[];
   // Surchargés par les tests : le clone, le tour d'un projet, et ce que le tour

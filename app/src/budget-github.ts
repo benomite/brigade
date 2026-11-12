@@ -21,6 +21,8 @@ export const SEUIL_DU_BUDGET = 0.2;
 // La pause quand GitHub ne dit pas quand reprendre — ni `retry-after`, ni `x-ratelimit-reset` à venir : une minute,
 // ce que GitHub demande d'attendre au moins après un refus ; la réponse suivante redit où en est le budget.
 export const PAUSE_SANS_HEURE_MS = 60_000;
+// Sous cette part de ce que GitHub dit dépensé, l'app n'est pas seule à dépenser : le message le dit.
+export const PART_DE_L_APP_MINIMALE = 0.25;
 const HEURE_MS = 3_600_000;
 
 // Une demande que la pause retient : elle ne part pas.
@@ -32,7 +34,8 @@ export class LecturesEnPause extends Error {
   }
 }
 
-const heureDe = (instant: number) => `${new Date(instant).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+// L'heure s'écrit à la minute, arrondie vers le haut : une heure déjà passée à l'écran l'est vraiment, un clic dessus lit.
+const heureDe = (instant: number) => `${new Date(Math.ceil(instant / 60_000) * 60_000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
 const messageDe = (data: unknown): string => (typeof data === "object" && data !== null && "message" in data && typeof data.message === "string" ? data.message : typeof data === "string" ? data : "");
 
@@ -49,27 +52,30 @@ export function tenirLeBudgetGitHub(options: { maintenant?: () => number; seuil?
   const seuil = options.seuil ?? SEUIL_DU_BUDGET;
   let reprise = 0;
   let pourquoi = "";
+  // Ce que GitHub dit dépensé sur le budget quand la pause en cours a été posée ; absent s'il ne le dit pas.
+  let depense: number | null = null;
   // L'instant de chaque demande partie dans la dernière heure, et de chacune que GitHub a comptée.
   const parties: number[] = [];
   const comptees: number[] = [];
   const purger = (instants: number[], a: number) => {
     while (instants.length > 0 && instants[0]! <= a - HEURE_MS) instants.shift();
   };
-  const pauser = (jusqua: number, raison: string) => {
+  const pauser = (jusqua: number, raison: string, limite?: ReponseGitHub["limite"]) => {
     if (jusqua <= reprise) return;
     reprise = jusqua;
     pourquoi = raison;
+    depense = limite === undefined ? null : limite.total - limite.restant;
   };
   // Ce que la réponse dit du budget : un refus, ou un reste sous le seuil, met tout en pause.
   const observer = (reponse: ReponseGitHub, a: number) => {
     const { limite, reessayerApresMs } = reponse;
     if (refusPourDepassement(reponse)) {
       const jusqua = reessayerApresMs !== undefined ? a + reessayerApresMs : limite !== undefined && limite.repriseLe > a ? limite.repriseLe : a + PAUSE_SANS_HEURE_MS;
-      pauser(jusqua, `GitHub refused a read for going over the rate limit (HTTP ${reponse.status})`);
+      pauser(jusqua, `GitHub refused a read for going over the rate limit (HTTP ${reponse.status})`, limite);
       return;
     }
     if (limite !== undefined && limite.restant < seuil * limite.total) {
-      pauser(limite.repriseLe > a ? limite.repriseLe : a + PAUSE_SANS_HEURE_MS, `only ${limite.restant} of the ${limite.total} hourly GitHub requests are left, under ${Math.round(seuil * 100)}%`);
+      pauser(limite.repriseLe > a ? limite.repriseLe : a + PAUSE_SANS_HEURE_MS, `only ${limite.restant} of the ${limite.total} hourly GitHub requests are left, under ${Math.round(seuil * 100)}%`, limite);
     }
   };
   return {
@@ -100,6 +106,10 @@ export function tenirLeBudgetGitHub(options: { maintenant?: () => number; seuil?
       purger(comptees, a);
       return { parties: parties.length, comptees: comptees.length };
     },
+    // Ce que GitHub dit dépensé quand la pause a été posée ; nul hors pause, ou s'il ne le dit pas.
+    depenseDuCompte(): number | null {
+      return maintenant() < reprise ? depense : null;
+    },
     // La raison de la pause en cours, en une phrase ; vide hors pause.
     raison(): string {
       return maintenant() < reprise ? pourquoi : "";
@@ -125,5 +135,7 @@ export async function lectureSousBudget(options: { budget: BudgetGitHub; depot: 
 
 function lectureEnPause(budget: BudgetGitHub, depot: string, jusqua: number, a: number): TableauNonLu {
   const { comptees } = budget.demandesDeLaDerniereHeure();
-  return { lu: false, depot, luLe: new Date(a).toISOString(), raison: `The rail of ${depot} is not read until ${heureDe(jusqua)}: ${budget.raison()}, so the app paused its GitHub reads for every project (${comptees} counted requests in the last hour).` };
+  const depense = budget.depenseDuCompte();
+  const autre = depense !== null && depense > 0 && comptees < PART_DE_L_APP_MINIMALE * depense ? ` Something else uses the quota on this account: GitHub counts ${depense} requests spent, the app only ${comptees}.` : "";
+  return { lu: false, depot, luLe: new Date(a).toISOString(), raison: `The rail of ${depot} is not read until ${heureDe(jusqua)}: ${budget.raison()}, so the app paused its GitHub reads for every project (${comptees} counted requests in the last hour).${autre}` };
 }
