@@ -228,6 +228,20 @@ test("la PR d'une branche se lit par sa tête : base, commit, état", async (t) 
   assert.deepEqual(gh.appels(), [["api", "-i", liste], ["api", "-i", `repos/${DEPOT}/pulls/40`]]);
 });
 
+test("les fichiers changés entre deux têtes se lisent dans leur comparaison, l'ancien chemin d'un renommage compris ; 300 fichiers, la liste est incomplète ; une tête inconnue rend null ; une comparaison illisible lève (#3426)", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/compare/aaa...bbb`, { corps: { files: [{ filename: "app/src/vue/rail.js" }, { filename: "docs/b.md", previous_filename: "docs/a.md" }] } });
+  assert.deepEqual(await github.fichiersEntre?.("aaa", "bbb"), { fichiers: ["app/src/vue/rail.js", "docs/b.md", "docs/a.md"], complet: true });
+  gh.repondre(`repos/${DEPOT}/compare/aaa...ccc`, { corps: { files: Array.from({ length: 300 }, (_, rang) => ({ filename: `f${rang}` })) } });
+  assert.equal((await github.fichiersEntre?.("aaa", "ccc"))?.complet, false);
+  gh.repondre(`repos/${DEPOT}/compare/zzz...bbb`, { statut: 404, corps: { message: "Not Found" } });
+  assert.equal(await github.fichiersEntre?.("zzz", "bbb"), null);
+  gh.repondre(`repos/${DEPOT}/compare/aaa...ddd`, { statut: 500, corps: { message: "boom" } });
+  await assert.rejects(github.fichiersEntre?.("aaa", "ddd") ?? Promise.resolve(), /compare\/aaa\.\.\.ddd : HTTP 500/);
+  gh.repondre(`repos/${DEPOT}/compare/aaa...eee`, { corps: { status: "ahead" } });
+  await assert.rejects(github.fichiersEntre?.("aaa", "eee") ?? Promise.resolve(), /the comparison does not list its files/);
+});
+
 test("une branche sans PR n'en rend aucune ; une PR mergée se dit mergée", async (t) => {
   const { gh, github } = sonde(t);
   gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/sans&state=all&per_page=1`, { corps: [] });

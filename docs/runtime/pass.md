@@ -313,7 +313,8 @@ delivery, and every delivery of a project without the setting, is merged as befo
 | its screens do not all have their before **and** after captures | **sent back to its cook** for them (`brigade:renvoi`, the files to commit named): no card, no chef |
 | it has them, and no open card holds its PR | **not merged**: an issue `Validate its screen`, labelled `chef-todo`, carries the question, the link of the PR, its brief (#3330: `### What was asked`, the ticket's title and the first paragraph of its body, cut to 240 characters; `### What was done`, the points the cook's station posted on the PR, or a line saying no summary is available) and each screen before and after as images; its body opens on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, `sha` the head judged green, and its card comment is `kind=design-validation`. The ticket stays `in-pass` and says its card |
 | a card already holds it, on this head or on another one with no send-back since the card (the branch was updated from its base: the screen is the same) | not merged, no second card (#3332) |
-| the chef validated it (`<!-- brigade:validation-design-validee carte=<card> pr=<PR> sha=<sha> -->` on the ticket) and no send-back follows that validation | **merged**, without a new card, whatever its head (#3332) |
+| the chef validated it (`<!-- brigade:validation-design-validee carte=<card> pr=<PR> sha=<sha> -->` on the ticket) and no send-back follows that validation, other than a send-back for a conflict with the base | **merged**, without a new card, whatever its head (#3332), as long as none of its screen files — its view, site, mockup and capture files — changed since the validated head (#3426) |
+| the chef validated it, but its screen files changed since the validated head (the update on the base changed them, or the cook who resolved the conflict did), or GitHub cannot say they did not | not merged; **a new card** with the new head's captures says why the chef is asked again (#3426) |
 | a send-back follows the card or the validation (a cook changed the delivery) | the card, if still open, is closed at the send-back; the next delivery, judged green, gets **a new card** |
 | its files, its ticket's issue or its PR's comments cannot be read, or the card cannot be created | not merged; the station says why, and tries again at its next turn |
 
@@ -325,7 +326,12 @@ Two gestures answer the card, which the app calls (`brigade <projet> design`, [`
   (`Validated by the chef on card #<card> — merge pending.`), the card is closed and says the same, and the
   pass merges the PR once it judges its head green, without asking the chef again (#3332). The validation
   holds through any number of updates; only a send-back after it (a cook then changes the delivery) ends
-  it, and the next delivery comes back as a new card. It merges nothing when a
+  it, and the next delivery comes back as a new card. When the PR conflicts with the base, GitHub cannot
+  merge it: the validation is written on the ticket all the same, the card is closed, and the chef is told
+  that the kitchen first updates the PR on the base, then merges it (#3426). The station updates it itself,
+  or sends it back to a cook for the conflict; that send-back does not end the validation. The pass then
+  merges once the head is green, if the screen files are unchanged since the validated head; otherwise a
+  new card, with the new captures, says why. It merges nothing when a
   send-back follows the card on the ticket: that card is closed. A merge GitHub refuses leaves the card
   open and says why.
 
@@ -365,7 +371,9 @@ gestures:
 
 - **`merge <owner>/<repo>#<PR>`** merges the head the card carries, then closes the card; when the branch
   was updated from its base since the card, the answer is kept on the ticket (`Merge accepted by the chef
-  on card #<card> — merge pending.`) and the pass merges once the head is green, as for `validate`.
+  on card #<card> — merge pending.`) and the pass merges once the head is green, as for `validate`. When the
+  PR conflicts with the base, the answer is recorded the same way (#3426); a send-back to a cook for the
+  conflict ends it, and the next delivery comes back as a new card.
 - **`send-back <owner>/<repo>#<PR> --note "<note>"`** posts a send-back on the ticket with the note, which
   the cook reads with the ticket, removes `in-pass`, and closes the card; a cook takes the ticket up again.
   An empty note is refused.

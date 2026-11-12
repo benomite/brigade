@@ -50,6 +50,9 @@ export class FauxGitHub {
   // Les PR dont la CI est rouge, et celles dont la CI tourne encore.
   ciRouge = new Set<number>();
   ciEnCours = new Set<number>();
+  // Les fichiers changés de la tête `de` à la tête `a` (#3426) : aucun, par
+  // défaut ; null, GitHub ne connaît pas l'une des deux.
+  changesEntre: (de: string, a: string) => string[] | null = () => [];
   // Les PR qui ne portent aucune CI (espace, #2456), et les statuts de chaque commit.
   sansCI = new Set<number>();
   statutsDeCommit = new Map<string, StatutDeCommit[]>();
@@ -239,6 +242,11 @@ export class FauxGitHub {
         pr.enConflit = false;
         pr.enRetard = false;
         pr.sha = this.sha();
+      },
+      fichiersEntre: async (de, a) => {
+        await noter("fichiersEntre");
+        const fichiers = this.changesEntre(de, a);
+        return fichiers === null ? null : { fichiers, complet: true };
       },
       merger: async (numero, sha) => {
         await noter("merger");

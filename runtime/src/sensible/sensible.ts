@@ -34,6 +34,8 @@ export const SENSIBLE: SorteDeRetenue = {
   gardee: "Merge accepted by the chef",
   renvoi: (pr, note) => `The chef sent the delivery of PR #${pr} back to a cook after reviewing it:\n\n${note}\n\nChange the delivery as the note asks, and deliver.`,
   sansNote: "the note says what to change: it cannot be empty",
+  apresConflit: "If a cook has to resolve the conflict, a new card asks the chef again.",
+  survitAuConflit: false,
 };
 
 export const estSensible = (labels: readonly string[]) => labels.includes(LABEL_SENSITIVE);

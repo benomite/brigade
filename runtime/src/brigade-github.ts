@@ -80,7 +80,7 @@ import { preuveDeMesure } from "./preuve-mesure.ts";
 import { redeposerHorsCuisine } from "./refile-served-elsewhere.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
-import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
+import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_CONFLIT, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { PRIO_REPARATION } from "./reparation.ts";
@@ -155,6 +155,10 @@ export type GitHubDuTour = GitHubDeLaFusion &
     issue?: GitHub["issue"];
     // Ferme une PR sans toucher à sa branche (#3097). Absente, la station n'en ferme aucune.
     fermerPR?: GitHub["fermerPR"];
+    // Les fichiers changés entre deux têtes : si la mise à jour d'une PR dont
+    // le chef a validé l'écran l'a changé (#3426). Absente, la pass ne merge
+    // pas une telle PR sur une autre tête que celle validée, et le dit.
+    fichiersEntre?: GitHub["fichiersEntre"];
     // Les PR externes ouvertes — depuis un fork (#2933) —, et ce que leur
     // service écrit de plus : la fin de son travail sur une tête, l'humain
     // `review` assigné à sa carte. Absentes, la station ne les sert pas.
@@ -437,9 +441,6 @@ export const PASS_MAX = 5;
 // de renvoyer à un cook — la liste lue peut porter encore leur label.
 export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
-// Posée sur un renvoi pour conflit avec la base : il ne compte pas dans le budget des renvois (#2726).
-const MARQUE_DE_CONFLIT = " conflit";
-
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
 // dernier retrait de `served-elsewhere`, que GitHub date pour toutes les stations
 // (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
@@ -2005,6 +2006,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     etatDuRun: (run) => github.etatDuRun(run),
     relancerLesEchecs: (run) => github.relancerLesEchecs(run),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
+    ...(github.fichiersEntre === undefined ? {} : { fichiersEntre: github.fichiersEntre.bind(github) }),
     ...(github.statuts === undefined || github.poserStatut === undefined ? {} : { statuts: github.statuts.bind(github), poserStatut: github.poserStatut.bind(github) }),
     merger: (numero, sha) => github.merger(numero, sha),
     labelliser: (numero, labels) => github.labelliser(numero, labels),
