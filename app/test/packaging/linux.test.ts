@@ -74,6 +74,11 @@ function sources(t: TestContext) {
   return { racine, electron, app, runtime, node, ptyCompile, runtimeAppImage };
 }
 
+// Le mode qu'un `chmod 0o755` laisse à un exécutable de l'AppDir. Windows ne garde pas de bit
+// d'exécution : le mode n'y dit que si le fichier est en lecture seule, et un fichier rendu
+// exécutable y reste lisible et inscriptible. L'AppImage, elle, ne se construit que sous Linux.
+const MODE_EXECUTABLE = process.platform === "win32" ? 0o666 : 0o755;
+
 // Une doublure qui ne joue rien : aucune commande n'est attendue.
 const rienALancer: Executer = (commande, args) => assert.fail(`nothing should run, not ${commande} ${args.join(" ")}`);
 
@@ -94,15 +99,15 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
   const appdir = assembler({ version: "1.2.3+gabc", electron, node, pty: ptyCompile, app, runtime, executer: rienALancer }, join(racine, "arbre", "Brigade.AppDir"));
   assert.equal(existsSync(join(appdir, EXECUTABLE)), true);
   assert.equal(existsSync(join(appdir, "electron")), false, "l'exécutable porte le nom de l'app");
-  assert.equal(statSync(join(appdir, EXECUTABLE)).mode & 0o777, 0o755, "un zip ne garde pas le bit d'exécution");
-  assert.equal(statSync(join(appdir, "chrome_crashpad_handler")).mode & 0o777, 0o755);
+  assert.equal(statSync(join(appdir, EXECUTABLE)).mode & 0o777, MODE_EXECUTABLE, "un zip ne garde pas le bit d'exécution");
+  assert.equal(statSync(join(appdir, "chrome_crashpad_handler")).mode & 0o777, MODE_EXECUTABLE);
   assert.equal(existsSync(join(appdir, "chrome-sandbox")), false, "le bac à sable SUID n'a pas de sens dans une AppImage");
   assert.equal(existsSync(join(appdir, "libffmpeg.so")), true);
   assert.equal(existsSync(join(appdir, "locales", "fr.pak")), true);
 
   // Ce que l'AppImage lance, son entrée de bureau et son icône.
   assert.equal(readFileSync(join(appdir, "AppRun"), "utf8"), APPRUN);
-  assert.equal(statSync(join(appdir, "AppRun")).mode & 0o777, 0o755);
+  assert.equal(statSync(join(appdir, "AppRun")).mode & 0o777, MODE_EXECUTABLE);
   assert.match(APPRUN, /^#!\/bin\/sh\n/);
   assert.match(APPRUN, /exec "\$ICI\/brigade" --no-sandbox "\$@"/);
   const bureau = readFileSync(join(appdir, "brigade.desktop"), "utf8");
@@ -135,7 +140,7 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
   assert.equal(JSON.parse(readFileSync(join(ressources, "runtime", "package.json"), "utf8")).version, "1.2.3+gabc");
   assert.deepEqual(readdirSync(join(ressources, "plugin", "commands")).sort(), ["ask.md", "dev.md"]);
   assert.deepEqual(readFileSync(join(ressources, NODE_DU_PAQUET)), readFileSync(node));
-  assert.equal(statSync(join(ressources, NODE_DU_PAQUET)).mode & 0o777, 0o755);
+  assert.equal(statSync(join(ressources, NODE_DU_PAQUET)).mode & 0o777, MODE_EXECUTABLE);
 });
 
 test("l'app de l'AppImage se sait installée, et lance le runtime et le node du paquet", (t) => {
@@ -213,7 +218,7 @@ test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le run
   const debut = readFileSync(runtimeAppImage);
   assert.deepEqual(ecrit.subarray(0, debut.length), debut, "le runtime d'AppImage en tête");
   assert.match(ecrit.subarray(debut.length).toString("utf8"), /^squashfs de .*AppRun.*brigade,brigade\.desktop,brigade\.png.*resources/);
-  assert.equal(statSync(appimage).mode & 0o777, 0o755, "exécutable");
+  assert.equal(statSync(appimage).mode & 0o777, MODE_EXECUTABLE, "exécutable");
 });
 
 test("construire : un mksquashfs absent ou qui échoue fait échouer la construction, en disant pourquoi", (t) => {
