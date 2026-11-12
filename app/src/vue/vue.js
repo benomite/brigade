@@ -3277,7 +3277,10 @@ function poserImage(projet, ticket, ecran, { moment, legende, livree, version })
       clic.stopPropagation();
       if (brigade.ouvrirLien === undefined) return;
       clic.preventDefault();
-      void brigade.ouvrirLien(projet.nom, ticket, lien);
+      // Refusé par le process principal, le lien s'ouvre par la navigation de la page plutôt que de rester mort.
+      void Promise.resolve(brigade.ouvrirLien(projet.nom, ticket, lien)).then((ouvert) => {
+        if (ouvert === false) window.open(lien, "_blank", "noopener");
+      });
     });
     place.append(" ", ouvre);
   }
