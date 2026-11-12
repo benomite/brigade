@@ -255,8 +255,12 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/tableau/mise-de-cote-github.ts",
     "app/src/tableau/rail-github.ts",
     "app/src/tableau/todo-github.ts",
+    // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
+    "app/src/vue/carte-sensible/label.ts",
     "app/src/vue/cooks/prises.ts",
     "app/src/vue/rail/github.ts",
+    // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
+    "app/src/vue/rail/renvoi.ts",
     "runtime/src/enregistrement-station/contrat.ts",
     // La liste des tickets d'une épique, sans E/S : une épique n'est pas sur le rail (#2618).
     "runtime/src/epique.ts",

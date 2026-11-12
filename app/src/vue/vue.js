@@ -95,10 +95,15 @@ import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
-import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
+import { absenceALAperture, poserAbsence } from "./absence/absence.js";
+import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
+import { garderLeClavier } from "./garder-le-clavier.js";
+import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
-import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
+import { apresRendu as apresLaValidation, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
+import { apresRendu as apresLaRevue, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
+import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { poserLesAutres } from "./todo/autres.js";
@@ -107,10 +112,12 @@ import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
+import { poserLOffre, premierProjetServi, tenirLOffre } from "./offre-telephone/offre-telephone.js";
 import { poserBandeRail } from "./projet/rail/bande-rail.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
+import { monterLesRecurrents, serviceDesRecurrents } from "./recurrents/recurrents.js";
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
@@ -126,11 +133,15 @@ import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
+import { poserLeProjetDEssai, tenirLeProjetDEssai } from "./essai/projet-d-essai.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
-import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, poserPret, progression, SECOND_ABSENT, DEMANDE_DU_PREMIER, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
+import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
+import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, progression, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
+import { poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
+import { poserRecitDuPremierTicket, tenirLeRecitDuPremierTicket } from "./recit-premier-ticket/recit-premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
@@ -156,6 +167,7 @@ import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, caseDIci, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneLectureSeule } from "./lecture-seule/lecture-seule.js";
+import { MOT_DE_LA_COLONNE, poserExplication, poserLaRangeeDesExplications, serviceDesExplications, tenirLesExplications } from "./explications/explications.js";
 import { CET_ORDINATEUR, ANNULER, OUI, REESSAYER, AJOUTER_UN_PROJET, PAS_ENCORE, LECTURE_DE, NON_ATTEINT } from "./lexique.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -176,6 +188,8 @@ const PARAMETRES = "parametres";
 const COUTS = "couts";
 // Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
 const RATIOS = "ratios";
+// Et celle des résumés hebdomadaires (ticket 3263) : lue par le process principal, sans onglet.
+const RESUMES = "resumes";
 // Les onglets de la page d'un projet (ticket 1184), Rail et Stations.
 const RAIL = "rail";
 // Le menu du projet (ticket 2485, 2921) : Rail · Stations · Settings (projet/menu/menu.js).
@@ -254,13 +268,35 @@ const fermerShell = element("fermer-shell");
 const listeMachines = element("machines");
 const colonneSecond = element("second");
 const noteSecond = element("note-second");
+const explicationSecond = element("explication-second");
+const explicationsDuChef = element("explications-du-chef");
 const outilsDuSecond = element("outils-du-second");
 const choixDuSecond = element("choix-du-second");
+// Le stockage de la vue, ou rien quand son accès est refusé : la lecture de `window.localStorage` lève alors (SecurityError),
+// et chacun de ses usagers fait sans lui plutôt que de casser la vue au démarrage.
+/** @returns {Storage | undefined} */
+function stockageDeLaVue() {
+  try {
+    return window.localStorage ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 // La visite guidée du premier lancement (ticket 3165, visite/) : sa bulle par-dessus l'écran, l'étape où elle en est, et
 // la trace, dans le stockage de la vue, qu'elle a été montrée.
 const sectionVisite = element("visite");
-const visite = tenirLaVisite({ stockage: window.localStorage ?? undefined, rendre: () => poserLaVisite() });
+const visite = tenirLaVisite({ stockage: stockageDeLaVue(), rendre: () => poserLaVisite() });
 const marquerLaCible = marqueurDeCible();
+// L'écran « since you were away » (ticket 3305, absence/) : décidé une fois, à l'ouverture — la date de la dernière ouverture
+// est alors réécrite —, et montré avant tout autre écran. Vaut la date de l'ancienne ouverture quand l'écran vient.
+const absenceDepuis = absenceALAperture({ stockage: window.localStorage ?? undefined });
+const sectionAbsence = element("absence");
+/** @type {Map<string, import("./resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet>} */
+const resumesDeLAbsence = new Map();
+/** @type {Set<string>} */
+const lecturesDeLAbsence = new Set();
+let absenceFermee = false;
+let absencePosee = "";
 // Le projet que le premier lancement ajoute pour la visite : son espace s'ouvre sur elle dès qu'il est dans le fichier.
 /** @type {string | undefined} */
 let visiteAOuvrir;
@@ -274,6 +310,19 @@ const propositionsDuSecond = tenirLesChoix();
 // second de chaque projet : au travail, ou au repos à son invite.
 const sectionDuParcours = element("parcours-premier-projet");
 const parcoursDesProjets = tenirLesParcours({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
+// Le récit du premier ticket du premier projet du chef (ticket 3302, recit-premier-ticket/) : au-dessus du rail, une ligne à
+// chaque vraie étape que les lectures du rail montrent, gardée dans le stockage de la vue jusqu'à ce que le chef la range.
+const sectionDuRecit = element("recit-premier-ticket");
+const recitDuPremierTicket = tenirLeRecitDuPremierTicket({ stockage: window.localStorage ?? undefined, rendre: () => poserLeRecitDuPremierTicket() });
+// Le départ d'un projet qui arrive avec des issues ouvertes (ticket 3268, parcours-premier-projet/depart.js) : l'écran des
+// propositions du second, avant les questions du parcours.
+const departsDesProjets = tenirLesDeparts({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
+// Le premier ticket d'un projet prêt (ticket 3306, premier-ticket/) : la question du second, son brouillon, le « oui » du chef.
+const premiersTickets = tenirLesPremiersTickets({
+  rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()),
+  rediger: (nom, demande) => brigade.redigerLePremierTicket(nom, demande),
+  creer: (nom, brouillon) => brigade.creerLePremierTicket(nom, brouillon),
+});
 /** @type {Map<string, string>} */
 const aGuider = new Map();
 /** @type {Set<string>} */
@@ -289,7 +338,7 @@ const panneauDuSecond = monterLePanneau({
   document,
   colonne: colonneSecond,
   tete: teteDuSecond,
-  stockage: window.localStorage ?? undefined,
+  stockage: stockageDeLaVue(),
   disponible: () => {
     const rail = principal.getBoundingClientRect?.().width;
     const panneau = colonneSecond.getBoundingClientRect?.().width;
@@ -306,6 +355,7 @@ const videProjet = element("vide-project");
 const retrait = element("retrait");
 const couleurs = element("couleurs");
 const sigle = element("sigle");
+const barreDeMenus = element("barre-de-menus");
 const ordinaires = element("ordinaires");
 // Les GitHub Apps de la station de cet ordinateur, une ligne par rôle (ticket 2317, identites-github.js) : relues à
 // l'ouverture de chaque projet ; un appareil sans station (le téléphone) n'en pose aucune.
@@ -568,14 +618,30 @@ ouvrirLesRatios.ariaLabel = "the added / removed ratio of all projects";
   ouvrirLesRatios.append(bloc("strong", "Closer"), bloc("span", RATIOS_DE_L_ACCUEIL), suite);
 }
 ratiosDeLAccueil.append(ouvrirLesRatios);
-// Les deux lignes de tous les projets, dans le bandeau de santé de chacun (ticket 2638) : elles valent pour l'ensemble.
+// Les résumés hebdomadaires de la cuisine de chaque projet (ticket 3263), de même : une ligne « Weekly summary » ouvre leur
+// page (resume-hebdomadaire/), lue et publiée par le process principal.
+const resumesDeLAccueil = document.createElement("section");
+resumesDeLAccueil.id = "resumes-de-tous";
+resumesDeLAccueil.ariaLabel = TITRE_DES_RESUMES;
+const ouvrirLesResumes = /** @type {HTMLButtonElement} */ (bloc("button", ""));
+ouvrirLesResumes.type = "button";
+ouvrirLesResumes.className = "ligne";
+ouvrirLesResumes.ariaLabel = "the weekly summaries of all projects";
+{
+  const suite = bloc("span", "›");
+  suite.className = "ouvrir";
+  suite.ariaHidden = "true";
+  ouvrirLesResumes.append(bloc("strong", TITRE_DES_RESUMES), bloc("span", RESUMES_DE_L_ACCUEIL), suite);
+}
+resumesDeLAccueil.append(ouvrirLesResumes);
+// Les lignes de tous les projets, dans le bandeau de santé de chacun (ticket 2638) : elles valent pour l'ensemble.
 const TOUS_LES_PROJETS = "All projects";
 const deTousLesProjets = document.createElement("section");
 deTousLesProjets.id = "de-tous-les-projets";
 deTousLesProjets.className = "bloc-du-projet";
 deTousLesProjets.ariaLabel = TOUS_LES_PROJETS;
 deTousLesProjets.dataset.bloc = "de-tous-les-projets";
-deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil);
+deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeLAccueil, resumesDeLAccueil);
 // L'accueil a les projets et la station de cet ordinateur (ticket 2638, épique 2497) — chacun son composant, sous
 // accueil/ —, puis toutes les stations (ticket 3195). La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
 // version plus haute, en tête de l'app (mise-a-jour/bandeau.js), dit la version qui tourne et l'installe.
@@ -613,6 +679,19 @@ retourDesRatios.className = "retour";
 const corpsDesRatios = document.createElement("div");
 corpsDesRatios.ariaLive = "polite";
 pageDesRatios.append(retourDesRatios, corpsDesRatios);
+const pageDesResumes = document.createElement("section");
+pageDesResumes.id = "resumes";
+pageDesResumes.ariaLabel = TITRE_DES_RESUMES;
+const retourDesResumes = /** @type {HTMLButtonElement} */ (bouton("‹ All projects", undefined, "discret"));
+retourDesResumes.className = "retour";
+const resumesDeTous = tenirLesResumesHebdomadaires(document, {
+  lire: (nom) => brigade.lireLesResumesHebdomadaires(nom),
+  changerJour: (nom, jour) => brigade.changerLeJourDuResume(nom, jour),
+  publier: (nom, resume, tag) => brigade.publierLeResumeHebdomadaire(nom, resume.weekStart, tag),
+  ouvrir: (url) => void brigade.ouvrirTicketDuResume(url),
+  ouvrirProposition: (url) => void brigade.ouvrirLaProposition(url),
+});
+pageDesResumes.append(retourDesResumes, resumesDeTous.element);
 
 // La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
 // ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
@@ -622,6 +701,17 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+// L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
+// ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
+// ou suivie, gardée rangée dans le stockage de la vue.
+const offreDuTelephone = element("offre-telephone");
+const offre = tenirLOffre({
+  stockage: stockageDeLaVue(),
+  lire: async () => brigade.lienDeLApk?.(),
+  connecte: async () => brigade.telephoneConnecte?.(),
+  ouvrir: (lien) => void brigade.ouvrirLaPage?.(lien),
+  rendre: () => poserLOffreDuTelephone(courant),
+});
 const bandeauSante = element("bandeau-sante");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
@@ -785,6 +875,42 @@ const fermes = new Set();
 // Aucun : c'est « Tous les projets » qui est affiché — ou l'écran d'ajout.
 /** @type {Projet | undefined} */
 let courant;
+
+// Les explications des mots de la cuisine (ticket 3308, explications/) : la première fois que le chef rencontre rail, pass,
+// cook, second, TODO ou WAITING, une ligne l'explique à côté du mot. Ce qu'il en a vu est gardé par le runtime du projet,
+// pour lui, sur tous ses appareils ; lu à chaque ouverture du projet. Ce qui change à l'écran se repose.
+const explications = tenirLesExplications({ service: serviceDesExplications(brigade), rendre: (projet) => rendreLesExplications(projet) });
+/** @param {string} projet */
+function rendreLesExplications(projet) {
+  if (courant?.nom !== projet) return;
+  poserRail(courant);
+  poserLExplicationDuSecond();
+  poserLesExplicationsDuChef(projet);
+}
+// Sous l'onglet du second, l'explication du mot « second », quand sa colonne est à l'écran, dépliée.
+function poserLExplicationDuSecond() {
+  const explique = courant !== undefined && courant.refus === undefined && !colonneSecond.hidden && !colonneSecond.hasAttribute("data-replie") && telephoneVu === undefined ? explicationDe(courant.nom, "second") : [];
+  explicationSecond.hidden = explique.length === 0;
+  explicationSecond.replaceChildren(...explique);
+}
+// L'explication d'un mot à l'écran, si elle s'y montre : marquée vue à ce moment-là.
+/** @param {string} projet @param {import("./explications/explications-box.ts").MotExplique} mot @returns {HTMLElement[]} */
+function explicationDe(projet, mot) {
+  return explications.aMontrer(projet, mot) ? [poserExplication(document, mot, () => explications.ecarter(projet, mot))] : [];
+}
+// Celle d'un mot du rail, seulement quand le rail est à l'écran : posé sous Settings ou une page, il n'est pas rencontré.
+/** @param {string} projet @param {import("./explications/explications-box.ts").MotExplique} mot @returns {HTMLElement[]} */
+function explicationDuRail(projet, mot) {
+  const visible = actif();
+  return visible === PARAMETRES || ONGLETS.some(({ id }) => id === visible) ? [] : explicationDe(projet, mot);
+}
+// Sa rangée de Settings, qui les remontre toutes ; cachée tant que le registre n'est pas lu, et sur un pont qui ne le porte pas.
+/** @param {string} projet */
+function poserLesExplicationsDuChef(projet) {
+  const etat = explications.etat(projet);
+  explicationsDuChef.hidden = etat === undefined || (etat.vus === null && etat.sans === undefined);
+  explicationsDuChef.replaceChildren(...(explicationsDuChef.hidden ? [] : [poserLaRangeeDesExplications(document, { etat, remontrer: () => void explications.effacer(projet) })]));
+}
 let ajoute = false;
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let demande = 0;
@@ -867,6 +993,12 @@ const reponsesAuxCartes = new Map();
 const validations = new Map();
 /** @type {Map<string, string>} */
 const commentairesDeValidation = new Map();
+// Les cartes « review before merge » (carte-sensible/, ticket 3224) : la même chose — le geste en route et la note tapée ;
+// mergées ou renvoyées d'ici, elles quittent TODO avec les validées (`validees`).
+/** @type {Map<string, import("./carte-sensible/carte-sensible.js").Etat>} */
+const revues = new Map();
+/** @type {Map<string, string>} */
+const notesDeRevue = new Map();
 /** @type {Map<string, Set<number>>} */
 const validees = new Map();
 /** @param {string} projet */
@@ -917,9 +1049,9 @@ let telephoneVu;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
 let stationOuverte;
-// La page de l'app ouverte à la place de l'accueil : celle des coûts de tous les projets (ticket 1022), ou celle de
-// leurs ratios ajouté / retiré (ticket 1682). Aucune : l'accueil — ou un projet, une station.
-/** @type {typeof COUTS | typeof RATIOS | undefined} */
+// La page de l'app ouverte à la place de l'accueil : celle des coûts de tous les projets (ticket 1022), celle de
+// leurs ratios ajouté / retiré (ticket 1682), ou celle de leurs résumés hebdomadaires (ticket 3263). Aucune : l'accueil — ou un projet, une station.
+/** @type {typeof COUTS | typeof RATIOS | typeof RESUMES | undefined} */
 let pageDeLApp;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
@@ -1142,6 +1274,8 @@ let nonRetire = { projet: "", refus: "" };
 let couleurRefusee = { projet: "", refus: "" };
 // Pourquoi le dernier sigle écrit ne l'a pas été, et pour quel projet — rien, s'il l'a été.
 let sigleRefuse = { projet: "", refus: "" };
+// Le dernier refus du réglage de la barre des menus, sous sa ligne.
+let barreDeMenusRefusee = "";
 // Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
 /** @type {VuDuCode | undefined} */
 let codeVu;
@@ -1310,6 +1444,7 @@ const montreADroite = () => {
 };
 
 function montrer() {
+  poserLAbsence();
   const visible = actif();
   const relaye = ONGLETS.find(({ id }) => id === visible);
   const droite = montreADroite();
@@ -1437,6 +1572,8 @@ function poserSecond(ouvrable, montre) {
   principal.toggleAttribute("data-conversation", conversation);
   // Le téléphone n'a ni terminal ni shell ni second.
   teteDuSecond.hidden = telephoneVu !== undefined;
+  // Sous son onglet, l'explication du mot « second » (ticket 3308).
+  poserLExplicationDuSecond();
   const note =
     courant !== undefined && courant.refus !== undefined
       ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
@@ -2412,6 +2549,28 @@ async function siglerProjet(projet, voulu) {
   if (courant?.nom === projet.nom) poserSigle(courant);
 }
 
+// L'état de la cuisine dans la barre des menus du Mac, la zone de notification de Windows (ticket 3269) : une ligne de
+// toi, la même dans les Settings de chaque projet — elle vaut pour toute l'app. Un interrupteur la pose ou la retire ; le
+// process principal l'écrit dans le fichier des projets, et elle revient par `surConfiguration`. Le téléphone n'en a pas.
+function poserBarreDeMenus() {
+  if (telephone !== undefined || brigade.changerBarreDeMenus === undefined) {
+    barreDeMenus.hidden = true;
+    return barreDeMenus.replaceChildren();
+  }
+  barreDeMenus.hidden = false;
+  const allumee = configuration.barreDeMenus !== false;
+  const ou = POSTE.mac ? "menu bar" : "notification area";
+  const bascule = interrupteurDeLApp(document, { texte: allumee ? "on" : "off", allume: allumee, libelle: `Show the kitchen's state in the ${ou}` }, (voulue) => void reglerBarreDeMenus(voulue));
+  const aide = `how many cooks are working and how many questions wait for you — "3 cooking · 1 for you" — in the ${ou}; a click lists the questions, and opens the app on the one you pick. For the whole app, not this project only`;
+  barreDeMenus.replaceChildren(rangeeDeReglage(POSTE.mac ? "Menu bar" : "Notification area", [bloc("span", allumee ? "shown" : "hidden"), survol(document, aide)], [bascule], refusDeReglage(barreDeMenusRefusee), { cle: "barre-de-menus", niveau: niveauDe(document, "barre-de-menus") }));
+}
+/** @param {boolean} voulue */
+async function reglerBarreDeMenus(voulue) {
+  const refus = await brigade.changerBarreDeMenus?.(voulue);
+  barreDeMenusRefusee = refus ?? "";
+  poserBarreDeMenus();
+}
+
 // Une couleur choisie : le process principal l'écrit dans le fichier des projets, et elle revient
 // par `surConfiguration` — la barre et l'espace la prennent alors. Refusée, la raison se lit dessous.
 /** @param {Projet} projet @param {"onglet" | "accent"} role @param {string} couleur une teinte de la palette par son nom, ou une couleur libre `#rrggbb` */
@@ -2745,7 +2904,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     const { phrase, details } = ligneDuRefus(document, carte.ligne ?? "", carte.refus.brut);
     tete.after(...(details === undefined ? [phrase] : [phrase, details]));
   }
-  const etiquettes = poserEtiquettes(document, carte, avecStation);
+  // Un ticket au label `sensitive` (ticket 3224) : sa marque, la première de ses étiquettes.
+  const etiquettes = carte.sensible === true ? marquerSensible(document, poserEtiquettes(document, carte, avecStation)) : poserEtiquettes(document, carte, avecStation);
   if (etiquettes !== null) bon.append(etiquettes);
   // Sur le rail, en attente : sa priorité, sous son numéro
   if (carte.prio !== undefined) {
@@ -2807,6 +2967,12 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     const duChef = carteDeReponse(document, { sorte: carte.chef.sorte, source: "github" });
     duChef.append(detailsDeCarte(document, carte.chef.texte));
     bon.append(duChef);
+  }
+  // Toute autre carte qui t'attend — ni carte de TODO, ni carte mise de côté, qui a la sienne — finit par « ask the second »
+  // comme les autres (ticket 3363) : un geste du chef que la carte ne rend pas en carte de TODO se passe au second d'un clic.
+  if (attendu && carte.todo === undefined && carte.refus === undefined) {
+    const second = demandesAuSecond.get(cleDuBon);
+    bon.append(rangeeDuSecond(document, ticket, second, () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, null))));
   }
   // La file ne dit pas tout : un repère discret, le détail est dans la fiche.
   if (carte.repere === true) {
@@ -4874,6 +5040,9 @@ function poserLeRail(projet) {
       const tete = document.createElement("h4");
       tete.append(pastilleDEtat(document, etatDuTon(ton), nom), bloc("span", compte));
       colonne.append(tete);
+      // Pass, Awaiting you — le TODO — et Waiting — WAITING — : l'explication de leur mot, sous leur titre (ticket 3308).
+      const motDeLaColonne = MOT_DE_LA_COLONNE[nom];
+      if (motDeLaColonne !== undefined && muet === undefined) colonne.append(...explicationDuRail(projet.nom, motDeLaColonne));
       const avecDisjoncteur = nom === COLONNE_QUI_T_ATTEND && disjoncteur !== undefined;
       if (avecDisjoncteur) {
         disjoncteursEnTodo.add(projet.nom);
@@ -4929,7 +5098,10 @@ function poserLeRail(projet) {
     ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a)),
     ...panneDuRail(projet, tenu.tableau),
     ...teteDuRail(projet),
+    // Sous l'onglet Rail, l'explication du rail ; sous la bande et ses cooks en cours, celle du cook (ticket 3308).
+    ...explicationDuRail(projet.nom, "rail"),
     bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
+    ...explicationDuRail(projet.nom, "cook"),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]),
   );
@@ -4958,6 +5130,9 @@ function placerLaRangee(projet, grille, defile) {
 // formulaire, ou d'une ligne du tableau de la cuisine.
 function repriseDuClavier() {
   const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
+  // Le champ du détail en grand (ticket 3348) porte la même clé que celui de sa carte, cachée dessous : le rail ne peut pas
+  // le rendre, il prendrait le clavier à la carte au lieu de le laisser au détail — poserLeDetail garde le sien.
+  if (tape !== null && tape !== undefined && detailDeValidation.contains(tape)) return undefined;
   return tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ, debut: tape.selectionStart, fin: tape.selectionEnd };
 }
 /** @param {ReturnType<typeof repriseDuClavier>} reprise */
@@ -4994,6 +5169,7 @@ function oublierLesValidees(projet, colonnes) {
     if (portees.has(ticket)) continue;
     faites.delete(ticket);
     validations.delete(`${projet.nom}#${ticket}`);
+    revues.delete(`${projet.nom}#${ticket}`);
   }
 }
 
@@ -5136,6 +5312,7 @@ function etatDeLaCarte(projet, ticket, todo) {
 function poserLaCarteDeTodo(projet, ticket, todo) {
   const cle = `${projet.nom}#${ticket}`;
   if (estUneValidation(todo)) return poserLaValidation(projet, ticket, todo, false);
+  if (estUneRevue(todo)) return poserLaRevue(projet, ticket, todo, false);
   const etat = etatDeLaCarte(projet, ticket, todo);
   const second = demandesAuSecond.get(cle);
   return poserCarteDeTodo(
@@ -5179,6 +5356,60 @@ function poserLaValidation(projet, ticket, todo, grand) {
       ...(grand ? {} : { demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)) }),
     },
   );
+}
+
+// La carte « review before merge » d'un ticket sensible (carte-sensible/, ticket 3224) : « Pull request #N » l'ouvre d'un
+// clic ; « Merge » et « Send back » jouent la commande `sensitive` du runtime par le process principal. `grand` : à la
+// largeur d'un téléphone, sur la carte ouverte depuis la liste.
+/** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo @param {boolean} grand */
+function poserLaRevue(projet, ticket, todo, grand) {
+  const cle = `${projet.nom}#${ticket}`;
+  const second = demandesAuSecond.get(cle);
+  return poserCarteSensible(
+    document,
+    ticket,
+    todo,
+    revues.get(cle) ?? REVUE_AU_REPOS,
+    { note: notesDeRevue.get(cle) ?? "", cle, grand, ...(second === undefined ? {} : { second }), ...(lectureSeuleDe(projet) === undefined ? {} : { lectureSeule: true }) },
+    {
+      merger: () => void repondreALaRevue(projet, ticket, { geste: "merger" }),
+      renvoyer: (note) => void repondreALaRevue(projet, ticket, { geste: "renvoyer", note }),
+      ecrire: (texte) => void notesDeRevue.set(cle, texte),
+      ouvrirPr: () => void brigade.ouvrirPr(projet.nom, ticket),
+      ...(grand ? {} : { demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)) }),
+    },
+  );
+}
+
+// Une réponse du chef sur une carte « review before merge », une seule à la fois : faite, la carte quitte TODO et les faits
+// sont relus ; refusée, elle garde ses gestes et sa note, et dit pourquoi.
+/** @param {Projet} projet @param {number} ticket @param {import("./carte-sensible/carte-sensible-github.ts").GesteSensible} geste */
+async function repondreALaRevue(projet, ticket, geste) {
+  const cle = `${projet.nom}#${ticket}`;
+  if (revues.get(cle)?.etape === "envoi") return;
+  lacherLaCarteDe(projet.nom, ticket);
+  /** @param {import("./carte-sensible/carte-sensible.js").Etat} etat */
+  const poser = (etat) => {
+    revues.set(cle, etat);
+    if (courant?.nom === projet.nom) poserRail(projet);
+    poserLesCartesDuChef();
+  };
+  poser({ etape: "envoi", geste: geste.geste });
+  /** @type {import("./carte-sensible/carte-sensible-github.ts").RenduSensible | undefined} */
+  let rendu;
+  try {
+    rendu = brigade.gesteSensible === undefined ? { refus: REVUE_SANS_PONT, detail: "" } : await brigade.gesteSensible(projet.nom, ticket, geste);
+  } catch (erreur) {
+    rendu = { refus: "nothing was done: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  const suite = apresLaRevue(rendu);
+  if (suite.etape === "fait") {
+    notesDeRevue.delete(cle);
+    validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
+    if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
+  }
+  poser(suite);
+  if (suite.etape === "fait") lireLesFaits();
 }
 
 // Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont
@@ -5266,7 +5497,7 @@ function poserLeDetail() {
   const { ticket, affichage } = detailOuvert;
   const { projet, todo } = lue;
   const cle = `${projet.nom}#${ticket}`;
-  const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DU_COMMENTAIRE && detailDeValidation.contains(document.activeElement);
+  const rendreLeChamp = garderLeClavier(document.activeElement, detailDeValidation);
   const suivante = validationSuivante(projet.nom, ticket);
   const ecrans = todo.captures?.ecrans ?? [];
   detailDeValidation.hidden = false;
@@ -5301,7 +5532,7 @@ function poserLeDetail() {
       },
     ),
   );
-  if (enMain) /** @type {HTMLElement | null} */ (detailDeValidation.querySelector(`[data-champ="${CHAMP_DU_COMMENTAIRE}"]`))?.focus();
+  rendreLeChamp();
 }
 
 // Échap ferme le détail — ou, une capture ouverte seule, rend l'avant et l'après.
@@ -5330,7 +5561,7 @@ function lesCartesDuChef() {
       const { todo } = carte;
       if (!carte.attendu || todo === undefined || (todo.question === null && todo.choix.length === 0)) return [];
       // Validée ou renvoyée d'ici (ticket 3185) : elle a quitté la liste.
-      if (estUneValidation(todo)) return valideesDe(projet.nom).has(carte.ticket) ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
+      if (estUneValidation(todo) || estUneRevue(todo)) return valideesDe(projet.nom).has(carte.ticket) ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
       const etat = etatDeLaCarte(projet, carte.ticket, todo);
       const vu = vuDeLaCarte(todo, etat).vu;
       return etat.etape === "postee" || vu === "attente" || vu === "jouee" ? [] : [{ projet: projet.nom, ticket: carte.ticket, age: carte.age?.court ?? "", todo }];
@@ -5363,14 +5594,21 @@ function poserLesCartesDuChef() {
     if (lue === undefined || projet === undefined) return retour();
     // La carte « Validate its screen » (ticket 3185) : la même que dans TODO, ses boutons en 44 px.
     if (estUneValidation(lue.todo)) {
-      const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DU_COMMENTAIRE;
+      const rendreLeChamp = garderLeClavier(document.activeElement, cartesDuChef);
       cartesDuChef.replaceChildren(...poserLaCarteAPart(document, { carte: lue, total: cartes.length, retour }, poserLaValidation(projet, ticket, lue.todo, true)));
-      if (enMain) /** @type {HTMLElement | null} */ (cartesDuChef.querySelector(`[data-champ="${CHAMP_DU_COMMENTAIRE}"]`))?.focus();
+      rendreLeChamp();
+      return;
+    }
+    // La carte « review before merge » (ticket 3224) : la même que dans TODO, ses boutons en 44 px.
+    if (estUneRevue(lue.todo)) {
+      const rendreLeChamp = garderLeClavier(document.activeElement, cartesDuChef);
+      cartesDuChef.replaceChildren(...poserLaCarteAPart(document, { carte: lue, total: cartes.length, retour }, poserLaRevue(projet, ticket, lue.todo, true)));
+      rendreLeChamp();
       return;
     }
     const etat = etatDeLaCarte(projet, ticket, lue.todo);
     const refus = etat.etape === "refus" ? { dit: etat.dit, detail: etat.detail } : undefined;
-    const clavier = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DE_LA_CARTE_DU_CHEF;
+    const rendreLeChamp = garderLeClavier(document.activeElement, cartesDuChef);
     const posee = poserLaCarteDuChef(document, {
       carte: lue,
       total: cartes.length,
@@ -5385,7 +5623,7 @@ function poserLesCartesDuChef() {
       repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
     });
     cartesDuChef.replaceChildren(...posee);
-    if (clavier) posee.saisie.focus();
+    rendreLeChamp();
     return;
   }
   const cuisent = accueilVu === undefined ? undefined : accueilVu.projets.filter((ligne) => etatDeLaLigne(ligne) === "cooking").length;
@@ -5543,7 +5781,7 @@ function poserCout() {
     poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
     autonomieDeTous.poser(),
     poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus, ouvrirTicketDepuisLesCouts),
-    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts),
+    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts, configuration.quotaMax),
     poserCourbe(document, projets, coutsLus),
   );
 }
@@ -6702,6 +6940,16 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  poserLOffreDuTelephone(projet);
+}
+
+// L'offre du téléphone, sur la page du premier projet servi seulement — ni sur le téléphone, ni rangée, ni quand un
+// téléphone est déjà connecté : la trace n'est lue qu'une fois le reste tenu.
+/** @param {Projet | undefined} projet */
+function poserLOffreDuTelephone(projet) {
+  const montree = projet !== undefined && telephoneVu === undefined && premierProjetServi(projetsVus?.projets ?? []) === projet.nom && offre.montrable();
+  offreDuTelephone.hidden = !montree;
+  offreDuTelephone.replaceChildren(...(montree ? [poserLOffre(document, offre.etat, offre)] : []));
 }
 setInterval(() => {
   if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
@@ -7593,7 +7841,7 @@ function reprendreLEcran() {
   if (projet !== undefined) courant = projet;
   else if (lu.ajout === true) ajoute = true;
   else if (typeof lu.station === "string") stationOuverte = lu.station;
-  else if (lu.page === COUTS || lu.page === RATIOS) pageDeLApp = lu.page;
+  else if (lu.page === COUTS || lu.page === RATIOS || lu.page === RESUMES) pageDeLApp = lu.page;
 }
 
 // La fenêtre s'est rechargée (ticket 3159) : les terminaux ouverts avant sont restés au process principal, chacun dans son
@@ -7644,6 +7892,7 @@ function marquer() {
   lireOnglet();
   poserLaVisite();
   poserLeProjetAPreparer();
+  poserLeRecitDuPremierTicket();
 }
 
 // Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638), puis toutes les stations et
@@ -7852,6 +8101,25 @@ const gestesDuPremier = {
 };
 // Le desktop porte le premier lancement ; un pont qui ne le porte pas s'ouvre sur l'écran « Add a project ».
 const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
+// Le projet d'essai (ticket 3227, essai/projet-d-essai.js) : « try on a sample project » sur le premier lancement le crée et
+// le mène jusqu'au rail par les gestes de l'app — sa mise en place, la station de cet ordinateur, l'ouverture de son
+// espace. Son encart, par-dessus tout écran, dit où il en est ; GitHub est relu chaque minute tant que son ticket attend
+// son merge.
+const sectionEssai = element("projet-d-essai");
+const essai = tenirLeProjetDEssai({ pont: brigade, rendre: () => poserLEncartDEssai(), ouvrir: (projet, depot, base) => ouvrirDUneStation("", projet, depot, base) });
+premier.essai = essai.etat;
+gestesDuPremier.essayer = () => void essai.essayer();
+function poserLEncartDEssai() {
+  const poses = poserLeProjetDEssai(document, essai.etat, { essayer: () => void essai.essayer(), supprimer: () => void essai.supprimer(), ouvrirLaPage: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url) });
+  sectionEssai.replaceChildren(...poses);
+  sectionEssai.hidden = poses.length === 0;
+  poserLePremier();
+}
+brigade.surPermissionDeSuppression?.((fin) => void essai.apresLaPermission(fin));
+void essai.lire();
+setInterval(() => {
+  if (essai.aSuivre()) void essai.lire();
+}, 60_000);
 
 function ouvrirPremier() {
   courant = undefined;
@@ -7885,9 +8153,64 @@ function poserLePremier() {
 // sur la visite. Une seule fois : la visite montrée laisse sa trace, et l'app ne l'ajoute plus.
 function ajouterLaCuisineDeLaVisite() {
   const compte = compteDuParcours.etat.compte;
-  if (!avecPremier() || compte === undefined || !("login" in compte) || premier.ouverture !== undefined || visiteAOuvrir !== undefined || !visite.aDecouvrir()) return;
+  // Un projet d'essai en route : c'est lui qui s'ouvre.
+  if (!avecPremier() || compte === undefined || !("login" in compte) || premier.ouverture !== undefined || visiteAOuvrir !== undefined || essai.etat.etape !== undefined || !visite.aDecouvrir()) return;
   visiteAOuvrir = PROJET_DE_LA_VISITE;
   void ouvrirDUneStation("", PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE);
+}
+
+// L'écran « since you were away » : par projet qui se lit, ce que ses résumés disent de l'absence et ce qui attend le chef
+// (`lesCartesDuChef`, la liste que l'app tient déjà pour ce qui attend le chef). Reposé seulement quand ce qu'il dit change.
+// Son bouton le ferme, et mène à ce qui attend le chef : sa page, ou — à la largeur d'un téléphone — la liste des cartes ; sans
+// rien qui attende, à l'accueil.
+function poserLAbsence() {
+  if (absenceDepuis === undefined || absenceFermee) return;
+  const projets = configuration.projets.filter((projet) => seLit(projet));
+  const cartes = lesCartesDuChef();
+  const entrees = projets.map(({ nom }) => ({
+    projet: nom,
+    lecture: resumesDeLAbsence.get(nom),
+    attentes: cartes.filter(({ projet }) => projet === nom).map(({ ticket, todo }) => {
+      const titre = todo.resume ?? todo.question ?? undefined;
+      return titre === undefined ? { ticket } : { ticket, titre };
+    }),
+  }));
+  const signature = JSON.stringify(entrees);
+  if (signature === absencePosee && !sectionAbsence.hidden) return;
+  absencePosee = signature;
+  for (const { nom } of projets) {
+    if (resumesDeLAbsence.has(nom) || lecturesDeLAbsence.has(nom)) continue;
+    lecturesDeLAbsence.add(nom);
+    void Promise.resolve()
+      .then(() => brigade.lireLesResumesHebdomadaires(nom))
+      .then(
+        (lue) => lue,
+        (/** @type {unknown} */ erreur) => ({ projet: nom, jour: { sans: NON_ATTEINT("weekly summaries") }, resumes: { sans: NON_ATTEINT("weekly summaries"), detail: erreur instanceof Error ? erreur.message : String(erreur) } }),
+      )
+      .then((lue) => {
+        resumesDeLAbsence.set(nom, lue);
+        poserLAbsence();
+      });
+  }
+  sectionAbsence.replaceChildren(
+    poserAbsence(
+      document,
+      { depuis: absenceDepuis, projets: entrees },
+      {
+        fermer: (attend) => {
+          absenceFermee = true;
+          sectionAbsence.hidden = true;
+          sectionAbsence.replaceChildren();
+          const premier = attend ? cartes[0] : undefined;
+          const ouvert = premier === undefined ? undefined : projetDe(premier.projet);
+          if (ouvert !== undefined && !etroit()) void ouvrir(ouvert);
+          else ouvrirTous();
+          montrer();
+        },
+      },
+    ),
+  );
+  sectionAbsence.hidden = false;
 }
 
 // La bulle de l'étape, sur l'espace du projet visité ; ailleurs, rien. L'étape désigne ce que le rail montre à l'instant.
@@ -7941,6 +8264,11 @@ function suivreLeParcours(nom) {
     aGuider.delete(nom);
     if (lectureSeuleDe(projet) !== undefined) return;
     parcoursDesProjets.commencer(nom, depot, dejaCuit(projet, depot));
+    // Le premier projet du chef : le fichier n'en a pas d'autre que la cuisine de démonstration de la visite.
+    recitDuPremierTicket.projetAjoute(nom, configuration.projets.some((autre) => autre.nom !== nom && autre.depot !== DEPOT_DE_LA_VISITE));
+    if (tenu !== undefined && "tableau" in tenu) recitDuPremierTicket.observer(nom, tenu.tableau.etapesDesTickets);
+    departsDesProjets.commencer(nom);
+    void lireLeDepart(nom);
     // Les stations du compte se proposent à « qui le cuit » : relues, la question se repose.
     void lireLesEnregistrees().then(() => poserLeProjetAPreparer());
     void lirePreparation(projet);
@@ -7952,6 +8280,31 @@ function suivreLeParcours(nom) {
   const etape = depots.get(nom)?.etape;
   if ((parcours.station === "ajoutee" || parcours.station === "inutile") && etape !== "prepare" && etape !== "en-route") void lirePreparation(projet);
   if (courant?.nom === nom) poserLeProjetAPreparer();
+}
+
+// Les issues ouvertes du projet et ce que le second en propose, lus par l'app (depart-du-projet.ts) : le départ le montre, ou
+// s'efface quand il n'y a rien à proposer. Une lecture qui échoue se dit sur l'écran, jamais un écran vide.
+/** @param {string} nom */
+async function lireLeDepart(nom) {
+  try {
+    departsDesProjets.recu(nom, await brigade.departDuProjet(nom));
+  } catch (erreur) {
+    departsDesProjets.recu(nom, { sans: "the app could not ask the second for its proposals", detail: erreur instanceof Error ? erreur.message : String(erreur) });
+  }
+}
+
+// Le bouton unique : les lignes restantes, avec les priorités montrées à l'écran, sur le rail.
+/** @param {string} nom */
+async function mettreLeDepartSurLeRail(nom) {
+  const mise = departsDesProjets.commencerLaMise(nom);
+  if (mise === undefined) return;
+  try {
+    const rendu = await brigade.mettreSurLeRail(nom, mise.lignes.map(({ ticket, priorite }) => ({ ticket, priorite })));
+    if ("fait" in rendu) departsDesProjets.mise(nom, rendu.fait, rendu.refus);
+    else departsDesProjets.miseRatee(nom, rendu.refus, rendu.detail ?? "");
+  } catch (erreur) {
+    departsDesProjets.miseRatee(nom, "nothing was put on the rail: GitHub could not be reached", erreur instanceof Error ? erreur.message : String(erreur));
+  }
 }
 
 // La question est posée sur ce projet : sa page n'a qu'elle.
@@ -8020,9 +8373,49 @@ function poserLeProjetAPreparer() {
     parcoursDesProjets.fermer(nom);
     return reposerLaPage(projet);
   }
+  // Prêt : au-dessus du rail, le second demande au chef ce qu'il veut changer d'abord (ticket 3306). Le champ tapé garde le
+  // clavier quand la page se repose.
   if (parcours.pret !== undefined) {
     delete principal.dataset.parcours;
-    sectionDuParcours.replaceChildren(poserPret(document, parcours.depot, { ...parcours.pret, ...(parcours.absente === undefined ? {} : { absente: parcours.absente }) }, { ecrire: () => ecrireLePremierTicket(projet), fermer: () => parcoursDesProjets.fermer(nom) }));
+    premiersTickets.commencer(nom);
+    const etat = premiersTickets.de(nom);
+    if (etat === undefined) return fermer();
+    const rendreLeChamp = garderLeClavier(document.activeElement, sectionDuParcours);
+    sectionDuParcours.replaceChildren(
+      poserPremierTicket(document, { depot: parcours.depot, etat, ...(parcours.absente === undefined ? {} : { absente: parcours.absente }) }, {
+        ecrire: (texte) => premiersTickets.ecrire(nom, texte),
+        envoyer: () => void premiersTickets.envoyer(nom),
+        oui: () => void premiersTickets.oui(nom),
+        changer: () => void premiersTickets.changer(nom),
+        fermer: () => {
+          premiersTickets.oublier(nom);
+          parcoursDesProjets.fermer(nom);
+        },
+      }),
+    );
+    sectionDuParcours.hidden = false;
+    rendreLeChamp();
+    return;
+  }
+  const depart = departsDesProjets.de(nom);
+  if (depart !== undefined) {
+    principal.dataset.parcours = "depart";
+    sectionDuParcours.replaceChildren(
+      poserLeDepart(
+        document,
+        { depot: parcours.depot, etat: depart },
+        {
+          changer: (ticket, priorite) => departsDesProjets.changer(nom, ticket, priorite),
+          lacher: (ticket) => departsDesProjets.lacher(nom, ticket),
+          mettre: () => void mettreLeDepartSurLeRail(nom),
+          passer: () => departsDesProjets.passer(nom),
+          relire: () => {
+            departsDesProjets.relire(nom);
+            void lireLeDepart(nom);
+          },
+        },
+      ),
+    );
     sectionDuParcours.hidden = false;
     return;
   }
@@ -8086,15 +8479,25 @@ function poserLeProjetAPreparer() {
   sectionDuParcours.hidden = false;
 }
 
-// « write its first ticket with the second » : la demande s'écrit dans le second du projet, sans Entrée — le chef la donne —, et il
-// passe à droite. Un second qui ne tourne pas : rien n'est écrit, la ligne dit pourquoi.
-/** @param {Projet} projet */
-function ecrireLePremierTicket(projet) {
-  const second = [...vues.values()].find(({ terminal }) => terminal.projet === projet.nom && terminal.genre === "second")?.terminal;
-  if (second === undefined || second.arrete || second.empeche !== undefined) return parcoursDesProjets.ecrit(projet.nom, SECOND_ABSENT);
-  brigade.ecrire(second.id, DEMANDE_DU_PREMIER);
-  parcoursDesProjets.ecrit(projet.nom, true);
-  montrerADroite(second.id);
+// Le récit du premier ticket, sur la page du projet qui l'a (ticket 3302) : rien ailleurs, ni en lecture seule. Ses liens
+// ouvrent la PR du ticket — celle de son cook tant qu'il est sur le rail, puis celle qui l'a servi.
+function poserLeRecitDuPremierTicket() {
+  const projet = courant;
+  const recit = projet === undefined || lectureSeuleDe(projet) !== undefined ? undefined : recitDuPremierTicket.de(projet.nom);
+  if (projet === undefined || recit === undefined) {
+    sectionDuRecit.hidden = true;
+    sectionDuRecit.replaceChildren();
+    return;
+  }
+  const { nom } = projet;
+  const { ticket } = recit;
+  sectionDuRecit.replaceChildren(
+    poserRecitDuPremierTicket(document, recit, {
+      ouvrir: () => void brigade.ouvrirPrDuCook(nom, ticket).then((ouverte) => ouverte || brigade.ouvrirPr(nom, ticket)),
+      ranger: () => recitDuPremierTicket.ranger(),
+    }),
+  );
+  sectionDuRecit.hidden = false;
 }
 
 async function relireLePremier() {
@@ -8214,6 +8617,19 @@ function ouvrirRatios() {
 }
 ouvrirLesRatios.addEventListener("click", () => ouvrirRatios());
 retourDesRatios.addEventListener("click", () => ouvrirTous());
+// La page des résumés hebdomadaires de tous les projets, de même : chaque projet qui se lit, lu à l'ouverture.
+function ouvrirResumes() {
+  courant = undefined;
+  ajoute = false;
+  stationOuverte = undefined;
+  pageDeLApp = RESUMES;
+  marquer();
+  resumesDeTous.poser(configuration.projets.filter((projet) => seLit(projet)).map(({ nom }) => nom));
+  tous.replaceChildren(pageDesResumes);
+  retourDesResumes.focus();
+}
+ouvrirLesResumes.addEventListener("click", () => ouvrirResumes());
+retourDesResumes.addEventListener("click", () => ouvrirTous());
 
 // La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
 /** @param {string} id */
@@ -8415,12 +8831,16 @@ async function ouvrir(projet) {
   void lireRetrait(projet);
   poserSigle(projet);
   poserCouleurs(projet);
+  poserBarreDeMenus();
   void poserOrdinaires(projet);
   void identitesGithub.lire();
   void servis.lire();
   poserLesReglagesDuProjet(projet);
   void lireLesReglages(projet);
   void monterLesHumains(document, element("humains-du-projet"), { projet: projet.nom, service: serviceDuPont(brigade, projet.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
+  void monterLesRecurrents(document, element("recurrents-du-projet"), { projet: projet.nom, service: serviceDesRecurrents(brigade, projet.nom) });
+  poserLesExplicationsDuChef(projet.nom);
+  void explications.lire(projet.nom);
   void monterLesStations(document, element("stations-contributrices"), { projet: projet.nom, service: serviceDesStations(brigade, projet.nom) });
   brigade.regarder(projet.nom, ++demande);
   if (!seLit(projet) && projet.sansStation !== true) void lireLeRailPublie(projet);
@@ -8554,12 +8974,15 @@ brigade.surFaits((recue) => {
   else if (!((muette || horsLigne || ratee) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
   suivreLeParcours(recue.projet);
+  // Le premier ticket du premier projet suit chaque lecture de son rail (ticket 3302).
+  if ("tableau" in recue) recitDuPremierTicket.observer(recue.projet, recue.tableau.etapesDesTickets);
   poserLesCartesDuChef();
   // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
   if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {
     void lireLesEssais(courant);
     dessiner();
+    poserLeRecitDuPremierTicket();
     void poserOrdinaires(courant);
   }
 });
@@ -8839,6 +9262,7 @@ function afficher() {
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
   else if (pageDeLApp === COUTS && !ajoute) ouvrirCouts();
   else if (pageDeLApp === RATIOS && !ajoute) ouvrirRatios();
+  else if (pageDeLApp === RESUMES && !ajoute) ouvrirResumes();
   // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (premier-lancement.js). Sur le téléphone,
   // aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
   else if (ajoute || (configuration.projets.length === 0 && telephone === undefined && !avecPremier())) ouvrirAjout();

@@ -32,7 +32,7 @@
 import { abandonsEnCours } from "./abandon-en-chaine.ts";
 import type { AttenteDeTicket } from "./attend.ts";
 import { cartesEnTodo, type Suite } from "./carte-todo.ts";
-import { carteDuTicket, type CarteDuTicket } from "./carte-todo/cartes.ts";
+import { carteDeLAttente, carteDuTicket, type CarteDuTicket } from "./carte-todo/cartes.ts";
 import { retirerDuRail, type Resultat } from "./geste-ticket.ts";
 import { LABEL, type GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
@@ -55,9 +55,13 @@ const demande = (carte: CarteDuTicket) => carte.question ?? carte.resume;
 const RIEN_TOUCHE = "none: nothing was changed";
 const refuse = (reason: string): Resultat => ({ done: false, reason, price: RIEN_TOUCHE });
 
+// Le début de ce que la réponse écrit sur l'issue : la lecture des commentaires
+// (reponse-par-commentaire/) ne le prend jamais pour une réponse.
+export const ENTETE_REPONSE = "**The chef's answer**";
+
 // Ce qui est écrit sur l'issue : la question, et la réponse.
 export function direLaReponse(carte: CarteDuTicket, reponse: string, choix: number | null): string {
-  return [`**The chef's answer** to the TODO card${choix === null ? ", in their own words" : ` — choice ${choix} of ${carte.choix.length}`}:`, "", `> ${demande(carte)}`, "", reponse].join("\n");
+  return [`${ENTETE_REPONSE} to the TODO card${choix === null ? ", in their own words" : ` — choice ${choix} of ${carte.choix.length}`}:`, "", `> ${demande(carte)}`, "", reponse].join("\n");
 }
 
 // Ce que le cook qui reprend le ticket lit, à la place des findings.
@@ -87,9 +91,13 @@ function avanceeDeLAbandon(base: Journal["base"], ticket: number, attente: Extra
   return { comment: "feu", sur: root !== null && abandonsEnCours(base).get(root)?.root === root ? root : ticket };
 }
 
-export async function repondreALaCarte(journal: Journal, github: GitHub, projet: string, ticket: number, reponse: Reponse): Promise<Resultat> {
+// `voulue` : la question à laquelle répondre, quand elle vient d'un commentaire
+// de GitHub (#3253) : son attente, qui n'est pas forcément celle que la carte
+// du ticket montre, et la clé de sa mention, que `todo.answered` garde pour
+// qu'elle ne se rouvre pas.
+export async function repondreALaCarte(journal: Journal, github: GitHub, projet: string, ticket: number, reponse: Reponse, voulue?: { attente: AttenteDeTicket; cle: string }): Promise<Resultat> {
   const { base } = journal;
-  const enTodo = carteDuTicket(base, ticket);
+  const enTodo = voulue === undefined ? carteDuTicket(base, ticket) : { attente: voulue.attente, carte: carteDeLAttente(voulue.attente) };
   if (!enTodo) return refuse(`#${ticket} has no card in TODO`);
   const { attente, carte } = enTodo;
 
@@ -183,7 +191,7 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
   const deLaPorte = cartesEnTodo(base).some((autre) => autre.ticket === ticket);
   base.transaction(() => {
     const commun = { project: projet, ticket, author: AUTEUR } as const;
-    journal.ajouter({ ...commun, type: "todo.answered", payload: { choice: rang, answer: texte, then: suite } });
+    journal.ajouter({ ...commun, type: "todo.answered", payload: { choice: rang, answer: texte, then: suite, ...(voulue ? { question: voulue.cle } : {}) } });
     if (deLaPorte) journal.ajouter({ ...commun, type: "todo.left", payload: { why: `answered by the chef${rang === null ? "" : ` (choice ${rang})`}` } });
     if (avancee.comment === "renvoi") {
       const livraison = passDuTicket(base, ticket);

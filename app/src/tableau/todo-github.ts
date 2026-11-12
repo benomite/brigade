@@ -11,6 +11,7 @@
 // commentaire marqué porte ses choix, un par ligne après la question : `- [<geste>] <libellé>`, le geste parmi ceux de la
 // forme unique (runtime/src/carte-todo/forme.ts) — `formeDuChef`. Un commentaire sans choix se lit comme avant ; sa réponse
 // libre joue `resume`. La réponse part du `gh` du chef (tableau-gestes/reponse-github.ts).
+import type { RevueSensible } from "../vue/carte-sensible/carte-sensible-github.ts";
 import type { ValidationDesign } from "../vue/validation-design/validation-design-github.ts";
 
 export const LABEL_DU_CHEF = "chef-todo";
@@ -21,8 +22,9 @@ const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)\s*-->\s*([\s\S]*
 // Ce que la vue pose sur une carte du chef : la sorte (`blocked`, `merge-by-hand`, `product-question`, `abandoned`, ou
 // ce que le runtime ajoute un jour) et le texte du commentaire.
 // `design` : sur la carte « Validate its screen » (sorte `design-validation`, ticket 3185), ce que le corps de son issue dit
-// — sa PR, son ticket, ses captures (vue/validation-design/validation-design-github.ts).
-export type CarteDuChef = { sorte: string; texte: string; design?: ValidationDesign };
+// — sa PR, son ticket, ses captures (vue/validation-design/validation-design-github.ts). `sensible` : sur la carte « review
+// before merge » (sorte `review-before-merge`, ticket 3224), sa PR et son ticket (vue/carte-sensible/carte-sensible-github.ts).
+export type CarteDuChef = { sorte: string; texte: string; design?: ValidationDesign; sensible?: RevueSensible };
 
 // Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`).
 export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail"] as const;
@@ -40,8 +42,9 @@ export function carteDuCommentaire(corps: string): CarteDuChef | null {
 
 // Un choix : `- [<geste>] <libellé>`, sur sa ligne. Une case à cocher de GitHub (`- [ ]`, `- [x]`) n'en est pas un.
 const CHOIX = new RegExp(`^\\s*[-*]\\s*\\[(${GESTES_DU_CHEF.join("|")})\\]\\s+(\\S.*)$`, "i");
-// La question dite en clair : sans titre, citation ni gras autour.
-const enClair = (ligne: string) => ligne.replace(/^\s*(?:#+|>)\s*/, "").replace(/\*\*|__/g, "").trim();
+// La question dite en clair : sans titre, citation ni gras autour. Un titre est un `#` suivi d'un blanc : `#30 is sensitive`,
+// la question de la carte « review before merge » (ticket 3224), garde son numéro.
+const enClair = (ligne: string) => ligne.replace(/^\s*(?:#+(?=\s)|>)\s*/, "").replace(/\*\*|__/g, "").trim();
 
 // La forme d'une carte du chef, lue de son texte : la question est sa première ligne écrite ; chaque ligne
 // `- [<geste>] <libellé>` qui la suit est un choix, dans l'ordre ; le reste, sans ses lignes vides en trop, la précise.

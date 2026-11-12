@@ -54,4 +54,5 @@ export type FaitTodo =
   // The chef answered the card in TODO (`reponse-carte.ts`): by one of its
   // choices (`choice`, its rank from 1) or in free text (`choice` null).
   // `answer`: what was written on the issue. `then`: what followed.
-  | { type: "todo.answered"; payload: { choice: number | null; answer: string; then: "resume" | "merge" | "drop" | "close" } };
+  // `question`: the key of the GitHub question comment the chef replied to, when the answer came from a comment (#3253).
+  | { type: "todo.answered"; payload: { choice: number | null; answer: string; then: "resume" | "merge" | "drop" | "close"; question?: string } };

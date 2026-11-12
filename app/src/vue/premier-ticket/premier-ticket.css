@@ -1,0 +1,85 @@
+/* Le premier ticket d'un projet prêt (ticket 3306, premier-ticket/) : au-dessus du rail, la question du second, son
+   champ et son bouton ; puis le ticket écrit — son titre, son corps tel quel —, « Yes, put it on the rail », et le champ
+   des changements avec « ask for changes ». */
+.premier-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  max-width: 44rem;
+  margin-bottom: var(--pas-3);
+}
+.premier-ticket .qui {
+  margin: 0;
+  font-size: var(--taille-meta);
+  color: var(--discret);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.premier-ticket .attendu {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  color: var(--texte);
+}
+.premier-ticket .au-retour,
+.premier-ticket .reponse {
+  margin: 0;
+  color: var(--texte-doux);
+}
+.premier-ticket .gestes {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+}
+.premier-ticket textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--pas-2) var(--pas-3);
+  font: inherit;
+  color: var(--texte);
+  background: var(--case);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  resize: vertical;
+}
+.premier-ticket textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.premier-ticket .brouillon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.premier-ticket .titre-du-brouillon {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  color: var(--texte);
+}
+.premier-ticket .corps-du-brouillon {
+  max-height: 16rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--texte-doux);
+}
+.premier-ticket .changements {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pas-2);
+}
+.premier-ticket .changements .action {
+  flex: none;
+  white-space: nowrap;
+}
+.premier-ticket .phrase {
+  margin: 0;
+  color: var(--texte);
+}

@@ -33,9 +33,11 @@ export const compte = (n) => `${n} ${n === 1 ? "card" : "cards"}`;
 
 // Ce que la carte demande, en quelques mots : le genre de sa question, et ses choix.
 /** @param {CarteDeTodo} todo */
-export function genreDeLaCarte({ sorte, choix, question, validation }) {
+export function genreDeLaCarte({ sorte, choix, question, validation, revue }) {
   // La carte « Validate its screen » (ticket 3185) : deux gestes, valider ou renvoyer en cuisine.
   if (validation !== undefined) return "Design validation";
+  // La carte « review before merge » d'un ticket sensible (ticket 3224) : merger, ou renvoyer avec une note.
+  if (revue !== undefined) return "Review before merge";
   const options = `${choix.length} ${choix.length === 1 ? "option" : "options"}`;
   if (question === null || choix.length === 0) return "Review only you can make";
   return `${sorte === "design" ? "Design choice" : "Product choice"} · ${options}`;

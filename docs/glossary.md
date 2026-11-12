@@ -49,6 +49,8 @@ Related terms built on « cuisine »:
 | `servi` / `Livré` | `served` / `Served` | The ticket is merged and served |
 | `livrés 24 h` | `served 24 h` | Counter of the project card |
 | `BLOQUÉ` | `BLOCKED` | What the ticket waited for was dropped |
+| `WAITING` | `WAITING` | Waiting for a third party, not for you; the kitchen does not take it |
+| `second` | `second` | Your product assistant, who helps you write the tickets |
 | `abandonné` | `dropped` | A ticket left the rail without being served |
 | `pas sur le rail` | `off the rail` | Ticket the manager does not serve |
 | `COINCE` / `COINCENT` | `STUCK` | A cook with no progress for half its lease |
@@ -95,6 +97,8 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
 | — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
 | — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |
+| — | `recurring` | The project's recurring tickets: on its next date, each becomes an issue with `fire` (#3230) | `declare --title <title> [--body <body>] --rhythm daily \| weekly --weekday <1-7> \| monthly --day <1-31>`, `pause <id>`, `resume <id>`, `remove <id>` — new, with no old name |
+| — | `explanations` | The explanations of the kitchen's words a chef has seen in the app, kept per chef (#3308) | `--chef <login>`, `seen <word> --chef <login>`, `reset --chef <login>` — new, with no old name |
 | — | `design` | A green design delivery held for the chef's validation (#3184) | `validate <owner>/<repo>#<PR>`, `send-back <owner>/<repo>#<PR> --comment <what to change>` — new, with no old name |
 | — | `sensitive` | A green delivery of a ticket labelled `sensitive`, held on its `review before merge` card (#3223) | `merge <owner>/<repo>#<PR>`, `send-back <owner>/<repo>#<PR> --note <note>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |

@@ -47,17 +47,17 @@ the base tracks, or a new file in a tracked folder. A body is prose: `e.g`, `i.e
 other at the claim gate — the second waited for the whole cook of the first, counted as waiting for a
 claim. When the base's tracked files cannot be read, the station says so and the zone keeps every
 path of the body for that tick: it holds too much, it never lets two cooks leave on one file.
-**A ticket also holds its zone's companions** (`compagnons.ts`, #2963): the files outside its zone
-that at least half of the last 30 non-merge commits of the base touching the zone also write — the
-view's registry and stylesheet, the screen's doc, the captures index. No zone names them, and two app
-tickets on disjoint screens left together, both wrote `app/src/vue/vue.js` or `vue.css`, and the
-second delivered came back in conflict once per merge of the other: #2921, #2922 and #2930 took the
-nine conflict send-backs behind the 69% first-try rate of #2963. A zone with fewer than 8 such
-commits (a new folder) is read at the folder that contains it, never above a two-segment folder
-(`app/src`, `runtime/src`). The history is the last 500 commits of the base, read once per tick
-(`Depot.historique`); unreadable, the station says so and each ticket holds its zone only for that
-tick. A ticket coming back with its own PR open holds its zone only: two returns on one shared file
-would wait for each other forever.
+**A ticket holds its zone, not its zone's companions** (#3250). From #2963 to #3250, a ticket also held
+the files outside its zone that at least half of the base's recent commits touching it also write
+(`compagnons.ts`). On this repository, every app zone read on 2026-11-11 had `app/src/vue/vue.js` and
+`docs/app.md` among them, `app/src/essai.ts` included, so any two app tickets held each other until the
+first was merged. That day, #3189, #3195 and #3198 were first claimed 5, 1 and 2 min after the merge of
+#3185, #3189 and #3195, and #3185, #3187, #3189, #3195 and #3198 lost 883 min waiting for a claim; #3189 and
+#3185 shared no file with the tickets ahead of them except those shared ones. The same day, #3212, #3215,
+#3219 and #3222, four app screens claimed within 3 min of each other, all wrote `app/src/vue/vue.js`, and
+none was sent back for a conflict. Two tickets that write one shared file outside their zones now leave
+together; if the second delivered comes back in conflict, the pass first updates its branch itself (#2726),
+then sends it back for the conflict.
 
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
@@ -163,6 +163,28 @@ finds. `main` went red twice for 20 merged PRs (#3080: repairs #3066 and #3068) 
 had played: #3033 translated the preparation ticket's title, which `0-en-premier/recette.test.ts` still
 quoted in French; #3052 read one more GitHub route, which the fake GitHub of the app's phone tests did
 not serve.
+
+**The cook delivers what the user sees with its captures.** Its instructions (the first cook's and the
+resuming cook's) tell it that a diff changing what the user sees — under `app/src/vue/`, `site/` or
+`docs/maquettes/` — or a ticket labelled `cook:design` is a design delivery: the review blocks one that
+changes the app's view with no capture, and the pass sends back to a cook any design delivery missing
+one when the project has a human validate its designs (`validation-design/`). For each screen it
+changes, the cook takes the before capture before touching it and the after capture with
+`scripts/capture-ecran/`, and commits them as `docs/captures/<ticket>/<screen>-avant.png` and
+`-apres.png`; a repo without the tool is said in its report. The paths come from the constants the pass
+judges with (`captures.ts`). The rule was written only in `agents/cook-design.md`, which a cook reads
+only under the design profile — not when that profile is busy, not when the ticket has no zone, not for
+the site. It was the first send-back reason (#3259: 6 of the 18 send-backs over 21 merged tickets — #3195,
+#3212, #3215, #3219, #3220, #3221 — each sent back by the pass for its captures).
+
+**The cook says what it changed on the screen (#3330).** The same instructions ask it, for a design
+delivery, to write in its last message, between `<a-l-ecran>` and `</a-l-ecran>`, 1 to 5 points, one per
+line, in English and plain words about what is visible on the screen ("the TODO column takes the full
+width"), with no file name, test or technical detail. When its run ends, the station reads them (five at
+most, bullets dropped) and posts them on the PR it delivers, under `<!-- brigade:a-l-ecran -->`; a cook
+that writes none posts nothing, and a comment GitHub refuses is said, the delivery going to the pass all
+the same. The pass copies the last of them onto the `Validate its screen` card ([`pass.md`](pass.md)).
+*Code: `runtime/src/validation-design/brief.ts`.*
 
 **The cook rereads its diff as the reviewer will, before committing.** Its instructions
 (`CONSIGNE_DE_RELECTURE`, both the first cook's and the resuming cook's) name what the reviewer holds

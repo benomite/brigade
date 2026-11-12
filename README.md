@@ -6,7 +6,9 @@
   brigade — You decide. The kitchen ships.
 </h1>
 
-You write the ticket, a **cook** takes it, the **pass** merges it: you are called only for product choices. Open source, free, no Brigade account — just GitHub and your Claude subscription.
+**[Brigade builds itself — see its live autonomy figures](https://benomite.github.io/brigade/autonomie.html)**
+
+You write the ticket, a **cook** takes it, the **pass** merges it: you are called only for product choices. Open source, free. No Brigade account needed — just GitHub and your Claude subscription.
 
 The kitchen's words, once: the **rail** is the line of your tickets, from queued to served; a **cook** is a Claude session that takes one ticket and opens its pull request; the **pass** is the check that judges a pull request (gates, CI, review) and merges it; the **second** is your product assistant, who helps you write the tickets.
 
@@ -18,7 +20,7 @@ Brigade works through everything it can do while you are away from your computer
 
 Brigade is open source (MIT) and free. The agents run on your own Claude subscription. Ready to try it? Jump to **[Try it](#try-it)**.
 
-You write a ticket and put the label `fire` on it. A **cook** (a `claude` session) takes it in its own git worktree, implements it and opens a pull request. The **pass** judges that pull request — gates, CI, an independent review — and merges it. You decide what matters; brigade does the cooking.
+You tell the **second** what to change, and it writes the ticket and puts it on the **rail**. A **cook** (a `claude` session) takes it in its own git worktree, implements it and opens a pull request. The **pass** judges that pull request — gates, CI, an independent review — and merges it. You decide what matters; brigade does the cooking.
 
 ![The brigade app: your stations, and the cooks working on them](docs/captures/1598/accueil-stations-apres.png)
 
@@ -31,11 +33,13 @@ You need two accounts:
 - a **GitHub account**, with a repository you can push to (a throwaway one is fine for a first run);
 - a **Claude account**: the cooks run on a Claude Max session, and an API key does not fit.
 
-1. **Download the app** (macOS, Apple silicon, or Windows x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)** and open it.
+1. **Download the app** (macOS on Apple silicon, Windows x64, or Linux x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)** and open it. On Linux, see **[docs/installation-linux.md](docs/installation-linux.md)**.
 2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
 3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
 4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it, prepares it with a ticket of its own, and tells you when it is ready.
-5. **Cook a first ticket**: on GitHub, open an issue in that repository and put the label `fire` on it. A cook takes it, opens a pull request, and the pass judges it and merges it.
+5. **Cook a first ticket**: once the project is ready, the second asks you, in the app, what you want to change first. It writes the ticket from your answer and shows it to you; say yes, and it goes on the rail. A cook takes it, opens a pull request, and the pass judges it and merges it.
+
+**Alternative, on GitHub**: open an issue in that repository and put the label `fire` on it. It goes on the rail the same way.
 
 No command to type, no file to edit. Every screen is described in **[docs/installation.md](docs/installation.md)**.
 
@@ -51,7 +55,9 @@ The full vision is in [`docs/superpowers/specs/2026-11-07-vision.md`](docs/super
 
 - [`docs/index.md`](docs/index.md) — the documentation index, organized by what you want to do.
 - [`docs/tutoriels/installer-sur-mac.md`](docs/tutoriels/installer-sur-mac.md) — tutorial: install brigade on a Mac.
+- [`docs/installation-linux.md`](docs/installation-linux.md) — install brigade on Linux x64 (AppImage).
 - [`docs/tutoriels/premier-projet.md`](docs/tutoriels/premier-projet.md) — tutorial: add a first project and cook its first ticket.
+- [`docs/tutoriels/erreur-de-production-a-ticket-corrige.md`](docs/tutoriels/erreur-de-production-a-ticket-corrige.md) — tutorial: from a production error in Sentry to a fixed ticket.
 - [`docs/app.md`](docs/app.md) — the app, screen by screen.
 - [`docs/runtime/README.md`](docs/runtime/README.md) — the runtime (station, rail, pass): index of its pages.
 - [`docs/glossary.md`](docs/glossary.md) — the word for each object (*cook*, *rail*, *station*, *pass*…).

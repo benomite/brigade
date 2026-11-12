@@ -4,9 +4,12 @@
 // demande — `faits`, `tous`, `regarder`, `onglet` —, ce que le process principal lui enverrait.
 // L'heure est arrêtée à celle de l'écran. Et la page dit quand elle s'est posée (`__capture.calme`).
 (() => {
-  /** @type {{ maintenant: string, reponses: Record<string, unknown>, envois: { faits?: Envoi[], tous?: Envoi[], regarder?: Record<string, Envoi[]>, onglet?: Record<string, Envoi[]> } }} */
+  /** @type {{ maintenant: string, stockage?: Record<string, string>, reponses: Record<string, unknown>, envois: { faits?: Envoi[], tous?: Envoi[], regarder?: Record<string, Envoi[]>, onglet?: Record<string, Envoi[]> } }} */
   const donnees = window.__donnees;
   /** @typedef {{ sur: string, args: unknown[], demande?: "faits" | "vue" | "onglet" }} Envoi */
+
+  // Ce que le stockage de la vue garde déjà à l'ouverture.
+  for (const [cle, valeur] of Object.entries(donnees.stockage ?? {})) window.localStorage.setItem(cle, valeur);
 
   // L'heure de l'écran, partout où la vue la lit : `Date.now()` et `new Date()`.
   const MAINTENANT = Date.parse(donnees.maintenant);

@@ -14,6 +14,7 @@ import type { GitHub } from "../../src/github.ts";
 import { MARQUE_DE_RENVOI } from "../../src/qualite-github.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier } from "../../src/reglages-projet/reglages.ts";
 import { principal } from "../../src/validation-design/commande.ts";
+import { corpsDeCeQuiEstFait, SANS_RESUME } from "../../src/validation-design/brief.ts";
 import { carteDuCorps, designsValidesParUnHumain, estUneLivraisonDesign, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -89,7 +90,7 @@ function gestes(faux: FauxGitHub) {
     issues: [...faux.tickets.values()].filter((t) => t.state === "open").map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, createdAt: "", updatedAt: "", url: "", body: t.corps, association: "OWNER" })),
     confirmer: () => {},
   });
-  return { ...client, ouvertes: ouvertesLues, fermer: () => {} };
+  return { ...client, creerIssue: faux.pour("chef").creerIssue, ouvertes: ouvertesLues, fermer: () => {} };
 }
 
 async function design(faux: FauxGitHub, ...args: string[]) {
@@ -136,6 +137,47 @@ test("setting on: a green design delivery with its captures is not merged; a che
   assert.deepEqual(renvois(faux), []);
 });
 
+test("the card opens with a brief: what was asked, from the ticket's title and body, and what was done, the cook's points the station posted on the PR (#3330)", async () => {
+  const faux = enPass(ECRAN);
+  faux.ticket(TICKET).corps = "## Context\n\nThe chef cannot tell what changed between the captures.\n\n## Acceptance criteria\n\n- a long list";
+  faux.poster(PR, "A", corpsDeCeQuiEstFait(["the TODO column takes the full width", "cards show their question on one line"]));
+  const { s } = station(faux, true);
+  await tours(s, 3);
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  const brief = "### What was asked\n\nticket 40 — The chef cannot tell what changed between the captures.\n\n### What was done\n\n- the TODO column takes the full width\n- cards show their question on one line\n\n### Captures";
+  assert.ok(carte.corps.includes(brief), carte.corps);
+  assert.doesNotMatch(carte.corps, /a long list/);
+});
+
+test("a PR with no summary from its cook gets a card whose brief says none is available, and still says what was asked", async () => {
+  const { faux } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.ok(carte.corps.includes(`### What was asked\n\nticket 40 — the ticket's body\n\n### What was done\n\n_${SANS_RESUME}_`), carte.corps);
+});
+
+test("the ticket's issue that GitHub does not give when the card is posted: no card, nothing merged, the station says why, and the next turn posts it", async () => {
+  const faux = enPass(ECRAN);
+  const avertis: string[] = [];
+  const bas = faux.pour("A");
+  let panne = true;
+  const { s } = station(faux, true, avertis, {
+    issue: async (numero) => {
+      if (panne && numero === TICKET) throw new Error("gh api : HTTP 502");
+      return bas.issue!(numero);
+    },
+  });
+  await tours(s, 3);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.ok(avertis.some((ligne) => ligne.includes("HTTP 502")), avertis.join("\n"));
+  panne = false;
+  await tours(s, 3, () => ouvertes(faux).length > 0);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
+});
+
 test("a held delivery gets one card only, however many turns pass on the same head", async () => {
   const { faux, s, sha } = await retenue();
   await tours(s, 3);
@@ -145,39 +187,131 @@ test("a held delivery gets one card only, however many turns pass on the same he
   assert.equal(ouvertes(faux).length, 1);
 });
 
-test("a held delivery whose head moves and is judged green again gets a new card on the new head; the old one is closed", async () => {
+// La branche mise à jour depuis sa base : une tête neuve, sans renvoi, approuvée et verte.
+function miseAJour(faux: FauxGitHub) {
+  const neuve = faux.sha();
+  faux.pr(PR).sha = neuve;
+  return neuve;
+}
+const validees = (faux: FauxGitHub) => (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.startsWith("<!-- brigade:validation-design-validee "));
+
+test("a held delivery whose branch is updated from its base keeps its one card: no second card for the same screen, and validating it merges the new head", async () => {
   const { faux, s, sha } = await retenue();
   const [premiere] = ouvertes(faux);
   assert.ok(premiere !== undefined);
-  // La base a bougé : GitHub a mis la branche à jour, la tête change, la CI repasse au vert.
-  const neuve = faux.sha();
-  faux.pr(PR).sha = neuve;
-  faux.poster(PR, "A", `<!-- brigade:verdict station=A verdict=approve sha=${neuve} -->\nApproved by station \`A\`.`);
-  await tours(s, 4, () => ouvertes(faux).some((carte) => carte.number !== premiere.number));
+  const neuve = miseAJour(faux);
+  await tours(s, 4);
   assert.equal(faux.mergee(TICKET), undefined);
-  assert.equal(faux.ticket(premiere.number).state, "closed");
-  const [seconde, ...autres] = ouvertes(faux);
-  assert.deepEqual(autres, []);
-  assert.deepEqual(carteDuCorps(seconde?.corps ?? ""), { pr: PR, ticket: TICKET, sha: neuve });
-  assert.notEqual(neuve, sha);
-  // Valider la carte neuve merge la tête neuve.
+  assert.deepEqual(cartes(faux).map((carte) => carte.number), [premiere.number], "no new card");
+  assert.equal(faux.ticket(premiere.number).state, "open");
+  assert.deepEqual(carteDuCorps(premiere.corps), { pr: PR, ticket: TICKET, sha });
+  // Valider la carte : la validation est gardée, la pass merge la tête neuve, verte.
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  await tours(s, 4, () => faux.mergee(TICKET) !== undefined);
   assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.equal(faux.pr(PR).sha, neuve);
+  assert.equal(cartes(faux).length, 1);
 });
 
-test("validate after the head moved — its CI pending or red — merges nothing and keeps the card", async () => {
-  for (const ci of ["pending", "red"] as const) {
-    const { faux, sha } = await retenue();
-    faux.pr(PR).sha = faux.sha();
-    (ci === "pending" ? faux.ciEnCours : faux.ciRouge).add(PR);
-    const fin = await design(faux, "validate", `faux/depot#${PR}`);
-    assert.equal(fin.code, 1, ci);
-    assert.match(fin.lignes.join("\n"), new RegExp(`the head of PR #1040 moved since card #\\d+ \\(\`${sha.slice(0, 7)}\` judged green`), ci);
-    assert.equal(faux.mergee(TICKET), undefined, ci);
-    assert.equal(faux.pr(PR).merged, false, ci);
-    assert.equal(ouvertes(faux).length, 1, ci);
-  }
+test("validate after the branch was updated from its base: nothing merged at once, the validation is recorded on the ticket and the card leaves TODO; the pass merges the new head once it judges it green, without a new card", async () => {
+  const { faux, s, sha } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  const neuve = miseAJour(faux);
+  faux.ciEnCours.add(PR);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot#${PR} validated: your validation is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
+  assert.equal(faux.pr(PR).merged, false);
+  // La carte n'attend plus rien : elle quitte TODO, et dit ce qui suit.
+  assert.deepEqual(ouvertes(faux), []);
+  assert.match((faux.commentaires.get(carte.number) ?? []).at(-1)?.body ?? "", new RegExp(`^Validated by the chef: the answer is kept — merge pending\\. The branch of PR #1040 was updated since this card \\(\`${sha.slice(0, 7)}\` → \`${neuve.slice(0, 7)}\`\\) and is being checked again`));
+  // Le ticket dit la validation gardée et le merge en attente.
+  const [gardee, ...autres] = validees(faux);
+  assert.deepEqual(autres, []);
+  assert.ok(gardee?.body.startsWith(`<!-- brigade:validation-design-validee carte=${carte.number} pr=${PR} sha=${sha} -->\nValidated by the chef on card #${carte.number} — merge pending.`), gardee?.body ?? "no validation on the ticket");
+  // La CI encore en cours : rien de mergé, aucune carte neuve.
+  await tours(s, 3);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(cartes(faux).length, 1);
+  // Verte : la pass merge, sans redemander le chef — même après une seconde mise à jour.
+  miseAJour(faux);
+  faux.ciEnCours.delete(PR);
+  await tours(s, 4, () => faux.mergee(TICKET) !== undefined);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.equal(cartes(faux).length, 1);
+  assert.deepEqual(renvois(faux), []);
+});
+
+test("a sensitive design delivery validated after its branch was updated from its base: the pass merges it on the kept validation, no “review before merge” card after the “Validate its screen” one", async () => {
+  const faux = enPass(ECRAN, [...CALIBRE, "sensitive"]);
+  const { s, titres } = station(faux, true);
+  await tours(s, 3);
+  const [carte, ...autres] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.deepEqual(autres, []);
+  assert.equal(titres.get(carte.number), TITRE_DE_CARTE);
+  // La branche mise à jour, la pass la tient sur sa tête neuve, sans carte neuve.
+  miseAJour(faux);
+  await tours(s, 3);
+  assert.equal(cartes(faux).length, 1);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  // Sur la même tête, retenue au tour d'avant : la réponse du chef la fait retenter, et merger.
+  await tours(s, 4, () => faux.mergee(TICKET) !== undefined);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.deepEqual(cartes(faux).map(({ number }) => titres.get(number)), [TITRE_DE_CARTE], "one card for one screen");
+  assert.deepEqual(ouvertes(faux), []);
+});
+
+test("the ticket's comments unreadable while a held delivery waits for the chef's answer: nothing is merged, the station says why, and the next turn merges once the answer is read", async () => {
+  const faux = enPass(ECRAN);
+  const avertis: string[] = [];
+  let panne = false;
+  const bas = faux.pour("A");
+  const { s } = station(faux, true, avertis, {
+    commentaires: async (numero) => {
+      if (panne && numero === TICKET) throw new Error("HTTP 502");
+      return bas.commentaires(numero);
+    },
+  });
+  await tours(s, 3);
+  miseAJour(faux);
+  await tours(s, 3);
+  assert.equal(ouvertes(faux).length, 1);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  panne = true;
+  await tours(s, 2);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.match(avertis.join("\n"), /pass de #40 sur A — HTTP 502/);
+  panne = false;
+  await tours(s, 4, () => faux.mergee(TICKET) !== undefined);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.equal(cartes(faux).length, 1);
+});
+
+test("a validation kept after an update is not kept once a cook changes the delivery: the pass sends it back (red CI), the cook delivers, and a new card asks the chef again", async () => {
+  const { faux, s } = await retenue();
+  const [premiere] = ouvertes(faux);
+  assert.ok(premiere !== undefined);
+  miseAJour(faux);
+  faux.ciRouge.add(PR);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.equal(validees(faux).length, 1);
+  await tours(s, 4, () => renvois(faux).length > 0);
+  assert.equal(renvois(faux).length, 1);
+  faux.ciRouge.delete(PR);
+  await tours(s, 12, () => ouvertes(faux).length > 0);
+  assert.deepEqual(faux.cuissons.map(({ issue }) => issue), [TICKET]);
+  const [seconde, ...autres] = ouvertes(faux);
+  assert.ok(seconde !== undefined);
+  assert.deepEqual(autres, []);
+  assert.notEqual(seconde.number, premiere.number);
+  assert.deepEqual(carteDuCorps(seconde.corps), { pr: PR, ticket: TICKET, sha: faux.pr(PR).sha });
+  assert.equal(faux.mergee(TICKET), undefined);
 });
 
 test("validate after a send-back of the pass merges nothing, even on the card's head, and closes the card", async () => {
@@ -208,6 +342,46 @@ test("a card a send-back of the pass overtook — its CI red after an update —
   assert.equal(faux.ticket(premiere.number).labels.has(CHEF_TODO), false);
   assert.equal(ouvertes(faux).length, 1);
   assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("a send-back of the pass closes the card it overtakes at once: the card leaves TODO, the chef has nothing to answer on it", async () => {
+  const { faux, s } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  faux.ciRouge.add(PR);
+  miseAJour(faux);
+  await tours(s, 4, () => renvois(faux).length > 0);
+  assert.equal(renvois(faux).length, 1);
+  assert.equal(faux.ticket(carte.number).state, "closed");
+  assert.equal(faux.ticket(carte.number).labels.has(CHEF_TODO), false);
+  assert.match((faux.commentaires.get(carte.number) ?? []).at(-1)?.body ?? "", /^Closed by the kitchen: the delivery of PR #1040 went back to a cook since this card — there is nothing to answer on it\./);
+});
+
+test("a card GitHub does not close after a send-back: the send-back is made, the station says so, and the next card closes it", async () => {
+  const faux = enPass(ECRAN);
+  const avertis: string[] = [];
+  let panne = false;
+  const bas = faux.pour("A");
+  const { s } = station(faux, true, avertis, {
+    fermerIssue: async (numero) => {
+      if (panne) throw new Error("HTTP 502");
+      return bas.fermerIssue(numero);
+    },
+  });
+  await tours(s, 3);
+  const [premiere] = ouvertes(faux);
+  assert.ok(premiere !== undefined);
+  panne = true;
+  faux.ciRouge.add(PR);
+  miseAJour(faux);
+  await tours(s, 4, () => renvois(faux).length > 0);
+  assert.equal(renvois(faux).length, 1);
+  assert.match(avertis.join("\n"), /#40 sur A — its “Validate its screen” card could not be closed after the send-back, the next card closes it: HTTP 502/);
+  panne = false;
+  faux.ciRouge.delete(PR);
+  await tours(s, 12, () => ouvertes(faux).some((carte) => carte.number !== premiere.number));
+  assert.equal(faux.ticket(premiere.number).state, "closed");
+  assert.equal(ouvertes(faux).length, 1);
 });
 
 test("validate with the card's PR number merges the delivery and closes the card", async () => {
@@ -319,6 +493,41 @@ test("files of the PR that cannot be read, or a card GitHub refuses to create: n
   await tours(s, 2);
   assert.equal(ouvertes(faux).length, 1);
   assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("a card that holds a delivery keeps it unmerged even when this station no longer reads the setting on (#3347); once the chef validates, it merges", async () => {
+  const { faux } = await retenue();
+  assert.equal(ouvertes(faux).length, 1);
+  const { s: sansReglage } = station(faux, false);
+  await tours(sansReglage, 4);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+});
+
+test("a card whose delivery the chef sent back no longer holds it when the setting is off", async () => {
+  const { faux } = await retenue();
+  await design(faux, "send-back", `faux/depot#${PR}`, "--comment", "Move it.");
+  const { s } = station(faux, false);
+  await tours(s, 4);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+});
+
+test("send back on a delivery merged anyway opens a follow-up ticket with the chef's comment and closes the card, instead of failing", async () => {
+  const { faux } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  faux.pr(PR).state = "closed";
+  faux.pr(PR).merged = true;
+  const fin = await design(faux, "send-back", `faux/depot#${PR}`, "--comment", "The take button is still lost.");
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.match(fin.lignes.join("\n"), /was already merged: your comment is the follow-up ticket #\d+/);
+  assert.equal(faux.ticket(carte.number).state, "closed");
+  assert.equal(renvois(faux).length, 0);
+  const suivi = cartes(faux).find((t) => t.number !== carte.number);
+  assert.ok(suivi?.corps.includes("The take button is still lost."), suivi?.corps ?? "no follow-up ticket");
 });
 
 test("setting off: a green design delivery is merged by the pass as before, no card", async () => {

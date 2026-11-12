@@ -22,8 +22,35 @@ import { LABEL_DU_CHEF } from "../../tableau/todo-github.ts";
 // La sorte de la carte, telle que le runtime l'écrit (runtime/src/validation-design/validation-design.ts, `SORTE_DE_CARTE`).
 export const SORTE_DE_VALIDATION = "design-validation";
 
-// Ce que la carte valide : sa PR et son adresse, le ticket livré, la tête jugée verte, et les captures de chaque écran.
-export type ValidationDesign = { pr: number; ticket: number; sha: string; url: string; captures: CapturesLues };
+// Ce que la carte valide : sa PR et son adresse, le ticket livré, la tête jugée verte, les captures de chaque écran, et son brief.
+export type ValidationDesign = { pr: number; ticket: number; sha: string; url: string; captures: CapturesLues; brief?: BriefDeValidation };
+// Le brief (ticket 3330) : ce que le ticket demandait, en deux lignes au plus, et ce que le cook a changé à l'écran, un point
+// par ligne — nul quand la carte n'en porte aucun. Le runtime l'écrit dans le corps de la carte, avant ses captures
+// (runtime/src/validation-design/brief.ts, `lignesDuBrief`) ; une carte posée avant ce ticket ne dit que son titre de ticket.
+export type BriefDeValidation = { demande: string; fait: string[] | null };
+export const POINTS_MAX = 5;
+
+const TITRE_DEMANDE = "### What was asked";
+const TITRE_FAIT = "### What was done";
+const TICKET_DE_LA_CARTE = /^Ticket: #[1-9][0-9]* — (.+)$/;
+
+// Le brief que le corps de la carte porte : chaque partie va de son titre au titre suivant. Sans « What was asked », le
+// titre du ticket que la carte nomme ; sans point sous « What was done », aucun résumé.
+export function briefDuCorps(corps: string): BriefDeValidation {
+  const lignes = corps.replace(/\r\n?/g, "\n").split("\n");
+  const partie = (titre: string) => {
+    const debut = lignes.findIndex((ligne) => ligne.trim() === titre);
+    if (debut === -1) return null;
+    const fin = lignes.findIndex((ligne, rang) => rang > debut && ligne.startsWith("### "));
+    return lignes.slice(debut + 1, fin === -1 ? undefined : fin);
+  };
+  const aPlat = (texte: string) => texte.replace(/\s+/g, " ").trim();
+  const demandee = partie(TITRE_DEMANDE);
+  const titre = lignes.map((ligne) => TICKET_DE_LA_CARTE.exec(ligne.trim())?.[1]).find((lu) => lu !== undefined);
+  const demande = demandee === null ? aPlat(titre ?? "") : aPlat(demandee.join(" "));
+  const points = (partie(TITRE_FAIT) ?? []).filter((ligne) => ligne.startsWith("- ")).map((ligne) => aPlat(ligne.slice(2))).filter((point) => point !== "");
+  return { demande, fait: points.length === 0 ? null : points.slice(0, POINTS_MAX) };
+}
 
 const MARQUE = /^\s*<!-- brigade:validation-design pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
 const IMAGE = /!\[[^\]]*\]\((https:\/\/github\.com\/[^)\s]+)\)/g;
@@ -58,6 +85,7 @@ export function validationDuCorps(depot: string, corps: string): ValidationDesig
     sha,
     url: `https://github.com/${depot}/pull/${pr}`,
     captures: { complet: lus.length > 0 && lus.every(({ avant, apres }) => avant !== null && apres !== null), ecrans: lus },
+    brief: briefDuCorps(corps),
   };
 }
 
@@ -81,7 +109,17 @@ export function validationLue(brut: unknown): ValidationDesign | undefined {
     const e = typeof un === "object" && un !== null ? (un as Record<string, unknown>) : {};
     return typeof e.ecran === "string" && adresse(e.avant) && adresse(e.apres) ? [{ ecran: e.ecran, avant: e.avant, apres: e.apres }] : [];
   });
-  return { pr: lu.pr, ticket: lu.ticket, sha: lu.sha, url: lu.url, captures: { complet: captures.complet, ecrans } };
+  const brief = briefLu(lu.brief);
+  return { pr: lu.pr, ticket: lu.ticket, sha: lu.sha, url: lu.url, captures: { complet: captures.complet, ecrans }, ...(brief === undefined ? {} : { brief }) };
+}
+
+// Le brief relu des faits — ou rien, s'il n'en a pas la forme.
+function briefLu(brut: unknown): BriefDeValidation | undefined {
+  const lu = typeof brut === "object" && brut !== null ? (brut as Record<string, unknown>) : undefined;
+  if (lu === undefined || typeof lu.demande !== "string") return undefined;
+  if (lu.fait === null) return { demande: lu.demande, fait: null };
+  if (!Array.isArray(lu.fait) || lu.fait.length === 0 || !lu.fait.every((point) => typeof point === "string")) return undefined;
+  return { demande: lu.demande, fait: (lu.fait as string[]).slice(0, POINTS_MAX) };
 }
 
 // ── Les deux gestes ──
@@ -122,6 +160,13 @@ export async function jouerLaValidation({ depot, design, geste, commande, env }:
   if ("refus" in lu || design === undefined) return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const cible = `${depot}#${design.pr}`;
   const args = lu.geste === "valider" ? ["validate", cible] : ["send-back", cible, "--comment", lu.commentaire];
+  return jouerLaCommande({ args, commande, env, parDefaut: lu.geste === "valider" ? `PR #${design.pr} validated` : `PR #${design.pr} sent back` });
+}
+
+// Une commande du runtime que le process principal joue, avec ses arguments : ce qu'elle a dit en dernier — `parDefaut`, si
+// elle n'a rien dit —, ou pourquoi rien n'est fait. La carte « review before merge » (vue/carte-sensible/, ticket 3224) joue
+// la sienne par ce même chemin.
+export async function jouerLaCommande({ args, commande, env, parDefaut }: { args: string[]; commande: () => Promise<CommandeChargee>; env: Record<string, string | undefined>; parDefaut: string }): Promise<RenduDeValidation> {
   const dits: string[] = [];
   const redits: string[] = [];
   let chargee: CommandeChargee | undefined;
@@ -132,7 +177,7 @@ export async function jouerLaValidation({ depot, design, geste, commande, env }:
     if (chargee?.estUneSortie(erreur) !== true) return { refus: "nothing was done: the kitchen's command could not run", detail: message(erreur) };
     return { refus: `nothing was done: ${sansPrefixe(redits[0] ?? `the command ended with code ${erreur.code}`)}`, detail: redits.join("\n") };
   }
-  return { fait: dits.at(-1) ?? (lu.geste === "valider" ? `PR #${design.pr} validated` : `PR #${design.pr} sent back`) };
+  return { fait: dits.at(-1) ?? parDefaut };
 }
 
 // ── Les deux gestes sur le téléphone, sur l'API de GitHub ──
@@ -168,10 +213,11 @@ export async function validerSurGithub({ depot, carte, design, geste, client }: 
   const nom = `${depot}#${design.pr}`;
   try {
     if (lu.geste === "valider") {
-      const { ticket } = await validerLaCarte(github, carte, design);
-      return { fait: `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served` };
+      const { ticket, enAttente } = await validerLaCarte(github, carte, design);
+      return { fait: enAttente ? `${nom} validated: your validation is kept, card #${carte} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` : `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served` };
     }
-    const { ticket } = await renvoyerLaCarte(github, carte, design, lu.commentaire);
+    const { ticket, suivi } = await renvoyerLaCarte(github, carte, design, lu.commentaire);
+    if (suivi !== undefined) return { fait: `${nom} was already merged: your comment is the follow-up ticket #${suivi}, card #${carte} closed` };
     return { fait: `${nom} sent back: #${ticket} goes back to a cook with your comment, card #${carte} closed — its next delivery comes back as a new card` };
   } catch (erreur) {
     if (erreur instanceof Refus) return { refus: ecrits.length === 0 ? `nothing was done: ${erreur.message}` : erreur.message, detail: ecrits.length === 0 ? "" : `already written on GitHub: ${ecrits.join("; ")}` };
@@ -210,6 +256,13 @@ function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: stri
     commenter: (numero: number, corps: string) => ecrire("POST", `/repos/${depot}/issues/${numero}/comments`, { body: corps }, `a comment on #${numero}`, [201]),
     // Une issue qui ne porte pas le label : rien à retirer.
     delabelliser: (numero: number, label: string) => ecrire("DELETE", `/repos/${depot}/issues/${numero}/labels/${encodeURIComponent(label)}`, undefined, `\`${label}\` taken off #${numero}`, [200, 404]),
+    // Une issue neuve, sans label : son numéro.
+    async creer(titre: string, corps: string): Promise<number> {
+      const rendu = await ecrire("POST", `/repos/${depot}/issues`, { title: titre, body: corps }, "a follow-up ticket", [201]);
+      const numero = objet(rendu.data).number;
+      if (typeof numero !== "number") throw new Error("GitHub did not say the number of the follow-up ticket");
+      return numero;
+    },
     fermer: (numero: number) => ecrire("PATCH", `/repos/${depot}/issues/${numero}`, { state: "closed", state_reason: "completed" }, `#${numero} closed`, [200]),
     // Le merge à la tête `sha` : un refus de GitHub (4xx) est une réponse — rien n'est mergé —, tout autre statut lève.
     async merger(numero: number, sha: string): Promise<{ fait: true } | { fait: false; motif: string }> {
@@ -257,34 +310,46 @@ async function fermerLaCarte(github: GitHubDeLaValidation, carte: number, mot: s
   await github.fermer(carte);
 }
 
-// Valider (runtime : `valider`) : merge la tête que la pass a jugée verte et que la carte porte, puis ferme la carte.
-async function validerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign): Promise<{ ticket: number }> {
+// Valider (runtime : `valider`) : merge la tête que la pass a jugée verte et que la carte porte, puis ferme la carte. La tête
+// a bougé sans qu'un renvoi suive la carte — la branche mise à jour depuis sa base — : la validation s'écrit sur le ticket,
+// la carte se ferme, et la pass merge la PR une fois sa tête verte (ticket 3332) — `enAttente`.
+async function validerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign): Promise<{ ticket: number; enAttente: boolean }> {
   const { pr, ticket, sha } = design;
   await carteQuiTient(github, carte, design);
   const lue = await prDeLaCarte(github, design);
   if (!lue.merged) {
     if (lue.state !== "open") throw new Refus(`PR #${pr} is closed without being merged: there is nothing to validate`);
-    if (lue.sha !== sha) throw new Refus(`the head of PR #${pr} moved since card #${carte} (\`${sha.slice(0, 7)}\` judged green, \`${lue.sha.slice(0, 7)}\` now): nothing merged — the pass posts a new card once it judges the new head green`);
     const retenue = derniereRetenue(await github.commentaires(ticket), carte);
     if (retenue === null || retenue.renvoyee) {
       const pourquoi = retenue === null ? `ticket #${ticket} does not say card #${carte}` : `the delivery of PR #${pr} went back to a cook since card #${carte}`;
       await fermerLaCarte(github, carte, `Closed by the kitchen: ${pourquoi}. Its next delivery comes back as a new card.`);
       throw new Refus(`${pourquoi}: nothing merged, card #${carte} closed — its next delivery comes back as a new card`);
     }
+    if (lue.sha !== sha) {
+      const de = `\`${sha.slice(0, 7)}\` → \`${lue.sha.slice(0, 7)}\``;
+      await github.commenter(ticket, `<!-- brigade:validation-design-validee carte=${carte} pr=${pr} sha=${sha} -->\nValidated by the chef on card #${carte} — merge pending. The branch of PR #${pr} was updated since the card (${de}), with no new delivery of a cook: the answer is kept, and the pass merges PR #${pr} once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`);
+      await fermerLaCarte(github, carte, `Validated by the chef: the answer is kept — merge pending. The branch of PR #${pr} was updated since this card (${de}) and is being checked again: the pass merges it once its head is green.`);
+      return { ticket, enAttente: true };
+    }
     const merge = await github.merger(pr, sha);
     if (!merge.fait) throw new Refus(`GitHub refused to merge PR #${pr} — ${merge.motif}; card #${carte} stays open`);
   }
   await fermerLaCarte(github, carte, `Validated by the chef: PR #${pr} is merged.`);
-  return { ticket };
+  return { ticket, enAttente: false };
 }
 
 // Renvoyer (runtime : `renvoyerLeDesign`) : la livraison repart à un cook, le commentaire du chef comme ce qu'il faut
 // changer — un renvoi sur sa tête, que le cook lit sur le ticket, et `in-pass` retiré —, puis la carte se ferme.
-async function renvoyerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign, aChanger: string): Promise<{ ticket: number }> {
+async function renvoyerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign, aChanger: string): Promise<{ ticket: number; suivi?: number }> {
   const { pr, ticket } = design;
   await carteQuiTient(github, carte, design);
   const lue = await prDeLaCarte(github, design);
-  if (lue.state !== "open" || lue.merged) throw new Refus(`PR #${pr} is no longer open: there is nothing to send back`);
+  if (lue.merged) {
+    const suivi = await github.creer(`Follow-up of #${ticket}: the chef asks for changes after PR #${pr} was merged`, `PR #${pr}, the delivery of #${ticket}, was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`);
+    await fermerLaCarte(github, carte, `PR #${pr} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`);
+    return { ticket, suivi };
+  }
+  if (lue.state !== "open") throw new Refus(`PR #${pr} is no longer open: there is nothing to send back`);
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
   await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\nThe chef sent the design of PR #${pr} back to a cook — the chef asks for changes to the screen:\n\n${aChanger}\n\nChange the screen as asked, take its before and after captures again, and deliver.`);
   await github.delabelliser(ticket, LABEL_IN_PASS);

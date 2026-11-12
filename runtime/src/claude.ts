@@ -4,12 +4,14 @@
 // identifiants — c'est `claude` qui porte la connexion Max de la machine, ou le
 // jeton longue durée que `claude setup-token` a créé pour elle (`jeton-claude.ts`).
 import { execFile } from "./sans-invite.ts";
-import type { Calibrage } from "./calibrage.ts";
+import { type Calibrage, LABEL_COOK_DESIGN, VUE_DE_L_APP } from "./calibrage.ts";
+import { dossierDesCaptures, VISUELS } from "./captures.ts";
 import type { FinDeCook } from "./events/station.ts";
 import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
 import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
+import { CONSIGNE_DU_BRIEF } from "./validation-design/brief.ts";
 
 // Ce qu'un cook ne doit pas faire lui-même : seule la pass merge, et c'est la
 // station qui pousse. Garde-fou de bonne foi, pas une clôture — la clôture est
@@ -161,6 +163,21 @@ export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fi
 // positif du ticket n'avait plus de preuve depuis la station.
 export const CONSIGNE_DE_RELECTURE = "Avant de commiter, relis ton diff comme le reviewer le relira : un seul constat bloquant renvoie le ticket à un cook entier. Il bloque sur ce que le ticket demande et que le diff ne fait pas, ou fait de travers ; sur un critère que le ticket écrit en toutes lettres ou chiffre et que tu n'as pas tenu à la lettre ; sur un bug, un cas d'erreur avalé, un test qui ne teste rien ; et sur le code neuf que rien n'atteint en production — une fonction exportée que seuls ses tests appellent, une donnée lue là où plus rien ne l'écrit. Remonte les appelants de chaque nouvel export jusqu'au point d'entrée que le dépôt lance (son `CLAUDE.md` le nomme), et branche-le s'il n'y arrive pas. Quand ton diff touche un test qui existe, garde chaque cas qu'il tenait et que le ticket ne retire pas, et écris le nouveau cas dans un test à côté : un test réécrit pour le nouveau cas laisse sans preuve le critère qu'il tenait — souvent le seul test qui passe par le point d'entrée —, et c'est un constat bloquant. Quand le ticket retire, remplace ou déplace quelque chose, cherche son nom dans tout le dépôt — code, CSS, tests, doc, captures d'écran, commentaires — et retire ou corrige chaque reste : un reste qui pointe encore vers l'ancien, ou du code que plus rien n'atteint, est un constat bloquant. Avant d'écrire un mécanisme — une lecture, une mesure, un contrôle, une règle —, cherche dans le dépôt celui qui fait déjà la même chose, à commencer par ce que le ticket nomme (un numéro de ticket, un module), et construis dessus : un second chemin qui double l'existant, ou une règle réécrite qui oublie une condition de l'originale, est un constat bloquant. Pour chaque lecture que ton diff ajoute — GitHub, un fichier, une réponse du modèle, un clone, un réglage —, écris ce que ton code fait quand elle échoue, manque ou ne se lit pas, et teste ce cas : un échec qui fait tomber tout le tour, ou une valeur par défaut qui décide à sa place — un fichier illisible lu vide puis écrasé, une réponse illisible qui clôt, une valeur inventée qu'on affiche —, est un constat bloquant. Quand tu écris un texte — doc, spec, README, post —, chaque phrase vient d'une source que tu peux nommer (le ticket, les mots du chef, le dépôt, une page lue) et n'en dit pas plus : une section que personne n'a demandée, un chiffre dit plus fort que ce qu'il mesure, un fait non vérifié écrit comme vérifié, ou un critère resté ouvert sans le dire, est un constat bloquant. Quand un critère demande une preuve — un test, une commande, une mesure, une migration ou un script joués —, joue-la toi-même sur ce que le critère nomme (la base telle que la production l'initialise, ce que le serveur expose, la machine qu'il dit) et mets ce qu'elle sort dans ton compte-rendu : une doublure à sa place — une constante relue, un registre en mémoire, un script jamais lancé, un tableau « non mesuré » —, ou un chiffre qui manque le seuil, ne tient pas le critère et est un constat bloquant. Si tu ne peux pas la jouer ici — un accès, une machine, un compte te manque —, ne la remplace pas : nomme ce qui te manque entre `<bloque>` et `</bloque>`.";
 
+// Comment un cook livre ce que l'utilisateur voit : avec ses captures avant et
+// après (`captures.ts`). #3259 : 6 des 18 renvois de 21 tickets mergés, le
+// premier motif, sont des livraisons design renvoyées par la pass sans
+// captures (#3195, #3212, #3215, #3219, #3220, #3221) ; leurs captures sont
+// arrivées dans un second commit (#3221 : 804f07b). La règle n'était écrite que
+// dans `agents/cook-design.md`, que le cook ne lit que s'il part sous ce profil
+// — ni quand ce profil est occupé, ni quand la zone du ticket est vide, ni pour
+// le site. Elle nomme ici ce que la pass tient pour design
+// (`estUneLivraisonDesign`), de ses propres constantes.
+function consigneDesCaptures(ticket: number): string {
+  const dossier = dossierDesCaptures(ticket);
+  const visuels = [VUE_DE_L_APP, ...VISUELS].map((chemin) => `\`${chemin}/\``).join(", ");
+  return `Si ton diff change ce que l'utilisateur voit — sous ${visuels} — ou si le ticket porte le label \`${LABEL_COOK_DESIGN}\`, ta livraison est une livraison design : la relecture bloque une livraison qui change la vue de l'app sans aucune capture, et la pass renvoie au cook toute livraison design à qui il en manque une quand le projet fait valider ses designs par un humain. Pour chaque écran que ton diff change, prends sa capture avant — avant d'y toucher — et sa capture après, avec l'outil de \`scripts/capture-ecran/\` (son README dit l'appel), regarde-les, et commite-les sur ta branche à \`${dossier}/<écran>-avant.png\` et \`${dossier}/<écran>-apres.png\`. Si le dépôt n'a pas cet outil, ou qu'il ne sait pas rendre l'écran, dis-le dans ton compte-rendu. ${CONSIGNE_DU_BRIEF}`;
+}
+
 // Comment un cook lit le dépôt. Lu dans les sessions des cooks de #2486 à
 // #2571 (#2573) : 73 % de la cuisson est le modèle entre deux appels, 27 % ce
 // que les outils ont tourné. Les cooks opus — 405 des 497 min — font 65 % de
@@ -214,7 +231,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     ...(mission.joint === undefined ? [] : [mission.joint, ""]),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
     `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le. ${CONSIGNE_DES_LECTURES}`,
-    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. ${consigneDesCaptures(ticket)} ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis ?? mission.joint)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
@@ -240,7 +257,7 @@ export function consigneDeSuite(mission: { ticket: number; titre: string; depot:
     ...blocDuSetup(mission.setup),
     `1. Lis le ticket en entier : ${lectureDuTicket(mission)} ; puis ce qui est déjà fait : \`git log origin/${base}..HEAD\` et \`git diff origin/${base}...HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     `2. Juge ce qui est fait et ce qui reste, puis finis le ticket sur cette branche. Ce qui est commité est un point de départ, pas une preuve : ce qui ne tient pas, corrige-le. Travaille ici et nulle part ailleurs. ${CONSIGNE_DES_LECTURES}`,
-    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche. ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
+    `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche. ${consigneDesCaptures(ticket)} ${CONSIGNE_DE_RELECTURE} ${CONSIGNE_DES_TESTS}`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,

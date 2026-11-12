@@ -1,0 +1,41 @@
+/* Le projet d'essai du premier lancement (ticket 3227, essai/projet-d-essai.js) : son encart, par-dessus l'écran, en bas à
+   droite — la bulle de la visite tient le milieu. Mêmes jetons que la visite : une carte, un bord, une ombre. */
+#projet-d-essai {
+  position: fixed;
+  right: var(--pas-5);
+  bottom: var(--pas-5);
+  z-index: 39;
+  width: 30em;
+  max-width: calc(100% - 2 * var(--pas-5));
+}
+.projet-d-essai {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+  box-shadow: 0 var(--pas-2) var(--pas-5) var(--ombre);
+}
+.projet-d-essai h3 {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+}
+.projet-d-essai p {
+  margin: 0;
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+.projet-d-essai .depot-d-essai {
+  align-self: flex-start;
+}
+.projet-d-essai .gestes {
+  margin: 0;
+  padding: 0;
+}
+.projet-d-essai .service-d-essai {
+  color: var(--texte);
+  font-weight: 600;
+}

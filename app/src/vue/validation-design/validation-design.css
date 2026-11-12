@@ -152,6 +152,48 @@
   justify-content: flex-end;
   gap: var(--pas-2);
 }
+/* Le brief (ticket 3330) : ce qui était demandé à gauche, coupé à deux lignes, ce qui a été fait à droite, un point par ligne.
+   Il ne prend que sa hauteur : les captures gardent le reste. */
+#detail-de-validation section.brief-du-detail {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--pas-4);
+  padding: var(--pas-2) var(--pas-3);
+  border-left: 3px solid var(--accent);
+}
+#detail-de-validation div.partie-du-brief {
+  min-width: 0;
+}
+#detail-de-validation div.partie-du-brief h3 {
+  margin: 0 0 var(--pas-1);
+  font-size: inherit;
+  font-weight: 700;
+}
+#detail-de-validation p.demande-du-ticket {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+#detail-de-validation p.sans-resume {
+  margin: 0;
+  color: var(--texte-doux);
+  font-style: italic;
+}
+#detail-de-validation ul.fait-a-l-ecran {
+  margin: 0;
+  padding: 0;
+  list-style: disc inside;
+}
+#detail-de-validation ul.fait-a-l-ecran li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 #detail-de-validation div.ecrans-du-detail {
   flex: 1;
   min-height: 0;
@@ -281,6 +323,18 @@
   #detail-de-validation div.gestes-du-detail {
     align-self: stretch;
     justify-content: flex-start;
+  }
+  /* Le brief au-dessus ne rétrécit pas les captures : le détail défile, elles gardent la moitié de l'écran. */
+  #detail-de-validation .detail-de-validation {
+    overflow-y: auto;
+  }
+  #detail-de-validation section.brief-du-detail {
+    grid-template-columns: 1fr;
+    gap: var(--pas-2);
+  }
+  #detail-de-validation div.ecrans-du-detail {
+    flex: none;
+    min-height: 50vh;
   }
   #detail-de-validation div.paire {
     flex-direction: column;

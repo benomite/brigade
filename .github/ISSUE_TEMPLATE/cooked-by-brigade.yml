@@ -1,0 +1,47 @@
+name: Cooked by Brigade page
+description: Ask to appear on, or be removed from, the Cooked by Brigade page
+title: "[Cooked by Brigade] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The "Cooked by Brigade" page lists the projects whose tickets a brigade serves. Use this form to ask to appear on it, or to be removed from it.
+
+        The autonomy figures shown for a project are computed by the maintainers. You do not provide them.
+  - type: dropdown
+    id: request
+    attributes:
+      label: Request type
+      options:
+        - Appear on the page
+        - Be removed from the page
+    validations:
+      required: true
+  - type: input
+    id: project
+    attributes:
+      label: Project name
+    validations:
+      required: true
+  - type: input
+    id: repository
+    attributes:
+      label: Repository link
+      description: The link to the project's repository.
+      placeholder: "https://github.com/owner/repo"
+    validations:
+      required: true
+  - type: input
+    id: description
+    attributes:
+      label: One-line description
+      description: What the project is, in one line. Needed to appear on the page; for a removal, repeat the one already shown or write "removal".
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: The project is public, and I agree to appear on the Cooked by Brigade page publicly (for an addition) or I want to be removed from it (for a removal).
+          required: true
