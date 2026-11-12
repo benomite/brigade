@@ -963,7 +963,9 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   `blocked-on-human` delivery keeps `in-pass`: it is not in Pass); with `waiting` as well, the chef moved it to a third
   party: it is in Waiting. Then:
   - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
-    "Merge PR #2416 by hand? It changes what judges it.", the PR number opens the PR, and the merge is done on GitHub.
+    "Merge PR #2416 by hand? It changes what judges it." with one button, `Merge PR #2416` (#3368): one click merges the
+    PR and removes `blocked-on-human`, and the card leaves Todo; a merge GitHub refuses is said on the card, which stays.
+    On the phone the card is in the list, with the same button.
   - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
     is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
     (**On the rail**, `86`). Its card says at the top **"Will not start: <reason in plain words>."** (#3147) — every
@@ -1039,7 +1041,7 @@ question. On the repository's open issues, read with the token of this computer'
 
 | GitHub fact | its line: the question, then the gesture |
 |---|---|
-| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — merge PR #N on GitHub` |
+| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — answer on its Todo card: “Merge PR #N” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
 | `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the box's words: `set aside by the manager, it carries question — to decide: answer it then remove the label, the manager judges it; or close the issue` |
@@ -1109,7 +1111,7 @@ gesture=<g> -->`, then the chosen label, or the text — then plays the gesture 
 | gesture | what the app does on GitHub, after the comment |
 |---|---|
 | `resume` | removes `hors-cuisine` and `chef-todo`: the ticket is back on the rail, and its cook reads the answer in the issue |
-| `merge` | merges the PR the card names — the `#N` of the choice's label, else the ticket's open PR (`cook/<n>-…` branch or `Closes #n`); with none, nothing is sent |
+| `merge` | merges the PR the card names — the `#N` of the choice's label, else the ticket's open PR (`cook/<n>-…` branch or `Closes #n`); with none, nothing is sent. Merged, it also removes `blocked-on-human`, the station's hold (#3368) |
 | `drop` | removes `fire`: the ticket leaves the rail, its issue stays open |
 | `close` | closes the issue (`not planned`): the ticket is not cooked |
 
@@ -1234,7 +1236,7 @@ Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`, `app/test/vue/todo/
 `app/test/lecture-github-telephone.test.ts`, `app/test/gestes-github.test.ts`.*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
-is the question "Merge PR #N by hand? It changes what judges it." with the PR link, to merge on GitHub; a technical
+is the question "Merge PR #N by hand? It changes what judges it." with its `Merge PR #N` button (#3368); a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
 set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
 carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures:
@@ -1666,7 +1668,11 @@ read is named under the figures of all projects. A ticket merged with no `fire` 
 
 **Everything is read from GitHub** — the merged pull requests, then the events and comments of each served ticket's issue —
 with the token of this computer's `gh`, under the rail's budget and conditional reads; nothing is read from the machine, so a
-new computer shows the same figures. One reading covers 30 days and both periods, kept ten minutes per repository. The
+new computer shows the same figures. One reading covers 30 days and both periods, kept ten minutes per repository, and reads every closed pull request of the
+period (up to 10,000), not only the latest 1,000. The issues already read are kept beyond those ten minutes, so opening the
+block again only reads the pull requests and tickets served since (#3379). **When GitHub stops a reading** (quota, error, more
+than 10,000 pull requests), the figures are computed on the part read, and a line above them says from when each project is
+counted: never figures presented as the whole period over a shorter span. The
 computation is the runtime's, `runtime/src/autonomie/chiffres/chiffres.ts`; the reading is `app/src/vue/autonomie/autonomie-github.ts`,
 the block `app/src/vue/autonomie/chiffres.js`.
 
@@ -2001,7 +2007,7 @@ and nothing on it scrolls sideways at phone width. Screen: `telephone-file` of
 **The phone opens on the cards that await you** (#2915, epic #2897; artboard `Phone.dc.html`, 390 × 844). At a narrow width
 (the same threshold, `ECRAN_ETROIT`), "All projects" gives its place to **Awaiting you**: the cards of every project's
 TODO column that ask a question, one touch each — `#21 · parade`, the question, what it asks (*Product choice · 2 options*,
-*Review only you can make*) — with the count in the header and, under them, how many projects are cooking when the app
+*Review only you can make*, *Merge by hand · 1 option* for a PR to merge, #3368) — with the count in the header and, under them, how many projects are cooking when the app
 knows it. The projects bar stays above, and a page, a station or the first launch still cover the list. A touch opens the
 card: its question, what happens, one button per choice — the first, filled with the accent and marked *Recommended by the
 second* —, the field *Or answer in your own words* and **Send** (inactive while empty). A choice, the recommended one
@@ -3737,6 +3743,18 @@ section. With the section laid, `right now` is not repeated under it.
   cause is read (the alerts, what awaits you). It is gone at the first reading of `facts` that no longer carries it;
   without it — or from a runtime from before this field — the head of the rail is exactly what it was. A box that
   does not answer shows none: its last reading is no longer new.
+- **A stuck rail is a fault** (#3358, `app/src/vue/rail-bloque/`, diagnosis in `runtime/src/rail-bloque/`). When `fire`
+  tickets have gone untaken by any manager — no manager claim, no `model:` or `effort:` label, no manager comment —
+  for more than five minutes, the head of the rail opens with a red `FAULT` line: how many tickets, for how long, and
+  the cause read from the stations' signs of life — `8 tickets on the rail, no manager has taken them for 14 h: its
+  station box/claude is stopped.` The cause is one of: no station serves the project; its station is stopped, offline
+  or out of GitHub quota; the manager runs but takes nothing; or not known when the stations cannot be read. When a
+  gesture unblocks it — **Start the station**, **Add the project to a station** — it is the line's recommended button,
+  which opens the Stations tab; otherwise, and on a read-only project, there is no button. On "All projects" the
+  project is **stuck**, in red (`8 tickets no manager takes, for 14 h`, the whole sentence on hover). The same sentence
+  is under the head of the `awaiting` block of the app's `status`, of the second's queue, and of
+  `brigade <project> status` on a GitHub-only station. Tickets whose comments cannot be read are said there as `not
+  checked`, never as a calm rail.
 - **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/projet/rail/bande-rail.js`, #1836). An empty rail does
   not mean a finished project. In the band at the top of the Rail tab (#2486, #3013), **Backlog 18 issues** counts
   the open issues of the repository that are not on the rail yet — a number, no bar. It is read from GitHub with the rest of the rail
@@ -4490,3 +4508,7 @@ the box gives (the `renouvellement` line of `installation`, which the runtime's 
 single failure says nothing. The line stays as long as the check (read again every 5 min) reports
 the failure, and goes away on the first successful round. A session that has already dropped
 reports itself through the disconnected station.
+
+### The Help menu: GitHub Discussions (#3258)
+
+The app's Help menu has one entry, "Ask, share and propose ideas (GitHub Discussions)". It opens https://github.com/benomite/brigade/discussions in the computer's browser (`app/src/aide-communaute.ts`). The menu keeps Electron's edit, view and window roles, since setting an application menu replaces the default one.

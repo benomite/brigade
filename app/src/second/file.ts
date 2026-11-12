@@ -19,6 +19,9 @@ import { blocDuChef, lireCeQuiAttendLeChef } from "../tableau/attente-du-chef.ts
 import { corpsLu, type AppelGitHub } from "../tableau/client.ts";
 import { ecritureSurLeDepot } from "../tableau/ecriture.ts";
 import { EVENEMENT, type Cible } from "./crochet-de-la-file.ts";
+import { lireLesStationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationsLues } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import { lireLeRailBloque } from "../vue/rail-bloque/rail-bloque.ts";
 
 // Ce que la lecture entière a pour se faire, toutes ses vagues d'appels comprises — sous le délai du crochet
 // (crochet-de-la-file.ts) : passé, `claude` tue le crochet, et le second n'aurait rien, pas même « file non lue ».
@@ -72,11 +75,34 @@ export function appelParGh(gh: string, delaiMs: number = DELAI_MS): AppelGitHub 
     });
 }
 
-// Ce qui attend le chef dans ce dépôt, lu comme le TODO de l'app le lit, rendu dans le bloc `awaiting`.
-export async function lireLaFile(appeler: AppelGitHub, depot: string, maintenant: () => Date = () => new Date()): Promise<Lecture> {
-  const lue = await lireCeQuiAttendLeChef({ depot, appeler, maintenant });
+// Ce qui attend le chef dans ce dépôt, lu comme le TODO de l'app le lit, rendu dans le bloc `awaiting`. `stations` : les
+// stations du compte — avec elles, le rail bloqué (#3358) se lit aussi, et sa ligne vient sous la tête du bloc, la même
+// que `brigade <project> status` écrit (runtime/src/rail-bloque/status.ts).
+export async function lireLaFile(appeler: AppelGitHub, depot: string, maintenant: () => Date = () => new Date(), stations?: () => Promise<StationsLues>): Promise<Lecture> {
+  const instant = maintenant();
+  const [lue, railBloque] = await Promise.all([
+    lireCeQuiAttendLeChef({ depot, appeler, maintenant: () => instant }),
+    stations === undefined ? undefined : lireLeRailBloque({ depot, appeler, stations, maintenant: instant.getTime() }),
+  ]);
   if (!lue.lue) return { lue: false, raison: lue.raison, ...(lue.horsLigne === undefined ? {} : { horsLigne: true as const }) };
-  return { lue: true, depot, lu: lue.lu, texte: blocDuChef(lue).join("\n") };
+  return { lue: true, depot, lu: lue.lu, texte: blocDuChef({ ...lue, depot, ...(railBloque === undefined ? {} : { railBloque }) }).join("\n") };
+}
+
+// Les stations du compte, par le `gh` du poste (runtime/src/enregistrement-station/stations-du-compte.ts) — dans le délai
+// du crochet : passé, elles sont dites illisibles, et la file se lit sans elles.
+export function stationsParGh(gh: string, delaiMs: number = DELAI_MS): () => Promise<StationsLues> {
+  return async () => {
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    const muettes = new Promise<StationsLues>((resoudre) => {
+      minuteur = setTimeout(() => resoudre({ illisibles: `no answer in ${Math.round(delaiMs / 1000)} s` }), delaiMs);
+    });
+    const lues = lireLesStationsDuCompte({ gh, delaiMs }).then((lu): StationsLues => (lu.state === "listed" ? { lues: lu.stations } : { illisibles: lu.reason }));
+    try {
+      return await Promise.race([lues, muettes]);
+    } finally {
+      clearTimeout(minuteur);
+    }
+  };
 }
 
 // Ce que le crochet écrit : toujours un contexte, même quand la file n'a pas pu être lue. `dossier` : celui de la
@@ -85,7 +111,7 @@ export async function jouer(gh: string, cible: Cible, dossier: string, delaiMs: 
   const depot = cible.depot || (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", dossier));
   if (depot === undefined) return sortieDuCrochet(contexteDeLaFile(cible, { lue: false, raison: "", sansDepot: true }));
   const appeler = appelParGh(gh, delaiMs);
-  const [lecture, ecriture] = await Promise.all([lireLaFile(appeler, depot), ecritureSurLeDepot(depot, appeler)]);
+  const [lecture, ecriture] = await Promise.all([lireLaFile(appeler, depot, undefined, stationsParGh(gh, delaiMs)), ecritureSurLeDepot(depot, appeler)]);
   const ecrit = contexteDeLEcriture(depot, ecriture);
   return sortieDuCrochet(`${contexteDeLaFile(cible, lecture)}${ecrit === "" ? "" : `\n\n${ecrit}`}`);
 }

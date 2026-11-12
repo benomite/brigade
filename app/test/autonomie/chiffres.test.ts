@@ -46,7 +46,7 @@ const PARADE: DonneesDuDepot = {
 };
 const lu = (jours: number, donnees = [PARADE]): LectureDAutonomie => {
   const chiffres = chiffresDAutonomie(donnees, jours, MAINTENANT);
-  return { jours, chiffres: { ...chiffres, avecHumain: chiffres.avecHumain.map((servi) => ({ ...servi, projet: "parade" })) }, manquants: [] };
+  return { jours, chiffres: { ...chiffres, avecHumain: chiffres.avecHumain.map((servi) => ({ ...servi, projet: "parade" })) }, manquants: [], partiels: [] };
 };
 
 const valeurs = (bloc: Faux) => bloc.dessous("p").filter(({ className }) => className === "valeur").map(({ textContent }) => textContent);
@@ -118,6 +118,15 @@ describe("les chiffres d'autonomie (#3222)", () => {
     const bloc = tenirLesChiffresDAutonomie(doc, { lire: () => Promise.resolve(partielle), ouvrir: () => undefined }).poser() as Faux;
     await repos();
     assert.match(bloc.textContent, /not read: cantine/);
+    assert.equal(valeurs(bloc).length, 3);
+  });
+
+  test("une période lue en partie le dit avant les chiffres, avec le projet et l'instant depuis lequel il est compté", async () => {
+    const partielle = lu(7);
+    if ("chiffres" in partielle) partielle.partiels.push({ projet: "parade", depuis: "2026-11-01T10:30:00.000Z", raison: "GitHub answered HTTP 403" });
+    const bloc = tenirLesChiffresDAutonomie(doc, { lire: () => Promise.resolve(partielle), ouvrir: () => undefined }).poser() as Faux;
+    await repos();
+    assert.match(bloc.textContent, /not read over the whole last 7 days: parade counted only from 2026-11-01 10:30 UTC/);
     assert.equal(valeurs(bloc).length, 3);
   });
 

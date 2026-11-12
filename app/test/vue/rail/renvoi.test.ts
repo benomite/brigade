@@ -52,7 +52,8 @@ describe("la lecture du rail le porte, avec la PR du ticket", () => {
       if (chemin.includes("/issues?")) {
         return ok([
           { number: 5, title: "La carte", html_url: `https://github.com/${DEPOT}/issues/5`, created_at: "2026-11-11T08:00:00Z", labels: [{ name: "fire" }, { name: "taken" }] },
-          { number: 7, title: "Le menu", html_url: `https://github.com/${DEPOT}/issues/7`, created_at: "2026-11-11T08:00:00Z", labels: [{ name: "fire" }] },
+          // #7, en attente, calibré par le manager : personne ne le tient, et rien ne le bloque (le rail bloqué, ticket 3358).
+          { number: 7, title: "Le menu", html_url: `https://github.com/${DEPOT}/issues/7`, created_at: "2026-11-11T08:00:00Z", labels: [{ name: "fire" }, { name: "model:sonnet" }, { name: "effort:medium" }] },
         ]);
       }
       if (chemin.includes("/pulls?state=closed")) return ok([]);

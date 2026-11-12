@@ -10,7 +10,7 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE } from "../../src/config.ts";
-import { poserLaCarte } from "../../src/vue/cartes-du-chef/cartes-du-chef.js";
+import { genreDeLaCarte, poserLaCarte } from "../../src/vue/cartes-du-chef/cartes-du-chef.js";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../../src/faits.ts";
@@ -94,6 +94,10 @@ describe("à la largeur d'un téléphone, l'app s'ouvre sur les cartes qui atten
     assert.match(texte, new RegExp(`#21 · ${PARADE}`));
     assert.match(texte, /One journal export per project/);
     assert.match(texte, /Product choice · 2 options/);
+  });
+
+  test("une PR à merger à la main (#3368) se dit un merge, pas un choix de produit", () => {
+    assert.equal(genreDeLaCarte({ sorte: "merge-by-hand", question: "Merge PR #45 by hand?", choix: [{ texte: "Merge PR #45", suite: "merge" }], prixDuTexte: "" } as never), "Merge by hand · 1 option");
   });
 
   test("large, rien ne change : « All projects » reste, les cartes du téléphone sont cachées", async () => {

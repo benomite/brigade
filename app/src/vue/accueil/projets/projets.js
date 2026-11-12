@@ -10,8 +10,11 @@
 import { boutonAction } from "../../briques.js";
 import { AJOUTER_UN_PROJET } from "../../lexique.js";
 
+// La ligne d'un projet au rail bloqué (rail-bloque/rail-bloque.ts, `ditALAccueil`).
+export const RAIL_BLOQUE = /^\d+ tickets? no manager takes, for /;
+
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
-/** @typedef {"cooking" | "waiting" | "held" | "idle"} EtatDeProjet */
+/** @typedef {"cooking" | "waiting" | "held" | "stuck" | "idle"} EtatDeProjet */
 // `maintenant` : ce qui s'y passe, en une phrase (accueil.ts) ; `attend` : combien de décisions attendent le chef, absent quand aucune.
 /** @typedef {{ nom: string, etat: EtatDeProjet, stations: string[], maintenant: string, attend?: number, survol?: string }} ProjetDuBloc */
 /** @typedef {{ ouvrir(nom: string): void, ajouter(): void, pastille?(dit: string, ton: string): any }} GestesDuBloc */
@@ -23,13 +26,15 @@ export const ETATS = {
   cooking: { dit: "cooking", ton: "vert" },
   waiting: { dit: "waiting for the chef", ton: "jaune" },
   held: { dit: "held", ton: "rouge" },
+  // Le rail bloqué (rail-bloque/, ticket 3358) : des tickets qu'aucun manager ne prend.
+  stuck: { dit: "stuck", ton: "rouge" },
   idle: { dit: "idle", ton: "gris" },
 };
 // L'état d'un projet, d'après la ligne que l'accueil en dit (accueil.ts) : rouge, il est retenu ; jaune, il attend le chef ;
 // vert, il cuit s'il a des cooks ou des tickets à la pass, sinon il est au repos ; gris, rien n'y est lu — au repos.
 /** @param {{ ton: string, dit: string }} ligne @returns {EtatDeProjet} */
 export function etatDeLaLigne({ ton, dit }) {
-  if (ton === "rouge") return "held";
+  if (ton === "rouge") return RAIL_BLOQUE.test(dit) ? "stuck" : "held";
   if (ton === "jaune") return "waiting";
   return ton === "vert" && !/^nothing cooking/.test(dit) && /cooking|at work|at the pass/.test(dit) ? "cooking" : "idle";
 }

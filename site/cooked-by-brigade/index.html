@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cooked by Brigade — Brigade</title>
+  <meta name="description" content="Public projects served by Brigade whose chef agreed to appear, each with its autonomy figures: served without a human, lead time, send-back rate.">
+  <meta property="og:title" content="Cooked by Brigade">
+  <meta property="og:description" content="Public projects served by Brigade, with their autonomy figures.">
+  <meta property="og:type" content="website">
+  <link rel="canonical" href="https://benomite.github.io/brigade/cooked-by-brigade/">
+  <link rel="icon" href="../logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="brand" href="../index.html"><img src="../logo.svg" alt="" width="36" height="36"> brigade</a>
+    <h1>Cooked by Brigade</h1>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="cooked">
+    <p>Public projects served by Brigade whose chef agreed to appear here. Each comes with its autonomy figures: <strong>served without a human</strong>, the share of merged tickets whose path from <code>fire</code> to merge never asked the chef anything; <strong>lead time</strong>, the median time from <code>fire</code> to merge; <strong>send-back rate</strong>, the share of deliveries the pass sent back at least once. Each set of figures carries its date.</p>
+    <p id="cooked-status" class="fine">The list could not be read.</p>
+    <div id="cooked-projects" hidden></div>
+  </section>
+  <section id="ask">
+    <p>Your project is cooked by Brigade? <a href="https://github.com/benomite/brigade/issues/new?template=cooked-by-brigade.yml">Ask to appear on this page, or to be removed from it</a>.</p>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p class="fine"><a href="../index.html">Home</a> · <a href="../autonomie.html">Brigade's own autonomy figures</a> · <a href="../faq.html">FAQ</a> · <a href="https://github.com/benomite/brigade">benomite/brigade</a></p>
+</footer>
+
+<script src="cooked-by-brigade.js"></script>
+</body>
+</html>

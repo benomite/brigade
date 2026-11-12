@@ -206,6 +206,8 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       `GET /repos/${DEPOT}/pulls/1560`,
       `POST /repos/${DEPOT}/issues/41/comments {"body":"<!-- brigade:reponse gesture=merge -->\\nYes, merge PR #1560 as delivered"}`,
       `PUT /repos/${DEPOT}/pulls/1560/merge {"merge_method":"merge"}`,
+      // Un merge lève aussi la mise de côté de la station (#3368) : l'issue ne la porte pas, GitHub répond 404.
+      `DELETE /repos/${DEPOT}/issues/41/labels/blocked-on-human`,
       `DELETE /repos/${DEPOT}/issues/41/labels/chef-todo`,
     ]);
     assert.equal(etat.pr.merged, true);
@@ -489,7 +491,7 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
 
   test("répondre à une carte de TODO par un merge : la PR lue, mergée, puis `chef-todo` retiré", async () => {
     const { ecrites } = await parLePont((client) => repondreSurGithub({ depot: DEPOT, ticket: 41, chef: CHEFS.get(41), reponse: clic(41, 1), client }), "repondreCarte", PROJET, 41, clic(41, 1));
-    assert.deepEqual(resume(ecrites).map((ligne) => ligne.split(" {")[0]), [`GET /repos/${DEPOT}/pulls/1560`, `POST /repos/${DEPOT}/issues/41/comments`, `PUT /repos/${DEPOT}/pulls/1560/merge`, `DELETE /repos/${DEPOT}/issues/41/labels/chef-todo`]);
+    assert.deepEqual(resume(ecrites).map((ligne) => ligne.split(" {")[0]), [`GET /repos/${DEPOT}/pulls/1560`, `POST /repos/${DEPOT}/issues/41/comments`, `PUT /repos/${DEPOT}/pulls/1560/merge`, `DELETE /repos/${DEPOT}/issues/41/labels/blocked-on-human`, `DELETE /repos/${DEPOT}/issues/41/labels/chef-todo`]);
   });
 
   test("reprendre — « back to the kitchen » sur la fiche : `waiting` retiré", async () => {

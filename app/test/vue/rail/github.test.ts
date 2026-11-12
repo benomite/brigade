@@ -232,8 +232,8 @@ describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, 
     const vu = dessine(await lireMisDeCote());
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(
-      todo.map(({ ticket, ligne, miseDeCote, fiche }) => ({ ticket, ligne, miseDeCote, attendu: fiche.attendu })),
-      [{ ticket: 8, ligne: "Merge PR #2326 by hand? It changes what judges it.", miseDeCote: { label: "blocked-on-human", liens: [2326] }, attendu: "Merge PR #2326 by hand? It changes what judges it." }],
+      todo.map(({ ticket, ligne, miseDeCote, fiche, todo: carte }) => ({ ticket, ligne, miseDeCote, attendu: fiche.attendu, question: carte?.question })),
+      [{ ticket: 8, ligne: "Green, but not merged: merge it yourself.", miseDeCote: { label: "blocked-on-human", liens: [2326] }, attendu: "Green, but not merged: merge it yourself.", question: "Merge PR #2326 by hand? It changes what judges it." }],
     );
     const rail = vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? [];
     const dit = Object.fromEntries(rail.map(({ ticket, ligne }) => [ticket, ligne]));
@@ -285,11 +285,12 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
   test("Todo montre deux cartes, #2408 et #2322, chacune une question qui nomme sa PR", async () => {
     const vu = await lireLeTodo();
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
-    assert.deepEqual(todo.map(({ ticket, ligne }) => [ticket, ligne]), [
-      [2322, "Merge PR #2325 by hand? It changes what judges it."],
-      [2408, "Merge PR #2416 by hand? It changes what judges it."],
+    assert.deepEqual(todo.map(({ ticket, todo: carte }) => [ticket, carte?.question, carte?.choix.map(({ texte }) => texte)]), [
+      [2322, "Merge PR #2325 by hand? It changes what judges it.", ["Merge PR #2325"]],
+      [2408, "Merge PR #2416 by hand? It changes what judges it.", ["Merge PR #2416"]],
     ]);
-    for (const carte of todo) assert.ok(!gestesDeCarte(carte).some(({ id }) => (id as string) === "merger"), `#${carte.ticket} offers no merge button: the PR is merged on GitHub`);
+    // Le merge est le choix de sa carte (#3368), joué par sa réponse : aucun autre geste de la fiche ne merge.
+    for (const carte of todo) assert.ok(!gestesDeCarte(carte).some(({ id }) => (id as string) === "merger"), `#${carte.ticket} offers no other merge gesture`);
     assert.deepEqual(todo.map(({ miseDeCote }) => miseDeCote?.liens), [[2325], [2416]]);
   });
 

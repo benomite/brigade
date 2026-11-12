@@ -4,6 +4,7 @@ import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { menuDeLApp } from "./aide-communaute.ts";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions, type NativeImage } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { avecPastille, tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
@@ -1014,9 +1015,9 @@ ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
 });
 // Les chiffres d'autonomie d'un projet, ou de tous ceux que la vue nomme (vue/autonomie/autonomie-github.ts, #3222) : lus
 // de GitHub par le jeton du `gh` de ce poste, sous le même budget et les mêmes lectures conditionnelles que le rail, chaque
-// dépôt gardé dix minutes. Un clic de la vue n'ouvre que l'adresse d'un ticket qu'une de ces lectures a rendue.
+// dépôt gardé dix minutes, ses issues déjà lues gardées au-delà (#3379). Un clic de la vue n'ouvre que l'adresse d'un ticket qu'une de ces lectures a rendue.
 const autonomie = tenirLAutonomie({
-  lire: (depot) => lireLAutonomieDuDepot({ depot, appeler: lectureConditionnelle(appelerSousBudget, memoireDuRail(depot)), maintenant: new Date() }),
+  lire: (depot, lues) => lireLAutonomieDuDepot({ depot, appeler: lectureConditionnelle(appelerSousBudget, memoireDuRail(depot)), maintenant: new Date(), lues }),
   fraicheurMs: 10 * 60_000,
 });
 const liensDAutonomie = new Set<string>();
@@ -1926,6 +1927,8 @@ void app.whenReady().then(() => {
   const iconeWindows = app.isPackaged ? join(dirname(process.execPath), "Brigade.ico") : icone;
   // Sans garde sur `isPackaged` seul : le .dmg n'est pas reconnu empaqueté et ne livre pas ce fichier.
   if (estUnMac(plateforme) && !app.isPackaged) poserLIconeDuDock(iconeDock, (chemin) => app.dock?.setIcon(chemin));
+  // L'entrée d'aide : les Discussions du dépôt (#3258).
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuDeLApp((url) => shell.openExternal(url), estUnMac(plateforme))));
   fenetre = new BrowserWindow({
     ...(plateforme === "win32" ? { icon: iconeWindows } : {}),
     width: 1280,

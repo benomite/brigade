@@ -1,0 +1,11 @@
+{
+  "projects": [
+    {
+      "name": "Brigade",
+      "repository": "benomite/brigade",
+      "description": "A free, open-source app that runs Claude Code agents on your GitHub issues.",
+      "url": "https://github.com/benomite/brigade",
+      "figures": { "period": "last 30 days", "asOf": "2026-11-12", "servedWithoutHuman": "96%", "leadTime": "1 h 53 min", "sendBackRate": "16%" }
+    }
+  ]
+}

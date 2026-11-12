@@ -11,6 +11,7 @@
 // d'après ce que la forme dit de chaque ticket (`tiers`). Chaque carte porte ce que la file dit du ticket : sa station
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
 // Ce sont les deux seules choses lues hors de la forme.
+import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lieuDe, lignesDuRail, motDEtat, porter, priorite, type Porte } from "./bon.ts";
@@ -354,6 +355,9 @@ export type Faits = {
   githubSeulRefuse?: { reason: string; since: string };
   // Le dépôt du projet, quand le compte GitHub de l'app ne peut pas y écrire (tableau/lecture.ts, `lectureSeule`, #3163) ; absent sinon, et quand GitHub ne l'a pas dit.
   lectureSeule?: { depot: string };
+  // Le rail bloqué (vue/rail-bloque/, #3358) : des tickets `fire` qu'aucun manager n'a pris au-delà du délai, ou pourquoi
+  // ils ne se lisent pas ; absent quand rien n'est bloqué.
+  railBloque?: RailBloqueLu;
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -496,6 +500,8 @@ export type Tableau = {
   // ligne ; `survol`, ce qu'elle sait de plus. Absente quand `facts` ne la porte pas.
   panne?: Panne;
   rail: Rail;
+  // Le rail bloqué (vue/rail-bloque/, #3358) : la ligne en tête du rail. Absent quand rien n'est bloqué.
+  railBloque?: RailBloqueLu;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
   // tout s'y voit, aucun geste n'y est offert, et une ligne en tête le dit. Absent : la vue ordinaire.
   lectureSeule?: { depot: string };
@@ -781,6 +787,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...limiteLue(racine.github),
       ...refusGitHubSeulLu(racine.githubSeul),
       ...lectureSeuleLue(racine.lectureSeule),
+      ...railBloqueLu(racine.railBloque),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
@@ -1437,6 +1444,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     rail: rail(faits, attend, status, repondues, ecrites),
     auTravail: ticketsAuTravail(faits),
     ...(faits.lectureSeule === undefined ? {} : { lectureSeule: faits.lectureSeule }),
+    ...(faits.railBloque === undefined ? {} : { railBloque: faits.railBloque }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
