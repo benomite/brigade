@@ -311,10 +311,10 @@ delivery, and every delivery of a project without the setting, is merged as befo
 | When the delivery is green (reviewed, CI green), at the merge | What the pass does |
 |---|---|
 | its screens do not all have their before **and** after captures | **sent back to its cook** for them (`brigade:renvoi`, the files to commit named): no card, no chef |
-| it has them, and no open card holds its PR | **not merged**: an issue `Validate its screen`, labelled `chef-todo`, carries the question, the link of the PR and each screen before and after as images; its body opens on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, `sha` the head judged green, and its card comment is `kind=design-validation`. The ticket stays `in-pass` and says its card |
+| it has them, and no open card holds its PR | **not merged**: an issue `Validate its screen`, labelled `chef-todo`, carries the question, the link of the PR, its brief (#3330: `### What was asked`, the ticket's title and the first paragraph of its body, cut to 240 characters; `### What was done`, the points the cook's station posted on the PR, or a line saying no summary is available) and each screen before and after as images; its body opens on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, `sha` the head judged green, and its card comment is `kind=design-validation`. The ticket stays `in-pass` and says its card |
 | a card already holds it on this head | not merged, no second card |
 | a card holds it on another head (the base moved, the branch was updated, the new head judged green again — and approved by the second judge if it touches its judges) | not merged: the old card is closed, a new card holds the new head |
-| its files cannot be read, or the card cannot be created | not merged; the station says why, and tries again at its next turn |
+| its files, its ticket's issue or its PR's comments cannot be read, or the card cannot be created | not merged; the station says why, and tries again at its next turn |
 
 Two gestures answer the card, which the app calls (`brigade <projet> design`, [`exploitation.md`](exploitation.md)):
 

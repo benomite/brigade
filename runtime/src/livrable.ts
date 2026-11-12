@@ -74,7 +74,7 @@ export function lireDejaServi(livrable: string | null): string | null {
   return lireDelimitation(livrable, "deja-servi");
 }
 
-function lireDelimitation(livrable: string | null, balise: string): string | null {
+export function lireDelimitation(livrable: string | null, balise: string): string | null {
   let ouverte: number | null = null;
   let texte: string | null = null;
   for (const marque of blanchir(livrable ?? "").matchAll(new RegExp(`<(/?)${balise}>`, "gi"))) {

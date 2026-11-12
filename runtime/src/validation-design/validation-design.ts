@@ -7,8 +7,9 @@
 //   `retenirLeDesign` : nul, elle merge comme avant ; un motif, elle ne merge
 //   pas. Une livraison design sans ses captures avant/après repart à son cook,
 //   qui les prend, sans carte ni chef. Avec, une issue `chef-todo` « Validate
-//   its screen » porte la question, les captures en images et le lien de la
-//   PR, et son numéro dans un marqueur que l'app lit, avec la tête jugée verte
+//   its screen » porte la question, le lien de la PR, son brief (`brief.ts`,
+//   #3330) et les captures en images, et son numéro dans un marqueur que
+//   l'app lit, avec la tête jugée verte
 //   (`<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`).
 //   Le ticket garde la trace de sa carte (`<!-- brigade:validation-design-carte
 //   … -->`) : tant qu'elle est ouverte, sur la même tête, et qu'aucun renvoi ne
@@ -33,6 +34,7 @@ import type { GitHub, PR } from "../github.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { GesteRefuse } from "../rail.ts";
 import { possede } from "../zones.ts";
+import { ceQuiEstDemande, ceQuiEstFait, lignesDuBrief } from "./brief.ts";
 
 // Le titre de la carte, et la sorte de son commentaire de carte : l'app les lit.
 export const TITRE_DE_CARTE = "Validate its screen";
@@ -179,12 +181,15 @@ async function carteQuiTient(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, t
 // carte qui la tient déjà sur cette tête, sinon une neuve — jamais deux. Rend
 // le motif pour lequel la pass ne la merge pas. Le dépôt inconnu, ou une carte
 // que GitHub ne crée pas, lèvent : la pass le dit, ne merge pas, et réessaie.
-export async function tenirPourLeChef(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr">, suite: readonly string[] = []): Promise<string> {
+// `suite` : ce que la carte porte après le lien de la PR, lu seulement quand
+// une carte neuve se pose.
+export async function tenirPourLeChef(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr">, suite: (depot: string) => Promise<readonly string[]> = async () => []): Promise<string> {
   const { ticket, pr } = livraison;
   const tenue = await carteQuiTient(sorte, github, ticket.number, pr.number, pr.sha);
   if (tenue !== null) return `${sorte.tenue} (card #${tenue})`;
   if (livraison.depot === undefined) throw new Error(`the station does not know its repository: the card of PR #${pr.number} cannot link it — not merged on this turn`);
-  const carte = await github.creerIssue({ titre: sorte.titre, corps: corpsDeLaCarte(sorte, { depot: livraison.depot, ticket, pr: pr.number, sha: pr.sha, suite }), labels: [CHEF_TODO] });
+  const corps = corpsDeLaCarte(sorte, { depot: livraison.depot, ticket, pr: pr.number, sha: pr.sha, suite: await suite(livraison.depot) });
+  const carte = await github.creerIssue({ titre: sorte.titre, corps, labels: [CHEF_TODO] });
   await github.commenter(carte, corpsDeCarte({ sorte: sorte.sorte, texte: `${sorte.question(ticket.number, pr.number)}\n\nPull request: ${adresseDeLaPR(livraison.depot, pr.number)}` }));
   await github.commenter(ticket.number, `${marqueDeRetenue(sorte, carte, pr.number, pr.sha)}\nStation \`${livraison.station}\`: ${sorte.pourquoi} — ${sorte.tenue}, card #${carte}.`);
   return `${sorte.tenue} (card #${carte})`;
@@ -204,7 +209,18 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
     await livraison.renvoyer(raisonSansCaptures(ticket.number, manque));
     return `design delivery without its captures (${manque}): sent back to its cook for them`;
   }
-  return tenirPourLeChef(DESIGN, github, livraison, livraison.depot === undefined ? [] : direCaptures(livraison.depot, ticket.number, { sha: pr.sha, screens }));
+  return tenirPourLeChef(DESIGN, github, livraison, async (depot) => [...(await briefDeLaCarte(github, ticket, pr.number)), ...direCaptures(depot, ticket.number, { sha: pr.sha, screens })]);
+}
+
+// Le brief en tête de la carte (#3330) : ce que le ticket demandait, tiré de
+// son issue — son titre seul si GitHub ne la trouve pas —, et ce que le cook a
+// changé à l'écran, tel que la station l'a posté sur la PR. L'issue ou les
+// commentaires de la PR que GitHub ne donne pas lèvent : la pass le dit, ne
+// merge pas, et réessaie.
+async function briefDeLaCarte(github: GitHubDeLaRetenue, ticket: { number: number; title: string }, pr: number): Promise<string[]> {
+  const issue = github.issue === undefined ? null : await github.issue(ticket.number);
+  const fait = ceQuiEstFait(await github.commentaires(pr));
+  return lignesDuBrief(ceQuiEstDemande(ticket.title, issue?.body ?? null), fait);
 }
 
 // ── Les gestes du chef ──

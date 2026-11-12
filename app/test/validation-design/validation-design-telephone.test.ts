@@ -86,7 +86,8 @@ function fauxGitHub(panne: Panne = () => undefined) {
     commenter: async (numero: number, corps: string) => void sienne(numero).comments.push({ body: corps, association: "OWNER" }),
     delabelliser: async (numero: number, label: string) => void sienne(numero).labels.delete(label),
     fermerIssue: async (numero: number) => void (sienne(numero).state = "closed"),
-    commentaires: async (numero: number) => sienne(numero).comments,
+    // La PR n'a aucun commentaire : son cook n'a rien dit de l'écran (ticket 3330).
+    commentaires: async (numero: number) => (numero === PR ? [] : sienne(numero).comments),
     issue: async (numero: number) => {
       const lue = issues.get(numero);
       return lue === undefined ? null : { number: numero, title: lue.title, labels: [...lue.labels], state: lue.state, createdAt: "2026-11-11T12:00:00Z", updatedAt: "2026-11-11T12:00:00Z", url: `https://github.com/${DEPOT}/issues/${numero}` };
