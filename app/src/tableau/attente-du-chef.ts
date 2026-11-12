@@ -90,10 +90,10 @@ function ligneDeLaCarte({ sorte, texte: dit }: CarteDuChef): string {
   return `${question ?? `A ${sorte} card without its question: what does it ask you?`} — ${repondre}`;
 }
 
-// La ligne d'un ticket mis de côté au chef : la PR à merger à la main, la question de produit, ou ce qui le retient.
+// La ligne d'un ticket mis de côté au chef : sa carte — la PR à merger à la main, avec son bouton (#3368), ou la question de
+// produit —, ou ce qui le retient.
 function ligneDeLaMiseDeCote(miseDeCote: MiseDeCote): string {
   if (miseDeCote.chef !== undefined) return ligneDeLaCarte(miseDeCote.chef);
-  if (miseDeCote.pr != null) return `${miseDeCote.raison ?? `Merge PR #${miseDeCote.pr.numero} by hand?`} — merge PR #${miseDeCote.pr.numero} on GitHub`;
   return `${miseDeCote.raison === null ? "" : `${miseDeCote.raison} — `}${ECARTS[BLOCKED_ON_HUMAN]}`;
 }
 

@@ -9,7 +9,7 @@
 //   2. le geste est joué :
 //      - `resume` (un choix, ou tout texte libre) : `served-elsewhere` et `chef-todo` retirés — le ticket revient sur le rail ;
 //      - `merge` : la PR que la carte nomme est mergée — celle que le libellé du choix nomme (`#N`), sinon la PR ouverte
-//        du ticket ; aucune, rien ne part ;
+//        du ticket ; aucune, rien ne part. `blocked-on-human` est retiré : la mise de côté de la station levée (#3368) ;
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
 //      - `close` : l'issue est fermée ;
 //      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
@@ -19,7 +19,7 @@
 import { carteLueDuChef, reponseLue, type Rendu } from "../carte-todo.ts";
 import type { MethodeDEcriture } from "../priorite.ts";
 import type { AppelGitHub, ReponseGitHub } from "../tableau/client.ts";
-import { SERVED_ELSEWHERE } from "../tableau/mise-de-cote-github.ts";
+import { BLOCKED_ON_HUMAN, SERVED_ELSEWHERE } from "../tableau/mise-de-cote-github.ts";
 import { ticketDeLaPR } from "../tableau/rail-github.ts";
 import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/todo-github.ts";
 import { refusDe } from "../tableau/client.ts";
@@ -32,7 +32,8 @@ const LABEL_FIRE = "fire";
 // Ce que chaque geste retire de l'issue, en plus de jouer ce qu'il joue.
 const RETIRES: Readonly<Record<GesteDuChef, readonly string[]>> = {
   resume: [SERVED_ELSEWHERE, LABEL_DU_CHEF],
-  merge: [LABEL_DU_CHEF],
+  // Mergée, la livraison mise de côté parce qu'elle touche à ce qui la juge n'est plus retenue (#3368).
+  merge: [BLOCKED_ON_HUMAN, LABEL_DU_CHEF],
   drop: [LABEL_FIRE, LABEL_DU_CHEF],
   close: [LABEL_DU_CHEF],
   rail: [LABEL_DU_CHEF],

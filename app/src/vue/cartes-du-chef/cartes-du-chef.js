@@ -40,6 +40,8 @@ export function genreDeLaCarte({ sorte, choix, question, validation, revue }) {
   if (revue !== undefined) return "Review before merge";
   const options = `${choix.length} ${choix.length === 1 ? "option" : "options"}`;
   if (question === null || choix.length === 0) return "Review only you can make";
+  // Une PR à merger à la main, mise de côté par la station ou d’un fork (tickets 3368, 3367) : un merge, pas un choix.
+  if (sorte === "merge-by-hand") return `Merge by hand · ${options}`;
   return `${sorte === "design" ? "Design choice" : "Product choice"} · ${options}`;
 }
 

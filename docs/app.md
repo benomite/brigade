@@ -963,7 +963,9 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   `blocked-on-human` delivery keeps `in-pass`: it is not in Pass); with `waiting` as well, the chef moved it to a third
   party: it is in Waiting. Then:
   - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
-    "Merge PR #2416 by hand? It changes what judges it.", the PR number opens the PR, and the merge is done on GitHub.
+    "Merge PR #2416 by hand? It changes what judges it." with one button, `Merge PR #2416` (#3368): one click merges the
+    PR and removes `blocked-on-human`, and the card leaves Todo; a merge GitHub refuses is said on the card, which stays.
+    On the phone the card is in the list, with the same button.
   - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
     is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
     (**On the rail**, `86`). Its card says at the top **"Will not start: <reason in plain words>."** (#3147) — every
@@ -1039,7 +1041,7 @@ question. On the repository's open issues, read with the token of this computer'
 
 | GitHub fact | its line: the question, then the gesture |
 |---|---|
-| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — merge PR #N on GitHub` |
+| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — answer on its Todo card: “Merge PR #N” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
 | `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the box's words: `set aside by the manager, it carries question — to decide: answer it then remove the label, the manager judges it; or close the issue` |
@@ -1109,7 +1111,7 @@ gesture=<g> -->`, then the chosen label, or the text — then plays the gesture 
 | gesture | what the app does on GitHub, after the comment |
 |---|---|
 | `resume` | removes `hors-cuisine` and `chef-todo`: the ticket is back on the rail, and its cook reads the answer in the issue |
-| `merge` | merges the PR the card names — the `#N` of the choice's label, else the ticket's open PR (`cook/<n>-…` branch or `Closes #n`); with none, nothing is sent |
+| `merge` | merges the PR the card names — the `#N` of the choice's label, else the ticket's open PR (`cook/<n>-…` branch or `Closes #n`); with none, nothing is sent. Merged, it also removes `blocked-on-human`, the station's hold (#3368) |
 | `drop` | removes `fire`: the ticket leaves the rail, its issue stays open |
 | `close` | closes the issue (`not planned`): the ticket is not cooked |
 
@@ -1234,7 +1236,7 @@ Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`, `app/test/vue/todo/
 `app/test/lecture-github-telephone.test.ts`, `app/test/gestes-github.test.ts`.*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
-is the question "Merge PR #N by hand? It changes what judges it." with the PR link, to merge on GitHub; a technical
+is the question "Merge PR #N by hand? It changes what judges it." with its `Merge PR #N` button (#3368); a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
 set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
 carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures:
@@ -2001,7 +2003,7 @@ and nothing on it scrolls sideways at phone width. Screen: `telephone-file` of
 **The phone opens on the cards that await you** (#2915, epic #2897; artboard `Phone.dc.html`, 390 × 844). At a narrow width
 (the same threshold, `ECRAN_ETROIT`), "All projects" gives its place to **Awaiting you**: the cards of every project's
 TODO column that ask a question, one touch each — `#21 · parade`, the question, what it asks (*Product choice · 2 options*,
-*Review only you can make*) — with the count in the header and, under them, how many projects are cooking when the app
+*Review only you can make*, *Merge by hand · 1 option* for a PR to merge, #3368) — with the count in the header and, under them, how many projects are cooking when the app
 knows it. The projects bar stays above, and a page, a station or the first launch still cover the list. A touch opens the
 card: its question, what happens, one button per choice — the first, filled with the accent and marked *Recommended by the
 second* —, the field *Or answer in your own words* and **Send** (inactive while empty). A choice, the recommended one

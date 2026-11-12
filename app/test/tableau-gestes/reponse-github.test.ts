@@ -250,6 +250,41 @@ describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un s
     assert.ok((await todo(leMonde.client)).some(({ ticket }) => ticket === 77));
   });
 
+  // Un ticket que la station a mis de côté (`blocked-on-human`) : sa livraison, PR #2330, touche à ce qui la juge (#3368). Son
+  // commentaire est celui que la station écrit en posant le label (runtime/src/brigade-github.ts) ; la PR ne ferme pas l'issue.
+  const JUGES = "Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2330.";
+  const avecLaMiseDeCote = () => {
+    const leMonde = monde();
+    leMonde.issues.set(2326, { labels: new Set(["fire", "blocked-on-human"]), state: "open", commentaires: [{ id: 8, body: JUGES, author_association: "OWNER", created_at: "2026-11-05T03:00:00Z" }] });
+    leMonde.prs.set(2330, { state: "open", merged: false, ref: "cook/2326-ci", body: "For #2326" });
+    return leMonde;
+  };
+
+  test("merge d'une livraison mise de côté par la station : sa carte pose la question avec le bouton `Merge PR #2330` ; un clic merge la PR, lève `blocked-on-human`, et la carte part", async () => {
+    const leMonde = avecLaMiseDeCote();
+    const carte = carteDe(await todo(leMonde.client), 2326);
+    assert.equal(carte.todo?.question, "Merge PR #2330 by hand? It changes what judges it.");
+    assert.deepEqual(carte.todo?.choix.map(({ texte }) => texte), ["Merge PR #2330"]);
+    const rendu = await cliquer(leMonde, 2326, "Merge PR #2330");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.match(rendu.dit, /PR #2330 merged, `blocked-on-human` removed/);
+    assert.equal(leMonde.prs.get(2330)?.merged, true);
+    assert.ok(!leMonde.issues.get(2326)?.labels.has("blocked-on-human"));
+    assert.equal(leMonde.issues.get(2326)?.state, "open");
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 2326));
+  });
+
+  test("merge d'une livraison mise de côté refusé par GitHub : la raison est dite en une ligne, la mise de côté reste, et sa carte aussi", async () => {
+    const leMonde = avecLaMiseDeCote();
+    leMonde.refusees.add(2330);
+    const rendu = await cliquer(leMonde, 2326, "Merge PR #2330");
+    assert.ok("refus" in rendu, JSON.stringify(rendu));
+    assert.equal(rendu.detail, "GitHub refused the merge of PR #2330 (HTTP 405): Pull Request is not mergeable");
+    assert.equal(leMonde.prs.get(2330)?.merged, false);
+    assert.ok(leMonde.issues.get(2326)?.labels.has("blocked-on-human"));
+    assert.deepEqual(carteDe(await todo(leMonde.client), 2326).todo?.choix.map(({ texte }) => texte), ["Merge PR #2330"]);
+  });
+
   test("close : l'issue est fermée", async () => {
     const leMonde = avecLaCarte();
     const rendu = await cliquer(leMonde, 40, "Close it");
