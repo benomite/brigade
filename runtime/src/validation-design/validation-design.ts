@@ -177,6 +177,18 @@ async function carteQuiTient(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, t
   return null;
 }
 
+// La carte qui attend encore le chef pour `pr`, quelle que soit sa tête : la
+// dernière posée pour elle, ouverte, qu'aucun renvoi ne suit ; null sinon.
+// Lecture seule — rien ne se ferme ici. Une carte posée est le garde du merge
+// même quand le réglage du projet ne se lit plus, ou qu'une autre station ne
+// l'a pas (#3347) : `humanValidatesDesigns` retire, la carte retient encore.
+export async function carteEnAttenteDuChef(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, ticket: number, pr: number): Promise<number | null> {
+  const derniere = derniereRetenue(sorte, await github.commentaires(ticket), (_, sienne) => sienne === pr);
+  if (derniere === null || derniere.renvoyee) return null;
+  const lue = github.issue === undefined ? null : await github.issue(derniere.carte);
+  return github.issue === undefined || (lue !== null && lue.state === "open") ? derniere.carte : null;
+}
+
 // Retient la livraison verte pour le chef, sur une carte de cette sorte : la
 // carte qui la tient déjà sur cette tête, sinon une neuve — jamais deux. Rend
 // le motif pour lequel la pass ne la merge pas. Le dépôt inconnu, ou une carte
@@ -225,7 +237,7 @@ async function briefDeLaCarte(github: GitHubDeLaRetenue, ticket: { number: numbe
 
 // ── Les gestes du chef ──
 
-export type GitHubDesGestes = Pick<GitHub, "ouvertes" | "commentaires" | "commenter" | "delabelliser" | "fermerIssue" | "prDeBranche" | "merger">;
+export type GitHubDesGestes = Pick<GitHub, "ouvertes" | "commentaires" | "commenter" | "delabelliser" | "fermerIssue" | "prDeBranche" | "merger" | "creerIssue">;
 
 // La carte ouverte de cette sorte qui tient la PR, son ticket et sa tête jugée
 // verte ; refusé s'il n'y en a pas.
@@ -277,12 +289,18 @@ export const valider = (github: GitHubDesGestes, pr: number, brancheDuTicket: (t
 // Renvoyer la carte : la livraison repart à un cook, la note du chef comme ce
 // qu'il faut changer — un renvoi sur sa tête, que le cook lit sur le ticket,
 // et `in-pass` retiré —, puis la carte se ferme. Une note vide est refusée.
-export async function renvoyerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGestes, pr: number, note: string, brancheDuTicket: (ticket: number) => string): Promise<{ carte: number; ticket: number }> {
+export async function renvoyerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGestes, pr: number, note: string, brancheDuTicket: (ticket: number) => string): Promise<{ carte: number; ticket: number; suivi?: number }> {
   const aChanger = note.trim();
   if (aChanger === "") throw new GesteRefuse(sorte.sansNote);
   const { carte, ticket } = await carteDeLaPR(sorte, github, pr);
   const lue = await prDeLaCarte(github, pr, ticket, brancheDuTicket);
-  if (lue.state !== "open" || lue.merged) throw new GesteRefuse(`PR #${pr} is no longer open: there is nothing to send back`);
+  if (lue.merged) {
+    // Mergée malgré tout : il n'y a plus de livraison à reprendre, le commentaire du chef ouvre un ticket de suite.
+    const suivi = await github.creerIssue({ titre: `Follow-up of #${ticket}: the chef asks for changes after PR #${pr} was merged`, corps: `PR #${pr}, the delivery of #${ticket}, was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`, labels: [] });
+    await fermerLaCarte(github, carte, `PR #${pr} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`);
+    return { carte, ticket, suivi };
+  }
+  if (lue.state !== "open") throw new GesteRefuse(`PR #${pr} is no longer open: there is nothing to send back`);
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
   await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\n${sorte.renvoi(pr, aChanger)}`);
   await github.delabelliser(ticket, LABEL_IN_PASS);

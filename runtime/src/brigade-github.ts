@@ -45,7 +45,7 @@ import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
-import { designsValidesParUnHumain, retenirLeDesign } from "./validation-design/validation-design.ts";
+import { carteEnAttenteDuChef, designsValidesParUnHumain, DESIGN, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
@@ -1425,6 +1425,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       if (motif !== null) {
                         retenue = true;
                         return { fait: false, motif };
+                      }
+                    }
+                    // Une carte de validation ouverte retient sa PR même si le réglage ne se lit plus ici (#3347).
+                    else {
+                      const carte = await carteEnAttenteDuChef(DESIGN, github, ticket.number, numero);
+                      if (carte !== null) {
+                        retenue = true;
+                        return { fait: false, motif: `held for the chef's validation of its screen (card #${carte})` };
                       }
                     }
                     // Un ticket \`sensitive\` attend la revue du chef avant son merge (#3223).

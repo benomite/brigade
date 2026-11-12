@@ -41,8 +41,9 @@ export async function principal({ args, env, dire, redire }: Appel, ouvrir: Ouvr
       const { carte, ticket } = await valider(github, cible.numero, brancheDuTicket);
       dire(`${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served`);
     } else {
-      const { carte, ticket } = await renvoyerLeDesign(github, cible.numero, commentaire, brancheDuTicket);
-      dire(`${nom} sent back: #${ticket} goes back to a cook with your comment, card #${carte} closed — its next delivery comes back as a new card`);
+      const { carte, ticket, suivi } = await renvoyerLeDesign(github, cible.numero, commentaire, brancheDuTicket);
+      if (suivi !== undefined) dire(`${nom} was already merged: your comment is the follow-up ticket #${suivi}, card #${carte} closed`);
+      else dire(`${nom} sent back: #${ticket} goes back to a cook with your comment, card #${carte} closed — its next delivery comes back as a new card`);
     }
   } catch (erreur) {
     if (erreur instanceof Sortie) throw erreur;

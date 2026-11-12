@@ -216,7 +216,8 @@ export async function validerSurGithub({ depot, carte, design, geste, client }: 
       const { ticket } = await validerLaCarte(github, carte, design);
       return { fait: `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served` };
     }
-    const { ticket } = await renvoyerLaCarte(github, carte, design, lu.commentaire);
+    const { ticket, suivi } = await renvoyerLaCarte(github, carte, design, lu.commentaire);
+    if (suivi !== undefined) return { fait: `${nom} was already merged: your comment is the follow-up ticket #${suivi}, card #${carte} closed` };
     return { fait: `${nom} sent back: #${ticket} goes back to a cook with your comment, card #${carte} closed — its next delivery comes back as a new card` };
   } catch (erreur) {
     if (erreur instanceof Refus) return { refus: ecrits.length === 0 ? `nothing was done: ${erreur.message}` : erreur.message, detail: ecrits.length === 0 ? "" : `already written on GitHub: ${ecrits.join("; ")}` };
@@ -255,6 +256,13 @@ function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: stri
     commenter: (numero: number, corps: string) => ecrire("POST", `/repos/${depot}/issues/${numero}/comments`, { body: corps }, `a comment on #${numero}`, [201]),
     // Une issue qui ne porte pas le label : rien à retirer.
     delabelliser: (numero: number, label: string) => ecrire("DELETE", `/repos/${depot}/issues/${numero}/labels/${encodeURIComponent(label)}`, undefined, `\`${label}\` taken off #${numero}`, [200, 404]),
+    // Une issue neuve, sans label : son numéro.
+    async creer(titre: string, corps: string): Promise<number> {
+      const rendu = await ecrire("POST", `/repos/${depot}/issues`, { title: titre, body: corps }, "a follow-up ticket", [201]);
+      const numero = objet(rendu.data).number;
+      if (typeof numero !== "number") throw new Error("GitHub did not say the number of the follow-up ticket");
+      return numero;
+    },
     fermer: (numero: number) => ecrire("PATCH", `/repos/${depot}/issues/${numero}`, { state: "closed", state_reason: "completed" }, `#${numero} closed`, [200]),
     // Le merge à la tête `sha` : un refus de GitHub (4xx) est une réponse — rien n'est mergé —, tout autre statut lève.
     async merger(numero: number, sha: string): Promise<{ fait: true } | { fait: false; motif: string }> {
@@ -325,11 +333,16 @@ async function validerLaCarte(github: GitHubDeLaValidation, carte: number, desig
 
 // Renvoyer (runtime : `renvoyerLeDesign`) : la livraison repart à un cook, le commentaire du chef comme ce qu'il faut
 // changer — un renvoi sur sa tête, que le cook lit sur le ticket, et `in-pass` retiré —, puis la carte se ferme.
-async function renvoyerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign, aChanger: string): Promise<{ ticket: number }> {
+async function renvoyerLaCarte(github: GitHubDeLaValidation, carte: number, design: ValidationDesign, aChanger: string): Promise<{ ticket: number; suivi?: number }> {
   const { pr, ticket } = design;
   await carteQuiTient(github, carte, design);
   const lue = await prDeLaCarte(github, design);
-  if (lue.state !== "open" || lue.merged) throw new Refus(`PR #${pr} is no longer open: there is nothing to send back`);
+  if (lue.merged) {
+    const suivi = await github.creer(`Follow-up of #${ticket}: the chef asks for changes after PR #${pr} was merged`, `PR #${pr}, the delivery of #${ticket}, was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`);
+    await fermerLaCarte(github, carte, `PR #${pr} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`);
+    return { ticket, suivi };
+  }
+  if (lue.state !== "open") throw new Refus(`PR #${pr} is no longer open: there is nothing to send back`);
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
   await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\nThe chef sent the design of PR #${pr} back to a cook — the chef asks for changes to the screen:\n\n${aChanger}\n\nChange the screen as asked, take its before and after captures again, and deliver.`);
   await github.delabelliser(ticket, LABEL_IN_PASS);

@@ -90,7 +90,7 @@ function gestes(faux: FauxGitHub) {
     issues: [...faux.tickets.values()].filter((t) => t.state === "open").map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, createdAt: "", updatedAt: "", url: "", body: t.corps, association: "OWNER" })),
     confirmer: () => {},
   });
-  return { ...client, ouvertes: ouvertesLues, fermer: () => {} };
+  return { ...client, creerIssue: faux.pour("chef").creerIssue, ouvertes: ouvertesLues, fermer: () => {} };
 }
 
 async function design(faux: FauxGitHub, ...args: string[]) {
@@ -361,6 +361,41 @@ test("files of the PR that cannot be read, or a card GitHub refuses to create: n
   await tours(s, 2);
   assert.equal(ouvertes(faux).length, 1);
   assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("a card that holds a delivery keeps it unmerged even when this station no longer reads the setting on (#3347); once the chef validates, it merges", async () => {
+  const { faux } = await retenue();
+  assert.equal(ouvertes(faux).length, 1);
+  const { s: sansReglage } = station(faux, false);
+  await tours(sansReglage, 4);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+});
+
+test("a card whose delivery the chef sent back no longer holds it when the setting is off", async () => {
+  const { faux } = await retenue();
+  await design(faux, "send-back", `faux/depot#${PR}`, "--comment", "Move it.");
+  const { s } = station(faux, false);
+  await tours(s, 4);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+});
+
+test("send back on a delivery merged anyway opens a follow-up ticket with the chef's comment and closes the card, instead of failing", async () => {
+  const { faux } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  faux.pr(PR).state = "closed";
+  faux.pr(PR).merged = true;
+  const fin = await design(faux, "send-back", `faux/depot#${PR}`, "--comment", "The take button is still lost.");
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.match(fin.lignes.join("\n"), /was already merged: your comment is the follow-up ticket #\d+/);
+  assert.equal(faux.ticket(carte.number).state, "closed");
+  assert.equal(renvois(faux).length, 0);
+  const suivi = cartes(faux).find((t) => t.number !== carte.number);
+  assert.ok(suivi?.corps.includes("The take button is still lost."), suivi?.corps ?? "no follow-up ticket");
 });
 
 test("setting off: a green design delivery is merged by the pass as before, no card", async () => {

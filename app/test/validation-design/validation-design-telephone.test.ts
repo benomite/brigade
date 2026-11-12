@@ -118,6 +118,12 @@ function fauxGitHub(panne: Panne = () => undefined) {
       const data = page > 1 ? [] : [...issues].filter(([, { state, labels }]) => state === "open" && (label === null || labels.has(label))).map(([number, { title, body, labels }]) => ({ number, title, body, labels: [...labels].map((name) => ({ name })), html_url: `https://github.com/${DEPOT}/issues/${number}`, created_at: "2026-11-11T12:00:00Z", author_association: "OWNER" }));
       return { status: 200, data };
     }
+    if (methode === "POST" && ici === "/issues") {
+      const { title, body } = corps as { title: string; body: string };
+      const numero = prochaine++;
+      issues.set(numero, { title, body, labels: new Set(), state: "open", comments: [] });
+      return { status: 201, data: { number: numero } };
+    }
     const issue = /^\/issues\/(\d+)(.*)$/.exec(ici ?? "");
     if (issue !== null) {
       const numero = Number(issue[1]);
@@ -249,6 +255,15 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
     assert.ok("fait" in telephone);
     assert.deepEqual(monde.merges, []);
     assert.equal(monde.issues.get(CARTE)?.state, "closed");
+  });
+
+  test("la PR déjà mergée : « Send back » ouvre un ticket de suite avec le commentaire du chef et ferme la carte, au lieu d'échouer", async () => {
+    const { runtime, telephone, monde } = await deuxFois(RENVOI, (monde) => void Object.assign(monde.pr, { state: "closed", merged: true }));
+    assert.deepEqual(telephone, runtime);
+    assert.match("fait" in telephone ? telephone.fait : assert.fail("renvoyée"), /was already merged: your comment is the follow-up ticket #62, card #61 closed/);
+    assert.match(monde.issues.get(62)?.body ?? "", /The export button is cut off\./);
+    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(TICKET)?.comments.length, 1, "le ticket ne reçoit aucun renvoi : sa livraison est mergée");
   });
 
   test("un merge que GitHub refuse : la carte reste ouverte, et dit ce que GitHub a répondu", async () => {
