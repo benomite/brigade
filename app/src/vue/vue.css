@@ -2315,6 +2315,27 @@ main > header,
   font-weight: 400;
   color: var(--discret);
 }
+/* TODO plein (ticket 3327) : à partir de quatre cartes, la colonne passe en tête de la rangée et prend deux pistes, à partir de dix,
+   trois — assez pour que le titre et la question d'une carte se lisent sans être coupés, et toujours en vue : ce sont les autres
+   colonnes qui cèdent, la rangée défile de côté (ticket 1556), pas TODO. Ses cartes se rangent en grille, plusieurs par ligne, et
+   se font compactes (carte-attente.css). De une à trois cartes, rien ne change. */
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) {
+  order: -1;
+  grid-column: span 2;
+}
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(10)) {
+  grid-column: span 3;
+}
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) > ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  align-items: start;
+}
+/* Chaque carte d'un TODO plein est le conteneur `todo-plein` : la feuille de la carte d'attente (composants/carte-attente) la compacte
+   quand elle est dans l'un d'eux, sans nommer le rail. */
+#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) > ol > li {
+  container: todo-plein / inline-size;
+}
 /* « Awaiting others » ferme TODO (tickets 2985, 3071) : le bloc replié du rail, dans la colonne, sous ses cartes. Dépliées,
    les cartes d'un autre humain sont des cartes de TODO, avec en plus qui elles attendent. */
 #rail .colonne > .replie.autres {
