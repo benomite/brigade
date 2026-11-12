@@ -5124,6 +5124,9 @@ function placerLaRangee(projet, grille, defile) {
 // formulaire, ou d'une ligne du tableau de la cuisine.
 function repriseDuClavier() {
   const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
+  // Le champ du détail en grand (ticket 3348) porte la même clé que celui de sa carte, cachée dessous : le rail ne peut pas
+  // le rendre, il prendrait le clavier à la carte au lieu de le laisser au détail — poserLeDetail garde le sien.
+  if (tape !== null && tape !== undefined && detailDeValidation.contains(tape)) return undefined;
   return tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ, debut: tape.selectionStart, fin: tape.selectionEnd };
 }
 /** @param {ReturnType<typeof repriseDuClavier>} reprise */
