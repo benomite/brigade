@@ -65,7 +65,11 @@ base, the stale-branch pruning).
   `gh run rerun` (`runtime/src/geste-station/`). The station makes it, posts the result (the new issue's number…) on
   the ticket, where the resuming cook reads it, removes `blocked-on-human`, and the ticket goes back to a cook — no
   card. A GitHub call that fails counts as a cook without a delivery, its error written on the ticket (`brigade:echec`),
-  never a card asking the chef to run the command. Seen on 2026-11-10 (#3136). After two technical answers, the third block goes back to the manager
+  never a card asking the chef to run the command. Seen on 2026-11-10 (#3136). The issues a cook asks to open, the
+  manager lists in `issues_a_ouvrir`, each with the cook's title and body and what it tracks: the station opens them all
+  and posts one line `#<number> = <what it tracks>` per issue. A placeholder title or body (`<title>`, `<body>`), or a
+  `gh` gesture of these kinds the station cannot read whole (“run `gh issue create` five times”), opens nothing and
+  counts as a cook without a delivery, the reason in one line — never a card (#3374). After two technical answers, the third block goes back to the manager
   with both answers, and its decision is appended to the ticket's body once (`<!-- brigade:decision-du-manager -->`);
   a block on a ticket that already carries it, or a decision the station cannot write, counts as a cook without a
   delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
