@@ -139,6 +139,7 @@ import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneM
 import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
 import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, progression, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
 import { CHAMP_DE_LA_REPONSE, CHAMP_DES_CHANGEMENTS, poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
+import { poserRecitDuPremierTicket, tenirLeRecitDuPremierTicket } from "./recit-premier-ticket/recit-premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
@@ -307,6 +308,10 @@ const propositionsDuSecond = tenirLesChoix();
 // second de chaque projet : au travail, ou au repos à son invite.
 const sectionDuParcours = element("parcours-premier-projet");
 const parcoursDesProjets = tenirLesParcours({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
+// Le récit du premier ticket du premier projet du chef (ticket 3302, recit-premier-ticket/) : au-dessus du rail, une ligne à
+// chaque vraie étape que les lectures du rail montrent, gardée dans le stockage de la vue jusqu'à ce que le chef la range.
+const sectionDuRecit = element("recit-premier-ticket");
+const recitDuPremierTicket = tenirLeRecitDuPremierTicket({ stockage: window.localStorage ?? undefined, rendre: () => poserLeRecitDuPremierTicket() });
 // Le départ d'un projet qui arrive avec des issues ouvertes (ticket 3268, parcours-premier-projet/depart.js) : l'écran des
 // propositions du second, avant les questions du parcours.
 const departsDesProjets = tenirLesDeparts({ rendre: (nom) => void (courant?.nom === nom && poserLeProjetAPreparer()) });
@@ -7876,6 +7881,7 @@ function marquer() {
   lireOnglet();
   poserLaVisite();
   poserLeProjetAPreparer();
+  poserLeRecitDuPremierTicket();
 }
 
 // Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638), puis toutes les stations et
@@ -8247,6 +8253,9 @@ function suivreLeParcours(nom) {
     aGuider.delete(nom);
     if (lectureSeuleDe(projet) !== undefined) return;
     parcoursDesProjets.commencer(nom, depot, dejaCuit(projet, depot));
+    // Le premier projet du chef : le fichier n'en a pas d'autre que la cuisine de démonstration de la visite.
+    recitDuPremierTicket.projetAjoute(nom, configuration.projets.some((autre) => autre.nom !== nom && autre.depot !== DEPOT_DE_LA_VISITE));
+    if (tenu !== undefined && "tableau" in tenu) recitDuPremierTicket.observer(nom, tenu.tableau.etapesDesTickets);
     departsDesProjets.commencer(nom);
     void lireLeDepart(nom);
     // Les stations du compte se proposent à « qui le cuit » : relues, la question se repose.
@@ -8457,6 +8466,27 @@ function poserLeProjetAPreparer() {
     ),
   );
   sectionDuParcours.hidden = false;
+}
+
+// Le récit du premier ticket, sur la page du projet qui l'a (ticket 3302) : rien ailleurs, ni en lecture seule. Ses liens
+// ouvrent la PR du ticket — celle de son cook tant qu'il est sur le rail, puis celle qui l'a servi.
+function poserLeRecitDuPremierTicket() {
+  const projet = courant;
+  const recit = projet === undefined || lectureSeuleDe(projet) !== undefined ? undefined : recitDuPremierTicket.de(projet.nom);
+  if (projet === undefined || recit === undefined) {
+    sectionDuRecit.hidden = true;
+    sectionDuRecit.replaceChildren();
+    return;
+  }
+  const { nom } = projet;
+  const { ticket } = recit;
+  sectionDuRecit.replaceChildren(
+    poserRecitDuPremierTicket(document, recit, {
+      ouvrir: () => void brigade.ouvrirPrDuCook(nom, ticket).then((ouverte) => ouverte || brigade.ouvrirPr(nom, ticket)),
+      ranger: () => recitDuPremierTicket.ranger(),
+    }),
+  );
+  sectionDuRecit.hidden = false;
 }
 
 async function relireLePremier() {
@@ -8933,12 +8963,15 @@ brigade.surFaits((recue) => {
   else if (!((muette || horsLigne || ratee) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
   suivreLeParcours(recue.projet);
+  // Le premier ticket du premier projet suit chaque lecture de son rail (ticket 3302).
+  if ("tableau" in recue) recitDuPremierTicket.observer(recue.projet, recue.tableau.etapesDesTickets);
   poserLesCartesDuChef();
   // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
   if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {
     void lireLesEssais(courant);
     dessiner();
+    poserLeRecitDuPremierTicket();
     void poserOrdinaires(courant);
   }
 });
