@@ -2248,24 +2248,12 @@ are in the list of stations** (#1778, #3195), read each time the home opens — 
   each project's Cooks tab (`reached` gives way to the same words), while its sign of life waits for the limit to lift.
 - **Every row does the same thing: a click anywhere on it (or Enter on the focused row) opens the station's page**
   (#1779) — paired or only registered, online or not, with the same `›` arrow, hover and focus. No row expands a block
-  in place. The page of a registered station carries "Projects it serves": **your projects only** (#1780), one
-  checkbox each, ticked when the station serves it — the repositories your GitHub account reaches (the list "add a
-  project" reads) that the brigade already knows: a project of the app, a project a paired station serves, or a
-  repository chosen for any station under your account; a repository it serves that the list no longer names stays
-  there, to be unticked. **Any other repository is added by search, never shown as a list**: the field under the
-  boxes ("add another repository — type part of its name") shows, as you type, the reachable repositories whose
-  name contains what you typed and that have no box yet — eight at most, then "3 more — keep typing", or "no other
-  repository matches …"; emptied, it shows nothing again. "add" on one chooses it for the station (written like a
-  tick) and it joins your projects: a box on every station's page. A box you untick stays until the app closes; at
-  the next launch, your projects are again what the brigade knows. **Ticking or unticking writes at once** the whole selection into the
-  station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
-  it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
-  line says so under the boxes, the detail on hover, and nothing changes. **The line says the cause and its gesture**
-  (#3187, `refusDeLEcriture` in `app/src/stations-du-compte.ts`): the “gist” permission missing from this computer's
-  GitHub sign-in (sign in to GitHub again on this computer; the `gh auth refresh -h github.com -s gist` command is on
-  hover), a sign-in no longer valid, GitHub's hourly limit, no network, the station's registration gone from GitHub
-  (start the station so it registers again), or any other answer of GitHub (choose again in a minute, its answer on
-  hover). A 404 that names the missing permission is told as the permission, not as a gist gone.
+  in place. The page of a station carries "Projects it serves" (#3403, epic #3401): a list that is only read —
+  no checkbox, no field, no "remove", no "+ add a project". Each project is a link to that project's **Stations tab**; a
+  project is listed only if its Stations tab also shows this station among the ones that serve it (the same reading,
+  `servantesDe` in `app/src/vue/stations-tab/etat.js`). A station that serves no project says so in a plain sentence,
+  `This station serves no project yet.`. What a station serves is changed from a project's Stations tab, never here
+  (`app/src/vue/station/page/ProjetsDeLaStation.js`).
 - **A repository another station already serves** (#1790, epic #1785; changed by #2713): the ticked station opens its
   own kitchen and cooks there, like every station that serves the project. Before #2713 it joined the one that ran,
   or refused in one sentence, and said which in its tracking (`brigade-projets-suivi.json` of the same gist, `rejoindre`). The app reads it there with the
@@ -2276,10 +2264,6 @@ are in the list of stations** (#1778, #3195), read each time the home opens — 
   station — the station that serves it stays the main one, and nothing says the kitchen runs on this computer.
   Refused, the box says "refused" and the runtime's sentence is under the boxes, whole; the project's page keeps its
   stations, with "<station> was not added: <sentence>" under its first line.
-- **An offline station stays editable**: one line says it serves these projects once it is back, and one more says since
-  when it is offline and how to bring it back (`Offline for 22 min: switch box on, or start its brigade-station service
-  there: it starts with the machine`; a Mac or a PC: `open Brigade on <name>, or log in there`). A held one too:
-  its line says it reads these choices once GitHub's limit lifts, and keeps serving its projects.
 - **Online or offline is what the station is doing** (#3187, `avecLeurEtat`): online when its last sign of life is
   fresh — its registration's, by the contract's rule, or its presence's, which a running station writes every 30 s
   under the same name. Offline, the app keeps since when (`offlineSince`). A running box is never shown offline because
@@ -2343,27 +2327,11 @@ workstation, and says so at launch, when the runtime is not next to it, or with
 
 **On a station's page, in its header,** one line says how many GitHub calls the box made over the last hour and which project and which kind of reading made most of them: `GitHub calls, last hour: 42 — most from parade (30), mostly issues (25)`. The figures come from `appelsGithub` in the `facts` of a project the station carries (#1417). A runtime that does not publish them yet gives a neutral dash, never an error. The module is `app/src/vue/appels-de-la-station.js`.
 
-**On a station's page**, "Projects" lists **all** the projects it carries, one line
-each: those its configuration serves — added from the app or written by hand in `projets`,
-it publishes them all in its gist —, then those the app asks of it and that it does not serve yet.
-Each line carries its mark: **`main`** when the station runs its manager and its pass (it
-serves the project), **`secondary`** otherwise — and it then says which station they run on. Then what
-the station says about it: `served`, `waiting for your authorization on GitHub`, `being prepared`,
-`refused`. On hover: its repository and its branch, the reason for a refusal and, once served, how long it took
-since you opened the flow (`served by box 1 min 12 s after “add a project” was
-opened`) — or, for a project written by hand, `installed on this station outside the app`. **A click
-opens the project**: its space if it is in your projects file, otherwise "Add a project", where
-you declare it. "no project on this station yet" is read only on a station that truly carries
-none.
+**On a station's page**, "Projects it serves" lists the projects of the app that the station serves — only those
+whose Stations tab shows the station — and each one is a link to that tab (#3403). Nothing is edited there: no
+"+ add a project", no "remove", no checkbox, no repository field. A station that serves none says
+`This station serves no project yet.` Adding a project is the **+** at the foot of the bar (see "Add a project" above).
 
-- **"+ add a project"**, on that same page, opens the flow: the **repository**, chosen among those your
-  `gh` reads (most recent first; its default branch is offered as the integration
-  branch); the **stations** that serve it, and its **main** station — the one for its manager and
-  its pass. The app offers a **server station** by default, always on; choosing the app of a
-  computer (Mac, Windows) says right away that the project's kitchen stops when the app is closed.
-  Then the number of **cooks** at a time and the **calibration** of the manager and the reviewer: nothing there is
-  chosen in advance, these are your decisions. "add": what is missing is stated under the form, and nothing
-  is written.
 - **The picked repository is checked first** (#2627, `app/src/vue/ajout-projet/`, `app/src/projets/preparation-du-depot.ts`):
   as soon as you pick it, the app asks the runtime whether it is set up for brigade (`checkRepoSetup`, #2626), on the
   repository's local copy on this computer — the one the app keeps for it, reused or cloned — and says it in one sentence. Set up, the path carries
@@ -2378,8 +2346,6 @@ none.
   ([docs/runtime/](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal"). If its GitHub
   Apps must be authorized on the repository, one **"authorize on GitHub"** button per App opens
   GitHub's page: one click, and the station carries on on its own.
-- **"remove"**, under a project added from the app, then a second click to confirm, removes the project from the request of each of
-  its stations: they remove it from their configuration. Its state and its clone stay on the machine.
 
 **From a project's page** (#983), when no station is cooking for it yet, `No station
 cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens below, in one card

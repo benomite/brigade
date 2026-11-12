@@ -76,6 +76,7 @@ import { tenirBandeau } from "./mise-a-jour/bandeau.js";
 import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./connexion-github.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
+import { poserLesProjetsDeLaStation, projetsServisPar } from "./station/page/ProjetsDeLaStation.js";
 import { poserEtapeProjet } from "./parcours-projet/etape-projet.js";
 import { boutonAction, caseACocher, prixDit, survol } from "./briques.js";
 import { confirmationDeGeste } from "./composants/confirmation/confirmation.js";
@@ -145,7 +146,7 @@ import { poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/pr
 import { poserRecitDuPremierTicket, tenirLeRecitDuPremierTicket } from "./recit-premier-ticket/recit-premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
-import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
+import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { direLaLecture, poserLaLecture } from "./rail-lecture-perimee.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
@@ -469,28 +470,11 @@ stationsDeLAccueil.append(bloc("h2", TOUTES_LES_STATIONS), listeDesStations, ver
 const etatDesEnregistrees = {};
 let enregistreesAbsentes = true;
 let lectureDesEnregistrees = 0;
-let lectureDesDepotsEnregistrees = 0;
 /** @type {import("./stations-du-compte.js").GestesDuCompte} */
 const gestesDesEnregistrees = {
   ouvrirLaStation: (id) => ouvrirStation(id),
-  // Une case décochée reste un projet du chef jusqu'à la fin de la session : sa case ne disparaît pas sous le clic.
-  choisir: (id, depots) => {
-    const lues = etatDesEnregistrees.stations;
-    const avant = lues?.state === "listed" ? (lues.stations.find((station) => station.id === id)?.selection ?? []) : [];
-    etatDesEnregistrees.ajoutes = [...new Set([...(etatDesEnregistrees.ajoutes ?? []), ...avant])];
-    void choisirPourUneEnregistree(id, depots);
-  },
-  // Ce que le chef tape : retenu, que la page redessinée le lui rende ; ce qu'il trouve se pose à sa place.
-  chercher: (id, texte) => void (etatDesEnregistrees.recherche = { id, texte }),
-  // Un dépôt trouvé : il s'ajoute aux projets du chef, le champ se vide, et la sélection de la station s'écrit.
-  ajouter: (id, depot, depots) => {
-    etatDesEnregistrees.ajoutes = [...new Set([...(etatDesEnregistrees.ajoutes ?? []), depot])];
-    delete etatDesEnregistrees.recherche;
-    void choisirPourUneEnregistree(id, depots);
-  },
   relire: () => {
     void lireLesEnregistrees();
-    if (etatDesEnregistrees.depots !== undefined && "refus" in etatDesEnregistrees.depots) void lireLesDepotsDesEnregistrees();
   },
   seConnecter: () => void seConnecterAGitHub(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
@@ -500,66 +484,16 @@ const gestesDesEnregistrees = {
     poserStationsDeLAccueil();
   },
 };
-// La page d'une station, ouverte d'un clic sur sa ligne : son état, ses pannes et leur bouton, tous
-// les projets qu'elle porte, et le parcours « add a project » — le dépôt, ses stations
-// — le serveur proposé d'office —, ses décisions, et valider. Rien ne s'y tape au terminal.
+// La page d'une station, ouverte d'un clic sur sa ligne : son état, ses pannes et leur bouton, et les projets qu'elle
+// sert — une liste qui se lit seulement, chacun menant à l'onglet Stations de son projet. Rien ne s'y tape au terminal.
 const pageDeStation = document.createElement("section");
 pageDeStation.id = "station";
 pageDeStation.className = "carte";
 const enTeteDeStation = document.createElement("header");
 const pannesDeStation = document.createElement("div");
 pannesDeStation.ariaLive = "polite";
-const projetsChoisisDeStation = document.createElement("div");
-projetsChoisisDeStation.ariaLive = "polite";
-const titreDesProjets = bloc("h3", "Projects");
-const listeDesProjets = document.createElement("div");
-listeDesProjets.ariaLive = "polite";
-const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bouton(`+ ${AJOUTER_UN_PROJET.toLowerCase()}`, undefined));
-ouvrirLeParcours.className = "ajout-de-projet";
-const formulaireDAjout = document.createElement("form");
-formulaireDAjout.hidden = true;
-const depotChoisi = /** @type {HTMLSelectElement} */ (document.createElement("select"));
-depotChoisi.ariaLabel = "repository";
-// Le choix du dépôt se fait à l'étape « projet » (ticket 2476) ; la liste ne garde que le dépôt retenu, que le formulaire envoie.
-depotChoisi.hidden = true;
-const etapeDuProjet = document.createElement("div");
-const baseChoisie = document.createElement("input");
-baseChoisie.ariaLabel = "integration branch";
-baseChoisie.placeholder = "integration branch";
-baseChoisie.spellcheck = false;
-const choixDesStations = document.createElement("div");
-const avertissementDesStations = document.createElement("p");
-avertissementDesStations.ariaLive = "polite";
-const cooksChoisis = document.createElement("input");
-cooksChoisis.type = "number";
-cooksChoisis.ariaLabel = "cooks at once";
-cooksChoisis.placeholder = "cooks at once, on each station";
-/** @type {Record<"manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort", HTMLSelectElement>} */
-const calibrageDuProjet = {
-  "manager-modele": /** @type {HTMLSelectElement} */ (document.createElement("select")),
-  "manager-effort": /** @type {HTMLSelectElement} */ (document.createElement("select")),
-  "reviewer-modele": /** @type {HTMLSelectElement} */ (document.createElement("select")),
-  "reviewer-effort": /** @type {HTMLSelectElement} */ (document.createElement("select")),
-};
-for (const [champ, liste] of Object.entries(calibrageDuProjet)) liste.ariaLabel = champ.replace("-modele", " model").replace("-effort", " effort");
-const validerAjout = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(document, "add", undefined, { sorte: "recommande", type: "submit" }));
-const annulerAjout = /** @type {HTMLButtonElement} */ (bouton(ANNULER, undefined, "discret"));
-const ajoutRefuse = document.createElement("div");
-ajoutRefuse.ariaLive = "polite";
-const ajoutDit = document.createElement("p");
-ajoutDit.ariaLive = "polite";
-formulaireDAjout.append(
-  etapeDuProjet,
-  depotChoisi,
-  baseChoisie,
-  choixDesStations,
-  avertissementDesStations,
-  cooksChoisis,
-  ...Object.values(calibrageDuProjet),
-  validerAjout,
-  annulerAjout,
-  ajoutRefuse,
-);
+const projetsDeLaStation = document.createElement("div");
+projetsDeLaStation.ariaLive = "polite";
 const retourALAccueil = /** @type {HTMLButtonElement} */ (bouton("‹ All projects", undefined, "discret"));
 retourALAccueil.className = "retour";
 // Le plafond de cooks, sous l'en-tête : ce que `status` en dit, et ce qui retient la station.
@@ -575,7 +509,7 @@ retraitDeStation.className = "retrait-de-station";
 // cooks — posées par la coque de station/page/StationPage.js.
 const sectionsDeStation = document.createElement("div");
 sectionsDeStation.className = "sections-de-station";
-pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, sectionsDeStation, titreDesProjets, listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation, projetsChoisisDeStation);
+pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, sectionsDeStation, projetsDeLaStation, retraitDeStation);
 // Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
 // un projet. Une ligne « Cost » l'ouvre, en bas du bandeau de santé de chaque projet (sur l'accueil jusqu'au ticket 2638). Sa page : les tokens
 // lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
@@ -1293,10 +1227,6 @@ let stationsVues;
 // Les projets des stations (projets/projets.ts). Indéfini : pas encore lus.
 /** @type {import("../projets/projets.ts").VuDesProjets | undefined} */
 let projetsVus;
-// Le parcours « Add a project », tant qu'il est ouvert : quand il l'a été, les dépôts lus, les
-// stations cochées — une relecture des stations ne les perd pas.
-/** @type {{ ouvertLe: string, depots: import("../projets/github.ts").DepotDuChef[], choisies: Set<string>, touchee: boolean } | undefined} */
-let parcours;
 // Le choix des stations auxquelles confier la cuisine du projet affiché, tant qu'il est ouvert : le
 // même que le parcours, pour ce projet-là — une relecture des stations ne perd pas ce qui est coché.
 // `choisies` : la seule machine choisie (ticket 3187) ;
@@ -1321,10 +1251,6 @@ let demenagement;
 // Ce que le dernier déménagement a rendu, et pour quel projet : dit sous la ligne de ses stations —
 // refusé, sa raison, et son détail au survol.
 let demenagementDitPour = { projet: "", dit: "", refus: false, detail: "" };
-// Le projet dont le retrait attend un second clic.
-/** @type {string | undefined} */
-let retraitDemande;
-
 // La peau du terminal vient des jetons, comme le reste (jetons.css) : ni couleur ni police ne s'écrit ici.
 /** @param {string} nom */
 const jeton = (nom) => getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
@@ -4540,19 +4466,29 @@ function poserOngletStations(projet) {
   rail.replaceChildren(ongletDesStations(projet));
 }
 
-/** @param {Projet} projet */
-function ongletDesStations(projet) {
-  const maintenant = Date.now();
+// Ce que `servantesDe` lit d'un projet : sa cuisson, les stations appairées, celles qu'il déclare, et sa station de ce
+// poste. L'onglet Stations du projet et la page de chaque station le lisent ici, d'une même façon : un projet n'est sur la
+// page d'une station que si l'onglet l'y montre. `lues` : sa cuisson, ses stations sur GitHub, ou celles qu'il déclare —
+// l'une suffit pour dire qui le cuit.
+/** @param {Projet} projet @param {number} maintenant */
+function lectureDesServantes(projet, maintenant) {
   const tenu = tenus.get(projet.nom);
   const cuisson = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const stations = stationsVues?.stations ?? [];
   const locale = projetsVus?.locale ?? null;
-  const vuDuProjet = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
-  // Lues : sa cuisson, ses stations sur GitHub, ou celles qu'il déclare — l'une suffit pour dire qui le cuit.
   const lues = cuisson !== undefined || (stationsVues !== undefined && projetsVus !== undefined) || declarees.has(projet.nom);
   const lesDeclarees = declarees.get(projet.nom)?.declarees ?? [];
   const luLe = tenu === undefined ? Number.NaN : Date.parse(tenu.a);
   const base = { projet: projet.nom, lignes: cuisson?.lignes ?? [], stations, declarees: lesDeclarees.map(({ nom, distante }) => ({ nom, distante })), locale, ici: projet.ici === true, maintenant, ...(Number.isNaN(luLe) ? {} : { lu: luLe }) };
+  return { base, lues, locale, tenu, cuisson };
+}
+
+/** @param {Projet} projet */
+function ongletDesStations(projet) {
+  const maintenant = Date.now();
+  const vuDuProjet = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const { base, lues, locale, tenu, cuisson } = lectureDesServantes(projet, maintenant);
+  const stations = base.stations;
   const sans = servantesDe(base);
   const deplacement = deplacementSuivi({ publie: vuDuProjet?.demenagement, demande: deplacementsDemandes.get(projet.nom), servantes: sans, stations });
   if (deplacement === null) deplacementsDemandes.delete(projet.nom);
@@ -6079,12 +6015,11 @@ function poserAccueil() {
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
 // running », « offline for 12 min », « saturated » (accueil.ts) ; sa machine et sa version ne se lisent
 // qu'au survol de l'icône d'aide, jamais dans la page. Dessous, ses pannes, chacune avec son bouton ;
-// puis tous les projets qu'elle porte.
+// puis les projets qu'elle sert, à lire.
 function poserPageDeStation() {
   const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
   const ligne = accueilVu?.stations?.find(({ id }) => id === stationOuverte);
   const enregistree = enregistreeOuverte();
-  if (enregistree !== undefined && etatDesEnregistrees.depots === undefined && lectureDesDepotsEnregistrees === 0) void lireLesDepotsDesEnregistrees();
   if (station === undefined && enregistree !== undefined) {
     // Une machine seulement enregistrée sous le compte du chef : ni pannes, ni plafond, ni retrait — que son état et ses projets.
     const titre = bloc("h2", enregistree.name);
@@ -6122,12 +6057,6 @@ function poserPageDeStation() {
     poserLesSectionsDeStation({ id: station.id, nom: station.nom });
     poserRetireLaStation(station);
   }
-  // Une machine seulement enregistrée n'a ni projet de l'app, ni parcours d'ajout : ses projets sont ses cases.
-  const seulementEnregistree = station === undefined && enregistree !== undefined;
-  titreDesProjets.hidden = seulementEnregistree;
-  if (seulementEnregistree) ouvrirLeParcours.hidden = true;
-  else if (parcours === undefined) ouvrirLeParcours.hidden = false;
-  poserLesProjetsChoisis();
   poserProjets();
 }
 
@@ -6184,27 +6113,6 @@ function enregistreeOuverte() {
   return ligne?.enregistree;
 }
 
-// Sur la page de la station enregistrée : les projets du chef à cocher, ce qu'elle sert — ce que sa ligne n'ouvre plus en
-// place —, et la recherche parmi ses autres dépôts (ticket 1780). Les projets du chef sont ceux que la brigade connaît :
-// ceux de l'app, ceux que les stations appairées servent ou portent ; les stations du compte y ajoutent ce qui leur est
-// choisi (stations-du-compte.js). Le champ où le chef tapait garde le clavier, et son curseur, quand la page se redessine.
-function poserLesProjetsChoisis() {
-  const enregistree = enregistreeOuverte();
-  if (etatDesEnregistrees.recherche !== undefined && etatDesEnregistrees.recherche.id !== stationOuverte) delete etatDesEnregistrees.recherche;
-  etatDesEnregistrees.connus = [
-    ...configuration.projets.map(({ nom, depot }) => depot ?? nom),
-    ...(projetsVus?.projets ?? []).map(({ nom, depot }) => (depot === "" ? nom : depot)),
-    ...(stationsVues?.stations ?? []).flatMap(({ projets }) => projets ?? []),
-  ];
-  const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
-  const reprise = tape?.dataset?.recherche === undefined ? undefined : { debut: tape.selectionStart, fin: tape.selectionEnd };
-  projetsChoisisDeStation.replaceChildren(...(enregistree === undefined ? [] : [casesDeLEnregistree(document, enregistree, etatDesEnregistrees, gestesDesEnregistrees)]));
-  if (reprise === undefined) return;
-  const champ = /** @type {HTMLInputElement | null} */ (projetsChoisisDeStation.querySelector?.("input[type=search]") ?? null);
-  champ?.focus();
-  if (champ !== null && reprise.debut !== null && reprise.fin !== null) champ.setSelectionRange?.(reprise.debut, reprise.fin);
-}
-
 // Le plafond de cooks de la station, comme sa box le dit — `3 at most — 8 cores`, ou `5 at most — set by you,
 // replaces 3 (8 cores)` — ; quand elle retient des tickets, ce qui la retient, avec ce que chaque ressource a et ce
 // qu'il lui faut. Il se lit seulement : une station prend autant de tickets qu'elle déclare de places, et sa déclaration
@@ -6225,6 +6133,36 @@ function poserPlafond(ligne) {
     lignes.push(retient);
   }
   plafondDeStation.replaceChildren(...lignes);
+}
+
+// Sur la page d'une station, les projets qu'elle sert : ceux dont l'onglet Stations la montre parmi les stations qui le
+// servent (station/page/ProjetsDeLaStation.js), chacun un lien vers cet onglet. Elle se lit seulement ; ce qu'elle sert se
+// change depuis l'onglet du projet. Tant que les stations ne sont pas lues, le vide n'est pas sûr : la page le dit.
+function poserProjets() {
+  const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
+  const enregistree = enregistreeOuverte();
+  const ouverte = station !== undefined ? { id: station.id, nom: station.nom } : enregistree === undefined ? undefined : { id: enregistree.id, nom: enregistree.name };
+  if (ouverte === undefined) return projetsDeLaStation.replaceChildren();
+  const maintenant = Date.now();
+  const projets = projetsServisPar(
+    ouverte,
+    configuration.projets.map(({ nom }) => nom),
+    (nom) => {
+      const projet = projetDe(nom);
+      return projet === undefined ? [] : servantesDe(lectureDesServantes(projet, maintenant).base);
+    },
+  );
+  const lisible = stationsVues !== undefined && station?.etat !== "illisible";
+  projetsDeLaStation.replaceChildren(
+    poserLesProjetsDeLaStation(document, { projets, lisible }, {
+      ouvrir: (nom) => {
+        const projet = projetDe(nom);
+        if (projet === undefined) return;
+        retenir(nom, STATIONS);
+        void ouvrir(projet);
+      },
+    }),
+  );
 }
 
 // La station dont « remove the station » demande confirmation, par son gist.
@@ -6277,233 +6215,6 @@ async function retirerLaStation(station) {
   }
   retraitDeStationRefuse = "";
   ouvrirTous();
-}
-
-// Sur la page d'une station, tous les projets qu'elle porte, une ligne chacun : ceux que sa
-// configuration sert — qu'ils viennent de l'app ou d'une ligne écrite à la main, la station les publie
-// tous (stations/document.ts) —, puis ceux que l'app lui demande et qu'elle ne sert pas encore. Une
-// station qui sert un projet le dit ; une autre dit pourquoi elle ne le sert pas. Toute la ligne s'ouvre d'un clic.
-// Sous un projet ajouté depuis l'app, ce qu'il attend du chef — autoriser sur GitHub — et le geste
-// qui le retire, en deux clics. Le vide ne se dit que s'il n'y a vraiment rien.
-function poserProjets() {
-  const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
-  if (station === undefined) return listeDesProjets.replaceChildren();
-  const demandes = (projetsVus?.projets ?? []).flatMap((projet) => {
-    const ici = projet.stations.find(({ id }) => id === stationOuverte);
-    return ici === undefined ? [] : [{ projet, ici }];
-  });
-  const noms = [...new Set([...station.projets, ...demandes.map(({ projet }) => projet.nom)])].sort((a, b) => a.localeCompare(b));
-  const lignes = noms.map((nom) => {
-    const demande = demandes.find(({ projet }) => projet.nom === nom);
-    const servi = station.projets.includes(nom);
-    const ligne = ligneDeProjetDeStation(nom, servi, demande);
-    if (demande === undefined) return ligne;
-    const pose = document.createElement("div");
-    pose.className = "projet-de-station";
-    const gestes = document.createElement("p");
-    for (const url of demande.ici.autoriser) {
-      gestes.append(bouton(`authorize on GitHub: ${url.replace(/^https:\/\/github\.com\/apps\/([^/]+).*$/, "$1")}`, () => void brigade.autoriserSurGitHub(url)));
-    }
-    gestes.append(bouton(retraitDemande === nom ? `remove ${nom} from its stations? click again` : "remove", () => void retirerProjet(nom), "danger"));
-    pose.append(ligne, gestes);
-    return pose;
-  });
-  // Tant que ce que l'app lui demande n'est pas lu, le vide n'est pas sûr : il ne se dit pas.
-  const vide = station.etat === "illisible" ? "its projects cannot be read: neither can the station" : projetsVus === undefined ? LECTURE_DE("GitHub") : PAS_ENCORE("project on this station");
-  listeDesProjets.replaceChildren(
-    ...(lignes.length === 0 ? [bloc("p", vide)] : lignes),
-    ...(projetsVus?.sans === undefined ? [] : [ligneErreur(document, "GitHub could not be read: the projects added from this app are the ones from before", projetsVus.sans)]),
-  );
-}
-
-// Un projet sur la page d'une station : sa pastille, son nom, et ce qu'elle en dit. Un clic l'ouvre :
-// son espace s'il est dans le fichier des projets de l'app ; sinon « Add a project », où il s'y
-// déclare. Le détail — son dépôt, ce que la station en a dit — est au survol.
-/** @param {string} nom @param {boolean} servi @param {{ projet: import("../projets/projets.ts").ProjetVu, ici: import("../projets/projets.ts").StationDuProjet } | undefined} demande */
-function ligneDeProjetDeStation(nom, servi, demande) {
-  const etat = servi ? "servi" : (demande?.ici.etat ?? "attendu");
-  const ton = etat === "servi" ? "vert" : etat === "a-autoriser" ? "jaune" : etat === "refuse" ? "rouge" : "gris";
-  const dit =
-    etat === "servi"
-      ? "served"
-      : etat === "a-autoriser"
-        ? "waiting for your authorization on GitHub"
-        : etat === "en-preparation"
-          ? "being prepared"
-          : etat === "refuse"
-            ? "refused"
-            : "not read yet";
-  const declare = projetDe(nom);
-  const survolDit = [
-    demande === undefined ? "installed on this station outside the app" : `${demande.projet.depot} · ${demande.projet.base}`,
-    ...(demande === undefined || demande.ici.dit === "" ? [] : [demande.ici.dit]),
-    ...(demande === undefined || demande.projet.servi === null ? [] : [demande.projet.servi]),
-    declare === undefined ? `not in this app's projects yet: a click opens “${AJOUTER_UN_PROJET}”` : "",
-  ].filter((ligne) => ligne !== "");
-  const cree = document.createElement("button");
-  cree.type = "button";
-  cree.className = "ligne";
-  cree.dataset.projet = nom;
-  cree.title = survolDit.join("\n");
-  cree.ariaLabel = `${nom} — ${dit}`;
-  const appele = bloc("strong", nom);
-  appele.className = "mono";
-  const suite = bloc("span", "›");
-  suite.className = "ouvrir";
-  suite.ariaHidden = "true";
-  cree.append(pastille(dit, ton), appele, bloc("span", dit), suite);
-  cree.addEventListener("click", () => (declare === undefined ? ouvrirAjout() : void ouvrir(declare)));
-  return cree;
-}
-
-// Retirer, en deux clics : le premier demande, le second retire le projet de la demande de chacune
-// de ses stations — elles le retirent de leur configuration.
-/** @param {string} nom */
-async function retirerProjet(nom) {
-  if (retraitDemande !== nom) {
-    retraitDemande = nom;
-    return poserProjets();
-  }
-  retraitDemande = undefined;
-  ajoutDit.textContent = `removing ${nom} from its stations…`;
-  poserProjets();
-  const rendu = await brigade.retirerDUneStation(nom);
-  ajoutDit.textContent = "refus" in rendu ? rendu.refus : `${rendu.retire} is removed: each of its stations takes it out of its configuration within a minute`;
-}
-
-// Les stations du parcours : une case par station appairée. Celle que l'app
-// recommande — un serveur — est proposée d'office ; choisir un ordinateur se dit tout de suite.
-function poserChoixDesStations() {
-  if (parcours === undefined) return;
-  poserLesStations(parcours, choixDesStations, avertissementDesStations, { exclues: [], relancer: poserChoixDesStations });
-}
-
-// Une case par station appairée — sauf celles qui portent déjà le projet. Sans case cochée, celle que l'app
-// recommande est proposée d'office, tant que le chef n'a rien touché.
-/**
- * @param {{ choisies: Set<string>, touchee: boolean }} vise
- * @param {HTMLElement} ou @param {HTMLElement} averti
- * @param {{ exclues: readonly string[], relancer: () => void }} options
- */
-function poserLesStations(vise, ou, averti, { exclues, relancer }) {
-  const appairees = (stationsVues?.stations ?? []).filter(({ id, cuisine }) => cuisine !== false && !exclues.includes(id));
-  const recommandee = projetsVus?.recommandee;
-  if (!vise.touchee && vise.choisies.size === 0 && recommandee && appairees.some(({ id }) => id === recommandee)) vise.choisies.add(recommandee);
-  ou.replaceChildren(
-    ...(appairees.length === 0
-      ? [bloc("p", exclues.length === 0 ? "no station to serve it: pair one first, with “+ station” under All stations, on the home" : "no other paired station: pair one first, with “+ station” under All stations, on the home")]
-      : appairees.map((station) => {
-          const ligne = document.createElement("p");
-          ligne.dataset.etat = station.etat;
-          const choisie = document.createElement("input");
-          choisie.type = "checkbox";
-          choisie.ariaLabel = `serve it on ${station.nom}`;
-          choisie.checked = vise.choisies.has(station.id);
-          choisie.addEventListener("change", () => {
-            vise.touchee = true;
-            if (choisie.checked) vise.choisies.add(station.id);
-            else vise.choisies.delete(station.id);
-            relancer();
-          });
-          ligne.append(choisie, bloc("span", ` ${station.nom}${station.machine === "" ? "" : ` — ${station.machine}`}`));
-          return ligne;
-        })),
-  );
-  // Seul un ordinateur, choisi sans serveur, arrête la cuisine quand le chef ferme l'app : c'est ce que l'avertissement dit.
-  const choisies = [...vise.choisies];
-  averti.textContent = choisies.length > 0 && choisies.every((id) => projetsVus?.avertissements[id] !== undefined) ? (projetsVus?.avertissements[choisies[0] ?? ""] ?? "") : "";
-  averti.dataset.etat = averti.textContent === "" ? "" : "hors-ligne";
-}
-
-// Ouvrir le parcours : l'heure en est gardée — c'est d'elle que se mesure le temps jusqu'au projet
-// servi —, et les dépôts du chef se lisent sur GitHub.
-ouvrirLeParcours.addEventListener("click", () => void ouvrirParcours());
-async function ouvrirParcours() {
-  parcours = { ouvertLe: new Date().toISOString(), depots: [], choisies: new Set(), touchee: false };
-  formulaireDAjout.hidden = false;
-  ouvrirLeParcours.hidden = true;
-  ajoutDit.textContent = "";
-  ajoutRefuse.replaceChildren();
-  baseChoisie.value = "";
-  cooksChoisis.value = "";
-  for (const [champ, liste] of Object.entries(calibrageDuProjet)) proposer(liste, champ.endsWith("modele") ? CALIBRAGE_DU_PROJET.modeles : CALIBRAGE_DU_PROJET.efforts, champ.endsWith("modele") ? `— ${champ.split("-")[0]} model —` : `— ${champ.split("-")[0]} effort —`);
-  depotChoisi.replaceChildren(new Option("— repository —", ""));
-  etapeDuProjet.replaceChildren(bloc("p", LECTURE_DE("your repositories on GitHub")));
-  poserChoixDesStations();
-  const vise = parcours;
-  const lus = await brigade.depotsDuChef();
-  if (parcours !== vise) return;
-  if (!("refus" in lus)) vise.depots = lus.depots;
-  etapeDuProjet.replaceChildren(
-    poserEtapeProjet(document, {
-      depots: "refus" in lus ? lus : lus.depots,
-      resoudre: (depot) => brigade.lireUnDepot(depot),
-      ajouter: async (choisi) => {
-        depotChoisi.replaceChildren(new Option(choisi.depot, choisi.depot));
-        depotChoisi.value = choisi.depot;
-        baseChoisie.value = choisi.base;
-        const refus = await ajouterProjet();
-        return refus === undefined ? undefined : { refus };
-      },
-      suivante: () => {},
-      // Le dépôt choisi est vérifié, et préparé d'un bouton s'il ne l'est pas (ticket 2627).
-      verifier: (depot) => brigade.checkRepoSetup(depot),
-      installer: (depot) => brigade.runRepoSetup(depot),
-    }),
-  );
-}
-// Le dépôt choisi propose sa branche par défaut comme branche d'intégration.
-depotChoisi.addEventListener("change", () => {
-  const choisi = parcours?.depots.find(({ depot }) => depot === depotChoisi.value);
-  if (choisi !== undefined) baseChoisie.value = choisi.base;
-});
-annulerAjout.addEventListener("click", () => fermerParcours());
-function fermerParcours() {
-  parcours = undefined;
-  formulaireDAjout.hidden = true;
-  ouvrirLeParcours.hidden = false;
-}
-// Valider : la demande part au process principal, qui l'écrit dans le gist de chaque station
-// choisie — ou chaque champ qui manque se lit sous le formulaire, et rien n'est écrit.
-formulaireDAjout.addEventListener("submit", (evenement) => {
-  evenement.preventDefault();
-  void ajouterProjet();
-});
-/** @returns {Promise<string | undefined>} ce qui a refusé l'ajout, ou rien s'il est fait */
-async function ajouterProjet() {
-  if (parcours === undefined) return "no project is being added.";
-  /** @type {string | undefined} */
-  let refuse;
-  validerAjout.disabled = true;
-  ajoutRefuse.replaceChildren(bloc("p", "writing the request on your stations' gists…"));
-  try {
-    const rendu = await brigade.ajouterAUneStation({
-      depot: depotChoisi.value,
-      base: baseChoisie.value,
-      stations: [...parcours.choisies],
-      cooks: cooksChoisis.value,
-      manager: { modele: calibrageDuProjet["manager-modele"].value, effort: calibrageDuProjet["manager-effort"].value },
-      reviewer: { modele: calibrageDuProjet["reviewer-modele"].value, effort: calibrageDuProjet["reviewer-effort"].value },
-      ouvertLe: parcours.ouvertLe,
-    });
-    if ("signales" in rendu) {
-      ajoutRefuse.replaceChildren(...Object.values(rendu.signales).map((raison) => ligneErreur(document, raison ?? "", "", { classe: "" })));
-      refuse = Object.values(rendu.signales).join(" ");
-    } else if ("refus" in rendu) {
-      ajoutRefuse.replaceChildren(bloc("p", rendu.refus));
-      refuse = rendu.refus;
-    }
-    else {
-      fermerParcours();
-      ajoutRefuse.replaceChildren();
-      ajoutDit.textContent = `${rendu.ajoute} is asked of its stations: each station prepares it and adds it within a minute — if GitHub asks you to authorize brigade, its button is below the project`;
-    }
-  } catch (erreur) {
-    refuse = `nothing was added: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
-    ajoutRefuse.replaceChildren(bloc("p", refuse));
-  }
-  validerAjout.disabled = false;
-  return refuse;
 }
 
 // Ce qu'une station dit du projet qu'on lui a confié, en quelques mots, et le ton de sa pastille. Une station
@@ -7956,7 +7667,6 @@ function poserStationsDeLAccueil() {
   const dessous = enregistreesAbsentes ? [] : lectureDuCompte(document, etatDesEnregistrees, gestesDesEnregistrees, stations !== undefined && lignes.length === 0);
   blocDesEnregistrees.hidden = dessous.length === 0;
   blocDesEnregistrees.replaceChildren(...dessous);
-  if (stationOuverte !== undefined) poserLesProjetsChoisis();
 }
 
 // Le bloc de la station de l'accueil (ticket 2640) : celle de cet ordinateur — installée quand les stations du chef la
@@ -8033,23 +7743,6 @@ function suivreLesAttendus() {
     relecturesDUnAjout += 1;
     void lireLesEnregistrees();
   }, ATTENTE_D_UN_AJOUT_MS);
-}
-
-// Les dépôts du chef, entre lesquels il choisit ce qu'une station sert : lus à l'ouverture d'une première station.
-async function lireLesDepotsDesEnregistrees() {
-  const demandee = ++lectureDesDepotsEnregistrees;
-  delete etatDesEnregistrees.depots;
-  poserStationsDeLAccueil();
-  /** @type {{ depots: import("../projets/github.ts").DepotDuChef[] } | { refus: string }} */
-  let lus;
-  try {
-    lus = (await brigade.depotsDuChef()) ?? { refus: "the app gave no answer" };
-  } catch (erreur) {
-    lus = { refus: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  if (demandee !== lectureDesDepotsEnregistrees) return;
-  etatDesEnregistrees.depots = lus;
-  poserStationsDeLAccueil();
 }
 
 // Une case cochée ou décochée : la sélection entière de la station s'écrit dans son gist. Ses cases attendent la
@@ -8659,10 +8352,7 @@ function ouvrirStation(id) {
   sectionsDeStationPosees = "";
   sectionsDeStation.replaceChildren();
   marquer();
-  if (parcours !== undefined) fermerParcours();
-  ajoutDit.textContent = "";
   poserPageDeStation();
-  poserChoixDesStations();
   tous.replaceChildren(pageDeStation);
   retourALAccueil.focus();
 }
@@ -9057,7 +8747,6 @@ brigade.surStations((vu) => {
   poserLesVersions();
   poserBlocStation();
   if (stationOuverte !== undefined) poserPageDeStation();
-  poserChoixDesStations();
   poserStationsDuProjet();
   if (courant !== undefined) poserCuisson(courant);
   // L'onglet Stations dit qui cuit le projet, et l'état de chaque station, d'après ce qu'elles publient (ticket 3195).
@@ -9084,7 +8773,6 @@ brigade.surProjetsDesStations((vu) => {
     if (etat.etape === "leve" || (etat.etape === "dit" && refus === null)) remedesDesRefus.delete(nom);
   }
   poserProjets();
-  poserChoixDesStations();
   poserStationsDuProjet();
   // La station de ce poste se connaît par cette lecture : la page d'une station ouverte sait si elle est la sienne.
   if (stationOuverte !== undefined && courant === undefined && !ajoute) poserPageDeStation();

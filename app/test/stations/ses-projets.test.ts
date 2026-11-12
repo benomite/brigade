@@ -1,9 +1,7 @@
-// Les projets d'une station, sur sa page, la vue jouée (#878) : tous ceux qu'elle porte — ceux que sa
-// configuration sert, qu'ils viennent de l'app ou d'une ligne écrite à la main, et ceux que l'app lui
-// demande —, chacun sans marque de rôle. Un clic ouvre le projet ; le vide ne se dit que
-// s'il n'y a vraiment rien ; « + add a project » ouvre le parcours d'ajout. La liste vient de ce que
-// la station publie (stations/document.ts) : une station sert tous les projets de sa configuration,
-// et les publie tous (runtime/test/station/station.test.ts).
+// Les projets d'une station, sur sa page, la vue jouée (#3403) : une liste qui se lit seulement — les projets de l'app que
+// la station sert, chacun un lien vers l'onglet Stations du projet. Un projet n'y est que si cet onglet montre la station ;
+// ni « remove », ni « + add a project », ni case, ni champ. Sans projet servi, une phrase le dit. La liste vient de ce que la
+// station publie (stations/document.ts), la même que lit l'onglet (stations-tab/etat.js).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ligneDeStation, type Accueil } from "../../src/accueil.ts";
@@ -18,6 +16,7 @@ import { calibrageRecommande, EFFORTS, MODELES } from "../../src/projets/projets
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { VuDesProjets } from "../../src/projets/projets.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
+import { AUCUN } from "../../src/vue/station/page/ProjetsDeLaStation.js";
 import { type Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
@@ -89,111 +88,73 @@ async function laPage(nom: string, projets: VuDesProjets | undefined = PARADE) {
   return { jouee, page };
 }
 
-// Les lignes de projet de la page : une par projet, sous « Projects ».
-const lignes = (page: Faux) => {
-  assert.equal(page.children[6]?.textContent, "Projects");
-  return (page.children[7] ?? assert.fail("pas de liste")).dessous("button").filter(({ className }) => className === "ligne");
-};
-const ligne = (page: Faux, projet: string) => lignes(page).find(({ dataset }) => dataset.projet === projet) ?? assert.fail(`pas de ligne « ${projet} »`);
+// Le bloc des projets de la page, et ses liens : un par projet, dans l'ordre des projets de l'app.
+const bloc = (page: Faux) => page.dessous("section").find(({ className }) => className === "projets-servis-par-la-station") ?? assert.fail("pas de bloc des projets");
+const liens = (page: Faux) => bloc(page).dessous("a");
+const noms = (page: Faux) => liens(page).map(({ dataset }) => dataset.projet);
 
-test("la box porte trois projets, dont deux installés hors de l'app : sa page les liste tous les trois, sans marque de rôle", async () => {
+test("la box sert trois projets, deux sont à l'app : sa page liste ces deux-là, une seule liste, rien d'autre", async () => {
   const { page } = await laPage("box");
-  assert.deepEqual(
-    lignes(page).map(({ ariaLabel }) => ariaLabel),
-    ["brigade — served", "cantine — served", "parade — served"],
-  );
-  // Celui que l'app a ajouté se dit au survol, comme ceux écrits à la main.
-  assert.match(ligne(page, "parade").title, /benomite\/parade · main/);
-  assert.match(ligne(page, "parade").title, /served by box 1 min 12 s after/);
-  assert.match(ligne(page, "cantine").title, /installed on this station outside the app/);
-  assert.doesNotMatch(page.textContent, /no project|none yet/);
+  // « brigade » est écrit à la main dans la configuration de la box, mais l'app n'en a pas l'onglet : pas de lien à lui donner.
+  assert.deepEqual(noms(page), ["parade", "cantine"]);
+  assert.equal(page.dessous("section").filter(({ className }) => className === "projets-servis-par-la-station").length, 1);
+  assert.equal(bloc(page).dessous("h3")[0]?.textContent, "Projects it serves");
+  assert.doesNotMatch(page.textContent, /Projects it serves.*Projects it serves|no project|none yet|add another repository/s);
+  assert.doesNotMatch(page.textContent, new RegExp(AUCUN));
 });
 
-test("ses projets se lisent sans attendre la lecture de ce que l'app lui a demandé : ce que la station publie suffit", async () => {
+test("la page ne propose aucun geste d'édition : ni « remove », ni « + add a project », ni case, ni champ, ni formulaire", async () => {
+  const { jouee, page } = await laPage("box");
+  const boutons = page.dessous("button").map(({ textContent }) => textContent);
+  assert.ok(!boutons.includes("remove"), "pas de « remove »");
+  assert.ok(!boutons.some((texte) => /add a project/i.test(texte)), "pas de « + add a project »");
+  assert.ok(!boutons.some((texte) => /^authorize on GitHub/.test(texte)));
+  assert.equal(page.dessous("input").length, 0, "ni case, ni champ");
+  assert.equal(page.dessous("select").length, 0);
+  assert.equal(page.dessous("form").length, 0);
+  assert.equal(bloc(page).dessous("button").length, 0);
+  assert.ok(!jouee.appels.some(({ geste }) => geste === "depotsDuChef" || geste === "retirerDUneStation"));
+});
+
+test("la liste se lit sans attendre ce que l'app a demandé : ce que la station publie suffit, et la lecture tardive ne change rien", async () => {
   const { jouee, page } = await laPage("box", undefined);
-  assert.deepEqual(
-    lignes(page).map(({ dataset }) => dataset.projet),
-    ["brigade", "cantine", "parade"],
-  );
-  assert.doesNotMatch(page.textContent, /no project/);
-  // Ce que l'app a demandé arrive ensuite : la ligne de « parade » en prend le détail, et son geste.
+  assert.deepEqual(noms(page), ["parade", "cantine"]);
   jouee.dire("surProjetsDesStations", PARADE);
   await repos();
-  assert.equal(lignes(page).length, 3);
-  assert.match(ligne(page, "parade").title, /benomite\/parade/);
-  assert.ok(page.dessous("button").some(({ textContent }) => textContent === "remove"));
+  assert.deepEqual(noms(page), ["parade", "cantine"]);
 });
 
-test("une station qui ne sert pas le projet : sa ligne le dit, sans marque de rôle", async () => {
+test("un projet que l'app a demandé à la station sans qu'elle le serve ne s'y liste pas : l'onglet ne l'y montre pas non plus", async () => {
   const { page } = await laPage("macbook");
-  assert.deepEqual(
-    lignes(page).map(({ ariaLabel }) => ariaLabel),
-    ["parade — not read yet"],
-  );
+  // PARADE nomme le macbook, mais « macbook has not read it yet » : il ne sert rien.
+  assert.deepEqual(noms(page), []);
 });
 
-test("un projet que l'app demande et que la station ne sert pas encore est listé, avec ce qu'elle en dit", async () => {
-  const enAttente: VuDesProjets = {
-    ...PARADE,
-    projets: [
-      ...PARADE.projets,
-      {
-        nom: "espace",
-        depot: "benomite/espace",
-        base: "main",
-        suiviPar: { id: "g1", nom: "box" },
-        stations: [{ id: "g1", nom: "box", etat: "a-autoriser", dit: "authorize brigade on benomite/espace, on GitHub: one click per page", autoriser: ["https://github.com/apps/brigade-cook/installations/new"] }],
-        servi: null,
-      },
-    ],
-  };
-  const { page } = await laPage("box", enAttente);
-  assert.deepEqual(
-    lignes(page).map(({ dataset }) => dataset.projet),
-    ["brigade", "cantine", "espace", "parade"],
-  );
-  assert.equal(ligne(page, "espace").ariaLabel, "espace — waiting for your authorization on GitHub");
-  assert.ok(page.dessous("button").some(({ textContent }) => textContent === "authorize on GitHub: brigade-cook"));
-});
-
-test("un clic sur un projet l'ouvre : son espace s'il est dans les projets de l'app, sinon « Add a project », où il se déclare", async () => {
+test("un clic sur un projet ouvre l'onglet Stations de ce projet, où la station est montrée", async () => {
   const { jouee, page } = await laPage("box");
-  ligne(page, "cantine").click();
+  const lien = liens(page).find(({ dataset }) => dataset.projet === "cantine") ?? assert.fail("pas de lien « cantine »");
+  lien.click();
   await repos();
   // La barre : « Tous les projets », « parade », « cantine », puis « + ».
-  const barre = jouee.element("projets").children;
-  assert.equal(barre[2]?.ariaCurrent, "true", "l'espace de cantine est ouvert");
-  assert.equal(barre[0]?.ariaCurrent, "false");
+  assert.equal(jouee.element("projets").children[2]?.ariaCurrent, "true", "l'espace de cantine est ouvert");
+  const onglet = jouee.element("rail").children.find(({ dataset }) => dataset.bloc === "stations-tab") ?? assert.fail("l'onglet Stations n'est pas ouvert");
+  assert.deepEqual(onglet.dessous("section").filter(({ className }) => className === "carte-de-station").map(({ ariaLabel }) => ariaLabel), ["box"]);
+});
 
-  const { jouee: autre, page: autrePage } = await laPage("box");
-  ligne(autrePage, "brigade").click();
+test("un clic sur « parade » ouvre aussi l'onglet Stations de parade", async () => {
+  const { jouee, page } = await laPage("box");
+  (liens(page).find(({ dataset }) => dataset.projet === "parade") ?? assert.fail("pas de lien « parade »")).click();
   await repos();
-  assert.equal(autre.element("entree-ajout").ariaCurrent, "true", "brigade n'est pas dans les projets de l'app : « Add a project » s'ouvre");
-  assert.match(ligne(autrePage, "brigade").title, /not in this app's projects yet/);
+  assert.equal(jouee.element("projets").children[1]?.ariaCurrent, "true", "l'espace de parade est ouvert");
+  assert.ok(jouee.element("rail").children.some(({ dataset }) => dataset.bloc === "stations-tab"));
 });
 
-test("le vide ne se dit que sur une station qui ne porte vraiment aucun projet", async () => {
-  const { page } = await laPage("atelier");
-  assert.equal(lignes(page).length, 0);
-  assert.equal(page.children[7]?.textContent, "No project on this station yet.");
-  for (const nom of ["box", "macbook"]) {
-    const { page: portee } = await laPage(nom);
-    assert.ok(lignes(portee).length > 0);
-    assert.doesNotMatch(portee.textContent, /no project/, `${nom} porte un projet : rien ne dit qu'elle n'en a aucun`);
+test("une station qui ne sert aucun projet dit, en mots simples, qu'elle n'en sert pas — un bloc jamais vide", async () => {
+  for (const nom of ["atelier", "macbook"]) {
+    const { page } = await laPage(nom);
+    assert.deepEqual(noms(page), []);
+    assert.equal(bloc(page).dessous("p").find(({ dataset }) => dataset.ligne === "vide")?.textContent, AUCUN);
   }
-});
-
-test("« + add a project » est sur la page, et ouvre le parcours d'ajout", async () => {
-  for (const nom of ["box", "atelier"]) {
-    const { jouee, page } = await laPage(nom);
-    const formulaire = page.dessous("form")[0] ?? assert.fail("pas de parcours");
-    assert.equal(formulaire.hidden, true);
-    const ajouter = page.dessous("button").find(({ textContent }) => textContent === "+ add a project") ?? assert.fail(`${nom} : pas de « + add a project »`);
-    ajouter.click();
-    await repos();
-    await repos();
-    assert.equal(formulaire.hidden, false);
-    assert.equal(ajouter.hidden, true);
-    assert.ok(jouee.appels.some(({ geste }) => geste === "depotsDuChef"));
-  }
+  const { page: portee } = await laPage("box");
+  assert.ok(!bloc(portee).dessous("p").some(({ dataset }) => dataset.ligne === "vide"), "la box sert des projets : rien ne dit qu'elle n'en a aucun");
 });
