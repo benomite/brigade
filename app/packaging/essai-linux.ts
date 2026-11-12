@@ -12,11 +12,11 @@
 // Codes de sortie : 0 tout est vérifié, 1 une vérification a échoué (elle est nommée), 2 refus
 // (option invalide, ce n'est pas un Linux).
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, mkdtempSync, openSync, readSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdtempSync, openSync, readSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { cheminSansNode, devtools, Echec, ECRAN_PRINCIPAL, jusqua } from "./essai-windows.ts";
+import { cheminSansNode, Echec, jusqua, jusquAEcranPrincipal } from "./essai-windows.ts";
 import { estElfX64 } from "./linux.ts";
 
 const echouer = (motif: string): never => {
@@ -63,28 +63,7 @@ async function principal(): Promise<void> {
   app.once("exit", (code, signal) => (sortie = `the app exited (${code ?? signal}) before reaching its main screen`));
   app.once("error", (erreur) => (sortie = `the AppImage could not be run: ${erreur.message}`));
   try {
-    const page = await jusqua("the app's window", 120_000, async () => {
-      if (sortie !== undefined) echouer(sortie);
-      const cibles = (await fetch(`http://127.0.0.1:${port}/json/list`).then((reponse) => reponse.json()).catch(() => [])) as { type: string; url: string; webSocketDebuggerUrl: string }[];
-      return cibles.find((cible) => cible.type === "page" && cible.url.endsWith("/vue/index.html"));
-    });
-    const outils = devtools(page.webSocketDebuggerUrl);
-    try {
-      const texte = await jusqua("the app's main screen", 120_000, async () => {
-        if (sortie !== undefined) echouer(sortie);
-        const lu = (await outils.envoyer("Runtime.evaluate", { expression: ECRAN_PRINCIPAL, returnByValue: true })) as { result?: { result?: { value?: unknown } } };
-        const valeur = lu.result?.result?.value;
-        return typeof valeur === "string" && valeur !== "" ? valeur : undefined;
-      });
-      verifie(`the AppImage started the app on its main screen, with no node on the PATH: ${texte}`);
-      if (values.capture !== undefined) {
-        const capture = (await outils.envoyer("Page.captureScreenshot", { format: "png" })) as { result?: { data?: string } };
-        writeFileSync(values.capture, Buffer.from(capture.result?.data ?? echouer("the window could not be captured"), "base64"));
-        verifie(`the window is captured in ${values.capture}`);
-      }
-    } finally {
-      outils.fermer();
-    }
+    await jusquAEcranPrincipal(port, () => sortie, "the AppImage started the app on its main screen, with no node on the PATH", values.capture);
   } finally {
     if (app.pid !== undefined)
       try {
