@@ -58,6 +58,13 @@ first was merged. That day, #3189, #3195 and #3198 were first claimed 5, 1 and 2
 none was sent back for a conflict. Two tickets that write one shared file outside their zones now leave
 together; if the second delivered comes back in conflict, the pass first updates its branch itself (#2726),
 then sends it back for the conflict.
+After #3250's merge (28d76a4, 2026-11-11 18:50 UTC), the conflicts came back: the nine conflict send-backs
+quality ticket #3360 counts were all resolved after it, from 19:10 UTC that day to 09:50 UTC the next. Six of
+them are between two app tickets that both write `app/src/vue/vue.js` or `docs/app.md`, the companions
+`compagnons.ts` gave every app zone, replayed on the base's history: #3269 against #3231 and #3306, #3302 against
+#3306 and #3305, #3303 against #3306, #3308 against #3305. Three of the six also conflict on
+`scripts/capture-ecran/README.md`, whose table #3351 removed. The other three share no companion: #3268 against
+#3253 on `CHANGELOG.md`, #3332 against #3330 and #3347 against #3332 in `runtime/src/validation-design/`.
 
 **The zone that counts is the one at the take**: if the card changed during the cook, the comment
 shows both and the fact carries `cardChanged: true`.
