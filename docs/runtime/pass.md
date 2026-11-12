@@ -350,7 +350,8 @@ card. The card is the design one's: one card per delivery, never a second howeve
 runs or the branch is updated from its base; a send-back closes it, and the next delivery gets a new one; a card that cannot be created
 is not merged, said, and tried again at the next turn. A ticket without the label is merged as before.
 A sensitive design delivery on a project where a human validates designs waits on its one
-`Validate its screen` card, which already holds it for the chef.
+`Validate its screen` card, which already holds it for the chef: the chef's validation on it, kept after
+an update from the base, answers for both, and the pass merges without a `review before merge` card (#3332).
 
 Two answers, `brigade <projet> sensitive` ([`exploitation.md`](exploitation.md)), act like the design
 gestures:

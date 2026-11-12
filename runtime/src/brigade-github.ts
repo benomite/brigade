@@ -1400,7 +1400,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           // Une livraison retenue pour le chef ne se retente sur la même tête
           // que quand le chef a répondu depuis : une réponse gardée de plus sur
-          // le ticket (#3332).
+          // le ticket (#3332). Ses commentaires se relisent sous ETag : un
+          // ticket où rien n'a bougé coûte un 304, que GitHub ne compte pas.
           const retenueSur = (gardees: number) => `${tentee} retenue ${gardees}`;
           const deja = tentees.get(pr.number);
           const aRetenter = deja !== tentee && (deja === undefined || !deja.startsWith(`${tentee} retenue `) || deja !== retenueSur(await reponsesGardees([DESIGN, SENSIBLE], github, ticket.number, pr.number)));

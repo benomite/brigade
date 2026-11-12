@@ -202,6 +202,27 @@ test("validate after the branch was updated from its base: nothing merged at onc
   assert.deepEqual(renvois(faux), []);
 });
 
+test("a sensitive design delivery validated after its branch was updated from its base: the pass merges it on the kept validation, no “review before merge” card after the “Validate its screen” one", async () => {
+  const faux = enPass(ECRAN, [...CALIBRE, "sensitive"]);
+  const { s, titres } = station(faux, true);
+  await tours(s, 3);
+  const [carte, ...autres] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.deepEqual(autres, []);
+  assert.equal(titres.get(carte.number), TITRE_DE_CARTE);
+  // La branche mise à jour, la pass la tient sur sa tête neuve, sans carte neuve.
+  miseAJour(faux);
+  await tours(s, 3);
+  assert.equal(cartes(faux).length, 1);
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  // Sur la même tête, retenue au tour d'avant : la réponse du chef la fait retenter, et merger.
+  await tours(s, 4, () => faux.mergee(TICKET) !== undefined);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.deepEqual(cartes(faux).map(({ number }) => titres.get(number)), [TITRE_DE_CARTE], "one card for one screen");
+  assert.deepEqual(ouvertes(faux), []);
+});
+
 test("the ticket's comments unreadable while a held delivery waits for the chef's answer: nothing is merged, the station says why, and the next turn merges once the answer is read", async () => {
   const faux = enPass(ECRAN);
   const avertis: string[] = [];

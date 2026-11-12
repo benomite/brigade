@@ -14,7 +14,7 @@
 //   merge la tête de la carte et ferme la carte ; `send-back` renvoie le
 //   ticket à un cook avec la note du chef, que le cook lit sur le ticket, et
 //   ferme la carte. Une note vide est refusée.
-import { mergerLaCarte, renvoyerLaCarte, tenirPourLeChef, type GitHubDeLaRetenue, type GitHubDesGestes, type LivraisonARetenir, type SorteDeRetenue } from "../validation-design/validation-design.ts";
+import { DESIGN, mergerLaCarte, renvoyerLaCarte, tenirPourLeChef, type GitHubDeLaRetenue, type GitHubDesGestes, type LivraisonARetenir, type SorteDeRetenue } from "../validation-design/validation-design.ts";
 
 // Le label d'un ticket sensible.
 export const LABEL_SENSITIVE = "sensitive";
@@ -45,7 +45,10 @@ export const estSensible = (labels: readonly string[]) => labels.includes(LABEL_
 // merge pas, et réessaie au tour suivant.
 export async function retenirLeSensible(github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr">): Promise<string | null> {
   if (!estSensible(livraison.ticket.labels)) return null;
-  return tenirPourLeChef(SENSIBLE, github, livraison);
+  // Une livraison design sensible attend sa seule carte « Validate its
+  // screen » : la validation du chef, gardée après une mise à jour de la
+  // branche, répond aussi pour elle — jamais une seconde carte (#3332).
+  return tenirPourLeChef(SENSIBLE, github, livraison, [], [DESIGN]);
 }
 
 // Les deux réponses du chef sur la carte, nommée par sa PR.

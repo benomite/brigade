@@ -230,13 +230,14 @@ export async function fermerLaCarteDepassee(sorte: SorteDeRetenue, github: Pick<
 // Retient la livraison verte pour le chef, sur une carte de cette sorte : la
 // carte qui la tient déjà, sinon une neuve — jamais deux. Rend le motif pour
 // lequel la pass ne la merge pas ; null si le chef a déjà répondu pour elle
-// et qu'aucun renvoi n'a suivi (`validationQuiTient`) : la pass la merge. Le
-// dépôt inconnu, ou une carte que GitHub ne crée pas, lèvent : la pass le
-// dit, ne merge pas, et réessaie.
-export async function tenirPourLeChef(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr">, suite: readonly string[] = []): Promise<string | null> {
+// et qu'aucun renvoi n'a suivi (`validationQuiTient`) — sur une carte de
+// cette sorte ou de l'une de `repondues` — : la pass la merge. Le dépôt
+// inconnu, ou une carte que GitHub ne crée pas, lèvent : la pass le dit, ne
+// merge pas, et réessaie.
+export async function tenirPourLeChef(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr">, suite: readonly string[] = [], repondues: readonly SorteDeRetenue[] = []): Promise<string | null> {
   const { ticket, pr } = livraison;
   const commentaires = await github.commentaires(ticket.number);
-  if (validationQuiTient(sorte, commentaires, pr.number) !== null) return null;
+  if ([sorte, ...repondues].some((repondue) => validationQuiTient(repondue, commentaires, pr.number) !== null)) return null;
   const tenue = await carteQuiTient(sorte, github, commentaires, pr.number);
   if (tenue !== null) return `${sorte.tenue} (card #${tenue})`;
   if (livraison.depot === undefined) throw new Error(`the station does not know its repository: the card of PR #${pr.number} cannot link it — not merged on this turn`);
