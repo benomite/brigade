@@ -107,7 +107,7 @@ describe("ce qui attend le chef, lu de GitHub", () => {
       9: { labels: ["fire", "blocked-on-human"], created_at: "2026-11-05T07:00:00Z" },
     };
     const lecture = await lue(github(monde));
-    assert.deepEqual(lecture.attentes.map(({ ticket, ligne }) => [ticket, ligne]), [[9, ECARTS["blocked-on-human"]]]);
+    assert.deepEqual(lecture.attentes.map(({ ticket, ligne }) => [ticket, ligne]), [[9, "Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words"]]);
     assert.equal(lecture.illisibles.length, 2);
     assert.match(lecture.illisibles[0] ?? "", /^#5 carries `chef-todo` but is not shown in Todo: no comment marked/);
     assert.match(lecture.illisibles[1] ?? "", /^#6 carries `chef-todo` but is not shown in Todo: its marked card has no text/);
