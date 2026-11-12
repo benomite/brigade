@@ -23,14 +23,17 @@ or just `changed=false`.
 
 ## Packages and release notes — `paquets.ts`
 
-`paquets.ts` knows the packages of a release and the platform of each: the app (`Brigade-<v>-mac-arm64.dmg`, `Brigade-<v>-windows-x64-setup.exe`, and on the unsigned path `Brigade-<v>-android.apk`) and the station (`installer-station.sh`, `brigade-station-linux-amd64.deb`, `brigade-station-mac.tar.gz`, `installer-station.ps1`, `brigade-station-windows.zip`; the station runs on Linux and macOS, both installed by `installer-station.sh`, and on Windows, installed by `installer-station.ps1`). The station's `installer-station.sh`, `installer-station.ps1`, `brigade-station_amd64.deb`, `brigade-station-mac.tar.gz` and `brigade-station-windows.zip` keep their names, which the install command, the script and the running stations read, so the `.deb` is published twice.
+`paquets.ts` knows the packages of a release and the platform of each: the app (`Brigade-<v>-mac-arm64.dmg`, `Brigade-<v>-windows-x64-setup.exe`, `brigade-<v>-linux-x64.AppImage`, and on the unsigned path `Brigade-<v>-android.apk`) and the station (`installer-station.sh`, `brigade-station-linux-amd64.deb`, `brigade-station-mac.tar.gz`, `installer-station.ps1`, `brigade-station-windows.zip`; the station runs on Linux and macOS, both installed by `installer-station.sh`, and on Windows, installed by `installer-station.ps1`). The station's `installer-station.sh`, `installer-station.ps1`, `brigade-station_amd64.deb`, `brigade-station-mac.tar.gz` and `brigade-station-windows.zip` keep their names, which the install command, the script and the running stations read, so the `.deb` is published twice.
 
 ```
 node scripts/app-release/paquets.ts notes --produit app --version 1.0.3 [--signe] [--commit <sha>]   # dry run: prints the release notes
 node scripts/app-release/paquets.ts renommer --version 1.0.3 --dossier <dir>                         # build names -> release names
+node scripts/app-release/paquets.ts fichiers --version 1.0.3 [--plateforme Linux] [--signe]          # the app's release names, one per line
 ```
 
-The notes are a table: package, platform, what it is, and the steps to open it when unsigned (Gatekeeper on Mac, SmartScreen on Windows, the executable bit on Linux, unknown apps on Android). `publier-app` and `publier-station` run it and hand the output to `gh release create --notes-file`.
+The AppImage is built under its release name by `app/packaging/linux.ts`, and attached to the release by the `app-release-linux` workflow after `publier-app` has published it: that workflow reads its name from `paquets.ts fichiers --plateforme Linux`. It is unsigned on both paths.
+
+The notes are a table: package, platform, what it is, and the steps to open it when unsigned (Gatekeeper on Mac, SmartScreen on Windows, the executable bit on Linux — the AppImage's and the station script's —, unknown apps on Android). `publier-app` and `publier-station` run it and hand the output to `gh release create --notes-file`.
 
 ## Retention
 
