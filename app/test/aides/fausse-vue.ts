@@ -67,6 +67,9 @@ export class Faux {
     this.balise = balise;
   }
 
+  get tagName(): string {
+    return this.balise.toUpperCase();
+  }
   get textContent(): string {
     return this.#noeuds.map((noeud) => (typeof noeud === "string" ? noeud : noeud.textContent)).join("");
   }

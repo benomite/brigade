@@ -1172,10 +1172,12 @@ them in place, at the same zoom; `Side by side` goes back. `Full size` under a c
 detail, zoomable the same way; `Back to before and after`, or Escape, returns. Escape, or `Close`, closes the detail. A
 gesture done from the detail closes it and the card leaves Todo, as on the card; refused, the detail stays and says why
 in one line. `Next validation` opens the next card that awaits you (the order of the phone's list), without going back
-to Todo. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
+to Todo. When the ticket asks for several screens, the detail shows one at a time: `Screen 2 of 4` says where you are, and
+`Previous screen` / `Next screen`, or the left and right arrows (not while typing in the comment field), move between them;
+the brief, the captures and the gestures stay whichever screen is shown. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
 one under the other, pinch to zoom, its two gestures 44 px high, the brief in one column and the detail scrolling so
 the captures keep half the screen. On a read-only project the detail shows no gesture.
-Captures: `docs/captures/3212/`, `docs/captures/3330/`.
+Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 *Code: `app/src/vue/validation-design/detail-de-validation.js` (the detail and its zoom), opened from `validation-design.js`
 (the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-de-validation.test.ts`.*
 

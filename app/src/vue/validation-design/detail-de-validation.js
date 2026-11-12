@@ -7,6 +7,8 @@
 // Chaque capture se zoome — molette, pincement, ou ses boutons — et se déplace au glisser. L'avant et l'après d'un écran
 // partagent leur vue : zoomer l'une zoome l'autre au même endroit. « One over the other » les pose l'une sur l'autre, et
 // « Show after » / « Show before » bascule de l'une à l'autre sur place. « Full size » ouvre une capture seule.
+// Un seul écran du ticket à la fois (ticket 3350) : « Screen 2 of 4 » dit où l'on est, « Previous screen » / « Next screen » ou
+// les flèches du clavier passent à l'autre ; la question, le brief, le pied et leurs gestes restent à leur place.
 // Plusieurs cartes attendent : « Next validation » ouvre la suivante sans repasser par TODO.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, les images déjà posées, l'affichage tenu par la
 // vue (qu'il change au zoom sans reposer le détail) et ce que chaque geste appelle, et rend un élément.
@@ -24,8 +26,8 @@ import { poserLesGestes, LIEN } from "./validation-design.js";
 // quelle que soit la taille de leur cadre.
 /** @typedef {{ echelle: number, x: number, y: number }} Vue */
 // Ce que la vue tient du détail ouvert, d'une pose à l'autre : `superposees`, l'avant et l'après l'un sur l'autre ;
-// `montre`, par écran, celle que l'on voit alors ; `seule`, la capture ouverte seule ; `vues`, la vue de chaque écran.
-/** @typedef {{ superposees: boolean, montre: Map<string, Moment>, seule?: { ecran: string, moment: Moment }, vues: Map<string, Vue> }} Affichage */
+// `rang`, l'écran du ticket montré ; `montre`, par écran, celle que l'on voit alors ; `seule`, la capture ouverte seule ; `vues`, la vue de chaque écran.
+/** @typedef {{ superposees: boolean, rang: number, montre: Map<string, Moment>, seule?: { ecran: string, moment: Moment }, vues: Map<string, Vue> }} Affichage */
 
 export const FERMER = "Close";
 export const ZOOMER = "Zoom in";
@@ -40,6 +42,11 @@ export const MONTRER = (moment) => (moment === "avant" ? "Show before" : "Show a
 /** @param {number} ticket */
 export const SUIVANTE = (ticket) => `Next validation (#${ticket})`;
 
+/** @param {number} rang @param {number} total */
+export const ECRAN_N_SUR = (rang, total) => `Screen ${rang + 1} of ${total}`;
+export const ECRAN_PRECEDENT = "Previous screen";
+export const ECRAN_SUIVANT = "Next screen";
+
 export const DEMANDE = "What was asked";
 export const FAIT = "What was done";
 export const SANS_DEMANDE = "this card does not say what its ticket asked — open its pull request";
@@ -51,7 +58,7 @@ export const ENTIERE = { echelle: 1, x: 0.5, y: 0.5 };
 const PAS = 1.5;
 
 /** @returns {Affichage} */
-export const affichageNeuf = () => ({ superposees: false, montre: new Map(), vues: new Map() });
+export const affichageNeuf = () => ({ superposees: false, rang: 0, montre: new Map(), vues: new Map() });
 
 /** @param {number} valeur @param {number} bas @param {number} haut */
 const borne = (valeur, bas, haut) => Math.min(haut, Math.max(bas, valeur));
@@ -81,6 +88,17 @@ export const deplacer = (vue, dx, dy) => bornee({ echelle: vue.echelle, x: vue.x
 /** @param {Vue} vue */
 export const transformDe = ({ echelle, x, y }) => `scale(${echelle}) translate(${(0.5 - x) * 100}%, ${(0.5 - y) * 100}%)`;
 
+// Passer à l'écran d'à côté (`pas` : 1 ou -1) : le rang reste dans la liste. Rend vrai si l'écran a changé. L'écran ouvert seul
+// ne change pas : « Back to before and after » d'abord.
+/** @param {Affichage} affichage @param {number} total @param {number} pas */
+export function changerD(affichage, total, pas) {
+  if (affichage.seule !== undefined) return false;
+  const rang = borne(affichage.rang + pas, 0, Math.max(0, total - 1));
+  const change = rang !== affichage.rang;
+  affichage.rang = rang;
+  return change;
+}
+
 /** @param {Fabrique} doc @param {string} balise @param {string} [classe] @param {string} [texte] */
 function cree(doc, balise, classe, texte) {
   const pose = doc.createElement(balise);
@@ -108,6 +126,18 @@ export function poserDetailDeValidation(doc, ticket, carte, etat, affichage, { i
   const enTete = cree(doc, "div", "gestes-du-detail");
   const { validation, captures } = carte;
   const ecrans = captures?.ecrans ?? [];
+  affichage.rang = borne(affichage.rang, 0, Math.max(0, ecrans.length - 1));
+  if (ecrans.length > 1 && affichage.seule === undefined) {
+    const place = cree(doc, "span", "rang-de-l-ecran", ECRAN_N_SUR(affichage.rang, ecrans.length));
+    place.ariaLive = "polite";
+    const precedent = bouton(doc, ECRAN_PRECEDENT, () => void (changerD(affichage, ecrans.length, -1) && gestes.reposer()));
+    precedent.title = "shows the previous screen of the ticket (left arrow)";
+    precedent.disabled = affichage.rang === 0;
+    const suivant = bouton(doc, ECRAN_SUIVANT, () => void (changerD(affichage, ecrans.length, 1) && gestes.reposer()));
+    suivant.title = "shows the next screen of the ticket (right arrow)";
+    suivant.disabled = affichage.rang === ecrans.length - 1;
+    enTete.append(place, precedent, suivant);
+  }
   if (ecrans.length > 0 && affichage.seule === undefined) {
     const bascule = bouton(doc, affichage.superposees ? COTE_A_COTE : SUPERPOSER, () => {
       affichage.superposees = !affichage.superposees;
@@ -140,9 +170,10 @@ export function poserDetailDeValidation(doc, ticket, carte, etat, affichage, { i
     const capture = ecrans.find(({ ecran }) => ecran === seule.ecran)?.[seule.moment];
     if (capture !== undefined) zone.append(poserEcran(doc, seule.ecran, [{ moment: seule.moment, legende: capture.legende }], affichage, images, gestes, { seule: true }));
   } else {
-    for (const { ecran, avant, apres } of ecrans) {
-      const paire = [avant, apres].map(({ moment, legende }) => ({ moment, legende }));
-      zone.append(poserEcran(doc, ecran, paire, affichage, images, gestes, { seule: false }));
+    const montre = ecrans[affichage.rang];
+    if (montre !== undefined) {
+      const paire = [montre.avant, montre.apres].map(({ moment, legende }) => ({ moment, legende }));
+      zone.append(poserEcran(doc, montre.ecran, paire, affichage, images, gestes, { seule: false }));
     }
   }
   racine.append(zone);

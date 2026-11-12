@@ -99,7 +99,7 @@ import { absenceALAperture, poserAbsence } from "./absence/absence.js";
 import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
 import { garderLeClavier } from "./garder-le-clavier.js";
 import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
-import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
+import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
 import { apresRendu as apresLaValidation, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { apresRendu as apresLaRevue, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
@@ -5536,6 +5536,16 @@ function poserLeDetail() {
 }
 
 // Échap ferme le détail — ou, une capture ouverte seule, rend l'avant et l'après.
+// Les flèches gauche et droite passent d'un écran du ticket à l'autre, sauf dans le champ du commentaire (ticket 3350).
+detailDeValidation.addEventListener("keydown", (evenement) => {
+  if (detailOuvert === undefined || (evenement.key !== "ArrowLeft" && evenement.key !== "ArrowRight")) return;
+  if (["TEXTAREA", "INPUT"].includes(/** @type {any} */ (evenement.target)?.tagName)) return;
+  const lue = laValidation(detailOuvert.projet, detailOuvert.ticket);
+  if (lue !== undefined && changerD(detailOuvert.affichage, lue.todo.captures?.ecrans.length ?? 0, evenement.key === "ArrowLeft" ? -1 : 1)) {
+    evenement.preventDefault();
+    poserLeDetail();
+  }
+});
 detailDeValidation.addEventListener("keydown", (evenement) => {
   if (evenement.key !== "Escape" || detailOuvert === undefined) return;
   evenement.stopPropagation();
