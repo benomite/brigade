@@ -23,6 +23,8 @@ import { ICI, type Choix } from "../../../src/vue/stations-tab/choix.js";
 import { Faux, jouerLaVue, type Jouee, type Reponses, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
+// La question posée devant le faux document : ce qu'elle rend est un `Faux`.
+const poser = (...args: Parameters<typeof poserLaDemandeDeStation>) => poserLaDemandeDeStation(...args) as unknown as Faux;
 const DEPOT = "chef/secondes";
 const boutons = (ou: Faux) => ou.dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent);
 const bouton = (ou: Faux, texte: string) => ou.dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${boutons(ou).join(", ")}`);
@@ -93,7 +95,7 @@ describe("ce que la page dit", () => {
 
   test("la question, sa raison, un bouton par machine — cet ordinateur en tête — et « not now »", () => {
     const g = gestes();
-    const carte = poserLaDemandeDeStation(doc, { depot: DEPOT, etat: { etape: "question" }, choix }, g);
+    const carte = poser(doc, { depot: DEPOT, etat: { etape: "question" }, choix }, g);
     assert.equal(carte.dessous("h2")[0]?.textContent, QUESTION(DEPOT));
     assert.ok(carte.dessous("p").some(({ textContent }) => textContent === PERSONNE(DEPOT)));
     assert.deepEqual(boutons(carte), ["this computer", "parade-box", PLUS_TARD]);
@@ -103,23 +105,23 @@ describe("ce que la page dit", () => {
   });
 
   test("un choix qui s'écrit grise les boutons ; refusé, une ligne, les boutons rendus", () => {
-    const enCours = poserLaDemandeDeStation(doc, { depot: DEPOT, etat: { etape: "enCours", cle: ICI }, choix }, gestes());
+    const enCours = poser(doc, { depot: DEPOT, etat: { etape: "enCours", cle: ICI }, choix }, gestes());
     assert.ok(enCours.dessous("button").filter(({ className }) => className !== "aide").every(({ disabled }) => disabled === true));
-    const refus = poserLaDemandeDeStation(doc, { depot: DEPOT, etat: { etape: "refus", ligne: "nothing was written: the list cannot be read", detail: "EACCES" }, choix }, gestes());
+    const refus = poser(doc, { depot: DEPOT, etat: { etape: "refus", ligne: "nothing was written: the list cannot be read", detail: "EACCES" }, choix }, gestes());
     assert.ok(refus.descendants().some(({ textContent }) => textContent === "nothing was written: the list cannot be read"));
     assert.equal(bouton(refus, "this computer").disabled, false);
   });
 
   test("servi : une phrase — cet ordinateur, dans les deux minutes ; une station du compte ; une station hors ligne — et « close »", () => {
     const g = gestes();
-    const ici = poserLaDemandeDeStation(doc, { depot: DEPOT, etat: { etape: "servi", nom: "this computer", ici: true, absente: false }, choix }, g);
+    const ici = poser(doc, { depot: DEPOT, etat: { etape: "servi", nom: "this computer", ici: true, absente: false }, choix }, g);
     assert.equal(ici.dessous("p")[0]?.textContent, SERVI_ICI(DEPOT));
     assert.deepEqual(boutons(ici), [FERMER]);
     bouton(ici, FERMER).click();
     assert.deepEqual(g.faits, ["fermer"]);
-    const autre = poserLaDemandeDeStation(doc, { depot: DEPOT, etat: { etape: "servi", nom: "parade-box", ici: false, absente: false }, choix }, g);
+    const autre = poser(doc, { depot: DEPOT, etat: { etape: "servi", nom: "parade-box", ici: false, absente: false }, choix }, g);
     assert.equal(autre.dessous("p")[0]?.textContent, SERVI_PAR("parade-box", DEPOT));
-    const absente = poserLaDemandeDeStation(doc, { depot: DEPOT, etat: { etape: "servi", nom: "atelier", ici: false, absente: true }, choix }, g);
+    const absente = poser(doc, { depot: DEPOT, etat: { etape: "servi", nom: "atelier", ici: false, absente: true }, choix }, g);
     assert.equal(absente.dessous("p")[0]?.textContent, `atelier is offline: it takes ${DEPOT} when it comes back.`);
   });
 });
@@ -145,7 +147,7 @@ const ATELIER: StationEnregistree = {
   stoppedAt: null,
   refreshMs: 30_000,
   selection: [],
-  offlineSince: "2026-11-11T10:00:00.000Z",
+  ...{ offlineSince: "2026-11-11T10:00:00.000Z" },
 };
 const demarrage = (stations: VuDesStations | undefined) => () => ({
   configuration: pourLaBarre({ chemin: CHEMIN, projets: [] }),
