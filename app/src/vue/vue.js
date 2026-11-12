@@ -97,10 +97,11 @@ import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
 import { absenceALAperture, poserAbsence } from "./absence/absence.js";
 import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
-import { AILLEURS, CHAMP as CHAMP_DE_LA_CARTE_DU_CHEF, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
+import { garderLeClavier } from "./garder-le-clavier.js";
+import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
-import { apresRendu as apresLaValidation, CHAMP_DU_COMMENTAIRE, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
-import { apresRendu as apresLaRevue, CHAMP_DE_LA_NOTE, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
+import { apresRendu as apresLaValidation, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
+import { apresRendu as apresLaRevue, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
@@ -138,7 +139,7 @@ import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
 import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
 import { ajouterLaStation, carteDeSetup, choixDeStation, ICI, poserParcoursPremierProjet, progression, tenirLesParcours, travailDuSecond, vuDuParcours } from "./parcours-premier-projet/parcours-premier-projet.js";
-import { CHAMP_DE_LA_REPONSE, CHAMP_DES_CHANGEMENTS, poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
+import { poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
 import { poserRecitDuPremierTicket, tenirLeRecitDuPremierTicket } from "./recit-premier-ticket/recit-premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
 import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
@@ -5489,7 +5490,7 @@ function poserLeDetail() {
   const { ticket, affichage } = detailOuvert;
   const { projet, todo } = lue;
   const cle = `${projet.nom}#${ticket}`;
-  const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DU_COMMENTAIRE && detailDeValidation.contains(document.activeElement);
+  const rendreLeChamp = garderLeClavier(document.activeElement, detailDeValidation);
   const suivante = validationSuivante(projet.nom, ticket);
   const ecrans = todo.captures?.ecrans ?? [];
   detailDeValidation.hidden = false;
@@ -5524,7 +5525,7 @@ function poserLeDetail() {
       },
     ),
   );
-  if (enMain) /** @type {HTMLElement | null} */ (detailDeValidation.querySelector(`[data-champ="${CHAMP_DU_COMMENTAIRE}"]`))?.focus();
+  rendreLeChamp();
 }
 
 // Échap ferme le détail — ou, une capture ouverte seule, rend l'avant et l'après.
@@ -5586,21 +5587,21 @@ function poserLesCartesDuChef() {
     if (lue === undefined || projet === undefined) return retour();
     // La carte « Validate its screen » (ticket 3185) : la même que dans TODO, ses boutons en 44 px.
     if (estUneValidation(lue.todo)) {
-      const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DU_COMMENTAIRE;
+      const rendreLeChamp = garderLeClavier(document.activeElement, cartesDuChef);
       cartesDuChef.replaceChildren(...poserLaCarteAPart(document, { carte: lue, total: cartes.length, retour }, poserLaValidation(projet, ticket, lue.todo, true)));
-      if (enMain) /** @type {HTMLElement | null} */ (cartesDuChef.querySelector(`[data-champ="${CHAMP_DU_COMMENTAIRE}"]`))?.focus();
+      rendreLeChamp();
       return;
     }
     // La carte « review before merge » (ticket 3224) : la même que dans TODO, ses boutons en 44 px.
     if (estUneRevue(lue.todo)) {
-      const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DE_LA_NOTE;
+      const rendreLeChamp = garderLeClavier(document.activeElement, cartesDuChef);
       cartesDuChef.replaceChildren(...poserLaCarteAPart(document, { carte: lue, total: cartes.length, retour }, poserLaRevue(projet, ticket, lue.todo, true)));
-      if (enMain) /** @type {HTMLElement | null} */ (cartesDuChef.querySelector(`[data-champ="${CHAMP_DE_LA_NOTE}"]`))?.focus();
+      rendreLeChamp();
       return;
     }
     const etat = etatDeLaCarte(projet, ticket, lue.todo);
     const refus = etat.etape === "refus" ? { dit: etat.dit, detail: etat.detail } : undefined;
-    const clavier = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ === CHAMP_DE_LA_CARTE_DU_CHEF;
+    const rendreLeChamp = garderLeClavier(document.activeElement, cartesDuChef);
     const posee = poserLaCarteDuChef(document, {
       carte: lue,
       total: cartes.length,
@@ -5615,7 +5616,7 @@ function poserLesCartesDuChef() {
       repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
     });
     cartesDuChef.replaceChildren(...posee);
-    if (clavier) posee.saisie.focus();
+    rendreLeChamp();
     return;
   }
   const cuisent = accueilVu === undefined ? undefined : accueilVu.projets.filter((ligne) => etatDeLaLigne(ligne) === "cooking").length;
@@ -8372,7 +8373,7 @@ function poserLeProjetAPreparer() {
     premiersTickets.commencer(nom);
     const etat = premiersTickets.de(nom);
     if (etat === undefined) return fermer();
-    const enMain = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.champ;
+    const rendreLeChamp = garderLeClavier(document.activeElement, sectionDuParcours);
     sectionDuParcours.replaceChildren(
       poserPremierTicket(document, { depot: parcours.depot, etat, ...(parcours.absente === undefined ? {} : { absente: parcours.absente }) }, {
         ecrire: (texte) => premiersTickets.ecrire(nom, texte),
@@ -8386,7 +8387,7 @@ function poserLeProjetAPreparer() {
       }),
     );
     sectionDuParcours.hidden = false;
-    if (enMain === CHAMP_DE_LA_REPONSE || enMain === CHAMP_DES_CHANGEMENTS) /** @type {HTMLElement | null} */ (sectionDuParcours.querySelector(`[data-champ="${enMain}"]`))?.focus();
+    rendreLeChamp();
     return;
   }
   const depart = departsDesProjets.de(nom);
