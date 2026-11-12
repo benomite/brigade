@@ -178,7 +178,7 @@ const instant = (valeur: string | null | undefined, absent: string) => (valeur =
 function lignesDuTemps(p: PreuveDuTicket, projet?: string): string[] {
   const t = p.temps;
   const pertes = pertesDuTicket(t);
-  const perdu = `lost ${min(tempsPerdu(t))} of ${min(dureeDuTicket(t))} (claim wait ${min(pertes.attente)}, failed cooks ${min(pertes.ratees)}, send-backs ${min(pertes.renvois)})`;
+  const perdu = `lost ${min(tempsPerdu(t))} of ${min(dureeDuTicket(t))} (manager's judgement ${min(pertes.qualification)}, claim wait ${min(pertes.attente)}, failed cooks ${min(pertes.ratees)}, send-backs ${min(pertes.renvois)})`;
   const depot = p.depot;
   const quand =
     depot === undefined || "erreur" in depot
@@ -227,6 +227,10 @@ function attentesDuTicket(p: PreuveDuTicket): { debut: number; fin: number }[] {
 }
 
 // Combien des tickets qui ont le plus attendu une prise la section suit dans le journal.
+
+// Ce qu'un ticket a attendu avant une prise : le jugement du manager, puis un
+// cook. Les attentes que la section suit partent du dépôt, et couvrent les deux.
+const avantLaPrise = (pertes: { qualification: number; attente: number }) => pertes.qualification + pertes.attente;
 const TICKETS_SUIVIS = 5;
 
 // Les événements que la section cite, au plus `EVENEMENTS_CITES`, dans l'ordre
@@ -253,7 +257,7 @@ function evenementsCites(
   // Les premiers et les derniers tour à tour.
   const deuxBouts = (rangs: number[]) => rangs.map((_, i) => (i % 2 === 0 ? rangs[i / 2] : rangs[rangs.length - 1 - (i - 1) / 2]) as number);
   const suivis = tickets
-    .map((p) => ({ ticket: p.temps.ticket, attente: pertesDuTicket(p.temps).attente, attentes: attentesDuTicket(p).map((a) => ({ duree: a.fin - a.debut, rangs: dedans(a) })) }))
+    .map((p) => ({ ticket: p.temps.ticket, attente: avantLaPrise(pertesDuTicket(p.temps)), attentes: attentesDuTicket(p).map((a) => ({ duree: a.fin - a.debut, rangs: dedans(a) })) }))
     .filter(({ attente, attentes }) => attente > 0 && attentes.some(({ rangs }) => rangs.length > 0))
     .sort((a, b) => b.attente - a.attente)
     .slice(0, TICKETS_SUIVIS);

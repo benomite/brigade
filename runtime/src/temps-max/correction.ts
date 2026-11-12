@@ -2,8 +2,8 @@
 // tickets, #2515, épique #2514) : quand le temps perdu médian des tickets
 // récents du projet dépasse son seuil (`lostTimeMaxMin`, 2 min par défaut), la
 // station ouvre sur le rail un ticket `prio:0` qu'un cook prend tout de suite.
-// Son corps nomme la perte qui pèse le plus — l'attente avant la prise, les
-// cooks ratés ou les renvois — avec ses chiffres, et les tickets qui l'ont
+// Son corps nomme la perte qui pèse le plus — l'attente du jugement du
+// manager, celle d'une prise, les cooks ratés ou les renvois — avec ses chiffres, et les tickets qui l'ont
 // subie. Le temps perdu d'un ticket est tout son temps, du dépôt (ou de
 // `fire`) au merge (#2662), sauf le cook qui a livré et la pass, la CI et le
 // merge de la livraison mergée : un ticket n'a pas de taille fixe, ce qu'il

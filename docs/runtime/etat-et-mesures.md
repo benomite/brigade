@@ -443,10 +443,13 @@ leaves out): replayed, median 14 min, p75 47 min, and claim wait the slowest pha
 ticket).
 
 **A ticket's lost time** (#2670) is all of its time except the cook that delivered — its last cooking — and the
-pass, CI and merge of that merged delivery. It splits into three losses: `attente` (`waiting for a claim`), the
-qualification wait and every claim wait; `ratees` (`failed cooks`); `renvois` (`send-backs`), each send-back and,
-before the delivered cook, the cooking, pass wait, review and CI of a delivery that was sent back. A record of
-before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
+pass, CI and merge of that merged delivery. It splits into four losses: `qualification` (`waiting for the manager's
+judgement`), the qualification wait, from filing to `fire`; `attente` (`waiting for a claim`), every claim wait;
+`ratees` (`failed cooks`); `renvois` (`send-backs`), each send-back and, before the delivered cook, the cooking, pass
+wait, review and CI of a delivery that was sent back. The record's `perdu.attente` holds both waits, as before: the
+qualification loss is its `attenteQualification`, the claim wait the rest. Until #3422 both counted as waiting for a
+claim: the 15 min BOBL-tech/mirrorlab#732 waited between its filing and the manager's `fire` read as a wait for a
+cook. A record of before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
 2026-11-06 and 07 lost a median 7.7 min, 57 % of it waiting for a claim.
 
 **Over the lost-time threshold, a correction ticket** (`runtime/src/temps-max/`, #2515, on lost time since
@@ -459,8 +462,8 @@ the last 10 merged, and every one merged in the 24 h before the last. Over the t
 issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:medium` (`high` until
 #2575: the ten corrections #2535 to #2573 cooked a median 10.9 min each, so each one added to the recent
 tickets a ticket over the max it was there to bring down), with the median lost time, the loss that weighs
-most — waiting for a claim, failed cooks or send-backs — with its total, its share of the lost time, its
-median per ticket and how many tickets it hit, the three losses, and the tickets concerned, the ten that lost
+most — waiting for the manager's judgement, waiting for a claim, failed cooks or send-backs — with its total, its
+share of the lost time, its median per ticket and how many tickets it hit, the four losses, and the tickets concerned, the ten that lost
 the most to it first. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
 GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
 the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest
@@ -542,7 +545,7 @@ A quality or lost-time ticket carries its evidence (`runtime/src/preuve-mesure.t
 it reads neither the project's issues, nor its `temps-tickets.json`, nor the station's journal, and stopped
 blocked on #2832 and #2837. When it files one, the station appends an "Evidence" section, gathered from the
 project's GitHub and its own journal: every recent ticket measured, with the reason of each send-back and failed
-cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its loss,
+cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its four losses,
 and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
 heartbeat), 40 at most. Over 40, the events cited are those in the claim waits of the five tickets that waited
 longest for a claim (#3156): from filing — or from `fire` set over an hour later, as the measure counts it — to the
