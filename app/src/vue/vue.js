@@ -100,9 +100,9 @@ import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as
 import { garderLeClavier } from "./garder-le-clavier.js";
 import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
-import { apresRendu as apresLaValidation, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
+import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
-import { apresRendu as apresLaRevue, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
+import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
@@ -5412,7 +5412,7 @@ function poserLaRevue(projet, ticket, todo, grand) {
 /** @param {Projet} projet @param {number} ticket @param {import("./carte-sensible/carte-sensible-github.ts").GesteSensible} geste */
 async function repondreALaRevue(projet, ticket, geste) {
   const cle = `${projet.nom}#${ticket}`;
-  if (revues.get(cle)?.etape === "envoi") return;
+  if (revues.get(cle)?.etape === "envoi" || revues.get(cle)?.etape === "fait") return;
   lacherLaCarteDe(projet.nom, ticket);
   /** @param {import("./carte-sensible/carte-sensible.js").Etat} etat */
   const poser = (etat) => {
@@ -5428,14 +5428,16 @@ async function repondreALaRevue(projet, ticket, geste) {
   } catch (erreur) {
     rendu = { refus: "nothing was done: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  const suite = apresLaRevue(rendu);
-  if (suite.etape === "fait") {
-    notesDeRevue.delete(cle);
-    validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
-    if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
-  }
-  poser(suite);
-  if (suite.etape === "fait") lireLesFaits();
+  const rendue = apresLaRevue(rendu);
+  if (rendue.etape !== "fait") return poser(rendue);
+  // Fait : la carte garde un court moment la confirmation de ce qui a été fait (ticket 3386), puis quitte TODO.
+  poser({ ...rendue, geste: geste.geste });
+  await new Promise((fini) => setTimeout(fini, CONFIRMATION_REVUE_MS));
+  notesDeRevue.delete(cle);
+  validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
+  if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
+  poser(rendue);
+  lireLesFaits();
 }
 
 // Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont
@@ -5443,7 +5445,7 @@ async function repondreALaRevue(projet, ticket, geste) {
 /** @param {Projet} projet @param {number} ticket @param {import("./validation-design/validation-design-github.ts").GesteDeValidation} geste */
 async function validerLaCarte(projet, ticket, geste) {
   const cle = `${projet.nom}#${ticket}`;
-  if (validations.get(cle)?.etape === "envoi") return;
+  if (validations.get(cle)?.etape === "envoi" || validations.get(cle)?.etape === "fait") return;
   lacherLaCarteDe(projet.nom, ticket);
   /** @param {import("./validation-design/validation-design.js").Etat} etat */
   const poser = (etat) => {
@@ -5461,14 +5463,16 @@ async function validerLaCarte(projet, ticket, geste) {
   } catch (erreur) {
     rendu = { refus: "nothing was done: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
-  const suite = apresLaValidation(rendu);
-  if (suite.etape === "fait") {
-    commentairesDeValidation.delete(cle);
-    validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
-    if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
-  }
-  poser(suite);
-  if (suite.etape === "fait") lireLesFaits();
+  const rendue = apresLaValidation(rendu);
+  if (rendue.etape !== "fait") return poser(rendue);
+  // Fait : la carte, ou son détail, garde un court moment la confirmation de ce qui a été fait (ticket 3386), puis quitte TODO.
+  poser({ ...rendue, geste: geste.geste });
+  await new Promise((fini) => setTimeout(fini, CONFIRMATION_VALIDATION_MS));
+  commentairesDeValidation.delete(cle);
+  validees.set(projet.nom, valideesDe(projet.nom).add(ticket));
+  if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
+  poser(rendue);
+  lireLesFaits();
 }
 
 // La carte « Validate its screen » d'un ticket, telle que la dernière lecture de son projet la porte — partie de TODO

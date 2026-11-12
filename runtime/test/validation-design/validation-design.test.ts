@@ -37,7 +37,7 @@ function enPass(fichiers: string[], labels: string[] = CALIBRE) {
 // tête neuve.
 function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pannes: Partial<GitHubDuTour> = {}) {
   const titres = new Map<number, string>();
-  const bas = { ...faux.pour("A"), ...pannes };
+  const bas = { ...faux.pour("A"), ouvertes: gestes(faux).ouvertes, prDeBranche: fauxClient(faux, "A").prDeBranche, ...pannes };
   const github = {
     ...bas,
     creerIssue: async (issue: { titre: string; corps: string; labels: string[] }) => {
@@ -609,4 +609,64 @@ test("the station the kitchen opens reads the setting in the project's configura
   const mergee = await parLeDepot(t, { integrationBranch: "main" });
   assert.equal(mergee.faux.mergee(TICKET)?.number, PR, mergee.avertis.join("\n"));
   assert.deepEqual(cartes(mergee.faux), []);
+});
+
+// ── Une carte pour une livraison déjà mergée (#3390) ──
+
+// Le chef valide, la PR est mergée et le ticket fermé : le pass d'après ne rend rien au TODO.
+test("the chef validates, the PR is merged, then the station's next pass: TODO holds no card for the ticket", async () => {
+  const { faux } = await retenue();
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  const avertis: string[] = [];
+  const { s } = station(faux, true, avertis);
+  await tours(s, 3);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.equal(cartes(faux).length, 1, "the answered card stays the only one");
+  assert.deepEqual(avertis, []);
+});
+
+test("a pass that read the ticket and its PR open just before the merge opens no card once the merge is done", async () => {
+  const { faux } = await retenue();
+  const avantMerge = { ...faux.pr(PR) };
+  const fin = await design(faux, "validate", `faux/depot#${PR}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  const ticket = faux.ticket(TICKET);
+  const avertis: string[] = [];
+  // La lecture du tour est celle d'avant le merge : le ticket et sa PR y sont encore ouverts.
+  const perimee: Partial<GitHubDuTour> = {
+    fires: async () => [{ number: TICKET, title: ticket.title, labels: [...ticket.labels], state: "open" }],
+    prDuTicket: async () => ({ ...avantMerge }),
+    prsOuvertes: async () => [{ number: PR, branche: brancheDuTicket(TICKET), fichiers: ECRAN }],
+  };
+  const { s } = station(faux, true, avertis, perimee);
+  await tours(s, 3);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.equal(cartes(faux).length, 1, "no new card was posted");
+});
+
+test("a card left open for a PR merged another way, or for a closed ticket, leaves TODO by itself", async () => {
+  for (const cas of ["merged", "pr-closed", "ticket-closed"] as const) {
+    const { faux } = await retenue();
+    const pr = faux.pr(PR);
+    if (cas === "merged") Object.assign(pr, { merged: true, state: "closed" });
+    if (cas === "pr-closed") pr.state = "closed";
+    if (cas === "ticket-closed") faux.ticket(TICKET).state = "closed";
+    assert.equal(ouvertes(faux).length, 1, cas);
+    const avertis: string[] = [];
+    const { s } = station(faux, true, avertis);
+    await tours(s, 2);
+    assert.deepEqual(ouvertes(faux), [], cas);
+    assert.deepEqual(avertis, [], cas);
+  }
+});
+
+test("a card whose PR is still open for an open ticket stays in TODO after the sweep", async () => {
+  const { faux, s } = await retenue();
+  await tours(s, 2);
+  assert.equal(ouvertes(faux).length, 1);
+  const { s: autre } = station(faux, true);
+  await tours(autre, 2);
+  assert.equal(ouvertes(faux).length, 1);
 });

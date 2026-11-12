@@ -31,7 +31,7 @@ import { rangeeDuSecond } from "../todo-carte/demander-au-second.js";
  * @typedef {{ etape: "repos" }
  *   | { etape: "envoi", geste: GesteSensible["geste"] }
  *   | { etape: "refus", dit: string, detail: string }
- *   | { etape: "fait", dit: string }} Etat
+ *   | { etape: "fait", dit: string, geste?: GesteSensible["geste"] }} Etat
  */
 
 /** @type {Etat} */
@@ -45,6 +45,11 @@ export const RENVOYER = "Send back";
 export const CHAMP = "Note: what to change — required to send back";
 export const EN_MERGE = "merging…";
 export const EN_RENVOI = "sending back…";
+// Le geste fait : le bouton cliqué le dit, au lieu de disparaître sans un mot (ticket 3386).
+export const MERGE = "merged ✓";
+export const RENVOYE = "sent back ✓";
+// Le temps que la carte garde sa confirmation avant de quitter TODO.
+export const CONFIRMATION_MS = 1200;
 // Le champ de la note, tel que la vue le reconnaît pour lui rendre le clavier quand la page est reposée.
 export const CHAMP_DE_LA_NOTE = "note-sensible";
 /** @param {number} pr */
@@ -128,9 +133,13 @@ export function poserCarteSensible(doc, ticket, carte, etat, { note, cle, lectur
  */
 function poserLesReponses(doc, revue, etat, { note, cle, grand }, gestes) {
   const enRoute = etat.etape === "envoi";
-  const merger = boutonAction(doc, MERGER, gestes.merger, { recommande: true, grand, prix: PRIX_MERGER(revue.pr) });
+  const fait = etat.etape === "fait";
+  const geste = etat.etape === "envoi" || etat.etape === "fait" ? etat.geste : undefined;
+  const dit = (/** @type {GesteSensible["geste"]} */ lequel, /** @type {string} */ libelle) =>
+    geste !== lequel ? libelle : enRoute ? (lequel === "merger" ? EN_MERGE : EN_RENVOI) : fait ? (lequel === "merger" ? MERGE : RENVOYE) : libelle;
+  const merger = boutonAction(doc, dit("merger", MERGER), gestes.merger, { recommande: true, grand, prix: PRIX_MERGER(revue.pr) });
   const boutonMerger = merger.children?.[0];
-  if (boutonMerger !== undefined) boutonMerger.disabled = enRoute;
+  if (boutonMerger !== undefined) boutonMerger.disabled = enRoute || fait;
 
   const phrase = cree(doc, "div", "phrase renvoi");
   const saisie = cree(doc, "textarea");
@@ -139,14 +148,14 @@ function poserLesReponses(doc, revue, etat, { note, cle, grand }, gestes) {
   saisie.placeholder = CHAMP;
   saisie.ariaLabel = `the note sending #${revue.ticket} back: what to change`;
   saisie.required = true;
-  saisie.disabled = enRoute;
+  saisie.disabled = enRoute || fait;
   saisie.dataset.cle = cle;
   saisie.dataset.champ = CHAMP_DE_LA_NOTE;
-  const renvoyer = boutonAction(doc, RENVOYER, () => {
+  const renvoyer = boutonAction(doc, dit("renvoyer", RENVOYER), () => {
     if (saisie.value.trim() !== "") gestes.renvoyer(saisie.value);
   }, { grand, prix: PRIX_RENVOYER(revue.ticket) });
   const boutonRenvoyer = renvoyer.children?.[0];
-  if (boutonRenvoyer !== undefined) boutonRenvoyer.disabled = enRoute || note.trim() === "";
+  if (boutonRenvoyer !== undefined) boutonRenvoyer.disabled = enRoute || fait || note.trim() === "";
   saisie.addEventListener("input", () => {
     gestes.ecrire(saisie.value);
     if (boutonRenvoyer !== undefined) boutonRenvoyer.disabled = saisie.value.trim() === "";

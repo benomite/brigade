@@ -64,6 +64,8 @@ export const REPOS = { etape: "repos" };
 export const ENVOYER = "send";
 export const CHAMP = "or answer in your own words";
 export const EN_ROUTE = "sending your answer…";
+// Le bouton cliqué le dit à l'instant, avant que GitHub ne réponde (ticket 3386).
+export const EN_ROUTE_BOUTON = "sending…";
 export const EN_ATTENTE = "sent, waiting for the kitchen";
 export const EN_ATTENTE_DETAIL = "your answer is posted on the ticket's issue on GitHub: the station reads it at its next tick, and answers under it";
 export const JOUEE = "played by the kitchen";
@@ -144,6 +146,7 @@ function cree(doc, balise, texte) {
 export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon, cle, second, lectureSeule = false }, gestes) {
   const vu = vuDeLaCarte(carte, etat);
   const enRoute = vu.vu === "envoi";
+  const reponseEnRoute = etat.etape === "envoi" ? etat.reponse : undefined;
   const { question, resume } = carte;
   const racine = carteDeReponse(doc, { sorte: carte.sorte });
   if (vu.vu === "attente" || vu.vu === "jouee") racine.dataset.envoi = vu.vu;
@@ -180,7 +183,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   // autres. Chaque libellé se lit entier, sur autant de lignes qu'il lui faut ; ce que le bouton fait est au survol, sans
   // pictogramme à déchiffrer à côté (ticket 3086).
   carte.choix.forEach(({ texte, prix }, rang) => {
-    const groupe = boutonAction(doc, texte, () => gestes.repondre({ question, choix: rang + 1 }), { recommande: rang === 0 });
+    const groupe = boutonAction(doc, reponseEnRoute !== undefined && "choix" in reponseEnRoute && reponseEnRoute.choix === rang + 1 ? EN_ROUTE_BOUTON : texte, () => gestes.repondre({ question, choix: rang + 1 }), { recommande: rang === 0 });
     const bouton = groupe.children?.[0];
     if (bouton !== undefined) {
       bouton.className = "choix";
@@ -201,7 +204,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   saisie.disabled = enRoute;
   saisie.dataset.cle = cle;
   saisie.dataset.champ = CHAMP_DE_CARTE;
-  const envoyer = boutonAction(doc, ENVOYER, () => gestes.repondre({ question, texte: saisie.value }), { prix: carte.prixDuTexte });
+  const envoyer = boutonAction(doc, reponseEnRoute !== undefined && "texte" in reponseEnRoute ? EN_ROUTE_BOUTON : ENVOYER, () => gestes.repondre({ question, texte: saisie.value }), { prix: carte.prixDuTexte });
   const bouton = envoyer.children?.[0];
   if (bouton !== undefined) bouton.disabled = enRoute || brouillon.trim() === "";
   saisie.addEventListener("input", () => {

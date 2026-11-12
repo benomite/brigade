@@ -965,7 +965,9 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
     "Merge PR #2416 by hand? It changes what judges it." with one button, `Merge PR #2416` (#3368): one click merges the
     PR and removes `blocked-on-human`, and the card leaves Todo; a merge GitHub refuses is said on the card, which stays.
-    On the phone the card is in the list, with the same button.
+    On the phone the card is in the list, with the same button. Set aside by the station with no PR to merge (#3369),
+    the card reads "Lift the hold?" with two buttons: `Back to the kitchen` removes `blocked-on-human` (the ticket is
+    back on the rail) and `Close it` closes the issue; either way the card leaves Todo, on the phone as in the app.
   - **`hors-cuisine` for a technical cause** (sends back exhausted, cooks without a delivery, or put by hand with no word)
     is the second's work, not the chef's: it **stays out of Todo**. It remains on the rail, in its set-aside column
     (**On the rail**, `86`). Its card says at the top **"Will not start: <reason in plain words>."** (#3147) — every
@@ -1046,7 +1048,7 @@ question. On the repository's open issues, read with the token of this computer'
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
 | `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the box's words: `set aside by the manager, it carries question — to decide: answer it then remove the label, the manager judges it; or close the issue` |
 
-A `fire` + `blocked-on-human` ticket without a PR reads like the manager's `blocked-on-human`, its reason first. An issue
+A `fire` + `blocked-on-human` ticket without a PR reads `Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3369). An issue
 carrying `waiting` waits for a third party, not the chef; an issue carrying `kitchen-board` (left from the old path) is
 never an item; a technical `hors-cuisine` stays on the rail (#2422). Items go oldest first: since the comment that says
 them, or since their label was put. They are written as the `awaiting` block of `status` (the line of each ticket, then
@@ -1236,7 +1238,7 @@ Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`, `app/test/vue/todo/
 `app/test/lecture-github-telephone.test.ts`, `app/test/gestes-github.test.ts`.*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
-is the question "Merge PR #N by hand? It changes what judges it." with its `Merge PR #N` button (#3368); a technical
+is the question "Merge PR #N by hand? It changes what judges it." with its `Merge PR #N` button (#3368), or, with no PR, "Lift the hold?" with `Back to the kitchen` and `Close it` (#3369); a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
 set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
 carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures:

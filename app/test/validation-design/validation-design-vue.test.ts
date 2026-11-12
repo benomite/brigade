@@ -16,7 +16,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { Terminal } from "../../src/terminaux.ts";
 import { validationDuCorps } from "../../src/vue/validation-design/validation-design-github.ts";
-import { CHAMP, RENVOYER, sansLesValidees, VALIDER } from "../../src/vue/validation-design/validation-design.js";
+import { CHAMP, CONFIRMATION_MS, EN_RENVOI, EN_VALIDATION, RENVOYE, RENVOYER, sansLesValidees, VALIDE, VALIDER } from "../../src/vue/validation-design/validation-design.js";
 import { carteDuTicket, Faux, FauxEcran, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-11-11T12:04:12.000Z";
@@ -116,12 +116,18 @@ for (const [ecran, ouvrir, ou] of [
       assert.equal(bouton(carte, RENVOYER).disabled, false);
     });
 
-    test("« Validate » envoie le geste avec la carte ; fait, la carte quitte TODO aussitôt, et les faits sont relus", async () => {
+    test("« Validate » envoie le geste avec la carte ; fait, la carte le confirme puis quitte TODO, et les faits sont relus", async (t) => {
+      t.mock.timers.enable({ apis: ["setTimeout"] });
       const vue = await ouvrir({ gesteDeValidation: () => ({ fait: "chef/parade#60 validated: merged, card #61 closed — ticket #58 is served" }) });
       const avant = vue.appels.filter(({ geste }) => geste === "relireBox").length;
       bouton(laCarte(ou(vue) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation"), VALIDER).click();
       await repos();
       assert.deepEqual(vue.dernier("gesteDeValidation"), ["parade", 61, { geste: "valider" }]);
+      const confirmee = laCarte(ou(vue) ?? assert.fail("la carte est partie sans un mot")) ?? assert.fail("pas de carte de validation");
+      assert.equal(bouton(confirmee, VALIDE).disabled, true, "le bouton cliqué dit ce qui a été fait");
+      assert.equal(bouton(confirmee, RENVOYER).disabled, true);
+      t.mock.timers.tick(CONFIRMATION_MS);
+      await repos();
       assert.equal(carteDuTicket(vue, 61), undefined, "plus dans TODO");
       assert.ok(!vue.element("cartes-du-chef").dessous("button").some(({ className }) => className === "carte-a-ouvrir"), "plus dans la liste du téléphone");
       assert.ok(vue.appels.filter(({ geste }) => geste === "relireBox").length > avant, "les faits sont relus");
@@ -131,15 +137,40 @@ for (const [ecran, ouvrir, ou] of [
       assert.equal(carteDuTicket(vue, 61), undefined);
     });
 
-    test("« Send back to the kitchen » envoie le commentaire ; fait, la carte quitte TODO", async () => {
+    test("« Send back to the kitchen » envoie le commentaire ; fait, la carte dit « back to the kitchen ✓ » puis quitte TODO", async (t) => {
+      t.mock.timers.enable({ apis: ["setTimeout"] });
       const vue = await ouvrir({ gesteDeValidation: () => ({ fait: "chef/parade#60 sent back" }) });
       const carte = laCarte(ou(vue) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation");
       taper(carte, "The button is cut off.");
       bouton(carte, RENVOYER).click();
       await repos();
       assert.deepEqual(vue.dernier("gesteDeValidation"), ["parade", 61, { geste: "renvoyer", commentaire: "The button is cut off." }]);
+      const confirmee = laCarte(ou(vue) ?? assert.fail("la carte est partie sans un mot")) ?? assert.fail("pas de carte de validation");
+      assert.equal(bouton(confirmee, RENVOYE).disabled, true);
+      assert.equal(bouton(confirmee, VALIDER).disabled, true);
+      t.mock.timers.tick(CONFIRMATION_MS);
+      await repos();
       assert.equal(carteDuTicket(vue, 61), undefined);
       assert.ok(!vue.element("cartes-du-chef").dessous("button").some(({ className }) => className === "carte-a-ouvrir"));
+    });
+
+    test("dès le clic, le bouton cliqué dit que le geste est en route et plus rien ne se clique ; refusé, les boutons reviennent", async () => {
+      let rendre: (rendu: unknown) => void = () => {};
+      const vue = await ouvrir({ gesteDeValidation: () => new Promise((fini) => (rendre = fini)) as never });
+      const carte = laCarte(ou(vue) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation");
+      taper(carte, "The button is cut off.");
+      bouton(carte, RENVOYER).click();
+      await repos();
+      const enRoute = laCarte(ou(vue) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation");
+      assert.equal(bouton(enRoute, EN_RENVOI).disabled, true);
+      assert.equal(bouton(enRoute, VALIDER).disabled, true);
+      assert.ok(!enRoute.dessous("button").some(({ textContent }) => textContent === RENVOYER || textContent === EN_VALIDATION));
+      rendre({ refus: "nothing was done: GitHub said no", detail: "" });
+      await repos();
+      const revenue = laCarte(ou(vue) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation");
+      assert.equal(bouton(revenue, VALIDER).disabled, false);
+      assert.equal(bouton(revenue, RENVOYER).disabled, false);
+      assert.ok(revenue.dessous("p").some(({ textContent }) => textContent.includes("GitHub said no")));
     });
 
     test("refusé, la carte reste, dit pourquoi en une ligne — le détail au survol — et garde le commentaire et ses gestes", async () => {

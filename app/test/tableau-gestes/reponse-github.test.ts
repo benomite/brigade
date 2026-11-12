@@ -313,6 +313,29 @@ describe("un clic joue son geste sur GitHub, après le commentaire de la répons
     assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 2061));
   });
 
+  // Un ticket que la station a mis de côté sans PR à merger (#3369) : sa carte offre `Back to the kitchen` et `Close it`.
+  const retenu = (leMonde: ReturnType<typeof monde>) => leMonde.issues.set(3369, { labels: new Set(["fire", "blocked-on-human"]), state: "open", commentaires: [] });
+
+  test("`blocked-on-human` sans PR — Back to the kitchen : `blocked-on-human` retiré, le ticket revient sur le rail, la carte quitte Todo", async () => {
+    const leMonde = monde();
+    retenu(leMonde);
+    const rendu = await cliquer(leMonde, 3369, "Back to the kitchen");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(dernierCommentaire(leMonde, 3369), "<!-- brigade:reponse gesture=resume -->\nBack to the kitchen");
+    assert.deepEqual([...(leMonde.issues.get(3369)?.labels ?? [])], ["fire"]);
+    assert.equal(leMonde.issues.get(3369)?.state, "open");
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 3369));
+  });
+
+  test("`blocked-on-human` sans PR — Close it : l'issue est fermée, la carte quitte Todo", async () => {
+    const leMonde = monde();
+    retenu(leMonde);
+    const rendu = await cliquer(leMonde, 3369, "Close it");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(leMonde.issues.get(3369)?.state, "closed");
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 3369));
+  });
+
   test("drop : `fire` retiré — le ticket sort du rail, son issue reste ouverte", async () => {
     const leMonde = monde();
     const rendu = await cliquer(leMonde, 2061, "No, keep it waiting");
