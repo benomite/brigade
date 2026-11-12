@@ -196,7 +196,7 @@ test("the recommended answer follows the verdict: yes on an approval with green 
     const { github, commentaires, labels } = fauxDesPRExternes();
     const fait = await servirLaPRExterne(pr, contexte(github, verdict, gates));
     assert.equal(fait.issue, "servie");
-    assert.match(carteDe(commentaires), new RegExp(`\\nmerge #12\\?\\n\\nRecommended answer: \\*\\*${attendu}\\*\\*`));
+    assert.match(carteDe(commentaires), new RegExp(`\\nmerge #12\\?\\n- \\[merge\\] Merge #12\\n\\nRecommended answer: \\*\\*${attendu}\\*\\*`));
     assert.ok(labels.includes(CHEF_TODO));
     // Un seul commentaire de verdict, qui dit aussi les gates.
     const corps = commentaires.filter((c) => c.body.startsWith("<!-- brigade:pr-externe "));
