@@ -24,10 +24,15 @@ const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)\s*-->\s*([\s\S]*
 // `design` : sur la carte « Validate its screen » (sorte `design-validation`, ticket 3185), ce que le corps de son issue dit
 // — sa PR, son ticket, ses captures (vue/validation-design/validation-design-github.ts). `sensible` : sur la carte « review
 // before merge » (sorte `review-before-merge`, ticket 3224), sa PR et son ticket (vue/carte-sensible/carte-sensible-github.ts).
-export type CarteDuChef = { sorte: string; texte: string; design?: ValidationDesign; sensible?: RevueSensible };
+// `recommandee` : sur la carte d'un écart du manager (#3434, mise-de-cote-github.ts, `carteDeLEcart`), le choix qu'il
+// recommande et pourquoi, en une ligne — nulle quand il n'en recommande aucun : aucun choix n'est alors mis en avant. Absente
+// des autres cartes, dont le premier choix reste la réponse recommandée.
+export type Recommandee = { texte: string; pourquoi: string };
+export type CarteDuChef = { sorte: string; texte: string; design?: ValidationDesign; sensible?: RevueSensible; recommandee?: Recommandee | null };
 
-// Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`).
-export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail"] as const;
+// Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`), `rail`, et
+// `wait`, la mise en WAITING qu'une carte du manager propose quand sa question attend un tiers (#3434).
+export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail", "wait"] as const;
 export type GesteDuChef = (typeof GESTES_DU_CHEF)[number];
 export type ChoixDuChef = { texte: string; suite: GesteDuChef };
 // Ce que le texte d'une carte du chef pose : sa question — sa première ligne écrite, nulle sur un texte vide —, ses choix,

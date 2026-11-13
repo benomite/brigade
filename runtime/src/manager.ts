@@ -379,10 +379,27 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
 
   // Le dernier jugement de l'issue, tel qu'au journal : la question qu'il pose au chef (#3429) — `undefined` pour un
   // jugement d'avant elle, qui n'en demandait aucune.
-  const dernierJugement = (numero: number) => journal.duTicket(numero).findLast((evenement) => evenement.type === "manager.judged")?.payload as { question?: unknown } | undefined;
+  const dernierJugement = (numero: number) => journal.duTicket(numero).findLast((evenement) => evenement.type === "manager.judged")?.payload as Partial<Pick<Decision, "question" | "answers" | "recommended" | "awaits">> | undefined;
   const questionDuVerdict = (numero: number): string | null => {
     const question = dernierJugement(numero)?.question;
     return typeof question === "string" && question !== "" ? question : null;
+  };
+  // Les lignes de la carte qui suivent sa question (#3434), dans la forme que l'app lit (tableau/mise-de-cote-github.ts,
+  // `carteDeLEcart`) : un bouton par réponse — `- [resume] <réponse>`, qui la poste et rend l'issue au manager ; `close`
+  // pour celle qui la ferme —, et, quand la question attend un tiers, `- [wait] Wait for <qui>` d'abord, que l'app joue
+  // en mettant l'issue en WAITING. Puis la recommandation : la réponse recommandée et pourquoi, en une ligne — WAITING
+  // quand un tiers est attendu —, et aucune sans fondement. Un jugement d'avant #3434 n'en porte aucune : rien.
+  const lignesDeLaCarte = (numero: number): string[] => {
+    const jugement = dernierJugement(numero);
+    const awaits = typeof jugement?.awaits === "string" ? jugement.awaits : null;
+    const answers = Array.isArray(jugement?.answers) ? jugement.answers : [];
+    const attendre = awaits === null ? null : `Wait for ${awaits}`;
+    const recommande = attendre !== null ? { answer: attendre, why: "the answer is theirs to give, not yours" } : (jugement?.recommended ?? null);
+    return [
+      ...(attendre === null ? [] : [`- [wait] ${attendre}`]),
+      ...answers.map((reponse) => `- [${/^close it\b/i.test(reponse) ? "close" : "resume"}] ${reponse}`),
+      ...(recommande === null ? [] : ["", `**Recommended:** ${recommande.answer} — ${recommande.why}`]),
+    ];
   };
   // Refusée au chef par un jugement d'avant #3429 : il ne lui demandait pas de question, et rien ne l'a montrée au chef.
   // Elle se rejuge une fois, pour que sa carte en pose une.
@@ -419,6 +436,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       case "refused": {
         const auChef = estAuChef(connue.kind);
         const question = auChef ? questionDuVerdict(issue.number) : null;
+        const awaits = auChef && question !== null ? (dernierJugement(issue.number)?.awaits ?? null) : null;
         return [
           MARQUEUR_MANAGER,
           `**Manager — not a workable ticket: ${NOMS_DE_NATURE_EN[connue.kind as Nature] ?? connue.kind}.** Nothing is set, no cook will start.`,
@@ -430,8 +448,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           // finit par « ? » (app : tableau/mise-de-cote-github.ts, `carteDeLEcart`).
           ...(auChef
             ? [
-                `**Yours to settle.** The manager sets \`${connue.kind}\` on this issue: it is a card in your TODO. Answer it there — a choice or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
-                ...(question === null ? [] : ["", question]),
+                awaits === null
+                  ? `**Yours to settle.** The manager sets \`${connue.kind}\` on this issue: it is a card in your TODO. Answer it there — one of its answers or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`
+                  : `**Not yours to answer: it waits on ${awaits}.** The manager sets \`${connue.kind}\` on this issue: its card in your TODO proposes to put it in WAITING, awaiting ${awaits}. If you already have the answer, give it there instead — one of its answers or your own words — and the manager judges the issue again with it; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
+                ...(question === null ? [] : ["", question, ...lignesDeLaCarte(issue.number)]),
               ]
             : [`The issue will be judged again as soon as it changes — body edited, or an answer in a comment.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`]),
           "",

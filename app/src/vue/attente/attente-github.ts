@@ -15,7 +15,7 @@ import { LABELS_DES_GESTES, retirerLeLabel, ticketsLus, type Ecrit } from "../..
 import type { ClientDeLaPriorite } from "../../priorite.ts";
 import { refusDe } from "../../tableau/client.ts";
 import type { TableauLu } from "../../tableau/lecture.ts";
-import { saisieLue } from "./saisie.ts";
+import { saisieLue, type Saisie } from "./saisie.ts";
 
 export const LABEL_WAITING = LABELS_DES_GESTES.cuisine;
 // Ce que « c'est arrivé » fait d'un ticket sans livraison ouverte, mot pour mot comme le runtime le dit
@@ -98,10 +98,17 @@ async function poserSurGithub(lu: TableauLu | undefined, ticket: unknown, saisie
   if ("refus" in lue) return { refus: lue.refus, detail: "" };
   if (lu === undefined) return { refus: "nothing was written: the rail of this project has not been read yet — read it again", detail: "" };
   if (!ticketsLus(lu).has(ticket)) return { refus: `nothing was written: #${ticket} is not on the latest rail read — read it again`, detail: "" };
+  return ecrireLAttente(lu.depot, ticket, lue, aujourdhui, client);
+}
+
+// L'entrée en WAITING écrite sur l'issue de `ticket` : son commentaire, puis le label — ce que « waiting for… » écrit, et ce
+// que « Wait for … » d'une carte du manager joue (tableau-gestes/reponse-github.ts, ticket 3434). Un commentaire posté dont le
+// label est refusé se dit tel : le ticket n'est pas en WAITING.
+export async function ecrireLAttente(depot: string, ticket: number, lue: Saisie, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
   const [an, mois, jour] = lue.relance.split("-").map(Number);
   const corps = marqueDAttente(lue, aujourdhui, new Date(an ?? 0, (mois ?? 1) - 1, jour ?? 1));
-  const issue = `/repos/${lu.depot}/issues/${ticket}`;
-  let adresse = `https://github.com/${lu.depot}/issues/${ticket}`;
+  const issue = `/repos/${depot}/issues/${ticket}`;
+  let adresse = `https://github.com/${depot}/issues/${ticket}`;
   try {
     const poste = await client.ecrire("POST", `${issue}/comments`, { body: corps });
     if (poste.status !== 201) throw refusDe("the comment", poste);

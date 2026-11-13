@@ -263,6 +263,47 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(charge(faits(30)[2]), { reason: "decision", fired: false });
   });
 
+  test("une décision porte ses réponses en boutons, et la recommandée avec sa raison en une ligne (#3434)", async (t) => {
+    const { labels, dits, faits, jugements, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision-reponses" }, issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("decision"));
+    await laisserTourner();
+
+    assert.match(jugements()[0]?.args[1] ?? "", /"reponses": \[/);
+    const [dit = ""] = dits(30);
+    // La question, puis un bouton par réponse dans ses mots — celle qui ferme l'issue la ferme —, puis la recommandée : la
+    // forme que la carte TODO lit (app : tableau/mise-de-cote-github.ts, `carteDeLEcart`). Aucun « Back to the kitchen ».
+    assert.match(
+      dit,
+      /\nDo you grant the deploy role write access to the backup bucket\?\n- \[resume\] Grant it, read-only elsewhere\n- \[resume\] Refuse: backups stay read-only\n- \[close\] Close it: out of scope\n\n\*\*Recommended:\*\* Refuse: backups stay read-only — The read-only rule is what the backups rest on\.\n/,
+    );
+    assert.doesNotMatch(dit, /Back to the kitchen|WAITING/);
+    assert.deepEqual(charge(faits(30)[0])?.recommended, { answer: "Refuse: backups stay read-only", why: "The read-only rule is what the backups rest on." });
+  });
+
+  test("une décision qui attend le client est proposée pour WAITING, avec qui elle attend, sans recommandation sans fondement (#3434)", async (t) => {
+    const { labels, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision-tiers" }, issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("decision"));
+    await laisserTourner();
+
+    const [dit = ""] = dits(30);
+    assert.match(dit, /\*\*Not yours to answer: it waits on AF, the client\.\*\* The manager sets `decision` on this issue: its card in your TODO proposes to put it in WAITING, awaiting AF, the client\./);
+    assert.doesNotMatch(dit, /Yours to settle/);
+    assert.match(
+      dit,
+      /\nDoes AF want direct automatic recontact of the Respondent after the beta\?\n- \[wait\] Wait for AF, the client\n- \[resume\] Yes: recontact automatically\n- \[close\] Close it: out of scope\n\n\*\*Recommended:\*\* Wait for AF, the client — the answer is theirs to give, not yours\n/,
+    );
+  });
+
+  test("une décision sans fondement pour recommander : ses réponses en boutons, et aucune recommandation (#3434)", async (t) => {
+    const { labels, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision-sans-avis" }, issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("decision"));
+    await laisserTourner();
+
+    const [dit = ""] = dits(30);
+    assert.match(dit, /\nWhich bucket holds the nightly backups\?\n- \[resume\] The EU bucket\n- \[resume\] The US bucket\n\n_Judged by the manager/);
+    assert.doesNotMatch(dit, /Recommended|Back to the kitchen/);
+  });
+
   test("la carte répondue rend l'issue au manager, qui la rejuge avec la réponse (#3429)", async (t) => {
     const { gh, labels, jugements } = brigade(t, { manager: { suite: ["juge-decision", "juge-ticket"] }, issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("decision"));

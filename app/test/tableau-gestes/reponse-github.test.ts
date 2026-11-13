@@ -12,6 +12,7 @@ import type { ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
 import { formeDuChef } from "../../src/tableau/todo-github.ts";
+import { tiersDeLaMarque } from "../../src/vue/attente/attente-github.ts";
 import { commentaireDeReponse, repondreSurGithub, type ClientDeLaReponse } from "../../src/tableau-gestes/reponse-github.ts";
 import { CHAMP, ENVOYER, poserCarteDeTodo, REPOS } from "../../src/vue/carte-todo.js";
 import { Faux } from "../aides/fausse-vue.ts";
@@ -420,5 +421,111 @@ describe("un clic joue son geste sur GitHub, après le commentaire de la répons
     const sansPR = await repondreSurGithub({ depot: DEPOT, ticket: 1554, chef: carte.chef, reponse: { question: carte.todo?.question ?? null, choix: 1 }, client: leMonde.client });
     assert.deepEqual(sansPR, { refus: "nothing was sent: no open PR names #1554 — the card has nothing to merge", detail: "" });
     assert.equal(leMonde.ecrits.length, avant, "nothing is written");
+  });
+});
+
+// Le refus `decision` du manager tel que runtime/src/manager.ts l'écrit depuis #3434 : sa question, une ligne par réponse, puis
+// celle qu'il recommande et pourquoi — `Wait for <qui>` d'abord quand la question attend un tiers.
+const refusDuManager = (...carte: string[]) =>
+  [
+    "<!-- brigade:manager -->",
+    "**Manager — not a workable ticket: a decision issue.** Nothing is set, no cook will start.",
+    "",
+    "The issue asks how the respondent is recontacted after the beta.",
+    "",
+    "**Yours to settle.** The manager sets `decision` on this issue: it is a card in your TODO. Answer it there — one of its answers or your own words — and the manager judges the issue again with your answer; or close the issue.",
+    "",
+    ...carte,
+    "",
+    "_Judged by the manager in `sonnet` / `medium` · 1 turn · 3,390 tokens · 7.6 s._",
+  ].join("\n");
+const DECISION = refusDuManager(
+  "Which recontact does the beta keep?",
+  "- [resume] Option A suffices",
+  "- [resume] Option B: generate them",
+  "- [close] Close it: out of scope",
+  "",
+  "**Recommended:** Option B: generate them — the client asked for them twice.",
+);
+const SANS_AVIS = refusDuManager("Which recontact does the beta keep?", "- [resume] Option A suffices", "- [resume] Option B: generate them");
+const TIERS = refusDuManager(
+  "Does AF want direct automatic recontact of the Respondent after the beta?",
+  "- [wait] Wait for AF, the client",
+  "- [resume] Yes: recontact automatically",
+  "",
+  "**Recommended:** Wait for AF, the client — the answer is theirs to give, not yours",
+);
+
+describe("la carte d'une décision du manager : ses réponses en boutons, celle qu'il recommande, WAITING pour un tiers (#3434)", () => {
+  const avec = (corps: string) => {
+    const leMonde = monde();
+    leMonde.issues.set(35, { labels: new Set(["decision"]), state: "open", commentaires: [{ id: 90, body: corps, author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" }] });
+    return leMonde;
+  };
+  const vue = async (leMonde: ReturnType<typeof monde>) => {
+    const { racine } = posee(35, carteDe(await todo(leMonde.client), 35).todo ?? assert.fail("the card asks its question"));
+    return { libelles: boutons(racine).map(({ textContent }) => textContent), recommandes: boutons(racine).filter(({ dataset }) => dataset.bouton === "recommande").map(({ textContent }) => textContent), dits: racine.dessous("p").map(({ textContent }) => textContent ?? "") };
+  };
+
+  test("un bouton par réponse, dans ses mots ; la recommandée pleine d'accent, sa raison en une ligne — jamais « Back to the kitchen »", async () => {
+    const { libelles, recommandes, dits } = await vue(avec(DECISION));
+    assert.deepEqual(libelles, ["Option A suffices", "Option B: generate them", "Close it: out of scope"]);
+    assert.deepEqual(recommandes, ["Option B: generate them"]);
+    assert.ok(dits.includes("Recommended: Option B: generate them — the client asked for them twice."), JSON.stringify(dits));
+    assert.ok(!dits.some((dit) => /Back to the kitchen/.test(dit)));
+  });
+
+  test("un clic sur une réponse la poste sur l'issue et rend l'issue au manager : `decision` retiré, aucun autre pas", async () => {
+    const leMonde = avec(DECISION);
+    const rendu = await cliquer(leMonde, 35, "Option A suffices");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(dernierCommentaire(leMonde, 35), "<!-- brigade:reponse gesture=resume -->\nOption A suffices");
+    assert.deepEqual([...(leMonde.issues.get(35)?.labels ?? [])], []);
+    assert.equal(leMonde.issues.get(35)?.state, "open");
+  });
+
+  test("sans fondement pour en recommander une : aucune recommandation, aucun bouton mis en avant", async () => {
+    const { libelles, recommandes, dits } = await vue(avec(SANS_AVIS));
+    assert.deepEqual(libelles, ["Option A suffices", "Option B: generate them"]);
+    assert.deepEqual(recommandes, []);
+    assert.ok(!dits.some((dit) => dit.startsWith("Recommended")), JSON.stringify(dits));
+  });
+
+  test("un écart d'avant #3434, sans réponses : ses deux gestes, et aucun « Recommended: Back to the kitchen »", async () => {
+    const { libelles, recommandes, dits } = await vue(avec(refusDuManager("Which recontact does the beta keep?")));
+    assert.deepEqual(libelles, ["Back to the kitchen", "Close it"]);
+    assert.deepEqual(recommandes, []);
+    assert.ok(!dits.some((dit) => dit.startsWith("Recommended")));
+  });
+
+  test("une question qui attend le client : « Wait for … » recommandé ; un clic met l'issue en WAITING, en disant qui elle attend", async () => {
+    const leMonde = avec(TIERS);
+    const { libelles, recommandes } = await vue(leMonde);
+    assert.deepEqual(libelles, ["Wait for AF, the client", "Yes: recontact automatically"]);
+    assert.deepEqual(recommandes, ["Wait for AF, the client"]);
+
+    const carte = carteDe(await todo(leMonde.client), 35);
+    const rendu = await repondreSurGithub({ depot: DEPOT, ticket: 35, chef: carte.chef, reponse: { question: carte.todo?.question ?? null, choix: 1 }, client: leMonde.client, maintenant: new Date(2026, 10, 13, 12) });
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.match(rendu.dit, /in WAITING on GitHub: #35 awaits AF, the client, follow-up on 2026-11-20/);
+    const issue = leMonde.issues.get(35);
+    assert.deepEqual([...(issue?.labels ?? [])], ["waiting"]);
+    const [reponse, attente] = issue?.commentaires.slice(-2).map(({ body }) => body) ?? [];
+    assert.equal(reponse, "<!-- brigade:reponse gesture=wait -->\nWait for AF, the client");
+    // L'entrée en WAITING, dans la forme que la carte de WAITING relit (vue/attente/attente-github.ts).
+    assert.deepEqual(tiersDeLaMarque(attente ?? "", "2026-11-13T12:00:00Z")?.qui, "AF, the client");
+    assert.match(attente ?? "", /^\*\*WAITING: awaiting AF, the client\.\*\* Does AF want direct automatic recontact of the Respondent after the beta\?/);
+  });
+
+  test("le label `waiting` refusé : la réponse est postée, et le refus dit que le ticket n'est pas en WAITING", async () => {
+    const leMonde = avec(TIERS);
+    const carte = carteDe(await todo(leMonde.client), 35);
+    const ecrire = leMonde.client.ecrire;
+    const client: ClientDeLaReponse = { lire: leMonde.client.lire, ecrire: async (methode, chemin, corps) => (chemin.endsWith("/labels") && methode === "POST" ? { status: 500, data: { message: "boom" } } : ecrire(methode, chemin, corps)) };
+    const rendu = await repondreSurGithub({ depot: DEPOT, ticket: 35, chef: carte.chef, reponse: { question: carte.todo?.question ?? null, choix: 1 }, client, maintenant: new Date(2026, 10, 13, 12) });
+    assert.ok("refus" in rendu);
+    assert.match(rendu.refus, /its gesture \(wait\) was not played/);
+    assert.match(rendu.detail, /#35 is not in WAITING/);
+    assert.ok(leMonde.issues.get(35)?.labels.has("decision"), "the card stays: nothing else was removed");
   });
 });

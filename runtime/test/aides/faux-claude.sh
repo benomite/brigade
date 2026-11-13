@@ -445,6 +445,27 @@ FIN
 {"nature":"decision","motif":"It asks to grant an IAM right that breaks the read-only rule, and says the call is the chef's.","manque":"The chef's call on the IAM right.","question":"Do you grant the deploy role write access to the backup bucket?"}
 FIN
       ;;
+    # La même, avec ses réponses et celle qu'il recommande (#3434).
+    juge-decision-reponses)
+      assistant
+      resultat <<'FIN'
+{"nature":"decision","motif":"It asks to grant an IAM right that breaks the read-only rule, and says the call is the chef's.","manque":"The chef's call on the IAM right.","question":"Do you grant the deploy role write access to the backup bucket?","reponses":["Grant it, read-only elsewhere","Refuse: backups stay read-only","Close it: out of scope"],"recommandee":"Refuse: backups stay read-only","pourquoi":"The read-only rule is what the backups rest on."}
+FIN
+      ;;
+    # Une décision sans rien qui fonde une recommandation (#3434) : ses réponses, sans recommandée.
+    juge-decision-sans-avis)
+      assistant
+      resultat <<'FIN'
+{"nature":"decision","motif":"It does not say which bucket holds the backups.","manque":"The chef's call on the bucket.","question":"Which bucket holds the nightly backups?","reponses":["The EU bucket","The US bucket"],"recommandee":null,"pourquoi":null,"attend":null}
+FIN
+      ;;
+    # Une question qui attend le client, pas le chef (#3434) : la carte propose WAITING.
+    juge-decision-tiers)
+      assistant
+      resultat <<'FIN'
+{"nature":"decision","motif":"It waits for the client to say whether the respondent is recontacted after the beta.","manque":"The client's answer.","question":"Does AF want direct automatic recontact of the Respondent after the beta?","reponses":["Yes: recontact automatically","Close it: out of scope"],"recommandee":null,"pourquoi":null,"attend":"AF, the client"}
+FIN
+      ;;
     # Le tri de l'issue d'un auteur sans l'écriture (#2934).
     trie-ticket)
       assistant

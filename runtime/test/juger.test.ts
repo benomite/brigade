@@ -94,11 +94,35 @@ test("un refus se lit avec sa nature, son motif et ce qui manque", () => {
   });
 });
 
+test("une décision se lit avec ses réponses, la recommandée et le tiers qu'elle attend — ce qui ne se lit pas est laissé, jamais inventé (#3434)", () => {
+  const lue = (champs: Record<string, unknown>) => {
+    const lu = lireDecision(JSON.stringify({ nature: "decision", motif: "A decision issue.", question: "Option A or B?", ...champs }));
+    assert.ok("decision" in lu, JSON.stringify(lu));
+    return lu.decision;
+  };
+  const complete = lue({ reponses: ["Option A suffices", " Option B:\n generate them? ", "Option A suffices", "", 3, "Close it: out of scope", "Fifth"], recommandee: "Option A suffices", pourquoi: "It is already built.", attend: null });
+  // Une ligne chacune, sans « ? », sans doublon, quatre au plus.
+  assert.deepEqual(complete.answers, ["Option A suffices", "Option B: generate them", "Close it: out of scope", "Fifth"]);
+  assert.deepEqual(complete.recommended, { answer: "Option A suffices", why: "It is already built." });
+  assert.equal(complete.awaits, null);
+  // Une recommandée qui n'est pas une des réponses, ou sans raison : aucune — jamais une réponse par défaut.
+  assert.equal(lue({ reponses: ["A", "B"], recommandee: "Back to the kitchen", pourquoi: "Default." }).recommended, null);
+  assert.equal(lue({ reponses: ["A", "B"], recommandee: "A" }).recommended, null);
+  // Sans réponses : aucune ; le chef n'est pas un tiers.
+  assert.deepEqual(lue({}).answers, []);
+  assert.equal(lue({ attend: "the chef" }).awaits, null);
+  assert.equal(lue({ attend: "AF, the client" }).awaits, "AF, the client");
+  // Aucune autre nature n'en porte.
+  const ticket = lireDecision(JSON.stringify({ nature: "incomplete", motif: "No criterion.", reponses: ["A"] }));
+  assert.ok("decision" in ticket && !("answers" in ticket.decision));
+  assert.match(consigneDeJugement({ depot: "acme/brigade", issue: ISSUE, commentaires: [] }), /`attend` : quand la réponse n'est pas au chef/);
+});
+
 test("une issue refusée au chef — `question`, `decision` — se lit avec la décision à prendre, en une phrase qui finit par son seul « ? » (#3429)", () => {
   const lue = (question: unknown) => lireDecision(JSON.stringify({ nature: "decision", motif: "A decision issue.", manque: "The chef's call.", question }));
 
   assert.deepEqual(lue("Do you grant the IAM right?\n"), {
-    decision: { verdict: "refused", kind: "decision", reason: "A decision issue.", missing: "The chef's call.", model: null, effort: null, calibration: null, question: "Do you grant the IAM right?" },
+    decision: { verdict: "refused", kind: "decision", reason: "A decision issue.", missing: "The chef's call.", model: null, effort: null, calibration: null, question: "Do you grant the IAM right?", answers: [], recommended: null, awaits: null },
   });
   // Pas une question qui se lise : la carte posera ce que son label attend — jamais un jugement illisible.
   for (const illisible of [undefined, "", "Grant it.", "Grant it? Or not?"]) {

@@ -153,8 +153,19 @@ by a completion or a card is not followed twice.
 awaits you, so the judgment also writes what you have to settle, in one sentence ending with its only "?".
 The refusal comment carries that sentence on a line of its own, then the manager sets the label of the same
 name (`question` or `decision`) on the issue. The issue is now a TODO card with that question
-(`carteDeLEcart`, #3370), `Back to the kitchen` and `Close it`, and the free answer. Answering it, by a
+(`carteDeLEcart`, #3370), its answers as buttons, and the free answer. Answering it, by a
 choice or in your own words, removes the label, and the manager judges the issue again with your answer.
+
+**The card carries the answers, not `Back to the kitchen`** (#3434). With its question, the judgment writes
+the answers to it (`reponses`, two to four, in the question's own words), the one it recommends with why in
+one line (`recommandee`, `pourquoi`), and who the question waits on when it is not you (`attend`: the
+client, another team, a named person). The refusal comment writes, under the question, one
+`- [resume] <answer>` line per answer (`- [close]` for the one starting with `Close it`), then
+`**Recommended:** <answer> — <why>`. A recommendation that is not one of the answers word for word, or has no
+why, is dropped: the card then recommends nothing, never a default. A question that waits on someone else
+says so instead of `Yours to settle` (`Not yours to answer: it waits on <who>`), and its first choice is
+`- [wait] Wait for <who>`, the one recommended: the app puts the issue in WAITING, awaiting them. A card
+judged before #3434 keeps `Back to the kitchen` and `Close it`, with no recommendation.
 With no sentence that reads, the card asks what its label waits for. Nothing is set on an issue you put in
 WAITING. The set label is not the manager's: removing it never makes a `chef-changed`. A verdict judged
 before #3429 (no sentence in the log, no label) is judged once more, to get its question.

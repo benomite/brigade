@@ -14,6 +14,10 @@
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
 //      - `close` : l'issue est fermée ;
 //      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
+//      - `wait` : l'issue est mise en WAITING (#3434) — le commentaire d'entrée en WAITING, qui attend ce que le libellé
+//        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la relance à sept jours, puis le label
+//        `waiting` (vue/attente/attente-github.ts, `ecrireLAttente`) ; `question` et `decision` sont retirés : la question
+//        attend un tiers, plus le chef.
 //      Chaque geste retire aussi `chef-todo` : répondue, la question n'attend plus le chef.
 // La carte quitte TODO à la lecture suivante : ses labels ont changé, et une question que suit une réponse n'en pose plus
 // (tableau/mise-de-cote-github.ts).
@@ -24,6 +28,8 @@ import { BLOCKED_ON_HUMAN, SERVED_ELSEWHERE } from "../tableau/mise-de-cote-gith
 import { ticketDeLaPR } from "../tableau/rail-github.ts";
 import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/todo-github.ts";
 import { refusDe } from "../tableau/client.ts";
+import { ecrireLAttente } from "../vue/attente/attente-github.ts";
+import { relanceProposee, saisieLue } from "../vue/attente/saisie.ts";
 
 // Le client : les lectures par le `GET` du tableau (client.ts), les écritures avec le même jeton — celui des labels de
 // priorité (priorite.ts, `clientDeLaPriorite`).
@@ -40,7 +46,12 @@ const RETIRES: Readonly<Record<GesteDuChef, readonly string[]>> = {
   drop: [LABEL_FIRE, LABEL_DU_CHEF],
   close: [LABEL_DU_CHEF],
   rail: [LABEL_DU_CHEF],
+  // Mise en WAITING, la question du manager attend un tiers : elle n'attend plus le chef (#3434).
+  wait: ["question", "decision", LABEL_DU_CHEF],
 };
+
+// Qui un choix « Wait for <qui> » attend — le libellé entier, s'il n'a pas cette forme.
+const attendu = (libelle: string) => /^wait for\s+(.+)$/i.exec(libelle.trim())?.[1]?.trim() ?? libelle.trim();
 
 // Le commentaire de la réponse : sa marque, puis le libellé du choix, ou le texte du chef.
 export const commentaireDeReponse = (geste: GesteDuChef, dite: string): string => `<!-- brigade:reponse gesture=${geste} -->\n${dite}`;
@@ -64,9 +75,16 @@ async function prNommee(depot: string, ticket: number, libelle: string, client: 
 }
 
 // Le geste joué sur l'issue de `ticket` — ce qu'il dit fait, ou l'erreur de GitHub.
-async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: number | null, libelle: string, client: ClientDeLaReponse): Promise<string> {
+async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: number | null, libelle: string, question: string, maintenant: Date, client: ClientDeLaReponse): Promise<string> {
   const issue = `/repos/${depot}/issues/${ticket}`;
   let fait = "";
+  if (geste === "wait") {
+    const lue = saisieLue({ quoi: question, qui: attendu(libelle), relance: relanceProposee(maintenant) }, maintenant);
+    if ("refus" in lue) throw new Error(lue.refus);
+    const ecrit = await ecrireLAttente(depot, ticket, lue, maintenant, client);
+    if ("refus" in ecrit) throw new Error(`${ecrit.refus}${ecrit.detail === "" ? "" : ` — ${ecrit.detail}`}`);
+    fait = ecrit.fait;
+  }
   if (geste === "merge" && pr !== null) {
     const mergee = await client.ecrire("PUT", `/repos/${depot}/pulls/${pr}/merge`, { merge_method: "merge" });
     if (mergee.status !== 200) throw refusDe(`the merge of PR #${pr}`, mergee);
@@ -98,7 +116,7 @@ async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: numb
 // La réponse du chef à la carte du chef de `ticket` — `chef`, celle que la dernière lecture porte —, jouée sur GitHub.
 // Rien ne part pour une carte inconnue, changée, une réponse vide, ni un merge sans PR à merger. Le commentaire posté, un
 // geste que GitHub refuse se dit : la réponse est écrite, le geste est à faire sur GitHub.
-export async function repondreSurGithub({ depot, ticket, chef, reponse, client }: { depot: string; ticket: unknown; chef: CarteDuChef | undefined; reponse: unknown; client: ClientDeLaReponse }): Promise<Rendu> {
+export async function repondreSurGithub({ depot, ticket, chef, reponse, client, maintenant = new Date() }: { depot: string; ticket: unknown; chef: CarteDuChef | undefined; reponse: unknown; client: ClientDeLaReponse; maintenant?: Date }): Promise<Rendu> {
   const connue = chef === undefined ? undefined : carteLueDuChef(chef);
   const lue = reponseLue(connue, ticket, reponse);
   if ("refus" in lue) return lue;
@@ -123,7 +141,7 @@ export async function repondreSurGithub({ depot, ticket, chef, reponse, client }
     return { refus: `nothing was sent: your answer was not posted on #${lue.ticket}`, detail: message(erreur) };
   }
   try {
-    const fait = await jouer(depot, lue.ticket, geste, pr, choisi?.texte ?? "", client);
+    const fait = await jouer(depot, lue.ticket, geste, pr, choisi?.texte ?? "", connue?.question ?? "", maintenant, client);
     return { repondue: true, dit: `answer posted on #${lue.ticket} (${geste}): ${fait}`, commentaire };
   } catch (erreur) {
     return { refus: `your answer is posted on #${lue.ticket}, but its gesture (${geste}) was not played — play it on GitHub`, detail: message(erreur) };

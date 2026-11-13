@@ -19,6 +19,21 @@ export function prixDit(prix) {
   return typeof prix === "string" ? prix.trim() : "";
 }
 
+// La réponse qu'une carte de TODO recommande (ticket 3434) : le rang de son choix, à partir de 1, et pourquoi en une ligne — nul
+// quand elle ne le dit pas. Une carte qui ne dit rien de sa recommandation recommande son premier choix (ticket 2922) ; celle
+// qui dit n'en recommander aucune (un écart du manager sans fondement pour en recommander une) n'en met aucune en avant. Rien
+// sans question ni choix.
+/**
+ * @param {{ question: string | null, choix: { texte: string }[], recommandation?: { rang: number, pourquoi: string } | null }} carte
+ * @returns {{ rang: number, texte: string, pourquoi: string | null } | null}
+ */
+export function recommandationDe({ question, choix, recommandation }) {
+  if (question === null || recommandation === null) return null;
+  const rang = recommandation === undefined ? 1 : recommandation.rang;
+  const pris = choix[rang - 1];
+  return pris === undefined ? null : { rang, texte: pris.texte, pourquoi: recommandation?.pourquoi ?? null };
+}
+
 // Le survol : un déclencheur (une icône « ? » par défaut) et, à côté, le texte — posé quand le
 // pointeur ou le clavier arrive, retiré quand il part. Hors survol, le texte n'est nulle part dans
 // l'élément : il n'est pas caché, il n'y est pas. Il reste lisible à qui ne voit pas l'écran, par
