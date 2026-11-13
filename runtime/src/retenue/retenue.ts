@@ -26,7 +26,7 @@
 // ligne le dit.
 import { ECRITURES_PAR_HEURE } from "../limite-github.ts";
 import type { RefusesDeLaCuisine } from "../cuisine-retenue-refus.ts";
-import type { CauseDeRetenue } from "./evenements.ts";
+import type { CauseDeRetenue, PausesDeLaCause } from "./evenements.ts";
 
 export type { CauseDeRetenue };
 
@@ -61,7 +61,7 @@ export type Observation = {
 // lues par le tour GitHub seul ; absente ailleurs.
 export type Signaux = {
   disjoncteur: string | null;
-  limiteGitHub: { limit: string | null; backAt: string; refusedAt?: string } | null;
+  limiteGitHub: { limit: string | null; backAt: string; refusedAt?: string; pauses?: PausesDeLaCause } | null;
   ecritures: { writes: number; nextAt: string } | null;
   baseRouge: { sha: string | null; checks: string[] } | null;
   attenteCI?: { tickets: number[]; running: string[] } | null;
@@ -94,7 +94,10 @@ export const GESTE_DE_LA_BASE = "fix the base by hand, the kitchen starts again 
 
 export function diagnostiquer({ disjoncteur, limiteGitHub, ecritures, baseRouge, attenteCI = null, explications }: Signaux): Diagnostic {
   if (disjoncteur !== null) return { cause: { kind: "breaker", since: disjoncteur }, gesture: GESTE_DU_DISJONCTEUR };
-  if (limiteGitHub !== null) return { cause: { kind: "github-limit", limit: limiteGitHub.limit, backAt: limiteGitHub.backAt, ...(limiteGitHub.refusedAt === undefined ? {} : { refusedAt: limiteGitHub.refusedAt }) }, gesture: null };
+  if (limiteGitHub !== null) {
+    const { limit, backAt, refusedAt, pauses } = limiteGitHub;
+    return { cause: { kind: "github-limit", limit, backAt, ...(refusedAt === undefined ? {} : { refusedAt }), ...(pauses === undefined ? {} : { pauses }) }, gesture: null };
+  }
   if (ecritures !== null) return { cause: { kind: "write-pacer", writes: ecritures.writes, nextAt: ecritures.nextAt }, gesture: null };
   if (baseRouge !== null) return { cause: { kind: "base-red", sha: baseRouge.sha, checks: baseRouge.checks }, gesture: GESTE_DE_LA_BASE };
   if (attenteCI !== null && attenteCI.tickets.length > 0) return { cause: { kind: "ci-wait", tickets: [...attenteCI.tickets], running: [...attenteCI.running] }, gesture: attenteCI.running.length === 0 ? GESTE_DE_LA_CI : null };
