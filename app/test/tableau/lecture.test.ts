@@ -113,7 +113,10 @@ test("le rail se lit sur GitHub : ses tickets dans l'ordre du service, leur éta
   // La base se lit, un ticket étant en pass ; les prises, des seuls tickets tenus.
   assert.ok(chemins.includes(`/repos/${DEPOT}`) && chemins.some((chemin) => chemin.includes("/commits/main/check-runs")));
   assert.ok(chemins.some((chemin) => chemin.startsWith(`/repos/${DEPOT}/issues/2/comments`)) && chemins.some((chemin) => chemin.startsWith(`/repos/${DEPOT}/issues/3/events`)));
-  assert.ok(!chemins.some((chemin) => /\/issues\/1\/(comments|events)/.test(chemin)), "un ticket en attente n'a personne qui le tienne");
+  // Un ticket en attente n'a personne qui le tienne : ses commentaires ne se lisent pas. Ses événements, si : ils disent depuis
+  // quand `fire` lui a été posé (ticket 3433).
+  assert.ok(!chemins.some((chemin) => /\/issues\/1\/comments/.test(chemin)), "un ticket en attente n'a personne qui le tienne");
+  assert.ok(chemins.some((chemin) => chemin.startsWith(`/repos/${DEPOT}/issues/1/events`)), "l'entrée dans la file d'un ticket en attente se lit de ses événements");
 });
 
 test("ce qui est avant le rail : les issues ouvertes sans `fire`, chacune dans l'état que ses labels disent, `prio:` d'abord", async () => {
@@ -256,6 +259,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/tableau/mise-de-cote-github.ts",
     "app/src/tableau/rail-github.ts",
     "app/src/tableau/todo-github.ts",
+    // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).
+    "app/src/vue/attente-du-rail/attente-du-rail.ts",
     // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
     "app/src/vue/carte-sensible/label.ts",
     "app/src/vue/cooks/prises.ts",
@@ -264,6 +269,7 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
+    "runtime/src/attente-du-rail/raison.ts",
     "runtime/src/enregistrement-station/contrat.ts",
     // La liste des tickets d'une épique, sans E/S : une épique n'est pas sur le rail (#2618).
     "runtime/src/epique.ts",
