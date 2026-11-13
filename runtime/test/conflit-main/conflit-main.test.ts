@@ -11,6 +11,7 @@ import { test, type TestContext } from "node:test";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { degelerLesConflits, partirSurLaBase, suiteDuConflitBloque } from "../../src/conflit-main/conflit-main.ts";
 import { cibleDuTravail, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, refusDeLaCreation } from "../../src/conflit-main/renvoi.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import { reparationDuGeste } from "../../src/garde-todo/geste-git.ts";
@@ -203,7 +204,7 @@ test("when the conflict hides a product choice, the chef's card asks that choice
   assert.ok(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), "the ticket waits for the chef's choice");
   const [carte, ...autres] = cartes(s.commentaires());
   assert.deepEqual(autres, []);
-  assert.ok(carte?.startsWith(`**Question for the chef (product):** ${choix}`), carte);
+  assert.ok(carte?.startsWith(`**Question for the chef (product):** ${choix}`), carte ?? "no card");
   assert.match(carte ?? "", new RegExp(`\`${FICHIER}\``));
   assert.doesNotMatch(carte ?? "", GESTES);
 });
@@ -300,4 +301,68 @@ test("what reads a git gesture, a ticket's target and the files a text names", (
   assert.equal(demandeUnGesteGit("Which title should the screen show?"), false);
   assert.deepEqual(fichiersNommes("the merge stopped on conflicts in `MainActivity.kt`, `res/values/strings.xml`. The attempt"), ["MainActivity.kt", "res/values/strings.xml"]);
   assert.deepEqual(fichiersNommes("nothing named"), []);
+});
+
+test("a second merge attempt that no longer stops on a conflict is undone, and the cook starts from its branch as is", async () => {
+  const appels: string[] = [];
+  let fetchs = 0;
+  const lancer = async (args: string[]) => {
+    appels.push(args.join(" "));
+    if (args[0] === "fetch") return ++fetchs === 1 ? { code: 0, stdout: "", stderr: "" } : { code: 128, stdout: "", stderr: "fatal: unable to access" };
+    if (args[0] === "merge-base") return { code: 1, stdout: "", stderr: "" };
+    if (args[0] === "merge" && args[1] === "--no-edit") return { code: 1, stdout: "", stderr: "CONFLICT (content)" };
+    if (args[0] === "diff") return { code: 0, stdout: `${FICHIER}\n`, stderr: "" };
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  assert.deepEqual(await partirSurLaBase(lancer, "/nulle-part", "main"), { etat: "echec", etape: "merge", detail: "CONFLICT (content)", fichiers: [FICHIER] });
+  assert.ok(!appels.includes("merge --no-commit --no-ff FETCH_HEAD"), appels.join("\n"));
+});
+
+test("a manager that cannot be read on the conflict path sends the ticket back to its own cook, never to the chef", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(18);
+  const github = faux.pour("box");
+  const suite = await suiteDuConflitBloque(github, {
+    station: "box",
+    ticket: 18,
+    base: "main",
+    branche: "cook/18-github",
+    fichiers: [FICHIER],
+    question: "I am not sure what to keep.",
+    consulter: async () => {
+      throw new Error("the manager timed out");
+    },
+  });
+  assert.ok("suite" in suite && suite.suite === "liberee", JSON.stringify(suite));
+  assert.match(suite.dit, /the manager timed out/);
+  assert.equal(faux.ticket(18).labels.has(A_LA_MAIN), false);
+  // Au-delà des essais, le cook compte pour un cook sans livraison.
+  for (let n = 0; n < 3; n++) faux.poster(18, "box", `${MARQUE_DU_CONFLIT_MAIN} origin/main: ${FICHIER} -->`);
+  const usee = await suiteDuConflitBloque(github, { station: "box", ticket: 18, base: "main", branche: "cook/18-github", fichiers: [FICHIER], question: "Run git merge for me." });
+  assert.ok("echec" in usee, JSON.stringify(usee));
+});
+
+test("a thaw GitHub refuses is said and retried next round, and does not hold the other tickets", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(18);
+  faux.feu(28, ["fire", "fix"], `the merge stopped on conflicts in \`${FICHIER}\``);
+  faux.ticket(28).title = "The kitchen could not bring `cook/18-github` up to date with `origin/main` for #18";
+  faux.feu(30, ["fire", "fix"], "");
+  faux.ticket(30).title = "The kitchen could not bring `cook/7-github` up to date with `origin/main` for #7";
+  const github = faux.pour("box");
+  const avertissements: string[] = [];
+  const tickets = [...faux.tickets.values()].map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state }));
+  const { fermes } = await degelerLesConflits(
+    {
+      ...github,
+      commenter: async (numero, corps) => {
+        if (numero === 28) throw new Error("HTTP 502");
+        return github.commenter(numero, corps);
+      },
+    },
+    { station: "box", base: "main", tickets, enVol: new Set(), examinees: new Set(), avertir: (texte) => void avertissements.push(texte) },
+  );
+  assert.equal(faux.ticket(28).state, "open", "retried next round");
+  assert.ok(avertissements.some((a) => a.includes("#28") && a.includes("HTTP 502")), avertissements.join("\n"));
+  assert.deepEqual([...fermes], [30], "the other ticket is closed all the same");
 });

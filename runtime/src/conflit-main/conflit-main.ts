@@ -31,13 +31,15 @@ export type DepartSurLaBase = MiseAJourDeLaBranche | { etat: "conflit"; fichiers
 // en conflit, elle est retentée sans commit et laissée au cook, marqueurs
 // compris (`conflit`), avec la consigne qui les lui nomme. Une seconde
 // tentative qui ne bute plus sur un conflit (la base a bougé entre les deux, le
-// fetch a échoué) rend l'échec de la première : le cook part de sa branche.
+// fetch a échoué) est défaite et rend l'échec de la première : le cook part de
+// sa branche telle quelle.
 export async function partirSurLaBase(git: LanceurGit, worktree: string, base: string): Promise<DepartSurLaBase> {
   const miseAJour = await mettreAJourLaBranche(git, worktree, base);
   if (miseAJour.etat !== "echec" || miseAJour.etape !== "merge" || miseAJour.fichiers.length === 0) return miseAJour;
   const integration = await integrerAvantLeCook(git, worktree, base);
-  if (integration.etat === "conflit") return { etat: "conflit", fichiers: integration.fichiers, consigne: consigneDeLIntegration(integration, base) ?? "" };
-  if (integration.etat === "propre") return { etat: "conflit", fichiers: [], consigne: consigneDeLIntegration(integration, base) ?? "" };
+  const consigne = consigneDeLIntegration(integration, base);
+  if (integration.etat === "conflit" && consigne !== null) return { etat: "conflit", fichiers: integration.fichiers, consigne };
+  if (integration.etat === "propre") await git(["merge", "--abort"], worktree).catch(() => null);
   return miseAJour;
 }
 
