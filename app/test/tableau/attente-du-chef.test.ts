@@ -149,6 +149,7 @@ describe("l'écart du manager : sa question, avec ses boutons (#3370)", () => {
     assert.deepEqual(entree?.chef, {
       sorte: "manager-decision",
       texte: "Which column order does the export keep?\n- [resume] Keep the old order\n- [drop] Not now\n\nManager — set aside: a decision.\n\nThe export can keep the old column order or follow the new one.",
+      recommandee: null,
     });
     assert.equal(entree?.quoi, "ecart");
     assert.equal(entree?.ligne, "Which column order does the export keep? — answer on its Todo card: “Keep the old order” or “Not now” — or in your own words");
@@ -157,7 +158,7 @@ describe("l'écart du manager : sa question, avec ses boutons (#3370)", () => {
   test("une question sans choix : `Back to the kitchen` et `Close it` ; aucune question sur l'issue, ou une réponse du chef après elle : la carte demande ce que son label attend", async () => {
     const question = dit("Should the invoices be exported as CSV or XLSX?", "2026-11-05T06:00:00Z");
     assert.equal((await carteDe(ecarte([question], "question")))?.chef?.texte, "Should the invoices be exported as CSV or XLSX?\n- [resume] Back to the kitchen\n- [close] Close it");
-    assert.deepEqual((await carteDe(ecarte([dit("No question here.", "2026-11-05T06:00:00Z")], "blocked-on-human")))?.chef, { sorte: "manager-blocked-on-human", texte: "Lift the hold?\n- [resume] Back to the kitchen\n- [close] Close it" });
+    assert.deepEqual((await carteDe(ecarte([dit("No question here.", "2026-11-05T06:00:00Z")], "blocked-on-human")))?.chef, { sorte: "manager-blocked-on-human", texte: "Lift the hold?\n- [resume] Back to the kitchen\n- [close] Close it", recommandee: null });
     const repondue = dit("<!-- brigade:reponse gesture=resume -->\nCSV", "2026-11-05T07:00:00Z");
     assert.equal((await carteDe(ecarte([question, repondue], "question")))?.chef?.texte, "The manager set this ticket aside with a question: what is your answer?\n- [resume] Back to the kitchen\n- [close] Close it");
   });

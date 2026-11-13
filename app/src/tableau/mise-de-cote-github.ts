@@ -19,7 +19,7 @@
 // une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
 // GitHub mène de l'une à l'autre.
 
-import { carteDuCommentaire, formeDuChef, type CarteDuChef } from "./todo-github.ts";
+import { carteDuCommentaire, formeDuChef, type CarteDuChef, type ChoixDuChef, type Recommandee } from "./todo-github.ts";
 
 export const SERVED_ELSEWHERE = "served-elsewhere";
 export const BLOCKED_ON_HUMAN = "blocked-on-human";
@@ -148,6 +148,10 @@ const carteDeLaRetenue = (raison: string | null): CarteDuChef => ({ sorte: SORTE
 // commentaire la précise. Sans choix : `Back to the kitchen` — `resume` retire le label qui le retient
 // (tableau-gestes/reponse-github.ts), le manager le juge de nouveau — et `Close it`. Aucune question sur l'issue : la carte
 // demande ce que son label attend, avec ces deux choix.
+// La réponse que le manager recommande (#3434) est la ligne `Recommended: <libellé d'un choix> — <pourquoi>` qui suit la
+// question (runtime/src/manager.ts) : elle quitte le reste du commentaire pour la carte (`recommandee`). Sans elle — le
+// manager n'avait rien pour en recommander une, ou la carte retombe sur ses deux choix —, la carte n'en recommande aucune :
+// jamais `Back to the kitchen` par défaut.
 const MARQUE_DE_PRISE = "<!-- brigade:manager-prise";
 const QUESTION_DE_L_ECART: Readonly<Record<string, string>> = {
   question: "The manager set this ticket aside with a question: what is your answer?",
@@ -158,6 +162,23 @@ const CHOIX_DE_L_ECART = ["- [resume] Back to the kitchen", "- [close] Close it"
 const QUESTION = /\?\s*$/;
 const CHOIX = /^\s*[-*]\s*\[[a-z]+\]\s/i;
 export const sorteDeLEcart = (label: string) => `manager-${label}`;
+const RECOMMANDEE = "Recommended: ";
+
+// La ligne du contexte qui recommande l'un des choix, et ce qui la précise : le choix et pourquoi — rien sans elle, ni pour
+// un libellé qui n'est pas celui d'un choix, ni sans pourquoi.
+function recommandeeDe(contexte: string, choix: readonly ChoixDuChef[]): { recommandee: Recommandee; contexte: string } | null {
+  const lignes = contexte.split("\n");
+  for (const [rang, ligne] of lignes.entries()) {
+    const dite = ligne.trim();
+    if (!dite.startsWith(RECOMMANDEE)) continue;
+    const pris = choix.find(({ texte }) => dite.startsWith(`${RECOMMANDEE}${texte} — `));
+    const pourquoi = pris === undefined ? "" : dite.slice(`${RECOMMANDEE}${pris.texte} — `.length).trim();
+    if (pris === undefined || pourquoi === "") return null;
+    const reste = [...lignes.slice(0, rang), ...lignes.slice(rang + 1)].join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    return { recommandee: { texte: pris.texte, pourquoi }, contexte: reste };
+  }
+  return null;
+}
 
 export function carteDeLEcart(label: string, commentaires: readonly Brut[]): CarteDuChef {
   const dits = [...commentaires].reverse().filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DE_PRISE));
@@ -166,14 +187,17 @@ export function carteDeLEcart(label: string, commentaires: readonly Brut[]): Car
     const lignes = nettoyer(body as string).split(/\r?\n/);
     const rang = lignes.findLastIndex((ligne) => !CHOIX.test(ligne) && QUESTION.test(ligne));
     if (rang === -1) continue;
-    const { question, choix, contexte } = formeDuChef(lignes.slice(rang).join("\n"));
+    const forme = formeDuChef(lignes.slice(rang).join("\n"));
+    const { question, choix } = forme;
     if (question === null || question === "") continue;
+    const recommandee = recommandeeDe(forme.contexte, choix);
+    const contexte = recommandee?.contexte ?? forme.contexte;
     const avant = lignes.slice(0, rang).join("\n").trim();
     const precise = [avant, contexte].filter((texte) => texte !== "").join("\n\n");
     const boutons = choix.length === 0 ? CHOIX_DE_L_ECART : choix.map(({ texte, suite }) => `- [${suite}] ${texte}`);
-    return { sorte: sorteDeLEcart(label), texte: [question, ...boutons, ...(precise === "" ? [] : ["", precise])].join("\n") };
+    return { sorte: sorteDeLEcart(label), texte: [question, ...boutons, ...(precise === "" ? [] : ["", precise])].join("\n"), recommandee: recommandee?.recommandee ?? null };
   }
-  return { sorte: sorteDeLEcart(label), texte: [QUESTION_DE_L_ECART[label] ?? "Lift the hold?", ...CHOIX_DE_L_ECART].join("\n") };
+  return { sorte: sorteDeLEcart(label), texte: [QUESTION_DE_L_ECART[label] ?? "Lift the hold?", ...CHOIX_DE_L_ECART].join("\n"), recommandee: null };
 }
 
 // Depuis quand un ticket mis de côté par `label` l'est : l'heure du commentaire qui le dit (ce qui attend le chef,

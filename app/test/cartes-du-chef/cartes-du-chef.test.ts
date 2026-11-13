@@ -204,3 +204,25 @@ describe("la carte ouverte d'un toucher — à première vue (#3086)", () => {
     assert.ok(!ordre.some((texte, rang) => rang < ordre.length && /Manager note/.test(texte) && !plis[0]?.textContent.includes(texte)));
   });
 });
+
+describe("la carte ouverte d'une décision du manager (#3434)", () => {
+  const doc = { createElement: (balise: string) => new Faux(balise) };
+  const poser = (recommandation: { rang: number; pourquoi: string } | null) => {
+    const todo = { sorte: "manager-decision", question: "Option A or B?", choix: [{ texte: "Option A suffices", prix: "p" }, { texte: "Option B: generate them", prix: "p" }], prixDuTexte: "p", recommandation };
+    const [, corps] = poserLaCarte(doc, { carte: { projet: "parade", ticket: 35, age: "1 h", todo }, total: 1, brouillon: "", enRoute: false, retour: () => {}, ecrire: () => {}, repondre: () => {} }) as unknown as Faux[];
+    const choix = (corps as Faux).dessous("button").filter((bouton) => bouton.className.split(" ").includes("choix-du-chef"));
+    return { textes: (corps as Faux).children.map((pose) => pose.textContent), recommandes: choix.filter((bouton) => bouton.className.split(" ").includes("recommande")).map((bouton) => bouton.textContent) };
+  };
+
+  test("la réponse que le manager recommande, avec sa raison, pleine d'accent — pas forcément la première", () => {
+    const { textes, recommandes } = poser({ rang: 2, pourquoi: "the client asked for them twice." });
+    assert.ok(textes.includes("Recommended: Option B: generate them — the client asked for them twice."), JSON.stringify(textes));
+    assert.deepEqual(recommandes, ["Option B: generate them"]);
+  });
+
+  test("sans recommandation : aucune ligne « Recommended », aucun bouton mis en avant", () => {
+    const { textes, recommandes } = poser(null);
+    assert.ok(!textes.some((texte) => texte.startsWith("Recommended")), JSON.stringify(textes));
+    assert.deepEqual(recommandes, []);
+  });
+});

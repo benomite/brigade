@@ -6,7 +6,7 @@
 // Les boutons sont ceux de la famille (composants/bouton), en 44 px à cette largeur ; la peau est dans `cartes-du-chef.css`.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
-import { prixDit } from "../briques.js";
+import { prixDit, recommandationDe } from "../briques.js";
 import { bouton } from "../composants/bouton/bouton.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
@@ -101,8 +101,8 @@ export function poserLaListe(doc, { cartes, ailleurs, avis = [], tete = [], ouvr
   return [entete(doc, cartes.length, undefined), corps];
 }
 
-// La carte ouverte : son numéro et son projet, sa question, ce qui se passe, un bouton par choix — le premier, la réponse
-// recommandée, rempli de l'accent —, puis le champ pour répondre dans ses mots et « Send ». Un choix est la réponse : rien
+// La carte ouverte : son numéro et son projet, sa question, ce qui se passe, un bouton par choix — la réponse recommandée,
+// le premier ou celui que la carte dit (#3434), rempli de l'accent —, puis le champ pour répondre dans ses mots et « Send ». Un choix est la réponse : rien
 // d'autre n'est demandé. `refus` : ce qui a empêché l'envoi, en une ligne, le détail au survol ; la carte garde ses gestes.
 /**
  * @param {Fabrique} doc
@@ -117,10 +117,11 @@ export function poserLaCarte(doc, { carte, total, brouillon, enRoute, refus, ret
   // recommandée ; les boutons. Le reste du commentaire est derrière « details », fermé.
   if (todo.question !== null && todo.resume !== undefined) corps.append(cree(doc, "p", "mot-des-cartes", todo.resume));
   corps.append(cree(doc, "h1", undefined, todo.question ?? todo.resume ?? ""));
-  const [premier] = todo.choix;
-  if (todo.question !== null && premier !== undefined) corps.append(cree(doc, "p", "mot-des-cartes recommandation", `${RECOMMANDEE}: ${premier.texte}`));
+  // La réponse recommandée, et pourquoi quand la carte le dit ; aucune quand le manager n'en recommande pas (#3434).
+  const recommandee = recommandationDe(todo);
+  if (recommandee !== null) corps.append(cree(doc, "p", "mot-des-cartes recommandation", `${RECOMMANDEE}: ${recommandee.texte}${recommandee.pourquoi === null ? "" : ` — ${recommandee.pourquoi}`}`));
   todo.choix.forEach(({ texte, prix }, rang) => {
-    const choix = bouton(doc, texte, () => repondre({ question: todo.question, choix: rang + 1 }), { sorte: rang === 0 ? "recommande" : "secondaire" });
+    const choix = bouton(doc, texte, () => repondre({ question: todo.question, choix: rang + 1 }), { sorte: rang + 1 === recommandee?.rang ? "recommande" : "secondaire" });
     choix.className = `${choix.className} choix-du-chef`.trim();
     const cout = prixDit(prix);
     if (cout !== "") choix.title = cout;

@@ -153,6 +153,12 @@ export type FaitManager =
         // only "?", that the issue's TODO card asks — null when the answer carried none that reads. Absent from any
         // other nature, and from the judgments written before it.
         question?: string | null;
+        // On the same (#3434): the answers to that question, each a button of the card; the one recommended, with why
+        // in one line — null without a basis; who the question awaits when it is not the chef — null when it is the chef's.
+        // Absent from any other nature, and from the judgments written before it.
+        answers?: string[];
+        recommended?: { answer: string; why: string } | null;
+        awaits?: string | null;
       };
     }
   // The judgment ran to its end, but its answer cannot be read: nothing is

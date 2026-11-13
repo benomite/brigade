@@ -4,7 +4,8 @@
 // phrases au plus ; la question ; ses captures avant et après quand il y en a ; un bouton par choix ;
 // un champ pour répondre dans tes mots, avec son bouton « send » ; et, dessous, « ask the second ».
 // Une carte à un seul geste — merger à la main une livraison verte — n'a rien à demander : son bouton,
-// sans question. Le premier choix est la réponse recommandée, le seul bouton plein d'accent (ticket 2922) ; le champ
+// sans question. Le premier choix est la réponse recommandée, le seul bouton plein d'accent (ticket 2922) — ou celui que la
+// carte d'un écart du manager recommande, avec pourquoi, et aucun quand il n'en recommande pas (#3434) ; le champ
 // d'une carte qui a ses choix est replié derrière « answer in my own words ». Un clic sur un choix est la réponse : rien d'autre n'est demandé, ni confirmation
 // ni second clic ; son prix est au survol. Le texte part par son bouton — Entrée ne l'envoie pas.
 // « Ask the second » n'est jamais un des choix ni le seul chemin : il passe la carte au second — son numéro, sa question,
@@ -22,7 +23,7 @@
 // `Etat` — et ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), les
 // captures déjà posées et ce que chaque geste appelle, et rend un élément.
 
-import { boutonAction, prixDit, survol } from "./briques.js";
+import { boutonAction, prixDit, recommandationDe, survol } from "./briques.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
@@ -169,9 +170,10 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     posee.className = "question-carte";
     tete.push(posee);
   }
-  const [premier] = carte.choix;
-  if (question !== null && premier !== undefined) {
-    const conseille = cree(doc, "p", `${RECOMMANDEE}: ${premier.texte}`);
+  // La réponse recommandée, et pourquoi quand la carte le dit ; aucune quand le manager n'en recommande pas (#3434).
+  const recommandee = recommandationDe(carte);
+  if (recommandee !== null) {
+    const conseille = cree(doc, "p", `${RECOMMANDEE}: ${recommandee.texte}${recommandee.pourquoi === null ? "" : ` — ${recommandee.pourquoi}`}`);
     conseille.className = "recommandation-carte";
     tete.push(conseille);
   }
@@ -179,11 +181,11 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
 
   const choix = cree(doc, "div");
   choix.className = "choix-carte";
-  // La réponse recommandée est le premier choix (ticket 2922, maquette Project.dc.html) : plein d'accent, au-dessus des
-  // autres. Chaque libellé se lit entier, sur autant de lignes qu'il lui faut ; ce que le bouton fait est au survol, sans
+  // La réponse recommandée — le premier choix (ticket 2922, maquette Project.dc.html), ou celui que la carte dit (#3434) —
+  // est pleine d'accent ; les autres non. Chaque libellé se lit entier, sur autant de lignes qu'il lui faut ; ce que le bouton fait est au survol, sans
   // pictogramme à déchiffrer à côté (ticket 3086).
   carte.choix.forEach(({ texte, prix }, rang) => {
-    const groupe = boutonAction(doc, reponseEnRoute !== undefined && "choix" in reponseEnRoute && reponseEnRoute.choix === rang + 1 ? EN_ROUTE_BOUTON : texte, () => gestes.repondre({ question, choix: rang + 1 }), { recommande: rang === 0 });
+    const groupe = boutonAction(doc, reponseEnRoute !== undefined && "choix" in reponseEnRoute && reponseEnRoute.choix === rang + 1 ? EN_ROUTE_BOUTON : texte, () => gestes.repondre({ question, choix: rang + 1 }), { recommande: rang + 1 === recommandee?.rang });
     const bouton = groupe.children?.[0];
     if (bouton !== undefined) {
       bouton.className = "choix";

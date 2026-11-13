@@ -27,7 +27,7 @@ import { agentsDe, cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { anciennete, cadenceLue, essaisLus, points, type Anciennete, type EssaiLu, type Point, type CadenceLue } from "./cadence.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
-import type { CarteDuChef } from "./tableau/todo-github.ts";
+import type { CarteDuChef, Recommandee } from "./tableau/todo-github.ts";
 import { validationLue } from "./vue/validation-design/validation-design-github.ts";
 import { revueLue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
@@ -239,7 +239,15 @@ function chefLu(brut: unknown): CarteDuChef | undefined {
   const design = validationLue(lu.design);
   // La carte « review before merge » (ticket 3224) aussi.
   const sensible = revueLue(lu.sensible);
-  return { sorte: lu.sorte, texte: lu.texte, ...(design === undefined ? {} : { design }), ...(sensible === undefined ? {} : { sensible }) };
+  // La recommandation d'un écart du manager (#3434) : nulle, il n'en recommande aucun — ni quand elle n'a pas sa forme : aucun
+  // choix n'est mis en avant à sa place.
+  const recommandee = recommandeeLue(lu.recommandee);
+  return { sorte: lu.sorte, texte: lu.texte, ...(design === undefined ? {} : { design }), ...(sensible === undefined ? {} : { sensible }), ...(recommandee === undefined ? {} : { recommandee }) };
+}
+function recommandeeLue(brut: unknown): Recommandee | null | undefined {
+  if (brut === undefined) return undefined;
+  const lu = typeof brut === "object" && brut !== null ? (brut as Record<string, unknown>) : undefined;
+  return typeof lu?.texte === "string" && typeof lu.pourquoi === "string" ? { texte: lu.texte, pourquoi: lu.pourquoi } : null;
 }
 // Ce qu'une carte du chef attend de lui, en une phrase, selon sa sorte ; une sorte que l'app ne connaît pas est dite telle quelle.
 const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {

@@ -41,7 +41,11 @@ export type ValidationDeCarte = { pr: number; ticket: number } | { illisible: st
 // `brief` : en tête du détail en grand d'une carte « Validate its screen » (ticket 3330), ce que le ticket demandait et ce
 // que le cook a changé à l'écran — `fait` nul, il n'en a rien dit.
 export type BriefDeCarte = { demande: string; fait: string[] | null };
-export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte; envoi?: EnvoiVu; validation?: ValidationDeCarte; revue?: ValidationDeCarte; brief?: BriefDeCarte };
+// `recommandation` : sur la carte d'un écart du manager (#3434), le rang — à partir de 1 — du choix qu'il recommande, et
+// pourquoi en une ligne ; nulle, il n'en recommande aucun : aucun choix n'est mis en avant. Absente ailleurs : le premier
+// choix est la réponse recommandée (ticket 2922).
+export type RecommandationDeCarte = { rang: number; pourquoi: string };
+export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; recommandation?: RecommandationDeCarte | null; captures?: CapturesDeCarte; envoi?: EnvoiVu; validation?: ValidationDeCarte; revue?: ValidationDeCarte; brief?: BriefDeCarte };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -73,6 +77,7 @@ const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
   drop: `${POSTEE}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
   close: `${POSTEE}, and the app closes the issue: the ticket is not cooked`,
   rail: `${POSTEE}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
+  wait: `${POSTEE}, and the app puts the ticket in WAITING for the one the choice names, follow-up in seven days, and removes \`question\` and \`decision\`: no cook takes it until you take it out of WAITING`,
 };
 
 // La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,
@@ -86,7 +91,7 @@ function situationDe(contexte: string): string | undefined {
 // La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
 // libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
 // commentaire vide : il n'y a rien à quoi répondre.
-export function carteDuChefDeTodo({ sorte, texte, design, sensible }: CarteDuChef): CarteDeTodo | undefined {
+export function carteDuChefDeTodo({ sorte, texte, design, sensible, recommandee }: CarteDuChef): CarteDeTodo | undefined {
   const { question, choix, contexte } = formeDuChef(texte);
   if (question === null) return undefined;
   // La carte « Validate its screen » (ticket 3185) : sa question, ses captures et sa PR, et ses deux gestes — valider, ou
@@ -115,6 +120,9 @@ export function carteDuChefDeTodo({ sorte, texte, design, sensible }: CarteDuChe
     };
   }
   const situation = situationDe(contexte);
+  // Le choix que le manager recommande, par son rang : un libellé qui n'est plus parmi les choix n'en recommande aucun.
+  const rang = recommandee == null ? 0 : choix.findIndex(({ texte: libelle }) => libelle === recommandee.texte) + 1;
+  const recommandation = recommandee === undefined ? {} : { recommandation: recommandee === null || rang === 0 ? null : { rang, pourquoi: recommandee.pourquoi } };
   return {
     sorte,
     ...(situation === undefined ? {} : { resume: situation }),
@@ -122,6 +130,7 @@ export function carteDuChefDeTodo({ sorte, texte, design, sensible }: CarteDuChe
     ...(contexte === "" ? {} : { contexte }),
     choix: choix.map(({ texte: libelle, suite }) => ({ texte: libelle, prix: PRIX_SUR_GITHUB[suite] as string })),
     prixDuTexte: PRIX_SUR_GITHUB.resume as string,
+    ...recommandation,
   };
 }
 
