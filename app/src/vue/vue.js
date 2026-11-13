@@ -6723,6 +6723,17 @@ async function demenager(projet, vers, { nomme, depuis, garder }) {
   reposerLOngletStations();
 }
 
+// Les stations que la panne du rail nomme (ticket 3472) : celles qui servent le projet sans cuire, arrêtées ou hors ligne. L'app ne les
+// lit pas ailleurs tant qu'aucune ne le sert ; sans elles, la ligne des stations dirait « No station cooks » à côté d'une panne qui nomme la station.
+/** @param {Projet} projet @returns {string[]} */
+function stationsNommeesParLaPanne(projet) {
+  const tenu = tenus.get(projet.nom);
+  if (tenu === undefined || !("tableau" in tenu)) return [];
+  const { railBloque, attenteDuRail } = tenu.tableau;
+  if (railBloque !== undefined && !("illisible" in railBloque) && railBloque.cause !== "aucune-station") return railBloque.stations;
+  return attenteDuRail?.stations ?? [];
+}
+
 // La ligne des stations du projet affiché, en tête de son espace — et, s'il est ouvert, le choix de
 // celles à qui le confier. Aucune lecture des stations n'est encore arrivée : le vide ne se dit pas.
 function poserStationsDuProjet() {
@@ -6743,8 +6754,12 @@ function poserStationsDuProjet() {
   const { stations, demande, tenue } = cuisineDe(projet);
   const lues = stationsVues !== undefined && projetsVus !== undefined;
   const ou = ouCuit(projet, stations);
+  const nommees = stations.length === 0 && ou === undefined ? stationsNommeesParLaPanne(projet) : [];
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
-  if (stations.length > 0 || ou !== undefined) {
+  if (nommees.length > 0) {
+    // La panne du rail dit déjà, une fois, que la station est arrêtée et le geste qui la démarre : la ligne la nomme, sans le redire.
+    ligneDesStationsDuProjet.replaceChildren(bloc("span", `Cooks on ${nommees.join(" · ")}`));
+  } else if (stations.length > 0 || ou !== undefined) {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis les autres.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
@@ -6771,7 +6786,7 @@ function poserStationsDuProjet() {
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
-  ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
+  ouvrirLaConfiance.textContent = stations.length === 0 && nommees.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const onboarding = vu?.onboarding ?? null;
@@ -8925,6 +8940,7 @@ brigade.surFaits((recue) => {
     dessiner();
     poserLeRecitDuPremierTicket();
     void poserOrdinaires(courant);
+    poserStationsDuProjet();
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme

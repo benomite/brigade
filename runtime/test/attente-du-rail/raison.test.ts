@@ -19,6 +19,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
       raison: "aucune-station",
       phrase: "No station serves this project, so no cook can start. Add the project to a station.",
       geste: "ajouter-a-une-station",
+      stations: [],
     });
     assert.deepEqual(attente([file(4)], [])?.raison, "aucune-station");
   });
@@ -26,17 +27,31 @@ describe("la raison pour laquelle la file ne part pas", () => {
   test("2 : sa station est arrêtée", () => {
     assert.deepEqual(attente([file(4)], [station({ stoppedAt: iso(T0 - 20_000) })]), {
       raison: "arretee",
-      phrase: "The station is stopped, so no cook can start. Start the station.",
+      phrase: "Station box/claude is stopped, so no cook can start. Start the station.",
       geste: "demarrer-la-station",
+      stations: ["box/claude"],
     });
   });
 
   test("3 : sa station est hors ligne ou sans quota", () => {
     assert.deepEqual(attente([file(4)], [station({ lastSeen: iso(T0 - 3_600_000) })]), {
       raison: "hors-ligne",
-      phrase: "The station is offline or out of quota, so no cook can start. Start the station.",
+      phrase: "Station box/claude is shown up but offline or out of quota, so no cook can start. Start the station.",
       geste: "demarrer-la-station",
+      stations: ["box/claude"],
     });
+  });
+
+  test("3 bis : une station arrêtée et une hors ligne — la panne ne nomme que celle qui devrait cuire", () => {
+    const dite = attente([file(4)], [station({ name: "mac", stoppedAt: iso(T0 - 20_000) }), station({ name: "parade", lastSeen: iso(T0 - 3_600_000) })]);
+    assert.equal(dite?.raison, "hors-ligne");
+    assert.deepEqual(dite?.stations, ["parade/claude"]);
+    assert.match(dite?.phrase ?? "", /^Station parade\/claude is shown up but offline/);
+    assert.doesNotMatch(dite?.phrase ?? "", /mac/);
+  });
+
+  test("3 ter : une station arrêtée et une en ligne — aucune panne", () => {
+    assert.equal(attente([file(4)], [station({ name: "mac", stoppedAt: iso(T0 - 20_000) }), station({ name: "parade" })])?.raison, "normale");
   });
 
   test("4 : la station attend le quota de GitHub — aucun geste, elle passe seule", () => {
@@ -45,6 +60,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
       raison: "quota-github",
       phrase: "The station waits for the GitHub quota before it starts a cook. It resolves by itself.",
       geste: null,
+      stations: [],
     });
   });
 
@@ -53,6 +69,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
       raison: "plafond",
       phrase: "The station has reached its cook cap: a cook starts as soon as a place frees up. It resolves by itself.",
       geste: null,
+      stations: [],
     });
   });
 
@@ -62,6 +79,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
       raison: "pass",
       phrase: "The pass is judging a delivery: the queue starts once it is done. It resolves by itself.",
       geste: null,
+      stations: [],
     });
   });
 
@@ -70,6 +88,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
       raison: "autre-ticket",
       phrase: "Every queued ticket waits for another ticket: they start once it merges. It resolves by itself.",
       geste: null,
+      stations: [],
     });
     // Un ticket libre en file : la file n'attend pas tout entière.
     assert.equal(attente([file(4, undefined, [5]), file(5)], [station()])?.raison, "normale");
@@ -129,11 +148,11 @@ describe("l'attente normale", () => {
   const du = (entree: number | null, maintenant: number) => attente([file(4, entree === null ? null : iso(entree))], [station()], false, maintenant);
 
   test("sous 5 minutes : normale, avec le temps du plus ancien depuis son entrée dans la file", () => {
-    assert.deepEqual(du(T0 - 299_000, T0), { raison: "normale", phrase: "Normal wait: a cook takes the ticket within minutes (the oldest has waited 4 min). It resolves by itself.", geste: null });
+    assert.deepEqual(du(T0 - 299_000, T0), { raison: "normale", phrase: "Normal wait: a cook takes the ticket within minutes (the oldest has waited 4 min). It resolves by itself.", geste: null, stations: [] });
   });
 
   test("à 5 minutes et plus, sans raison : plus longue que d'ordinaire", () => {
-    assert.deepEqual(du(T0 - 300_000, T0), { raison: "normale", phrase: "The wait is longer than usual: the oldest queued ticket has waited 5 min and no reason is found. It resolves by itself.", geste: null });
+    assert.deepEqual(du(T0 - 300_000, T0), { raison: "normale", phrase: "The wait is longer than usual: the oldest queued ticket has waited 5 min and no reason is found. It resolves by itself.", geste: null, stations: [] });
     assert.match(du(T0 - 14 * 3_600_000, T0)?.phrase ?? "", /has waited 14 h and/);
   });
 
@@ -143,7 +162,7 @@ describe("l'attente normale", () => {
   });
 
   test("sans l'instant d'entrée, la durée n'est pas dite — ni inventée", () => {
-    assert.deepEqual(du(null, T0), { raison: "normale", phrase: "A cook takes the ticket within minutes. It resolves by itself.", geste: null });
+    assert.deepEqual(du(null, T0), { raison: "normale", phrase: "A cook takes the ticket within minutes. It resolves by itself.", geste: null, stations: [] });
     assert.equal(attente([file(4, "pas une date")], [station()])?.phrase, "A cook takes the ticket within minutes. It resolves by itself.");
   });
 });
