@@ -6,9 +6,10 @@
 //     carte. Une station qui ne le sert pas n'est nommée que comme l'origine d'un déménagement en cours. Celle de cet
 //     ordinateur le sert quand sa liste de projets servis porte son dépôt (projets-servis/, ticket 3399) : une cuisine qui
 //     tourne ici pour le projet sans qu'il soit sur la liste ne le cuit pas, quoi que dise sa ligne de cuisson.
-//   - La ligne du haut, dans exactement un de quatre états : `cuit` (une station en ligne le cuit, ou attend son prochain
-//     ticket), `deplacement` (un déménagement de sa cuisine en route), `hors-ligne` (celles qui le servent sont toutes hors
-//     ligne : rien ne cuit), `personne` (aucune ne le sert). Seul `cuit` est vert.
+//   - La ligne du haut, dans exactement un de cinq états : `cuit` (une station en ligne le cuit, ou attend son prochain
+//     ticket), `deplacement` (un déménagement de sa cuisine en route), `eteint` (le projet est éteint : rien n'y cuit, quoi
+//     que disent ses stations — ticket 3454), `hors-ligne` (celles qui le servent sont toutes hors ligne : rien ne cuit),
+//     `personne` (aucune ne le sert). Seul `cuit` est vert.
 //   - Le déménagement suivi : celui que les stations publient (projets.ts, `demenagementDe`), sinon celui que le chef vient
 //     de demander d'ici, tant que la station visée ne le sert pas. Pas fini au bout d'une minute, il dit ce qui le bloque.
 
@@ -40,9 +41,11 @@ import { RETENUE } from "../stations-du-compte.js";
  * @typedef {{ de: string, vers: string, depuis: number, etape: "demandee" | "acceptee" | "remise", dit: string, deEnLigne: boolean, versEnLigne: boolean }} Deplacement
  */
 /**
- * La ligne du haut.
+ * La ligne du haut. Éteint, `dit` : la phrase de la bande (alertes.ts, `MANAGER_ETEINT`) ; `releve` : la ligne `manager` de la
+ * box ; `servi` : une station le sert — « Add a station » plutôt que « Choose who cooks it ».
  * @typedef {{ etat: "cuit", vert: true, stations: string[], cooks: number }
  *   | { etat: "deplacement", vert: false, de: string, vers: string, attend: string, depuis: number, bloque: string | null }
+ *   | { etat: "eteint", vert: false, dit: string, releve: string, servi: boolean }
  *   | { etat: "hors-ligne", vert: false, station: string, ici: boolean, sorte: Sorte, dit: string }
  *   | { etat: "personne", vert: false, fire?: number }} Haut
  */
@@ -202,17 +205,20 @@ export function blocageDe({ de, vers, etape, dit, deEnLigne, versEnLigne, depuis
 }
 
 /**
- * La ligne du haut, dans exactement un de quatre états. Un déménagement en route l'emporte ; puis les stations en ligne qui
- * servent le projet ; puis celles qui le servent, toutes hors ligne ; sinon, personne — et, lu, combien de tickets `fire`
- * attendent sur son rail (`fire`, le compteur « rail » de son tableau).
- * @param {{ servantes: readonly Servante[], deplacement: Deplacement | null, maintenant: number, fire?: number }} lu
+ * La ligne du haut, dans exactement un de cinq états. Un déménagement en route l'emporte ; puis le projet éteint (`eteint`, ce
+ * que la bande en dit — indéfini quand il est allumé, pas encore lu ou pas lu : ce n'est pas « éteint ») : aucune station ne
+ * le cuit, en ligne ou non (ticket 3454) ; puis les stations en ligne qui servent le projet ; puis celles qui le servent,
+ * toutes hors ligne ; sinon, personne — et, lu, combien de tickets `fire` attendent sur son rail (`fire`, le compteur « rail »
+ * de son tableau).
+ * @param {{ servantes: readonly Servante[], deplacement: Deplacement | null, maintenant: number, fire?: number, eteint?: { dit: string, releve: string } }} lu
  * @returns {Haut}
  */
-export function hautDe({ servantes, deplacement, maintenant, fire }) {
+export function hautDe({ servantes, deplacement, maintenant, fire, eteint }) {
   if (deplacement !== null) {
     const bloque = maintenant - deplacement.depuis >= UNE_MINUTE_MS ? blocageDe(deplacement, maintenant) : null;
     return { etat: "deplacement", vert: false, de: deplacement.de, vers: deplacement.vers, attend: attenduDe(deplacement), depuis: deplacement.depuis, bloque };
   }
+  if (eteint !== undefined) return { etat: "eteint", vert: false, dit: eteint.dit, releve: eteint.releve, servi: servantes.some(({ etat }) => etat !== "demarre") };
   const enLigne = servantes.filter(({ etat }) => etat === "en-ligne");
   if (enLigne.length > 0) return { etat: "cuit", vert: true, stations: enLigne.map(({ nom }) => nom), cooks: enLigne.reduce((somme, { cooks }) => somme + cooks.length, 0) };
   const absente = servantes.find(({ etat }) => etat !== "demarre");
@@ -236,6 +242,9 @@ export const BLOQUE = (bloque) => `Not done after a minute: ${bloque}`;
 /** @param {string} station @param {string} dit */
 export const HORS_LIGNE = (station, dit) => `${station} cooks this project, but it is ${dit}: nothing cooks`;
 export const PERSONNE = "No station cooks this project";
+// Le projet éteint : la phrase de la bande, celle de la tête du rail, en tête de ligne.
+/** @param {string} dit */
+export const ETEINT = (dit) => `${dit.charAt(0).toUpperCase()}${dit.slice(1)}`;
 /** @param {number} combien */
 export const FIRE_EN_ATTENTE = (combien) => `${combien} fire ticket${combien === 1 ? "" : "s"} waiting`;
 export const CHOISIR = "Choose who cooks it";
@@ -246,6 +255,7 @@ export const CUIRE_ICI = `Cook it on ${CET_ORDINATEUR}`;
 export function phraseDuHaut(haut) {
   if (haut.etat === "cuit") return CUIT_PAR(haut.stations, haut.cooks);
   if (haut.etat === "deplacement") return EN_DEPLACEMENT(haut.de, haut.vers, haut.attend, haut.depuis);
+  if (haut.etat === "eteint") return ETEINT(haut.dit);
   if (haut.etat === "hors-ligne") return HORS_LIGNE(haut.station, haut.dit);
   return haut.fire === undefined ? PERSONNE : `${PERSONNE} · ${FIRE_EN_ATTENTE(haut.fire)}`;
 }

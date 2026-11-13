@@ -1,7 +1,7 @@
 // Un seul interrupteur pour tout le projet, en tête de son espace (#906, #1406) : allumé ou éteint,
 // lisible sans rien lire d'autre, et un clic le bascule — éteindre part dans le second, allumer ouvre
 // sa confirmation, qui dit en une phrase ce que le manager va juger, avec le nombre réel d'issues
-// ouvertes. Éteint, la tête du rail est marquée à l'arrêt, d'une ligne courte ; la bande d'alertes
+// ouvertes. Éteint, la tête du rail est marquée à l'arrêt, d'une ligne courte, avec le bouton qui l'allume (#3454) ; la bande d'alertes
 // n'en fait plus de ligne, et la ligne brute de la box n'est plus qu'au survol de l'interrupteur.
 // L'état vient de la bande (alertes.ts), lu dans ce que `manager` écrit — le manager suit
 // l'interrupteur du projet, et sa ligne le dit : la commande du runtime, jouée ici sur un vrai
@@ -135,7 +135,9 @@ describe("l'interrupteur, en tête de l'espace", () => {
 
     // Éteint, la page le dit en une ligne : la tête du rail.
     const tete = teteDuRail(vue) ?? assert.fail("la tête du rail n'est pas marquée à l'arrêt");
-    assert.equal(tete.textContent, "project off — nothing new is taken, split or merged");
+    // Sa phrase, puis le bouton qui l'allume (#3454).
+    assert.equal(tete.dessous("strong")[0]?.textContent, "project off — nothing new is taken, split or merged");
+    assert.equal(tete.textContent, "project off — nothing new is taken, split or mergedswitch the project on…");
     // Elle est en tête du rail : avant ce qui arrive et les colonnes.
     const rail = vue.element("rail").children;
     assert.ok(rail.indexOf(tete) < rail.findIndex(({ className }) => className === "colonnes"));

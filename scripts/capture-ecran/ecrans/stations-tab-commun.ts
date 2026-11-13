@@ -24,8 +24,9 @@ const ligne = { station: "parade-box/claude", distante: false, plafond: 2, ordin
 const faits = (cuit: boolean): Faits => ({ ...PARADE.facts, cooks: cuit ? [COOK_14] : [], stations: cuit ? [ligne] : [] }) as unknown as Faits;
 
 // `servisIci` : la liste de la station de ce Mac, lue sur son disque (#3402) — vide par défaut ; `ici` : sa cuisine tourne sur
-// ce Mac (poste/cuisine-ici.ts) ; `facts` : ce que `facts` dit de la cuisson, à la place de ce que `cuit` en dit.
-export function ongletDesStations(dit: string, { stations, projet, cuit = false, ici = false, servisIci = [], facts }: { stations: StationVue[]; projet: ProjetVu; cuit?: boolean; ici?: boolean; servisIci?: string[]; facts?: Faits }): Ecran {
+// ce Mac (poste/cuisine-ici.ts) ; `facts` : ce que `facts` dit de la cuisson, à la place de ce que `cuit` en dit ; `rendus` :
+// ce que la box rend des projets, à la place de la cuisine figée — « parade » éteint (#3454).
+export function ongletDesStations(dit: string, { stations, projet, cuit = false, ici = false, servisIci = [], facts, rendus = RENDUS }: { stations: StationVue[]; projet: ProjetVu; cuit?: boolean; ici?: boolean; servisIci?: string[]; facts?: Faits; rendus?: Record<string, Rendu> }): Ecran {
   const vu: VuDesProjets = { a: MAINTENANT, projets: [projet], locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
   return {
     dit,
@@ -40,7 +41,7 @@ export function ongletDesStations(dit: string, { stations, projet, cuit = false,
         projetsServis: { depots: servisIci },
         stationsDuCompte: { state: "listed", stations: [], unreadable: [] },
       },
-      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: facts ?? faits(cuit) } }),
+      envois: cuisine({ ...rendus, parade: { ...(rendus.parade ?? PARADE), facts: facts ?? faits(cuit) } }),
     }),
   };
 }

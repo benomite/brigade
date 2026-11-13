@@ -4409,9 +4409,15 @@ function panneDuRail(projet, { panne }) {
   return [ligne];
 }
 
+// Le bouton qui allume le projet, des mots de la ligne de la bande qui le dit éteint (alertes.ts, `BOUTONS_DE_GESTE`).
+const ALLUMER_LE_PROJET = "switch the project on";
+// Où l'allumer, au survol de ce qui dit le projet éteint hors de Rail (ticket 3454).
+const OU_ALLUMER = "turn it on with its switch, at the top of the space, or with “switch the project on” at the head of the rail";
+
 // La tête du rail, le projet éteint (tickets 906, 1406) : marquée à l'arrêt, d'une ligne courte — rien de
-// neuf n'est pris, découpé ni mergé. Les cooks en cours finissent. Allumé, pas encore lu ou pas lu,
-// rien : l'interrupteur, en tête de l'espace, dit ce qu'il en est.
+// neuf n'est pris, découpé ni mergé. Les cooks en cours finissent. À côté, le bouton qui l'allume (ticket 3454) :
+// le geste de l'interrupteur, `switch on`, dont la confirmation s'ouvre sous la ligne — en lecture seule, aucun.
+// Allumé, pas encore lu ou pas lu, rien : l'interrupteur, en tête de l'espace, dit ce qu'il en est.
 /** @param {Projet} projet @returns {HTMLElement[]} */
 function teteDuRail(projet) {
   const lu = etatsDuManager.get(projet.nom);
@@ -4419,8 +4425,11 @@ function teteDuRail(projet) {
   const tete = document.createElement("p");
   tete.className = "arret-manager";
   tete.append(pastille("off", "gris"), bloc("strong", lu.dit ?? "project off"));
-  tete.title = `${lu.releve}\nturn it on with its switch, at the top of the space`;
-  return [tete];
+  tete.title = lu.releve;
+  if (lectureSeuleDe(projet) !== undefined) return [tete];
+  const [allumer, ...confirmation] = poserGeste(projet, { id: "projet-allumer", libelle: ALLUMER_LE_PROJET, ou: "tete-du-rail" });
+  if (allumer !== undefined) tete.append(allumer);
+  return [tete, ...confirmation];
 }
 
 // La colonne Backlog, dépliée par la barre, à gauche de « On the rail » : les cartes du rail, groupées par état dans
@@ -4564,7 +4573,10 @@ function ongletDesStations(projet) {
   const servantes = deplacement === null ? sans : servantesDe({ ...base, vers: deplacement.vers });
   // Les tickets `fire` qui attendent : le compteur « rail » de son tableau, lu ; sinon, la ligne n'en dit rien.
   const fire = tenu !== undefined && "tableau" in tenu ? tenu.tableau.compteurs.find(({ libelle }) => libelle === "rail")?.nombre : undefined;
-  const haut = hautDe({ servantes, deplacement, maintenant, ...(fire === undefined ? {} : { fire }) });
+  // Le projet éteint (ticket 3454) : rien n'y cuit, quoi que disent ses stations — la ligne du haut le dit à leur place.
+  const manager = etatsDuManager.get(projet.nom);
+  const eteint = manager !== undefined && !("sans" in manager) && !manager.allume ? { dit: manager.dit ?? "project off", releve: manager.releve } : undefined;
+  const haut = hautDe({ servantes, deplacement, maintenant, ...(fire === undefined ? {} : { fire }), ...(eteint === undefined ? {} : { eteint }) });
   clearTimeout(minuteDuDeplacement);
   if (haut.etat === "deplacement" && haut.bloque === null) minuteDuDeplacement = setTimeout(reposerLOngletStations, haut.depuis + UNE_MINUTE_MS - maintenant);
 
@@ -4578,7 +4590,7 @@ function ongletDesStations(projet) {
   const etatDeLAjout = ajoutDeStation.etatDe(projet.nom);
   const lecture = etroit();
   const sienneIci = laStationLocale();
-  const ramenee = haut.etat === "hors-ligne" ? RAMENER(haut.station, haut.sorte !== "box") : "";
+  const ramenee = haut.etat === "hors-ligne" ? RAMENER(haut.station, haut.sorte !== "box") : haut.etat === "eteint" ? `${haut.releve}\n${OU_ALLUMER}` : "";
   const versIciParDeplacement = deplacable.offert && choixDuMove.some(({ cle }) => cle === locale);
   const versIci = !lecture && haut.etat === "hors-ligne" && !haut.ici && (versIciParDeplacement || ajout?.donnees.iciOffert === true);
   // Personne ne le cuit : cet ordinateur le sert d'un clic, par sa liste — celle de Settings (ticket 3399).
