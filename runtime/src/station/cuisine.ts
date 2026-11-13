@@ -83,6 +83,10 @@ export type Cuisine = {
   enCuisine?(): number[];
   // Sauve leur travail sur leur branche avant une relance (#2586).
   sauver?(): Promise<number[]>;
+  // Pourquoi sa cuisine ne prend aucun ticket sur GitHub (le projet ne déclare
+  // aucune station sur cette machine), ou null quand elle en prend : une
+  // cuisine qui n'en prend pas ne sert pas le projet (#3449).
+  refusGitHub?(): string | null;
 };
 
 export type OptionsCuisine = {
@@ -383,5 +387,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Ses cooks en vol, pour la mise à jour de la station (#2189).
     enCuisine: () => servieSurGitHub.enCuisine(),
     sauver: async () => (await servieSurGitHub.sauver?.()) ?? [],
+    refusGitHub: () => servieSurGitHub.refus ?? null,
   };
 }

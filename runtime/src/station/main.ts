@@ -26,6 +26,7 @@ import { sourceDesProjets } from "../projets-station/source.ts";
 import { servirLesProjetsChoisis, type ServiceDeLOrdinateur } from "../station-ordinateur/servir.ts";
 import { migrerLAncienneListe } from "../station-ordinateur/projets-servis.ts";
 import { machineDe } from "../projets/preparer.ts";
+import { publieDeLaStation } from "../station-ordinateur/publie.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { DemandeInvalide } from "../enrolement/enrolement.ts";
@@ -169,12 +170,14 @@ if (vidange !== null) seVide = () => vidange.retenue();
 // (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
 const identite = identiteDeLaStation({ ...process.env, BRIGADE_STATION_NOM: nomRetenu });
+// Ce que la station cuisine vraiment, et publie (#3449, `publie.ts`).
+const cuisinesDeLaStation = () => publieDeLaStation(station, choisis);
 const presence = tenirPresence({
   racine,
   canal,
   identite,
-  projets: () => station.projets(),
-  depots: () => station.depots(),
+  projets: () => Object.keys(cuisinesDeLaStation().servis),
+  depots: () => cuisinesDeLaStation().servis,
   rails: () => station.rails(),
   etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
   ...(ecartS === undefined ? {} : { ecartMinimalMs: Number(ecartS) * 1000 }),
@@ -204,7 +207,7 @@ choisis = servirLesProjetsChoisis({
   claude,
   dire,
   retenue: () => seVide(),
-  dejaServis: () => Object.values(station.depots()),
+  dejaServis: () => Object.values(station.servisSurGitHub()),
 });
 const projetsChoisis = choisis;
 const projetsDeLApp = tenirProjetsDeLApp({
@@ -255,8 +258,8 @@ process.on("SIGHUP", () => {
 annoncerEnService(
   racine,
   () => {
-    const refuses = station.refuses();
-    return { servis: station.projets(), refuses, causes: Object.fromEntries(Object.keys(refuses).map((nom) => [nom, station.cause(nom) ?? "unexpected"])) };
+    const { servis, refuses, causes } = cuisinesDeLaStation();
+    return { servis: Object.keys(servis), refuses, causes };
   },
   { dire },
 );

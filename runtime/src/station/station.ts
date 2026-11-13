@@ -56,6 +56,10 @@ export type Station = {
   sauver(): Promise<number[]>;
   // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
   depots(): Record<string, string>;
+  // Le dépôt de chaque projet dont la cuisine prend les tickets sur GitHub, par
+  // son nom : un projet ouvert dont la cuisine n'en prend aucun (aucune station
+  // déclarée ici) n'y est pas (#3449).
+  servisSurGitHub(): Record<string, string>;
   // Le clone que la cuisine de chaque projet servi lit (`BRIGADE_REPO_DIR` de sa ligne, ou celui de l'atelier).
   clones(): Record<string, string>;
   // Le rail de chaque projet servi, par son nom, tel qu'il se publie
@@ -199,6 +203,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     enCuisine: () => [...ouvertes.values()].flatMap(({ cuisine }) => cuisine.enCuisine?.() ?? []),
     sauver: async () => (await Promise.all([...ouvertes.values()].map(async ({ cuisine }) => (await cuisine.sauver?.()) ?? []))).flat(),
     depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
+    servisSurGitHub: () => Object.fromEntries([...ouvertes].filter(([, { cuisine }]) => (cuisine.refusGitHub?.() ?? null) === null).map(([nom, { depot }]) => [nom, depot])),
     clones: () => Object.fromEntries([...ouvertes].flatMap(([nom, { clone }]) => (clone === undefined ? [] : [[nom, clone]]))),
     rails: () => {
       for (const nom of [...railsLus.keys()]) if (!ouvertes.has(nom)) railsLus.delete(nom);

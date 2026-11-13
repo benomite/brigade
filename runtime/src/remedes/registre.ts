@@ -105,6 +105,7 @@ export const SANS_REMEDE: Record<CodeDeRefus, string> = {
   "hand-written-line": "The app cannot change the station's configuration for this project yet.",
   "handed-over-elsewhere": "Moving the project back is done from the project's move button, not from here.",
   "kitchen-not-joinable": "What blocks the join is the other station or GitHub, out of this computer's reach.",
+  "not-served": "The station tries again by itself, and what blocks it is shown in its log.",
   unexpected: "The station does not know what went wrong, so no action can be offered.",
 };
 
