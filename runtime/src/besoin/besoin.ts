@@ -40,7 +40,7 @@ export function lienDuCorps(numero: number, corps: string): { besoin?: number } 
 }
 
 // La ligne de tâche d'un ticket du besoin : cochée quand il est servi.
-export function tache(ligne: Pick<LigneDeListe, "ticket" | "served">): string {
+function tache(ligne: Pick<LigneDeListe, "ticket" | "served">): string {
   return `- [${ligne.served ? "x" : " "}] #${ligne.ticket}`;
 }
 
