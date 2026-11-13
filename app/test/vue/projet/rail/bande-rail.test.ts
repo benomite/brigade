@@ -1,5 +1,5 @@
 // La bande du haut de l'onglet Rail (#2486, #3013 ; maquette Project.dc.html) : une seule ligne de chiffres — le temps d'un
-// ticket, le premier coup, les cooks en cours, le dernier merge, le backlog —, chacun posé seulement s'il a une valeur. Le
+// ticket, le premier coup, les cooks en cours, le dernier merge —, chacun posé seulement s'il a une valeur. Le
 // module est joué avec le faux élément de l'app ; la vue, contre le faux pont (aides/fausse-vue.ts) : la bande en tête du
 // rail, seule ligne de chiffres entre les onglets et le rail.
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ import { ONGLETS, RUBRIQUES } from "../../../../src/onglets.ts";
 import type { Panne } from "../../../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../../../src/projets/projets.ts";
 import type { VuDesStations } from "../../../../src/stations/stations.ts";
-import { backlogDeLaBande, cooksDeLaBande, dernierMergeDeLaBande, poserBandeRail, premierCoupDeLaBande, tempsDeLaBande } from "../../../../src/vue/projet/rail/bande-rail.js";
+import { cooksDeLaBande, dernierMergeDeLaBande, poserBandeRail, premierCoupDeLaBande, tempsDeLaBande } from "../../../../src/vue/projet/rail/bande-rail.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -58,9 +58,6 @@ const MAINTENANT = "2026-10-10T10:04:00.000Z";
 const TEMPS_NORMAL = "Ticket time" + "11 min" + "median";
 const PREMIER_COUP = "First try" + "80%" + "· goal 70%";
 const DERNIER_MERGE = "Last merge" + "4 min" + "ago";
-// Ce qui est avant le rail, lu (amont.ts) : 18 issues, chaque compte au survol.
-const AMONT = { projet: "parade", demande: 1, a: MAINTENANT, vide: "", compte: 18, lu: MAINTENANT, groupes: [], survol: "10 not read yet · 8 set aside" };
-const backlog = (vu: object | null = AMONT, basculer = () => {}) => ({ vu: (vu ?? undefined) as never, deplie: false, basculer });
 
 // Le chiffre lui-même, sous l'enveloppe de son survol quand il en a un.
 const laPart = (pose: Faux): Faux => (pose.className === "survol" ? (pose.children[0] ?? assert.fail("survol sans part")) : pose);
@@ -166,34 +163,11 @@ describe("le dernier merge, dans la bande", () => {
   });
 });
 
-describe("le backlog, dans la bande", () => {
-  test("un nombre — « 18 issues » —, ni barre ni jauge ; chaque compte au survol ; un clic déplie sa colonne", () => {
-    let clics = 0;
-    const pose = backlogDeLaBande(doc, backlog(AMONT, () => void clics++)) ?? assert.fail("pas de backlog");
-    const bouton = laPart(pose);
-    assert.equal(bouton.balise, "button");
-    assert.equal(bouton.className, "bande-part bande-backlog");
-    assert.equal(pose.textContent, "Backlog" + "18" + "issues");
-    assert.deepEqual(bouton.children.map(({ className }: Faux) => className), ["bande-nom", "bande-valeur", "bande-doux"]);
-    assert.equal(bouton.ariaExpanded, "false");
-    assert.equal(auSurvol(pose), "10 not read yet · 8 set aside");
-    bouton.click();
-    assert.equal(clics, 1);
-    assert.equal(backlogDeLaBande(doc, backlog({ ...AMONT, compte: 1 }))?.textContent, "Backlog" + "1" + "issue");
-  });
-
-  test("pas lu, pas publié, ou une lecture ratée qui n'en donne pas le nombre : rien", () => {
-    for (const vu of [null, { ...AMONT, compte: undefined, groupes: undefined, nonPublie: true }, { projet: "parade", demande: 1, a: MAINTENANT, vide: "", sans: "GitHub refused (HTTP 403)" }]) {
-      assert.equal(backlogDeLaBande(doc, backlog(vu)), null);
-    }
-  });
-});
-
 describe("la bande entière", () => {
-  test("tous les chiffres ont une valeur : une seule ligne, chacun une fois, dans l'ordre de la maquette, puis le backlog et ce qui va au bout", () => {
+  test("tous les chiffres ont une valeur : une seule ligne, chacun une fois, dans l'ordre de la maquette, puis ce qui va au bout — le backlog n'y est plus (#3460)", () => {
     const age = new Faux("p");
     age.className = "age-du-rail";
-    const bande = poserBandeRail(doc, { temps: NORMAL, maintenant: MAINTENANT, cooks: { nombre: 2, tickets: [] }, backlog: backlog(), apres: [age] });
+    const bande = poserBandeRail(doc, { temps: NORMAL, maintenant: MAINTENANT, cooks: { nombre: 2, tickets: [] }, apres: [age] });
     assert.equal(bande.className, "bande-rail");
     assert.equal(bande.role, "group");
     assert.deepEqual(classes(bande), [
@@ -201,10 +175,10 @@ describe("la bande entière", () => {
       "bande-part bande-premier-coup",
       "bande-part bande-cooks",
       "bande-part bande-dernier-merge",
-      "bande-part bande-backlog",
       "age-du-rail",
     ]);
-    assert.deepEqual(textes(bande).slice(0, 5), [TEMPS_NORMAL, PREMIER_COUP, "Cooks" + "2" + "running", DERNIER_MERGE, "Backlog" + "18" + "issues"]);
+    assert.deepEqual(textes(bande).slice(0, 4), [TEMPS_NORMAL, PREMIER_COUP, "Cooks" + "2" + "running", DERNIER_MERGE]);
+    assert.doesNotMatch(bande.textContent, /Backlog/);
     // Ni titre, ni aide `?`, ni barre : que des chiffres.
     assert.deepEqual(bande.dessous("h3"), []);
     assert.equal(bande.dessous("button").some(({ className }: Faux) => className === "aide"), false);
@@ -212,22 +186,22 @@ describe("la bande entière", () => {
   });
 
   test("aucun chiffre n'a de valeur, sauf les cooks : la ligne ne dit que « Cooks 3 running »", () => {
-    const bande = poserBandeRail(doc, { temps: undefined, maintenant: MAINTENANT, cooks: { nombre: 3, tickets: [] }, backlog: backlog(null) });
+    const bande = poserBandeRail(doc, { temps: undefined, maintenant: MAINTENANT, cooks: { nombre: 3, tickets: [] } });
     assert.equal(bande.children.length, 1);
     assert.equal(bande.textContent, "Cooks" + "3" + "running");
     // Les mêmes temps publiés sans valeur lisible : rien de plus.
-    const vides = poserBandeRail(doc, { temps: { enregistrements: [], resume: "x", chiffres: [{ cle: "premier-coup", nom: "first try", valeur: "no data yet", seuil: "70%" }] }, maintenant: MAINTENANT, cooks: { nombre: 3, tickets: [] }, backlog: backlog({ projet: "parade", demande: 1, a: MAINTENANT, vide: "", sans: "GitHub refused" }) });
+    const vides = poserBandeRail(doc, { temps: { enregistrements: [], resume: "x", chiffres: [{ cle: "premier-coup", nom: "first try", valeur: "no data yet", seuil: "70%" }] }, maintenant: MAINTENANT, cooks: { nombre: 3, tickets: [] } });
     assert.equal(vides.textContent, "Cooks" + "3" + "running");
   });
 
   test("un chiffre manque — le premier coup, pas encore publié : les autres restent, à leur place, et lui n'y est pas du tout", () => {
     const sansPremierCoup = { ...NORMAL, chiffres: CHIFFRES_NORMAL.map((c) => (c.cle === "premier-coup" ? { ...c, valeur: "no data yet" } : c)) };
-    const bande = poserBandeRail(doc, { temps: sansPremierCoup, maintenant: MAINTENANT, cooks: { nombre: 2, tickets: [] }, backlog: backlog() });
-    assert.deepEqual(classes(bande), ["bande-part bande-temps", "bande-part bande-cooks", "bande-part bande-dernier-merge", "bande-part bande-backlog"]);
+    const bande = poserBandeRail(doc, { temps: sansPremierCoup, maintenant: MAINTENANT, cooks: { nombre: 2, tickets: [] } });
+    assert.deepEqual(classes(bande), ["bande-part bande-temps", "bande-part bande-cooks", "bande-part bande-dernier-merge"]);
     assert.doesNotMatch(bande.textContent, /First try|no data yet/);
   });
 
-  test("sans rail lu : ni cooks, ni backlog inventés", () => {
+  test("sans rail lu : pas de cooks inventés", () => {
     const bande = poserBandeRail(doc, { temps: NORMAL, maintenant: MAINTENANT });
     assert.deepEqual(classes(bande), ["bande-part bande-temps", "bande-part bande-premier-coup", "bande-part bande-dernier-merge"]);
   });

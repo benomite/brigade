@@ -1,9 +1,9 @@
 // Ce qui est avant le rail (#1836, #697) : un rail vide ne veut pas dire un projet fini. Les issues ouvertes du dépôt sont
 // lues ici comme l'app les lit de GitHub (tableau/lecture.ts, tableau/rail.ts, #2061), sur un faux GitHub : chacune que
 // le rail ne porte pas est rangée d'après ses labels seuls. L'app compte ce que la lecture liste, range chaque issue sous
-// le mot qu'elle porte, et n'y déduit rien. À côté, la vue jouée telle qu'elle est (aides/fausse-vue.ts) : la barre en
-// tête du rail, la colonne Backlog qu'elle déplie, la fiche qu'une carte ouvre, et ce que dit un rail vide. L'état du
-// manager vient de son journal, lu par la commande du runtime.
+// le mot qu'elle porte, et n'y déduit rien. Ce que la vue en pose — le bandeau Backlog au-dessus du rail, ce que dit un
+// rail vide — se joue dans test/backlog-band/ (#3460). L'état du manager vient de son journal, lu par la commande du
+// runtime.
 import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -14,24 +14,12 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
 import { DEPOT } from "../../runtime/test/outils.ts";
-import { ALLUMAGE } from "../src/allumage.ts";
 import { COMMANDE, comprendre, GROUPES, grouper, tenirAmont, voir, type Vu } from "../src/amont.ts";
 import type { Lecture } from "../src/box.ts";
-import { EXEMPLE } from "../src/config.ts";
-import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
-import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { COMMANDE as COMMANDE_MANAGER } from "../src/manager.ts";
-import { gestesDeCarte } from "../src/gestes-fiche.ts";
-import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { pourLaBarre } from "../src/barre.ts";
 import type { AppelGitHub } from "../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../src/tableau/lecture.ts";
 import { lectureDuTableau } from "../src/tableau/rail.ts";
-import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const A = "2026-10-15T09:12:04.000Z";
@@ -144,12 +132,12 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     assert.equal(issue(20).carte.prio, undefined);
   });
 
-  test("les cinq états viennent dans l'ordre de la barre ; un mot que l'app ne connaît pas se pose après eux, tel quel", () => {
+  test("les cinq états viennent dans l'ordre du bandeau, puis les deux d'un besoin découpé ; un mot que l'app ne connaît pas se pose après eux, tel quel", () => {
     const une = (ticket: number, etat: string) => ({ ticket, titre: `#${ticket}`, url: `https://github.com/${DEPOT}/issues/${ticket}`, priorite: null, etat, dit: etat });
 
     const groupes = grouper([une(1, "mise-de-cote"), une(2, "inconnu"), une(3, "non-lue"), une(4, "prete"), une(5, "epique"), une(6, "non-lue"), une(7, "incomplete")]);
 
-    assert.deepEqual(GROUPES.map(({ etat }) => etat), ["non-lue", "incomplete", "epique", "prete", "mise-de-cote"]);
+    assert.deepEqual(GROUPES.map(({ etat }) => etat), ["non-lue", "incomplete", "epique", "prete", "mise-de-cote", "decoupee", "servie"]);
     assert.deepEqual(
       groupes.map(({ etat, issues }) => [etat, issues.map(({ ticket }) => ticket)]),
       [
@@ -241,191 +229,5 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     // Le projet n'est plus affiché : ce qui a été lu de lui est lâché.
     amonts.veiller([]);
     assert.equal(amonts.adresse(PARADE, 3), undefined);
-  });
-});
-
-// La vue jouée : un projet, sa box, son rail.
-const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
-const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
-  palette: PALETTE,
-  exemple: EXEMPLE,
-  onglets: ONGLETS,
-  rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
-  banniere: BANNIERE,
-  calibrage: { modeles: MODELES, efforts: EFFORTS },
-  code: undefined,
-});
-async function ouvrir(): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], ouvrirIssue: () => true, gestesDeFiche: (carte) => gestesDeCarte(carte) });
-  (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
-  await repos();
-  return vue;
-}
-
-const FAITS: Faits = {
-  etat: "ouverte",
-  lu: A,
-  dernierTick: A,
-  compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [{ ticket: 10, etat: "en attente", titre: "Sur le rail", url: `https://github.com/${DEPOT}/issues/10`, activite: null }],
-  cooks: [],
-  attend: [],
-};
-const RAIL_VIDE: Faits = { ...FAITS, compteurs: { ...FAITS.compteurs, rail: 0 }, rail: [] };
-function recevoirFaits(vue: Jouee, faits: Faits): void {
-  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
-  vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-}
-
-// Ce qui est avant le rail est un chiffre de la bande du haut du rail (#2486, #3013) : « Backlog 8 issues », un bouton
-// sous l'enveloppe de son survol. Sans nombre, il n'y est pas.
-const bande = (vue: Jouee): Faux => vue.element("rail").children.find((pose) => pose.className === "bande-rail") ?? assert.fail("pas de bande en tête du rail");
-const amont = (vue: Jouee): Faux | undefined => bande(vue).children.find((pose) => pose.children[0]?.className === "bande-part bande-backlog");
-const tete = (vue: Jouee): Faux => amont(vue) ?? assert.fail("pas de backlog dans la bande");
-const barre = (vue: Jouee): Faux | undefined => amont(vue)?.children[0];
-const laBarre = (vue: Jouee): Faux => barre(vue) ?? assert.fail("pas de backlog");
-const colonne = (vue: Jouee, nom: string): Faux => colonnes(vue).find((pose) => pose.dessous("h4")[0]?.children[0]?.textContent === nom) ?? assert.fail(`pas de colonne ${nom}`);
-const colonnes = (vue: Jouee): Faux[] => vue.element("rail").dessous("div").find((pose) => pose.className === "colonnes")?.children ?? assert.fail("pas de colonnes");
-const backlog = (vue: Jouee): Faux | undefined => colonnes(vue).find((pose) => pose.className === "colonne backlog");
-const fiche = (vue: Jouee) => vue.element("fiche");
-
-describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de lui", () => {
-  test("un nombre, nommé Backlog — ni barre ni jauge ; le survol dit chaque compte en mots", async (t) => {
-    const { sortie } = await unDepot(t);
-    const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
-    // Avant la première lecture : pas de backlog dans la bande.
-    assert.equal(barre(vue), undefined);
-    assert.equal(amont(vue), undefined);
-
-    vue.dire("surAmont", tenirAmont().recevoir(sortie));
-
-    const pose = laBarre(vue);
-    // Sans survol : le titre et le nombre — la bande reste d'une ligne (#2486), sans piste ni part (#3013).
-    assert.deepEqual(pose.children.map(({ className }) => className), ["bande-nom", "bande-valeur", "bande-doux"]);
-    const mots = "Backlog" + "8" + "issues";
-    assert.equal(tete(vue).textContent, mots);
-    assert.equal((pose as Faux & { ariaExpanded?: string }).ariaExpanded, "false");
-    // Le survol dit les comptes en mots — ceux que les labels seuls disent, sans état « incomplete » (#2061) —, et lui seul.
-    const dit = SURVOL;
-    assert.match(dit, /3 not read yet · 2 epic, not split yet · 1 ready, not fired · 2 set aside/);
-    assert.equal(pose.ariaLabel, dit);
-    pose.declencher("mouseenter");
-    assert.equal(tete(vue).textContent, mots + dit);
-    pose.declencher("mouseleave");
-    assert.equal(tete(vue).textContent, mots);
-    // Le rail n'est pas vide : On the rail montre sa carte, et la colonne Backlog n'est pas dépliée.
-    assert.deepEqual(colonne(vue, "On the rail").children.filter((pose) => pose.balise === "p"), []);
-    assert.equal(backlog(vue), undefined);
-  });
-
-  test("un clic sur la barre déplie la colonne Backlog à gauche de « On the rail » : les cartes du rail, par état, triées par `prio:` ; un autre la replie", async (t) => {
-    const { sortie } = await unDepot(t);
-    const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
-    vue.dire("surAmont", tenirAmont().recevoir(sortie));
-
-    laBarre(vue).click();
-    const colonne = backlog(vue) ?? assert.fail("la colonne Backlog n'est pas dépliée");
-    // En tête de la rangée : On the rail est la première colonne (#2093).
-    assert.equal(colonnes(vue).indexOf(colonne), 0);
-    assert.equal(colonnes(vue)[1]?.dessous("h4")[0]?.children[0]?.textContent, "On the rail");
-    assert.equal((laBarre(vue) as Faux & { ariaExpanded?: string }).ariaExpanded, "true");
-    // Redessiné, le backlog garde le clavier : sa bulle reste ouverte.
-    assert.equal(laBarre(vue).focalise, 1);
-    assert.deepEqual(colonne.dessous("h4")[0]?.children.map((pose) => pose.textContent), ["Backlog", "8", "fold"]);
-    const groupes = colonne.children.filter((pose) => pose.className === "groupe");
-    assert.deepEqual(
-      groupes.map((groupe) => [groupe.dataset.etat, groupe.dessous("h5")[0]?.textContent, groupe.dessous("li").map((bon) => bon.dessous("button")[0]?.textContent)]),
-      [
-        ["non-lue", "not read yet3", ["#14", "#20", "#21"]],
-        ["epique", "epic, not split yet2", ["#16", "#17"]],
-        ["prete", "ready, not fired1", ["#11"]],
-        ["mise-de-cote", "set aside2", ["#12", "#13"]],
-      ],
-    );
-    // La carte du rail : son numéro, sa priorité, son titre, et en une ligne ce qui la retient.
-    const prete = groupes[2]?.dessous("li")[0] ?? assert.fail("pas de carte #11");
-    assert.equal(prete.className, "bon");
-    assert.deepEqual(prete.dessous("span").find((pose) => pose.className === "prio mono")?.textContent, "prio:2");
-    assert.equal(prete.dessous("strong")[0]?.textContent, "Prêt sans feu");
-    assert.equal(prete.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, "calibrated (model:opus, effort:high), without `fire`: the rail takes it once `fire` is set");
-
-    // Une lecture neuve ne la replie pas ; un clic sur la barre, si.
-    vue.dire("surAmont", tenirAmont().recevoir(sortie));
-    assert.notEqual(backlog(vue), undefined);
-    laBarre(vue).click();
-    assert.equal(backlog(vue), undefined);
-    // Son titre la replie aussi.
-    laBarre(vue).click();
-    (backlog(vue)?.dessous("button").find((pose) => pose.className === "replier") ?? assert.fail("pas de geste qui replie")).click();
-    assert.equal(backlog(vue), undefined);
-    assert.equal((laBarre(vue) as Faux & { ariaExpanded?: string }).ariaExpanded, "false");
-  });
-
-  test("une carte s'ouvre sur sa fiche, avec son titre et sa priorité ; son numéro ouvre son issue — le lien nomme le projet et le ticket, jamais une adresse", async (t) => {
-    const { sortie } = await unDepot(t);
-    const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
-    vue.dire("surAmont", tenirAmont().recevoir(sortie));
-    laBarre(vue).click();
-
-    const bon = (backlog(vue) ?? assert.fail("pas de colonne")).dessous("li").find((li) => li.textContent.startsWith("#11")) ?? assert.fail("pas de #11");
-    bon.click();
-    await repos();
-
-    assert.equal(fiche(vue).hidden, false);
-    assert.equal(fiche(vue).dessous("header")[0]?.children[0]?.textContent, "#11");
-    assert.equal(fiche(vue).dessous("h3")[0]?.textContent, "Prêt sans feu");
-    const ligne = (libelle: string) => fiche(vue).dessous("div").find((rang) => rang.children[0]?.textContent === libelle)?.children[1] ?? assert.fail(`pas de ligne ${libelle}`);
-    assert.equal(ligne("priority").textContent, "prio:2");
-
-    // Le numéro de la carte ouvre son issue, sans passer par la fiche.
-    (bon.dessous("button")[0] ?? assert.fail("pas de numéro")).click();
-    await repos();
-    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 11]);
-  });
-
-  test("rail vide : sa colonne On the rail le dit, et dit ce qui est avant lui — ou qu'il n'y a rien, ni sur le rail ni avant lui", async (t) => {
-    const { sortie } = await unDepot(t);
-    const vue = await ouvrir();
-    recevoirFaits(vue, RAIL_VIDE);
-    const phrase = () => colonne(vue, "On the rail").children.find((pose) => pose.balise === "p")?.textContent;
-    assert.equal(phrase(), "No ticket on the rail yet. What is before it is being read…");
-
-    vue.dire("surAmont", tenirAmont().recevoir(sortie));
-    assert.match(phrase() ?? "", /^nothing on the rail — 8 issues before it \(3 not read yet · /);
-
-    vue.dire("surAmont", voir(lecture(JSON.stringify({ lu: A, depot: DEPOT, issues: [] }))));
-    assert.equal(phrase(), "nothing on the rail, nothing before it");
-    // Rien avant le rail : le backlog dit 0, et son survol dit pourquoi.
-    assert.equal(tete(vue).textContent, "Backlog" + "0" + "issues");
-    assert.equal(laBarre(vue).ariaLabel, "nothing before the rail: every open issue of the repository is on it");
-  });
-
-  test("une lecture ratée : aucun nombre, le backlog n'est pas dans la bande ; la colonne déjà dépliée dit pourquoi", async (t) => {
-    const { sortie } = await unDepot(t);
-    const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
-    vue.dire("surAmont", tenirAmont().recevoir(sortie));
-    laBarre(vue).click();
-    vue.dire("surAmont", voir({ projet: PARADE, demande: 3, a: A, erreur: "GitHub refused to read the rail of acme/brigade (HTTP 403).", atteinte: true, cas: null, duTableau: true }));
-
-    assert.equal(amont(vue), undefined);
-    assert.doesNotMatch(bande(vue).textContent, /Backlog/);
-    const colonne = backlog(vue) ?? assert.fail("la colonne n'est plus dépliée");
-    assert.deepEqual(colonne.dessous("h4")[0]?.children.map((posee) => posee.textContent), ["Backlog", "?", "fold"]);
-    assert.match(colonne.textContent, /HTTP 403\)\. This is not “nothing before the rail”$/);
-  });
-
-  test("une lecture fraîche qui ne porte pas ce qui est avant le rail : ni backlog, ni colonne — rien n'est dit (#1770)", async () => {
-    const vue = await ouvrir();
-    recevoirFaits(vue, FAITS);
-    vue.dire("surAmont", voir({ projet: PARADE, demande: 3, a: A, erreur: "`manager upstream` is not read from GitHub for acme/brigade: only the station's log carries it.", atteinte: true, cas: null, duTableau: true, pasPublie: true }));
-    assert.equal(barre(vue), undefined);
-    assert.equal(amont(vue), undefined);
   });
 });

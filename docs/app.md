@@ -663,13 +663,12 @@ then what the value is, in this order, each at most once:
   so.
 - **Last merge** — `Last merge 4 min ago` (`3 d ago` past a day): the most recent `mergedAt` of the station's ticket
   records, the ticket and its time on hover.
-- **Backlog** — `Backlog 18 issues`: a number, no bar and no gauge; each count of what is before the rail (#1836, below)
-  in words on hover. A click unfolds the Backlog column.
 - **The age of the rail** (#2054), at the end of the line.
 
 **A figure without a value is not drawn at all**: no `no measure yet`, no `Not available yet`, no `?` helper and no title
 with nothing under it. With nothing published but the running cooks, the line reads only `Cooks 3 running`. Before the
-rail is read, there is neither Cooks nor Backlog. The figures are those the station publishes, never recomputed
+rail is read, there is no Cooks. The backlog is no longer a figure of this line: it has its own band, the Backlog band,
+between this line and the columns (#3460, below). The figures are those the station publishes, never recomputed
 (`app/src/vue/temps-ticket/resume.js`). The Ticket time and Blocked without a question blocks that stood above the rail
 are gone (#3013), and so is the 24-hour histogram.
 
@@ -3412,7 +3411,7 @@ service, then what waits for you, what waits for a third party, and what is done
 until #2922, which gave it the mockup's title (`Project.dc.html`, epic #2897); "Todo" in this document names the same
 column. Titles are cased alike (Awaiting you and Waiting, not TODO and WAITING; the card badges keep their words), and
 each column has its own mark: a ring for On the rail, a triangle for Taken, a diamond for Pass, a square for Awaiting you, an orange **pause** (two bars: held, waiting for
-someone) for Waiting, a disc for Served. The Backlog column, unfolded, comes just left of On the rail. **Todo never
+someone) for Waiting, a disc for Served. Above the row, the Backlog band (#3460, below). **Todo never
 disappears**: when the `awaiting` block says nothing awaits the chef, its one line says `nothing awaits you`; when
 the block has lines without a ticket (a station, the base), it says that no ticket heads them. Captures: `docs/captures/2093/` — `espace-projet-*` and `espace-projet-etats-github-*`, `-avant` and `-apres`.
 
@@ -3781,36 +3780,63 @@ section. With the section laid, `right now` is not repeated under it.
   reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
   (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
   publish a station's cook cap, so this reading never raises that reason.
-- **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/projet/rail/bande-rail.js`, #1836). An empty rail does
-  not mean a finished project. In the band at the top of the Rail tab (#2486, #3013), **Backlog 18 issues** counts
-  the open issues of the repository that are not on the rail yet — a number, no bar. It is read from GitHub with the rest of the rail
-  view (`avantLeRail` in `app/src/tableau/lecture.ts`, #2061): every open issue without `fire`, filed from its labels
-  alone. They fall in five states, in this order — the groups of the Backlog column:
-  - **not read yet** (grey): neither a `model:` and an `effort:` label, nor any of the labels below — "not calibrated
-    yet";
-  - **refused as incomplete** (red): no label says it, so the reading from GitHub never gives it;
-  - **epic, not split yet** (blue): it carries `epic`;
-  - **ready, not fired** (green): it carries both a `model:` and an `effort:` label, without `fire`;
-  - **set aside** (hatched): it carries `hors-cuisine` or `blocked-on-human`.
+- **What is left before the rail: the Backlog band** (`app/src/amont.ts`, `app/src/vue/backlog-band/`, #1836, #3460). An
+  empty rail does not mean a finished project. Between the line of figures and the columns, the Rail tab shows **one
+  line, the Backlog band**, drawn like the order slips hanging over a kitchen's pass — a metal bar, each slip clipped at
+  its top, its bottom edge torn —, not like a column nor like the rail's cards. A backlog item is a **need** (an epic, an
+  idea, a decision to make), not a ticket: one need can be split into many tickets. It is read from GitHub with the rest
+  of the rail view (`avantLeRail` in `app/src/tableau/lecture.ts`, #2061): every open issue without `fire`, filed from its
+  labels alone, in one of these states:
+  - **not read yet**: neither a `model:` and an `effort:` label, nor any of the labels below — "not calibrated yet";
+  - **refused as incomplete**: no label says it, so the reading from GitHub never gives it;
+  - **epic, not split yet**: it carries `epic`;
+  - **ready, not fired**: it carries both a `model:` and an `effort:` label, without `fire`;
+  - **set aside**: it carries `hors-cuisine` or `blocked-on-human`;
+  - **split into tickets**: its body carries the tickets list the runtime writes when it splits it
+    (`<!-- brigade:tickets -->`), or open issues claim it (`Epic: #N`). Its tickets are those of the list and those
+    issues; **they are not needs**: they leave the band and are counted on their need. A ticket of the list whose issue
+    is closed counts as served;
+  - **served**: split, and every ticket served — while its issue is open, and **for 24 hours after it is closed**: the
+    reading also lists the issues closed in the last 24 hours (one request, read again only when the open issues
+    change, since a need or a ticket that closes leaves them), and keeps each one that carries a tickets list with none
+    of its tickets open, with the time it closed. If that request fails, no served need is shown and the rest reads.
 
-  An issue that carries `fire` is not counted: it is on the rail. The band says its title and its total (`Backlog`,
-  `7 issues`, #2367, #2486, #3013); on hover, on the keyboard or on a tap, it says its counts — `7 issues before the rail — 2
-  not read yet · 1 refused as incomplete · …`. **A click unfolds the
-  Backlog column**, to the left of "On the rail", and the row scrolls back to show it; a second click on it, or
-  `fold` in the column's title, folds it again — a new reading does not fold it. The column holds **the rail's
-  cards**, grouped by state in that order, each group sorted by `prio:` (none last, the oldest first): the
-  number opens the issue on GitHub, the card says in one line what holds it, and a click opens its sheet over the
-  rail — its title, its priority, the link to the issue. **Nothing on the rail** — no card outside Served —, the On the
-  rail column says so in plain words (#2486): `nothing on the rail, nothing before it` when there is nothing before it either; otherwise
-  how many issues, state by state, and what the manager does with them, according to its state read (`manager`): on,
-  it reads them at every wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of
-  guessing — and the manager's state is not read from GitHub (only the station's log has it). **The view deduces
-  nothing there**: it counts what the reading lists and files each issue under the word it carries. When the open
-  issues could not be read, the view says nothing about them — no number, never "not read" — and the rail is still
-  shown. A rail reading that fails as a whole gives no Backlog figure (#3013); a Backlog column already unfolded says
-  why, and it is not "nothing before the rail".
+  An issue that carries `fire` is not counted: it is on the rail. **One tag per need**: its priority (`prio:1`, or
+  `no prio`), a short title (cut at a word, the whole title on hover), then, for a split need, its progress as
+  served/total (`7/25`), otherwise its state in plain words (`not read yet`, `incomplete`, `to split`, `ready`,
+  `set aside`). **A need that awaits the chef** — its card is in Awaiting you — is a **red tag**, says `awaits you`
+  (or its progress, split) and comes first; the others follow by priority (none last, the oldest first). A served need
+  is green, `2/2 served`, and leaves the band 24 hours after its issue closed (`RETENUE_MS`). The title reads
+  `Backlog`, the number of needs and, in red, how many await you; on hover, the counts of each state in words — `8
+  issues before the rail — 3 not read yet · 1 epic, not split yet · …`. The number of red tags is
+  `rougesDuBacklog` (`app/src/vue/backlog-band/backlog-band.js`), for the TODO (N) entry (#3458).
+
+  **The line never cuts a tag**: the tags that do not fit are hidden whole, and the line ends with `+N`, the number not
+  shown — it is recounted when the band's width changes. On a phone-width window (the narrow page, #1186), the line goes
+  under its title and **scrolls sideways**, every tag on it, with no `+N`.
+
+  **A click on a tag unfolds the band** with that need's detail: its context (the first paragraph of its issue, under
+  `Context` when it has one), its tickets counted by stage — on the rail, taken, pass, awaiting you, WAITING, served,
+  and `not on the rail yet` for a ticket not fired yet —, and `open issue #N`. **A need that awaits the chef shows its
+  TODO card** in its detail, the very card of Awaiting you: the question it asks and the button that answers it. While
+  a need is chosen, **its tickets stand out in the rail** (an accent outline) and the other cards fade; a second click on
+  the same tag, or a click on another, ends the choice and the cards go back to normal. **A click on the title unfolds
+  the whole backlog** as a list grouped by state — what awaits the chef first, then the states in the order above —,
+  sorted by priority within each group; `+N` unfolds it too. A click on a line shows that need's detail like its tag. A
+  second click on the title folds the band back to its line, and ends the choice. A new reading folds nothing.
+
+  **Nothing on the rail** — no card outside Served —, the On the rail column says so in plain words (#2486):
+  `nothing on the rail, nothing before it` when there is nothing before it either; otherwise how many issues, state by
+  state, and what the manager does with them, according to its state read (`manager`): on, it reads them at every
+  wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of guessing — and the
+  manager's state is not read from GitHub (only the station's log has it). **The view deduces nothing there**: it
+  counts what the reading lists and files each issue under the word it carries. When the open issues could not be read
+  from a fresh board, the view says nothing about them — no band — and the rail is still shown. A reading that fails
+  says `Backlog not read` on the band's line, its reason on hover: it is not "nothing before the rail". The Backlog
+  column and the Backlog figure of the line of figures are gone (#3460): every count they gave is on the band's title,
+  its hover and its unfolded list. Captures: `docs/captures/3460/`.
 - **How long a card has been there (#1811, `app/src/cadence.ts`)**: the 24-hour histogram that stood next to the
-  backlog left the head of the rail with the line of figures (#3013). **Each Taken or Pass card** carries
+  backlog figure left the head of the rail with the line of figures (#3013). **Each Taken or Pass card** carries
   how long it has been in that column (`12 min`, `3 h`, `2 d`), its exact age and the usual time on hover; a card there
   more than **twice the median** of the tickets that went through that column in the last 7 days turns its age red and
   takes a red edge. With fewer than three such tickets, nothing is usual yet: no card stands out, and the hover says why.

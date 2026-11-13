@@ -1,0 +1,262 @@
+/* Le bandeau Backlog (ticket 3460) : au-dessus des colonnes du rail, une seule ligne, dessinée comme le passe d'une cuisine
+   — une barre de métal où pendent les bons de commande, chacun accroché par le haut, sa base déchirée. Rien d'une colonne
+   ni d'une carte du rail : pas de fond crème, pas d'ombre, pas d'arrondi de carte. Ce qui attend le chef pend en rouge ;
+   un besoin tout servi, en vert, atténué. */
+#rail .backlog-band {
+  padding: var(--pas-2) var(--pas-5) var(--pas-3);
+  background: var(--barre);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#rail .backlog-band-rang {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pas-4);
+  min-width: 0;
+}
+/* Le titre : un bouton qui déplie tout le backlog, son nombre, et ce qui t'attend en rouge. */
+#rail .backlog-band-titre {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+  padding: var(--pas-2) 0 0;
+  font: inherit;
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+#rail .backlog-band-titre:disabled {
+  cursor: default;
+}
+#rail .backlog-band-titre:hover .backlog-band-nom,
+#rail .backlog-band-titre[aria-expanded="true"] .backlog-band-nom {
+  color: var(--texte);
+}
+#rail .backlog-band-nom {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+#rail .backlog-band-compte {
+  color: var(--texte);
+}
+#rail .backlog-band-rouges {
+  color: var(--rouge-clair);
+}
+#rail .backlog-band-vide {
+  padding-top: var(--pas-2);
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+/* La barre du passe : les bons y pendent, côte à côte, sans retour à la ligne. Ce qui n'y tient pas est caché entier par
+   la vue, et compté au bout (`+N`). */
+#rail .backlog-band-tags {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: var(--pas-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 var(--pas-1);
+  list-style: none;
+  border-top: 3px solid var(--trait-fort);
+}
+#rail .backlog-band-pendu {
+  flex: none;
+}
+/* Un bon : accroché par le haut — sa pince —, sa base dentelée, son texte en mono comme ce qu'on écrit à la main au passe. */
+#rail .backlog-tag,
+#rail .backlog-band-plus {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-2) var(--pas-1);
+  font-family: var(--police-mono);
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+  white-space: nowrap;
+  background: var(--case);
+  border: 0;
+  border-top: 3px solid var(--gris);
+  border-bottom: 1px dashed var(--trait-fort);
+  border-radius: 0;
+  cursor: pointer;
+}
+#rail .backlog-tag:hover,
+#rail .backlog-band-plus:hover {
+  color: var(--texte);
+  background: var(--bouton);
+}
+#rail .backlog-tag[aria-pressed="true"] {
+  color: var(--texte);
+  background: var(--bouton);
+  border-top-color: var(--accent);
+}
+#rail .backlog-tag[data-rouge] {
+  color: var(--rouge-clair);
+  background: var(--attend);
+  border-top-color: var(--rouge);
+  border-bottom-color: var(--attend-trait);
+}
+#rail .backlog-tag[data-servi] {
+  border-top-color: var(--vert);
+}
+#rail .backlog-tag[data-servi] .backlog-tag-etat {
+  color: var(--vert);
+}
+#rail .backlog-tag-prio {
+  color: var(--discret);
+}
+#rail .backlog-tag-titre {
+  font-family: var(--police-interface);
+  font-size: var(--taille-corps);
+}
+#rail .backlog-tag-etat {
+  font-weight: 600;
+}
+#rail .backlog-band-plus {
+  border-top-color: var(--trait-fort);
+}
+/* Le détail du besoin choisi, sous la ligne : une fiche de passe, pas une carte. */
+#rail .backlog-band-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin-top: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--bandeau);
+  border-left: 3px solid var(--accent);
+}
+#rail .backlog-band-detail[data-rouge] {
+  border-left-color: var(--rouge);
+}
+#rail .backlog-band-detail-tete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pas-2) var(--pas-3);
+}
+#rail .backlog-band-numero,
+#rail .backlog-band-detail-prio {
+  font-family: var(--police-mono);
+  font-size: var(--taille-meta);
+  color: var(--discret);
+}
+#rail .backlog-band-detail-titre {
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+}
+#rail .backlog-band-issue {
+  padding: 0;
+  font: inherit;
+  font-size: var(--taille-corps);
+  color: var(--accent);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+#rail .backlog-band-contexte,
+#rail .backlog-band-dit {
+  margin: 0;
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+#rail .backlog-band-dit {
+  color: var(--discret);
+}
+#rail .backlog-band-etapes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2) var(--pas-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--taille-corps);
+}
+#rail .backlog-band-etape {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--pas-1);
+  color: var(--texte-doux);
+}
+#rail .backlog-band-etape-nombre {
+  color: var(--texte);
+}
+#rail .backlog-band-etape[data-zero] {
+  color: var(--discret);
+}
+#rail .backlog-band-etape[data-zero] .backlog-band-etape-nombre {
+  color: var(--discret);
+  font-weight: 400;
+}
+#rail .backlog-band-question ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 420px;
+}
+/* La liste entière : groupée par état, ce qui attend le chef d'abord ; une ligne par besoin. */
+#rail .backlog-band-liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  margin-top: var(--pas-3);
+}
+#rail .backlog-band-groupe-titre {
+  display: flex;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-1);
+  font-size: var(--taille-corps);
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+#rail .backlog-band-groupe[data-etat="attend"] .backlog-band-groupe-titre {
+  color: var(--rouge-clair);
+}
+#rail .backlog-band-groupe-compte {
+  font-weight: 400;
+  color: var(--discret);
+}
+#rail .backlog-band-lignes {
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#rail .backlog-band-choix {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-3);
+  width: 100%;
+  padding: var(--pas-1) var(--pas-2);
+  font: inherit;
+  font-size: var(--taille-corps);
+  text-align: left;
+  color: var(--texte-doux);
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed var(--trait-doux);
+  cursor: pointer;
+}
+#rail .backlog-band-choix:hover,
+#rail .backlog-band-choix[aria-pressed="true"] {
+  color: var(--texte);
+  background: var(--case);
+}
+#rail .backlog-band-ligne-titre {
+  color: var(--texte);
+}
+#rail .backlog-band-ligne-etat {
+  color: var(--discret);
+}
+/* Un besoin choisi : ses tickets ressortent dans le rail, les autres cartes s'effacent. */
+#rail .colonnes[data-besoin] [data-besoin="autre"] {
+  opacity: 0.3;
+}
+#rail .colonnes[data-besoin] [data-besoin="sien"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

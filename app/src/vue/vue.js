@@ -118,6 +118,7 @@ import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserLOffre, premierProjetServi, tenirLOffre } from "./offre-telephone/offre-telephone.js";
 import { poserBandeRail } from "./projet/rail/bande-rail.js";
+import { besoinsDuBacklog, suivreLeBandeau, marquerLeRail, poserBandeauBacklog } from "./backlog-band/backlog-band.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
@@ -1125,12 +1126,12 @@ const amonts = new Map();
 // Les temps que la bande de chaque projet a posés : publiés autrement, elle se repose sans attendre la lecture du rail.
 /** @type {Map<string, string>} */
 const tempsDesBandes = new Map();
-// Les projets dont le chef a déplié la colonne Backlog : une lecture neuve ne la replie pas.
+// Le bandeau Backlog de chaque projet (backlog-band/, ticket 3460) : les projets dont le chef a déplié la liste entière, et
+// le besoin dont il a choisi l'étiquette — une lecture neuve ne replie ni ne désélectionne rien.
 /** @type {Set<string>} */
-const amontsDeplies = new Set();
-// Le backlog de la bande, tel que la dernière tête du rail l'a posé : redessiné, il garde le clavier.
-/** @type {HTMLElement | undefined} */
-let backlogDuRail;
+const backlogsDeplies = new Set();
+/** @type {Map<string, number>} */
+const besoinsChoisis = new Map();
 // La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
@@ -4343,28 +4344,6 @@ function poserArreter(projet, arretee) {
   poserLesGroupes();
 }
 
-// Dans la bande du haut du rail, ce qui est avant lui (amont.ts, tickets 1836, 3013) : son nombre d'issues, les comptes
-// au survol ; un clic déplie la colonne Backlog, un autre la replie. Quand aucun ticket n'est sur le rail, la phrase qui
-// dit ce qui est avant lui est celle de la colonne On the rail (ticket 2486). Tout est déjà dit par le process principal :
-// la vue pose.
-/** @param {Projet} projet */
-function backlogDe(projet) {
-  return {
-    vu: amonts.get(projet.nom),
-    deplie: amontsDeplies.has(projet.nom),
-    basculer: () => {
-      const deplier = !amontsDeplies.has(projet.nom);
-      if (deplier) amontsDeplies.add(projet.nom);
-      else amontsDeplies.delete(projet.nom);
-      poserRail(projet);
-      // Redessiné, le backlog garde le clavier — et sa bulle reste ouverte, comme au toucher.
-      backlogDuRail?.focus?.();
-      // Dépliée, la colonne est à gauche de « On the rail » : la rangée revient à son début pour la montrer.
-      const rangee = rangees.get(projet.nom);
-      if (deplier && rangee !== undefined) rangee.scrollLeft = 0;
-    },
-  };
-}
 /** @param {Projet} projet */
 const tempsVuDe = (projet) => JSON.stringify(projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.temps ?? null);
 // Rien sur le rail : sa colonne dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
@@ -4374,8 +4353,9 @@ function railVide(projet) {
 }
 
 // La bande du haut de l'onglet Rail (tickets 2486, 3013) : une seule ligne de chiffres — le temps d'un ticket, le premier
-// coup, les cooks en cours, le dernier merge, le backlog —, chacun posé seulement s'il a une valeur
-// (projet/rail/bande-rail.js) ; l'âge du rail montré au bout. Sans tableau lu, ni cooks ni backlog. Les cooks en cours :
+// coup, les cooks en cours, le dernier merge —, chacun posé seulement s'il a une valeur (projet/rail/bande-rail.js) ;
+// l'âge du rail montré au bout. Le backlog a son bandeau, au-dessus des colonnes (ticket 3460). Sans tableau lu, ni
+// cooks. Les cooks en cours :
 // ceux que les faits nomment, sinon un par ticket de Taken — ce que GitHub dit.
 /** @param {Projet} projet @param {import("../faits.ts").Tableau} [tableau] @param {HTMLElement[]} [apres] */
 function bandeDuRail(projet, tableau, apres = []) {
@@ -4386,11 +4366,7 @@ function bandeDuRail(projet, tableau, apres = []) {
   const { enCours } = tableau.cooks;
   const pris = tableau.compteurs.find(({ libelle }) => libelle === "taken")?.nombre ?? 0;
   const cooks = enCours.length > 0 ? { nombre: enCours.length, tickets: enCours.map(({ ticket, titre, station }) => `#${ticket} ${titre} — ${station}`) } : { nombre: pris, tickets: [] };
-  const bande = poserBandeRail(document, { temps: vu?.temps, maintenant, cooks, backlog: backlogDe(projet), apres });
-  // Le bouton du backlog, sous l'enveloppe de son survol : c'est lui qui reprend le clavier.
-  const poses = /** @type {HTMLElement[]} */ ([...bande.children]).map((pose) => /** @type {HTMLElement | undefined} */ (pose.className === "survol" ? pose.children[0] : pose));
-  backlogDuRail = poses.find((pose) => pose?.className === "bande-part bande-backlog");
-  return bande;
+  return poserBandeRail(document, { temps: vu?.temps, maintenant, cooks, apres });
 }
 
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
@@ -4432,43 +4408,41 @@ function teteDuRail(projet) {
   return [tete, ...confirmation];
 }
 
-// La colonne Backlog, dépliée par la barre, à gauche de « On the rail » : les cartes du rail, groupées par état dans
-// l'ordre de la barre, chacune triée par `prio:` — son numéro ouvre son issue, sa ligne dit ce qui la retient, un clic
-// ouvre sa fiche. Une lecture ratée y dit pourquoi, jamais « rien ».
-/** @param {Projet} projet @param {(cartes: import("../faits.ts").Carte[], etat?: import("./composants/pastille/pastille.js").Etat) => HTMLElement} bons */
-function colonneBacklog(projet, bons) {
+// Le bandeau Backlog, au-dessus des colonnes du rail (backlog-band/, ticket 3460) : une étiquette par besoin hors du rail,
+// ceux qui t'attendent en rouge d'abord. Un clic sur une étiquette — ou sur une ligne de la liste — choisit le besoin : son
+// détail se déplie, ses tickets ressortent dans le rail ; un second clic, ou un autre besoin, finit ce choix. Un clic sur
+// le titre déplie tout le backlog ; un second le replie sur sa ligne, sans choix. Ce qui t'attend s'y pose avec sa carte de
+// TODO, celle de la colonne Awaiting you.
+/** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
+function bandeauBacklog(projet, colonnes) {
   const vu = amonts.get(projet.nom);
-  if (vu === undefined || "nonPublie" in vu || !amontsDeplies.has(projet.nom)) return [];
-  const colonne = document.createElement("section");
-  colonne.className = "colonne backlog";
-  colonne.ariaLabel = "Backlog: the open issues before the rail";
-  colonne.dataset.ton = "gris";
-  const tete = document.createElement("h4");
-  const replier = bouton("fold", () => {
-    amontsDeplies.delete(projet.nom);
-    poserRail(projet);
-  }, "discret");
-  replier.className = "replier";
-  replier.title = "fold the Backlog column";
-  const compte = bloc("span", "compte" in vu ? String(vu.compte) : "?");
-  compte.className = "compte";
-  tete.append(pastilleDEtat(document, "queued", "Backlog"), compte, replier);
-  colonne.append(tete);
-  if ("sans" in vu) {
-    colonne.append(ligneVide(document, vu.sans, { classe: "sans" }));
-    return [colonne];
-  }
-  if (vu.groupes.length === 0) colonne.append(bloc("p", "nothing before the rail: every open issue of the repository is on it"));
-  for (const { etat, nom, issues } of vu.groupes) {
-    const groupe = document.createElement("section");
-    groupe.className = "groupe";
-    groupe.dataset.etat = etat;
-    const titre = document.createElement("h5");
-    titre.append(bloc("span", nom), bloc("span", String(issues.length)));
-    groupe.append(titre, bons(issues.map(({ carte }) => carte), "queued"));
-    colonne.append(groupe);
-  }
-  return [colonne];
+  const besoins = besoinsDuBacklog(vu, colonnes, Date.now());
+  // Un besoin choisi qui n'est plus dans le bandeau ne l'est plus.
+  const choisi = besoins.find(({ ticket }) => ticket === besoinsChoisis.get(projet.nom));
+  if (choisi === undefined) besoinsChoisis.delete(projet.nom);
+  const bandeau = poserBandeauBacklog(
+    document,
+    { vu, besoins, selection: choisi?.ticket, deplie: backlogsDeplies.has(projet.nom) },
+    {
+      choisir: (ticket) => {
+        if (besoinsChoisis.get(projet.nom) === ticket) besoinsChoisis.delete(projet.nom);
+        else besoinsChoisis.set(projet.nom, ticket);
+        poserRail(projet);
+      },
+      basculer: () => {
+        if (backlogsDeplies.delete(projet.nom)) besoinsChoisis.delete(projet.nom);
+        else backlogsDeplies.add(projet.nom);
+        poserRail(projet);
+      },
+      ouvrirIssue: (ticket) => void ouvrirIssue(projet, ticket),
+      carteDuChef: (carte) => {
+        const liste = document.createElement("ol");
+        liste.append(poserBon(projet, carte, undefined));
+        return liste;
+      },
+    },
+  );
+  return { bandeau, choisi };
 }
 
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
@@ -5092,11 +5066,9 @@ function poserLeRail(projet) {
   );
   // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail.
   if (muet !== undefined) return poser(...marque, bandeDuRail(projet), grille);
-  // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail », en tête de la rangée (ticket 2093).
-  const backlog = colonneBacklog(projet, bons);
-  const avantLeRail = grille.children[colonnes.findIndex(({ nom }) => nom === SUR_LE_RAIL) - 1];
-  if (avantLeRail === undefined) grille.prepend(...backlog);
-  else avantLeRail.after(...backlog);
+  // Au-dessus des colonnes, le bandeau Backlog (ticket 3460) : le besoin choisi marque ses tickets dans le rail.
+  const { bandeau, choisi } = bandeauBacklog(projet, toutes);
+  marquerLeRail(grille, posees, choisi);
   // La cuisine, en marche ou à l'arrêt, est une ligne de Settings (ticket 1700).
   poserArreter(projet, tenu.tableau.arretee);
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
@@ -5130,12 +5102,15 @@ function poserLeRail(projet) {
     ...explicationDuRail(projet.nom, "rail"),
     bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
     ...explicationDuRail(projet.nom, "cook"),
+    ...(bandeau === null ? [] : [bandeau]),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]),
   );
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
   if (memeRail) rail.scrollTop = hautDuRail;
+  // Ce qui tient sur sa ligne se compte dans la page, et se recompte quand sa largeur change.
+  if (bandeau !== null) suivreLeBandeau(bandeau, etroit);
 }
 
 // La rangée des colonnes, une fois posée : la lecture qui suit garde le défilement du chef ; à l'ouverture du rail, la

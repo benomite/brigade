@@ -1,10 +1,10 @@
 // @ts-check
 // La bande du haut de l'onglet Rail (tickets 2486, 3013 ; maquette Project.dc.html, décision 4 du 2026-11-08) : une seule
-// ligne de chiffres entre les onglets et le rail — le temps d'un ticket, le premier coup, les cooks en cours, le dernier
-// merge et le backlog, chacun une fois. Un chiffre sans valeur n'est pas posé du tout : ni « no measure yet », ni aide
-// `?`, ni titre sans rien dessous. Les valeurs sont celles que la station publie (temps-ticket/resume.js), jamais
-// recalculées ; ce qui pèse le plus et le détail sont au survol. Le backlog est un nombre, « 18 issues » — sans barre —,
-// qui déplie sa colonne d'un clic. Sous la bande, le rail prend toute la hauteur.
+// ligne de chiffres entre les onglets et le rail — le temps d'un ticket, le premier coup, les cooks en cours et le dernier
+// merge, chacun une fois. Un chiffre sans valeur n'est pas posé du tout : ni « no measure yet », ni aide `?`, ni titre
+// sans rien dessous. Les valeurs sont celles que la station publie (temps-ticket/resume.js), jamais recalculées ; ce qui
+// pèse le plus et le détail sont au survol. Le backlog n'y est plus : il a son bandeau, au-dessus des colonnes
+// (backlog-band/, ticket 3460). Sous la bande, le rail prend toute la hauteur.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { survol } from "../../briques.js";
@@ -14,9 +14,7 @@ import { dureeEnClair } from "../../temps-ticket/temps-ticket.js";
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../temps-ticket/temps-ticket.js").TempsDuProjet} TempsDuProjet */
 /** @typedef {import("../../temps-ticket/resume.js").Chiffre} Chiffre */
-/** @typedef {import("../../../amont.ts").Vu} Vu */
 /** @typedef {{ nombre: number, tickets: string[] }} CooksEnCours */
-/** @typedef {{ vu: Vu | undefined, deplie: boolean, basculer: () => void }} Backlog */
 
 // Un chiffre de la station a une valeur quand il dit un nombre : à la place d'une valeur qu'elle n'a pas encore, elle
 // écrit des mots, sans chiffre (`SANS_DONNEE`, runtime/src/chiffres-du-projet.ts).
@@ -113,27 +111,13 @@ export function dernierMergeDeLaBande(doc, temps, maintenant) {
   return chiffre(doc, noeud(doc, "span", "bande-part bande-dernier-merge"), "Last merge", depuis, "ago", `#${dernier.ticket}, merged ${quand} UTC.`);
 }
 
-// Le backlog : le nombre d'issues ouvertes avant le rail, un bouton qui déplie la colonne Backlog ; chaque compte en mots
-// au survol. Null tant que ce qui est avant le rail n'est pas lu, qu'une lecture ratée n'en donne pas le nombre, ou
-// qu'un tableau frais ne le porte pas (ticket 1770).
-/** @param {Fabrique} doc @param {Backlog} backlog */
-export function backlogDeLaBande(doc, { vu, deplie, basculer }) {
-  if (vu === undefined || "nonPublie" in vu || "sans" in vu) return null;
-  const bouton = noeud(doc, "button", "bande-part bande-backlog");
-  bouton.type = "button";
-  bouton.ariaExpanded = String(deplie);
-  bouton.addEventListener("click", basculer);
-  return chiffre(doc, bouton, "Backlog", String(vu.compte), vu.compte === 1 ? "issue" : "issues", vu.survol);
-}
-
-// La bande entière : chaque chiffre qui a une valeur, dans l'ordre de la maquette, puis le backlog. `cooks` et `backlog`
-// n'y sont que quand le rail est lu : sans lecture, ni cooks ni backlog ne s'inventent. `apres` : ce qui se pose au bout
-// de la ligne — l'âge du rail montré.
+// La bande entière : chaque chiffre qui a une valeur, dans l'ordre de la maquette. `cooks` n'y est que quand le rail est
+// lu : sans lecture, les cooks ne s'inventent pas. `apres` : ce qui se pose au bout de la ligne — l'âge du rail montré.
 /**
  * @param {Fabrique} doc
- * @param {{ temps: TempsDuProjet | undefined, maintenant: string, cooks?: CooksEnCours, backlog?: Backlog, apres?: any[] }} lu
+ * @param {{ temps: TempsDuProjet | undefined, maintenant: string, cooks?: CooksEnCours, apres?: any[] }} lu
  */
-export function poserBandeRail(doc, { temps, maintenant, cooks, backlog, apres = [] }) {
+export function poserBandeRail(doc, { temps, maintenant, cooks, apres = [] }) {
   const bande = noeud(doc, "div", "bande-rail");
   bande.role = "group";
   bande.ariaLabel = "The project's figures";
@@ -142,7 +126,6 @@ export function poserBandeRail(doc, { temps, maintenant, cooks, backlog, apres =
     premierCoupDeLaBande(doc, temps),
     cooks === undefined ? null : cooksDeLaBande(doc, cooks),
     dernierMergeDeLaBande(doc, temps, maintenant),
-    backlog === undefined ? null : backlogDeLaBande(doc, backlog),
   ];
   bande.append(...chiffres.filter((pose) => pose !== null), ...apres);
   return bande;
