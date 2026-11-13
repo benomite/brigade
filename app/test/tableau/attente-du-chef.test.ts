@@ -162,6 +162,30 @@ describe("l'écart du manager : sa question, avec ses boutons (#3370)", () => {
     assert.equal((await carteDe(ecarte([question, repondue], "question")))?.chef?.texte, "The manager set this ticket aside with a question: what is your answer?\n- [resume] Back to the kitchen\n- [close] Close it");
   });
 
+  test("une issue que le jugement refuse au chef (#3429) : le refus du manager porte sa décision en une phrase, que la carte pose avec ses deux gestes", async () => {
+    // Le commentaire du manager tel que runtime/src/manager.ts l'écrit pour un refus `decision`.
+    const refus = dit(
+      [
+        "<!-- brigade:manager -->",
+        "**Manager — not a workable ticket: a decision issue.** Nothing is set, no cook will start.",
+        "",
+        "It asks to grant an IAM right that breaks the read-only rule, and says the call is the chef's.",
+        "",
+        "**What would make it workable.** The chef's call on the IAM right.",
+        "",
+        "**Yours to settle.** The manager sets `decision` on this issue: it is a card in your TODO. Answer it there — a choice or your own words — and the manager judges the issue again with your answer; or close the issue.",
+        "",
+        "Do you grant the deploy role write access to the backup bucket?",
+        "",
+        "_Judged by the manager in `sonnet` / `medium` · 1 turn · 3,390 tokens · 7.6 s._",
+      ].join("\n"),
+      "2026-11-05T06:00:00Z",
+    );
+    const entree = await carteDe(ecarte([refus]));
+    assert.equal(entree?.quoi, "ecart");
+    assert.equal(entree?.ligne, "Do you grant the deploy role write access to the backup bucket? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words");
+  });
+
   test("ses commentaires que GitHub ne rend pas : la lecture dit pourquoi, jamais une carte sans sa question", async () => {
     const monde = ecarte([dit("Which one?", "2026-11-05T06:00:00Z")]);
     const refuse: AppelGitHub = async (chemin, entetes) => (chemin.includes("/issues/60/comments") ? { status: 502, data: {} } : github(monde)(chemin, entetes));

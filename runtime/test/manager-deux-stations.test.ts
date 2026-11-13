@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { BAIL_DU_MANAGER_MS, corpsDePriseDuManager, corpsDeTravailFait } from "../src/github-etat/prise-du-manager.ts";
+import type { Fait } from "../src/evenements.ts";
 import type { Issue } from "../src/github.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { empreinte, MARQUEUR_MANAGER } from "../src/juger.ts";
 import { chef, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { jusqua, poserJournalVide, repertoireTemporaire } from "./outils.ts";
@@ -18,9 +20,13 @@ const PRISE = /^<!-- brigade:manager-prise station=([^ ]+) etat=[0-9a-f]+ jeton=
 function projet(t: TestContext, issues: Issue[], depuis?: string) {
   const gh = fauxGitHub(...issues);
   const heure = montre(depuis);
-  const station = (nom: string, manager: { jugement?: string; suite?: string[] }) => {
+  // `journal` : ce que son journal tient déjà quand elle démarre.
+  const station = (nom: string, manager: { jugement?: string; suite?: string[] }, journal: Array<{ ticket: number } & Fait> = []) => {
     const repertoire = repertoireTemporaire(t);
     poserJournalVide(repertoire);
+    const avant = ouvrirJournal(repertoire);
+    for (const { ticket, ...fait } of journal) avant.ajouter({ project: "brigade", ticket, author: "manager", ...fait } as Parameters<typeof avant.ajouter>[0]);
+    avant.fermer();
     const c = cuisine(t, { lieux: { repertoire, origine: "", clone: "", gh, heure }, manager: { ...manager, station: nom } });
     chef(repertoire, "manager.enabled");
     // Les lancements de `claude` de son manager, par le préfixe de leur run.
@@ -79,6 +85,23 @@ describe("deux stations sur un projet : le manager agit une fois par issue", { c
     assert.deepEqual(p.gh.labellisations, []);
     // Rien ne reste à faire ici : le sondage est confirmé.
     assert.ok(p.gh.sondages.inchanges > 0);
+  });
+
+  test("une issue refusée au chef avant #3429, dont la station qui l'a jugée a dit le travail fait : elle la rejuge une fois pour sa question, sa propre prise faite ne la retient pas", async (t) => {
+    const p = projet(t, [issue(30, [])]);
+    const etat = empreinte({ ...issue(30, []), body: "" }, []);
+    p.gh.repondre(30, corpsDeTravailFait("box/claude", etat, "0a1b2c3d"));
+    const box = p.station("box/claude", { jugement: "juge-decision" }, [
+      { ticket: 30, type: "manager.judged", payload: { run: "juge-30-a", fingerprint: etat, verdict: "refused", kind: "decision", reason: "A decision issue.", missing: null, model: null, effort: null, calibration: null } },
+      { ticket: 30, type: "manager.commented", payload: {} },
+    ]);
+
+    await jusqua(() => p.gh.lire(30)?.labels.includes("decision") === true);
+    await p.laisserTourner();
+
+    assert.equal(box.runs("juge-30-").length, 1);
+    assert.deepEqual(p.gh.labellisations, [[30, ["decision"]]]);
+    assert.match(p.dits(30)[0] ?? "", /\nDo you grant the deploy role write access to the backup bucket\?\n/);
   });
 
   test("une station qui s'arrête au milieu du travail le rend : une autre le prend une fois sa prise périmée", async (t) => {

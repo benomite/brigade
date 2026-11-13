@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { lancementEnFlux, SOURCES_DE_REGLAGES } from "./claude.ts";
+import { uneQuestion } from "./carte-todo/forme.ts";
 import { NATURES, type Nature } from "./events/manager.ts";
 
 // Ce qui marque un commentaire du manager : il ne se relit pas lui-même.
@@ -27,7 +28,16 @@ export type Decision = {
   effort: string | null;
   // Pourquoi ce modèle et cet effort.
   calibration: string | null;
+  // Une issue refusée parce qu'elle attend le chef — `question`, `decision` (#3429) : ce qu'il a à trancher, en une
+  // phrase qui finit par son seul « ? », que sa carte TODO pose ; nulle quand la réponse n'en porte aucune qui se lise.
+  // Absente de toute autre nature, et des jugements d'avant elle.
+  question?: string | null;
 };
+
+// Les natures qu'un humain seul tranche : refusées, elles deviennent une carte TODO — le manager pose sur l'issue le
+// label du même nom, dont la carte pose sa question au chef (#3370, #3429).
+export const NATURES_AU_CHEF = ["question", "decision"] as const satisfies readonly Nature[];
+export const estAuChef = (kind: string | null): kind is (typeof NATURES_AU_CHEF)[number] => (NATURES_AU_CHEF as readonly string[]).includes(kind ?? "");
 
 // Le jugement n'a ni outil, ni skill, ni serveur MCP, ni réglages : il lit la
 // consigne et répond. `--tools ""` vient avant les options qui le suivent, il
@@ -132,7 +142,13 @@ export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger;
     '{"nature": "epic", "motif": "pourquoi ce n\'est pas un ticket exécutable", "manque": "ce qui la rendrait exécutable"}',
     "```",
     "",
-    "`motif`, `manque` et `calibrage` sont postés sur l'issue, que le chef lit : en anglais, deux ou trois phrases, précises.",
+    "Une `question` ou une `decision` attend le chef : elle devient une carte de son TODO, qui lui pose une seule question. Ajoute-la à ta réponse, dans `question` — ce qu'il a à trancher, en une phrase sur une ligne, qui finit par son seul « ? » :",
+    "",
+    "```json",
+    '{"nature": "decision", "motif": "pourquoi ce n\'est pas un ticket exécutable", "manque": "ce qui la rendrait exécutable", "question": "la décision à prendre, en une phrase ?"}',
+    "```",
+    "",
+    "`motif`, `manque`, `question` et `calibrage` sont postés sur l'issue, que le chef lit : en anglais ; `motif`, `manque` et `calibrage` en deux ou trois phrases, précises.",
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
@@ -156,6 +172,13 @@ export function objet(texte: string): Record<string, unknown> | null {
 export const phrase = (valeur: unknown): string | null => (typeof valeur === "string" && valeur.trim() !== "" ? valeur.trim() : null);
 export const parmi = (valeur: unknown, admis: readonly string[]): string | null => (typeof valeur === "string" && admis.includes(valeur) ? valeur : null);
 
+// La question d'une issue refusée au chef : une phrase sur une ligne, qui finit par son seul « ? » — la forme de toute
+// carte TODO (carte-todo/forme.ts). Toute autre réponse n'en est pas une : la carte pose alors ce que son label attend.
+function questionAuChef(valeur: unknown): string | null {
+  const lue = phrase(valeur)?.replace(/\s+/g, " ") ?? null;
+  return lue !== null && uneQuestion(lue) ? lue : null;
+}
+
 // Lit la décision dans le dernier message du jugement.
 export function lireDecision(message: string | null): { decision: Decision } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "no answer" };
@@ -166,7 +189,8 @@ export function lireDecision(message: string | null): { decision: Decision } | {
   const reason = phrase(lu.motif);
   if (!reason) return { illisible: "no `motif`" };
   if (kind !== "ticket") {
-    return { decision: { verdict: "refused", kind, reason, missing: phrase(lu.manque), model: null, effort: null, calibration: null } };
+    const refus: Decision = { verdict: "refused", kind, reason, missing: phrase(lu.manque), model: null, effort: null, calibration: null };
+    return { decision: estAuChef(kind) ? { ...refus, question: questionAuChef(lu.question) } : refus };
   }
   const model = parmi(lu.modele, MODELES);
   if (!model) return { illisible: `unknown model ${JSON.stringify(lu.modele)} — expected ${MODELES.join(", ")}` };

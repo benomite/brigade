@@ -98,7 +98,7 @@ without spending anything:
 | is an epic it already split, or a ticket born from its splits | Nothing: what they carry since is yours | — |
 | carries `served-elsewhere` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`served-elsewhere`) |
 | carries `blocked-on-human` | **Reread** by the LLM once per state, for the decision it awaits. Stated in the issue: stays held. Absent but a real question derives: a `product`, `design` or `gesture` card is proposed and goes to the triage; the issue stays held, the card leaves with the label. Absent, no question: the kitchen takes the ticket back, the label is removed, the issue judged in the same turn. The comment says which | `manager.requalified` (`stated`, `card`, `taken-back`, `unreadable`), then `manager.set-aside` unless taken back |
-| carries `question` or `decision` | Nothing | `manager.set-aside` (the label) |
+| carries `question` or `decision` — set by you, or by the manager on a `question` or `decision` verdict (#3429) | Nothing: it is a TODO card until it is answered | `manager.set-aside` (the label) |
 | already lists an epic's tickets in its body, unsplit by it | Nothing: split by hand | `manager.set-aside` (`already-split`) |
 | carries `epic` | **Split** by the LLM, once | `manager.split`, or a question |
 | any other | **Judged** by the LLM, once per state | `manager.judged`, or `manager.failed` |
@@ -148,6 +148,16 @@ card, whether you complete the criteria on the issue — it does not ask the mod
 answer counting against the breaker. The follow-up is written to the log (`manager.completed`, outcome
 `completed`, `question` or `unreadable`) with the fingerprint of the verdict it follows: a verdict followed
 by a completion or a card is not followed twice.
+
+**A `question` or `decision` verdict never ends outside the rail and TODO either** (#3429). Such an issue
+awaits you, so the judgment also writes what you have to settle, in one sentence ending with its only "?".
+The refusal comment carries that sentence on a line of its own, then the manager sets the label of the same
+name (`question` or `decision`) on the issue. The issue is now a TODO card with that question
+(`carteDeLEcart`, #3370), `Back to the kitchen` and `Close it`, and the free answer. Answering it, by a
+choice or in your own words, removes the label, and the manager judges the issue again with your answer.
+With no sentence that reads, the card asks what its label waits for. Nothing is set on an issue you put in
+WAITING. The set label is not the manager's: removing it never makes a `chef-changed`. A verdict judged
+before #3429 (no sentence in the log, no label) is judged once more, to get its question.
 
 ### Handing it back
 

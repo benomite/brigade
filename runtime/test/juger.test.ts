@@ -94,6 +94,22 @@ test("un refus se lit avec sa nature, son motif et ce qui manque", () => {
   });
 });
 
+test("une issue refusée au chef — `question`, `decision` — se lit avec la décision à prendre, en une phrase qui finit par son seul « ? » (#3429)", () => {
+  const lue = (question: unknown) => lireDecision(JSON.stringify({ nature: "decision", motif: "A decision issue.", manque: "The chef's call.", question }));
+
+  assert.deepEqual(lue("Do you grant the IAM right?\n"), {
+    decision: { verdict: "refused", kind: "decision", reason: "A decision issue.", missing: "The chef's call.", model: null, effort: null, calibration: null, question: "Do you grant the IAM right?" },
+  });
+  // Pas une question qui se lise : la carte posera ce que son label attend — jamais un jugement illisible.
+  for (const illisible of [undefined, "", "Grant it.", "Grant it? Or not?"]) {
+    const refus = lue(illisible);
+    assert.ok("decision" in refus && refus.decision.question === null, JSON.stringify(illisible));
+  }
+  const question = lireDecision(JSON.stringify({ nature: "question", motif: "It asks for an answer.", question: "Which region?" }));
+  assert.ok("decision" in question && question.decision.question === "Which region?");
+  assert.match(consigneDeJugement({ depot: "acme/brigade", issue: ISSUE, commentaires: [] }), /Ajoute-la à ta réponse, dans `question`/);
+});
+
 test("une réponse sans décision lisible le dit, au lieu d'en inventer une", () => {
   const illisible = (texte: string | null) => {
     const lue = lireDecision(texte);

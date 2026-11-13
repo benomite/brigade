@@ -35,7 +35,8 @@ import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTr
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
-import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
+import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
+import { LABEL_WAITING } from "./attente.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
@@ -376,6 +377,18 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return `_${verbe} by the manager${calibrage}${mesure}._`;
   };
 
+  // Le dernier jugement de l'issue, tel qu'au journal : la question qu'il pose au chef (#3429) — `undefined` pour un
+  // jugement d'avant elle, qui n'en demandait aucune.
+  const dernierJugement = (numero: number) => journal.duTicket(numero).findLast((evenement) => evenement.type === "manager.judged")?.payload as { question?: unknown } | undefined;
+  const questionDuVerdict = (numero: number): string | null => {
+    const question = dernierJugement(numero)?.question;
+    return typeof question === "string" && question !== "" ? question : null;
+  };
+  // Refusée au chef par un jugement d'avant #3429 : il ne lui demandait pas de question, et rien ne l'a montrée au chef.
+  // Elle se rejuge une fois, pour que sa carte en pose une.
+  const auChefSansQuestion = (issue: IssueOuverte, connue: IssueDuManager | null): boolean =>
+    connue?.decision === "refused" && estAuChef(connue.kind) && !issue.labels.includes(LABEL_WAITING) && !("question" in (dernierJugement(issue.number) ?? { question: null }));
+
   const dire = (issue: IssueOuverte, connue: IssueDuManager, parLaStation = false): string => {
     const fired = issue.labels.includes(LABEL);
     switch (connue.decision) {
@@ -403,7 +416,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           signature(connue.run),
         ].join("\n");
       }
-      case "refused":
+      case "refused": {
+        const auChef = estAuChef(connue.kind);
+        const question = auChef ? questionDuVerdict(issue.number) : null;
         return [
           MARQUEUR_MANAGER,
           `**Manager — not a workable ticket: ${NOMS_DE_NATURE_EN[connue.kind as Nature] ?? connue.kind}.** Nothing is set, no cook will start.`,
@@ -411,10 +426,18 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           connue.reason,
           ...(connue.missing === null ? [] : ["", `**What would make it workable.** ${connue.missing}`]),
           "",
-          `The issue will be judged again as soon as it changes — body edited, or an answer in a comment.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
+          // Une issue qui attend le chef est une carte de son TODO (#3429) : la question en est la dernière ligne qui
+          // finit par « ? » (app : tableau/mise-de-cote-github.ts, `carteDeLEcart`).
+          ...(auChef
+            ? [
+                `**Yours to settle.** The manager sets \`${connue.kind}\` on this issue: it is a card in your TODO. Answer it there — a choice or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
+                ...(question === null ? [] : ["", question]),
+              ]
+            : [`The issue will be judged again as soon as it changes — body edited, or an answer in a comment.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`]),
           "",
           signature(connue.run),
         ].join("\n");
+      }
       case "failed":
         return [
           MARQUEUR_MANAGER,
@@ -531,6 +554,36 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
     if (arrete) return false;
     noter(issue.number, { type: "manager.commented", payload: {} });
+    return true;
+  };
+
+  // Une issue refusée parce qu'elle attend le chef — `question`, `decision` — ne reste jamais hors du rail et hors de
+  // TODO (#3429) : son refus dit, le manager y pose le label du même nom, dont la carte TODO pose au chef sa question
+  // (#3370). Répondue, la carte retire le label (`resume`) et le manager la rejuge avec la réponse. Une issue que le chef
+  // a mise en WAITING ne l'attend pas, lui : rien n'y est posé. Le label posé, l'issue est écartée par ce label, comme
+  // celle où le chef l'aurait posé lui-même — ce n'est pas un label du manager : le retirer ne la lui retire pas. Rend
+  // faux si c'est à refaire au tour suivant.
+  const demanderAuChef = async (issue: IssueOuverte): Promise<boolean> => {
+    const connue = issueDuManager(base, issue.number);
+    if (connue?.decision !== "refused" || !estAuChef(connue.kind) || !connue.commented) return true;
+    const label = connue.kind;
+    let fraiche;
+    try {
+      // Relus juste avant d'écrire : le chef a pu fermer l'issue, la mettre en WAITING, ou poser le label.
+      fraiche = await github.issue(issue.number);
+      if (arrete) return false;
+      if (!fraiche || fraiche.state !== "open" || fraiche.labels.includes(LABEL_WAITING)) return true;
+      if (!fraiche.labels.includes(label)) await github.labelliser(issue.number, [label]);
+    } catch (erreur) {
+      if (!arrete) avertir(`brigade : \`${label}\` non posé sur l'issue #${issue.number}, refusée au chef — repris au tour suivant — ${message(erreur)}`);
+      return false;
+    }
+    if (arrete) return false;
+    // Le refus est déjà dit sur l'issue, avec sa question : l'écart ne se redit pas.
+    journal.base.transaction(() => {
+      noter(issue.number, { type: "manager.set-aside", payload: { reason: label, fired: fraiche.labels.includes(LABEL) } });
+      noter(issue.number, { type: "manager.commented", payload: {} });
+    });
     return true;
   };
 
@@ -790,7 +843,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     } else if (tri.quoi === "juger") {
       const corps = await commentaires(issue);
       const etat = empreinte(issue, corps);
-      if (connue?.fingerprint !== etat) {
+      if (connue?.fingerprint !== etat || auChefSansQuestion(issue, connue)) {
         if (!peutJuger() || !(await juger(issue, corps, etat))) return "reste";
       }
       // Le jugement y a reconnu une épique : elle ne se refuse pas, elle se
@@ -811,7 +864,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Éteint pendant le jugement : la décision est au journal, rien n'est
     // posé. Elle le sera, sans rejuger, quand le chef rallumera.
     if (arrete || !managerAllume(base)) return "arret";
-    return (await appliquer(issue)) ? "fait" : "reste";
+    return (await appliquer(issue)) && (await demanderAuChef(issue)) ? "fait" : "reste";
   };
 
   // Le découpage d'une épique tourne hors du tour, comme la relecture d'une
