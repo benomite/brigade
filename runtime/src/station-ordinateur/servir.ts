@@ -90,6 +90,8 @@ export type ServiceDeLOrdinateur = {
   tourner(): Promise<void>;
   // Les dépôts servis à cet instant, dans l'ordre de la liste.
   servis(): string[];
+  // Pourquoi chaque ligne de la liste n'est pas servie, par son dépôt en minuscules (#3449).
+  refus(): Record<string, string>;
   // Les tickets que ses cooks cuisinent : ce que sa mise à jour attend (#2189).
   enCuisine(): number[];
   // Sauve le travail de ces cooks sur leur branche, avant une relance (#2586).
@@ -260,6 +262,7 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
       return chaine;
     },
     servis: () => [...ouverts.values()].map(({ depot }) => depot),
+    refus: () => Object.fromEntries(refus),
     enCuisine: () => [...[...ouverts.values()].map(({ tour }) => tour), ...retires].flatMap((tour) => tour.enCuisine()),
     sauver: async () => (await Promise.all([...[...ouverts.values()].map(({ tour }) => tour), ...retires].map(async (tour) => (await tour.sauver?.()) ?? []))).flat(),
     arreter: async () => {
