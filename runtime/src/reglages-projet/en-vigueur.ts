@@ -20,7 +20,7 @@ import type { Calibrage } from "../calibrage.ts";
 import { lireALaBase } from "../depot.ts";
 import { direHumains } from "../humains/humains.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, ReglageRefuse, SEUILS_DU_PROJET, type ReglagesProjet } from "./reglages.ts";
+import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, ReglageRefuse, roadmapDuClaudeMd, SEUILS_DU_PROJET, type ReglagesProjet } from "./reglages.ts";
 
 // Les réglages que la branche d'intégration porte, ou null si elle n'a pas le
 // fichier. Lève `ReglageRefuse` si le fichier n'est pas fait de réglages du
@@ -29,6 +29,16 @@ import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, Reglag
 export function reglagesALaBase(lieu: { clone: string; base: string }, env?: NodeJS.ProcessEnv): ReglagesProjet | null {
   const texte = lireALaBase(lieu, FICHIER, env);
   return texte === null ? null : reglagesDuTexte(texte);
+}
+
+// L'issue de roadmap que la ligne « Roadmap » des bindings nomme, dans le
+// `CLAUDE.md` de la branche d'intégration telle que le dernier rapatriement l'a
+// vue — relue à chaque tour du manager, comme les réglages (#3436). Null sans
+// `CLAUDE.md` ou sans la ligne ; lève une erreur de `git` si la branche ne se
+// lit pas : illisible n'est pas absent.
+export function roadmapALaBase(lieu: { clone: string; base: string }, env?: NodeJS.ProcessEnv): number | null {
+  const texte = lireALaBase(lieu, "CLAUDE.md", env);
+  return texte === null ? null : roadmapDuClaudeMd(texte);
 }
 
 // D'où vient la branche d'intégration : le fichier du dépôt, la ligne de la

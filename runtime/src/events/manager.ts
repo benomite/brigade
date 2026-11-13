@@ -124,6 +124,16 @@ export type FaitManager =
       type: "manager.completed";
       payload: { run: string; fingerprint: string; outcome: "completed" | "question" | "unreadable"; reason: string; criteria?: string[]; question?: string };
     }
+  // The project's roadmap is a tracking document, never a ticket (#3436). `roadmap-cleared`: it carried what asks the
+  // chef something — `question`, `decision`, `chef-todo` (`labels`, those removed), or a TODO card in the log (`card`) —
+  // and the manager removed it. `roadmap-read`: the LLM read it, once per `fingerprint`, for separate work it holds —
+  // `work`, each filed as its own issue (`roadmap-filed`, with its `index` in `work` and the `issue` it became).
+  | { type: "manager.roadmap-cleared"; payload: { labels: string[]; card: boolean } }
+  | {
+      type: "manager.roadmap-read";
+      payload: { run: string; fingerprint: string; outcome: "work" | "none" | "unreadable"; reason: string; work: Array<{ title: string; body: string }> };
+    }
+  | { type: "manager.roadmap-filed"; payload: { fingerprint: string; index: number; issue: number } }
   // The chef's commands. Without `manager.enabled`, the manager judges nothing.
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }

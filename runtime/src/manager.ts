@@ -44,6 +44,7 @@ import { labelsMontes } from "./projections/reactions.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirRequalification } from "./requalifier.ts";
+import { ouvrirRoadmap } from "./manager/roadmap.ts";
 import { ouvrirVerdictIncomplet } from "./manager/verdict-incomplet.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { estLaPauseDeGitHub } from "./limite-github.ts";
@@ -143,6 +144,11 @@ export type OptionsManager = ConfigManager & {
   // l'humain `product` reçoit celle de l'issue d'un auteur sans l'écriture
   // (#2934). Absents, elle va au chef.
   humains?: () => Humain[];
+  // L'issue que la ligne « Roadmap » des bindings du dépôt nomme
+  // (`**Roadmap** : issue #1`), relue à chaque tour, ou null s'il n'y en a
+  // pas ; lève si elle ne se lit pas. Elle est la roadmap, comme `roadmap`
+  // (#3436). Absente : seule `roadmap` l'est.
+  roadmapDuDepot?: () => number | null;
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
@@ -205,6 +211,26 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const sansObjet = new Set<string>();
   const cle = (remise: Remise) => `${remise.ticket}@${remise.at}`;
 
+  // L'issue que les bindings du dépôt nomment roadmap, telle que relue au début
+  // du tour ; `undefined` tant qu'elle ne s'est jamais lue.
+  let roadmapDesBindings: number | null | undefined = options.roadmapDuDepot === undefined ? null : undefined;
+  let roadmapNonLue = false;
+  // Relit la roadmap des bindings. Illisible, la dernière lue vaut toujours ;
+  // jamais lue, aucune issue ne se juge ni ne se découpe — ce pourrait être la
+  // roadmap —, le reste du tri suit son cours. Dit une fois, jusqu'à la lecture
+  // suivante qui réussit.
+  const relireLaRoadmap = () => {
+    if (options.roadmapDuDepot === undefined) return;
+    try {
+      roadmapDesBindings = options.roadmapDuDepot();
+      roadmapNonLue = false;
+    } catch (erreur) {
+      if (!roadmapNonLue) avertir(`brigade : la ligne « Roadmap » du \`CLAUDE.md\` n'a pas pu se lire${roadmapDesBindings === undefined ? " — le manager ne juge ni ne découpe rien tant qu'elle ne se lit pas" : ": la dernière lue vaut toujours"} — ${message(erreur)}`);
+      roadmapNonLue = true;
+    }
+  };
+  const estLaRoadmap = (numero: number) => numero === options.roadmap || numero === roadmapDesBindings;
+
   // Les issues d'un inconnu qu'un membre de confiance a lancées ou priorisées :
   // le manager lit qui a posé le label, pas qui a écrit l'issue (#2619).
   const garanties = new Set<number>();
@@ -231,6 +257,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
+    // La roadmap est un document de suivi, jamais un ticket : reconnue avant
+    // tout le reste, elle n'est ni jugée, ni lancée, ni au chef (#3436).
+    if (estLaRoadmap(issue.number)) return { quoi: "ecart", raison: "roadmap", fired };
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
     // `fire` posé, calibrage complet compris.
     if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "served-elsewhere", fired };
@@ -252,7 +281,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
     if (auteurSansEcriture(issue, declares()) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
-    if (issue.number === options.roadmap) return { quoi: "ecart", raison: "roadmap", fired };
     const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
     if (label) return { quoi: "ecart", raison: label, fired };
     // La liste de ses tickets est déjà dans son corps, et le journal ne sait
@@ -742,6 +770,21 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     signature,
   });
 
+  // La roadmap écartée : ce qui y questionne le chef s'en retire, et le travail
+  // séparé qu'elle porte s'ouvre en issues (#3436).
+  const roadmap = ouvrirRoadmap({
+    journal,
+    projet,
+    github,
+    depotGitHub: options.depotGitHub,
+    noter,
+    demander,
+    peutJuger,
+    arrete: () => arrete,
+    avertir,
+    signature,
+  });
+
   const verdictIncomplet = ouvrirVerdictIncomplet({
     journal,
     projet,
@@ -832,6 +875,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         tri = trier(issue, connue);
       }
     }
+    // La roadmap des bindings ne s'est jamais lue : cette issue l'est peut-être.
+    if ((tri.quoi === "juger" || tri.quoi === "decouper") && roadmapDesBindings === undefined) return "reste";
     let epique = tri.quoi === "decouper";
     if (tri.quoi === "fini") return "fait";
     if (tri.quoi === "ecart") {
@@ -839,6 +884,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       if (tri.raison === ("untrusted-author" satisfies Ecart)) {
         if (arrete || !managerAllume(base)) return "arret";
         return etrangeres.traiter(issue, ouvertesDuTour);
+      }
+      if (tri.raison === ("roadmap" satisfies Ecart)) {
+        if (arrete || !managerAllume(base)) return "arret";
+        if (!(await roadmap.traiter(issue, await commentaires(issue), ouvertesDuTour))) return "reste";
       }
     } else if (tri.quoi === "juger") {
       const corps = await commentaires(issue);
@@ -906,6 +955,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // sien que 10 min plus tard. 15 de ses 16,5 min de temps perdu (#3422).
   const tour = async () => {
     if (!managerAllume(base)) return;
+    relireLaRoadmap();
     const sondage = await github.ouvertes();
     let sondeA = maintenant().getTime();
     // Tant qu'une issue attend quelque chose qui ne la modifie pas — un quota,

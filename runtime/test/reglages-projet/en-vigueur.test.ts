@@ -9,7 +9,7 @@ import { describe, test, type TestContext } from "node:test";
 import { poserDecision, suivreDecisions } from "../../src/decisions.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { PLAFOND_PAR_DEFAUT } from "../../src/reagir.ts";
-import { avecLaBrancheDuDepot, brancheDuProjet, lireLeDepot, reglagesALaBase, reglagesPourMontrer } from "../../src/reglages-projet/en-vigueur.ts";
+import { avecLaBrancheDuDepot, brancheDuProjet, lireLeDepot, reglagesALaBase, reglagesPourMontrer, roadmapALaBase } from "../../src/reglages-projet/en-vigueur.ts";
 import { FICHIER, texteDuFichier, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { poser, projetSurGit } from "../aides/projet-sur-git.ts";
@@ -173,4 +173,13 @@ describe("the integration branch is resolved from the repository", { concurrency
     assert.deepEqual(reglagesPourMontrer({ BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: "disparue" }), DU_DEPOT, "the line's unknown branch gives way to the working tree's file");
     assert.equal(reglagesPourMontrer({}), null);
   });
+});
+
+// La roadmap que les bindings nomment, relue par le manager à chaque tour (#3436).
+test("the roadmap the CLAUDE.md bindings name is read on the integration branch, none without the line, and an unreadable branch throws", (t) => {
+  const { clone } = projetSurGit(t, { claudeMd: "## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `v2`\n- **Roadmap** : issue #1 (writer unique = Manager)\n" });
+  assert.equal(roadmapALaBase({ clone, base: "v2" }), 1);
+  assert.equal(roadmapALaBase({ clone: projetSurGit(t, { claudeMd: "- **Branche d'intégration** : `v2`\n" }).clone, base: "v2" }), null);
+  assert.equal(roadmapALaBase({ clone: projetSurGit(t).clone, base: "v2" }), null);
+  assert.throws(() => roadmapALaBase({ clone, base: "disparue" }));
 });

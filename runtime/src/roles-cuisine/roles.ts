@@ -77,7 +77,8 @@ export const ROLES: readonly Role[] = [
     does: "Judges the project's issues, puts the ready ones on the rail, splits epics, and decides what follows a red ticket.",
     lectures: [
       { type: "manager.judged", dire: (p, n) => (p.verdict === "fire" ? `put ${n} on the rail` : `judged ${n} not ready to serve`) },
-      { type: "manager.set-aside", dire: (_, n) => `set ${n} aside for you` },
+      // La roadmap n'attend personne (#3436) : elle est écartée comme document de suivi, pas pour le chef.
+      { type: "manager.set-aside", dire: (p, n) => (p.reason === "roadmap" ? `set roadmap ${n} aside as a tracking document` : `set ${n} aside for you`) },
       { type: "manager.reacted", dire: (p, n) => parmi(REACTIONS, p.choice, n, `reacted to ${n} turning red`) },
       { type: "manager.split", dire: (p, n) => `split epic ${n} into ${pluriel(Array.isArray(p.tickets) ? p.tickets.length : 0, "ticket")}` },
       { type: "manager.split-asked", dire: (_, n) => `asked you a question on epic ${n}` },
@@ -85,6 +86,8 @@ export const ROLES: readonly Role[] = [
       { type: "manager.requalified", dire: (p, n) => parmi(RELECTURES, p.outcome, n, `re-read ${n}`) },
       { type: "manager.completed", dire: (p, n) => (p.outcome === "completed" ? `completed ${n} itself and put it on the rail` : p.outcome === "question" ? `asked you a product question on ${n}` : `re-read incomplete ${n}`) },
       { type: "manager.capability-resplit", dire: (_, n) => `rewrote ${n}: no station has what it asks` },
+      { type: "manager.roadmap-cleared", dire: (_, n) => `cleared roadmap ${n}: a tracking document asks nothing` },
+      { type: "manager.roadmap-filed", dire: (p, n) => (typeof p.issue === "number" ? `filed #${p.issue}, separate work spotted in roadmap ${n}` : `filed separate work spotted in roadmap ${n}`) },
       { type: "manager.capability-gestured", dire: (_, n) => `asked you for an access ${n} needs` },
     ],
   },
