@@ -10,19 +10,17 @@
 // - quand le cook s'arrête en disant qu'il lui manque des commits de la base
 //   (`demandeLaBase`) : la station rapatrie et fusionne `origin/<base>` dans
 //   sa branche, puis le ticket repart à un cook depuis elle (`apresLaMiseAJour`).
-//   Si elle n'y arrive pas — conflit, refus, réseau —, elle ouvre un ticket
-//   `fix` sous les labels de réparation du manager (`renvois.ts`), et le ticket
-//   l'attend sur le rail : jamais de carte TODO, jamais `blocked-on-human`.
+//   Si elle n'y arrive pas — conflit, refus, réseau —, le ticket revient à son
+//   propre cook, conflit nommé (`conflit-main/`, #3476) : jamais un ticket
+//   neuf, jamais de carte TODO, jamais `blocked-on-human`.
 //
 // Différent de #2953 (`renvoi-conflit.ts`) : là, la PR est déjà en conflit et
 // la fusion, non commitée, est laissée au cook ; ici, la fusion est commitée
 // par la station ou défaite, et le worktree reste propre. Différent de #2968
 // (`attente-ticket.ts`) : là, le travail attendu n'est pas encore mergé.
-import { lesMotsDuCook, MARQUE_D_ATTENTE_DE_TICKET } from "../attente-ticket/attente-ticket.ts";
-import { LABEL_FIX, marqueDeFix, PRIO_DU_FIX } from "../github-seul/renvois/renvois.ts";
-import { LABEL } from "../github.ts";
+import { lesMotsDuCook } from "../attente-ticket/attente-ticket.ts";
+import { corpsDuRenvoiPourConflit } from "../conflit-main/renvoi.ts";
 import type { LanceurGit, SortieGit } from "../integration-base.ts";
-import { CALIBRAGE_REPARATION } from "../reparation.ts";
 
 export type MiseAJourDeLaBranche =
   // La branche portait déjà la tête de `origin/<base>` : rien n'a bougé.
@@ -76,73 +74,25 @@ export function demandeLaBase(question: string, base: string): boolean {
   return question.split(/(?<=[.!?])\s+|\n+/).some((phrase) => nommee.test(phrase) && BESOIN.test(phrase));
 }
 
-// Le ticket `fix` d'une mise à jour que la station n'a pas pu faire : sous les
-// labels du `fix` que le manager ouvre (`renvois.ts`), au calibrage d'une
-// réparation, et marqué du ticket qu'il répare, pour qu'il n'en ouvre pas d'autre.
-export function ticketDuFix({ ticket, base, branche, miseAJour, question }: { ticket: number; base: string; branche: string; miseAJour: Extract<MiseAJourDeLaBranche, { etat: "echec" }>; question: string }) {
-  const ou = miseAJour.etape === "merge" && miseAJour.fichiers.length > 0 ? `the merge stopped on conflicts in ${miseAJour.fichiers.map((f) => `\`${f}\``).join(", ")}` : `\`git ${miseAJour.etape === "recolte" ? "commit" : miseAJour.etape}\` failed`;
-  return {
-    titre: `The kitchen could not bring \`${branche}\` up to date with \`origin/${base}\` for #${ticket}`,
-    corps: [
-      marqueDeFix(ticket),
-      "",
-      "## Context",
-      "",
-      `The cook of #${ticket} stopped: it needs commits that are on \`origin/${base}\` and not on its branch \`${branche}\`. The kitchen fetched and tried to merge \`origin/${base}\` into the branch itself, and could not: ${ou}. The attempt was undone; the branch is as the cook left it.`,
-      "",
-      "Git said:",
-      "",
-      "```",
-      miseAJour.detail,
-      "```",
-      "",
-      ...lesMotsDuCook(question),
-      "",
-      "## Acceptance criteria",
-      "",
-      `- \`${branche}\` contains the current \`origin/${base}\` tip, or the reason the kitchen cannot merge it is fixed in the kitchen`,
-      `- #${ticket} waits for this ticket on the rail and goes back to a cook once it is served`,
-    ].join("\n"),
-    labels: [LABEL, LABEL_FIX, PRIO_DU_FIX, `model:${CALIBRAGE_REPARATION.model}`, `effort:${CALIBRAGE_REPARATION.effort}`],
-  };
-}
-
 export type GitHubDeLaMiseAJour = {
   commenter(numero: number, corps: string): Promise<void>;
-  creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
 };
 
 // Ce que devient le ticket d'un cook arrêté sur la base, une fois la mise à
-// jour tentée : fusionnée, il repart à un cook depuis sa branche ; en échec,
-// la station ouvre son ticket `fix` et le ticket l'attend sur le rail
-// (la marque d'attente de `attente-ticket.ts`, que la porte de prise relit). Un `fix` qui ne s'ouvre
-// pas est dit sur l'issue, et le ticket repart quand même : rien ne va au chef.
-// Rend le `fix` ouvert, ou null.
+// jour tentée : fusionnée, il repart à un cook depuis sa branche ; en échec, il
+// revient à son propre cook, qui reçoit la fusion à faire et, en conflit, ses
+// fichiers (`conflit-main/`, #3476) — jamais un ticket neuf, jamais le chef.
 export async function apresLaMiseAJour(
   github: GitHubDeLaMiseAJour,
   { station, ticket, base, branche, question, miseAJour }: { station: string; ticket: number; base: string; branche: string; question: string; miseAJour: Exclude<MiseAJourDeLaBranche, { etat: "deja" }> },
-): Promise<{ fix: number | null; dit: string }> {
+): Promise<{ dit: string }> {
   if (miseAJour.etat === "fusionnee") {
     await github.commenter(
       ticket,
       `Station \`${station}\`: the cook stopped because it needs commits that are on \`origin/${base}\` and not on its branch. The station fetched \`origin/${base}\` and merged it into \`${branche}\`: the ticket goes back to a cook, from that branch. Nothing here is for the chef, and this stop is not counted among the ticket's tries.\n\n${lesMotsDuCook(question).join("\n")}`,
     );
-    return { fix: null, dit: `the station merged \`origin/${base}\` into \`${branche}\`: the ticket goes back to a cook` };
+    return { dit: `the station merged \`origin/${base}\` into \`${branche}\`: the ticket goes back to a cook` };
   }
-  let fix: number;
-  try {
-    fix = await github.creerIssue(ticketDuFix({ ticket, base, branche, miseAJour, question }));
-  } catch (erreur) {
-    const pourquoi = erreur instanceof Error ? erreur.message : String(erreur);
-    await github.commenter(
-      ticket,
-      `Station \`${station}\`: the cook stopped because it needs commits that are on \`origin/${base}\` and not on its branch. The station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}: ${miseAJour.detail}), nor open its \`fix\` ticket (${pourquoi}). The ticket goes back to a cook; nothing here is for the chef, and this stop is not counted among the ticket's tries.`,
-    );
-    return { fix: null, dit: `the station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}), nor open its fix ticket (${pourquoi}): the ticket goes back to a cook` };
-  }
-  await github.commenter(
-    ticket,
-    `${MARQUE_D_ATTENTE_DE_TICKET} #${fix} -->\nStation \`${station}\`: the cook stopped because it needs commits that are on \`origin/${base}\` and not on its branch. The station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}: ${miseAJour.detail}) and opened the \`fix\` ticket #${fix}. Nothing here is for the chef: the ticket waits on the rail for #${fix}, and a cook takes it on its own once it is served. This stop is not counted among the ticket's tries.\n\n${lesMotsDuCook(question).join("\n")}`,
-  );
-  return { fix, dit: `the station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}): it opened the fix ticket #${fix}, which the ticket waits for` };
+  await github.commenter(ticket, corpsDuRenvoiPourConflit({ station, base, branche, fichiers: miseAJour.fichiers, detail: `${miseAJour.etape}: ${miseAJour.detail}`, question }));
+  return { dit: `the station could not merge \`origin/${base}\` into \`${branche}\` (${miseAJour.etape}${miseAJour.fichiers.length > 0 ? `, conflicts in ${miseAJour.fichiers.join(", ")}` : ""}): the ticket goes back to its own cook` };
 }

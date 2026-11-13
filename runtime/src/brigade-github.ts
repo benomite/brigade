@@ -65,6 +65,8 @@ import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
+import { degelerLesConflits, partirSurLaBase, renvoisPourLaBase, suiteDuConflitBloque } from "./conflit-main/conflit-main.ts";
+import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renvoi.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
@@ -264,7 +266,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[] } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[] } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -848,6 +850,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : #${issue} sur ${nom} — the cook asked for a GitHub gesture: the station made it (${fait.fait.join(" ")}), the ticket goes back to a cook`);
       return "liberee";
     }
+    // Un geste git n'est jamais une carte du chef (#3476) : le ticket revient à
+    // son propre cook, qui met lui-même sa branche à jour de la base.
+    if (avis.issue === "geste" && geste === null && demandeUnGesteGit(avis.geste)) {
+      const deja = await renvoisPourLaBase(github, issue);
+      if (typeof deja !== "number") return deja;
+      if (deja + 1 > ECHECS_MAX) return { echec: `the cook declared itself blocked on a git gesture, ${deja + 1} times, and no card is posted for such a gesture: ${avis.geste}` };
+      avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked on a git gesture (${avis.geste}): no card for the chef, the ticket goes back to its own cook`);
+      await github.commenter(issue, corpsDuRenvoiPourConflit({ station: nom, base, branche: brancheDuTicket(issue), fichiers: [], detail: `the manager read a git gesture: ${avis.geste}`, ...(questionEn === null ? {} : { question: questionEn }) }));
+      return "liberee";
+    }
     avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked, and the manager read ${avis.issue === "geste" ? "a gesture only the chef can make" : `a ${avis.issue === "produit" ? "product" : "design"} decision`}: the ticket goes to the chef`);
     const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, corpsDeLaCarte({ station: nom, questionEn, avis }));
     if (!pose.pose) avertir(`brigade : ${pose.echec}`);
@@ -942,6 +954,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // qu'il est seul à pouvoir faire (#2894). Relue, sa livraison partielle revenait rouge à un cook qui se
       // déclarait bloqué à son tour : 6 des 13 relectures bloquantes de
       // BOBL-tech/espace (#798 quatre fois, #755 deux fois) (#2805).
+      if ("bloque" in fait) {
+        // Il résolvait un conflit de sa branche avec la base : un geste git ou
+        // une question technique lui revient, le conflit toujours nommé ; seul
+        // un choix de produit ou de design va au chef, en mots de produit (#3476).
+        if (fait.conflit !== undefined) {
+          const consulter = options.consulter;
+          const suite = await suiteDuConflitBloque(github, {
+            station: nom,
+            ticket: issue,
+            base,
+            branche: brancheDuTicket(issue),
+            fichiers: fait.conflit,
+            question: fait.bloque,
+            ...(consulter === undefined ? {} : { consulter: (question: string) => consulter(ticket, { question, reponses: [] }) }),
+          });
+          if ("suite" in suite) {
+            avertir(`brigade : #${issue} sur ${nom} — ${suite.dit}`);
+            chrono.rater(issue);
+            await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+            liberee = suite.suite === "liberee";
+            return;
+          }
+          fait = suite;
+        }
+      }
       if ("bloque" in fait) {
         // Il lui manquait des commits de la base, et la station l'a fusionnée
         // dans sa branche — ou ouvert le `fix` qu'elle attend : le ticket
@@ -1320,6 +1357,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     return true;
   };
 
+  // Les cartes `blocked-on-human` que le dégel a déjà relues (#3476).
+  const cartesExaminees = new Set<number>();
   const tour = async () => {
     renvoyes.clear();
     retenuesDuTour.clear();
@@ -1332,7 +1371,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
     const tenusAvant = tenusDuTour;
     tenusDuTour = new Map();
-    const { tickets: lus } = await guerir(await github.fires(), new Set(enVol.keys()), tenusAvant);
+    const { tickets: gueris } = await guerir(await github.fires(), new Set(enVol.keys()), tenusAvant);
+    // Ce que l'ancien chemin du conflit avec la base a laissé — un ticket ouvert
+    // pour changer la branche d'un autre, une carte qui demande un geste git au
+    // chef — se défait avant que le tour ne lise ses tickets (#3476).
+    const degel = await degelerLesConflits(github, { station: nom, base, tickets: gueris, enVol: new Set(enVol.keys()), examinees: cartesExaminees, avertir });
+    const lus = gueris.filter(({ number }) => !degel.fermes.has(number)).map((ticket) => (degel.rendus.has(ticket.number) ? { ...ticket, labels: ticket.labels.filter((label) => label !== A_LA_MAIN) } : ticket));
     await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a served-elsewhere lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
     if (clone !== undefined && corrigerLeTemps !== null) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
@@ -2397,20 +2441,32 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Au départ du cook, sa branche porte la tête de `origin/<base>` (#3001).
     // Une branche neuve en part déjà : `preparer` vient de la rapatrier. Une
     // branche reprise, la station la rapatrie et l'y fusionne ; en conflit,
-    // elle suit le renvoi pour conflit, juste après. Une fusion qui bute est
-    // défaite, et le cook part de sa branche telle quelle. La fusion n'est pas
-    // une livraison du cook : c'est d'elle que se compte ce qu'il ajoute.
+    // elle suit le renvoi pour conflit, juste après. Une fusion qui bute sur
+    // des conflits revient au cook du ticket lui-même : la station la retente
+    // sans commit et lui laisse les marqueurs, fichiers nommés (#3476). Une
+    // fusion qui échoue autrement est défaite, et le cook part de sa branche
+    // telle quelle. La fusion n'est pas une livraison du cook : c'est d'elle
+    // que se compte ce qu'il ajoute.
+    let consigneIntegree: string | null = null;
+    // Les fichiers en conflit avec la base que ce cook a reçus à résoudre (#3476).
+    let conflit: string[] | null = null;
     if (reprise && !enConflit && lancerGit !== undefined) {
-      const depart = await mettreAJourLaBranche(lancerGit, worktree, base);
+      const depart = await partirSurLaBase(lancerGit, worktree, base);
       if (depart.etat === "fusionnee" && avant !== null) avant = depot.tete?.(branche) ?? avant;
+      if (depart.etat === "conflit") {
+        conflit = depart.fichiers;
+        consigneIntegree = depart.consigne;
+        resteAFaire = `\`${branche}\` does not take \`origin/${base}\` as is`;
+        avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` conflicts with \`origin/${base}\`${depart.fichiers.length > 0 ? ` in ${depart.fichiers.join(", ")}` : ""}: the ticket's own cook resolves it in its branch`);
+      }
       if (depart.etat === "echec") avertir(`brigade : #${ticket.number} sur ${nom} — the station could not bring \`${branche}\` up to date with \`origin/${base}\` before the cook (${depart.etape}: ${depart.detail}): the cook starts from its branch as is`);
     }
     // Un renvoi pour conflit : la station intègre la base avant le cook, qui
     // reçoit la branche avec la fusion tentée, conflits non commités (#2953).
-    let consigneIntegree: string | null = null;
     if (enConflit && lancerGit !== undefined) {
       const integration = await integrerAvantLeCook(lancerGit, worktree, base);
       consigneIntegree = consigneDeLIntegration(integration, base);
+      if (integration.etat === "conflit") conflit = integration.fichiers;
       if (integration.etat === "echec") avertir(`brigade : #${ticket.number} sur ${nom} — the station could not merge \`origin/${base}\` (${integration.etape}: ${integration.detail}): the cook does it itself`);
     }
     if (resteAFaire !== null && consigneIntegree !== null) {
@@ -2478,7 +2534,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // laissé, rapatrie `origin/<base>` et la fusionne dans sa branche (#3001).
     // `cuire` en fait la suite, sans carte pour le chef.
     let miseAJour: MiseAJourDeLaBranche | undefined;
-    if (question !== null && !integree && lancerGit !== undefined && demandeLaBase(question, base)) {
+    // Arrêté sur un conflit qu'il avait à résoudre, le cook n'en laisse rien
+    // de récolté : la fusion non commitée est défaite, marqueurs compris, et le
+    // cook suivant la reçoit à nouveau de la station (#3476).
+    if (question !== null && !integree && conflit !== null && lancerGit !== undefined) {
+      const defaite = await lancerGit(["merge", "--abort"], worktree).catch(() => null);
+      if (defaite === null || (defaite.code !== 0 && !/MERGE_HEAD missing|no merge to abort/i.test(defaite.stderr))) await lancerGit(["reset", "--hard", "--quiet", "HEAD"], worktree).catch(() => null);
+    }
+    if (question !== null && !integree && conflit === null && lancerGit !== undefined && demandeLaBase(question, base)) {
       try {
         depot.recolter?.(worktree, branche);
         miseAJour = await mettreAJourLaBranche(lancerGit, worktree, base);
@@ -2503,7 +2566,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work stays only in the clone, \`${branche}\` could not be pushed: ${message(erreur)}`);
         }
       }
-      return { bloque: question, ...(miseAJour === undefined ? {} : { miseAJour }) };
+      return { bloque: question, ...(miseAJour === undefined ? {} : { miseAJour }), ...(conflit === null ? {} : { conflit }) };
     }
     // Il dit que le ticket est déjà satisfait sur la base : la station le vérifie
     // avant que le worktree ne soit rangé, puisque les gates s'y jouent (#3146).
