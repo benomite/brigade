@@ -3885,6 +3885,7 @@ section. With the section laid, `right now` is not repeated under it.
 The band at the top of the Rail tab is an order book above the rail: **one tag per open need that is not on the rail**. A need (an epic, an idea or a decision to make) is not a ticket. It is split into tickets, and the tickets are the ones that move on the rail; the band keeps the need until it is served.
 
 - **The folded line**: by default the band is one line: the title **Backlog**, the count of needs before the rail, then the tags. Each need is a tag: its priority, a short title, then its progress as `served/total` for a split need, or a plain-words state otherwise.
+- **A split need's progress comes from its ticket list** (#3480): when the need's issue lists its tickets as a task list, one `- [ ] #<ticket>` line per ticket, checked once that ticket is served, its tag says the checked lines over all the lines — `2/5`, or `5/5 served` once every line is checked; the hover says it in words. A need with no such list shows nothing more than before.
 - **Red tags come first**: a tag that awaits the chef is red and stands before the others.
 - **`+N` overflow**: a `+N` tag stands for the needs the line does not show; on a phone-width window the line scrolls sideways instead.
 - **Click on a tag**: unfolds the band with that need's detail and highlights its tickets in the rail.

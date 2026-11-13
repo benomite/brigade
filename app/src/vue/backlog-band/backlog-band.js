@@ -16,6 +16,8 @@
 // Tout ce qu'il dit vient de la lecture de ce qui est avant le rail (amont.ts) et des colonnes du rail (faits.ts) : rien
 // n'est deviné. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
+import { poserAvancement, progresDuBesoin } from "../backlog/avancement.js";
+
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../amont.ts").Vu} Vu */
 /** @typedef {import("../../amont.ts").Issue} Issue */
@@ -108,7 +110,8 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
         comptes.set(nom, (comptes.get(nom) ?? 0) + 1);
       }
       const etapes = tickets.length === 0 ? [] : [...ETAPES.map(({ nom }) => ({ nom, nombre: comptes.get(nom) ?? 0 })), ...(comptes.has(PAS_SUR_LE_RAIL) ? [{ nom: PAS_SUR_LE_RAIL, nombre: comptes.get(PAS_SUR_LE_RAIL) ?? 0 }] : [])];
-      const progres = tickets.length === 0 ? null : { servis: comptes.get("served") ?? 0, total: tickets.length };
+      // La liste de cases à cocher de son issue d'abord, s'il en porte une (backlog/avancement.js, #3480).
+      const progres = progresDuBesoin(issue, tickets.length === 0 ? null : { servis: comptes.get("served") ?? 0, total: tickets.length });
       const carte = duChef.get(issue.ticket);
       /** @type {Besoin} */
       const besoin = {
@@ -177,9 +180,8 @@ function etiquette(doc, besoin, choisi, gestes) {
   if (besoin.rouge) tag.dataset.rouge = "";
   if (besoin.servi) tag.dataset.servi = "";
   tag.ariaPressed = String(choisi);
-  const etat = besoin.progres === null ? (besoin.rouge ? ATTEND : besoin.mot) : `${besoin.progres.servis}/${besoin.progres.total}${besoin.servi ? " served" : ""}`;
   tag.title = `#${besoin.ticket} ${besoin.titre} — ${besoin.rouge ? `${ATTEND} — ` : ""}${besoin.dit}`;
-  tag.append(noeud(doc, "span", "backlog-tag-prio", prioDe(besoin.priorite)), noeud(doc, "span", "backlog-tag-titre", besoin.court), noeud(doc, "span", "backlog-tag-etat", etat));
+  tag.append(noeud(doc, "span", "backlog-tag-prio", prioDe(besoin.priorite)), noeud(doc, "span", "backlog-tag-titre", besoin.court), besoin.progres === null ? noeud(doc, "span", "backlog-tag-etat", besoin.rouge ? ATTEND : besoin.mot) : poserAvancement(doc, besoin.progres));
   tag.addEventListener("click", () => gestes.choisir(besoin.ticket));
   return tag;
 }
