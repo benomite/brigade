@@ -40,7 +40,7 @@ export function quotaGithubLu(brut: unknown): QuotaGithub | null {
 
 // La station est-elle en pause à cet instant : sa reprise est à venir ; ou elle ne la sait pas, et son quota ne dit pas
 // qu'il lui reste des appels.
-export function enPause({ pauseJusqua, utilise, maximum }: QuotaGithub, maintenant: number): boolean {
+function enPause({ pauseJusqua, utilise, maximum }: QuotaGithub, maintenant: number): boolean {
   if (pauseJusqua !== null) return Date.parse(pauseJusqua) > maintenant;
   return !(utilise !== null && maximum !== null && utilise < maximum);
 }

@@ -123,8 +123,6 @@ export function tenirLaPause(element, doc, options) {
     },
     // Le compte à rebours : appelé chaque seconde.
     battre: poser,
-    /** @returns {PauseDuCompte | undefined} */
-    vue: () => (enCours(pause, options.maintenant()) ? pause : undefined),
   };
 }
 
