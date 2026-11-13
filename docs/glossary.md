@@ -40,8 +40,9 @@ Related terms built on « cuisine »:
 | `dérive` | `drift` | Measures that crossed a declared threshold |
 | `consommé` | `consumed` | What launches have spent (in flight, 5 h window, 24 h) |
 | `attend` (bloc, ligne, pilule) | `awaiting` | What waits for the chef's decision. Block `attend` … `fin attend` → `awaiting` … `end awaiting` |
-| `T'attend` | `Awaiting you` | The rail column and card pill of the same object |
-| `Attend les autres` | `Awaiting others` | The folded section that closes Awaiting you: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071) |
+| `TODO` | `TODO` | What awaits the chef, a property of a ticket, not a step of the rail: shown as red cards, first in the column of their stage, and named by the filter `TODO (N)` of a project's view, N the number of red cards. Not a column (#3458) |
+| `T'attend` | `Awaiting you` | The card pill of the same object, and the phone's list of the cards that await the chef — no longer a rail column (#3458) |
+| `Attend les autres` | `Awaiting others` | The folded section next to `TODO (N)`, outside the columns: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071, #3458) |
 | `attend` (ligne de la fiche) | `awaiting` | The same word, same translation: a ticket that waits for another ticket, in its card (`attend : #12` → `awaiting: #12`) |
 | `en attente` | `queued` | A ticket on the rail not yet taken |
 | `pris` / `en cuisine` / `Au travail` | `taken` / `Taken` | A cook holds the ticket (see §1) |
@@ -62,7 +63,7 @@ Related terms built on « cuisine »:
 | `sensible` | `sensitive` | A ticket marked as touching a migration, security, a payment or the deletion of user data. See [sensitive-tickets.md](sensitive-tickets.md) |
 | `relecture avant merge` | `review before merge` | The TODO card a sensitive ticket waits on after the pass. See [sensitive-tickets.md](sensitive-tickets.md) |
 | `carte` (de projet) | `tile` | A project's summary in All projects |
-| `bon` | `slip` | One entry of Awaiting you |
+| `bon` | `slip` | One card of the rail |
 | `découpage` | `split` | Cutting an epic into tickets |
 | `épique` | `epic` | A ticket that groups tickets |
 | `calibrage` | `calibration` | Model and effort given to a role |
@@ -166,7 +167,7 @@ The app reads each form in both languages, whole; a line mixing the two in one f
 | `Au travail` | `Taken` |
 | `Pass` | `Pass` |
 | `Livré` | `Served` |
-| `T'attend` | `Awaiting you` |
+| `T'attend` | `Awaiting you` (the card pill, the phone's list) |
 | `rail` / `au travail` / `à la pass` / `t'attend` / `livrés 24 h` | `rail` / `taken` / `at pass` / `awaiting you` / `served 24 h` |
 | `Ce qui empêche de tourner` | `What stops it running` |
 | `projet éteint` | `project off` |

@@ -2,7 +2,7 @@
 // La vue : elle montre, elle ne tient rien. Les pty vivent dans le process
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
-// Au centre de l'espace, le rail : c'est la vue centrale, en six colonnes. Chaque carte y
+// Au centre de l'espace, le rail : c'est la vue centrale, en cinq colonnes — TODO n'en est pas une (ticket 3458). Chaque carte y
 // tient en deux lignes — une phrase qui dit ce qui se passe, un signal s'il faut l'attention — ;
 // ce que la file dit du ticket en plus (qui le tient, depuis quand, son bail) est dans sa fiche. En haut, les onglets de pages — Rail, Stations,
 // Settings, Log : chacune la sortie d'une commande, lue tant qu'elle est affichée — ; une
@@ -111,6 +111,7 @@ import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { poserLesAutres } from "./todo/autres.js";
+import { LISTE_DU_CHEF, estRouge, poserLEntree as poserLEntreeTodo, rangerLeRail } from "./todo/todo.js";
 import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, REPOS as REPRISE_AU_REPOS } from "./todo-breaker-line.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
@@ -213,12 +214,15 @@ ecranEtroit?.addEventListener?.("change", () => {
   marquer();
   montrer();
 });
-// La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
-const COLONNE_QUI_T_ATTEND = "Awaiting you";
+// La liste de ce qui attend le chef, que le process principal range à part (faits.ts) : jamais une colonne à l'écran — ses
+// cartes sont rouges dans la colonne de leur étape (todo/todo.js, ticket 3458).
+const COLONNE_QUI_T_ATTEND = LISTE_DU_CHEF;
 const SUR_LE_RAIL = "On the rail";
-// Les colonnes où quelque chose attend le chef ou bouge : Awaiting you, Taken, Pass. Les autres — On the rail, Waiting, Served — se
+// Les colonnes où quelque chose bouge : Taken, Pass — et toute colonne où une carte rouge attend le chef. Les autres se
 // lisent en défilant, si elles sont hors de vue (ticket 1556).
-const COLONNES_ACTIVES = new Set([COLONNE_QUI_T_ATTEND, "Taken", "Pass"]);
+const COLONNES_ACTIVES = new Set(["Taken", "Pass"]);
+// Les projets dont le chef a posé le filtre TODO : seules les cartes qui l'attendent restent (ticket 3458).
+const filtresTodo = new Set();
 // Les projets dont la rangée des colonnes a déjà été placée à l'ouverture : ensuite, la lecture suivante garde le défilement du chef.
 const rangeesPlacees = new Set();
 // Le projet et l'onglet que le rail montrait à sa dernière pose : redessiné pour le même, il garde le défilement de la
@@ -1083,7 +1087,7 @@ const alerteDuDisjoncteur = (nom) => (bandes.get(nom) ?? []).find(({ appel }) =>
 const depots = new Map();
 /** @type {Map<string, import("./todo-breaker-line.js").Etat>} */
 const reprises = new Map();
-// Les projets dont le dernier rail posé porte la ligne du disjoncteur en tête de TODO : la bande ne la redit pas.
+// Les projets dont le dernier rail posé porte la ligne du disjoncteur à côté de l'entrée TODO : la bande ne la redit pas.
 /** @type {Set<string>} */
 const disjoncteursEnTodo = new Set();
 // Ce que chaque bande dit de son projet sur sa case de la barre (alertes.ts, `signalDe`), et les
@@ -2826,7 +2830,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
       : "the address the station returned for this ticket is not https: the app does not open it";
   const pose = { numero, hors: horsColonne, ...(etat === undefined ? {} : { mot: motDEtat ?? etat, ...(horsColonne ? {} : { etat: etatDeColonne ?? etatDuTon(ton) }) }) };
   // Une carte qui attend un autre humain (« Awaiting others ») garde la carte d'attente, sans dire qu'elle t'attend (ticket 3071).
-  const bon = attendu ? carteAttente(document, { ...pose, attendu: carte.qui === undefined }) : bonDeLaFamille(document, pose);
+  // Une carte de WAITING dont la relance est passée revient au chef : rouge, dans WAITING (ticket 3458).
+  const bon = attendu || carte.relancePassee === true ? carteAttente(document, { ...pose, attendu: carte.qui === undefined }) : bonDeLaFamille(document, pose);
   bon.dataset.ticket = String(ticket);
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
   // clique déjà — son numéro, sa PR, ses remarques — garde son geste ; un texte
@@ -4928,7 +4933,8 @@ function lignesDeCetOrdinateur(projet) {
   return creees;
 }
 
-// Le rail en six colonnes — On the rail, Taken, Pass, Awaiting you, Waiting, Served (ticket 2093, titres du ticket 2922) —,
+// Le rail en cinq colonnes — On the rail, Taken, Pass, Waiting, Served (ticket 2093, titres du ticket 2922), ce qui attend le
+// chef rouge dans la colonne de son étape et compté par « TODO (N) » (ticket 3458) —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
 // — la file, ce qui est en amont —, puis toutes les colonnes, Taken et Pass compris, sans rien
@@ -5025,8 +5031,11 @@ function poserLeRail(projet) {
   oublierLesReponsesPerimees(projet, lues);
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], autres: undefined, vide: "not known while the station is unreachable" }));
-  // Le kanban est entier sur Rail, Taken et Pass compris.
-  const colonnes = toutes;
+  // Le kanban est entier sur Rail, Taken et Pass compris. TODO n'en est pas une colonne : ses cartes sont rouges en tête
+  // de la colonne de leur étape, et l'entrée « TODO (N) » les filtre (ticket 3458).
+  const filtre = filtresTodo.has(projet.nom);
+  const range = rangerLeRail(toutes, filtre);
+  const { colonnes, autres: dAutrui } = range;
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
   const lesCartes = [...toutes.flatMap(({ cartes: siennes, autres: dAutrui }) => [...siennes, ...(dAutrui ?? [])]), ...hors];
   // Ce sur quoi un agent travaille porte la poêle (ticket 2984) — jamais d'une lecture dont l'app ne sait plus si elle dit
@@ -5037,20 +5046,21 @@ function poserLeRail(projet) {
     const liste = document.createElement("ol");
     liste.append(
       ...cartes.map((carte) => {
-        const bon = poserBon(projet, carte, etat, avecStation, horsColonne, !carte.attendu && enCuisson.has(carte.ticket));
+        // Une carte rouge garde la pastille de son propre état, comme dans TODO : la colonne dit son étape (ticket 3458).
+        const bon = poserBon(projet, carte, estRouge(carte) ? undefined : etat, avecStation, horsColonne, !carte.attendu && enCuisson.has(carte.ticket));
         posees.set(carte, bon);
         return bon;
       }),
     );
     return liste;
   };
-  // Le disjoncteur ouvert : sa ligne en tête de TODO, et son seul bouton « Resume » (ticket 2140) — pas quand la box ne
-  // répond pas : ce que TODO contenait n'est plus lu.
+  // Le disjoncteur ouvert : sa ligne à côté de l'entrée TODO, hors des colonnes, et son seul bouton « Resume » (ticket 2140) —
+  // pas quand la box ne répond pas : ce que TODO contenait n'est plus lu.
   const disjoncteur = muet === undefined ? alerteDuDisjoncteur(projet.nom) : undefined;
   const grille = document.createElement("div");
   grille.className = "colonnes";
   grille.append(
-    ...colonnes.map(({ nom, ton, compte, cartes, vide, defile, autres }) => {
+    ...colonnes.map(({ nom, ton, compte, cartes, vide, defile }) => {
       const colonne = document.createElement("section");
       colonne.className = "colonne";
       colonne.dataset.ton = ton;
@@ -5058,42 +5068,66 @@ function poserLeRail(projet) {
       colonne.dataset.colonne = nom;
       // Livré s'allonge tout le jour : ses cartes défilent dans leur hauteur, les autres colonnes restent en vue.
       if (defile) colonne.dataset.defile = "";
-      if (nom === COLONNE_QUI_T_ATTEND) colonne.dataset.attend = "";
+      // Une carte rouge y attend le chef (ticket 3458).
+      const rouge = cartes.some(estRouge);
+      if (rouge) colonne.dataset.attend = "";
       // Ce qui attend le chef, ou bouge : sa colonne est en vue à l'ouverture du rail (ticket 1556).
-      if (cartes.length > 0 && COLONNES_ACTIVES.has(nom)) colonne.dataset.actif = "";
+      if (cartes.length > 0 && (COLONNES_ACTIVES.has(nom) || rouge)) colonne.dataset.actif = "";
       const tete = document.createElement("h4");
       tete.append(pastilleDEtat(document, etatDuTon(ton), nom), bloc("span", compte));
       colonne.append(tete);
-      // Pass, Awaiting you — le TODO — et Waiting — WAITING — : l'explication de leur mot, sous leur titre (ticket 3308).
+      // Pass et Waiting — WAITING — : l'explication de leur mot, sous leur titre (ticket 3308).
       const motDeLaColonne = MOT_DE_LA_COLONNE[nom];
       if (motDeLaColonne !== undefined && muet === undefined) colonne.append(...explicationDuRail(projet.nom, motDeLaColonne));
-      const avecDisjoncteur = nom === COLONNE_QUI_T_ATTEND && disjoncteur !== undefined;
-      if (avecDisjoncteur) {
-        disjoncteursEnTodo.add(projet.nom);
-        colonne.dataset.actif = "";
-        colonne.append(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined));
-      }
-      // Le projet pas préparé pour Brigade le dit en tête de TODO, avec le même bouton que sa page (ticket 2628).
-      const avisDeDepot = nom === COLONNE_QUI_T_ATTEND ? avisDuDepot(projet, "todo") : undefined;
-      if (avisDeDepot !== undefined) colonne.append(avisDeDepot);
-      // Les réponses que le chef tapait sur une carte partie de TODO entre-temps restent dans TODO, résolues (ticket 2151).
-      const resolues = nom === COLONNE_QUI_T_ATTEND && muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
-      // Sous la ligne du disjoncteur, une colonne sans carte ne dit pas que rien ne t'attend.
-      if (cartes.length > 0 || resolues.length > 0) {
-        const liste = bons(cartes, nom === COLONNE_QUI_T_ATTEND ? undefined : etatDuTon(ton), tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass"));
-        liste.append(...resolues);
-        colonne.append(liste);
-      } else if (!avecDisjoncteur) colonne.append(bloc("p", nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
-      // Ce qui attend un autre humain du projet ferme TODO, replié sous son nombre (ticket 2985).
-      const deAutrui = nom === COLONNE_QUI_T_ATTEND ? poserLesAutres(document, { autres, bons, deplie: autresDeplies.has(projet.nom), deplier: (ouvert) => void (ouvert ? autresDeplies.add(projet.nom) : autresDeplies.delete(projet.nom)) }) : undefined;
-      if (deAutrui !== undefined) colonne.append(deAutrui);
+      if (cartes.length > 0) colonne.append(bons(cartes, etatDuTon(ton), tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass")));
+      else colonne.append(bloc("p", !filtre && nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
       return colonne;
     }),
   );
+  // Ce qui attend le chef sans être une carte du rail, hors des colonnes, à côté de l'entrée « TODO (N) » (ticket 3458) : la
+  // ligne du disjoncteur, le projet pas préparé pour Brigade (ticket 2628), les réponses que le chef tapait sur une carte
+  // partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain du projet, replié (ticket 2985).
+  const duChef = [];
+  if (disjoncteur !== undefined) {
+    disjoncteursEnTodo.add(projet.nom);
+    duChef.push(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined));
+  }
+  const avisDeDepot = avisDuDepot(projet, "todo");
+  if (avisDeDepot !== undefined) duChef.push(avisDeDepot);
+  const resolues = muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
+  if (resolues.length > 0) {
+    const liste = document.createElement("ol");
+    liste.append(...resolues);
+    duChef.push(liste);
+  }
+  const deAutrui = filtre ? undefined : poserLesAutres(document, { autres: dAutrui, bons, deplie: autresDeplies.has(projet.nom), deplier: (ouvert) => void (ouvert ? autresDeplies.add(projet.nom) : autresDeplies.delete(projet.nom)) });
+  if (deAutrui !== undefined) duChef.push(deAutrui);
+  const todo = document.createElement("div");
+  todo.className = "todo-du-rail";
+  todo.ariaLabel = "What awaits you";
+  const entree = poserLEntreeTodo(document, {
+    compte: range.compte,
+    filtre,
+    ...(range.vide === undefined ? {} : { vide: range.vide }),
+    basculer: () => {
+      if (filtresTodo.has(projet.nom)) filtresTodo.delete(projet.nom);
+      else filtresTodo.add(projet.nom);
+      poserRail(projet);
+      // Reposé, le rail rend le clavier à l'entrée.
+      /** @type {HTMLElement | null | undefined} */ (rail.querySelector?.(".entree-todo"))?.focus?.();
+    },
+  });
+  // Aucune carte rouge, ou rien de lu : ce que la liste dit d'elle-même, en une ligne discrète — `nothing awaits you`, ou pourquoi
+  // elle n'est pas lue —, jamais un signe d'alerte. Pas à côté de la ligne du disjoncteur ni d'une réponse gardée, qui attendent.
+  const ditDeLaListe = (range.compte === "0" || range.compte === "?") && disjoncteur === undefined && resolues.length === 0 && range.vide !== undefined && range.vide !== "" ? [bloc("p", range.vide)] : [];
+  for (const dit of ditDeLaListe) dit.className = "todo-vide";
+  // L'explication du mot TODO, à côté de l'entrée qui le porte (ticket 3308).
+  todo.append(entree, ...ditDeLaListe, ...(muet === undefined ? explicationDuRail(projet.nom, "TODO") : []), ...duChef);
   // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail.
-  if (muet !== undefined) return poser(...marque, bandeDuRail(projet), grille);
-  // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail », en tête de la rangée (ticket 2093).
-  const backlog = colonneBacklog(projet, bons);
+  if (muet !== undefined) return poser(...marque, bandeDuRail(projet), todo, grille);
+  // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail », en tête de la rangée (ticket 2093) — pas sous
+  // le filtre TODO : rien n'y attend le chef.
+  const backlog = filtre ? [] : colonneBacklog(projet, bons);
   const avantLeRail = grille.children[colonnes.findIndex(({ nom }) => nom === SUR_LE_RAIL) - 1];
   if (avantLeRail === undefined) grille.prepend(...backlog);
   else avantLeRail.after(...backlog);
@@ -5130,8 +5164,9 @@ function poserLeRail(projet) {
     ...explicationDuRail(projet.nom, "rail"),
     bandeDuRail(projet, tenu.tableau, tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
     ...explicationDuRail(projet.nom, "cook"),
+    todo,
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]),
+    ...(hors.length === 0 || filtre ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]),
   );
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
@@ -6104,6 +6139,20 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
   return rang;
 }
 
+// Le N de « TODO (N) » d'un projet dont le rail est lu, que l'accueil montre aussi (ticket 3458) : le même compte, des mêmes
+// cartes. Rien tant que ce qui attend le chef n'est pas lu — la box muette, la liste pas lue : l'accueil garde alors ce que
+// le process principal en dit (accueil.ts).
+/** @param {string} nom @returns {number | undefined} */
+function compteDuTodo(nom) {
+  const tenu = tenus.get(nom);
+  if (tenu === undefined || !("tableau" in tenu) || muets.has(nom)) return undefined;
+  const { compte } = rangerLeRail(sansLesValidees(tenu.tableau.rail.colonnes, valideesDe(nom)));
+  return compte === "?" ? undefined : Number(compte);
+}
+// Le compte que l'accueil montre de chaque projet, à sa dernière pose : une lecture qui le change le repose.
+/** @type {Map<string, number | undefined>} */
+const todosDeLAccueil = new Map();
+
 // L'accueil : les projets dans l'ordre du fichier, puis les stations, puis la santé — tels que le
 // process principal les a dits (accueil.ts). Un projet qu'il ne dit pas encore attend sa première lecture.
 function poserAccueil() {
@@ -6120,7 +6169,11 @@ function poserAccueil() {
       const attendue = { nom: projet.nom, ton: "gris", dit: "first read in progress…", survol: "" };
       const ligne = lignes.get(projet.nom) ?? attendue;
       const stations = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom)).map(({ nom }) => nom);
-      return { nom: projet.nom, etat: etatDeLaLigne(ligne), stations, maintenant: ligne.dit, ...(ligne.attend === undefined ? {} : { attend: ligne.attend }), survol: `${ligne.dit}${ligne.survol === "" ? "" : ` — ${ligne.survol}`}` };
+      // Ce qui attend le chef : le compte de « TODO (N) » quand son rail est lu, sinon celui du process principal.
+      const todo = compteDuTodo(projet.nom);
+      todosDeLAccueil.set(projet.nom, todo);
+      const attend = todo ?? ligne.attend;
+      return { nom: projet.nom, etat: etatDeLaLigne(ligne), stations, maintenant: ligne.dit, ...(attend === undefined ? {} : { attend }), survol: `${ligne.dit}${ligne.survol === "" ? "" : ` — ${ligne.survol}`}` };
     }),
     gestesDuBloc,
   );
@@ -8824,7 +8877,7 @@ brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
   marquerSignal(projet);
   // La pastille dit la même chose que la bande, en un mot.
   marquerPastille(projet);
-  // Le disjoncteur a changé : sa ligne en tête de « Awaiting you » aussi.
+  // Le disjoncteur a changé : sa ligne à côté de l'entrée TODO aussi.
   if (JSON.stringify(disjoncteur) !== disjoncteurAvant) poserLesCartesDuChef();
   const bascule = JSON.stringify(etatsDuManager.get(projet)) !== JSON.stringify(etatDuManager);
   etatsDuManager.set(projet, etatDuManager);
@@ -8887,6 +8940,8 @@ brigade.surFaits((recue) => {
   // Le premier ticket du premier projet suit chaque lecture de son rail (ticket 3302).
   if ("tableau" in recue) recitDuPremierTicket.observer(recue.projet, recue.tableau.etapesDesTickets);
   poserLesCartesDuChef();
+  // L'accueil affiché dit ce qui attend le chef du même compte que « TODO (N) » : une lecture qui le change le repose.
+  if (courant === undefined && !ajoute && stationOuverte === undefined && todosDeLAccueil.has(recue.projet) && todosDeLAccueil.get(recue.projet) !== compteDuTodo(recue.projet)) poserAccueil();
   // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
   if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {

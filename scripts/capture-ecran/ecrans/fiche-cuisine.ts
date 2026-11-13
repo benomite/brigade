@@ -9,13 +9,13 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { RENDU, SECOND } from "./rail-waiting-commun.ts";
 
 export const ecran: Ecran = {
-  dit: "La fiche de #22, revenu de WAITING dans TODO de « parade » : « back to the kitchen » cliqué et confirmé (#1740), posté sur le tableau de la cuisine",
+  dit: "La fiche de #22, revenu de WAITING au chef, rouge dans le rail de « parade » : « back to the kitchen » cliqué et confirmé (#1740), posté sur le tableau de la cuisine",
   largeur: 1440,
   hauteur: 900,
   etapes: [
     { cliquer: '#projets > button[title^="parade — "]' },
-    // La carte de #22, la seconde de TODO (la quatrième colonne).
-    { cliquer: "#rail .colonne:nth-child(4) li.bon:nth-child(2)" },
+    // La carte de #22, rouge dans la colonne de son étape (#3458).
+    { cliquer: '#rail .colonne li.bon[data-ticket="22"]' },
     { cliquer: '#fiche li[data-geste="cuisine"] button.recommande' },
     { cliquer: "#fiche .gestes-fiche .confirmation button.recommande" },
   ],

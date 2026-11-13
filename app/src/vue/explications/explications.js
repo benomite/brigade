@@ -41,7 +41,7 @@ export const EXPLICATIONS = {
   cook: "A station takes a ticket and runs a cook on it.",
   // §2, `second`.
   second: "Your product assistant, who helps you write the tickets",
-  // §2, `attend` — ce qui attend le chef, sa colonne `Awaiting you` : la première phrase.
+  // §2, `attend` — ce qui attend le chef, ses cartes rouges et l'entrée « TODO (N) » (ticket 3458) : la première phrase.
   TODO: "What waits for the chef's decision.",
   // §2, `WAITING`.
   WAITING: "Waiting for a third party, not for you; the kitchen does not take it",
@@ -49,11 +49,12 @@ export const EXPLICATIONS = {
 
 // Le mot tel que l'écran le montre, en tête de son explication.
 /** @type {Readonly<Record<Mot, string>>} */
-export const MOT_A_L_ECRAN = { rail: "Rail", pass: "Pass", cook: "Cooks", second: "Second", TODO: "Awaiting you", WAITING: "Waiting" };
+export const MOT_A_L_ECRAN = { rail: "Rail", pass: "Pass", cook: "Cooks", second: "Second", TODO: "TODO", WAITING: "Waiting" };
 
-// Les colonnes du rail qui portent un mot : l'explication se pose sous leur titre.
+// Les colonnes du rail qui portent un mot : l'explication se pose sous leur titre. TODO n'est pas une colonne (ticket 3458) :
+// la sienne se pose à côté de l'entrée « TODO (N) ».
 /** @type {Readonly<Record<string, Mot>>} */
-export const MOT_DE_LA_COLONNE = { Pass: "pass", "Awaiting you": "TODO", Waiting: "WAITING" };
+export const MOT_DE_LA_COLONNE = { Pass: "pass", Waiting: "WAITING" };
 
 export const MOTS = {
   ecarter: "got it",

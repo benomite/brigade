@@ -161,7 +161,9 @@ describe("depuis le téléphone, trancher une carte", () => {
     assert.deepEqual(issueDuGeste(vue), [{ classe: "dit", dit: "#31 left the rail", survol: "" }]);
     lire(vue, RETIREE);
     await repos();
-    assert.deepEqual(file(vue)["Awaiting you"], ["#12"]);
+    // #12 attend toujours le chef : rouge, dans Pass, son étape (#3458).
+    assert.deepEqual(file(vue)["Pass"], ["#12"]);
+    assert.equal(rail(vue).dessous("li").find((li) => li.dataset.ticket === "12")?.dataset.carte, "attente");
     assert.ok(!Object.values(file(vue)).flat().includes("#31"), "#31 n'est plus nulle part dans la file");
   });
 });

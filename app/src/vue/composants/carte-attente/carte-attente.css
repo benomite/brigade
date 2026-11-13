@@ -170,7 +170,7 @@
 .bon .carte-todo p.secondaire > span.refus {
   color: var(--rouge);
 }
-/* Dans Awaiting you, le ticket n'est pas un bon mais la carte chaude (ticket 2922, maquette Project.dc.html) : le fond
+/* Qui attend le chef, dans la colonne de son étape (ticket 3458), le ticket n'est pas un bon mais la carte chaude (ticket 2922, maquette Project.dc.html) : le fond
    « ce qui t'attend », son trait, l'arrondi d'une carte ; son titre à voix douce, sa question en grand, la réponse
    recommandée pleine d'accent, les autres choix en boutons ordinaires, « answer in my own words » discret. */
 .bon[data-carte="attente"] {
@@ -254,7 +254,7 @@
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
-/* Dans un TODO plein (ticket 3327 ; le rail pose le conteneur `todo-plein` sur chaque carte), la carte se fait compacte : la question à la
+/* Dans une colonne pleine de cartes rouges (tickets 3327, 3458 ; le rail pose le conteneur `todo-plein` sur chaque carte), la carte se fait compacte : la question à la
    taille du corps, le champ sur une ligne avec « send », sans la ligne de sa sorte (« A product question waits for your answer. »)
    quand la carte pose sa question — le titre et la question disent la même chose, la place est pour eux. Sans question, la ligne
    reste : elle est tout ce que la carte dit. */

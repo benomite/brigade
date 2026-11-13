@@ -384,6 +384,8 @@ async function jusqua(fait: () => boolean): Promise<void> {
   for (let tour = 0; tour < 2000 && !fait(); tour++) await repos();
   assert.ok(fait(), "the fact never came");
 }
+// Les cartes rouges du rail, qui attendent le chef dans la colonne de leur étape (#3458).
+const rouges = (vue: Jouee) => vue.element("rail").dessous("li").filter((li) => li.dataset.carte === "attente").map((li) => li.children[0]?.children[0]?.textContent);
 const colonnesVues = (vue: Jouee) =>
   Object.fromEntries(
     vue
@@ -439,9 +441,10 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
     await jusqua(() => ["cantine", "parade"].every((nom) => vue.element("projets").children.some((pose) => pose.ariaLabel?.split(" — ")[0] === nom)));
     assert.match(vue.element("connexion-github").textContent, /^Signed in to GitHub as chef\./);
     caseDe(vue, "parade").click();
-    await jusqua(() => (colonnesVues(vue)["Awaiting you"] ?? []).length === 2);
-    assert.deepEqual(colonnesVues(vue)["Awaiting you"], ["#12", "#20"]);
-    assert.deepEqual(colonnesVues(vue)["On the rail"], ["#1"]);
+    await jusqua(() => rouges(vue).length === 2);
+    assert.deepEqual(rouges(vue).toSorted(), ["#12", "#20"]);
+    assert.deepEqual((colonnesVues(vue)["On the rail"] ?? []).filter((numero: string | undefined) => !rouges(vue).includes(numero)), ["#1"]);
+    assert.ok(!("Awaiting you" in colonnesVues(vue)), "TODO n'est pas une colonne");
     // Le projet vide : un rail sans carte, et TODO qui dit que rien n'attend le chef — pas un écran vide.
     caseDe(vue, "cantine").click();
     await jusqua(() => /nothing awaits you/.test(vue.element("rail").textContent));

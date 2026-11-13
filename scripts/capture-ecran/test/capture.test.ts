@@ -79,8 +79,10 @@ describe("capturer un écran de l'app", { skip: SANS_NAVIGATEUR }, () => {
 
   test("l'étape defiler amène l'élément à l'écran : la capture change, et un sélecteur qui n'en trouve pas un seul échoue", async () => {
     const tous = await ecrans();
-    const demo = tous.get("demo-telephone-carte");
-    assert.ok(demo !== undefined, "l'écran demo-telephone-carte existe");
+    // La carte de WAITING, à la largeur d'un téléphone, hors de vue à l'ouverture : la rangée s'ouvre sur la colonne où une
+    // carte rouge attend le chef (#3458).
+    const demo = tous.get("attente-github-waiting-telephone");
+    assert.ok(demo !== undefined, "l'écran attente-github-waiting-telephone existe");
     const sans = { ...demo, etapes: demo.etapes.filter((etape) => !("defiler" in etape)) };
     assert.ok(!(await capturer(demo)).equals(await capturer(sans)), "défilée ou non, la capture est la même");
 

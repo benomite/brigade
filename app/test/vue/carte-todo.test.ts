@@ -121,9 +121,10 @@ const ENVOI = { commentaire: 500, reponse: PRODUIT.choix[1]?.texte ?? "", le: A 
 const attente = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "attente" });
 const joue = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "joue", dit: "Done — choose #21 2 — cost: the kitchen takes #21 up again" });
 const refuse = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "refuse", dit: "Not done — choose #21 2: a cook is working on #21", raison: "a cook is working on #21" });
-// La colonne TODO, son compte et ses bons.
-const todo = (vue: Jouee): Faux => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && colonne.dessous("span")[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne TODO");
-const compte = (vue: Jouee) => todo(vue).dessous("h4")[0]?.children[1]?.textContent;
+// TODO n'est pas une colonne (#3458) : ses cartes sont dans le rail, rouges dans la colonne de leur étape, et l'entrée
+// « TODO (N) » les compte.
+const todo = (vue: Jouee): Faux => vue.element("rail");
+const compte = (vue: Jouee) => /^TODO \((.+)\)$/.exec(todo(vue).dessous("button").find(({ className }) => className === "entree-todo")?.textContent ?? "")?.[1];
 const bon = (vue: Jouee, ticket: number): Faux | undefined => todo(vue).dessous("li").find((pose) => pose.className === "bon" && pose.dessous("button")[0]?.textContent === `#${ticket}`);
 const carte = (vue: Jouee, ticket: number): Faux => bon(vue, ticket)?.dessous("section").find((pose) => pose.className === "carte-todo") ?? assert.fail(`pas de carte de TODO sur #${ticket}`);
 const bouton = (ou: Faux, texte: string): Faux => ou.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
