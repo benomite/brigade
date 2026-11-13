@@ -5118,8 +5118,8 @@ function poserLeRail(projet) {
     },
   });
   // Aucune carte rouge, ou rien de lu : ce que la liste dit d'elle-même, en une ligne discrète — `nothing awaits you`, ou pourquoi
-  // elle n'est pas lue —, jamais un signe d'alerte.
-  const ditDeLaListe = (range.compte === "0" || range.compte === "?") && range.vide !== undefined && range.vide !== "" ? [bloc("p", range.vide)] : [];
+  // elle n'est pas lue —, jamais un signe d'alerte. Pas à côté de la ligne du disjoncteur ni d'une réponse gardée, qui attendent.
+  const ditDeLaListe = (range.compte === "0" || range.compte === "?") && disjoncteur === undefined && resolues.length === 0 && range.vide !== undefined && range.vide !== "" ? [bloc("p", range.vide)] : [];
   for (const dit of ditDeLaListe) dit.className = "todo-vide";
   // L'explication du mot TODO, à côté de l'entrée qui le porte (ticket 3308).
   todo.append(entree, ...ditDeLaListe, ...(muet === undefined ? explicationDuRail(projet.nom, "TODO") : []), ...duChef);

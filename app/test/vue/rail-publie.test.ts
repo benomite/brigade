@@ -262,7 +262,7 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 1);
     // Relu, le tableau pose le rail.
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.deepEqual(nomsEtComptes(vue).map(([nom]) => nom), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
+    assert.deepEqual(nomsEtComptes(vue).map((nomEtCompte) => nomEtCompte?.[0]), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
   });
 
   test("indisponible, la phrase du runtime ; « read again » relit", async () => {

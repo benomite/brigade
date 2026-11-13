@@ -136,7 +136,7 @@ describe("la vue : chaque mot expliqué la première fois que le chef le rencont
     // TODO n'est pas une colonne (#3458) : son explication est à côté de l'entrée « TODO (N) ».
     const todo = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas d'entrée TODO");
     assert.match(todo.children[0]?.textContent ?? "", /^TODO \(\d+\)$/);
-    assert.equal(todo.children[1]?.dataset.mot, "TODO");
+    assert.ok(todo.children.some(({ dataset }) => dataset.mot === "TODO"), "pas d'explication de TODO à côté de l'entrée");
     assert.ok(!vue.element("rail").dessous("section").some(({ dataset }) => dataset.colonne === "Awaiting you"));
     assert.deepEqual([...marques(vue)].sort(), TOUS);
     assert.deepEqual([...runtime.seen].sort(), TOUS);
