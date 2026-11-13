@@ -71,6 +71,11 @@ usable on this Mac) is said once, and tried again at the next turn. A project th
 serves through its kitchen (`station/station.ts`) is not served a second time: once this service has
 cloned it, the kitchen opens it at its next reread, and this service lets it go at its next turn.
 
+A kitchen counts as serving a project only if it takes its tickets on GitHub (`Station.servisSurGitHub`): a kitchen of a
+project that declares no station on this computer takes none, and this service serves the project instead (#3449). The
+projects the station publishes as cooked (the app's "cooks this project") are those two sets, no line of the list that
+nothing serves.
+
 ## What it does not have
 
 The box's GitHub-only turn also holds the old path's guardrails — stop, breaker, quota, arbiter —

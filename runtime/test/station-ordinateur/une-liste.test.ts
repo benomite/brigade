@@ -5,22 +5,24 @@
 // liste, et ne sert pas une seconde fois ce que ses cuisines servent. Un projet
 // de l'ancienne liste (`projets-servis.json`) est cuisiné de même.
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
+import { lieuxDuProjet } from "../../src/station/configuration.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
 import { ajouterProjetServi, cheminDeLAncienneListe, retirerProjetServi } from "../../src/station-ordinateur/projets-servis.ts";
 import { ouvrirLeService } from "../../src/station-ordinateur/servir.ts";
 import { aArreter, repertoireTemporaire } from "../outils.ts";
 
 // Une station dont chaque cuisine est un témoin : le dépôt qu'on lui a donné, et comment elle a été arrêtée.
-function station(t: TestContext) {
+function station(t: TestContext, refus: string | null = null) {
   const racine = repertoireTemporaire(t);
   const cuisines: Array<{ projet: string; depot: string; arrets: string[] }> = [];
   const ouvrir = (env: Record<string, string | undefined>, _options: OptionsCuisine): Cuisine => {
     const cuisine = { projet: env.BRIGADE_PROJECT ?? "", depot: env.BRIGADE_GITHUB_REPO ?? "", arrets: [] as string[] };
     cuisines.push(cuisine);
-    return { projet: cuisine.projet, repertoireEtat: env.BRIGADE_STATE_DIR ?? "", arreter: (motif) => void cuisine.arrets.push(motif) };
+    return { projet: cuisine.projet, repertoireEtat: env.BRIGADE_STATE_DIR ?? "", arreter: (motif) => void cuisine.arrets.push(motif), refusGitHub: () => refus };
   };
   // Aucune relecture ne vient d'une minuterie : le test relit quand il veut.
   const servie = ouvrirStation({ racine, env: {}, dire: () => {}, ouvrir, relectureMs: 3_600_000, portes: null });
@@ -35,7 +37,7 @@ function station(t: TestContext) {
     gh: "gh",
     claude: "claude",
     dire: () => {},
-    dejaServis: () => Object.values(servie.depots()),
+    dejaServis: () => Object.values(servie.servisSurGitHub()),
     cloner: async () => assert.fail("a project its kitchen serves is not cloned again"),
     ouvrirLeTour: ({ depot }) => {
       tours.push(depot);
@@ -65,6 +67,22 @@ test("a project added to the station's list is cooked by its kitchen, and a proj
   assert.deepEqual(cuisines.map(({ depot, arrets }) => ({ depot, arrets })), [{ depot: "acme/shop", arrets: ["removed"] }]);
   await service.tourner();
   assert.deepEqual(tours, []);
+});
+
+// Une cuisine qui refuse le tour GitHub (le projet ne déclare aucune station sur cette machine) ne prend
+// aucun ticket : le service GitHub seul de l'ordinateur sert ce projet (#3449).
+test("a project whose kitchen takes no ticket on GitHub is served by the station's GitHub-only service", async (t) => {
+  const { racine, servie, service, tours } = station(t, "the project declares no station on this machine");
+  ajouterProjetServi(racine, "acme/shop");
+  servie.relire();
+  assert.deepEqual(servie.projets(), ["shop"]);
+  assert.deepEqual(servie.servisSurGitHub(), {});
+  // Le clone est là (celui de l'atelier) : le service ouvre le tour du projet au lieu de le sauter.
+  const { clone } = lieuxDuProjet(racine, "shop", racine);
+  mkdirSync(join(clone, ".git"), { recursive: true });
+  writeFileSync(join(clone, "CLAUDE.md"), "- **Branche d'intégration** : `main`\n");
+  await service.tourner();
+  assert.deepEqual(tours, ["acme/shop"]);
 });
 
 test("a project of the old projets-servis.json list is cooked by the station's kitchen once the list is read", async (t) => {

@@ -26,6 +26,7 @@ import { sourceDesProjets } from "../projets-station/source.ts";
 import { servirLesProjetsChoisis, type ServiceDeLOrdinateur } from "../station-ordinateur/servir.ts";
 import { migrerLAncienneListe } from "../station-ordinateur/projets-servis.ts";
 import { machineDe } from "../projets/preparer.ts";
+import { nomDuDepot } from "../projets/ajout-de-station.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { DemandeInvalide } from "../enrolement/enrolement.ts";
@@ -169,12 +170,24 @@ if (vidange !== null) seVide = () => vidange.retenue();
 // (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
 const identite = identiteDeLaStation({ ...process.env, BRIGADE_STATION_NOM: nomRetenu });
+// Ce que la station cuisine vraiment, et publie : les projets dont sa cuisine
+// prend les tickets sur GitHub, et ceux que son service GitHub seul sert. Une
+// ligne de sa liste que rien ne sert n'y est pas : l'app ne dit pas « cuisine ce
+// projet » d'un projet que rien ne cuisine (#3449).
+const cuisinesDeLaStation = (): Record<string, string> => {
+  const servis = { ...station.servisSurGitHub() };
+  for (const depot of choisis?.servis() ?? []) {
+    const nom = nomDuDepot(depot);
+    if (nom !== null) servis[nom] = depot;
+  }
+  return servis;
+};
 const presence = tenirPresence({
   racine,
   canal,
   identite,
-  projets: () => station.projets(),
-  depots: () => station.depots(),
+  projets: () => Object.keys(cuisinesDeLaStation()),
+  depots: () => cuisinesDeLaStation(),
   rails: () => station.rails(),
   etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
   ...(ecartS === undefined ? {} : { ecartMinimalMs: Number(ecartS) * 1000 }),
@@ -204,7 +217,7 @@ choisis = servirLesProjetsChoisis({
   claude,
   dire,
   retenue: () => seVide(),
-  dejaServis: () => Object.values(station.depots()),
+  dejaServis: () => Object.values(station.servisSurGitHub()),
 });
 const projetsChoisis = choisis;
 const projetsDeLApp = tenirProjetsDeLApp({
