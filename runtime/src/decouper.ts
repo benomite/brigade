@@ -368,7 +368,6 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
   return [
     reference(epic),
     marque(epic, index),
-    partDe(epic),
     "",
     // Le cook lit son ticket en entier : c'est ici qu'il apprend qu'il est le
     // cook design.
@@ -387,6 +386,9 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     "## Acceptance criteria",
     "",
     ...prevu.criteria.map((critere) => `- ${critere}`),
+    "",
+    // Le lien vers le besoin dont il est né, que le rail lit (#3479).
+    partDe(epic),
     "",
     "---",
     "",
