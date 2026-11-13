@@ -8,7 +8,7 @@ import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { carteDeLaQuestionDEpique } from "../../src/tableau/question-d-epique-github.ts";
 import { formeDuChef } from "../../src/tableau/todo-github.ts";
-import { rail } from "../../src/faits.ts";
+import { comprendre, rail } from "../../src/faits.ts";
 
 const DEPOT = "benomite/secondes";
 const QUESTION_DU_MANAGER = [
@@ -102,12 +102,26 @@ describe("TODO d'un projet dont l'épique a posé une question", () => {
     assert.ok(lu.lu);
     const complet = await avecCeQuiAttendLeChef(lu, appeler);
     assert.ok(complet.lu);
-    assert.equal(complet.faits.compteurs.attend, 1);
-    const vu = rail(complet.faits);
+    const faits = comprendre(JSON.stringify(complet.faits));
+    assert.ok(!("informe" in faits), JSON.stringify(faits));
+    assert.equal(faits.attend?.length, 1);
+    const vu = rail(faits);
     const carte = [...vu.colonnes.flatMap(({ cartes }) => cartes), ...vu.hors].find(({ ticket }) => ticket === 5);
     assert.ok(carte !== undefined);
     assert.equal(carte.ligne, "The manager asked you a question before splitting this epic: it waits for your answer.");
     assert.doesNotMatch(JSON.stringify(carte), /ready, waits for a place in the kitchen/);
+  });
+
+  test("une épique sans `fire`, dite par la lecture du rail avant lui, pose sa question de même", async () => {
+    const appeler = github([manager(QUESTION_DU_MANAGER)], ["epic"]);
+    const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date("2026-11-13T17:00:00Z") });
+    assert.ok(lu.lu);
+    assert.equal(lu.avantLeRail?.issues.find(({ ticket }) => ticket === 5)?.etat, "epique");
+    const complet = await avecCeQuiAttendLeChef(lu, appeler);
+    assert.ok(complet.lu);
+    const faits = comprendre(JSON.stringify(complet.faits));
+    assert.ok(!("informe" in faits), JSON.stringify(faits));
+    assert.deepEqual(faits.attend?.map(({ ticket, chef: carte }) => [ticket, carte?.sorte]), [[5, "manager-epic-question"]]);
   });
 
   test("une réponse du chef la fait sortir de TODO, sans autre geste", async () => {

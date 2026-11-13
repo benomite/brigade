@@ -106,7 +106,9 @@ function ligneDeLaMiseDeCote(miseDeCote: MiseDeCote): string {
 // du bloc se comptent.
 // `enWaiting` : lire aussi ce qu'attend chaque issue en WAITING — ce que le rail de l'app montre ; le second et les
 // notifications ne s'en servent pas, et ne paient pas sa lecture.
-export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true }): Promise<AttenteLue> {
+// `epiquesAvantLeRail` : les épiques sans `fire` que la lecture du rail a dites (`avantLeRail`) — sans elles, seules les épiques
+// au label `fire` posent leur question.
+export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[] }): Promise<AttenteLue> {
   const { depot, appeler } = options;
   const lire = async (chemin: string): Promise<unknown> => {
     const reponse = await appeler(chemin).catch((erreur: unknown) => {
@@ -153,9 +155,9 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     // Les listes d'abord, puis ce que chaque issue en dit — chaque fois toutes à la fois : le `gh` du second paie chaque
     // lecture d'un processus, et son crochet a peu de temps.
     const labelsDEcart = Object.keys(ECARTS) as (keyof typeof ECARTS)[];
-    const listes = await Promise.all([issuesAuLabel(LABEL_FIRE), issuesAuLabel(LABEL_DU_CHEF), issuesAuLabel(LABEL_EPIQUE), ...labelsDEcart.map(issuesAuLabel)]);
+    const listes = await Promise.all([issuesAuLabel(LABEL_FIRE), issuesAuLabel(LABEL_DU_CHEF), ...labelsDEcart.map(issuesAuLabel)]);
     // Une issue en WAITING n'attend pas le chef : elle n'est l'entrée d'aucun label.
-    const [auFeu, auChef, epiques, ...ecartees] = listes.map((issues) => issues.filter((issue) => !enAttente(issue)));
+    const [auFeu, auChef, ...ecartees] = listes.map((issues) => issues.filter((issue) => !enAttente(issue)));
     const misesDeCote = await Promise.all(
       (auFeu ?? []).flatMap((issue) => {
         const label = labelDeMiseDeCote(labelsDe(issue));
@@ -163,7 +165,13 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       }),
     );
     const cartes = await Promise.all((auChef ?? []).map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
-    const epiquesLues = await Promise.all((epiques ?? []).map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
+    // Les épiques : celles du rail, déjà lues avec `fire`, et celles que la lecture du rail dit avant lui — aucune lecture de plus
+    // (le budget GitHub de l'app, budget-github.ts).
+    const epiques = [
+      ...(auFeu ?? []).filter((issue) => labelsDe(issue).includes(LABEL_EPIQUE)),
+      ...(options.epiquesAvantLeRail ?? []).map(({ ticket, titre }): Brut => ({ number: ticket, title: titre, labels: [{ name: LABEL_EPIQUE }] })),
+    ].filter((issue, rang, toutes) => toutes.findIndex(({ number }) => number === issue.number) === rang);
+    const epiquesLues = await Promise.all(epiques.map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
     // Les tickets du rail mis de côté qui demandent quelque chose au chef.
     for (const { issue, label, lus } of misesDeCote) {
       const miseDeCote = miseDeCoteDe(depot, label, lus);
@@ -302,7 +310,8 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres
 // et celles qui attendent un autre humain (vue/cartes-assignees/, #2761, #2985).
 export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, partager?: (attentes: AttenteDuChef[]) => Promise<Partage<AttenteDuChef>>): Promise<LectureDuTableauDuDepot> {
   if (!lu.lu) return lu;
-  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: true });
+  const epiquesAvantLeRail = (lu.avantLeRail?.issues ?? []).filter(({ etat }) => etat === "epique").map(({ ticket, titre }) => ({ ticket, titre }));
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: true, epiquesAvantLeRail });
   if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
   if (partager === undefined) return avecLAttenteDuChef(lu, attente);
   const { siennes, autres } = await partager(attente.attentes);
