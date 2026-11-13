@@ -162,8 +162,9 @@ export function combienTiennent(largeurs, place, largeurPlus, ecart) {
 
 /**
  * Ce que le bandeau reçoit de la vue.
- * `selection` : le besoin choisi, son détail déplié ; `deplie` : la liste entière dépliée.
- * @typedef {{ vu: Vu | undefined, besoins: Besoin[], selection: number | undefined, deplie: boolean }} Etat
+ * `selection` : le besoin choisi, son détail déplié ; `deplie` : la liste entière dépliée ; `rouges` : combien t'attendent
+ * (`rougesDuBacklog`), que le titre dit.
+ * @typedef {{ vu: Vu | undefined, besoins: Besoin[], selection: number | undefined, deplie: boolean, rouges: number }} Etat
  * @typedef {{ choisir: (ticket: number) => void, basculer: () => void, ouvrirIssue: (ticket: number) => void, carteDuChef: (carte: Carte) => any }} Gestes
  */
 
@@ -266,7 +267,7 @@ function listeEntiere(doc, besoins, etats, selection, gestes) {
  * Une lecture ratée le dit sur la ligne, sa raison au survol : ce n'est jamais « rien avant le rail ».
  * @param {Fabrique} doc @param {Etat} etat @param {Gestes} gestes
  */
-export function poserBandeauBacklog(doc, { vu, besoins, selection, deplie }, gestes) {
+export function poserBandeauBacklog(doc, { vu, besoins, selection, deplie, rouges }, gestes) {
   if (vu === undefined || "nonPublie" in vu) return null;
   const bandeau = noeud(doc, "section", "backlog-band");
   bandeau.ariaLabel = "Backlog: the needs before the rail";
@@ -289,7 +290,6 @@ export function poserBandeauBacklog(doc, { vu, besoins, selection, deplie }, ges
   titre.title = `${vu.survol} — ${deplie ? "fold the backlog" : "unfold the whole backlog"}`;
   titre.addEventListener("click", gestes.basculer);
   titre.append(noeud(doc, "strong", "backlog-band-compte", String(besoins.length)));
-  const rouges = besoins.filter(({ rouge }) => rouge).length;
   if (rouges > 0) titre.append(noeud(doc, "span", "backlog-band-rouges", `${rouges} ${ATTEND.replace("awaits", rouges === 1 ? "awaits" : "await")}`));
   if (besoins.length === 0) {
     ligne.append(noeud(doc, "span", "backlog-band-vide", "nothing before the rail"));

@@ -118,7 +118,7 @@ import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserLOffre, premierProjetServi, tenirLOffre } from "./offre-telephone/offre-telephone.js";
 import { poserBandeRail } from "./projet/rail/bande-rail.js";
-import { besoinsDuBacklog, suivreLeBandeau, marquerLeRail, poserBandeauBacklog } from "./backlog-band/backlog-band.js";
+import { besoinsDuBacklog, marquerLeRail, poserBandeauBacklog, rougesDuBacklog, suivreLeBandeau } from "./backlog-band/backlog-band.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
@@ -4416,13 +4416,15 @@ function teteDuRail(projet) {
 /** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
 function bandeauBacklog(projet, colonnes) {
   const vu = amonts.get(projet.nom);
-  const besoins = besoinsDuBacklog(vu, colonnes, Date.now());
+  const maintenant = Date.now();
+  const besoins = besoinsDuBacklog(vu, colonnes, maintenant);
   // Un besoin choisi qui n'est plus dans le bandeau ne l'est plus.
   const choisi = besoins.find(({ ticket }) => ticket === besoinsChoisis.get(projet.nom));
   if (choisi === undefined) besoinsChoisis.delete(projet.nom);
   const bandeau = poserBandeauBacklog(
     document,
-    { vu, besoins, selection: choisi?.ticket, deplie: backlogsDeplies.has(projet.nom) },
+    // Le titre dit combien t'attendent : le nombre que l'entrée TODO (N) compte (ticket 3458).
+    { vu, besoins, selection: choisi?.ticket, deplie: backlogsDeplies.has(projet.nom), rouges: rougesDuBacklog(vu, colonnes, maintenant) },
     {
       choisir: (ticket) => {
         if (besoinsChoisis.get(projet.nom) === ticket) besoinsChoisis.delete(projet.nom);

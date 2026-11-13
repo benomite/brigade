@@ -52,7 +52,7 @@ describe("les étiquettes, dans leur ordre", () => {
   });
 
   test("chacune dit sa priorité, un titre court, puis son avancement servis/total, ou son état en mots simples", () => {
-    const bandeau = poser(doc, { vu: REFERENCE, besoins: besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT), selection: undefined, deplie: false }, gestes()) ?? assert.fail("pas de bandeau");
+    const bandeau = poser(doc, { vu: REFERENCE, besoins: besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT), selection: undefined, deplie: false, rouges: rougesDuBacklog(REFERENCE, RAIL, MAINTENANT) }, gestes()) ?? assert.fail("pas de bandeau");
     const tags = bandeau.dessous("button").filter(({ className }) => className === "backlog-tag");
     assert.deepEqual(
       tags.map((tag) => tag.children.map(({ textContent }) => textContent)),
@@ -101,7 +101,7 @@ describe("le `+N` : la ligne ne coupe jamais une étiquette", () => {
   });
 
   test("posé dans une page : les étiquettes qui ne tiennent pas se cachent entières, le `+N` les compte ; sur un écran étroit, toutes restent", () => {
-    const bandeau = poser(doc, { vu: REFERENCE, besoins: besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT), selection: undefined, deplie: false }, gestes()) ?? assert.fail("pas de bandeau");
+    const bandeau = poser(doc, { vu: REFERENCE, besoins: besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT), selection: undefined, deplie: false, rouges: 0 }, gestes()) ?? assert.fail("pas de bandeau");
     const tags = bandeau.dessous("ol").find(({ className }) => className === "backlog-band-tags") ?? assert.fail("pas de ligne");
     // Une mise en page mesurée : la ligne fait 400, chaque étiquette 120, le `+N` 30, l'écart 8.
     const mesure = (pose: Faux, largeur: number) => void (pose.boite = { ...pose.boite, width: largeur });
@@ -136,7 +136,7 @@ describe("choisir un besoin, et finir ce choix", () => {
     const choisis: number[] = [];
     const ouvertes: number[] = [];
     const besoins = besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT);
-    const pose = (selection: number | undefined) => poser(doc, { vu: REFERENCE, besoins, selection, deplie: false }, gestes({ choisir: (t) => void choisis.push(t), ouvrirIssue: (t) => void ouvertes.push(t) })) ?? assert.fail("pas de bandeau");
+    const pose = (selection: number | undefined) => poser(doc, { vu: REFERENCE, besoins, selection, deplie: false, rouges: 0 }, gestes({ choisir: (t) => void choisis.push(t), ouvrirIssue: (t) => void ouvertes.push(t) })) ?? assert.fail("pas de bandeau");
     const tag = (bandeau: Faux, ticket: number) => bandeau.dessous("button").find(({ dataset }) => dataset.ticket === String(ticket) && "rouge" in dataset === [9, 10].includes(ticket)) ?? assert.fail(`pas d'étiquette #${ticket}`);
 
     const replie = pose(undefined);
@@ -167,7 +167,7 @@ describe("choisir un besoin, et finir ce choix", () => {
   test("le besoin qui attend le chef : son détail pose sa carte de TODO — la question et le bouton qui y répond", () => {
     const besoins = besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT);
     const posees: Carte[] = [];
-    const bandeau = poser(doc, { vu: REFERENCE, besoins, selection: 9, deplie: false }, gestes({ carteDuChef: (c) => {
+    const bandeau = poser(doc, { vu: REFERENCE, besoins, selection: 9, deplie: false, rouges: 0 }, gestes({ carteDuChef: (c) => {
       posees.push(c);
       const bon = new Faux("li");
       bon.textContent = "Keep them a year? [Yes] [No]";
@@ -202,7 +202,7 @@ describe("le titre déplie tout le backlog", () => {
     const choisis: number[] = [];
     let bascules = 0;
     const besoins = besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT);
-    const bandeau = poser(doc, { vu: REFERENCE, besoins, selection: undefined, deplie: true }, gestes({ choisir: (t) => void choisis.push(t), basculer: () => void bascules++ })) ?? assert.fail("pas de bandeau");
+    const bandeau = poser(doc, { vu: REFERENCE, besoins, selection: undefined, deplie: true, rouges: 0 }, gestes({ choisir: (t) => void choisis.push(t), basculer: () => void bascules++ })) ?? assert.fail("pas de bandeau");
     const titre = bandeau.dessous("button").find(({ className }) => className === "backlog-band-titre") ?? assert.fail("pas de titre");
     assert.equal(titre.ariaExpanded, "true");
     const groupes = bandeau.dessous("section").filter(({ className }) => className === "backlog-band-groupe");
@@ -224,7 +224,7 @@ describe("le titre déplie tout le backlog", () => {
 
   test("le `+N` déplie la liste entière", () => {
     let bascules = 0;
-    const bandeau = poser(doc, { vu: REFERENCE, besoins: besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT), selection: undefined, deplie: false }, gestes({ basculer: () => void bascules++ })) ?? assert.fail("pas de bandeau");
+    const bandeau = poser(doc, { vu: REFERENCE, besoins: besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT), selection: undefined, deplie: false, rouges: 0 }, gestes({ basculer: () => void bascules++ })) ?? assert.fail("pas de bandeau");
     (bandeau.dessous("button").find(({ className }) => className === "backlog-band-plus") ?? assert.fail("pas de +N")).click();
     assert.equal(bascules, 1);
   });
@@ -239,7 +239,7 @@ describe("un besoin tout servi reste 24 h, marqué servi", () => {
     assert.equal(RETENUE_MS, 24 * 3_600_000);
     const encore = besoinsDuBacklog(servi, [], a(23, 59));
     assert.deepEqual(encore.map(({ ticket, servi: marque }) => [ticket, marque]), [[40, true], [5, false]]);
-    const bandeau = poser(doc, { vu: servi, besoins: encore, selection: undefined, deplie: false }, gestes()) ?? assert.fail("pas de bandeau");
+    const bandeau = poser(doc, { vu: servi, besoins: encore, selection: undefined, deplie: false, rouges: 0 }, gestes()) ?? assert.fail("pas de bandeau");
     const tag = bandeau.dessous("button").find(({ dataset }) => dataset.ticket === "40") ?? assert.fail("pas d'étiquette");
     assert.equal("servi" in tag.dataset, true);
     assert.equal(tag.children[2]?.textContent, "2/2 served");
@@ -256,19 +256,19 @@ describe("un besoin tout servi reste 24 h, marqué servi", () => {
 
 describe("ce que le bandeau dit quand rien n'est lu", () => {
   test("pas lu, ou une lecture fraîche qui ne le porte pas : pas de bandeau", () => {
-    assert.equal(poser(doc, { vu: undefined, besoins: [], selection: undefined, deplie: false }, gestes()), null);
-    assert.equal(poser(doc, { vu: { projet: "parade", demande: 1, a: "x", vide: "", nonPublie: true }, besoins: [], selection: undefined, deplie: false }, gestes()), null);
+    assert.equal(poser(doc, { vu: undefined, besoins: [], selection: undefined, deplie: false, rouges: 0 }, gestes()), null);
+    assert.equal(poser(doc, { vu: { projet: "parade", demande: 1, a: "x", vide: "", nonPublie: true }, besoins: [], selection: undefined, deplie: false, rouges: 0 }, gestes()), null);
   });
 
   test("une lecture ratée : « not read » sur la ligne, sa raison au survol — aucun nombre", () => {
-    const bandeau = poser(doc, { vu: { projet: "parade", demande: 1, a: "x", vide: "", sans: "what is before the rail was not read: HTTP 403. This is not “nothing before the rail”" }, besoins: [], selection: undefined, deplie: false }, gestes()) ?? assert.fail("pas de bandeau");
+    const bandeau = poser(doc, { vu: { projet: "parade", demande: 1, a: "x", vide: "", sans: "what is before the rail was not read: HTTP 403. This is not “nothing before the rail”" }, besoins: [], selection: undefined, deplie: false, rouges: 0 }, gestes()) ?? assert.fail("pas de bandeau");
     assert.equal(bandeau.textContent, "Backlog" + "not read");
     assert.match(bandeau.dessous("span").find(({ className }) => className === "backlog-band-vide")?.title ?? "", /HTTP 403/);
   });
 
   test("rien avant le rail : il le dit, sans étiquette", () => {
     const rien = vu([]);
-    const bandeau = poser(doc, { vu: rien, besoins: besoinsDuBacklog(rien, [], MAINTENANT), selection: undefined, deplie: false }, gestes()) ?? assert.fail("pas de bandeau");
+    const bandeau = poser(doc, { vu: rien, besoins: besoinsDuBacklog(rien, [], MAINTENANT), selection: undefined, deplie: false, rouges: 0 }, gestes()) ?? assert.fail("pas de bandeau");
     assert.equal(bandeau.textContent, "Backlog" + "0" + "nothing before the rail");
   });
 });
