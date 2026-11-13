@@ -23,6 +23,7 @@ import { envelopper, type Cloison } from "./cloison.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
+import { estUneVision, sortirLaVision } from "./besoin/vision.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
@@ -159,6 +160,7 @@ const RAISONS: Partial<Record<Ecart, string>> = {
   "blocked-on-human": "it has the `blocked-on-human` label",
   "served-elsewhere": "it has the `served-elsewhere` label: it is not served on this box",
   "already-split": "it is an epic whose body already lists its tickets",
+  vision: "it is a product vision or a reference document, not a deliverable",
 };
 
 const nombre = (valeur: number) => valeur.toLocaleString("en-US");
@@ -273,6 +275,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
     // Un ticket né d'un découpage est déjà jugé et calibré.
     if (ticketDEpique(base, issue.number)?.index != null || neDUnDecoupage(issue.body)) return { quoi: "fini" };
+    // Une vision produit, un document de référence : pas un livrable. Le manager
+    // la sort du rail et le dit (`besoin/vision.ts`, #3479).
+    if (estUneVision(issue)) return { quoi: "ecart", raison: "vision", fired };
     if (fired && complet(calibragePose(issue.labels))) return { quoi: "rien" };
     // Sorti du rail par la cuisine sans être servi, il attend la réponse du
     // chef (#2118) : le manager ne le remet pas sur le rail à sa place.
@@ -904,6 +909,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       if (tri.raison === ("untrusted-author" satisfies Ecart)) {
         if (arrete || !managerAllume(base)) return "arret";
         return etrangeres.traiter(issue, ouvertesDuTour);
+      }
+      if (tri.raison === ("vision" satisfies Ecart)) {
+        if (arrete || !managerAllume(base)) return "arret";
+        // Sans `fire`, elle n'est pas sur le rail : il n'y a rien à prendre.
+        if (tri.fired && (!(await tenir(issue.number)) || !(await sortirLaVision(github, issue, avertir)))) return "reste";
       }
       if (tri.raison === ("roadmap" satisfies Ecart)) {
         if (arrete || !managerAllume(base)) return "arret";

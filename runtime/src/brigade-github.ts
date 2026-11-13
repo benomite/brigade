@@ -18,6 +18,7 @@
 // et du reviewer —, lancés ici sans journal.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { horsDesBesoins } from "./besoin/besoin.ts";
 import { fiche, type Fiche } from "./fiche.ts";
 import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
@@ -97,8 +98,8 @@ import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
-// par eux, jamais ne se prend (#2618).
-export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state" | "epique">;
+// par eux, jamais ne se prend (#2618). `besoin` : celui dont il est né (#3479).
+export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state" | "epique" | "besoin">;
 
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
@@ -1386,9 +1387,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     ]);
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
     await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
-    // Une épique découpée garde `fire` et sa `prio:` : ni elle ne se prend, ni
-    // elle ne compte parmi les tickets du tour (#2618).
-    const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE) && ticket.epique !== true);
+    // Une épique découpée, ou un besoin dont un ticket lancé est né : ni elle
+    // ne se prend, ni elle ne compte parmi les tickets du tour (#2618, #3479).
+    const tickets = horsDesBesoins(lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE)));
     ouvertsDuTour = new Set(tickets.map(({ number }) => number));
     ticketsDuTour = tickets;
     const libres: TicketLu[] = [];

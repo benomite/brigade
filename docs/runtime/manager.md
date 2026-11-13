@@ -92,6 +92,7 @@ without spending anything:
 | The issue… | What the manager does | In the log |
 |---|---|---|
 | is the roadmap: the issue `BRIGADE_ROADMAP_ISSUE` names, or the one the `**Roadmap**` line of the bindings in `CLAUDE.md` names on the integration branch, reread each turn — recognised before anything else (#3436) | Never judged, never put on the rail, never asks the chef anything. If it carries `question`, `decision` or `chef-todo`, or has a TODO card, the manager removes them, with no gesture from the chef. The LLM reads it once per state for separate work slipped into it (an observation, a bug): each piece becomes a new issue with no label, which the manager judges like any other. The roadmap itself keeps its body, and gets no label and no verdict. While the `**Roadmap**` line has never been read, no issue is judged or split | `manager.set-aside` (`roadmap`); `manager.roadmap-cleared`, `manager.roadmap-read`, `manager.roadmap-filed` |
+| is a product vision or a reference document: it carries `vision`, `product-vision` or `reference`, or its title announces a vision (`Product vision — …`, `Vision: …`, `[Vision] …`) — checked before a complete calibration (#3479) | Never judged. If it carries `fire`, the manager removes it and posts **one line** on the issue saying why, once (`brigade:vision`) | `manager.set-aside` (`vision`) |
 | carries `fire` and a complete calibration | Nothing: launched, by you or by it | — |
 | received labels from the manager, and lacks `fire`, `model:` or `effort:` since | Nothing, **until you hand it back**; says so once on the issue, with the command | `manager.set-aside` (`chef-changed`) |
 | is written by someone with no hand on the repository, and is not a station's measure ticket (one carries a `brigade:projet` / `brigade:famille` mark *and* is written by an account of the project's `humans`: the mark alone is text a stranger can paste, so it proves nothing; such a ticket goes to the manager like the kitchen's own, #3012) |and carries no `brigade:projet` / `brigade:famille` mark from a declared `humans` account (a station's measure ticket does: it goes to the manager like the kitchen's own, #3012) | **Triaged** by the LLM, once: one comment proposes `duplicate of #N`, `out of scope`, or `ticket` with a `prio:` value; then a `product-question` TODO card, assigned to the project's `product` human (the chef without one): what the issue asks and who opened it (a stranger, or a declared human when the author is in the project's `humans`), then two buttons — the recommendation first (`rail` with the proposed `prio:`, else `close`), the other choice second — and the free answer; a click plays the choice at once (the app puts the `prio:` label, or closes the issue). Nothing reaches the rail until that human (or an account with write access) answers on the issue: `on the rail` puts the proposed `prio:` — or the one the answer writes, `on the rail prio:N`; `fire` when there is none — and the issue is judged on the next wake-up like one a member prioritised (#2619); `close` closes it (#2934, `runtime/src/issue-etrangere/`) | `manager.set-aside` (`untrusted-author`) |
@@ -175,7 +176,7 @@ before #3429 (no sentence in the log, no label) is judged once more, to get its 
 **Each deviation has its gesture, and `run manager` says it** (the `set aside` section, ten most recent).
 `chef-changed` (you removed a `fire`, `model:` or `effort:` it set): `npm --prefix runtime run manager --
 return <n°>`. `blocked-on-human`, `question`, `decision`: remove the label, judged at the next wake-up.
-`already-split`: remove the list from the body. `served-elsewhere`, roadmap, author with no hand on the
+`already-split`: remove the list from the body. `served-elsewhere`, roadmap, vision, author with no hand on the
 repository: nothing to hand back (remove `served-elsewhere` if the box must take the issue).
 
 `return` forces only `chef-changed`: on an issue held by a label it names the right gesture and exits
@@ -268,8 +269,9 @@ with one of two stays a remark. The expected case is in `evals/relecture-capture
 
 **The epic lists its tickets, with their state**, in a block the manager writes at the end of its body,
 between `<!-- brigade:tickets -->` and `<!-- /brigade:tickets -->`: a heading `## Tickets of the epic`,
-`**1/3 served.**`, a `# | Ticket | State` table, and a note saying what is between the markers is
-rewritten, the rest is yours, and `Epic: #78` in a ticket's body makes it enter. **It is the only place
+`**1/3 served.**`, a `# | Ticket | State` table, a note saying what is between the markers is
+rewritten, the rest is yours, and `Epic: #78` in a ticket's body makes it enter, then a task list, one
+`- [ ] #<ticket>` line per ticket, checked (`- [x]`) once that ticket is served (#3479). **It is the only place
 in the body it rewrites.** A marker counts only **alone on its line, outside a code block**. **The tally
 is read from GitHub on every manager turn** (#2618), for every open issue whose body carries the block —
 split by the manager or by hand —: its tickets are the numbers that head a row of the table or an item
@@ -285,8 +287,15 @@ Dropped tickets do not keep it open: the comment says that what they were to do 
 second reads it — no label, no TODO card. An epic the chef already closed is not commented, and the
 comment is not posted twice if the closing fails.
 
-**An epic is never a ticket.** An issue whose body carries the block keeps `fire` and its `prio:`, but
-no station claims it (`brigade-github.ts`), the held-kitchen diagnosis does not count it as waiting
+**A split need leaves the rail** (#3479). A need — an epic, an idea, a decision to make — is not a
+ticket: once split, its tickets carry the work. The manager removes the need's `fire` before the first of
+its tickets gets its own, each ticket it creates says `Part of #<need>` in its body (above the closing
+line), and the need's body lists them as tasks. The rail never holds a need and a ticket made from it:
+an issue that a `fire` ticket names by `Part of #N` or `Epic: #N` is neither claimed by a station nor
+counted as waiting (`besoin/besoin.ts`, used by `brigade-github.ts` and `retenue/tour.ts`).
+
+**An epic is never a ticket.** An issue whose body carries the block keeps its `prio:` (and `fire`, if
+you put it back), but no station claims it (`brigade-github.ts`), the held-kitchen diagnosis does not count it as waiting
 (`retenue/tour.ts`, and so `status` and the TODO line), and the app's rail does not show it
 (`app/src/vue/rail/github.ts`): the GraphQL snapshot and the REST poll of the `fire` issues mark it
 `epique`.

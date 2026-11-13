@@ -8,7 +8,7 @@
 //   ni `taken`, ni `in-pass`, au calibrage complet. Pas ceux qui attendent le
 //   chef (`blocked-on-human`, `chef-todo`), un tiers (`waiting`), ou qui sont
 //   sortis de la cuisine (`served-elsewhere`), ni une épique, dont le corps liste
-//   les tickets (#2618).
+//   les tickets (#2618), ni un besoin dont un ticket lancé est né (#3479).
 // - Servi : un merge que ce tour a fait, ou un ticket en pass qui n'est plus
 //   parmi les tickets ouverts — une autre station l'a mergé.
 // - Depuis quand ils attendent : le premier tour qui a vu chacun d'eux attendre.
@@ -17,6 +17,7 @@
 //
 // Rien n'est tenu d'un process à l'autre : à l'ouverture, le compte repart.
 import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
+import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { HORS_CUISINE } from "../github.ts";
@@ -66,9 +67,10 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     if ([...enPass].some((ticket) => !ouverts.has(ticket))) dernierService = instant;
     const suivants = new Map<number, string>();
     const passes = new Set<number>();
-    for (const { number, labels, epique } of tickets) {
-      // Une épique ne se prend pas : elle n'attend pas la cuisine (#2618).
-      if (epique === true || labels.some((label) => AILLEURS.includes(label))) continue;
+    // Une épique, un besoin dont un ticket lancé est né, ne se prennent pas :
+    // ils n'attendent pas la cuisine (#2618, #3479).
+    for (const { number, labels } of horsDesBesoins(tickets)) {
+      if (labels.some((label) => AILLEURS.includes(label))) continue;
       const passe = labels.includes(LABEL_IN_PASS);
       if (passe) passes.add(number);
       if (passe || (!labels.includes(LABEL_TAKEN) && complet(calibrage(labels)))) suivants.set(number, attendent.get(number) ?? instant);
