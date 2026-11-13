@@ -1,0 +1,12 @@
+/* La ligne de l'attente de la file (ticket 3433), en tête du rail. Une attente qui passe seule est une note à voix basse ;
+   une panne (la classe `.panne-du-rail`, vue.css) est celle de la cuisine oisive — sa phrase prend la place, son geste à droite. */
+#rail .attente-du-rail {
+  margin: var(--pas-2) var(--pas-4) 0;
+  color: var(--discret);
+}
+#rail .attente-du-rail.panne-du-rail strong {
+  flex: 1;
+}
+#rail .attente-du-rail.panne-du-rail .action {
+  flex: none;
+}

@@ -30,7 +30,7 @@ export type Lire = (chemin: string) => Promise<unknown>;
 // conditionnelle ne coûte rien.
 const cheminDesFeux = (depot: string, page: number) => `/repos/${depot}/issues?state=open&labels=${LABEL_FIRE}&sort=created&direction=asc&per_page=${PAR_PAGE}&page=${page}`;
 
-async function lesFeux(depot: string, lire: Lire): Promise<Brut[]> {
+export async function lesFeux(depot: string, lire: Lire): Promise<Brut[]> {
   const issues: Brut[] = [];
   for (let page = 1; page <= PAGES_AU_PLUS; page++) {
     const brute = await lire(cheminDesFeux(depot, page));
@@ -43,7 +43,7 @@ async function lesFeux(depot: string, lire: Lire): Promise<Brut[]> {
 }
 
 // L'instant du dernier `fire` posé, d'après les événements de l'issue ; null s'ils ne le disent pas.
-function feuPoseLe(evenements: readonly Brut[]): string | null {
+export function feuPoseLe(evenements: readonly Brut[]): string | null {
   const poses = evenements.filter((evenement) => evenement.event === "labeled" && objet(evenement.label)?.name === LABEL_FIRE).map((evenement) => texte(evenement.created_at));
   return poses.filter((instant) => !Number.isNaN(Date.parse(instant))).at(-1) ?? null;
 }
