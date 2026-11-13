@@ -222,8 +222,9 @@ Switching off goes to the second; switching on opens its confirmation below, whi
 sentence with the real number of issues the manager will judge (`it will judge the 23 open issues`, or
 `it will judge 21 of the 23 open issues — 2 carry blocked-on-human`), what it commits to on hover. Off,
 **the page says so in one line: the head of the rail is marked as stopped** — a hatched bar, `project off
-— nothing new is taken, split or merged` —: running cooks finish, nothing new is taken; the kitchen it
-holds makes no second line. The `manager` line of the box (`OFF since … (by chef) — the project switch is
+— nothing new is taken, split or merged` —, with `switch the project on…` next to it (#3454): the switch's own
+gesture, whose confirmation opens below the line (none in read-only). Running cooks finish, nothing new is taken; the
+kitchen it holds makes no second line. Once the `manager` line is read on, the line and its button go, with no reload. The `manager` line of the box (`OFF since … (by chef) — the project switch is
 off: …`) is now only on hover of the switch: the Manager page is gone from Settings (#1700), and the manager has
 no switch of its own. Not yet read, or not read, the switch says neither (`project …`) and toggles nothing; a read that
 fails makes its "unchecked" line in the band. On the bar, the tile of a project switched off keeps its
@@ -684,12 +685,13 @@ nothing is cut. Captures: `docs/captures/2486/`, `docs/captures/3013/`.
 
 The Stations tab of a project is **one component** (`app/src/vue/stations-tab/`). It answers three questions, in this order.
 
-**One line at the top, in exactly one of four states** — never two statements side by side:
+**One line at the top, in exactly one of five states** — never two statements side by side:
 
 | State | The line | Green | Its gestures |
 |---|---|---|---|
 | A station cooks it | `Cooked by <station> · online · N cooks at work`, or `… · online · idle, nothing on the rail` | yes | `Add a station` (#3402) |
 | A move in progress | `Moving from <A> to <B>: waiting for <what>, since <HH:MM> UTC`; not done after a minute, a second line: `Not done after a minute: <what blocks it>` | no (yellow) | none |
+| The project is off (#3454) | `Project off — nothing new is taken, split or merged` — the sentence of the head of the rail; never `Cooked by` nor `cooks this project`, whatever its stations say; the box's `manager` line and where to switch it on, on hover. Not yet read, or not read, it is not off: the line says who cooks it | no (grey) | `Add a station` when a station serves it, else `Choose who cooks it` |
 | The station that serves it is offline | `<station> cooks this project, but it is offline for <duration>: nothing cooks`; how to bring it back on hover | no (red) | `Move to this computer`, one click, when this computer can take it; `Add a station` (#3402) |
 | Nobody serves it | `No station cooks this project · N fire tickets waiting` — the count is the rail counter of its last reading, left out when the rail is not read | no (grey) | `Cook it on this computer` (recommended), when this computer's station does not serve it yet; then `Choose who cooks it` |
 

@@ -1,10 +1,11 @@
 // @ts-check
 // L'onglet Stations d'un projet, posé (ticket 3195, épique 3194) : un seul composant, qui répond à trois questions.
-//   1. Qui le cuit, et est-ce que ça marche : une ligne en tête, dans exactement un de quatre états (etat.js, `hautDe`) —
+//   1. Qui le cuit, et est-ce que ça marche : une ligne en tête, dans exactement un de cinq états (etat.js, `hautDe`) —
 //      verte seulement quand une station en ligne le cuit ou attend son prochain ticket. Hors ligne, elle dit que rien ne
 //      cuit, comment ramener la station, et offre de déménager vers cet ordinateur d'un clic ; personne, combien de tickets
 //      `fire` attendent, « Cook it on this computer » — recommandé, quand cet ordinateur ne le sert pas encore (ticket 3399)
-//      — et « Choose who cooks it ».
+//      — et « Choose who cooks it ». Le projet éteint, elle le dit à la place de qui le cuit — rien n'y cuit —, et où
+//      l'allumer au survol (ticket 3454).
 //   2. Une carte par station qui sert le projet, elles seules : son nom, ce qu'elle est en clair, son état à l'instant, ce
 //      qu'elle tient du projet (les tickets de ses cooks, ou « idle »), ses deux gestes — « Move to another station »,
 //      « Stop cooking here » — et « Details », replié, qui porte ses réglages et ses lectures, chacun avec son contrôle.
@@ -31,7 +32,8 @@ import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
  * Ce que l'onglet montre.
  *   `projet`      son nom ; `poste` : le nom que l'écran donne à cet ordinateur (« this Mac »).
  *   `lues`        les stations sont lues : sans elles, l'onglet ne dit ni qui cuit ni que personne ne cuit.
- *   `haut`        la ligne du haut ; `ramener` : comment ramener la station hors ligne, au survol ; `versIci` : cet ordinateur
+ *   `haut`        la ligne du haut ; `ramener` : comment ramener la station hors ligne — ou, le projet éteint, l'allumer —, au
+ *                 survol ; `versIci` : cet ordinateur
  *                 peut reprendre sa cuisine — le bouton qui l'y déménage est offert ; `cuireIci` : personne ne le cuit et cet
  *                 ordinateur peut le servir — « Cook it on this computer » est offert.
  *   `servantes`   une carte chacune ; `enCuisson` : la lecture de leurs cooks dit encore vrai (la poêle, ticket 2984).
@@ -140,7 +142,7 @@ function ligneDuHaut(doc, vu, gestes) {
   const phrase = cree(doc, "p");
   phrase.className = "phrase";
   phrase.append(marque(doc, tonDuHaut(haut)), cree(doc, "strong", phraseDuHaut(haut)));
-  if (haut.etat === "hors-ligne" && vu.ramener !== undefined && vu.ramener !== "") phrase.append(survol(doc, vu.ramener));
+  if ((haut.etat === "hors-ligne" || haut.etat === "eteint") && vu.ramener !== undefined && vu.ramener !== "") phrase.append(survol(doc, vu.ramener));
   ligne.append(phrase);
   if (haut.etat === "deplacement" && haut.bloque !== null) {
     const bloque = cree(doc, "p", BLOQUE(haut.bloque));
@@ -153,9 +155,9 @@ function ligneDuHaut(doc, vu, gestes) {
   const ici = haut.etat === "personne" && vu.cuireIci === true;
   const boutons = [
     ...(ici ? [boutonAction(doc, CUIRE_ICI, gestes.cuireIci, { recommande: true })] : []),
-    ...(haut.etat === "personne" && vu.quiCuit === true ? [boutonAction(doc, CHOISIR, gestes.choisirQuiCuit, { recommande: !ici })] : []),
+    ...((haut.etat === "personne" || (haut.etat === "eteint" && !haut.servi)) && vu.quiCuit === true ? [boutonAction(doc, CHOISIR, gestes.choisirQuiCuit, { recommande: !ici })] : []),
     ...(haut.etat === "hors-ligne" && vu.versIci === true ? [boutonAction(doc, VERS_ICI, gestes.versIci, { recommande: true })] : []),
-    ...((haut.etat === "cuit" || haut.etat === "hors-ligne") && vu.quiCuit === true ? [boutonAction(doc, AJOUTER, gestes.choisirQuiCuit)] : []),
+    ...((haut.etat === "cuit" || haut.etat === "hors-ligne" || (haut.etat === "eteint" && haut.servi)) && vu.quiCuit === true ? [boutonAction(doc, AJOUTER, gestes.choisirQuiCuit)] : []),
   ];
   if (boutons.length > 0) {
     const pied = cree(doc, "p");
