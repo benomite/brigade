@@ -53,7 +53,7 @@ import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-exte
 import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
-import { aDesGates, jouerGates, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
+import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
@@ -66,7 +66,9 @@ import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } 
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
-import { argumentsReviewer, consigneDeRelecture, lireRelecture } from "./reviewer.ts";
+import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
+import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
+import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
@@ -429,6 +431,8 @@ export const RELANCE_DES_GATES_MS = 30 * 60_000;
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
+// Le plafond d'un rejeu des tests qu'une livraison ajoute, par fichier et par côté (#3466).
+const REJEU_MAX_MS = 5 * 60_000;
 
 // Au plus cinq livraisons en pass : tant que le projet en compte autant, aucune
 // station sur l'état GitHub seul ne prend de ticket neuf (#2300). Le pass se
@@ -2055,7 +2059,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -2555,16 +2559,48 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
 
   // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,
   // en lecture seule, sans jeton GitHub ni secret du projet.
-  const relireDans = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">): Promise<Jugement> => {
+  // `criteres` : combien de critères d'acceptation la consigne lui donne (#3466).
+  const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0): Promise<Lue> => {
     const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
     const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
     await lance.fin;
-    const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message);
+    const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message, null, criteres);
     if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
-    const { verdict: couleur, summary, findings } = lue.relecture;
-    const constats = findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Remark"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
-    return { verdict: couleur === "green" ? "approve" : "request-changes", motif: [summary, ...constats].join("\n") };
+    return lue.relecture;
+  };
+  const constatsDe = ({ findings }: Pick<Lue, "findings">) => findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Remark"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
+  const relireDans = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">): Promise<Jugement> => {
+    const lue = await relecture(worktree, run, texte, pr);
+    return { verdict: lue.verdict === "green" ? "approve" : "request-changes", motif: [lue.summary, ...constatsDe(lue)].join("\n") };
+  };
+
+  // Rouge sur main, vert sur la branche (#3466) : les tests que la livraison
+  // ajoute, rejoués seuls sur un checkout jetable de la base et sur sa branche,
+  // par le lanceur de Node, sous la cloison, sans jeton ni secret. Le journal
+  // de la station nomme ce qui a été rejoué.
+  const prouverLaLivraison = async (ticket: TicketLu, worktree: string, fichiers: string[]): Promise<Preuve> => {
+    const { essayer, jeter } = depot;
+    const nomDuCheckout = `rouge-sur-main-${ticket.number}`;
+    const preuve = await prouver(ticket.labels, {
+      fichiers,
+      branche: worktree,
+      base: async () => {
+        if (essayer === undefined || jeter === undefined) throw new Error("this station's clone cannot make a throwaway checkout of the base");
+        // Celui qu'un runtime tué aurait laissé ne retient pas le suivant.
+        jeter(nomDuCheckout);
+        return { worktree: await essayer(nomDuCheckout), jeter: () => jeter(nomDuCheckout) };
+      },
+      jouer: async (lieu, dossier, args) => {
+        // Lancé d'un lanceur de tests, `node` lui parlerait au lieu d'écrire son TAP.
+        const { NODE_TEST_CONTEXT: _contexte, ...envDuRejeu } = sansJeton();
+        const { code, retenues } = await jouerOutil("bash", ["-c", 'cd -- "$1" && shift && exec "$@"', "rejeu", dossier, process.execPath, ...args], { worktree: lieu, ticket: ticket.number, env: envDuRejeu, delaiMs: REJEU_MAX_MS, cloison, signal: abandon.signal }, RESULTAT_TAP);
+        return { code, lignes: retenues };
+      },
+    });
+    const dit = journalDeLaPreuve(preuve, base);
+    if (dit !== null) avertir(`brigade : #${ticket.number} sur ${nom} — ${dit}`);
+    return preuve;
   };
 
   const juger: Juger = async (ticket, pr) => {
@@ -2574,10 +2610,20 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     try {
       const issue = await options.github.issue(ticket.number);
       const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
+      const criteres = lireLaCarte(issue?.body ?? "").criteria;
       // La réponse du cook aux remarques d'avant, s'il en a posté une : la pass la juge (#2592).
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
-      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff }), reponse);
-      return await relireDans(worktree, run, texte, pr);
+      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
+      // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
+      const [prouvee, relue] = await Promise.allSettled([prouverLaLivraison(ticket, worktree, diff.fichiers), relecture(worktree, run, texte, pr, criteres.length)]);
+      const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
+      const verts = vertsSurLaBase(preuve);
+      // Un test ajouté déjà vert sur la base renvoie la livraison, que la relecture ait pu se lire ou non.
+      if (relue.status === "rejected" && verts.length === 0) throw relue.reason;
+      const lue = relue.status === "fulfilled" ? relue.value : null;
+      const resume = resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base);
+      if (verts.length > 0) return { verdict: "request-changes", motif: [...motifDuRenvoi(verts, base), ...(lue === null ? [] : ["", lue.summary, ...constatsDe(lue)]), "", resume].join("\n") };
+      return { verdict: lue!.verdict === "green" ? "approve" : "request-changes", motif: [lue!.summary, ...constatsDe(lue!), "", resume].join("\n") };
     } finally {
       depot.retirer(worktree);
     }
