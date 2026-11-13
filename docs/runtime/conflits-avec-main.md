@@ -26,7 +26,7 @@ A card whose only gesture is a git operation is not sent to the chef.
 ## Wait loops between tickets
 
 When a ticket waits for another ticket, and the wait would never end, the kitchen breaks the loop by
-itself. It says so in one line on the issue, so anyone reading the issue sees why the wait ended.
+itself. Its station says so in one line on the issue, so anyone reading the issue sees why the wait ended.
 
 ## Vocabulary
 
