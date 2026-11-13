@@ -12,6 +12,8 @@
 //     dite au second, dans le bloc, avec pourquoi (`illisibles`) ;
 //   - une issue que le manager a écartée et qui porte le label du chef — `question`, `decision`, `blocked-on-human` — : depuis
 //     la pose de son label, sa carte pose la question du manager, avec ses boutons (#3370, `carteDeLEcart`).
+//   - une épique ouverte (`epic`) dont la dernière parole du manager est une question avant de la découper, tant qu'aucune
+//     réponse ne la suit : sa carte pose cette question, avec ses choix en boutons (tableau/question-d-epique-github.ts) ;
 // Une issue au label `waiting` attend un tiers, pas le chef : elle n'est jamais une entrée, quoi qu'elle porte d'autre
 // (#3075) ; l'issue du tableau de la cuisine non plus.
 //
@@ -32,6 +34,7 @@ import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lectur
 import { BLOCKED_ON_HUMAN, carteDeLEcart, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
 import type { RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
+import { carteDeLaQuestionDEpique, LABEL_EPIQUE, questionDEpiqueLe } from "./question-d-epique-github.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
 import { tiersDesCommentaires } from "../vue/attente/attente-github.ts";
 import { revueDuCorps, SORTE_SENSIBLE } from "../vue/carte-sensible/carte-sensible-github.ts";
@@ -150,9 +153,9 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     // Les listes d'abord, puis ce que chaque issue en dit — chaque fois toutes à la fois : le `gh` du second paie chaque
     // lecture d'un processus, et son crochet a peu de temps.
     const labelsDEcart = Object.keys(ECARTS) as (keyof typeof ECARTS)[];
-    const listes = await Promise.all([issuesAuLabel(LABEL_FIRE), issuesAuLabel(LABEL_DU_CHEF), ...labelsDEcart.map(issuesAuLabel)]);
+    const listes = await Promise.all([issuesAuLabel(LABEL_FIRE), issuesAuLabel(LABEL_DU_CHEF), issuesAuLabel(LABEL_EPIQUE), ...labelsDEcart.map(issuesAuLabel)]);
     // Une issue en WAITING n'attend pas le chef : elle n'est l'entrée d'aucun label.
-    const [auFeu, auChef, ...ecartees] = listes.map((issues) => issues.filter((issue) => !enAttente(issue)));
+    const [auFeu, auChef, epiques, ...ecartees] = listes.map((issues) => issues.filter((issue) => !enAttente(issue)));
     const misesDeCote = await Promise.all(
       (auFeu ?? []).flatMap((issue) => {
         const label = labelDeMiseDeCote(labelsDe(issue));
@@ -160,6 +163,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       }),
     );
     const cartes = await Promise.all((auChef ?? []).map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
+    const epiquesLues = await Promise.all((epiques ?? []).map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
     // Les tickets du rail mis de côté qui demandent quelque chose au chef.
     for (const { issue, label, lus } of misesDeCote) {
       const miseDeCote = miseDeCoteDe(depot, label, lus);
@@ -194,6 +198,12 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       const sensible = marque.carte.sorte === SORTE_SENSIBLE ? revueDuCorps(depot, texte(issue.body)) : null;
       const chef = { ...marque.carte, ...(design === null ? {} : { design }), ...(sensible === null ? {} : { sensible }) };
       poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef });
+    }
+    // Les épiques dont le manager attend la réponse du chef avant de les découper, si aucune carte ne les dit déjà.
+    for (const { issue, lus } of epiquesLues) {
+      if (dits.has(issue.number as number)) continue;
+      const chef = carteDeLaQuestionDEpique(lus);
+      if (chef !== null) poser({ ...entree(issue), depuis: questionDEpiqueLe(lus) ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(chef), chef });
     }
     // Les écarts du manager qui ne sont pas déjà dits : depuis la pose de leur label.
     const poses = await Promise.all(
