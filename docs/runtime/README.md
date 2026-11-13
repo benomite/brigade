@@ -21,6 +21,7 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`station-distante.md`](station-distante.md) | A station on another machine, the local kitchen in the sandbox, moving a kitchen |
 | [`station-cook.md`](station-cook.md) | File zones, the harvest, refusals, quota, the Max connection |
 | [`station-machine.md`](station-machine.md) | One station per machine, the GitHub call budget, adding a project |
+| [`quota-github.md`](quota-github.md) | The GitHub quota of an account, shared by its stations: the two limits, the pause, the fields published |
 | [`station-navigateur.md`](station-navigateur.md) | Looking at an interface delivery |
 | [`manager.md`](manager.md) | The manager and the tickets of the epic |
 | [`pass.md`](pass.md) | The pass: review, decision, merge |
