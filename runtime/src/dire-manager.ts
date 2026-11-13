@@ -38,6 +38,8 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
       return { motif: "its body already lists the tickets of an epic, split by hand", geste: "remove that list from its body: the epic is split on the next wake-up" };
     case "roadmap":
       return { motif: "it is the project's roadmap", geste: null };
+    case "vision":
+      return { motif: "it is a product vision or a reference document, not a deliverable: `fire` is removed", geste: null };
     case "untrusted-author":
       return { motif: "its author has no write access to the repository", geste: "a member with write access puts `fire` or a `prio:` label on it, or the project's product human answers `on the rail` on its TODO card: it is judged on the next wake-up" };
     default:

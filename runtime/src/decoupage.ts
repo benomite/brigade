@@ -9,6 +9,7 @@
 // fait ensuite de ses tickets est à lui.
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
+import { avecTaches, partDe, sortirDuRail } from "./besoin/besoin.ts";
 import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
 import { demanderAvecRelance } from "./manager/decoupage-illisible.ts";
@@ -122,7 +123,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
         );
         return [
           MARQUEUR_MANAGER,
-          `**Manager — epic split into ${connu.tickets.length} ticket${connu.tickets.length > 1 ? "s" : ""}.** They are created, calibrated and fired; what becomes of them reads in the list at the bottom of the epic.`,
+          `**Manager — epic split into ${connu.tickets.length} ticket${connu.tickets.length > 1 ? "s" : ""}.** They are created, calibrated and fired; what becomes of them reads in the list at the bottom of the epic. The epic itself is off the rail (\`fire\` removed): its tickets carry the work, each one says \`${partDe(epic.number)}\`, and it closes once they are all closed.`,
           "",
           `**Why these tickets.** ${connu.reason}`,
           "",
@@ -212,6 +213,11 @@ export function ouvrirDecoupage(atelier: Atelier) {
     // Les issues nées depuis le découpage : lues une fois, et seulement si une
     // création annoncée est restée sans suite.
     let recentes: IssueOuverte[] | null = null;
+    // Le besoin découpé quitte le rail avant que son premier ticket n'y entre :
+    // ce sont ses tickets qui portent le travail, et un cook ne prend pas un
+    // besoin déjà couvert (#3479).
+    await sortirDuRail(github, epic.number);
+    if (arrete()) return false;
     for (const [i, prevu] of connu.tickets.entries()) {
       const rang = i + 1;
       if (arrete() || atelier.eteint()) return false;
@@ -397,7 +403,9 @@ export function ouvrirDecoupage(atelier: Atelier) {
         }
         if (arrete()) return fermees;
         if (lignes.length === 0) continue;
-        const bloc = rendreListe(epic.number, lignes);
+        // Le tableau, et la liste de tâches que le contrat d'un besoin découpé
+        // demande : une ligne `- [ ] #<ticket>`, cochée quand il est servi (#3479).
+        const bloc = avecTaches(rendreListe(epic.number, lignes), lignes);
         if (ecrits.get(epic.number) !== bloc && avecListe(epic.body, bloc) !== epic.body) {
           try {
             // Relu juste avant d'écrire : le chef a pu l'éditer. Une épique

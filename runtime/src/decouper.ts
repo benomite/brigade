@@ -4,6 +4,7 @@
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
 import { COOKS, EFFORTS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
+import { partDe } from "./besoin/besoin.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES_EN, FORME_DE_CAPACITE } from "./capacites.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
@@ -367,6 +368,7 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
   return [
     reference(epic),
     marque(epic, index),
+    partDe(epic),
     "",
     // Le cook lit son ticket en entier : c'est ici qu'il apprend qu'il est le
     // cook design.

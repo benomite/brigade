@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
+import { lienDuCorps } from "../src/besoin/besoin.ts";
 import { porteListe } from "../src/epique.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
@@ -124,7 +125,7 @@ export class FauxGitHub {
     return {
       fires: async () => {
         await noter("fires");
-        return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, ...(porteListe(t.corps) ? { epique: true as const } : {}) }));
+        return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, ...(porteListe(t.corps) ? { epique: true as const } : {}), ...lienDuCorps(t.number, t.corps) }));
       },
       dependancesOuvertes: async (issue) => {
         await noter("dependancesOuvertes");
