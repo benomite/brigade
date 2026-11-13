@@ -259,6 +259,8 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
   abandoned: "The kitchen gave this ticket up.",
   "design-validation": "A design delivery waits for you to validate its screen.",
   "review-before-merge": "A sensitive ticket waits for your review before merge.",
+  // La question du manager avant de découper une épique (tableau/question-d-epique-github.ts).
+  "manager-epic-question": "The manager asked you a question before splitting this epic: it waits for your answer.",
   // Les écarts du manager (#3370, tableau/mise-de-cote-github.ts, `carteDeLEcart`).
   "manager-question": "The manager set this ticket aside with a question for you.",
   "manager-decision": "The manager set this ticket aside for your decision.",

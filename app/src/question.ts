@@ -10,7 +10,10 @@
 // Rien ne part sans le clic du chef — ni réponse d'office, ni choix par défaut —, et rien ne part
 // sur une question qui n'est plus celle qu'il a lue : l'issue est relue juste avant d'écrire.
 import { execFile, type ExecFileException } from "node:child_process";
+import { choixDe, corpsDuChoix, type Choix } from "./choix-de-question.ts";
 import { nombre } from "./format.ts";
+
+export { choixDe, corpsDuChoix, type Choix };
 
 // Ce qui marque, parmi les commentaires du manager, une question posée au chef : les deux
 // marqueurs qu'il écrit en tête (runtime/src/juger.ts, `MARQUEUR_MANAGER` ; runtime/src/decouper.ts,
@@ -27,8 +30,6 @@ export type Reglages = { gh: string; delaiMs: number };
 
 // Un commentaire de l'issue, tel que `gh` le rend : qui, quand, son adresse, son texte.
 export type Commentaire = { auteur: string; association: string; a: string; url: string; corps: string };
-// Un choix que la question propose : sa lettre, telle qu'écrite, et ce qui la suit.
-export type Choix = { lettre: string; texte: string };
 // Ce qui a été écrit sur l'issue sous la question : qui, quand, son adresse, son texte sans marqueurs.
 export type Ecrit = { auteur: string; a: string; url: string; corps: string };
 // La question : le commentaire du manager, sans ses marqueurs — rien d'autre n'en est retiré —,
@@ -83,71 +84,6 @@ export function questionDe(commentaires: readonly Commentaire[]): Question | und
     ...(repondue === undefined ? {} : { repondue }),
   };
 }
-
-// Un choix en tête de ligne : une puce ou rien, du gras ou rien, puis `a)`, `(a)`, `a.`, `a :` ou
-// `a —`, et son texte.
-const EN_TETE = /^[ \t]*(?:[-*+][ \t]+)?(\*\*|__)?(?:\(([a-z])\)|([a-z])(?:\)|\.|[ \t]*:|[ \t]+[—–-]))\1?[ \t]+(\S.*)$/i;
-// Un choix dans la phrase : `(a)`, ou `a)` après un blanc.
-const DANS_LA_PHRASE = /(?<![\p{L}\p{N}])\(([a-z])\)|(?<=^|[\s«"'“])([a-z])\)(?=\s)/giu;
-
-// Ce qui reste d'un choix une fois ses bords nettoyés : sans gras autour, sans la ponctuation ni
-// le « ou » qui le lient au suivant.
-function nettoyer(texte: string): string {
-  let propre = texte.trim();
-  for (let avant = ""; avant !== propre; ) {
-    avant = propre;
-    propre = propre
-      .replace(/^(?:\*\*|__)\s*|\s*(?:\*\*|__)$/g, "")
-      .replace(/\s*[,;:]$/, "")
-      .replace(/\s+(?:ou|or|et|and)$/i, "")
-      .trim();
-  }
-  return propre;
-}
-
-// La première suite de lettres qui se suivent à partir de `a` — `a`, `b`, `c`… —, deux au moins,
-// toutes de la même casse. Une lettre seule n'est pas un choix.
-function suite<T extends { lettre: string }>(lus: readonly T[]): T[] {
-  for (let debut = 0; debut < lus.length; debut++) {
-    const premiere = lus[debut]?.lettre ?? "";
-    if (premiere !== "a" && premiere !== "A") continue;
-    const pris = [lus[debut] as T];
-    for (let i = debut + 1; i < lus.length; i++) {
-      const attendue = String.fromCharCode(premiere.charCodeAt(0) + pris.length);
-      if (lus[i]?.lettre !== attendue) break;
-      pris.push(lus[i] as T);
-    }
-    if (pris.length >= 2) return pris;
-  }
-  return [];
-}
-
-// Les choix que la question propose, dans son ordre : en tête de ligne d'abord — une liste —,
-// sinon dans la phrase. Le texte d'un choix est celui de la question, nettoyé de ses bords ; en
-// fin de phrase, il s'arrête à son point d'interrogation, à son point ou à la fin de sa ligne.
-// Aucun : la question n'en propose pas, ou pas sous une forme que l'app sait lire — elle se
-// répond alors par une phrase.
-export function choixDe(texte: string): Choix[] {
-  const lignes = texte.split("\n").flatMap((ligne) => {
-    const [, , entre, seule, suiteDeLigne] = EN_TETE.exec(ligne) ?? [];
-    const lettre = entre ?? seule;
-    return lettre === undefined || suiteDeLigne === undefined ? [] : [{ lettre, texte: nettoyer(suiteDeLigne) }];
-  });
-  const enListe = suite(lignes).filter(({ texte: dit }) => dit !== "");
-  if (enListe.length >= 2) return enListe;
-
-  const marques = [...texte.matchAll(DANS_LA_PHRASE)].map((trouve) => ({ lettre: trouve[1] ?? trouve[2] ?? "", debut: trouve.index, fin: trouve.index + trouve[0].length }));
-  const prises = suite(marques);
-  const choix = prises.map(({ lettre, fin }, i) => {
-    const suivante = prises[i + 1];
-    const brut = suivante === undefined ? (/^[^\n?]*?(?=\?|\.(?:\s|$)|\n|$)/.exec(texte.slice(fin))?.[0] ?? "") : texte.slice(fin, suivante.debut);
-    return { lettre, texte: nettoyer(brut.replaceAll("\n", " ")) };
-  });
-  return choix.length >= 2 && choix.every(({ texte: dit }) => dit !== "") ? choix : [];
-}
-
-// Ce que le chef poste : la lettre et le texte du choix, tels que la question les écrit ; ou sa phrase, telle qu'il l'a écrite.
-export const corpsDuChoix = ({ lettre, texte }: Choix) => `${lettre}) ${texte}`;
 
 // Ce que `gh` a rendu, brut.
 type Rendu = { erreur: ExecFileException | null; sortie: string; erreurs: string };
