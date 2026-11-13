@@ -18,7 +18,7 @@ import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 export const SEUIL_D_ALERTE = 0.8;
 export const TITRE = "GitHub quota";
 export const SANS_DONNEES = "No GitHub calls recorded over the last hour.";
-export const ILLISIBLE = "GitHub quota unavailable";
+export const ILLISIBLE = "GitHub quota unreadable";
 export const DETAIL = "Calls over the last hour";
 export const DETAIL_RESUME = "per station and per project";
 // Chaque limite en clair.
