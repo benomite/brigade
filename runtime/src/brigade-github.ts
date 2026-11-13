@@ -19,6 +19,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fiche, type Fiche } from "./fiche.ts";
+import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { attendusDuBlocage, attendusOuverts, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
 import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapables, stationsCapables } from "./routage-station/routage-station.ts";
@@ -385,15 +386,8 @@ export type StationGitHub = {
   presser?: (maintenant?: boolean) => void;
 };
 
-// Les issues dont un corps dit dépendre : les numéros d'une ligne `Depends on
-// #N` (un ou plusieurs, séparés par une virgule, `and` ou `&`).
-export function dependancesDuCorps(corps: string): number[] {
-  const numeros = new Set<number>();
-  for (const [, liste = ""] of corps.matchAll(/^[ \t>*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) {
-    for (const [, numero] of liste.matchAll(/#(\d+)/g)) numeros.add(Number(numero));
-  }
-  return [...numeros];
-}
+// Les issues dont un corps dit dépendre (`Depends on #N`) : la lecture est celle du rail (`attente-du-rail/`).
+export { dependancesDuCorps };
 
 // Après une livraison, un verdict ou une fusion tentée (mergée, branche mise à
 // jour, CI qui tourne encore), la station tourne de nouveau dans les 30 s,

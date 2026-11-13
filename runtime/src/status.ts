@@ -32,6 +32,7 @@ import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/lign
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
 import { avecLeRailBloque, railBloqueCherche, railBloqueDuStatus } from "./rail-bloque/status.ts";
+import { attenteDuRailDuStatus, avecLAttenteDuRail } from "./attente-du-rail/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -78,7 +79,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const { lignes, dernierSeq } = photo;
   const lu = journal;
   if (!railBloqueCherche(env)) return ecrire(lignes);
-  return railBloqueDuStatus(env, maintenant).then((rail) => ecrire(avecLeRailBloque(lignes, rail)), (erreur: unknown) => {
+  // Pourquoi la file ne part pas (#3433) : sa phrase au-dessus de la ligne `rail`, la même que le rail de l'app.
+  return Promise.all([railBloqueDuStatus(env, maintenant), attenteDuRailDuStatus(env, maintenant)]).then(([rail, attente]) => ecrire(avecLAttenteDuRail(avecLeRailBloque(lignes, rail), attente)), (erreur: unknown) => {
     lu.fermer();
     throw erreur;
   });

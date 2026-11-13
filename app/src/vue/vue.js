@@ -103,6 +103,7 @@ import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserL
 import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
 import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
+import { ligneDeLAttente } from "./attente-du-rail/ligne-de-l-attente.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
@@ -5101,6 +5102,8 @@ function poserLeRail(projet) {
   poser(
     ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a)),
     ...ligneDuRailBloque(document, tenu.tableau.railBloque, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
+    // Pourquoi la file ne part pas (ticket 3433) : sous le rail bloqué, qui est une autre cause, au-dessus des colonnes.
+    ...ligneDeLAttente(document, tenu.tableau.attenteDuRail, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
     ...panneDuRail(projet, tenu.tableau),
     ...teteDuRail(projet),
     // Sous l'onglet Rail, l'explication du rail ; sous la bande et ses cooks en cours, celle du cook (ticket 3308).

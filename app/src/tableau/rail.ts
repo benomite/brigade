@@ -20,6 +20,9 @@
 import { setTimeout as attendre } from "node:timers/promises";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, RubriqueDuTableau, TableauLu } from "./lecture.ts";
 import { lignesDeLaFile, type RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
+import { lignesDeStatus } from "../../../runtime/src/attente-du-rail/raison.ts";
+import type { AttenteDuRail } from "../../../runtime/src/attente-du-rail/raison.ts";
+import type { LignesDesCartes } from "../vue/attente-du-rail/attente-du-rail.ts";
 
 // Les commandes que la lecture remplace, comme la veille des box les nomme (faits.ts, `COMMANDE` ; amont.ts) : la vue
 // du rail les demande, la lecture en rend la sortie.
@@ -98,6 +101,8 @@ export function statusDuTableau(lu: Pick<TableauLu, "file" | "bilans" | "cuisine
     ...avant.flatMap(lignesDeRubrique),
     "",
     ...blocAwaiting({ file: lu.file, bilans: lu.bilans, lu: lu.luLe, depot: lu.depot, railBloque: lu.faits?.railBloque as RailBloqueLu | undefined }),
+    // Pourquoi la file ne part pas (#3433), au-dessus d'elle : les lignes mêmes que `brigade <project> status` écrit.
+    ...lignesDeStatus((lu.faits?.attenteDuRail as AttenteDuRail | undefined)?.phrase ?? null, (lu.faits?.lignesDesCartes as LignesDesCartes | undefined) ?? {}),
     ligne("rail", rail.lignes[0] ?? ""),
     ...lu.lignesDuRail.map(({ ligne: sienne }) => sienne),
     "",

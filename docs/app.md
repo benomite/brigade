@@ -3758,6 +3758,20 @@ section. With the section laid, `right now` is not repeated under it.
   is under the head of the `awaiting` block of the app's `status`, of the second's queue, and of
   `brigade <project> status` on a GitHub-only station. Tickets whose comments cannot be read are said there as `not
   checked`, never as a calm rail.
+- **The rail says why its queued tickets do not start** (#3433, `app/src/vue/attente-du-rail/`, one sentence per reason in
+  `runtime/src/attente-du-rail/raison.ts`). With at least one queued ticket and no cook running, the head of the rail,
+  under the stuck-rail line, shows one sentence: the first of these reasons that holds — no station serves the project;
+  its station is stopped; its station is offline or out of quota; the station waits for the GitHub quota; the cook cap
+  is reached; a delivery is in the pass; every queued ticket waits for another ticket; else a normal wait, which says a
+  cook takes the ticket within minutes and how long the oldest queued ticket has waited since `fire` was put on it (from
+  five minutes on: "longer than usual"). The first three name the gesture that lifts them (**Start the station**,
+  **Add the project to a station** — a red `FAULT` line with the button that opens the Stations tab); the others say
+  they resolve by themselves. A queued card that will not start next carries `after #N` (behind another queued ticket)
+  or `waiting for #N to merge` (behind a ticket a cook holds or the pass judges), read from the `Depends on #N` lines of
+  its issue; the card that starts next and a card without dependency have none, and "Will not start: …" or a blocking
+  reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
+  (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
+  publish a station's cook cap, so this reading never raises that reason.
 - **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/projet/rail/bande-rail.js`, #1836). An empty rail does
   not mean a finished project. In the band at the top of the Rail tab (#2486, #3013), **Backlog 18 issues** counts
   the open issues of the repository that are not on the rail yet — a number, no bar. It is read from GitHub with the rest of the rail
