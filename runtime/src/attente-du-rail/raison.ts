@@ -38,7 +38,7 @@ const sont = (stations: readonly string[]) => (stations.length > 1 ? "are" : "is
 const PHRASES: Record<Exclude<Raison, "normale">, (stations: readonly string[]) => string> = {
   "aucune-station": () => `No station serves this project, so no cook can start. ${MOTS_DU_GESTE["ajouter-a-une-station"]}.`,
   arretee: (stations) => `${nommees(stations)} ${sont(stations)} stopped, so no cook can start. ${MOTS_DU_GESTE["demarrer-la-station"]}.`,
-  "hors-ligne": (stations) => `${nommees(stations)} ${sont(stations)} shown up but offline or out of quota, so no cook can start. ${MOTS_DU_GESTE["demarrer-la-station"]}.`,
+  "hors-ligne": (stations) => `${nommees(stations)} ${sont(stations)} offline or out of quota, so no cook can start. ${MOTS_DU_GESTE["demarrer-la-station"]}.`,
   "quota-github": () => "The station waits for the GitHub quota before it starts a cook. It resolves by itself.",
   plafond: () => "The station has reached its cook cap: a cook starts as soon as a place frees up. It resolves by itself.",
   pass: () => "The pass is judging a delivery: the queue starts once it is done. It resolves by itself.",

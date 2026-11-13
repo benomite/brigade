@@ -36,7 +36,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
   test("3 : sa station est hors ligne ou sans quota", () => {
     assert.deepEqual(attente([file(4)], [station({ lastSeen: iso(T0 - 3_600_000) })]), {
       raison: "hors-ligne",
-      phrase: "Station box/claude is shown up but offline or out of quota, so no cook can start. Start the station.",
+      phrase: "Station box/claude is offline or out of quota, so no cook can start. Start the station.",
       geste: "demarrer-la-station",
       stations: ["box/claude"],
     });
@@ -46,12 +46,15 @@ describe("la raison pour laquelle la file ne part pas", () => {
     const dite = attente([file(4)], [station({ name: "mac", stoppedAt: iso(T0 - 20_000) }), station({ name: "parade", lastSeen: iso(T0 - 3_600_000) })]);
     assert.equal(dite?.raison, "hors-ligne");
     assert.deepEqual(dite?.stations, ["parade/claude"]);
-    assert.match(dite?.phrase ?? "", /^Station parade\/claude is shown up but offline/);
+    assert.match(dite?.phrase ?? "", /^Station parade\/claude is offline/);
     assert.doesNotMatch(dite?.phrase ?? "", /mac/);
   });
 
   test("3 ter : une station arrêtée et une en ligne — aucune panne", () => {
-    assert.equal(attente([file(4)], [station({ name: "mac", stoppedAt: iso(T0 - 20_000) }), station({ name: "parade" })])?.raison, "normale");
+    const dite = attente([file(4)], [station({ name: "mac", stoppedAt: iso(T0 - 20_000) }), station({ name: "parade" })]);
+    assert.equal(dite?.raison, "normale");
+    assert.deepEqual(dite?.stations, []);
+    assert.equal(dite?.geste, null);
   });
 
   test("4 : la station attend le quota de GitHub — aucun geste, elle passe seule", () => {

@@ -58,3 +58,17 @@ test("la panne nomme la station arrêtée : la page dit « Cooks on », jamais �
   assert.doesNotMatch(texte, /No station cooks/);
   assert.equal(bloc.dessous("button").some((bouton) => bouton.textContent === "choose its machine"), false);
 });
+
+test("la panne du rail bloqué nomme la station : « Cooks on », le geste une seule fois, pas « choose its machine »", async () => {
+  const bloque = { tickets: [4], depuis: A, cause: "arretee", stations: ["macbook-air-de-benoit/claude"], geste: "demarrer-la-station", constat: "queued", phrase: "Station macbook-air-de-benoit/claude is stopped, so no cook can start. Start the station." };
+  const { bloc } = await ouvrir({ ...FAITS, railBloque: bloque });
+  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  assert.doesNotMatch(bloc.textContent, /No station cooks/);
+  assert.equal(bloc.dessous("button").some((bouton) => bouton.textContent === "choose its machine"), false);
+  assert.equal((bloc.textContent.match(/Start the station/g) ?? []).length, 0);
+});
+
+test("aucune station n'a jamais servi le projet : « choose its machine » reste offert", async () => {
+  const { bloc } = await ouvrir({ ...FAITS, attenteDuRail: { raison: "normale", phrase: "Normal wait: a cook takes the ticket within minutes. It resolves by itself.", geste: null, stations: [] } });
+  assert.doesNotMatch(bloc.textContent, /Cooks on/);
+});
