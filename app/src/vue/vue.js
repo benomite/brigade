@@ -4631,6 +4631,7 @@ function ongletDesStations(projet) {
       ouverts,
       lecture,
       quiCuit: ajout !== undefined,
+      ...(tenu !== undefined && "tableau" in tenu && tenu.tableau.quotaGithub !== undefined ? { quota: tenu.tableau.quotaGithub } : {}),
     },
     {
       choisirQuiCuit: () => ajout?.gestes.ouvrir(),

@@ -35,6 +35,7 @@ import { revueLue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
+import { quotaLu, type QuotaGithub } from "./vue/stations-quota/quota-lu.ts";
 import type { Repondue } from "./repondues.ts";
 import type { PrioriteMontree } from "./priorite.ts";
 import type { RailDuProjet } from "../../runtime/src/appairage/rail-du-projet.ts";
@@ -367,6 +368,8 @@ export type Faits = {
   limiteGithub?: string;
   // La limite que GitHub pose aux appels du compte — laquelle, depuis quand, retour vers quand (runtime, `github`) ; absente quand les appels passent (vue/bandeau-limite-github.ts).
   github?: LimiteDuCompte;
+  // Le quota GitHub du compte et ce qui l'use (runtime, `quotaGithub`, ticket 3483) : la jauge de l'onglet Stations ; absent d'un runtime d'avant ce champ.
+  quotaGithub?: QuotaGithub;
   // Le refus de l'interrupteur GitHub seul par le runtime (`githubSeul`, ticket 2161) : sa raison en une phrase, et depuis quand ; absent quand l'interrupteur est éteint ou accepté.
   githubSeulRefuse?: { reason: string; since: string };
   // Le dépôt du projet, quand le compte GitHub de l'app ne peut pas y écrire (tableau/lecture.ts, `lectureSeule`, #3163) ; absent sinon, et quand GitHub ne l'a pas dit.
@@ -531,6 +534,8 @@ export type Tableau = {
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
   // tout s'y voit, aucun geste n'y est offert, et une ligne en tête le dit. Absent : la vue ordinaire.
   lectureSeule?: { depot: string };
+  // Le quota GitHub du compte, pour la jauge de l'onglet Stations (ticket 3483) — absent d'un runtime qui ne le donne pas.
+  quotaGithub?: QuotaGithub;
   // Les tickets sur lesquels un agent travaille à cette lecture (#2984) : la vue pose la poêle à côté de leur carte. Absent
   // d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ) : rien n'y cuit.
   auTravail?: number[];
@@ -811,6 +816,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       dernierTick: ouRien(racine.dernierTick, "dernierTick", heure),
       ...(racine.limiteGithub === undefined ? {} : { limiteGithub: heure(racine.limiteGithub, "limiteGithub") }),
       ...limiteLue(racine.github),
+      ...quotaLu(racine.quotaGithub),
       ...refusGitHubSeulLu(racine.githubSeul),
       ...lectureSeuleLue(racine.lectureSeule),
       ...railBloqueLu(racine.railBloque),
@@ -1479,6 +1485,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     rail: rail(faits, attend, status, repondues, ecrites),
     auTravail: ticketsAuTravail(faits),
     ...(faits.lectureSeule === undefined ? {} : { lectureSeule: faits.lectureSeule }),
+    ...(faits.quotaGithub === undefined ? {} : { quotaGithub: faits.quotaGithub }),
     ...(faits.railBloque === undefined ? {} : { railBloque: faits.railBloque }),
     ...(faits.attenteDuRail === undefined ? {} : { attenteDuRail: faits.attenteDuRail }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),

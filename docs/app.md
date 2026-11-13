@@ -773,6 +773,10 @@ Captures, before and after, of each of the four states: `docs/captures/stations-
 `app/src/vue/vue.js`; `app/src/vue/projet/stations/AjoutStation.js` and `ArretStation.js` (adding and stopping a station).
 Tests: `app/test/stations-tab/`, `app/test/vue/projet/stations-servies.test.ts`, `app/test/vue/projet/arret-station.test.ts`.*
 
+### The account's GitHub quota gauge, on the Stations tab (#3483, epic #3475)
+
+Under the top line, when the runtime's `facts` carry `quotaGithub` (`app/src/vue/stations-quota/`), a gauge says `<used> / <limit> calls used` and when the window renews (`renews around 11:00`, the chef's local time; `renewal time unknown` when it does not read). It is **green** under 80 % used and **orange** from 80 %: a warning before any pause, neither the yellow of GitHub's pause line nor red. Behind it, a folded `Calls over the last hour` lists the calls per station and per project in plain words (`Mac station, secondes: 39 writes on issues`), the biggest user first; with no calls it says `No GitHub calls recorded over the last hour.` A quota that does not read (no limit, a count that is not a number) says `GitHub quota unavailable`, with no figure made up. Without `quotaGithub`, no gauge.
+
 ### Every setting of each station, on the Stations tab (#2488, epic #2484)
 
 In the **`Details`** of the card of each station the project declares (#3195 — the **Station settings** block is gone), three
