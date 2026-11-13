@@ -13,6 +13,7 @@
 // issue fermée —, il ne retient plus rien, et un cook le prend au tour suivant,
 // sans geste de personne. Aucune carte TODO n'est posée.
 import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
+import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
 import { fiche } from "../fiche.ts";
 import { direSaut } from "../retenue/retenue.ts";
 
@@ -83,7 +84,7 @@ export function attendusDesCommentaires(corps: readonly string[]): number[] {
 }
 
 // Les tickets encore ouverts que `ticket` attend : ceux de son corps
-// (`Depends on`), de sa fiche et de ses marques d'attente. Un ticket attendu
+// (`Depends on`), de sa fiche et de ses marques d'attente, moins celles que la cuisine a levées. Un ticket attendu
 // parmi `lus` — les tickets ouverts du tour — est ouvert ; un autre se lit sur
 // GitHub, et n'est plus attendu fermé ou disparu. Sans lecteur d'issue, seul
 // un ticket du tour est ouvert. Le corps ou un ticket attendu illisible lève :
@@ -92,9 +93,12 @@ export function attendusDesCommentaires(corps: readonly string[]): number[] {
 // qui les lit aussi, dit sur l'issue pourquoi il ne part pas, et le rend.
 export async function attendusOuverts(github: Pick<GitHubDuTour, "commentaires" | "dependancesOuvertes" | "issue">, ticket: number, lus: readonly TicketLu[]): Promise<number[]> {
   const [duCorps, commentaires] = await Promise.all([github.dependancesOuvertes(ticket), github.commentaires(ticket).catch(() => [])]);
-  const ouverts = new Set(duCorps);
-  for (const attendu of attendusDesCommentaires(commentaires.map(({ body }) => body))) {
-    if (attendu === ticket || ouverts.has(attendu)) continue;
+  const corps = commentaires.map(({ body }) => body);
+  // Une attente que la cuisine a levée pour défaire une boucle ne retient plus (#3477).
+  const levees = leveesDesCommentaires(corps);
+  const ouverts = new Set(duCorps.filter((attendu) => !levees.has(attendu)));
+  for (const attendu of attendusDesCommentaires(corps)) {
+    if (attendu === ticket || ouverts.has(attendu) || levees.has(attendu)) continue;
     const lu = lus.find(({ number }) => number === attendu);
     if (lu !== undefined ? lu.state === "open" : (await github.issue?.(attendu))?.state === "open") ouverts.add(attendu);
   }
