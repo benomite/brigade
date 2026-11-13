@@ -60,6 +60,7 @@ import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./close
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { jouerLaRevue } from "./vue/carte-sensible/carte-sensible-github.ts";
+import { jouerLAnnulation } from "./vue/undo/undo-github.ts";
 import { lireLAutonomieDuDepot, tenirLAutonomie } from "./vue/autonomie/autonomie-github.ts";
 import { changerLeJour, lireLeJour, lireLesResumes, publierLeResume, type ResumeHebdomadaire, type ResumesDuProjet } from "./vue/resume-hebdomadaire/resume-cuisine.ts";
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
@@ -1777,6 +1778,26 @@ ipcMain.handle("gesteSensible", async (_, nom: unknown, ticket: unknown, geste: 
     geste,
     commande: async () => {
       const [{ principal }, { Sortie }] = await Promise.all([duRuntime<typeof import("../../runtime/src/sensible/commande.ts")>("sensible", "commande.ts"), duRuntime<typeof import("../../runtime/src/appel.ts")>("appel.ts")]);
+      return { principal, estUneSortie: (erreur: unknown): erreur is InstanceType<typeof Sortie> => erreur instanceof Sortie };
+    },
+    env: { ...process.env, BRIGADE_GH_BIN: ghIci },
+  });
+  if ("fait" in rendu) tableaux.oublier();
+  return rendu;
+});
+// « undo » sur la carte d'un ticket servi (vue/undo/, ticket 3274) : la commande `undo` du runtime (runtime/src/undo/
+// commande.ts), importée et jouée ici, sous le `gh` de ce poste — une PR revert le merge du ticket et passe la pass, et le
+// ticket est rouvert ; en conflit, un ticket est déposé pour la cuisine. Seul un ticket que la dernière lecture porte servi,
+// sa PR mergée, s'annule. Fait, la lecture suivante va à GitHub : rouvert, le ticket quitte Served.
+ipcMain.handle("annulerServi", async (_, nom: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return undefined;
+  const rendu = await jouerLAnnulation({
+    depot: await depotDuProjet(vise),
+    ticket,
+    servi: faits.ticket(vise.nom, ticket)?.etat === "servi" && faits.pr(vise.nom, ticket) !== undefined,
+    commande: async () => {
+      const [{ principal }, { Sortie }] = await Promise.all([duRuntime<typeof import("../../runtime/src/undo/commande.ts")>("undo", "commande.ts"), duRuntime<typeof import("../../runtime/src/appel.ts")>("appel.ts")]);
       return { principal, estUneSortie: (erreur: unknown): erreur is InstanceType<typeof Sortie> => erreur instanceof Sortie };
     },
     env: { ...process.env, BRIGADE_GH_BIN: ghIci },

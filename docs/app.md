@@ -3596,6 +3596,13 @@ section. With the section laid, `right now` is not repeated under it.
   process, like that of the issue. A ticket served without a merge has no PR: the card says so
   (`PR  none — served without merge`). An issue closed **without** having been served — dropped,
   set aside — is not there.
+- **Under "open the merged PR", "undo" undoes the served ticket in one click** (#3274). Only a card whose PR is
+  merged carries it, never in a read-only project; its cost is in its hover. The main process plays the runtime's `undo`
+  command under this workstation's `gh` (`runtime/src/undo/`): a pull request reverts the ticket's merge, on the branch of
+  a new ticket `Undo #N` set `in-pass`, and the pass judges and merges it like any other delivery; the ticket is reopened
+  off the rail, with a comment saying it was undone and by whom. When later work builds on it, the revert does not apply
+  cleanly: no pull request is left open, a ticket is filed for the kitchen to undo it by hand, naming the original, and
+  the card says so in one line instead of the button. A refusal brings the button back, with its reason in one line.
 - **Under its title, the card says what was served: the review summary, word for word.** The
   title says what was asked; the summary, what the reviewer read in what was served — the one
   it wrote on the issue. It is laid down whole, in its words: neither cut nor reworded, and a

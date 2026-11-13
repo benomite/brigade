@@ -41,6 +41,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   },
   { nom: "design", description: "A green design delivery held for the chef's validation (its card “Validate its screen”): validate <owner>/<repo>#<PR> merges it, send-back <owner>/<repo>#<PR> --comment <what to change> sends it back to a cook; both close the card" },
   { nom: "sensitive", description: "A green delivery of a sensitive ticket held for the chef's review (its card “review before merge”): merge <owner>/<repo>#<PR> merges it, send-back <owner>/<repo>#<PR> --note <note> sends the ticket back to a cook with the note; both close the card" },
+  { nom: "undo", description: "Undo a served ticket (its card's “undo”): <owner>/<repo>#<ticket> opens a pull request reverting its merge, which the pass judges and merges like any delivery, and reopens the ticket; a revert that does not apply cleanly files a ticket for the kitchen instead" },
   { nom: "report", description: "The daily report of the decisions brigade took and told about, the last 24 hours (read-only)" },
   { nom: "guardrails", ancien: "garde-fous", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
   { nom: "base", description: "Show the integration base; replay its gates when red", mots: { rejouer: "replay" } },
