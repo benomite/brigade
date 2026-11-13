@@ -3880,6 +3880,17 @@ section. With the section laid, `right now` is not repeated under it.
   rail scrolls within its own. A project that no station serves on this computer has no rail — nothing is read from it — and
   its terminal takes the full height.
 
+### The Backlog band (epic #3459)
+
+The band at the top of the Rail tab is an order book above the rail: **one tag per open need that is not on the rail**. A need (an epic, an idea or a decision to make) is not a ticket. It is split into tickets, and the tickets are the ones that move on the rail; the band keeps the need until it is served.
+
+- **The folded line**: by default the band is one line: the title **Backlog**, the count of needs before the rail, then the tags. Each need is a tag: its priority, a short title, then its progress as `served/total` for a split need, or a plain-words state otherwise.
+- **Red tags come first**: a tag that awaits the chef is red and stands before the others.
+- **`+N` overflow**: a `+N` tag stands for the needs the line does not show; on a phone-width window the line scrolls sideways instead.
+- **Click on a tag**: unfolds the band with that need's detail and highlights its tickets in the rail.
+- **Click on the title, "Backlog"**: unfolds the whole backlog as a list, grouped by state; a second click folds it back to its line.
+- **Served needs stay 24 hours**: a served need stays in the band for 24 hours, then leaves it.
+
 ### The stop banner
 
 When the box says the kitchen is `stopped` — your "stop" —, the project's space says so at the top, above
