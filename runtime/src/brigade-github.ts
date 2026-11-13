@@ -21,7 +21,8 @@ import { join } from "node:path";
 import { fiche, type Fiche } from "./fiche.ts";
 import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
-import { attendusDuBlocage, attendusOuverts, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
+import { defaireLesBoucles } from "./boucle-attente/boucle-attente.ts";
+import { attendusDuBlocage, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
 import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapables, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
@@ -720,6 +721,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les tickets de la cuisine que le dernier tour a lus ouverts : ceux qu'un
   // cook bloqué peut nommer comme attendus (#2968).
   let ouvertsDuTour = new Set<number>();
+  let ticketsDuTour: TicketLu[] = [];
   // Les tickets que la porte de prise a sautés au tour en cours parce qu'une
   // PR ouverte, ou un ticket en cuisson, tient leur zone. La cuisine inerte
   // les lit au tour suivant : ils ne sont pas à prendre, ce qui les tient
@@ -1020,6 +1022,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (attendus.length > 0) {
           avertir(`brigade : #${issue} sur ${nom} — the cook stopped on the unmerged work of ${attendus.map((n) => `#${n}`).join(", ")}: the ticket waits for it on the rail, not for the chef`);
           await github.commenter(issue, corpsDeLAttente({ station: nom, attendus, question: fait.bloque }));
+          // Si cette attente referme une boucle, la cuisine la défait aussitôt (#3477).
+          await defaireLesBoucles(github, issue, ticketsDuTour).catch((erreur: unknown) => avertir(`brigade : #${issue} sur ${nom} — wait loop not checked: ${message(erreur)}`));
           chrono.rater(issue);
           await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
           liberee = true;
@@ -1385,6 +1389,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // elle ne compte parmi les tickets du tour (#2618).
     const tickets = lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE) && ticket.epique !== true);
     ouvertsDuTour = new Set(tickets.map(({ number }) => number));
+    ticketsDuTour = tickets;
     const libres: TicketLu[] = [];
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
     let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = await fermerLesPRDesTicketsFermes(new Set(lus.map(({ number }) => number))).catch((echec) => {
@@ -1796,7 +1801,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Un ticket ouvert qu'il attend — son corps, sa fiche, l'arrêt de son cook
       // (#2968) — le retient, et son saut le nomme ; sans lecture de GitHub, il attend aussi.
       try {
-        const attendus = await attendusOuverts(github, ticket.number, lus);
+        const attendus = await defaireLesBoucles(github, ticket.number, lus);
         if (attendus.length > 0) {
           options.sauter?.(ticket.number, direAttenteDeTicket(ticket.number, attendus));
           continue;
