@@ -467,8 +467,8 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
   },
 });
 
-// Ce qui est avant le rail (amont.ts, #1836) : lu sur GitHub pour le projet affiché seulement — sa barre se pose à côté
-// de son rail, et déplie la colonne Backlog. Des issues qui ne se lisent pas : la vue n'en dit rien (#1770), jamais
+// Ce qui est avant le rail (amont.ts, #1836) : lu sur GitHub pour le projet affiché seulement — son bandeau Backlog se
+// pose au-dessus des colonnes de son rail (#3460). Des issues qui ne se lisent pas : la vue n'en dit rien (#1770), jamais
 // « rien avant le rail », et aucune box n'est jointe pour lui.
 const amonts = tenirAmont();
 const veilleDeLAmont = ouvrirVeilleDuTableau({

@@ -2022,41 +2022,10 @@ main > header,
 #rail .bande-rail .bande-part[data-depasse="oui"] .bande-valeur {
   color: var(--rouge-clair);
 }
-/* Le backlog est un bouton, qui déplie sa colonne : il se lit comme les autres chiffres. */
-#rail .bande-rail .bande-backlog {
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-#rail .bande-rail .bande-backlog:hover .bande-nom,
-#rail .bande-rail .bande-backlog[aria-expanded="true"] .bande-nom {
-  color: var(--texte);
-}
 /* L'âge du rail, au bout de la bande. */
 #rail .bande-rail .age-du-rail {
   margin-left: auto;
   padding: 0;
-}
-/* La pastille de chaque état de la colonne Backlog : chacun sa couleur, lisible sur le sombre ; le rouge est réservé à
-   ce qui est cassé : la refusée incomplète attend le second, elle est jaune. La mise de côté est hachurée. */
-#rail .backlog .groupe[data-etat="non-lue"] h5 span:first-child::before {
-  background: var(--gris);
-}
-#rail .backlog .groupe[data-etat="incomplete"] h5 span:first-child::before {
-  background: var(--jaune);
-}
-#rail .backlog .groupe[data-etat="epique"] h5 span:first-child::before {
-  background: var(--bleu);
-}
-#rail .backlog .groupe[data-etat="prete"] h5 span:first-child::before {
-  background: var(--vert);
-}
-#rail .backlog .groupe[data-etat="mise-de-cote"] h5 span:first-child::before {
-  background: var(--case);
-  background-image: repeating-linear-gradient(135deg, var(--discret) 0 2px, transparent 2px 4px);
 }
 /* La tête du rail, la cuisine oisive avec des cartes dessus (#1863) : une panne — rouge, épaisse, sur le fond chaud de
    ce qui attend le chef, marquée FAULT comme l'urgence l'est URGENT. Elle se voit avant les colonnes. */
@@ -2153,36 +2122,6 @@ main > header,
   background-image: repeating-linear-gradient(135deg, transparent 0 8px, var(--case) 8px 16px);
   border: 1px dashed var(--trait-fort);
   border-radius: var(--rayon-bouton);
-}
-/* La colonne Backlog, dépliée par la barre, à gauche de « On the rail » : une colonne du rail, ses cartes groupées par
-   état, chaque groupe sous un titre marqué de la couleur de sa part de barre. Son titre porte le geste qui la replie. */
-#rail .colonne.backlog h4 .compte {
-  margin-left: auto;
-}
-#rail .backlog .groupe + .groupe {
-  margin-top: var(--pas-4);
-}
-#rail .backlog h5 {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-2);
-  font-size: var(--taille-corps);
-  font-weight: 600;
-  color: var(--texte-doux);
-}
-#rail .backlog h5 span:first-child::before {
-  content: "";
-  display: inline-block;
-  width: 10px;
-  height: 6px;
-  margin-right: var(--pas-2);
-  border-radius: 0;
-}
-#rail .backlog h5 span:last-child {
-  font-weight: 400;
-  color: var(--discret);
 }
 /* Six colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
    étroite, la zone défile. La quatrième, TODO, est plus large : ses cartes portent une ligne du bloc ;
@@ -3356,6 +3295,15 @@ main > header,
    centre (vue.js montre l'un ou l'autre). La tête du projet passe à la ligne plutôt que de déborder, et une ligne de
    station pose son bouton à côté de son nom, son état et ses cooks dessous. Le même seuil que `ECRAN_ETROIT` (vue.js). */
 @media (max-width: 720px) {
+  /* Le bandeau Backlog (ticket 3460) : sa ligne passe sous son titre et défile de côté — toutes ses étiquettes y sont,
+     sans `+N`. */
+#rail .backlog-band-rang {
+    flex-wrap: wrap;
+  }
+#rail .backlog-band-tags {
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
   /* Settings (ticket 1700) : les groupes serrés, et le nom, la valeur et le contrôle d'un réglage l'un sous l'autre. */
 #etat > .groupe {
     margin: var(--pas-2) var(--pas-2) 0;

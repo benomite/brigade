@@ -4,9 +4,9 @@
 // avec ce qui la retient en une ligne. Ce module n'y déduit rien : il compte ce que la lecture liste, range chaque
 // issue sous le mot qu'elle porte, et pose ce qu'elle en dit, mot pour mot. Une lecture ratée n'est jamais « rien avant
 // le rail ».
-// En tête du rail, une petite barre empilée — une part par état, de la longueur de son compte, les comptes au survol —
-// qui déplie la colonne Backlog ; et, quand le rail est vide, ce qu'il y a avant lui, et si le manager le lit — son état
-// vient de `manager` (manager.ts).
+// Au-dessus des colonnes du rail, le bandeau Backlog (vue/backlog-band/, #3460) : une étiquette par besoin, le détail
+// d'un clic, la liste entière d'un clic sur son titre ; et, quand le rail est vide, ce qu'il y a avant lui, et si le
+// manager le lit — son état vient de `manager` (manager.ts).
 import type { Lecture } from "./box.ts";
 import { estHorsLigne, titreDEchec, type Carte } from "./faits.ts";
 import { entete, type Entete } from "./fiche.ts";
@@ -14,28 +14,34 @@ import { voir as voirManager, type Vu as VuManager } from "./manager.ts";
 
 export const COMMANDE = "manager upstream";
 
-// Une issue telle que le tableau la donne. `priorite` : celle de son label `prio:`, nulle sans.
-export type Donnee = { ticket: number; titre: string; url: string; priorite: number | null; etat: string; dit: string };
+// Une issue telle que le tableau la donne. `priorite` : celle de son label `prio:`, nulle sans. Ce que le bandeau Backlog
+// lit d'un besoin (#3460), quand la lecture de GitHub le donne — la box ne le donne pas : `tickets`, ceux de son
+// découpage ; `servis`, ceux d'entre eux qui sont fermés ; `contexte`, le premier paragraphe de son issue ; `servieLe`,
+// la fermeture d'une épique toute servie (tableau/lecture.ts).
+export type Besoin = { tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string };
+export type Donnee = { ticket: number; titre: string; url: string; priorite: number | null; etat: string; dit: string } & Besoin;
 // La sortie de `manager upstream` : l'heure de la box à la lecture des issues, le dépôt lu, les issues.
 export type Amont = { lu: string; depot: string; issues: Donnee[] };
 
-// Les cinq états de la liste fermée (runtime/src/amont.ts, `ETATS_AVANT_LE_RAIL`), dans l'ordre où la barre et la
-// colonne les posent, et ce que chacun veut dire en mots simples. Un mot que la box ajouterait se pose après eux, tel
-// quel.
+// Les cinq états de la liste fermée (runtime/src/amont.ts, `ETATS_AVANT_LE_RAIL`), dans l'ordre où le bandeau Backlog
+// les range, et ce que chacun veut dire en mots simples ; puis les deux que la lecture de GitHub ajoute d'un besoin
+// découpé (#3460) : ses tickets en cours, ou tous servis. Un mot que la box ajouterait se pose après eux, tel quel.
 export const GROUPES = [
   { etat: "non-lue", nom: "not read yet" },
   { etat: "incomplete", nom: "refused as incomplete" },
   { etat: "epique", nom: "epic, not split yet" },
   { etat: "prete", nom: "ready, not fired" },
   { etat: "mise-de-cote", nom: "set aside" },
+  { etat: "decoupee", nom: "split into tickets" },
+  { etat: "servie", nom: "served" },
 ] as const;
 
-// Une issue de la colonne : son numéro, son titre, ce qui la retient. `ouvrable` : son issue s'ouvre d'un clic —
-// l'adresse reste au process principal. `fiche` : l'en-tête de sa fiche (fiche.ts). `carte` : la carte que la colonne
-// Backlog pose, celle du rail — son numéro qui ouvre l'issue, sa priorité, son titre, et sur sa ligne ce qui la retient.
-export type Issue = { ticket: number; titre: string; dit: string; ouvrable: boolean; fiche: Entete; carte: Carte };
+// Une issue avant le rail : son numéro, son titre, sa priorité, ce qui la retient, et ce que le bandeau Backlog lit
+// d'elle (`Besoin`). `ouvrable` : son issue s'ouvre d'un clic — l'adresse reste au process principal. `fiche` :
+// l'en-tête de sa fiche (fiche.ts). `carte` : sa carte, celle du rail, que la fiche d'un ticket hors du rail reprend.
+export type Issue = { ticket: number; titre: string; priorite: number | null; dit: string; ouvrable: boolean; fiche: Entete; carte: Carte } & Besoin;
 export type Groupe = { etat: string; nom: string; issues: Issue[] };
-// Ce que la vue pose, sans rien calculer : le nombre, les groupes et ce que la barre dit au survol (`survol`) — ou,
+// Ce que la vue pose, sans rien calculer : le nombre, les groupes et ce que le titre du bandeau Backlog dit au survol (`survol`) — ou,
 // `sans`, pourquoi rien n'est compté. `vide` : ce qui se lit à la place du rail quand aucun ticket n'y est.
 // `nonPublie` : la lecture de GitHub, fraîche, ne porte pas ce qui est avant le rail — rien n'est dit ni compté,
 // pas même « pas lu ».
@@ -49,6 +55,16 @@ const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
   typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : refuser(champ, "an object");
 const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
+const entiers = (valeur: unknown, champ: string): number[] => (Array.isArray(valeur) ? valeur.map((un: unknown, rang) => entier(un, `${champ}[${rang}]`)) : refuser(champ, "a list"));
+// Ce qu'une issue dit d'un besoin, champ par champ : absent, il n'est pas complété ; présent, il a sa forme ou refuse tout.
+function besoinDe(issue: Record<string, unknown>, champ: string): Besoin {
+  return {
+    ...(issue.tickets === undefined ? {} : { tickets: entiers(issue.tickets, `${champ}.tickets`) }),
+    ...(issue.servis === undefined ? {} : { servis: entiers(issue.servis, `${champ}.servis`) }),
+    ...(issue.contexte === undefined ? {} : { contexte: texte(issue.contexte, `${champ}.contexte`) }),
+    ...(issue.servieLe === undefined ? {} : { servieLe: texte(issue.servieLe, `${champ}.servieLe`) }),
+  };
+}
 
 // La sortie de `manager upstream`, champ pour champ — ou en quoi elle n'en est pas la forme. Rien
 // n'y est complété : un champ qui manque refuse la forme entière ; un champ de plus est laissé de côté.
@@ -76,6 +92,7 @@ export function comprendre(sortie: string): Amont | { informe: string } {
           priorite: issue.priorite === null ? null : entier(issue.priorite, `${champ}.priorite`),
           etat: texte(issue.etat, `${champ}.etat`),
           dit: texte(issue.dit, `${champ}.dit`),
+          ...besoinDe(issue, champ),
         };
       }),
     };
@@ -98,12 +115,14 @@ export function grouper(issues: readonly Donnee[]): Groupe[] {
       {
         etat,
         nom,
-        issues: siennes.map(({ ticket, titre, url, priorite, dit }) => {
+        issues: siennes.map(({ ticket, titre, url, priorite, dit, etat: _etat, ...besoin }) => {
           const fiche = entete({ titre, url, prio: priorite });
           return {
             ticket,
             titre,
+            priorite,
             dit,
+            ...besoin,
             ouvrable: ouvrable(url),
             fiche,
             carte: { ticket, titre, ouvrable: ouvrable(url), attendu: false, attend: [], dit: [], fiche, ligne: dit, ...(priorite === null ? {} : { prio: `prio:${priorite}` }) },
@@ -141,7 +160,7 @@ function sansLecture(lecture: Lecture, informe: string | undefined): string {
 const pluriel = (nombre: number, mot: string) => `${nombre} ${mot}${nombre > 1 ? "s" : ""}`;
 const detailDe = (groupes: Groupe[]) => groupes.map(({ nom, issues }) => `${issues.length} ${nom}`).join(" · ");
 
-// Ce que la barre dit au survol : le total, puis le compte de chaque état — son seul texte.
+// Ce que le titre du bandeau Backlog dit au survol : le total, puis le compte de chaque état.
 function survolDe(issues: number, groupes: Groupe[]): string {
   if (issues === 0) return "nothing before the rail: every open issue of the repository is on it";
   return `${pluriel(issues, "issue")} before the rail — ${detailDe(groupes)}`;

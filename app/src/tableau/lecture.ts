@@ -12,6 +12,7 @@
 // Ni la box ni une station ne sont jointes : rien d'autre que GitHub, par l'appel que la plateforme donne (client.ts).
 // Ce qui ne se lit pas le dit, jamais un rail vide : GitHub qui ne répond pas ou refuse — chaque fois un échec, et sa
 // raison en une phrase, que l'app montre telle quelle.
+import { epiqueDe, FIN, DEBUT, porteListe, ticketsDeLaListe } from "../../../runtime/src/epique.ts";
 import { avecLeRail, lireLeRailSurGithub, SIGNES_PAS_LUS, type SignesDeVie } from "../vue/rail/github.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 import { ecritureSurLeDepot } from "./ecriture.ts";
@@ -44,9 +45,13 @@ export type ActiviteDuCook = {
   tokens: number | null;
   pr: { numero: number | null; url: string } | null;
 };
-// Ce qui est avant le rail (#1836) : les issues ouvertes que le rail ne porte pas, chacune dans l'un des cinq états que
-// la vue range (amont.ts, `GROUPES`), avec ce qui la retient en une ligne.
-export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite: number | null; etat: string; dit: string };
+// Ce qui est avant le rail (#1836) : les issues ouvertes que le rail ne porte pas, chacune dans l'un des états que
+// la vue range (amont.ts, `GROUPES`), avec ce qui la retient en une ligne. Le bandeau Backlog (#3460) y lit chaque besoin :
+// `tickets`, ceux de son découpage — la liste que le runtime écrit dans son corps, et les issues ouvertes qui se
+// réclament de lui (`Epic: #N`) ; `servis`, ceux d'entre eux dont l'issue est fermée ; `contexte`, le premier paragraphe
+// de son corps (sous `Context`, s'il en a un) ; `servieLe`, l'heure où une épique découpée, tous ses tickets servis, a
+// été fermée — elle reste 24 h dans le bandeau.
+export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite: number | null; etat: string; dit: string; tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string };
 export type AvantLeRailPublie = { lu: string; issues: IssueAvantLeRailPubliee[] };
 
 export type TableauLu = {
@@ -131,23 +136,112 @@ export function avantLeRailDe(labels: readonly string[]): { etat: string; dit: s
   return { etat: "non-lue", dit: "not calibrated yet: no `model:` and `effort:` labels" };
 }
 
+// Le contexte d'un besoin, tel que son issue l'écrit : le premier paragraphe sous un titre `Context`, à défaut le premier
+// paragraphe du corps — ni titre, ni ligne `Epic: #N`, ni commentaire, ni la liste des tickets, ni bloc de code. Au plus
+// 400 caractères, coupés à un mot. Rien d'écrit : aucun contexte, jamais un texte inventé.
+const CONTEXTE_AU_PLUS = 400;
+export function contexteDe(corps: string): string | undefined {
+  const debut = corps.indexOf(DEBUT);
+  const fin = debut < 0 ? -1 : corps.indexOf(FIN, debut);
+  const sansListe = debut < 0 ? corps : `${corps.slice(0, debut)}\n\n${fin < 0 ? "" : corps.slice(fin + FIN.length)}`;
+  const sansCode = sansListe.replace(/^\s*(```|~~~)[\s\S]*?^\s*\1.*$/gm, "\n");
+  const paragraphes = sansCode
+    .replace(/<!--[\s\S]*?-->/g, "\n")
+    .split(/\r?\n\s*\r?\n/)
+    .map((paragraphe) => paragraphe.trim())
+    .filter((paragraphe) => paragraphe !== "");
+  const titre = /^#{1,6}\s/;
+  const texte = (paragraphe: string) => !titre.test(paragraphe) && epiqueDe(paragraphe) === null && !/^(```|~~~|---)/.test(paragraphe);
+  const contexte = paragraphes.findIndex((paragraphe) => /^#{1,6}\s*(context|contexte)\b/i.test(paragraphe));
+  // Un titre suivi de son texte dans le même paragraphe : le texte est sous le titre.
+  const sousLeTitre = contexte < 0 ? undefined : paragraphes[contexte]?.split("\n").slice(1).join(" ").trim();
+  const choisi = sousLeTitre !== undefined && sousLeTitre !== "" ? sousLeTitre : (contexte < 0 ? paragraphes : paragraphes.slice(contexte + 1)).find(texte);
+  if (choisi === undefined) return undefined;
+  const enUneLigne = choisi.replace(/\s+/g, " ").trim();
+  if (enUneLigne.length <= CONTEXTE_AU_PLUS) return enUneLigne;
+  const coupe = enUneLigne.slice(0, CONTEXTE_AU_PLUS);
+  return `${coupe.slice(0, Math.max(coupe.lastIndexOf(" "), 1))}…`;
+}
+
+const corpsDe = (issue: Brut) => (typeof issue.body === "string" ? issue.body : "");
+// Une épique découpée, tous ses tickets servis et son issue fermée, reste dans le bandeau 24 h après sa fermeture (#3460).
+const RETENUE_MS = 24 * 3_600_000;
+// Les issues fermées depuis 24 h ne se relisent que quand la liste des ouvertes change de numéros : une épique ou un ticket
+// qui se ferme la quitte toujours. Gardées dans la mémoire des lectures, sous cette clé, avec ces numéros pour signature —
+// une lecture sans mémoire les relit chaque fois. Le budget GitHub de l'app le demande (budget-github.test.ts).
+const FERMEES_GARDEES = "brigade:closed-in-24h";
+
 // Les issues ouvertes que le rail ne porte pas, dans l'ordre où le manager les lit : `prio:` d'abord, sans priorité en
-// dernier ; à priorité égale, la plus ancienne.
-async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<unknown>, lu: string): Promise<AvantLeRailPublie> {
+// dernier ; à priorité égale, la plus ancienne. Chacune est un besoin (#3460) : les tickets nés d'un découpage n'en sont
+// pas — ils sont comptés sur le besoin dont ils viennent. Puis les épiques découpées fermées depuis moins de 24 h, tous
+// leurs tickets servis : une lecture qui les rate n'en montre aucune, et le reste se lit.
+async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<unknown>, lu: string, memoire?: MemoireDesLectures): Promise<AvantLeRailPublie> {
   const issues: Brut[] = [];
   for (let page = 1; page <= PAGES_AU_PLUS; page++) {
     const lues = liste(await lire(`/repos/${depot}/issues?state=open&sort=created&direction=asc&per_page=${PAR_PAGE}&page=${page}`));
     issues.push(...lues);
     if (lues.length < PAR_PAGE) break;
   }
-  const avant = issues.flatMap((issue) => {
-    if (issue.pull_request !== undefined || typeof issue.number !== "number") return [];
-    const labels = labelsDe(issue);
-    if (labels.includes(LABEL_FIRE)) return [];
-    return [{ ticket: issue.number, titre: typeof issue.title === "string" ? issue.title : "", priorite: prioriteDe(labels), ...avantLeRailDe(labels) }];
+  const ouvertes = issues.filter((issue) => issue.pull_request === undefined && typeof issue.number === "number");
+  const numerosOuverts = new Set(ouvertes.map((issue) => issue.number as number));
+  const hors = ouvertes.filter((issue) => !labelsDe(issue).includes(LABEL_FIRE));
+  const depuis = Date.parse(lu) - RETENUE_MS;
+  const signature = [...numerosOuverts].sort((a, b) => a - b).join(",");
+  const gardees = memoire?.get(FERMEES_GARDEES);
+  const fermees =
+    gardees !== undefined && gardees.etag === signature
+      ? liste(gardees.data)
+      : await lire(`/repos/${depot}/issues?state=closed&sort=updated&direction=desc&since=${new Date(depuis).toISOString()}&per_page=${PAR_PAGE}`)
+          .then((data) => {
+            memoire?.set(FERMEES_GARDEES, { etag: signature, data });
+            return liste(data);
+          })
+          .catch(() => {
+            memoire?.delete(FERMEES_GARDEES);
+            return [];
+          });
+  const servies = fermees.filter((issue) => issue.pull_request === undefined && typeof issue.number === "number" && issue.state === "closed" && typeof issue.closed_at === "string" && Date.parse(issue.closed_at) >= depuis && porteListe(corpsDe(issue)));
+  // Les besoins qui ont des tickets : leur liste, et les issues ouvertes qui se réclament d'eux.
+  const besoins = new Set([...hors, ...servies].map((issue) => issue.number as number));
+  const reclament = new Map<number, number[]>();
+  for (const issue of ouvertes) {
+    const epique = epiqueDe(corpsDe(issue));
+    if (epique !== null && epique !== issue.number && besoins.has(epique)) reclament.set(epique, [...(reclament.get(epique) ?? []), issue.number as number]);
+  }
+  const ticketsDe = (issue: Brut) => [...new Set([...ticketsDeLaListe(corpsDe(issue)), ...(reclament.get(issue.number as number) ?? [])])].filter((ticket) => ticket !== issue.number);
+  // Une épique fermée dont un ticket est encore ouvert n'est pas servie : elle n'est pas retenue.
+  const retenues = servies.filter((issue) => {
+    const tickets = ticketsDe(issue);
+    return tickets.length > 0 && !tickets.some((ticket) => numerosOuverts.has(ticket));
   });
-  avant.sort((a, b) => (a.priorite ?? 10) - (b.priorite ?? 10) || a.ticket - b.ticket);
-  return { lu, issues: avant };
+  const desTickets = new Set([...hors, ...retenues].flatMap(ticketsDe));
+  const besoin = (issue: Brut, etat: { etat: string; dit: string }, servieLe?: string): IssueAvantLeRailPubliee => {
+    const tickets = ticketsDe(issue);
+    const contexte = contexteDe(corpsDe(issue));
+    return {
+      ticket: issue.number as number,
+      titre: typeof issue.title === "string" ? issue.title : "",
+      priorite: prioriteDe(labelsDe(issue)),
+      ...etat,
+      ...(tickets.length === 0 ? {} : { tickets, servis: tickets.filter((ticket) => !numerosOuverts.has(ticket)) }),
+      ...(contexte === undefined ? {} : { contexte }),
+      ...(servieLe === undefined ? {} : { servieLe }),
+    };
+  };
+  const avant = hors
+    .filter((issue) => !desTickets.has(issue.number as number))
+    .map((issue) => {
+      const labels = labelsDe(issue);
+      const parLabels = avantLeRailDe(labels);
+      const tickets = ticketsDe(issue);
+      if (parLabels.etat === "mise-de-cote" || (tickets.length === 0 && !porteListe(corpsDe(issue)))) return besoin(issue, parLabels);
+      const servis = tickets.filter((ticket) => !numerosOuverts.has(ticket)).length;
+      if (tickets.length > 0 && servis === tickets.length) return besoin(issue, { etat: "servie", dit: `split, all ${tickets.length} tickets served: the manager closes it` });
+      return besoin(issue, { etat: "decoupee", dit: `split into ${tickets.length} ticket${tickets.length === 1 ? "" : "s"}, ${servis} served` });
+    });
+  const tous = [...avant, ...retenues.map((issue) => besoin(issue, { etat: "servie", dit: `split, all ${ticketsDe(issue).length} tickets served` }, issue.closed_at as string))];
+  tous.sort((a, b) => (a.priorite ?? 10) - (b.priorite ?? 10) || a.ticket - b.ticket);
+  return { lu, issues: tous };
 }
 
 // La lecture vide d'un projet, à l'heure dite : ce que le rail, TODO et ce qui est avant le rail complètent.
@@ -193,7 +287,7 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     if (reponse.status !== 200) throw new Error(`HTTP ${reponse.status}`);
     return reponse.data;
   };
-  const avantLeRail = await lireAvantLeRail(depot, lire, lu.luLe).catch(() => undefined);
+  const avantLeRail = await lireAvantLeRail(depot, lire, lu.luLe, memoire).catch(() => undefined);
   // Un dépôt où le compte ne peut pas écrire s'ouvre en lecture seule (#3163) ; relu à chaque lecture — un 304 ne coûte
   // rien —, l'accès gagné rend la vue ordinaire à la suivante. Ce qui ne se lit pas ne décide rien : le rail reste lu.
   const lectureSeule: LectureSeule | undefined = (await ecritureSurLeDepot(depot, lecteur)) === false ? { depot } : undefined;

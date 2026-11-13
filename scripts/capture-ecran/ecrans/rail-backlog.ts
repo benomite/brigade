@@ -1,7 +1,8 @@
-// Le rail de « parade » et, en tête, à côté de l'histogramme des 24 heures, ce qui est avant le rail (#1836) : une
-// petite barre empilée, une part par état — pas lue, refusée incomplète, épique, prête sans `fire`, mise de côté —, sans
-// un mot. Ce que la box publie dans son tableau de la cuisine (`avantLeRail`) est écrit ici mot pour mot ; ce que la vue
-// en reçoit est calculé par l'app, comme main.ts le fait du tableau lu (tableau/rail.ts, amont.ts).
+// Le rail de « parade » et, au-dessus de ses colonnes, le bandeau Backlog (#3460) : une étiquette par besoin hors du rail
+// — celui qui t'attend en rouge d'abord, puis par priorité ; un besoin découpé dit ses tickets servis sur leur total, un
+// besoin tout servi depuis moins de 24 h reste marqué servi. Ce que la lecture de GitHub publie (`avantLeRail`) est écrit
+// ici mot pour mot ; ce que la vue en reçoit est calculé par l'app, comme main.ts le fait du tableau lu (tableau/rail.ts,
+// amont.ts).
 import type { Faits } from "../../../app/src/faits.ts";
 import { COMMANDE, tenirAmont } from "../../../app/src/amont.ts";
 import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
@@ -30,22 +31,28 @@ const hours = Array.from({ length: 24 }, (_, rang) => ({
   failed: RATES[rang] ?? 0,
 }));
 
+// #51, une décision à prendre avant le rail, attend le chef : la file la nomme, sa carte est dans Awaiting you.
 const FACTS = {
   ...FAITS,
+  attend: [...(FAITS.attend ?? []), { ticket: 51, titre: "Garder les tickets un an ?", url: "https://github.com/chef/parade/issues/51" }],
   rail: FAITS.rail.map((ticket) => ({ ...ticket, depuis: DEPUIS[ticket.ticket] })),
   cadence: { hours, medianSeconds: { taken: 300, pass: 720 } },
 } as Faits;
 
-// Ce qui est avant le rail de « parade », tel que sa box le publie : douze issues, dans l'ordre où le manager les lit.
+// Ce qui est avant le rail de « parade », tel que la lecture de GitHub le publie, dans l'ordre où le manager les lit :
+// douze besoins ouverts — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
+// 16 h, et #56 tout servi il y a plus de 24 h, qui n'est plus dans le bandeau.
 const AVANT_LE_RAIL = {
   lu: LU,
   issues: [
     { ticket: 41, titre: "Les tickets d'une épique dans l'ordre", priorite: 1, etat: "prete", dit: "calibrated (model:sonnet, effort:medium), without `fire`: the rail takes it once `fire` is set" },
-    { ticket: 38, titre: "Le menu du soir", priorite: 1, etat: "epique", dit: "it carries `epic`: not split yet" },
+    { ticket: 38, titre: "Le menu du soir", priorite: 1, etat: "epique", dit: "it carries `epic`: not split yet", contexte: "Le soir, la carte change : trois entrées, trois plats, un menu au prix fixe, que la salle annonce et que la caisse encaisse." },
+    { ticket: 55, titre: "Les commandes à emporter", priorite: 2, etat: "servie", dit: "split, all 3 tickets served", tickets: [7, 8, 9], servis: [7, 8, 9], servieLe: "2026-10-12T16:00:00.000Z" },
     { ticket: 44, titre: "Exporter les commandes", priorite: 2, etat: "incomplete", dit: "refused (an incomplete ticket) — No acceptance criterion says what the export holds." },
     { ticket: 45, titre: "Le stock en temps réel", priorite: 2, etat: "non-lue", dit: "the manager has not judged it yet" },
     { ticket: 33, titre: "La carte des allergènes", priorite: 2, etat: "prete", dit: "put on the rail by the manager, sonnet / low — `fire` is not set on it yet" },
-    { ticket: 47, titre: "Les réservations de groupe", priorite: 3, etat: "epique", dit: "split in progress, 1/4 tickets created and fired" },
+    { ticket: 47, titre: "Les réservations de groupe", priorite: 3, etat: "decoupee", dit: "split into 6 tickets, 2 served", tickets: [14, 21, 22, 30, 60, 61], servis: [60, 61], contexte: "Une table de plus de huit couverts se réserve en un geste : l'acompte, le menu choisi d'avance et le rappel la veille." },
+    { ticket: 56, titre: "Le plan de salle", priorite: 3, etat: "servie", dit: "split, all 2 tickets served", tickets: [3, 4], servis: [3, 4], servieLe: "2026-10-12T09:00:00.000Z" },
     { ticket: 48, titre: "Un thème clair", priorite: null, etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" },
     { ticket: 49, titre: "Les pourboires partagés", priorite: null, etat: "non-lue", dit: "the manager has not judged it yet" },
     { ticket: 50, titre: "Le bon de livraison imprimé", priorite: null, etat: "non-lue", dit: "returned to the manager, not rejudged yet" },
@@ -71,7 +78,7 @@ export function donnees(): Donnees {
 }
 
 export const ecran: Ecran = {
-  dit: "Le rail de « parade » : à côté de l'histogramme des 24 heures, la barre empilée de ce qui est avant le rail — douze issues, une part par état, sans un mot",
+  dit: "Le rail de « parade » : au-dessus de ses colonnes, le bandeau Backlog — une étiquette par besoin, celui qui t'attend en rouge d'abord, `+N` au bout",
   largeur: 1440,
   hauteur: 900,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],
