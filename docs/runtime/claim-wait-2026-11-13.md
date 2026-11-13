@@ -70,4 +70,7 @@ The second fails on the code before the fix (no claim while one held delivery an
 passes after it.
 
 The median lost time of the next recent tickets is to be read once 10 tickets are merged after this fix: it is not
-measured here.
+measured here. The station re-measures it over those tickets, and opens a new ticket if it is still above 2 min. If
+the claim wait stays high while tickets arrive faster than the default cooks serve them, the lever is the chef's:
+`station -- cooks <N>`, which the station now reads at its next turn. The default (the declaration bounded by the
+cores, 3 on 8) is not changed here.
