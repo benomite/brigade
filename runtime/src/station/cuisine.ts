@@ -58,6 +58,7 @@ import { brancherReseau, configReseau, DECLARATION_RESEAU, lireDeclaration, regl
 import { plafondDuProjet } from "../reagir.ts";
 import { lireLeDepot, roadmapALaBase, variablesDesGatesDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { configReviewer } from "../reviewer.ts";
+import { etablirLInterrupteur } from "../interrupteur.ts";
 import { direLaQualite, mesurerQualite, projetDuClone } from "../mesure-qualite.ts";
 import { qualitesDesTemps } from "../qualite-github.ts";
 import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
@@ -184,6 +185,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
     socle = demarrer({ repertoireEtat, projet, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }) });
+    // L'interrupteur du projet, posé comme au démarrage du runtime d'un projet : un projet que la
+    // station ouvre — au lancement ou quand l'app l'ajoute — part allumé, un interrupteur posé reste tel quel.
+    const pose = etablirLInterrupteur(socle.journal, projet);
+    if (pose !== null) dire(pose);
     const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis);
     const journal = socle.journal.base;
     if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU), avertir: dire });
