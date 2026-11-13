@@ -187,7 +187,7 @@ describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () 
     assert.equal(carteDuTicket(vue, 30), undefined);
   });
 
-  test("résolue entre-temps, la carte le dit à côté du texte du chef, sans l'effacer ; le clavier parti, elle reste dans TODO avec son texte, jusqu'à ce qu'il l'écarte", async () => {
+  test("résolue entre-temps, la carte le dit à côté du texte du chef, sans l'effacer ; le clavier parti, elle reste à côté de l'entrée TODO, hors des colonnes, avec son texte, jusqu'à ce qu'il l'écarte (#3458)", async () => {
     const vue = await ouvrir();
     recevoir(vue, lu(FAITS, 0));
     const bon = carteDuTicket(vue, 21) ?? assert.fail("pas de carte #21");
@@ -199,7 +199,8 @@ describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () 
     assert.equal(resolue(bon), "resolved meanwhile: #21 is now in Taken — your text is kept here, nothing was sent");
 
     carteTodo(bon).declencher("focusout", { relatedTarget: null });
-    const [taken, todo] = ["Taken", "Awaiting you"].map((nom) => colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === nom) ?? assert.fail(`pas de colonne ${nom}`));
+    const taken = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Taken") ?? assert.fail("pas de colonne Taken");
+    const todo = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
     assert.ok(taken?.dessous("li").some((li) => li.children[0]?.children[0]?.textContent === "#21"));
     const gardee = todo?.dessous("li").find((li) => li.children[0]?.children[0]?.textContent === "#21") ?? assert.fail("la réponse du chef n'est plus dans TODO");
     assert.equal(champ(gardee).value, "One per project");
@@ -208,7 +209,8 @@ describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () 
 
     // Une lecture de plus ne l'emporte pas.
     recevoir(vue, lu(TRANCHE, 2));
-    assert.ok(colonnes(vue).some((colonne) => colonne.children[0]?.children[0]?.textContent === "Awaiting you" && colonne.dessous("textarea").some(({ value }) => value === "One per project")));
+    const relu = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+    assert.ok(relu.dessous("textarea").some(({ value }) => value === "One per project"));
 
     (gardee.dessous("button").find(({ textContent }) => textContent === "dismiss") ?? assert.fail("pas de « dismiss »")).click();
     assert.deepEqual(vue.element("rail").dessous("textarea").filter(({ value }) => value === "One per project"), []);

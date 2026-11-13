@@ -1,7 +1,7 @@
-// « Awaiting others » au pied de TODO (#2985) : les cartes qui attendent un autre humain du projet ferment la colonne,
-// repliées sous leur nombre ; dépliées, chacune dit qui elle attend, et s'ouvre et se répond comme une carte de TODO
-// (#3071 : l'assignation ne retient personne). Rien n'attend un autre humain : la section n'est pas là. Le même bloc
-// ferme TODO sur un écran étroit — le téléphone.
+// « Awaiting others » (#2985) : les cartes qui attendent un autre humain du projet, repliées sous leur nombre à côté de
+// l'entrée « TODO (N) », hors des colonnes — TODO n'est pas une colonne (#3458) ; dépliées, chacune dit qui elle attend, et
+// s'ouvre et se répond comme une carte de TODO (#3071 : l'assignation ne retient personne). Rien n'attend un autre humain :
+// la section n'est pas là. Le même bloc est sur un écran étroit — le téléphone.
 // La vue est jouée telle qu'elle est (aides/fausse-vue.ts), sur les faits que le process principal range (faits.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -63,7 +63,8 @@ function recevoir(vue: Jouee, faits: Faits) {
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
 
-const todo = (vue: Jouee) => vue.element("rail").dessous("section").find((colonne) => colonne.className === "colonne" && "attend" in colonne.dataset) ?? assert.fail("pas de TODO");
+const todo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+const entree = (zone: Faux) => zone.children.find(({ className }) => className === "entree-todo")?.textContent;
 const pliDe = (colonne: Faux) => colonne.children.find((enfant) => enfant.balise === "details");
 const ouvert = (pli: Faux) => (pli as unknown as { open?: boolean }).open === true;
 function deplier(pli: Faux) {
@@ -71,14 +72,15 @@ function deplier(pli: Faux) {
   pli.declencher("toggle");
 }
 
-describe("« Awaiting others » ferme TODO (#2985)", () => {
+describe("« Awaiting others » à côté de l'entrée TODO, hors des colonnes (#2985, #3458)", () => {
   for (const etroit of [false, true]) {
-    test(`${etroit ? "écran étroit" : "écran large"} : les siennes d'abord, puis « Awaiting others (2) », replié, en dernier`, async () => {
-      const colonne = todo(await ouvrir({ etroit }));
+    test(`${etroit ? "écran étroit" : "écran large"} : les siennes rouges dans leur colonne, puis « Awaiting others (2) », replié, en dernier`, async () => {
+      const vue = await ouvrir({ etroit });
+      const colonne = todo(vue);
       const pli = pliDe(colonne) ?? assert.fail("pas de « Awaiting others »");
-      const cartes = colonne.dessous("li").filter((li) => li.className.split(" ").includes("bon") && !pli.dessous("li").includes(li));
-      assert.deepEqual(cartes.map((li) => li.children[0]?.children[0]?.textContent), ["#12"]);
-      assert.equal(colonne.children[0]?.children[1]?.textContent, "1");
+      const rouges = vue.element("rail").dessous("li").filter((li) => li.dataset.carte === "attente" && !pli.dessous("li").includes(li));
+      assert.deepEqual(rouges.map((li) => li.children[0]?.children[0]?.textContent), ["#12"]);
+      assert.equal(entree(colonne), "TODO (1)");
       assert.equal(colonne.children.at(-1), pli);
       assert.equal(pli.children[0]?.textContent, "Awaiting others (2)");
       assert.equal(ouvert(pli), false);
@@ -97,7 +99,7 @@ describe("« Awaiting others » ferme TODO (#2985)", () => {
       pli.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent),
       ["#22", "#23"],
     );
-    assert.equal(colonne.children[0]?.children[1]?.textContent, "1");
+    assert.equal(entree(colonne), "TODO (1)");
     assert.equal(pli.dessous("*").some((e) => e.textContent === "awaiting you"), false, "elles n'attendent pas le compte connecté");
   });
 

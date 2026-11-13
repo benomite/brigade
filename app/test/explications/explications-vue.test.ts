@@ -127,12 +127,17 @@ describe("la vue : chaque mot expliqué la première fois que le chef le rencont
       assert.equal(ligne.children.find(({ className }) => className === "dit")?.textContent, DU_GLOSSAIRE[mot], mot);
       assert.equal(ligne.children.find(({ className }) => className === "mot")?.textContent, MOT_A_L_ECRAN[mot], mot);
     }
-    // Pass, Awaiting you et Waiting : sous le titre de leur colonne.
-    for (const [colonne, mot] of [["Pass", "pass"], ["Awaiting you", "TODO"], ["Waiting", "WAITING"]] as const) {
+    // Pass et Waiting : sous le titre de leur colonne.
+    for (const [colonne, mot] of [["Pass", "pass"], ["Waiting", "WAITING"]] as const) {
       const pose = vue.element("rail").dessous("section").find(({ dataset }) => dataset.colonne === colonne) ?? assert.fail(colonne);
       assert.equal(pose.children[0]?.balise, "h4");
       assert.equal(pose.children[1]?.dataset.mot, mot, colonne);
     }
+    // TODO n'est pas une colonne (#3458) : son explication est à côté de l'entrée « TODO (N) ».
+    const todo = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas d'entrée TODO");
+    assert.match(todo.children[0]?.textContent ?? "", /^TODO \(\d+\)$/);
+    assert.equal(todo.children[1]?.dataset.mot, "TODO");
+    assert.ok(!vue.element("rail").dessous("section").some(({ dataset }) => dataset.colonne === "Awaiting you"));
     assert.deepEqual([...marques(vue)].sort(), TOUS);
     assert.deepEqual([...runtime.seen].sort(), TOUS);
     // La lecture suivante repose le rail : les explications restent à l'écran, sans être marquées de nouveau.

@@ -444,7 +444,8 @@ export type Faits = {
 // `ton` : la couleur du mot d'état — absente, le mot n'est pas de la liste fermée.
 // `arretee` : la bannière d'arrêt se pose.
 // Une carte du rail : `ouvrable`, ce ticket s'ouvre sur son issue ; `attendu`, il
-// attend une décision du chef, et il est dans TODO ; `attend`, ce que le bloc
+// attend une décision du chef, et il est dans TODO — la liste de ce qui attend le chef, que la vue pose en rouge dans la
+// colonne de son étape (#3458) ; `attend`, ce que le bloc
 // `attend` dit de lui, entrée par entrée, mot pour mot — une entrée et ce qui la
 // précise dessous d'un seul tenant, ses lignes comprises. Sans `etat` ni `titre` :
 // il attend, et il n'est pas sur le rail que `faits` rend. Et ce qu'elle porte de
@@ -471,11 +472,14 @@ export type Faits = {
 // d'un runtime qui ne dit pas l'entrée du ticket dans sa colonne.
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
 // `sensible` : son ticket porte le label `sensitive` (ticket 3224) — la carte le marque.
+// `etape` : sur une carte qui attend le chef, la colonne de son étape, où la vue la pose en rouge (#3458) — TODO n'est
+// pas une colonne. `relancePassee` : sur une carte de WAITING, sa relance est passée — elle revient au chef, et la vue la
+// pose en rouge dans WAITING.
 // `miseDeCote` : sur une carte de TODO d'un projet GitHub seul, le label qui met son ticket de côté, et les `#N` de sa
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -1063,9 +1067,10 @@ function colonneDeFaits(connu: Faits["rail"][number] | undefined, etat: string |
   if (connu?.attente == null) return parMot(etat);
   return parMot(connu.attente.colonne) ?? parMot(etat) ?? COLONNE_PAR_DEFAUT;
 }
-// Awaiting you (Todo) : ce que le chef peut trancher maintenant — et cela seulement. Waiting, juste après : ce qui attend un
-// tiers, qu'il ne perd pas de vue sans l'avoir devant lui. Après le rail dans l'ordre du service (#2093) : On the rail,
-// Taken, Pass, Awaiting you, Waiting, Served — le titre de la maquette Project.dc.html (#2922).
+// Awaiting you (Todo) : ce que le chef peut trancher maintenant — et cela seulement. Une liste, pas une étape : la vue en
+// pose les cartes dans la colonne de leur étape, en rouge, et la compte dans « TODO (N) » (#3458). Waiting : ce qui attend
+// un tiers, qu'il ne perd pas de vue sans l'avoir devant lui. Dans l'ordre du service (#2093) : On the rail, Taken, Pass,
+// Waiting, Served.
 const T_ATTEND = { nom: "Awaiting you", ton: "rouge", rang: 3 } as const;
 const WAITING = { nom: "Waiting", ton: "orange", rang: 4 } as const;
 const PERSONNE_N_ATTEND = "no ticket waits for a third party";
@@ -1120,8 +1125,9 @@ const RIEN_N_ATTEND = "nothing awaits you";
 const blocVide = ({ bloc }: BlocLu) => /^(awaiting|attend)\s+(nothing awaits the chef|rien n'attend le chef)\s*$/.test(bloc.split("\n")[0] ?? "");
 const RIEN_DE_LU = "not read: this station's runtime does not give `attend` in `facts`, and the `attend` block of the station's “status” step was not taken for this project. This is not “nothing awaits you” — the tickets stay in their columns";
 
-// Le rail en six colonnes. Un ticket qui attend une décision du chef est dans
-// TODO, et là seulement : c'est l'information qui décide d'un geste. Il y est
+// Le rail en colonnes, et la liste de ce qui attend le chef — TODO, « Awaiting you » —, que la vue ne dessine pas en
+// colonne : elle en pose chaque carte, en rouge, dans la colonne de son étape (`etape`, #3458). Un ticket qui attend une
+// décision du chef est dans TODO, et là seulement : c'est l'information qui décide d'un geste. Il y est
 // dès que la file le nomme — dans `attend`, que `faits` donne, ou en tête d'une
 // ligne du bloc `attend` de `status`, qui dit en plus ce qu'on attend de lui. Un
 // ticket qui attend un tiers est dans WAITING, et là seulement — jamais dans TODO,
@@ -1246,6 +1252,9 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ouvrable: url != null && ouvrable(url),
       attendu: dit !== undefined,
       attend: dit ?? [],
+      // Qui attend le chef reste dans la colonne de son étape, en rouge (#3458) : celle de son mot d'état — ou, mis de côté,
+      // celle où le runtime dit qu'il attend —, et sur le rail quand il n'y est pas encore.
+      ...(dit === undefined ? {} : { etape: colonneDeFaits(connu, connu?.etat) ?? COLONNE_PAR_DEFAUT }),
       ...(dit === undefined || donne?.decision === undefined ? {} : { decision: donne.decision }),
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(connu?.etat === "servi" && faits.livres === undefined ? { livraison: livraison(undefined) } : {}),
@@ -1327,6 +1336,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
               { libelle: "on arrival", valeur: tiers.aLArrivee },
             ],
       ...(tiers == null ? { sans: TIERS_PAS_DONNE } : {}),
+      // Sa relance est passée : il revient au chef, sa carte est rouge dans WAITING (#3458).
+      ...(tiers?.relance != null && relance < 0 ? { relancePassee: true as const } : {}),
       fiche: entete({ titre, url, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }),
       // Sans relance, personne n'a posé l'attente : rien à reprendre ni à renvoyer, le ticket repart seul.
       ...(tiers?.relance === null ? {} : { gestes: ["attente-reprendre" as const, "attente-arrivee" as const] }),

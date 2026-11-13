@@ -283,7 +283,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: sansQuestion(21), dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", attendu(21)), gestes: ["attente-poser"] }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ligne: sansQuestion(21), dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", attendu(21)), gestes: ["attente-poser"] }],
               vide: "no ticket in `attend`, according to `facts`",
             },
             { nom: "Waiting", ton: "orange", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
@@ -549,7 +549,7 @@ describe("le rail en six colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: sansQuestion(21), ...fiche("Ticket 21", attendu(21)), gestes: ["attente-poser"] });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ...NUE, ligne: sansQuestion(21), ...fiche("Ticket 21", attendu(21)), gestes: ["attente-poser"] });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "Awaiting you", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
@@ -575,6 +575,7 @@ describe("le rail en six colonnes", () => {
         titre: "Ticket 12",
         ouvrable: true,
         attendu: true,
+        etape: "Pass",
         attend: ["depuis 4 min  livraison verte, non mergée — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12"],
         ...attendue(12),
         // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
@@ -596,6 +597,7 @@ describe("le rail en six colonnes", () => {
       ticket: 30,
       ouvrable: false,
       attendu: true,
+      etape: "On the rail",
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       // Une question du manager : la carte la dit (#503).
       question: true,
@@ -615,6 +617,7 @@ describe("le rail en six colonnes", () => {
       ticket: 30,
       ouvrable: true,
       attendu: true,
+      etape: "On the rail",
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       // Une question du manager : la carte la dit (#503).
       question: true,

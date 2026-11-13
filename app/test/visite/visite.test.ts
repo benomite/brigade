@@ -70,10 +70,10 @@ const VIDE = [colonne("On the rail"), colonne("Taken"), colonne("Pass"), colonne
 
 // Une ou deux phrases : un point final, un point d'interrogation ou un deux-points suivi d'un espace et d'une majuscule.
 const phrases = (texte: string) => texte.split(/(?<=[.?!])\s+(?=[A-Z#])/).length;
-const MOTS: Record<string, RegExp> = { rail: /\brail\b/, cook: /\bcook\b/, pass: /\bpass\b/, served: /\bserved\b/i, todo: /Awaiting you, the TODO/, second: /\bthe second\b/ };
+const MOTS: Record<string, RegExp> = { rail: /\brail\b/, cook: /\bcook\b/, pass: /\bpass\b/, served: /\bserved\b/i, todo: /red in the column of its step, counted by the TODO/, second: /\bthe second\b/ };
 
 describe("les six étapes, dans l'ordre du ticket", () => {
-  test("une étape par élément — le rail, un cook, la pass, un servi, Awaiting you, le second —, chacune en une ou deux phrases qui nomment son mot", () => {
+  test("une étape par élément — le rail, un cook, la pass, un servi, TODO, le second —, chacune en une ou deux phrases qui nomment son mot", () => {
     const etapes = etapesDeLaVisite(VIVANT);
     assert.deepEqual(
       etapes.map(({ cle, mot }) => [cle, mot]),
@@ -94,7 +94,8 @@ describe("les six étapes, dans l'ordre du ticket", () => {
 
   test("le rail nomme ses colonnes telles que l'écran les montre ; chaque étape vivante désigne la carte du moment", () => {
     const etapes = etapesDeLaVisite(VIVANT);
-    assert.match(etapes[0]?.texte ?? "", /one column per step — On the rail, Taken, Pass, Awaiting you, Waiting, Served\./);
+    // TODO n'est pas une colonne (#3458) : le rail nomme les colonnes des étapes, celles que l'écran montre.
+    assert.match(etapes[0]?.texte ?? "", /one column per step — On the rail, Taken, Pass, Waiting, Served\./);
     assert.deepEqual(
       etapes.map(({ texte, cible, exemple }) => ({ texte, cible, exemple })),
       [
@@ -102,7 +103,7 @@ describe("les six étapes, dans l'ordre du ticket", () => {
         { texte: COOK_EN_COURS(30), cible: { colonne: "Taken", ticket: 30 }, exemple: undefined },
         { texte: PASS_EN_COURS(31), cible: { colonne: "Pass", ticket: 31 }, exemple: undefined },
         { texte: SERVI(12), cible: { colonne: "Served", ticket: 12 }, exemple: undefined },
-        { texte: TODO_EN_COURS(40), cible: { colonne: "Awaiting you", ticket: 40 }, exemple: undefined },
+        { texte: TODO_EN_COURS(40), cible: { colonne: "On the rail", ticket: 40 }, exemple: undefined },
         { texte: TEXTE_SECOND, cible: { second: true }, exemple: undefined },
       ],
     );
@@ -120,7 +121,7 @@ describe("les six étapes, dans l'ordre du ticket", () => {
     assert.equal(pass?.exemple, true);
     assert.equal(servi?.texte, SERVI(12));
     assert.equal(todo?.texte, TODO_VIDE);
-    assert.deepEqual(todo?.cible, { colonne: "Awaiting you" });
+    assert.deepEqual(todo?.cible, { todo: true });
   });
 
   test("rien servi non plus en 24 h : l'étape le dit, et désigne la colonne où cela se passerait — jamais vide ni cassée", () => {
@@ -134,6 +135,15 @@ describe("les six étapes, dans l'ordre du ticket", () => {
   test("une question qui attend un autre humain du projet (Awaiting others) est encore ce qu'une carte demande", () => {
     const todo = etapesDeLaVisite([{ nom: "Awaiting you", cartes: [], autres: [carte(47)] }])[4];
     assert.equal(todo?.texte, TODO_EN_COURS(47));
+    // Repliée à côté de l'entrée « TODO (N) », hors des colonnes (#3458).
+    assert.deepEqual(todo?.cible, { todo: true, ticket: 47 });
+  });
+
+  test("une carte qui attend le chef est désignée dans la colonne de son étape, rouge (#3458)", () => {
+    const enPass = { ...carte(41), attendu: true, etape: "Pass" };
+    const etapes = etapesDeLaVisite([colonne("On the rail", 21), colonne("Taken"), colonne("Pass", 31), { nom: "Awaiting you", cartes: [enPass] }, colonne("Waiting"), colonne("Served")]);
+    assert.deepEqual(etapes[4]?.cible, { colonne: "Pass", ticket: 41 });
+    assert.doesNotMatch(etapes[0]?.texte ?? "", /Awaiting you/);
   });
 
   test("le rail pas encore lu : les étapes qui montrent un exemple le disent, au lieu d'un « rien ne se passe » qui serait faux", () => {
@@ -177,6 +187,20 @@ describe("l'élément vivant que l'étape désigne", () => {
     assert.equal(trouvee.dataset.ticket, "30");
     assert.equal(trouvee.parentElement?.parentElement?.dataset.colonne, "Taken");
     assert.equal(trouverLaCible(ecran, second?.cible ?? {}), ecran.second);
+  });
+
+  test("l'entrée « TODO (N) », et la carte d'autrui repliée à côté d'elle ; sans entrée posée, la rangée", () => {
+    const ecran = unRail();
+    assert.equal(trouverLaCible(ecran, { todo: true }), ecran.rangee);
+    const todo = new Faux("div");
+    todo.className = "todo-du-rail";
+    const li = new Faux("li");
+    li.className = "bon";
+    li.dataset.ticket = "47";
+    todo.append(li);
+    ecran.rail.append(todo);
+    assert.equal(trouverLaCible(ecran, { todo: true }), todo);
+    assert.equal(trouverLaCible(ecran, { todo: true, ticket: 47 }), li);
   });
 
   test("une carte partie entre deux lectures : sa colonne ; une colonne absente : la rangée", () => {

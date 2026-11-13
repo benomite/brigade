@@ -117,26 +117,26 @@ const stations = (vue: Jouee) =>
     .map((carte: Faux) => ({ station: carte.dataset.station, etat: carte.dessous("span").find((span) => span.className === "pilule etat")?.textContent, cooks: cooksDe(carte) }));
 
 describe("la file d'un projet sur le téléphone", () => {
-  test("Rail : ce qui attend le chef, le rail, ce qui attend un tiers et ce qui est servi — TODO marquée, la seule", async () => {
+  test("Rail : le rail, ce qui attend un tiers et ce qui est servi — pas de colonne TODO : ce qui attend le chef est rouge dans son étape, et « TODO (1) » le compte (#3458)", async () => {
     const vue = await ouvrir({ etroit: true });
     assert.deepEqual(
       colonnes(vue).map(({ nom, compte }) => [nom, compte]),
       [
         ["On the rail", "2"],
         ["Taken", "2"],
-        ["Pass", "0"],
-        ["Awaiting you", "1"],
+        ["Pass", "1"],
         ["Waiting", "0"],
         ["Served", "1"],
       ],
     );
-    const [todo] = colonnes(vue).filter(({ nom }) => nom === "Awaiting you");
-    assert.match(todo?.cartes.join() ?? "", /#12.*Validation SIRET/);
-    // La peau la met en tête d'après cette marque, et elle ne marque qu'elle.
+    const [pass] = colonnes(vue).filter(({ nom }) => nom === "Pass");
+    assert.match(pass?.cartes.join() ?? "", /#12.*Validation SIRET/);
+    // Seule la colonne où une carte rouge attend le chef est marquée.
     assert.deepEqual(
       sections(vue).filter((colonne) => "attend" in colonne.dataset).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["Awaiting you"],
+      ["Pass"],
     );
+    assert.equal(vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo")?.textContent, "TODO (1)");
   });
 
   test("Stations : les cooks en cours, station par station", async () => {

@@ -177,14 +177,17 @@ describe("le rail occupe le centre de l'écran principal", () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
-    // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris.
-    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Awaiting you", "1"], ["Waiting", "0"], ["Served", "1"]];
+    // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris. TODO n'est pas une colonne (#3458) :
+    // #12, qui attend le chef, est dans Pass, son étape.
+    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "2"], ["Waiting", "0"], ["Served", "1"]];
+    const entree = () => vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo")?.textContent;
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     assert.deepEqual(cinq(), ATTENDU);
+    assert.equal(entree(), "TODO (1)");
 
     // Un shell s'ouvre à droite : le centre n'en sait rien.
     (vue.element("terminaux").children.find((pose) => pose.textContent === "+ shell") ?? assert.fail("pas de « + shell »")).click();
@@ -194,7 +197,8 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Awaiting you", "0"], ["Waiting", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Waiting", "0"], ["Served", "0"]]);
+    assert.equal(entree(), "TODO (0)");
   });
 
   test("avant la première lecture il le dit ; un projet qu'aucune station ne sert n'en a pas — rien n'est lu de lui", async () => {
@@ -222,7 +226,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"],
+      ["On the rail", "Taken", "Pass", "Waiting", "Served"],
     );
   });
 
@@ -255,14 +259,16 @@ describe("une box pas jointe, après une lecture (#1078)", () => {
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "the station did not answer", atteinte: false, cas: null });
 
     const rail = vue.element("rail");
-    assert.deepEqual(comptes(vue), ["?", "?", "?", "?", "?", "?"]);
+    assert.deepEqual(comptes(vue), ["?", "?", "?", "?", "?"]);
+    // Ce qui attend le chef n'est pas connu non plus : « TODO (?) », jamais un « 0 » qui rassurerait.
+    assert.equal(rail.dessous("button").find(({ className }) => className === "entree-todo")?.textContent, "TODO (?)");
     assert.match(rail.textContent, /not known while the station is unreachable/);
     assert.doesNotMatch(rail.textContent, /upcoming|unreachable since|kitchen state unknown/);
     assert.equal(rail.dessous("details").length, 1);
 
     recevoir(vue);
     assert.doesNotMatch(vue.element("rail").textContent, /not known while the station is unreachable/);
-    assert.notDeepEqual(comptes(vue), ["?", "?", "?", "?", "?", "?"]);
+    assert.notDeepEqual(comptes(vue), ["?", "?", "?", "?", "?"]);
   });
 });
 
@@ -453,14 +459,17 @@ describe("le haut du rail est allégé (#623)", () => {
   });
 });
 
-describe("T'attend est le seul endroit où un ticket attend une décision", () => {
-  test("un ticket que la file dit attendre n'a qu'une carte, dans T'attend — avant même que `status` ait été lu", async () => {
+describe("une carte rouge, dans la colonne de son étape, est le seul endroit où un ticket attend une décision (#3458)", () => {
+  test("un ticket que la file dit attendre n'a qu'une carte, rouge et en tête de la colonne de son étape — avant même que `status` ait été lu", async () => {
     for (const status of [PAS_LU, STATUS]) {
       const vue = await ouvrir();
       recevoir(vue, dessinable(FAITS, status));
       const ou = colonnes(vue).filter((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === "#12")).map((colonne) => colonne.children[0]?.children[0]?.textContent);
 
-      assert.deepEqual(ou, ["Awaiting you"]);
+      assert.deepEqual(ou, ["Pass"]);
+      // En tête de sa colonne, avant #30 qui n'attend personne.
+      const pass = colonnes(vue).find((colonne) => colonne.dataset.colonne === "Pass") ?? assert.fail("pas de Pass");
+      assert.deepEqual(bons(pass).map((bon) => [bon.children[0]?.children[0]?.textContent, bon.dataset.carte]), [["#12", "attente"], ["#30", undefined]]);
       assert.equal(bons(vue.element("rail")).filter((bon) => bon.children[0]?.children[0]?.textContent === "#12").length, 1);
       // Sa pilule le dit en mots ; aucune autre carte ne la porte.
       const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.dataset.pastille === "awaiting"));
@@ -544,7 +553,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
   });
 
-  test("un ticket mis de côté (#2075) : dans TODO, sa ligne dit pourquoi, et le `#N` qu'elle nomme ouvre son issue d'un clic", async () => {
+  test("un ticket mis de côté (#2075) : rouge sur le rail, sa ligne dit pourquoi, et le `#N` qu'elle nomme ouvre son issue d'un clic", async () => {
     const vue = await ouvrir({ ouvrirIssue: () => true });
     const raison = "changes what judges it: merge PR #2326 by hand";
     const misDeCote: Faits = {
@@ -553,8 +562,10 @@ describe("le clic d'une carte de T'attend (#452)", () => {
       attend: [...(FAITS.attend ?? []), { ticket: 40, titre: "Un ticket retenu", url: "https://github.com/benomite/parade/issues/40", miseDeCote: { label: "blocked-on-human", raison, liens: [{ numero: 2326, url: "https://github.com/benomite/parade/issues/2326" }] } }],
     };
     recevoir(vue, dessinable(misDeCote, PAS_LU));
-    const todo = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Awaiting you") ?? assert.fail("pas de colonne Todo");
-    const bon = bons(todo).find((pose) => pose.children[0]?.children[0]?.textContent === "#40") ?? assert.fail("#40 n'est pas dans Todo");
+    // Mis de côté sans colonne dite par le runtime : il est sur le rail, rouge (#3458).
+    const surLeRail = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "On the rail") ?? assert.fail("pas de colonne On the rail");
+    const bon = bons(surLeRail).find((pose) => pose.children[0]?.children[0]?.textContent === "#40") ?? assert.fail("#40 n'est pas sur le rail");
+    assert.equal(bon.dataset.carte, "attente");
     assert.equal(ligneDe(bon), raison);
     const lien = bon.dessous("button").find((pose) => pose.className === "lien-de-ligne mono") ?? assert.fail("pas de lien sur la ligne");
     assert.equal(lien.textContent, "#2326");
@@ -745,13 +756,15 @@ describe("une question du manager se lit sur sa carte, et la carte quitte TODO d
   const colonneDe = (vue: Jouee, numero: number) => colonnes(vue).find((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === `#${numero}`))?.children[0]?.children[0]?.textContent;
   const section = (vue: Jouee) => fiche(vue).dessous("section").find((pose) => pose.className === "question");
 
-  test("dans TODO, la carte de l'épique dit la question du manager en une ligne, et qui l'a posée — sans ouvrir sa fiche ni GitHub", async () => {
+  test("rouge sur le rail, la carte de l'épique dit la question du manager en une ligne, et qui l'a posée — sans ouvrir sa fiche ni GitHub", async () => {
     const vue = await ouvrir({ lireQuestion: () => QUESTION });
     recevoir(vue, dessinable(FAITS_60, STATUS_60));
     await repos();
 
     assert.deepEqual(vue.dernier("lireQuestion"), [PARADE, 60]);
-    assert.equal(colonneDe(vue, 60), "Awaiting you");
+    // L'épique n'est pas sur le rail que `faits` rend : sa carte rouge est dans On the rail (#3458).
+    assert.equal(colonneDe(vue, 60), "On the rail");
+    assert.equal(bonDe(vue, 60).dataset.carte, "attente");
     const bon = bonDe(vue, 60);
     assert.equal(bon.dessous("p").find((pose) => pose.className === "question-courte")?.textContent, "Le popup remplace-t-il la fiche ?");
     assert.ok(bon.textContent.includes("asked by brigade-manager"), bon.textContent);
@@ -885,7 +898,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
   test("longue, elle défile dans sa hauteur : elle ne pousse rien sous la grille, et les autres colonnes restent en vue", async () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable({ ...FAITS, livres: LIVRES }, PAS_LU));
-    assert.deepEqual(colonnes(vue).map((colonne) => "defile" in colonne.dataset), [false, false, false, false, false, true]);
+    assert.deepEqual(colonnes(vue).map((colonne) => "defile" in colonne.dataset), [false, false, false, false, true]);
 
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const corps = /(?:^|})\s*#rail \.colonne\[data-defile\] > ol\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la colonne qui défile");

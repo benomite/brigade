@@ -18,7 +18,7 @@ const ECRAN_DU_SECOND = ["\x1b]0;◐ Setting up cantine for Brigade\x07\x1b[1mse
 export const CHOISIR_LE_RECOMMANDE: Etape = { cliquer: "#parcours-premier-projet .choix-de-station li:first-child button" };
 
 // `pret` : ce que la lecture de la mise en place rend — prêt, ou ce qui manque. `prDeSetup` : la PR de mise en place
-// ouverte, sa carte attend le chef dans Awaiting you (#3169).
+// ouverte, sa carte attend le chef, rouge sur le rail (#3169, #3458).
 // `depart` : ce que le second propose des issues ouvertes (#3268) — aucune, par défaut : la page va droit à la question.
 // `premier` : ce que le second rédige du premier ticket, et ce que sa création rend (#3306).
 export function parcoursPremierProjet(dit: string, pret: boolean, etapes: Etape[] = [], prDeSetup = false, depart: unknown = { aucune: true }, premier: Record<string, unknown> = {}): Ecran {

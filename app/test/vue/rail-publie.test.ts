@@ -220,7 +220,7 @@ const colonnesDe = (vue: Jouee) => vue.element("rail").dessous("section").filter
 const nomsEtComptes = (vue: Jouee) => colonnesDe(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
 
 describe("dans la vue : un projet servi par une autre station a le même rail, TODO en tête (#2076)", () => {
-  test("le tableau lu : les six colonnes du rail, TODO en premier avec la carte qui attend le chef et son geste ; aucun rail publié", async () => {
+  test("le tableau lu : les colonnes du rail, « TODO (1) » en tête, la carte qui attend le chef rouge dans son étape avec son geste ; aucun rail publié", async () => {
     const vue = await ouvrir({ railDuProjet: () => liste(), gestesDeFiche: (carte) => gestesDeCarte(carte) });
     assert.deepEqual(vue.dernier("railDuProjet"), [PARADE]);
     // Tant que le tableau n'est pas lu, la page le dit — sans les colonnes du rail publié.
@@ -228,20 +228,24 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.deepEqual(colonnesDe(vue), []);
 
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.deepEqual(nomsEtComptes(vue), [["On the rail", "0"], ["Taken", "1"], ["Pass", "0"], ["Awaiting you", "1"], ["Waiting", "0"], ["Served", "0"]]);
-    const todo = colonnesDe(vue)[3] ?? assert.fail("pas de Todo");
+    // TODO n'est pas une colonne (#3458) : #14, en attente, est rouge sur le rail, et l'entrée le compte.
+    assert.deepEqual(nomsEtComptes(vue), [["On the rail", "1"], ["Taken", "1"], ["Pass", "0"], ["Waiting", "0"], ["Served", "0"]]);
+    const surLeRail = colonnesDe(vue)[0] ?? assert.fail("pas de On the rail");
     const carte = carteDuTicket(vue, 14) ?? assert.fail("pas de carte #14");
-    assert.equal(todo.contains(carte), true);
+    assert.equal(surLeRail.contains(carte), true);
+    assert.equal(carte.dataset.carte, "attente");
+    assert.equal(vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo")?.textContent, "TODO (1)");
     // Son geste, comme sur un projet servi ici : le chef dit ce qu'elle attend d'un tiers.
     assert.ok(carte.dessous("button").some(({ textContent }) => textContent === "waiting for…"));
     assert.doesNotMatch(vue.element("rail").textContent, /last published|Reading the/);
   });
 
-  test("rien n'attend le chef : TODO reste en tête, et le dit en une ligne", async () => {
+  test("rien n'attend le chef : « TODO (0) » reste en tête, sans signe d'alerte, et le dit en une ligne", async () => {
     const vue = await ouvrir({ railDuProjet: () => liste() });
     recevoir(vue, duTableau({ ...FAITS, attend: [] }, RIEN));
-    const todo = colonnesDe(vue)[3] ?? assert.fail("pas de Todo");
-    assert.deepEqual(todo.children[0]?.children.map((pose) => pose.textContent), ["Awaiting you", "0"]);
+    const todo = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+    const entree = todo.children[0];
+    assert.deepEqual([entree?.textContent, entree?.dataset.ton], ["TODO (0)", undefined]);
     assert.deepEqual(todo.dessous("p").map((pose) => pose.textContent), ["nothing awaits you"]);
   });
 
@@ -258,7 +262,7 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 1);
     // Relu, le tableau pose le rail.
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.equal(nomsEtComptes(vue)[3]?.[0], "Awaiting you");
+    assert.deepEqual(nomsEtComptes(vue).map(([nom]) => nom), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
   });
 
   test("indisponible, la phrase du runtime ; « read again » relit", async () => {

@@ -40,7 +40,7 @@ import { ICI, poserLesChoix } from "../stations-tab/choix.js";
  *   demarrage   le second démarre
  *   lit         le second lit le dépôt et prépare la mise en place
  *   repondre    le second attend la réponse du chef
- *   merger      la PR de mise en place attend le merge du chef — sa carte est dans Awaiting you
+ *   merger      la PR de mise en place attend le merge du chef — sa carte est rouge sur le rail, comptée dans TODO (ticket 3458)
  *   en-route    l'app met le projet en place (« Set up for Brigade », ticket 2628)
  *   refus       cette mise en place a échoué : le chef relance
  *   empeche     le second ne part pas : sa colonne dit pourquoi
@@ -83,7 +83,7 @@ export const ILLISIBLE = (depot) => `Whether ${depot} is set up for Brigade coul
 export const DEMARRAGE = "The second is starting, in its column on the right: it reads your repository first. Nothing is awaited from you yet.";
 export const LIT = "The second is reading your repository, in its column on the right. Nothing is awaited from you yet.";
 export const REPONDRE = "The second is waiting for your answer, in its column on the right.";
-export const MERGER = "The setup pull request is waiting for your merge: its card is in Awaiting you.";
+export const MERGER = "The setup pull request is waiting for your merge: its card is red on the rail, counted in TODO.";
 // Pourquoi c'est au chef de la merger, comme la carte le dit (runtime/src/second-init/pr-de-setup.ts, `RAISON`).
 export const POURQUOI_MERGER = "Only you merge it: it sets what will judge every future delivery — the integration branch, the checks, the file zones. Once it is merged, the project shows as ready.";
 export const OUVRIR_LA_CARTE = "open its card";

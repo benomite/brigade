@@ -22,6 +22,7 @@ const TIERS_40: Tiers = { quoi: "the payment provider's sandbox keys", qui: "Str
 const LU = avecLAttenteDuChef(avecLeRail(TABLEAU_FIGE, SUR_GITHUB, SIGNES), { attentes: ATTENTES, illisibles: [], enWaiting: [{ ticket: 40, titre: "Le fournisseur de paiement", url: issue(40), tiers: TIERS_40 }] } as Parameters<typeof avecLAttenteDuChef>[1]);
 
 export const OUVRIR_PARADE = { cliquer: '#projets > button[title^="parade — "]' };
+// La colonne où une carte rouge attend le chef (#3458) : TODO n'est pas une colonne, ses cartes sont dans celle de leur étape.
 export const TODO = "#rail section.colonne[data-attend]";
 
 export const donnees = (): Donnees => ({
