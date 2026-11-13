@@ -16,7 +16,8 @@ import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
-import { installerLimite, journaliserLaPause, journaliserLaRetenue, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
+import { installerLimite, journaliserLaPause, journaliserLaRetenue, journaliserLeQuotaEpuise, journaliserLesAppels, limiteDeLaStation } from "../limite-github.ts";
+import { quotaGithub } from "../appels-github/quota-github.ts";
 import { noterUnDemarrage } from "../redemarrages/journal.ts";
 import { annoncerEnService, versionDuRuntime } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
@@ -170,6 +171,8 @@ if (vidange !== null) seVide = () => vidange.retenue();
 // (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
 const identite = identiteDeLaStation({ ...process.env, BRIGADE_STATION_NOM: nomRetenu });
+// Le quota horaire épuisé se dit au journal, avec la station et la sorte d'appel qui l'a pris (#3481).
+journaliserLeQuotaEpuise(dire, identite.nom);
 // Ce que la station cuisine vraiment, et publie (#3449, `publie.ts`).
 const cuisinesDeLaStation = () => publieDeLaStation(station, choisis);
 const presence = tenirPresence({
@@ -180,6 +183,8 @@ const presence = tenirPresence({
   depots: () => cuisinesDeLaStation().servis,
   rails: () => station.rails(),
   etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
+  // Son quota GitHub, lu sur le compteur de la station (#3481).
+  quotaGithub: () => quotaGithub(limite, identite.nom),
   ...(ecartS === undefined ? {} : { ecartMinimalMs: Number(ecartS) * 1000 }),
   dire,
 });

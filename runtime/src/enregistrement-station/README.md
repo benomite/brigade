@@ -64,7 +64,8 @@ what the other wrote.
 - `registeredAt`: the instant of its first registration. It does not move while the station keeps
   its gist.
 - `lastSeen`: the instant of its last write, which is its sign of life.
-- `refreshMs`: the period between two writes, `120000` (2 min).
+- `refreshMs`: `120000` (2 min), the period the reader's freshness rule is built on. The station
+  writes every 210 s (#3481), within that rule.
 - `stoppedAt`: the instant of its clean stop, or `null` while it runs.
 - `heldBy` (#2443): present only while GitHub's limit holds the station's calls — `{ "limit":
   "secondary-writes", "since": "…", "until": "…" }`, `limit` being one of `github-limite.ts`'s kinds.
@@ -78,16 +79,22 @@ The account is not written in the file. It is the gist's owner (`owner.login` in
 - **At start-up**, the station writes at once. With no gist yet, it creates one, and its service log
   says `brigade : station enregistrée sous le compte GitHub de sa machine — l'app connectée au même
   compte la voit (gist <id>)`. That log line stays in French until the runtime is translated.
-- **Every `refreshMs` (2 min)**, it rewrites the file with a new `lastSeen` and `stoppedAt: null`.
-  That is 30 gist writes an hour, which go through the station's GitHub call counter
-  (`limite-github.ts`) like every gist call.
-- **When GitHub's limit stops its calls** (`limite-github.ts`, `constaterLimite`), it writes at once,
+- **Every 210 s** (`ECRITURE_MS`, #3481), it rewrites the file with a new `lastSeen` and `stoppedAt:
+  null`. That is 17 gist writes an hour, which go through the station's GitHub call counter
+  (`limite-github.ts`) like every gist call. It wrote every `refreshMs` (2 min) before: 30 writes an
+  hour, the account's biggest writer. It still publishes `refreshMs: 120000`, so the reader's rule
+  stays 270 s: 210 s plus two writes of at most 30 s each (the gist channel's timeout) stays within it.
+- **When GitHub's limit stops its gist calls** (`limite-github.ts`, `constaterLimite`), it writes,
   outside the box's pause (as a gesture would), its registration with `heldBy`, then writes nothing
-  until `until`. GitHub, which has just limited it, may refuse that write too: it is tried again every
-  minute, outside the pause, `ESSAIS_DE_LA_RETENUE` (3) times at most — all before the reader's
-  freshness rule would say the station offline. Without it, its `lastSeen` froze, and the app said it offline, with every project
+  until `until`. The gist having just been refused, that write waits a minute first (#3481); a pause of
+  every kind writes it at once. GitHub may refuse that write too: it is tried again outside the pause,
+  backing off (a minute, then two), `ESSAIS_DE_LA_RETENUE` (3) times at most. A pause of another kind
+  of call (issues, PRs) does not hold the registration: it says nothing of it. Without it, its `lastSeen` froze, and the app said it offline, with every project
   without a station, for the whole window (2026-11-05, 14:06–14:37).
-- **A failed write** is retried every minute (`NOUVEL_ESSAI_MS`). The service log says the failure
+- **A write refused by GitHub's limit** stops nothing else: only gist calls wait, the kitchen goes on
+  (#3481). The registration is retried backing off — a minute, then doubled at each refusal, up to 15
+  min (`PREMIER_RECUL_MS`, `RECUL_MAX_MS`) — never before the end of the pause GitHub said.
+- **Any other failed write** is retried every minute (`NOUVEL_ESSAI_MS`). The service log says the failure
   once, and says once when GitHub answers again. This covers the install flow: the installer starts
   the station *before* the GitHub sign-in, so the first writes fail with no account. The station
   registers itself at the first retry after the sign-in, within a minute, with no command to run.

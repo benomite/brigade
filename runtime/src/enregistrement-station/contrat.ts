@@ -17,10 +17,22 @@ export const FORMAT = 1;
 // La description du gist, pour qui le voit dans la liste des gists du compte.
 export const description = (nom: string) => `brigade — station ${nom} (registration)`;
 
-// Entre deux écritures de la station : son signe de vie.
+// Le pas que la station publie (`refreshMs`), d'où le lecteur tire sa règle
+// de fraîcheur : 270 s sans signe de vie, elle est indisponible.
 export const RAFRAICHI_MS = 120_000;
+// Entre deux écritures de la station : son signe de vie (#3481). Il en faisait
+// une par `RAFRAICHI_MS`, 30 par heure, le plus gros écrivain du compte ; il en
+// fait 17. Ce pas, plus deux écritures qui durent chacune le délai du canal
+// (30 s au plus), tient dans les 270 s de la règle : sa durée ne repousse
+// jamais le signe de vie au-delà.
+export const ECRITURE_MS = 210_000;
 // Une écriture ratée — GitHub muet, `gh` pas encore connecté — se retente à ce pas.
 export const NOUVEL_ESSAI_MS = 60_000;
+// Un signe de vie que GitHub refuse pour sa limite se retente à ce pas, doublé
+// à chaque refus qui suit, jusqu'à `RECUL_MAX_MS` (#3481) — jamais avant la fin
+// de la pause que GitHub a dite. Il se retentait chaque minute.
+export const PREMIER_RECUL_MS = NOUVEL_ESSAI_MS;
+export const RECUL_MAX_MS = 15 * 60_000;
 // La marge, au-delà de deux signes de vie manqués, avant de la dire indisponible.
 export const MARGE_MS = 30_000;
 // Indisponible après 2 × refreshMs + 30 s sans signe de vie : 270 s au pas publié.

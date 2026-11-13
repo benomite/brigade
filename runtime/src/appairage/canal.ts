@@ -23,6 +23,9 @@ export type Canal = {
 // compte — par défaut, celui du process (`limite-github.ts`).
 export type OptionsCanal = { gh: string; delaiMs?: number; limite?: Limite; maintenant?: () => number };
 
+// Le temps qu'un appel du canal a pour aboutir, à défaut de `delaiMs`.
+export const DELAI_MS = 30_000;
+
 // `gh` sort en erreur sur toute réponse qui n'est pas un succès, et le dit sur
 // sa sortie d'erreur : « gh: Not Found (HTTP 404) ».
 const ABSENT = /\(HTTP 404\)/;
@@ -46,7 +49,7 @@ export function canalGitHub(options: OptionsCanal): Canal {
           options.gh,
           // `-i` : les en-têtes disent, à une limite atteinte, quand la fenêtre se ferme.
           ["api", "-i", ...args],
-          { timeout: options.delaiMs ?? 30_000, maxBuffer: 16 * 1024 * 1024, env },
+          { timeout: options.delaiMs ?? DELAI_MS, maxBuffer: 16 * 1024 * 1024, env },
           (erreur, sortie, erreurs) => {
             const reponse = decouper(sortie);
             if (reponse) noterLesEntetes(limite, COMPTE_DE_LA_MACHINE, reponse.entetes);
@@ -58,7 +61,8 @@ export function canalGitHub(options: OptionsCanal): Canal {
             // Sans en-têtes lisibles, le statut de la sortie d'erreur de `gh` suffit à reconnaître la limite.
             const statut = reponse?.statut ?? Number(/\(HTTP (\d{3})\)/.exec(erreurs)?.[1] ?? 0);
             const refus: ReponseHttp = { statut, entetes: reponse?.entetes ?? new Map(), corps: reponse?.corps || erreurs };
-            if (refusPourLimite(refus)) return void constaterLimite(limite, refus, { gh: options.gh, env, maintenant: options.maintenant }).then(rejeter, rejeter);
+            // Un refus du gist ne retient que les appels du gist (#3481) : la cuisine continue.
+            if (refusPourLimite(refus)) return void constaterLimite(limite, refus, { gh: options.gh, env, maintenant: options.maintenant, lecture: "gist" }).then(rejeter, rejeter);
             if (ABSENT.test(erreurs)) return rejeter(new Absent());
             const dit = erreurs.trim().split("\n").at(-1) ?? "";
             rejeter(new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : ${dit || erreur.message}`));
