@@ -127,7 +127,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   projects (#2436): `brigade : GitHub limit reached — no call leaves the station before HH:MM` when it
   starts, `brigade : GitHub calls resumed` when the next call leaves. A GitHub-only turn stopped by the
   pause takes its next turn at the pause's end when that comes before the interval, never later than the
-  interval (#3448): claimable tickets no longer wait up to 2 more minutes once the pause is over. The
+  interval (#3448, [diagnosis](claim-wait-espace-2026-11-13.md)): claimable tickets no longer wait up to 2 more minutes once the pause is over. The
   counter keeps each pause that starts, with its refusal (status, `x-ratelimit-resource`, `retry-after`), in
   its `pauses` table, for an hour after its end; a held kitchen reads it (`etat-et-mesures.md`); the manager, the GitHub-only turn
   and the stale-branch cleanup say nothing of it. The resumption is automatic. During the wait the

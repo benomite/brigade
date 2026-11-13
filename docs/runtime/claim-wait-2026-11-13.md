@@ -1,139 +1,76 @@
-# Claim wait on BOBL-tech/espace — diagnosis (#3448)
+# Claim wait on benomite/brigade — diagnosis (#3446)
 
-*Ticket #3448, filed by the station from BOBL-tech/espace's recorded ticket times.* The median lost time of
-the project's 11 recent tickets is 15 min, over its threshold of 2 min (`lostTimeMaxMin`). Waiting for a claim
-is 283 of the 363 min lost (78%), and #955 alone is 193 of those 283 min.
+*Ticket #3446, filed by the station.* The median lost time of the project's 10 recent tickets is 19 min, over its
+threshold of 2 min (`lostTimeMaxMin`). Waiting for a claim is 1467 of their 1625 lost minutes (90%), in all 10
+tickets. The measure itself is the one #3422 left: `attentePrise`, from `fire` (or filing) to the first claim the
+issue bears, and from each cook given back to the next claim (`marquesDuDepot`, `runtime/src/temps-ticket/mesure.ts`).
+Nothing in it changes here.
 
-**Read this as a partial diagnosis.** Everything below comes from the ticket's Evidence section (the
-timestamps of the 11 tickets and 40 of the 967 journal events of the window) and from the code. The cook of
-#3448 could not read the station's journal, its GitHub call counter (`<BRIGADE_STATION_DIR>/appels-github/`)
-or its service log, so the 927 events that were not cited are unknown, and the cause of most of #955's wait
-is not established.
+## What holds a claim when nothing is wrong with the ticket
 
-## What the claim gate waits for
+A ticket on the rail is claimed at the station's turn (`tour` in `runtime/src/brigade-github.ts`) unless something
+holds it. Two holds stop **every** claim of the project, not one ticket's, and neither has a gesture that ends it:
 
-A fired ticket is claimed at the station's next turn (`tour` in `runtime/src/brigade-github.ts`) unless
-something holds it: every place taken (`enVol.size + aRendre.size >= places`), 5 deliveries in pass
-(`PASS_MAX`), a missing capability, an incomplete calibration (`model:`, `effort:`), an open dependency, a
-wait after a stop, a held zone, or a guard (`gardes.retenue`: the chef's stop, the breaker, the Max quota, the
-arbiter). While GitHub's limit holds, no kitchen call leaves the station (`prendre` in
-`runtime/src/limite-github.ts`): no turn and no manager judgement happen for any project.
+1. **The station's places.** The turn takes no ticket once its cooks fill its places. Since #2061, the GitHub-only
+   station (the only one) fixed them at start: its declared cap bounded by its machine's cores
+   (`plafondDesCoeurs`: `max(1, ⌊(cores − 2) / 2⌋)`, 3 on 8 cores, the cores this worktree's machine reports). The
+   chef's live cap, `station -- cooks <N>`, which `station.md` and `exploitation.md` document and `StationDeclaree.cooks`
+   names, still wrote `station.capped` to the log, but nothing on the GitHub-only path read it; and the station no
+   longer wrote `station.announced`, so `status` did not say the cap that held.
+2. **The pass.** The turn takes no ticket while the project has 5 deliveries `in-pass` (`PASS_MAX`, #2300). A
+   delivery the pass holds for the chef — the validation of its screen (`humanValidatesDesigns`, which this project
+   sets, #3184) or the review of a sensitive ticket (#3223) — keeps `in-pass` until the chef answers, and took one
+   of those 5 places all that time.
 
-On the box, `places` is `Math.min(cooks, plafondDesCoeurs(availableParallelism()))`
-(`runtime/src/station/cuisine.ts`), and `plafondDesCoeurs(c) = max(1, floor((c - 2) / 2))`
-(`runtime/src/projections/stations.ts`): the box has 8 cores (`nproc` on `parade-box`), so at most 3 cooks.
+## What the evidence shows
 
-## Each long claim wait, from the evidence
+From the merge commits of `main` (their commit dates, UTC) and the timestamps given on #3446:
 
-| ticket | claim wait | what the timestamps and the cited events show |
-|---|---|---|
-| #955 | 192.6 min | Fired by its split at 09:46:23 (2026-11-12), claimed at 12:59:01. The runtime restarted for an update at 12:16:42. At 12:50:09 the kitchen was held since 12:19:12 with #950 and #955 waiting, cause `github-limit` (`limit: null`), back at 12:54:38; the claim came 4.4 min after. **Nothing cited says what held it from 09:46 to 12:16.** |
-| #984 | 20.6 min | Fired at 10:04:52 (2026-11-13), within 3 s of its filing. No event at all is cited between its filing and 10:22:30, when the kitchen was found held since 09:51:42, cause `github-limit`, back at 10:23:42. The manager judged it at 10:24:43 and labelled `model:sonnet`, `effort:medium` at 10:24:45; claimed at 10:25:29. |
-| #987 | 19.1 min | Fired at 11:07:06. No event is cited between 11:07:06 and 11:20:50, when the runtime stopped for an update; at its start (11:20:57) a hold that had lasted since 10:30:24 was lifted (`nothing-waits`). Claimed at 11:26:12. The cause of the hold from 10:30 to 11:20 is not cited. |
-| #997 | 16.9 min | Fired by its split at 11:32:33, claimed at 11:49:03. #987, #989 and #993 were claimed at 11:26:12, 11:27:13 and 11:33:45, #996 at 11:38:34 about when #989's first cook was given back: three cooks at once, the box's 3 places. |
-| #974 | 14.7 min | Fired at 14:43:59 (2026-11-12), within 2 s of its filing, without its calibration. The manager judged it at 14:57:10 and 14:57:19, and labelled it at 14:57:21; claimed at 14:58:39. The station ran `0.20261112.120608+ga5f7ded`, which predates #3422 (a new issue judged before the rest of the manager's turn). |
-| #996 | 8.2 min | Fired at 11:32:29, claimed at 11:38:34: the same three places as #997. |
+- **Design deliveries stay in pass for hours.** Each delivery below carries before/after captures
+  (`docs/captures/<n>/`), so the pass held it for its card. #3403's cook committed at 14:25 on 2026-11-12, its PR
+  #3412 was merged at 09:54 the next day; #3399's at 13:42, PR #3404 merged at 22:33; #3358's at 10:59, PR #3366
+  merged at 13:22; #3271's captures at 13:30, PR #3298 merged at 14:00, with a commit of #3271 from 21:11 the day before.
+- **On 2026-11-12, claims resumed after merges.** #3372 was on the rail from 10:54:10. After #3367's claim at 11:06:05,
+  the next cook the cited journal shows launched is #3379's, at 11:58:44 — 3 minutes after PRs #3365, #3375 and #3376
+  were merged within 7 s, at 11:55. That fits a full pass, which a merge frees and presses a turn for (#2802); a
+  merge also frees zones and dependencies, so it does not prove it.
 
-So, from what is cited:
+What it does not show, and this diagnosis does not claim:
 
-- **GitHub's limit** held the whole kitchen at the end of #955's wait and through most of #984's (about
-  32 min with nothing served, the pause ending at 10:23:42). Which limit, and which calls brought it, is
-  not in the evidence: `limit: null` is the pause the station sets without a named limit
-  (`signauxDeLaStation` in `runtime/src/retenue/brancher.ts`).
-- **The box's 3 places** made #996 and #997 wait 5 and 16 min while 5 tickets were fired within 8 min.
-- **A ticket fired before the manager's judgement** (#974, #984: `fire` within seconds of filing) is not
-  claimable until the manager labels its calibration; that wait counts as a claim wait, not as the
-  manager's judgement, which the measure ends at `fire` (`marquesDuDepot` in
-  `runtime/src/temps-ticket/mesure.ts`). #974's 13 min are the manager's turn that #3422 already reordered;
-  #984's 20 min are the GitHub pause.
-- **Not established**: what held #955 from 09:46 to 12:16, and #987's kitchen from 10:30 to 11:20.
+- **Which hold held each wait.** The station's journal was not readable from the cook, and the hold of a full pass
+  writes no line (the turn stops on `PASS_MAX` with no `sauter`). So how many of the 1467 min were a full pass, and
+  how many full places, is not measured.
+- **#3372's 245 min** were not only a project-wide hold: tickets numbered after it were claimed first (#3379 at
+  11:58, #3400 at 13:34, #3403 at 14:17), so a hold of its own (a held zone, a dependency, or the rail's priority)
+  also kept it. The cited events do not name it.
+- **#3228's 1032 min** are almost all after its first claim (17:53 on 2026-11-11), overnight, between its blocked cook,
+  its send-backs and its cooks given back. What held it then is not in the cited events.
+- **#3351 and #3361's cooks given back** by `macbook-air-de-benoit/claude`, whose base branch `v2` does not exist on
+  the remote, are that station's configuration: it takes no more tickets until restarted with a base that exists
+  (#2876). Nothing here changes it.
 
-## What `limit: null` narrows
+## The fix
 
-Both holds name `github-limit` with `limit: null`. `signauxDeLaStation` (`runtime/src/retenue/brancher.ts`)
-names the limit from the station's limits file (`limiteDuCompteDeLaStation`, `runtime/src/github-limite.ts`)
-while its `backAt` is ahead, and falls back to the pause on the call counter (`pauseDeLaStation`) with
-`limit: null` otherwise. A refusal of a call made through `runtime/src/github.ts` writes both: the pause
-(`constaterLimite`) and the named limit (`limites.constater`, its end read by `lireLaLimite`: `retry-after`,
-else `x-ratelimit-reset`, else the pause's end). So `limit: null` means one of two things, and the evidence
-does not say which:
+- **The places are read at each turn** (`runtime/src/github-seul/places/places.ts`): the chef's cap once he has set
+  one (`0`: no limit), otherwise the same default as before. At start the station announces itself
+  (`station.announced`, with its declaration and its cores), so `status` and `station` say the cap and where it comes
+  from. The default is not raised: how many cooks the box runs at once is the chef's to set, and he now can.
+- **A delivery held for the chef takes no place of the pass** while its head is the one held
+  (`pourLeChef` in `runtime/src/brigade-github.ts`). A delivery the pass is still reviewing, merging or waiting on CI
+  for counts as before; one sent back after the chef's answer comes back as a new head and counts again.
 
-- the pause was set by a call that writes no named limit: the gist channel (`runtime/src/appairage/canal.ts`)
-  and the breaker issue (`lancerGhApi`, `runtime/src/breaker-issue.ts`) call `constaterLimite` only;
-- or the named limit had ended while the pause still held: `lireLaLimite` takes `x-ratelimit-reset`, the
-  hourly reset of the primary quota that GitHub sends on every response, even for a secondary limit.
-
-The two ends differ in kind. 10:23:42.301 has milliseconds: a pause computed from an instant (`retry-after`,
-or the 60 s default doubled up to 15 min, `RECUL_MAX_MS`), not a reset read from GitHub. 12:54:38.000 is
-whole seconds: a reset epoch (`x-ratelimit-reset` with the quota at zero, or, before the fix below, the latest
-reset of any exhausted resource that `gh api rate_limit` lists, `finDeFenetreDite` in `runtime/src/limite-github.ts`).
-
-## What the station corrects (#3448)
-
-The manager's answer on #3448 asked for the part the station controls to be corrected, without the box's logs.
-Two parts of a claim wait under GitHub's pause are decided by the station's code, and both made it longer than
-GitHub's own limit required:
-
-- **The turn after the pause came at the interval, not at the pause's end.** A GitHub-only turn stopped by the
-  pause (`LimiteGitHubAtteinte`) programmed its next turn at the interval (`brancherBrigadeGithub`, 2 minutes),
-  whatever the pause's end: a ticket claimable once the pause was over waited up to 2 more minutes. The loop now
-  takes the next turn at the pause's end when that comes before the interval, never later than the interval, and
-  never sooner than 5 s (`REPRISE_MIN_MS`, for a pause already over when it is said). #955 was claimed 4.4 min after
-  the 12:54:38 the hold announced; how much of it was this interval is not shown by the evidence.
-- **A refusal without a usable header paused until the reset of any exhausted resource.** When the refusal carried
-  neither `retry-after` nor a primary quota at zero, `constaterLimite` asked `gh api rate_limit` and took the latest
-  reset of every resource at zero — `graphql` or `search`, which the chef's Mac and the app spend on the same account,
-  held the kitchen's REST calls up to their own reset, an hour at most. A secondary limit is not among the
-  resources `rate_limit` lists; for one without `retry-after`, GitHub's guidance is to wait at least a minute and
-  back off, which the 60 s doubled (#2436) already does. The pause now follows only the
-  resource the refused call spends (its `x-ratelimit-resource`, `core` by default), else the 60 s doubled up to 15
-  min (#2436) as before. Whether this is what set 12:54:38 is **not proven**: that end, in whole seconds, is a reset
-  epoch, which an `x-ratelimit-reset` with the primary quota at zero also gives.
-
-No measure changes: `lostTimeMaxMin`, the losses and their computation are untouched, and so are the pause's
-other ends (`retry-after`, the primary reset) and the pacing of calls.
-
-### The checks
+## The checks
 
 ```sh
-cd runtime && node --test test/brigade-github-pause.test.ts
-cd runtime && node --test --test-name-pattern=3448 test/github-limite.test.ts
+cd runtime && node --test test/github-seul/places/places.test.ts test/station/cuisine-github-seul.test.ts
+cd runtime && node --test --test-name-pattern=3446 test/validation-design/validation-design.test.ts
 ```
 
-`test/brigade-github-pause.test.ts` runs the box's loop on a simulated clock with the real call counter: a pause
-that ends 50 s after a turn brings the next call to GitHub at 50 s; before the fix it came at the interval, 120 s
-(`actual: []`, `expected: [ 50 ]`). A pause longer than the interval keeps the interval while it lasts, and the
-last turn comes at its end (300 s, not 360 s). In `test/github-limite.test.ts`, a 403 secondary refusal with core
-at 4,000 and `graphql` and `search` at zero pauses 60 s; before the fix, 50 min.
+The second fails on the code before the fix (no claim while one held delivery and four others are in pass) and
+passes after it.
 
-## What the journal now says of a hold by GitHub's limit
-
-The second thing the manager asked: that the next lost-time ticket carries what this one lacked, so its cook names
-the cause from the ticket alone.
-
-- The station's counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.db`) keeps each pause that starts in a
-  `pauses` table, with the status, `x-ratelimit-resource` and `retry-after` of the refusal that set it, for an hour
-  after its end (`suspendre`, `pausesDeLaStation` in `runtime/src/limite-github.ts`).
-- A `kitchen.held` whose cause is `github-limit` carries `pauses`: how many pauses in the last hour, the minutes
-  GitHub refused a call, the last pause and its refusal, and the last 5 calls counted before it, by project and
-  kind (`espace issues`, `station gist write`).
-- Every `kitchen.held` carries `skips`, the claim gate's lines for the claimable tickets it did not claim, when
-  those lines are not already the cause. Under GitHub's limit they were written nowhere.
-- The Evidence of a lost-time ticket cites a `kitchen.held` line up to 1,500 characters (`LONGUEUR_D_UNE_RETENUE`
-  in `runtime/src/preuve-mesure.ts`): cut at 300, as the other events are, it stopped before these fields.
-
-`test/retenue/pauses-au-journal.test.ts` plays the chain: calls counted, a refusal, the hold written to the journal,
-and the Evidence section citing it whole.
-
-## What remains unverified
-
-- **Which limit GitHub set**, and which calls brought it, on 2026-11-12 from 12:19 and on 2026-11-13 from 09:51:
-  the box's journal, service log and counter were not read, and the Evidence of #3448 does not hold them. The next
-  hold will say it in its `kitchen.held` line.
-- **What held #955 from 09:46 to 12:16**, and #987's kitchen from 10:30 to 11:20 on 11-13: nothing cited says.
-  The `nothing-waits` lift at 11:20:57 is the hold observer starting with an empty view at the restart (the GitHub
-  turn has not run yet, `lireLaCuisine`), not a ticket served.
-- **The median lost time after this delivery** (the ticket asks for 2 min or under): it can only be measured on
-  BOBL-tech/espace's next tickets once the station runs this code. The corrections above remove the wait the
-  station added after a pause and a pause longer than the limit; the box's 3 places (#996, #997) and the time to the
-  manager's labels (#974) are not changed here.
+The median lost time of the next recent tickets is to be read once 10 tickets are merged after this fix: it is not
+measured here. The station re-measures it over those tickets, and opens a new ticket if it is still above 2 min. If
+the claim wait stays high while tickets arrive faster than the default cooks serve them, the lever is the chef's:
+`station -- cooks <N>`, which the station now reads at its next turn. The default (the declaration bounded by the
+cores, 3 on 8) is not changed here.

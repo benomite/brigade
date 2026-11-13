@@ -52,7 +52,8 @@ export type OptionsContributrice = {
   nom: string;
   // Le compte GitHub de la station : il signe ses prises et possède sa fourche.
   login: string;
-  places: number;
+  // Un nombre, ou relu à chaque tour (`github-seul/places/`, #3446).
+  places: number | (() => number);
   base: string;
   // `owner/name` du projet.
   depotGitHub: string;
@@ -83,6 +84,7 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 
 export function stationContributrice(options: OptionsContributrice): StationGitHub {
   const { nom, login, base, depotGitHub, github, depot, clone, gardes } = options;
+  const placesDuTour = () => (typeof options.places === "number" ? options.places : options.places());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const maintenant = options.maintenant ?? (() => new Date());
   // Lue une fois par tour : la liste peut changer entre deux tours, pas pendant l'un.
@@ -186,7 +188,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
           dire(numero, `its claim could not be renewed (${message(erreur)})`);
         }
       }
-      if (enVol.size >= options.places) return;
+      if (enVol.size >= placesDuTour()) return;
       try {
         refusees = options.refusees?.() ?? [];
       } catch (erreur) {
@@ -204,7 +206,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
       }
       const ouvertes = new Set((await github.prsOuvertes()).map(({ branche }) => branche));
       for (const ticket of derniers) {
-        if (enVol.size >= options.places) break;
+        if (enVol.size >= placesDuTour()) break;
         const calibrage = prenable(ticket, ouvertes);
         if (calibrage === null) continue;
         const issue = await github.issue(ticket.number);

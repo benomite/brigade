@@ -6,8 +6,7 @@
 // La mise en service de la box et la comparaison de version n'y sont pas
 // branchées : elles sont celles d'une installation par projet, qui disparaît.
 // La station se met à jour une fois pour tous ses projets.
-import { availableParallelism } from "node:os";
-import { plafondDesCoeurs } from "../projections/stations.ts";
+import { placesDeLaStation } from "../github-seul/places/places.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
@@ -83,6 +82,10 @@ export type Cuisine = {
   enCuisine?(): number[];
   // Sauve leur travail sur leur branche avant une relance (#2586).
   sauver?(): Promise<number[]>;
+  // Pourquoi sa cuisine ne prend aucun ticket sur GitHub (le projet ne déclare
+  // aucune station sur cette machine), ou null quand elle en prend : une
+  // cuisine qui n'en prend pas ne sert pas le projet (#3449).
+  refusGitHub?(): string | null;
 };
 
 export type OptionsCuisine = {
@@ -200,6 +203,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // qui prend, cuisine, relit et merge, sous l'identité de la pass et au nom
     // de la station déclarée sur cette machine.
     const ici = stations.find((declaree) => !declaree.distante);
+    // Ses places, relues à chaque tour : le plafond que le chef règle à chaud, sinon sa déclaration bornée par les cœurs (#3446).
+    const places = ici === undefined ? 0 : placesDeLaStation(socle.journal, projet, ici, { avertir: dire });
     // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
     const suiviDuTour = suivreLeTour();
     const ouvert = brancherBrigadeGithub({
@@ -212,9 +217,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire });
               const ecrivaine = stationDuDepot({
                 nom: ici.nom,
-                // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
-                // une station déclarée à 30 en tiendrait 30.
-                places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+                places,
                 capacites: ici.fournit,
                 base: station.base,
                 depotGitHub: rail.depot,
@@ -252,7 +255,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
               // Sans l'écriture sur le dépôt, la station est contributrice : elle cuisine dans sa fourche et livre par une PR du dehors (#2935).
               return aiguillerLaStation(githubs.pass, ecrivaine, {
                 nom: ici.nom,
-                places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+                places,
                 base: station.base,
                 depotGitHub: rail.depot,
                 depot,
@@ -383,5 +386,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Ses cooks en vol, pour la mise à jour de la station (#2189).
     enCuisine: () => servieSurGitHub.enCuisine(),
     sauver: async () => (await servieSurGitHub.sauver?.()) ?? [],
+    refusGitHub: () => servieSurGitHub.refus ?? null,
   };
 }

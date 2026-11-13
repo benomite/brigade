@@ -24,6 +24,8 @@ export const CODES_DE_REFUS = [
   "hand-written-line",
   "handed-over-elsewhere",
   "kitchen-not-joinable",
+  // Ni sa cuisine ni son service GitHub seul ne prend les tickets du projet.
+  "not-served",
   // Tout le reste.
   "unexpected",
 ] as const;
@@ -48,6 +50,7 @@ export const CAUSES: Record<CodeDeRefus, Cause> = {
   "hand-written-line": { message: "This project is already set up by hand on the station, which blocks the app's setup.", action: "Remove the hand-written line from the app; the station then writes its own." },
   "handed-over-elsewhere": { message: "This project was moved to another station and cooks there.", action: "Move it back to this station from the app if you want it to cook here." },
   "kitchen-not-joinable": { message: "Another station already runs this project's kitchen, and this computer cannot join it.", action: "Make sure the station that serves it is online and this computer is paired in the app; this computer tries again by itself." },
+  "not-served": { message: "No kitchen of this station takes this project's tickets from GitHub, and its GitHub-only service does not serve it either.", action: "Wait: the station tries again by itself; if it stays so, ask for help with the station's log." },
   unexpected: { message: "The station could not open this project for a reason it does not recognise.", action: "Ask for help with the station's log; the station does not retry until the project's settings change." },
 };
 

@@ -277,8 +277,9 @@ export const brancheDuTicket = (issue: number) => `cook/${runDuTicket(issue)}`;
 export type OptionsDeStation = {
   // Le nom de la station : celui de ses prises et de ses verdicts.
   nom: string;
-  // Combien de cooks elle tient à la fois.
-  places: number;
+  // Combien de cooks elle tient à la fois — un nombre, ou relu à chaque tour :
+  // le plafond que le chef règle à chaud (`github-seul/places/`, #3446).
+  places: number | (() => number);
   // La branche d'intégration, que visent ses PR.
   base: string;
   github: GitHubDuTour;
@@ -731,6 +732,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les PR dont la CI était attendue, et ce qu'elles étaient alors : une CI
   // qui tourne presse les tours une fois par tête, pas à chaque tour (#2333).
   const attendues = new Map<number, string>();
+  // Les livraisons que la pass retient pour le chef — la validation de leur
+  // écran, la revue d'un ticket sensible, une carte sans objet — et la tête
+  // retenue : elles attendent un humain, pas la pass, et ne prennent aucune de
+  // ses places (`PASS_MAX`). Comptées, cinq livraisons qui attendaient le chef
+  // arrêtaient toutes les prises du projet jusqu'à sa réponse (#3446).
+  const pourLeChef = new Map<number, string>();
+  // Les livraisons en pass de ce tour dont la tête est encore celle retenue.
+  const retenuesDuTour = new Set<number>();
   // Les livraisons que la station relit et merge en ce moment, hors du tour (#2329).
   const enRelecture = new Map<number, Promise<void>>();
   // Un merge à la fois : chaque merge attend le précédent.
@@ -1305,6 +1314,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const tour = async () => {
     renvoyes.clear();
+    retenuesDuTour.clear();
     const checksDeLaBase = await relancerLaBase(await github.checksDeLaBase());
     // Rouge après sa relance, la base a son ticket de réparation : un seul par commit (#2339).
     const { erreur } = await ouvrirLaReparation(checksDeLaBase);
@@ -1340,6 +1350,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
+      if (pr !== null && pourLeChef.get(ticket.number) === pr.sha) retenuesDuTour.add(ticket.number);
       // La base ne gèle pas tout le pass : elle ne retient une livraison que
       // rouge sur un check que cette livraison doit elle-même passer (#2279).
       const etat = etatDuTicket({ state: ticket.state, labels: ticket.labels, pr }, null);
@@ -1506,6 +1517,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               attendues.delete(pr.number);
               if (fusion.issue !== "non-approuvee" && fusion.issue !== "close" && !retenue) bouge = true;
             }
+            if (fusion.issue === "refusee" && retenue) pourLeChef.set(ticket.number, pr.sha);
+            else pourLeChef.delete(ticket.number);
             if (fusion.issue === "refusee" && retenue) tentees.set(pr.number, retenueSur(await reponsesGardees([DESIGN, SENSIBLE], github, ticket.number, pr.number)));
             else if (fusion.issue === "refusee" || fusion.issue === "mise-a-jour") tentees.set(pr.number, tentee);
             else tentees.delete(pr.number);
@@ -1678,9 +1691,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     for (const ticket of libres) {
       if (baseManquante !== null) break;
-      if (enVol.size + aRendre.size >= places) break;
+      if (enVol.size + aRendre.size >= (typeof places === "number" ? places : places())) break;
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
-      if (enPass(tickets, renvoyes) >= PASS_MAX) break;
+      // Celles que la pass retient pour le chef n'y comptent pas (#3446).
+      if (enPass(tickets, new Set([...renvoyes, ...retenuesDuTour])) >= PASS_MAX) break;
       if (enVol.has(ticket.number)) continue;
       // Sa PR est déjà approuvée par son dernier verdict : elle n'a rien à
       // reprendre, ses remarques sont closes. Le ticket retourne au pass, quels
@@ -2026,7 +2040,7 @@ export type Lancer = (lancement: Lancement & { cwd: string; env: NodeJS.ProcessE
 
 export type OptionsDuDepot = {
   nom: string;
-  places: number;
+  places: number | (() => number);
   base: string;
   // L'heure de la station ; les tests la fixent.
   maintenant?: () => Date;
