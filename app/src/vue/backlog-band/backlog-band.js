@@ -110,7 +110,7 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
         comptes.set(nom, (comptes.get(nom) ?? 0) + 1);
       }
       const etapes = tickets.length === 0 ? [] : [...ETAPES.map(({ nom }) => ({ nom, nombre: comptes.get(nom) ?? 0 })), ...(comptes.has(PAS_SUR_LE_RAIL) ? [{ nom: PAS_SUR_LE_RAIL, nombre: comptes.get(PAS_SUR_LE_RAIL) ?? 0 }] : [])];
-      // La liste de cases à cocher de son issue d'abord, s'il en porte une (backlog/avancement.js, #3480).
+      // La liste de cases à cocher de son issue d'abord, s'il en porte une (backlog/avancement.js, ticket 3480).
       const progres = progresDuBesoin(issue, tickets.length === 0 ? null : { servis: comptes.get("served") ?? 0, total: tickets.length });
       const carte = duChef.get(issue.ticket);
       /** @type {Besoin} */
