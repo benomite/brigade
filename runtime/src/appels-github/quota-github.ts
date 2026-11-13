@@ -16,7 +16,7 @@
 // - `parStationEtProjet` : les appels de l'heure, par projet et par sorte
 //   d'appel, le plus gros d'abord. Le compteur est celui de la station : la
 //   station de chaque ligne est elle.
-import { ECRITURES_PAR_HEURE, FENETRE_MS, type EtatDuQuota, type Limite } from "../limite-github.ts";
+import { ECRITURES_PAR_HEURE, FENETRE_MS, type Limite } from "../limite-github.ts";
 
 export type QuotaGithub = {
   limite: "core" | "ecriture";
@@ -29,7 +29,9 @@ export type QuotaGithub = {
 
 const iso = (instant: number) => new Date(instant).toISOString();
 
-function quotaGithubDe(etat: EtatDuQuota, station: string): QuotaGithub {
+// Le quota de la station nommée `station`, lu sur son compteur.
+export function quotaGithub(limite: Limite, station: string): QuotaGithub {
+  const etat = limite.etatDuQuota();
   const { pause, quota, ecritures } = etat;
   const parStationEtProjet = etat.appels.map(({ projet, lecture, nombre }) => ({ station, projet, type: lecture, nombre }));
   const pauseJusqua = pause !== null && pause.finDite === true ? iso(pause.jusqua) : null;
@@ -51,9 +53,4 @@ function quotaGithubDe(etat: EtatDuQuota, station: string): QuotaGithub {
     renouvellement: quota === null ? null : iso(quota.reset),
     parStationEtProjet,
   };
-}
-
-// Le quota de la station nommée `station`, lu sur son compteur.
-export function quotaGithub(limite: Limite, station: string): QuotaGithub {
-  return quotaGithubDe(limite.etatDuQuota(), station);
 }

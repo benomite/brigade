@@ -10,10 +10,8 @@ import { join } from "node:path";
 import { Base } from "../../src/base.ts";
 import { constaterLimite, dernierRefusDeLaStation, etiquetteDe, journaliserLaPause, LimiteGitHubAtteinte, limiteDeLaStation, ouvrirLimite, pauseDeLaStation, pausesDeLaStation, prendreUnAppel, REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { FauxGitHub } from "../cout-par-ticket/faux-github.ts";
-import { jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { jusqua, repertoireTemporaire } from "../outils.ts";
 import { CALIBRE, DEPOT, unGhDeGist, uneStation } from "./aides.ts";
-
-const rienNeReste = temporaireDuFichier();
 
 test("a 403 on gist writes holds gist calls only: issue, PR and check calls still go through, and a cook still starts (#3481)", async (t) => {
   const racine = repertoireTemporaire(t);
@@ -56,15 +54,21 @@ test("a 403 on gist writes holds gist calls only: issue, PR and check calls stil
   assert.equal(gh.ecritures(), 1);
 });
 
-test("a pause posed for every kind (no kind named) still holds every kitchen call, as before #3481", (t) => {
-  const racine = repertoireTemporaire(t);
-  const limite = limiteDeLaStation(racine);
+test("a pause for every kind and a longer gist pause are kept apart: when the first ends, kitchen calls leave and the gist still waits (#3481)", (t) => {
+  let instant = Date.parse("2026-11-13T16:50:00Z");
+  const limite = ouvrirLimite({ maintenant: () => instant });
   t.after(() => limite.fermer());
-  limite.suspendre(Date.now() + 60_000);
+  // Une pause sans sorte nommée (le quota horaire), puis une pause du gist, plus longue.
+  limite.suspendre(instant + 60_000);
+  limite.suspendre(instant + 10 * 60_000, undefined, "gist");
   for (const lecture of ["gist", "issues", "pull-requests", "other"] as const) {
     assert.throws(() => limite.prendre("cuisine", undefined, { projet: "brigade", lecture }), LimiteGitHubAtteinte, lecture);
   }
-  assert.notEqual(pauseDeLaStation(racine, Date.now()), null);
+  instant += 61_000;
+  for (const lecture of ["issues", "pull-requests", "other"] as const) {
+    assert.equal(typeof limite.prendre("cuisine", undefined, { projet: "brigade", lecture }), "number", lecture);
+  }
+  assert.throws(() => limite.prendre("cuisine", undefined, { projet: "station", lecture: "gist" }), LimiteGitHubAtteinte);
 });
 
 test("the log says a kind's pause once when it starts and once when a call of that kind leaves again; other kinds say nothing (#3481)", async (t) => {
@@ -87,19 +91,21 @@ test("the log says a kind's pause once when it starts and once when a call of th
   assert.deepEqual(lignes.slice(1), ["brigade : GitHub gist calls resumed"]);
 });
 
-test("a counter written before #3481, without the kind columns, opens and keeps its pause for every kind", (t) => {
+test("a counter written before #3481, without the kind columns, keeps its pause for every kind, then takes a pause for the gist only (#3481)", (t) => {
   const racine = repertoireTemporaire(t);
-  const ancienne = limiteDeLaStation(racine);
-  ancienne.fermer();
+  limiteDeLaStation(racine).fermer();
+  let instant = Date.parse("2026-11-13T16:50:00Z");
   // Le compteur tel qu'une station d'avant l'a laissé : ses tables sans la sorte d'appel.
   const base = new Base(join(racine, REPERTOIRE_COMPTEUR, "compteur.db"));
   base.script("DROP TABLE pause; DROP TABLE refus; DROP TABLE pauses; CREATE TABLE pause (jusqua INTEGER NOT NULL); CREATE TABLE refus (instant INTEGER NOT NULL); CREATE TABLE pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT);");
-  base.executer("INSERT INTO pause (jusqua) VALUES (?)", Date.now() + 60_000);
+  base.executer("INSERT INTO pause (jusqua) VALUES (?)", instant + 60_000);
   base.fermer();
-  const limite = limiteDeLaStation(racine);
+  const limite = limiteDeLaStation(racine, { maintenant: () => instant });
   t.after(() => limite.fermer());
   assert.throws(() => limite.prendre("cuisine", undefined, { projet: "brigade", lecture: "issues" }), LimiteGitHubAtteinte);
-  assert.notEqual(pauseDeLaStation(racine, Date.now()), null);
+  instant += 61_000;
+  // La pause d'avant finie, un refus du gist ne retient que le gist.
+  limite.suspendre(instant + 10 * 60_000, undefined, "gist");
+  assert.equal(typeof limite.prendre("cuisine", undefined, { projet: "brigade", lecture: "issues" }), "number");
+  assert.throws(() => limite.prendre("cuisine", undefined, { projet: "station", lecture: "gist" }), LimiteGitHubAtteinte);
 });
-
-test("pause-par-sorte.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

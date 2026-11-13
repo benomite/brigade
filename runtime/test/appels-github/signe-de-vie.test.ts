@@ -72,10 +72,10 @@ test("a refused heartbeat stops neither the station's turns nor its tickets, and
   assert.deepEqual(tours, Array.from({ length: 20 }, (_, i) => i + 1), "every turn called GitHub");
   assert.deepEqual(station.enCuisine(), [42]);
   await jusqua(() => lances.length === 1);
-  // Le signe de vie, refusé à 3 min 30 (son pas de 210 s), recule : un essai
+  // Le signe de vie, refusé à 3 min (son pas de 180 s), recule : un essai
   // une minute plus tard, puis deux, quatre, huit — et non plus chaque minute.
   assert.equal(essais[0], 1, "the creation at the start counts as the first gist write of the hour");
-  assert.deepEqual(essais.slice(1), [4, 5, 7, 11, 19], "gist tries, by minute");
+  assert.deepEqual(essais.slice(1), [3, 4, 6, 10, 18], "gist tries, by minute");
   assert.equal(etat.ecritures.length, 1, "nothing written while GitHub refuses");
 
   // GitHub accepte de nouveau : le signe de vie repart à son essai suivant, au plus quinze minutes plus tard.
@@ -85,7 +85,7 @@ test("a refused heartbeat stops neither the station's turns nor its tickets, and
   assert.ok(lignes.some((ligne) => /GitHub répond de nouveau/.test(ligne)), lignes.join("\n"));
 });
 
-test("an hour of heartbeats while GitHub accepts them: 17 writes instead of 30, and the station is never seen offline (#3481)", async (t) => {
+test("an hour of heartbeats while GitHub accepts them: 20 writes instead of 30, and the station is never seen offline (#3481)", async (t) => {
   const horloge = fausseHorloge(DEPART);
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
@@ -105,10 +105,11 @@ test("an hour of heartbeats while GitHub accepts them: 17 writes instead of 30, 
   const ecrites = etat.ecritures.length - depuis;
   // Avant #3481 : une écriture par `RAFRAICHI_MS`, 30 par heure.
   assert.equal(3_600_000 / RAFRAICHI_MS, 30);
-  assert.equal(ecrites, 17, `${ecrites} heartbeat writes in an hour`);
-  // Le pas des écritures, plus deux écritures qui durent chacune le délai du canal, tient dans la règle de 270 s.
+  assert.equal(ecrites, 20, `${ecrites} heartbeat writes in an hour`);
+  // Le pas des écritures, plus deux écritures qui durent chacune le délai du canal, tient dans la règle de 270 s
+  // avec 30 s de marge pour l'attente dans la file des appels.
   assert.equal(indisponibleApres(RAFRAICHI_MS), 270_000);
-  assert.ok(ECRITURE_MS + 2 * DELAI_MS <= indisponibleApres(RAFRAICHI_MS));
+  assert.ok(ECRITURE_MS + 2 * DELAI_MS + 30_000 <= indisponibleApres(RAFRAICHI_MS));
   const ecarts = etat.ecritures.slice(1).map(({ instant }, i) => instant - (etat.ecritures[i] as { instant: number }).instant);
   assert.ok(ecarts.every((ecart) => ecart === ECRITURE_MS), `gaps: ${ecarts.join(", ")}`);
 });

@@ -29,8 +29,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Canal } from "../appairage/canal.ts";
 import { sorteDeLaLimite } from "../github-limite.ts";
-import { LimiteGitHubAtteinte, surLaPauseDeGitHub, type PauseDeGitHub } from "../limite-github.ts";
-import { description, ECRITURE_MS, FICHIER_ENREGISTREMENT, FORMAT, NOUVEL_ESSAI_MS, plateformeDe, PREMIER_RECUL_MS, RAFRAICHI_MS, RECUL_MAX_MS, type Enregistrement, type RetenueParGitHub } from "./contrat.ts";
+import { LimiteGitHubAtteinte, RECUL_MAX_MS, surLaPauseDeGitHub, type PauseDeGitHub } from "../limite-github.ts";
+import { description, ECRITURE_MS, FICHIER_ENREGISTREMENT, FORMAT, NOUVEL_ESSAI_MS, plateformeDe, PREMIER_RECUL_MS, RAFRAICHI_MS, type Enregistrement, type RetenueParGitHub } from "./contrat.ts";
 
 export const FICHIER_LOCAL = "enregistrement.json";
 

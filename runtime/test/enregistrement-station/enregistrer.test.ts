@@ -129,7 +129,7 @@ test("à son démarrage, la station crée un gist secret du compte qui porte son
   assert.deepEqual(JSON.parse(readFileSync(join(racine, FICHIER_LOCAL), "utf8")), { gist: id, registeredAt: iso(DEPART) });
 });
 
-test("every 210 s (#3481), it rewrites its sign of life in the same gist, and stays available in between", async (t) => {
+test("every 180 s (#3481), it rewrites its sign of life in the same gist, and stays available in between", async (t) => {
   const { github, horloge, lignes } = unEnregistrement(t);
   await horloge.avancer(0);
   const [id] = [...github.gists.keys()];
