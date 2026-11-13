@@ -11,7 +11,7 @@ import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
-import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
 
 // Le label par lequel une issue entre sur le rail.
@@ -488,7 +488,8 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       // qui aboutit la lève, une fois sa reprise passée.
       const limites = options.limitesDuCompte ?? limitesDuProcess();
       if (refusPourLimite(reponse)) {
-        const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant });
+        // La pause ne retient que la sorte de l'appel refusé (#3481).
+        const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant, lecture: lectureDe(args, options.usage) });
         const lue = lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua });
         limites.constater(compte, lue);
         mesuresGitHubDuProcess().noterLimite(lue.depuis, lue.reprise);

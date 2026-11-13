@@ -18,8 +18,17 @@ the runtime is translated.
   its next heartbeat and shows no more code.
 - **Every minute**, it checks, with no GitHub call, whether its state changed, and rewrites
   `brigade-station.json` (name, machine and cores, version, projects served, last heartbeat) only on a
-  change, or as a beat every 5 minutes. Two writes are at least 60 s apart (a request too soon is held,
-  then written when due), except at **stop** (SIGTERM): its stop time is written at once. It publishes
+  change, or as a beat every 5 minutes. Each write carries its `quotaGithub` (#3481,
+  `runtime/src/appels-github/quota-github.ts`): `limite` (`core`, or `ecriture` while a pause set by
+  GitHub's secondary limit holds), `pauseJusqua` (ISO, null with no pause or when GitHub gave no end),
+  `utilise`, `maximum` and `renouvellement` (for `core`, what GitHub said of the machine account's
+  quota, null until it says it; for `ecriture`, the box's writes of the hour, its budget of 450, and when
+  the oldest leaves the hour), and `parStationEtProjet` (`{station, projet, type, nombre}`, the hour's
+  calls by project and kind). The quota changes with every call, so it never causes a write itself.
+  Since it leaves only with a presence write, and a pause of the gist holds those writes, the app sees
+  `ecriture` only when the pause holds another kind of call. Two writes are at least 60 s apart (a
+  request too soon is held, then written when due), except at **stop** (SIGTERM): its stop time is
+  written at once. It publishes
   `cadenceMs` = 285 s; the app says it is offline after 2 × `cadenceMs` + 30 s
   (`app/src/stations/stations.ts`), so a brutal stop is detected within 5 to 10 min.
 - **Its cores** (`coeurs`, `os.availableParallelism()`) give the app the number of cooks it proposes
@@ -115,28 +124,45 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
 - **The hourly line**: the log writes `brigade : N appels GitHub sur l'heure écoulée` (all processes),
   plus `— GitHub en dit R restants sur 5000` when GitHub has said its quota.
 - **GitHub's limit reached** (its 429, or its 403 "rate limit"; a 403 on a forbidden merge stays a
-  refusal): the station stops every call and sets a pause on the counter, shared by all its processes,
-  until the end of the window, read in `retry-after`, else `x-ratelimit-reset`, else `gh api
-  rate_limit` for the resource the refused call spends (`x-ratelimit-resource`, `core` by default: another
-  exhausted resource of the account, `graphql` or `search`, does not hold the REST calls to its reset, #3448),
-  else 60 s — doubled at each limit that comes back within 15 min of the previous pause's
-  end, up to 15 min (`RECUL_MAX_MS`, #2436): resuming every project after one minute set the secondary
-  limit off again, and each new try lengthens it. Refusals of one burst, arriving during the pause they
-  set, do not double it. During the pause no kitchen call leaves and nothing is counted (a chef's
+  refusal): the station stops the calls of the refused kind and sets a pause on the counter, shared by
+  all its processes, until the end of the window. The kind is the call's `lecture` (`gist`, `issues`,
+  `issue-comments`, `pull-requests`, `other`): a refused gist write holds gist calls only, and issue, PR
+  and check calls, and so the cooks, go on (#3481; on 2026-11-13 a 403 on the heartbeat's gist write
+  stopped every call and nothing cooked from 16:50 to 17:10). A refusal for the spent hourly quota
+  (`x-ratelimit-remaining: 0`, or « API rate limit exceeded » with no secondary limit named) holds every
+  kind, since GitHub would refuse them all, and so does a pause posed with no kind. The end of the pause
+  is read in `retry-after`, else `x-ratelimit-reset`, else `gh api rate_limit` for the resource the
+  refused call spends (`x-ratelimit-resource`, `core` by default: another exhausted resource of the
+  account, `graphql` or `search`, does not hold the REST calls to its reset, #3448), else 60 s — doubled
+  at each limit of the same kind that comes back within 15 min of the previous pause's end, up to 15 min
+  (`RECUL_MAX_MS`, #2436): resuming every project after one minute set the secondary limit off again,
+  and each new try lengthens it. Refusals of one burst, arriving during the pause they set, do not
+  double it. During the pause no kitchen call of that kind leaves and nothing is counted (a chef's
   gesture still tries, and fails on GitHub's refusal). The log says it twice, whatever the number of
-  projects (#2436): `brigade : GitHub limit reached — no call leaves the station before HH:MM` when it
-  starts, `brigade : GitHub calls resumed` when the next call leaves. A GitHub-only turn stopped by the
-  pause takes its next turn at the pause's end when that comes before the interval, never later than the
-  interval (#3448, [diagnosis](claim-wait-espace-2026-11-13.md)): claimable tickets no longer wait up to 2 more minutes once the pause is over. The
-  counter keeps each pause that starts, with its refusal (status, `x-ratelimit-resource`, `retry-after`), in
-  its `pauses` table, for an hour after its end; a held kitchen reads it (`etat-et-mesures.md`); the manager, the GitHub-only turn
-  and the stale-branch cleanup say nothing of it. The resumption is automatic. During the wait the
-  station does not write its state on GitHub — except as the pause starts (#2443): its
-  registration (`runtime/src/enregistrement-station/`) is written outside the pause with `heldBy`
-  (the limit, since, until), tried again each minute, three times at most, if GitHub refuses it too
-  (`ESSAIS_DE_LA_RETENUE`), so the app shows it `held by GitHub's limit until HH:MM`, never offline,
-  and keeps its projects attached to it; listeners hear the pause through `surLaPauseDeGitHub`. The
-  presence gist (`appairage/`) still goes quiet, and the app says it offline after 2 × `cadenceMs` + 30 s.
+  projects (#2436): `brigade : GitHub limit reached on <kind> calls — they wait until HH:MM, other calls
+  go on` when it starts, `brigade : GitHub <kind> calls resumed` when the next call of that kind leaves
+  (a pause of every kind keeps `brigade : GitHub limit reached — no call leaves the station before
+  HH:MM` and `brigade : GitHub calls resumed`). A pause of the gist alone does not hold the kitchen:
+  `status`, `facts` and the held-kitchen detector do not see it (#3481). A GitHub-only turn stopped by
+  the pause takes its next turn at the pause's end when that comes before the interval, never later than
+  the interval (#3448, [diagnosis](claim-wait-espace-2026-11-13.md)): claimable tickets no longer wait
+  up to 2 more minutes once the pause is over. The counter keeps each pause that starts, with its
+  refusal (status, `x-ratelimit-resource`, `retry-after`), in its `pauses` table, with its kind, for an
+  hour after its end; a held kitchen reads it (`etat-et-mesures.md`); the manager, the GitHub-only turn
+  and the stale-branch cleanup say nothing of it. The resumption is automatic. During a pause of the
+  gist the station does not write its state on GitHub — except its registration
+  (`runtime/src/enregistrement-station/`, #2443), written outside the pause with `heldBy` (the limit,
+  since, until), so the app shows it `held by GitHub's limit until HH:MM` and keeps its projects
+  attached to it. Since the gist was just refused, that write waits its back-off — a minute, then
+  doubled at each refusal — and is tried three times at most (`ESSAIS_DE_LA_RETENUE`); a pause its own
+  refusal sets only moves its end (#3481). A pause of every kind writes it at once. A pause of another
+  kind does not hold the registration, which says nothing of it. Listeners hear the pause, with its
+  kind, through `surLaPauseDeGitHub`. The presence gist (`appairage/`) still goes quiet, and the app
+  says it offline after 2 × `cadenceMs` + 30 s.
+- **The hourly quota spent (#3481).** When GitHub says the core quota is at zero
+  (`x-ratelimit-remaining: 0` on any answer), the service log says it once per window and account:
+  `brigade : GitHub hourly limit reached — station <name> made N calls in the last hour, most of them
+  <kind> calls (n), project <project> the most (n)`, the counts being the station's counter's.
 - **No burst at start (#2436).** The station opens its projects together, but their first GitHub-only
   turns are spread evenly over a window (`BRIGADE_STATION_FENETRE_S`, 300 s by default, 0 = all at once, #2587):
   project *i* of *n* starts at *i*/*n* of it (`runtime/src/lecture-initiale/etalement.ts`); after that first turn the usual

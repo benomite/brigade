@@ -23,6 +23,7 @@ import { availableParallelism, hostname, release, type } from "node:os";
 import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
 import { ecrireSecret } from "../droits.ts";
+import type { QuotaGithub } from "../appels-github/quota-github.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
 import { cuisine, ORDINATEUR, type Sorte } from "../stations-globales/sorte.ts";
 import type { Canal } from "./canal.ts";
@@ -65,6 +66,10 @@ export type OptionsPresence = {
   // Sa mise à jour et sa connexion Max, à cet instant : ce que l'app dit en
   // panne. Absent, elle n'en publie rien.
   etats?: () => EtatsPublies;
+  // Son quota GitHub, à cet instant (#3481) : publié avec chaque écriture,
+  // jamais une cause d'écriture. Absent, elle n'en publie rien ; une lecture
+  // qui lève le publie nul.
+  quotaGithub?: () => QuotaGithub;
   // Une ligne du journal de service.
   dire: (ligne: string) => void;
   // Un minuteur : appelle `tache` dans `ms`, rend de quoi l'annuler. Sans
@@ -171,6 +176,14 @@ export function tenirPresence(options: OptionsPresence): Presence {
     }
   };
 
+  const quotaPublie = (): QuotaGithub | null => {
+    try {
+      return options.quotaGithub?.() ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   // Il porte le code d'appairage : au seul compte de la station.
   const sauver = () => ecrireSecret(fichier, `${JSON.stringify(etat, null, 2)}\n`);
 
@@ -195,6 +208,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
     appairage: etat.appairee || etat.code === null || etat.expireLe === null ? null : { empreinte: empreinte(etat.code), expireLe: etat.expireLe },
     echus: etat.appairee ? [] : etat.echus,
     ...etatsPublies(),
+    ...(options.quotaGithub === undefined ? {} : { quotaGithub: quotaPublie() }),
   });
 
   // Un rail qui ne se lit pas non plus : celui d'avant reste dans le gist.
@@ -207,12 +221,13 @@ export function tenirPresence(options: OptionsPresence): Presence {
   };
 
   // Ce qui s'écrit, et ce par quoi on reconnaît qu'il a changé : le document
-  // sans ses heures, qui bougent à chaque écriture, et le rail de ses projets.
+  // sans ses heures, qui bougent à chaque écriture, ni son quota GitHub, qui
+  // bouge à chaque appel (#3481), et le rail de ses projets.
   const preparer = (instant: number, arret: boolean) => {
     const doc = document(instant, arret);
     const rails = railsPublies();
     return {
-      cle: JSON.stringify({ ...doc, signeDeVie: null, arreteeLe: arret, rails }),
+      cle: JSON.stringify({ ...doc, signeDeVie: null, arreteeLe: arret, quotaGithub: null, rails }),
       fichiers: { [FICHIER_STATION]: `${JSON.stringify(doc, null, 2)}\n`, ...(rails === null ? {} : { [FICHIER_RAIL]: `${JSON.stringify(documentDuRail(rails))}\n` }) },
     };
   };

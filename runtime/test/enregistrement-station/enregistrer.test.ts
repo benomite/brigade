@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
-import { disponible, enregistrementLu, FICHIER_ENREGISTREMENT, FICHIER_SELECTION, indisponibleApres, NOUVEL_ESSAI_MS, plateformeDe, RAFRAICHI_MS, retenueJusqua, selectionLue, type Enregistrement } from "../../src/enregistrement-station/contrat.ts";
+import { disponible, ECRITURE_MS, enregistrementLu, FICHIER_ENREGISTREMENT, FICHIER_SELECTION, indisponibleApres, NOUVEL_ESSAI_MS, plateformeDe, RAFRAICHI_MS, retenueJusqua, selectionLue, type Enregistrement } from "../../src/enregistrement-station/contrat.ts";
 import { FICHIER_LOCAL, tenirEnregistrement } from "../../src/enregistrement-station/enregistrer.ts";
 import { stationDuGist } from "../../src/enregistrement-station/stations-du-compte.ts";
 import { stationsSurGithub } from "../../src/stations-github/stations.ts";
@@ -129,7 +129,7 @@ test("à son démarrage, la station crée un gist secret du compte qui porte son
   assert.deepEqual(JSON.parse(readFileSync(join(racine, FICHIER_LOCAL), "utf8")), { gist: id, registeredAt: iso(DEPART) });
 });
 
-test("toutes les deux minutes, elle réécrit son signe de vie dans le même gist, et reste disponible entre deux", async (t) => {
+test("every 180 s (#3481), it rewrites its sign of life in the same gist, and stays available in between", async (t) => {
   const { github, horloge, lignes } = unEnregistrement(t);
   await horloge.avancer(0);
   const [id] = [...github.gists.keys()];
@@ -138,16 +138,18 @@ test("toutes les deux minutes, elle réécrit son signe de vie dans le même gis
   // Une minute plus tard : rien n'est écrit.
   await horloge.avancer(60_000);
   assert.equal(github.etat.appels, appels);
-  await horloge.avancer(RAFRAICHI_MS - 60_000);
+  await horloge.avancer(ECRITURE_MS - 60_000);
   assert.equal(github.etat.appels, appels + 1);
   assert.equal(github.gists.size, 1);
   const rafraichi = github.enregistrement(id);
-  assert.equal(rafraichi.lastSeen, iso(DEPART + RAFRAICHI_MS));
+  assert.equal(rafraichi.lastSeen, iso(DEPART + ECRITURE_MS));
+  // Il publie toujours le pas de la règle de fraîcheur : 270 s.
+  assert.equal(rafraichi.refreshMs, RAFRAICHI_MS);
   assert.equal(rafraichi.registeredAt, iso(DEPART));
   assert.equal(rafraichi.stoppedAt, null);
   // Dix rafraîchissements de plus : à tout instant, elle est disponible.
   for (let i = 0; i < 10; i++) {
-    await horloge.avancer(RAFRAICHI_MS - 1);
+    await horloge.avancer(ECRITURE_MS - 1);
     assert.ok(disponible(github.enregistrement(id), horloge.maintenant()), `rafraîchissement ${i}`);
     await horloge.avancer(1);
   }
@@ -182,7 +184,7 @@ test("GitHub muet après l'enregistrement : le signe de vie se retente chaque mi
   await horloge.avancer(0);
   const id = tenue.gist() ?? assert.fail("pas de gist");
   github.etat.panne = new Error("gh api /gists/gist1 : error connecting to api.github.com");
-  await horloge.avancer(RAFRAICHI_MS + 2 * NOUVEL_ESSAI_MS);
+  await horloge.avancer(ECRITURE_MS + 2 * NOUVEL_ESSAI_MS);
   assert.equal(lignes.filter((ligne) => ligne.includes("n'est pas rafraîchi")).length, 1, lignes.join("\n"));
   assert.match(lignes.at(-1) ?? "", /^brigade : station — son enregistrement n'est pas rafraîchi sur GitHub, elle réessaie à chaque minute : /);
   // Son dernier signe de vie est celui du départ : passé 270 s, l'app la dit indisponible.
@@ -252,11 +254,11 @@ test("son gist supprimé sur GitHub, elle s'enregistre dans un autre à l'écrit
   await horloge.avancer(0);
   const ancien = tenue.gist() ?? assert.fail("pas de gist");
   github.gists.delete(ancien);
-  await horloge.avancer(RAFRAICHI_MS);
+  await horloge.avancer(ECRITURE_MS);
   const neuf = tenue.gist() ?? assert.fail("pas de gist");
   assert.notEqual(neuf, ancien);
   assert.deepEqual([...github.gists.keys()], [neuf]);
-  assert.equal(github.enregistrement(neuf).registeredAt, iso(DEPART + RAFRAICHI_MS));
+  assert.equal(github.enregistrement(neuf).registeredAt, iso(DEPART + ECRITURE_MS));
   assert.equal(lignes[1], "brigade : station — son enregistrement a disparu de GitHub : elle s'enregistre de nouveau");
   assert.match(lignes[2] ?? "", new RegExp(`\\(gist ${neuf}\\)$`));
   assert.equal(JSON.parse(readFileSync(join(racine, FICHIER_LOCAL), "utf8")).gist, neuf);
@@ -354,9 +356,9 @@ test("a GitHub limit window replayed: the registration says the limit as the cal
 });
 
 // GitHub, qui vient de limiter la station, peut refuser aussi l'écriture qui le
-// dit : elle se retente chaque minute, hors de la pause, trois fois au plus —
-// toutes avant que la règle de fraîcheur ne la dise tue.
-test("the write that says the limit, refused by GitHub too, is tried again each minute outside the pause, three times at most, before the app would say the station offline", async (t) => {
+// dit : elle se retente hors de la pause, trois fois au plus, en reculant
+// (#3481) — une minute, puis deux, et non plus chaque minute.
+test("the write that says the limit, refused by GitHub too, is tried again outside the pause, three times at most, backing off: a minute, then two (#3481)", async (t) => {
   const a = (hhmmss: string) => Date.parse(`2026-11-05T${hhmmss}Z`);
   const refus = { statut: 403, entetes: new Map<string, string>(), corps: JSON.stringify({ message: "You have exceeded a secondary rate limit." }) };
   for (const troisiemePasse of [true, false]) {
@@ -376,11 +378,13 @@ test("the write that says the limit, refused by GitHub too, is tried again each 
     // Le troisième essai passe — ou est refusé lui aussi.
     if (troisiemePasse) github.etat.pauseDeLaBox = true;
     await horloge.avancer(60_000);
-    assert.equal(github.etat.horsPause, 3, "a third try, at 14:08");
+    assert.equal(github.etat.horsPause, 2, "no third try a minute later: the retry backs off");
+    await horloge.avancer(60_000);
+    assert.equal(github.etat.horsPause, 3, "a third try, two minutes after the second, at 14:09");
     const lu = stationDuGist(gist, github.gists.get(gist)?.fichiers ?? {}, "benomite", a("14:23:00"));
     assert.ok(!("illisible" in lu));
     if (troisiemePasse) {
-      assert.deepEqual([lu.available, lu.heldUntil, lu.lastSeen], [true, "2026-11-05T14:37:00.000Z", "2026-11-05T14:08:00.000Z"]);
+      assert.deepEqual([lu.available, lu.heldUntil, lu.lastSeen], [true, "2026-11-05T14:37:00.000Z", "2026-11-05T14:09:00.000Z"]);
     } else {
       assert.deepEqual([lu.available, lu.heldUntil], [false, undefined], "three refusals: the registration could not say it");
     }

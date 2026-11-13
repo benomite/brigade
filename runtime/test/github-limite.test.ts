@@ -126,10 +126,13 @@ test("sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`
     if (rate !== null) gh.poser("rate_limit", rate);
     await assert.rejects(github.tickets(), (erreur: unknown) => erreur instanceof LimiteGitHubAtteinte && erreur.libreDansMs === ATTENTE_PAR_DEFAUT_MS);
     assert.equal(ATTENTE_PAR_DEFAUT_MS, 60 * SECONDE);
+    // Une limite secondaire ne retient que la sorte de l'appel refusé — les issues ici (#3481).
+    const issues = { projet: "brigade", lecture: "issues" } as const;
     horloge.avancer(59 * SECONDE);
-    assert.throws(() => limite.prendre(), LimiteGitHubAtteinte);
+    assert.throws(() => limite.prendre("cuisine", undefined, issues), LimiteGitHubAtteinte);
+    assert.equal(typeof limite.prendre("cuisine", undefined, { projet: "brigade", lecture: "pull-requests" }), "number");
     horloge.avancer(SECONDE);
-    limite.prendre();
+    limite.prendre("cuisine", undefined, issues);
     assert.equal(gh.appels().length, 1);
   }
 });

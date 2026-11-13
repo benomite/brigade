@@ -22,7 +22,7 @@
 // partageraient garde une issue par cuisine.
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Base } from "./base.ts";
-import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, etiquetteDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type ReponseHttp } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type ReponseHttp } from "./limite-github.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/guardrails.ts";
 import type { CauseReveil, Runtime } from "./runtime.ts";
 import { decouper } from "./github.ts";
@@ -228,7 +228,7 @@ export const lancerGhApi = (
         const reponse = decouper(stdout);
         if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
         if (reponse?.statut === 304) limite.rendre(appel);
-        if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant }).then(rejeter, rejeter);
+        if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant, lecture: lectureDe(args) }).then(rejeter, rejeter);
         else if (reponse) resoudre(reponse);
         else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
       },
