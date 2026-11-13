@@ -4,6 +4,7 @@
 // nées d'un découpage, corps d'une épique, PR, CI, merge. Seul module qui lance `gh`. Sous l'identité unique de la
 // machine, c'est `gh` qui porte l'authentification ; sous une identité de rôle,
 // le jeton lui est remis à chaque appel (voir `identites.ts`).
+import { refusDeLaCreation } from "./conflit-main/renvoi.ts";
 import { execFile } from "./sans-invite.ts";
 import { porteListe } from "./epique.ts";
 import type { Check } from "./events/pass.ts";
@@ -602,6 +603,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       exiger(await appeler(["-X", "PATCH", "-f", `body=${corps}`, chemin]), chemin);
     },
     async creerIssue({ titre, corps, labels }) {
+      // Jamais un ticket dont le travail est de changer la branche d'un autre :
+      // un conflit avec la base revient au cook du ticket lui-même (#3476).
+      const refus = refusDeLaCreation({ titre, corps });
+      if (refus !== null) throw new Error(refus);
       const chemin = `repos/${depot}/issues`;
       const champs = ["-f", `title=${titre}`, "-f", `body=${corps}`, ...labels.flatMap((label) => ["-f", `labels[]=${label}`])];
       const reponse = exiger(await appeler(["-X", "POST", ...champs, chemin]), chemin, 201);

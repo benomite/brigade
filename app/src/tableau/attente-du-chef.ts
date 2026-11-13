@@ -12,6 +12,8 @@
 //     dite au second, dans le bloc, avec pourquoi (`illisibles`) ;
 //   - une issue que le manager a écartée et qui porte le label du chef — `question`, `decision`, `blocked-on-human` — : depuis
 //     la pose de son label, sa carte pose la question du manager, avec ses boutons (#3370, `carteDeLEcart`).
+//   - une épique ouverte (`epic`) dont la dernière parole du manager est une question avant de la découper, tant qu'aucune
+//     réponse ne la suit : sa carte pose cette question, avec ses choix en boutons (tableau/question-d-epique-github.ts) ;
 // Une issue au label `waiting` attend un tiers, pas le chef : elle n'est jamais une entrée, quoi qu'elle porte d'autre
 // (#3075) ; l'issue du tableau de la cuisine non plus.
 //
@@ -32,6 +34,7 @@ import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lectur
 import { BLOCKED_ON_HUMAN, carteDeLEcart, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
 import type { RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
+import { carteDeLaQuestionDEpique, LABEL_EPIQUE, questionDEpiqueLe } from "./question-d-epique-github.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
 import { tiersDesCommentaires } from "../vue/attente/attente-github.ts";
 import { revueDuCorps, SORTE_SENSIBLE } from "../vue/carte-sensible/carte-sensible-github.ts";
@@ -103,7 +106,9 @@ function ligneDeLaMiseDeCote(miseDeCote: MiseDeCote): string {
 // du bloc se comptent.
 // `enWaiting` : lire aussi ce qu'attend chaque issue en WAITING — ce que le rail de l'app montre ; le second et les
 // notifications ne s'en servent pas, et ne paient pas sa lecture.
-export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true }): Promise<AttenteLue> {
+// `epiquesAvantLeRail` : les épiques sans `fire` que la lecture du rail a dites (`avantLeRail`) — sans elles, seules les épiques
+// au label `fire` posent leur question.
+export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[] }): Promise<AttenteLue> {
   const { depot, appeler } = options;
   const lire = async (chemin: string): Promise<unknown> => {
     const reponse = await appeler(chemin).catch((erreur: unknown) => {
@@ -160,6 +165,13 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       }),
     );
     const cartes = await Promise.all((auChef ?? []).map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
+    // Les épiques : celles du rail, déjà lues avec `fire`, et celles que la lecture du rail dit avant lui — aucune lecture de plus
+    // (le budget GitHub de l'app, budget-github.ts).
+    const epiques = [
+      ...(auFeu ?? []).filter((issue) => labelsDe(issue).includes(LABEL_EPIQUE)),
+      ...(options.epiquesAvantLeRail ?? []).map(({ ticket, titre }): Brut => ({ number: ticket, title: titre, labels: [{ name: LABEL_EPIQUE }] })),
+    ].filter((issue, rang, toutes) => toutes.findIndex(({ number }) => number === issue.number) === rang);
+    const epiquesLues = await Promise.all(epiques.map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
     // Les tickets du rail mis de côté qui demandent quelque chose au chef.
     for (const { issue, label, lus } of misesDeCote) {
       const miseDeCote = miseDeCoteDe(depot, label, lus);
@@ -194,6 +206,12 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       const sensible = marque.carte.sorte === SORTE_SENSIBLE ? revueDuCorps(depot, texte(issue.body)) : null;
       const chef = { ...marque.carte, ...(design === null ? {} : { design }), ...(sensible === null ? {} : { sensible }) };
       poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef });
+    }
+    // Les épiques dont le manager attend la réponse du chef avant de les découper, si aucune carte ne les dit déjà.
+    for (const { issue, lus } of epiquesLues) {
+      if (dits.has(issue.number as number)) continue;
+      const chef = carteDeLaQuestionDEpique(lus);
+      if (chef !== null) poser({ ...entree(issue), depuis: questionDEpiqueLe(lus) ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(chef), chef });
     }
     // Les écarts du manager qui ne sont pas déjà dits : depuis la pose de leur label.
     const poses = await Promise.all(
@@ -292,7 +310,8 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres
 // et celles qui attendent un autre humain (vue/cartes-assignees/, #2761, #2985).
 export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, partager?: (attentes: AttenteDuChef[]) => Promise<Partage<AttenteDuChef>>): Promise<LectureDuTableauDuDepot> {
   if (!lu.lu) return lu;
-  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: true });
+  const epiquesAvantLeRail = (lu.avantLeRail?.issues ?? []).filter(({ etat }) => etat === "epique").map(({ ticket, titre }) => ({ ticket, titre }));
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: true, epiquesAvantLeRail });
   if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
   if (partager === undefined) return avecLAttenteDuChef(lu, attente);
   const { siennes, autres } = await partager(attente.attentes);

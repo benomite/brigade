@@ -85,13 +85,25 @@ base, the stale-branch pruning).
   read or write (it warns why). Seen on #2832, #2837 and BOBL-tech/espace#825 (#2841).
 - **The kitchen keeps a cook branch up to date with `origin/<base>`.** A new branch starts from the base the station
   has just fetched. Before a cook resumes an existing branch, the station fetches the base in its worktree and merges it
-  into the branch if the branch does not hold its tip (a branch in conflict follows the conflict send-back instead,
-  #2953); a merge that fails is undone, the station warns, and the cook starts from its branch as is. When a cook blocks because it needs commits that are on the base and not on its branch, the station
+  into the branch if the branch does not hold its tip (a branch whose PR is in conflict follows the conflict send-back
+  instead, #2953). A merge that stops on conflicts is attempted again without a commit and left to the cook, conflict
+  markers in place, its brief naming the files: it resolves them in its own branch, runs the gates and goes on (#3476).
+  A merge that fails otherwise is undone, the station warns, and the cook starts from its branch as is. When a cook blocks because it needs commits that are on the base and not on its branch, the station
   commits what the cook left, fetches and merges `origin/<base>` into the branch, and gives the ticket back to a cook
-  from it, not counted among its tries. If it cannot — conflict, refusal, network —, the merge is undone, the station
-  opens a `fix` ticket under the manager's fix labels (`brigade:remontee <n>`), and the ticket waits for it on the rail
-  (`brigade:attend-ticket`). A branch that already holds the tip leaves the question to the paths above. No TODO card,
+  from it, not counted among its tries. If it cannot — conflict, refusal, network —, the merge is undone and the
+  ticket goes back to its own cook with a `brigade:conflit-main` comment that lists the conflicting files: never a new
+  ticket (#3476). A branch that already holds the tip leaves the question to the paths above. No TODO card,
   never `blocked-on-human` (`runtime/src/mise-a-jour-branche/`). Seen on #2910, #2914 and #2915 (#3001).
+- **A conflict with the base goes back to the ticket's own cook, never to a new ticket or the chef.** A cook that
+  blocks while it resolves a conflict with the base gets the ticket back when its question is a git gesture, a
+  technical question or a gesture the manager reads, the conflict still named; only a product or design choice the
+  manager reads in it reaches the chef, on a card that asks that choice in product terms, never a merge, a rebase, a
+  conflict resolution or a push. Off the conflict path too, a gesture the manager reads as git sends the ticket back to
+  its own cook instead of a card. GitHub's client refuses to open an issue whose work is to change another ticket's
+  branch (its title names `cook/<n>-…`, or a git gesture of `#n` names that branch). At each turn, the station undoes
+  what the old path left: such an open ticket is closed and folded into its owner's send-back, with the files it named;
+  a `blocked-on-human` card asking the chef for a git gesture is withdrawn and the ticket it names goes back to its own
+  cook (`runtime/src/conflit-main/`). Seen on benomite/secondes #18/#28 (#3476).
 - **A red cook PR held for the chef goes back to a cook.** At each turn's healing, an open PR on a `cook/<n>-github`
   branch whose head has a red check, and whose ticket is on the rail and held for the chef (`blocked-on-human`,
   `chef-todo`) with no cook on it — not cooking on this station, not `taken`, not `in-pass` (the pass sends its own

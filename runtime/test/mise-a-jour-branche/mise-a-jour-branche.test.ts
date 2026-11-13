@@ -13,7 +13,7 @@ import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
-import { marqueDeFix } from "../../src/github-seul/renvois/renvois.ts";
+import { MARQUE_DU_CONFLIT_MAIN } from "../../src/conflit-main/renvoi.ts";
 import type { GitHub } from "../../src/github.ts";
 import type { SortieGit } from "../../src/integration-base.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche } from "../../src/mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -162,7 +162,7 @@ test("a cook that stops because it needs commits on the base: the station merges
   sansCarte(s);
 });
 
-test("a merge the station cannot complete opens a fix ticket the ticket waits for, and no TODO card", async (t) => {
+test("a merge the station cannot complete sends the ticket back to its own cook, with no new ticket and no TODO card", async (t) => {
   let origine = "";
   const s = station(
     t,
@@ -175,12 +175,9 @@ test("a merge the station cannot complete opens a fix ticket the ticket waits fo
   );
   await s.tour();
   sansCarte(s);
-  assert.equal(s.faux.creations.length, 1, "one fix ticket");
-  const fix = s.faux.ticket(s.faux.creations[0] as number);
-  assert.ok(fix.labels.has("fix") && fix.labels.has("fire"), [...fix.labels].join(", "));
-  assert.ok(fix.corps.startsWith(marqueDeFix(TICKET)));
-  assert.match(fix.corps, /conflicts in `LISEZMOI`/);
-  assert.ok(s.commentaires().some((c) => c.startsWith(`${MARQUE_D_ATTENTE_DE_TICKET} #${fix.number} -->`)), "the ticket waits for its fix on the rail");
+  assert.equal(s.faux.creations.length, 0, "no fix ticket");
+  assert.ok(s.commentaires().some((c) => c.startsWith(MARQUE_DU_CONFLIT_MAIN) && c.includes("conflicts in `LISEZMOI`")), s.commentaires().join("\n---\n"));
+  assert.ok(!s.commentaires().some((c) => c.startsWith(MARQUE_D_ATTENTE_DE_TICKET)), "the ticket waits for no other ticket");
   // La fusion tentée est défaite : la branche ne porte aucun marqueur de conflit.
   assert.equal(git(s.clone, "show", `${BRANCHE}:LISEZMOI`), "LISEZMOI");
 });
@@ -208,21 +205,15 @@ test("a fetch that fails is an echec of the fetch, and nothing is merged", async
   assert.deepEqual(await mettreAJourLaBranche(leve, "/nulle-part", "main"), { etat: "echec", etape: "fetch", detail: "worktree hijacked", fichiers: [] });
 });
 
-test("a fix ticket that cannot be opened is said on the issue, and the ticket goes back to a cook, never to the chef", async () => {
+test("a branch the station cannot bring up to date without a conflict goes back to its own cook, which updates it itself, never to the chef", async () => {
   const commentes: string[] = [];
   const suite = await apresLaMiseAJour(
-    {
-      commenter: async (_n, corps) => void commentes.push(corps),
-      creerIssue: async () => {
-        throw new Error("HTTP 502");
-      },
-    },
-    { station: "box", ticket: TICKET, base: "main", branche: BRANCHE, question: BESOIN, miseAJour: { etat: "echec", etape: "merge", detail: "CONFLICT", fichiers: ["a.ts"] } },
+    { commenter: async (_n, corps) => void commentes.push(corps) },
+    { station: "box", ticket: TICKET, base: "main", branche: BRANCHE, question: BESOIN, miseAJour: { etat: "echec", etape: "fetch", detail: "fatal: could not read from remote", fichiers: [] } },
   );
-  assert.equal(suite.fix, null);
-  assert.match(suite.dit, /HTTP 502/);
+  assert.match(suite.dit, /goes back to its own cook/);
   assert.equal(commentes.length, 1);
-  assert.match(commentes[0] ?? "", /nor open its `fix` ticket \(HTTP 502\)/);
+  assert.match(commentes[0] ?? "", /could not bring `cook\/7-github` up to date with `origin\/main` \(fetch: fatal: could not read from remote\)/);
   assert.doesNotMatch(commentes[0] ?? "", /brigade:attend-ticket/);
 });
 
