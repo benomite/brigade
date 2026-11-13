@@ -20,7 +20,7 @@ import { A_LA_MAIN, brancheDuTicket, ECHECS_MAX, type GitHubDuTour, type TicketL
 import type { LanceurGit } from "../integration-base.ts";
 import { mettreAJourLaBranche, type MiseAJourDeLaBranche } from "../mise-a-jour-branche/mise-a-jour-branche.ts";
 import { consigneDeLIntegration, integrerAvantLeCook } from "../renvoi-conflit.ts";
-import { carteDuChoixDeProduit, cibleDuTravail, corpsDuRenvoiPourConflit, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, teteDeCarte } from "./renvoi.ts";
+import { carteDeGesteGit, carteDuChoixDeProduit, cibleDuTravail, corpsDuRenvoiPourConflit, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, teteDeCarte } from "./renvoi.ts";
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -45,6 +45,20 @@ export async function partirSurLaBase(git: LanceurGit, worktree: string, base: s
 
 export type GitHubDuConflit = Pick<GitHubDuTour, "commentaires" | "commenter" | "labelliser">;
 
+// Les renvois du ticket à son propre cook pour la base (`MARQUE_DU_CONFLIT_MAIN`)
+// déjà posés, relus sur GitHub au moment de renvoyer : le même compte, contre
+// `ECHECS_MAX`, pour le conflit (`suiteDuConflitBloque`) et pour le geste git
+// d'un cook bloqué hors conflit (`confierAuManager`). Illisibles, ils rendent
+// l'échec à dire : sans compte, le ticket ne repart pas, il compte pour un
+// cook sans livraison plutôt que de boucler.
+export async function renvoisPourLaBase(github: Pick<GitHubDuTour, "commentaires">, ticket: number): Promise<number | { echec: string }> {
+  try {
+    return (await github.commentaires(ticket)).filter((c) => c.body.startsWith(MARQUE_DU_CONFLIT_MAIN)).length;
+  } catch (erreur) {
+    return { echec: `the ticket's previous send-backs to its own cook could not be read: ${message(erreur)}` };
+  }
+}
+
 // Ce que devient le ticket dont le cook s'est arrêté bloqué pendant qu'il
 // résolvait un conflit avec la base. Un geste git, une question technique, un
 // avis illisible : le ticket revient à son cook (`liberee`), le conflit
@@ -55,8 +69,9 @@ export async function suiteDuConflitBloque(
   github: GitHubDuConflit,
   { station, ticket, base, branche, fichiers, question, consulter }: { station: string; ticket: number; base: string; branche: string; fichiers: readonly string[]; question: string; consulter?: (question: string) => Promise<ReponseDuManager> },
 ): Promise<{ suite: "liberee" | "retenue"; dit: string } | { echec: string }> {
-  const deja = (await github.commentaires(ticket)).filter((c) => c.body.startsWith(MARQUE_DU_CONFLIT_MAIN)).length;
   const renvoyer = async (pourquoi: string) => {
+    const deja = await renvoisPourLaBase(github, ticket);
+    if (typeof deja !== "number") return deja;
     if (deja + 1 > ECHECS_MAX) return { echec: `the cook stopped ${deja + 1} times on the conflict of \`${branche}\` with \`origin/${base}\` without resolving it (${pourquoi})` };
     await github.commenter(ticket, corpsDuRenvoiPourConflit({ station, base, branche, fichiers, question }));
     return { suite: "liberee" as const, dit: `the cook stopped on the conflict with \`origin/${base}\` (${pourquoi}): the ticket goes back to its own cook` };
@@ -124,7 +139,7 @@ export async function degelerLesConflits(
       if (!ticket.labels.includes(A_LA_MAIN) || examinees.has(ticket.number)) continue;
       const carte = (await github.commentaires(ticket.number)).map((c) => teteDeCarte(c.body)).findLast((tete) => tete !== null) ?? null;
       examinees.add(ticket.number);
-      if (carte === null || !demandeUnGesteGit(carte)) continue;
+      if (carte === null || !carteDeGesteGit(carte)) continue;
       const nommee = /\bcook\/([1-9]\d*)-/.exec(carte);
       const cible = nommee ? Number(nommee[1]) : ticket.number;
       await github.delabelliser(ticket.number, A_LA_MAIN);

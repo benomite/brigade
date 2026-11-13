@@ -65,8 +65,8 @@ import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
-import { degelerLesConflits, partirSurLaBase, suiteDuConflitBloque } from "./conflit-main/conflit-main.ts";
-import { corpsDuRenvoiPourConflit, demandeUnGesteGit, MARQUE_DU_CONFLIT_MAIN } from "./conflit-main/renvoi.ts";
+import { degelerLesConflits, partirSurLaBase, renvoisPourLaBase, suiteDuConflitBloque } from "./conflit-main/conflit-main.ts";
+import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renvoi.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
@@ -853,7 +853,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Un geste git n'est jamais une carte du chef (#3476) : le ticket revient à
     // son propre cook, qui met lui-même sa branche à jour de la base.
     if (avis.issue === "geste" && geste === null && demandeUnGesteGit(avis.geste)) {
-      const deja = (lus ?? []).filter((c) => c.body.startsWith(MARQUE_DU_CONFLIT_MAIN)).length;
+      const deja = await renvoisPourLaBase(github, issue);
+      if (typeof deja !== "number") return deja;
       if (deja + 1 > ECHECS_MAX) return { echec: `the cook declared itself blocked on a git gesture, ${deja + 1} times, and no card is posted for such a gesture: ${avis.geste}` };
       avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked on a git gesture (${avis.geste}): no card for the chef, the ticket goes back to its own cook`);
       await github.commenter(issue, corpsDuRenvoiPourConflit({ station: nom, base, branche: brancheDuTicket(issue), fichiers: [], detail: `the manager read a git gesture: ${avis.geste}`, ...(questionEn === null ? {} : { question: questionEn }) }));

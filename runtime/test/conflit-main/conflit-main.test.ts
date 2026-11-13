@@ -11,8 +11,8 @@ import { test, type TestContext } from "node:test";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
-import { degelerLesConflits, partirSurLaBase, suiteDuConflitBloque } from "../../src/conflit-main/conflit-main.ts";
-import { cibleDuTravail, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, refusDeLaCreation } from "../../src/conflit-main/renvoi.ts";
+import { degelerLesConflits, partirSurLaBase, renvoisPourLaBase, suiteDuConflitBloque } from "../../src/conflit-main/conflit-main.ts";
+import { carteDeGesteGit, cibleDuTravail, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, refusDeLaCreation } from "../../src/conflit-main/renvoi.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import { reparationDuGeste } from "../../src/garde-todo/geste-git.ts";
 import { marqueDeFix } from "../../src/github-seul/renvois/renvois.ts";
@@ -294,7 +294,89 @@ test("a chef card asking a product question stays with the chef", async (t) => {
   assert.equal(cooks, 0);
 });
 
+test("a chef card asking a product question about push notifications stays with the chef, its ticket not sent back", async (t) => {
+  const TICKET = 18;
+  let cooks = 0;
+  const s = station(t, {
+    ticket: TICKET,
+    avant: (_lieux, faux) => {
+      faux.ticket(TICKET).labels.add(A_LA_MAIN);
+      faux.poster(TICKET, "box", "**Question for the chef (product):** should we enable push notifications, and should we merge the two settings screens?");
+    },
+    cook: () => {
+      cooks += 1;
+      return "Done.";
+    },
+  });
+  await s.tour();
+  assert.ok(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), "the card stays with the chef");
+  assert.equal(s.commentaires().length, 1, s.commentaires().join("\n---\n"));
+  assert.equal(cooks, 0);
+});
+
+test("on the conflict path, a product question about push notifications reaches the manager and the chef, never sent back as a git gesture", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(18);
+  const github = faux.pour("box");
+  const question = "Should we enable push notifications when the timer ends?";
+  const consultees: string[] = [];
+  const suite = await suiteDuConflitBloque(github, {
+    station: "box",
+    ticket: 18,
+    base: "main",
+    branche: "cook/18-github",
+    fichiers: [FICHIER],
+    question,
+    consulter: async (lue) => {
+      consultees.push(lue);
+      return { avis: { issue: "produit", question } };
+    },
+  });
+  assert.deepEqual(consultees, [question], "the manager reads it");
+  assert.ok("suite" in suite && suite.suite === "retenue", JSON.stringify(suite));
+  assert.ok(faux.ticket(18).labels.has(A_LA_MAIN));
+  assert.ok((faux.commentaires.get(18) ?? []).some((c) => c.body.startsWith(`**Question for the chef (product):** ${question}`)), JSON.stringify(faux.commentaires.get(18)));
+});
+
+test("send-backs to the ticket's own cook that cannot be read stop the ticket as a cook without delivery, never a loop", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(18);
+  const github = { ...faux.pour("box"), commentaires: async () => Promise.reject(new Error("HTTP 502")) };
+  const lu = await renvoisPourLaBase(github, 18);
+  assert.ok(typeof lu !== "number" && /HTTP 502/.test(lu.echec), JSON.stringify(lu));
+  const suite = await suiteDuConflitBloque(github, { station: "box", ticket: 18, base: "main", branche: "cook/18-github", fichiers: [FICHIER], question: "Run git merge for me." });
+  assert.ok("echec" in suite && /HTTP 502/.test(suite.echec), JSON.stringify(suite));
+  assert.deepEqual(faux.commentaires.get(18) ?? [], [], "nothing is posted");
+});
+
+test("a cook blocked off the conflict path on a git gesture counts its send-backs like the conflict path: past the tries, no new send-back", async (t) => {
+  const TICKET = 7;
+  const s = station(t, {
+    ticket: TICKET,
+    manager: JSON.stringify({ issue: "geste", geste: "merge PR #12 into the branch", question_en: "I am stuck." }),
+    avant: (_lieux, faux) => {
+      for (let n = 0; n < 3; n++) faux.poster(TICKET, "box", `${MARQUE_DU_CONFLIT_MAIN} origin/${BASE}:  -->`);
+    },
+    cook: () => "I stopped.\n<livrable>\n<bloque>I am stuck.</bloque>\n</livrable>",
+  });
+  await s.tour();
+  assert.equal(s.commentaires().filter((c) => c.startsWith(MARQUE_DU_CONFLIT_MAIN)).length, 3, s.commentaires().join("\n---\n"));
+  assert.deepEqual(cartes(s.commentaires()), []);
+});
+
 test("what reads a git gesture, a ticket's target and the files a text names", () => {
+  assert.equal(demandeUnGesteGit("Should we enable push notifications?"), false, "a product question");
+  assert.equal(demandeUnGesteGit("Should we merge the two screens into one?"), false, "a product question");
+  assert.equal(demandeUnGesteGit("Do we fetch the weather every hour?"), false, "a product question");
+  assert.equal(demandeUnGesteGit("merge PR #12 into the branch"), true);
+  assert.equal(carteDeGesteGit("**Question for the chef (product):** should we enable push notifications?"), false);
+  assert.equal(carteDeGesteGit("**Gesture for the chef:** enable push notifications in the store console"), false);
+  assert.equal(carteDeGesteGit("**Gesture for the chef:** rebase the branch on main and push it"), true);
+  assert.equal(carteDeGesteGit("**Question for the chef (product):** run `git merge origin/main`?"), true);
+  assert.equal(carteDeGesteGit("**Question for the chef (product):** which screen does `cook/18-github` keep?"), true);
+  assert.equal(cibleDuTravail({ numero: 40, titre: "Wrong naming of `cook/12-github` in the logs", corps: "" }), null, "a title that only cites a branch");
+  assert.equal(refusDeLaCreation({ titre: "Wrong naming of `cook/12-github` in the logs", corps: "" }), null);
+  assert.equal(cibleDuTravail({ numero: 40, titre: "Resolve the conflict of `cook/12-github` with main", corps: "" }), 12);
   assert.equal(demandeUnGesteGit("Run git merge origin/main"), true);
   assert.equal(demandeUnGesteGit("Please resolve the conflicts in strings.xml"), true);
   assert.equal(demandeUnGesteGit("Rebase the branch"), true);

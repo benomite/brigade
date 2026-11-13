@@ -15,12 +15,27 @@ import { lesMotsDuCook } from "../attente-ticket/attente-ticket.ts";
 // La marque du renvoi au cook du ticket, suivie des fichiers en conflit.
 export const MARQUE_DU_CONFLIT_MAIN = "<!-- brigade:conflit-main";
 
-// Un geste git qu'un texte demande : une commande git, un merge, un rebase, un
-// push, un fetch, une résolution de conflit. Jamais une question pour le chef.
-const GESTE_GIT = /\bgit\s+[a-z-]+|\bmerg(?:e|es|ed|ing)\b|\brebas(?:e|es|ed|ing)\b|\bpush(?:es|ed|ing)?\b|\bfetch(?:es|ed|ing)?\b|\bcherry-pick|\bresolv\w*\s+(?:\w+\s+){0,2}conflicts?\b|\bconflict(?:s|ing)?\s+(?:resolution|markers?)\b|\bfusionn|\brebaser\b|\brésou\w*\s+(?:\w+\s+){0,2}conflits?\b/i;
+// Un geste git qu'un texte demande : une commande git (`git merge`, `git
+// push`…), ou un verbe de git (merge, rebase, push, fetch, résoudre…) dont le
+// texte nomme aussi un objet de git — une branche, `origin/`, `cook/<N>-`, un
+// commit, une PR, un conflit de fusion, un fichier du dépôt. Le verbe seul ne
+// suffit pas : « should we enable push notifications? » ou « should we merge
+// the two screens? » sont des questions de produit, qui restent au chef.
+const COMMANDE_GIT = /\bgit\s+(?:merge|rebase|push|pull|fetch|checkout|switch|reset|restore|revert|commit|cherry-pick|stash|add|rm|mv|branch|worktree|clone|status|diff|log|am|apply|tag|mergetool)\b/i;
+const VERBE_GIT = /\bmerg(?:e|es|ed|ing)\b|\brebas(?:e|es|ed|ing)\b|\bpush(?:es|ed|ing)?\b|\bpull(?:s|ed|ing)?\b|\bfetch(?:es|ed|ing)?\b|\bcherry-pick|\bcheck\s*out\b|\bresolv\w*|\bfusionn\w*|\brebaser\b|\brésou\w*/i;
+const OBJET_GIT = /\bgit\b|\borigin\/|\bcook\/\d+-|\bbranch(?:es)?\b|\bbranches?\b|\bHEAD\b|\bworktree\b|\bcommits?\b|\bupstream\b|\bPR\b|\bpull requests?\b|<<<<<<<|\bmerge conflicts?\b|\bconflict markers?\b|\bconflits? de fusion\b|\bmarqueurs? de conflit\b|`(?:main|master)`|\b(?:into|onto)\s+(?:main|master)\b|\b[\w./-]+\.(?:kt|kts|java|xml|ts|tsx|js|jsx|mjs|json|md|py|go|rs|swift|gradle|ya?ml|toml|css|scss|html|sh|lock)\b/i;
 
 export function demandeUnGesteGit(texte: string): boolean {
-  return GESTE_GIT.test(texte);
+  return COMMANDE_GIT.test(texte) || (VERBE_GIT.test(texte) && OBJET_GIT.test(texte));
+}
+
+// La tête d'une carte du chef (`teteDeCarte`) qui lui demande un geste git :
+// une carte de geste (`**Gesture for the chef`) dont le geste est de git, ou
+// toute carte qui nomme la branche d'un cook (`cook/<N>-`) ou une commande git.
+// Une question de produit qui ne nomme ni l'une ni l'autre reste au chef, quels
+// que soient ses mots (#3476).
+export function carteDeGesteGit(tete: string): boolean {
+  return (/^\*\*Gesture for the chef\b/.test(tete) && demandeUnGesteGit(tete)) || COMMANDE_GIT.test(tete) || /\bcook\/[1-9]\d*-/.test(tete);
 }
 
 const liste = (fichiers: readonly string[]) => fichiers.map((f) => `\`${f}\``).join(", ");
@@ -52,15 +67,20 @@ export function carteDuChoixDeProduit({ station, base, fichiers, question, sorte
 }
 
 // Le ticket dont un ticket a pour travail de changer la branche, ou null : son
-// titre nomme la branche d'un autre cook (`cook/<N>-…`, le titre du `fix` que
-// la station ouvrait avant #3476), ou c'est le geste git d'un ticket
-// (`Do the git gesture of #N`) dont le corps nomme la branche `cook/<N>-…`.
-// Le corps seul ne compte pas : un ticket peut raconter un tel incident sans
-// avoir pour travail de toucher cette branche.
+// titre nomme la branche d'un autre cook (`cook/<N>-…`) ET un geste sur elle —
+// la mettre à jour, la fusionner, la rebaser, y résoudre un conflit, la
+// pousser —, comme le titre du `fix` que la station ouvrait avant #3476 ; ou
+// c'est le geste git d'un ticket (`Do the git gesture of #N`) dont le corps
+// nomme la branche `cook/<N>-…`. La règle ne lit que le titre, et reste une
+// heuristique : un titre qui cite seulement la branche (« Wrong naming of
+// `cook/12-github` ») ne compte pas. Le corps seul ne compte pas : un ticket
+// peut raconter un tel incident sans avoir pour travail de toucher cette
+// branche.
+const GESTE_SUR_LA_BRANCHE = /\bup to date\b|\bmerg\w*|\brebas\w*|\bresolv\w*|\bconflict\w*|\bpush\w*|\bpull\b|\bsync\w*|\bfusionn\w*|\bconflits?\b|\b(?:mettre|mise) à jour/i;
 export function cibleDuTravail({ numero, titre, corps }: { numero?: number; titre: string; corps: string }): number | null {
   const autre = (n: number) => (Number.isSafeInteger(n) && n > 0 && n !== numero ? n : null);
   const branche = /\bcook\/([1-9]\d*)-/.exec(titre);
-  if (branche) return autre(Number(branche[1]));
+  if (branche) return GESTE_SUR_LA_BRANCHE.test(titre) ? autre(Number(branche[1])) : null;
   const geste = /^Do the git gesture of #([1-9]\d*)\b/.exec(titre.trim());
   if (geste && new RegExp(`\\bcook/${geste[1]}-`).test(corps)) return autre(Number(geste[1]));
   return null;
