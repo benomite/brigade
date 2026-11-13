@@ -30,6 +30,11 @@
 //     `depots`, le dépôt GitHub de chaque projet servi (#1428) : ce qu'une app
 //     sur un ordinateur neuf lit pour le cloner (`stations-du-chef.ts`). Une
 //     station plus ancienne ne le publie pas.
+//     `quotaGithub` (#3481, `appels-github/quota-github.ts`) : la limite de
+//     GitHub qui la règle, sa pause, ce qu'elle a dépensé, le renouvellement de
+//     la fenêtre et ses appels de l'heure par projet et par sorte. Il part avec
+//     chaque écriture, sans en causer aucune : il change à chaque appel. Nul
+//     quand il ne se lit pas ; une station plus ancienne ne le publie pas.
 //   - `brigade-appairage.json`, écrit par l'app seule, quand le chef a tapé le
 //     bon code : { "appaireeLe": "<ISO>", "empreinte": "<sha256>" }.
 //   - `brigade-rail.json`, écrit par la station seule, avec son état : le rail
@@ -41,6 +46,7 @@
 // code à taper. Les empreintes des derniers codes échus restent publiées, pour
 // qu'un code expiré se dise expiré, et non inconnu.
 import { createHash, randomInt } from "node:crypto";
+import type { QuotaGithub } from "../appels-github/quota-github.ts";
 import type { Sorte } from "../stations-globales/sorte.ts";
 
 export const FICHIER_STATION = "brigade-station.json";
@@ -82,6 +88,7 @@ export type DocumentStation = {
   arreteeLe: string | null;
   appairage: Appairage | null;
   echus: string[];
+  quotaGithub?: QuotaGithub | null;
 } & EtatsPublies;
 
 // Un code neuf, tel que la station l'affiche : `ABCD-EFGH`.

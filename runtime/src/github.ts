@@ -6,12 +6,13 @@
 // le jeton lui est remis à chaque appel (voir `identites.ts`).
 import { refusDeLaCreation } from "./conflit-main/renvoi.ts";
 import { execFile } from "./sans-invite.ts";
+import { lienDuCorps } from "./besoin/besoin.ts";
 import { porteListe } from "./epique.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
-import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
 
 // Le label par lequel une issue entre sur le rail.
@@ -36,6 +37,10 @@ export type Issue = {
   // Son corps porte la liste des tickets d'une épique (`epique.ts`) : elle se
   // sert par ses tickets, jamais elle-même. Seul le sondage des tickets le dit.
   epique?: true;
+  // Le besoin dont son corps se dit né (`Part of #N`, `Epic: #N`) : le rail ne
+  // montre pas ce besoin à côté de lui (`besoin/besoin.ts`). Seul le sondage
+  // des tickets le dit.
+  besoin?: number;
 };
 
 // Une issue telle que le manager la juge : avec son corps, et le lien de son
@@ -488,7 +493,8 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       // qui aboutit la lève, une fois sa reprise passée.
       const limites = options.limitesDuCompte ?? limitesDuProcess();
       if (refusPourLimite(reponse)) {
-        const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant });
+        // La pause ne retient que la sorte de l'appel refusé (#3481).
+        const atteinte = await constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant, lecture: lectureDe(args, options.usage) });
         const lue = lireLaLimite(reponse, { ecriture: estUneEcriture(args), maintenant: (options.maintenant ?? Date.now)(), repli: atteinte.jusqua });
         limites.constater(compte, lue);
         mesuresGitHubDuProcess().noterLimite(lue.depuis, lue.reprise);
@@ -588,7 +594,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
   const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE", author: brute.user?.login ?? "" });
 
   return {
-    tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, (brute) => ({ ...lire(brute), ...(porteListe(brute.body ?? "") ? { epique: true as const } : {}) })),
+    tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, (brute) => ({ ...lire(brute), ...(porteListe(brute.body ?? "") ? { epique: true as const } : {}), ...lienDuCorps(brute.number, brute.body ?? "") })),
     ouvertes: () => sonder(`repos/${depot}/issues?state=open&per_page=100`, lireOuverte),
     async issue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;

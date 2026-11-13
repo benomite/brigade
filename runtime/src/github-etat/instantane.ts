@@ -4,8 +4,8 @@
 // leur tête, leur fusionnabilité, leur CI et les fichiers qu'elles changent ; et la
 // CI du dernier commit de la base. Ce que la requête tronque (plus de 30 PR, 100
 // fichiers, 60 contextes, un fichier renommé) est dit, et se relit en REST.
-// Le corps d'une issue ne se lit que pour dire si elle est une épique : une
-// épique ne se prend pas (#2618).
+// Le corps d'une issue ne se lit que pour dire si elle est une épique — une
+// épique ne se prend pas (#2618) —, et de quel besoin elle est née (#3479).
 // Avant, un tour lisait tout cela en REST, ticket par ticket et PR par PR :
 // des centaines d'appels par minute avec seize livraisons au pass, et GitHub
 // coupait le compte.
@@ -14,6 +14,7 @@
 // l'instantané ne porte pas — une PR déjà mergée, plus de 100 tickets — se lit
 // encore en REST, par le client du tour.
 import type { Check } from "../events/pass.ts";
+import { lienDuCorps } from "../besoin/besoin.ts";
 import { porteListe } from "../epique.ts";
 import { CONCLUSIONS_VERTES } from "../github.ts";
 
@@ -44,7 +45,8 @@ export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
 }`;
 
 // `epique` : son corps porte la liste des tickets d'une épique (`epique.ts`).
-export type TicketDeLInstantane = { number: number; title: string; labels: string[]; state: "open"; epique?: true };
+// `besoin` : le besoin dont il se dit né (`besoin/besoin.ts`).
+export type TicketDeLInstantane = { number: number; title: string; labels: string[]; state: "open"; epique?: true; besoin?: number };
 export type PRDeLInstantane = {
   number: number;
   branche: string;
@@ -107,7 +109,7 @@ export function lireInstantane(data: unknown): Instantane {
   if (depot === undefined || depot === null) throw new Error("GraphQL : no repository in the answer");
   const issues = depot.issues as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<{ number: number; title: string; body?: string | null; labels?: { nodes?: Array<{ name: string }> } }> };
   const prs = depot.pullRequests as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<Record<string, unknown>> };
-  const tickets = (issues.nodes ?? []).map((n) => ({ number: n.number, title: n.title, labels: (n.labels?.nodes ?? []).map((l) => l.name), state: "open" as const, ...(porteListe(n.body ?? "") ? { epique: true as const } : {}) }));
+  const tickets = (issues.nodes ?? []).map((n) => ({ number: n.number, title: n.title, labels: (n.labels?.nodes ?? []).map((l) => l.name), state: "open" as const, ...(porteListe(n.body ?? "") ? { epique: true as const } : {}), ...lienDuCorps(n.number, n.body ?? "") }));
   const baseRollup = (depot.ref as { target?: { statusCheckRollup?: unknown } } | null)?.target?.statusCheckRollup ?? null;
   return {
     tickets,

@@ -61,8 +61,8 @@ export type Quota = { restant: number; plafond: number; reset: number; vu: numbe
 export const reserveDes = (plafond: number): number => Math.ceil(plafond * RESERVE_DES_GESTES);
 
 // GitHub a dit que sa limite est atteinte (429, ou 403 « rate limit », primaire
-// ou secondaire) : plus aucun appel de la cuisine ne part avant `jusqua`, la fin
-// de la fenêtre. Une erreur propre, jamais prise pour un autre refus (celui d'un merge).
+// ou secondaire) : plus aucun appel de la cuisine de la sorte refusée ne part
+// avant `jusqua`, la fin de la fenêtre (#3481). Une erreur propre, jamais prise pour un autre refus (celui d'un merge).
 export class LimiteGitHubAtteinte extends Error {
   readonly jusqua: number;
   readonly libreDansMs: number;
@@ -255,7 +255,9 @@ export type Limite = {
   // instant (en millisecondes), pour tous ceux qui tiennent ce compteur.
   // `refus` : ce que la réponse en disait, gardé avec la pause qui commence
   // (#3448) — pas pour un refus de plus pendant une pause qui tient.
-  suspendre(jusqua: number, refus?: RefusDit): void;
+  // `lecture` : la sorte d'appel refusée, seule retenue (#3481) ; sans elle,
+  // tous les appels de la cuisine.
+  suspendre(jusqua: number, refus?: RefusDit, lecture?: Lecture): void;
   // GitHub a dit le quota d'un compte : il est retenu, à l'instant où il est dit.
   noter(compte: string, quota: Omit<Quota, "vu">): void;
   // Le quota de la fenêtre en cours, ou null s'il n'a pas été dit — ou que sa
@@ -270,6 +272,8 @@ export type Limite = {
   repartition(): Repartition;
   // Le budget de l'heure d'horloge en cours, par projet (#2196).
   budget(): InstantaneDuBudget;
+  // Ce que le compteur sait du quota, pour l'état publié (#3481).
+  etatDuQuota(): EtatDuQuota;
   fermer(): void;
 };
 
@@ -292,8 +296,29 @@ type QuotaLu = { restant: number; plafond: number; reset: number; vu: number };
 // Ce qu'une réponse de refus disait de la limite, gardé avec la pause qu'elle
 // a posée (#3448) : son statut, la ressource que l'appel dépensait
 // (`x-ratelimit-resource`), et son `retry-after` tel quel — nuls quand GitHub
-// ne les a pas envoyés.
-export type RefusDit = { statut: number; ressource: string | null; retryAfter: string | null };
+// ne les a pas envoyés. Depuis #3481, `limite` : `core` si le quota horaire
+// est épuisé, `ecriture` pour une limite secondaire de GitHub ; `finDite` :
+// vrai si GitHub a dit la fin de la pause, faux si la box l'a choisie.
+export type RefusDit = { statut: number; ressource: string | null; retryAfter: string | null; limite?: LimiteDuRefus; finDite?: boolean };
+export type LimiteDuRefus = "core" | "ecriture";
+
+// Ce que le compteur sait du quota à cet instant (#3481) : celui que GitHub a
+// dit au compte de la machine, la pause en cours la plus récente, les écritures
+// de l'heure, et les appels de l'heure par projet et par sorte.
+export type EtatDuQuota = {
+  instant: number;
+  quota: Quota | null;
+  pause: { jusqua: number; lecture: string | null; limite: LimiteDuRefus | null; finDite: boolean | null } | null;
+  ecritures: { nombre: number; plusAncienne: number | null };
+  appels: Array<{ projet: string; lecture: string; nombre: number }>;
+};
+
+// Les pauses qui retiennent un appel de sorte `lecture` : celles de sa sorte,
+// et celles posées pour toutes les sortes (`lecture` nulle).
+const POUR_LA_SORTE = "(lecture IS NULL OR lecture = ?)";
+// Les pauses qui retiennent la cuisine : toutes, sauf celles du seul gist, le
+// canal de la station vers l'app — sa pause n'arrête aucun ticket (#3481).
+const DE_LA_CUISINE = "(lecture IS NULL OR lecture <> 'gist')";
 
 // Ce que le refus en dit, lu de la réponse.
 export const refusDitDe = (reponse: ReponseHttp): RefusDit => ({
@@ -311,12 +336,23 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   base.script(
     "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS refus (instant INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
+  // La sorte d'appel que retient une pause, et que nomme un refus (#3481) :
+  // nulle dans un compteur d'avant, une pause de toutes les sortes.
+  for (const [table, colonnes] of [
+    ["pause", ["lecture TEXT"]],
+    ["refus", ["lecture TEXT"]],
+    ["pauses", ["lecture TEXT", "limite TEXT", "fin_dite INTEGER"]],
+  ] as const) {
+    const deja = base.lire<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
+    for (const colonne of colonnes) if (!deja.includes(colonne.split(" ")[0] as string)) base.script(`ALTER TABLE ${table} ADD COLUMN ${colonne};`);
+  }
   // Les points de la cuisine sur la minute (#2443), par compte : à part des appels, qu'un 304 quitte.
   const points = new Map<string, PointsDuCompte>();
   const pointsDe = (compte: string): PointsDuCompte => points.get(compte) ?? points.set(compte, { pris: [], total: 0 }).get(compte)!;
 
-  // Un refus par minute suffit : la retenue ne lit que le plus récent (#2429).
-  const noterLeRefus = (instant: number) => base.executer("INSERT INTO refus (instant) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM refus WHERE instant > ?)", instant, instant - 60_000);
+  // Un refus par minute et par sorte suffit : la retenue ne lit que le plus récent (#2429).
+  const noterLeRefus = (instant: number, lecture: string | null) =>
+    base.executer("INSERT INTO refus (instant, lecture) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM refus WHERE instant > ? AND lecture IS ?)", instant, lecture, instant - 60_000, lecture);
 
   // Un compteur écrit avant la répartition n'a pas ces deux colonnes.
   const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
@@ -343,11 +379,13 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
         const cout = etiquette?.ecriture === true ? POINTS_PAR_ECRITURE : POINTS_PAR_LECTURE;
         base.executer("DELETE FROM refus WHERE instant <= ?", instant - FENETRE_MS);
         if (usage === "cuisine") {
-          // La limite de GitHub atteinte : rien ne part, et rien n'est compté.
-          const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
+          // La limite de GitHub atteinte pour sa sorte d'appel : rien ne part,
+          // et rien n'est compté. Les autres sortes partent (#3481).
+          const sorte = etiquette?.lecture ?? "other";
+          const [pause] = base.lire<{ jusqua: number | null }>(`SELECT max(jusqua) AS jusqua FROM pause WHERE ${POUR_LA_SORTE}`, sorte);
           if (pause?.jusqua != null && pause.jusqua > instant) {
             // Le refus se garde : la retenue le lit quand la reprise dite est passée (#2429).
-            noterLeRefus(instant);
+            noterLeRefus(instant, sorte);
             return { jusqua: pause.jusqua };
           }
           const quota = quotaDe(compte, instant);
@@ -398,20 +436,31 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
     rendre(appel) {
       base.executer("DELETE FROM appels WHERE rowid = ?", appel);
     },
-    suspendre(jusqua, refus) {
+    suspendre(jusqua, refus, lecture) {
+      const sorte = lecture ?? null;
       base.transaction(() => {
         const instant = maintenant();
         // Une pause qui commence se garde, avec le refus qui l'a dite : la
         // retenue de la cuisine en nomme la cause au journal (#3448).
         base.executer("DELETE FROM pauses WHERE jusqua <= ?", instant - FENETRE_MS);
-        const [tenue] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
+        const [tenue] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause WHERE lecture IS ?", sorte);
         if (tenue?.jusqua == null || tenue.jusqua <= instant) {
-          base.executer("INSERT INTO pauses (depuis, jusqua, statut, ressource, retry_after) VALUES (?, ?, ?, ?, ?)", instant, jusqua, refus?.statut ?? null, refus?.ressource ?? null, refus?.retryAfter ?? null);
+          base.executer(
+            "INSERT INTO pauses (depuis, jusqua, statut, ressource, retry_after, lecture, limite, fin_dite) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            instant,
+            jusqua,
+            refus?.statut ?? null,
+            refus?.ressource ?? null,
+            refus?.retryAfter ?? null,
+            sorte,
+            refus?.limite ?? null,
+            refus?.finDite === undefined ? null : refus.finDite ? 1 : 0,
+          );
         }
-        // Une pause plus longue déjà posée par un autre process reste.
-        noterLeRefus(instant);
-        base.executer("DELETE FROM pause WHERE jusqua <= ? OR jusqua <= ?", instant, jusqua);
-        base.executer("INSERT INTO pause (jusqua) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM pause)", jusqua);
+        // Une pause plus longue de la même sorte, déjà posée par un autre process, reste.
+        noterLeRefus(instant, sorte);
+        base.executer("DELETE FROM pause WHERE lecture IS ? AND (jusqua <= ? OR jusqua <= ?)", sorte, instant, jusqua);
+        base.executer("INSERT INTO pause (jusqua, lecture) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM pause WHERE lecture IS ?)", jusqua, sorte, sorte);
       });
     },
     noter(compte, { restant, plafond, reset }) {
@@ -443,6 +492,31 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
     },
     repartition: () => repartitionDe(base, maintenant()),
     budget: () => instantaneDe(base, maintenant()),
+    etatDuQuota() {
+      const instant = maintenant();
+      const depuis = instant - FENETRE_MS;
+      const [pause] = base.lire<{ jusqua: number; lecture: string | null; limite: string | null; fin_dite: number | null }>(
+        "SELECT jusqua, lecture, limite, fin_dite FROM pauses WHERE jusqua > ? ORDER BY depuis DESC, rowid DESC LIMIT 1",
+        instant,
+      );
+      const [ecritures] = base.lire<{ nombre: number; plusAncienne: number | null }>("SELECT count(*) AS nombre, min(instant) AS plusAncienne FROM appels WHERE ecriture = 1 AND instant > ?", depuis);
+      return {
+        instant,
+        quota: quotaDe(COMPTE_DE_LA_MACHINE, instant),
+        pause:
+          pause === undefined
+            ? null
+            : { jusqua: pause.jusqua, lecture: pause.lecture, limite: pause.limite === "core" || pause.limite === "ecriture" ? pause.limite : null, finDite: pause.fin_dite === null ? null : pause.fin_dite === 1 },
+        ecritures: { nombre: ecritures?.nombre ?? 0, plusAncienne: ecritures?.plusAncienne ?? null },
+        appels: base
+          .lire<{ projet: string; lecture: string; nombre: number }>(
+            "SELECT COALESCE(projet, ?) AS projet, COALESCE(lecture, 'other') AS lecture, count(*) AS nombre FROM appels WHERE instant > ? GROUP BY 1, 2 ORDER BY nombre DESC, projet ASC, lecture ASC",
+            PROJET_DE_LA_STATION,
+            depuis,
+          )
+          .map(({ projet, lecture, nombre }) => ({ projet, lecture, nombre })),
+      };
+    },
     fermer: () => base.fermer(),
   };
 }
@@ -629,9 +703,40 @@ export function quotaDesEntetes(entetes: Map<string, string>): Omit<Quota, "vu">
 }
 
 // Retient le quota que disent les en-têtes d'une réponse, s'ils le disent.
+// Un quota horaire à zéro se dit au journal (#3481).
 export function noterLesEntetes(limite: Limite, compte: string, entetes: Map<string, string>): void {
   const quota = quotaDesEntetes(entetes);
-  if (quota !== null) limite.noter(compte, quota);
+  if (quota === null) return;
+  limite.noter(compte, quota);
+  if (quota.restant === 0) direLeQuotaEpuise(limite, compte, quota.reset);
+}
+
+// Le journal de la station dit le quota horaire épuisé une fois par fenêtre et
+// par compte (#3481) : la station, et la sorte d'appel qui en a pris le plus
+// sur l'heure écoulée — ce qu'il faut pour savoir qui l'a dépensé.
+let quotaEpuiseAuJournal: { dire: (ligne: string) => void; station: string } | null = null;
+const quotasEpuisesDits = new WeakMap<Limite, Set<string>>();
+
+export function journaliserLeQuotaEpuise(dire: (ligne: string) => void, station: string): void {
+  quotaEpuiseAuJournal = { dire, station };
+}
+
+// La ligne qui le dit : la station, la sorte d'appel qui a pris le plus, et le projet qui en a fait le plus.
+function direLeQuotaEpuiseLigne(station: string, repartition: Repartition): string {
+  const [lecture] = repartition.parLecture;
+  const [projet] = repartition.parProjet;
+  return `brigade : GitHub hourly limit reached — station ${station} made ${repartition.total} calls in the last hour, most of them ${lecture?.nom ?? "other"} calls (${lecture?.appels ?? 0})${projet === undefined ? "" : `, project ${projet.nom} the most (${projet.appels})`}`;
+}
+
+function direLeQuotaEpuise(limite: Limite, compte: string, reset: number): void {
+  if (quotaEpuiseAuJournal === null) return;
+  const dits = quotasEpuisesDits.get(limite) ?? quotasEpuisesDits.set(limite, new Set()).get(limite)!;
+  const cle = `${compte}\0${reset}`;
+  if (dits.has(cle)) return;
+  dits.add(cle);
+  try {
+    quotaEpuiseAuJournal.dire(direLeQuotaEpuiseLigne(quotaEpuiseAuJournal.station, limite.repartition()));
+  } catch {}
 }
 
 // Relit le quota du compte auprès de `gh api rate_limit` et le retient : vrai
@@ -810,9 +915,14 @@ export async function appelerGitHub<T>(limite: Limite, options: OptionsAppel, re
   const attendre = options.attendre ?? ((ms: number) => new Promise<void>((suite) => setTimeout(suite, ms)));
   const file = fileDe(limite);
   const appel = await file.prendre(usage, compte, options.etiquette, maintenant, attendre);
-  if (pauseDite && usage === "cuisine") {
-    pauseDite = false;
-    direLaPauseDansLeJournal?.("brigade : GitHub calls resumed");
+  if (usage === "cuisine") {
+    // La pause de toutes les sortes se lève au premier appel qui repart ; celle
+    // d'une sorte, au premier appel de sa sorte (#3481).
+    const sorte = options.etiquette?.lecture ?? "other";
+    for (const dite of [TOUTES_LES_SORTES, sorte]) {
+      if (!pausesDites.delete(dite)) continue;
+      direLaPauseDansLeJournal?.(dite === TOUTES_LES_SORTES ? "brigade : GitHub calls resumed" : `brigade : GitHub ${dite} calls resumed`);
+    }
   }
   // L'appel part : il se compte à l'identité dont il porte le jeton (#2316).
   compteurDuProcess().compter(compte);
@@ -892,21 +1002,26 @@ export function direLesEcrituresRetenues({ ecrites, reprise }: { ecrites: number
 // ensemble, relance la limite secondaire, que chaque nouvel essai prolonge.
 export const RECUL_MAX_MS = 15 * 60_000;
 const RECUL_OUBLIE_MS = 15 * 60_000;
-// La dernière pause posée par ce process, par compteur : sa fin et sa durée.
-const reculs = new WeakMap<Limite, { fin: number; duree: number }>();
+// La dernière pause posée par ce process, par compteur et par sorte d'appel
+// (#3481) : sa fin et sa durée.
+const reculs = new WeakMap<Limite, Map<string, { fin: number; duree: number }>>();
+// La clé d'une pause posée pour toutes les sortes d'appel.
+const TOUTES_LES_SORTES = "*";
 
 // Le journal de la station dit la pause une fois quand elle commence, et une
 // fois quand un appel repart — pas une ligne par projet et par minute (#2436).
+// Une par sorte d'appel retenue (#3481).
 let direLaPauseDansLeJournal: ((ligne: string) => void) | null = null;
-let pauseDite = false;
+const pausesDites = new Set<string>();
 
 export function journaliserLaPause(dire: (ligne: string) => void): void {
   direLaPauseDansLeJournal = dire;
 }
 
 // Une pause de GitHub qui commence : jusqu'à quand, depuis quand (en
-// millisecondes), et la réponse qui l'a dite.
-export type PauseDeGitHub = { depuis: number; jusqua: number; reponse: ReponseHttp };
+// millisecondes), la réponse qui l'a dite, et la sorte d'appel qu'elle retient
+// — nulle, toutes (#3481).
+export type PauseDeGitHub = { depuis: number; jusqua: number; reponse: ReponseHttp; lecture?: Lecture | null };
 const ecouteursDeLaPause = new Set<(pause: PauseDeGitHub) => void>();
 
 // Qui veut savoir qu'une pause commence — l'enregistrement de la station, qui le
@@ -921,35 +1036,59 @@ export function surLaPauseDeGitHub(ecouteur: (pause: PauseDeGitHub) => void): ()
 // (`CuisineRalentie`) n'en est pas une.
 export const estLaPauseDeGitHub = (erreur: unknown): boolean => erreur instanceof LimiteGitHubAtteinte && !(erreur instanceof CuisineRalentie);
 
+// La limite que dit un refus (#3481) : `core` quand le quota horaire est à
+// zéro, ou que GitHub dit « API rate limit exceeded » sans dire une limite
+// secondaire ; `ecriture` pour une limite secondaire de GitHub.
+function limiteDuRefus(reponse: ReponseHttp): LimiteDuRefus {
+  let message = reponse.corps;
+  try {
+    const dit = (JSON.parse(reponse.corps) as { message?: unknown }).message;
+    if (typeof dit === "string") message = dit;
+  } catch {}
+  if (/secondary rate limit/i.test(message)) return "ecriture";
+  return reponse.entetes.get("x-ratelimit-remaining") === "0" || /API rate limit exceeded/i.test(message) ? "core" : "ecriture";
+}
+
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la
 // fin de la fenêtre — `retry-after`, sinon `x-ratelimit-reset` quand le quota
 // est à zéro, sinon ce que `gh api rate_limit` dit de la ressource de l'appel
 // refusé, sinon 60 s, doublées à chaque limite qui revient —
 // et rend l'erreur à lever. Plusieurs refus d'une même rafale, arrivés pendant
-// la pause qu'ils ont posée, ne la doublent pas.
-export async function constaterLimite(limite: Limite, reponse: ReponseHttp, options: { gh: string; env?: NodeJS.ProcessEnv; maintenant?: () => number }): Promise<LimiteGitHubAtteinte> {
+// la pause qu'ils ont posée, ne la doublent pas. `lecture` : la sorte de l'appel
+// refusé, la seule que la pause retient (#3481) — sans elle, toutes. Le quota
+// horaire épuisé (`core`) les retient toutes : GitHub les refuserait toutes.
+export async function constaterLimite(limite: Limite, reponse: ReponseHttp, options: { gh: string; env?: NodeJS.ProcessEnv; maintenant?: () => number; lecture?: Lecture }): Promise<LimiteGitHubAtteinte> {
   const maintenant = options.maintenant ?? (() => Date.now());
   const instant = maintenant();
+  const nature = limiteDuRefus(reponse);
+  const lecture = nature === "core" ? undefined : options.lecture;
   const classe = classerLeRefus(reponse.statut, reponse.entetes, instant);
   let jusqua: number | null = classe.kind === "rate-limit" ? classe.resetAt : null;
   // La ressource que l'appel refusé dépense, que GitHub dit dans la réponse : `core` pour l'API REST, par défaut.
   jusqua ??= await finDeFenetreDite({ gh: options.gh, env: options.env, maintenant: instant, ressource: reponse.entetes.get("x-ratelimit-resource") ?? "core" });
-  const precedente = reculs.get(limite) ?? { fin: Number.NEGATIVE_INFINITY, duree: 0 };
+  const finDite = jusqua !== null;
+  const sorte = lecture ?? TOUTES_LES_SORTES;
+  const parSorte = reculs.get(limite) ?? reculs.set(limite, new Map()).get(limite)!;
+  const precedente = parSorte.get(sorte) ?? { fin: Number.NEGATIVE_INFINITY, duree: 0 };
   const enCours = instant < precedente.fin;
   if (jusqua === null) {
     const recidive = instant - precedente.fin < RECUL_OUBLIE_MS;
     jusqua = enCours ? precedente.fin : instant + (recidive ? Math.min(precedente.duree * 2, RECUL_MAX_MS) : ATTENTE_PAR_DEFAUT_MS);
   }
-  if (!enCours) reculs.set(limite, { fin: jusqua, duree: jusqua - instant });
-  else if (jusqua > precedente.fin) reculs.set(limite, { fin: jusqua, duree: precedente.duree });
-  limite.suspendre(jusqua, refusDitDe(reponse));
+  if (!enCours) parSorte.set(sorte, { fin: jusqua, duree: jusqua - instant });
+  else if (jusqua > precedente.fin) parSorte.set(sorte, { fin: jusqua, duree: precedente.duree });
+  limite.suspendre(jusqua, { ...refusDitDe(reponse), limite: nature, finDite }, lecture);
   if (!enCours) {
-    pauseDite = true;
-    direLaPauseDansLeJournal?.(`brigade : GitHub limit reached — no call leaves the station before ${heure(jusqua)}`);
+    pausesDites.add(sorte);
+    direLaPauseDansLeJournal?.(
+      lecture === undefined
+        ? `brigade : GitHub limit reached — no call leaves the station before ${heure(jusqua)}`
+        : `brigade : GitHub limit reached on ${lecture} calls — they wait until ${heure(jusqua)}, other calls go on`,
+    );
     // Ce qui l'écoute ne retient jamais le refus.
     for (const ecouteur of ecouteursDeLaPause) {
       try {
-        ecouteur({ depuis: instant, jusqua, reponse });
+        ecouteur({ depuis: instant, jusqua, reponse, lecture: lecture ?? null });
       } catch {}
     }
   }
@@ -967,7 +1106,8 @@ export function pauseDeLaStation(racine: string | undefined, maintenant: number)
   let base: Base | undefined;
   try {
     base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
-    const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
+    // Une pause du seul gist ne retient pas la cuisine (#3481).
+    const [pause] = base.lire<{ jusqua: number | null }>(`SELECT max(jusqua) AS jusqua FROM pause WHERE ${DE_LA_CUISINE}`);
     return pause?.jusqua != null && pause.jusqua > maintenant ? pause.jusqua : null;
   } catch {
     return null;
@@ -1004,13 +1144,13 @@ export function pausesDeLaStation(racine: string | undefined, maintenant: number
     const depuis = maintenant - FENETRE_MS;
     // Un compteur d'avant #3448 n'a pas la table : la lecture lève, et rien n'est dit.
     const pauses = base.lire<{ depuis: number; jusqua: number; statut: number | null; ressource: string | null; retry_after: string | null }>(
-      "SELECT depuis, jusqua, statut, ressource, retry_after FROM pauses WHERE jusqua > ? AND depuis <= ? ORDER BY depuis DESC",
+      `SELECT depuis, jusqua, statut, ressource, retry_after FROM pauses WHERE jusqua > ? AND depuis <= ? AND ${DE_LA_CUISINE} ORDER BY depuis DESC`,
       depuis,
       maintenant,
     );
     const [derniere] = pauses;
     if (derniere === undefined) return null;
-    const [refus] = base.lire<{ n: number }>("SELECT count(*) AS n FROM refus WHERE instant > ? AND instant <= ?", depuis, maintenant);
+    const [refus] = base.lire<{ n: number }>(`SELECT count(*) AS n FROM refus WHERE instant > ? AND instant <= ? AND ${DE_LA_CUISINE}`, depuis, maintenant);
     const appelsAvant = base
       .lire<{ projet: string | null; lecture: string | null; ecriture: number }>("SELECT projet, lecture, ecriture FROM appels WHERE instant <= ? ORDER BY instant DESC, rowid DESC LIMIT ?", derniere.depuis, APPELS_AVANT_LA_PAUSE)
       .map(({ projet, lecture, ecriture }) => ({ projet: projet ?? PROJET_DE_LA_STATION, lecture: lecture ?? "other", ecriture: ecriture === 1 }));
@@ -1038,7 +1178,7 @@ export function dernierRefusDeLaStation(racine: string | undefined, maintenant: 
   let base: Base | undefined;
   try {
     base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
-    const [refus] = base.lire<{ instant: number | null }>("SELECT max(instant) AS instant FROM refus WHERE instant > ? AND instant <= ?", maintenant - depuisMs, maintenant);
+    const [refus] = base.lire<{ instant: number | null }>(`SELECT max(instant) AS instant FROM refus WHERE instant > ? AND instant <= ? AND ${DE_LA_CUISINE}`, maintenant - depuisMs, maintenant);
     return refus?.instant ?? null;
   } catch {
     return null;
