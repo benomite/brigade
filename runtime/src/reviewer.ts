@@ -11,6 +11,7 @@ import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { lancementEnFlux, SOURCES_DE_REGLAGES } from "./claude.ts";
 import { FERMETURE, OUVERTURE } from "./livrable.ts";
 import type { Finding } from "./events/pass.ts";
+import type { Couverture } from "./pass/rouge-sur-main.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // Le nom sous lequel les relectures figurent au journal, à la place d'une
@@ -127,6 +128,10 @@ export type Relecture = {
   // Nul, ou absent : le ticket n'est pas d'interface, ses captures ne sont pas
   // jugées.
   captures?: CapturesARelire | null;
+  // Les critères d'acceptation du ticket, chacun une puce de sa section : la
+  // relecture dit pour chacun quels tests du diff le vérifient, et si elle l'a
+  // jugé elle-même (#3466). Absents ou vides : elle n'en dit rien.
+  criteres?: readonly string[];
 };
 
 export function consigneDeRelecture(mission: Relecture): string {
@@ -173,6 +178,7 @@ export function consigneDeRelecture(mission: Relecture): string {
     "",
     ...(diff && mission.captures ? lesCaptures(mission.captures) : []),
     ...laReponse(diff !== null, Boolean(diff && mission.captures)),
+    ...(diff && mission.criteres?.length ? lesCriteres(mission.criteres) : []),
     "",
     "## Le ticket",
     "",
@@ -241,6 +247,27 @@ const laReponse = (suppressions: boolean, regles = false) => [
   "",
   "`verdict` vaut `rouge` s'il y a au moins un constat bloquant, `vert` sinon — `constats` peut être vide. `resume` et `constat` sont postés sur la PR, que le chef lit : en anglais, précis.",
 ];
+
+// Les critères d'acceptation du ticket (#3466) : la pass dit sur la PR, pour
+// chacun, s'il est couvert par un test rouge sur la base et vert sur la branche,
+// jugé par la relecture seule, ou couvert par rien. C'est la relecture qui
+// rattache chaque test à son critère ; la pass, qui a rejoué les tests ajoutés,
+// ne compte que ceux qui ont prouvé.
+const lesCriteres = (criteres: readonly string[]) => [
+  "",
+  "## Les critères d'acceptation",
+  "",
+  "Pour chaque critère d'acceptation du ticket, numéroté ci-dessous, ajoute à ton objet JSON une entrée de `criteres` :",
+  "",
+  "- `critere` : son numéro ;",
+  "- `tests` : les tests que le diff ajoute et qui le vérifient vraiment — le nom exact de chaque cas, tel qu'il s'écrit dans `test(\"…\")` ou `it(\"…\")`, ou le chemin d'un fichier de test neuf dont les cas ne se nomment pas en toutes lettres. Vide si aucun ;",
+  "- `relecture` : `true` si tu as vérifié toi-même, en lisant le diff ou les captures, que la livraison le remplit — un critère visuel, une doc, une règle de forme —, `false` sinon.",
+  "",
+  `\`{"criteres": [{"critere": 1, "tests": ["nom exact du cas"], "relecture": false}, {"critere": 2, "tests": [], "relecture": true}]}\` — une entrée par critère, ${criteres.length} en tout.`,
+  "",
+  ...criteres.map((critere, rang) => `${rang + 1}. ${couper(critere, CRITERE_MAX)}`),
+];
+const CRITERE_MAX = 1_000;
 
 // Le diff, tel qu'il est donné à relire. `auteur` : qui l'a écrit ; `par` :
 // qui a commité à sa place ce qu'il avait laissé non commité.
@@ -355,8 +382,9 @@ function consigneDeCorrection(mission: Relecture & { diff: NonNullable<Relecture
   ].join("\n");
 }
 
-// Ce que la pass retient d'une relecture lisible.
-export type Lue = { verdict: "green" | "red"; summary: string; findings: Finding[] };
+// Ce que la pass retient d'une relecture lisible. `criteria` : ce qu'elle dit
+// de chaque critère d'acceptation, dans leur ordre, quand on les lui a donnés.
+export type Lue = { verdict: "green" | "red"; summary: string; findings: Finding[]; criteria?: Couverture[] };
 
 // Le premier objet JSON que porte le texte. Le LLM l'entoure volontiers de
 // prose ou d'un bloc de code : seul ce qui se lit comme un objet compte.
@@ -432,7 +460,9 @@ const VERDICTS: Record<string, Lue["verdict"]> = { vert: "green", rouge: "red" }
 // une gravité inconnue, un constat vide, un verdict que ses constats
 // contredisent — la réponse entière est illisible, ni verte ni rouge. Sauf un
 // rouge qui ne tient qu'à une suppression : il est vert.
-export function lireRelecture(message: string | null, captures: CapturesARelire | null = null): { relecture: Lue } | { illisible: string } {
+// `criteres` : combien de critères d'acceptation lui ont été donnés — chacun doit
+// avoir son entrée dans `criteres`, sans quoi la réponse est illisible.
+export function lireRelecture(message: string | null, captures: CapturesARelire | null = null, criteres = 0): { relecture: Lue } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
   const lu = objet(message);
   if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
@@ -467,10 +497,32 @@ export function lireRelecture(message: string | null, captures: CapturesARelire 
     findings.push({ severity: "blocking", file: captures.dossier, text: `Livraison d'interface sans capture : aucun écran avant/après dans \`${captures.dossier}/\`. Le cook doit prendre les captures de chaque écran qu'il change avec \`scripts/capture-ecran/\` et les commiter.` });
     verdict = "red";
   }
+  const couvertures = criteres > 0 ? lireCouvertures(lu.criteres, criteres) : null;
+  if (typeof couvertures === "string") return { illisible: couvertures };
+  const avec = (relecture: Lue): { relecture: Lue } => ({ relecture: couvertures === null ? relecture : { ...relecture, criteria: couvertures } });
   const bloquants = findings.filter((finding) => finding.severity === "blocking").length;
   const suppressions = lu.constats.some((brut) => (brut as Record<string, unknown>).gravite === A_SUPPRIMER);
-  if (verdict === "red" && bloquants === 0 && suppressions) return { relecture: { verdict: "green", summary, findings } };
+  if (verdict === "red" && bloquants === 0 && suppressions) return avec({ verdict: "green", summary, findings });
   if (verdict === "red" && bloquants === 0) return { illisible: "verdict rouge sans aucun constat bloquant" };
   if (verdict === "green" && bloquants > 0) return { illisible: `verdict vert avec ${bloquants} constat${bloquants > 1 ? "s" : ""} bloquant${bloquants > 1 ? "s" : ""}` };
-  return { relecture: { verdict, summary, findings } };
+  return avec({ verdict, summary, findings });
+}
+
+// Ce que la relecture dit de chacun des `n` critères, dans leur ordre ; ou ce
+// qui la rend illisible. Rien n'est deviné : un critère sans entrée, une entrée
+// en double ou mal formée, et la réponse entière est illisible.
+function lireCouvertures(brut: unknown, n: number): Couverture[] | string {
+  if (!Array.isArray(brut)) return "criteres absents — attendu une entrée par critère d'acceptation";
+  const couvertures = new Map<number, Couverture>();
+  for (const [rang, entree] of brut.entries()) {
+    const { critere, tests, relecture } = (entree !== null && typeof entree === "object" ? entree : {}) as Record<string, unknown>;
+    if (typeof critere !== "number" || !Number.isInteger(critere) || critere < 1 || critere > n) return `criteres ${rang + 1} : numéro de critère ${JSON.stringify(critere)} — attendu 1 à ${n}`;
+    if (couvertures.has(critere)) return `criteres : le critère ${critere} a deux entrées`;
+    if (!Array.isArray(tests) || !tests.every((test) => typeof test === "string")) return `criteres ${rang + 1} : tests — attendu une liste de noms, même vide`;
+    if (typeof relecture !== "boolean") return `criteres ${rang + 1} : relecture — attendu true ou false`;
+    couvertures.set(critere, { tests: tests.map((test: string) => test.trim()).filter(Boolean), relecture });
+  }
+  const manquant = Array.from({ length: n }, (_, rang) => rang + 1).find((critere) => !couvertures.has(critere));
+  if (manquant !== undefined) return `criteres : le critère ${manquant} n'a pas d'entrée`;
+  return Array.from({ length: n }, (_, rang) => couvertures.get(rang + 1)!);
 }

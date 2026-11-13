@@ -127,6 +127,47 @@ retried; an unreadable one is a failure only if it leaves the delivery unjudged;
 model**, it is retried without counting, then escalated at the third refusal in a row (`unjudged`,
 cause `review-refused`; "When the model refuses" in [`station-cook.md`](station-cook.md)).
 
+### Red on main, green on the branch
+
+A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pass/rouge-sur-main.ts`).
+**"Red on main, green on the branch"** means: each test the delivery adds **fails on the integration
+branch** without the delivery's change, and **passes on the delivery's branch**. A test that already
+passes on the base proves nothing.
+
+**It applies to every delivery whose ticket does not carry `tech`.** A `tech` ticket (a refactor or a
+clean-up with no change of behaviour) is exempt: nothing is replayed, and the pass says so in one line,
+in its log and in its verdict on the PR: « Red on main, green on the branch: not replayed — a `tech`
+ticket is exempt. »
+
+**The added tests** are read from the diff against the base: every case of a new test file, and in a
+test file that existed, the cases (`test("…")`, `it("…")`) the base does not have. Only files
+`*.test.{js,ts,mjs,cjs,mts,cts}` are replayed, by Node's test runner.
+
+**Only they are replayed, never the suite.** While the reviewer reads, the pass makes a throwaway
+checkout of the base (`rouge-sur-main-<ticket>`), copies into it the branch's changed test files and
+the files under its test folders (`test/`, `tests/`, `__tests__/`), and plays each added test file on
+both sides: `node --test --test-reporter=tap <file>` from the folder of its nearest `package.json`, a
+case added to an existing file selected by its name (`--test-name-pattern`). No setup, install or
+build; under the cloison, with no GitHub token and no project secret; at most 5 minutes per file and
+side. The checkout is thrown away afterwards and nothing is committed: the rule adds no file to the
+repository, and the closer prunes tests as before. The station's log lists each replayed test and
+what it did on each side.
+
+| The replay says | What the pass does |
+|---|---|
+| every added test red on the base, green on the branch | nothing held back: the review decides |
+| an added test **green on the base** | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
+| an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
+| the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
+
+**The verdict on the PR** — the comment the pass already posts — ends with that line, then **one line
+per acceptance criterion** of the ticket (the bullets of its `Acceptance criteria` section), each
+marked: **covered by a test red on main and green on the branch** (naming it), **judged by the review
+alone** (a visual criterion, a doc), or **covered by nothing**. The reviewer receives the criteria,
+numbered, and says for each which added tests check it and whether it checked it itself by reading;
+only a test the replay proved covers a criterion. An answer that leaves a criterion out is
+unreadable, like any malformed review.
+
 ### The second judge
 
 A green delivery that touches **its judges** (`.claude/brigade/` or `.github/workflows/`) is stopped
