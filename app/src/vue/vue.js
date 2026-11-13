@@ -6723,15 +6723,13 @@ async function demenager(projet, vers, { nomme, depuis, garder }) {
   reposerLOngletStations();
 }
 
-// Les stations que la panne du rail nomme (ticket 3472) : celles qui servent le projet sans cuire, arrêtées ou hors ligne. L'app ne les
-// lit pas ailleurs tant qu'aucune ne le sert ; sans elles, la ligne des stations dirait « No station cooks » à côté d'une panne qui nomme la station.
+// Les stations que GitHub dit servir le projet (`facts.stations`, ticket 3472) — arrêtées, hors ligne ou en ligne, avec ou sans ticket en file : la ligne
+// des stations les nomme, que le rail ait une panne à dire ou non. Aucune : le projet n'a jamais été servi, ou la station qui le servait a été retirée.
 /** @param {Projet} projet @returns {string[]} */
-function stationsNommeesParLaPanne(projet) {
+function stationsDeGithubDuProjet(projet) {
   const tenu = tenus.get(projet.nom);
-  if (tenu === undefined || !("tableau" in tenu)) return [];
-  const { railBloque, attenteDuRail } = tenu.tableau;
-  if (railBloque !== undefined && !("illisible" in railBloque) && railBloque.cause !== "aucune-station") return railBloque.stations;
-  return attenteDuRail?.stations ?? [];
+  if (tenu === undefined || !("tableau" in tenu) || muets.has(projet.nom)) return [];
+  return tenu.tableau.stations?.lignes.map(({ station }) => station) ?? [];
 }
 
 // La ligne des stations du projet affiché, en tête de son espace — et, s'il est ouvert, le choix de
@@ -6754,10 +6752,10 @@ function poserStationsDuProjet() {
   const { stations, demande, tenue } = cuisineDe(projet);
   const lues = stationsVues !== undefined && projetsVus !== undefined;
   const ou = ouCuit(projet, stations);
-  const nommees = stations.length === 0 && ou === undefined ? stationsNommeesParLaPanne(projet) : [];
+  const nommees = stations.length === 0 && ou === undefined ? stationsDeGithubDuProjet(projet) : [];
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
   if (nommees.length > 0) {
-    // La panne du rail dit déjà, une fois, que la station est arrêtée et le geste qui la démarre : la ligne la nomme, sans le redire.
+    // La station est nommée ici ; la panne du rail, s'il y en a une, dit seule qu'elle est arrêtée et le geste qui la démarre.
     ligneDesStationsDuProjet.replaceChildren(bloc("span", `Cooks on ${nommees.join(" · ")}`));
   } else if (stations.length > 0 || ou !== undefined) {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis les autres.

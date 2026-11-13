@@ -12,7 +12,8 @@ import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../../src/projets/projets.ts";
+import type { VuDesStations } from "../../src/stations/stations.ts";
 import { type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-11-13T10:04:12.000Z";
@@ -28,8 +29,9 @@ const FAITS: Faits = {
 };
 const PANNE = (stations: string[], raison = "arretee") => ({ raison, phrase: `Station ${stations.join(", ")} is stopped, so no cook can start. Start the station.`, geste: "demarrer-la-station", stations });
 
+const SILENCIEUSE = { station: "macbook-air-de-benoit/claude", distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: false, cuisson: "silent", cooks: [], vueLe: A };
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "secondes", dossier: "/tmp/secondes", depot: "benomite/secondes", base: "main" }] }, () => true),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "secondes", dossier: "/tmp/secondes", depot: "benomite/secondes", base: "main" }] }, () => false),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
@@ -38,6 +40,9 @@ const demarrage = () => ({
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
+  // Les stations du compte, lues, sans que l'app en connaisse une qui serve le projet : seul `facts` dit celle qui le sert.
+  stations: { a: A, stations: [] } satisfies VuDesStations,
+  projetsDesStations: { a: A, projets: [], recommandee: null, avertissements: {}, machines: {}, calibrage: calibrageRecommande([]) } as VuDesProjets,
 });
 async function ouvrir(faits?: unknown): Promise<{ vue: Jouee; bloc: ReturnType<Jouee["element"]> }> {
   const vue = await jouerLaVue({ demarrage, espace: () => [] });
@@ -52,7 +57,7 @@ async function ouvrir(faits?: unknown): Promise<{ vue: Jouee; bloc: ReturnType<J
 }
 
 test("la panne nomme la station arrêtée : la page dit « Cooks on », jamais « No station cooks »", async () => {
-  const { bloc } = await ouvrir({ ...FAITS, attenteDuRail: PANNE(["macbook-air-de-benoit/claude"]) });
+  const { bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], attenteDuRail: PANNE(["macbook-air-de-benoit/claude"]) });
   const texte = bloc.textContent;
   assert.match(texte, /Cooks on macbook-air-de-benoit\/claude/);
   assert.doesNotMatch(texte, /No station cooks/);
@@ -61,14 +66,44 @@ test("la panne nomme la station arrêtée : la page dit « Cooks on », jamais �
 
 test("la panne du rail bloqué nomme la station : « Cooks on », le geste une seule fois, pas « choose its machine »", async () => {
   const bloque = { tickets: [4], depuis: A, cause: "arretee", stations: ["macbook-air-de-benoit/claude"], geste: "demarrer-la-station", constat: "queued", phrase: "Station macbook-air-de-benoit/claude is stopped, so no cook can start. Start the station." };
-  const { bloc } = await ouvrir({ ...FAITS, railBloque: bloque });
+  const { bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], railBloque: bloque });
   assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
   assert.doesNotMatch(bloc.textContent, /No station cooks/);
   assert.equal(bloc.dessous("button").some((bouton) => bouton.textContent === "choose its machine"), false);
   assert.equal((bloc.textContent.match(/Start the station/g) ?? []).length, 0);
 });
 
-test("aucune station n'a jamais servi le projet : « choose its machine » reste offert", async () => {
-  const { bloc } = await ouvrir({ ...FAITS, attenteDuRail: { raison: "normale", phrase: "Normal wait: a cook takes the ticket within minutes. It resolves by itself.", geste: null, stations: [] } });
-  assert.doesNotMatch(bloc.textContent, /Cooks on/);
+const boutons = (bloc: ReturnType<Jouee["element"]>) => bloc.dessous("button").map((bouton) => bouton.textContent);
+
+test("une station arrêtée, la file vide : aucune panne, et la page la nomme — jamais « No station cooks », jamais « choose its machine » (secondes)", async () => {
+  const { bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE] });
+  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  assert.doesNotMatch(bloc.textContent, /No station cooks/);
+  assert.equal(boutons(bloc).includes("choose its machine"), false);
+});
+
+test("secondes : la station arrêtée est nommée par la ligne des stations, et le geste qui la démarre ne se dit qu'une fois dans la page", async () => {
+  const { vue, bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], attenteDuRail: PANNE(["macbook-air-de-benoit/claude"]) });
+  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  assert.equal((bloc.textContent.match(/Start the station/g) ?? []).length, 0);
+  assert.doesNotMatch(bloc.textContent, /No station cooks/);
+  assert.equal(boutons(bloc).includes("choose its machine"), false);
+  assert.equal((vue.element("rail").textContent.match(/Start the station/g) ?? []).length, 2, "la phrase de la panne et son bouton : un seul geste");
+});
+
+test("« choose its machine » ne s'offre que sans station : aucune n'a servi le projet, ou celle qui le servait est retirée", async () => {
+  const { vue, bloc } = await ouvrir({ ...FAITS, stations: [] });
+  assert.match(bloc.textContent, /No station cooks/);
+  assert.equal(boutons(bloc).includes("choose its machine"), true);
+  // Une station le sert, arrêtée : le bouton s'en va et la station est nommée.
+  const lecture = (faits: unknown): Lecture => ({ projet: "secondes", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
+  vue.dire("surFaits", { ...tenirFaits().recevoir(lecture({ ...FAITS, stations: [SILENCIEUSE] })), demande: vue.dernier("faits")[0] as number });
+  await repos();
+  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  assert.equal(boutons(bloc).includes("choose its machine"), false);
+  // Retirée : la ligne et le bouton reviennent.
+  vue.dire("surFaits", { ...tenirFaits().recevoir(lecture({ ...FAITS, stations: [] })), demande: vue.dernier("faits")[0] as number });
+  await repos();
+  assert.match(bloc.textContent, /No station cooks/);
+  assert.equal(boutons(bloc).includes("choose its machine"), true);
 });
