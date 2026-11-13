@@ -149,6 +149,10 @@ export type FaitManager =
         model: string | null;
         effort: string | null;
         calibration: string | null;
+        // On a refused `question` or `decision` (#3429): what the chef has to settle, in one sentence ending with its
+        // only "?", that the issue's TODO card asks — null when the answer carried none that reads. Absent from any
+        // other nature, and from the judgments written before it.
+        question?: string | null;
       };
     }
   // The judgment ran to its end, but its answer cannot be read: nothing is

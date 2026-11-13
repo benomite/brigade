@@ -438,6 +438,13 @@ FIN
 {"nature":"incomplete","motif":"Nothing says how to check it is done.","manque":"An acceptance criterion."}
 FIN
       ;;
+    # Une issue qui attend le chef (#3429) : sa décision, en une phrase.
+    juge-decision)
+      assistant
+      resultat <<'FIN'
+{"nature":"decision","motif":"It asks to grant an IAM right that breaks the read-only rule, and says the call is the chef's.","manque":"The chef's call on the IAM right.","question":"Do you grant the deploy role write access to the backup bucket?"}
+FIN
+      ;;
     # Le tri de l'issue d'un auteur sans l'écriture (#2934).
     trie-ticket)
       assistant
