@@ -104,6 +104,7 @@ import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-d
 import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
+import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
 import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phraseDuRefus, poserAvisDeDepot } from "./page-projet/depot-non-prepare.js";
@@ -957,6 +958,10 @@ const commentairesDeValidation = new Map();
 const revues = new Map();
 /** @type {Map<string, string>} */
 const notesDeRevue = new Map();
+// « undo » sur la carte d'un ticket servi (undo/, ticket 3274) : le geste en route d'ici, ou ce qu'il en est advenu — la
+// ligne reste sur la carte tant qu'elle est dans Served.
+/** @type {Map<string, import("./undo/undo.js").Etat>} */
+const annulations = new Map();
 /** @type {Map<string, Set<number>>} */
 const validees = new Map();
 /** @param {string} projet */
@@ -2938,6 +2943,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     ouvre.title = `open #${ticket}'s merged PR in the browser`;
     bon.append(ouvre);
   }
+  // Servi, sa PR mergée : « undo » l'annule d'un clic (undo/, ticket 3274) — jamais d'un projet en lecture seule.
+  if (pr === true && lectureSeuleDe(projet) === undefined) bon.append(...poserAnnulation(document, ticket, annulations.get(cleDuBon) ?? ANNULATION_AU_REPOS, () => void annulerLeServi(projet, ticket)));
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   if (carte.refus !== undefined && lectureSeuleDe(projet) === undefined) bon.append(poserLesGestesDuRefus(projet, ticket));
   // En pass ou livrée : « try it » quand le projet dit comment il s'essaie (essai.ts) — sa phrase, sinon.
@@ -5417,6 +5424,30 @@ async function repondreALaRevue(projet, ticket, geste) {
   if (vueDesCartes.vu === "carte" && vueDesCartes.carte.projet === projet.nom && vueDesCartes.carte.ticket === ticket) vueDesCartes = { vu: "liste" };
   poser(rendue);
   lireLesFaits();
+}
+
+// « undo » sur la carte d'un ticket servi (undo/, ticket 3274), un seul à la fois : fait, la carte garde la ligne de ce qui
+// s'est passé et les faits sont relus — rouvert, le ticket quitte Served ; refusé, le bouton revient et la carte dit pourquoi.
+/** @param {Projet} projet @param {number} ticket */
+async function annulerLeServi(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  if (annulations.get(cle)?.etape === "envoi" || annulations.get(cle)?.etape === "fait") return;
+  /** @param {import("./undo/undo.js").Etat} etat */
+  const poser = (etat) => {
+    annulations.set(cle, etat);
+    if (courant?.nom === projet.nom) poserRail(projet);
+  };
+  poser({ etape: "envoi" });
+  /** @type {import("./undo/undo-github.ts").RenduDAnnulation | undefined} */
+  let rendu;
+  try {
+    rendu = brigade.annulerServi === undefined ? { refus: ANNULATION_SANS_PONT, detail: "" } : await brigade.annulerServi(projet.nom, ticket);
+  } catch (erreur) {
+    rendu = { refus: "nothing was undone: the app could not play the gesture", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  const rendue = apresLAnnulation(rendu);
+  poser(rendue);
+  if (rendue.etape === "fait") lireLesFaits();
 }
 
 // Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont

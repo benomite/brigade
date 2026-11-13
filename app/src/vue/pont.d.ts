@@ -405,6 +405,10 @@ export type Pont = {
   // renvoyer avec une note — la commande `sensitive` du runtime, jouée par le process principal. Absent du téléphone, qui ne
   // porte pas le runtime. Rien pour un projet inconnu.
   gesteSensible?(projet: string, ticket: number, geste: import("./carte-sensible/carte-sensible-github.ts").GesteSensible): Promise<import("./carte-sensible/carte-sensible-github.ts").RenduSensible | undefined>;
+  // « undo » sur la carte d'un ticket servi (undo/, ticket 3274) : la commande `undo` du runtime, jouée par le process
+  // principal — une PR revert son merge et passe la pass, le ticket est rouvert ; ou, en conflit, un ticket est déposé pour
+  // la cuisine. Absent du téléphone, qui ne porte pas le runtime. Rien pour un projet inconnu.
+  annulerServi?(projet: string, ticket: number): Promise<import("./undo/undo-github.ts").RenduDAnnulation | undefined>;
   // « Resume », sur la ligne du disjoncteur de TODO (github/breaker-resume.ts) : `/resume` posté sur l'issue
   // `brigade:breaker-open` du dépôt du projet. Rend la reprise demandée, ou pourquoi rien n'est parti ; rien pour un
   // projet que l'app ne connaît plus.

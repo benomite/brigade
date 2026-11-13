@@ -176,6 +176,7 @@ const pont = {
   repondreCarte: (projet, ticket, reponse) => ipcRenderer.invoke("repondreCarte", projet, ticket, reponse),
   gesteDeValidation: (projet, ticket, geste) => ipcRenderer.invoke("gesteDeValidation", projet, ticket, geste),
   gesteSensible: (projet, ticket, geste) => ipcRenderer.invoke("gesteSensible", projet, ticket, geste),
+  annulerServi: (projet, ticket) => ipcRenderer.invoke("annulerServi", projet, ticket),
   reprendreLeDisjoncteur: (projet) => ipcRenderer.invoke("reprendreLeDisjoncteur", projet),
   ouvrirBilan: (projet, url) => ipcRenderer.invoke("ouvrirBilan", projet, url),
   ouvrirLectureSeule: (projet, page) => ipcRenderer.invoke("ouvrirLectureSeule", projet, page),

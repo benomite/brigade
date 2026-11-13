@@ -27,6 +27,7 @@
     "waiting": "node src/attente-cli.ts",
     "design": "node src/design-cli.ts",
     "sensitive": "node src/sensitive-cli.ts",
+    "undo": "node src/undo-cli.ts",
     "report": "node src/rapport-cli.ts",
     "guardrails": "node src/garde-fous-cli.ts",
     "base": "node src/base-cli.ts",

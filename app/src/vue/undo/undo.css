@@ -1,0 +1,13 @@
+/* « undo » sur la carte d'un ticket servi (ticket 3274, undo.js) : dans Served, sous « open the merged PR », le bouton et
+   son prix au survol ; fait, la ligne de ce qui s'est passé, à la place du bouton — à l'encre grasse, comme le signal
+   d'une carte (composants/bon). */
+.bon button.annuler-servi {
+  align-self: flex-start;
+}
+.bon p.annule {
+  padding-top: 0;
+  border-top: 0;
+  font-weight: 600;
+  color: var(--bon-encre);
+  overflow-wrap: anywhere;
+}
