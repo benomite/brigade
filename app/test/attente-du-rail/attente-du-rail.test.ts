@@ -2,6 +2,7 @@
 // chaque carte dans `facts`, qui les portent jusqu'au tableau, à la carte et à la ligne en tête du rail.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import type { AppelGitHub } from "../../src/tableau/client.ts";
 import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
 import { comprendre, rail, tableau, type Carte, type Faits } from "../../src/faits.ts";
 import { ligneEnAttente, PRET } from "../../src/ligne-carte.ts";
@@ -9,7 +10,7 @@ import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
 import { attenteDuRailLue, lignesDesCartesLues } from "../../src/vue/attente-du-rail/attente-du-rail.ts";
 import { ligneDeLAttente } from "../../src/vue/attente-du-rail/ligne-de-l-attente.js";
-import { avecLeRail, type RailSurGithub, type TicketSurGithub } from "../../src/vue/rail/github.ts";
+import { avecLeRail, lireLeRailSurGithub, type RailSurGithub, type TicketSurGithub } from "../../src/vue/rail/github.ts";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const DEPOT = "chef/secondes";
@@ -148,5 +149,33 @@ describe("le `status` que l'app tire de sa lecture", () => {
 
   test("rien n'attend : aucune ligne", () => {
     assert.doesNotMatch(statusDuTableau(lecture([ticket(4), pris], [station()])), /queue wait/);
+  });
+});
+
+describe("la lecture du rail sur GitHub", () => {
+  const FEUX = `/repos/${DEPOT}/issues?state=open&labels=fire&sort=created&direction=asc&per_page=100&page=1`;
+  const lire = (evenements: { status: number; data: unknown }): { appeler: AppelGitHub; chemins: string[] } => {
+    const chemins: string[] = [];
+    const appeler: AppelGitHub = async (chemin) => {
+      chemins.push(chemin);
+      if (chemin === FEUX) return { status: 200, data: [{ number: 4, title: "T4", html_url: "u", body: "Depends on #9", created_at: "2026-11-12T08:00:00Z", labels: [{ name: "fire" }] }] };
+      if (chemin.includes("/events")) return evenements;
+      return { status: 200, data: [] };
+    };
+    return { appeler, chemins };
+  };
+
+  test("un ticket en file porte l'instant où `fire` lui a été posé, et ses dépendances", async () => {
+    const { appeler } = lire({ status: 200, data: [{ event: "labeled", label: { name: "fire" }, created_at: "2026-11-12T09:57:00Z" }] });
+    const { tickets } = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant: () => new Date(LU) });
+    assert.deepEqual(tickets.map(({ ticket, etat, entreLe, depend }) => ({ ticket, etat, entreLe, depend })), [{ ticket: 4, etat: "en attente", entreLe: "2026-11-12T09:57:00Z", depend: [9] }]);
+  });
+
+  test("des événements qui ne se lisent pas : le rail reste lu, sans l'instant — la durée n'est pas dite", async () => {
+    const { appeler } = lire({ status: 502, data: null });
+    const lu = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant: () => new Date(LU) });
+    assert.equal(lu.tickets[0]?.entreLe, null);
+    const faits = faitsDe(avecLeRail(VIDE, lu, { lus: [station()] }));
+    assert.equal(faits.attenteDuRail?.phrase, "A cook takes the ticket within minutes. It resolves by itself.");
   });
 });

@@ -71,21 +71,6 @@ async function statusDeLaStation(t: TestContext, gh: string): Promise<string[]> 
   return lignes;
 }
 
-// Les trois lectures de l'app, au même instant : la file du second, son `status` et la ligne en tête du rail.
-async function lecturesDeLApp(gh: string, instant: number) {
-  const appeler = appelParGh(gh, 2_000);
-  const stations = stationsParGh(gh, 2_000);
-  const file = await lireLaFile(appeler, DEPOT, () => new Date(instant), stations);
-  assert.ok(file.lue, JSON.stringify(file));
-  const signes = async () => {
-    const lues = await stations();
-    return "lues" in lues ? { lus: lues.lues.map((station) => ({ ...station })) } : { illisible: lues.illisibles };
-  };
-  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date(instant), signes });
-  assert.ok(lu.lu, lu.lu ? "" : lu.raison);
-  return { file: file.texte.split("\n"), status: statusDuTableau(lu).split("\n"), railBloque: lu.faits.railBloque as { phrase: string } | undefined };
-}
-
 // Le `status` de l'app et le rail, au même instant.
 async function lectureDeLApp(gh: string, instant: number) {
   const appeler = appelParGh(gh, 2_000);
