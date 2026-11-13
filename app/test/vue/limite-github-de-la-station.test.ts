@@ -15,13 +15,13 @@ import { stationsDeGithub } from "../../src/vue/cooks/prises.ts";
 import { signesDe } from "../../src/vue/cooks/signes-de-vie.ts";
 import { hautDe, servantesDe } from "../../src/vue/stations-tab/etat.js";
 import { poserLOngletDesStations } from "../../src/vue/stations-tab/stations-tab.js";
-import { EN_SA_RETENUE, EN_SON_ABSENCE, HORS_LIGNE, ligneDeLEnregistree, projetsDe, type GestesDuCompte } from "../../src/vue/stations-du-compte.js";
+import { HORS_LIGNE, ligneDeLEnregistree, type GestesDuCompte } from "../../src/vue/stations-du-compte.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_espace: string, balise: string) => new Faux(balise) };
 const a = (hhmmss: string) => Date.parse(`2026-11-05T${hhmmss}Z`);
 const DEPOTS = ["benomite/brigade", "benomite/parade", "benomite/site", "benomite/notes"];
-const RIEN: GestesDuCompte = { ouvrirLaStation() {}, choisir() {}, chercher() {}, ajouter() {}, relire() {}, seConnecter() {}, ouvrirLaPage() {}, copier() {} };
+const RIEN: GestesDuCompte = { ouvrirLaStation() {}, relire() {}, seConnecter() {}, ouvrirLaPage() {}, copier() {} };
 
 // Le gist de parade-box à 14:23 : son enregistrement écrit à 14:06, quand GitHub l'a limitée, et la sélection que le chef
 // vient de lui réécrire. `retenue` faux : l'enregistrement d'avant ce ticket, qui n'en disait rien.
@@ -55,7 +55,7 @@ function cooksDe(depot: string, station: StationEnregistree, instant: number) {
   return (poserLOngletDesStations(doc, vu, gestes) as Faux).dessous("section").filter(({ className }) => className === "carte-de-station");
 }
 
-test("a limit window replayed in the app: at 14:23 the station is held by GitHub's limit until 14:37, never offline, and each of its projects keeps it, with the limit line", () => {
+test("a limit window replayed in the app: at 14:23 the station is held by GitHub's limit until 14:37, never offline, and each of its projects keeps it", () => {
   for (const instant of [a("14:11:00"), a("14:23:00"), a("14:36:59")]) {
     const station = lueA(instant);
     assert.equal(station.available, true);
@@ -66,13 +66,6 @@ test("a limit window replayed in the app: at 14:23 the station is held by GitHub
     assert.equal(ligne.textContent.includes(`held by GitHub's limit until 14:37 · ${DEPOTS.join(", ")}`), true, ligne.textContent);
     assert.equal(ligne.textContent.includes(HORS_LIGNE), false);
     assert.equal(ligne.dessous("span").find(({ className }) => className === "pastille")?.dataset.ton, "jaune");
-
-    // Sa page : ses projets restent cochés, et ce que le chef vient de choisir sera lu à la fin de la limite.
-    const page = projetsDe(doc, station, { depots: { depots: DEPOTS.map((depot) => ({ depot, base: "main" })) } }, RIEN) as Faux;
-    const textes = page.dessous("p").map(({ textContent }) => textContent);
-    assert.ok(textes.includes(EN_SA_RETENUE), textes.join(" | "));
-    assert.ok(!textes.includes(EN_SON_ABSENCE));
-    assert.deepEqual(page.dessous("input").filter(({ checked }) => checked).map(({ ariaLabel }) => ariaLabel), DEPOTS);
 
     // L'onglet Stations de chacun de ses projets : la station y a sa carte, en ligne et retenue, jamais « nobody ».
     for (const depot of DEPOTS) {

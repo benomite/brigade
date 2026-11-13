@@ -20,7 +20,6 @@ Constat : `node scripts/capture-ecran/capture.ts <état> /tmp/x.png`, sortie 1 p
 | `fiche-priorite` | étape « cliquer #fiche li[data-geste="priorite"] button » : 0 élément(s) trouvé(s), il en faut un |
 | `ratios` | étape « cliquer button[aria-label="the added / removed ratio of all projects"] » : 0 élément(s) trouvé(s), il en faut un |
 | `station-projets-du-chef` | étape « cliquer #accueil-stations [data-station="e2d4"] button.ligne, #accueil-stations button.ligne[data-station="e2d4"] » : 0 élément(s) trouvé(s), il en faut un |
-| `station-projets-recherche` | étape « cliquer #accueil-stations [data-station="e2d4"] button.ligne, #accueil-stations button.ligne[data-station="e2d4"] » : 0 élément(s) trouvé(s), il en faut un |
 | `stations-du-compte-indisponible` | étape « cliquer #accueil-stations .enregistree[data-station="d4e5f6"] button.ligne, #accueil-stations button.ligne[data-station="d4e5f6"] » : 0 élément(s) trouvé(s), il en faut un |
 | `stations-du-compte-ouverte` | étape « cliquer #accueil-stations .enregistree[data-station="a1b2c3"] button.ligne, #accueil-stations button.ligne[data-station="a1b2c3"] » : 0 élément(s) trouvé(s), il en faut un |
 | `stations-une-liste-choisir` | étape « cliquer #accueil-stations button.ligne[aria-label^="macbook-air-de-benoit —"] » : 0 élément(s) trouvé(s), il en faut un |

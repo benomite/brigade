@@ -31,21 +31,13 @@ import { horsLigneDuCompte } from "./choix-station/choix-station.js";
 /** @typedef {import("../projets/github.ts").DepotDuChef} DepotDuChef */
 /** @typedef {import("./premier-lancement.js").EtatDuPremier["connexion"]} Connexion */
 
-// Ce que la vue tient du bloc. `stations` : absentes, leur lecture est en route. `depots` : les dépôts que le compte du
-// chef atteint, lus à l'ouverture de la page d'une station enregistrée. `connus` : les projets que la brigade connaît
-// hors des stations du compte — ceux de l'app, ceux que ses stations appairées servent —, chacun par son dépôt
-// `<owner>/<name>` ou par son nom. `ajoutes` : les dépôts que le chef a ajoutés par la recherche, ou décochés, pendant la session. `recherche` : ce qu'il
-// tape dans le champ de la station ouverte. `envoi` : la station dont la sélection s'écrit — ses cases attendent.
-// `refus` : pourquoi la dernière écriture n'a pas eu lieu. `copiee` : la commande d'installation que le bouton vient de
-// copier. `connexion` : la connexion à GitHub lancée. `attendus` : les dépôts que le chef vient de cocher pour une station,
-// dont elle n'a pas encore dit ce qu'elle fait (ticket 1790).
+// Ce que la vue tient du bloc. `stations` : absentes, leur lecture est en route. `envoi` : la station dont la sélection
+// s'écrit. `refus` : pourquoi la dernière écriture n'a pas eu lieu. `copiee` : la commande d'installation que le bouton vient
+// de copier. `connexion` : la connexion à GitHub lancée. `attendus` : les dépôts que le chef vient de choisir pour une
+// station, dont elle n'a pas encore dit ce qu'elle fait (ticket 1790).
 /**
  * @typedef {{
  *   stations?: StationsDuCompte,
- *   depots?: { depots: DepotDuChef[] } | { refus: string },
- *   connus?: readonly string[],
- *   ajoutes?: readonly string[],
- *   recherche?: { id: string, texte: string },
  *   envoi?: string,
  *   refus?: { id: string, refus: string, detail?: string },
  *   copiee?: string,
@@ -53,14 +45,9 @@ import { horsLigneDuCompte } from "./choix-station/choix-station.js";
  *   attendus?: { id: string, depots: readonly string[] },
  * }} EtatDuCompte
  */
-// `chercher` : le texte du champ de recherche a changé — la vue le retient, sans redessiner. `ajouter` : un dépôt trouvé
-// est choisi pour la station — `depots`, sa sélection entière avec lui.
 /**
  * @typedef {{
  *   ouvrirLaStation: (id: string) => void,
- *   choisir: (id: string, depots: string[]) => void,
- *   chercher: (id: string, texte: string) => void,
- *   ajouter: (id: string, depot: string, depots: string[]) => void,
  *   relire: () => void,
  *   seConnecter: () => void,
  *   ouvrirLaPage: (url: string) => void,
@@ -77,22 +64,6 @@ export const COPIEE = "copied";
 // Les mots de l'état d'une machine, ceux de sa ligne quand elle est appairée (stations/stations.ts, `etatDe`).
 export const EN_LIGNE = "online";
 export const HORS_LIGNE = "offline";
-export const PROJETS = "Projects it serves";
-export const LECTURE_DES_DEPOTS = LECTURE_DE("your repositories on GitHub");
-export const DEPOTS_ILLISIBLES = "your repositories could not be read";
-export const SANS_DEPOT = "no repository on your GitHub account";
-export const SANS_PROJET = `${PAS_ENCORE("project")} Add a repository below.`;
-export const CHERCHER = "add another repository";
-export const CHERCHER_AIDE = "type part of its name";
-export const AJOUTER = "add";
-/** @param {string} texte */
-export const RIEN_NE_CORRESPOND = (texte) => `no other repository matches “${texte}”`;
-/** @param {number} combien */
-export const ET_ENCORE = (combien) => `${combien} more — keep typing`;
-// Ce que la recherche montre au plus : au-delà, une ligne dit combien d'autres, et le chef précise.
-export const TROUVES_AU_PLUS = 8;
-export const ENVOI = ENREGISTREMENT;
-export const EN_SON_ABSENCE = "it is offline: it serves these projects once it is back";
 // Une station que la limite de GitHub retient (ticket 2443) : elle est là, ses appels attendent la fin de la limite — son
 // signe de vie ne bouge plus d'ici là. Ni « online », ni « offline » : elle garde ses projets. L'heure est celle du chef.
 /** @param {string} jusqua */
@@ -100,7 +71,6 @@ export const RETENUE = (jusqua) => {
   const d = new Date(jusqua);
   return `held by GitHub's limit until ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
-export const EN_SA_RETENUE = "GitHub's limit holds its calls: it reads these choices once the limit lifts, and keeps serving its projects";
 
 // L'état d'une station du compte, en mots : retenue par la limite de GitHub, en ligne, ou hors ligne.
 /** @param {Pick<StationEnregistree, "available" | "heldUntil">} station */
@@ -238,50 +208,6 @@ export function ligneFondue(ligne, projets, enregistree) {
   });
 }
 
-// Les projets du chef parmi les dépôts que son compte atteint, dans l'ordre où GitHub les rend : ceux que la brigade
-// connaît (`connus`) — par leur dépôt, ou, connus par leur seul nom, par celui que le dépôt donne au projet —, sans égard à
-// la casse, comme GitHub.
-/** @param {readonly string[]} depots @param {readonly string[]} connus */
-export function projetsDuChef(depots, connus) {
-  const parDepot = new Set(connus.filter((connu) => connu.includes("/")).map((connu) => connu.toLowerCase()));
-  const parNom = new Set(connus.filter((connu) => !connu.includes("/")).map((connu) => connu.toLowerCase()));
-  return depots.filter((depot) => parDepot.has(depot.toLowerCase()) || parNom.has(nomDuChoisi(depot)));
-}
-
-// Les cases d'une station : les projets du chef parmi les dépôts du compte, puis ceux qu'elle sert et qu'ils ne nomment
-// pas — encore décochables. Les autres dépôts du compte n'en ont pas : ils se cherchent (`trouvesDe`).
-/** @param {readonly string[]} depots @param {readonly string[] | null} selection @param {readonly string[]} [connus] */
-export function casesDe(depots, selection, connus = []) {
-  return [...new Set([...projetsDuChef(depots, [...connus, ...(selection ?? [])]), ...(selection ?? [])])];
-}
-
-// Ce que la recherche trouve : les dépôts du compte qui n'ont pas encore leur case et dont le nom contient le texte tapé,
-// sans égard à la casse. Rien de tapé : rien — la liste entière ne se montre jamais.
-/** @param {readonly string[]} depots @param {readonly string[]} cases @param {string} texte */
-export function trouvesDe(depots, cases, texte) {
-  const cherche = texte.trim().toLowerCase();
-  if (cherche === "") return [];
-  const prises = new Set(cases.map((une) => une.toLowerCase()));
-  return depots.filter((depot) => !prises.has(depot.toLowerCase()) && depot.toLowerCase().includes(cherche));
-}
-
-// Les projets que la brigade connaît, vus du bloc : ceux que la vue lui donne, ceux que les stations du compte se sont vu
-// choisir, et ceux que le chef a ajoutés par la recherche.
-/** @param {EtatDuCompte} etat */
-function connusDe(etat) {
-  const choisis = etat.stations?.state === "listed" ? etat.stations.stations.flatMap(({ selection }) => selection ?? []) : [];
-  return [...(etat.connus ?? []), ...choisis, ...(etat.ajoutes ?? [])];
-}
-
-// La sélection qu'une case changée donne : la case ajoutée ou ôtée, dans l'ordre des cases.
-/** @param {readonly string[]} cases @param {readonly string[] | null} selection @param {string} depot @param {boolean} cochee */
-export function selectionApres(cases, selection, depot, cochee) {
-  const tenue = new Set(selection ?? []);
-  if (cochee) tenue.add(depot);
-  else tenue.delete(depot);
-  return cases.filter((une) => tenue.has(une));
-}
-
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
   const pose = doc.createElement(balise);
@@ -328,126 +254,6 @@ function ligneDe(doc, station, geste) {
   ligne.append(pastilleDe(doc, station), nom, cree(doc, "span", dit), suite);
   ligne.addEventListener("click", () => geste.ouvrirLaStation(station.id));
   return ligne;
-}
-
-// Les cases d'une station, sur sa page : un projet du chef par case, cochée s'il est dans sa sélection ; dessous, le champ
-// qui cherche parmi les autres dépôts du compte, et ce qu'il trouve, un bouton chacun. Une écriture en route : les cases
-// et les boutons attendent qu'elle ait répondu. Une écriture refusée le dit sous les cases, en une ligne.
-/** @param {Fabrique} doc @param {StationEnregistree} station @param {EtatDuCompte} etat @param {GestesDuCompte} geste */
-export function projetsDe(doc, station, etat, geste) {
-  const choix = cree(doc, "fieldset");
-  choix.className = "projets-de-la-station";
-  choix.ariaLabel = `${PROJETS}: ${station.name}`;
-  choix.append(cree(doc, "legend", PROJETS));
-  if (station.heldUntil || !station.available) {
-    const absente = cree(doc, "p", station.heldUntil ? EN_SA_RETENUE : EN_SON_ABSENCE);
-    absente.className = "note";
-    choix.append(absente);
-  }
-  // Hors ligne : depuis quand, et le geste qui la ramène sur sa machine (choix-station/, ticket 3187).
-  if (!station.heldUntil && !station.available) {
-    const ramener = cree(doc, "p", horsLigneDuCompte(station, Date.now()));
-    ramener.className = "note hors-ligne";
-    choix.append(ramener);
-  }
-  const { depots } = etat;
-  if (depots === undefined) {
-    const lecture = ligneVide(doc, LECTURE_DES_DEPOTS);
-    choix.append(lecture);
-  } else if ("refus" in depots) {
-    choix.append(ligneErreur(doc, DEPOTS_ILLISIBLES, depots.refus));
-  }
-  const atteints = depots !== undefined && "depots" in depots ? depots.depots.map(({ depot }) => depot) : [];
-  const cases = casesDe(atteints, station.selection, connusDe(etat));
-  const enRoute = etat.envoi === station.id;
-  if (cases.length === 0 && depots !== undefined && "depots" in depots) {
-    const vide = ligneVide(doc, atteints.length === 0 ? SANS_DEPOT : SANS_PROJET);
-    choix.append(vide);
-  }
-  if (cases.length > 0) {
-    const liste = cree(doc, "div");
-    liste.className = "capacites";
-    /** @type {string[]} */
-    const refus = [];
-    for (const depot of cases) {
-      const cochee = (station.selection ?? []).includes(depot);
-      // Ce que la station en a fait, tant qu'il est coché : une cuisine rejointe, un refus, ou sa réponse attendue.
-      const issue = cochee ? issueDeLAjout(station, depot) : undefined;
-      const attendu = cochee && issue === undefined && etat.attendus?.id === station.id && etat.attendus.depots.includes(depot);
-      const dit = issue?.issue === "rejointe" ? REJOINTE(issue.principale) : issue?.issue === "refusee" ? REFUSEE : attendu ? DEMANDEE : "";
-      if (issue?.issue === "refusee") refus.push(issue.phrase);
-      const coche = caseACocher(doc, { nom: depot, dit, cochee, mono: true }, (voulue) => geste.choisir(station.id, selectionApres(cases, station.selection, depot, voulue)));
-      coche.children[0].disabled = enRoute;
-      if (issue?.issue === "refusee") coche.classList.add("refusee");
-      liste.append(coche);
-    }
-    choix.append(liste);
-    for (const phrase of refus) {
-      choix.append(ligneErreur(doc, phrase, "", { classe: "refus", alerte: true }));
-    }
-  }
-  if (atteints.length > 0) choix.append(rechercheDe(doc, station, atteints, cases, etat, geste));
-  if (enRoute) {
-    const envoi = cree(doc, "p", ENVOI);
-    envoi.className = "note";
-    envoi.role = "status";
-    choix.append(envoi);
-  }
-  if (etat.refus?.id === station.id) choix.append(ligneErreur(doc, etat.refus.refus, etat.refus.detail ?? ""));
-  return choix;
-}
-
-// Le champ qui cherche parmi les autres dépôts du compte, et ce qu'il trouve : un bouton par dépôt, au plus
-// `TROUVES_AU_PLUS`, puis combien d'autres ; ou la ligne qui dit que rien ne correspond. Taper redessine ce qu'il trouve, à
-// sa place, sans toucher au champ : il garde le clavier. Un dépôt cliqué est choisi pour la station.
-/**
- * @param {Fabrique} doc @param {StationEnregistree} station @param {readonly string[]} atteints @param {readonly string[]} cases
- * @param {EtatDuCompte} etat @param {GestesDuCompte} geste
- */
-function rechercheDe(doc, station, atteints, cases, etat, geste) {
-  const bloc = cree(doc, "div");
-  bloc.className = "recherche";
-  const champ = /** @type {HTMLInputElement} */ (cree(doc, "input"));
-  champ.type = "search";
-  champ.ariaLabel = CHERCHER;
-  champ.placeholder = `${CHERCHER} — ${CHERCHER_AIDE}`;
-  champ.autocomplete = "off";
-  champ.spellcheck = false;
-  champ.dataset.recherche = station.id;
-  champ.value = etat.recherche?.id === station.id ? etat.recherche.texte : "";
-  const trouves = cree(doc, "div");
-  trouves.className = "trouves";
-  const enRoute = etat.envoi === station.id;
-  const poser = () => {
-    const texte = champ.value.trim();
-    const tous = trouvesDe(atteints, cases, texte);
-    trouves.replaceChildren(
-      ...tous.slice(0, TROUVES_AU_PLUS).map((depot) => {
-        const bouton = /** @type {HTMLButtonElement} */ (boutonDeLaFamille(doc, "", undefined));
-        bouton.className = "trouve";
-        bouton.ariaLabel = `${AJOUTER} ${depot}`;
-        bouton.title = `serve it on ${station.name}`;
-        bouton.disabled = enRoute;
-        const nom = cree(doc, "span", depot);
-        nom.className = "mono";
-        const ajoute = cree(doc, "span", AJOUTER);
-        ajoute.className = "ajouter";
-        bouton.append(nom, ajoute);
-        bouton.addEventListener("click", () => geste.ajouter(station.id, depot, selectionApres([...cases, depot], station.selection, depot, true)));
-        return bouton;
-      }),
-      ...(tous.length > TROUVES_AU_PLUS ? [cree(doc, "p", ET_ENCORE(tous.length - TROUVES_AU_PLUS))] : []),
-      ...(texte !== "" && tous.length === 0 ? [cree(doc, "p", RIEN_NE_CORRESPOND(texte))] : []),
-    );
-    trouves.hidden = texte === "";
-  };
-  champ.addEventListener("input", () => {
-    geste.chercher(station.id, champ.value);
-    poser();
-  });
-  poser();
-  bloc.append(champ, trouves);
-  return bloc;
 }
 
 // Sans station : la phrase, puis la commande d'installation de chaque système, chacune avec son bouton qui la copie.
