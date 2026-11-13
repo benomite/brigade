@@ -20,7 +20,7 @@ import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { marque } from "../composants/pastille/pastille.js";
 import { ANNULER, CET_ORDINATEUR, ENREGISTREMENT, LECTURE_DE, OUI } from "../lexique.js";
 import { lignesDeCooks } from "../stations-de-cuisson.js";
-import { poserLaJauge } from "../stations-quota/stations-quota.js";
+import { poserLeQuota } from "../stations-quota/stations-quota.js";
 import { poserLesChoix } from "./choix.js";
 import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
 
@@ -46,8 +46,8 @@ import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
  *   `details`     les lignes de « Details » de chaque station, par sa clé (`cleDe`) ; `ouverts` : celles dont « Details » est
  *                 déplié ; `arret.id` : la clé de la station qui s'arrête.
  *   `lecture`     l'écran étroit : il se lit sans rien régler (ticket 1186) — ni geste, ni « Details ».
- *   `quota`       le quota GitHub du compte (`quotaGithub` des faits) : la jauge, en tête, et son détail par station et projet
- *                 (stations-quota/, ticket 3483) ; absent, pas de jauge.
+ *   `quota`       le quota GitHub du compte (`quotaGithub` des faits) : la affiche, en tête, et son détail par station et projet
+ *                 (stations-quota/, ticket 3483) ; absent, pas de quota affiché.
  *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163) ; et,
  *                 quand une station le sert déjà, « Add a station » (ticket 3402).
  * @typedef {{
@@ -305,7 +305,7 @@ export function poserLOngletDesStations(doc, vu, gestes) {
     return racine;
   }
   racine.append(ligneDuHaut(doc, vu, gestes));
-  if (vu.quota !== undefined) racine.append(poserLaJauge(doc, vu.quota));
+  if (vu.quota !== undefined) racine.append(poserLeQuota(doc, vu.quota));
   if (vu.dit !== undefined && vu.dit.texte !== "") {
     const dit = cree(doc, "p", vu.dit.texte);
     dit.className = "dit-des-stations";

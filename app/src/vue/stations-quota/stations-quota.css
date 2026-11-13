@@ -1,6 +1,6 @@
-/* La jauge du quota GitHub (ticket 3483, stations-quota/) : une ligne, une barre, son détail replié. Normale en vert ;
+/* Le quota GitHub affiché (ticket 3483, stations-quota/) : une ligne, une barre, son détail replié. Normale en vert ;
    orange quand le quota est près de manquer — ni le jaune de la pause, ni le rouge d'une panne. Jetons de l'app seulement. */
-.jauge-du-quota {
+.quota-github {
   display: flex;
   flex-direction: column;
   gap: var(--pas-2);
@@ -10,40 +10,40 @@
   border-left: 3px solid var(--vert);
   border-radius: var(--rayon-carte);
 }
-.jauge-du-quota[data-ton="alerte"] {
+.quota-github[data-ton="alerte"] {
   border-left-color: var(--orange);
 }
-.jauge-du-quota[data-ton="illisible"] {
+.quota-github[data-ton="illisible"] {
   border-left-color: var(--gris);
 }
-.jauge-du-quota .quota-ligne {
+.quota-github .quota-ligne {
   display: flex;
   flex-wrap: wrap;
   gap: var(--pas-2);
   margin: 0;
   color: var(--texte);
 }
-.jauge-du-quota .quota-ligne span {
+.quota-github .quota-ligne span {
   color: var(--discret);
 }
-.jauge-du-quota[data-ton="alerte"] .quota-ligne span {
+.quota-github[data-ton="alerte"] .quota-ligne span {
   color: var(--orange);
 }
-.jauge-du-quota .quota-barre {
+.quota-github .quota-barre {
   height: 6px;
   background: var(--case);
   border-radius: var(--rayon-pastille);
   overflow: hidden;
 }
-.jauge-du-quota .quota-rempli {
+.quota-github .quota-rempli {
   width: var(--part, 0%);
   height: 100%;
   background: var(--vert);
 }
-.jauge-du-quota[data-ton="alerte"] .quota-rempli {
+.quota-github[data-ton="alerte"] .quota-rempli {
   background: var(--orange);
 }
-.jauge-du-quota .quota-usage ul {
+.quota-github .quota-usage ul {
   margin: 0;
   padding-left: var(--pas-4);
   color: var(--texte-doux);

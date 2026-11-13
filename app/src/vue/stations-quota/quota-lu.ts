@@ -1,6 +1,6 @@
 // Le quota GitHub du compte, tel que `facts` le porte (runtime, `quotaGithub`, ticket 3483) : absent d'un runtime d'avant ce champ,
-// et alors l'onglet Stations n'a pas de jauge. Présent mais mal formé, il se lit quand même : un nombre qui n'en est pas un
-// devient NaN, que la jauge dit « unavailable » plutôt que d'inventer un chiffre ; une ligne d'usage mal formée est omise.
+// et alors l'onglet Stations n'affiche pas le quota. Présent mais mal formé, il se lit quand même : un nombre qui n'en est pas un
+// devient NaN, que le quota dit « unavailable » plutôt que d'inventer un chiffre ; une ligne d'usage mal formée est omise.
 export type AppelDuQuota = { station: string; projet: string; typeAppel: string; nombre: number };
 export type QuotaGithub = { limite: string; pauseJusqua: string | null; utilise: number; maximum: number; renouvellement: string | null; parStationEtProjet: AppelDuQuota[] };
 

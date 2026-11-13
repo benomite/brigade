@@ -9,4 +9,4 @@ export const APPELS = [
 ];
 
 export const quotaOnglet = (dit: string, utilise: number, appels: typeof APPELS, ouvrir: boolean) =>
-  ongletStations(dit, ouvrir ? [{ cliquer: ".jauge-du-quota summary" }] : [], { limite: "ecriture", pauseJusqua: null, utilise, maximum: 500, renouvellement: "2026-10-13T11:00:00.000Z", parStationEtProjet: appels });
+  ongletStations(dit, ouvrir ? [{ cliquer: ".quota-github summary" }] : [], { limite: "ecriture", pauseJusqua: null, utilise, maximum: 500, renouvellement: "2026-10-13T11:00:00.000Z", parStationEtProjet: appels });

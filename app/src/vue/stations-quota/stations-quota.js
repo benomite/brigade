@@ -1,5 +1,5 @@
 // @ts-check
-// La jauge du quota GitHub du compte, en tête de l'onglet Stations (ticket 3483, épique 3475) : combien est utilisé sur
+// Le quota GitHub affiché du compte, en tête de l'onglet Stations (ticket 3483, épique 3475) : combien est utilisé sur
 // combien, quand la fenêtre se renouvelle, et — d'un clic — ce qui l'use : les appels de la dernière heure, par station et
 // par projet, du plus gros utilisateur au plus petit. Elle vire à l'orange quand le quota est près de manquer, avant toute
 // pause : ni le jaune de la pause, ni le rouge d'une panne. `quotaGithub` vient des faits (runtime) :
@@ -14,7 +14,7 @@ import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 /** @typedef {{ station: string, projet: string, typeAppel: string, nombre: number }} Appel */
 /** @typedef {{ limite: string, pauseJusqua?: string | null, utilise: number, maximum: number, renouvellement?: string | null, parStationEtProjet: readonly Appel[] }} QuotaGithub */
 
-// Au-delà de cette part utilisée, la jauge prévient.
+// Au-delà de cette part utilisée, l'affichage prévient.
 export const SEUIL_D_ALERTE = 0.8;
 export const TITRE = "GitHub quota";
 export const SANS_DONNEES = "No GitHub calls recorded over the last hour.";
@@ -29,9 +29,9 @@ const nombreFini = (/** @type {unknown} */ n) => typeof n === "number" && Number
 const heureHM = (/** @type {string} */ iso) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 const instant = (/** @type {unknown} */ v) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : undefined);
 
-// Ce que la jauge dit, d'après `quotaGithub` : la part utilisée (0 à 1), le ton, la ligne — ou rien qui se lise.
+// Ce que le quota dit, d'après `quotaGithub` : la part utilisée (0 à 1), le ton, la ligne — ou rien qui se lise.
 /** @param {QuotaGithub} quota */
-export function jaugeDe(quota) {
+export function lectureDuQuota(quota) {
   const { utilise, maximum } = quota;
   if (!nombreFini(utilise) || !nombreFini(maximum) || maximum <= 0 || utilise < 0) return { lisible: false };
   const part = Math.min(utilise / maximum, 1);
@@ -65,29 +65,29 @@ function cree(doc, balise, texte) {
 // Le détail que le chef a ouvert reste ouvert d'une lecture à l'autre : l'onglet se repose à chaque lecture.
 let detailOuvert = false;
 
-// La jauge, et son détail replié.
+// La affiche, et son détail replié.
 /** @param {Fabrique} doc @param {QuotaGithub} quota */
-export function poserLaJauge(doc, quota) {
+export function poserLeQuota(doc, quota) {
   const racine = cree(doc, "section");
-  racine.className = "jauge-du-quota";
+  racine.className = "quota-github";
   racine.ariaLabel = TITRE;
-  const jauge = jaugeDe(quota);
-  if (!jauge.lisible) {
+  const affiche = lectureDuQuota(quota);
+  if (!affiche.lisible) {
     racine.dataset.ton = "illisible";
     racine.append(ligneVide(doc, ILLISIBLE, { classe: "quota-illisible" }));
     return racine;
   }
-  racine.dataset.ton = jauge.ton;
+  racine.dataset.ton = affiche.ton;
   const tete = cree(doc, "p");
   tete.className = "quota-ligne";
-  tete.append(cree(doc, "strong", TITRE), cree(doc, "span", `${jauge.ligne} — ${jauge.renouvellement}`));
+  tete.append(cree(doc, "strong", TITRE), cree(doc, "span", `${affiche.ligne} — ${affiche.renouvellement}`));
   const barre = cree(doc, "div");
   barre.className = "quota-barre";
   barre.role = "meter";
   barre.ariaLabel = `${quota.utilise} of ${quota.maximum} GitHub calls used`;
   const rempli = cree(doc, "div");
   rempli.className = "quota-rempli";
-  rempli.style.setProperty("--part", `${Math.round((jauge.part ?? 0) * 100)}%`);
+  rempli.style.setProperty("--part", `${Math.round((affiche.part ?? 0) * 100)}%`);
   barre.append(rempli);
   const lignes = lignesDeLUsage(Array.isArray(quota.parStationEtProjet) ? quota.parStationEtProjet : []);
   const contenu = cree(doc, "div");

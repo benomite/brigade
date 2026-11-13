@@ -5,7 +5,7 @@ process.env.TZ = "UTC";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { quotaLu, type QuotaGithub } from "../../../src/vue/stations-quota/quota-lu.ts";
-import { jaugeDe, lignesDeLUsage, poserLaJauge, SANS_DONNEES, ILLISIBLE } from "../../../src/vue/stations-quota/stations-quota.js";
+import { lectureDuQuota, lignesDeLUsage, poserLeQuota, SANS_DONNEES, ILLISIBLE } from "../../../src/vue/stations-quota/stations-quota.js";
 import { poserLOngletDesStations } from "../../../src/vue/stations-tab/stations-tab.js";
 import { Faux } from "../../aides/fausse-vue.ts";
 
@@ -20,42 +20,42 @@ const APPELS = [
 
 describe("la jauge du quota GitHub", () => {
   test("à 40 % : ton normal, utilisé sur limite et heure de renouvellement", () => {
-    const jauge = poserLaJauge(doc, quota(40));
+    const jauge = poserLeQuota(doc, quota(40));
     assert.equal(jauge.dataset.ton, "normal");
     assert.match(trouve(jauge, "quota-ligne")!.textContent, /40 \/ 100 calls used \(writes\).*renews around 18:00/);
     assert.equal(trouve(jauge, "quota-rempli")!.style.getPropertyValue("--part"), "40%");
   });
 
   test("à 90 % : ton d'avertissement, ni le jaune de la pause ni le rouge", () => {
-    const jauge = poserLaJauge(doc, quota(90));
+    const jauge = poserLeQuota(doc, quota(90));
     assert.equal(jauge.dataset.ton, "alerte");
-    assert.equal(poserLaJauge(doc, quota(79)).dataset.ton, "normal");
-    assert.equal(poserLaJauge(doc, quota(80)).dataset.ton, "alerte");
+    assert.equal(poserLeQuota(doc, quota(79)).dataset.ton, "normal");
+    assert.equal(poserLeQuota(doc, quota(80)).dataset.ton, "alerte");
   });
 
   test("le détail liste les appels en mots, du plus gros utilisateur au plus petit", () => {
     assert.deepEqual(lignesDeLUsage(APPELS), ["Mac station, secondes: 39 writes on issues", "Mac station, parade: 12 writes on comments", "Linux box, parade: 5 reads on pull requests"]);
-    const jauge = poserLaJauge(doc, quota(40, APPELS));
+    const jauge = poserLeQuota(doc, quota(40, APPELS));
     const lignes = trouve(jauge, "quota-usage")!.children[0]!.children.map((li: Faux) => li.textContent);
     assert.equal(lignes[0], "Mac station, secondes: 39 writes on issues");
     assert.ok(trouve(jauge, "replie"), "le détail est replié derrière la jauge");
   });
 
   test("un détail vide dit qu'il n'y a pas de données, pas une boîte vide", () => {
-    const vide = trouve(poserLaJauge(doc, quota(40)), "quota-sans-donnees")!;
+    const vide = trouve(poserLeQuota(doc, quota(40)), "quota-sans-donnees")!;
     assert.equal(vide.textContent, SANS_DONNEES);
     assert.equal(vide.dataset.ligne, "vide");
   });
 
   test("un compte illisible se dit sans chiffre inventé", () => {
     for (const mauvais of [{ ...quota(40), maximum: 0 }, { ...quota(40), utilise: Number.NaN }, { ...quota(40), maximum: Number.NaN }]) {
-      assert.equal(jaugeDe(mauvais).lisible, false);
-      const jauge = poserLaJauge(doc, mauvais);
+      assert.equal(lectureDuQuota(mauvais).lisible, false);
+      const jauge = poserLeQuota(doc, mauvais);
       assert.equal(jauge.dataset.ton, "illisible");
       assert.equal(trouve(jauge, "quota-illisible")!.textContent, ILLISIBLE);
       assert.equal(trouve(jauge, "quota-rempli"), undefined);
     }
-    assert.match(jaugeDe({ ...quota(40), renouvellement: "n'importe quoi" }).renouvellement!, /unknown/);
+    assert.match(lectureDuQuota({ ...quota(40), renouvellement: "n'importe quoi" }).renouvellement!, /unknown/);
   });
 });
 
@@ -65,7 +65,7 @@ describe("le quota des faits", () => {
     assert.deepEqual(quotaLu([]), {});
     const lu = quotaLu({ limite: "core", utilise: "beaucoup", maximum: 5000, parStationEtProjet: [{ station: "x" }, ...APPELS] }).quotaGithub!;
     assert.equal(lu.parStationEtProjet.length, 3);
-    assert.equal(jaugeDe(lu).lisible, false);
+    assert.equal(lectureDuQuota(lu).lisible, false);
     assert.equal(quotaLu({ limite: "core", utilise: 4500, maximum: 5000, renouvellement: "2026-11-13T18:00:00Z", parStationEtProjet: [] }).quotaGithub!.utilise, 4500);
   });
 
@@ -73,7 +73,7 @@ describe("le quota des faits", () => {
     const base = { projet: "parade", poste: "this Mac", lues: true, haut: { etat: "personne", vert: false } as never, servantes: [], deplacable: { offert: false, pourquoi: "" }, details: new Map<string, never[]>(), ouverts: new Set<string>() };
     const gestes = {} as never;
     const avec = poserLOngletDesStations(doc, { ...base, quota: quota(90, APPELS) }, gestes);
-    assert.equal(trouve(avec, "jauge-du-quota")!.dataset.ton, "alerte");
-    assert.equal(trouve(poserLOngletDesStations(doc, base, gestes), "jauge-du-quota"), undefined);
+    assert.equal(trouve(avec, "quota-github")!.dataset.ton, "alerte");
+    assert.equal(trouve(poserLOngletDesStations(doc, base, gestes), "quota-github"), undefined);
   });
 });
