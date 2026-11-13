@@ -72,6 +72,9 @@ export type PR = {
   // Sa branche ne se fusionne pas avec la base : un conflit, que seul un cook résout.
   enConflit?: boolean;
   mergeePar: string | null;
+  // Le commit que son merge a posé sur la base (`merge_commit_sha`) : seul
+  // `prQuiFerme` le lit, pour l'annulation d'un ticket servi (undo/, #3274).
+  commitDeMerge?: string;
   // Ce qui change dès que GitHub change quoi que ce soit à la PR — sa tête, sa
   // base, ce qu'il dit de sa fusion — : l'ETag de sa fiche. Absent s'il n'en
   // donne pas.
@@ -212,6 +215,22 @@ export type GitHub = {
   fermerIssue(numero: number): Promise<void>;
   // Ferme une PR sans toucher à sa branche. Facultatif : seul le client réel le porte.
   fermerPR?(numero: number): Promise<void>;
+  // Ce que l'annulation d'un ticket servi écrit (undo/, #3274), facultatif :
+  // seul le client réel le porte. Rouvrir une issue fermée.
+  rouvrirIssue?(numero: number): Promise<void>;
+  // Un commit tel que l'API Git le garde : son arbre et ses parents, dans
+  // leur ordre ; null si GitHub ne le connaît pas.
+  commitGit?(sha: string): Promise<{ arbre: string; parents: string[] } | null>;
+  // Crée un commit sur `arbre`, fils de `parents`, posé sur aucune branche ;
+  // rend son sha.
+  creerCommit?(commit: { message: string; arbre: string; parents: string[] }): Promise<string>;
+  // Crée la branche `branche` sur le commit `sha`.
+  creerBranche?(branche: string, sha: string): Promise<void>;
+  // Fusionne le commit `sha` dans `branche`, chez GitHub : le sha du commit de
+  // fusion, ou `conflit` quand les deux ne se fusionnent pas sans conflit.
+  fusionnerDansLaBranche?(branche: string, sha: string, message: string): Promise<{ sha: string } | { conflit: true }>;
+  // Supprime une branche ; une branche qui n'existe pas n'est pas une erreur.
+  supprimerBranche?(branche: string): Promise<void>;
   // La PR mergée qui a fermé cette issue (`Closes #n`), ou null si rien ne dit
   // qu'une PR l'ait fermée.
   prQuiFerme(numero: number): Promise<PR | null>;
@@ -385,6 +404,7 @@ type PRBrute = {
   base: { ref: string };
   head: { sha: string };
   merged_by?: { login?: string } | null;
+  merge_commit_sha?: string | null;
 };
 
 // Ce que `/brigade:init` pose toujours dans le dépôt (commands/init.md) : la PR qui l'a posé est la sienne.
@@ -428,7 +448,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -675,7 +695,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       if (!mergee) return null;
       const fiche = `repos/${depot}/pulls/${mergee.number}`;
       const brute = JSON.parse(exiger(await lireSousCondition([fiche]), fiche).corps) as PRBrute;
-      return { number: brute.number, url: brute.html_url, base: brute.base.ref, sha: brute.head.sha, state: brute.state, merged: true, enRetard: false, mergeePar: brute.merged_by?.login || null };
+      return { number: brute.number, url: brute.html_url, base: brute.base.ref, sha: brute.head.sha, state: brute.state, merged: true, enRetard: false, mergeePar: brute.merged_by?.login || null, ...(brute.merge_commit_sha ? { commitDeMerge: brute.merge_commit_sha } : {}) };
     },
     async commenter(numero, corps) {
       await creer(`repos/${depot}/issues/${numero}/comments`, { body: corps });
@@ -905,6 +925,43 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async fermerPR(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;
       exiger(await appeler(["-X", "PATCH", "-f", "state=closed", chemin]), chemin);
+    },
+    async rouvrirIssue(numero) {
+      const chemin = `repos/${depot}/issues/${numero}`;
+      exiger(await appeler(["-X", "PATCH", "-f", "state=open", chemin]), chemin);
+    },
+    async commitGit(sha) {
+      const chemin = `repos/${depot}/git/commits/${encodeURIComponent(sha)}`;
+      const reponse = await lireSousCondition([chemin]);
+      if (reponse.statut === 404 || reponse.statut === 422) return null;
+      const { tree, parents } = JSON.parse(exiger(reponse, chemin).corps) as { tree?: { sha?: unknown }; parents?: Array<{ sha?: unknown }> };
+      if (typeof tree?.sha !== "string" || !Array.isArray(parents) || parents.some((parent) => typeof parent.sha !== "string")) throw new Error(`gh api ${chemin} : commit illisible`);
+      return { arbre: tree.sha, parents: parents.map((parent) => parent.sha as string) };
+    },
+    async creerCommit({ message, arbre, parents }) {
+      const chemin = `repos/${depot}/git/commits`;
+      const reponse = exiger(await appeler(["-X", "POST", "-f", `message=${message}`, "-f", `tree=${arbre}`, ...parents.flatMap((parent) => ["-f", `parents[]=${parent}`]), chemin]), chemin, 201);
+      const { sha } = JSON.parse(reponse.corps) as { sha?: unknown };
+      if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${chemin} : commit créé sans sha`);
+      return sha;
+    },
+    async creerBranche(branche, sha) {
+      await creer(`repos/${depot}/git/refs`, { ref: `refs/heads/${branche}`, sha });
+    },
+    async fusionnerDansLaBranche(branche, sha, message) {
+      // 201 : fusionnés ; 409 : en conflit, rien n'est écrit. 204 — rien à
+      // fusionner — ne dit pas de commit : c'est une erreur pour qui fusionne.
+      const chemin = `repos/${depot}/merges`;
+      const reponse = await appeler(["-X", "POST", "-f", `base=${branche}`, "-f", `head=${sha}`, "-f", `commit_message=${message}`, chemin]);
+      if (reponse.statut === 409) return { conflit: true };
+      const { sha: fusion } = JSON.parse(exiger(reponse, chemin, 201).corps) as { sha?: unknown };
+      if (typeof fusion !== "string" || fusion === "") throw new Error(`gh api ${chemin} : fusion sans sha`);
+      return { sha: fusion };
+    },
+    async supprimerBranche(branche) {
+      const chemin = `repos/${depot}/git/refs/heads/${branche.split("/").map(encodeURIComponent).join("/")}`;
+      const reponse = await appeler(["-X", "DELETE", chemin]);
+      if (reponse.statut !== 404 && reponse.statut !== 422) exiger(reponse, chemin, 204);
     },
     identite: async () => (options.identite ? options.identite() : null),
     async droits() {

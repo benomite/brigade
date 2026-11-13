@@ -101,6 +101,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | — | `explanations` | The explanations of the kitchen's words a chef has seen in the app, kept per chef (#3308) | `--chef <login>`, `seen <word> --chef <login>`, `reset --chef <login>` — new, with no old name |
 | — | `design` | A green design delivery held for the chef's validation (#3184) | `validate <owner>/<repo>#<PR>`, `send-back <owner>/<repo>#<PR> --comment <what to change>` — new, with no old name |
 | — | `sensitive` | A green delivery of a ticket labelled `sensitive`, held on its `review before merge` card (#3223) | `merge <owner>/<repo>#<PR>`, `send-back <owner>/<repo>#<PR> --note <note>` — new, with no old name |
+| — | `undo` | A served ticket undone from its card (#3274): a pull request reverts its merge and goes through the pass like any delivery, and the ticket is reopened | `<owner>/<repo>#<ticket>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
