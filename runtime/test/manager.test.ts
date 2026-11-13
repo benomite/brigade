@@ -10,6 +10,8 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { empreinte, MARQUEUR_MANAGER } from "../src/juger.ts";
 import { MARQUE_DE_COMPLETION } from "../src/manager/verdict-incomplet.ts";
 import { MARQUE_DU_TRI } from "../src/issue-etrangere/issue-etrangere.ts";
+import { MARQUE_DE_LA_ROADMAP } from "../src/manager/roadmap.ts";
+import { cartesEnTodo } from "../src/carte-todo.ts";
 import { DEBUT, FIN } from "../src/epique.ts";
 import { configManager, MANAGER } from "../src/manager.ts";
 import { attentesDuChef } from "../src/attend.ts";
@@ -27,10 +29,12 @@ import { aArreter, jusqua, repertoireTemporaire } from "./outils.ts";
 function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
   const c = cuisine(t, { ...options, manager: options.manager ?? {} });
   if (!options.eteint) chef(c.repertoire, "manager.enabled");
-  // Une complétion d'issue incomplète (#2692), ni le tri de l'issue d'un auteur sans l'écriture (#2934), ne sont
-  // des jugements : ils ont leurs tests.
+  // Une complétion d'issue incomplète (#2692), le tri de l'issue d'un auteur sans l'écriture (#2934), ni la lecture
+  // de la roadmap (#3436), ne sont des jugements : ils ont leurs tests.
   const jugements = () =>
-    c.lancements().filter((lancement) => lancement.args.includes("--tools") && ![MARQUE_DE_COMPLETION, MARQUE_DU_TRI].some((marque) => (lancement.args[1] ?? "").startsWith(marque)));
+    c.lancements().filter((lancement) => lancement.args.includes("--tools") && ![MARQUE_DE_COMPLETION, MARQUE_DU_TRI, MARQUE_DE_LA_ROADMAP].some((marque) => (lancement.args[1] ?? "").startsWith(marque)));
+  // Les lectures de la roadmap (#3436).
+  const lecturesDeRoadmap = () => c.lancements().filter((lancement) => (lancement.args[1] ?? "").startsWith(MARQUE_DE_LA_ROADMAP));
   // Ce que le manager a dit sur une issue.
   const dits = (numero: number) => c.gh.commentaires.filter(([n, corps]) => n === numero && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);
   const faits = (numero: number) => c.journal.duTicket(numero).filter((e) => e.type.startsWith("manager."));
@@ -75,7 +79,7 @@ function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
       await jusqua(() => c.gh.sondages.ouvertes > depart);
     }
   };
-  return { ...c, jugements, dits, faits, labels, laisserReveiller, laisserTourner };
+  return { ...c, jugements, lecturesDeRoadmap, dits, faits, labels, laisserReveiller, laisserTourner };
 }
 
 // Ce que ferait `manager -- rendre <n°>` depuis son propre process.
@@ -411,7 +415,8 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(jugements().map((l) => /^Tu es le manager.*Le chef a posé `blocked-on-human`/.test(l.args[1] ?? "")), [true]);
     assert.equal(journal.duTicket(5).filter((e) => e.type === "manager.judged").length, 0);
     const ecarts = [1, 3, 4, 5].map((numero) => {
-      const ecart = journal.duTicket(numero).filter((e) => e.type.startsWith("manager.") && e.type !== "manager.requalified");
+      // La roadmap est aussi lue pour le travail séparé qu'elle porte (#3436) : ses tests sont plus bas.
+      const ecart = journal.duTicket(numero).filter((e) => e.type.startsWith("manager.") && e.type !== "manager.requalified" && !e.type.startsWith("manager.roadmap-"));
       assert.equal(ecart.length, 1, `#${numero} : un seul fait`);
       assert.deepEqual(dits(numero), []);
       assert.ok(!labels(numero).includes("fire"));
@@ -428,6 +433,131 @@ describe("le manager", { concurrency: 8 }, () => {
   test("sans roadmap déclarée, aucune issue n'est écartée à ce titre", async (t) => {
     const { jugements } = brigade(t, { issues: [issue(1, [])] });
     await jusqua(() => jugements().length === 1);
+  });
+
+  // BOBL-tech/espace#1 (« Roadmap ») : le `CLAUDE.md` la nommait, le manager l'a jugée `decision` et a demandé au chef
+  // de confirmer qu'elle restait un document de suivi (#3436).
+  const ROADMAP = "Phase 1: the design system.\n\nObservation: `_ds_manifest.json` is committed but no longer matches the design system.";
+
+  test("la roadmap que les bindings nomment est écartée avant tout jugement : ni `decision`, ni carte, ni chef (#3436)", async (t) => {
+    const { gh, journal, jugements, lecturesDeRoadmap, faits, labels, laisserTourner } = brigade(t, {
+      manager: { roadmapDuDepot: () => 1, jugement: "juge-decision", suite: ["roadmap-rien"] },
+      issues: [issue(1, [])],
+    });
+    gh.decrire(1, { body: ROADMAP });
+
+    await jusqua(() => faits(1).some((e) => e.type === "manager.roadmap-read"));
+    await laisserTourner();
+
+    // Jugée, elle aurait reçu `decision` : elle n'est que lue, pour le travail séparé qu'elle porterait.
+    assert.equal(jugements().length, 0);
+    assert.equal(lecturesDeRoadmap().length, 1);
+    assert.deepEqual(faits(1).map((e) => [e.type, e.type === "manager.set-aside" ? charge(e)?.reason : charge(e)?.outcome]), [
+      ["manager.set-aside", "roadmap"],
+      ["manager.roadmap-read", "none"],
+    ]);
+    assert.deepEqual(labels(1), []);
+    assert.deepEqual(gh.labellisations, []);
+    assert.deepEqual(cartesEnTodo(journal.base), []);
+    // Rien n'est dit sur la roadmap : aucun commentaire, donc aucune mention du chef.
+    assert.deepEqual(gh.commentaires.filter(([numero]) => numero === 1), []);
+    assert.deepEqual(gh.creations, []);
+  });
+
+  test("la roadmap qui porte `decision` et une carte de TODO en est guérie au premier tour, sans geste du chef (#3436)", async (t) => {
+    const { gh, journal, faits, labels, laisserTourner } = brigade(t, { manager: { roadmapDuDepot: () => 1, jugement: "roadmap-rien" }, issues: [issue(1, ["decision"])] });
+    gh.decrire(1, { body: ROADMAP });
+    // L'état d'espace#1 : jugée `decision`, sa question posée au chef, une carte de TODO.
+    journal.ajouter({ project: "brigade", ticket: 1, author: "manager", type: "todo.entered", payload: { kind: "product", summary: "The roadmap.", statement: "Is the roadmap still a tracking document?", choices: [{ text: "Yes", then: "resume" }], captures: null } });
+    assert.equal(cartesEnTodo(journal.base).length, 1);
+
+    await jusqua(() => faits(1).some((e) => e.type === "manager.roadmap-cleared"));
+    await laisserTourner();
+
+    assert.deepEqual(labels(1), []);
+    assert.deepEqual(gh.delabellisations, [[1, "decision"]]);
+    assert.deepEqual(cartesEnTodo(journal.base), []);
+    assert.deepEqual(charge(faits(1).find((e) => e.type === "manager.roadmap-cleared")), { labels: ["decision"], card: true });
+    // Aucun geste du chef n'y a pris part : tout est du manager.
+    assert.deepEqual(journal.duTicket(1).filter((e) => e.author === "chef"), []);
+    assert.deepEqual(gh.commentaires.filter(([numero]) => numero === 1), []);
+    assert.deepEqual(gh.labellisations, []);
+  });
+
+  test("le travail séparé que la roadmap porte s'ouvre en issue, que le manager juge comme toute autre ; la roadmap reste telle quelle (#3436)", async (t) => {
+    const { gh, journal, jugements, lecturesDeRoadmap, faits, labels, laisserTourner } = brigade(t, {
+      manager: { roadmapDuDepot: () => 1, jugement: "juge-ticket", suite: ["roadmap-travail"] },
+      issues: [issue(1, [])],
+    });
+    gh.decrire(1, { body: ROADMAP });
+
+    await jusqua(() => labels(501).includes("fire"));
+    await laisserTourner();
+
+    assert.deepEqual(gh.creations, [501]);
+    assert.equal(gh.lire(501)?.title, "Stop committing the stale _ds_manifest.json");
+    assert.match(gh.corpsDe(501), /_ds_manifest\.json is committed but no longer matches/);
+    assert.match(gh.corpsDe(501), /Spotted by the manager in the roadmap #1, which stays a tracking document\./);
+    // Le chemin ordinaire de la cuisine : née sans label, jugée, lancée et calibrée.
+    assert.deepEqual(labels(501), ["fire", "model:haiku", "effort:low"]);
+    assert.equal(jugements().length, 1);
+    assert.equal(lecturesDeRoadmap().length, 1);
+    assert.deepEqual(charge(faits(1).find((e) => e.type === "manager.roadmap-filed"))?.issue, 501);
+    // Aucune question au chef, et la roadmap n'est pas touchée.
+    assert.deepEqual(labels(1), []);
+    assert.deepEqual(gh.commentaires.filter(([numero]) => numero === 1), []);
+    assert.deepEqual(cartesEnTodo(journal.base), []);
+    assert.ok(!journal.tout().some((e) => e.type === "manager.judged" && e.ticket === 1));
+  });
+
+  test("une issue de la roadmap dont GitHub a perdu la réponse est retrouvée, pas ouverte deux fois (#3436)", async (t) => {
+    const { gh, faits, laisserTourner } = brigade(t, { manager: { roadmapDuDepot: () => 1, jugement: "juge-ticket", suite: ["roadmap-travail"] }, issues: [issue(1, [])] });
+    gh.decrire(1, { body: ROADMAP });
+    gh.pannes.apresCreation = true;
+
+    await jusqua(() => faits(1).some((e) => e.type === "manager.roadmap-filed"));
+    await laisserTourner();
+
+    assert.deepEqual(gh.creations, [501]);
+    assert.deepEqual(faits(1).filter((e) => e.type === "manager.roadmap-filed").map((e) => charge(e)?.issue), [501]);
+  });
+
+  test("une lecture illisible de la roadmap n'ouvre rien, et ne se refait qu'à son prochain état (#3436)", async (t) => {
+    const { gh, faits, lecturesDeRoadmap, avertissements, laisserTourner } = brigade(t, { manager: { roadmapDuDepot: () => 1, jugement: "juge-illisible" }, issues: [issue(1, [])] });
+    gh.decrire(1, { body: ROADMAP });
+
+    await jusqua(() => faits(1).some((e) => e.type === "manager.roadmap-read"));
+    await laisserTourner();
+
+    assert.equal(charge(faits(1).find((e) => e.type === "manager.roadmap-read"))?.outcome, "unreadable");
+    assert.equal(lecturesDeRoadmap().length, 1);
+    assert.deepEqual(gh.creations, []);
+    assert.ok(avertissements.some((dit) => dit.includes("lecture illisible de la roadmap #1")), avertissements.join("\n"));
+  });
+
+  test("tant que la ligne « Roadmap » ne s'est jamais lue, rien ne se juge ; lue, la roadmap est écartée et le reste jugé (#3436)", async (t) => {
+    let lisible = false;
+    const { faits, jugements, avertissements, laisserTourner } = brigade(t, {
+      manager: {
+        roadmapDuDepot: () => {
+          if (!lisible) throw new Error("git ls-tree : fatal");
+          return 1;
+        },
+        jugement: "juge-ticket",
+      },
+      issues: [issue(1, []), issue(30, [])],
+    });
+
+    await laisserTourner();
+    assert.equal(jugements().length, 0);
+    assert.deepEqual(faits(1), []);
+    assert.equal(avertissements.filter((dit) => dit.includes("la ligne « Roadmap » du `CLAUDE.md` n'a pas pu se lire")).length, 1, avertissements.join("\n"));
+
+    lisible = true;
+    await laisserTourner();
+    await jusqua(() => faits(30).some((e) => e.type === "manager.judged") && faits(1).some((e) => e.type === "manager.roadmap-read"));
+    assert.equal(charge(faits(1)[0])?.reason, "roadmap");
+    assert.ok(!faits(1).some((e) => e.type === "manager.judged"));
   });
 
   test("une issue retenue par le chef est jugée dès qu'il la libère", async (t) => {
@@ -1014,8 +1144,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.deepEqual(faits(3).map((e) => e.type), ["manager.set-aside", "manager.closed"]);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.failed", "manager.commented", "manager.closed"]);
-    // La roadmap, écartée elle aussi, est toujours ouverte.
-    assert.deepEqual(faits(1).map((e) => e.type), ["manager.set-aside"]);
+    // La roadmap, écartée elle aussi, est toujours ouverte — et lue une fois pour son travail séparé (#3436).
+    assert.deepEqual(faits(1).map((e) => e.type), ["manager.set-aside", "manager.roadmap-read"]);
 
     gh.poser(issue(3, ["question"]));
     gh.poser(issue(30, []));

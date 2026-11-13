@@ -582,6 +582,20 @@ FIN
 {"issue":"enoncee","motif":"The body says the provider must be chosen."}
 FIN
       ;;
+    # La lecture de la roadmap (#3436) : un travail séparé s'y est glissé — l'observation du `_ds_manifest.json`
+    # d'espace#1 —, ou aucun.
+    roadmap-travail)
+      assistant
+      resultat <<'FIN'
+{"travaux":[{"titre":"Stop committing the stale _ds_manifest.json","corps":"The roadmap notes that _ds_manifest.json is committed but no longer matches the design system. Remove it from the repository and ignore it; a test checks it is not tracked."}]}
+FIN
+      ;;
+    roadmap-rien)
+      assistant
+      resultat <<'FIN'
+{"travaux":[]}
+FIN
+      ;;
     juge-illisible)
       assistant
       resultat <<'FIN'

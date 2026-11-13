@@ -458,7 +458,8 @@ export type Options = {
   // `station` : le nom sous lequel il prend son travail sur GitHub (#2568) ;
   // sans lui, il se croit seul.
   // `surLeRail` : appelé quand le manager rend un ticket prenable (#2796).
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; humains?: () => Humain[] };
+  // `roadmapDuDepot` : la roadmap que les bindings du dépôt nomment (#3436).
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; humains?: () => Humain[]; roadmapDuDepot?: () => number | null };
   // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
@@ -559,6 +560,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         station: options.manager.station ?? null,
         ...(options.manager.surLeRail === undefined ? {} : { surLeRail: options.manager.surLeRail }),
         ...(options.manager.humains === undefined ? {} : { humains: options.manager.humains }),
+        ...(options.manager.roadmapDuDepot === undefined ? {} : { roadmapDuDepot: options.manager.roadmapDuDepot }),
       })
     : garde;
   aArreter = runtime;

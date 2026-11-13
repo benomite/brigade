@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancheDuClaudeMd, depotDeLOrigine, ecrireReglagesProjet, FICHIER, lireReglagesProjet, ReglageRefuse, type Motif, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
+import { brancheDuClaudeMd, depotDeLOrigine, roadmapDuClaudeMd, ecrireReglagesProjet, FICHIER, lireReglagesProjet, ReglageRefuse, type Motif, type ReglagesProjet } from "../../src/reglages-projet/reglages.ts";
 import { git, repertoireTemporaire } from "../outils.ts";
 
 // Un clone du projet dont l'origine est sur github.com : lire son adresse ne
@@ -80,6 +80,14 @@ test("the CLAUDE.md line is read with or without its markup, and an unreadable b
   assert.equal(brancheDuClaudeMd("- **Branche d’intégration** : main"), "main");
   assert.equal(brancheDuClaudeMd("- **Worktrees** : `v2`"), null);
   assert.equal(brancheDuClaudeMd("- **Branche d'intégration** : `a..b`"), null);
+});
+
+test("the CLAUDE.md Roadmap line gives its issue number, as `/brigade:init` writes it or bare (#3436)", () => {
+  assert.equal(roadmapDuClaudeMd("- **Roadmap** : issue #1 (writer unique = Manager)"), 1);
+  assert.equal(roadmapDuClaudeMd("Roadmap: #42"), 42);
+  assert.equal(roadmapDuClaudeMd("- **Roadmap** : `#7`"), 7);
+  assert.equal(roadmapDuClaudeMd("- **Roadmap** : none yet"), null);
+  assert.equal(roadmapDuClaudeMd("- **Doc vivante** : `docs/` — see issue #1"), null);
 });
 
 test("the old `githubOnlyState` switch is accepted and ignored: a file carrying it stays readable, and nothing reads it back (#2061)", async (t) => {
