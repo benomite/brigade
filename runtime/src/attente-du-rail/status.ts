@@ -5,6 +5,8 @@
 // ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni `waiting`, ni mise de côté), pris, ou en pass — un
 // `in-pass` est compté en pass sans relire sa PR. Une lecture qui échoue le dit sur la même ligne : jamais une file dite
 // calme faute de l'avoir lue.
+import type { Base } from "../base.ts";
+import { cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees } from "../projections/stations.ts";
 import { porteListe } from "../epique.ts";
 import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-compte.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
@@ -46,8 +48,9 @@ const TITRE = "queue wait";
 const nonLue = (depot: string, raison: string) => `${TITRE.padEnd(11)}not checked: the rail of ${depot} could not be read on GitHub — ${raison}`;
 
 // Les lignes, d'après ce que `lire` rend de GitHub et les stations lues : aucune quand rien n'attend ou qu'un cook tourne.
-export async function lignesDeLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number }): Promise<string[]> {
-  const { depot, lire, maintenant } = options;
+// `plafondAtteint` : la station locale a pris tous ses cooks (`plafondAtteintDeLaStation`), ce que GitHub ne publie pas.
+export async function lignesDeLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean }): Promise<string[]> {
+  const { depot, lire, maintenant, plafondAtteint = false } = options;
   let tickets: TicketDuRail[];
   try {
     tickets = await lireLeRailEnFile({ depot, lire });
@@ -57,13 +60,24 @@ export async function lignesDeLAttente(options: { depot: string; lire: Lire; sta
   const cartes = lignesDesCartes(tickets);
   // Rien en file, ou un cook qui tourne : les stations n'ont rien à dire, elles ne se lisent pas.
   if (!tickets.some(({ etat }) => etat === "queued") || tickets.some(({ etat }) => etat === "taken")) return lignesDeStatus(null, cartes);
-  // GitHub ne publie pas le plafond de cooks de la station : il n'est jamais la raison d'une file lue ici.
-  const attente = expliquerLAttente({ depot, tickets, stations: await options.stations(), plafondAtteint: false, maintenant });
+  const attente = expliquerLAttente({ depot, tickets, stations: await options.stations(), plafondAtteint, maintenant });
   return lignesDeStatus(attente?.phrase ?? null, cartes);
 }
 
-// Ce que `status` ajoute : rien hors d'une station GitHub seul, ou sans dépôt nommé.
-export async function attenteDuRailDuStatus(env: Record<string, string | undefined>, maintenant: Date): Promise<string[]> {
+// Le plafond de cooks est-il atteint ? Chaque station annoncée par le journal local qui a un plafond fait tourner autant de cooks
+// qu'il en permet, et il y en a au moins une : sans plafond (nul) ou sans station annoncée, il ne l'est pas.
+export function plafondAtteintDeLaStation(base: Base): boolean {
+  const plafonnees = stationsAnnoncees(base).flatMap((station) => {
+    const etat = etatStation(base, station);
+    const plafond = etat === null ? null : plafondDeCooks(etat);
+    return plafond === null ? [] : [{ station, plafond }];
+  });
+  return plafonnees.length > 0 && plafonnees.every(({ station, plafond }) => cooksEnCoursDeStation(base, station).length >= plafond);
+}
+
+// Ce que `status` ajoute : rien hors d'une station GitHub seul (le rail n'est lu sur GitHub que là, comme le rail bloqué de
+// #3358), ou sans dépôt nommé.
+export async function attenteDuRailDuStatus(env: Record<string, string | undefined>, maintenant: Date, base: Base): Promise<string[]> {
   const depot = env.BRIGADE_GITHUB_REPO;
   if (!depot || lireGitHubSeul(env.BRIGADE_STATE_DIR)?.etat !== "accepted") return [];
   const gh = env.BRIGADE_GH_BIN || "gh";
@@ -77,7 +91,7 @@ export async function attenteDuRailDuStatus(env: Record<string, string | undefin
     const lues = await lireLesStationsDuCompte({ gh, env: env as NodeJS.ProcessEnv, maintenant: () => maintenant.getTime() });
     return lues.state === "listed" ? { lues: lues.stations } : { illisibles: lues.reason };
   };
-  return lignesDeLAttente({ depot, lire, stations, maintenant: maintenant.getTime() });
+  return lignesDeLAttente({ depot, lire, stations, maintenant: maintenant.getTime(), plafondAtteint: plafondAtteintDeLaStation(base) });
 }
 
 // Les lignes de `status`, posées juste au-dessus de la ligne `rail` — la file —, ou à la fin sans elle.

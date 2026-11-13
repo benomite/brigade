@@ -15,7 +15,8 @@ export type LignesDesCartes = Record<number, string>;
 const RAISONS: readonly Raison[] = ["aucune-station", "arretee", "hors-ligne", "quota-github", "plafond", "pass", "autre-ticket", "normale"];
 const GESTES: readonly Geste[] = ["demarrer-la-station", "ajouter-a-une-station"];
 
-// GitHub ne publie pas le plafond de cooks de la station : il n'est jamais la raison d'un rail lu ici.
+// GitHub ne publie pas le plafond de cooks de la station : le rail de l'app ne peut pas dire la raison 5 (la file se lit sur GitHub),
+// seul `brigade <project> status`, qui tourne sur la station, la dit. L'app ne la devine jamais.
 export function attenteDuRailDe(depot: string, tickets: readonly TicketDuRail[], stations: StationsLues, maintenant: number): { attenteDuRail?: AttenteDuRail; lignesDesCartes?: LignesDesCartes } {
   const attente = expliquerLAttente({ depot, tickets, stations, plafondAtteint: false, maintenant });
   const cartes = lignesDesCartes(tickets);

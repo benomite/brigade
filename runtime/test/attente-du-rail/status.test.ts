@@ -18,6 +18,11 @@ const aucune = async () => ({ lues: [] });
 const enLigne = async () => ({ lues: [{ name: "box", lastSeen: new Date(MAINTENANT - 30_000).toISOString(), stoppedAt: null, refreshMs: 120_000, selection: [DEPOT] }] });
 
 describe("les lignes de l'attente de la file", () => {
+  test("le plafond de cooks atteint (dit par l'appelant) : la phrase de la raison 5, après les stations en ligne", async () => {
+    const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: [issue(4, ["fire"])] }), stations: enLigne, maintenant: MAINTENANT, plafondAtteint: true });
+    assert.deepEqual(lignes, ["queue wait The station has reached its cook cap: a cook starts as soon as a place frees up. It resolves by itself."]);
+  });
+
   test("des tickets en file, aucune station : la phrase de la raison 1, puis la ligne de chaque carte qui attend", async () => {
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: [issue(4, ["fire"]), issue(5, ["fire"], "Depends on #4")] }), stations: aucune, maintenant: MAINTENANT });
     assert.deepEqual(lignes, ["queue wait No station serves this project, so no cook can start. Add the project to a station.", "  #5  after #4"]);
@@ -86,11 +91,12 @@ describe("`status` d'une station GitHub seul", () => {
 
   test("hors d'une station GitHub seul, ou sans dépôt nommé : aucune ligne, et `gh` n'est pas appelé", async (t) => {
     const repertoire = repertoireTemporaire(t);
-    ouvrirJournal(repertoire).fermer();
+    const journal = ouvrirJournal(repertoire);
+    t.after(() => journal.fermer());
     const gh = fauxGh(t);
-    assert.deepEqual(await attenteDuRailDuStatus({ BRIGADE_STATE_DIR: repertoire, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin }, new Date(MAINTENANT)), []);
+    assert.deepEqual(await attenteDuRailDuStatus({ BRIGADE_STATE_DIR: repertoire, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin }, new Date(MAINTENANT), journal.base), []);
     noterGitHubSeul(repertoire, { etat: "accepted" });
-    assert.deepEqual(await attenteDuRailDuStatus({ BRIGADE_STATE_DIR: repertoire, BRIGADE_GH_BIN: gh.bin }, new Date(MAINTENANT)), []);
+    assert.deepEqual(await attenteDuRailDuStatus({ BRIGADE_STATE_DIR: repertoire, BRIGADE_GH_BIN: gh.bin }, new Date(MAINTENANT), journal.base), []);
     assert.deepEqual(gh.appels(), []);
   });
 });
