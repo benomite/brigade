@@ -21,7 +21,7 @@ import { attentesDuChef } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
 import type { Journal } from "../journal.ts";
-import { dernierRefusDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, retenueDeLaStation } from "../limite-github.ts";
+import { dernierRefusDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, pausesDeLaStation, retenueDeLaStation, type PausesDites } from "../limite-github.ts";
 import { etatDesGardeFous } from "../projections/guardrails.ts";
 import { etatDeLaBase, gatesDuRouge } from "../projections/pass.ts";
 import { lireRail } from "../projections/rail.ts";
@@ -29,7 +29,7 @@ import { sessionEnCours } from "../projections/sessions.ts";
 import { etatDeLInterrupteur } from "../projections/switch.ts";
 import { echecsDesGates } from "../reparation.ts";
 import type { Runtime } from "../runtime.ts";
-import type { FaitRetenue } from "./evenements.ts";
+import type { FaitRetenue, PausesDeLaCause } from "./evenements.ts";
 import { retenueEnCours } from "./lire.ts";
 import { relanceDeLaRetenue, type PorteDeLaRelance } from "./relance-base.ts";
 import { cleDeCause, detecterRetenue, diagnostiquer, direAttenteSurMisDeCote, direCause, direSaut, SANS_SIGNAL, type Observation, type Retenue, type Signaux } from "./retenue.ts";
@@ -102,6 +102,18 @@ export function signauxDuJournal(base: Base): Pick<Signaux, "disjoncteur" | "bas
   };
 }
 
+// Les pauses que garde le compteur, telles que le journal les écrit (#3448).
+export function pausesDeLaCause(dites: PausesDites): PausesDeLaCause {
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const { derniere } = dites;
+  return {
+    count: dites.pauses,
+    refusedMinutes: dites.minutesRefusees,
+    last: { at: iso(derniere.depuis), until: iso(derniere.jusqua), status: derniere.statut, resource: derniere.ressource, retryAfter: derniere.retryAfter },
+    callsBefore: dites.appelsAvant.map(({ projet, lecture, ecriture }) => `${projet} ${lecture}${ecriture ? " write" : ""}`),
+  };
+}
+
 // Ce que le compteur des appels de la station dont `racine` est le répertoire
 // dit de ce qui retient la cuisine : la limite que GitHub a posée — son refus
 // constaté, ou sa pause —, à défaut la réserve des gestes que la box garde ; et
@@ -114,18 +126,23 @@ export function signauxDeLaStation(racine: string | undefined, maintenant: Date)
   const reserve = retenueDeLaStation(racine, instant);
   const refus = dernierRefusDeLaStation(racine, instant, REFUS_RECENT_MS);
   const ecritures = ecrituresRetenuesDeLaStation(racine, instant);
+  const limiteGitHub: Signaux["limiteGitHub"] =
+    limite !== null && Date.parse(limite.backAt) > instant
+      ? { limit: limite.limit, backAt: limite.backAt }
+      : pause !== null
+        ? { limit: null, backAt: iso(pause) }
+        : reserve !== null
+          ? { limit: "reserve", backAt: iso(reserve) }
+          : refus !== null
+            ? // La reprise dite est passée et GitHub refuse encore : la limite tient.
+              { limit: limite?.limit ?? null, backAt: limite?.backAt ?? iso(refus), refusedAt: iso(refus) }
+            : null;
+  // Une limite qui tient se dit avec les pauses que le compteur garde : sans
+  // elles, la retenue disait `limit: null` et rien de plus (#3448). La réserve
+  // des gestes n'est pas une pause de GitHub.
+  const pauses = limiteGitHub === null || limiteGitHub.limit === "reserve" ? null : pausesDeLaStation(racine, instant);
   return {
-    limiteGitHub:
-      limite !== null && Date.parse(limite.backAt) > instant
-        ? { limit: limite.limit, backAt: limite.backAt }
-        : pause !== null
-          ? { limit: null, backAt: iso(pause) }
-          : reserve !== null
-            ? { limit: "reserve", backAt: iso(reserve) }
-            : refus !== null
-              ? // La reprise dite est passée et GitHub refuse encore : la limite tient.
-                { limit: limite?.limit ?? null, backAt: limite?.backAt ?? iso(refus), refusedAt: iso(refus) }
-              : null,
+    limiteGitHub: limiteGitHub === null || pauses === null ? limiteGitHub : { ...limiteGitHub, pauses: pausesDeLaCause(pauses) },
     ecritures: ecritures === null ? null : { writes: ecritures.ecrites, nextAt: iso(ecritures.reprise) },
   };
 }
@@ -145,7 +162,10 @@ export function annoncerRetenue(journal: Journal, projet: string, retenue: Reten
   if (courante !== null && cleDeCause(courante.cause) === cleDeCause(retenue.cause)) return null;
   // Une cause qui change garde le début de la retenue.
   const tenue = courante === null ? retenue : { ...retenue, since: courante.since };
-  ecrire({ type: "kitchen.held", payload: { since: tenue.since, tickets: tenue.tickets, cause: tenue.cause, gesture: tenue.gesture, change: courante !== null } });
+  // Les sauts de la porte de prise se gardent, quelle que soit la cause : sous
+  // une limite de GitHub, ils ne se lisaient nulle part (#3448).
+  const skips = tenue.cause.kind === "tickets" ? [] : (observation.explications ?? []);
+  ecrire({ type: "kitchen.held", payload: { since: tenue.since, tickets: tenue.tickets, cause: tenue.cause, gesture: tenue.gesture, change: courante !== null, ...(skips.length === 0 ? {} : { skips: [...skips] }) } });
   return { type: courante === null ? "started" : "changed", retenue: tenue };
 }
 

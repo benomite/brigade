@@ -50,6 +50,11 @@ export const TITRE_PREUVE = "## Evidence";
 export const EVENEMENTS_CITES = 40;
 // La longueur d'une raison ou d'un événement cité, au plus.
 const LONGUEUR_MAX = 300;
+// Celle d'une retenue de la cuisine citée (#3448) : sa cause, les pauses de
+// GitHub et les appels qui les ont précédées, et les sauts de la porte de
+// prise. Coupée à 300, elle ne disait plus que `limit: null`.
+export const LONGUEUR_D_UNE_RETENUE = 1500;
+const CITEES_PLUS_LONGUES: Record<string, number> = { "kitchen.held": LONGUEUR_D_UNE_RETENUE };
 // La longueur de la section, au plus : un corps d'issue GitHub tient 65 536 caractères.
 export const LONGUEUR_SECTION_MAX = 30_000;
 // Combien de tickets se lisent sur GitHub à la fois.
@@ -76,7 +81,7 @@ export type EvenementDuJournal = { at: string; type: string; ticket: number | nu
 // Les événements de la fenêtre, ou pourquoi ils ne se lisent pas.
 export type JournalDeLaFenetre = { debut: string; fin: string } & ({ evenements: EvenementDuJournal[] } | { erreur: string });
 
-const court = (texte: string) => (texte.length > LONGUEUR_MAX ? `${texte.slice(0, LONGUEUR_MAX - 1)}…` : texte);
+const court = (texte: string, longueur = LONGUEUR_MAX) => (texte.length > longueur ? `${texte.slice(0, longueur - 1)}…` : texte);
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const min = (secondes: number) => `${Math.round(secondes / 6) / 10} min`;
 // Le ticket `n`, nommé par son projet quand le ticket se dépose sur un autre dépôt.
@@ -199,13 +204,13 @@ function lignesDuTemps(p: PreuveDuTicket, projet?: string): string[] {
   return [`- ${nomme(t.ticket, projet)}: ${resume(p, true)} — ${perdu}`, `  - ${quand}, merged ${instant(t.mergedAt, "unknown")}`, ...lignesDesRaisons(p, true)];
 }
 
-const payloadCite = (payload: unknown) => {
-  if (payload === null || typeof payload !== "object") return payload === undefined || payload === null ? "" : court(String(payload));
+const payloadCite = (payload: unknown, longueur = LONGUEUR_MAX) => {
+  if (payload === null || typeof payload !== "object") return payload === undefined || payload === null ? "" : court(String(payload), longueur);
   const champs = Object.entries(payload as Record<string, unknown>).map(([cle, valeur]) => `${cle}=${typeof valeur === "string" ? valeur : JSON.stringify(valeur)}`);
-  return court(champs.join(" "));
+  return court(champs.join(" "), longueur);
 };
 const ligneDeLEvenement = (e: EvenementDuJournal, projet?: string) => {
-  const cite = payloadCite(e.payload);
+  const cite = payloadCite(e.payload, CITEES_PLUS_LONGUES[e.type]);
   return `- ${e.at} \`${e.type}\`${e.ticket === null ? "" : ` ${nomme(e.ticket, projet)}`}${cite === "" ? "" : ` ${cite}`}`;
 };
 

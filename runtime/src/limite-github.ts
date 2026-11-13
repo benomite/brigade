@@ -253,7 +253,9 @@ export type Limite = {
   rendre(appel: number): void;
   // GitHub a dit sa limite atteinte : plus d'appel de la cuisine avant cet
   // instant (en millisecondes), pour tous ceux qui tiennent ce compteur.
-  suspendre(jusqua: number): void;
+  // `refus` : ce que la réponse en disait, gardé avec la pause qui commence
+  // (#3448) — pas pour un refus de plus pendant une pause qui tient.
+  suspendre(jusqua: number, refus?: RefusDit): void;
   // GitHub a dit le quota d'un compte : il est retenu, à l'instant où il est dit.
   noter(compte: string, quota: Omit<Quota, "vu">): void;
   // Le quota de la fenêtre en cours, ou null s'il n'a pas été dit — ou que sa
@@ -287,6 +289,19 @@ const ATTENTE_MS = 10_000;
 
 type QuotaLu = { restant: number; plafond: number; reset: number; vu: number };
 
+// Ce qu'une réponse de refus disait de la limite, gardé avec la pause qu'elle
+// a posée (#3448) : son statut, la ressource que l'appel dépensait
+// (`x-ratelimit-resource`), et son `retry-after` tel quel — nuls quand GitHub
+// ne les a pas envoyés.
+export type RefusDit = { statut: number; ressource: string | null; retryAfter: string | null };
+
+// Ce que le refus en dit, lu de la réponse.
+export const refusDitDe = (reponse: ReponseHttp): RefusDit => ({
+  statut: reponse.statut,
+  ressource: reponse.entetes.get("x-ratelimit-resource") ?? null,
+  retryAfter: reponse.entetes.get("retry-after") ?? null,
+});
+
 export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   const maintenant = options.maintenant ?? (() => Date.now());
   const base = new Base(options.fichier ?? ":memory:", { attenteMs: ATTENTE_MS });
@@ -294,7 +309,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   // aucune écriture n'attend le disque.
   if (options.fichier !== undefined) base.script("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   base.script(
-    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS refus (instant INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
+    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS refus (instant INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
   // Les points de la cuisine sur la minute (#2443), par compte : à part des appels, qu'un 304 quitte.
   const points = new Map<string, PointsDuCompte>();
@@ -383,9 +398,16 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
     rendre(appel) {
       base.executer("DELETE FROM appels WHERE rowid = ?", appel);
     },
-    suspendre(jusqua) {
+    suspendre(jusqua, refus) {
       base.transaction(() => {
         const instant = maintenant();
+        // Une pause qui commence se garde, avec le refus qui l'a dite : la
+        // retenue de la cuisine en nomme la cause au journal (#3448).
+        base.executer("DELETE FROM pauses WHERE jusqua <= ?", instant - FENETRE_MS);
+        const [tenue] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
+        if (tenue?.jusqua == null || tenue.jusqua <= instant) {
+          base.executer("INSERT INTO pauses (depuis, jusqua, statut, ressource, retry_after) VALUES (?, ?, ?, ?, ?)", instant, jusqua, refus?.statut ?? null, refus?.ressource ?? null, refus?.retryAfter ?? null);
+        }
         // Une pause plus longue déjà posée par un autre process reste.
         noterLeRefus(instant);
         base.executer("DELETE FROM pause WHERE jusqua <= ? OR jusqua <= ?", instant, jusqua);
@@ -583,12 +605,16 @@ function ressourcesDites(options: { gh: string; env?: NodeJS.ProcessEnv }): Prom
   });
 }
 
-// Ce que `gh api rate_limit` dit de la fin de fenêtre. Null s'il ne répond pas,
-// ou ne dit rien d'exploitable.
-async function finDeFenetreDite(options: { gh: string; env?: NodeJS.ProcessEnv; maintenant: number }): Promise<number | null> {
-  const ressources = Object.values((await ressourcesDites(options)) ?? {});
-  const fins = ressources.flatMap((r) => (r.remaining === 0 && typeof r.reset === "number" && r.reset * 1000 > options.maintenant ? [r.reset * 1000] : []));
-  return fins.length > 0 ? Math.max(...fins) : null;
+// Ce que `gh api rate_limit` dit de la fin de fenêtre de `ressource`, celle que
+// l'appel refusé dépense : son reset, si elle est épuisée. Null s'il ne répond
+// pas, ne dit rien d'exploitable, ou qu'elle ne l'est pas — le refus est alors
+// une limite secondaire, que `rate_limit` ne décrit pas. Une autre ressource
+// épuisée — `graphql`, `search`, que dépensent le Mac du chef ou l'app sur le
+// même compte — ne retient pas les appels REST de la cuisine : la pause allait
+// jusqu'au plus lointain de leurs resets, une heure au plus (#3448).
+async function finDeFenetreDite(options: { gh: string; env?: NodeJS.ProcessEnv; maintenant: number; ressource: string }): Promise<number | null> {
+  const r = (await ressourcesDites(options))?.[options.ressource];
+  return r !== undefined && r.remaining === 0 && typeof r.reset === "number" && r.reset * 1000 > options.maintenant ? r.reset * 1000 : null;
 }
 
 // Le quota que disent les en-têtes d'une réponse, ou null s'ils ne le disent
@@ -897,8 +923,8 @@ export const estLaPauseDeGitHub = (erreur: unknown): boolean => erreur instanceo
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la
 // fin de la fenêtre — `retry-after`, sinon `x-ratelimit-reset` quand le quota
-// est à zéro, sinon ce que
-// dit `gh api rate_limit`, sinon 60 s, doublées à chaque limite qui revient —
+// est à zéro, sinon ce que `gh api rate_limit` dit de la ressource de l'appel
+// refusé, sinon 60 s, doublées à chaque limite qui revient —
 // et rend l'erreur à lever. Plusieurs refus d'une même rafale, arrivés pendant
 // la pause qu'ils ont posée, ne la doublent pas.
 export async function constaterLimite(limite: Limite, reponse: ReponseHttp, options: { gh: string; env?: NodeJS.ProcessEnv; maintenant?: () => number }): Promise<LimiteGitHubAtteinte> {
@@ -906,7 +932,8 @@ export async function constaterLimite(limite: Limite, reponse: ReponseHttp, opti
   const instant = maintenant();
   const classe = classerLeRefus(reponse.statut, reponse.entetes, instant);
   let jusqua: number | null = classe.kind === "rate-limit" ? classe.resetAt : null;
-  jusqua ??= await finDeFenetreDite({ gh: options.gh, env: options.env, maintenant: instant });
+  // La ressource que l'appel refusé dépense, que GitHub dit dans la réponse : `core` pour l'API REST, par défaut.
+  jusqua ??= await finDeFenetreDite({ gh: options.gh, env: options.env, maintenant: instant, ressource: reponse.entetes.get("x-ratelimit-resource") ?? "core" });
   const precedente = reculs.get(limite) ?? { fin: Number.NEGATIVE_INFINITY, duree: 0 };
   const enCours = instant < precedente.fin;
   if (jusqua === null) {
@@ -915,7 +942,7 @@ export async function constaterLimite(limite: Limite, reponse: ReponseHttp, opti
   }
   if (!enCours) reculs.set(limite, { fin: jusqua, duree: jusqua - instant });
   else if (jusqua > precedente.fin) reculs.set(limite, { fin: jusqua, duree: precedente.duree });
-  limite.suspendre(jusqua);
+  limite.suspendre(jusqua, refusDitDe(reponse));
   if (!enCours) {
     pauseDite = true;
     direLaPauseDansLeJournal?.(`brigade : GitHub limit reached — no call leaves the station before ${heure(jusqua)}`);
@@ -942,6 +969,57 @@ export function pauseDeLaStation(racine: string | undefined, maintenant: number)
     base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
     const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
     return pause?.jusqua != null && pause.jusqua > maintenant ? pause.jusqua : null;
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
+// Les pauses de GitHub sur l'heure écoulée, telles que le compteur de la
+// station dont `racine` est le répertoire les a gardées (#3448) : leur nombre,
+// les minutes où GitHub a refusé un appel (une par minute au plus), la
+// dernière pause et son refus, et les derniers appels comptés avant elle —
+// leur projet, leur sorte, et s'ils écrivaient. C'est ce qu'il manquait au
+// ticket #3448 pour nommer la cause d'une retenue `github-limit` sans lire la
+// box. Lu sans rien écrire ni rien créer : null s'il n'y a pas de compteur,
+// qu'il ne se lit pas, ou qu'aucune pause n'y est gardée sur l'heure.
+export type PausesDites = {
+  pauses: number;
+  minutesRefusees: number;
+  // `statut` nul : la pause a été posée sans réponse de refus.
+  derniere: { depuis: number; jusqua: number; statut: number | null; ressource: string | null; retryAfter: string | null };
+  appelsAvant: Array<{ projet: string; lecture: string; ecriture: boolean }>;
+};
+// Combien des derniers appels avant la pause se gardent.
+export const APPELS_AVANT_LA_PAUSE = 5;
+
+export function pausesDeLaStation(racine: string | undefined, maintenant: number): PausesDites | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    const depuis = maintenant - FENETRE_MS;
+    // Un compteur d'avant #3448 n'a pas la table : la lecture lève, et rien n'est dit.
+    const pauses = base.lire<{ depuis: number; jusqua: number; statut: number | null; ressource: string | null; retry_after: string | null }>(
+      "SELECT depuis, jusqua, statut, ressource, retry_after FROM pauses WHERE jusqua > ? AND depuis <= ? ORDER BY depuis DESC",
+      depuis,
+      maintenant,
+    );
+    const [derniere] = pauses;
+    if (derniere === undefined) return null;
+    const [refus] = base.lire<{ n: number }>("SELECT count(*) AS n FROM refus WHERE instant > ? AND instant <= ?", depuis, maintenant);
+    const appelsAvant = base
+      .lire<{ projet: string | null; lecture: string | null; ecriture: number }>("SELECT projet, lecture, ecriture FROM appels WHERE instant <= ? ORDER BY instant DESC, rowid DESC LIMIT ?", derniere.depuis, APPELS_AVANT_LA_PAUSE)
+      .map(({ projet, lecture, ecriture }) => ({ projet: projet ?? PROJET_DE_LA_STATION, lecture: lecture ?? "other", ecriture: ecriture === 1 }));
+    return {
+      pauses: pauses.length,
+      minutesRefusees: refus?.n ?? 0,
+      derniere: { depuis: derniere.depuis, jusqua: derniere.jusqua, statut: derniere.statut, ressource: derniere.ressource, retryAfter: derniere.retry_after },
+      appelsAvant,
+    };
   } catch {
     return null;
   } finally {

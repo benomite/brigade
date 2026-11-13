@@ -117,13 +117,19 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
 - **GitHub's limit reached** (its 429, or its 403 "rate limit"; a 403 on a forbidden merge stays a
   refusal): the station stops every call and sets a pause on the counter, shared by all its processes,
   until the end of the window, read in `retry-after`, else `x-ratelimit-reset`, else `gh api
-  rate_limit`, else 60 s — doubled at each limit that comes back within 15 min of the previous pause's
+  rate_limit` for the resource the refused call spends (`x-ratelimit-resource`, `core` by default: another
+  exhausted resource of the account, `graphql` or `search`, does not hold the REST calls to its reset, #3448),
+  else 60 s — doubled at each limit that comes back within 15 min of the previous pause's
   end, up to 15 min (`RECUL_MAX_MS`, #2436): resuming every project after one minute set the secondary
   limit off again, and each new try lengthens it. Refusals of one burst, arriving during the pause they
   set, do not double it. During the pause no kitchen call leaves and nothing is counted (a chef's
   gesture still tries, and fails on GitHub's refusal). The log says it twice, whatever the number of
   projects (#2436): `brigade : GitHub limit reached — no call leaves the station before HH:MM` when it
-  starts, `brigade : GitHub calls resumed` when the next call leaves; the manager, the GitHub-only turn
+  starts, `brigade : GitHub calls resumed` when the next call leaves. A GitHub-only turn stopped by the
+  pause takes its next turn at the pause's end when that comes before the interval, never later than the
+  interval (#3448): claimable tickets no longer wait up to 2 more minutes once the pause is over. The
+  counter keeps each pause that starts, with its refusal (status, `x-ratelimit-resource`, `retry-after`), in
+  its `pauses` table, for an hour after its end; a held kitchen reads it (`etat-et-mesures.md`); the manager, the GitHub-only turn
   and the stale-branch cleanup say nothing of it. The resumption is automatic. During the wait the
   station does not write its state on GitHub — except as the pause starts (#2443): its
   registration (`runtime/src/enregistrement-station/`) is written outside the pause with `heldBy`

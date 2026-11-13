@@ -134,6 +134,28 @@ test("sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`
   }
 });
 
+test("another resource exhausted on the account (graphql, search) does not hold the kitchen's REST calls to its reset: a refusal without a usable header pauses 60 s, unless the refused call spends that resource (#3448)", async (t) => {
+  const fin = (DEPART + 50 * MINUTE) / SECONDE;
+  const rateLimit = JSON.stringify({ resources: { core: { limit: 5000, remaining: 4000, reset: fin }, graphql: { limit: 5000, remaining: 0, reset: fin }, search: { limit: 30, remaining: 0, reset: fin } } });
+  {
+    const { gh, horloge, limite, github } = sondage(t);
+    gh.repondre(403, {}, { message: "You have exceeded a secondary rate limit" });
+    gh.poser("rate_limit", rateLimit);
+    // Avant #3448 : la pause allait au reset de `graphql`, 50 min, pour un refus REST.
+    await assert.rejects(github.tickets(), (erreur: unknown) => erreur instanceof LimiteGitHubAtteinte && erreur.libreDansMs === ATTENTE_PAR_DEFAUT_MS);
+    assert.equal(gh.questionsDeLimite(), 1);
+    horloge.avancer(ATTENTE_PAR_DEFAUT_MS);
+    limite.prendre();
+  }
+  // L'appel refusé dépense `graphql`, que GitHub dit dans sa réponse : la pause va à son reset.
+  {
+    const { gh, github } = sondage(t);
+    gh.repondre(403, { "x-ratelimit-resource": "graphql" }, { message: "API rate limit exceeded" });
+    gh.poser("rate_limit", rateLimit);
+    await assert.rejects(github.tickets(), (erreur: unknown) => erreur instanceof LimiteGitHubAtteinte && erreur.jusqua === fin * SECONDE);
+  }
+});
+
 test("le refus pour limite qui remonte à l'app porte kind et resetAt, lus de la réponse", async (t) => {
   const { gh, github } = sondage(t);
   const fin = (DEPART + 50 * MINUTE) / SECONDE;

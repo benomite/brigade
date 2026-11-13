@@ -65,13 +65,75 @@ does not say which:
 
 The two ends differ in kind. 10:23:42.301 has milliseconds: a pause computed from an instant (`retry-after`,
 or the 60 s default doubled up to 15 min, `RECUL_MAX_MS`), not a reset read from GitHub. 12:54:38.000 is
-whole seconds: a reset epoch (`x-ratelimit-reset` with the quota at zero, or the latest reset of any exhausted
-resource that `gh api rate_limit` lists, `finDeFenetreDite` in `runtime/src/limite-github.ts`).
+whole seconds: a reset epoch (`x-ratelimit-reset` with the quota at zero, or, before the fix below, the latest
+reset of any exhausted resource that `gh api rate_limit` lists, `finDeFenetreDite` in `runtime/src/limite-github.ts`).
 
-## What is missing to name the cause
+## What the station corrects (#3448)
 
-The station's journal and service log for 2026-11-12 09:46–12:59 and 2026-11-13 09:51–11:26 (the
-`station.held` lines, the claim gate's skips, the `GitHub limit reached` lines), and the call counter of
-`parade-box` for those hours (`<BRIGADE_STATION_DIR>/appels-github/`: its `refus` and `pause` tables, and which
-project and kind of call were last counted before each pause). The two holds and #955's wait are where most of the 283 min are, and no
-correction of them can be checked against the code without these.
+The manager's answer on #3448 asked for the part the station controls to be corrected, without the box's logs.
+Two parts of a claim wait under GitHub's pause are decided by the station's code, and both made it longer than
+GitHub's own limit required:
+
+- **The turn after the pause came at the interval, not at the pause's end.** A GitHub-only turn stopped by the
+  pause (`LimiteGitHubAtteinte`) programmed its next turn at the interval (`brancherBrigadeGithub`, 2 minutes),
+  whatever the pause's end: a ticket claimable once the pause was over waited up to 2 more minutes. The loop now
+  takes the next turn at the pause's end when that comes before the interval, never later than the interval, and
+  never sooner than 5 s (`REPRISE_MIN_MS`, for a pause already over when it is said). #955 was claimed 4.4 min after
+  the 12:54:38 the hold announced; how much of it was this interval is not shown by the evidence.
+- **A refusal without a usable header paused until the reset of any exhausted resource.** When the refusal carried
+  neither `retry-after` nor a primary quota at zero, `constaterLimite` asked `gh api rate_limit` and took the latest
+  reset of every resource at zero — `graphql` or `search`, which the chef's Mac and the app spend on the same account,
+  held the kitchen's REST calls up to their own reset, an hour at most. A secondary limit is not among the
+  resources `rate_limit` lists; for one without `retry-after`, GitHub's guidance is to wait at least a minute and
+  back off, which the 60 s doubled (#2436) already does. The pause now follows only the
+  resource the refused call spends (its `x-ratelimit-resource`, `core` by default), else the 60 s doubled up to 15
+  min (#2436) as before. Whether this is what set 12:54:38 is **not proven**: that end, in whole seconds, is a reset
+  epoch, which an `x-ratelimit-reset` with the primary quota at zero also gives.
+
+No measure changes: `lostTimeMaxMin`, the losses and their computation are untouched, and so are the pause's
+other ends (`retry-after`, the primary reset) and the pacing of calls.
+
+### The checks
+
+```sh
+cd runtime && node --test test/brigade-github-pause.test.ts
+cd runtime && node --test --test-name-pattern=3448 test/github-limite.test.ts
+```
+
+`test/brigade-github-pause.test.ts` runs the box's loop on a simulated clock with the real call counter: a pause
+that ends 50 s after a turn brings the next call to GitHub at 50 s; before the fix it came at the interval, 120 s
+(`actual: []`, `expected: [ 50 ]`). A pause longer than the interval keeps the interval while it lasts, and the
+last turn comes at its end (300 s, not 360 s). In `test/github-limite.test.ts`, a 403 secondary refusal with core
+at 4,000 and `graphql` and `search` at zero pauses 60 s; before the fix, 50 min.
+
+## What the journal now says of a hold by GitHub's limit
+
+The second thing the manager asked: that the next lost-time ticket carries what this one lacked, so its cook names
+the cause from the ticket alone.
+
+- The station's counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.db`) keeps each pause that starts in a
+  `pauses` table, with the status, `x-ratelimit-resource` and `retry-after` of the refusal that set it, for an hour
+  after its end (`suspendre`, `pausesDeLaStation` in `runtime/src/limite-github.ts`).
+- A `kitchen.held` whose cause is `github-limit` carries `pauses`: how many pauses in the last hour, the minutes
+  GitHub refused a call, the last pause and its refusal, and the last 5 calls counted before it, by project and
+  kind (`espace issues`, `station gist write`).
+- Every `kitchen.held` carries `skips`, the claim gate's lines for the claimable tickets it did not claim, when
+  those lines are not already the cause. Under GitHub's limit they were written nowhere.
+- The Evidence of a lost-time ticket cites a `kitchen.held` line up to 1,500 characters (`LONGUEUR_D_UNE_RETENUE`
+  in `runtime/src/preuve-mesure.ts`): cut at 300, as the other events are, it stopped before these fields.
+
+`test/retenue/pauses-au-journal.test.ts` plays the chain: calls counted, a refusal, the hold written to the journal,
+and the Evidence section citing it whole.
+
+## What remains unverified
+
+- **Which limit GitHub set**, and which calls brought it, on 2026-11-12 from 12:19 and on 2026-11-13 from 09:51:
+  the box's journal, service log and counter were not read, and the Evidence of #3448 does not hold them. The next
+  hold will say it in its `kitchen.held` line.
+- **What held #955 from 09:46 to 12:16**, and #987's kitchen from 10:30 to 11:20 on 11-13: nothing cited says.
+  The `nothing-waits` lift at 11:20:57 is the hold observer starting with an empty view at the restart (the GitHub
+  turn has not run yet, `lireLaCuisine`), not a ticket served.
+- **The median lost time after this delivery** (the ticket asks for 2 min or under): it can only be measured on
+  BOBL-tech/espace's next tickets once the station runs this code. The corrections above remove the wait the
+  station added after a pause and a pause longer than the limit; the box's 3 places (#996, #997) and the time to the
+  manager's labels (#974) are not changed here.

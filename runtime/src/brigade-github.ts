@@ -395,6 +395,10 @@ export { dependancesDuCorps };
 // GraphQL : seul un fait neuf presse, jamais un tour où rien n'a bougé.
 export const TOURS_PRESSES = 4;
 export const ATTENTE_PRESSEE_MS = 30_000;
+// Le plus court délai d'un tour qui reprend à la fin d'une pause de GitHub
+// (#3448) : une pause qu'un `retry-after: 0` dit déjà finie ne fait pas
+// tourner la boucle sans arrêt.
+export const REPRISE_MIN_MS = 5_000;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -1853,14 +1857,21 @@ export function brancherBrigadeGithub(options: OptionsDuProjet): ProjetOuvert {
   const tourner = () => {
     enTour = true;
     enCours = (async () => {
+      // La fin de la pause de GitHub qui a arrêté ce tour, s'il s'y est arrêté.
+      let repriseMs: number | null = null;
       try {
         await station.tour();
       } catch (erreur) {
         // La pause de GitHub est dite une fois au journal, pas à chaque tour (#2436).
         if (!estLaPauseDeGitHub(erreur)) avertir(`brigade : tour GitHub seul — ${message(erreur)}`);
+        if (erreur instanceof LimiteGitHubAtteinte) repriseMs = Math.max(REPRISE_MIN_MS, erreur.jusqua - Date.now());
       }
       enTour = false;
-      const delai = demande === 0 ? 0 : presses > 0 ? presseeMs : intervalleMs;
+      // Un tour que la pause de GitHub a arrêté reprend à sa fin, si elle vient
+      // avant le tour d'après : les tickets prenables attendaient leur prise
+      // jusqu'à l'intervalle, la pause passée (#3448).
+      const prevu = demande === 0 ? 0 : presses > 0 ? presseeMs : intervalleMs;
+      const delai = repriseMs === null ? prevu : Math.min(prevu, repriseMs);
       if (presses > 0) presses -= 1;
       demande = undefined;
       if (!arrete) programmer(delai);
