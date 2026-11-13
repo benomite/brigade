@@ -117,10 +117,17 @@ base, the stale-branch pruning).
   rail is read again at once, not at the interval nor 30 s later (#2802) — on the computer's station too, whose loop
   waited the 30 s until #2832 ([diagnosis](claim-wait-2026-11-07.md)).
 - **At most 5 deliveries in pass** (`PASS_MAX`, #2300): while the project has 5 or more tickets `in-pass`, no station
-  takes a new ticket. A ticket sent back from the pass to a cook leaves it in the very turn it is sent back.
+  takes a new ticket. A ticket sent back from the pass to a cook leaves it in the very turn it is sent back. A delivery
+  the pass holds for the chef — the validation of its screen, the review of a sensitive ticket — takes no place while
+  its head is the one held: it waits for a human, not for the pass, and counted, five deliveries waiting for the chef
+  stopped every claim of the project until he answered (#3446, [diagnosis](claim-wait-2026-11-13.md)).
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
   gives its ticket back on the issue, and at its first turn a restarted station gives back the tickets it held with no
-  cook (#2179).
+  cook (#2179). Its places are read again at each turn: the cap the chef sets live (`station -- cooks <N>`, `0` for no
+  limit) once he has set one, otherwise its declared cap bounded by its machine's cores — 3 on 8 cores. At start the
+  station announces itself in the log (`station.announced`, with its declaration and its cores), so `status` and
+  `station` say its cap and where it comes from. Until #3446 the places were fixed at start and the chef's cap was
+  written but read by nothing ([diagnosis](claim-wait-2026-11-13.md)).
 - **A cook that adds nothing.** A cook that resumes a ticket's branch and ends without moving its head delivered
   nothing: it counts as a cook without delivery (`ECHECS_MAX`), so a ticket cannot loop between the cook and a pass
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the

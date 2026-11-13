@@ -1,7 +1,6 @@
 // Point d'entrée du runtime : `npm --prefix runtime start`, ou l'unité systemd.
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
-import { availableParallelism } from "node:os";
-import { plafondDesCoeurs } from "./projections/stations.ts";
+import { placesDeLaStation } from "./github-seul/places/places.ts";
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
@@ -168,6 +167,8 @@ try {
   // L'état GitHub seul, seul chemin (#2061) : c'est la station GitHub seul qui
   // prend, cuisine, relit et merge, sous l'identité de la pass.
   const ici = stations.find((declaree) => !declaree.distante);
+  // Ses places, relues à chaque tour : le plafond que le chef règle à chaud, sinon sa déclaration bornée par les cœurs (#3446).
+  const places = ici === undefined ? 0 : placesDeLaStation(socle.journal, projet, ici);
   // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
   const suiviDuTour = suivreLeTour();
   const ouvert = brancherBrigadeGithub({
@@ -179,9 +180,7 @@ try {
             const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre) });
             const ecrivaine = stationDuDepot({
               nom: ici.nom,
-              // Pas plus de cooks que la machine n'en porte (`plafondDesCoeurs`) :
-              // une station déclarée à 30 en tiendrait 30.
-              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+              places,
               capacites: ici.fournit,
               base: station.base,
               depotGitHub: rail.depot,
@@ -215,7 +214,7 @@ try {
             // Sans l'écriture sur le dépôt, la station est contributrice : elle cuisine dans sa fourche et livre par une PR du dehors (#2935).
             return aiguillerLaStation(githubs.pass, ecrivaine, {
               nom: ici.nom,
-              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
+              places,
               base: station.base,
               depotGitHub: rail.depot,
               depot,
