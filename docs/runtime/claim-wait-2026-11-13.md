@@ -48,9 +48,30 @@ So, from what is cited:
   #984's 20 min are the GitHub pause.
 - **Not established**: what held #955 from 09:46 to 12:16, and #987's kitchen from 10:30 to 11:20.
 
+## What `limit: null` narrows
+
+Both holds name `github-limit` with `limit: null`. `signauxDeLaStation` (`runtime/src/retenue/brancher.ts`)
+names the limit from the station's limits file (`limiteDuCompteDeLaStation`, `runtime/src/github-limite.ts`)
+while its `backAt` is ahead, and falls back to the pause on the call counter (`pauseDeLaStation`) with
+`limit: null` otherwise. A refusal of a call made through `runtime/src/github.ts` writes both: the pause
+(`constaterLimite`) and the named limit (`limites.constater`, its end read by `lireLaLimite`: `retry-after`,
+else `x-ratelimit-reset`, else the pause's end). So `limit: null` means one of two things, and the evidence
+does not say which:
+
+- the pause was set by a call that writes no named limit: the gist channel (`runtime/src/appairage/canal.ts`)
+  and the breaker issue (`lancerGhApi`, `runtime/src/breaker-issue.ts`) call `constaterLimite` only;
+- or the named limit had ended while the pause still held: `lireLaLimite` takes `x-ratelimit-reset`, the
+  hourly reset of the primary quota that GitHub sends on every response, even for a secondary limit.
+
+The two ends differ in kind. 10:23:42.301 has milliseconds: a pause computed from an instant (`retry-after`,
+or the 60 s default doubled up to 15 min, `RECUL_MAX_MS`), not a reset read from GitHub. 12:54:38.000 is
+whole seconds: a reset epoch (`x-ratelimit-reset` with the quota at zero, or the latest reset of any exhausted
+resource that `gh api rate_limit` lists, `finDeFenetreDite` in `runtime/src/limite-github.ts`).
+
 ## What is missing to name the cause
 
 The station's journal and service log for 2026-11-12 09:46–12:59 and 2026-11-13 09:51–11:26 (the
 `station.held` lines, the claim gate's skips, the `GitHub limit reached` lines), and the call counter of
-`parade-box` for those hours. The two holds and #955's wait are where most of the 283 min are, and no
+`parade-box` for those hours (`<BRIGADE_STATION_DIR>/appels-github/`: its `refus` and `pause` tables, and which
+project and kind of call were last counted before each pause). The two holds and #955's wait are where most of the 283 min are, and no
 correction of them can be checked against the code without these.
