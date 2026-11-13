@@ -102,7 +102,7 @@ export function poserLaListe(doc, { cartes, ailleurs, avis = [], tete = [], ouvr
 }
 
 // La carte ouverte : son numéro et son projet, sa question, ce qui se passe, un bouton par choix — la réponse recommandée,
-// le premier ou celui que la carte dit (#3434), rempli de l'accent —, puis le champ pour répondre dans ses mots et « Send ». Un choix est la réponse : rien
+// le premier ou celui que la carte dit (ticket 3434), rempli de l'accent —, puis le champ pour répondre dans ses mots et « Send ». Un choix est la réponse : rien
 // d'autre n'est demandé. `refus` : ce qui a empêché l'envoi, en une ligne, le détail au survol ; la carte garde ses gestes.
 /**
  * @param {Fabrique} doc
@@ -117,7 +117,7 @@ export function poserLaCarte(doc, { carte, total, brouillon, enRoute, refus, ret
   // recommandée ; les boutons. Le reste du commentaire est derrière « details », fermé.
   if (todo.question !== null && todo.resume !== undefined) corps.append(cree(doc, "p", "mot-des-cartes", todo.resume));
   corps.append(cree(doc, "h1", undefined, todo.question ?? todo.resume ?? ""));
-  // La réponse recommandée, et pourquoi quand la carte le dit ; aucune quand le manager n'en recommande pas (#3434).
+  // La réponse recommandée, et pourquoi quand la carte le dit ; aucune quand le manager n'en recommande pas (ticket 3434).
   const recommandee = recommandationDe(todo);
   if (recommandee !== null) corps.append(cree(doc, "p", "mot-des-cartes recommandation", `${RECOMMANDEE}: ${recommandee.texte}${recommandee.pourquoi === null ? "" : ` — ${recommandee.pourquoi}`}`));
   todo.choix.forEach(({ texte, prix }, rang) => {

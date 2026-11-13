@@ -102,7 +102,7 @@ async function poserSurGithub(lu: TableauLu | undefined, ticket: unknown, saisie
 }
 
 // L'entrée en WAITING écrite sur l'issue de `ticket` : son commentaire, puis le label — ce que « waiting for… » écrit, et ce
-// que « Wait for … » d'une carte du manager joue (tableau-gestes/reponse-github.ts, #3434). Un commentaire posté dont le
+// que « Wait for … » d'une carte du manager joue (tableau-gestes/reponse-github.ts, ticket 3434). Un commentaire posté dont le
 // label est refusé se dit tel : le ticket n'est pas en WAITING.
 export async function ecrireLAttente(depot: string, ticket: number, lue: Saisie, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
   const [an, mois, jour] = lue.relance.split("-").map(Number);

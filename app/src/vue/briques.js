@@ -19,7 +19,7 @@ export function prixDit(prix) {
   return typeof prix === "string" ? prix.trim() : "";
 }
 
-// La réponse qu'une carte de TODO recommande (#3434) : le rang de son choix, à partir de 1, et pourquoi en une ligne — nul
+// La réponse qu'une carte de TODO recommande (ticket 3434) : le rang de son choix, à partir de 1, et pourquoi en une ligne — nul
 // quand elle ne le dit pas. Une carte qui ne dit rien de sa recommandation recommande son premier choix (ticket 2922) ; celle
 // qui dit n'en recommander aucune (un écart du manager sans fondement pour en recommander une) n'en met aucune en avant. Rien
 // sans question ni choix.
