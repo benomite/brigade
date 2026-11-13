@@ -3802,6 +3802,19 @@ section. With the section laid, `right now` is not repeated under it.
   reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
   (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
   publish a station's cook cap, so this reading never raises that reason.
+- **A GitHub quota pause is not a fault** (#3482, `app/src/vue/pause-quota/`). When the account's GitHub quota is spent,
+  the stations keep running but cannot write their sign of life. Each station's state carries `quotaGithub`
+  (`limite`: `core` or `ecriture`, `pauseJusqua`: when it resumes, or null); a running station in pause is held by
+  GitHub, never offline. The pause is said **once for the whole account**, in a calm blue line with a clock at the top
+  of the app — above the home and every project, on the desktop as on the phone: `Paused: GitHub quota of the account
+  reached (its core quota). Resumes at 6:11 PM (in 7 min). Nothing to do.` (or `GitHub's write limit reached for the
+  account`; with no resume time, `When it resumes is not known yet.`). The countdown moves every second, and the line
+  goes by itself at the resume time or at the first reading that no longer carries the pause. Each project only says
+  `Paused for the same reason: GitHub quota of the account.` at the head of its rail, and on "All projects" it is
+  **paused**, with a blue marker — no `FAULT`, no stuck rail, no **Start the station**. A project whose station is
+  really stopped, or that no station serves, keeps its `FAULT` line and its button. The station the app sees running
+  on this computer is never said offline, even when its sign of life on GitHub is old. The phone reads each station's
+  quota from the registration in its gist, the gist it already reads for the projects.
 - **What is left before the rail: the Backlog band** (`app/src/amont.ts`, `app/src/vue/backlog-band/`, #1836, #3460). An
   empty rail does not mean a finished project. Between the line of figures and the columns, the Rail tab shows **one
   line, the Backlog band**, drawn like the order slips hanging over a kitchen's pass — a metal bar, each slip clipped at
