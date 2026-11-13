@@ -13,7 +13,7 @@ export type Ticket = { number: number; title: string; labels: Set<string>; state
 export type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; conflitDeContenu?: boolean; mergeePar: string | null; fichiers: string[] };
 
 export type OptionsDuFaux = {
-  places?: number;
+  places?: number | (() => number);
   capacites?: string[];
   cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>;
   juger?: Juger;

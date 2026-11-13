@@ -138,6 +138,25 @@ test("setting on: a green design delivery with its captures is not merged; a che
   assert.deepEqual(renvois(faux), []);
 });
 
+test("a delivery held for the chef's validation takes no place of the pass: with four other deliveries in pass, the station still claims the next ticket (PASS_MAX, #3446)", async () => {
+  const faux = enPass(ECRAN);
+  // Quatre autres livraisons en pass, approuvées, dont la CI tourne encore : la pass y travaille.
+  for (let n = 41; n <= 44; n += 1) {
+    faux.feu(n, [...CALIBRE, LABEL_IN_PASS]);
+    const sha = faux.sha();
+    faux.prs.push({ number: 1000 + n, issue: n, branche: brancheDuTicket(n), sha, state: "open", merged: false, enRetard: false, mergeePar: null, fichiers: [`runtime/src/f${n}.ts`] });
+    faux.poster(1000 + n, "A", `<!-- brigade:verdict station=A verdict=approve sha=${sha} -->\nApproved by station \`A\`.`);
+    faux.ciEnCours.add(1000 + n);
+  }
+  faux.feu(50);
+  const { s } = station(faux, true);
+  await tours(s, 3, () => faux.cuissons.some((c) => c.issue === 50));
+  assert.equal(ouvertes(faux).length, 1);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.ok([TICKET, 41, 42, 43, 44].every((n) => faux.ticket(n).labels.has(LABEL_IN_PASS)));
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 50 }]);
+});
+
 test("the card opens with a brief: what was asked, from the ticket's title and body, and what was done, the cook's points the station posted on the PR (#3330)", async () => {
   const faux = enPass(ECRAN);
   faux.ticket(TICKET).corps = "## Context\n\nThe chef cannot tell what changed between the captures.\n\n## Acceptance criteria\n\n- a long list";

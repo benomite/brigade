@@ -8,10 +8,12 @@
 // label.
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancheDuTicket } from "../../src/brigade-github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { etatStation } from "../../src/projections/stations.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../src/station/configuration.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
@@ -65,7 +67,7 @@ function ouvrir(t: TestContext, { githubOnlyState, contributrice = false }: { gi
       .appels()
       .filter((args) => args.includes("POST") && args.at(-1) === `repos/${DEPOT}/issues/7/comments`)
       .map((args) => args.find((arg) => arg.startsWith("body="))?.slice("body=".length));
-  return { cuisine, dits, prises, labels };
+  return { cuisine, dits, prises, labels, etat: env.BRIGADE_STATE_DIR ?? "" };
 }
 
 for (const githubOnlyState of [true, undefined]) {
@@ -89,6 +91,23 @@ test("the box's kitchen opens the contributor station when the machine's account
     assert.ok(dits.includes(CONTRIBUTRICE), dits.join("\n"));
     assert.deepEqual(prises(), ["<!-- brigade:reclame station=box/claude login=outsider -->\nClaimed by contributor station `box/claude` (@outsider), which cooks it in its fork."]);
     assert.deepEqual(labels(), []);
+  } finally {
+    cuisine.arreter("fin du test");
+    await cuisine.arretee?.();
+  }
+});
+
+test("the box's kitchen announces its GitHub-only station in the log, with its declaration and its machine's cores: the cap the chef sets live has a station to hold (#3446)", async (t) => {
+  const { cuisine, prises, etat } = ouvrir(t, {});
+  try {
+    await jusqua(() => prises().length > 0);
+    const journal = ouvrirJournal(etat, { lectureSeule: true });
+    try {
+      const station = etatStation(journal.base, "box/claude");
+      assert.deepEqual(station && { engine: station.engine, provides: station.provides, maxCooks: station.maxCooks, cores: station.cores, cap: station.cap }, { engine: "claude", provides: ["code"], maxCooks: 2, cores: availableParallelism(), cap: null });
+    } finally {
+      journal.fermer();
+    }
   } finally {
     cuisine.arreter("fin du test");
     await cuisine.arretee?.();
