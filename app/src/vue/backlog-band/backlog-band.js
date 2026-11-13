@@ -24,12 +24,13 @@
 /** @typedef {{ nom: string, nombre: number }} Etape */
 /**
  * Un besoin tel que le bandeau le pose.
- * `rouge` : il attend le chef — sa carte est dans Awaiting you (`carte`). `progres` : découpé, ses tickets servis sur leur
+ * `rouge` : il attend le chef — sa carte est dans TODO (`carte`). `progres` : découpé, ses tickets servis sur leur
  * total. `servi` : découpé, tous servis. `tickets` : ceux de son découpage. `etapes` : ses tickets comptés par étape, découpé seulement.
  * @typedef {{ ticket: number, titre: string, court: string, priorite: number | null, etat: string, groupe: string, mot: string, dit: string, contexte: string | undefined, ouvrable: boolean, rouge: boolean, carte: Carte | undefined, progres: { servis: number, total: number } | null, servi: boolean, tickets: number[], etapes: Etape[] }} Besoin
  */
 
-// La colonne du rail où le chef a quelque chose à trancher (faits.ts, `T_ATTEND`).
+// La liste TODO des faits, où le chef a quelque chose à trancher (faits.ts, `T_ATTEND`) : la vue en pose les cartes en rouge
+// dans la colonne de leur étape (ticket 3458).
 export const COLONNE_DU_CHEF = "Awaiting you";
 // Un besoin découpé tout servi reste ce temps dans le bandeau, depuis la fermeture de son issue.
 export const RETENUE_MS = 24 * 3_600_000;
@@ -211,7 +212,7 @@ function detail(doc, besoin, gestes) {
     }
     pose.append(etapes);
   }
-  // Ce qui attend le chef : sa carte de TODO, telle que la colonne Awaiting you la pose — la question et son bouton.
+  // Ce qui attend le chef : sa carte de TODO, telle que le rail la pose en rouge — la question et son bouton.
   if (besoin.carte !== undefined) {
     const carte = noeud(doc, "div", "backlog-band-question");
     carte.append(gestes.carteDuChef(besoin.carte));

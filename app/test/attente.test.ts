@@ -175,6 +175,9 @@ describe("le rail en TODO et WAITING", () => {
     // Une relance passée le dit aussi.
     const passee = rail({ ...FAITS, lu: "2026-10-23T00:00:00.000Z" }).colonnes[4]?.cartes[0]?.dit.find(({ libelle }) => libelle === "follow-up");
     assert.equal(passee?.valeur, "2026-10-21 00:00 UTC — passed 2 d before the reading");
+    // Sa relance passée, la carte revient au chef : la vue la pose en rouge dans WAITING (#3458). Avant, non.
+    assert.equal(rail({ ...FAITS, lu: "2026-10-23T00:00:00.000Z" }).colonnes[4]?.cartes[0]?.relancePassee, true);
+    assert.equal(carte?.relancePassee, undefined);
     // Une box qui dit WAITING sans dire ce qu'il attend : la carte l'écrit, et garde ses gestes.
     const muette = rail({ ...FAITS, rail: [ticket(8, "WAITING")] }).colonnes[4]?.cartes[0];
     assert.deepEqual([muette?.dit, muette?.gestes], [[], ["attente-reprendre", "attente-arrivee"]]);
@@ -288,7 +291,7 @@ const taper = (entree: Faux, texte: string) => {
 };
 
 describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
-  test("les colonnes TODO et WAITING sont côte à côte, et la carte de WAITING se lit sans clic", async () => {
+  test("WAITING a sa colonne, TODO n'en a pas (#3458), et la carte de WAITING se lit sans clic", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const noms = vue
@@ -296,10 +299,11 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
       .dessous("section")
       .map((pose) => pose.children[0]?.children[0]?.textContent);
     // Le kanban est entier sur Rail, Taken et Pass compris.
-    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"]);
+    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
     const bon = bonDe(vue, 8);
     assert.ok(colonne(vue, "Waiting").contains(bon));
-    assert.ok(!colonne(vue, "Awaiting you").contains(bon));
+    // Elle attend un tiers, pas le chef : elle n'est pas rouge.
+    assert.notEqual(bon.dataset.carte, "attente");
     // La carte dit l'essentiel en une ligne ; le détail est dans sa fiche.
     assert.equal(bon.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, `waiting for sa validation écrite du devis · from le client · follow-up ${jourDe(new Date(TIERS.relance ?? ""))}`);
     assert.equal(bon.dessous("li").length, 0);
@@ -312,6 +316,21 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
       ["follow-up", "2026-10-21 00:00 UTC — in 5 d from the reading"],
       ["on arrival", TIERS.aLArrivee],
     ]);
+  });
+
+  test("sa relance passée, la carte revient au chef : rouge, en tête de WAITING, comptée dans « TODO (N) » (#3458)", async () => {
+    const vue = await ouvrir();
+    const tiers9 = { ...TIERS, relance: "2026-10-30T00:00:00.000Z" };
+    recevoir(vue, dessinable({ ...FAITS, lu: "2026-10-23T00:00:00.000Z", rail: [...FAITS.rail, { ...ticket(9, "WAITING"), tiers: tiers9 }] }));
+    const waiting = colonne(vue, "Waiting");
+    const enOrdre = waiting.dessous("li").filter(({ className }) => className === "bon").map(({ dataset }) => [dataset.ticket, dataset.carte]);
+    assert.deepEqual(enOrdre, [["8", "attente"], ["9", undefined]]);
+    // Ses deux gestes restent : ce sont eux qui y répondent.
+    boutonDe(bonDe(vue, 8), "resume");
+    boutonDe(bonDe(vue, 8), "it arrived, back to the kitchen");
+    const entree = vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo") ?? assert.fail("pas d'entrée TODO");
+    // Les trois cartes du chef, et celle-ci.
+    assert.equal(entree.textContent, "TODO (4)");
   });
 
   test("« resume » et « it arrived, back to the kitchen » partent au clic, pour ce ticket", async () => {

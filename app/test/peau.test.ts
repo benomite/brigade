@@ -571,8 +571,11 @@ describe("un ticket qui t'attend", () => {
       pilules.slice(-2).map((s) => [s.children[1]?.textContent, s.dataset.pastille, marque(s)?.ton, marque(s)?.forme]),
       [["servi", "served", "vert", "disque"], ["awaiting you", "awaiting", "rouge", "carre"]],
     );
+    // TODO n'est pas une colonne (#3458) : la carte est sur le rail, et l'entrée « TODO (1) » porte le rouge de ce qui t'attend.
     const [colonne] = vue.element("rail").dessous("section");
-    assert.deepEqual([colonne?.dataset.ton, colonne?.children[0]?.children[0]?.dataset.pastille], ["rouge", "awaiting"]);
+    assert.equal(colonne?.dataset.colonne, "On the rail");
+    const entree = vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo");
+    assert.deepEqual([entree?.textContent, entree?.dataset.ton], ["TODO (1)", "rouge"]);
   });
 });
 

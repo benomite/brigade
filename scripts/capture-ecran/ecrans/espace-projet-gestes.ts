@@ -21,7 +21,7 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 900,
   // La case de parade, puis la carte de #12 (colonne TODO).
-  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#rail .colonne:nth-child(4) li.bon" }],
+  etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: '#rail .colonne li.bon[data-ticket="12"]' }],
   donnees: () => {
     const carte = carteDe(RENDU, "parade", 12);
     return {

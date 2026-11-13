@@ -2053,7 +2053,7 @@ main > header,
   background: var(--rouge);
   border-radius: 0;
 }
-/* La ligne du disjoncteur, en tête de TODO (ticket 2140) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
+/* La ligne du disjoncteur, à côté de l'entrée TODO, hors des colonnes (tickets 2140, 3458) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
    de ce qui attend le chef —, ce qui ne va pas en une phrase, ce que la station en écrit au survol, puis son seul
    bouton, « Resume », le recommandé. Ce qui part, ce qui a été demandé ou pourquoi rien, à voix basse à côté. Elle est la même en tête de la liste « Awaiting you » du téléphone (ticket 3371). */
 #rail .ligne-disjoncteur,
@@ -2278,30 +2278,78 @@ main > header,
   font-weight: 400;
   color: var(--discret);
 }
-/* TODO plein (ticket 3327) : à partir de quatre cartes, la colonne garde sa place (l'ordre du ticket 2093) et prend deux pistes, à partir de dix,
+/* Une colonne pleine de cartes rouges (tickets 3327, 3458 — elles viennent en tête de leur colonne) : à partir de quatre, la colonne
+   garde sa place (l'ordre du ticket 2093) et prend deux pistes, à partir de dix,
    trois — assez pour que le titre et la question d'une carte se lisent sans être coupés, et jamais coupés : la rangée défile de côté
    (ticket 1556), TODO ne rogne pas. Ses cartes se rangent en grille, plusieurs par ligne, et
    se font compactes (carte-attente.css). De une à trois cartes, rien ne change. */
-#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) {
+#rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) {
   grid-column: span 2;
 }
-#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(10)) {
+#rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(10)) {
   grid-column: span 3;
 }
-#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) > ol {
+#rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) > ol {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   align-items: start;
 }
-/* Chaque carte d'un TODO plein est le conteneur `todo-plein` : la feuille de la carte d'attente (composants/carte-attente) la compacte
+/* Chaque carte d'une colonne pleine de cartes rouges est le conteneur `todo-plein` : la feuille de la carte d'attente (composants/carte-attente) la compacte
    quand elle est dans l'un d'eux, sans nommer le rail. */
-#rail .colonne[data-colonne="Awaiting you"]:has(> ol > li:nth-child(4)) > ol > li {
+#rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) > ol > li {
   container: todo-plein / inline-size;
 }
-/* « Awaiting others » ferme TODO (tickets 2985, 3071) : le bloc replié du rail, dans la colonne, sous ses cartes. Dépliées,
-   les cartes d'un autre humain sont des cartes de TODO, avec en plus qui elles attendent. */
-#rail .colonne > .replie.autres {
-  margin: var(--pas-2) 0 0;
+/* TODO hors des colonnes (ticket 3458) : l'entrée « TODO (N) » qui filtre les cartes rouges, puis ce qui attend le chef sans être
+   une carte du rail — la ligne du disjoncteur, le dépôt pas préparé, une réponse gardée — et « Awaiting others », replié. */
+#rail .todo-du-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-4) 0;
+}
+#rail .todo-du-rail > :not(.entree-todo) {
+  flex: 1 1 100%;
+}
+#rail .entree-todo {
+  padding: var(--pas-1) var(--pas-3);
+  font: inherit;
+  font-weight: 700;
+  color: var(--texte);
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+/* Au moins une carte attend le chef : la couleur de ce qui l'attend. Zéro : aucun signe. */
+#rail .entree-todo[data-ton="rouge"] {
+  color: var(--rouge);
+  border-color: var(--rouge);
+}
+#rail .entree-todo[aria-pressed="true"] {
+  color: var(--fond);
+  background: var(--texte);
+  border-color: var(--texte);
+}
+#rail .entree-todo[aria-pressed="true"][data-ton="rouge"] {
+  background: var(--rouge);
+  border-color: var(--rouge);
+}
+/* Rien de rouge : ce que la liste dit d'elle-même, à voix basse, à côté de l'entrée. */
+#rail .todo-du-rail > p.todo-vide {
+  flex: 1 1 0;
+  align-self: center;
+  margin: 0;
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+#rail .entree-todo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* « Awaiting others » (tickets 2985, 3071) : le bloc replié, à côté de l'entrée TODO. Dépliées, les cartes d'un autre humain sont
+   des cartes d'attente, avec en plus qui elles attendent. */
+#rail .todo-du-rail > .replie.autres {
   padding: var(--pas-2);
 }
 #rail .replie.autres > ol {

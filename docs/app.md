@@ -24,7 +24,7 @@ them as living "on Cooks" is history, not behaviour. A stored "cooks" or "health
 
 What follows about the tabs (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
-whole kanban in its order — On the rail, Taken, Pass, Awaiting you, Waiting and Served (#2093, titled so since #2922) — with nothing about
+whole kanban in its order — On the rail, Taken, Pass, Waiting and Served (#2093, titled so since #2922; no TODO column since #3458) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
 gates, and, folded, its calibration ceiling, its roles, what
 its cooks learned and the raw reading of `station` (the machine and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
@@ -363,7 +363,7 @@ word for it:
 | A cook | the first card of Taken | `No cook is running right now.`, and the last served ticket instead |
 | The pass | the first card of Pass | `Nothing is in the pass right now.`, and the last delivery it judged — the last served ticket — instead |
 | Served | the last served ticket | `No ticket was served in the last 24 h.`, on the Served column |
-| Awaiting you — the TODO | the first card awaiting a human, and what a card asks | `Nothing awaits a human right now.`, on the column |
+| TODO | the first red card awaiting a human, in the column of its step (#3458), and what a card asks | `Nothing awaits a human right now.`, on the `TODO (N)` entry |
 | The second | the second's column | — |
 
 With nothing served in 24 h either, the step says so and outlines the column where it would happen. Until the rail is
@@ -389,8 +389,8 @@ Captures: `docs/captures/3165/`.*
 
 The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
 its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Rail** under the tabs, above the
-figures line; **Cooks** under the figures line (`Cooks 1 running`); **Pass**, **Awaiting you** (the TODO) and **Waiting**
-(WAITING) under their column's title; **Second** under the second's tab. The lines are those of the glossary's entry —
+figures line; **Cooks** under the figures line (`Cooks 1 running`); **Pass** and **Waiting** (WAITING) under their column's
+title; **TODO** next to the `TODO (N)` entry (#3458); **Second** under the second's tab. The lines are those of the glossary's entry —
 `The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
 third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
 station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
@@ -559,7 +559,7 @@ column on the right (#3164); each state says in one sentence what is awaited and
 | the second starts | `The second is starting, in its column on the right: it reads your repository first. Nothing is awaited from you yet.` | the second's terminal has no title yet |
 | the second reads | `The second is reading your repository, in its column on the right. Nothing is awaited from you yet.` | the title `claude` gives its terminal starts with a working sign (`◐`…), as `app/src/saisie.ts` reads it |
 | you answer | `The second is waiting for your answer, in its column on the right.` | the title starts with `✳` (at its prompt), or the second proposes choices or a gesture (#1520, #1521) |
-| you merge | `The setup pull request is waiting for your merge: its card is in Awaiting you.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
+| you merge | `The setup pull request is waiting for your merge: its card is red on the rail, counted in TODO.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
 | the second cannot start | `The second could not start: its column says why. Waiting for you to set the project up from here instead.`, `Set up for Brigade` | the second's terminal says it cannot start (#1435) |
 | set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
 
@@ -899,8 +899,8 @@ A project opened from that screen has neither a box nor a station on this comput
 still show something, always:
 
 - **Rail** shows the project's one rail view (#2076): its rail read from its GitHub repository, like
-  that of any project, whichever station serves it — On the rail, Taken, Pass, then Awaiting you (Todo) with each card that awaits
-  you and its gestures, Waiting and Served. The app reads the repository of
+  that of any project, whichever station serves it — On the rail, Taken, Pass, Waiting and Served, each card that awaits
+  you red with its gestures in the column of its step, counted by `TODO (N)` (#3458). The app reads the repository of
   every project in the projects file, not only of those it knows a station serves: a project whose
   kitchen runs on another station has the same view as one served by this computer. The rail its
   station publishes in its gist (#1432) no longer draws columns of its own: until GitHub is read,
@@ -1256,7 +1256,7 @@ used by `lireLeTableau` (`app/src/main.ts`). Test: `app/test/cartes-assignees/ca
 `todo-cartes-assignees-apres.png` (only their two).*
 
 **Awaiting others (#2985, #3071).** The cards that await another human of the project are not lost, and never drawn under the
-rail: they close the Todo column, after the viewer's own cards, in a section **Awaiting others (N)**, N their number,
+rail: they sit next to the `TODO (N)` entry, outside the columns (#3458), in a section **Awaiting others (N)**, N their number,
 folded by default — unfolded, it stays so at the next reading. Assigning a card is for notification and readability, never
 to stop a human from moving it forward: unfolded, each one is a card of Todo — it opens its sheet on a click, and takes the
 same answer, choices, field and gestures (answer, put on the rail, close, waiting for…) — and says in addition who it awaits,
@@ -1264,7 +1264,7 @@ by GitHub login (`awaits alice, carol`), without the “awaiting you” mark. Th
 signed in on this computer, like any other answer; the card stays under Awaiting others, and out of the Todo count, until
 the reading says otherwise. The chef sees the same way: a card assigned only to others is under Awaiting others;
 an unassigned one, or one that lists the chef among its assignees, is the chef's own. When nothing awaits another human, the section
-is not shown. The narrow screen draws the same section at the end of its Todo, and the phone splits its cards for the
+is not shown. The narrow screen draws the same section next to its `TODO (N)` entry, and the phone splits its cards for the
 account it is signed in to, as the desktop does, and answers them the same way. *Code: `partagerLesCartes` in
 `app/src/vue/cartes-assignees/cartes-assignees.ts`, `faits.attendAutres` (entries shaped like `attend`'s, plus `qui`) written
 by `avecLAttenteDuChef` (`app/src/tableau/attente-du-chef.ts`), the column's `autres` (full cards) in `rail`
@@ -2042,8 +2042,8 @@ and nothing on it scrolls sideways at phone width. Screen: `telephone-file` of
 `scripts/capture-ecran` (`docs/captures/1163/`; its Cooks screen went with the Cooks tab, #2921).
 
 **The phone opens on the cards that await you** (#2915, epic #2897; artboard `Phone.dc.html`, 390 × 844). At a narrow width
-(the same threshold, `ECRAN_ETROIT`), "All projects" gives its place to **Awaiting you**: the cards of every project's
-TODO column that ask a question, one touch each — `#21 · parade`, the question, what it asks (*Product choice · 2 options*,
+(the same threshold, `ECRAN_ETROIT`), "All projects" gives its place to **Awaiting you**: the cards of every project that
+await you (its TODO, #3458) and ask a question, one touch each — `#21 · parade`, the question, what it asks (*Product choice · 2 options*,
 *Review only you can make*, *Merge by hand · 1 option* for a PR to merge, #3368) — with the count in the header and, under them, how many projects are cooking when the app
 knows it. The projects bar stays above, and a page, a station or the first launch still cover the list. A touch opens the
 card: its question, what happens, one button per choice — the first, filled with the accent and marked *Recommended by the
@@ -3397,17 +3397,40 @@ Ages are counted between two times **of the box**: your workstation's clock does
 from the rail.
 ### The rail
 
+**TODO is not a column (#3458).** Tickets move left to right, from On the rail to Served; what awaits the chef is a
+property of a ticket, not a place on the rail. **A card that awaits you stays in the column of its stage** — On the rail
+before it is taken, Taken, Pass, Waiting — **with the black-and-red look of the awaiting card**, its `awaiting you` pill,
+its question and the buttons that answer it; **red cards come first in their column**, before the others. The column
+says where the ticket is, the colour says who holds it. A ticket that is not on the rail yet (an issue set aside, an epic
+the manager asks about) is red in On the rail; an `86` is red where the runtime says it waits (`attente.colonne`). A
+ticket in WAITING whose follow-up date has passed is back on you: its card is red, first in Waiting, with `resume` and
+`it arrived, back to the kitchen`. The main process still files what awaits you in one list (`Awaiting you` in
+`app/src/faits.ts`, each card with its `etape`); the view never draws it as a column (`app/src/vue/todo/todo.js`).
+
+**The word TODO names the filter of what awaits you**: above the columns, the entry **TODO (N)**, N the number of red
+cards — in Waiting included. One click shows only the red cards, wherever they sit, each column saying `nothing here
+awaits you` when it has none; a second click shows the whole rail again. When nothing awaits you it says `TODO (0)`,
+without any colour; when what awaits you is not read (the station unreachable, a runtime without `attend`), `TODO (?)`,
+its hover saying why. **What awaits you without being a ticket of the rail is next to the entry, outside the columns**:
+the breaker line and its `Resume`, the repository not set up for Brigade, an answer kept from a card that left
+meanwhile, then **Awaiting others (N)**, folded. The station alerts stay in the band above the space, and the project
+switched off at the head of the rail (#3454). The phone draws the same rail: no TODO column, the red cards in their
+stage, the `TODO (N)` entry. **All projects counts the same**: the `N awaiting you` of a project's line is the N of its
+`TODO (N)` once its rail is read (before that, the count the main process reads in `facts`). Captures:
+`docs/captures/3458/`. Where the sections below still speak of the Awaiting you (Todo) column, read: the red cards, in
+the column of their stage.
+
 **It is the main view of the space: in the middle of the screen, under the project name, whatever
-tab is shown below it** — the second, a shell, the output of a command. **Six columns**, one
-ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what you
-have to do (Awaiting you), what waits for a third party (Waiting), what is done (Served). **The columns are shared between the project's two tabs**
+tab is shown below it** — the second, a shell, the output of a command. **Five columns**, one
+ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what waits for a third party
+(Waiting), what is done (Served) — and, red in its column, what you have to do. **The columns are shared between the project's two tabs**
 (#1184, then #1269): the kanban stays whole on Rail, Taken and Pass included, and Cooks shows no column. No card
 opens a served worktree page (#1846). The spec is
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
 of `docs/maquettes/app/Brigade.dc.html`.
 
-**The order** (#2093): the row reads On the rail, Taken, Pass, Awaiting you, Waiting, Served — the rail in the order of
-service, then what waits for you, what waits for a third party, and what is done. The fourth column was titled Todo
+**The order** (#2093): the row reads On the rail, Taken, Pass, Waiting, Served — the rail in the order of service, then
+what waits for a third party, and what is done. Until #3458 a fourth column, Awaiting you, came after Pass. The fourth column was titled Todo
 until #2922, which gave it the mockup's title (`Project.dc.html`, epic #2897); "Todo" in this document names the same
 column. Titles are cased alike (Awaiting you and Waiting, not TODO and WAITING; the card badges keep their words), and
 each column has its own mark: a ring for On the rail, a triangle for Taken, a diamond for Pass, a square for Awaiting you, an orange **pause** (two bars: held, waiting for
@@ -3572,7 +3595,7 @@ section. With the section laid, `right now` is not repeated under it.
 | **On the rail** | the `queued` and `BLOCKED` tickets | the state word of `facts` |
 | **Taken** | the `taken` tickets | likewise |
 | **Pass** | the `in pass` tickets | likewise |
-| **Awaiting you** | the tickets that await a decision from you: those the `awaiting` block of `status` names, in the block's order — the oldest first —, then those `facts` names alone | **`attend`, in `facts`**, which says who is awaiting; and **the number at the head of a line of the block** (see "The number it reads there"), which also says what is expected of it |
+| *(TODO — not a column, #3458)* | the tickets that await a decision from you: those the `awaiting` block of `status` names, in the block's order — the oldest first —, then those `facts` names alone; each is red, first in the column of its stage | **`attend`, in `facts`**, which says who is awaiting; and **the number at the head of a line of the block** (see "The number it reads there"), which also says what is expected of it |
 | **Served** | the tickets served in the last 24 h, **the most recent on top** — whether their issue is closed or not: as many cards as the `served 24 h` counter | **`livres`, in `facts`**; from a box that does not give it yet, the `served` tickets of the rail |
 
 - **On the rail is in the order the runtime serves** (#1347) — the order of `rail[]` in `facts`, by
@@ -3626,9 +3649,8 @@ section. With the section laid, `right now` is not repeated under it.
   rendered apart, under the grid. A served ticket that the rail carries again under another word —
   taken again since, `86` — is in Served and where that word files it.
 
-- **A ticket that awaits a decision is in Awaiting you, and nowhere else** — a `BLOCKED` leaves
-  On the rail, a green unmerged delivery leaves Pass: it is the information that decides an
-  action. Its card keeps its state word, and carries **what its line of the block says, word for word**: the
+- **A ticket that awaits a decision has one card, red, in the column of its stage** (#3458) — a `BLOCKED` is red in
+  On the rail, a green unmerged delivery red in Pass: it is the information that decides an action. Its card keeps its state word, and carries **what its line of the block says, word for word**: the
   action is there, as the runtime writes it.
 - **It is there as soon as `facts` names it in `attend`**, without waiting for `status`: `facts` is read for
   all projects, whatever the screen. As long as the block has not been read, its card is in

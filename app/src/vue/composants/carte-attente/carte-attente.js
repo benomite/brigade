@@ -1,6 +1,6 @@
 // @ts-check
 // La carte d'attente de l'app (ticket 2918, maquette `Components.dc.html` et `Project.dc.html` de docs/maquettes/app/) : le
-// bon de la colonne « Awaiting you », sur le fond chaud de ce qui attend le chef, et la carte de réponse posée dessous
+// bon d'un ticket qui attend le chef, rouge dans la colonne de son étape (ticket 3458), sur le fond chaud de ce qui l'attend, et la carte de réponse posée dessous
 // — ce qui se passe, la question, un bouton par choix, un champ pour répondre dans ses mots. Elle est bâtie sur le bon
 // (composants/bon), la pastille « awaiting you » (composants/pastille) et les boutons (composants/bouton) : elle ne dessine
 // aucun des trois. Sa peau est dans `carte-attente.css`, à côté, qui ne nomme aucun écran.

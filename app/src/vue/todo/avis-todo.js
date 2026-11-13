@@ -1,5 +1,5 @@
 // @ts-check
-// L'avis « pas préparé pour Brigade » en tête de TODO (ticket 2628) : le même avis, le même bouton que sur la page du
+// L'avis « pas préparé pour Brigade » à côté de l'entrée « TODO (N) », hors des colonnes (tickets 2628, 3458) : le même avis, le même bouton que sur la page du
 // projet (page-projet/depot-non-prepare.js) — une même chose se dit partout de la même façon.
 
 import { poserAvisDeDepot } from "../page-projet/depot-non-prepare.js";

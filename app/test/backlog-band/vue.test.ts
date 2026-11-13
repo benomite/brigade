@@ -124,7 +124,7 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     assert.ok(poses.indexOf("bande-rail") < poses.indexOf("backlog-band"));
     assert.doesNotMatch(enfants(vue).find(({ className }) => className === "bande-rail")?.textContent ?? "", /Backlog/);
     assert.equal(grille(vue).children.some(({ className }) => className.includes("backlog")), false);
-    assert.deepEqual(grille(vue).children.map((pose) => pose.dessous("h4")[0]?.children[0]?.textContent), ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"]);
+    assert.deepEqual(grille(vue).children.map((pose) => pose.dessous("h4")[0]?.children[0]?.textContent), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
 
     // Replié : sa ligne seule — ni détail, ni liste.
     assert.equal("deplie" in leBandeau(vue).dataset, false);
@@ -149,7 +149,7 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     assert.match(choisi.textContent, /^#16Une épiqueprio:1open issue #16Groups book in one gesture\./);
     assert.deepEqual(choisi.dessous("li").map(({ textContent }) => textContent), ["on the rail1", "taken0", "pass0", "awaiting you0", "WAITING0", "served1"]);
     assert.equal(grille(vue).dataset.besoin, "16");
-    assert.deepEqual(bonsDuRail(vue).map(({ dataset }) => [Number(dataset.ticket), dataset.besoin]), [[10, "sien"], [22, "autre"], [17, "autre"]]);
+    assert.deepEqual(bonsDuRail(vue).map(({ dataset }) => [Number(dataset.ticket), dataset.besoin]), [[17, "autre"], [10, "sien"], [22, "autre"]]);
     // Le lien de son issue l'ouvre, par son projet et son numéro.
     (choisi.dessous("button").find(({ className }) => className === "backlog-band-issue") ?? assert.fail("pas de lien")).click();
     await repos();
@@ -173,7 +173,7 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     assert.deepEqual(bonsDuRail(vue).map(({ dataset }) => dataset.besoin), [undefined, undefined, undefined]);
   });
 
-  test("le besoin qui t'attend : son détail pose sa carte de TODO — la question et le bouton qui y répond —, et sa carte ressort dans Awaiting you", async () => {
+  test("le besoin qui t'attend : son détail pose sa carte de TODO — la question et le bouton qui y répond —, et sa carte rouge ressort en tête de la colonne de son étape", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
@@ -182,8 +182,8 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     const choisi = detail(vue) ?? assert.fail("pas de détail");
     assert.equal("rouge" in choisi.dataset, true);
     const carte = choisi.dessous("div").find(({ className }) => className === "backlog-band-question") ?? assert.fail("pas de carte de TODO");
-    const todo = colonne(vue, "Awaiting you").dessous("li").find(({ dataset }) => dataset.ticket === "17") ?? assert.fail("pas de carte dans Awaiting you");
-    // La même carte que la colonne Awaiting you : ses mots et ses boutons.
+    const todo = bonsDuRail(vue).find(({ dataset }) => dataset.ticket === "17") ?? assert.fail("pas de carte rouge dans le rail");
+    // La même carte que le rail pose en rouge (ticket 3458) : ses mots et ses boutons.
     assert.equal(carte.dessous("li")[0]?.textContent, todo.textContent);
     assert.deepEqual(carte.dessous("button").map(({ textContent }) => textContent), todo.dessous("button").map(({ textContent }) => textContent));
     assert.ok(carte.dessous("button").length > 0, "aucun bouton n'y répond");

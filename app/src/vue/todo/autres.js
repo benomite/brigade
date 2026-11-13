@@ -1,16 +1,16 @@
 // @ts-check
-// « Awaiting others » au pied de TODO (tickets 2985, 3071) : les cartes qui attendent un autre humain du projet que le compte
+// « Awaiting others » à côté de l'entrée « TODO (N) », hors des colonnes (tickets 2985, 3071, 3458) : les cartes qui attendent un autre humain du projet que le compte
 // connecté (vue/cartes-assignees/), repliées par défaut sous leur nombre, après les siennes. L'assignation sert à prévenir et
 // à lire, jamais à empêcher : dépliée, chacune est une carte de TODO — elle s'ouvre, se répond, se tranche, par les mêmes
 // gestes —, et dit en plus qui elle attend, leurs logins GitHub. Rien n'attend un autre humain : la section n'est pas posée.
-// Le même bloc ferme TODO sur un écran étroit, la vue étant la même.
+// Le même bloc est sur un écran étroit, la vue étant la même.
 
 export const TITRE = "Awaiting others";
 
 /**
  * @param {import("../briques.js").Fabrique} doc
  * @param {{ autres: readonly import("../../faits.ts").Carte[] | undefined, bons: (cartes: import("../../faits.ts").Carte[]) => HTMLElement, deplie: boolean, deplier: (ouvert: boolean) => void }} options
- * `bons` : la liste de cartes que TODO dessine, pour ses propres cartes ; `deplie` : le chef l'a dépliée, et la lecture suivante
+ * `bons` : la liste de cartes que le rail dessine, pour ses propres cartes ; `deplie` : le chef l'a dépliée, et la lecture suivante
  * la garde dépliée ; `deplier` : il l'ouvre ou la referme.
  * @returns {HTMLElement | undefined}
  */

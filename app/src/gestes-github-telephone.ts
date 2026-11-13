@@ -15,7 +15,7 @@
 //   - les gestes de WAITING (#3075) — « waiting for… » sur une carte de TODO, « resume » et « it arrived, back to the
 //     kitchen » sur une carte de WAITING : le téléphone ne joint aucun runtime, il les écrit sur l'issue comme le desktop
 //     sans runtime ici (vue/attente/attente-github.ts, `attenteSurGithub`).
-//   - « Resume » sur la ligne du disjoncteur, en tête de « Awaiting you » : `/resume` posté sur l'issue `brigade:breaker-open`
+//   - « Resume » sur la ligne du disjoncteur, à côté de « TODO (N) » (#3458) : `/resume` posté sur l'issue `brigade:breaker-open`
 //     du dépôt (github/breaker-resume.ts), le même code que le desktop ;
 //   - les deux gestes de la carte « Validate its screen » (ticket 3185) — « Validate » et « Send back to the kitchen » : le
 //     téléphone ne porte pas la commande du runtime que le desktop joue, il écrit sur GitHub ce qu'elle y écrit
