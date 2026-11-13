@@ -11,7 +11,7 @@ const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 function cuisine(t: import("node:test").TestContext, annonce: Record<string, unknown> | null) {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
   t.after(() => journal.fermer());
-  if (annonce !== null) journal.ajouter({ project: "brigade", ticket: null, author: `station:${STATION}`, type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], ...annonce } });
+  if (annonce !== null) journal.ajouter({ project: "brigade", ticket: null, author: `station:${STATION}`, type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1, ...annonce } });
   const lancer = (run: string, ticket: number) =>
     journal.ajouter({
       project: "brigade",

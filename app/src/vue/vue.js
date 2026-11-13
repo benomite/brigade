@@ -5110,7 +5110,7 @@ function poserLeRail(projet) {
     ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a)),
     ...ligneDuRailBloque(document, tenu.tableau.railBloque, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
     // Pourquoi la file ne part pas (ticket 3433) : sous le rail bloqué, qui est une autre cause, au-dessus des colonnes.
-    // Un rail bloqué (#3358) dit déjà, lui, la cause du rail mort : une seule explication, jamais deux l'une sur l'autre.
+    // Un rail bloqué (ticket 3358) dit déjà, lui, la cause du rail mort : une seule explication, jamais deux l'une sur l'autre.
     ...ligneDeLAttente(document, tenu.tableau.railBloque === undefined ? tenu.tableau.attenteDuRail : undefined, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
     ...panneDuRail(projet, tenu.tableau),
     ...teteDuRail(projet),
