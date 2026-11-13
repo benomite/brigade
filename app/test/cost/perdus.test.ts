@@ -3,7 +3,10 @@
 // box ne dit rien. Les cinq tickets les plus chers de la même page (vue/cost/chers.js, #910, #1022) : triés du plus cher
 // au moins cher, coupés à cinq, chacun avec son numéro, son titre, ses tokens et ses essais, « not communicated » pour ce
 // que la box ne dit pas, et un clic qui ouvre sa fiche. Les modules sont lus seuls, puis la vue jouée telle qu'elle est
-// (aides/fausse-vue.ts).
+// (aides/fausse-vue.ts). Ces blocs ne sont plus sur la page d'un projet (#1699) : ils étaient sous Settings →
+// Reliability, à côté de la fiabilité de ses cooks (#1022) ; quand la fiabilité est devenue une section de l'onglet
+// Cooks, ils n'ont pas suivi — un second chiffre de tokens perdus, compté autrement, aurait côtoyé celui de la
+// fiabilité. Le projet n'a toujours pas d'onglet Cost.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
@@ -18,7 +21,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { COMBIEN, cooksDe, plusChers, poserChers } from "../../src/vue/cost/chers.js";
 import { INTERROMPU, perdus, perdusDe, poserPerdus, ROUGE } from "../../src/vue/cost/perdus.js";
 import { NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
-import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
@@ -41,6 +44,22 @@ const station = (...cooks: string[]) =>
 const lu = (projet: string, texte: string) => ({ projet, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
 const PARADE = { nom: "parade" };
 const CANTINE = { nom: "cantine" };
+// La vue jouée, ces projets ouverts dans la barre.
+const jouer = (projets: Projet[]) =>
+  jouerLaVue({
+    demarrage: () => ({
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }, () => true),
+      palette: PALETTE,
+      exemple: EXEMPLE,
+      onglets: ONGLETS,
+      rubriques: RUBRIQUES,
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+      banniere: BANNIERE,
+      calibrage: { modeles: MODELES, efforts: EFFORTS },
+      code: undefined,
+    }),
+    espace: () => [],
+  });
 
 describe("les cooks perdus que `station` liste", () => {
   test("un essai rouge ou un cook interrompu ; pas un cook fini, ni le cook en cours, ni le bloc suivant", () => {
@@ -191,20 +210,7 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
   const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade" };
 
   async function ouvrirLaPage(): Promise<Jouee> {
-    const vue = await jouerLaVue({
-      demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET] }, () => true),
-        palette: PALETTE,
-        exemple: EXEMPLE,
-        onglets: ONGLETS,
-        rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
-        banniere: BANNIERE,
-        calibrage: { modeles: MODELES, efforts: EFFORTS },
-        code: undefined,
-      }),
-      espace: () => [],
-    });
+    const vue = await jouer([PROJET]);
     await ouvrirLesCouts(vue);
     return vue;
   }
@@ -262,5 +268,34 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
     assert.equal(vue.element("espace").textContent, "parade");
     assert.equal(vue.element("fiche").hidden, false);
     assert.ok(vue.element("fiche").dessous("span").some(({ textContent }) => textContent === "#30"));
+  });
+});
+
+describe("le coût d'un projet n'est plus sur sa page (#1699)", () => {
+  async function ouvrirStations(): Promise<Jouee> {
+    const vue = await jouer([
+      { nom: "parade", dossier: "/tmp/parade" },
+      { nom: "cantine", dossier: "/tmp/cantine" },
+    ]);
+    (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
+    await repos();
+    await ouvrirOnglet(vue, "Stations");
+    return vue;
+  }
+
+  test("le projet n'a plus d'onglet Cost : son seul onglet est Settings", async () => {
+    const vue = await ouvrirStations();
+    assert.deepEqual(vue.element("onglets-du-projet").children.map(({ textContent }) => textContent), ["Rail", "Stations", "Settings"]);
+  });
+
+  test("Stations ne pose ni ses tokens perdus ni ses tickets les plus chers ; Settings non plus", async () => {
+    const vue = await ouvrirStations();
+    const poses = vue.poses();
+    assert.deepEqual(poses.filter(({ className }) => /^(cout-du-projet|perdus-cout|chers-cout)$/.test(className)), []);
+    assert.doesNotMatch(vue.element("rail").textContent, /cost of this project|most expensive|120,000/);
+    // Settings — une seule page, sans sous-pages (#1700) — ne les pose pas non plus.
+    (vue.element("onglets-du-projet").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    await repos();
+    assert.deepEqual(vue.poses().filter(({ className }) => /^(cout-du-projet|perdus-cout|chers-cout)$/.test(className)), []);
   });
 });
