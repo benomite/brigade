@@ -1,0 +1,4 @@
+{
+  "tryable": false,
+  "reason": "An Android app: it runs on a device or an emulator, not from a card."
+}
