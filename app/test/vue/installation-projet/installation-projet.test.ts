@@ -264,7 +264,7 @@ describe("la vue jouée : la mise en place mergée, aucune station ne le sert", 
   });
 
   test("une station dit le servir : rien n'est demandé", async () => {
-    const stations = { a: A, stations: [{ id: "g1", nom: "atelier", projets: ["secondes"] }] } as unknown as VuDesStations;
+    const stations = { a: A, stations: [{ id: "g1", nom: "atelier", etat: "servi", dit: "", autoriser: [], projets: ["secondes"] }] } as unknown as VuDesStations;
     const { vue, merger } = await secondes(null, {}, stations);
     await merger();
     assert.equal(vue.element("main").dataset.parcours, undefined, "the project is ready");

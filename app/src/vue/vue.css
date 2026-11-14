@@ -491,19 +491,8 @@ main > header,
   line-height: 1.45;
   color: var(--texte-doux);
 }
-#stations-du-projet .station-du-projet {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#stations-du-projet .station-et-gestes {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
 /* Un projet qui cuit sur ce Mac (ticket 1095) : ce que ça implique, à côté de « this Mac », plus
    discret que le nom ; un déménagement en route, de même. */
-#stations-du-projet .s-arrete,
 #stations-du-projet .en-mouvement,
 #stations-du-projet .pourquoi {
   color: var(--discret);
@@ -1927,12 +1916,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--jaune);
 }
-/* L'âge du rail montré (ticket 2054) : toujours là, à voix basse. */
-#rail .age-du-rail {
-  padding: var(--pas-2) var(--pas-4) 0;
-  font-size: var(--taille-corps);
-  color: var(--gris);
-}
 /* Hors ligne (ticket 1818) : le rail lu en dernier reste, atténué, et un seul signe, à voix basse, dit depuis quand. */
 #rail[data-hors-ligne] > :not(.hors-ligne) {
   opacity: 0.55;
@@ -1987,50 +1970,6 @@ main > header,
 #rail .feu li small {
   font-size: var(--taille-meta);
   color: var(--discret);
-}
-/* La bande du haut de l'onglet Rail (#2486, #3013 ; maquette Project.dc.html) : une seule ligne de chiffres, chacun son
-   nom, sa valeur en gras et ce qu'elle est, à voix basse ; l'âge du rail au bout. Sur une fenêtre trop étroite, un
-   chiffre passe à la ligne entier, jamais coupé. Rien ne la rogne : les bulles de ses survols descendent sur le rail. */
-#rail .bande-rail {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-2) var(--pas-5);
-  padding: var(--pas-3) var(--pas-5);
-  font-size: var(--taille-corps);
-  color: var(--texte-doux);
-  white-space: nowrap;
-  border-bottom: 1px solid var(--trait-doux);
-}
-#rail .bande-rail > * {
-  flex: none;
-}
-#rail .bande-rail .bande-part {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--pas-1);
-}
-/* Un chiffre qui a un détail le dit au survol : le pointeur le signale. */
-#rail .bande-rail .survol > .bande-part {
-  cursor: help;
-}
-#rail .bande-rail .bande-valeur {
-  font-weight: 600;
-  color: var(--texte);
-}
-/* Le premier coup sous son but vire au rouge (#2672). */
-#rail .bande-rail .bande-part[data-depasse="oui"] .bande-valeur {
-  color: var(--rouge-clair);
-}
-/* La bulle d'un chiffre revient à la ligne, dans sa largeur : la bande ne coupe que ses chiffres. Celle de la pass dit
-   une phrase par ligne (#3512). */
-#rail .bande-rail .bulle {
-  white-space: pre-line;
-}
-/* L'âge du rail, au bout de la bande. */
-#rail .bande-rail .age-du-rail {
-  margin-left: auto;
-  padding: 0;
 }
 /* La tête du rail, la cuisine oisive avec des cartes dessus (#1863) : une panne — rouge, épaisse, sur le fond chaud de
    ce qui attend le chef, marquée FAULT comme l'urgence l'est URGENT. Elle se voit avant les colonnes. */
@@ -2304,8 +2243,8 @@ main > header,
 #rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) > ol > li {
   container: todo-plein / inline-size;
 }
-/* TODO hors des colonnes (ticket 3458) : l'entrée « TODO (N) » qui filtre les cartes rouges, puis ce qui attend le chef sans être
-   une carte du rail — la ligne du disjoncteur, le dépôt pas préparé, une réponse gardée — et « Awaiting others », replié. */
+/* Ce qui attend le chef sans être une carte du rail, sous les colonnes (ticket 3523) : le dépôt pas préparé, une réponse
+   gardée, et « Awaiting others », replié. */
 #rail .todo-du-rail {
   display: flex;
   flex-wrap: wrap;
@@ -2313,44 +2252,20 @@ main > header,
   gap: var(--pas-2);
   padding: var(--pas-2) var(--pas-4) 0;
 }
-#rail .todo-du-rail > :not(.entree-todo) {
+#rail .todo-du-rail > * {
   flex: 1 1 100%;
 }
-#rail .entree-todo {
-  padding: var(--pas-1) var(--pas-3);
-  font: inherit;
-  font-weight: 700;
-  color: var(--texte);
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-bouton);
-  cursor: pointer;
+/* La ligne d'état du rail (ticket 3523) : ce qui retient la cuisine, en une ligne sous laquelle les colonnes commencent. */
+#rail .statut-du-rail {
+  margin: var(--pas-2) var(--pas-4) 0;
+  color: var(--texte-doux);
 }
-/* Au moins une carte attend le chef : la couleur de ce qui l'attend. Zéro : aucun signe. */
-#rail .entree-todo[data-ton="rouge"] {
-  color: var(--rouge);
-  border-color: var(--rouge);
-}
-#rail .entree-todo[aria-pressed="true"] {
-  color: var(--fond);
-  background: var(--texte);
-  border-color: var(--texte);
-}
-#rail .entree-todo[aria-pressed="true"][data-ton="rouge"] {
-  background: var(--rouge);
-  border-color: var(--rouge);
-}
-/* Rien de rouge : ce que la liste dit d'elle-même, à voix basse, à côté de l'entrée. */
-#rail .todo-du-rail > p.todo-vide {
-  flex: 1 1 0;
-  align-self: center;
-  margin: 0;
-  font-size: var(--taille-corps);
+/* La station du projet, à côté de l'onglet Stations : son nom et son état, petits. */
+#etiquette-de-station {
+  flex: none;
+  margin: 0 var(--pas-3);
+  font-size: var(--taille-meta);
   color: var(--discret);
-}
-#rail .entree-todo:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 /* « Awaiting others » (tickets 2985, 3071) : le bloc replié, à côté de l'entrée TODO. Dépliées, les cartes d'un autre humain sont
    des cartes d'attente, avec en plus qui elles attendent. */
@@ -3832,6 +3747,38 @@ main > header {
 }
 .bloc-du-projet :is(p, table) {
   margin: 0;
+}
+/* Le temps de la pass (ticket 3512) : la part qui pèse le plus en tête, puis une rangée par phase — son nom, sa médiane et
+   son p75 —, puis la phase la plus lourde, les runs relancés et les renvois, à voix basse. */
+.bloc-du-projet[data-bloc="temps-de-la-passe"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+[data-bloc="temps-de-la-passe"] :is(.plus-lourde, .sans-mesure, .note) {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+[data-bloc="temps-de-la-passe"] .plus-lourde strong {
+  color: var(--texte);
+}
+[data-bloc="temps-de-la-passe"] .parts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--pas-1) var(--pas-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--taille-corps);
+}
+[data-bloc="temps-de-la-passe"] .parts li {
+  display: contents;
+}
+[data-bloc="temps-de-la-passe"] .parts .nom {
+  color: var(--texte-doux);
+}
+[data-bloc="temps-de-la-passe"] .parts .valeur {
+  color: var(--texte);
 }
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafonds-lecture {
   font-size: var(--taille-corps);

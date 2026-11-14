@@ -10,7 +10,7 @@ line `Caps, closer and all projects` held** (#2921, `app/src/vue/projet/bandeau-
 closer (#2491), then the Cost and Closer rows of all projects — has left the Rail tab (#3013) and the Stations tab: it is
 **a section of its own in Settings**, under the Kitchen group, titled `Caps, closer and all projects` and shown unfolded
 (#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/projet/`
-(`stations/`, `bandeau-sante/`, `rail/bande-rail.js`). **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
+(`stations/`, `bandeau-sante/`). **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
 station that serves the project, and the station choice — see "The Stations tab" below. Nothing else: **All stations**
 and `+ station`, which were under it since #2638, are back on the home, a block of their own (#3195).
 
@@ -363,7 +363,7 @@ word for it:
 | A cook | the first card of Taken | `No cook is running right now.`, and the last served ticket instead |
 | The pass | the first card of Pass | `Nothing is in the pass right now.`, and the last delivery it judged — the last served ticket — instead |
 | Served | the last served ticket | `No ticket was served in the last 24 h.`, on the Served column |
-| TODO | the first red card awaiting a human, in the column of its step (#3458), and what a card asks | `Nothing awaits a human right now.`, on the `TODO (N)` entry |
+| TODO | the first red card awaiting a human, in the column of its step (#3458), and what a card asks | `Nothing awaits a human right now.` (the entry is gone, #3523) |
 | The second | the second's column | — |
 
 With nothing served in 24 h either, the step says so and outlines the column where it would happen. Until the rail is
@@ -388,9 +388,8 @@ Captures: `docs/captures/3165/`.*
 ### The kitchen's words, explained the first time you meet them (#3308, epic #3304)
 
 The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
-its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Rail** under the tabs, above the
-figures line; **Cooks** under the figures line (`Cooks 1 running`); **Pass** and **Waiting** (WAITING) under their column's
-title; **TODO** next to the `TODO (N)` entry (#3458); **Second** under the second's tab. The lines are those of the glossary's entry —
+its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Pass** and **Waiting** (WAITING) under their column's
+title; **Second** under the second's tab. The Rail, Cooks and TODO lines no longer stand above the columns (#3523). The lines are those of the glossary's entry —
 `The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
 third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
 station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
@@ -635,59 +634,23 @@ nothing: nothing is told, and nothing is written over it.
 (`suivreLeParcours`, `poserLeRecitDuPremierTicket`). Tests: `app/test/recit-premier-ticket/`, `app/test/vue/rail/renvoi.test.ts`.
 Captures: `docs/captures/3302/`.*
 
-### The age of the rail is always on screen (#2054)
+### The age of the rail is on hover, and visible only when stale (#2054, #3523)
 
-The Rail tab reads the project's GitHub repository at most once a minute (#3007), with no gesture. At the end of the band at the top
-of the tab (#2486, below), quietly, it says how old the rail shown is — `rail as GitHub said it less than a minute ago,
-at 7:35 AM`. Since #2061 the
-rail is read from GitHub itself, so that age is counted from the app's own reading. When GitHub cannot be read again,
-the old columns are kept (#2151, below); offline, the last rail stays dimmed, marked `offline since` (#1818).
+The Rail tab reads the project's GitHub repository at most once a minute (#3007), with no gesture. How old the rail shown is
+— `rail as GitHub said it less than a minute ago, at 7:35 AM` — is no line of its own any more (#3523): it is on hover of the
+status line or of the Backlog band (of the columns when neither is there), and becomes visible only when the reading is stale
+(`up to date 3 min ago — the station has not answered since`, #2486). When GitHub cannot be read again, the old columns are
+kept (#2151, below); offline, the last rail stays dimmed, marked `offline since` (#1818).
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
 
-### The project's figures: one single line at the top of the Rail tab (#2486, #3013, epic #3010)
+### The line of figures is gone (#2486, #3013, #3523)
 
-The Rail tab opens on **one single line of figures** between the tabs and the rail, as `docs/maquettes/app/Project.dc.html`
-draws it (README decision 4), then the columns, which take the whole height left under it — each column runs down to the
-bottom of the tab, and no block above them pushes them into an inner scroll. Each figure is its name, its value in bold,
-then what the value is, in this order, each at most once:
-
-- **Ticket time** — `Ticket time 14 min median`: the median of the recent tickets from the station's `resume`, with no
-  cap (a ticket's size varies). On hover (or on the keyboard): the p75, the heaviest loss and the slowest phase with
-  their medians, then the station's other figures (#2672) — lost time, vs estimate, main repairs — each with its
-  threshold, and `— over it` when it is.
-- **Pass** (#3512) — `Pass · CI waiting for runners 62% of pass time`: the stage of the pass, or part of its CI,
-  with the largest share of the pass time of the deliveries merged in the last 7 days, from the station's `passe`.
-  On hover, one sentence per line: how many deliveries, each of their passes counted; the heaviest stage in total;
-  each stage — waiting for the pass, gates, review, CI, merge — and each part of the CI — waiting for runners,
-  running — with its median and p75 per delivery, `no measure yet` when nothing measures it and `none` when it
-  lasted on none; the CI runs restarted because the branch moved; the deliveries sent back and the time of their
-  passes sent back. How each stage is measured: "How long each stage of the pass takes" in
-  [`runtime/pass.md`](runtime/pass.md). The Cooks tab the ticket names was removed by #2921: the figure sits beside
-  the ticket time, where the ticket times are shown. Captures: `docs/captures/3512/`.
-- **First try** — `First try 57% · goal 70%`: the station's `first try` figure against its threshold, in red under it;
-  what weighs most on hover.
-- **Cooks** — `Cooks 2 running`, their tickets and stations on hover; `none running` when none is. When the reading does
-  not name them (the rail read from GitHub alone), the count is that of Taken — one cook per ticket —, and the hover says
-  so.
-- **Last merge** — `Last merge 4 min ago` (`3 d ago` past a day): the most recent `mergedAt` of the station's ticket
-  records, the ticket and its time on hover.
-- **The age of the rail** (#2054), at the end of the line.
-
-**A figure without a value is not drawn at all**: no `no measure yet`, no `Not available yet`, no `?` helper and no title
-with nothing under it. With nothing published but the running cooks, the line reads only `Cooks 3 running`. Before the
-rail is read, there is no Cooks. The backlog is no longer a figure of this line: it has its own band, the Backlog band,
-between this line and the columns (#3460, below). The figures are those the station publishes, never recomputed
-(`app/src/vue/temps-ticket/resume.js`). The Ticket time and Blocked without a question blocks that stood above the rail
-are gone (#3013), and so is the 24-hour histogram.
-
-The signs that something is wrong — the alert line, a stale or offline reading, the idle-kitchen fault, the project
-turned off — stay above the band. Before the rail is drawn, the band does not show: the tab says why, as before. An
-empty rail is said by its **On the rail** column. A line narrower than its figures wraps a whole figure to the next line;
-nothing is cut. Captures: `docs/captures/2486/`, `docs/captures/3013/`.
-
-*Code: `app/src/vue/projet/rail/bande-rail.js` (the band), `bandeDuRail` in `app/src/vue/vue.js`. Test:
-`app/test/vue/projet/rail/bande-rail.test.ts`.*
+The line of figures that stood above the columns — ticket time, first try, `Cooks 2 running` / `Cooks none running`, last
+merge, the age of the rail — is no longer on the Rail tab: above the columns there are at most two lines, the Backlog band
+and a status line ("Above the rail", #3523, below). Its module `projet/rail/bande-rail.js`, its test and `bandeDuRail`
+and `temps-ticket/resume.js` are deleted: of the figures the station publishes, the view reads only the pass time, in
+Settings ("Pass time", #3512, below).
 
 ### The Stations tab: who cooks it, is it working, how to change it (#3195, epic #3194)
 
@@ -768,8 +731,8 @@ choice stays open, the reason in one line, its buttons still there.
 
 **Gone from the tab**: the local `kitchen` pseudo-station and its empty log, the `Its stations` list, the old `Add a station`
 step (the button is back since #3402, opening the station choice), the `Station settings` and `Local station` blocks with their `not read yet` lines, the station line at the head of the page
-(`Cooks on …`, `does not serve this project`, `move the kitchen`, `+ station`, the `kitchen moves to …` sentence — they
-stay on Rail), and any line naming a station that does not serve the project. Before the stations are read, the tab says
+(`Cooks on …`, `does not serve this project`, `move the kitchen`, `+ station`, the `kitchen moves to …` sentence — the
+station and its state are now a tag beside the tab, #3523), and any line naming a station that does not serve the project. Before the stations are read, the tab says
 `Reading your stations on GitHub…` and nothing else. On a narrow screen, the tab is read-only: the line and the cards,
 no gesture and no `Details` (#1186). **All stations** and its `+ station`, which list every paired station, are no longer
 under the tab (#3195): they belong to the account, not to a project, and are the last block of the home.
@@ -913,7 +876,7 @@ still show something, always:
 
 - **Rail** shows the project's one rail view (#2076): its rail read from its GitHub repository, like
   that of any project, whichever station serves it — On the rail, Taken, Pass, Waiting and Served, each card that awaits
-  you red with its gestures in the column of its step, counted by `TODO (N)` (#3458). The app reads the repository of
+  you red with its gestures in the column of its step, counted on the home (#3458). The app reads the repository of
   every project in the projects file, not only of those it knows a station serves: a project whose
   kitchen runs on another station has the same view as one served by this computer. The rail its
   station publishes in its gist (#1432) no longer draws columns of its own: until GitHub is read,
@@ -1269,7 +1232,7 @@ used by `lireLeTableau` (`app/src/main.ts`). Test: `app/test/cartes-assignees/ca
 `todo-cartes-assignees-apres.png` (only their two).*
 
 **Awaiting others (#2985, #3071).** The cards that await another human of the project are not lost, and never drawn under the
-rail: they sit next to the `TODO (N)` entry, outside the columns (#3458), in a section **Awaiting others (N)**, N their number,
+rail: they sit under the columns, outside them (#3458, #3523), in a section **Awaiting others (N)**, N their number,
 folded by default — unfolded, it stays so at the next reading. Assigning a card is for notification and readability, never
 to stop a human from moving it forward: unfolded, each one is a card of Todo — it opens its sheet on a click, and takes the
 same answer, choices, field and gestures (answer, put on the rail, close, waiting for…) — and says in addition who it awaits,
@@ -1277,7 +1240,7 @@ by GitHub login (`awaits alice, carol`), without the “awaiting you” mark. Th
 signed in on this computer, like any other answer; the card stays under Awaiting others, and out of the Todo count, until
 the reading says otherwise. The chef sees the same way: a card assigned only to others is under Awaiting others;
 an unassigned one, or one that lists the chef among its assignees, is the chef's own. When nothing awaits another human, the section
-is not shown. The narrow screen draws the same section next to its `TODO (N)` entry, and the phone splits its cards for the
+is not shown. The narrow screen draws the same section, and the phone splits its cards for the
 account it is signed in to, as the desktop does, and answers them the same way. *Code: `partagerLesCartes` in
 `app/src/vue/cartes-assignees/cartes-assignees.ts`, `faits.attendAutres` (entries shaped like `attend`'s, plus `qui`) written
 by `avecLAttenteDuChef` (`app/src/tableau/attente-du-chef.ts`), the column's `autres` (full cards) in `rail`
@@ -1702,6 +1665,29 @@ on GitHub. A `status` that the home no longer reads is dropped: the row says aga
 `status` and `station`), the lag of the app's code — in each project's settings, and on
 hover of the **T** icon (see "The app's code: up to date, or behind") —, the "Projects on
 your stations" list and the "add a project" path, on a station's page.
+
+### Pass time
+
+*Ticket: #3512.* To know which stage of the pass costs the most before speeding it up, **a project's pass time** is a block of
+its `Caps, closer and all projects` section of Settings, right above its autonomy figures. It covers the deliveries merged in
+the **last 7 days**, each of their passes counted, sent back or not, as the station publishes them (`temps.passe`, never
+recomputed by the app):
+
+- **One line first: what weighs the most on the pass this week** — `CI waiting for runners: 62% of pass time · last 7 days,
+  12 deliveries, each of their passes counted`.
+- **One row per stage** — waiting for the pass, gates, review, CI, merge — **and per part of the CI** — waiting for
+  runners, running —, each with its median and p75 per delivery (`median 2 min · p75 5 min`); `none` when it lasted on
+  none; **`No measure yet.` when nothing measures it, never 0**.
+- Under them: the heaviest stage in total, the CI runs restarted because the branch moved (`no measure yet` when GitHub
+  was not read), and the deliveries sent back with the time of their passes sent back.
+
+With no delivery measured in the 7 days, the block says only `No measure yet. No delivery merged in the last 7 days has its
+pass measured.` How each stage is measured: "How long each stage of the pass takes" in [`runtime/pass.md`](runtime/pass.md).
+The ticket names the Cooks tab, beside the ticket times: #2921 removed that tab and #3523 the line of figures that showed
+the ticket time, so the pass time sits with the project's other kitchen figures. Captures: `docs/captures/3512/`.
+
+*Code: `app/src/vue/projet/bandeau-sante/TempsDeLaPasse.js`, `poserLeBandeauDeSante` in `app/src/vue/vue.js`. Test:
+`app/test/vue/projet/temps-de-la-passe.test.ts`.*
 
 ### Autonomy figures
 
@@ -2426,8 +2412,7 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
 - **The button says what it does**: `Start the kitchen on <station>`. Nothing goes out with an empty
   field: what is missing is read above the button, and the card stays open.
 
-Once handed over, the page says **where it cooks** — `Cooks on <station>`, its other stations after it
-(`· macbook`) — and, under that line, `All the stations cook.` A station added from the app is told like any other; until it has read the request, its line says in a few words that it is `not received by the station`, with `check again` (reads GitHub again) and, on hover, what to do (#1774). **"+ station"** opens the same card, about the added machine only (#1307):
+Once handed over, the Stations tab says **where it cooks** — and, beside the tab, a tag (#3523) — and, under that line, `All the stations cook.` A station added from the app is told like any other; until it has read the request, its line says in a few words that it is `not received by the station`, with `check again` (reads GitHub again) and, on hover, what to do (#1774). **"+ station"** opens the same card, about the added machine only (#1307):
 `Add a station to <projet>'s kitchen.`, with the same sentence, then one **machine** — this computer's
 station chosen at once when it does not cook the project yet, otherwise the first paired one — and, from
 the first render, what belongs to that machine: **cooks at once** (from its own cores, with its
@@ -2525,7 +2510,7 @@ Screenshots: `docs/captures/2346/`. The module is `app/src/vue/temps-ticket/temp
 **Median and p75, and lost time against its threshold** (#2664, epic #2659; #2670): the rail band says the ticket time from the `resume` object of `temps-tickets.json` that the measure publishes (`n`, `medianMin`,
 `p75Min`, `perduMedianMin`, `lostTimeMaxMin`, `phaseLaPlusLongue` and `perteLaPlusLourde` as `{ nom, medianMin,
 partPct }`, the latter null when nothing was lost), relayed as `temps.resume` — the app reads it, it does not recompute
-it (`app/src/vue/temps-ticket/resume.js`). A ticket's time, from its filing to its merge, has no cap: its size varies.
+it. A ticket's time, from its filing to its merge, has no cap: its size varies.
 Only its **lost time** has one — everything but the cook that delivered and the pass, CI and merge of the merged
 delivery: the wait for a claim, the failed cooks, the send-backs. The four figures come from the station
 as `temps.chiffres` (`runtime/src/chiffres-du-projet.ts`): `{ cle, nom, valeur, seuil, depasse, pesent }`, read as they
@@ -2632,9 +2617,9 @@ decision is recorded; the station then republishes the state that says it for go
 - **The line says where it cooks**, as its stations publish it (`cuitSur` in their tracking,
   [docs/runtime/](runtime/station-distante.md), "Déménager la cuisine d'un projet, quand on veut") — not what the
   app asked for: a refused move leaves it cooking where it was cooking, and so does the line.
-  `Cooks on parade-box` for a project on its box; **`Cooks on this Mac · its kitchen stops when you
-  close the app`** for a project that this computer's station serves — the sentence is never
-  said of another station. The station's name is on hover over "this Mac".
+  The station tag beside the Stations tab says `parade-box · cooking` for a project on its box; for a project that this
+  computer's station serves, its hover says that its kitchen stops when you close the app — never said of another
+  station.
 - **Read and driven here.** A project that cooks on this computer is read and driven
   by this workstation's station: its rail, its queue and its cards come from it, and the gestures go through the
   local station's own gesture. The source follows the kitchen: when
@@ -3420,18 +3405,14 @@ ticket in WAITING whose follow-up date has passed is back on you: its card is re
 `it arrived, back to the kitchen`. The main process still files what awaits you in one list (`Awaiting you` in
 `app/src/faits.ts`, each card with its `etape`); the view never draws it as a column (`app/src/vue/todo/todo.js`).
 
-**The word TODO names the filter of what awaits you**: above the columns, the entry **TODO (N)**, N the number of red
-cards — in Waiting included. One click shows only the red cards, wherever they sit, each column saying `nothing here
-awaits you` when it has none; a second click shows the whole rail again. When nothing awaits you it says `TODO (0)`,
-without any colour; when what awaits you is not read (the station unreachable, a runtime without `attend`), `TODO (?)`,
-its hover saying why. **What awaits you without being a ticket of the rail is next to the entry, outside the columns**:
-the breaker line and its `Resume`, the repository not set up for Brigade, an answer kept from a card that left
-meanwhile, then **Awaiting others (N)**, folded. The station alerts stay in the band above the space, and the project
-switched off at the head of the rail (#3454). The phone draws the same rail: no TODO column, the red cards in their
-stage, the `TODO (N)` entry. **All projects counts the same**: the `N awaiting you` of a project's line is the N of its
-`TODO (N)` once its rail is read (before that, the count the main process reads in `facts`). Captures:
-`docs/captures/3458/`. Where the sections below still speak of the Awaiting you (Todo) column, read: the red cards, in
-the column of their stage.
+**There is no TODO filter and no `TODO (N)` entry any more (#3523).** The red cards come first in their column — in Waiting
+included — and that is all: nothing to click. The count of what awaits the chef stays on the home (`N awaiting you` on a
+project's line, the count of the red cards once its rail is read; before that, the count the main process reads in
+`facts`). **What awaits you without being a ticket of the rail is under the columns, outside them**: the repository not set
+up for Brigade, an answer kept from a card that left meanwhile, then **Awaiting others (N)**, folded; the breaker line and
+its `Resume` is the status line (below), and the project switched off is too (#3454). The phone draws the same rail: no TODO
+column, the red cards in their stage. Captures: `docs/captures/3458/`. Where the sections below still speak of the Awaiting
+you (Todo) column, read: the red cards, in the column of their stage.
 
 **It is the main view of the space: in the middle of the screen, under the project name, whatever
 tab is shown below it** — the second, a shell, the output of a command. **Five columns**, one
@@ -3447,9 +3428,7 @@ what waits for a third party, and what is done. Until #3458 a fourth column, Awa
 until #2922, which gave it the mockup's title (`Project.dc.html`, epic #2897); "Todo" in this document names the same
 column. Titles are cased alike (Awaiting you and Waiting, not TODO and WAITING; the card badges keep their words), and
 each column has its own mark: a ring for On the rail, a triangle for Taken, a diamond for Pass, a square for Awaiting you, an orange **pause** (two bars: held, waiting for
-someone) for Waiting, a disc for Served. Above the row, the Backlog band (#3460, below). **Todo never
-disappears**: when the `awaiting` block says nothing awaits the chef, its one line says `nothing awaits you`; when
-the block has lines without a ticket (a station, the base), it says that no ticket heads them. Captures: `docs/captures/2093/` — `espace-projet-*` and `espace-projet-etats-github-*`, `-avant` and `-apres`.
+someone) for Waiting, a disc for Served. Above the row, the Backlog band (#3460, below). Captures: `docs/captures/2093/` — `espace-projet-*` and `espace-projet-etats-github-*`, `-avant` and `-apres`.
 
 ```
 ● On the rail  2       ● Taken  1             ● Pass  1            ■ Awaiting you  1      ‖ Waiting  0        ● Served  1
@@ -3857,7 +3836,7 @@ section. With the section laid, `right now` is not repeated under it.
   is green, `2/2 served`, and leaves the band 24 hours after its issue closed (`RETENUE_MS`). The title reads
   `Backlog`, the number of needs and, in red, how many await you; on hover, the counts of each state in words — `8
   issues before the rail — 3 not read yet · 1 epic, not split yet · …`. The number of red tags is
-  `rougesDuBacklog` (`app/src/vue/backlog-band/backlog-band.js`), for the TODO (N) entry (#3458).
+  `rougesDuBacklog` (`app/src/vue/backlog-band/backlog-band.js`), for the home's count (#3458).
 
   **The line never cuts a tag**: the tags that do not fit are hidden whole, and the line ends with `+N`, the number not
   shown — it is recounted when the band's width changes. On a phone-width window (the narrow page, #1186), the line goes
@@ -3915,8 +3894,30 @@ The band at the top of the Rail tab is an order book above the rail: **one tag p
 - **Red tags come first**: a tag that awaits the chef is red and stands before the others.
 - **`+N` overflow**: a `+N` tag stands for the needs the line does not show; on a phone-width window the line scrolls sideways instead.
 - **Click on a tag**: unfolds the band with that need's detail and highlights its tickets in the rail.
-- **Click on the title, "Backlog"**: unfolds the whole backlog as a list, grouped by state; a second click folds it back to its line.
+- **Click on the title, "Backlog"**: unfolds the whole backlog as a list, grouped by state; a second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
 - **Served needs stay 24 hours**: a served need stays in the band for 24 hours, then leaves it.
+
+### Above the rail: at most two lines (#3523)
+
+Above the columns of the Rail tab there are **at most two lines**: the Backlog band, and one status line that shows **only when
+something holds the kitchen**. The columns start right under them.
+
+- **The status line** is the first of these causes, never two stacked: the breaker line with its `Resume` (#2140); an issue the
+  kitchen filed about itself (`Kitchen held: its breaker is open`, `Kitchen idle: …`); the blocked rail (#3358); the idle-kitchen
+  fault (#1863); the project off, with its switch (#3454); a stale or offline reading; the wait of the queue (#3433).
+- **A kitchen-filed issue is never a need.** `Kitchen <project> held: its breaker is open` and `The kitchen is idle: …`
+  (`app/src/amont.ts`, `alerteDeLaCuisine`) are left out of the Backlog — no tag, no row in the unfolded list, not counted —
+  and their content is the status line.
+- **The status line never says "no reason is found" when a reason is known**: with the kitchen held, its breaker open, a
+  ticket set aside or the kitchen stopped, the wait line names it (`The queue waits: #12, #13 are set aside.`,
+  `app/src/vue/ligne-de-statut/`). Only when nothing is known does the runtime's sentence stand.
+- **Gone from above the columns**: the `Cooks on <station> · its kitchen stops when you close the app  + station` bar, the
+  `TODO (N)` filter, the figures line (`Cooks none running`) and the age line. The station and its state — cooking, stopped,
+  paused — are a small tag beside the **Stations** tab; a station is added from the Stations tab (`Add a station`). The age of
+  the reading is on hover of the status line or of the band, and visible only when the reading is stale.
+
+*Code: `ligne-de-statut/ligne-de-statut.js`, the `poserLeRail` block of `app/src/vue/vue.js`, `etiquetteDeStation`. Tests:
+`app/test/vue/ligne-de-statut/`, `app/test/amont.test.ts`, `app/test/stations-de-cuisson.test.ts`.*
 
 ### The stop banner
 
@@ -3986,7 +3987,7 @@ behind "detail". The line goes away as soon as a reading succeeds, without resta
 failed reading does not set it.
 
 - **The project's pill** says the same thing in one word, `unreachable`, and the bar's box carries a `×`.
-  The project's station ("Cooks on") is no longer green: it is red, `unreachable`.
+  The project's station tag beside the Stations tab is no longer green: it is red, `unreachable`.
 - **The rail's columns** show no "0": each carries `?` and says "not known while the
   station is unreachable". Nothing else of the rail is laid down (not upstream). A reached box that does not
   return the shape of `facts` is not this case: the rail is not drawn, as above.

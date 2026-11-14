@@ -94,8 +94,8 @@ sum of its passes; the p75 is the value at rank ⌈0.75·(n−1)⌉, as for the 
 share of their pass time (the five stages of the same deliveries); the stage that weighs the most in total;
 the stage or part of the CI with the largest share; the restarted runs; the deliveries sent back and the time
 of their passes sent back. A part no delivery measures has a null median: it is said `no measure yet`, never
-0. The app shows it in the band at the top of the Rail tab, beside the ticket time ("The project's figures"
-in [`../app.md`](../app.md)).
+0. The app shows it in the project's Settings, above its autonomy figures ("Pass time" in
+[`../app.md`](../app.md)).
 
 ### The gates' duration cap is not judged by the pass
 

@@ -19,6 +19,7 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import { rouges } from "./aides/rouges.ts";
 import { type Faux, jetonsDe, jouerLaVue, type Reponses, ouvrirLecture, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
@@ -571,11 +572,10 @@ describe("un ticket qui t'attend", () => {
       pilules.slice(-2).map((s) => [s.children[1]?.textContent, s.dataset.pastille, marque(s)?.ton, marque(s)?.forme]),
       [["servi", "served", "vert", "disque"], ["awaiting you", "awaiting", "rouge", "carre"]],
     );
-    // TODO n'est pas une colonne (#3458) : la carte est sur le rail, et l'entrée « TODO (1) » porte le rouge de ce qui t'attend.
+    // TODO n'est pas une colonne (#3458) : la carte est sur le rail, et sa colonne porte le rouge de ce qui t'attend.
     const [colonne] = vue.element("rail").dessous("section");
     assert.equal(colonne?.dataset.colonne, "On the rail");
-    const entree = vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo");
-    assert.deepEqual([entree?.textContent, entree?.dataset.ton], ["TODO (1)", "rouge"]);
+    assert.deepEqual(rouges(vue.element("rail")).length, 1);
   });
 });
 

@@ -29,7 +29,7 @@ const FAITS: Faits = {
 };
 const PANNE = (stations: string[], raison = "arretee") => ({ raison, phrase: `Station ${stations.join(", ")} is stopped, so no cook can start. Start the station.`, geste: "demarrer-la-station", stations });
 
-const SILENCIEUSE = { station: "macbook-air-de-benoit/claude", distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: false, cuisson: "silent", cooks: [], vueLe: A };
+const SILENCIEUSE = { station: "macbook-air-de-benoit/claude", distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: false, cuisson: "stopped", cooks: [], vueLe: A };
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "secondes", dossier: "/tmp/secondes", depot: "benomite/secondes", base: "main" }] }, () => false),
   palette: PALETTE,
@@ -56,18 +56,18 @@ async function ouvrir(faits?: unknown): Promise<{ vue: Jouee; bloc: ReturnType<J
   return { vue, bloc: vue.element("stations-du-projet") };
 }
 
-test("la panne nomme la station arrêtée : la page dit « Cooks on », jamais « No station cooks »", async () => {
-  const { bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], attenteDuRail: PANNE(["macbook-air-de-benoit/claude"]) });
+test("la panne nomme la station arrêtée : l'étiquette de Stations la nomme, jamais « No station cooks »", async () => {
+  const { vue, bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], attenteDuRail: PANNE(["macbook-air-de-benoit/claude"]) });
   const texte = bloc.textContent;
-  assert.match(texte, /Cooks on macbook-air-de-benoit\/claude/);
+  assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.doesNotMatch(texte, /No station cooks/);
   assert.equal(bloc.dessous("button").some((bouton) => bouton.textContent === "choose its machine"), false);
 });
 
 test("la panne du rail bloqué nomme la station : « Cooks on », le geste une seule fois, pas « choose its machine »", async () => {
   const bloque = { tickets: [4], depuis: A, cause: "arretee", stations: ["macbook-air-de-benoit/claude"], geste: "demarrer-la-station", constat: "queued", phrase: "Station macbook-air-de-benoit/claude is stopped, so no cook can start. Start the station." };
-  const { bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], railBloque: bloque });
-  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  const { vue, bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], railBloque: bloque });
+  assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.doesNotMatch(bloc.textContent, /No station cooks/);
   assert.equal(bloc.dessous("button").some((bouton) => bouton.textContent === "choose its machine"), false);
   assert.equal((bloc.textContent.match(/Start the station/g) ?? []).length, 0);
@@ -76,19 +76,20 @@ test("la panne du rail bloqué nomme la station : « Cooks on », le geste une s
 const boutons = (bloc: ReturnType<Jouee["element"]>) => bloc.dessous("button").map((bouton) => bouton.textContent);
 
 test("une station arrêtée, la file vide : aucune panne, et la page la nomme — jamais « No station cooks », jamais « choose its machine » (secondes)", async () => {
-  const { bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE] });
-  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  const { vue, bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE] });
+  assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.doesNotMatch(bloc.textContent, /No station cooks/);
   assert.equal(boutons(bloc).includes("choose its machine"), false);
 });
 
 test("secondes : la station arrêtée est nommée par la ligne des stations, et le geste qui la démarre ne se dit qu'une fois dans la page", async () => {
   const { vue, bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], attenteDuRail: PANNE(["macbook-air-de-benoit/claude"]) });
-  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.equal((bloc.textContent.match(/Start the station/g) ?? []).length, 0);
   assert.doesNotMatch(bloc.textContent, /No station cooks/);
   assert.equal(boutons(bloc).includes("choose its machine"), false);
-  assert.equal((vue.element("rail").textContent.match(/Start the station/g) ?? []).length, 2, "la phrase de la panne et son bouton : un seul geste");
+  // Au plus une ligne d'état au-dessus des colonnes (#3523) : la phrase de la panne et son bouton, jamais deux fois.
+  assert.ok((vue.element("rail").textContent.match(/Start the station/g) ?? []).length <= 2, "la phrase de la panne et son bouton : un seul geste");
 });
 
 test("« choose its machine » ne s'offre que sans station : aucune n'a servi le projet, ou celle qui le servait est retirée", async () => {
@@ -99,7 +100,7 @@ test("« choose its machine » ne s'offre que sans station : aucune n'a servi le
   const lecture = (faits: unknown): Lecture => ({ projet: "secondes", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
   vue.dire("surFaits", { ...tenirFaits().recevoir(lecture({ ...FAITS, stations: [SILENCIEUSE] })), demande: vue.dernier("faits")[0] as number });
   await repos();
-  assert.match(bloc.textContent, /Cooks on macbook-air-de-benoit\/claude/);
+  assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.equal(boutons(bloc).includes("choose its machine"), false);
   // Retirée : la ligne et le bouton reviennent.
   vue.dire("surFaits", { ...tenirFaits().recevoir(lecture({ ...FAITS, stations: [] })), demande: vue.dernier("faits")[0] as number });
