@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import type { ReprendreLeTicket } from "../src/reprise-du-manager.ts";
 import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
 import { lienDuCorps } from "../src/besoin/besoin.ts";
 import { porteListe } from "../src/epique.ts";
@@ -27,6 +28,8 @@ export type OptionsDuFaux = {
   // Le clone du projet, où le temps des tickets mergés s'écrit (#3512).
   clone?: string;
   sauter?: (ticket: number, ligne: string) => void;
+  // Le manager consulté après le dernier essai raté (#3513).
+  reprendre?: ReprendreLeTicket;
 };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
@@ -68,6 +71,8 @@ export class FauxGitHub {
   // Une relance tourne : le check `tests` de la base est en cours jusqu'à
   // `finirLaRelance`.
   relanceEnCours = false;
+  // La station peut-elle réécrire le corps d'une issue (#3513) ? Non, par défaut.
+  corpsEcrivables = false;
   private horloge = 0;
 
   // La relance des jobs de la base finit, verte ou rouge.
@@ -143,6 +148,14 @@ export class FauxGitHub {
         await noter("corpsDuTicket");
         return this.ticket(issue).corps;
       },
+      ...(this.corpsEcrivables
+        ? {
+            ecrireCorps: async (issue: number, corps: string) => {
+              await noter("ecrireCorps");
+              this.ticket(issue).corps = corps;
+            },
+          }
+        : {}),
       issue: async (numero) => {
         const ticket = this.tickets.get(numero);
         return ticket === undefined ? null : { number: numero, title: ticket.title, labels: [...ticket.labels], state: ticket.state, createdAt: "", updatedAt: "", url: "", body: ticket.corps, ...(ticket.state === "closed" ? { closedAt: ticket.fermeLe ?? "2026-10-23T00:00:00Z" } : {}) };
@@ -292,6 +305,7 @@ export class FauxGitHub {
       ...(options.gates === undefined ? {} : { gates: options.gates }),
       ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
       ...(options.clone === undefined ? {} : { clone: options.clone }),
+      ...(options.reprendre === undefined ? {} : { reprendre: options.reprendre }),
       places: options.places ?? 1,
       ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",

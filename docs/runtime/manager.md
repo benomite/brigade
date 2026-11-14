@@ -322,6 +322,11 @@ zone path (see "File zones", in `station-cook.md`), not that the zone is right.
 
 ### It reacts to a failure
 
+On a station on GitHub alone, a ticket whose tries are spent — 3 cooks without a delivery, or its
+delivery refused again after 2 sends back — goes to the manager too, which rewrites, splits or
+recalibrates it, or asks the chef a product or design question: see "After the third failed try" in
+`station.md` (#3513).
+
 Off, the pass sends back twice at the same calibration, then passes the ticket up to you. **On, the pass
 hands over from the second red** (`pass.deferred`): the ticket stays in the pass, no cook restarts until
 the manager decides.

@@ -413,10 +413,39 @@ the cook's worktree to the base and plays the project's gates there. If all hold
 named, commit not on the base, changes left in the worktree, no gates to play, red gates) or the PR is
 still open, the cook's answer is an ordinary failed attempt, with the reason in the `brigade:echec` comment.
 
+### After the third failed try: the manager reworks the ticket
+
+A station on GitHub alone stops trying a ticket after 3 cooks in a row without a delivery (or 2 in a
+row with the same stop reason, #2729), or when the pass refuses its delivery again after 2 sends back.
+One more try almost never helps: repeated failures say the ticket is unclear or too big, not that the
+cook is weak. So the ticket **goes to the manager, not to the chef** (#3513,
+`runtime/src/reprise-du-manager.ts`). The station gives the manager — with its calibration, in a
+read-only worktree of the integration branch — the reason of each try, and the manager does one thing:
+
+| Its choice | What happens |
+|---|---|
+| **rewrite** | the issue's body is rewritten more precisely, the former body kept below it in a folded block; the ticket goes back on the rail as it is |
+| **split** | 2 to 5 smaller tickets are opened on the rail, with the ticket's `fire`, `model:`, `effort:`, `prio:` and `cook:design` labels and `Epic: #N` in their body; the ticket becomes their epic (the list of its tickets in its body): it is no longer taken, and closes once they are all closed |
+| **recalibrate** | its `model:` and `effort:` labels are replaced — never above the project's calibration ceiling (`manager.md`) — and it goes back on the rail |
+| **question** | only when the reasons show a product or design choice: `blocked-on-human`, and the card asks that question — never "the ticket failed" |
+
+It says which, and why, in **one comment** on the issue (`brigade:reprise-du-manager`), which lists
+the tries' reasons. No gesture of the chef puts the ticket back on the rail: its tries and sends back
+count again from that comment. **A ticket reworked this way that fails its tries again goes to the
+chef, once**: it is set aside (`set-aside:failures`, below), and the comment says what was tried — the
+manager's choice and why — and the reasons of the tries since. A ticket born of such a split has had
+its rework: it goes to the chef at its own last failed try, without a second one.
+
+The ticket also goes to the chef as before, the comment saying why, when the station has no manager
+to consult, when the manager's answer cannot be read (no JSON, a choice not offered, a split into fewer
+than 2 or more than 5 tickets, a recalibration to the same calibration or above the ceiling, a
+question that does not end with `?`), or when its choice cannot be
+applied (the station cannot write the issue's body, GitHub refuses a write). Nothing is guessed.
+
 ### Relaunching a set-aside ticket
 
-A station on GitHub alone sets a ticket aside after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or
-after 2 sends back of the same delivery. It puts `set-aside:failures` on it and says so in its own
+A station on GitHub alone sets a ticket aside when its tries are spent and the manager could not
+rework it, or did already (above). It puts `set-aside:failures` on it and says so in its own
 words in its comment ("Set aside by its failure count") and on its card: nobody else serves it.
 `served-elsewhere` is never put by the station: it says that another station serves the ticket, and
 is set by whoever knows it does (#3528). To relaunch it, fix the cause, then **remove
