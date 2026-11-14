@@ -95,6 +95,7 @@ import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
+import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -2681,6 +2682,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const issue = await options.github.issue(ticket.number);
       const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
       const criteres = lireLaCarte(issue?.body ?? "").criteria;
+      // Conseil seul (#3511) : les fichiers hors de la zone annoncée, en une ligne sur la PR.
+      await signalerHorsZone({ zone: async () => zoneDeclaree(issue?.body ?? "", fiche((await options.github.commentaires(ticket.number)).map(({ body }) => body))), fichiers: diff.fichiers, pr: pr.number, commentaires: async () => (await options.github.commentaires(pr.number)).map(({ body }) => body), commenter: (numero, corps) => options.github.commenter(numero, corps), avertir });
       // La réponse du cook aux remarques d'avant, s'il en a posté une : la pass la juge (#2592).
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
