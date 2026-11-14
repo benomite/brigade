@@ -18,6 +18,7 @@ import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../../src/fai
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import { rouges } from "../aides/rouges.ts";
 import { FauxEcran, type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
@@ -117,7 +118,7 @@ const stations = (vue: Jouee) =>
     .map((carte: Faux) => ({ station: carte.dataset.station, etat: carte.dessous("span").find((span) => span.className === "pilule etat")?.textContent, cooks: cooksDe(carte) }));
 
 describe("la file d'un projet sur le téléphone", () => {
-  test("Rail : le rail, ce qui attend un tiers et ce qui est servi — pas de colonne TODO : ce qui attend le chef est rouge dans son étape, et « TODO (1) » le compte (#3458)", async () => {
+  test("Rail : le rail, ce qui attend un tiers et ce qui est servi — pas de colonne TODO : ce qui attend le chef est rouge dans son étape, et le compte de l'accueil le dit (#3458)", async () => {
     const vue = await ouvrir({ etroit: true });
     assert.deepEqual(
       colonnes(vue).map(({ nom, compte }) => [nom, compte]),
@@ -136,7 +137,8 @@ describe("la file d'un projet sur le téléphone", () => {
       sections(vue).filter((colonne) => "attend" in colonne.dataset).map((colonne) => colonne.children[0]?.children[0]?.textContent),
       ["Pass"],
     );
-    assert.equal(vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo")?.textContent, "TODO (1)");
+    assert.deepEqual(rouges(vue.element("rail")), ["#12"]);
+    assert.equal(vue.element("rail").dessous("button").some(({ className }) => className === "entree-todo"), false);
   });
 
   test("Stations : les cooks en cours, station par station", async () => {

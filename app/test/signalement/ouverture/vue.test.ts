@@ -201,7 +201,7 @@ describe("une station en panne", () => {
     assert.deepEqual(signaler(vue.element("station")), []);
   });
 
-  // La station du projet, refusée, sur sa ligne de l'onglet Stations : rouge.
+  // La station du projet, refusée : la barre « Cooks on » n'existe plus, le geste reste sur la page de la station (pannes).
   const projets = (etat: "refuse" | "servi"): VuDesProjets => ({
     a: A,
     projets: [{ nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat, dit: etat === "refuse" ? "box cannot clone benomite/parade" : "", autoriser: [] }], servi: null, acces: null, refus: null, worktree: null }],
@@ -212,16 +212,9 @@ describe("une station en panne", () => {
   });
   const avec = (etat: "refuse" | "servi"): Avec => ({ stations: { a: A, stations: [{ ...BOX, pannes: [], projets: [] }] }, accueil: ACCUEIL, projetsDesStations: projets(etat) });
 
-  test("rouge sur la ligne des stations du projet, elle porte le bouton ; servie, non", async () => {
+  test("la barre « Cooks on » est partie (#3523) : une station refusée n'y porte plus de bouton, le projet n'a plus de ligne des stations au-dessus du rail", async () => {
     const rouge = await ouvrirParade({}, avec("refuse"));
-    const bouton = signaler(rouge.element("stations-du-projet"))[0] ?? assert.fail("pas de bouton sur la station refusée");
-    bouton.click();
-    await repos();
-    const [demande] = rouge.dernier("signaler") as [Demande];
-    assert.equal(demande.projet, "parade");
-    assert.deepEqual(demande.reference, { station: "box" });
-    assert.match(demande.panne, /^station box, cooking parade: refused/);
-    const servie = await ouvrirParade({}, avec("servi"));
-    assert.deepEqual(signaler(servie.element("stations-du-projet")), []);
+    assert.deepEqual(signaler(rouge.element("stations-du-projet")), []);
+    assert.equal(rouge.element("stations-du-projet").hidden, true);
   });
 });

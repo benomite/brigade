@@ -48,8 +48,7 @@ const modifierEtat = (base: Base, affectation: string, ...parametres: Array<stri
 // old cook that ends well says nothing about those that left after it.
 // A failure judged before the last "resume" no longer counts. Only a broken
 // kitchen is a failure: a ticket's cook stopped by a cap or delivered red is not.
-const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) => {
-  base.executer("UPDATE cook_runs SET judgment = ?, judged_seq = ? WHERE run = ?", verdict, seq, run);
+const compterLesEchecs = (base: Base) =>
   modifierEtat(
     base,
     `failures = (
@@ -59,6 +58,9 @@ const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) =>
          AND launched_seq > coalesce((SELECT max(launched_seq) FROM cook_runs WHERE judgment = 'good'), 0)
      )`,
   );
+const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) => {
+  base.executer("UPDATE cook_runs SET judgment = ?, judged_seq = ? WHERE run = ?", verdict, seq, run);
+  compterLesEchecs(base);
 };
 
 export const gardeFous = definirProjection<FaitGardeFous>({
@@ -193,6 +195,12 @@ export const gardeFous = definirProjection<FaitGardeFous>({
     "relaunch.judged": (base, evenement) => {
       if (evenement.payload.verdict === "green") juger(base, evenement.payload.run, "good", evenement.seq);
     },
+    // A failure recorded for a cook killed from outside is dropped (#3528): it no longer counts.
+    "cook.reclassified": (base, evenement) => {
+      base.executer("UPDATE cook_runs SET judgment = NULL, judged_seq = NULL, ending = ? WHERE run = ?", evenement.payload.to, evenement.payload.run);
+      compterLesEchecs(base);
+    },
+    "breaker.lifted": (base) => modifierEtat(base, "breaker_opened_at = NULL"),
     "breaker.opened": (base, evenement) => modifierEtat(base, "breaker_opened_at = ?", evenement.at),
     "kitchen.stopped": (base, evenement) => modifierEtat(base, "stopped_at = ?", evenement.at),
     "kitchen.resumed": (base, evenement) =>
@@ -241,6 +249,24 @@ export function echecsDuDisjoncteur(base: Base): EchecDuDisjoncteur[] {
        AND r.launched_seq > coalesce((SELECT max(launched_seq) FROM cook_runs WHERE judgment = 'good'), 0)
      ORDER BY r.launched_seq`,
   );
+}
+
+// The failures the breaker counts that were in fact stops from outside (#3528): the
+// cook was killed by SIGTERM — exit code 143 — with no guardrail tripped and no launch
+// error. A run judged before the last "resume" no longer counts for the breaker, so it is not read.
+export function echecsExternes(base: Base): string[] {
+  return base
+    .lire<{ run: string }>(
+      `SELECT r.run AS run FROM cook_runs r
+       WHERE r.judgment = 'bad' AND r.tripped_seq IS NULL
+         AND r.judged_seq > coalesce((SELECT resumed_seq FROM guard_state WHERE id = 1), 0)
+         AND EXISTS (SELECT 1 FROM events e
+                      WHERE e.type = 'cook.exited' AND json_extract(e.payload, '$.run') = r.run
+                        AND json_extract(e.payload, '$.error') IS NULL
+                        AND (json_extract(e.payload, '$.code') = 143 OR json_extract(e.payload, '$.signal') = 'SIGTERM'))
+       ORDER BY r.launched_seq`,
+    )
+    .map(({ run }) => run);
 }
 
 // The launches with no end in the log: the cooks that are running — those of

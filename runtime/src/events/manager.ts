@@ -25,7 +25,7 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // without the log knowing it was split — it was done by hand.
 // `vision`: a product vision or a reference document — not a deliverable: the
 // manager takes it off the rail (`besoin/vision.ts`).
-export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "untrusted-author" | "chef-changed" | "already-split" | "vision";
+export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "set-aside:failures" | "untrusted-author" | "chef-changed" | "already-split" | "vision";
 
 // The command by which the chef hands a `chef-changed` issue back to the
 // manager, as it is told on the issue and in the report.
