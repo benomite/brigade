@@ -36,6 +36,7 @@
 import { posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Regle } from "../reseau.ts";
+import { DECLARATION_BAC_A_SABLE, DeclarationRefusee, type DeclarationBacASable } from "./declaration.ts";
 import { droitsDInstallation } from "../sandbox/installation.ts";
 import { entreesReseau, type ServiceLocal } from "../sandbox/services-locaux.ts";
 
@@ -72,7 +73,11 @@ export const LECTURES_INTERDITES = [
 // le ticket du cook ne livre que `.claude/brigade/` (setup du dépôt) ; seul il
 // y écrit. `services` : les services locaux que le projet déclare
 // (`sandbox/services-locaux.ts`), joignables sur la boucle locale, eux seuls.
-export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[] };
+// `declaration` : ce que le dépôt déclare dans `bac-a-sable.json`
+// (`declaration.ts`) ; ses dossiers d'`ecriture` s'ajoutent à ceux du cook,
+// dans les limites de `ecritureDeclaree`. `etat` : le répertoire où le
+// runtime tient son état — aucun dossier déclaré n'y touche.
+export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[]; declaration?: DeclarationBacASable; etat?: string };
 
 export type Reglages = {
   env: { npm_config_manage_package_manager_versions: "false" };
@@ -118,6 +123,39 @@ export function lectureInterdite(home: string, lieu: string): boolean {
 
 const unique = (valeurs: string[]) => [...new Set(valeurs)];
 
+// Ce que Brigade tient sous le compte du chef, en plus de ce qu'aucun cook ne
+// lit : `claude` entier — sa connexion, ses réglages, ses crochets. Relatif à `~`.
+const ETAT_DE_BRIGADE = [".claude"];
+
+// Un nom de fichier ou de dossier qui porte des identifiants ou des jetons.
+const SECRET = /credential|token|secret/i;
+
+// Un dossier d'`ecriture` de la déclaration du projet, en chemin absolu — ou
+// le refus, qui nomme l'entrée et la limite qu'elle passe. Relatif, il est sous
+// le worktree et y reste. Absolu ou sous `~` : jamais la racine, le compte
+// entier ou au-dessus ; jamais un secret du chef ni l'état de Brigade, ni un
+// dossier qui en contient ; jamais un nom d'identifiants ou de jetons.
+function ecritureDeclaree(entree: string, cook: { worktree: string; home: string; interdits: string[]; etat: string | undefined }): string {
+  const { worktree, home } = cook;
+  const refus = (limite: string) => new DeclarationRefusee(`\`${DECLARATION_BAC_A_SABLE}\`, ecriture « ${entree} » : ${limite} — la déclaration est refusée en entier`);
+  const relatif = entree !== "~" && !entree.startsWith("~/") && !posix.isAbsolute(entree);
+  let lieu: string;
+  try {
+    lieu = chemin(relatif ? posix.join(worktree, entree) : entree, home, "dossier déclaré");
+  } catch (erreur) {
+    throw refus(erreur instanceof Error ? erreur.message : String(erreur));
+  }
+  if (relatif && !sous(worktree, lieu)) throw refus(`un chemin relatif reste sous le worktree (${worktree}), il n'en sort pas par « .. »`);
+  if (SECRET.test(lieu.slice(sous(worktree, lieu) ? worktree.length : 0))) throw refus("un dossier déclaré ne porte pas d'identifiants ni de jetons (credential, token, secret)");
+  if (sous(worktree, lieu)) return lieu;
+  if (lieu === "/") throw refus("un cook n'écrit jamais à la racine du système de fichiers");
+  if (sous(lieu, home)) throw refus(`un cook n'écrit ni dans le compte entier (${home}), ni au-dessus`);
+  const proteges = [...cook.interdits, ...ETAT_DE_BRIGADE.map((relatif) => posix.join(home, relatif)), ...(cook.etat === undefined ? [] : [chemin(cook.etat, home, "état du runtime")])];
+  const touche = proteges.find((protege) => sous(protege, lieu) || sous(lieu, protege));
+  if (touche !== undefined) throw refus(`un dossier déclaré n'est ni ne contient les secrets du chef ou l'état de Brigade (${touche})`);
+  return lieu;
+}
+
 // Un hôte de la liste, comme `reseau.ts` l'a lu : des labels, rien d'autre.
 const HOTE = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9])?$/;
 
@@ -157,7 +195,11 @@ export function configurer(cook: Cook): ConfigDeBacASable {
   const home = chemin(cook.home, cook.home, "répertoire du compte");
   const interdits = unique([...LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif)), ...(cook.prod ?? []).map((acces) => chemin(acces, home, "accès de prod"))]);
   const worktree = chemin(cook.worktree, home, "worktree");
-  const ecrits = unique([worktree, ...cook.caches.map((cache) => chemin(cache, home, "cache du projet")), ...droitsDInstallation(home)]);
+  // Les `ports` de la déclaration n'ajoutent rien ici : le bac à sable de
+  // Claude Code n'ouvre la boucle locale qu'en entier (`allowLocalBinding`),
+  // sans champ qui la borne à un port, et l'ouvre déjà (#3541).
+  const declares = (cook.declaration?.ecriture ?? []).map((entree) => ecritureDeclaree(entree, { worktree, home, interdits, etat: cook.etat }));
+  const ecrits = unique([worktree, ...cook.caches.map((cache) => chemin(cache, home, "cache du projet")), ...droitsDInstallation(home), ...declares]);
   for (const lieu of ecrits) {
     // Écrire au-dessus du compte, c'est écrire partout dessous : ses fichiers
     // de démarrage, ses clés.
