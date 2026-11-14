@@ -29,8 +29,9 @@ const reglagesDe = (args: string[]) => JSON.parse(args[args.indexOf("--settings"
 
 // Le bac à sable de Claude Code n'a pas de champ par port : `allowLocalBinding`
 // ouvre toute la boucle locale, et #3541 l'ouvre déjà pour chaque cook. Un port
-// déclaré se juge aux limites et ne change pas la configuration (décision du
-// manager sur #3549, option (a)).
+// déclaré se juge aux limites et ne change pas la configuration : décision du
+// manager sur #3549, option (a), dans sa réponse au blocage du 2026-11-14, qui
+// réécrit le critère 1 ainsi.
 test("`ports` : avec {\"ports\":[5037]}, la liaison reste sur la boucle locale seule, sans hôte ajouté ni exposition au réseau", () => {
   assert.deepEqual(lireDeclarationBacASable('{"ports":[5037]}'), { ports: [5037], ecriture: [] });
   assert.deepEqual(lireDeclarationBacASable('{"ports":["127.0.0.1:8080","[::1]:9000","localhost:5037",5037]}'), { ports: [8080, 9000, 5037], ecriture: [] });
@@ -122,13 +123,13 @@ test("refusée ou illisible, la déclaration ne s'applique pas du tout : le lanc
   const avant = dansLeBacASableLocal({ version: "2.1.300", home: HOME, caches: [], hotes: () => HOTES, etat: ETAT }, ARGS, WORKTREE);
   assert.deepEqual(dansLeBacASableLocal(bac, ARGS, WORKTREE), avant);
   assert.equal(reglagesDe(dansLeBacASableLocal(bac, ARGS, WORKTREE)).sandbox.filesystem.allowWrite.includes("/Users/chef/.gradle"), false);
-  assert.match(avertis[0] ?? "", /^brigade : the project's sandbox declaration is not applied, this launch starts without it — `\.claude\/brigade\/bac-a-sable\.json`, ecriture « ~\/\.ssh » : /);
+  assert.match(avertis[0] ?? "", /^brigade : la déclaration de bac à sable du projet ne s'applique pas, ce lancement part sans elle — `\.claude\/brigade\/bac-a-sable\.json`, ecriture « ~\/\.ssh » : /);
   texte = () => {
     throw new Error("git ls-tree : délai dépassé");
   };
   avertis.length = 0;
   assert.deepEqual(dansLeBacASableLocal(bac, ARGS, WORKTREE), avant);
-  assert.match(avertis[0] ?? "", /not applied.*git ls-tree : délai dépassé/);
+  assert.match(avertis[0] ?? "", /ne s'applique pas.*git ls-tree : délai dépassé/);
 });
 
 test("la déclaration est relue sur la branche d'intégration à chaque lancement : changée entre deux, le second voit le changement", (t) => {

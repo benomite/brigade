@@ -115,7 +115,7 @@ export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, arg
       const declaration = lireDeclarationBacASable(bac.declaration());
       if (declaration !== null) return poserLeBacASable(args, configurer({ ...cook, declaration }));
     } catch (erreur) {
-      bac.avertir?.(`brigade : the project's sandbox declaration is not applied, this launch starts without it — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      bac.avertir?.(`brigade : la déclaration de bac à sable du projet ne s'applique pas, ce lancement part sans elle — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
   }
   return poserLeBacASable(args, configurer(cook));

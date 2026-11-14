@@ -15,7 +15,7 @@ Code: `runtime/src/bac-a-sable/declaration.ts` (format), `runtime/src/bac-a-sabl
 
 | Key | Meaning |
 |---|---|
-| `ports` | TCP ports the cook may bind, on the loopback address only. An entry is a number (`5037`) or a loopback address with its port: `"127.0.0.1:5037"`, `"[::1]:5037"`, `"localhost:5037"`. |
+| `ports` | TCP ports the project's cooks bind, on the loopback address only. They are checked against the limits below; they do not change the sandbox, where loopback binding is already open for all ports (see [Ports and the sandbox of Claude Code](#ports-and-the-sandbox-of-claude-code)). An entry is a number (`5037`) or a loopback address with its port: `"127.0.0.1:5037"`, `"[::1]:5037"`, `"localhost:5037"`. |
 | `ecriture` | Extra folders the cook may write, in addition to its worktree. Relative entries are relative to the worktree; absolute entries and entries starting with `~/` are taken as they are. |
 
 Both keys are optional. Hosts are not declared here: they keep coming from `.claude/brigade/reseau`.
@@ -42,14 +42,15 @@ Claude Code's sandbox has no setting that binds one port: `sandbox.network.allow
 Binding on loopback is therefore open for all ports, for every cook, with or without a declaration: `allowLocalBinding` stays `true`, as #3541 set it ([`bac-a-sable.md`](bac-a-sable.md)).
 The declared ports are checked against the limits above, but the configuration does not change for them: no host is added and no port becomes reachable from the network.
 If Claude Code later offers a per-port setting, a follow-up ticket can wire `ports` to it.
+This is the manager's decision on #3549 (option (a)), which rewrote the ticket's first acceptance criterion: with `{"ports":[5037]}`, binding stays on loopback only, with no host added and no network exposure.
 
 ## Refusal
 
 One entry outside the limits refuses the whole declaration: none of its ports or folders is applied, and the launch starts with today's sandbox.
-The station says it once per launch, naming the entry and the limit it broke, for example:
+The station says it once per launch, in French like its other messages, naming the entry and the limit it broke, for example:
 
 ```
-brigade : the project's sandbox declaration is not applied, this launch starts without it — `.claude/brigade/bac-a-sable.json`, ecriture « ~/.ssh » : un dossier déclaré n'est ni ne contient les secrets du chef ou l'état de Brigade (/Users/chef/.ssh) — la déclaration est refusée en entier
+brigade : la déclaration de bac à sable du projet ne s'applique pas, ce lancement part sans elle — `.claude/brigade/bac-a-sable.json`, ecriture « ~/.ssh » : un dossier déclaré n'est ni ne contient les secrets du chef ou l'état de Brigade (/Users/chef/.ssh) — la déclaration est refusée en entier
 ```
 
 A file that is not JSON, or that the station cannot read from the integration branch, is treated the same way: not applied, and said.
@@ -66,3 +67,4 @@ A file that is not JSON, or that the station cannot read from the integration br
 ```
 
 With it, a cook writes in its worktree (which already holds `build-cache`), in the project's caches and in `/Users/<chef>/.gradle`.
+The `ports` entry only states, and has checked, that 5037 is bound on loopback: the cook could bind it without the declaration, and could bind any other loopback port too.
