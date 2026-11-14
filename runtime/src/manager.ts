@@ -67,7 +67,12 @@ const LABEL_EPIQUE = "epic";
 // Les écarts que le manager dit sur l'issue quand le chef y a posé `fire`.
 // Dans chaque commentaire de station qui sort un ticket de la cuisine (renvois, échecs).
 const MARQUE_STATION_HORS_CUISINE = "Taken off the kitchen (`served-elsewhere`)";
-const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", ...LABELS_ECARTES];
+// Le label par lequel il dit qu'elle est une idée en réserve, pas une demande (#3536).
+const LABEL_IDEE = "idea";
+const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", "idea", ...LABELS_ECARTES];
+// La réponse recommandée qui dit de ne rien faire (« Keep it parked ») : le chef n'a pas à la trancher.
+const NE_RIEN_FAIRE = /\b(?:keep|leave|let)\b[^.]*\b(?:parked|in reserve|as (?:it )?is|alone)\b|\bdo nothing\b|\bno action\b|\bnothing to do\b/i;
+const sansForme = (texte: string) => texte.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
@@ -159,6 +164,7 @@ const RAISONS: Partial<Record<Ecart, string>> = {
   decision: "it has the `decision` label",
   "blocked-on-human": "it has the `blocked-on-human` label",
   "served-elsewhere": "it has the `served-elsewhere` label: it is not served on this box",
+  idea: "it has the `idea` label: an idea in reserve is not a request",
   "already-split": "it is an epic whose body already lists its tickets",
   vision: "it is a product vision or a reference document, not a deliverable",
 };
@@ -259,6 +265,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
+    // Une idée en réserve n'est jamais lue : ni jugée, ni qualifiée, ni au chef (#3536).
+    if (issue.labels.includes(LABEL_IDEE)) return { quoi: "ecart", raison: "idea", fired };
     // La roadmap est un document de suivi, jamais un ticket : reconnue avant
     // tout le reste, elle n'est ni jugée, ni lancée, ni au chef (#3436).
     if (estLaRoadmap(issue.number)) return { quoi: "ecart", raison: "roadmap", fired };
@@ -467,6 +475,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         ].join("\n");
       }
       case "refused": {
+        // Une réponse « ne rien faire » que le manager a prise lui-même : une ligne, aucune carte.
+        if (connue.kind === ("settled" satisfies Nature)) return [MARQUEUR_MANAGER, `**Manager — took the recommended answer itself, nothing to ask:** ${connue.reason}. Nothing is set, and there is no card.`].join("\n");
         const auChef = estAuChef(connue.kind);
         const question = auChef ? questionDuVerdict(issue.number) : null;
         const awaits = auChef && question !== null ? (dernierJugement(issue.number)?.awaits ?? null) : null;
@@ -516,7 +526,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   };
 
   const direEcart = (connue: IssueDuManager, parLaStation = false): string =>
-    connue.reason === ("served-elsewhere" satisfies Ecart)
+    connue.reason === ("idea" satisfies Ecart)
+      ? [
+          MARQUEUR_MANAGER,
+          `**Manager — \`idea\`: this issue is an idea in reserve, not a request.** \`fire\` is set on it, and \`idea\` wins: the manager does not qualify it, sets no calibration, and will not say this again.`,
+          "",
+          "Remove `idea` if it must be qualified.",
+        ].join("\n")
+      : connue.reason === ("served-elsewhere" satisfies Ecart)
       ? parLaStation
         ? [
             MARQUEUR_MANAGER,
@@ -732,6 +749,29 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return null;
   };
 
+  // Une question au chef que le manager ne pose pas (#3536) : celle dont la réponse recommandée est de ne rien faire — il la
+  // prend lui-même et le dit en une ligne —, et celle que l'issue a déjà reçue : la réponse du chef ne l'a pas fait avancer,
+  // le manager dit ce qui manque, une fois, et la carte quitte TODO. Ni l'une ni l'autre ne pose de label : aucune carte.
+  const pasDeQuestionDeTrop = (numero: number, decision: Decision): Decision => {
+    if (decision.verdict !== "refused" || !estAuChef(decision.kind)) return decision;
+    const sansCarte = { question: null, answers: [], recommended: null, awaits: null };
+    const { recommended, question } = decision;
+    if (recommended && NE_RIEN_FAIRE.test(recommended.answer)) {
+      return { ...decision, ...sansCarte, kind: "settled", reason: `${recommended.answer} — ${recommended.why}`, missing: null };
+    }
+    const dejaPosee = typeof question === "string" && journal.duTicket(numero).some((evenement) => evenement.type === "manager.judged" && typeof (evenement.payload as { question?: unknown }).question === "string" && sansForme((evenement.payload as { question: string }).question) === sansForme(question));
+    if (dejaPosee) {
+      return {
+        ...decision,
+        ...sansCarte,
+        kind: "stalled",
+        reason: `The manager already asked the chef "${question}" on this issue, and the answer does not let it go on: it does not ask again.`,
+        missing: decision.missing ?? decision.reason,
+      };
+    }
+    return decision;
+  };
+
   // Fait juger une issue. Rend vrai si une décision — ou une réponse illisible
   // — est au journal ; faux si le jugement n'a pas abouti, et reste à faire.
   const juger = async (issue: IssueOuverte, corps: string[], etat: string): Promise<boolean> => {
@@ -744,7 +784,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       },
     );
     if (!reponse) return false;
-    if ("valeur" in reponse) noter(issue.number, { type: "manager.judged", payload: { run: reponse.run, fingerprint: etat, ...reponse.valeur } });
+    if ("valeur" in reponse) noter(issue.number, { type: "manager.judged", payload: { run: reponse.run, fingerprint: etat, ...pasDeQuestionDeTrop(issue.number, reponse.valeur) } });
     else {
       noter(issue.number, { type: "manager.failed", payload: { run: reponse.run, fingerprint: etat, reason: reponse.illisible } });
       avertir(`brigade : jugement illisible sur l'issue #${issue.number} (${reponse.illisible}) — rien n'est posé`);

@@ -5,7 +5,12 @@
 import { geste } from "../geste.ts";
 // What an issue is, according to the judgment. Only `ticket` goes onto the rail.
 // `incomplete`: a unit of work, but one that lacks what it needs to start.
-export const NATURES = ["ticket", "epic", "question", "decision", "incomplete"] as const;
+// `settled` and `stalled` are never the model's answer: the code gives them to a
+// question to the chef it must not ask (#3536). `settled`: the recommended answer
+// was "do nothing", the manager took it itself. `stalled`: the same question was
+// already asked, the chef's answer does not let it go on.
+export const NATURES_DU_MODELE = ["ticket", "epic", "question", "decision", "incomplete"] as const;
+export const NATURES = [...NATURES_DU_MODELE, "settled", "stalled"] as const;
 export type Nature = (typeof NATURES)[number];
 
 // Each nature as it is told in English: what `manager` and `manager upstream`
@@ -16,6 +21,8 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
   question: "a question",
   decision: "a decision issue",
   incomplete: "an incomplete ticket",
+  settled: "settled by the manager",
+  stalled: "stalled on a missing answer",
 };
 
 // Why the code sets an issue aside without having it judged. `chef-changed`:
@@ -25,7 +32,9 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // without the log knowing it was split — it was done by hand.
 // `vision`: a product vision or a reference document — not a deliverable: the
 // manager takes it off the rail (`besoin/vision.ts`).
-export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "untrusted-author" | "chef-changed" | "already-split" | "vision";
+// `idea`: the chef labelled it an idea in reserve, not a request: the manager
+// never reads it (#3536).
+export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea";
 
 // The command by which the chef hands a `chef-changed` issue back to the
 // manager, as it is told on the issue and in the report.
