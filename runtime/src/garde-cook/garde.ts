@@ -28,7 +28,7 @@ const refus = (raison: string) => `${PREFIXE}${raison}`;
 
 // Les outils de `claude` qui écrivent un fichier, et où ils le nomment.
 const OUTILS_QUI_ECRIVENT: Record<string, string> = { Write: "file_path", Edit: "file_path", MultiEdit: "file_path", NotebookEdit: "notebook_path" };
-export const OUTILS_GARDES = [...Object.keys(OUTILS_QUI_ECRIVENT), "Bash"];
+const OUTILS_GARDES = [...Object.keys(OUTILS_QUI_ECRIVENT), "Bash"];
 
 // Ce qu'une redirection écrit sans rien toucher sur le disque.
 const SANS_DISQUE = /^\/dev\/(?:null|stdout|stderr|tty|fd\/\d+)$/;
@@ -238,7 +238,7 @@ export function jugerAppel(garde: Garde, appel: Appel, env: Record<string, strin
 
 // Les dossiers temporaires d'un cook : celui de la station, que le cook
 // hérite (`TMPDIR`), et `/tmp`.
-export function temporairesDuCook(): string[] {
+function temporairesDuCook(): string[] {
   return [...new Set([tmpdir(), ...(process.platform === "win32" ? [] : ["/tmp"])])];
 }
 
