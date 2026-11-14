@@ -26,9 +26,11 @@ import { plafondsDe, retenuesDe, type PlafondVu, type RetenueVue } from "./plafo
 import { raisonDe, type RaisonDeStation } from "./stations/raison.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
 import { bloqueDe, ditALAccueil } from "./vue/rail-bloque/rail-bloque.ts";
+import { enCours, MEME_RAISON, PANNES_HORS_PAUSE } from "./vue/pause-quota/ligne-de-la-pause.js";
 
-// Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris.
-export type Ton = "vert" | "jaune" | "rouge" | "gris";
+// Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris ; bleu, le calme de la
+// pause de quota GitHub du compte (vue/pause-quota/, #3482).
+export type Ton = "vert" | "jaune" | "rouge" | "gris" | "bleu";
 // Une ligne de l'accueil : ce qu'elle dit, sa pastille, et ce qui se lit au survol.
 // `attend` : combien de décisions attendent le chef, absent quand aucune (la pastille « N awaiting you » de l'accueil, #2912).
 export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string; attend?: number };
@@ -126,7 +128,11 @@ export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined
   const { nom } = projet;
   // Le rail bloqué (vue/rail-bloque/, #3358) : des tickets qu'aucun manager ne prend — aussi quand aucune station ne le
   // sert, puisque c'est sa cause. Il bloque le projet, en tête de sa ligne ; sa phrase entière au survol.
-  const railBloque = lu !== undefined && "faits" in lu ? bloqueDe(lu.faits.railBloque) : undefined;
+  // Pendant la pause de quota GitHub du compte (vue/pause-quota/, #3482), le projet dit seulement qu'il est en pause pour la
+  // même raison, d'une pastille calme : son rail bloqué n'en est pas un — sauf une panne que la pause n'explique pas.
+  const enPause = lu !== undefined && "faits" in lu && enCours(lu.faits.pauseQuota, Date.parse(lu.faits.lu));
+  const bloqueLu = lu !== undefined && "faits" in lu ? bloqueDe(lu.faits.railBloque) : undefined;
+  const railBloque = enPause && bloqueLu !== undefined && !PANNES_HORS_PAUSE.includes(bloqueLu.cause) ? undefined : bloqueLu;
   if (!projet.servi && railBloque === undefined) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
   if (lu === undefined) return { nom, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's station every 30 s" };
   if ("injoignable" in lu) return { nom, ton: "rouge", dit: "station unreachable", survol: `its station did not answer at ${heure(lu.a)} — the app tries again every 30 s; open it to see why` };
@@ -137,11 +143,12 @@ export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined
   // La dérive se lit dans les lignes `drift` de `status` : un mot sur la ligne, ce qu'elle dit au survol.
   // Elle ne change pas la pastille — rien n'attend le chef, rien ne bloque.
   const derive = status === undefined ? [] : deriveDe(status.texte);
-  const parties = [...bloquant, ...attendu, ...cuit(faits, reparation(status?.texte))];
+  const enPauseSeule = enPause && bloquant.length === 0;
+  const parties = [...bloquant, ...(enPauseSeule ? [MEME_RAISON] : []), ...attendu, ...cuit(faits, reparation(status?.texte))];
   const dit = parties.length === 0 ? "nothing cooking, nothing waits for you" : parties.join(" · ");
   return {
     nom,
-    ton: bloquant.length > 0 ? "rouge" : attendu.length > 0 ? "jaune" : "vert",
+    ton: bloquant.length > 0 ? "rouge" : attendu.length > 0 ? "jaune" : enPauseSeule ? "bleu" : "vert",
     dit: derive.length === 0 ? dit : `${dit} · drifting`,
     survol: `read at ${heure(lu.a)} — ${railBloque === undefined ? "" : `${railBloque.phrase} — `}${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
     ...(faits.compteurs.attend > 0 ? { attend: faits.compteurs.attend } : {}),

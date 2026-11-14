@@ -41,6 +41,8 @@ import { avecCeQuiAttendLeChef } from "./tableau/attente-du-chef.ts";
 import { jouerLAttente } from "./vue/attente/attente-github.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { tenirLesSignesDeVie } from "./vue/cooks/signes-de-vie.ts";
+import { avecLaPresenceLocale, avecLaStationLocale } from "./vue/pause-quota/pause-quota.ts";
+import type { SignesDeVie } from "./vue/rail/github.ts";
 import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { INTERVALLE_PAR_PROJET_MS, lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
@@ -257,6 +259,13 @@ const signesDeVie = tenirLesSignesDeVie({
     return lireLesStationsDuCompte({ gh: ghIci, env: process.env });
   },
 });
+// La station de cet ordinateur, que l'app voit tourner, n'est pas tue, même quand le quota GitHub du compte l'empêche
+// d'écrire son signe de vie (ticket 3482, vue/pause-quota/) : son gist, nul quand elle ne tourne pas ici.
+const gistQuiTourneIci = (): string | null => (stationLocale?.tourne() === true ? gistLocal(racineDeLaStation) : null);
+const signesVus = async (): Promise<SignesDeVie> => {
+  const signes = await signesDeVie.signes();
+  return "lus" in signes ? { lus: avecLaStationLocale(signes.lus, gistQuiTourneIci(), Date.now()) } : signes;
+};
 // Le compte GitHub de cet ordinateur, pour les cartes de TODO qui l'attendent (#2761, vue/cartes-assignees/) : celles
 // qui attendent un autre humain se replient sous « Awaiting others » (#2985).
 const compteConnecte = tenirLeLogin(async () => {
@@ -275,7 +284,7 @@ const lireLeTableau = async (projet: Projet): Promise<LectureDuTableauDuDepot> =
     depot,
     dernier: () => tableaux.dernier(projet.nom),
     lire: async () => {
-      const lu = await lireLeTableauDuDepot({ depot, appeler: appelerSousBudget, memoire: memoireDuRail(depot), signes: () => signesDeVie.signes() });
+      const lu = await lireLeTableauDuDepot({ depot, appeler: appelerSousBudget, memoire: memoireDuRail(depot), signes: signesVus });
       const appeler = lectureConditionnelle(appelerSousBudget, memoireDuRail(depot));
       return avecCeQuiAttendLeChef(lu, appeler, partageDesCartesAssignees({ appeler, depot, login: compteConnecte.login }));
     },
@@ -1343,7 +1352,9 @@ ipcMain.handle("stationsDuCompte", async (): Promise<StationsDuCompte> => {
   if (lu.state === "unavailable") return retenirLaPage(lu);
   const github = githubDesStations({ gh: ghIci, delaiMs: 30_000 });
   // L'état de chacune est celui de son dernier signe de vie, son enregistrement ou sa présence appairée (#3187).
-  return avecLeursAjouts(avecLeurEtat(lu, stations.vu()?.stations ?? [], Date.now()), (id) => github.lire(id));
+  // Celle de cet ordinateur, que l'app voit tourner, est en ligne (ticket 3482).
+  const presences = avecLaPresenceLocale(stations.vu()?.stations ?? [], lu.state === "listed" ? lu.stations : [], gistQuiTourneIci());
+  return avecLeursAjouts(avecLeurEtat(lu, presences, Date.now()), (id) => github.lire(id));
 });
 const choisirLesProjets = choixDesProjets({
   ecrire: (id, fichiers) => githubDesStations({ gh: ghIci, delaiMs: 30_000 }).ecrire(id, fichiers),

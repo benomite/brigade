@@ -25,6 +25,7 @@ import { estSensible } from "../carte-sensible/label.ts";
 import { dernierRenvoi, type Renvoi } from "./renvoi.ts";
 import { railBloqueDe, type NonPrisLus } from "../rail-bloque/rail-bloque.ts";
 import { attenteDuRailDe } from "../attente-du-rail/attente-du-rail.ts";
+import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pause-quota.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
@@ -56,7 +57,8 @@ export type ServiSurGithub = { ticket: number; titre: string; url: string; livre
 export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[]; nonPris?: NonPrisLus };
 // Les signes de vie des stations du compte, tels que le process principal les a lus — ou pourquoi ils ne l'ont pas été,
 // en une phrase.
-export type SignesDeVie = { lus: SigneDeVie[] } | { illisible: string };
+// `quotaGithub` : son état de quota GitHub, quand elle le publie (ticket 3482, vue/pause-quota/) ; `id`, son gist.
+export type SignesDeVie = { lus: (SigneDeVie & { id?: string; quotaGithub?: QuotaGithub })[] } | { illisible: string };
 export const SIGNES_PAS_LUS: SignesDeVie = { illisible: "the app has not read your stations' signs of life on GitHub yet" };
 
 // La priorité d'une issue : le plus petit `prio:<n>` de ses labels, null sans aucun.
@@ -280,6 +282,10 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
   const compteurs = objet(lu.faits.compteurs) ?? {};
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
+  // Une station en pause de quota GitHub (ticket 3482) est retenue par GitHub, pas tue : la pause du compte se dit à part.
+  const lus = "lus" in signes ? avecLaPause(signes.lus, Date.parse(luLe)) : null;
+  const stations = lus === null ? { illisibles: (signes as { illisible: string }).illisible } : { lues: lus };
+  const pause = lus === null ? null : pauseDuCompte(lus, Date.parse(luLe));
   return {
     ...lu,
     luLe,
@@ -312,12 +318,14 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
         ...(ticket.renvoi === undefined ? {} : { renvoi: ticket.renvoi }),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),
-      stations: stationsDeGithub(cooks, "lus" in signes ? signes.lus : null, lu.depot, Date.parse(luLe)),
+      stations: stationsDeGithub(cooks, lus, lu.depot, Date.parse(luLe)),
       stationsSurGithub: { illisible: "illisible" in signes ? signes.illisible : null },
       // Le rail bloqué (ticket 3358) : sa cause, des signes de vie des stations du compte.
-      ...railBloqueDe(lu.depot, nonPris, "lus" in signes ? { lues: signes.lus } : { illisibles: signes.illisible }, Date.parse(luLe)),
+      ...railBloqueDe(lu.depot, nonPris, stations, Date.parse(luLe)),
       // Pourquoi la file ne part pas, et la ligne de ses cartes (ticket 3433) : la lecture du runtime, des mêmes signes de vie.
-      ...attenteDuRailDe(lu.depot, ticketsDeLAttente(ranges), "lus" in signes ? { lues: signes.lus } : { illisibles: signes.illisible }, Date.parse(luLe)),
+      ...attenteDuRailDe(lu.depot, ticketsDeLAttente(ranges), stations, Date.parse(luLe)),
+      // La pause de quota GitHub du compte (ticket 3482) : la tête de l'app la dit, chaque projet dit qu'il l'attend.
+      ...(pause === null ? {} : { pauseQuota: pause }),
       agents: [],
     },
     lignesDuRail: ranges.flatMap((ticket) => {

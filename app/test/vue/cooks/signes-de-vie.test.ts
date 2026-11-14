@@ -11,7 +11,7 @@ const listees = (...stations: ReturnType<typeof station>[]): StationsDuCompte =>
 
 describe("les signes de vie des stations du compte", () => {
   test("une lecture listée : le signe de vie de chacune et les dépôts qui lui sont choisis ; sinon, la raison", () => {
-    assert.deepEqual(signesDe(listees(station("box", "2026-11-05T09:59:00.000Z"))), { lus: [{ name: "box", lastSeen: "2026-11-05T09:59:00.000Z", stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] }] });
+    assert.deepEqual(signesDe(listees(station("box", "2026-11-05T09:59:00.000Z"))), { lus: [{ id: "gbox", name: "box", lastSeen: "2026-11-05T09:59:00.000Z", stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] }] });
     assert.deepEqual(signesDe({ state: "unavailable", cause: "network", reason: "GitHub could not be reached." }), { illisible: "GitHub could not be reached." });
   });
 
@@ -26,9 +26,9 @@ describe("les signes de vie des stations du compte", () => {
     await signes.signes();
     assert.equal(lectures, 1);
     instant += 1;
-    assert.deepEqual(await signes.signes(), { lus: [{ name: "box", lastSeen: "2026-11-05T09:02:00.000Z", stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] }] });
+    assert.deepEqual(await signes.signes(), { lus: [{ id: "gbox", name: "box", lastSeen: "2026-11-05T09:02:00.000Z", stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] }] });
     signes.poser(listees(station("mac", "2026-11-05T09:30:00.000Z")));
-    assert.deepEqual((await signes.signes()) as unknown, { lus: [{ name: "mac", lastSeen: "2026-11-05T09:30:00.000Z", stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] }] });
+    assert.deepEqual((await signes.signes()) as unknown, { lus: [{ id: "gmac", name: "mac", lastSeen: "2026-11-05T09:30:00.000Z", stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] }] });
     assert.equal(lectures, 2);
   });
 

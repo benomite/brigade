@@ -26,10 +26,11 @@ export function attenteDuRailDe(depot: string, tickets: readonly TicketDuRail[],
 // `attenteDuRail`, de la racine de `facts` (faits.ts, `comprendre`) : rien de mal formé ne le pose.
 export function attenteDuRailLue(valeur: unknown): { attenteDuRail?: AttenteDuRail } {
   if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
-  const { raison, phrase, geste } = valeur as Record<string, unknown>;
+  const { raison, phrase, geste, stations } = valeur as Record<string, unknown>;
   if (!RAISONS.includes(raison as Raison) || typeof phrase !== "string" || phrase === "") return {};
   if (geste !== null && !GESTES.includes(geste as Geste)) return {};
-  return { attenteDuRail: { raison: raison as Raison, phrase, geste: geste as Geste | null } };
+  const noms = Array.isArray(stations) && stations.every((nom) => typeof nom === "string") ? (stations as string[]) : [];
+  return { attenteDuRail: { raison: raison as Raison, phrase, geste: geste as Geste | null, stations: noms } };
 }
 
 // `lignesDesCartes`, de la racine de `facts` : un ticket, sa ligne ; rien de mal formé ne le pose.
