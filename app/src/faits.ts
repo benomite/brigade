@@ -400,7 +400,7 @@ export type Faits = {
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
   // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
   // absents sans eux, et d'un runtime d'avant ces champs.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Attendu[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -481,7 +481,7 @@ export type Faits = {
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -592,6 +592,7 @@ const entier = (valeur: unknown, champ: string): number => (typeof valeur === "n
 const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "a time"));
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
 const textesLus = (valeur: unknown, champ: string): string[] => (Array.isArray(valeur) ? valeur.map((un, rang) => texte(un, `${champ}[${rang}]`)) : refuser(champ, "a list"));
+const numerosLus = (valeur: unknown, champ: string): number[] => (Array.isArray(valeur) ? valeur.map((un, rang) => entier(un, `${champ}[${rang}]`)) : refuser(champ, "a list"));
 const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "true or false"));
 
 const nomme = (valeur: unknown, champ: string): { name: string; calls: number } => {
@@ -852,6 +853,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...requisLus(lu.requiert),
           ...(lu.station == null ? {} : { station: texte(lu.station, `${lequel}.station`) }),
           ...(lu.requires == null ? {} : { requires: textesLus(lu.requires, `${lequel}.requires`) }),
+          // Les tickets qu'il attend (l'ordonnancement du rail, #3502) : « after #N » sur sa carte.
+          ...(lu.attend == null ? {} : { attend: numerosLus(lu.attend, `${lequel}.attend`) }),
           // Un ticket au label `sensitive` (ticket 3224) : sa carte le dit.
           ...(lu.sensible === true ? { sensible: true as const } : {}),
           ...(lu.pr === undefined
@@ -1250,6 +1253,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(titre === undefined ? {} : { titre }),
       ...(connu?.station === undefined ? {} : { station: connu.station }),
       ...(connu?.requires === undefined ? {} : { requiert: connu.requires }),
+      ...(!enFile || connu?.attend === undefined || connu.attend.length === 0 ? {} : { apres: connu.attend }),
       ...(connu?.sensible === true ? { sensible: true as const } : {}),
       ouvrable: url != null && ouvrable(url),
       attendu: dit !== undefined,
