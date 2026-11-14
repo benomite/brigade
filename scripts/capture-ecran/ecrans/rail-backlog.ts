@@ -42,7 +42,7 @@ const FACTS = {
 // Ce qui est avant le rail de « parade », tel que la lecture de GitHub le publie, dans l'ordre où le manager les lit :
 // douze besoins ouverts — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
 // 16 h, et #56 tout servi il y a plus de 24 h, qui n'est plus dans le bandeau.
-const AVANT_LE_RAIL = {
+export const AVANT_LE_RAIL = {
   lu: LU,
   issues: [
     { ticket: 41, titre: "Les tickets d'une épique dans l'ordre", priorite: 1, etat: "prete", dit: "calibrated (model:sonnet, effort:medium), without `fire`: the rail takes it once `fire` is set" },
@@ -64,12 +64,13 @@ const AVANT_LE_RAIL = {
 
 // Le tableau de la cuisine de « parade », lu de GitHub par l'app : seul ce que la lecture de ce qui est avant le rail
 // y prend compte.
-const TABLEAU = { lu: true, depot: "chef/parade", numero: 3, luLe: MAINTENANT, avantLeRail: AVANT_LE_RAIL } as unknown as TableauLu;
+const tableau = (avantLeRail: typeof AVANT_LE_RAIL) => ({ lu: true, depot: "chef/parade", numero: 3, luLe: MAINTENANT, avantLeRail }) as unknown as TableauLu;
 
-// Les données de l'écran : la cuisine figée, et, quand l'espace de « parade » s'ouvre, ce qui est avant son rail.
-export function donnees(): Donnees {
+// Les données de l'écran : la cuisine figée, et, quand l'espace de « parade » s'ouvre, ce qui est avant son rail — celui
+// de cet écran, ou celui qu'un autre lui donne (rail-backlog-avancement.ts).
+export function donnees(avantLeRail: typeof AVANT_LE_RAIL = AVANT_LE_RAIL): Donnees {
   const envois = cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } });
-  const vu = tenirAmont().recevoir(lectureDuTableau(TABLEAU, "parade", 0, [COMMANDE]));
+  const vu = tenirAmont().recevoir(lectureDuTableau(tableau(avantLeRail), "parade", 0, [COMMANDE]));
   return {
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },

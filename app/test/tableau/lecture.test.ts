@@ -261,9 +261,13 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/tableau/todo-github.ts",
     // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).
     "app/src/vue/attente-du-rail/attente-du-rail.ts",
+    // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
+    "app/src/vue/backlog/avancement-github.ts",
     // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
     "app/src/vue/carte-sensible/label.ts",
     "app/src/vue/cooks/prises.ts",
+    // La pause de quota GitHub du compte, sans E/S (ticket 3482).
+    "app/src/vue/pause-quota/pause-quota.ts",
     // Le rail bloqué : les tickets qu'aucun manager n'a pris, et le diagnostic, sans E/S (ticket 3358).
     "app/src/vue/rail-bloque/rail-bloque.ts",
     "app/src/vue/rail/github.ts",
