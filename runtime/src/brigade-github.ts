@@ -41,6 +41,7 @@ import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
 import { estUneReparation, ouvreReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
@@ -1672,6 +1673,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // un renvoi pour conflit (#3250).
     // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
     const prisCeTour = new Set<number>();
+    // Les tickets dont la fiche n'annonce aucune zone (#3509) : ils ne partent pas.
+    const sansZone = new Set<number>();
     const zoneDuTicket = (numero: number): Promise<string[]> => {
       const deja = zones.get(numero);
       if (deja !== undefined) return deja;
@@ -1679,6 +1682,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero).catch(() => [])]);
         const laFiche = fiche(commentaires.map(({ body }) => body));
         const declaree = zoneDeclaree(corps, laFiche);
+        if (zoneVide(laFiche, declaree) && !corps.startsWith("<!-- brigade:")) sansZone.add(numero);
         if (declaree.length > 0 || (laFiche?.problems.length ?? 0) > 0 || corps.startsWith("<!-- brigade:")) return declaree;
         const nommes = [...new Set(fichiersDuCorps(corps))];
         const suivis = fichiersSuivisDuTour();
@@ -1704,7 +1708,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return lu;
     };
     const ticketFerme = async (branche: string): Promise<boolean> => (await fermetureDe(branche)) !== null;
-    const tenue = async (ticket: TicketLu): Promise<string | null> => {
+    // Les tickets en vol, ici ou ailleurs, sont tous nommés : le ticket les
+    // attend tous (`attend`), et part au tour qui suit leur merge (#3509). Un
+    // ticket en pass tient sa zone jusqu'à son merge, pas seulement les
+    // fichiers que sa PR change.
+    const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
       ouvertes ??= await github.prsOuvertes();
@@ -1717,13 +1725,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         pr = ouverte;
         break;
       }
-      if (pr !== undefined) return pr.branche;
+      if (pr !== undefined) return { branche: pr.branche, attente: null };
+      const enVolDuTour: EnVol[] = [];
       for (const autre of tickets) {
-        if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
-        const sienne = await zoneDuTicket(autre.number).catch(() => []);
-        if (sienne.some((chemin) => zone.some((entree) => secoupent(entree, chemin)))) return brancheDuTicket(autre.number);
+        if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || autre.labels.includes(LABEL_IN_PASS) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
+        enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
       }
-      return null;
+      const attente = attenteDeZone(ticket.number, zone, enVolDuTour);
+      return attente === null ? null : { branche: brancheDuTicket(attente.attend[0]!), attente };
     };
     // Le premier des tickets que la fiche du ticket attend qui soit mis de côté
     // (`served-elsewhere`, `blocked-on-human`), avec la ligne de raison de son départ.
@@ -1820,15 +1829,22 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         options.sauter?.(ticket.number, direSaut(ticket.number, `it waits until ${new Date(termeDeLAttente).toISOString()} after a stop`));
         continue;
       }
-      // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
-      const tenant = await tenue(ticket);
-      if (tenant !== null) {
+      // Sa fiche n'annonce aucune zone : il ne part pas avant que le manager nomme ses fichiers (#3509).
+      await zoneDuTicket(ticket.number);
+      if (sansZone.has(ticket.number)) {
+        options.sauter?.(ticket.number, direSaut(ticket.number, ZONE_VIDE));
+        continue;
+      }
+      // Sa zone est tenue par une PR ouverte, ou par un ticket en vol : il attend qu'ils soient mergés.
+      const tenuePar = await tenue(ticket);
+      if (tenuePar !== null) {
+        const tenant = tenuePar.branche;
         const numeroDuTenant = /^cook\/(\d+)-/.exec(tenant)?.[1];
         // Qui tient la zone, que la cuisine inerte nomme au tour suivant : son ticket, sa fermeture, sa PR. Une lecture qui manque ne la date pas.
         const fermeture = await fermetureDe(tenant).catch(() => null);
         const pr = ouvertes?.find((ouverte) => ouverte.branche === tenant)?.number;
         tenusDuTour.set(ticket.number, { ticket: numeroDuTenant === undefined ? null : Number(numeroDuTenant), branche: tenant, fermeLe: fermeture?.date ?? null, pr: pr ?? null });
-        options.sauter?.(ticket.number, direSaut(ticket.number, `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
+        options.sauter?.(ticket.number, direSaut(ticket.number, tenuePar.attente !== null ? direAttenteDeZone(tenuePar.attente) : `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
         continue;
       }
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.

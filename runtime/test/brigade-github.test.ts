@@ -834,10 +834,11 @@ test("a ticket whose files all live under .claude/brigade/ is launched to a cook
   faux.feu(40, CALIBRE, "Edit `.claude/brigade/gates.sh` and `.claude/brigade/tests-touches.mjs`.");
   faux.feu(41, CALIBRE, "Edit `.claude/brigade/gates.sh` and `runtime/src/x.ts`.");
   const a = faux.station("A", { avertir: () => {} });
-  await a.tour();
-  await a.calme();
-  await a.tour();
-  await a.calme();
+  // #41 shares `.claude/brigade/gates.sh` with #40: it starts once #40 is merged (#3509).
+  for (let tour = 0; tour < 4; tour++) {
+    await a.tour();
+    await a.calme();
+  }
   assert.deepEqual(faux.cuissons.map((c) => c.issue).sort(), [40, 41]);
   assert.equal(faux.ticket(40).labels.has("blocked-on-human"), false);
 });
