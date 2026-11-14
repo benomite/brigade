@@ -8,6 +8,7 @@
 // qui s'est tue depuis se dit tue. Sans aucune lecture réussie, la raison de l'échec, en une phrase.
 import type { StationsDuCompte } from "../../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import type { SignesDeVie } from "../rail/github.ts";
+import { quotaGithubLu } from "../pause-quota/pause-quota.ts";
 
 // Le pas où une station réécrit son signe de vie.
 export const PAS_DES_SIGNES_MS = 120_000;
@@ -15,8 +16,15 @@ export const PAS_DES_SIGNES_MS = 120_000;
 // Ce qu'une lecture des stations du compte dit de leurs signes de vie.
 export function signesDe(lu: StationsDuCompte): SignesDeVie {
   if (lu.state !== "listed") return { illisible: lu.reason };
-  // La limite de GitHub qui la retient (ticket 2443) : elle reste la station de ses projets.
-  return { lus: lu.stations.map(({ name, lastSeen, stoppedAt, refreshMs, selection, heldBy }) => ({ name, lastSeen, stoppedAt, refreshMs, selection, ...(heldBy ? { heldBy } : {}) })) };
+  // La limite de GitHub qui la retient (ticket 2443) : elle reste la station de ses projets. Son état de quota GitHub
+  // (ticket 3482), quand son état le porte et qu'il se lit.
+  return {
+    lus: lu.stations.map((station) => {
+      const { id, name, lastSeen, stoppedAt, refreshMs, selection, heldBy } = station;
+      const quotaGithub = quotaGithubLu((station as { quotaGithub?: unknown }).quotaGithub);
+      return { id, name, lastSeen, stoppedAt, refreshMs, selection, ...(heldBy ? { heldBy } : {}), ...(quotaGithub === null ? {} : { quotaGithub }) };
+    }),
+  };
 }
 
 export function tenirLesSignesDeVie(options: { lire: () => Promise<StationsDuCompte>; maintenant?: () => number; pasMs?: number }) {

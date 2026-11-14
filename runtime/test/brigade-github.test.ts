@@ -1392,7 +1392,7 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
       ["--model", "sonnet", "--effort", "medium"],
     ],
   );
-  assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Remark \(`a\.ts`\): a nit/);
+  assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Advice \(`a\.ts`\): a nit/);
 });
 
 test("the station of this runtime: a delivery that changes what judges it is reviewed, then judged by a second, separate launch under opus / high with the brief of agents/second-juge.md, and merged on its approval (#2555)", async (t) => {

@@ -45,7 +45,7 @@ function lue(id: string, name: string, machine: string, repositories: string[]):
 }
 const COMPTE: StationsDuCompte = { state: "listed", stations: [lue("a1b2c3", "parade-box", "Linux 6.1.0", ["chef/parade"]), lue("f7e8d9", "atelier", "Linux 6.8.0", [])], unreadable: [] };
 
-export function ongletStations(dit: string, etapes: Etape[] = []): Ecran {
+export function ongletStations(dit: string, etapes: Etape[] = [], quotaGithub?: unknown): Ecran {
   return {
     dit,
     largeur: 1440,
@@ -54,7 +54,7 @@ export function ongletStations(dit: string, etapes: Etape[] = []): Ecran {
     donnees: () => ({
       maintenant: MAINTENANT,
       reponses: { demarrage: demarrage(configuration([{ ...PROJETS[0]!, depot: "chef/parade" }, PROJETS[1]!])), espace: [], projetsServis: { depots: [] }, stationsDuCompte: COMPTE },
-      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } }),
+      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: quotaGithub === undefined ? FACTS : ({ ...FACTS, quotaGithub } as Faits) } }),
     }),
   };
 }

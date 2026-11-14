@@ -56,6 +56,7 @@ The full vision is in [`docs/superpowers/specs/2026-11-07-vision.md`](docs/super
 ## Where to read next
 
 - [`docs/index.md`](docs/index.md) — the documentation index, organized by what you want to do.
+- [`docs/limites-du-cook.md`](docs/limites-du-cook.md) — what a cook may and may not do.
 - [`docs/tutoriels/installer-sur-mac.md`](docs/tutoriels/installer-sur-mac.md) — tutorial: install brigade on a Mac.
 - [`docs/installation-linux.md`](docs/installation-linux.md) — install brigade on Linux x64 (AppImage).
 - [`docs/tutoriels/premier-projet.md`](docs/tutoriels/premier-projet.md) — tutorial: add a first project and cook its first ticket.

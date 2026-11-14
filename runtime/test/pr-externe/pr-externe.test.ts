@@ -22,7 +22,7 @@ const SECRET = "valeur-du-secret-du-projet";
 const SHA = "a".repeat(40);
 const LE_2_NOVEMBRE = Date.UTC(2026, 10, 2);
 const fluxQuiConclut = (texte: string) => `${JSON.stringify({ type: "result", is_error: false, result: texte })}\n`;
-const relecture = (verdict: "vert" | "rouge", resume: string) => JSON.stringify({ verdict, resume, constats: verdict === "rouge" ? [{ gravite: "bloquant", fichier: "src/app.ts", constat: "breaks the build" }] : [] });
+const relecture = (verdict: "vert" | "rouge", resume: string) => JSON.stringify({ verdict, resume, constats: verdict === "rouge" ? [{ gravite: "bloquant", categorie: "critere-non-tenu", fichier: "src/app.ts", constat: "breaks the build" }] : [] });
 
 // Le worktree d'un run, qui déclare le secret du projet et dont les gates
 // écrivent leur environnement à côté, sous le nom du run.
