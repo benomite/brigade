@@ -198,7 +198,7 @@ describe("« Awaiting you » sur le téléphone porte le disjoncteur en tête", 
     const vue = await ouvrir(async () => undefined);
     const ligne = ligneDe(vue) ?? assert.fail("the breaker line is in the phone's list");
     assert.equal(cartes(vue).dessous("div").find(({ className }) => className === "corps-des-cartes")?.children[0], ligne, "la ligne n'est pas en tête de la liste");
-    assert.match(ligne.textContent, /breaker open: the latest launches failed in a row/);
+    assert.match(ligne.textContent, /breaker open: 3 launches failed in a row/);
     assert.match(ligne.textContent, /breaker OPEN for 2 h 05 \(3 failures in a row, failing ticket #21, exit code 1\)/);
     assert.deepEqual(boutons(ligne).map(({ textContent }) => textContent), [REPRENDRE]);
     // Sans carte, la liste ne dit pas que rien ne t'attend.

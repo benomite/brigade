@@ -307,6 +307,13 @@ const REDEMARRAGE = "a runtime restart: what is in flight is interrupted — the
 // ou en anglais (#928).
 const ROUGE = /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u;
 const DISJONCTEUR = /disjoncteur OUVERT|breaker OPEN/;
+// Pourquoi il s'est ouvert, en clair sur la ligne : le nombre de lancements échoués de suite que `status` écrit — « the latest
+// launches failed in a row » quand la ligne ne le dit pas.
+const ECHECS_DE_SUITE = /(\d+) (?:échecs? de suite|failures? in a row)/;
+function enchaines(valeur: string): string {
+  const n = ECHECS_DE_SUITE.exec(valeur)?.[1];
+  return n === undefined ? "the latest launches failed in a row" : `${n} launch${n === "1" ? "" : "es"} failed in a row`;
+}
 // L'interrupteur du projet éteint (#1406), tel que la ligne `kitchen` le dit : la ligne du projet
 // éteint le dit déjà (`duManager`), une seule fois.
 const ETEINT = /^SWITCHED OFF(?![\p{L}\p{N}_])/u;
@@ -325,7 +332,7 @@ function causesDeRetenue(status: string): Alerte[] {
           sujet: "cuisine",
           verifie: true,
           ton: "rouge",
-          dit: "breaker open: the latest launches failed in a row, no cook goes any more",
+          dit: `breaker open: ${enchaines(valeur)}, no cook goes any more`,
           releve: valeur.slice(valeur.search(DISJONCTEUR)),
           geste: "resume the kitchen, once you have read why they fail",
           appel: { reprise: "disjoncteur" },
