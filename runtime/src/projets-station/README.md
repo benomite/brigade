@@ -35,8 +35,8 @@ it in the same way:
   lower case, with dashes). Two chosen repositories with the same name: the first in the list is
   served, the other is not, and the service log says so;
 - **the station is its main station**: it runs its manager and its pass;
-- **its cap of cooks** is the one derived from the machine's cores, `max(1, ⌊(cores − 2) / 2⌋)`
-  (#1079);
+- **its cap of cooks** is the one derived from the machine's cores, `max(1, cores − 2)`
+  (#1079, #3560);
 - **the manager and reviewer calibration** is `sonnet` / `medium`, the measured starting value the
   app proposes too. A calibration the repository declares wins over it. The chef changes either with
   `station -- manager-modele …` and the like, as any decision.

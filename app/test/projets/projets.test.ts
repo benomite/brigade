@@ -92,8 +92,8 @@ test("un téléphone ne cuit rien : jamais recommandé, et refusé de toute sais
 
 test("les cooks proposés sont ceux que les cœurs de la machine permettent — le plafond même que la station en dérive", () => {
   for (let coeurs = 1; coeurs <= 64; coeurs++) assert.equal(cooksDesCoeurs(coeurs), plafondDesCoeurs(coeurs), `${coeurs} cœurs`);
-  assert.deepEqual(machineProposee({ ...BOX, coeurs: 8 }), { toujoursAllumee: true, implique: "always on: it keeps cooking while your computer sleeps", cooks: 3, cooksDit: "from box's 8 cores: two are kept for the kitchen itself, then about two per cook" });
-  assert.deepEqual(machineProposee({ ...MAC, coeurs: 12 }), { toujoursAllumee: false, implique: "stops when you close the app on this computer", cooks: 5, cooksDit: "from macbook's 12 cores: two are kept for the kitchen itself, then about two per cook" });
+  assert.deepEqual(machineProposee({ ...BOX, coeurs: 8 }), { toujoursAllumee: true, implique: "always on: it keeps cooking while your computer sleeps", cooks: 6, cooksDit: "from box's 8 cores: two are kept for the kitchen itself, then about one per cook" });
+  assert.deepEqual(machineProposee({ ...MAC, coeurs: 12 }), { toujoursAllumee: false, implique: "stops when you close the app on this computer", cooks: 10, cooksDit: "from macbook's 12 cores: two are kept for the kitchen itself, then about one per cook" });
   // Une station qui ne publie pas encore ses cœurs : un départ prudent, dit comme tel.
   assert.deepEqual([machineProposee(BOX).cooks, machineProposee(BOX).cooksDit], [2, "box does not publish its cores yet: 2, a careful start"]);
 });

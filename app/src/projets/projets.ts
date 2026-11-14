@@ -206,8 +206,8 @@ export function porteurDuSuivi(choisies: readonly string[], recommandee: string 
 
 // Le nombre de cooks que les cœurs d'une machine permettent : celui même que la station en dérive
 // (runtime/src/projections/stations.ts, `plafondDesCoeurs`, #1079) — deux cœurs gardés pour le
-// runtime, la pass et ses gates, puis environ deux par cook. 8 cœurs : 3.
-export const cooksDesCoeurs = (coeurs: number): number => Math.max(1, Math.floor((coeurs - 2) / 2));
+// runtime, la pass et ses gates, puis environ un par cook (#3560). 8 cœurs : 6.
+export const cooksDesCoeurs = (coeurs: number): number => Math.max(1, coeurs - 2);
 // Une station qui ne publie pas encore ses cœurs : un départ prudent.
 export const COOKS_SANS_COEURS = 2;
 
@@ -222,7 +222,7 @@ export function machineProposee(station: Pick<StationVue, "nom" | "machine" | "c
     cooksDit:
       coeurs === undefined
         ? `${station.nom} does not publish its cores yet: ${COOKS_SANS_COEURS}, a careful start`
-        : `from ${station.nom}'s ${coeurs} cores: two are kept for the kitchen itself, then about two per cook`,
+        : `from ${station.nom}'s ${coeurs} cores: two are kept for the kitchen itself, then about one per cook`,
   };
 }
 

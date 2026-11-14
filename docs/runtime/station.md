@@ -67,18 +67,21 @@ A station takes tickets as long as **three bounds** allow it, read again at each
 | **The machine** | no more takes when processor, memory or disk run short | three thresholds, below |
 
 **The default cap comes from the cores.** Each station of this machine announces its machine's cores
-(`cores` in `station.announced`) and runs only **`max(1, ⌊(cores − 2) / 2⌋)`** cooks: two cores kept
-for the runtime, the pass and its gates, then about two per cook. One or two cores: 1 cook; **8: 3**;
-12: 5; 16: 7. The declared cap is only a bound (`box/claude:30` on 8 cores runs 3). A **remote**
-station keeps its declared cap: the box does not see its cores (#1045).
+(`cores` in `station.announced`) and runs only **`max(1, cores − 2)`** cooks: two cores kept
+for the runtime, the pass and its gates, then about one per cook. One to three cores: 1 cook; 4: 2;
+**8: 6**; 12: 10; 16: 14. The declared cap is only a bound (`box/claude:30` on 8 cores runs 6). A **remote**
+station keeps its declared cap: the box does not see its cores (#1045). Until #3560 it was about two
+cores per cook, `max(1, ⌊(cores − 2) / 2⌋)`: the box ran 3 cooks and its tickets waited for a place,
+while its 15-minute load average, read on 2026-11-14 as it served, stood near 2.3 of its 8 cores. The machine bound below is what keeps the load
+in check: past the first cook, no take while the machine runs short.
 
 `run status` and `run station` say the cap and **where it comes from**:
 
 | What gives it | What is shown |
 |---|---|
-| the cores | `box/claude: 3 at most — 8 cores` |
+| the cores | `box/claude: 6 at most — 8 cores` |
 | the declaration, lower — or the cores unknown | `box/playwright: 2 at most — declared` |
-| your setting, and what it replaces | `box/claude: 5 at most — set by you, replaces 3 (8 cores)` ; `no limit — set by you, replaces 3 (8 cores)` |
+| your setting, and what it replaces | `box/claude: 5 at most — set by you, replaces 6 (8 cores)` ; `no limit — set by you, replaces 6 (8 cores)` |
 
 `cooks <N>` writes `station.capped` for each station, read within the second, kept after a restart —
 **it wins over the default cap** until another `cooks <N>`. **`cooks auto` removes it**
@@ -99,6 +102,14 @@ service's cgroup's if smaller), one GB at least: `3277` MB on 32 GB, `1638` on 1
 less. Available memory (`MemAvailable` on Linux) is what the kernel can still give back; the station
 stops taking well before the out-of-memory killer acts. `BRIGADE_MIN_FREE_MEMORY_MB` wins, read at the
 runtime's start; `0` for memory or disk: never withheld.
+
+**The machine is read before each take** of the GitHub-only turn (`gardesDuTour`, #3560), after the
+chef's stop, the breaker and the quota, before the arbiter. It never holds the first cook: with none in
+flight the station takes one, as the cores cap never goes under one. Each take granted counts as one of
+load ahead (`reserver`) for a minute, the time the load average takes to show it, so a full rail does not
+leave in one block. A machine that cannot be read holds nothing — the station's places still bound its
+cooks — and the service log says it once. #2061 had dropped this bound with the old path; until #3560
+only the cores cap stood in for it.
 
 Saturated, it says so: `station.saturated` then `station.relieved`, `MACHINE SATURATED` in `run
 status` and `run station`. The fact names the first resource at fault and, in `also`, the others; it

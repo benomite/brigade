@@ -114,7 +114,7 @@ test("un dépôt coché dans l'app est servi à la lecture suivante : cloné, se
   const journal = ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
   try {
     assert.deepEqual(decisionsPosees(journal.base), {
-      BRIGADE_STATIONS: "box/claude:3:code+raisonnement",
+      BRIGADE_STATIONS: "box/claude:6:code+raisonnement",
       BRIGADE_MANAGER_MODEL: "sonnet",
       BRIGADE_MANAGER_EFFORT: "medium",
       BRIGADE_REVIEWER_MODEL: "sonnet",

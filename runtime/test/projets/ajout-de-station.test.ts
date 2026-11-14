@@ -44,7 +44,7 @@ describe("the defaults of a station, read from this machine and the project's cl
 
     assert.deepEqual(defauts.projet, { nom: "espace", depot: "acme/espace", base: "v2", source: "projet.json", probleme: null });
     assert.equal(defauts.coeurs, 8);
-    assert.equal(defauts.cooks, 3);
+    assert.equal(defauts.cooks, 6);
     assert.match(defauts.cooksDit, /8 cores/);
     assert.equal(defauts.espaceDeTravail, worktreesDeLaStation(racine, "/home/chef"));
 
@@ -138,7 +138,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
     assert.deepEqual(poserLesDecisions(etat, "espace", decisionsDe(ajout.projet, "mac", "linux")), ["BRIGADE_STATIONS"]);
     const journal = ouvrirJournal(etat, { lectureSeule: true });
     try {
-      assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS, "mac/claude:7:code+raisonnement+navigateur-headless+android");
+      assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS, "mac/claude:14:code+raisonnement+navigateur-headless+android");
     } finally {
       journal.fermer();
     }

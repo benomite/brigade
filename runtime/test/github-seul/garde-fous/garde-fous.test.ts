@@ -16,6 +16,7 @@ import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
 import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
+import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { etatStation } from "../../../src/projections/stations.ts";
 import { demarrer } from "../../../src/runtime.ts";
@@ -111,11 +112,12 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
-  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, avertir: options.avertir ?? (() => {}) });
+  const machine = options.machine;
+  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), avertir: options.avertir ?? (() => {}) });
   const faux = new FauxGitHub();
   const fins: string[] = [];
   const station = stationGitHub({
@@ -192,6 +194,57 @@ test("once the Max quota is spent, no GitHub-only cook starts: the cook that hit
   assert.deepEqual(faux.prises, [1]);
   assert.deepEqual(faits("cook.launched").length, 1);
   assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason, "quota");
+});
+
+// La box de #3560 : 8 cœurs, de la mémoire et du disque à revendre ; seule sa charge bouge.
+// Au seuil par défaut, 1,5 par cœur, elle retient au-delà d'une charge de 12.
+const GO = 1024 * 1024 * 1024;
+const BOX = (charge: number): Machine => ({ charge, coeurs: 8, memoireDisponible: 16 * GO, memoireTotale: 32 * GO, disqueLibre: 100 * GO });
+
+test("a machine short of processor holds the GitHub-only claim beyond the first cook, says so, and says when it has room again (#3560)", async (t) => {
+  let charge = 16.2;
+  const avertis: string[] = [];
+  const { runtime, faux, station, faits } = cuisine(t, { machine: () => BOX(charge), avertir: (texte) => avertis.push(texte) });
+  faux.feu(1);
+  faux.feu(2);
+
+  // Jamais moins d'un cook : #1 part ; #2, derrière lui, attend que la machine respire.
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(faux.prises, [1]);
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason, "machine");
+  assert.deepEqual(faits("station.saturated").map(({ payload }) => payload), [{ station: STATION, resource: "cpu", observed: 16.2, limit: 12 }]);
+  assert.equal(etatStation(runtime.journal.base, STATION)?.saturatedResource, "cpu");
+  assert.match(avertis.join("\n"), /runs short of CPU — load of 16\.2 for at most 12/);
+
+  charge = 2.3;
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(faux.prises, [1, 2]);
+  assert.equal(faits("station.saturated").length, 1);
+  assert.equal(faits("station.relieved").length, 1);
+  assert.equal(etatStation(runtime.journal.base, STATION)?.saturatedResource, null);
+});
+
+test("each claim granted counts on the machine before its load shows it: a full rail does not leave in one block (#3560)", async (t) => {
+  // 11,5 : une prise tient sous 12 ; la suivante, comptée d'avance, la passerait.
+  const { gardes } = cuisine(t, { machine: () => BOX(11.5) });
+  assert.equal(await gardes.retenue(1), null);
+  assert.equal(await gardes.retenue(2), "machine");
+});
+
+test("a machine that cannot be read holds nothing: the station's places still bound its cooks, and it is said once (#3560)", async (t) => {
+  const avertis: string[] = [];
+  const { gardes, faits } = cuisine(t, {
+    machine: () => {
+      throw new Error("statfs refused");
+    },
+    avertir: (texte) => avertis.push(texte),
+  });
+  assert.equal(await gardes.retenue(1), null);
+  assert.equal(await gardes.retenue(2), null);
+  assert.deepEqual(avertis.filter((texte) => /could not be read \(statfs refused\)/.test(texte)).length, 1);
+  assert.deepEqual(faits("station.saturated"), []);
 });
 
 test("the chef's stop halts a running GitHub-only cook, its ticket is released, and no new claim is made", async (t) => {

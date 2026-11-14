@@ -28,7 +28,7 @@ const CONTRIBUTRICE = "brigade : @outsider has no write access to the repository
 // Une station neuve qui sert `brigade` sur la box, son dépôt sur la branche
 // `v2` ; `githubOnlyState` est ce que porte son `projet.json`, sans effet ;
 // `contributrice`, le compte de la machine n'a que la lecture du dépôt.
-function ouvrir(t: TestContext, { githubOnlyState, contributrice = false }: { githubOnlyState?: boolean; contributrice?: boolean }) {
+function ouvrir(t: TestContext, { githubOnlyState, contributrice = false, variables = {} }: { githubOnlyState?: boolean; contributrice?: boolean; variables?: Record<string, string> }) {
   const racine = repertoireTemporaire(t);
   projetSurGit(t, { reglages: { integrationBranch: "v2", ...(githubOnlyState === undefined ? {} : { githubOnlyState }) }, clone: join(racine, CLONES, "brigade") });
   const [projet] = lireConfiguration(`brigade ${DEPOT}`).projets;
@@ -52,7 +52,7 @@ function ouvrir(t: TestContext, { githubOnlyState, contributrice = false }: { gi
   gh.repondre(`repos/${DEPOT}/pulls?head=${DEPOT.split("/")[0]}:${brancheDuTicket(7)}&state=all&per_page=1`, { corps: [] });
   gh.repondre(`repos/${DEPOT}/commits/v2/check-runs?per_page=100`, { corps: { check_runs: [] } });
   gh.repondre(`repos/${DEPOT}/commits/v2/status?per_page=100`, { corps: { statuses: [] } });
-  const env = environnementDuProjet(racine, projet, { HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement"), BRIGADE_GH_BIN: gh.bin });
+  const env = environnementDuProjet(racine, projet, { HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement"), BRIGADE_GH_BIN: gh.bin, ...variables });
   mkdirSync(env.BRIGADE_STATE_DIR ?? "", { recursive: true });
   const journal = ouvrirJournal(env.BRIGADE_STATE_DIR ?? "");
   const decisions = { BRIGADE_STATIONS: "box/claude:2:code", BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "medium" };
@@ -105,6 +105,25 @@ test("the box's kitchen announces its GitHub-only station in the log, with its d
     try {
       const station = etatStation(journal.base, "box/claude");
       assert.deepEqual(station && { engine: station.engine, provides: station.provides, maxCooks: station.maxCooks, cores: station.cores, cap: station.cap }, { engine: "claude", provides: ["code"], maxCooks: 2, cores: availableParallelism(), cap: null });
+    } finally {
+      journal.fermer();
+    }
+  } finally {
+    cuisine.arreter("fin du test");
+    await cuisine.arretee?.();
+  }
+});
+
+test("the box's kitchen reads its machine before each claim: short of disk, it says so in the log, and its first cook still leaves (#3560)", async (t) => {
+  // Un milliard de Mo libres demandés : aucun disque ne les a.
+  const { cuisine, prises, etat } = ouvrir(t, { variables: { BRIGADE_MIN_FREE_DISK_MB: "1000000000" } });
+  try {
+    await jusqua(() => prises().length > 0);
+    assert.deepEqual(prises(), [PRISE]);
+    const journal = ouvrirJournal(etat, { lectureSeule: true });
+    try {
+      const station = etatStation(journal.base, "box/claude");
+      assert.deepEqual([station?.saturatedResource, station?.saturatedLimit], ["disk", 1_000_000_000]);
     } finally {
       journal.fermer();
     }

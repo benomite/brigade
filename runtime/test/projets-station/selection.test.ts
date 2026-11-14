@@ -41,8 +41,8 @@ test("deux dépôts du même nom : le premier est servi, l'autre est dit ; un d�
   ]);
 });
 
-test("le plafond de cooks vient des cœurs de la machine : deux gardés pour la cuisine, puis environ deux par cook", () => {
-  assert.equal(cooksDeLaMachine(8), 3);
+test("le plafond de cooks vient des cœurs de la machine : deux gardés pour la cuisine, puis environ un par cook (#3560)", () => {
+  assert.equal(cooksDeLaMachine(8), 6);
   assert.equal(cooksDeLaMachine(2), 1);
   assert.equal(cooksDeLaMachine(1), 1);
   assert.ok(cooksDeLaMachine() >= 1);

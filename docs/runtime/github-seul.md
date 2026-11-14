@@ -136,10 +136,13 @@ base, the stale-branch pruning).
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
   gives its ticket back on the issue, and at its first turn a restarted station gives back the tickets it held with no
   cook (#2179). Its places are read again at each turn: the cap the chef sets live (`station -- cooks <N>`, `0` for no
-  limit) once he has set one, otherwise its declared cap bounded by its machine's cores — 3 on 8 cores. At start the
+  limit) once he has set one, otherwise its declared cap bounded by its machine's cores — 6 on 8 cores (#3560). At start the
   station announces itself in the log (`station.announced`, with its declaration and its cores), so `status` and
   `station` say its cap and where it comes from. Until #3446 the places were fixed at start and the chef's cap was
   written but read by nothing ([diagnosis](claim-wait-2026-11-13.md)).
+- **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
+  disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
+  the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
 - **A cook that adds nothing.** A cook that resumes a ticket's branch and ends without moving its head delivered
   nothing: it counts as a cook without delivery (`ECHECS_MAX`), so a ticket cannot loop between the cook and a pass
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the
