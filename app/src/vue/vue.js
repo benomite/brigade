@@ -6729,6 +6729,15 @@ async function demenager(projet, vers, { nomme, depuis, garder }) {
   reposerLOngletStations();
 }
 
+// Les stations que GitHub dit servir le projet (`facts.stations`, ticket 3472) — arrêtées, hors ligne ou en ligne, avec ou sans ticket en file : la ligne
+// des stations les nomme, que le rail ait une panne à dire ou non. Aucune : le projet n'a jamais été servi, ou la station qui le servait a été retirée.
+/** @param {Projet} projet @returns {string[]} */
+function stationsDeGithubDuProjet(projet) {
+  const tenu = tenus.get(projet.nom);
+  if (tenu === undefined || !("tableau" in tenu) || muets.has(projet.nom)) return [];
+  return tenu.tableau.stations?.lignes.map(({ station }) => station) ?? [];
+}
+
 // La ligne des stations du projet affiché, en tête de son espace — et, s'il est ouvert, le choix de
 // celles à qui le confier. Aucune lecture des stations n'est encore arrivée : le vide ne se dit pas.
 function poserStationsDuProjet() {
@@ -6749,8 +6758,12 @@ function poserStationsDuProjet() {
   const { stations, demande, tenue } = cuisineDe(projet);
   const lues = stationsVues !== undefined && projetsVus !== undefined;
   const ou = ouCuit(projet, stations);
+  const nommees = stations.length === 0 && ou === undefined ? stationsDeGithubDuProjet(projet) : [];
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
-  if (stations.length > 0 || ou !== undefined) {
+  if (nommees.length > 0) {
+    // La station est nommée ici ; la panne du rail, s'il y en a une, dit seule qu'elle est arrêtée et le geste qui la démarre.
+    ligneDesStationsDuProjet.replaceChildren(bloc("span", `Cooks on ${nommees.join(" · ")}`));
+  } else if (stations.length > 0 || ou !== undefined) {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis les autres.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
@@ -6777,7 +6790,7 @@ function poserStationsDuProjet() {
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
-  ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
+  ouvrirLaConfiance.textContent = stations.length === 0 && nommees.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const onboarding = vu?.onboarding ?? null;
@@ -8938,6 +8951,7 @@ brigade.surFaits((recue) => {
     dessiner();
     poserLeRecitDuPremierTicket();
     void poserOrdinaires(courant);
+    poserStationsDuProjet();
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
