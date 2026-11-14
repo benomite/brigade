@@ -12,7 +12,13 @@ import { A_LA_MAIN, stationDuDepot, type Lancer } from "../src/brigade-github.ts
 import { ticketsDeLaListe } from "../src/epique.ts";
 import type { GitHub } from "../src/github.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
-import { lireReprise, MARQUE_DE_LA_CONSIGNE, MARQUE_DE_LA_REPRISE, MARQUE_DE_REECRITURE, type Reprise, type ReponseDeReprise } from "../src/reprise-du-manager.ts";
+import { lireReprise, MARQUE_DE_LA_REPRISE, type ReprendreLeTicket } from "../src/reprise-du-manager.ts";
+
+// La consigne du manager se reconnaît à sa première ligne ; le corps réécrit, à la sienne.
+const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:reprise-au-manager -->";
+const MARQUE_DE_REECRITURE = "<!-- brigade:reecrit-par-le-manager -->";
+type ReponseDeReprise = Awaited<ReturnType<ReprendreLeTicket>>;
+type Reprise = Extract<ReponseDeReprise, { reprise: unknown }>["reprise"];
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "./faux-github.ts";
 
 const TICKET = 77;

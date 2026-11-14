@@ -25,32 +25,32 @@ import { couper, issueEnDonnee, objet, parmi, phrase, type IssueAJuger } from ".
 import type { Plafond } from "./reagir.ts";
 
 // La première ligne de la consigne : ce qui la distingue, pour qui lit les lancements.
-export const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:reprise-au-manager -->";
+const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:reprise-au-manager -->";
 // Le commentaire de la reprise sur l'issue : c'est d'après lui que les essais se recomptent.
 export const MARQUE_DE_LA_REPRISE = "<!-- brigade:reprise-du-manager";
 // Ce qui marque, dans le corps, la réécriture du manager.
-export const MARQUE_DE_REECRITURE = "<!-- brigade:reecrit-par-le-manager -->";
+const MARQUE_DE_REECRITURE = "<!-- brigade:reecrit-par-le-manager -->";
 // Ce qui marque le corps d'un ticket né du découpage d'une reprise : il a déjà eu la sienne.
 const MARQUE_NE = /^\s*<!--\s*brigade:ne-d-une-reprise #([1-9]\d*)\s*-->\s*$/m;
-export const marqueNeDUneReprise = (parent: number) => `<!-- brigade:ne-d-une-reprise #${parent} -->`;
+const marqueNeDUneReprise = (parent: number) => `<!-- brigade:ne-d-une-reprise #${parent} -->`;
 
 // Un découpage de reprise : deux tickets au moins, cinq au plus.
-export const SOUS_TICKETS_MIN = 2;
-export const SOUS_TICKETS_MAX = 5;
+const SOUS_TICKETS_MIN = 2;
+const SOUS_TICKETS_MAX = 5;
 // Ce que la consigne cite des essais, au plus.
 const ESSAIS_MAX = 6_000;
 
-export const CHOIX_DE_REPRISE = ["reecrire", "decouper", "recalibrer", "question"] as const;
-export type ChoixDeReprise = (typeof CHOIX_DE_REPRISE)[number];
+const CHOIX_DE_REPRISE = ["reecrire", "decouper", "recalibrer", "question"] as const;
+type ChoixDeReprise = (typeof CHOIX_DE_REPRISE)[number];
 
-export type SousTicket = { titre: string; corps: string };
-export type Reprise =
+type SousTicket = { titre: string; corps: string };
+type Reprise =
   | { choix: "reecrire"; motif: string; corps: string }
   | { choix: "decouper"; motif: string; tickets: SousTicket[] }
   | { choix: "recalibrer"; motif: string; calibrage: Calibrage }
   | { choix: "question"; motif: string; sorte: "product" | "design"; question: string };
 
-export type ReponseDeReprise = { reprise: Reprise } | { illisible: string };
+type ReponseDeReprise = { reprise: Reprise } | { illisible: string };
 
 // Le manager, tel que la station le consulte après le dernier essai : le
 // ticket, son calibrage, et le motif de chacun de ses essais, du premier au dernier.
