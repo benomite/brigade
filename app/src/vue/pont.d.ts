@@ -322,6 +322,12 @@ export type Pont = {
   lireLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").LectureDesExplications>;
   marquerUneExplication?(projet: string, mot: import("./explications/explications-box.ts").MotExplique): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   remontrerLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
+  // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : ce que sa cuisine a fait depuis que le chef a regardé, lu
+  // là où elle tourne ; montré, son marqueur avance jusqu'à `until` ; la PR d'un ticket servi s'ouvre (recap/recap-box.ts).
+  // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucun récapitulatif.
+  lireLeRecap?(projet: string): Promise<import("./recap/recap-box.ts").LectureDuRecap>;
+  marquerLeRecap?(projet: string, until: string): Promise<import("./recap/recap-box.ts").MarqueDuRecap>;
+  ouvrirLaPRDuRecap?(url: string): Promise<boolean>;
   // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
   // chacune (reglages-stations/stations.js, stations-contributrices.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
   listerLesStationsContributrices?(projet: string): Promise<import("../stations-contributrices.ts").LectureDesStations>;

@@ -429,6 +429,34 @@ for you" and opens the project holding it (at a phone's width, the list of cards
 `chiffresDeLAutonomie` of `resume-hebdomadaire.js`. Tests: `app/test/absence/`. Captures: `docs/captures/3305/` (before: the app opened on the same
 data, without the screen; after: with it).*
 
+### The recap of each project, on the home screen (#3581, epic #3579)
+
+**When the app opens, the home screen shows, between its opening lines and Projects, a "Since you last looked" block: one
+recap per project that is read on this computer**, each in its own card — two projects with different activity show two
+different recaps. A recap covers what happened since the project's "last seen" marker, kept by the project's runtime
+(`recap.json` in its state directory), and says the instant it starts from:
+
+- **Served**: each ticket served, with a `PR #N` link to the pull request that served it — its gates, CI and review are
+  checked there. The served tickets are read from the closed pull requests, as the rail's Served column reads them.
+- **Sent back or refused by the pass**: one line per ticket, its latest send-back (`sent back to a cook`) or refusal
+  (`refused`, the delivery set aside after its sends back) with its reason — the station's `brigade:renvoi` comment.
+- **Stopped by a guardrail**: one line per stop — what was stopped (a cook and its ticket, or the kitchen) and by which
+  guardrail: the chef's `stop`, the breaker, the duration cap or the tokens cap — read from the project's log.
+- **Nothing happened since you last looked.** when none of the three has anything: the recap is never hidden nor empty.
+- **Waiting for you in TODO (N)**: the cards TODO shows at that moment — the red cards that `TODO (N)` counts —, each with
+  its question; "Nothing is waiting for you in TODO." when there is none. It follows each reading of the rail.
+
+**Shown, it is marked seen.** As soon as the home screen shows a recap, nothing covering it (the "Since you were away"
+screen, a project, a page), the app tells the project's runtime, which moves the marker to the instant that recap covered.
+The next opening of the app — and a restarted runtime — shows only what is newer. A recap that cannot be read (no
+station, a runtime without the command, GitHub or the log not read) says `Recap not reached.` in one line, its reason on
+hover, and is never marked seen. With no marker yet, the first recap covers the last 7 days. A bridge without the recap (the phone), or that gives nothing for a project, shows no recap for it — and with no recap to show, the block is not laid.
+
+*Code: `runtime/src/recap/` (the `recap` command), `app/src/vue/recap/recap-box.ts` (the main process),
+`app/src/vue/recap/recap.js` and its wiring in `app/src/vue/vue.js` (`poserLeRecapDeLAccueil`). Tests: `runtime/test/recap/`,
+`app/test/recap/` — `recap-github.test.ts` compares the recap's served and TODO items to the rail and TODO read from the
+same GitHub fixture. Captures: `docs/captures/3581/` (the home screen before, and with the recap of two projects).*
+
 ### On first launch: try on a sample project (#3227, epic #3217)
 
 Next to `open this project`, the first-launch screen offers **`try on a sample project`**. One click creates a small

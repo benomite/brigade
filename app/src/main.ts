@@ -29,6 +29,7 @@ import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
+import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -1622,6 +1623,27 @@ ipcMain.handle("marquerUneExplication", (_, nom: unknown, mot: unknown) => {
 ipcMain.handle("remontrerLesExplications", (_, nom: unknown) => {
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? parti(nom) : ecrireLesExplications(vise.nom, lu, compteDesExplications, { effacer: true }, lancerSurLaCuisine);
+});
+// Le récapitulatif de chaque projet, sur l'accueil (#3581, vue/recap/recap-box.ts) : lu par `recap` là où sa cuisine tourne,
+// et son marqueur avancé par elle quand la vue l'a montré. Seule l'adresse d'une PR qu'une lecture a rendue s'ouvre.
+const liensDesRecaps = new Set<string>();
+ipcMain.handle("lireLeRecap", async (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  if (vise === undefined) return { sans: `${String(nom)} is no longer in the projects file` };
+  const lue = await lireLeRecap(vise.nom, lu, await depotDuProjet(vise), lancerSurLaCuisine);
+  if ("recap" in lue) for (const { prUrl } of lue.recap.served) liensDesRecaps.add(prUrl);
+  return lue;
+});
+ipcMain.handle("marquerLeRecap", async (_, nom: unknown, until: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : marquerLeRecap(vise.nom, lu, await depotDuProjet(vise), until, lancerSurLaCuisine);
+});
+ipcMain.handle("ouvrirLaPRDuRecap", (_, url: unknown) => {
+  if (typeof url !== "string" || !liensDesRecaps.has(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
 });
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributrices.ts).

@@ -11,13 +11,9 @@ export const MOT_DE_L_ETAT: Readonly<Record<EtatDuTicket, string>> = { taken: "p
 
 type Brut = Record<string, unknown>;
 
-// Le ticket qu'une PR livre : son nom de branche `cook/<n>-…`, ou un `Closes #n` de son corps.
-export function ticketDeLaPR(tete: string, corps: string): number | null {
-  const branche = /^cook\/(\d+)(?:-|$)/.exec(tete)?.[1];
-  const ferme = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i.exec(corps)?.[1];
-  const numero = Number(branche ?? ferme);
-  return Number.isSafeInteger(numero) && numero > 0 ? numero : null;
-}
+// Le ticket qu'une PR livre : son nom de branche `cook/<n>-…`, ou un `Closes #n` de son corps — la règle même du
+// récapitulatif du runtime (#3581), qui lit les tickets servis sur les mêmes PR que la colonne Served.
+export { ticketDeLaPR } from "../../../runtime/src/recap/servis.ts";
 
 // Les checks d'un commit, d'après les *check runs* de GitHub. Une conclusion vide : le check court encore.
 export function etatDeLaBaseGithub(runs: readonly Brut[]): EtatDeLaBase | null {

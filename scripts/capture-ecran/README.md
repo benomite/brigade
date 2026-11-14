@@ -141,7 +141,9 @@ dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 
   Prends-la, autant que possible, à la fonction de l'app qui la calcule (comme `ajout.ts` prend
   `proposerCalibrage` à `proposition.ts`) : elle suivra le code. Une réponse `{ __enAttente: true }` ne vient jamais : l'écran
   montre ce que la vue pose en l'attendant (`ajout-projet-depot-preparation`). Une réponse `{ __rejet: "…" }` rejette avec ce
-  message : l'écran montre ce que la vue pose d'un échec (`ajout-projet-depot-echec`).
+  message : l'écran montre ce que la vue pose d'un échec (`ajout-projet-depot-echec`). Une réponse
+  `{ __selon: { <premier argument>: <réponse> } }` dépend du premier argument du geste — deux projets, deux réponses
+  (`accueil-recap`).
 - **`envois`** : ce que le process principal pousse à la vue. `cuisine(RENDUS)` les rend pour la
   cuisine figée ; ajoutes-y un envoi (`{ sur: "surSortie", args: [id, texte] }` écrit dans un
   terminal, voir `espace-projet.ts`). `demande` sur un envoi : son premier argument reçoit le numéro
