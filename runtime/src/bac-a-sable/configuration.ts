@@ -3,7 +3,9 @@
 // touche, sur le Mac du chef, qu'à son ticket. Il écrit dans son worktree et
 // dans les caches du projet, nulle part ailleurs ; il ne lit ni `~/.ssh`, ni
 // les identifiants du chef, ni ses accès de prod ; il ne joint que les hôtes
-// de la liste réseau du projet — liste vide, aucun.
+// de la liste réseau du projet — liste vide, aucun. Il peut ouvrir un port
+// local (`allowLocalBinding`, #3541 : Gradle parle à son démon par un port
+// local), sur la boucle locale seulement ; cela n'ajoute aucun hôte joignable.
 //
 // Deux couches, parce que le bac à sable ne garde que les commandes du shell :
 //   `sandbox`      ce que Seatbelt impose à chaque commande Bash et à ce
@@ -83,7 +85,7 @@ export type Reglages = {
     enableWeakerNestedSandbox: false;
     enableWeakerNetworkIsolation: false;
     filesystem: { allowWrite: string[]; denyWrite: string[]; denyRead: string[] };
-    network: { allowedDomains: string[]; strictAllowlist: true; allowLocalBinding: false; allowAllUnixSockets: false };
+    network: { allowedDomains: string[]; strictAllowlist: true; allowLocalBinding: true; allowAllUnixSockets: false };
   };
   hooks: { PreToolUse: typeof CROCHET_BASH; PermissionRequest?: ReturnType<typeof crochetBrigade> };
   permissions: { allow: string[]; deny: string[]; disableBypassPermissionsMode: "disable" };
@@ -197,7 +199,7 @@ export function configurer(cook: Cook): ConfigDeBacASable {
         filesystem: { allowWrite: ecrits, denyWrite: interdits, denyRead: interdits },
         // `strictAllowlist` : un hôte hors de la liste est refusé, quel que
         // soit le mode — sans lui, `bypassPermissions` le laisserait passer.
-        network: { allowedDomains: unique([...hotes.flatMap(({ noms }) => noms), ...entreesReseau(cook.services ?? [])]), strictAllowlist: true, allowLocalBinding: false, allowAllUnixSockets: false },
+        network: { allowedDomains: unique([...hotes.flatMap(({ noms }) => noms), ...entreesReseau(cook.services ?? [])]), strictAllowlist: true, allowLocalBinding: true, allowAllUnixSockets: false },
       },
       hooks: { PreToolUse: CROCHET_BASH, ...(setup ? { PermissionRequest: crochetBrigade(ecrits[0]!) } : {}) },
       permissions: {

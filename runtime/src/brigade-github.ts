@@ -69,6 +69,7 @@ import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
 import { degelerLesConflits, partirSurLaBase, renvoisPourLaBase, suiteDuConflitBloque } from "./conflit-main/conflit-main.ts";
+import { DIT_L_ARRET_DU_BAC, natureDeLArret } from "./bac-a-sable/nature-arret.ts";
 import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renvoi.ts";
 import type { GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -97,6 +98,7 @@ import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
+import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -851,6 +853,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const fait = await faireLesGestesGitHub(github, { station: nom, ticket: issue, gestes: gestesGitHub.gestes });
       if ("echec" in fait) return { echec: fait.echec };
       avertir(`brigade : #${issue} sur ${nom} — the cook asked for a GitHub gesture: the station made it (${fait.fait.join(" ")}), the ticket goes back to a cook`);
+      return "liberee";
+    }
+    // Un refus du bac à sable n'est pas un geste git (#3552) : la cuisine ajoute
+    // le besoin à la déclaration du projet, le ticket attend puis revient à un cook.
+    if (avis.issue === "geste" && geste === null && natureDeLArret(avis.geste) === "bac-a-sable") {
+      const deja = (await depuisLeRelancement(github, issue, lus ?? [], MARQUE_D_ATTENTE)).filter((c) => c.body.includes(" manager ")).length;
+      if (deja + 1 >= ECHECS_MAX) return { echec: `the cook stopped on a sandbox refusal, ${deja + 1} times, and no card is posted for it: ${avis.geste}` };
+      const reprise = instant() + ATTENTE_MS;
+      avertir(`brigade : #${issue} sur ${nom} — the cook stopped on a sandbox refusal (${avis.geste}): no card for the chef, the kitchen adds the need to the declaration`);
+      await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped — ${DIT_L_ARRET_DU_BAC} Nothing here is for the chef.\n\nThe ticket waits until ${new Date(reprise).toISOString()}. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
       return "liberee";
     }
     // Un geste git n'est jamais une carte du chef (#3476) : le ticket revient à
@@ -2700,6 +2712,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const issue = await options.github.issue(ticket.number);
       const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
       const criteres = lireLaCarte(issue?.body ?? "").criteria;
+      // Conseil seul (#3511) : les fichiers hors de la zone annoncée, en une ligne sur la PR.
+      await signalerHorsZone({ zone: async () => zoneDeclaree(issue?.body ?? "", fiche((await options.github.commentaires(ticket.number)).map(({ body }) => body))), fichiers: diff.fichiers, pr: pr.number, commentaires: async () => (await options.github.commentaires(pr.number)).map(({ body }) => body), commenter: (numero, corps) => options.github.commenter(numero, corps), avertir });
       // La réponse du cook aux remarques d'avant, s'il en a posté une : la pass la juge (#2592).
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
