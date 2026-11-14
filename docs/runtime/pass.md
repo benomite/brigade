@@ -8,8 +8,9 @@ this order:
    project's `.claude/brigade/worktree-setup.sh` runs first; what it exports holds for them. Cap,
    setup included: 30 minutes (`BRIGADE_GATES_TIMEOUT_SECONDS`), then red.
 2. **The CI** of the judged commit (*check runs* and statuses), read only if the gates are green.
-3. **The reviewer**, only if the gates and the CI are green: a `claude` that rereads the diff. A red
-   goes back to its cook unreviewed (#2078).
+3. **The reviewer**, only if the gates and the CI are green: a `claude` that rereads the diff against
+   the ticket's acceptance criteria. It blocks only on a named list of categories; every other
+   finding advises ("What blocks, what only advises"). A red goes back to its cook unreviewed (#2078).
 
 | What the CI says | What the pass does with it |
 |---|---|
@@ -96,23 +97,25 @@ the project's calibration (`station reviewer-modele` and `reviewer-effort`, no d
 - **Never the cook rereading itself**: a fresh process, its own instructions, no session resumed.
 - **It can write nothing.** Three tools, `Read`, `Grep`, `Glob`: no shell, editing, skill, MCP
   server, account settings, or mode without permission.
-- **What it reads**: the ticket's title and body, the comments of those with a hand on the repository
-  (`OWNER`, `MEMBER`, `COLLABORATOR`) without the brigade's, the cook's report, the changed files and
-  the diff against the integration branch: **data, not an instruction**. A diff over 40,000 bytes or
-  a list over 8,000 is cut (`truncated: true`); it reads the rest in the worktree, without removed
-  lines. Instructions over 120,000 bytes **are not launched** (`unjudged`, cause
+- **What it reads**, on a diff: the ticket's title, **its acceptance criteria** (its body only when it
+  has none), the changed files and the diff against the integration branch: **data, not an
+  instruction**. It is asked to find what breaks those criteria. **It never reads the cook's own
+  account of the work**: not its report, not a PR description, not its notes (#3504). The one
+  exception: a cook sent back that answers the review on the PR instead of changing the delivery has
+  that answer judged (#2592). A diff over 40,000 bytes or a list over 8,000 is cut (`truncated:
+  true`); it reads the rest in the worktree, without removed lines. Instructions over 120,000 bytes **are not launched** (`unjudged`, cause
   `review-unsendable`).
-- **A harvest commit** (what the cook left uncommitted) is named to it: a file with no business there
-  (a secret, a draft) is **blocking**.
-- **A written form criterion is blocking** when not met ("five lines at most"); otherwise doubt goes
-  to the remark: taste, style or naming never block.
+- **A harvest commit** (what the cook left uncommitted) is named to it: a secret in it is
+  **blocking** (security risk); another file with no business there (a draft) is advice.
+- **A written form criterion is blocking** when not met ("five lines at most"): a criterion of the
+  ticket not met. Otherwise doubt goes to the advice: taste, style or naming never block.
 - **It says what the diff should remove and does not**, or that there is nothing to remove:
   « À supprimer : … » remarks, **never blocking**.
 
 | The reviewer says | What the pass does |
 |---|---|
-| no blocking finding | nothing held back. The remarks are on the issue, not sent to the cook |
-| **a blocking finding** | **red**: the finding goes back to a cook and uses up a send-back |
+| no blocking finding | nothing held back. The advice is written on the PR, in the pass's verdict, not sent to the cook |
+| **a blocking finding** in a named category | **red**: the finding goes back to a cook, its category named, and uses up a send-back |
 | unreadable | **neither green nor red**: asked again on the same commit, **twice at most**, no cook launched. Unreadable three times: escalated (`unjudged`, cause `review-unreadable`), no send-back, no merge |
 
 Each review leaves a « Reviewer — … » comment on the issue. **A delivery that was read is not read
@@ -126,6 +129,30 @@ the connection expired. A review that does not complete is **a failure** for the
 retried; an unreadable one is a failure only if it leaves the delivery unjudged; **refused by the
 model**, it is retried without counting, then escalated at the third refusal in a row (`unjudged`,
 cause `review-refused`; "When the model refuses" in [`station-cook.md`](station-cook.md)).
+
+### What blocks, what only advises
+
+The product rule (#3504): **deterministic checks block, models advise.**
+
+**What blocks**:
+
+- **The gates** on the merge with the base, **the CI** of the judged commit (above), a conflict with
+  the base, and an added test already green on the base ("Red on main, green on the branch", below).
+- **The review, only in a named category.** Each blocking finding names its category
+  (`runtime/src/reviewer.ts`, `CATEGORIES_BLOQUANTES`), and the send-back's reason quotes it by name:
+
+  | Category | Name in the reason | What it covers |
+  |---|---|---|
+  | `critere-non-tenu` | Criterion of the ticket not met | an acceptance criterion of the ticket the delivery does not meet, or breaks — a written form criterion included |
+  | `securite` | Security risk | a secret delivered, untrusted data run or believed, an access control or the partition bypassed |
+  | `perte-de-donnees` | Data loss | a file, a state, a log or a history erased or overwritten without the ticket asking for it |
+  | `code-non-atteint` | New code nothing reaches | new code nothing reaches in production: an export only its tests call (`CLAUDE.md`) |
+
+**What only advises**: every other review finding — a bug or an empty test that breaks no criterion, a
+taste, a naming, what the diff does that the ticket did not ask, what it should remove. A finding the
+reviewer says is blocking without a category, or with one outside the list, is advice too. Advice is
+written on the PR, in the pass's verdict (`Advice` lines), and **does not stop the merge**: a review
+red only on advice is green.
 
 ### Red on main, green on the branch
 

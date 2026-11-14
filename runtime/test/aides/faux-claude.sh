@@ -802,7 +802,7 @@ FIN
     relit-rouge)
       assistant
       resultat <<'FIN'
-{"verdict":"rouge","resume":"Le critère d'acceptation n° 2 n'est pas couvert.","constats":[{"gravite":"bloquant","fichier":"travail.txt","constat":"Le cas d'erreur est avalé : rien ne remonte."},{"gravite":"remarque","fichier":null,"constat":"Un test de plus ne nuirait pas."}]}
+{"verdict":"rouge","resume":"Le critère d'acceptation n° 2 n'est pas couvert.","constats":[{"gravite":"bloquant","categorie":"critere-non-tenu","fichier":"travail.txt","constat":"Le cas d'erreur est avalé : rien ne remonte."},{"gravite":"remarque","fichier":null,"constat":"Un test de plus ne nuirait pas."}]}
 FIN
       ;;
     relit-illisible)
@@ -815,7 +815,7 @@ FIN
     relit-incoherent)
       assistant
       resultat <<'FIN'
-{"verdict":"vert","resume":"Tout va bien.","constats":[{"gravite":"bloquant","fichier":null,"constat":"Sauf ceci."}]}
+{"verdict":"vert","resume":"Tout va bien.","constats":[{"gravite":"bloquant","categorie":"securite","fichier":null,"constat":"Sauf ceci."}]}
 FIN
       ;;
     # Le second juge d'une livraison qui touche à ses juges : sa seule question,
