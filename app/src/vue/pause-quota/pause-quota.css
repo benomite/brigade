@@ -1,0 +1,61 @@
+/* La pause de quota GitHub du compte (ticket 3482) : jamais une panne, jamais rouge. En tête de l'app, une ligne calme — le
+   bleu de la pastille, une horloge, la limite, la reprise et son compte à rebours, rien à faire ; en tête du rail d'un projet,
+   la même horloge et une note à voix basse. */
+#pause-quota {
+  flex: none;
+  background: var(--bandeau);
+  border-bottom: 1px solid var(--trait);
+}
+#pause-quota .bandeau-pause {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  min-height: 32px;
+  margin: 0;
+  padding: var(--pas-1) var(--pas-3);
+  border-left: 3px solid var(--bleu);
+}
+#pause-quota .bandeau-pause strong {
+  font-weight: 600;
+  color: var(--texte);
+}
+#pause-quota .reprise {
+  color: var(--bleu);
+  font-variant-numeric: tabular-nums;
+}
+#pause-quota .rien-a-faire {
+  color: var(--discret);
+}
+#rail .pause-du-projet {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: var(--pas-2) var(--pas-4) 0;
+  color: var(--discret);
+}
+/* L'horloge : un cadran et ses deux aiguilles, à la couleur calme. */
+.horloge {
+  position: relative;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--bleu);
+  border-radius: 50%;
+}
+.horloge::before,
+.horloge::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 0.75px);
+  bottom: 50%;
+  width: 1.5px;
+  background: var(--bleu);
+  transform-origin: bottom center;
+}
+.horloge::before {
+  height: 4px;
+}
+.horloge::after {
+  height: 3px;
+  transform: rotate(90deg);
+}

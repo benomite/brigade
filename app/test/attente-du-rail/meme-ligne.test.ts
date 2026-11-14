@@ -99,7 +99,7 @@ describe("la même phrase dans `status` et dans le rail", { skip: SANS_POSIX }, 
     const gh = ghDe(repertoire, monde(instant));
     const station_ = DE_L_ATTENTE(await statusDeLaStation(t, gh));
     const app = await lectureDeLApp(gh, instant);
-    const attendue = ["queue wait The station is stopped, so no cook can start. Start the station.", "  #5  after #4"];
+    const attendue = ["queue wait Station box/claude is stopped, so no cook can start. Start the station.", "  #5  after #4"];
     assert.deepEqual(station_, attendue);
     assert.deepEqual(DE_L_ATTENTE(app.status), attendue);
     assert.equal(`queue wait ${app.attente?.phrase}`, attendue[0]);

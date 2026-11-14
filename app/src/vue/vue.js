@@ -104,6 +104,7 @@ import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-d
 import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
 import { ligneDeLAttente } from "./attente-du-rail/ligne-de-l-attente.js";
+import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
@@ -4635,6 +4636,7 @@ function ongletDesStations(projet) {
       ouverts,
       lecture,
       quiCuit: ajout !== undefined,
+      ...(tenu !== undefined && "tableau" in tenu && tenu.tableau.quotaGithub !== undefined ? { quota: tenu.tableau.quotaGithub } : {}),
     },
     {
       choisirQuiCuit: () => ajout?.gestes.ouvrir(),
@@ -5127,14 +5129,18 @@ function poserLeRail(projet) {
   railPoseDe = projet.nom;
   // Hors ligne, le rail lu en dernier est atténué, et le signe dit depuis quand à la place de son âge (ticket 1818).
   if (horsLigne !== undefined) rail.dataset.horsLigne = "";
+  // Pendant la pause de quota GitHub du compte (ticket 3482), le rail dit seulement qu'il l'attend : ni le rail bloqué, ni
+  // l'attente de la file — sauf une panne que la pause n'explique pas, qui garde sa ligne et son geste.
+  const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now());
   // Sur Rail, les signes d'abord — une lecture vieille, la panne, le projet éteint —, puis la bande du haut, qui porte
   // l'âge du rail à son bout (ticket 2486).
   poser(
     ...(horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a)),
-    ...ligneDuRailBloque(document, tenu.tableau.railBloque, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
+    ...ligneDuRailBloque(document, ditDuRail.railBloque, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
     // Pourquoi la file ne part pas (ticket 3433) : sous le rail bloqué, qui est une autre cause, au-dessus des colonnes.
     // Un rail bloqué (ticket 3358) dit déjà, lui, la cause du rail mort : une seule explication, jamais deux l'une sur l'autre.
-    ...ligneDeLAttente(document, tenu.tableau.railBloque === undefined ? tenu.tableau.attenteDuRail : undefined, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
+    ...ligneDeLAttente(document, ditDuRail.railBloque === undefined ? ditDuRail.attenteDuRail : undefined, lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null),
+    ...ligneDuProjetEnPause(document, ditDuRail.enPause),
     ...panneDuRail(projet, tenu.tableau),
     ...teteDuRail(projet),
     // Sous l'onglet Rail, l'explication du rail ; sous la bande et ses cooks en cours, celle du cook (ticket 3308).
@@ -6727,6 +6733,15 @@ async function demenager(projet, vers, { nomme, depuis, garder }) {
   reposerLOngletStations();
 }
 
+// Les stations que GitHub dit servir le projet (`facts.stations`, ticket 3472) — arrêtées, hors ligne ou en ligne, avec ou sans ticket en file : la ligne
+// des stations les nomme, que le rail ait une panne à dire ou non. Aucune : le projet n'a jamais été servi, ou la station qui le servait a été retirée.
+/** @param {Projet} projet @returns {string[]} */
+function stationsDeGithubDuProjet(projet) {
+  const tenu = tenus.get(projet.nom);
+  if (tenu === undefined || !("tableau" in tenu) || muets.has(projet.nom)) return [];
+  return tenu.tableau.stations?.lignes.map(({ station }) => station) ?? [];
+}
+
 // La ligne des stations du projet affiché, en tête de son espace — et, s'il est ouvert, le choix de
 // celles à qui le confier. Aucune lecture des stations n'est encore arrivée : le vide ne se dit pas.
 function poserStationsDuProjet() {
@@ -6747,8 +6762,12 @@ function poserStationsDuProjet() {
   const { stations, demande, tenue } = cuisineDe(projet);
   const lues = stationsVues !== undefined && projetsVus !== undefined;
   const ou = ouCuit(projet, stations);
+  const nommees = stations.length === 0 && ou === undefined ? stationsDeGithubDuProjet(projet) : [];
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
-  if (stations.length > 0 || ou !== undefined) {
+  if (nommees.length > 0) {
+    // La station est nommée ici ; la panne du rail, s'il y en a une, dit seule qu'elle est arrêtée et le geste qui la démarre.
+    ligneDesStationsDuProjet.replaceChildren(bloc("span", `Cooks on ${nommees.join(" · ")}`));
+  } else if (stations.length > 0 || ou !== undefined) {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis les autres.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
@@ -6775,7 +6794,7 @@ function poserStationsDuProjet() {
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
-  ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
+  ouvrirLaConfiance.textContent = stations.length === 0 && nommees.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const onboarding = vu?.onboarding ?? null;
@@ -8895,6 +8914,12 @@ brigade.surEssais?.((nom) => {
   const projet = configuration.projets.find((candidat) => candidat.nom === nom);
   if (projet !== undefined) void lireLesEssais(projet);
 });
+// La pause de quota GitHub du compte (ticket 3482) : une ligne calme en tête de l'app, dite une fois pour tout le compte,
+// d'après ce que les projets lus en portent. Son compte à rebours bouge chaque seconde ; à la reprise, elle tombe d'elle-même
+// et le projet affiché se redessine sans sa ligne de pause.
+const bandeauDeLaPause = tenirLaPause(element("pause-quota"), document, { maintenant: () => Date.now(), auRetour: () => (courant === undefined ? undefined : dessiner()) });
+setInterval(() => bandeauDeLaPause.battre(), 1000);
+const suivreLaPause = () => bandeauDeLaPause.suivre(pauseDesProjets([...tenus.values()].map((tenu) => ("tableau" in tenu ? tenu.tableau.pauseQuota : undefined)), Date.now()));
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
   enLecture.delete(recue.projet);
@@ -8916,6 +8941,7 @@ brigade.surFaits((recue) => {
   if (horsLigne && (gardee === undefined || !("tableau" in gardee))) tenus.delete(recue.projet);
   else if (!((muette || horsLigne || ratee) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
+  suivreLaPause();
   suivreLeParcours(recue.projet);
   // Le premier ticket du premier projet suit chaque lecture de son rail (ticket 3302).
   if ("tableau" in recue) recitDuPremierTicket.observer(recue.projet, recue.tableau.etapesDesTickets);
@@ -8929,6 +8955,7 @@ brigade.surFaits((recue) => {
     dessiner();
     poserLeRecitDuPremierTicket();
     void poserOrdinaires(courant);
+    poserStationsDuProjet();
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme

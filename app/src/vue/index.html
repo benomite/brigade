@@ -34,6 +34,7 @@
     <link rel="stylesheet" href="undo/undo.css" />
     <link rel="stylesheet" href="rail-bloque/rail-bloque.css" />
     <link rel="stylesheet" href="attente-du-rail/attente-du-rail.css" />
+    <link rel="stylesheet" href="pause-quota/pause-quota.css" />
     <link rel="stylesheet" href="backlog-band/backlog-band.css" />
     <link rel="stylesheet" href="carte-attente/carte-attente.css" />
     <link rel="stylesheet" href="vue.css" />
@@ -54,6 +55,7 @@
     <link rel="stylesheet" href="installation-projet/installation-projet.css" />
     <link rel="stylesheet" href="choix-station/choix-station.css" />
     <link rel="stylesheet" href="stations-tab/stations-tab.css" />
+    <link rel="stylesheet" href="stations-quota/stations-quota.css" />
     <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
     <script type="importmap">
       {
@@ -70,6 +72,9 @@
     <!-- Le bandeau d'une version plus haute (ticket 1528) : vide, et caché, tant qu'aucune n'est publiée pour ce poste,
          ou quand le chef a écarté celle-ci. -->
     <section id="nouvelle-version" aria-label="New version" aria-live="polite" hidden></section>
+    <!-- La pause de quota GitHub du compte (ticket 3482) : une ligne calme, dite une fois pour tout le compte ; vide, et
+         cachée, hors pause. -->
+    <section id="pause-quota" aria-label="GitHub quota pause" aria-live="polite" hidden></section>
     <!-- La connexion du téléphone à GitHub (l'app Android, ticket 2500) : sur une installation neuve, le premier écran —
          l'app derrière reste cachée. Connecté, il ne garde qu'une ligne, en tête des projets, qui dit sous quel compte. -->
     <section id="connexion-github" aria-label="Sign in to GitHub" hidden></section>

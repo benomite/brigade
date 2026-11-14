@@ -16,6 +16,7 @@
 // Aucune ligne quand rien n'attend ou qu'un cook tourne. Ce que le rail ne dit pas de la station (le plafond, que
 // GitHub ne publie pas) est donné par l'appelant ; l'inconnu ne fait jamais une raison.
 import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
+import { stationDe } from "../stations-github/stations.ts";
 import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
 
 export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github" | "plafond" | "pass" | "autre-ticket" | "normale";
@@ -25,19 +26,23 @@ export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github
 // `depend` : les tickets dont son corps dit dépendre (`Depends on #N`).
 export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; entreLe: string | null; depend: readonly number[] };
 
-export type AttenteDuRail = { raison: Raison; phrase: string; geste: Geste | null };
+// `stations` : les stations du projet que la raison nomme (la phrase les nomme aussi) ; vide quand elle n'en nomme aucune.
+export type AttenteDuRail = { raison: Raison; phrase: string; geste: Geste | null; stations: string[] };
 
 const memeDepot = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 // Les phrases : une par raison, fixes. Les trois premières nomment leur geste ; les suivantes disent qu'elles passent seules.
-const PHRASES: Record<Exclude<Raison, "normale">, string> = {
-  "aucune-station": `No station serves this project, so no cook can start. ${MOTS_DU_GESTE["ajouter-a-une-station"]}.`,
-  arretee: `The station is stopped, so no cook can start. ${MOTS_DU_GESTE["demarrer-la-station"]}.`,
-  "hors-ligne": `The station is offline or out of quota, so no cook can start. ${MOTS_DU_GESTE["demarrer-la-station"]}.`,
-  "quota-github": "The station waits for the GitHub quota before it starts a cook. It resolves by itself.",
-  plafond: "The station has reached its cook cap: a cook starts as soon as a place frees up. It resolves by itself.",
-  pass: "The pass is judging a delivery: the queue starts once it is done. It resolves by itself.",
-  "autre-ticket": "Every queued ticket waits for another ticket: they start once it merges. It resolves by itself.",
+// Celles d'une station le nomment (#3472) : un FAULT dit de quelle station il parle.
+const nommees = (stations: readonly string[]) => (stations.length === 0 ? "The station" : `${stations.length > 1 ? "Stations" : "Station"} ${stations.join(", ")}`);
+const sont = (stations: readonly string[]) => (stations.length > 1 ? "are" : "is");
+const PHRASES: Record<Exclude<Raison, "normale">, (stations: readonly string[]) => string> = {
+  "aucune-station": () => `No station serves this project, so no cook can start. ${MOTS_DU_GESTE["ajouter-a-une-station"]}.`,
+  arretee: (stations) => `${nommees(stations)} ${sont(stations)} stopped, so no cook can start. ${MOTS_DU_GESTE["demarrer-la-station"]}.`,
+  "hors-ligne": (stations) => `${nommees(stations)} ${sont(stations)} offline or out of quota, so no cook can start. ${MOTS_DU_GESTE["demarrer-la-station"]}.`,
+  "quota-github": () => "The station waits for the GitHub quota before it starts a cook. It resolves by itself.",
+  plafond: () => "The station has reached its cook cap: a cook starts as soon as a place frees up. It resolves by itself.",
+  pass: () => "The pass is judging a delivery: the queue starts once it is done. It resolves by itself.",
+  "autre-ticket": () => "Every queued ticket waits for another ticket: they start once it merges. It resolves by itself.",
 };
 const GESTES: Partial<Record<Raison, Geste>> = { "aucune-station": "ajouter-a-une-station", arretee: "demarrer-la-station", "hors-ligne": "demarrer-la-station" };
 
@@ -87,23 +92,25 @@ export function expliquerLAttente(options: { depot: string; tickets: readonly Ti
   const { depot, tickets, maintenant } = options;
   const enFile = tickets.filter(({ etat }) => etat === "queued");
   if (enFile.length === 0 || tickets.some(({ etat }) => etat === "taken")) return null;
-  const dit = (raison: Exclude<Raison, "normale">): AttenteDuRail => ({ raison, phrase: PHRASES[raison], geste: GESTES[raison] ?? null });
+  const dit = (raison: Exclude<Raison, "normale">, stations: readonly string[] = []): AttenteDuRail => ({ raison, phrase: PHRASES[raison](stations), geste: GESTES[raison] ?? null, stations: [...stations] });
+  const noms = (lesquelles: readonly { name: string }[]) => [...new Set(lesquelles.map(({ name }) => stationDe(name)))].sort();
   // Des stations qui ne se lisent pas ne font ni la raison 1, ni 2, ni 3, ni 4.
   if (!("illisibles" in options.stations)) {
     const servantes = options.stations.lues.filter(({ selection }) => selection?.some((choisi) => memeDepot(choisi, depot)) === true);
     if (servantes.length === 0) return dit("aucune-station");
     const arretee = ({ stoppedAt, lastSeen }: (typeof servantes)[number]) => stoppedAt !== null && Date.parse(stoppedAt) >= Date.parse(lastSeen);
     const actives = servantes.filter((station) => !arretee(station));
-    if (actives.length === 0) return dit("arretee");
+    // Une station arrêtée n'est pas une panne tant qu'une autre du projet n'est pas arrêtée : seules les actives sont nommées.
+    if (actives.length === 0) return dit("arretee", noms(servantes));
     const enLigne = actives.filter((station) => disponible(station, maintenant));
-    if (enLigne.length === 0) return dit("hors-ligne");
+    if (enLigne.length === 0) return dit("hors-ligne", noms(actives));
     if (enLigne.every((station) => retenueJusqua(station, maintenant) !== null)) return dit("quota-github");
   }
   if (options.plafondAtteint) return dit("plafond");
   if (tickets.some(({ etat }) => etat === "pass")) return dit("pass");
   if (enFile.every((carte) => ligneDeLaCarte(carte, tickets) !== null)) return dit("autre-ticket");
   const plusAncien = enFile.map(({ entreLe }) => entreLe).filter((le): le is string => le !== null && !Number.isNaN(Date.parse(le))).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
-  return { raison: "normale", phrase: phraseNormale(plusAncien, maintenant), geste: null };
+  return { raison: "normale", phrase: phraseNormale(plusAncien, maintenant), geste: null, stations: [] };
 }
 
 // Les lignes que `status` écrit, la même chose que l'app dit : la phrase, au-dessus de la file, puis la ligne de chaque carte.

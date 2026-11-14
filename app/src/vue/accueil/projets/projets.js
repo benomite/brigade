@@ -14,7 +14,7 @@ import { AJOUTER_UN_PROJET } from "../../lexique.js";
 export const RAIL_BLOQUE = /^\d+ tickets? no manager takes, for /;
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
-/** @typedef {"cooking" | "waiting" | "held" | "stuck" | "idle"} EtatDeProjet */
+/** @typedef {"cooking" | "waiting" | "held" | "stuck" | "paused" | "idle"} EtatDeProjet */
 // `maintenant` : ce qui s'y passe, en une phrase (accueil.ts) ; `attend` : combien de décisions attendent le chef, absent quand aucune.
 /** @typedef {{ nom: string, etat: EtatDeProjet, stations: string[], maintenant: string, attend?: number, survol?: string }} ProjetDuBloc */
 /** @typedef {{ ouvrir(nom: string): void, ajouter(): void, pastille?(dit: string, ton: string): any }} GestesDuBloc */
@@ -28,6 +28,8 @@ export const ETATS = {
   held: { dit: "held", ton: "rouge" },
   // Le rail bloqué (rail-bloque/, ticket 3358) : des tickets qu'aucun manager ne prend.
   stuck: { dit: "stuck", ton: "rouge" },
+  // La pause de quota GitHub du compte (pause-quota/, ticket 3482) : rien n'y est en panne, il reprend seul.
+  paused: { dit: "paused", ton: "bleu" },
   idle: { dit: "idle", ton: "gris" },
 };
 // L'état d'un projet, d'après la ligne que l'accueil en dit (accueil.ts) : rouge, il est retenu ; jaune, il attend le chef ;
@@ -36,6 +38,7 @@ export const ETATS = {
 export function etatDeLaLigne({ ton, dit }) {
   if (ton === "rouge") return RAIL_BLOQUE.test(dit) ? "stuck" : "held";
   if (ton === "jaune") return "waiting";
+  if (ton === "bleu") return "paused";
   return ton === "vert" && !/^nothing cooking/.test(dit) && /cooking|at work|at the pass/.test(dit) ? "cooking" : "idle";
 }
 export const SANS_STATION = "no station";

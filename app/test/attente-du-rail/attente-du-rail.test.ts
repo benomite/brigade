@@ -40,14 +40,14 @@ const pris = ticket(3, { etat: "pris", prise: { station: "box/claude", le: "2026
 describe("la lecture du rail pose la phrase et les lignes des cartes dans `facts`", () => {
   test("des tickets en file, une station en ligne : l'attente normale, et `facts` la porte jusqu'au tableau", () => {
     const faits = faitsDe(lecture([ticket(4), ticket(5)], [station()]));
-    assert.deepEqual(faits.attenteDuRail, { raison: "normale", phrase: "Normal wait: a cook takes the ticket within minutes (the oldest has waited 2 min). It resolves by itself.", geste: null });
+    assert.deepEqual(faits.attenteDuRail, { raison: "normale", phrase: "Normal wait: a cook takes the ticket within minutes (the oldest has waited 2 min). It resolves by itself.", geste: null, stations: [] });
     assert.equal(faits.lignesDesCartes, undefined);
     assert.deepEqual(tableau(faits).attenteDuRail, faits.attenteDuRail);
   });
 
   test("aucune station ne sert le projet : la raison 1, et son geste", () => {
     const faits = faitsDe(lecture([ticket(4)], [station({ selection: ["chef/autre"] })]));
-    assert.deepEqual(faits.attenteDuRail, { raison: "aucune-station", phrase: "No station serves this project, so no cook can start. Add the project to a station.", geste: "ajouter-a-une-station" });
+    assert.deepEqual(faits.attenteDuRail, { raison: "aucune-station", phrase: "No station serves this project, so no cook can start. Add the project to a station.", geste: "ajouter-a-une-station", stations: [] });
   });
 
   test("les signes de vie qui ne se lisent pas : aucune raison de station n'est devinée", () => {
@@ -116,7 +116,7 @@ describe("la ligne en tête du rail", () => {
     const [ligne] = ligneDeLAttente(doc, attente, { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
     assert.ok(ligne !== undefined);
     assert.equal(ligne.role, "alert");
-    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "The station is stopped, so no cook can start. Start the station.", "Start the station"]);
+    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start. Start the station.", "Start the station"]);
     ligne.dessous("button")[0]?.click();
     assert.deepEqual(appels, ["stations"]);
   });

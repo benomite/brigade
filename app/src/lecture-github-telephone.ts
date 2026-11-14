@@ -49,7 +49,8 @@ import { activitesPubliees, lireLeTableauDuDepot, type ActivitesPubliees, type L
 import { lectureConditionnelle, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { AMONT, FAITS, lectureDuTableau, STATUS } from "./tableau/rail.ts";
 import { poserLaTrace } from "./telephone-connecte.ts";
-import { FICHIER_SELECTION, selectionLue } from "../../runtime/src/enregistrement-station/contrat.ts";
+import { FICHIER_ENREGISTREMENT, FICHIER_SELECTION, selectionLue } from "../../runtime/src/enregistrement-station/contrat.ts";
+import { pauseDuCompte, signeDeLEnregistrement, type PauseDuCompte, type Signe } from "./vue/pause-quota/pause-quota.ts";
 
 // Un projet du chef, tel que GitHub le dit : son nom, et son dépôt `<owner>/<repo>`.
 export type ProjetDuCompte = { nom: string; depot: string };
@@ -126,8 +127,9 @@ function donneesDe(reponse: ReponseGitHub, quoi: string): unknown {
 }
 
 // Les projets du chef, lus dans les gists de ses stations. Lève un `Refus` quand GitHub refuse, une erreur quand il ne
-// répond pas.
-export async function lireLesProjetsDuCompte(appeler: AppelGitHub): Promise<ProjetDuCompte[]> {
+// répond pas. `signes` reçoit le signe de vie et le quota GitHub de chaque station que ces gists enregistrent (ticket 3482) :
+// la pause de quota du compte s'en tire, comme au desktop.
+export async function lireLesProjetsDuCompte(appeler: AppelGitHub, signes: Signe[] = []): Promise<ProjetDuCompte[]> {
   const gists: string[] = [];
   for (let page = 1; page <= PAGES_AU_PLUS; page++) {
     const rendus = donneesDe(await appeler(`/gists?per_page=${PAR_PAGE}&page=${page}`), "the list of your gists, where your stations keep your projects");
@@ -158,6 +160,8 @@ export async function lireLesProjetsDuCompte(appeler: AppelGitHub): Promise<Proj
       return typeof texte === "string" ? texte : undefined;
     };
     for (const { nom, depot } of lireDemande(contenu(FICHIER_PROJETS)) ?? []) ajouter(nom, depot);
+    const signe = signeDeLEnregistrement(contenu(FICHIER_ENREGISTREMENT));
+    if (signe !== null) signes.push(signe);
     const selection = contenu(FICHIER_SELECTION);
     if (selection !== undefined) parSelection.push(...(selectionLue(selection)?.repositories ?? []));
   }
@@ -234,6 +238,11 @@ export function ouvrirLaLectureGitHub(options: Options) {
     return { ...lu, faits: { ...lu.faits, etat: "retenue" }, cuisine: { rubriques: [{ titre: "kitchen", lignes: [cuisineRetenueParLeDisjoncteur(issue, lu.luLe)] }, ...lu.cuisine.rubriques] } };
   }
 
+  // La pause de quota GitHub du compte (ticket 3482), de la dernière liste lue : chaque projet la porte dans `facts`, comme
+  // au desktop. Une liste qui ne se lit pas la garde : la vue la retire d'elle-même à sa reprise.
+  let pause: PauseDuCompte | null = null;
+  const avecLaPauseDuCompte = (lue: LectureDuTableauDuDepot): LectureDuTableauDuDepot => (lue.lu && pause !== null ? { ...lue, faits: { ...lue.faits, pauseQuota: pause } } : lue);
+
   // La lecture du desktop pour un projet : son rail, puis ce qui attend le chef. Ne lève pas.
   async function lireLeProjet({ depot }: ProjetDuCompte): Promise<LectureDuTableauDuDepot> {
     try {
@@ -241,7 +250,7 @@ export function ouvrirLaLectureGitHub(options: Options) {
       const lecteur = lectureConditionnelle(appeler, memoire(depot));
       // Les cartes du compte connecté, et celles d'un autre humain sous « Awaiting others », comme au desktop (#2985).
       const lue = await avecCeQuiAttendLeChef(lu, lecteur, partageDesCartesAssignees({ appeler: lecteur, depot, login: async () => options.compte ?? null }));
-      return lue.lu ? await avecLeDisjoncteur(lue, appeler) : lue;
+      return avecLaPauseDuCompte(lue.lu ? await avecLeDisjoncteur(lue, appeler) : lue);
     } catch (erreur) {
       return { lu: false, depot, luLe: maintenant().toISOString(), raison: `The rail of ${depot} was not read from GitHub: ${ditDe(erreur)}.` };
     }
@@ -251,7 +260,9 @@ export function ouvrirLaLectureGitHub(options: Options) {
   async function lireTout(): Promise<void> {
     const a = maintenant().toISOString();
     try {
-      const lus = await lireLesProjetsDuCompte(lireLesGists);
+      const signes: Signe[] = [];
+      const lus = await lireLesProjetsDuCompte(lireLesGists, signes);
+      pause = pauseDuCompte(signes, maintenant().getTime());
       liste = { a, lue: true };
       await poserLaTraceUneFois();
       if (JSON.stringify(lus) !== JSON.stringify(projets)) {
