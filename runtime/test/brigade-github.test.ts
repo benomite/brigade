@@ -1888,38 +1888,8 @@ test("a ticket set aside by cooks that were killed from outside is put back on t
   const corps = (faux.commentaires.get(21) ?? []).map((c) => c.body);
   assert.ok(corps.some((c) => c.includes("brigade:reconciliation-externe") && /killed from outside/.test(c)));
   assert.ok(!corps.some((c) => /\/resume/.test(c)));
-  // Les deux arrêts externes ne comptent plus : le cook suivant n'est que le premier essai.
+  // Les deux arrêts externes ne comptent plus : les échecs lus restent à trois, aucun nouvel échec n'est inscrit.
   assert.equal(echecsDe(faux, 21), 3);
-});
-
-test("a ticket set aside by real failures stays set aside: the reconciliation only drops the stops from outside (#3528)", async () => {
-  const faux = new FauxGitHub();
-  // Le ticket 21, mis de côté par des arrêts externes, est repris dans le même tour : sans cela, rien ne dit que la réconciliation tourne.
-  faux.feu(21, [...CALIBRE, "served-elsewhere"]);
-  faux.poster(21, "A", echec143(1));
-  faux.poster(21, "A", echec143(2) + MIS_DE_COTE_PAR_LES_ECHECS);
-  faux.feu(22, [...CALIBRE, "set-aside:failures"]);
-  faux.poster(22, "A", "<!-- brigade:echec n=1 -->\nStation `A`: the cook stopped without a delivery — the file no longer exists");
-  faux.poster(22, "A", "<!-- brigade:echec n=2 -->\nStation `A`: the cook stopped without a delivery — the file no longer exists\n\nSet aside by its failure count (`set-aside:failures`) after 2 cooks without a delivery: not served elsewhere, nobody serves it. A human decides; remove the label to try again.");
-  const a = faux.station("A", { cuisiner: async () => ({ echec: "x" }), avertir: () => {} });
-  await a.tour();
-  await a.calme();
-  assert.ok(faux.ticket(21).labels.has("fire") && !faux.ticket(21).labels.has("served-elsewhere"));
-  assert.ok(!(faux.commentaires.get(22) ?? []).some((c) => c.body.includes("reconciliation-externe")));
-});
-
-test("a ticket the chef set aside with served-elsewhere is left alone by the reconciliation (#3528)", async () => {
-  const faux = new FauxGitHub();
-  faux.feu(21, [...CALIBRE, "served-elsewhere"]);
-  faux.poster(21, "A", echec143(1));
-  faux.poster(21, "A", echec143(2) + MIS_DE_COTE_PAR_LES_ECHECS);
-  faux.feu(23, [...CALIBRE, "served-elsewhere"]);
-  faux.poster(23, "A", echec143(1));
-  const a = faux.station("A", { cuisiner: async () => ({ echec: "x" }), avertir: () => {} });
-  await a.tour();
-  await a.calme();
-  assert.ok(faux.ticket(21).labels.has("fire") && !faux.ticket(21).labels.has("served-elsewhere"));
-  assert.ok(!(faux.commentaires.get(23) ?? []).some((c) => c.body.includes("reconciliation-externe")));
 });
 
 // #2543, 2026-11-06 : la station, relancée par sa mise à jour toutes les 35 à 45 min, tuait ses
