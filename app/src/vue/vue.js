@@ -6735,11 +6735,14 @@ async function demenager(projet, vers, { nomme, depuis, garder }) {
 
 // Les stations que GitHub dit servir le projet (`facts.stations`, ticket 3472) — arrêtées, hors ligne ou en ligne, avec ou sans ticket en file : la ligne
 // des stations les nomme, que le rail ait une panne à dire ou non. Aucune : le projet n'a jamais été servi, ou la station qui le servait a été retirée.
+// La ligne de cet ordinateur, quand sa liste ne porte pas le projet, n'en est pas : sa cuisine tourne ici sans le cuire (ticket 3399), la règle de
+// `servantesDe` qui en ôte sa carte dans l'onglet Stations.
 /** @param {Projet} projet @returns {string[]} */
 function stationsDeGithubDuProjet(projet) {
   const tenu = tenus.get(projet.nom);
   if (tenu === undefined || !("tableau" in tenu) || muets.has(projet.nom)) return [];
-  return tenu.tableau.stations?.lignes.map(({ station }) => station) ?? [];
+  const servantes = new Set(servantesDe(lectureDesServantes(projet, Date.now()).base).map(({ prise }) => prise));
+  return tenu.tableau.stations?.lignes.map(({ station }) => station).filter((station) => servantes.has(station)) ?? [];
 }
 
 // La ligne des stations du projet affiché, en tête de son espace — et, s'il est ouvert, le choix de
