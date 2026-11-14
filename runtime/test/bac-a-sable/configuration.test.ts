@@ -142,6 +142,30 @@ test("la lecture de `~/.ssh`, des identifiants du chef et de ses accès de prod 
   );
 });
 
+test("un cook peut ouvrir un port local (Gradle, serveur de test), et cela n'ajoute aucun hôte joignable", () => {
+  const { reglages } = configurer(projet(["registry.npmjs.org"]));
+  const { network } = reglages.sandbox;
+  assert.equal(network.allowLocalBinding, true);
+  // Ni caractère générique, ni adresse : seule la liste du projet et celle de la station.
+  assert.deepEqual(network.allowedDomains, [
+    "anthropic.com",
+    "*.anthropic.com",
+    "claude.ai",
+    "*.claude.ai",
+    "claude.com",
+    "*.claude.com",
+    "github.com",
+    "*.github.com",
+    "githubusercontent.com",
+    "*.githubusercontent.com",
+    "registry.npmjs.org",
+  ]);
+  assert.equal(network.allowedDomains.includes("*"), false);
+  assert.equal(network.allowedDomains.some((nom) => /localhost|127\.|0\.0\.0\.0|::/.test(nom)), false);
+  assert.equal(network.strictAllowlist, true);
+  assert.equal(network.allowAllUnixSockets, false);
+});
+
 test("seuls les hôtes de la liste réseau du projet sont joignables, et un hôte hors de la liste est refusé quel que soit le mode", () => {
   const { reglages } = configurer(projet(["registry.npmjs.org", "*.example.org", "db.example.net:5432"]));
   const { network } = reglages.sandbox;
@@ -162,7 +186,6 @@ test("seuls les hôtes de la liste réseau du projet sont joignables, et un hôt
     "db.example.net:5432",
   ]);
   assert.equal(network.strictAllowlist, true);
-  assert.equal(network.allowLocalBinding, false);
   assert.equal(network.allowAllUnixSockets, false);
   assert.equal(reglages.sandbox.enableWeakerNetworkIsolation, false);
   // WebFetch, hors du bac à sable, ne joint que ces hôtes-là — pas celui que
