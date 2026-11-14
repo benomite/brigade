@@ -6,8 +6,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
-import { ligneHorsZone, signalerHorsZone } from "../../src/passe-hors-zone/hors-zone.ts";
+import { signalerHorsZone } from "../../src/passe-hors-zone/hors-zone.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
+
+// La ligne que `signalerHorsZone` poserait, ou null.
+async function ligneHorsZone(zone: string[], fichiers: string[]): Promise<string | null> {
+  const posees: string[] = [];
+  await signalerHorsZone({ zone: async () => zone, fichiers, pr: 1, commentaires: async () => [], commenter: async (_n, corps) => void posees.push(corps), avertir: () => {} });
+  return posees[0] ?? null;
+}
 
 const CORPS = "## Acceptance criteria\n\n- It adds two numbers";
 const FICHE = (zone: string) => `<!-- brigade:fiche -->\n- awaiting: none\n- zone: ${zone}`;
@@ -87,13 +94,13 @@ test("the line does not turn a red review green, nor a green one red", async (t)
   assert.equal(faux.mergee(11), undefined);
 });
 
-test("a file inside a folder of the zone counts as inside, a sibling folder sharing the prefix does not", () => {
-  assert.equal(ligneHorsZone(["runtime/src/passe-hors-zone"], ["runtime/src/passe-hors-zone/deep/er/a.ts", "runtime/src/passe-hors-zone/b.ts"]), null);
-  assert.match(ligneHorsZone(["runtime/src/passe-hors-zone"], ["runtime/src/passe-hors-zone2/a.ts"]) ?? "", /`runtime\/src\/passe-hors-zone2\/a\.ts`/);
+test("a file inside a folder of the zone counts as inside, a sibling folder sharing the prefix does not", async () => {
+  assert.equal(await ligneHorsZone(["runtime/src/passe-hors-zone"], ["runtime/src/passe-hors-zone/deep/er/a.ts", "runtime/src/passe-hors-zone/b.ts"]), null);
+  assert.match(await ligneHorsZone(["runtime/src/passe-hors-zone"], ["runtime/src/passe-hors-zone2/a.ts"]) ?? "", /`runtime\/src\/passe-hors-zone2\/a\.ts`/);
 });
 
-test("a ticket announcing no zone gets no line", () => {
-  assert.equal(ligneHorsZone([], ["a.ts"]), null);
+test("a ticket announcing no zone gets no line", async () => {
+  assert.equal(await ligneHorsZone([], ["a.ts"]), null);
 });
 
 test("the same line is not posted twice, and a failing read or write is said, never thrown", async () => {

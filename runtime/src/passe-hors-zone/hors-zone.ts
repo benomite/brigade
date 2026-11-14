@@ -5,7 +5,7 @@
 import { horsZone } from "../zones.ts";
 
 // La ligne postée sur la PR, ou null si tout est dans la zone — ou si le ticket n'en annonce aucune.
-export function ligneHorsZone(zone: string[], fichiers: string[]): string | null {
+function ligneHorsZone(zone: string[], fichiers: string[]): string | null {
   if (zone.length === 0) return null;
   const dehors = horsZone(zone, fichiers);
   return dehors.length === 0 ? null : `**Pass — advice**: this delivery touches ${dehors.length === 1 ? "a file" : "files"} outside the zone announced by its ticket: ${dehors.map((fichier) => `\`${fichier}\``).join(", ")}. This does not block the merge.`;
