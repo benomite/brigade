@@ -12,12 +12,14 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot, type Lancer, type StationGitHub } from "../../src/brigade-github.ts";
+import { brancherBrigadeGithub, stationDuDepot, type Lancer, type StationGitHub } from "../../src/brigade-github.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import { ouvrirLimitesDuCompte } from "../../src/github-limite.ts";
 import { ouvrirGitHub } from "../../src/github.ts";
 import { ouvrirLimite } from "../../src/limite-github.ts";
+import { depotQuiLivre } from "../appels-github/aides.ts";
+import { STATION_DU_DEPOT } from "../faux-github.ts";
 import { FauxGitHub, type Appel } from "./faux-github.ts";
 
 const DEPOT = "faux/cout";
@@ -59,29 +61,11 @@ function station(t: TestContext, faux: FauxGitHub, cuisson: () => Promise<void> 
   const ouverte = stationDuDepot({
     // Le coût mesuré ici est celui du REST, appel par appel (#2198) : la lecture GraphQL (#2301) a le sien.
     graphql: false,
-    nom: "box",
+    ...STATION_DU_DEPOT,
     places: 2,
-    base: "main",
     depotGitHub: DEPOT,
     github,
-    depot: {
-      preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
-      reprendre: async (run) => join(repertoire, run),
-      connait: () => false,
-      retirer: () => {},
-      ranger: async () => null,
-      pousser: () => {},
-      commits: () => 1,
-      changes: () => ["a.ts"],
-      diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
-    },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
+    depot: depotQuiLivre(repertoire),
     flux: repertoire,
     lancer,
     avertir: (texte) => (avertis === undefined ? assert.fail(texte) : void avertis.push(texte)),

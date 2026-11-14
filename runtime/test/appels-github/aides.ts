@@ -6,11 +6,12 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { priseDeLaStation, stationDuDepot, type Lancer, type StationGitHub } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer, type OptionsDuDepot, type StationGitHub } from "../../src/brigade-github.ts";
 import { ouvrirLimitesDuCompte } from "../../src/github-limite.ts";
 import { ouvrirGitHub } from "../../src/github.ts";
 import type { Limite } from "../../src/limite-github.ts";
 import type { FauxGitHub } from "../cout-par-ticket/faux-github.ts";
+import { STATION_DU_DEPOT } from "../faux-github.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
 export const DEPOT = "faux/appels";
@@ -53,6 +54,20 @@ export function unGhDeGist(t: TestContext) {
   };
 }
 
+// Le dépôt d'une station sur le faux GitHub : chaque run a son worktree sous
+// `repertoire`, et son cook livre un commit qui touche `a.ts`.
+export const depotQuiLivre = (repertoire: string): OptionsDuDepot["depot"] => ({
+  preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
+  reprendre: async (run) => join(repertoire, run),
+  connait: () => false,
+  retirer: () => {},
+  ranger: async () => null,
+  pousser: () => {},
+  commits: () => 1,
+  changes: () => ["a.ts"],
+  diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+});
+
 const fluxQuiConclut = (texte: string) => `${JSON.stringify({ type: "result", is_error: false, result: texte })}\n`;
 
 // La station GitHub seul de ce runtime sur le faux GitHub, ses appels pris au
@@ -72,29 +87,11 @@ export function uneStation(t: TestContext, faux: FauxGitHub, limite: Limite, mai
   const github = ouvrirGitHub({ depot: DEPOT, bin: `faux-gh-${repertoire}`, transport: faux.transport, limite, limitesDuCompte: ouvrirLimitesDuCompte(), ...(maintenant === undefined ? {} : { maintenant }) });
   const ouverte = stationDuDepot({
     graphql: false,
-    nom: "box",
+    ...STATION_DU_DEPOT,
     places: 2,
-    base: "main",
     depotGitHub: DEPOT,
     github,
-    depot: {
-      preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
-      reprendre: async (run) => join(repertoire, run),
-      connait: () => false,
-      retirer: () => {},
-      ranger: async () => null,
-      pousser: () => {},
-      commits: () => 1,
-      changes: () => ["a.ts"],
-      diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
-    },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
+    depot: depotQuiLivre(repertoire),
     flux: repertoire,
     lancer,
     avertir: (texte) => assert.fail(texte),
