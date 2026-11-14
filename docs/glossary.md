@@ -67,6 +67,7 @@ Related terms built on « cuisine »:
 | `découpage` | `split` | Cutting an epic into tickets |
 | `épique` | `epic` | A ticket that groups tickets |
 | — | `Backlog band` | The order book above the rail (epic #3459): one tag per open need that is not on the rail. A need (an epic, an idea or a decision to make) is not a ticket: it is split into tickets, and the tickets move on the rail. A served need stays in the band for 24 hours. Replaces the Backlog column and the stacked bar of the rail band (#3461) |
+| — | `idea` | A label for an idea in reserve, not a request: it is never on the rail, and the manager never reads it — no `decision`, `fire`, `model:` or `effort:`, no comment, no TODO card (#3536) |
 | `calibrage` | `calibration` | Model and effort given to a role |
 | `tours` / `jetons` | `turns` / `tokens` | A cook's measured use |
 | `livraison` / `livrable` | `delivery` / `deliverable` | What a cook hands back |

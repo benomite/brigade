@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { lancementEnFlux, SOURCES_DE_REGLAGES } from "./claude.ts";
 import { uneQuestion } from "./carte-todo/forme.ts";
-import { NATURES, type Nature } from "./events/manager.ts";
+import { NATURES_DU_MODELE, type Nature } from "./events/manager.ts";
 
 // Ce qui marque un commentaire du manager : il ne se relit pas lui-même.
 export const MARQUEUR_MANAGER = "<!-- brigade:manager -->";
@@ -216,8 +216,8 @@ export function lireDecision(message: string | null): { decision: Decision } | {
   if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
   if (!lu) return { illisible: "no JSON object in the answer" };
-  const kind = parmi(lu.nature, NATURES) as Nature | null;
-  if (!kind) return { illisible: `unknown nature ${JSON.stringify(lu.nature)} — expected ${NATURES.join(", ")}` };
+  const kind = parmi(lu.nature, NATURES_DU_MODELE) as Nature | null;
+  if (!kind) return { illisible: `unknown nature ${JSON.stringify(lu.nature)} — expected ${NATURES_DU_MODELE.join(", ")}` };
   const reason = phrase(lu.motif);
   if (!reason) return { illisible: "no `motif`" };
   if (kind !== "ticket") {

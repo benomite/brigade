@@ -452,6 +452,13 @@ FIN
 {"nature":"decision","motif":"It asks to grant an IAM right that breaks the read-only rule, and says the call is the chef's.","manque":"The chef's call on the IAM right.","question":"Do you grant the deploy role write access to the backup bucket?","reponses":["Grant it, read-only elsewhere","Refuse: backups stay read-only","Close it: out of scope"],"recommandee":"Refuse: backups stay read-only","pourquoi":"The read-only rule is what the backups rest on."}
 FIN
       ;;
+    # Une question dont la réponse recommandée est de ne rien faire (#3536).
+    juge-decision-parquee)
+      assistant
+      resultat <<'FIN'
+{"nature":"decision","motif":"It is an idea with no date.","manque":"Nothing.","question":"Should it stay parked?","reponses":["Keep it parked","Put it on the rail"],"recommandee":"Keep it parked","pourquoi":"Nothing in it asks for work now."}
+FIN
+      ;;
     # Une décision sans rien qui fonde une recommandation (#3434) : ses réponses, sans recommandée.
     juge-decision-sans-avis)
       assistant
