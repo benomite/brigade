@@ -26,6 +26,7 @@ import type { Lecture } from "../../src/box.ts";
 import { SANS_FAIT } from "../../src/gestes-github.ts";
 import { apresRendu, CHAMP, DEMANDE_EN_ROUTE, DEMANDER, EN_ATTENTE, EN_ATTENTE_DETAIL, EN_MES_MOTS, ENVOYER, EN_ROUTE, JOUEE, PAS_JOUEE, poserCarteDeTodo, REPOS, vuDeLaCarte } from "../../src/vue/carte-todo.js";
 import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { rouges } from "../aides/rouges.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
@@ -122,9 +123,9 @@ const attente = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: 
 const joue = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "joue", dit: "Done — choose #21 2 — cost: the kitchen takes #21 up again" });
 const refuse = (commentaire = 500): EnvoiVu => ({ ...ENVOI, commentaire, etat: "refuse", dit: "Not done — choose #21 2: a cook is working on #21", raison: "a cook is working on #21" });
 // TODO n'est pas une colonne (#3458) : ses cartes sont dans le rail, rouges dans la colonne de leur étape, et l'entrée
-// « TODO (N) » les compte.
+// le compte de l'accueil les compte (plus d'entrée « TODO (N) » sur le rail, #3523).
 const todo = (vue: Jouee): Faux => vue.element("rail");
-const compte = (vue: Jouee) => /^TODO \((.+)\)$/.exec(todo(vue).dessous("button").find(({ className }) => className === "entree-todo")?.textContent ?? "")?.[1];
+const compte = (vue: Jouee) => String(rouges(todo(vue)).length);
 const bon = (vue: Jouee, ticket: number): Faux | undefined => todo(vue).dessous("li").find((pose) => pose.className === "bon" && pose.dessous("button")[0]?.textContent === `#${ticket}`);
 const carte = (vue: Jouee, ticket: number): Faux => bon(vue, ticket)?.dessous("section").find((pose) => pose.className === "carte-todo") ?? assert.fail(`pas de carte de TODO sur #${ticket}`);
 const bouton = (ou: Faux, texte: string): Faux => ou.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);

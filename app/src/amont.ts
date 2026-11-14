@@ -45,7 +45,9 @@ export type Groupe = { etat: string; nom: string; issues: Issue[] };
 // `sans`, pourquoi rien n'est compté. `vide` : ce qui se lit à la place du rail quand aucun ticket n'y est.
 // `nonPublie` : la lecture de GitHub, fraîche, ne porte pas ce qui est avant le rail — rien n'est dit ni compté,
 // pas même « pas lu ».
-export type Vu = { projet: string; demande: number; a: string; vide: string } & ({ compte: number; lu: string; groupes: Groupe[]; survol: string } | { sans: string } | { nonPublie: true });
+// `alertes` : les issues que la cuisine a ouvertes sur elle-même (`alerteDeLaCuisine`) — jamais des besoins, jamais comptées.
+export type AlerteDeLaCuisine = { ticket: number; titre: string; genre: "disjoncteur" | "inerte"; dit: string };
+export type Vu = { projet: string; demande: number; a: string; vide: string } & ({ compte: number; lu: string; groupes: Groupe[]; survol: string; alertes?: AlerteDeLaCuisine[] } | { sans: string } | { nonPublie: true });
 
 class Informe extends Error {}
 const refuser = (champ: string, attendu: string): never => {
@@ -100,6 +102,14 @@ export function comprendre(sortie: string): Amont | { informe: string } {
     if (erreur instanceof Informe) return { informe: erreur.message };
     throw erreur;
   }
+}
+
+// Une issue que la cuisine ouvre sur elle-même : le disjoncteur ouvert (runtime/src/breaker-issue.ts, `titreDeLIssue`) ou la
+// cuisine oisive (runtime/src/guerison/cuisine-inerte.ts). Ce n'est pas un besoin : son contenu devient la ligne d'état du rail.
+export function alerteDeLaCuisine({ ticket, titre }: Pick<Donnee, "ticket" | "titre">): AlerteDeLaCuisine | undefined {
+  if (/^Kitchen \S+ held: its breaker is open$/.test(titre)) return { ticket, titre, genre: "disjoncteur", dit: "Kitchen held: its breaker is open" };
+  if (/^The kitchen is idle\b/.test(titre)) return { ticket, titre, genre: "inerte", dit: titre.replace(/^The kitchen is idle/, "Kitchen idle") };
+  return undefined;
 }
 
 const ouvrable = (url: string) => URL.parse(url)?.protocol === "https:";
@@ -193,8 +203,10 @@ export function voir(lecture: Lecture, manager?: VuManager): Vu {
     const sans = sansLecture(lecture, amont?.informe);
     return { projet, demande, a, sans, vide: direVide({ sans }, manager) };
   }
-  const groupes = grouper(amont.issues);
-  return { projet, demande, a, compte: amont.issues.length, lu: amont.lu, groupes, survol: survolDe(amont.issues.length, groupes), vide: direVide({ issues: amont.issues.length, groupes }, manager) };
+  const alertes = amont.issues.flatMap((issue) => alerteDeLaCuisine(issue) ?? []);
+  const besoins = amont.issues.filter((issue) => alerteDeLaCuisine(issue) === undefined);
+  const groupes = grouper(besoins);
+  return { projet, demande, a, compte: besoins.length, lu: amont.lu, groupes, survol: survolDe(besoins.length, groupes), vide: direVide({ issues: besoins.length, groupes }, manager), ...(alertes.length === 0 ? {} : { alertes }) };
 }
 
 // Ce qui est en amont de chaque projet, tenu par le process principal : la dernière lecture, le

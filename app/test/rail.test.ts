@@ -23,6 +23,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";
 import type { Repondue } from "../src/repondues.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import { rouges } from "./aides/rouges.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
@@ -180,7 +181,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris. TODO n'est pas une colonne (#3458) :
     // #12, qui attend le chef, est dans Pass, son étape.
     const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "2"], ["Waiting", "0"], ["Served", "1"]];
-    const entree = () => vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo")?.textContent;
+    const entree = () => `TODO (${rouges(vue.element("rail")).length})`;
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -260,8 +261,8 @@ describe("une box pas jointe, après une lecture (#1078)", () => {
 
     const rail = vue.element("rail");
     assert.deepEqual(comptes(vue), ["?", "?", "?", "?", "?"]);
-    // Ce qui attend le chef n'est pas connu non plus : « TODO (?) », jamais un « 0 » qui rassurerait.
-    assert.equal(rail.dessous("button").find(({ className }) => className === "entree-todo")?.textContent, "TODO (?)");
+    // Ce qui attend le chef n'est pas connu non plus : aucune carte n'est posée, et aucun « 0 » ne rassure — les colonnes disent « ? ».
+    assert.deepEqual(rouges(rail), []);
     assert.match(rail.textContent, /not known while the station is unreachable/);
     assert.doesNotMatch(rail.textContent, /upcoming|unreachable since|kitchen state unknown/);
     assert.equal(rail.dessous("details").length, 1);
@@ -451,11 +452,13 @@ describe("le haut du rail est allégé (#623)", () => {
     const vue = await ouvrir();
     const recue = dessinable();
     recevoir(vue, { ...recue, a: "2026-11-02T08:25:00.000Z", publieLe: "2026-11-02T07:35:00.000Z" });
-    const age = vue.element("rail").dessous("p").find(({ className }) => className === "age-du-rail");
-    assert.match(age?.textContent ?? "", /^rail as GitHub said it 50 min ago, at /);
+    // Plus une ligne de plus (#3523) : l'âge est au survol de la ligne d'état, du bandeau Backlog ou, sans eux, des colonnes.
+    assert.equal(vue.element("rail").dessous("p").some(({ className }) => className === "age-du-rail"), false);
+    const colonnes = vue.element("rail").dessous("div").find(({ className }) => className === "colonnes");
+    assert.match(colonnes?.title ?? "", /^rail as GitHub said it 50 min ago, at /);
     // Une lecture qui ne vient pas du tableau ne porte pas d'âge : rien n'est inventé.
     recevoir(vue, recue);
-    assert.equal(vue.element("rail").dessous("p").some(({ className }) => className === "age-du-rail"), false);
+    assert.doesNotMatch(vue.element("rail").dessous("div").find(({ className }) => className === "colonnes")?.title ?? "", /rail as GitHub said it/);
   });
 });
 

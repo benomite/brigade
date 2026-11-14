@@ -25,6 +25,7 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import { rouges } from "./aides/rouges.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
@@ -328,9 +329,8 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     // Ses deux gestes restent : ce sont eux qui y répondent.
     boutonDe(bonDe(vue, 8), "resume");
     boutonDe(bonDe(vue, 8), "it arrived, back to the kitchen");
-    const entree = vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo") ?? assert.fail("pas d'entrée TODO");
     // Les trois cartes du chef, et celle-ci.
-    assert.equal(entree.textContent, "TODO (4)");
+    assert.equal(rouges(vue.element("rail")).length, 4);
   });
 
   test("« resume » et « it arrived, back to the kitchen » partent au clic, pour ce ticket", async () => {

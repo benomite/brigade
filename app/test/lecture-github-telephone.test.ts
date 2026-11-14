@@ -445,9 +445,10 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
     assert.deepEqual(rouges(vue).toSorted(), ["#12", "#20"]);
     assert.deepEqual((colonnesVues(vue)["On the rail"] ?? []).filter((numero: string | undefined) => !rouges(vue).includes(numero)), ["#1"]);
     assert.ok(!("Awaiting you" in colonnesVues(vue)), "TODO n'est pas une colonne");
-    // Le projet vide : un rail sans carte, et TODO qui dit que rien n'attend le chef — pas un écran vide.
+    // Le projet vide : un rail sans carte, dont la première colonne le dit — pas un écran vide, et plus de ligne « nothing awaits you » (#3523).
     caseDe(vue, "cantine").click();
-    await jusqua(() => /nothing awaits you/.test(vue.element("rail").textContent));
+    await jusqua(() => /nothing on the rail/.test(vue.element("rail").textContent));
+    assert.deepEqual(rouges(vue), []);
     assert.deepEqual(Object.values(colonnesVues(vue)).flat(), []);
     assert.deepEqual(http().filter((url) => !url.startsWith(`${API_GITHUB}/`)), []);
   });

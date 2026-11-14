@@ -112,7 +112,7 @@ const colonne = (vue: Jouee, nom: string): Faux => grille(vue).children.find((po
 const SURVOL = "8 issues before the rail — 3 not read yet · 1 epic, not split yet · 1 ready, not fired · 2 set aside · 1 split into tickets";
 
 describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
-  test("une seule ligne entre la bande du rail et les colonnes ; ni chiffre Backlog dans la bande, ni colonne Backlog — chaque compte se lit au survol de son titre", async () => {
+  test("une seule ligne juste au-dessus des colonnes ; ni chiffre Backlog dans la bande, ni colonne Backlog — chaque compte se lit au survol de son titre", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     // Avant la première lecture : pas de bandeau.
@@ -121,8 +121,8 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
 
     const poses = enfants(vue).map(({ className }) => className);
     assert.equal(poses.indexOf("backlog-band"), poses.indexOf("colonnes") - 1, poses.join(", "));
-    assert.ok(poses.indexOf("bande-rail") < poses.indexOf("backlog-band"));
-    assert.doesNotMatch(enfants(vue).find(({ className }) => className === "bande-rail")?.textContent ?? "", /Backlog/);
+    // Plus de bande de chiffres au-dessus (#3523) : seule une ligne d'état peut précéder le bandeau.
+    assert.equal(poses.includes("bande-rail"), false);
     assert.equal(grille(vue).children.some(({ className }) => className.includes("backlog")), false);
     assert.deepEqual(grille(vue).children.map((pose) => pose.dessous("h4")[0]?.children[0]?.textContent), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
 
