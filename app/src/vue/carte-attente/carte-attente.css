@@ -1,0 +1,8 @@
+/* Le ticket qui attend d'autres tickets (ticket 3510, carte-attente.js) : sur son bon du rail, « after #12, #15 », à
+   l'encre discrète comme sa priorité, sous elle. */
+.bon > .apres {
+  align-self: flex-start;
+  font-size: var(--taille-meta);
+  line-height: 16px;
+  color: var(--bon-discret);
+}

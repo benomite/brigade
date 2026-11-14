@@ -158,6 +158,7 @@ import { direLaLecture, poserLaLecture } from "./rail-lecture-perimee.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
 import { AUCUNE_STATION } from "./cooks/sans-station.js";
+import { marqueApres } from "./carte-attente/carte-attente.js";
 import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { MENU, STATIONS } from "./projet/menu/menu.js";
 import { interrupteur as interrupteurDeLApp } from "./composants/interrupteur/interrupteur.js";
@@ -2878,6 +2879,9 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     prio.className = "prio mono";
     bon.append(prio);
   }
+  // Sur le rail, en attente d'autres tickets : « after #N », sous sa priorité (carte-attente/)
+  const apres = marqueApres(document, carte.apres);
+  if (apres !== null) bon.append(apres);
   const cleDuBon = `${projet.nom}#${ticket}`;
   // Un ticket que la box ne nomme pas : son titre est lu sur l'issue, une fois. Ce qui n'est pas lu n'est pas écrit.
   if (titre === undefined && ouvrable && !titres.has(cleDuBon)) void lireTitre(projet, ticket);
