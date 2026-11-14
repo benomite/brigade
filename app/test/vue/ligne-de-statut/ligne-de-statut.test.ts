@@ -204,7 +204,7 @@ describe("le module pur de la ligne d'état", () => {
   test("les raisons connues : le ticket de côté, la cuisine arrêtée ; la phrase du runtime ne change que pour « normale »", () => {
     assert.deepEqual(retenuesConnues({ misDeCote: [], arretee: false }), []);
     assert.deepEqual(retenuesConnues({ misDeCote: [21], arretee: true }), ["the kitchen is stopped", "#21 is set aside"]);
-    const normale = { raison: "normale", phrase: LONGUE, geste: null } as const;
+    const normale = { raison: "normale", phrase: LONGUE, geste: null, stations: [] as string[] } as const;
     assert.equal(phraseDeLAttente(normale, []), normale);
     assert.equal(phraseDeLAttente(normale, ["#21 is set aside"]).phrase, "The queue waits: #21 is set aside.");
     const panne = { raison: "arretee", phrase: "The station is stopped.", geste: "demarrer-la-station", stations: [] as string[] } as const;
