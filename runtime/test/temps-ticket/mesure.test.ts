@@ -16,10 +16,11 @@ const marques = (...liste: Array<[Etape, number]>): Marque[] => liste.map(([etap
 // Un parcours complet : prise à 0, livrée à 100, relue de 150 à 180, CI jusqu'au merge demandé à 200, mergée à 205.
 const complet = marques(["cuisson", 0], ["attentePasse", 100], ["revue", 150], ["ci", 180], ["merge", 200]);
 
-const total = (e: EnregistrementTemps) => (e.attenteQualification ?? 0) + (e.attentePrise ?? 0) + (e.cuissonsRatees ?? 0) + e.cuisson + (e.renvois ?? 0) + e.attentePasse + e.revue + e.ci + e.merge;
+const total = (e: EnregistrementTemps) => (e.attenteQualification ?? 0) + (e.attentePrise ?? 0) + (e.cuissonsRatees ?? 0) + e.cuisson + (e.renvois ?? 0) + e.attentePasse + e.revue + (e.gates ?? 0) + e.ci + e.merge;
 // Les phases d'avant la prise, des cooks ratés et des renvois, quand la station n'en a vu aucune (#2662) ; le temps perdu (#2670) se vérifie dans `temps-tickets.test.ts`.
 const sansAvant = { attenteQualification: 0, attentePrise: 0, cuissonsRatees: 0, renvois: 0 };
-const sansPhases = ({ phases: _phases, depuis: _depuis, perdu: _perdu, ...reste }: EnregistrementTemps) => reste;
+// Les passages en pass (#3512) se vérifient dans `passes.test.ts`.
+const sansPhases = ({ phases: _phases, depuis: _depuis, perdu: _perdu, passes: _passes, ...reste }: EnregistrementTemps) => reste;
 const tenu = (e: EnregistrementTemps) => {
   assert.ok(Math.abs(total(e) - (Date.parse(e.mergedAt) - Date.parse(e.claimedAt)) / 1000) <= 1, `sum ${total(e)} off the claim-to-merge time`);
   assert.ok(e.cuissonTests <= e.cuisson);
@@ -61,13 +62,13 @@ describe("the time of a served ticket, split into its phases", () => {
 
   test("a phase the station did not see is 0, and the others still add up", () => {
     const sansRevue = mesurer({ ticket: 7, marques: marques(["cuisson", 0], ["attentePasse", 100], ["ci", 180], ["merge", 200]), testsMs: 0 }, a(205));
-    assert.deepEqual(sansPhases(sansRevue), { ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 0, attentePasse: 80, revue: 0, ci: 20, merge: 5 });
+    assert.deepEqual(sansPhases(sansRevue), { ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 0, attentePasse: 80, revue: 0, gates: 0, ci: 20, merge: 5 });
     tenu(sansRevue);
   });
 
   test("an unseen claim starts the record at the first phase seen, nothing before it is made up", () => {
     const vuEnPass = mesurer({ ticket: 7, marques: marques(["ci", 180], ["merge", 200]), testsMs: 0 }, a(205));
-    assert.deepEqual(sansPhases(vuEnPass), { ticket: 7, claimedAt: a(180), mergedAt: a(205), ...sansAvant, cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 20, merge: 5 });
+    assert.deepEqual(sansPhases(vuEnPass), { ticket: 7, claimedAt: a(180), mergedAt: a(205), ...sansAvant, cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, gates: 0, ci: 20, merge: 5 });
   });
 
   test("a ticket sent back adds its second cooking to the first, and its wait for it is the send-back", () => {
@@ -237,7 +238,7 @@ test("after the station merges a ticket, the project's file holds its record, ph
 
   const lus = enregistrementsDuTexte(readFileSync(join(clone, FICHIER_DES_TEMPS), "utf8"));
   // Sa qualité, lue sur l'issue au merge (#2707) : une livraison renvoyée par la relecture, un cook sans livraison.
-  assert.deepEqual(lus.slice(2).map(sansPhases), [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, ci: 20, merge: 5, qualite: { renvois: ["blocking review"], cooksRates: 1 } }]);
+  assert.deepEqual(lus.slice(2).map(sansPhases), [{ ticket: 7, claimedAt: a(0), mergedAt: a(205), ...sansAvant, cuisson: 100, cuissonTests: 40, attentePasse: 50, revue: 30, gates: 0, ci: 20, merge: 5, qualite: { renvois: ["blocking review"], cooksRates: 1 } }]);
   // Les deux d'avant ont reçu la leur, sans changer de place : l'ordre des merges tient.
   assert.deepEqual(lus.slice(0, 2).map(({ ticket, qualite }) => ({ ticket, qualite })), [
     { ticket: 5, qualite: { renvois: [], cooksRates: 0, reparation: ["types (app)"] } },

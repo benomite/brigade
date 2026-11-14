@@ -649,7 +649,8 @@ kept (#2151, below); offline, the last rail stays dimmed, marked `offline since`
 The line of figures that stood above the columns — ticket time, first try, `Cooks 2 running` / `Cooks none running`, last
 merge, the age of the rail — is no longer on the Rail tab: above the columns there are at most two lines, the Backlog band
 and a status line ("Above the rail", #3523, below). Its module `projet/rail/bande-rail.js`, its test and `bandeDuRail`
-and `temps-ticket/resume.js` are deleted: nothing in the view reads the figures the station publishes any more.
+and `temps-ticket/resume.js` are deleted: of the figures the station publishes, the view reads only the pass time, in
+Settings ("Pass time", #3512, below).
 
 ### The Stations tab: who cooks it, is it working, how to change it (#3195, epic #3194)
 
@@ -1664,6 +1665,29 @@ on GitHub. A `status` that the home no longer reads is dropped: the row says aga
 `status` and `station`), the lag of the app's code — in each project's settings, and on
 hover of the **T** icon (see "The app's code: up to date, or behind") —, the "Projects on
 your stations" list and the "add a project" path, on a station's page.
+
+### Pass time
+
+*Ticket: #3512.* To know which stage of the pass costs the most before speeding it up, **a project's pass time** is a block of
+its `Caps, closer and all projects` section of Settings, right above its autonomy figures. It covers the deliveries merged in
+the **last 7 days**, each of their passes counted, sent back or not, as the station publishes them (`temps.passe`, never
+recomputed by the app):
+
+- **One line first: what weighs the most on the pass this week** — `CI waiting for runners: 62% of pass time · last 7 days,
+  12 deliveries, each of their passes counted`.
+- **One row per stage** — waiting for the pass, gates, review, CI, merge — **and per part of the CI** — waiting for
+  runners, running —, each with its median and p75 per delivery (`median 2 min · p75 5 min`); `none` when it lasted on
+  none; **`No measure yet.` when nothing measures it, never 0**.
+- Under them: the heaviest stage in total, the CI runs restarted because the branch moved (`no measure yet` when GitHub
+  was not read), and the deliveries sent back with the time of their passes sent back.
+
+With no delivery measured in the 7 days, the block says only `No measure yet. No delivery merged in the last 7 days has its
+pass measured.` How each stage is measured: "How long each stage of the pass takes" in [`runtime/pass.md`](runtime/pass.md).
+The ticket names the Cooks tab, beside the ticket times: #2921 removed that tab and #3523 the line of figures that showed
+the ticket time, so the pass time sits with the project's other kitchen figures. Captures: `docs/captures/3512/`.
+
+*Code: `app/src/vue/projet/bandeau-sante/TempsDeLaPasse.js`, `poserLeBandeauDeSante` in `app/src/vue/vue.js`. Test:
+`app/test/vue/projet/temps-de-la-passe.test.ts`.*
 
 ### Autonomy figures
 

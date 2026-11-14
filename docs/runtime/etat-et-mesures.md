@@ -395,9 +395,13 @@ before. Epics are never merged, so never measured; their sub-tickets are.
 At the merge, the record goes to `.claude/brigade/temps-tickets.json` in the project's clone
 (`BRIGADE_REPO_DIR`), an object `{resume, tickets}`. `tickets` holds one record per ticket,
 `{ticket, depuis, claimedAt, mergedAt, attenteQualification, attentePrise, cuissonsRatees, cuisson, cuissonTests,
-renvois, attentePasse, revue, ci, merge, phases, perdu}`: timestamps are ISO, durations whole seconds, `phases` the
+renvois, attentePasse, revue, gates, ci, merge, phases, perdu, passes}`: timestamps are ISO, durations whole seconds, `phases` the
 ticket's phases in the order it went through them, `{nom, minutes}` (one decimal), each cook on its own line, and
-`perdu` its lost time (#2670, below), `{attente, ratees, renvois}` in seconds.
+`perdu` its lost time (#2670, below), `{attente, ratees, renvois}` in seconds. Since #3512, `gates` is the time
+of the gates the pass played, and `passes` each pass of the delivery, sent back or merged,
+`{debut, fin, attente, gates, revue, ci, merge, renvoyee, ciGitHub?: {attente, course, relancees}}` — absent when
+the station did not see each delivery reach the pass; how each is measured is in "How long each stage of the
+pass takes" of [`pass.md`](pass.md).
 `resume` sums up the recent tickets (below): `{n, medianMin, p75Min, perduMedianMin, lostTimeMaxMin,
 phaseLaPlusLongue: {nom, medianMin, partPct}, perteLaPlusLourde: {nom, medianMin, partPct} | null}` — their count,
 median and 75th percentile from filing to merge in whole minutes, their median lost time (one decimal) and the

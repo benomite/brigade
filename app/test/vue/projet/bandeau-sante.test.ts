@@ -364,7 +364,7 @@ describe("le bandeau de santé, dans la vue", () => {
     assert.match(settings, /<section id="reglages-sante" class="groupe"[^>]*>\s*<h2 [^>]*class="niveau-du-groupe">Caps, closer and all projects<\/h2>\s*<div id="bandeau-sante"><\/div>/);
     assert.equal(vue.element("etat").hidden, false);
     const section = vue.element("bandeau-sante");
-    assert.deepEqual(section.children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "chiffres-autonomie", "de-tous-les-projets"]);
+    assert.deepEqual(section.children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "de-tous-les-projets"]);
     assert.deepEqual(section.children.filter(({ balise }) => balise === "details"), [], "rien à déplier pour les voir");
   });
 
@@ -389,7 +389,7 @@ describe("le bandeau de santé, dans la vue", () => {
     }
     await ouvrirLecture(vue, "Settings");
     assert.equal(vue.element("etat").hidden, false);
-    assert.deepEqual(vue.element("bandeau-sante").children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "chiffres-autonomie", "de-tous-les-projets"]);
+    assert.deepEqual(vue.element("bandeau-sante").children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "de-tous-les-projets"]);
   });
 
   test("un plafond changé dans le bandeau part au process principal à son `change`, et la rangée dit la PR ouverte, qui s'ouvre", async () => {

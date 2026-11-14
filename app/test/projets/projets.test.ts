@@ -467,3 +467,9 @@ test("les temps de deux stations d'un projet : un ticket n'est compté qu'une fo
   const resume = { n: 3, medianMin: 14, p75Min: 47, perduMedianMin: 5, lostTimeMaxMin: 2, phaseLaPlusLongue: null, perteLaPlusLourde: null };
   assert.deepEqual(fusionnerLesTemps({ enregistrements: [], lostTimeMaxMin: 2 }, { enregistrements: [], lostTimeMaxMin: 2, resume }).resume, resume);
 });
+
+test("the pass time of two stations (#3512) is the first one published: a station that publishes none (null) does not hide the other's", () => {
+  const passe = { jours: 7, livraisons: 2, parts: [], phaseLaPlusLourde: null, partLaPlusLourde: { nom: "CI", partPct: 70 }, relancees: null, renvoyees: 0, passesRenvoyeesS: 0 };
+  assert.deepEqual(fusionnerLesTemps({ enregistrements: [], lostTimeMaxMin: 2, passe: null }, { enregistrements: [], lostTimeMaxMin: 2, passe }).passe, passe);
+  assert.equal(fusionnerLesTemps({ enregistrements: [], lostTimeMaxMin: 2, passe: null }, { enregistrements: [], lostTimeMaxMin: 2 }).passe, undefined);
+});

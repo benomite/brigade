@@ -2,7 +2,7 @@
 // Les enregistrements des temps des tickets d'un projet (ticket 2346, épique 2336), ceux de `.claude/brigade/temps-tickets.json`
 // (secondes entières), et une durée en clair. Ce module ne touche pas `document`.
 
-/** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown, chiffres?: unknown }} TempsDuProjet */
+/** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown, chiffres?: unknown, passe?: unknown }} TempsDuProjet */
 
 // Une durée en secondes, en clair : « 45 s », « 12 min », « 1 h 5 min ».
 /** @param {number} secondes */

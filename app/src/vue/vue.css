@@ -3748,6 +3748,38 @@ main > header {
 .bloc-du-projet :is(p, table) {
   margin: 0;
 }
+/* Le temps de la pass (ticket 3512) : la part qui pèse le plus en tête, puis une rangée par phase — son nom, sa médiane et
+   son p75 —, puis la phase la plus lourde, les runs relancés et les renvois, à voix basse. */
+.bloc-du-projet[data-bloc="temps-de-la-passe"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+[data-bloc="temps-de-la-passe"] :is(.plus-lourde, .sans-mesure, .note) {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+[data-bloc="temps-de-la-passe"] .plus-lourde strong {
+  color: var(--texte);
+}
+[data-bloc="temps-de-la-passe"] .parts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--pas-1) var(--pas-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--taille-corps);
+}
+[data-bloc="temps-de-la-passe"] .parts li {
+  display: contents;
+}
+[data-bloc="temps-de-la-passe"] .parts .nom {
+  color: var(--texte-doux);
+}
+[data-bloc="temps-de-la-passe"] .parts .valeur {
+  color: var(--texte);
+}
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafonds-lecture {
   font-size: var(--taille-corps);
   color: var(--discret);

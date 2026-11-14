@@ -171,6 +171,7 @@ import { poserBlocDeLaPromesse } from "./accueil/promesse/BlocDeLaPromesse.js";
 import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
+import { poserBlocTempsDeLaPasse } from "./projet/bandeau-sante/TempsDeLaPasse.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, caseDIci, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
@@ -6853,7 +6854,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
   etatsDesPlafonds.set(projet.nom, etats);
   const lecture = plafondsLus.get(projet.nom);
   // Sous le titre de sa section de Settings, ce qui se règle ou s'ouvre : les plafonds de durée, le closer, et les lignes
-  // de tous les projets. Les chiffres de la cuisine sont dans la bande du rail (ticket 3013).
+  // de tous les projets ; avant les chiffres d'autonomie, le temps de chaque phase de la pass que la station publie (ticket 3512).
   bandeauSante.replaceChildren(
     poserBlocPlafondsDuree(document, {
       ...(lecture === undefined ? {} : { lecture }),
@@ -6866,6 +6867,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
       ouvrir: (url) => void brigade.ouvrirLaProposition(url),
     }),
     poserLeCloserDeSante(projet),
+    poserBlocTempsDeLaPasse(document, vu?.temps),
     autonomieDuProjet(projet).poser(),
     deTousLesProjets,
   );

@@ -24,6 +24,8 @@ export type OptionsDuFaux = {
   ciDesPR?: (fichiers: string[]) => boolean;
   gates?: (ticket: { number: number }, pr: { number: number; sha: string }) => Promise<LieuDesGates>;
   maintenant?: () => Date;
+  // Le clone du projet, où le temps des tickets mergés s'écrit (#3512).
+  clone?: string;
   sauter?: (ticket: number, ligne: string) => void;
 };
 
@@ -289,6 +291,7 @@ export class FauxGitHub {
       ...(options.ciDesPR === undefined ? {} : { ciDesPR: options.ciDesPR }),
       ...(options.gates === undefined ? {} : { gates: options.gates }),
       ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
+      ...(options.clone === undefined ? {} : { clone: options.clone }),
       places: options.places ?? 1,
       ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",

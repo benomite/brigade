@@ -48,6 +48,55 @@ A delivery can reach the pass **off the rail** (the PR of a closing pass, of an 
 to the instructions, or of the lessons notebook, [`carnet-lecons.md`](carnet-lecons.md)). Same judges;
 nothing that belongs to a ticket happens ([`fermeture.md`](fermeture.md)).
 
+### How long each stage of the pass takes (#3512)
+
+On the GitHub-only station, the time of each served ticket ("The time of each served ticket" in
+[`etat-et-mesures.md`](etat-et-mesures.md)) also records **each pass of its delivery, stage by stage**
+(`passes`, `runtime/src/temps-ticket/mesure.ts`), so that the stage that costs the most is known before the
+pass is sped up. The station marks each stage when it enters it; a stage lasts until the next mark:
+
+| Stage | From | To |
+|---|---|---|
+| waiting for the pass (`attente`) | the cook's delivery reaches the pass | the review starts |
+| review (`revue`) | the review starts | its verdict |
+| gates (`gates`) | the station starts the project's gates on the PR's head — only on a project with no CI on its PRs —, its wait for the station's queue of gates included | the gates end |
+| CI (`ci`) | the verdict, the end of the gates or a branch update | the merge is asked of GitHub |
+| merge (`merge`) | the merge request | GitHub merged it |
+
+A pass opens when the delivery reaches the pass and closes at the merge, or at its send-back
+(`renvoyee: true`): **a delivery sent back records each of its passes**, so a send-back's cost is the time of
+the passes before it. The cook's own tests and gates are part of its cooking (`cuissonTests`), not of the
+pass. The marks are kept in memory: when the station did not see a delivery reach the pass (another station
+took it there, or the runtime restarted), the passes of that ticket are not recorded at all — never a zero
+in their place.
+
+**The CI as GitHub tells it.** At the merge the station reads the GitHub Actions runs of the ticket's branch
+and all their jobs, reruns included (`ciDeLaBranche` in `runtime/src/github.ts`), and splits, for each pass
+(`ciGitHub`, `runtime/src/temps-ticket/ci-github.ts`):
+
+- **CI waiting for runners** (`attente`): the time during which at least one job of the branch was created
+  (`created_at`) and not yet picked by a runner (`started_at`);
+- **CI running** (`course`): the time during which jobs ran and none waited.
+
+The two never overlap. They are cut to the pass — a job created at the push, during the cook, counts only
+from the moment the pass opens —, so together they never exceed the pass's time; but they overlap the stages
+above — the CI also runs while the delivery waits for the pass and is reviewed — instead of adding to them.
+Their share of pass time is therefore a share of the same pass time as the stages', not a sixth stage. **Restarted runs** (`relancees`): a run that a run on another head of
+the branch was created after, before it finished — cancelled, or run for nothing, because the branch moved (a
+push, a branch update after another merge). It counts in the pass it was created in, or in the next one when
+it was created during a cook. When GitHub cannot be read at the merge, the time is recorded without `ciGitHub`
+and the station warns of it; those parts then say `no measure yet`.
+
+**Over the last 7 days** (`resumerLaPasse`, `runtime/src/temps-ticket/passe.ts`), the station publishes with
+the ticket times (`temps.passe` of the project's follow-up) the deliveries merged in the last 7 days whose
+passes it recorded: for each stage and each of the two parts of the CI, its median and p75 per delivery (the
+sum of its passes; the p75 is the value at rank ⌈0.75·(n−1)⌉, as for the ticket time), its total and its
+share of their pass time (the five stages of the same deliveries); the stage that weighs the most in total;
+the stage or part of the CI with the largest share; the restarted runs; the deliveries sent back and the time
+of their passes sent back. A part no delivery measures has a null median: it is said `no measure yet`, never
+0. The app shows it in the project's Settings, above its autonomy figures ("Pass time" in
+[`../app.md`](../app.md)).
+
 ### The gates' duration cap is not judged by the pass
 
 Gates can set themselves a duration cap (the **Plafond des gates** binding in the project's

@@ -59,6 +59,7 @@ import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
 import { chiffresDuClone } from "../chiffres-du-projet.ts";
 import { resumeServi } from "../mesures/resume-servi.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
+import { resumerLaPasse } from "../temps-ticket/passe.ts";
 import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
 import { blocageDuClone, clonerEnReparant, ID_BLOCAGE_CLONE } from "../installation/clone/clone.ts";
@@ -548,7 +549,8 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       // Avec eux, les quatre chiffres du projet (`chiffres-du-projet.ts`, #2672) : l'app les relaie, ne les recalcule pas.
       const cloneServi = servis.clones?.()[projet.nom] ?? cloneDe(dit.nom);
       const lus = lesTempsDesTickets(cloneServi);
-      const temps = { ...lus, resume: resumeServi(lus.enregistrements, lus.lostTimeMaxMin, maintenant()), chiffres: chiffresDuClone(cloneServi) };
+      // Et le temps de chaque phase de la pass sur 7 jours (#3512), null sans livraison mesurée.
+      const temps = { ...lus, resume: resumeServi(lus.enregistrements, lus.lostTimeMaxMin, maintenant()), chiffres: chiffresDuClone(cloneServi), passe: resumerLaPasse(lus.enregistrements, maintenant()) };
       return { ...dit, ...(delai === null ? {} : { delai }), temps, ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     // Un besoin que le chef laisse au setup du projet : la station ouvre sur

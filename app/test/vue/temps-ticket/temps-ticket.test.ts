@@ -38,6 +38,12 @@ describe("ce que l'app relit du suivi de la station", () => {
     assert.equal(relu({ enregistrements: [] })?.lostTimeMaxMin, 2);
   });
 
+  test("le temps de la pass (#3512) arrive tel quel ; null, il n'est pas relayé", () => {
+    const passe = { jours: 7, livraisons: 1, parts: [], phaseLaPlusLourde: null, partLaPlusLourde: { nom: "CI", partPct: 70 }, relancees: null, renvoyees: 0, passesRenvoyeesS: 0 };
+    assert.deepEqual(relu({ enregistrements: [], lostTimeMaxMin: 2, passe }), { enregistrements: [], lostTimeMaxMin: 2, passe });
+    assert.deepEqual(relu({ enregistrements: [], lostTimeMaxMin: 2, passe: null }), { enregistrements: [], lostTimeMaxMin: 2 });
+  });
+
   test("absents ou illisibles : rien", () => {
     assert.equal(relu(undefined), undefined);
     assert.equal(relu({ enregistrements: "non" }), undefined);

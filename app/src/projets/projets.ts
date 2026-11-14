@@ -170,7 +170,8 @@ export function nomDuProjet(depot: string): string {
 export const estUnOrdinateur = (station: Pick<StationVue, "machine">) => /^(macOS|Windows)\b/.test(station.machine);
 
 // Les temps de deux stations d'un même projet : un ticket n'est compté qu'une fois (le plus récent des deux enregistrements),
-// le seuil du temps perdu est celui de la première station.
+// le seuil du temps perdu est celui de la première station ; le résumé, les chiffres et le temps de la pass, ceux de la
+// première qui en publie.
 export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): TempsPublie {
   if (a === undefined) return b;
   const parTicket = new Map<unknown, unknown>();
@@ -187,7 +188,9 @@ export function fusionnerLesTemps(a: TempsPublie | undefined, b: TempsPublie): T
   // Le résumé est celui de la première station qui en publie un ; le seuil, celui de la première.
   const resume = a.resume ?? b.resume;
   const chiffres = a.chiffres ?? b.chiffres;
-  return { enregistrements: [...parTicket.values(), ...fusion], lostTimeMaxMin: a.lostTimeMaxMin, ...(resume === undefined ? {} : { resume }), ...(chiffres === undefined ? {} : { chiffres }) };
+  // Le temps de la pass (#3512) aussi : celui de la première station qui en publie un.
+  const passe = a.passe ?? b.passe;
+  return { enregistrements: [...parTicket.values(), ...fusion], lostTimeMaxMin: a.lostTimeMaxMin, ...(resume === undefined ? {} : { resume }), ...(chiffres === undefined ? {} : { chiffres }), ...(passe === undefined || passe === null ? {} : { passe }) };
 }
 
 // La station que l'app recommande : un serveur qui peut cuire maintenant — en ligne. Aucun en ligne : aucune ; une
