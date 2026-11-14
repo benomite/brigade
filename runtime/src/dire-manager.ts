@@ -36,6 +36,8 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
       return { motif: "`served-elsewhere` — this ticket is not served on this box; the why is on the issue", geste: "remove `served-elsewhere` if the box should take it: it is judged on the next wake-up" };
     case "idea":
       return label("idea");
+    case "set-aside:failures":
+      return { motif: "set aside by its failure count: its cooks stopped without a delivery too many times in a row; the station's last comment on the issue says why", geste: "remove `set-aside:failures` to try the ticket again: it is judged on the next wake-up" };
     case "already-split":
       return { motif: "its body already lists the tickets of an epic, split by hand", geste: "remove that list from its body: the epic is split on the next wake-up" };
     case "roadmap":

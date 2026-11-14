@@ -88,6 +88,14 @@ test("un tableau de référence : chaque issue dans un seul des cinq états, et 
   assert.match(de(34)?.dit ?? "", /put on the rail by the manager, sonnet \/ low/);
 });
 
+test("un ticket mis de côté par son compte d'échecs le dit en toutes lettres, jamais « served-elsewhere » (#3528)", (t) => {
+  const { base } = journal(t);
+  const [carte] = avantLeRail(base, [issue(70, ["fire", "model:opus", "effort:high", "set-aside:failures"])]);
+  assert.equal(carte?.etat, "mise-de-cote");
+  assert.match(carte?.dit ?? "", /set aside by its failure count/);
+  assert.doesNotMatch(carte?.dit ?? "", /served-elsewhere|not serve/);
+});
+
 test("une issue sur le rail n'est pas avant lui", (t) => {
   const { base, noter } = journal(t);
   noter({ type: "ticket.arrived", payload: { title: "Ticket 60", priority: null, createdAt: "2026-10-01T00:00:00Z", url: "https://exemple.test/60", card: { waitsFor: [], zone: [], problems: [] } } }, 60, "github");
