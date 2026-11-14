@@ -15,22 +15,21 @@ import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { apresDe, marqueApres } from "../src/vue/carte-attente/carte-attente.js";
+import { marqueApres } from "../src/vue/carte-attente/carte-attente.js";
 import { carteDuTicket, Faux, jouerLaVue, repos, type Jouee } from "./aides/fausse-vue.ts";
 
 const A = "2026-11-11T12:04:12.000Z";
 
 describe("les mots de la marque", () => {
+  const doc = { createElement: (balise: string) => new Faux(balise) } as never;
   test("un numéro, deux numéros", () => {
-    assert.equal(apresDe([42]), "after #42");
-    assert.equal(apresDe([12, 15]), "after #12, #15");
+    assert.equal(marqueApres(doc, [42])?.textContent, "after #42");
+    assert.equal(marqueApres(doc, [12, 15])?.textContent, "after #12, #15");
   });
 
   test("`attend` vide ou absent : pas de marque", () => {
-    const doc = { createElement: (balise: string) => new Faux(balise) } as never;
     assert.equal(marqueApres(doc, []), null);
     assert.equal(marqueApres(doc, undefined), null);
-    assert.equal(marqueApres(doc, [42])?.textContent, "after #42");
   });
 });
 

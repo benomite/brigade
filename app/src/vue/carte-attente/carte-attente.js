@@ -7,7 +7,7 @@
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
 /** Les mots de la marque : « after #12, #15 ». @param {readonly number[]} numeros */
-export const apresDe = (numeros) => `after ${numeros.map((numero) => `#${numero}`).join(", ")}`;
+const apresDe = (numeros) => `after ${numeros.map((numero) => `#${numero}`).join(", ")}`;
 
 /** @param {Fabrique} doc @param {readonly number[] | undefined} numeros @returns {HTMLElement | null} */
 export function marqueApres(doc, numeros) {
