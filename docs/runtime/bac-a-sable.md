@@ -1,9 +1,9 @@
-## The cook's sandbox
+# The cook's sandbox
 
 On the chef's Mac, every command a cook runs goes through the sandbox of Claude Code. Brigade writes its
 configuration (`runtime/src/bac-a-sable/configuration.ts`) and hands it to `claude` with `--settings`.
 
-### What a cook may do on the network
+## What a cook may do on the network
 
 | A cook may | Detail |
 |---|---|
