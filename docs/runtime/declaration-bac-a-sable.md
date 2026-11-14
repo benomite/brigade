@@ -39,7 +39,9 @@ They are enforced in code. A declaration that breaks one is refused.
 ### Ports and the sandbox of Claude Code
 
 Claude Code's sandbox has no setting that binds one port: `sandbox.network.allowLocalBinding` is a single on/off switch, for loopback (checked in the settings schema of `claude` 2.1.300).
-The declared ports are checked against the limits above, but the configuration does not change for them: `allowLocalBinding` stays `true` for every cook, as #3541 set it ([`bac-a-sable.md`](bac-a-sable.md)).
+Binding on loopback is therefore open for all ports, for every cook, with or without a declaration: `allowLocalBinding` stays `true`, as #3541 set it ([`bac-a-sable.md`](bac-a-sable.md)).
+The declared ports are checked against the limits above, but the configuration does not change for them: no host is added and no port becomes reachable from the network.
+If Claude Code later offers a per-port setting, a follow-up ticket can wire `ports` to it.
 
 ## Refusal
 

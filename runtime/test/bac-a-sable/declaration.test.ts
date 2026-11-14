@@ -27,7 +27,11 @@ const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATB
 const ARGS = argumentsClaude("consigne", { model: "sonnet", effort: "low" });
 const reglagesDe = (args: string[]) => JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as Reglages;
 
-test("`ports` : un port déclaré se lit, sur la boucle locale ; il n'ajoute aucun hôte joignable", () => {
+// Le bac à sable de Claude Code n'a pas de champ par port : `allowLocalBinding`
+// ouvre toute la boucle locale, et #3541 l'ouvre déjà pour chaque cook. Un port
+// déclaré se juge aux limites et ne change pas la configuration (décision du
+// manager sur #3549, option (a)).
+test("`ports` : avec {\"ports\":[5037]}, la liaison reste sur la boucle locale seule, sans hôte ajouté ni exposition au réseau", () => {
   assert.deepEqual(lireDeclarationBacASable('{"ports":[5037]}'), { ports: [5037], ecriture: [] });
   assert.deepEqual(lireDeclarationBacASable('{"ports":["127.0.0.1:8080","[::1]:9000","localhost:5037",5037]}'), { ports: [8080, 9000, 5037], ecriture: [] });
   const reglages = avec('{"ports":[5037]}');
@@ -35,6 +39,9 @@ test("`ports` : un port déclaré se lit, sur la boucle locale ; il n'ajoute auc
   assert.deepEqual(reglages.sandbox.network.allowedDomains, sans.sandbox.network.allowedDomains);
   assert.equal(reglages.sandbox.network.allowLocalBinding, true);
   assert.equal(reglages.sandbox.network.allowAllUnixSockets, false);
+  assert.equal(reglages.sandbox.network.strictAllowlist, true);
+  assert.deepEqual(reglages.sandbox.network, sans.sandbox.network);
+  assert.deepEqual(configurer({ ...cook(), declaration: lireDeclarationBacASable('{"ports":[5037]}') ?? undefined }), configurer(cook()));
 });
 
 test("`ecriture` : `~/.gradle` est ouvert à l'écriture en plus du worktree, au bac à sable comme aux outils de `claude`", () => {
