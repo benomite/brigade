@@ -9,7 +9,7 @@ import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { DELAI_CLAIM_PERIME_MS } from "../../src/guerison/claim-perime.ts";
 import { INERTIE_MINUTES } from "../../src/guerison/cuisine-inerte.ts";
-import { HORS_CUISINE } from "../../src/github.ts";
+import { estMisDeCote, HORS_CUISINE } from "../../src/github.ts";
 import type { GitHubDeLaBrigade } from "../../src/routage-temps-perdu.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -137,14 +137,14 @@ test("after two relaunches for the same reason, no third happens and one bug tic
   for (let i = 0; i < 40 && p.faux.creations.length === 0; i += 1) await p.passer();
   assert.equal(relances(), 2, p.avertis.join("\n"));
   assert.equal(p.faux.creations.length, 1);
-  assert.ok(p.faux.ticket(CONFLIT).labels.has(HORS_CUISINE));
+  assert.ok(estMisDeCote([...p.faux.ticket(CONFLIT).labels]));
   const [bug] = p.faux.creations;
   assert.match(p.faux.ticket(bug as number).corps, /relaunched it 2 times/);
   // Des tours encore : ni troisième relance, ni second bug.
   for (let i = 0; i < 3; i += 1) await p.passer();
   assert.equal(relances(), 2);
   assert.equal(p.faux.creations.length, 1);
-  assert.ok(p.faux.ticket(CONFLIT).labels.has(HORS_CUISINE));
+  assert.ok(estMisDeCote([...p.faux.ticket(CONFLIT).labels]));
 });
 
 test("a gesture that throws does not stop the others, and its error is logged", async () => {

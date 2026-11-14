@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "../src/constat-seul.ts";
-import { HORS_CUISINE } from "../src/github.ts";
+import { ECHECS_ATTEINTS, HORS_CUISINE } from "../src/github.ts";
 import { MARQUE_D_ECHEC } from "../src/qualite-github.ts";
 import { FauxGitHub, fauxClient } from "./faux-github.ts";
 
@@ -100,7 +100,8 @@ test("a diagnosis-only ticket whose cook commits nothing and delimits no deliver
   // Deux arrêts de suite au même motif suffisent à l'écarter (#2729).
   assert.equal(corps.filter((c) => c.startsWith(MARQUE_D_ECHEC)).length, 2);
   assert.equal(corps.filter((c) => c.startsWith(MARQUE_DE_CONSTAT)).length, 0);
-  assert.equal(faux.ticket(TICKET).labels.has(HORS_CUISINE), true);
+  assert.equal(faux.ticket(TICKET).labels.has(ECHECS_ATTEINTS), true);
+  assert.equal(faux.ticket(TICKET).labels.has(HORS_CUISINE), false);
   assert.equal(faux.ticket(TICKET).state, "open");
 });
 

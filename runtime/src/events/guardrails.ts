@@ -95,9 +95,12 @@ export type FaitGardeFous =
         // `move` (the project's kitchen moved to another station: its ticket
         // goes back to the rail, to be taken again there — `kitchen.moved`);
         // `update` (an update) is only read in logs from before the station.
+        // `external` (#3528): killed from outside by SIGTERM (exit code 143) —
+        // the station restarting or updating, the app closed: not its doing,
+        // it counts neither for the breaker nor for its ticket's tries.
         // Absent: its end is not of brigade's doing, and if it is a failure, it
         // counts for the breaker.
-        cause?: "stop" | "update" | "move";
+        cause?: "stop" | "update" | "move" | "external";
         // How many times what has the shape of Claude credentials was masked
         // in its raw stream and its error output. Absent: never.
         credentialsMasked?: number;
@@ -114,6 +117,11 @@ export type FaitGardeFous =
   // What the pass said about the delivery of a manager relaunch: red, it is one
   // more failure for the breaker; green, it restarts from zero.
   | { type: "relaunch.judged"; payload: { run: string; verdict: "green" | "red" } }
+  // Startup reconciliation (#3528): a cook the log recorded as a failure was in fact
+  // killed from outside (exit code 143, no guardrail, no error): its failure is dropped.
+  | { type: "cook.reclassified"; payload: { run: string; from: "failed"; to: "stop"; reason: "external" } }
+  // Startup reconciliation (#3528): the breaker opened on failures that no longer hold.
+  | { type: "breaker.lifted"; payload: { failures: number; threshold: number } }
   | { type: "breaker.opened"; payload: { failures: number; threshold: number } }
   // The chef's commands: "stop" and "resume".
   | { type: "kitchen.stopped"; payload: Record<string, never> }

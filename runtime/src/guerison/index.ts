@@ -26,7 +26,7 @@ import { cartesDesIssues } from "../attente-github/attente-github.ts";
 import { A_LA_MAIN, brancheDuTicket, termeDeLAttente } from "../brigade-github.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import { aExaminer, renvoyerLesCiRouges, type PROuverte } from "../ci-rouge/ci-rouge.ts";
-import { HORS_CUISINE, type GitHub, type Issue, type IssueOuverte } from "../github.ts";
+import { estMisDeCote, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte } from "../github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict } from "../github-etat/fusion.ts";
 import { lireTenant, type RetraitDeLabel } from "../github-etat/prise.ts";
@@ -135,7 +135,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     };
 
     await tache("relance", async () => {
-      for (const ticket of tickets.filter((t) => t.labels.includes(HORS_CUISINE))) {
+      for (const ticket of tickets.filter((t) => estMisDeCote(t.labels))) {
         try {
           const fait = await relancer(ticket, { github, station, base });
           if (fait.fait === "relance") bilan.relances.push(ticket.number);
@@ -176,7 +176,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     // Ni un ticket mis de côté (la relance en décide), ni une épique, ni un
     // ticket qu'un cook tient encore.
     await tache("in-pass", async () => {
-      const candidats = tickets.filter((t) => t.epique !== true && !t.labels.includes(HORS_CUISINE) && !t.labels.includes(LABEL_TAKEN) && !enCuisine.has(t.number));
+      const candidats = tickets.filter((t) => t.epique !== true && !estMisDeCote(t.labels) && !t.labels.includes(LABEL_TAKEN) && !enCuisine.has(t.number));
       const parBranche = new Map(candidats.map((t) => [brancheDuTicket(t.number), t.number]));
       const poses = await poserInPassSurLesPrsPretes({
         tickets: async () => ({ inchange: false, issues: candidats.map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
@@ -234,7 +234,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       // Ni un ticket que l'attente d'après un arrêt retient : la porte de prise le saute (#2508, #2975).
       const aPrendre: typeof tickets[number][] = [];
       for (const t of tickets) {
-        if (t.epique === true || [HORS_CUISINE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) || !complet(calibrage([...t.labels]))) continue;
+        if (t.epique === true || [...MIS_DE_COTE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) || !complet(calibrage([...t.labels]))) continue;
         // Ni un ticket dont la zone est tenue : la porte de prise le saute, et ce
         // qui le tient se compte de lui-même — son ticket pris ou en pass est du
         // travail, à prendre il vaut une inertie, mis de côté ou chez le chef il
@@ -296,7 +296,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       .filter((t) => !bilan.epiquesFermees.includes(t.number))
       .map((t) => {
         let labels = [...t.labels];
-        if (bilan.relances.includes(t.number)) labels = sans(labels, HORS_CUISINE);
+        if (bilan.relances.includes(t.number)) for (const label of MIS_DE_COTE) labels = sans(labels, label);
         if (bilan.liberes.includes(t.number)) labels = sans(labels, LABEL_TAKEN);
         for (const label of bilan.ciRouges.find((c) => c.ticket === t.number)?.leves ?? []) labels = sans(labels, label);
         if (bilan.enPass.includes(t.number)) labels.push(LABEL_IN_PASS);

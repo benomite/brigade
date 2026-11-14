@@ -497,7 +497,7 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 30 && !(faux.creations.length > 0 && faux.ticket(31).labels.has("served-elsewhere")); i += 1) {
+  for (let i = 0; i < 30 && !(faux.creations.length > 0 && faux.ticket(31).labels.has("set-aside:failures")); i += 1) {
     await a.tour();
     await a.calme();
   }
@@ -507,8 +507,8 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   // (#2757) : chaque relance repart pour deux renvois, puis un bug dit la boucle.
   assert.equal(renvois.length, 9);
   assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
-  assert.match(renvois[2]?.body ?? "", /Taken off the kitchen/);
-  assert.ok(faux.ticket(31).labels.has("served-elsewhere"));
+  assert.match(renvois[2]?.body ?? "", /Set aside by its failure count/);
+  assert.ok(faux.ticket(31).labels.has("set-aside:failures"));
   assert.equal((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:relance cause=red-check")).length, 2);
   assert.equal(faux.creations.length, 1);
   // Recuisiné huit fois, sous la même PR : aucune seconde PR.
@@ -796,8 +796,10 @@ test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping 
   }
   const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
   assert.equal(echecs.length, 3);
-  assert.match(echecs[2]?.body ?? "", /Taken off the kitchen/);
-  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
+  assert.match(echecs[2]?.body ?? "", /Set aside by its failure count/);
+  // Aucune autre station ne le sert : jamais `served-elsewhere` (#3528).
+  assert.ok(faux.ticket(35).labels.has("set-aside:failures"));
+  assert.ok(!faux.ticket(35).labels.has("served-elsewhere"));
 });
 
 const echecsDe = (faux: FauxGitHub, issue: number) => (faux.commentaires.get(issue) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length;
@@ -811,7 +813,8 @@ test("two consecutive failures with the same stop reason set the ticket aside at
     await a.calme();
   }
   assert.equal(echecsDe(faux, 35), 2);
-  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
+  assert.ok(faux.ticket(35).labels.has("set-aside:failures"));
+  assert.ok(!faux.ticket(35).labels.has("served-elsewhere"));
 });
 
 test("three consecutive failures with different reasons set the ticket aside, no fourth cook (#2729)", async () => {
@@ -824,9 +827,10 @@ test("three consecutive failures with different reasons set the ticket aside, no
     await a.calme();
   }
   assert.equal(echecsDe(faux, 35), 3);
-  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
+  assert.ok(faux.ticket(35).labels.has("set-aside:failures"));
+  assert.ok(!faux.ticket(35).labels.has("served-elsewhere"));
   const dernier = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).at(-1);
-  assert.match(dernier?.body ?? "", /reason 3[\s\S]*Taken off the kitchen/);
+  assert.match(dernier?.body ?? "", /reason 3[\s\S]*Set aside by its failure count/);
 });
 
 test("a ticket whose files all live under .claude/brigade/ is launched to a cook like any other (#2855)", async () => {
@@ -842,24 +846,24 @@ test("a ticket whose files all live under .claude/brigade/ is launched to a cook
   assert.equal(faux.ticket(40).labels.has("blocked-on-human"), false);
 });
 
-test("removing served-elsewhere restarts the count of cooks without a delivery (#2430)", async () => {
+test("removing the label that set a ticket aside restarts the count of cooks without a delivery (#2430)", async () => {
   const faux = new FauxGitHub();
   faux.feu(35);
   const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }), avertir: () => {} });
-  for (let i = 0; i < 8 && !faux.ticket(35).labels.has("served-elsewhere"); i += 1) {
+  for (let i = 0; i < 8 && !faux.ticket(35).labels.has("set-aside:failures"); i += 1) {
     await a.tour();
     await a.calme();
   }
-  assert.ok(faux.ticket(35).labels.has("served-elsewhere"));
-  // Le second relance le ticket : il retire `served-elsewhere`, sur GitHub.
-  await faux.pour("chef").delabelliser(35, "served-elsewhere");
+  assert.ok(faux.ticket(35).labels.has("set-aside:failures"));
+  // Le second relance le ticket : il retire `set-aside:failures`, sur GitHub.
+  await faux.pour("chef").delabelliser(35, "set-aside:failures");
   for (let i = 0; i < 1; i += 1) {
     await a.tour();
     await a.calme();
   }
   const echecs = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec"));
   assert.equal(echecs.length, 3);
-  assert.equal(faux.ticket(35).labels.has("served-elsewhere"), false);
+  assert.equal(faux.ticket(35).labels.has("set-aside:failures"), false);
 });
 
 test("a send-back whose label removal failed is completed at the next turn, without a second comment (#2319)", async () => {
@@ -1832,6 +1836,80 @@ test("a cook killed by a signal is not a failed cook: the ticket waits, and noth
   const corps = (faux.commentaires.get(78) ?? []).map((c) => c.body).join("\n");
   assert.match(corps, /signal SIGKILL/);
   assert.doesNotMatch(corps, /brigade:echec/);
+});
+
+// #3528, secondes 2026-11-14 : le cook tué par SIGTERM arrive en code 143, sans signal lisible.
+test("a cook that ends with exit code 143 (SIGTERM) is not a failed cook: the ticket is given back and takes no try (#3528)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(78);
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, "");
+    return { fin: Promise.resolve({ code: 143, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux),
+    depot: { connait: () => false, preparer: async (run) => ({ worktree: join(repertoire, run), branche: "cook/78-github" }), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
+    ...reglagesDuFauxClaude(repertoire, lancer), avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  for (let i = 0; i < 4; i += 1) {
+    await station.tour();
+    await station.calme();
+  }
+  const corps = (faux.commentaires.get(78) ?? []).map((c) => c.body).join("\n");
+  assert.match(corps, /exit code 143/);
+  assert.match(corps, /not counted among the ticket's 3 tries/);
+  assert.doesNotMatch(corps, /brigade:echec/);
+  // Remis sur le rail : à nous de le reprendre, jamais mis de côté.
+  assert.ok(faux.ticket(78).labels.has("fire"));
+  assert.ok(!faux.ticket(78).labels.has("taken"));
+  assert.ok(!faux.ticket(78).labels.has("served-elsewhere"));
+  assert.ok(!faux.ticket(78).labels.has("set-aside:failures"));
+});
+
+const echec143 = (n: number) => `<!-- brigade:echec n=${n} -->\nStation \`A\`: the cook stopped without a delivery — claude ended in error (exit code 143; claude wrote nothing)`;
+const MIS_DE_COTE_PAR_LES_ECHECS = "\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides.";
+
+// secondes#21 : « Will not start: 2 cooks in a row stopped without delivering anything », tués en 143.
+test("a ticket set aside by cooks that were killed from outside is put back on the rail at the first turn, with no /resume (#3528)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(21, [...CALIBRE, "served-elsewhere"]);
+  faux.poster(21, "A", echec143(1));
+  faux.poster(21, "A", echec143(2) + MIS_DE_COTE_PAR_LES_ECHECS);
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }), avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  assert.ok(!faux.ticket(21).labels.has("served-elsewhere"));
+  assert.ok(faux.ticket(21).labels.has("fire"));
+  const corps = (faux.commentaires.get(21) ?? []).map((c) => c.body);
+  assert.ok(corps.some((c) => c.includes("brigade:reconciliation-externe") && /killed from outside/.test(c)));
+  assert.ok(!corps.some((c) => /\/resume/.test(c)));
+  // Les deux arrêts externes ne comptent plus : le cook suivant n'est que le premier essai.
+  assert.equal(echecsDe(faux, 21), 3);
+});
+
+test("a ticket set aside by real failures stays set aside: the reconciliation only drops the stops from outside (#3528)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(22, [...CALIBRE, "set-aside:failures"]);
+  faux.poster(22, "A", "<!-- brigade:echec n=1 -->\nStation `A`: the cook stopped without a delivery — the file no longer exists");
+  faux.poster(22, "A", "<!-- brigade:echec n=2 -->\nStation `A`: the cook stopped without a delivery — the file no longer exists\n\nSet aside by its failure count (`set-aside:failures`) after 2 cooks without a delivery: not served elsewhere, nobody serves it. A human decides; remove the label to try again.");
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "x" }), avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  assert.ok(!(faux.commentaires.get(22) ?? []).some((c) => c.body.includes("reconciliation-externe")));
+});
+
+test("a ticket the chef set aside with served-elsewhere is left alone by the reconciliation (#3528)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(23, [...CALIBRE, "served-elsewhere"]);
+  faux.poster(23, "A", echec143(1));
+  const a = faux.station("A", { cuisiner: async () => ({ echec: "x" }), avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  assert.ok(!(faux.commentaires.get(23) ?? []).some((c) => c.body.includes("reconciliation-externe")));
 });
 
 // #2543, 2026-11-06 : la station, relancée par sa mise à jour toutes les 35 à 45 min, tuait ses

@@ -59,7 +59,7 @@ import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SET
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
-import { HORS_CUISINE, type GitHub, type Issue, type PR } from "./github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote, MIS_DE_COTE, type GitHub, type Issue, type PR } from "./github.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
@@ -78,6 +78,7 @@ import { motifArretCook } from "./motif-arret-cook.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
+import { reconcilierLesArretsExternes } from "./arrets-externes.ts";
 import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { attentesDeLaDecision, noterLesAttentes } from "./attente-des-tickets.ts";
@@ -454,7 +455,7 @@ export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], 
 // livraison. Des retraits illisibles ne remettent rien à zéro.
 const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number, commentaires: { body: string; createdAt: string }[], marque: string) => {
   const retraits = await github.retraitsDeLabels(numero).catch(() => []);
-  const relance = Math.max(0, ...retraits.filter((r) => r.label === HORS_CUISINE).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
+  const relance = Math.max(0, ...retraits.filter((r) => (MIS_DE_COTE as readonly string[]).includes(r.label)).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
   return commentaires.filter((c) => c.body.startsWith(marque) && !(Date.parse(c.createdAt) <= relance));
 };
 
@@ -498,10 +499,11 @@ function direLaFin({ conclusion, fin, flux }: { conclusion: string; fin: { code:
 
 // Un arrêt que le cook n'a pas causé : le quota, la session Claude, une station
 // arrêtée ou un process tué (un signal sans erreur du lanceur). Un plafond (jetons, durée, inactivité) est le sien.
-const arretSubi = (conclusion: string, fin: { signal: string | null; arret: { reason: string } | null; erreur: string | null }): boolean => {
+const arretSubi = (conclusion: string, fin: { code: number | null; signal: string | null; arret: { reason: string } | null; erreur: string | null }): boolean => {
   if (conclusion === "86" || conclusion === "disconnected") return true;
   if (fin.arret !== null) return fin.arret.reason === "stop";
-  return fin.erreur === null && fin.signal !== null;
+  // SIGTERM : le signal, ou le code 143 quand un relais ou un shell l'a rendu en code de sortie (#3528).
+  return fin.erreur === null && (fin.signal !== null || fin.code === 143);
 };
 
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
@@ -1111,11 +1113,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const motifDe = (corps: string) => corps.match(/ — ([^\n]*)/)?.[1] ?? "";
       const sortie = horsCuisine([...precedents.map((c) => ({ motif: motifDe(c.body), desaccord: false })), { motif: fait.echec, desaccord: false }]);
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (try ${echecs}/${ECHECS_MAX}): ${fait.echec}`);
-      await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${sortie ? `\n\nTaken off the kitchen (\`${HORS_CUISINE}\`) after ${echecs} cooks without a delivery: a human decides.` : ""}`);
+      await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${sortie ? `\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${echecs} cooks without a delivery: not served elsewhere, nobody serves it. A human decides; remove the label to try again.` : ""}`);
       chrono.rater(issue);
       if (sortie) {
         chrono.oublier(issue);
-        await github.labelliser(issue, [HORS_CUISINE]);
+        await github.labelliser(issue, [ECHECS_ATTEINTS]);
       }
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
       liberee = true;
@@ -1168,8 +1170,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       return;
     }
     if (deja >= RENVOIS_MAX && genre !== "conflict") {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
-      await github.labelliser(ticket.number, [HORS_CUISINE]);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${deja} sends back: not served elsewhere, nobody serves it. A human decides.`);
+      await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
       chrono.oublier(ticket.number);
     } else {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}`);
@@ -1360,6 +1362,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   // Les cartes `blocked-on-human` que le dégel a déjà relues (#3476).
   const cartesExaminees = new Set<number>();
+  // La réconciliation des arrêts externes d'avant #3528 se joue une fois par démarrage.
+  let arretsExternesReconcilies = false;
   const tour = async () => {
     renvoyes.clear();
     retenuesDuTour.clear();
@@ -1372,13 +1376,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
     const tenusAvant = tenusDuTour;
     tenusDuTour = new Map();
-    const { tickets: gueris } = await guerir(await github.fires(), new Set(enVol.keys()), tenusAvant);
+    const fires = await github.fires();
+    // Une fois, au premier tour, avant la guérison : les tickets que des cooks tués du dehors ont fait mettre de côté reviennent sur le rail (#3528).
+    if (!arretsExternesReconcilies) {
+      const { rendus, complete } = await reconcilierLesArretsExternes(fires, { github, station: nom, echecs: async (numero) => (await depuisLeRelancement(github, numero, await github.commentaires(numero), MARQUE_D_ECHEC)).map(({ body }) => ({ body })), avertir });
+      arretsExternesReconcilies = complete;
+      for (const ticket of fires) if (rendus.includes(ticket.number)) ticket.labels = ticket.labels.filter((label) => !MIS_DE_COTE.includes(label as (typeof MIS_DE_COTE)[number]));
+    }
+    const { tickets: gueris } = await guerir(fires, new Set(enVol.keys()), tenusAvant);
     // Ce que l'ancien chemin du conflit avec la base a laissé — un ticket ouvert
     // pour changer la branche d'un autre, une carte qui demande un geste git au
     // chef — se défait avant que le tour ne lise ses tickets (#3476).
     const degel = await degelerLesConflits(github, { station: nom, base, tickets: gueris, enVol: new Set(enVol.keys()), examinees: cartesExaminees, avertir });
     const lus = gueris.filter(({ number }) => !degel.fermes.has(number)).map((ticket) => (degel.rendus.has(ticket.number) ? { ...ticket, labels: ticket.labels.filter((label) => label !== A_LA_MAIN) } : ticket));
-    await options.redeposer?.(lus.filter((ticket) => ticket.labels.includes(HORS_CUISINE))).catch((echec) => avertir(`brigade : a served-elsewhere lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
+    await options.redeposer?.(lus.filter((ticket) => estMisDeCote(ticket.labels))).catch((echec) => avertir(`brigade : a served-elsewhere lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
     // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
     if (clone !== undefined && corrigerLeTemps !== null) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
     await Promise.all([
@@ -1389,7 +1400,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
     // Une épique découpée, ou un besoin dont un ticket lancé est né : ni elle
     // ne se prend, ni elle ne compte parmi les tickets du tour (#2618, #3479).
-    const tickets = horsDesBesoins(lus.filter((ticket) => !ticket.labels.includes(HORS_CUISINE)));
+    const tickets = horsDesBesoins(lus.filter((ticket) => !estMisDeCote(ticket.labels)));
     ouvertsDuTour = new Set(tickets.map(({ number }) => number));
     ticketsDuTour = tickets;
     const libres: TicketLu[] = [];
@@ -1731,7 +1742,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const commentaires = await github.commentaires(ticket.number);
       for (const attendu of fiche(commentaires.map(({ body }) => body))?.waitsFor ?? []) {
         const lu = lus.find(({ number }) => number === attendu);
-        const label = [HORS_CUISINE, A_LA_MAIN].find((candidat) => lu?.labels.includes(candidat));
+        const label = [...MIS_DE_COTE, A_LA_MAIN].find((candidat) => lu?.labels.includes(candidat));
         if (label === undefined) continue;
         // Le dernier mot de la station sur ce ticket : la ligne qui suit sa marque.
         const dernier = (await github.commentaires(attendu)).map(({ body }) => body).filter((body) => body.startsWith(MARQUE_D_ECHEC) || body.startsWith(MARQUE_DE_RENVOI)).at(-1);
