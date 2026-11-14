@@ -45,10 +45,10 @@ const SATUREE = {
 describe("le plafond d'une station, tel que `status` le dit", () => {
   test("le défaut dit d'où il vient, le réglage du chef dit ce qu'il remplace", () => {
     const plafonds = plafondsDe(statusDe([station("box"), station("mac/claude", { cap: 5 }), station("vieille", { cores: null, maxCooks: 2 }), station("libre", { cap: 0 })]));
-    assert.deepEqual(plafonds.get("box"), { dit: "3 at most — 8 cores", nombre: 3, parLeChef: false });
-    assert.deepEqual(plafonds.get("mac/claude"), { dit: "5 at most — set by you, replaces 3 (8 cores)", nombre: 5, parLeChef: true, remplace: "3" });
+    assert.deepEqual(plafonds.get("box"), { dit: "6 at most — 8 cores", nombre: 6, parLeChef: false });
+    assert.deepEqual(plafonds.get("mac/claude"), { dit: "5 at most — set by you, replaces 6 (8 cores)", nombre: 5, parLeChef: true, remplace: "6" });
     assert.deepEqual(plafonds.get("vieille"), { dit: "2 at most — declared", nombre: 2, parLeChef: false });
-    assert.deepEqual(plafonds.get("libre"), { dit: "no limit — set by you, replaces 3 (8 cores)", nombre: null, parLeChef: true, remplace: "3" });
+    assert.deepEqual(plafonds.get("libre"), { dit: "no limit — set by you, replaces 6 (8 cores)", nombre: null, parLeChef: true, remplace: "6" });
   });
 
   test("avec des cooks en cours et des cooks coincés, les plafonds se lisent encore", () => {
@@ -85,7 +85,7 @@ describe("l'accueil pose le plafond et la retenue sur la ligne de leur station",
     accueil.stations({ a: A, stations: [vue("box"), vue("autre")] });
     const vu = accueil.status({ projet: "brigade", demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte: statusDe([station("box", SATUREE)]) }] });
     const [box, autre] = vu?.stations ?? [];
-    assert.equal(box?.plafond?.dit, "3 at most — 8 cores");
+    assert.equal(box?.plafond?.dit, "6 at most — 8 cores");
     assert.equal(box?.reglable, true);
     assert.equal(box?.retenue?.ressources, "CPU and memory");
     assert.equal(autre?.plafond, undefined);
