@@ -309,7 +309,7 @@ const ROUGE = /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u;
 const DISJONCTEUR = /disjoncteur OUVERT|breaker OPEN/;
 // Pourquoi il s'est ouvert, en clair sur la ligne : le nombre de lancements échoués de suite que `status` écrit — « the latest
 // launches failed in a row » quand la ligne ne le dit pas.
-const ECHECS_DE_SUITE = /(\d+) (?:échecs? de suite|failures? in a row)/;
+const ECHECS_DE_SUITE = /(\d+) (?:échecs? (?:de suite|d.affilée)|failures? in a row)/;
 function enchaines(valeur: string): string {
   const n = ECHECS_DE_SUITE.exec(valeur)?.[1];
   return n === undefined ? "the latest launches failed in a row" : `${n} launch${n === "1" ? "" : "es"} failed in a row`;
