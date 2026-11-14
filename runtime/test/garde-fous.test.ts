@@ -620,7 +620,7 @@ test("trois cooks signalés pendant un « stop » du chef : ni échec compté, n
   for (const e of runtime.journal.tout().filter((e) => e.type === "cook.exited")) assert.equal((e.payload as { cause?: string }).cause, "stop");
 });
 
-test("trois cooks tués du dehors (SIGTERM, 143) sans que brigade ait rien demandé ne comptent pas : le disjoncteur reste fermé, la cause est au journal (#3528)", async (t) => {
+test("trois cooks tués du dehors (SIGTERM, 143) sans que brigade ait rien demandé ne comptent pas : le disjoncteur reste fermé, la cause est au journal (#3528)", { skip: posixOnly("the fake claude kills itself with SIGTERM; on Windows the exit is a plain failure code, not a signal") }, async (t) => {
   const { runtime, lances } = troisSignales(t, () => {});
   const fins = await Promise.all(lances.map((lance) => lance.fin));
 
@@ -631,11 +631,20 @@ test("trois cooks tués du dehors (SIGTERM, 143) sans que brigade ait rien deman
   for (const e of runtime.journal.tout().filter((e) => e.type === "cook.exited")) assert.equal((e.payload as { cause?: string }).cause, "external");
 });
 
-test("trois vrais échecs de cook d'affilée ouvrent le disjoncteur au seuil de trois (#3528)", async (t) => {
-  const { runtime, cook } = cuisine(t, { seuilDisjoncteur: 3 });
-  for (const ticket of [7, 8]) await cook(ticket, "echec").fin;
-  assert.equal(etatDesGardeFous(runtime.journal.base).breakerOpenedAt, null);
+test("des arrêts externes entre de vrais échecs ne comptent pas : le disjoncteur ne s'ouvre qu'au troisième vrai échec (#3528)", { skip: posixOnly("the fake claude kills itself with SIGTERM; on Windows the exit is a plain failure code, not a signal") }, async (t) => {
+  const { runtime, repertoire, cook } = cuisine(t, { seuilDisjoncteur: 3 });
+  const feu = join(repertoire, "feu");
+  writeFileSync(feu, "");
+  const externe = (ticket: number) =>
+    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "meurt-sigterm", FAUX_CLAUDE_FEU: feu } }).fin;
+  await cook(7, "echec").fin;
+  await externe(8);
   await cook(9, "echec").fin;
+  await externe(10);
+  // Quatre fins, deux vrais échecs : le disjoncteur est fermé.
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 2);
+  assert.equal(etatDesGardeFous(runtime.journal.base).breakerOpenedAt, null);
+  await cook(11, "echec").fin;
 
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 3);
   assert.equal(runtime.journal.tout().filter((e) => e.type === "breaker.opened").length, 1);
