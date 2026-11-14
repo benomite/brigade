@@ -1,5 +1,5 @@
 // « try it » sur la carte (#3215), côté vue : le bouton n'est là que sur une carte en pass ou livrée, et seulement quand le
-// projet déclare un `.brigade/try.json` valable ; sans déclaration, une phrase dit quoi créer. En route, la carte dit où est
+// projet déclare un `.brigade/try.json` valable ; sans déclaration utilisable, la carte ne dit rien. En route, la carte dit où est
 // la version et ne porte qu'un « stop » ; raté, une ligne de raison puis la fin de la sortie. Jouée devant le faux pont.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -76,21 +76,26 @@ describe("« try it » sur la carte", () => {
     assert.ok(!boutons(carte(vue, 32)).includes("try it"), "au travail");
   });
 
-  test("sans .brigade/try.json : aucun bouton, et une phrase qui dit quoi créer, l'exemple compris", async () => {
+  test("sans .brigade/try.json : aucun bouton et aucun texte sur l'essai, sur aucune carte", async () => {
     const vue = await ouvrir(valable({}, { absente: true }));
-    assert.ok(!boutons(carte(vue, 33)).includes("try it"));
-    const [phrase = ""] = phrases(carte(vue, 33), "essai-sans-declaration");
-    assert.match(phrase, /\.brigade\/try\.json/);
-    assert.match(phrase, /`command`/);
-    assert.match(phrase, /optional `url`/);
-    assert.ok(phrase.includes('{"command": "npm install && npm run dev", "url": "http://localhost:5173"}'));
-    assert.deepEqual(phrases(carte(vue, 31), "essai-sans-declaration"), [], "une carte d'un autre état ne dit rien");
+    for (const ticket of [31, 32, 33, 34]) {
+      assert.ok(!boutons(carte(vue, ticket)).includes("try it"), `#${ticket}`);
+      assert.doesNotMatch(carte(vue, ticket).textContent, /try|try\.json|command/i, `#${ticket}`);
+    }
   });
 
-  test("déclaration mal formée : pas de bouton, la raison", async () => {
+  test("{\"tryable\": false, \"reason\": …} : aucun bouton, ni texte sur l'essai ni sur la raison", async () => {
+    // Ce que le process principal en dit : une déclaration sans `command` valable, donc ni bouton ni phrase.
+    const vue = await ouvrir(valable({}, { invalide: ".brigade/try.json needs a `command` key: a non-empty string" }));
+    assert.ok(!boutons(carte(vue, 33)).includes("try it"));
+    assert.deepEqual(phrases(carte(vue, 33), "essai-sans-declaration"), []);
+    assert.doesNotMatch(carte(vue, 33).textContent, /try|command|cannot be tried/i);
+  });
+
+  test("déclaration mal formée : pas de bouton et pas de texte", async () => {
     const vue = await ouvrir(valable({}, { invalide: ".brigade/try.json is not valid JSON" }));
     assert.ok(!boutons(carte(vue, 33)).includes("try it"));
-    assert.deepEqual(phrases(carte(vue, 33), "essai-sans-declaration"), [".brigade/try.json is not valid JSON"]);
+    assert.doesNotMatch(carte(vue, 33).textContent, /try|JSON/i);
   });
 
   test("un clic sur « try it » demande l'essai de ce ticket", async () => {

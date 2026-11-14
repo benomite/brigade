@@ -1,7 +1,8 @@
 // @ts-check
 // Essayer une livraison depuis sa carte (essai.ts, ticket 3215) : « try it » quand le projet déclare `.brigade/try.json` et que la
 // carte est en pass ou livrée ; en route, où la version se trouve et un seul « stop » ; raté, une ligne de raison puis la fin de
-// la sortie de la commande. Sans déclaration, une phrase dit quoi créer. Ce module ne touche pas `document`.
+// la sortie de la commande. Sans déclaration utilisable (absente, `tryable: false`, illisible), la carte ne dit rien : on ne
+// demande jamais au chef d'écrire un fichier. Ce module ne touche pas `document`.
 
 import { bouton } from "../composants/bouton/bouton.js";
 
@@ -10,13 +11,10 @@ import { bouton } from "../composants/bouton/bouton.js";
 
 export const ESSAYER = "try it";
 export const ARRETER = "stop";
-export const FICHIER = ".brigade/try.json";
-export const EXEMPLE = '{"command": "npm install && npm run dev", "url": "http://localhost:5173"}';
-export const MESSAGE_SANS_DECLARATION = `to try a delivery from its card, create ${FICHIER} with a \`command\` key and an optional \`url\` key, e.g. ${EXEMPLE}`;
 export const SANS_ADRESSE = "it runs in the opened window or process";
 
 // Ce qui se pose sur une carte essayable, d'après ce que le process principal a lu du projet (`vu`) : rien tant qu'il n'a
-// rien dit, la phrase de la déclaration manquante, ou ce que l'essai de cette carte en dit.
+// rien dit ou que le projet n'a pas de déclaration utilisable, ou ce que l'essai de cette carte en dit.
 /**
  * @param {Fabrique} doc
  * @param {Vu | undefined} vu
@@ -27,18 +25,7 @@ export const SANS_ADRESSE = "it runs in the opened window or process";
 export function poserLEssai(doc, vu, ticket, gestes) {
   if (vu === undefined) return [];
   const { declaration, essais } = vu;
-  if ("absente" in declaration) {
-    const phrase = doc.createElement("p");
-    phrase.className = "essai-sans-declaration";
-    phrase.textContent = MESSAGE_SANS_DECLARATION;
-    return [phrase];
-  }
-  if ("invalide" in declaration) {
-    const phrase = doc.createElement("p");
-    phrase.className = "essai-sans-declaration";
-    phrase.textContent = declaration.invalide;
-    return [phrase];
-  }
+  if (!("declaration" in declaration)) return [];
   const essai = essais[ticket];
   const rangee = doc.createElement("div");
   rangee.className = "essai";
