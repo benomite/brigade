@@ -18,7 +18,7 @@
 // L'appel vient du tour de la station (`brigade-github.ts`), sur les tickets
 // qu'il vient de lire.
 import { DE_CONFIANCE } from "./alimenter.ts";
-import { HORS_CUISINE, ouvrirGitHub, type IssueOuverte } from "./github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, ouvrirGitHub, type IssueOuverte } from "./github.ts";
 import { MARQUE_CORRECTION } from "./temps-max/correction.ts";
 
 export const DEPOT_DE_BRIGADE = "benomite/brigade";
@@ -60,7 +60,7 @@ export type OptionsDuRedepot = {
 };
 
 // Un ticket de temps perdu : son titre, et la marque que son corps porte.
-export const estDuTempsPerdu = (ticket: TicketHorsCuisine) => ticket.labels.includes(HORS_CUISINE) && ticket.title.startsWith(TITRE_DU_TEMPS_PERDU);
+export const estDuTempsPerdu = (ticket: TicketHorsCuisine) => estMisDeCote(ticket.labels) && ticket.title.startsWith(TITRE_DU_TEMPS_PERDU);
 
 const lien = (depot: string, numero: number) => `https://github.com/${depot}/issues/${numero}`;
 
@@ -71,7 +71,7 @@ export function corpsDuRedepot(depot: string, numero: number, corps: string): st
   return [
     marqueDuRedepot(depot, numero),
     "",
-    `Re-filed from ${depot}#${numero} (${lien(depot, numero)}): that ticket was taken off the kitchen (\`${HORS_CUISINE}\`) after its cooks failed, because the time it measures is lost in the station, not in ${depot}'s code. Its cause is corrected here.`,
+    `Re-filed from ${depot}#${numero} (${lien(depot, numero)}): that ticket was taken off the kitchen (\`${ECHECS_ATTEINTS}\`, or \`${HORS_CUISINE}\` on an older ticket) after its cooks failed, because the time it measures is lost in the station, not in ${depot}'s code. Its cause is corrected here.`,
     "",
     "---",
     "",

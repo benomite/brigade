@@ -1,9 +1,7 @@
-// La page d'un projet dit où il cuit, et déménage sa cuisine d'un geste (#1095), la vue jouée. « Cooks
-// on this computer » pour un projet qui cuit sur cet ordinateur — avec ce que ça implique : sa cuisine
-// s'arrête quand on ferme l'app —, « Cooks on parade-box » pour un projet qui cuit sur sa box. Un seul
-// bouton, « move the kitchen », l'emmène sur ce Mac, le ramène sur sa box ou sur une autre station,
-// sans retrait ni rajout. Refusé, la raison se lit en une phrase sous la ligne, et la ligne ne
-// change pas : il cuit toujours là où il cuisait.
+// Ce que la page d'un projet dit de l'endroit où il cuit, la vue jouée (#1095, #3523). Rail n'a plus de ligne « Cooks on … »
+// ni de bouton « move the kitchen » ni de « + station » (#3523) : la station et son état sont une étiquette à côté de
+// l'onglet Stations, et le déménagement, l'ajout d'une station se font dans cet onglet (test/stations-tab/). Ne reste sur
+// Rail que ce qui est en route : un déménagement qui part, ou la raison d'un refus.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
@@ -33,7 +31,7 @@ const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "m
 const SUR_LE_MAC: ProjetVu = { ...SUR_LA_BOX, suiviPar: { id: "gmac", nom: "macbook" }, stations: [station("gmac", "macbook"), station("gbox", "parade-box")], cuitSur: { id: "gmac", nom: "macbook", ici: true } };
 const vuDes = (...projets: ProjetVu[]): VuDesProjets => ({ a: A, projets, locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrageRecommande([]) });
 
-const demarrage = (projets: Projet[], projetsDesStations: VuDesProjets) => ({
+const demarrage = (projets: Projet[], projetsDesStations: VuDesProjets, stations: VuDesStations = STATIONS) => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }),
   palette: PALETTE,
   exemple: EXEMPLE,
@@ -43,7 +41,7 @@ const demarrage = (projets: Projet[], projetsDesStations: VuDesProjets) => ({
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
-  stations: STATIONS,
+  stations,
   accueil: ACCUEIL,
   projetsDesStations,
 });
@@ -60,132 +58,47 @@ const choix = (bloc: Faux) => bloc.dessous("section").find((section) => section.
 const dit = (bloc: Faux) => bloc.dessous("p").find((p) => p.className.split(" ").includes("demenagement-dit")) ?? assert.fail("pas de ligne de déménagement");
 
 // L'espace de « parade », ouvert par sa case de la barre.
-async function laPage(vu: VuDesProjets, demenager: (nom: string, vers: string) => Demenagement = () => ({ demenage: { projet: "parade", de: "parade-box", vers: "macbook" } }), projet: Projet = PARADE) {
-  const jouee = await jouerLaVue({ demarrage: () => demarrage([projet], vu), demenagerLaCuisine: demenager, espace: () => [] });
+async function laPage(vu: VuDesProjets, demenager: (nom: string, vers: string) => Demenagement = () => ({ demenage: { projet: "parade", de: "parade-box", vers: "macbook" } }), projet: Projet = PARADE, stations: VuDesStations = STATIONS) {
+  const jouee = await jouerLaVue({ demarrage: () => demarrage([projet], vu, stations), demenagerLaCuisine: demenager, espace: () => [] });
   (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
   await repos();
   assert.equal(jouee.element("espace").textContent, "parade");
   return { jouee, bloc: jouee.element("stations-du-projet") };
 }
 
-test("un projet qui cuit sur sa box : « Cooks on parade-box », sans rien dire de l'app qu'on ferme", async () => {
-  const { bloc } = await laPage(vuDes(SUR_LA_BOX));
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
-  assert.doesNotMatch(bloc.textContent, /stops when you close the app/);
-  const sienne = ligne(bloc).dessous("button")[0] ?? assert.fail();
-  assert.equal(sienne.ariaLabel, "parade-box — served");
+// Les stations, telles qu'elles disent servir parade — ce que l'onglet Stations lit pour dire qui le cuit.
+const SERVIES_PAR_LA_BOX: VuDesStations = { a: A, stations: [{ ...BOX, projets: ["parade"] }, MAC] };
+const SERVIES_PAR_LE_MAC: VuDesStations = { a: A, stations: [BOX, { ...MAC, projets: ["parade"] }] };
+const etiquette = (jouee: Awaited<ReturnType<typeof laPage>>["jouee"]) => jouee.element("etiquette-de-station");
+const sansBouton = (bloc: Faux) => (bloc.hidden ? [] : boutons(bloc)).filter(({ textContent }) => ["move the kitchen", "+ station"].includes(textContent));
+
+test("un projet qui cuit sur sa box : rien au-dessus des colonnes, la station et son état à côté de l'onglet Stations", async () => {
+  const { jouee, bloc } = await laPage(vuDes(SUR_LA_BOX), undefined, PARADE, SERVIES_PAR_LA_BOX);
+  assert.equal(montre(jouee.element("rail"), bloc) && !bloc.hidden, false, "la ligne des stations est partie de Rail");
+  assert.equal(sansBouton(bloc).length, 0);
+  assert.doesNotMatch(bloc.textContent, /Cooks on|stops when you close the app/);
+  assert.equal(etiquette(jouee).hidden, false);
+  assert.equal(etiquette(jouee).textContent, "parade-box · cooking");
+  assert.doesNotMatch(etiquette(jouee).title, /stops when you close the app/);
 });
 
-test("la station ajoutée est dite comme la première : pastille verte quand elle sert le projet, grise sinon (#1757)", async () => {
-  const avec = (etat: "servi" | "attendu") => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", etat, "macbook has not read it yet")] });
-  const leMac = async (vu: VuDesProjets) => {
-    const { bloc } = await laPage(vu);
-    const sienne = ligne(bloc).dessous("button").find(({ ariaLabel }) => ariaLabel.startsWith("macbook")) ?? assert.fail("pas de macbook");
-    return { ton: sienne.children[0]?.dataset.ton, aria: sienne.ariaLabel };
-  };
-  assert.deepEqual(await leMac(avec("servi")), { ton: "vert", aria: "macbook (this computer) — served" });
-  assert.deepEqual(await leMac(avec("attendu")), { ton: "gris", aria: "macbook (this computer) — not read yet" });
+test("un projet qui cuit sur ce Mac : l'étiquette le dit, et sa cuisine s'arrête quand on ferme l'app — au survol, jamais d'une autre station", async () => {
+  const { jouee, bloc } = await laPage(vuDes(SUR_LE_MAC), undefined, PARADE, SERVIES_PAR_LE_MAC);
+  assert.equal(bloc.hidden, true);
+  assert.match(etiquette(jouee).textContent, /^macbook.* · cooking$/);
+  assert.match(etiquette(jouee).title, /its kitchen stops when you close the app/);
 });
 
-test("la station ajoutée depuis l'app qui ne sert rien n'est pas une « second station » : la ligne dit où elle en est, avec de quoi relire (#1774)", async () => {
-  const bloquee = (etat: "attendu" | "a-autoriser" | "refuse", dit = "") => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", etat, dit)] });
-  const attendue = (await laPage(bloquee("attendu"))).bloc;
-  assert.equal(ligne(attendue).textContent, "Cooks on parade-box · macbook (this computer)not received by the stationcheck again");
-  assert.doesNotMatch(attendue.textContent, /second station/);
-  const sienne = ligne(attendue).dessous("button").find(({ ariaLabel }) => ariaLabel.startsWith("macbook")) ?? assert.fail("pas de macbook");
-  assert.equal(sienne.children[0]?.dataset.ton, "gris");
-  assert.match(ligne(attendue).dessous("span").find(({ className }) => className === "pourquoi")?.title ?? "", /open Brigade on macbook's computer/);
-  bouton(attendue, "check again");
-  const refusee = (await laPage(bloquee("refuse", "refused: no sandbox"))).bloc;
-  assert.match(ligne(refusee).textContent, /macbook \(this computer\)/);
-  assert.doesNotMatch(refusee.textContent, /second station/);
-  const autorisation = (await laPage(bloquee("a-autoriser"))).bloc;
-  assert.match(ligne(autorisation).textContent, /macbook \(this computer\)waiting for your authorization on GitHub/);
+test("un déménagement en route : sa ligne reste sur Rail, sans le bouton qui le demande", async () => {
+  const enRoute: ProjetVu = { ...SUR_LA_BOX, demenagement: { de: "parade-box", vers: "macbook", demandeLe: A, etape: "acceptee", dit: "ready to take it over from parade-box" } };
+  const { jouee, bloc } = await laPage(vuDes(enRoute));
+  assert.equal(bloc.hidden, false);
+  assert.match(ligne(bloc).textContent, /^ · moving to macbook…/);
+  assert.equal(sansBouton(bloc).length, 0);
+  assert.match(etiquette(jouee).textContent, /^moving to macbook$/);
 });
 
-test("un projet qui cuit sur ce Mac : « Cooks on macbook (this computer) », et sa cuisine s'arrête quand on ferme l'app", async () => {
-  const { bloc } = await laPage(vuDes(SUR_LE_MAC));
-  assert.equal(ligne(bloc).textContent, "Cooks on macbook (this computer) · its kitchen stops when you close the app · parade-box");
-  const sienne = ligne(bloc).dessous("button")[0] ?? assert.fail();
-  assert.match(sienne.title, /^macbook, this computer's station/);
-});
-
-test("un projet que la station de ce Mac sert sans l'app (#1122) se dit de même, sans geste pour le déménager", async () => {
-  // `ici`, posé comme main.ts le pose : la configuration de la station de ce Mac a sa ligne.
-  const ici = await jouerLaVue({ demarrage: () => ({ ...demarrage([], vuDes()), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, undefined, () => true) }), espace: () => [] });
-  (ici.element("projets").children.at(1) ?? assert.fail()).click();
-  await repos();
-  const sienne = ici.element("stations-du-projet");
-  assert.equal(ligne(sienne).textContent, "Cooks on macbook (this computer) · its kitchen stops when you close the app");
-  assert.equal(boutons(sienne).some(({ textContent }) => textContent === "move the kitchen"), false, "rien ne part d'une station que l'app ne connaît pas");
-});
-
-test("un seul geste l'emmène sur ce Mac : le choix dit d'où, vers où, et son prix en une ligne", async () => {
-  const { jouee, bloc } = await laPage(vuDes(SUR_LA_BOX));
-  bouton(bloc, "move the kitchen").click();
-  await repos();
-  const ouvert = choix(bloc);
-  assert.equal(ouvert.hidden, false);
-  assert.equal(ouvert.dessous("p")[0]?.textContent, "Move parade's kitchen from parade-box to:");
-  assert.deepEqual(boutons(ouvert).map(({ textContent }) => textContent), ["macbook", "Cancel"]);
-  assert.equal(bouton(ouvert, "macbook").title, "stops when you close the app on this computer");
-  assert.equal(ouvert.dessous("p").filter(({ className }) => className === "prix").map(({ textContent }) => textContent).join(), "Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.");
-  assert.equal(boutons(bloc).some(({ textContent }) => textContent === "move the kitchen"), false, "le geste ouvert ne se rouvre pas");
-
-  bouton(ouvert, "macbook").click();
-  await repos();
-  assert.deepEqual(jouee.dernier("demenagerLaCuisine"), ["parade", "gmac"]);
-  assert.equal(ouvert.hidden, true);
-  assert.equal(dit(bloc).textContent, "parade's kitchen moves to macbook: parade-box hands it over as soon as macbook is ready — until then it cooks on parade-box");
-  assert.equal(dit(bloc).classList.contains("refus"), false);
-  // La ligne dit où il cuit, tel que les stations le publient : toujours la box, tant qu'elle n'a pas remis.
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
-});
-
-test("le même geste le ramène sur sa box — recommandée, toujours allumée — ou sur une autre station", async () => {
-  const { jouee, bloc } = await laPage(vuDes(SUR_LE_MAC));
-  bouton(bloc, "move the kitchen").click();
-  await repos();
-  const ouvert = choix(bloc);
-  assert.equal(ouvert.dessous("p")[0]?.textContent, "Move parade's kitchen from macbook to:");
-  const box = bouton(ouvert, "parade-box");
-  assert.equal(box.className, "recommande");
-  assert.equal(box.title, "always on: it keeps cooking while your computer sleeps");
-  box.click();
-  await repos();
-  assert.deepEqual(jouee.dernier("demenagerLaCuisine"), ["parade", "gbox"]);
-  // Aucun retrait, aucun rajout : seul le déménagement est parti.
-  assert.equal(jouee.appels.some(({ geste }) => ["retirerDUneStation", "confierAUneStation", "ajouterAUneStation", "desinstaller"].includes(geste)), false);
-});
-
-test("refusé — pas de bac à sable sur ce Mac —, la raison se lit en une phrase, et la ligne ne change pas", async () => {
-  const said = "la configuration du bac à sable ne tient pas sur ce Mac — sandbox-exec is missing";
-  const { bloc } = await laPage(vuDes(SUR_LA_BOX), () => ({ refus: said }));
-  bouton(bloc, "move the kitchen").click();
-  await repos();
-  bouton(choix(bloc), "macbook").click();
-  await repos();
-  assert.equal(dit(bloc).hidden, false);
-  assert.equal(dit(bloc).textContent, `parade stays on parade-box: ${said}`);
-  assert.ok(dit(bloc).classList.contains("refus"));
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)");
-  assert.equal(choix(bloc).hidden, true);
-  // Le geste reste offert : on peut réessayer une fois le bac à sable posé.
-  bouton(bloc, "move the kitchen");
-});
-
-test("un refus sans phrase du runtime — GitHub injoignable — se dit en une ligne, son détail au survol", async () => {
-  const { bloc } = await laPage(vuDes(SUR_LA_BOX), () => ({ refus: "GitHub could not be read or written: nothing was changed", detail: "brigade : … HTTP 502" }));
-  bouton(bloc, "move the kitchen").click();
-  await repos();
-  bouton(choix(bloc), "macbook").click();
-  await repos();
-  assert.equal(dit(bloc).textContent.startsWith("parade stays on parade-box: GitHub could not be read or written: nothing was changed"), true);
-  assert.doesNotMatch(dit(bloc).textContent, /HTTP 502/);
-  assert.equal(dit(bloc).dessous("button").find(({ className }) => className === "aide")?.ariaLabel, "brigade : … HTTP 502");
-});
-
-test("refusé par ce Mac après coup, la page dit pourquoi, la ligne reste sur la box, et le déménagement se reprend", async () => {
+test("refusé par ce Mac après coup : la raison reste dite sur Rail, en une phrase, sans bouton ; le déménagement se reprend dans l'onglet Stations", async () => {
   const raison = "la configuration du bac à sable ne tient pas sur ce Mac — sandbox-exec is missing";
   const refuse: ProjetVu = {
     ...SUR_LA_BOX,
@@ -193,33 +106,8 @@ test("refusé par ce Mac après coup, la page dit pourquoi, la ligne reste sur l
     stations: [station("gmac", "macbook", "refuse", raison), station("gbox", "parade-box")],
     demenagement: { de: "parade-box", vers: "macbook", demandeLe: A, etape: "refusee", dit: raison },
   };
-  const { jouee, bloc } = await laPage(vuDes(refuse));
-  assert.match(ligne(bloc).textContent, /^Cooks on parade-box/);
+  const { bloc } = await laPage(vuDes(refuse));
+  assert.equal(bloc.hidden, false);
   assert.equal(dit(bloc).textContent, `parade stays on parade-box: macbook refused to take it over — ${raison}`);
-  bouton(bloc, "move the kitchen").click();
-  await repos();
-  bouton(choix(bloc), "keep it on parade-box").click();
-  await repos();
-  assert.deepEqual(jouee.dernier("demenagerLaCuisine"), ["parade", "gbox"]);
-  assert.equal(dit(bloc).textContent, "parade keeps cooking on parade-box: the move is called off");
-});
-
-test("accepté, le déménagement va à son terme : la ligne dit qu'il part, et aucun autre ne se demande", async () => {
-  const enRoute: ProjetVu = { ...SUR_LA_BOX, demenagement: { de: "parade-box", vers: "macbook", demandeLe: A, etape: "acceptee", dit: "ready to take it over from parade-box" } };
-  const { bloc } = await laPage(vuDes(enRoute));
-  assert.match(ligne(bloc).textContent, /^Cooks on parade-box · moving to macbook…/);
-  assert.equal(boutons(bloc).some(({ textContent }) => textContent === "move the kitchen"), false);
-});
-
-test("le Mac de la box ne sert qu'un autre projet : même nom que sur cet autre projet, ni « first » ni « second », et pourquoi il ne cuit pas ici (#2705)", async () => {
-  const mac = { ...MAC, projets: ["baloo"] };
-  const vu = { ...vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", "attendu")] }) };
-  const jouee = await jouerLaVue({ demarrage: () => ({ ...demarrage([PARADE], vu), stations: { a: A, stations: [BOX, mac] } }), espace: () => [] });
-  (jouee.element("projets").children.at(1) ?? assert.fail()).click();
-  await repos();
-  const bloc = jouee.element("stations-du-projet");
-  assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (this computer)does not serve this project");
-  assert.doesNotMatch(bloc.textContent, /first station|second station|keeps the manager/);
-  const pourquoi = ligne(bloc).dessous("span").find(({ className }) => className === "pourquoi") ?? assert.fail("pas de raison");
-  assert.equal(pourquoi.title, "tick it in its projects");
+  assert.equal(sansBouton(bloc).length, 0);
 });

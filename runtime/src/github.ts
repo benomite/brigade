@@ -20,6 +20,14 @@ export const LABEL = "fire";
 // Le label par lequel un ticket dit qu'il ne se sert pas sur cette box — sa base
 // n'est pas celle du projet, par exemple. Il l'emporte sur `fire`.
 export const HORS_CUISINE = "served-elsewhere";
+// Le label par lequel la station met de côté un ticket dont les cooks ont raté trop de fois
+// (ou dont la livraison a été renvoyée trop de fois). Aucune autre station ne le sert : il ne
+// prend jamais `served-elsewhere`, qui ne se pose que de la main de quelqu'un qui sait
+// qu'une autre box le sert (#3528). Il l'emporte sur `fire` comme lui.
+export const ECHECS_ATTEINTS = "set-aside:failures";
+// Les labels qui tiennent un ticket hors de la cuisine par la station ou de la main du chef.
+export const MIS_DE_COTE = [HORS_CUISINE, ECHECS_ATTEINTS] as const;
+export const estMisDeCote = (labels: readonly string[]): boolean => MIS_DE_COTE.some((label) => labels.includes(label));
 
 export type Issue = {
   number: number;

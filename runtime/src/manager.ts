@@ -31,7 +31,7 @@ import { commandeRendre, NOMS_DE_NATURE_EN, type Ecart, type FaitManager, type N
 import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
-import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
+import { ECHECS_ATTEINTS, HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
@@ -67,7 +67,7 @@ const LABEL_EPIQUE = "epic";
 // Les écarts que le manager dit sur l'issue quand le chef y a posé `fire`.
 // Dans chaque commentaire de station qui sort un ticket de la cuisine (renvois, échecs).
 const MARQUE_STATION_HORS_CUISINE = "Taken off the kitchen (`served-elsewhere`)";
-const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", ...LABELS_ECARTES];
+const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", "set-aside:failures", ...LABELS_ECARTES];
 
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
@@ -159,6 +159,7 @@ const RAISONS: Partial<Record<Ecart, string>> = {
   decision: "it has the `decision` label",
   "blocked-on-human": "it has the `blocked-on-human` label",
   "served-elsewhere": "it has the `served-elsewhere` label: it is not served on this box",
+  "set-aside:failures": "it has the `set-aside:failures` label: its failure count set it aside",
   "already-split": "it is an epic whose body already lists its tickets",
   vision: "it is a product vision or a reference document, not a deliverable",
 };
@@ -262,6 +263,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // La roadmap est un document de suivi, jamais un ticket : reconnue avant
     // tout le reste, elle n'est ni jugée, ni lancée, ni au chef (#3436).
     if (estLaRoadmap(issue.number)) return { quoi: "ecart", raison: "roadmap", fired };
+    // Mis de côté par son compte d'échecs : aucune station ne le sert, et il ne repart pas sans que son label tombe.
+    if (issue.labels.includes(ECHECS_ATTEINTS)) return { quoi: "ecart", raison: ECHECS_ATTEINTS, fired };
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
     // `fire` posé, calibrage complet compris.
     if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "served-elsewhere", fired };
@@ -516,7 +519,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   };
 
   const direEcart = (connue: IssueDuManager, parLaStation = false): string =>
-    connue.reason === ("served-elsewhere" satisfies Ecart)
+    connue.reason === ECHECS_ATTEINTS
+      ? [
+          MARQUEUR_MANAGER,
+          `**Manager — set aside by its failure count (\`${ECHECS_ATTEINTS}\`).**${connue.fired ? " `fire` is set on it, and the label wins: the ticket does not enter the rail, no cook starts." : " It does not enter the rail."} Its cooks stopped without a delivery too many times in a row; no other box serves it.`,
+          "",
+          `The reason is in the station's last comment. Remove \`${ECHECS_ATTEINTS}\` to try the ticket again.`,
+        ].join("\n")
+      : connue.reason === ("served-elsewhere" satisfies Ecart)
       ? parLaStation
         ? [
             MARQUEUR_MANAGER,

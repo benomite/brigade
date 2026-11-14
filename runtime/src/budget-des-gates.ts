@@ -24,7 +24,7 @@ import type { Base } from "./base.ts";
 import { budgetDuPassage, dernierPassage, genreDe, lireBudget, lireBudgetDeLaBase, type BudgetDesGates, type PassageDesGates } from "./cout-des-gates.ts";
 import { decisionsPosees } from "./decisions.ts";
 import type { DimensionDuBudget, FaitBudgetDesGates, GenreDuBudget } from "./events/gates.ts";
-import { HORS_CUISINE, LABEL, type GitHub } from "./github.ts";
+import { estMisDeCote, LABEL, type GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { lireRail } from "./projections/rail.ts";
 
@@ -176,7 +176,7 @@ export async function tenirLeBudget(options: OptionsBudget): Promise<{ ticket: n
   let suivi = dernierSuivi(base, projet);
   if (suivi?.type === OUVERT && suivi.ticket !== null) {
     const lue = await github.issue(suivi.ticket);
-    const surLeRail = lue !== null && lue.state === "open" && lue.labels.includes(LABEL) && !lue.labels.includes(HORS_CUISINE);
+    const surLeRail = lue !== null && lue.state === "open" && lue.labels.includes(LABEL) && !estMisDeCote(lue.labels);
     if (surLeRail) return { ticket: suivi.ticket, ouvert: false };
     noter(suivi.ticket, { type: FERME, payload: { state: lue === null ? "gone" : lue.state === "open" ? "off-rail" : "closed" } });
     suivi = null;

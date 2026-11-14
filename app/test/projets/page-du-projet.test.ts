@@ -345,87 +345,13 @@ test("ce qui manque se lit sous le choix, et rien ne se ferme", async () => {
   assert.match(formulaire.textContent, /How many cooks may a station run at once for this project\?/);
 });
 
-test("confiée, la page nomme les stations qui font sa cuisine, et « + station » n'offre qu'une machine de plus, sans calibrage à redire", async () => {
+test("confiée, Rail ne nomme plus ses stations ni n'offre « + station » : une station s'ajoute depuis l'onglet Stations (#3523)", async () => {
   const { jouee, bloc } = await laPage(CONFIE);
-  const ligne = bloc.children[0] ?? assert.fail("pas de ligne");
-  assert.equal(ligne.textContent, "Cooks on parade-box");
-  const station = ligne.dessous("button")[0] ?? assert.fail("la station ne s'ouvre pas");
-  assert.equal(station.ariaLabel, "parade-box — being prepared");
-  assert.match(station.title, /cloning benomite\/parade/);
-
-  boutonSous(bloc, "+ station").click();
-  await repos();
-  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
-  // Une machine à la fois, choisie d'office : la seule qui ne la cuit pas encore.
-  assert.deepEqual(machines(formulaire, "radio").map(({ nom, choisie }) => [nom, choisie]), [["macbook", true]]);
-  assert.deepEqual(machines(formulaire, "checkbox"), []);
-  assert.equal(visibles(formulaire, "select").length, 0);
-  assert.equal(visibles(formulaire, "details").length, 0);
-  await Promise.all(formulaire.declencher("submit"));
-  await repos();
-  const [saisie] = jouee.dernier("confierAUneStation") as [{ stations: string[] }];
-  assert.deepEqual(saisie.stations, ["g2"]);
-  assert.match(bloc.textContent, /parade is asked of macbook: it prepares it within a minute/);
-
-  // Un clic sur une station ouvre sa page.
-  station.click();
-  await repos();
-  assert.equal(jouee.element("tous").hidden, false);
-  assert.equal(jouee.element("station").dessous("h2")[0]?.textContent, "parade-box");
-});
-
-// Ajouter cet ordinateur à un projet déjà ouvert dans l'app (ticket 1307) : le formulaire ne parle que de la machine.
-test("« + station » : ni dépôt ni branche ; dès l'ouverture, cet ordinateur choisi, ses cooks, son dossier et ses capacités posés, les détectées cochées", async () => {
-  const { jouee, bloc } = await laPage(CONFIE_ICI);
-  boutonSous(bloc, "+ station").click();
-  await repos();
-  // Ce que cet ordinateur propose est lu avant que le formulaire se montre, pour ce projet.
-  assert.deepEqual(jouee.dernier("defautsDeStation"), ["parade"]);
-  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  assert.equal(formulaire.hidden, false);
-  assert.equal(parLibelle(formulaire, "repository"), undefined);
-  assert.equal(parLibelle(formulaire, "integration branch"), undefined);
-  assert.deepEqual(visibles(formulaire, "label").concat(visibles(formulaire, "legend")).filter(({ textContent }) => /repository|branch/i.test(textContent)), []);
-  assert.equal(jouee.appels.some(({ geste }) => geste === "depotsDuChef"), false);
-  // Au premier rendu, sans autre clic, chaque champ est là, rempli.
-  assert.deepEqual(champsVus(formulaire), [
-    "macbook is the station to add=true",
-    "cooks at once=5",
-    "workspace folder=/Users/chef/.local/state/brigade/worktrees",
-    "a browser=true",
-    "the Android SDK=false",
-    "Docker=true",
-  ]);
-  assert.equal(parLibelle(formulaire, "workspace folder")?.readOnly, true);
-  assert.match(formulaire.textContent, /recommended — from this computer's 7 cores: two are kept for the kitchen itself, then about one per cook/);
-  assert.equal(formulaire.dessous("legend").find(({ textContent }) => textContent.startsWith("What"))?.textContent, "What this computer can do");
-  assert.deepEqual(capacites(formulaire).map(({ dit }) => dit), ["detected", "not found on this computer", "detected"]);
-  boutonSous(formulaire, "Add a project");
-});
-
-test("garder tout et cliquer Add ajoute la station avec ses cooks et ses capacités détectées, et elle paraît dans la liste des stations", async () => {
-  const { jouee, bloc } = await laPage(CONFIE_ICI);
-  boutonSous(bloc, "+ station").click();
-  await repos();
-  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  boutonSous(formulaire, "Add a project").click();
-  await Promise.all(formulaire.declencher("submit"));
-  await repos();
-  const [saisie] = jouee.dernier("confierAUneStation") as [{ nom: string; depot: string; base: string; stations: string[]; cooks: string; capacites: string[] }];
-  assert.deepEqual(
-    { nom: saisie.nom, stations: saisie.stations, cooks: saisie.cooks, capacites: saisie.capacites },
-    { nom: "parade", stations: ["g2"], cooks: "5", capacites: ["navigateur-headless", "docker"] },
-  );
-  assert.equal(formulaire.hidden, true);
-  // Le process principal relit les projets après l'écriture : la station neuve est sur la ligne.
-  const [premiere] = CONFIE.projets[0]?.stations ?? [];
-  jouee.dire("surProjetsDesStations", {
-    ...CONFIE_ICI,
-    projets: [{ ...(CONFIE.projets[0] ?? assert.fail("pas de projet")), stations: [premiere ?? assert.fail("pas de station"), { id: "g2", nom: "macbook", etat: "attendu", dit: "macbook has not read it yet: it reads what the app asks every 30 s", autoriser: [] }] }],
-  });
-  await repos();
-  assert.match(bloc.children[0]?.textContent ?? "", /parade-box.*macbook/);
+  assert.equal(bloc.hidden, true, "aucune ligne de stations au-dessus des colonnes");
+  assert.doesNotMatch(bloc.textContent, /Cooks on/);
+  assert.equal(boutonSous(bloc, "+ station").hidden, true);
+  await ouvrirOnglet(jouee, "Stations");
+  assert.equal(boutonSous(bloc, "+ station").hidden, true);
 });
 
 test("ce que le chef décoche ou change part tel quel ; les cases cochées restent d'une relecture à l'autre", async () => {
@@ -483,34 +409,16 @@ test("cet ordinateur illisible : la raison en une ligne, son détail au survol �
   assert.equal((jouee.dernier("confierAUneStation") as [{ capacites: string[] }])[0].capacites.length, 0);
 });
 
-test("« + station » ouvre son parcours, et la box est relue dès que la demande est écrite ; sur l'onglet Stations, il n'est pas : l'onglet a son choix (#3195)", async () => {
-  const { jouee, bloc } = await laPage(CONFIE);
-  await ouvrirOnglet(jouee, "Stations");
-  assert.equal(boutonSous(bloc, "+ station").hidden, true);
-  await ouvrirOnglet(jouee, "Rail");
-  const bouton = boutonSous(bloc, "+ station");
-  assert.equal(bouton.hidden, false);
-  bouton.click();
-  await repos();
-  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  assert.equal(formulaire.hidden, false);
-  assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
-  const relectures = jouee.appels.filter(({ geste }) => geste === "relireBox").length;
-  await Promise.all(formulaire.declencher("submit"));
-  await repos();
-  assert.equal(jouee.dernier("confierAUneStation").length, 1);
-  assert.equal(jouee.appels.filter(({ geste }) => geste === "relireBox").length, relectures + 1);
-});
-
-test("une station qui sert le projet sans l'app le fait aussi : la page la nomme, et ne dit jamais qu'aucune ne le fait", async () => {
+test("une station qui sert le projet sans l'app le fait aussi : l'étiquette la nomme, et la page ne dit jamais qu'aucune ne le fait", async () => {
   const jouee = await jouerLaVue({
     demarrage: () => ({ ...demarrage([PARADE], SANS_PROJET), stations: { a: A, stations: [{ ...BOX, projets: ["parade"] }, MAC] } }),
     espace: () => [],
   });
   (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
   await repos();
-  assert.equal(jouee.element("stations-du-projet").children[0]?.textContent, "Cooks on parade-box");
-  assert.doesNotMatch(jouee.element("stations-du-projet").textContent, /No station/);
+  // Le projet est servi : Rail ne dit ni « No station cooks », ni « Cooks on » — l'étiquette de l'onglet Stations dit qui le cuit.
+  assert.doesNotMatch(jouee.element("stations-du-projet").textContent, /No station|Cooks on/);
+  assert.equal(jouee.element("etiquette-de-station").textContent, "parade-box · cooking");
 });
 
 test("un projet écrit à la main, sans dépôt, choisit le sien parmi ceux du chef au moment de le confier", async () => {

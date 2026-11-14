@@ -38,6 +38,15 @@ export function refusDuBacSansGit(texte: string): boolean {
   return REFUS_DU_BAC.test(texte) && !ECHEC_DE_GIT.test(texte);
 }
 
+// Un réglage du bac à sable à poser dans un fichier de réglages (`allowLocalBinding`,
+// un bloc `"sandbox": {…}` dans `settings.json`) : jamais un geste que le chef peut
+// réussir, la cuisine ne lui demande rien là-dessus (#3562, épique #3540).
+const REGLAGE_DU_BAC = /\ballowLocalBinding\b|"sandbox"\s*:|\bsandbox\.(?:network|filesystem)\b|\bsettings(?:\.local)?\.json\b[^\n]*\bsandbox\b|\bsandbox\b[^\n]*\bsettings(?:\.local)?\.json\b/i;
+
+export function demandeUnReglageDuBac(texte: string): boolean {
+  return REGLAGE_DU_BAC.test(texte) && !ECHEC_DE_GIT.test(texte);
+}
+
 export function demandeUnGesteGit(texte: string): boolean {
   if (refusDuBacSansGit(texte)) return false;
   return COMMANDE_GIT.test(texte) || (VERBE_GIT.test(texte) && OBJET_GIT.test(texte));
@@ -48,6 +57,11 @@ export function demandeUnGesteGit(texte: string): boolean {
 // toute carte qui nomme la branche d'un cook (`cook/<N>-`) ou une commande git.
 // Une question de produit qui ne nomme ni l'une ni l'autre reste au chef, quels
 // que soient ses mots (#3476).
+// La carte du chef (`teteDeCarte`) qui lui demande un réglage du bac à sable.
+export function carteDeBacASable(tete: string): boolean {
+  return demandeUnReglageDuBac(tete) || (/^\*\*Gesture for the chef\b/.test(tete) && refusDuBacSansGit(tete));
+}
+
 export function carteDeGesteGit(tete: string): boolean {
   if (refusDuBacSansGit(tete)) return false;
   return (/^\*\*Gesture for the chef\b/.test(tete) && demandeUnGesteGit(tete)) || COMMANDE_GIT.test(tete) || /\bcook\/[1-9]\d*-/.test(tete);

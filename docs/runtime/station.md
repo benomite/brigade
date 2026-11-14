@@ -360,7 +360,11 @@ issue changes, and enters the log (`ticket.arrived`, `ticket.changed`, field `ca
 The comment on the issue and the station journal both say why: the exit code and the last lines
 `claude` wrote (its standard error, else its last message). A stop the cook did not cause does not
 count as one of the 3 tries: Claude quota or usage limit, a lost Claude session, a GitHub limit, a
-station stopped or a process killed. The ticket is given back with an `attente` marker on its issue
+station stopped or a process killed. **A cook killed from outside** — SIGTERM, which reads as the
+signal or as exit code 143 (the station restarting or updating, the app closed) — is such a stop
+(#3528): it counts neither for the breaker nor for the ticket's tries (`cook.exited` carries
+`outcome: stop`, `cause: external`), and the ticket goes back to the rail for a cook to take again.
+Only the failures the cooks caused open the breaker. The ticket is given back with an `attente` marker on its issue
 and is not taken again before it ends: 30 minutes, or the time the quota comes back when the stream
 says it (6 hours at most). It is then retried, never set aside for it. **A cook that dies because
 its own station stops waits for nothing** (#2543): the station is told it stops before the runtime
@@ -411,14 +415,29 @@ still open, the cook's answer is an ordinary failed attempt, with the reason in 
 
 ### Relaunching a set-aside ticket
 
-A station on GitHub alone sets a ticket aside (`served-elsewhere`) after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or
-after 2 sends back of the same delivery. To relaunch it, fix the cause, then **remove `served-elsewhere`**
+A station on GitHub alone sets a ticket aside after 3 cooks in a row without a delivery (or 2 in a row with the same stop reason, #2729), or
+after 2 sends back of the same delivery. It puts `set-aside:failures` on it and says so in its own
+words in its comment ("Set aside by its failure count") and on its card: nobody else serves it.
+`served-elsewhere` is never put by the station: it says that another station serves the ticket, and
+is set by whoever knows it does (#3528). To relaunch it, fix the cause, then **remove
+`set-aside:failures`** (or `served-elsewhere`, on a ticket set aside before #3528)
 from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
 the next turn, and both counts restart: the cooks without a delivery and the sends back are counted
 from the removal, which every station reads on GitHub (the issue's label-removal event), so the next
 set-aside needs the full number of failures again. The earlier `brigade:echec` and `brigade:renvoi`
 comments stay on the issue as history. A delivery that was already good needs no `in-pass` by hand:
 it is reviewed again once the ticket is served.
+
+**Reconciliation at start** (#3528, `runtime/src/arrets-externes.ts`, `runtime/src/garde-fous.ts`).
+Before the fix, cooks killed from outside were counted as failures. When the runtime starts, once, it
+reads again the failures it recorded: those whose cook ended with exit code 143 (or SIGTERM), with no
+guardrail tripped and no launch error, are dropped (`cook.reclassified`), and a breaker that no longer
+holds is closed (`breaker.lifted`) — no `resume` of the chef. At its first turn the station does the same for the tickets it
+set aside: when its last comment on a ticket is the one that set it aside, and without the cooks
+killed from outside the failures no longer reach the threshold, it comments on the ticket, puts it
+back on the rail (`fire`) and removes the label. A set-aside by real failures, or by the chef,
+stays as it is. A ticket whose comments cannot be read is left as it is, said in the journal, and
+read again at the next turn.
 
 ### The capabilities a ticket asks for
 

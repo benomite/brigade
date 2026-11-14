@@ -76,7 +76,8 @@ test("#2557 on 2026-11-06: the same stop without a reply, with the same reason t
   // la relecture de sa PR demande des changements — et pas une troisième.
   assert.equal(echecs.length, 4);
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
-  assert.match(echecs[1] ?? "", /Taken off the kitchen/);
+  assert.match(echecs[1] ?? "", /Set aside by its failure count/);
   assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:relance")).length, 2);
-  assert.ok(faux.ticket(TICKET).labels.has("served-elsewhere"));
+  assert.ok(faux.ticket(TICKET).labels.has("set-aside:failures"));
+  assert.ok(!faux.ticket(TICKET).labels.has("served-elsewhere"));
 });

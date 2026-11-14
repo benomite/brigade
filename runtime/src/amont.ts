@@ -10,7 +10,7 @@ import { priorite } from "./alimenter.ts";
 import { bilanDEpique } from "./bilan-epique.ts";
 import { decrire, decrireEcart } from "./dire-manager.ts";
 import type { Nature } from "./events/manager.ts";
-import { HORS_CUISINE, LABEL, type Issue } from "./github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, LABEL, type Issue } from "./github.ts";
 import type { Base } from "./base.ts";
 import { decoupageDe, ticketDEpique, ticketsDEpique } from "./projections/splits.ts";
 import { issueDuManager, remiseDe, seqDeDecision } from "./projections/manager.ts";
@@ -50,7 +50,7 @@ function etatDe(base: Base, issue: Issue, attentes: Map<number, string>): { etat
   const sort = sortDuTicket(base, ticket);
   // Ce que le rail en a fait ne vaut que s'il est plus récent que ce que le manager en a décidé.
   const sortRecent = sort !== null && (decidee === null || sort.seq > decidee) ? sort : null;
-  const horsCuisine = labels.includes(HORS_CUISINE);
+  const horsCuisine = estMisDeCote(labels);
 
   if (!horsCuisine && labels.includes(LABEL)) return { etat: "en-route", dit: "it carries `fire`: the rail takes it on its next poll" };
   if (!horsCuisine && decision?.decision === "fire" && sortRecent === null) return { etat: "en-route", dit: `put on the rail by the manager, ${decision.model} / ${decision.effort} — \`fire\` is not set on it yet` };
@@ -132,6 +132,7 @@ function avantDe(base: Base, issue: Issue, amont: IssueAmont): { etat: EtatAvant
   const { dit } = amont;
   if (amont.etat === "servie" || amont.etat === "decoupee") return null;
   if (amont.etat === "en-route" && labels.includes(LABEL)) return null;
+  if (labels.includes(ECHECS_ATTEINTS)) return { etat: "mise-de-cote", dit: `set aside by its failure count: its cooks stopped without a delivery too many times in a row (\`${ECHECS_ATTEINTS}\`) — the station's last comment on the issue says why; remove the label to try again` };
   if (labels.includes(HORS_CUISINE)) return { etat: "mise-de-cote", dit: `it carries \`${HORS_CUISINE}\`: this kitchen does not serve it` };
   const decision = issueDuManager(base, ticket);
   const decoupage = decoupageDe(base, ticket);
