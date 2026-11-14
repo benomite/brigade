@@ -17,7 +17,7 @@
 // Les marques comptent depuis le dernier retrait de `fire` ou de
 // `served-elsewhere` : remettre le ticket sur le rail les oublie toutes.
 import { DE_CONFIANCE } from "../alimenter.ts";
-import { HORS_CUISINE, LABEL } from "../github.ts";
+import { LABEL, MIS_DE_COTE } from "../github.ts";
 
 // La marque du commentaire d'incapacité, suivie de la station qu'elle nomme.
 export const MARQUE_D_INCAPACITE = "<!-- brigade:station-incapable";
@@ -41,7 +41,7 @@ export function gatesInjouables(question: string): boolean {
 // depuis qu'il a été remis sur le rail. Seuls comptent les commentaires du
 // dépôt, comme pour la prise.
 export function incapables(commentaires: readonly { body: string; association: string; createdAt: string }[], retraits: readonly { label: string; createdAt: string }[]): Set<string> {
-  const relance = Math.max(0, ...retraits.filter((r) => r.label === LABEL || r.label === HORS_CUISINE).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
+  const relance = Math.max(0, ...retraits.filter((r) => r.label === LABEL || (MIS_DE_COTE as readonly string[]).includes(r.label)).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
   const marquees = new Set<string>();
   for (const c of commentaires) {
     if (!DE_CONFIANCE.includes(c.association) || Date.parse(c.createdAt) <= relance) continue;

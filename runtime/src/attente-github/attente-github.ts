@@ -27,7 +27,7 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
-import { HORS_CUISINE, LABEL, type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
+import { LABEL, MIS_DE_COTE, type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
 import { carteEnCours, CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { GesteRefuse } from "../rail.ts";
 
@@ -160,7 +160,7 @@ export async function reprendreGitHub(github: GitHubDeLAttente, cible: Cible): P
 
 // Ce qui, sur l'issue, tient un ticket hors de la cuisine : TODO et la mise de côté. Lu à l'appel :
 // la guérison importe ce module pendant que brigade-github.ts, qui définit `A_LA_MAIN`, se charge (#3134).
-const horsDeLaCuisine = () => [CHEF_TODO, A_LA_MAIN, HORS_CUISINE];
+const horsDeLaCuisine = () => [CHEF_TODO, A_LA_MAIN, ...MIS_DE_COTE];
 
 // « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
 // TODO. `fire` d'abord, puis les labels retirés, `waiting` en dernier : une

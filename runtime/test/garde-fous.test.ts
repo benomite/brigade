@@ -620,11 +620,81 @@ test("trois cooks signalés pendant un « stop » du chef : ni échec compté, n
   for (const e of runtime.journal.tout().filter((e) => e.type === "cook.exited")) assert.equal((e.payload as { cause?: string }).cause, "stop");
 });
 
-test("trois cooks signalés sans que brigade ait rien demandé comptent, et ouvrent le disjoncteur au seuil", async (t) => {
+test("trois cooks tués du dehors (SIGTERM, 143) sans que brigade ait rien demandé ne comptent pas : le disjoncteur reste fermé, la cause est au journal (#3528)", { skip: posixOnly("the fake claude kills itself with SIGTERM; on Windows the exit is a plain failure code, not a signal") }, async (t) => {
   const { runtime, lances } = troisSignales(t, () => {});
   const fins = await Promise.all(lances.map((lance) => lance.fin));
 
-  assert.deepEqual(fins.map((fin) => fin.outcome), ["failed", "failed", "failed"]);
+  assert.deepEqual(fins.map((fin) => fin.outcome), ["stop", "stop", "stop"]);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+  assert.equal(etatDesGardeFous(runtime.journal.base).breakerOpenedAt, null);
+  assert.equal(runtime.journal.tout().some((e) => e.type === "breaker.opened"), false);
+  for (const e of runtime.journal.tout().filter((e) => e.type === "cook.exited")) assert.equal((e.payload as { cause?: string }).cause, "external");
+});
+
+test("des arrêts externes entre de vrais échecs ne comptent pas : le disjoncteur ne s'ouvre qu'au troisième vrai échec (#3528)", { skip: posixOnly("the fake claude kills itself with SIGTERM; on Windows the exit is a plain failure code, not a signal") }, async (t) => {
+  const { runtime, repertoire, cook } = cuisine(t, { seuilDisjoncteur: 3 });
+  const feu = join(repertoire, "feu");
+  writeFileSync(feu, "");
+  const externe = (ticket: number) =>
+    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "meurt-sigterm", FAUX_CLAUDE_FEU: feu } }).fin;
+  await cook(7, "echec").fin;
+  await externe(8);
+  await cook(9, "echec").fin;
+  await externe(10);
+  // Quatre fins, deux vrais échecs : le disjoncteur est fermé.
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 2);
+  assert.equal(etatDesGardeFous(runtime.journal.base).breakerOpenedAt, null);
+  await cook(11, "echec").fin;
+
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 3);
   assert.equal(runtime.journal.tout().filter((e) => e.type === "breaker.opened").length, 1);
+});
+
+// Le journal de secondes, 2026-11-14 : trois cooks tués en 143 comptés pour des échecs, le disjoncteur ouvert.
+function journalDeSecondes(repertoire: string, sorties: Array<{ code: number; signal?: string | null; erreur?: string }>) {
+  const journal = ouvrirJournal(repertoire);
+  sorties.forEach(({ code, signal, erreur }, i) => {
+    const run = `${20 + i}-aaaa`;
+    journal.ajouter({ project: "brigade", ticket: 20 + i, author: "station", type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl` } });
+    journal.ajouter({ project: "brigade", ticket: 20 + i, author: "runtime", type: "cook.exited", payload: { run, outcome: "failed", code, signal: signal ?? null, turns: 0, tokens: 0, durationMs: 1, ...(erreur === undefined ? {} : { error: erreur }) } });
+  });
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: sorties.length, threshold: 3 } });
+  journal.fermer();
+}
+
+test("au démarrage, le disjoncteur ouvert sur trois arrêts 143 se referme sans geste du chef, et un cook part (#3528)", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  journalDeSecondes(repertoire, [{ code: 143 }, { code: 143 }, { code: 143 }]);
+
+  const { runtime, cook } = cuisine(t, { seuilDisjoncteur: 3 }, repertoire);
+
+  assert.equal(etatDesGardeFous(runtime.journal.base).breakerOpenedAt, null);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+  assert.equal(runtime.journal.tout().filter((e) => e.type === "cook.reclassified").length, 3);
+  assert.equal(runtime.journal.tout().some((e) => e.type === "kitchen.resumed"), false);
+  assert.equal((await cook(8, "fini").fin).outcome, "ok");
+});
+
+test("au démarrage, le disjoncteur que de vrais échecs ont ouvert reste ouvert : seuls les arrêts externes sont écartés (#3528)", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  journalDeSecondes(repertoire, [{ code: 143 }, { code: 1 }, { code: 1 }, { code: 1, erreur: "spawn failed" }]);
+
+  const { runtime, cook } = cuisine(t, { seuilDisjoncteur: 3 }, repertoire);
+
+  assert.notEqual(etatDesGardeFous(runtime.journal.base).breakerOpenedAt, null);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 3);
+  assert.equal(runtime.journal.tout().filter((e) => e.type === "cook.reclassified").length, 1);
+  assert.throws(() => cook(8, "fini"), LancementRefuse);
+});
+
+test("la réconciliation du démarrage ne se rejoue pas : un second démarrage n'écrit plus rien (#3528)", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  journalDeSecondes(repertoire, [{ code: 143 }, { code: 143 }, { code: 143 }]);
+  const premiere = brancherGardeFous({ ...REGLAGES, seuilDisjoncteur: 3 }, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
+  premiere.arreter("test");
+
+  const { runtime } = cuisine(t, { seuilDisjoncteur: 3 }, repertoire);
+
+  assert.equal(runtime.journal.tout().filter((e) => e.type === "cook.reclassified").length, 3);
+  assert.equal(runtime.journal.tout().filter((e) => e.type === "breaker.lifted").length, 1);
 });

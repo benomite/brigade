@@ -4,7 +4,7 @@ import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_STATION } from "../../../src/brigade-g
 import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_PASS } from "../../../src/events/pass.ts";
 import { etatDuTicket, LABEL_IN_PASS, LABEL_WAITING } from "../../../src/github-etat/etats.ts";
 import { corpsDeVerdict } from "../../../src/github-etat/fusion.ts";
-import { HORS_CUISINE } from "../../../src/github.ts";
+import { ECHECS_ATTEINTS, HORS_CUISINE } from "../../../src/github.ts";
 import {
   calibrageAuDessus,
   marqueDeFix,
@@ -211,16 +211,17 @@ async function epuiser(gh: ReturnType<typeof depot>) {
 test("au plafond, rien ne monte : le ticket sort de la cuisine, un humain décide", async () => {
   const gh = depot(["fire", LABEL_IN_PASS, "model:opus", "effort:high"]);
   const coup = await epuiser(gh);
-  assert.equal(coup.coup, "served-elsewhere");
+  assert.equal(coup.coup, "set-aside");
   assert.deepEqual(gh.creees, []);
-  assert.ok(gh.labels().includes(HORS_CUISINE));
+  assert.ok(gh.labels().includes(ECHECS_ATTEINTS));
+  assert.ok(!gh.labels().includes(HORS_CUISINE));
   assert.match(gh.commentaires().at(-1)?.body ?? "", /already the highest the kitchen sets/);
 });
 
 test("un ticket fix de la cuisine n'ouvre pas de fix de plus", async () => {
   const gh = depot(CALIBRE, `${marqueDeFix(7)}\n\n## Context`);
   const coup = await epuiser(gh);
-  assert.equal(coup.coup, "served-elsewhere");
+  assert.equal(coup.coup, "set-aside");
   assert.deepEqual(gh.creees, []);
 });
 
