@@ -28,4 +28,5 @@ waiting	C5DEF5	Waits for another ticket to be served
 chef-todo	B60205	A card in the chef's to-do list waits on this ticket
 product-question	FBCA04	A question for the chef about the product
 cook:design	D93F0B	Cooked by the design cook
+idea	C2E0C6	An idea in reserve, not a request: the manager never reads it
 kitchen-board	BFD4F2	The former board issue of the kitchen: never a card
