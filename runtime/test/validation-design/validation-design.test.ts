@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { Sortie } from "../../src/appel.ts";
-import { brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, type GitHubDuTour, type StationGitHub } from "../../src/brigade-github.ts";
+import { brancheDuTicket, stationDuDepot, stationGitHub, type GitHubDuTour, type StationGitHub } from "../../src/brigade-github.ts";
 import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
 import { carteEnCours, CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import type { GitHub } from "../../src/github.ts";
@@ -16,7 +16,7 @@ import { ReglageRefuse, reglagesDuTexte, texteDuFichier } from "../../src/reglag
 import { principal } from "../../src/validation-design/commande.ts";
 import { corpsDeCeQuiEstFait, SANS_RESUME } from "../../src/validation-design/brief.ts";
 import { carteDuCorps, designsValidesParUnHumain, estUneLivraisonDesign, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
-import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
+import { CALIBRE, FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 
 const TICKET = 40;
 const PR = 1040;
@@ -746,19 +746,9 @@ async function parLeDepot(t: TestContext, projet: unknown) {
   const faux = enPass(ECRAN);
   const avertis: string[] = [];
   const station = stationDuDepot({
-    nom: "box",
-    places: 1,
-    base: "main",
-    depotGitHub: "faux/depot",
+    ...STATION_DU_DEPOT,
     github: { ...fauxClient(faux), creerIssue: faux.pour("box").creerIssue },
     depot: { connait: () => false, preparer: async () => assert.fail("nothing is cooked"), reprendre: async () => assert.fail("nothing is cooked"), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "" },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer: () => assert.fail("the PR is already approved: no review"),
     avertir: (texte) => avertis.push(texte),
