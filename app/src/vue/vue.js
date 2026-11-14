@@ -5148,7 +5148,8 @@ function poserLeRail(projet) {
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
-  poser(...statut, ...(bandeau === null ? [] : [bandeau]), grille, ...(duChef.length === 0 ? [] : [todo]), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+  // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
+  poser(...statut, ...(bandeau === null ? [] : [bandeau]), grille, ...(duChef.length === 0 ? [] : [todo]), ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
   if (memeRail) rail.scrollTop = hautDuRail;
@@ -6701,9 +6702,10 @@ function poserStationsDuProjet() {
   const lues = stationsVues !== undefined && projetsVus !== undefined;
   const ou = ouCuit(projet, stations);
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
-  // Qui cuit le projet n'est plus une ligne de Rail (ticket 3523) : c'est l'étiquette de l'onglet Stations. Ne reste ici que
-  // le déménagement en route.
-  ligneDesStationsDuProjet.replaceChildren(...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []));
+  // Qui cuit le projet n'est plus une ligne de Rail (ticket 3523) : c'est l'étiquette de l'onglet Stations. Ne reste ici que le
+  // déménagement en route — et, pour un projet que personne ne cuit, la phrase qui le dit, avec le geste qui le confie à une station.
+  if (stations.length > 0 || ou !== undefined) ligneDesStationsDuProjet.replaceChildren(...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []));
+  else ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : LECTURE_DE("your stations on GitHub");
   poserLeDemenagement(projet, ou, enCours, lues);
   // Une station du compte qui refuse de l'avoir (ticket 1790) : son nom et sa phrase, une ligne chacune.
   const { refusees } = ajoutsDuProjet(projet);
@@ -6753,10 +6755,14 @@ function poserStationsDuProjet() {
   const surStations = ongletDe(projet) === STATIONS;
   ligneDesStationsDuProjet.hidden = surStations || ligneDesStationsDuProjet.childElementCount === 0;
   if (surStations) for (const pose of [stationRefusee, demenagementDit, choixDuDemenagement, ouvrirLeDemenagement, ouvrirLaConfiance]) pose.hidden = true;
+  // « move the kitchen » n'est plus sur Rail (ticket 3523) : le déménagement se demande dans l'onglet Stations.
+  ouvrirLeDemenagement.hidden = true;
   stationsDuProjet.hidden =
     rangees ||
     (seLit(projet) && parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && stationRefusee.hidden && confiance === undefined && demenagement?.projet !== projet.nom) ||
-    (surStations && parcoursDuProjet.hidden && depotRetenu.hidden && confiance === undefined && confianceDite.textContent === "");
+    (surStations && parcoursDuProjet.hidden && depotRetenu.hidden && confiance === undefined && confianceDite.textContent === "") ||
+    // Sur Rail, rien au-dessus des colonnes qu'un bouton (ticket 3523) : « move the kitchen » est dans l'onglet Stations, qui le dit.
+    (parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && stationRefusee.hidden && confiance === undefined && demenagement?.projet !== projet.nom && demenagementDit.hidden && ligneDesStationsDuProjet.hidden && ouvrirLaConfiance.hidden && confianceDite.textContent === "");
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, tenue });
 }
