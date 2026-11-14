@@ -73,7 +73,7 @@ export function tempsDeLaBande(doc, temps) {
 // phase la plus lourde en tout, les runs relancés et ce que les renvois ont coûté, une phrase par ligne. Null tant que la
 // station n'en publie pas.
 /** @param {Fabrique} doc @param {TempsDuProjet | undefined} temps */
-export function passeDeLaBande(doc, temps) {
+function passeDeLaBande(doc, temps) {
   const p = lireLaPasse(temps);
   if (p === null) return null;
   const detail = [

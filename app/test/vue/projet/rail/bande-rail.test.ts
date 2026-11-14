@@ -16,7 +16,7 @@ import { ONGLETS, RUBRIQUES } from "../../../../src/onglets.ts";
 import type { Panne } from "../../../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../../../src/projets/projets.ts";
 import type { VuDesStations } from "../../../../src/stations/stations.ts";
-import { cooksDeLaBande, dernierMergeDeLaBande, passeDeLaBande, poserBandeRail, premierCoupDeLaBande, tempsDeLaBande } from "../../../../src/vue/projet/rail/bande-rail.js";
+import { cooksDeLaBande, dernierMergeDeLaBande, poserBandeRail, premierCoupDeLaBande, tempsDeLaBande } from "../../../../src/vue/projet/rail/bande-rail.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -119,6 +119,9 @@ const PASSE = {
   renvoyees: 2,
   passesRenvoyeesS: 1500,
 };
+
+// Le chiffre de la pass, tel que la bande le pose ; null quand elle n'en pose pas.
+const passeDeLaBande = (_doc: typeof doc, temps: object | undefined): Faux | null => poserBandeRail(doc, { temps: temps as never, maintenant: MAINTENANT }).children.find((pose: Faux) => laPart(pose).className === "bande-part bande-passe") ?? null;
 
 describe("la pass, dans la bande", () => {
   test("en une ligne, la part qui pèse le plus sur le temps de pass de la semaine ; chaque phase, sa médiane et son p75 au survol", () => {
