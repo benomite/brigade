@@ -92,6 +92,7 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
   test("la liste pas lue : N est « ? » ; la box muette aussi", () => {
     const pasLu = rangerLeRail(rail({ ...FAITS, attend: undefined }).colonnes);
     assert.equal(pasLu.compte, "?");
+    assert.equal("vide" in pasLu, false);
     const muette = rangerLeRail(rail(FAITS).colonnes.map((colonne) => ({ ...colonne, compte: "?", cartes: [] })));
     assert.deepEqual([muette.compte, muette.colonnes.map(({ compte }) => compte)], ["?", ["?", "?", "?", "?", "?"]]);
   });
@@ -174,6 +175,7 @@ describe("la vue du projet, sur un écran large et sur un téléphone", () => {
   test("rien n'attend le chef : aucune carte rouge nulle part", async () => {
     const vue = await ouvrir(false, { ...FAITS, attend: [], rail: FAITS.rail.filter(({ ticket: numero }) => numero !== 8) });
     assert.equal(vue.element("rail").dessous("li").filter(({ dataset }) => dataset.carte === "attente").length, 0);
+    assert.equal(entree(vue), undefined);
   });
 });
 

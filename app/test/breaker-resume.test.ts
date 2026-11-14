@@ -271,6 +271,7 @@ describe("la ligne du disjoncteur, ligne d'état du rail, au-dessus des colonnes
 
   test("le disjoncteur refermé : la ligne d'état s'en va, et ce qui avait été demandé avec elle", async () => {
     const vue = await ouvrir(async () => ({ demandee: { issue: 2150, url: null } }));
+    assert.ok(vue.element("rail").children.includes(ligne(vue)), "la ligne n'est pas posée sur le rail, au-dessus des colonnes");
     reprendre(ligne(vue)).click();
     await repos();
     vue.dire("surAlertes", bandeLue(REFERME, "ouverte"));
@@ -282,7 +283,7 @@ describe("la ligne du disjoncteur, ligne d'état du rail, au-dessus des colonnes
     assert.deepEqual(boutons(ligne(vue)).map(({ textContent }) => textContent), [REPRENDRE]);
   });
 
-  test("sur Stations, sans ligne d'état du rail : la bande porte la ligne, avec le même « Resume »", async () => {
+  test("sur Stations, sans TODO : la bande porte la ligne, avec le même « Resume »", async () => {
     const vue = await ouvrir(async () => ({ demandee: { issue: 2150, url: null } }));
     await ouvrirOnglet(vue, "Stations");
     const bande = vue.element("alertes").children.find((pose) => pose.textContent.includes("breaker open")) ?? assert.fail("la bande ne dit pas le disjoncteur");

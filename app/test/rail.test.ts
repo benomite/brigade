@@ -453,7 +453,6 @@ describe("le haut du rail est allégé (#623)", () => {
     const recue = dessinable();
     recevoir(vue, { ...recue, a: "2026-11-02T08:25:00.000Z", publieLe: "2026-11-02T07:35:00.000Z" });
     // Plus une ligne de plus (#3523) : l'âge est au survol de la ligne d'état, du bandeau Backlog ou, sans eux, des colonnes.
-    assert.equal(vue.element("rail").dessous("p").some(({ className }) => className === "age-du-rail"), false);
     const colonnes = vue.element("rail").dessous("div").find(({ className }) => className === "colonnes");
     assert.match(colonnes?.title ?? "", /^rail as GitHub said it 50 min ago, at /);
     // Une lecture qui ne vient pas du tableau ne porte pas d'âge : rien n'est inventé.

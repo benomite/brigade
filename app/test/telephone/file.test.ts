@@ -138,6 +138,7 @@ describe("la file d'un projet sur le téléphone", () => {
       ["Pass"],
     );
     assert.deepEqual(rouges(vue.element("rail")), ["#12"]);
+    assert.equal(vue.element("rail").dessous("button").some(({ className }) => className === "entree-todo"), false);
   });
 
   test("Stations : les cooks en cours, station par station", async () => {
