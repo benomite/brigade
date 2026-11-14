@@ -14,4 +14,4 @@ What stays closed:
 
 - Opening a local port **does not** open a host: the list of outbound hosts is the same with or without it. The configuration adds no wildcard and no address to it.
 - Unix sockets stay refused (`allowAllUnixSockets: false`).
-- Loopback only is the sandbox's own rule (Seatbelt, as Claude Code applies it for `allowLocalBinding`), not a setting of Brigade: the configuration has no field that picks the address, and Brigade's tests cannot probe the kernel from Linux. They assert that the configuration sets `allowLocalBinding` and adds no host.
+- Loopback only is the sandbox's own rule (Seatbelt, as Claude Code applies it for `allowLocalBinding`), not a setting of Brigade: the configuration has no field that picks the address, and this was not verified on a Mac: Brigade's tests run on Linux and cannot probe the kernel. They assert that the configuration sets `allowLocalBinding` and adds no host.
