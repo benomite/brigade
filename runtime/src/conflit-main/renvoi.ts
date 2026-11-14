@@ -25,7 +25,21 @@ const COMMANDE_GIT = /\bgit\s+(?:merge|rebase|push|pull|fetch|checkout|switch|re
 const VERBE_GIT = /\bmerg(?:e|es|ed|ing)\b|\brebas(?:e|es|ed|ing)\b|\bpush(?:es|ed|ing)?\b|\bpull(?:s|ed|ing)?\b|\bfetch(?:es|ed|ing)?\b|\bcherry-pick|\bcheck\s*out\b|\bresolv\w*|\bfusionn\w*|\brebaser\b|\brésou\w*/i;
 const OBJET_GIT = /\bgit\b|\borigin\/|\bcook\/\d+-|\bbranch(?:es)?\b|\bbranches?\b|\bHEAD\b|\bworktree\b|\bcommits?\b|\bupstream\b|\bPR\b|\bpull requests?\b|<<<<<<<|\bmerge conflicts?\b|\bconflict markers?\b|\bconflits? de fusion\b|\bmarqueurs? de conflit\b|`(?:main|master)`|\b(?:into|onto)\s+(?:main|master)\b|\b[\w./-]+\.(?:kt|kts|java|xml|ts|tsx|js|jsx|mjs|json|md|py|go|rs|swift|gradle|ya?ml|toml|css|scss|html|sh|lock)\b/i;
 
+// Un refus du bac à sable ou du système (un port local, un fichier, un réseau
+// refusés) : la cause d'un arrêt qui n'est pas git, même quand le texte nomme
+// une branche ou un fichier (secondes#21 : `SocketException: Operation not
+// permitted`, la carte retirée comme « un geste git », #3543).
+const REFUS_DU_BAC = /\bOperation not permitted\b|\bSocketException\b|\bEPERM\b|\bEACCES\b|\bPermission denied\b|\bsandbox(?:ed)?\b|\bbac à sable\b/i;
+// Ce qui montre qu'une opération git a vraiment échoué : la sortie même de git.
+const ECHEC_DE_GIT = /\bfatal:|\bCONFLICT\b|<<<<<<<|\bmerge conflicts?\b|\bfailed to push\b|\bnon-fast-forward\b|\bgit\s+[\w-]+\b[^.\n]{0,40}\b(?:failed|exited|refused)\b/i;
+
+// La cause du texte est un refus du bac à sable, aucune opération git n'y échoue.
+export function refusDuBacSansGit(texte: string): boolean {
+  return REFUS_DU_BAC.test(texte) && !ECHEC_DE_GIT.test(texte);
+}
+
 export function demandeUnGesteGit(texte: string): boolean {
+  if (refusDuBacSansGit(texte)) return false;
   return COMMANDE_GIT.test(texte) || (VERBE_GIT.test(texte) && OBJET_GIT.test(texte));
 }
 
@@ -35,6 +49,7 @@ export function demandeUnGesteGit(texte: string): boolean {
 // Une question de produit qui ne nomme ni l'une ni l'autre reste au chef, quels
 // que soient ses mots (#3476).
 export function carteDeGesteGit(tete: string): boolean {
+  if (refusDuBacSansGit(tete)) return false;
   return (/^\*\*Gesture for the chef\b/.test(tete) && demandeUnGesteGit(tete)) || COMMANDE_GIT.test(tete) || /\bcook\/[1-9]\d*-/.test(tete);
 }
 

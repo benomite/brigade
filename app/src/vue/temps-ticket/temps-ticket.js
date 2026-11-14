@@ -1,7 +1,6 @@
 // @ts-check
 // Les enregistrements des temps des tickets d'un projet (ticket 2346, épique 2336), ceux de `.claude/brigade/temps-tickets.json`
-// (secondes entières), et une durée en clair. La bande du rail en dit le
-// dernier merge (projet/rail/bande-rail.js). Ce module ne touche pas `document`.
+// (secondes entières), et une durée en clair. Ce module ne touche pas `document`.
 
 /** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown, chiffres?: unknown }} TempsDuProjet */
 

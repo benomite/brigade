@@ -40,9 +40,9 @@ Related terms built on « cuisine »:
 | `dérive` | `drift` | Measures that crossed a declared threshold |
 | `consommé` | `consumed` | What launches have spent (in flight, 5 h window, 24 h) |
 | `attend` (bloc, ligne, pilule) | `awaiting` | What waits for the chef's decision. Block `attend` … `fin attend` → `awaiting` … `end awaiting` |
-| `TODO` | `TODO` | What awaits the chef, a property of a ticket, not a step of the rail: shown as red cards, first in the column of their stage, and named by the filter `TODO (N)` of a project's view, N the number of red cards. Not a column (#3458) |
+| `TODO` | `TODO` | What awaits the chef, a property of a ticket, not a step of the rail: shown as red cards, first in the column of their stage, and counted on the home, N the number of red cards. Not a column (#3458), and no filter any more (#3523) |
 | `T'attend` | `Awaiting you` | The card pill of the same object, and the phone's list of the cards that await the chef — no longer a rail column (#3458) |
-| `Attend les autres` | `Awaiting others` | The folded section next to `TODO (N)`, outside the columns: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071, #3458) |
+| `Attend les autres` | `Awaiting others` | The folded section under the columns, outside them: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071, #3458) |
 | `attend` (ligne de la fiche) | `awaiting` | The same word, same translation: a ticket that waits for another ticket, in its card (`attend : #12` → `awaiting: #12`) |
 | `en attente` | `queued` | A ticket on the rail not yet taken |
 | `pris` / `en cuisine` / `Au travail` | `taken` / `Taken` | A cook holds the ticket (see §1) |

@@ -6,7 +6,7 @@ Tu amorces le protocole **brigade** sur ce projet. À la fin, les rôles `/briga
 
 **Cette commande est rejouable.** On la relance sur un projet déjà amorcé pour compléter ou corriger, et elle ne doit alors produire ni doublon, ni écrasement, ni erreur. La règle qui garantit ça : **tu constates l'état avant d'agir, et tu ne fais que l'écart.** Toute action que tu ne peux pas rendre convergente, tu la proposes au lieu de la faire.
 
-Tu produis six choses : les **prérequis d'équipe** dans `.claude/settings.json`, les **règles du mode auto** dans le même fichier, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, la **déclaration réseau** `.claude/brigade/reseau`, et les artefacts GitHub (labels + issue de roadmap). Sur un **projet neuf** — un dépôt sans code —, une septième : le **ticket de fondation**, déposé et lancé (étape 1 bis).
+Tu produis six choses : les **prérequis d'équipe** dans `.claude/settings.json`, les **règles du mode auto** dans le même fichier, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, la **déclaration réseau** `.claude/brigade/reseau` et celle du **bac à sable** `.claude/brigade/bac-a-sable.json`, et les artefacts GitHub (labels + issue de roadmap). Sur un **projet neuf** — un dépôt sans code —, une septième : le **ticket de fondation**, déposé et lancé (étape 1 bis).
 
 ## 1. Constate (aucune écriture à cette étape)
 
@@ -378,6 +378,24 @@ Le commentaire de tête **dit la ligne du setup qui justifie chaque hôte**, ou 
 
 **Ne l'écrase jamais en silence**, comme les scripts : identique à ce que tu produirais → rien ; différent → montre le diff et demande. Sur une relance, **n'enlève jamais une ligne** — c'est l'humain qui retire un hôte, tu ne fais qu'en proposer d'absents. Un fichier posé à la main, avec des hôtes que ton tableau n'explique pas, reste tel quel.
 
+### La déclaration du bac à sable — `.claude/brigade/bac-a-sable.json`
+
+À côté des gates et de `reseau`, le dépôt déclare ce que ses outils font hors du worktree, sous le bac à sable : `{"ports": [..], "ecriture": [..]}` — les ports de la boucle locale que ses tests joignent, et les dossiers sous `~` où ses outils écrivent leurs caches. **Lance la commande — ne le compose pas à la main** : elle lit le dépôt et écrit le fichier **dans tous les cas**.
+
+```bash
+node "$MKT/runtime/src/bac-a-sable/detection-projet.ts" "$ROOT"
+```
+
+| Ce que le dépôt porte | Ce qu'elle déclare |
+|---|---|
+| `gradlew`, `build.gradle*` | `~/.gradle` dans `ecriture` — aucun port : le démon Gradle en tire un au hasard |
+| `package.json` | `~/.npm` dans `ecriture` |
+| `pyproject.toml`, `requirements*.txt` | le cache de pip dans `ecriture` (`~/Library/Caches/pip`, `~/.cache/pip`) |
+| `docker-compose.yml`, `compose.yaml` | dans `ports`, chaque port de l'hôte que ses services publient sur la boucle locale |
+| rien de cela | `{"ports": [], "ecriture": []}` |
+
+Elle n'écrit que ce qui tient dans les limites : des ports de la boucle locale, des dossiers sous `~` qui ne touchent à aucun secret (`~/.ssh`, `~/.docker`, `~/.aws`…). Un fichier déjà là n'est **jamais réécrit** : sa sortie donne les lignes `MANQUE <entrée>` à proposer, ou `ILLISIBLE` — montre-les et demande, comme pour `reseau`. Commande introuvable (clone périmé) : écris `{"ports": [], "ecriture": []}` et dis-le sous « Reste à la main ». Comme `reseau`, le fichier ne vaut qu'une fois mergé sur la branche d'intégration.
+
 ## 6 ter. Prépare le mode auto — les règles de `.claude/settings.json`
 
 En mode auto, le classifieur de Claude Code refuse des gestes que les rôles prévoient — lire la file ou la doc de brigade sur la box (`[Exfil Scouting]`), par exemple. Ce que le projet peut y faire tient dans des règles `permissions.allow` **exactes**, que le runtime de brigade calcule et pose lui-même, depuis la liste des gestes des rôles. **Tu ne les écris pas à la main, et tu n'en ajoutes aucune** : pas de `*`, pas de `ssh` ouvert, pas de `gh pr merge`.
@@ -432,5 +450,7 @@ Quatre listes, franches :
 **Le mode auto tient toujours ses lignes dans le résumé** : les règles ajoutées, ou « toutes déjà là », et chaque geste `PAS AUTORISABLE` avec sa raison — ou, si la commande n'a pas tourné, pourquoi, sous « Reste à la main ».
 
 **La déclaration réseau tient toujours une ligne dans le résumé**, quelle que soit la liste où elle tombe : les hôtes proposés et pourquoi, « rien à ouvrir » ou « non déterminé ». Elle est écrite dans l'arbre de travail mais **n'est effective qu'une fois mergée sur la branche d'intégration** : sous « Reste à la main », tant que ce n'est pas fait.
+
+**La déclaration du bac à sable tient aussi sa ligne** : les entrées écrites et le fichier du dépôt qui les justifie, « déclaration vide » ou les `MANQUE` d'un fichier déjà là.
 
 Termine par le verdict de l'étape 7 et le geste qui reste : merger la PR, si l'init en a ouvert une. Aucune commande de rôle à taper ensuite : dans l'onglet Second de l'app, le second reprend son rôle dès le message suivant. Pas d'offre de priorités, de modèle ni d'effort — ils sont au manager.

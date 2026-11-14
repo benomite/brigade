@@ -24,6 +24,7 @@ import type { DitDuSecond, Terminal } from "../../src/terminaux.ts";
 import { poserOutilsDuSecond, PAGE_DE, REESSAYER_LE_SECOND } from "../../src/vue/outils-du-second.js";
 import { RELIRE } from "../../src/vue/premier-lancement.js";
 import { LECTURE_PUBLIEE, poserRailPublie, TABLEAU_EN_LECTURE, TABLEAU_NON_LU, type GestesDuRailPublie } from "../../src/vue/rail-publie.js";
+import { rouges } from "../aides/rouges.ts";
 import { carteDuTicket, Faux, jouerLaVue, repos, type Jouee, type Reponses } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -234,19 +235,18 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     const carte = carteDuTicket(vue, 14) ?? assert.fail("pas de carte #14");
     assert.equal(surLeRail.contains(carte), true);
     assert.equal(carte.dataset.carte, "attente");
-    assert.equal(vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo")?.textContent, "TODO (1)");
+    assert.deepEqual(rouges(vue.element("rail")), ["#14"]);
     // Son geste, comme sur un projet servi ici : le chef dit ce qu'elle attend d'un tiers.
     assert.ok(carte.dessous("button").some(({ textContent }) => textContent === "waiting for…"));
     assert.doesNotMatch(vue.element("rail").textContent, /last published|Reading the/);
   });
 
-  test("rien n'attend le chef : « TODO (0) » reste en tête, sans signe d'alerte, et le dit en une ligne", async () => {
+  test("rien n'attend le chef : aucune carte rouge, et rien de plus sur le rail", async () => {
     const vue = await ouvrir({ railDuProjet: () => liste() });
     recevoir(vue, duTableau({ ...FAITS, attend: [] }, RIEN));
-    const todo = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
-    const entree = todo.children[0];
-    assert.deepEqual([entree?.textContent, entree?.dataset.ton], ["TODO (0)", undefined]);
-    assert.deepEqual(todo.dessous("p").map((pose) => pose.textContent), ["nothing awaits you"]);
+    // Plus d'entrée « TODO (0) » ni de ligne « nothing awaits you » sur le rail (#3523) : aucune carte rouge, aucun bloc.
+    assert.deepEqual(rouges(vue.element("rail")), []);
+    assert.equal(vue.element("rail").dessous("div").some(({ className }) => className === "todo-du-rail"), false);
   });
 
   test("le tableau ne se lit pas : sa raison en une ligne ; « read again » relit le tableau et le rail publié", async () => {

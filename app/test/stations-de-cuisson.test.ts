@@ -116,6 +116,25 @@ const cooksDe = (pose: Faux) => {
 };
 const alertes = (vue: Jouee) => vue.element("rail").dessous("p").filter((p) => p.className === "alerte-de-cuisine");
 
+describe("la station du projet, à côté de l'onglet Stations (#3523)", () => {
+  test("une étiquette dit la station et son état ; plus de ligne « Cooks on » ni de « + station » sur Rail", async () => {
+    const { vue } = await ouvrir();
+    const etiquette = vue.element("etiquette-de-station");
+    assert.equal(etiquette.hidden, false);
+    assert.match(etiquette.textContent, /^box\/claude, atelier\/claude · cooking$/);
+    assert.equal(vue.element("stations-du-projet").hidden, true, "aucune ligne de stations au-dessus du rail");
+    assert.doesNotMatch(vue.element("stations-du-projet").textContent, /Cooks on|Cooked by/);
+    assert.equal(vue.element("stations-du-projet").dessous("button").some(({ textContent, hidden }) => textContent === "+ station" && !hidden), false);
+  });
+
+  test("la seule station arrêtée par le chef : l'étiquette dit « stopped » ; personne ne cuit : pas d'étiquette", async () => {
+    const { vue } = await ouvrir([station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: ARRETEE, cooks: [] })]);
+    assert.equal(vue.element("etiquette-de-station").textContent, "mac/claude · stopped");
+    const { vue: personne } = await ouvrir([]);
+    assert.equal(personne.element("etiquette-de-station").hidden, true);
+  });
+});
+
 describe("l'onglet Stations : une carte par station qui sert le projet", () => {
   test("chaque cook est nommé avec sa station, et chaque station a sa carte : son état, ses cooks", async () => {
     const { vue } = await ouvrir();
