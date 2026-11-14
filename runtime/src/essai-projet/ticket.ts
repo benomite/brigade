@@ -23,20 +23,20 @@ import type { Runtime } from "../runtime.ts";
 import { declarationDesFichiers, FICHIER_D_ESSAI, fichiersDeLaBranche, texteDeLaDeclaration, type Detectee } from "./declaration.ts";
 
 // Dans le répertoire d'état du projet.
-export const FICHIER = "declaration-essai.json";
+const FICHIER = "declaration-essai.json";
 
 // Écrire un fichier JSON et vérifier que sa commande démarre le projet : un
 // ticket court, qui juge peu.
-export const LABELS_DE_L_ESSAI = [LABEL, "model:sonnet", "effort:medium"];
+const LABELS_DE_L_ESSAI = [LABEL, "model:sonnet", "effort:medium"];
 
 // L'issue retrouvée d'une annonce : créée depuis, avec cette marge.
 const MARGE_MS = 600_000;
 
-export const marqueDeLEssai = (projet: string) => `<!-- brigade:try-json ${projet} -->`;
+const marqueDeLEssai = (projet: string) => `<!-- brigade:try-json ${projet} -->`;
 
-export const TITRE = `Declare how the project is tried from a card: \`${FICHIER_D_ESSAI}\``;
+const TITRE = `Declare how the project is tried from a card: \`${FICHIER_D_ESSAI}\``;
 
-export function corpsDeLEssai(projet: string, base: string, { declaration, preuve }: Detectee): string {
+function corpsDeLEssai(projet: string, base: string, { declaration, preuve }: Detectee): string {
   const essayable = !("tryable" in declaration);
   return [
     marqueDeLEssai(projet),
@@ -109,7 +109,7 @@ const uneLigne = (erreur: unknown) => (erreur instanceof Error ? erreur.message 
 
 // Un passage : rend le numéro du ticket et s'il vient d'être ouvert, ou null
 // quand il n'y en a pas (pas encore, ou jamais).
-export async function passerLeTicketDEssai({ projet, repertoireEtat, depot, github, avertir, maintenant = () => new Date() }: OptionsDuTicketDEssai): Promise<{ ticket: number; ouvert: boolean } | null> {
+async function passerLeTicketDEssai({ projet, repertoireEtat, depot, github, avertir, maintenant = () => new Date() }: OptionsDuTicketDEssai): Promise<{ ticket: number; ouvert: boolean } | null> {
   let note: Note | null;
   let detectee: Detectee | null;
   try {
@@ -146,13 +146,19 @@ export async function passerLeTicketDEssai({ projet, repertoireEtat, depot, gith
   }
 }
 
-// Le ticket de la déclaration d'essai, à chaque tick du runtime : un passage à la fois.
+// Le ticket de la déclaration d'essai, à chaque tick du runtime : un passage à
+// la fois. Un même avertissement ne se redit pas à chaque tick.
 export function brancherTicketDEssai<R extends Runtime>(runtime: R, options: OptionsDuTicketDEssai): R {
   let enCours = false;
+  let dernier: string | null = null;
+  const avertir = (ligne: string) => {
+    if (ligne !== dernier) options.avertir(ligne);
+    dernier = ligne;
+  };
   runtime.surReveil((cause) => {
     if (cause !== "tick" || enCours) return;
     enCours = true;
-    void passerLeTicketDEssai(options).finally(() => {
+    void passerLeTicketDEssai({ ...options, avertir }).finally(() => {
       enCours = false;
     });
   });

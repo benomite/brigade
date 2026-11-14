@@ -39,7 +39,7 @@ const GRADLE = /^build\.gradle(?:\.kts)?$/;
 const XCODE = /\.(?:xcodeproj|xcworkspace)(?:\/|$)/;
 
 // Un chemin que la détection lit, parmi les fichiers suivis d'une branche.
-export function estLu(chemin: string): boolean {
+function estLu(chemin: string): boolean {
   if (profondeurDe(chemin) === 0) return A_LA_RACINE.includes(chemin) || /^(?:package\.json|requirements\.txt|pyproject\.toml)$/.test(chemin) || GRADLE.test(chemin);
   return profondeurDe(chemin) <= PROFONDEUR_MAX && (nomDe(chemin) === "AndroidManifest.xml" || GRADLE.test(nomDe(chemin)));
 }
@@ -139,7 +139,7 @@ export function declarationDesFichiers(fichiers: readonly FichierLu[]): Detectee
 
 // Les fichiers d'un dossier que la détection lit : ceux des besoins
 // (`lireLeDepot`), et ceux de la racine qu'ils ne lisent pas.
-export function fichiersDuDossier(dossier: string): FichierLu[] {
+function fichiersDuDossier(dossier: string): FichierLu[] {
   const lus = lireLeDepot(dossier).filter(({ chemin }) => estLu(chemin) || XCODE.test(chemin));
   for (const nom of A_LA_RACINE) {
     try {
