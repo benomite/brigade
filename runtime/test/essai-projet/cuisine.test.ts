@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../src/station/configuration.ts";
@@ -58,4 +58,6 @@ test("the station's kitchen files one ticket, with `fire`, for a project whose b
   }
 });
 
-test("cuisine.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+// Rien ne reste dans le répertoire temporaire du fichier : vérifié après ses
+// tests, par un hook qui fait échouer le fichier s'il y reste quelque chose.
+after(rienNeReste);

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import { ENV_ENFANT, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -80,4 +80,6 @@ test("called without a folder, or on one that does not exist: usage error, nothi
   assert.equal((await lancer(join(repertoireTemporaire(t), "absent"))).code, 64);
 });
 
-test("declaration-cli.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+// Rien ne reste dans le répertoire temporaire du fichier : vérifié après ses
+// tests, par un hook qui fait échouer le fichier s'il y reste quelque chose.
+after(rienNeReste);

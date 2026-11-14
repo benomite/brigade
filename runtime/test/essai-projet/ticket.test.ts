@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import type { IssueDepuis } from "../../src/github.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
 import { brancherTicketDEssai } from "../../src/essai-projet/ticket.ts";
@@ -173,4 +173,6 @@ test("an issue carrying the mark from an untrusted author is not taken for the k
   assert.equal(note(c.repertoireEtat).ticket, 41);
 });
 
-test("ticket.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+// Rien ne reste dans le répertoire temporaire du fichier : vérifié après ses
+// tests, par un hook qui fait échouer le fichier s'il y reste quelque chose.
+after(rienNeReste);
