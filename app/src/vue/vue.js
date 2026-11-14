@@ -6723,7 +6723,7 @@ function poserStationsDuProjet() {
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
   // Qui cuit le projet n'est plus une ligne de Rail (ticket 3523) : c'est l'étiquette de l'onglet Stations. Ne reste ici que le
   // déménagement en route — et, pour un projet que personne ne cuit, la phrase qui le dit, avec le geste qui le confie à une station.
-  if (stations.length > 0 || ou !== undefined) ligneDesStationsDuProjet.replaceChildren(...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []));
+  if (stations.length > 0 || ou !== undefined || nommees.length > 0) ligneDesStationsDuProjet.replaceChildren(...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []));
   else ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : LECTURE_DE("your stations on GitHub");
   poserLeDemenagement(projet, ou, enCours, lues);
   // Une station du compte qui refuse de l'avoir (ticket 1790) : son nom et sa phrase, une ligne chacune.
