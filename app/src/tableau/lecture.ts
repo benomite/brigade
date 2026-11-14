@@ -13,6 +13,7 @@
 // Ce qui ne se lit pas le dit, jamais un rail vide : GitHub qui ne répond pas ou refuse — chaque fois un échec, et sa
 // raison en une phrase, que l'app montre telle quelle.
 import { epiqueDe, FIN, DEBUT, porteListe, ticketsDeLaListe } from "../../../runtime/src/epique.ts";
+import { avancementDeLaListe, type Avancement } from "../vue/backlog/avancement-github.ts";
 import { avecLeRail, lireLeRailSurGithub, SIGNES_PAS_LUS, type SignesDeVie } from "../vue/rail/github.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 import { ecritureSurLeDepot } from "./ecriture.ts";
@@ -50,8 +51,9 @@ export type ActiviteDuCook = {
 // `tickets`, ceux de son découpage — la liste que le runtime écrit dans son corps, et les issues ouvertes qui se
 // réclament de lui (`Epic: #N`) ; `servis`, ceux d'entre eux dont l'issue est fermée ; `contexte`, le premier paragraphe
 // de son corps (sous `Context`, s'il en a un) ; `servieLe`, l'heure où une épique découpée, tous ses tickets servis, a
-// été fermée — elle reste 24 h dans le bandeau.
-export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite: number | null; etat: string; dit: string; tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string };
+// été fermée — elle reste 24 h dans le bandeau ; `avancement`, ses tickets servis sur leur total, quand son corps les
+// liste en cases à cocher (vue/backlog/avancement-github.ts, #3480).
+export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite: number | null; etat: string; dit: string; tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string; avancement?: Avancement };
 export type AvantLeRailPublie = { lu: string; issues: IssueAvantLeRailPubliee[] };
 
 export type TableauLu = {
@@ -218,6 +220,7 @@ async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<
   const besoin = (issue: Brut, etat: { etat: string; dit: string }, servieLe?: string): IssueAvantLeRailPubliee => {
     const tickets = ticketsDe(issue);
     const contexte = contexteDe(corpsDe(issue));
+    const avancement = avancementDeLaListe(corpsDe(issue));
     return {
       ticket: issue.number as number,
       titre: typeof issue.title === "string" ? issue.title : "",
@@ -225,6 +228,7 @@ async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<
       ...etat,
       ...(tickets.length === 0 ? {} : { tickets, servis: tickets.filter((ticket) => !numerosOuverts.has(ticket)) }),
       ...(contexte === undefined ? {} : { contexte }),
+      ...(avancement === undefined ? {} : { avancement }),
       ...(servieLe === undefined ? {} : { servieLe }),
     };
   };

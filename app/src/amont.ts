@@ -11,14 +11,16 @@ import type { Lecture } from "./box.ts";
 import { estHorsLigne, titreDEchec, type Carte } from "./faits.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { voir as voirManager, type Vu as VuManager } from "./manager.ts";
+import type { Avancement } from "./vue/backlog/avancement-github.ts";
 
 export const COMMANDE = "manager upstream";
 
 // Une issue telle que le tableau la donne. `priorite` : celle de son label `prio:`, nulle sans. Ce que le bandeau Backlog
 // lit d'un besoin (#3460), quand la lecture de GitHub le donne — la box ne le donne pas : `tickets`, ceux de son
 // découpage ; `servis`, ceux d'entre eux qui sont fermés ; `contexte`, le premier paragraphe de son issue ; `servieLe`,
-// la fermeture d'une épique toute servie (tableau/lecture.ts).
-export type Besoin = { tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string };
+// la fermeture d'une épique toute servie (tableau/lecture.ts) ; `avancement`, ses tickets servis sur leur total, tels que la
+// liste de cases à cocher de son corps les dit (vue/backlog/avancement-github.ts, #3480).
+export type Besoin = { tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string; avancement?: Avancement };
 export type Donnee = { ticket: number; titre: string; url: string; priorite: number | null; etat: string; dit: string } & Besoin;
 // La sortie de `manager upstream` : l'heure de la box à la lecture des issues, le dépôt lu, les issues.
 export type Amont = { lu: string; depot: string; issues: Donnee[] };
@@ -56,6 +58,13 @@ const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
 const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
 const entiers = (valeur: unknown, champ: string): number[] => (Array.isArray(valeur) ? valeur.map((un: unknown, rang) => entier(un, `${champ}[${rang}]`)) : refuser(champ, "a list"));
+// Des tickets servis sur leur total : jamais plus de servis que de tickets, jamais une liste vide.
+function avancement(valeur: unknown, champ: string): Avancement {
+  const lu = objet(valeur, champ);
+  const servis = entier(lu.servis, `${champ}.servis`);
+  const total = entier(lu.total, `${champ}.total`);
+  return total > 0 && servis <= total ? { servis, total } : refuser(champ, "served tickets out of a non-empty total");
+}
 // Ce qu'une issue dit d'un besoin, champ par champ : absent, il n'est pas complété ; présent, il a sa forme ou refuse tout.
 function besoinDe(issue: Record<string, unknown>, champ: string): Besoin {
   return {
@@ -63,6 +72,7 @@ function besoinDe(issue: Record<string, unknown>, champ: string): Besoin {
     ...(issue.servis === undefined ? {} : { servis: entiers(issue.servis, `${champ}.servis`) }),
     ...(issue.contexte === undefined ? {} : { contexte: texte(issue.contexte, `${champ}.contexte`) }),
     ...(issue.servieLe === undefined ? {} : { servieLe: texte(issue.servieLe, `${champ}.servieLe`) }),
+    ...(issue.avancement === undefined ? {} : { avancement: avancement(issue.avancement, `${champ}.avancement`) }),
   };
 }
 
