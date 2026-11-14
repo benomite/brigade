@@ -252,6 +252,38 @@ test("the secondes #18/#28 state moves again in one station cycle: the fix ticke
   assert.equal(s.faux.ticket(PROPRIETAIRE).labels.has(A_LA_MAIN), false);
 });
 
+test("secondes#21: a cook asking for allowLocalBinding in a settings file, the manager rewriting it into a gesture, gets no chef card nor label: the ticket goes back to the kitchen with the limit named", async (t) => {
+  const TICKET = 21;
+  const s = station(t, {
+    ticket: TICKET,
+    manager: JSON.stringify({ issue: "geste", geste: "On station macbook-air-de-benoit/claude, edit the settings file that cook sessions actually load (`~/.claude/settings.json`). Add `\"sandbox\": {\"network\": {\"allowLocalBinding\": true}}`.", question_en: "The sandbox refuses a local port." }),
+    cook: () => "I stopped.\n<livrable>\n<bloque>The sandbox refuses binding a local port: please set allowLocalBinding in the settings file.</bloque>\n</livrable>",
+  });
+  await s.tour();
+  assert.equal(s.consultations.length, 1);
+  assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false);
+  assert.deepEqual(cartes(s.commentaires()), []);
+  assert.ok(s.commentaires().some((c) => c.includes("Nothing here is for the chef") && c.includes("The limit:")), s.commentaires().join("\n---\n"));
+});
+
+test("a chef card asking for a sandbox setting is withdrawn by the station, and the ticket goes back to the kitchen", async (t) => {
+  const TICKET = 21;
+  const s = station(t, {
+    ticket: TICKET,
+    avant: (_lieux, faux) => {
+      faux.ticket(TICKET).labels.add(A_LA_MAIN);
+      faux.poster(TICKET, "box", "**Gesture for the chef:** On station box/claude, edit the settings file that cook sessions actually load (`~/.claude/settings.json`). Add `\"sandbox\": {\"network\": {\"allowLocalBinding\": true}}`.");
+    },
+    cook: (_rang, worktree) => {
+      commiter(worktree, "livraison.txt");
+      return "Done.\n<livrable>\nDelivered.\n</livrable>";
+    },
+  });
+  await s.tour();
+  assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false, "the card is withdrawn");
+  assert.ok(s.commentaires().some((c) => c.includes("The card is withdrawn")), s.commentaires().join("\n---\n"));
+});
+
 test("a chef card asking for git commands on the ticket's own branch is withdrawn, and the ticket goes back to its own cook", async (t) => {
   const TICKET = 18;
   let cooks = 0;

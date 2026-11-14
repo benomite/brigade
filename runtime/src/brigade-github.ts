@@ -857,14 +857,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : #${issue} sur ${nom} — the cook asked for a GitHub gesture: the station made it (${fait.fait.join(" ")}), the ticket goes back to a cook`);
       return "liberee";
     }
-    // Un refus du bac à sable n'est pas un geste git (#3552) : la cuisine ajoute
-    // le besoin à la déclaration du projet, le ticket attend puis revient à un cook.
-    if (avis.issue === "geste" && geste === null && natureDeLArret(avis.geste) === "bac-a-sable") {
+    // Un refus du bac à sable n'est pas un geste git (#3552), et n'est jamais une
+    // carte du chef (#3562) : quels que soient les mots du cook ou du manager —
+    // un geste, une question, un fichier de réglages —, la cuisine ajoute le
+    // besoin à la déclaration du projet, le ticket attend puis revient à un cook.
+    const limite = [question, questionEn ?? "", avis.issue === "geste" ? avis.geste : avis.question].find((texte) => natureDeLArret(texte) === "bac-a-sable");
+    if (limite !== undefined) {
+      const dite = limite.trim().split("\n")[0] ?? "";
       const deja = (await depuisLeRelancement(github, issue, lus ?? [], MARQUE_D_ATTENTE)).filter((c) => c.body.includes(" manager ")).length;
-      if (deja + 1 >= ECHECS_MAX) return { echec: `the cook stopped on a sandbox refusal, ${deja + 1} times, and no card is posted for it: ${avis.geste}` };
+      if (deja + 1 >= ECHECS_MAX) return { echec: `the cook stopped on a sandbox limit, ${deja + 1} times, and no card is posted for it: ${dite}` };
       const reprise = instant() + ATTENTE_MS;
-      avertir(`brigade : #${issue} sur ${nom} — the cook stopped on a sandbox refusal (${avis.geste}): no card for the chef, the kitchen adds the need to the declaration`);
-      await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped — ${DIT_L_ARRET_DU_BAC} Nothing here is for the chef.\n\nThe ticket waits until ${new Date(reprise).toISOString()}. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
+      avertir(`brigade : #${issue} sur ${nom} — the cook stopped on a sandbox limit (${dite}): no card for the chef, the kitchen adds the need to the declaration`);
+      await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} manager -->\nStation \`${nom}\`: the cook stopped — ${DIT_L_ARRET_DU_BAC} Nothing here is for the chef.\n\nThe limit: ${dite}\n\nThe ticket waits until ${new Date(reprise).toISOString()}. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
       return "liberee";
     }
     // Un geste git n'est jamais une carte du chef (#3476) : le ticket revient à

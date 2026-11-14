@@ -20,7 +20,8 @@ import { A_LA_MAIN, brancheDuTicket, ECHECS_MAX, type GitHubDuTour, type TicketL
 import type { LanceurGit } from "../integration-base.ts";
 import { mettreAJourLaBranche, type MiseAJourDeLaBranche } from "../mise-a-jour-branche/mise-a-jour-branche.ts";
 import { consigneDeLIntegration, integrerAvantLeCook } from "../renvoi-conflit.ts";
-import { carteDeGesteGit, carteDuChoixDeProduit, cibleDuTravail, corpsDuRenvoiPourConflit, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, teteDeCarte } from "./renvoi.ts";
+import { DIT_L_ARRET_DU_BAC, natureDeLArret } from "../bac-a-sable/nature-arret.ts";
+import { carteDeBacASable, carteDeGesteGit, carteDuChoixDeProduit, cibleDuTravail, corpsDuRenvoiPourConflit, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, teteDeCarte } from "./renvoi.ts";
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -77,6 +78,7 @@ export async function suiteDuConflitBloque(
     return { suite: "liberee" as const, dit: `the cook stopped on the conflict with \`origin/${base}\` (${pourquoi}): the ticket goes back to its own cook` };
   };
   if (demandeUnGesteGit(question)) return renvoyer("its question is a git gesture");
+  if (natureDeLArret(question) === "bac-a-sable") return renvoyer("its question is a sandbox limit, nothing for the chef");
   let lu: ReponseDuManager;
   try {
     lu = consulter === undefined ? { illisible: "this station has no manager to consult" } : await consulter(question);
@@ -87,6 +89,7 @@ export async function suiteDuConflitBloque(
   const avis: Avis = lu.avis;
   if (avis.issue !== "produit" && avis.issue !== "design") return renvoyer(`the manager read a ${avis.issue === "geste" ? "gesture" : "technical question"}, not a choice for the chef`);
   if (demandeUnGesteGit(avis.question)) return renvoyer("the manager's question is a git gesture");
+  if (natureDeLArret(avis.question) === "bac-a-sable") return renvoyer("the manager's question is a sandbox limit, nothing for the chef");
   const pose = await poserALaMain({ github }, ticket, carteDuChoixDeProduit({ station, base, fichiers, question: avis.question, sorte: avis.issue }));
   if (!pose.pose) return renvoyer(pose.echec);
   return { suite: "retenue", dit: `the conflict with \`origin/${base}\` hides a ${avis.issue === "produit" ? "product" : "design"} choice: the chef's card asks it` };
@@ -139,6 +142,13 @@ export async function degelerLesConflits(
       if (!ticket.labels.includes(A_LA_MAIN) || examinees.has(ticket.number)) continue;
       const carte = (await github.commentaires(ticket.number)).map((c) => teteDeCarte(c.body)).findLast((tete) => tete !== null) ?? null;
       examinees.add(ticket.number);
+      if (carte !== null && carteDeBacASable(carte)) {
+        await github.delabelliser(ticket.number, A_LA_MAIN);
+        rendus.add(ticket.number);
+        await github.commenter(ticket.number, `Station \`${station}\`: the chef's card on this ticket asked for a sandbox setting — never something the chef can do. The card is withdrawn and \`${A_LA_MAIN}\` removed: the ticket goes back to the kitchen with the sandbox limit named (${DIT_L_ARRET_DU_BAC}).`);
+        avertir(`brigade : #${ticket.number} sur ${station} — its chef card asked for a sandbox setting: withdrawn, the ticket goes back to the kitchen`);
+        continue;
+      }
       if (carte === null || !carteDeGesteGit(carte)) continue;
       const nommee = /\bcook\/([1-9]\d*)-/.exec(carte);
       const cible = nommee ? Number(nommee[1]) : ticket.number;
