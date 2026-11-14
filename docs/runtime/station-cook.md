@@ -35,9 +35,13 @@ zone is the `Zone` section of its body **and** the `zone` line of its card (wher
 an unreadable card owns nothing), and it is held by an open PR that changes one of its paths, or by a
 ticket **taken** on any station — or claimed earlier in the same tick — whose zone overlaps, before
 that cook has opened its PR. Before #2741 only the body was read and only open PRs held: two cooks
-left on the same files, and the second delivered came back in conflict with the base. **A ticket with
-no declared zone** (no `Zone` section, no `zone` line on its card — every ticket not born of an
-epic) owns **the paths its body names** (`fichiersDuCorps`): before #2758 it held nothing and waited
+left on the same files, and the second delivered came back in conflict with the base. A ticket **in
+pass** holds its whole zone until it is merged, not only the files its PR changes, and the skip names
+**every** ticket that holds it — `zone held by #1, #2` —: it is claimed at the first tick after they
+are all merged (#3509, `runtime/src/chevauchement/`). **A readable card that announces no zone**
+(`zone: none`, or no `zone` line) with no `Zone` section in the body is refused at the claim gate:
+the skip asks the manager to name the files and folders it expects to touch on the card's `zone`
+line (#3509). **A ticket with no declared zone and no card** — every ticket not born of an epic — owns **the paths its body names** (`fichiersDuCorps`): before #2758 it held nothing and waited
 for nothing, and these tickets were the conflicts with the base that kept the first-try rate under
 its threshold. A ticket the station opened (body starting with a `<!-- brigade:` mark) also names
 what it must not touch, so it owns only its declared zone; so does a ticket with an unreadable card.
