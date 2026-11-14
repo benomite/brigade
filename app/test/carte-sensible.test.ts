@@ -155,12 +155,13 @@ const marques = (carte: Faux | undefined) => (carte ?? assert.fail("pas de carte
 describe("la marque « sensitive » sur la carte du ticket", () => {
   test("la carte d'un ticket au label `sensitive` la porte, en mots et au survol ; celle d'un ticket sans le label non", async () => {
     const vue = await ouvrir();
-    const [marque, ...autres] = marques(carteDuTicket(vue, 30));
+    // Le ticket livré et sa revue sont une seule carte, dans Pass (#3519) : elle porte la marque du ticket.
+    assert.equal(carteDuTicket(vue, 30), undefined, "le ticket livré n'a pas de seconde carte à côté de sa revue");
+    const [marque, ...autres] = marques(carteDuTicket(vue, 62));
     assert.equal(autres.length, 0);
     assert.equal(marque?.textContent, MARQUE);
     assert.match(marque?.title ?? "", /labelled sensitive/);
     assert.deepEqual(marques(carteDuTicket(vue, 31)), []);
-    assert.deepEqual(marques(carteDuTicket(vue, 62)), [], "la carte « review before merge » n'est pas le ticket : elle ne porte pas la marque");
   });
 });
 

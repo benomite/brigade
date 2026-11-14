@@ -14,6 +14,7 @@
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
 import { attenteDuRailLue, lignesDesCartesLues, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
+import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lieuDe, lignesDuRail, motDEtat, porter, priorite, type Porte } from "./bon.ts";
@@ -381,6 +382,9 @@ export type Faits = {
   // n'attend, ou qu'un cook tourne. `lignesDesCartes` : la ligne de chaque carte en file qui ne part pas la prochaine.
   attenteDuRail?: AttenteDuRail;
   lignesDesCartes?: LignesDesCartes;
+  // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
+  // n'est pas sue ; absente hors pause.
+  pauseQuota?: PauseDuCompte;
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -531,6 +535,8 @@ export type Tableau = {
   railBloque?: RailBloqueLu;
   // Pourquoi la file ne part pas (vue/attente-du-rail/, #3433) : la ligne sous lui. Absent quand rien n'attend, ou qu'un cook tourne.
   attenteDuRail?: AttenteDuRail;
+  // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
+  pauseQuota?: PauseDuCompte;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
   // tout s'y voit, aucun geste n'y est offert, et une ligne en tête le dit. Absent : la vue ordinaire.
   lectureSeule?: { depot: string };
@@ -822,6 +828,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...railBloqueLu(racine.railBloque),
       ...attenteDuRailLue(racine.attenteDuRail),
       ...lignesDesCartesLues(racine.lignesDesCartes),
+      ...pauseQuotaLue(racine.pauseQuota),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
@@ -1061,6 +1068,11 @@ const COLONNES_DE_FAITS = [
   { nom: "Served", ton: "vert", etats: ["servi"] },
 ] as const;
 const COLONNE_PAR_DEFAUT = "On the rail";
+const COLONNE_DE_LA_PASS = "Pass";
+// Le ticket livré qu'une carte du chef lui demande de juger — la validation du design, la revue d'un ticket sensible —, ou rien.
+function livraisonAJuger(chef: CarteDuChef | undefined): number | undefined {
+  return chef?.design?.ticket ?? chef?.sensible?.ticket;
+}
 // Les mots d'état d'un ticket en attente sur le rail.
 const EN_FILE: readonly string[] = COLONNES_DE_FAITS[0].etats;
 // La priorité d'un ticket dont l'issue ne porte aucun `prio:` — `-` dans sa ligne de `status`.
@@ -1193,7 +1205,11 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     const connu = connus.get(ticket);
     const donne = faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket);
     const url = connu?.url ?? donne?.url;
-    const titre = [connu?.titre, donne?.titre].find((candidat) => candidat !== undefined && candidat !== "");
+    // Une carte qui demande de juger une livraison est la carte du ticket livré (#3519) : elle en porte le titre, la marque
+    // sensible et la station.
+    const jugee = livraisonAJuger(donne?.chef);
+    const livree = jugee === undefined || jugee === ticket ? undefined : connus.get(jugee);
+    const titre = [livree?.titre, connu?.titre, donne?.titre].find((candidat) => candidat !== undefined && candidat !== "");
     const dit = dits.get(ticket) ?? (dAutres.has(ticket) ? [] : undefined);
     const siennes = lignes === undefined ? undefined : (lignes.get(ticket) ?? []);
     const porte = porter(connu === undefined ? {} : { etat: connu.etat, titre: connu.titre }, {
@@ -1254,15 +1270,17 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(essais === undefined ? {} : { essais }),
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
       ...(titre === undefined ? {} : { titre }),
-      ...(connu?.station === undefined ? {} : { station: connu.station }),
+      ...((connu?.station ?? livree?.station) === undefined ? {} : { station: connu?.station ?? livree?.station }),
       ...(connu?.requires === undefined ? {} : { requiert: connu.requires }),
-      ...(connu?.sensible === true ? { sensible: true as const } : {}),
+      ...(connu?.sensible === true || livree?.sensible === true ? { sensible: true as const } : {}),
       ouvrable: url != null && ouvrable(url),
       attendu: dit !== undefined,
       attend: dit ?? [],
       // Qui attend le chef reste dans la colonne de son étape, en rouge (#3458) : celle de son mot d'état — ou, mis de côté,
       // celle où le runtime dit qu'il attend —, et sur le rail quand il n'y est pas encore.
-      ...(dit === undefined ? {} : { etape: colonneDeFaits(connu, connu?.etat) ?? COLONNE_PAR_DEFAUT }),
+      // Une carte qui demande au chef de juger une livraison (validation design, revue sensible) est la passe qui l'attend : elle
+      // reste dans Pass, sur la carte de son ticket (#3519).
+      ...(dit === undefined ? {} : { etape: livraisonAJuger(donne?.chef) !== undefined ? COLONNE_DE_LA_PASS : (colonneDeFaits(connu, connu?.etat) ?? COLONNE_PAR_DEFAUT) }),
       ...(dit === undefined || donne?.decision === undefined ? {} : { decision: donne.decision }),
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(connu?.etat === "servi" && faits.livres === undefined ? { livraison: livraison(undefined) } : {}),
@@ -1391,7 +1409,12 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   // ni hors des colonnes.
   const autres = (faits.attendAutres ?? []).filter(({ ticket }) => !dits.has(ticket) && !enWaiting.has(ticket) && !repondus.has(ticket));
   const dAutrui = new Set(autres.map(({ ticket }) => ticket));
-  const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !enWaiting.has(ticket) && !repondus.has(ticket) && !dAutrui.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
+  // Un ticket livré dont la carte du chef lui demande de juger la livraison n'a qu'une carte, celle-là, rouge dans Pass (#3519).
+  const aJuger = new Set([...dits.keys()].flatMap((ticket) => {
+    const jugee = livraisonAJuger((faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket))?.chef);
+    return jugee === undefined || jugee === ticket ? [] : [jugee];
+  }));
+  const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !aJuger.has(ticket) && !enWaiting.has(ticket) && !repondus.has(ticket) && !dAutrui.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
   const colonnes: Colonne[] = COLONNES_DE_FAITS.map(({ nom, ton, etats }) => {
     if (nom === LIVRE && livres !== undefined) return { nom, ton, compte: String(livres.length), cartes: livres, vide: RIEN_LIVRE, defile: true };
     const siennes = ailleurs.filter((posee) => colonneDeFaits(connus.get(posee.ticket), posee.etat) === nom);
@@ -1488,6 +1511,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.quotaGithub === undefined ? {} : { quotaGithub: faits.quotaGithub }),
     ...(faits.railBloque === undefined ? {} : { railBloque: faits.railBloque }),
     ...(faits.attenteDuRail === undefined ? {} : { attenteDuRail: faits.attenteDuRail }),
+    ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
