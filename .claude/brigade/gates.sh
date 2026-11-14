@@ -132,6 +132,25 @@ codex/skills/$r/"*) ;; *)
   [ "$perime" -eq 0 ] && ok "miroir Codex à jour pour les rôles modifiés depuis $REF"
 fi
 
+# 6 quater. Les motifs de renvoi de la relecture qu'un script voit sans elle
+# (#3505) : le premier est un export neuf que seuls ses tests importent (#2770). Ces
+# contrôles sont avant les tests et avant la relecture, que seul un vert des
+# gates déclenche : un rouge ici arrête la pass sans elle, et sans jouer les suites. Sans base, ou sans
+# le module du contrôle (un projet qui n'en a pas), rien à jouer.
+CONTROLES=runtime/src/passe/gates/controle.ts
+if [ -n "${SOUCHE:-}" ] && [ -f "$CONTROLES" ]; then
+  if ! command -v node >/dev/null 2>&1; then
+    fail "node introuvable : contrôles des motifs de renvoi injouables"
+  else
+    printf '%s\n' "$CHANGES" | node "$CONTROLES" "$SOUCHE"
+    case "$?" in
+      0) ok "motifs de renvoi : aucun export que seuls ses tests importent" ;;
+      2) verdict 1; exit 1 ;;
+      *) fail "contrôles des motifs de renvoi plantés — leur trace est au-dessus" ;;
+    esac
+  fi
+fi
+
 # 6 ter. Les tests que touche ce changement (#1004) : les suites ne jouent que
 # ceux-là — leur fermeture d'imports et de fichiers cités contient un fichier
 # modifié (`tests-touches.mjs`). Sur la base elle-même le diff est vide : tout
