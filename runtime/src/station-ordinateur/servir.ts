@@ -36,6 +36,7 @@ import { baseDuClone } from "../projets-station/selection.ts";
 import { plafondDesCoeurs } from "../projections/stations.ts";
 import { brancheDuProjet, reglagesAuDemarrage } from "../reglages-projet/en-vigueur.ts";
 import { DECLARATION_SERVICES_LOCAUX, servicesDuDepot } from "../sandbox/services-locaux.ts";
+import { DECLARATION_BAC_A_SABLE } from "../bac-a-sable/declaration.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE } from "../reseau.ts";
 import { ETATS, lieuxDuProjet } from "../station/configuration.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
@@ -122,7 +123,11 @@ export function tourDeLaBox(options: OptionsDuService): (projet: ProjetAServir) 
       const { reglages } = reglagesAuDemarrage(lieu, env);
       const { plafonds, graceMs } = lireReglages(env);
       // Sur le Mac du chef, chaque `claude` part dans le bac à sable ; s'il n'y est pas, le projet n'est pas servi.
-      const bacASable = configBacASableLocal(sondesDeLaMachine(options.claude), { home: options.maison, worktrees: projet.worktrees, caches: lireCaches(env) }, hotes, () => servicesDuDepot(() => lireALaBase(lieu, DECLARATION_SERVICES_LOCAUX, env)));
+      const bacASable = configBacASableLocal(sondesDeLaMachine(options.claude), { home: options.maison, worktrees: projet.worktrees, caches: lireCaches(env) }, hotes, () => servicesDuDepot(() => lireALaBase(lieu, DECLARATION_SERVICES_LOCAUX, env)), {
+        declaration: () => lireALaBase(lieu, DECLARATION_BAC_A_SABLE, env),
+        etat: options.racine,
+        avertir: options.dire,
+      });
       const retenue = options.retenue;
       const managerDuDepot = reglages?.defaultCalibrations?.manager;
       return stationDuDepot({
