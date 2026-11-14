@@ -280,6 +280,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/github-etat/etats.ts",
     "runtime/src/rail-bloque/lecture.ts",
     "runtime/src/rail-bloque/rail-bloque.ts",
+    // Le ticket qu'une PR sert, sans E/S : la règle que le récapitulatif du runtime lit sur les mêmes PR (ticket 3581).
+    "runtime/src/recap/servis.ts",
     "runtime/src/stations-github/stations.ts",
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.

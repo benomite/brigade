@@ -96,6 +96,12 @@ export type PR = {
   version?: string;
 };
 
+// Une PR mergée telle que la liste des PR fermées la rend.
+type PRMergee = { number: number; url: string; title: string; body: string; branche: string; mergedAt: string };
+
+// Au-delà, la lecture des PR mergées lève : mille PR fermées depuis l'instant.
+const PAGES_DE_PR_MERGEES = 10;
+
 // Un statut de commit tel que GitHub le garde : `id` croît avec l'ordre où il
 // les reçoit ; `description` tient en 140 caractères.
 export type StatutDeCommit = { id: number; state: "pending" | "success" | "failure" | "error"; context: string; description: string; createdAt: string };
@@ -118,7 +124,14 @@ export type GitHub = {
   commentaires(numero: number): Promise<Commentaire[]>;
   // Les commentaires de tout le dépôt modifiés depuis `instant`, du plus ancien au
   // plus récent : une liste paginée, au lieu d'une lecture par issue (#3030).
-  commentairesDepuis?(instant: string): Promise<Commentaire[]>;
+  // `issue` : le numéro de l'issue qui le porte, quand GitHub le dit (`issue_url`).
+  commentairesDepuis?(instant: string): Promise<(Commentaire & { issue?: number })[]>;
+  // Les PR mergées depuis `instant`, d'après les PR fermées triées par mise à
+  // jour — la lecture de la colonne Served de l'app (app/src/vue/rail/github.ts) :
+  // page après page jusqu'à une PR mise à jour avant l'instant, une PR l'étant au
+  // moins à son merge. Plus de `PAGES_DE_PR_MERGEES` pages lève : jamais une
+  // liste coupée rendue pour entière (le récapitulatif, recap/servis.ts, #3581).
+  prsMergeesDepuis?(instant: string): Promise<PRMergee[]>;
   // Les instants où le label `fire` a été retiré de l'issue, du plus ancien au
   // plus récent : l'historique des labels, que l'état courant ne garde pas.
   retraitsDeFire(numero: number): Promise<string[]>;
@@ -409,7 +422,7 @@ type IssueBrute = {
   assignees?: Array<{ login?: string } | null> | null;
 };
 
-type CommentaireBrut = { id?: number; body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
+type CommentaireBrut = { id?: number; body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string; issue_url?: string };
 
 type EvenementBrut = { event?: string; created_at?: string; commit_id?: string | null; label?: { name?: string } | null; actor?: { login?: string } | null };
 
@@ -470,7 +483,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -656,7 +669,30 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const pages = await lireLaListe(`repos/${depot}/issues/comments?since=${instant}&sort=created&direction=asc&per_page=100`);
       return pages
         .flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[])
-        .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE", createdAt: brut.created_at ?? "" }));
+        .map((brut) => {
+          const issue = Number(/\/issues\/(\d+)$/.exec(brut.issue_url ?? "")?.[1]);
+          return { body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE", createdAt: brut.created_at ?? "", ...(Number.isSafeInteger(issue) && issue > 0 ? { issue } : {}) };
+        });
+    },
+    async prsMergeesDepuis(instant) {
+      const depuis = Date.parse(instant);
+      if (Number.isNaN(depuis)) throw new Error(`“${instant}” is not an instant`);
+      const mergees: PRMergee[] = [];
+      let chemin: string | null = `repos/${depot}/pulls?state=closed&sort=updated&direction=desc&per_page=100`;
+      for (let page = 1; chemin !== null; page++) {
+        if (page > PAGES_DE_PR_MERGEES) throw new Error(`more than ${PAGES_DE_PR_MERGEES * 100} closed pull requests since ${instant}`);
+        const reponse: Reponse = exiger(await lireSousCondition([chemin], true), chemin);
+        const brutes = JSON.parse(reponse.corps) as Array<PRBrute & { title?: string; body?: string | null; updated_at?: string; head: { ref?: string } }>;
+        for (const brute of brutes) {
+          const mergedAt = brute.merged_at ?? "";
+          if (mergedAt === "" || !(Date.parse(mergedAt) >= depuis)) continue;
+          mergees.push({ number: brute.number, url: brute.html_url, title: brute.title ?? "", body: brute.body ?? "", branche: brute.head?.ref ?? "", mergedAt });
+        }
+        const derniere = Date.parse(brutes.at(-1)?.updated_at ?? "");
+        // Une PR sans date de mise à jour ne dit pas jusqu'où la page couvre : la suivante se lit.
+        chemin = !Number.isNaN(derniere) && derniere < depuis ? null : pageSuivante(reponse);
+      }
+      return mergees;
     },
     async retraitsDeFire(numero) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/events?per_page=100`);

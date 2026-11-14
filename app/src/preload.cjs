@@ -122,6 +122,10 @@ const pont = {
   lireLesExplications: (projet) => ipcRenderer.invoke("lireLesExplications", projet),
   marquerUneExplication: (projet, mot) => ipcRenderer.invoke("marquerUneExplication", projet, mot),
   remontrerLesExplications: (projet) => ipcRenderer.invoke("remontrerLesExplications", projet),
+  // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : lu, dit montré, et la PR d'un ticket servi ouverte (recap/recap-box.ts).
+  lireLeRecap: (projet) => ipcRenderer.invoke("lireLeRecap", projet),
+  marquerLeRecap: (projet, until) => ipcRenderer.invoke("marquerLeRecap", projet, until),
+  ouvrirLaPRDuRecap: (url) => ipcRenderer.invoke("ouvrirLaPRDuRecap", url),
   // Les stations contributrices du projet, sous Settings (ticket 2936) : lues, refusées ou réacceptées (stations-contributrices.ts).
   listerLesStationsContributrices: (projet) => ipcRenderer.invoke("listerLesStationsContributrices", projet),
   refuserUneStationContributrice: (projet, station) => ipcRenderer.invoke("refuserUneStationContributrice", projet, station),

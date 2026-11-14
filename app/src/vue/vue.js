@@ -97,6 +97,7 @@ import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } fr
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
 import { absenceALAperture, poserAbsence } from "./absence/absence.js";
+import { ceQuiAttendDansTodo, poserLeRecap } from "./recap/recap.js";
 import { ACCUEIL as RESUMES_DE_L_ACCUEIL, tenirLesResumesHebdomadaires, TITRE as TITRE_DES_RESUMES } from "./resume-hebdomadaire/resume-hebdomadaire.js";
 import { garderLeClavier } from "./garder-le-clavier.js";
 import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
@@ -614,6 +615,17 @@ deTousLesProjets.append(bloc("h3", TOUS_LES_PROJETS), coutsDeLAccueil, ratiosDeL
 // version plus haute, en tête de l'app (mise-a-jour/bandeau.js), dit la version qui tourne et l'installe.
 const blocDeLaPromesse = poserBlocDeLaPromesse(document);
 const blocDesProjets = poserBlocDesProjets(document, projetsDeLAccueil);
+// Le récapitulatif de chaque projet, en tête de l'accueil (ticket 3581, recap/) : sa place, que `poserLeRecapDeLAccueil` remplit.
+const recapDeLAccueil = document.createElement("div");
+recapDeLAccueil.id = "recap-de-l-accueil";
+// Ce qui en est lu à cette ouverture de l'app, par projet ; ce qui se lit encore ; ce que le runtime sait montré.
+// `null` : le pont n'a rien rendu — il ne porte pas le récapitulatif, le projet n'en montre aucun.
+/** @type {Map<string, import("./recap/recap-box.ts").LectureDuRecap | null>} */
+const recapsLus = new Map();
+/** @type {Set<string>} */
+const recapsEnLecture = new Set();
+/** @type {Set<string>} */
+const recapsMarques = new Set();
 // Les premiers réglages de la station qu'on vient d'installer : se connecter à GitHub (le geste que l'app a déjà), puis
 // choisir les projets qu'elle sert, sur sa page.
 const blocDeLaStation = tenirBlocDeLaStation(document, {
@@ -6186,6 +6198,58 @@ function poserAccueil() {
   // « Add a project » est à droite du titre du bloc (Home.dc.html) ; un téléphone n'ajoute pas de projet.
   poserAjout(blocDesProjets, telephoneVu === undefined ? boutonDAjout(document, gestesDuBloc, desProjets.length === 0) : undefined);
   poserLesCartesDuChef();
+  poserLeRecapDeLAccueil();
+}
+
+// Le récapitulatif de chaque projet qui se lit (ticket 3581, recap/) : ce que sa cuisine a fait depuis que le chef a regardé,
+// lu une fois par ouverture de l'app par la commande `recap` de son runtime (recap/recap-box.ts), et ce qui attend le chef
+// dans TODO — les cartes que TODO montre à cet instant. Dès que l'accueil le montre, rien ne le couvrant, le runtime en est
+// averti, une fois par projet : son marqueur avance jusqu'à l'instant que ce récapitulatif couvrait, et la prochaine
+// ouverture ne redit que ce qui est plus neuf. Un marquage refusé se retente à la pose suivante. Un pont qui ne le porte
+// pas (le téléphone), ou qui ne rend rien pour un projet, n'en montre aucun : sans projet à montrer, le bloc n'est pas posé.
+function poserLeRecapDeLAccueil() {
+  if (brigade.lireLeRecap === undefined) return recapDeLAccueil.replaceChildren();
+  const projets = configuration.projets.filter((projet) => seLit(projet));
+  for (const { nom } of projets) {
+    if (recapsLus.has(nom) || recapsEnLecture.has(nom)) continue;
+    recapsEnLecture.add(nom);
+    void Promise.resolve()
+      .then(() => brigade.lireLeRecap?.(nom))
+      .then(
+        (lue) => (lue !== null && typeof lue === "object" ? lue : null),
+        (/** @type {unknown} */ erreur) => ({ sans: NON_ATTEINT("recap"), detail: erreur instanceof Error ? erreur.message : String(erreur) }),
+      )
+      .then((lue) => {
+        recapsEnLecture.delete(nom);
+        recapsLus.set(nom, lue);
+        poserLeRecapDeLAccueil();
+      });
+  }
+  const entrees = projets.flatMap(({ nom }) => {
+    const lecture = recapsLus.get(nom);
+    if (lecture === null) return [];
+    const tenu = tenus.get(nom);
+    const todo = tenu === undefined || !("tableau" in tenu) || muets.has(nom) ? undefined : ceQuiAttendDansTodo(sansLesValidees(tenu.tableau.rail.colonnes, valideesDe(nom)));
+    return [{ projet: nom, lecture, todo }];
+  });
+  recapDeLAccueil.replaceChildren(...(entrees.length === 0 ? [] : [poserLeRecap(document, entrees, { ouvrir: (url) => void brigade.ouvrirLaPRDuRecap?.(url) })]));
+  // Sa place : sous les premières lignes de l'accueil, au-dessus des projets — quand l'accueil est là.
+  if (entrees.length === 0) recapDeLAccueil.remove();
+  else if (recapDeLAccueil.parentElement !== tous && blocDeLaPromesse.parentElement === tous) blocDeLaPromesse.after(recapDeLAccueil);
+  // Montré : l'accueil est à l'écran avec lui — ni caché, ni couvert par « since you were away » ou une page.
+  if (tous.hidden || recapDeLAccueil.parentElement !== tous || !sectionAbsence.hidden) return;
+  for (const { projet, lecture } of entrees) {
+    if (lecture === undefined || !("recap" in lecture) || recapsMarques.has(projet)) continue;
+    recapsMarques.add(projet);
+    void Promise.resolve()
+      .then(() => brigade.marquerLeRecap?.(projet, lecture.recap.until))
+      .then(
+        (rendu) => {
+          if (rendu === undefined || rendu === null || !("seenUntil" in rendu)) recapsMarques.delete(projet);
+        },
+        () => void recapsMarques.delete(projet),
+      );
+  }
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
@@ -7770,7 +7834,7 @@ function ouvrirTous() {
   poserRatios();
   poserBlocStation();
   poserStationsDeLAccueil();
-  tous.replaceChildren(blocDeLaPromesse, blocDesProjets, blocDeLaStation.racine, stationsDeLAccueil);
+  tous.replaceChildren(blocDeLaPromesse, ...(recapDeLAccueil.childElementCount > 0 ? [recapDeLAccueil] : []), blocDesProjets, blocDeLaStation.racine, stationsDeLAccueil);
   brigade.tous(++demande);
   void lireLesEnregistrees();
 }
@@ -8900,6 +8964,8 @@ brigade.surFaits((recue) => {
   poserLesCartesDuChef();
   // L'accueil affiché dit ce qui attend le chef du même compte que « TODO (N) » : une lecture qui le change le repose.
   if (courant === undefined && !ajoute && stationOuverte === undefined && todosDeLAccueil.has(recue.projet) && todosDeLAccueil.get(recue.projet) !== compteDuTodo(recue.projet)) poserAccueil();
+  // Son récapitulatif liste ce qui attend dans TODO tel que TODO le montre : chaque lecture le repose (ticket 3581).
+  else if (courant === undefined) poserLeRecapDeLAccueil();
   // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
   if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {
