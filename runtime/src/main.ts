@@ -198,6 +198,8 @@ try {
               reviewer: reviewer.calibrage,
               // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
               manager: () => decisions.manager(),
+              // Une recalibration du manager après le dernier essai reste sous ce plafond (#3513).
+              plafond: () => manager.plafond,
               flux: join(repertoireEtat, "github-seul"),
               observer: suiviDuTour.envelopper,
               sauter: suiviDuTour.sauter,

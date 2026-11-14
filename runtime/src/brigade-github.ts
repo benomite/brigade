@@ -25,7 +25,7 @@ import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { defaireLesBoucles } from "./boucle-attente/boucle-attente.ts";
 import { attendusDuBlocage, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
 import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapables, stationsCapables } from "./routage-station/routage-station.ts";
-import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
+import { calibrage as calibrageDesLabels, complet, LABEL_COOK_DESIGN, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
@@ -61,7 +61,10 @@ import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SET
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
-import { ECHECS_ATTEINTS, estMisDeCote, MIS_DE_COTE, type GitHub, type Issue, type PR } from "./github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type PR } from "./github.ts";
+import { avecListe, rendreListe } from "./epique.ts";
+import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
+import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
@@ -351,6 +354,11 @@ export type OptionsDeStation = {
   // `blocked-on-human` (#2894). Absent, le blocage attend, puis compte pour un
   // cook sans livraison : il ne va jamais au chef sans lui.
   consulter?: ConsulterLeManager;
+  // Le manager, à qui va un ticket après son dernier essai raté (#3513) : il
+  // le réécrit, le découpe, le recalibre, ou pose au chef une question de
+  // produit ou de design. Absent, le ticket est mis de côté pour le chef, et
+  // le commentaire le dit.
+  reprendre?: ReprendreLeTicket;
   // Le service des PR externes (#2933) : leur relecture et leurs gates, sans
   // les secrets du projet, et ses humains, à qui va leur carte. Absent, la
   // station ne les sert pas.
@@ -461,12 +469,20 @@ export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], 
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
 // dernier retrait de `served-elsewhere`, que GitHub date pour toutes les stations
 // (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
-// livraison. Des retraits illisibles ne remettent rien à zéro.
-const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number, commentaires: { body: string; createdAt: string }[], marque: string) => {
+// livraison. Des retraits illisibles ne remettent rien à zéro. La reprise du
+// manager après le dernier essai (#3513) les remet à zéro aussi : seuls
+// comptent les commentaires d'après le sien.
+const relanceDe = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number): Promise<number> => {
   const retraits = await github.retraitsDeLabels(numero).catch(() => []);
-  const relance = Math.max(0, ...retraits.filter((r) => (MIS_DE_COTE as readonly string[]).includes(r.label)).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
-  return commentaires.filter((c) => c.body.startsWith(marque) && !(Date.parse(c.createdAt) <= relance));
+  return Math.max(0, ...retraits.filter((r) => (MIS_DE_COTE as readonly string[]).includes(r.label)).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
 };
+const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number, commentaires: { body: string; createdAt: string }[], marque: string) => {
+  const relance = await relanceDe(github, numero);
+  const reprise = commentaires.findLastIndex((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE));
+  return commentaires.slice(reprise + 1).filter((c) => c.body.startsWith(marque) && !(Date.parse(c.createdAt) <= relance));
+};
+// Le motif d'un essai, tel que son commentaire `brigade:echec` ou `brigade:renvoi` le dit.
+const motifDe = (corps: string) => corps.match(/ — ([^\n]*)/)?.[1] ?? "";
 
 // Le motif d'un verdict, sous son marqueur et sa ligne « Changes requested ».
 const motifDuVerdict = (commentaires: { id: number; body: string }[], id: number) => commentaires.find((c) => c.id === id)?.body.split("\n").slice(2).join("\n").trim() || "see the PR";
@@ -798,6 +814,80 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // qu'il devient : le même blocage technique ne boucle pas.
   // Les cartes de station que ce processus a posées : une par prérequis.
   const cartesDeLaStation = new Map<string, number>();
+  // Après le dernier essai raté d'un ticket — `ECHECS_MAX` cooks sans
+  // livraison, deux au même motif, ou ses renvois épuisés —, il va au manager,
+  // pas au chef (#3513) : la station applique ici la reprise qu'il choisit —
+  // réécrit, découpé, recalibré, ou une question de produit ou de design. Rend
+  // le commentaire de la reprise, que l'appelant poste après celui de l'essai
+  // (les essais se recomptent d'après lui) ; ou ce que le chef lit quand le
+  // ticket va à lui : déjà repris une fois, sans manager, ou une reprise qui ne
+  // se lit ou ne s'applique pas — dite, jamais devinée.
+  const apresLesEssais = async (ticket: TicketLu, motifs: string[]): Promise<{ auChef: string } | { commentaire: string; question: boolean }> => {
+    const numero = ticket.number;
+    let corps: string;
+    let commentaires: { body: string; createdAt: string }[];
+    try {
+      [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero)]);
+    } catch (erreur) {
+      return { auChef: `The manager did not rework it: the ticket could not be read (${message(erreur)}).` };
+    }
+    // Repris depuis son dernier relancement, ou né du découpage d'une reprise
+    // et jamais relancé : il a eu la sienne, il va au chef avec ce qui a été tenté.
+    const relance = await relanceDe(github, numero);
+    const dejaRepris = commentaires.filter((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE) && !(Date.parse(c.createdAt) <= relance)).at(-1);
+    const parent = parentDeLaReprise(corps);
+    if (dejaRepris !== undefined || (parent !== null && relance === 0)) {
+      const duParent = dejaRepris === undefined && parent !== null ? (await github.commentaires(parent).catch(() => [])).filter((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE)).at(-1) : undefined;
+      avertir(`brigade : #${numero} sur ${nom} — its tries are spent again after the manager reworked it: it goes to the chef, with what was tried`);
+      return { auChef: ceQuiAEteTente({ reprise: (dejaRepris ?? duParent)?.body ?? null, parent: dejaRepris === undefined ? parent : null, motifs }) };
+    }
+    if (options.reprendre === undefined) return { auChef: "The manager did not rework it: this station has no manager to consult." };
+    const pose = calibrageDesLabels(ticket.labels);
+    const calibrage = complet(pose) ? pose : null;
+    const lu = await options.reprendre(ticket, { calibrage, motifs }).catch((erreur: unknown) => ({ illisible: message(erreur) }));
+    if ("illisible" in lu) {
+      avertir(`brigade : #${numero} sur ${nom} — its tries are spent and the manager could not rework it (${lu.illisible}): it goes to the chef`);
+      return { auChef: `The manager could not rework it: ${lu.illisible}.` };
+    }
+    const { reprise } = lu;
+    let nouveaux: number[] = [];
+    try {
+      if (reprise.choix === "reecrire" || reprise.choix === "decouper") {
+        if (github.ecrireCorps === undefined) return { auChef: `The manager chose to ${reprise.choix === "reecrire" ? "rewrite" : "split"} it, but this station cannot write the ticket's body.` };
+      }
+      if (reprise.choix === "reecrire") await github.ecrireCorps?.(numero, corpsReecrit(corps, reprise.corps));
+      if (reprise.choix === "recalibrer") {
+        for (const label of ticket.labels.filter((l) => l.startsWith("model:") || l.startsWith("effort:"))) await github.delabelliser(numero, label);
+        await github.labelliser(numero, [`model:${reprise.calibrage.model}`, `effort:${reprise.calibrage.effort}`]);
+      }
+      if (reprise.choix === "decouper") {
+        // Nés sur le rail avec le calibrage, la priorité et le cook du ticket ;
+        // lui devient leur épique : il ne se prend plus, et se ferme avec eux.
+        const labels = [LABEL, ...ticket.labels.filter((l) => /^(model|effort|prio):/.test(l) || l === LABEL_COOK_DESIGN)];
+        const lignes = [];
+        for (const sous of reprise.tickets) {
+          const ne = await github.creerIssue({ titre: sous.titre, corps: corpsDuSousTicket(numero, sous, calibrage), labels });
+          nouveaux = [...nouveaux, ne];
+          lignes.push({ ticket: ne, title: sous.titre, state: "on the rail", served: false });
+        }
+        await github.ecrireCorps?.(numero, avecListe(corps, rendreListe(numero, lignes)));
+      }
+    } catch (erreur) {
+      avertir(`brigade : #${numero} sur ${nom} — the manager's rework (${reprise.choix}) could not be applied: ${message(erreur)}`);
+      return { auChef: `The manager chose to ${reprise.choix === "reecrire" ? "rewrite" : reprise.choix === "decouper" ? "split" : "recalibrate"} it, and it could not be applied: ${message(erreur)}.${nouveaux.length === 0 ? "" : ` Already opened: ${nouveaux.map((n) => `#${n}`).join(", ")}.`}` };
+    }
+    avertir(`brigade : #${numero} sur ${nom} — its tries are spent: the manager ${reprise.choix === "question" ? `asks the chef a ${reprise.sorte} question` : `chose \`${reprise.choix}\`, and the ticket goes back on the rail`}`);
+    return { commentaire: commentaireDeReprise({ station: nom, reprise, motifs, avant: calibrage, nouveaux }), question: reprise.choix === "question" };
+  };
+
+  // Le commentaire de la reprise, posté après celui de l'essai ; une question
+  // de produit ou de design le porte comme carte du chef (`blocked-on-human`).
+  const direLaReprise = async (numero: number, suite: { commentaire: string; question: boolean }) => {
+    if (!suite.question) return void (await github.commenter(numero, suite.commentaire));
+    const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, numero, suite.commentaire);
+    if (!pose.pose) avertir(`brigade : ${pose.echec}`);
+  };
+
   const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
     const issue = ticket.number;
     const premiereLigne = question.trim().split("\n")[0] ?? "";
@@ -1147,14 +1237,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const precedents = await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC);
       const echecs = precedents.length + 1;
       // Hors cuisine après `ECHECS_MAX` arrêts de suite, ou dès que deux de suite ont le même motif (#2729).
-      const motifDe = (corps: string) => corps.match(/ — ([^\n]*)/)?.[1] ?? "";
       const sortie = horsCuisine([...precedents.map((c) => ({ motif: motifDe(c.body), desaccord: false })), { motif: fait.echec, desaccord: false }]);
+      // Ses essais épuisés, le ticket va au manager, pas au chef (#3513).
+      const suite = sortie ? await apresLesEssais(ticket, [...precedents.map((c) => motifDe(c.body)), fait.echec]) : null;
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (try ${echecs}/${ECHECS_MAX}): ${fait.echec}`);
-      await github.commenter(issue, `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${sortie ? `\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${echecs} cooks without a delivery: not served elsewhere, nobody serves it. A human decides; remove the label to try again.` : ""}`);
+      await github.commenter(
+        issue,
+        `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${suite === null ? "" : "auChef" in suite ? `\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${echecs} cooks without a delivery: not served elsewhere, nobody serves it. A human decides; remove the label to try again.\n\n${suite.auChef}` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
+      );
       chrono.rater(issue);
-      if (sortie) {
+      if (suite !== null && "auChef" in suite) {
         chrono.oublier(issue);
         await github.labelliser(issue, [ECHECS_ATTEINTS]);
+      } else if (suite !== null) {
+        await direLaReprise(issue, suite);
       }
       await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
       liberee = true;
@@ -1186,9 +1282,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // le sien, et avant de sortir le ticket pour conflit la station resynchronise
   // une dernière fois (`resynchroniser`) — seul un vrai conflit de contenu sort (#2726).
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1, genre: "conflict" | "red CI" | "review" = "review", resynchroniser?: () => Promise<boolean>) => {
-    const tous = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
-    // Compté depuis le dernier retrait de `served-elsewhere` (#2430).
-    const tousRenvois = await depuisLeRelancement(github, ticket.number, tous, MARQUE_DE_RENVOI);
+    const lus = await github.commentaires(ticket.number);
+    const tous = lus.filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    // Compté depuis le dernier retrait de `served-elsewhere` (#2430), ou la reprise du manager (#3513).
+    const tousRenvois = await depuisLeRelancement(github, ticket.number, lus, MARQUE_DE_RENVOI);
     const enConflit = tousRenvois.filter((c) => c.body.includes(MARQUE_DE_CONFLIT));
     const renvois = genre === "conflict" ? enConflit : tousRenvois.filter((c) => !c.body.includes(MARQUE_DE_CONFLIT));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
@@ -1206,10 +1303,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
       return;
     }
-    if (deja >= RENVOIS_MAX && genre !== "conflict") {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${deja} sends back: not served elsewhere, nobody serves it. A human decides.`);
+    // Ses renvois épuisés, le ticket va au manager, pas au chef (#3513).
+    const suite = deja >= RENVOIS_MAX && genre !== "conflict" ? await apresLesEssais(ticket, [...renvois.map((c) => motifDe(c.body)), raison.split("\n")[0] ?? ""]) : null;
+    if (suite !== null && "auChef" in suite) {
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${deja} sends back: not served elsewhere, nobody serves it. A human decides.\n\n${suite.auChef}`);
       await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
       chrono.oublier(ticket.number);
+    } else if (suite !== null) {
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nIts tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`);
+      await direLaReprise(ticket.number, suite);
     } else {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}`);
     }
@@ -1226,7 +1328,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
     }
     // De retour en cuisine : le temps jusqu'au cook suivant est celui du renvoi (#2662).
-    if (deja < RENVOIS_MAX) chrono.marquer(ticket.number, "renvoi");
+    if (deja < RENVOIS_MAX || (suite !== null && !("auChef" in suite) && !suite.question)) chrono.marquer(ticket.number, "renvoi");
   };
 
   // Les checks rouges du commit, tels que le renvoi les nomme : chacun avec les
@@ -2193,6 +2295,9 @@ export type OptionsDuDepot = {
   // bloqué lui va avant tout \`blocked-on-human\` (#2894). Absent, la station n'a
   // pas de manager à consulter, et le dit sur l'issue.
   manager?: () => Calibrage;
+  // Le plafond de calibrage du projet (`reagir.ts`) : une recalibration du
+  // manager après le dernier essai ne le passe pas (#3513). Absent, le défaut.
+  plafond?: () => Plafond;
   // La consigne du second juge (#2555). Par défaut, \`agents/second-juge.md\`
   // du plugin de ce runtime.
   consigneDuSecondJuge?: () => string;
@@ -2847,6 +2952,32 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           }
         };
 
+  // Le manager consulté après le dernier essai raté d'un ticket (#3513) : dans
+  // un worktree de la base, en lecture, avec les motifs de ses essais.
+  const reprendre: ReprendreLeTicket | undefined =
+    calibrageDuManager === undefined
+      ? undefined
+      : async (ticket, { calibrage, motifs }) => {
+          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+          if (lue === null) return { illisible: "the issue no longer exists" };
+          const run = `reprise-${ticket.number}-github`;
+          const lieu = await depot.preparer(run);
+          try {
+            const plafond = options.plafond?.() ?? PLAFOND_PAR_DEFAUT;
+            const texte = consigneDeReprise({ depot: depotGitHub, issue: { number: ticket.number, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: commentaires.slice(-DERNIERS_COMMENTAIRES).map(({ body }) => body), calibrage, plafond, motifs });
+            const flux = join(options.flux, `${run}-${Date.now()}.flux.jsonl`);
+            const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
+            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+            const fin = await lance.fin;
+            const lu = lireLeFlux(lance.flux ?? flux);
+            const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
+            if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
+            return lireReprise(lu.message ?? null, calibrage, plafond);
+          } finally {
+            depot.retirer(lieu.worktree, lieu.branche ?? undefined);
+          }
+        };
+
   // Le second juge (#2555) : un lancement à part de la relecture, dans son
   // propre worktree et sous son propre flux, qui ne lit ni la relecture ni son
   // verdict — le modèle le plus fort, un effort haut, la consigne du plugin de
@@ -2881,7 +3012,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
