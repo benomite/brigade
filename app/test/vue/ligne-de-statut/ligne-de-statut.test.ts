@@ -207,7 +207,7 @@ describe("le module pur de la ligne d'état", () => {
     const normale = { raison: "normale", phrase: LONGUE, geste: null } as const;
     assert.equal(phraseDeLAttente(normale, []), normale);
     assert.equal(phraseDeLAttente(normale, ["#21 is set aside"]).phrase, "The queue waits: #21 is set aside.");
-    const panne = { raison: "arretee", phrase: "The station is stopped.", geste: "demarrer-la-station", stations: [] } as const;
+    const panne = { raison: "arretee", phrase: "The station is stopped.", geste: "demarrer-la-station", stations: [] as string[] } as const;
     assert.equal(phraseDeLAttente(panne, ["#21 is set aside"]), panne);
   });
 });
