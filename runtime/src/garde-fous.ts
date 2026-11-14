@@ -9,7 +9,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
 import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
-import { cooksEnCours, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
+import { cooksEnCours, echecsExternes, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 
@@ -120,8 +120,8 @@ function issue(resultat: Fin, juger: (fin: Fin) => Verdict): Issue {
 }
 
 // Un cook tué par SIGTERM (143) sans que le superviseur l'ait arrêté : quelqu'un
-// d'autre l'a signalé. Si brigade l'a demandé depuis son lancement — un « stop »
-// du chef, une mise à jour lancée —, c'est son fait, pas un échec du cook.
+// d'autre l'a signalé — la station qui redémarre ou se met à jour, l'app fermée,
+// un « stop » du chef. Ce n'est jamais un échec du cook.
 const mortParSigterm = (fin: Fin) => fin.arret === null && fin.erreur === null && (fin.code === 143 || fin.signal === "SIGTERM");
 
 // Rend le runtime, augmenté du lancement gardé. Son `arreter` emporte les
@@ -151,6 +151,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         if (survivant(cook.stream)) survivants.set(cook.run, { run: cook.run, ticket: cook.ticket, stream: cook.stream, limits: cook.limits });
         else noter(cook.ticket, { type: "cook.interrupted", payload: { run: cook.run } });
       }
+      // Réconciliation des arrêts externes (#3528) : un échec que le journal tient pour celui d'un
+      // cook, alors qu'il a été tué du dehors (SIGTERM, 143), ne compte plus ; le disjoncteur ouvert
+      // sur des échecs qui ne tiennent plus se referme, sans geste du chef.
+      for (const run of echecsExternes(base)) noter(null, { type: "cook.reclassified", payload: { run, from: "failed", to: "stop", reason: "external" } });
+      const apres = etatDesGardeFous(base);
+      if (apres.breakerOpenedAt !== null && apres.failures < reglages.seuilDisjoncteur) noter(null, { type: "breaker.lifted", payload: { failures: apres.failures, threshold: reglages.seuilDisjoncteur } });
       // Un « stop » d'avant ce démarrage ne vise aucun cook d'aujourd'hui.
       journal.consommer(CONSOMMATEUR, () => {});
       const etat = etatDesGardeFous(base);
@@ -183,16 +189,16 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
 
   // Ce que brigade a demandé depuis le lancement du cook, quand il est mort de
   // SIGTERM sans arrêt du superviseur. Connu avant que la fin ne soit comptée.
-  const causeDeLArret = (resultat: Fin, lancement: number): "stop" | null => {
+  const causeDeLArret = (resultat: Fin, lancement: number): "stop" | "external" | null => {
     if (resultat.arret?.reason === "stop") return "stop";
     if (!mortParSigterm(resultat)) return null;
     const arrets = base.lire<{ n: number }>("SELECT count(*) AS n FROM events WHERE type = 'kitchen.stopped' AND seq > ?", lancement)[0]?.n ?? 0;
-    return arrets > 0 ? "stop" : null;
+    return arrets > 0 ? "stop" : "external";
   };
 
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
   // si elle porte les échecs d'affilée à son seuil.
-  const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue, cause: "stop" | "update" | null = null) => {
+  const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue, cause: "stop" | "update" | "external" | null = null) => {
     base.transaction(() => {
       noter(ticket, {
         type: "cook.exited",

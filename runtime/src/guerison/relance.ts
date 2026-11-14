@@ -25,7 +25,7 @@ import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "../github-etat/fusion.ts";
 import type { Check } from "../events/pass.ts";
-import { HORS_CUISINE, LABEL, type PR } from "../github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, LABEL, type PR } from "../github.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
 
 // Combien de fois la cuisine relance un ticket pour la même raison.
@@ -130,7 +130,7 @@ export async function diagnostiquer(ticket: TicketDeCote, contexte: ContexteDeLa
 // ouvre le bug d'une boucle. Rend ce qui a été fait.
 export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGuerison): Promise<Guerison> {
   const { github, station } = contexte;
-  if (!ticket.labels.includes(HORS_CUISINE)) return { fait: "rien", pourquoi: "not set aside" };
+  if (!estMisDeCote(ticket.labels)) return { fait: "rien", pourquoi: "not set aside" };
   if (ticket.labels.includes(CHEF_TODO)) return { fait: "rien", pourquoi: "a card awaits the chef: a product or design decision" };
   if (ticket.labels.includes(LABEL_WAITING)) return { fait: "rien", pourquoi: "it waits for something on purpose (`waiting`)" };
   const diagnostic = await diagnostiquer(ticket, contexte);
@@ -144,7 +144,7 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
     const bug = await github.creerIssue({
       titre: `#${ticket.number} loops: set aside again after ${relances.length} relaunches for the same reason (${cause})`,
       corps: [
-        `Ticket #${ticket.number} (${ticket.title}) was set aside (\`${HORS_CUISINE}\`) because ${DIT[cause]}. The kitchen relaunched it ${relances.length} times for this reason, and each cook brought it back to the same point: it is not relaunched a ${relances.length + 1}th time.`,
+        `Ticket #${ticket.number} (${ticket.title}) was set aside (\`${ticket.labels.includes(ECHECS_ATTEINTS) ? ECHECS_ATTEINTS : HORS_CUISINE}\`) because ${DIT[cause]}. The kitchen relaunched it ${relances.length} times for this reason, and each cook brought it back to the same point: it is not relaunched a ${relances.length + 1}th time.`,
         "",
         "## What makes it loop",
         "",
@@ -165,6 +165,6 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
   // Le commentaire avant le label : relancé sans lui, le cook ne saurait pas quoi réparer.
   await github.commenter(ticket.number, `${marqueDeRelance(cause, n)}\nStation \`${station}\`: put back on the rail (relaunch ${n}/${RELANCES_MAX}) — ${DIT[cause]}, which a cook can fix.\n\n**What the cook must fix:** ${consigne}`);
   if (!ticket.labels.includes(LABEL)) await github.labelliser(ticket.number, [LABEL]);
-  await github.delabelliser(ticket.number, HORS_CUISINE);
+  for (const label of [HORS_CUISINE, ECHECS_ATTEINTS]) if (ticket.labels.includes(label)) await github.delabelliser(ticket.number, label);
   return { fait: "relance", cause, n };
 }

@@ -20,13 +20,13 @@ import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.t
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
-import { HORS_CUISINE } from "../github.ts";
+import { MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import type { CheckVu } from "../carte-ci-windows.ts";
 import type { Observation } from "./retenue.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
-const AILLEURS = [HORS_CUISINE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING];
+const AILLEURS = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING];
 
 // Ce que le tour a vu : l'observation (sans `eteinte`, que le journal dit), et
 // les noms des checks rouges de la base, nuls tant qu'aucun n'est lu.

@@ -20,7 +20,8 @@ effort:xhigh	1D76DB	The cook of this ticket runs at xhigh effort
 effort:max	1D76DB	The cook of this ticket runs at max effort
 decision	FBCA04	Needs a product or design decision before any cook starts
 epic	3E4B9E	Groups other tickets: it is split, never cooked itself
-served-elsewhere	6E7781	This box does not serve the ticket: another box does, or a human decides
+served-elsewhere	6E7781	This box does not serve the ticket: another box serves it
+set-aside:failures	6E7781	Set aside by its failure count: its cooks failed too often, no other box serves it
 taken	0052CC	A cook holds the ticket
 in-pass	0052CC	The delivery of the ticket is being judged
 waiting	C5DEF5	Waits for another ticket to be served
