@@ -2022,6 +2022,11 @@ main > header,
 #rail .bande-rail .bande-part[data-depasse="oui"] .bande-valeur {
   color: var(--rouge-clair);
 }
+/* La bulle d'un chiffre revient à la ligne, dans sa largeur : la bande ne coupe que ses chiffres. Celle de la pass dit
+   une phrase par ligne (#3512). */
+#rail .bande-rail .bulle {
+  white-space: pre-line;
+}
 /* L'âge du rail, au bout de la bande. */
 #rail .bande-rail .age-du-rail {
   margin-left: auto;

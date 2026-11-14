@@ -3,7 +3,7 @@
 // (secondes entières), et une durée en clair. La bande du rail en dit le
 // dernier merge (projet/rail/bande-rail.js). Ce module ne touche pas `document`.
 
-/** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown, chiffres?: unknown }} TempsDuProjet */
+/** @typedef {{ enregistrements: unknown[] | undefined, lostTimeMaxMin?: number | undefined, resume?: unknown, chiffres?: unknown, passe?: unknown }} TempsDuProjet */
 
 // Une durée en secondes, en clair : « 45 s », « 12 min », « 1 h 5 min ».
 /** @param {number} secondes */

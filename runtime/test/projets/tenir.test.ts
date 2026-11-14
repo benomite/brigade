@@ -125,7 +125,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
 // Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
 // Les temps des tickets que la station publie : aucun fichier dans le clone, aucun enregistrement et le seuil du temps perdu par défaut (#2346, #2670).
 // Avec les quatre chiffres du projet (#2672), qui n'ont rien à dire.
-const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2, resume: null, chiffres: chiffresDuProjet({ enregistrements: [], qualites: new Map(), ratios: [], projet: null }) };
+const SANS_TEMPS = { enregistrements: [], lostTimeMaxMin: 2, resume: null, chiffres: chiffresDuProjet({ enregistrements: [], qualites: new Map(), ratios: [], projet: null }), passe: null };
 const AJOUTE = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: null, duree: null };
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {

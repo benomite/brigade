@@ -95,6 +95,7 @@ import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { PRIO_REPARATION } from "./reparation.ts";
 import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
+import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 
@@ -176,6 +177,10 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // Les étapes en échec du job d'un check rouge, que son renvoi nomme (#3028).
     // Absentes, le renvoi ne nomme que le check.
     etapesEnEchec?: GitHub["etapesEnEchec"];
+    // Les runs de CI de la branche d'un ticket, lus à son merge : l'attente
+    // des runners et les relances de chaque passage en pass (#3512). Absents,
+    // le temps du ticket s'écrit sans eux.
+    ciDeLaBranche?: GitHub["ciDeLaBranche"];
     assigner?: GitHub["assigner"];
   } & GitHubDeLaRelance;
 
@@ -528,8 +533,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         avertir(`brigade : #${issue} sur ${nom} — filing of the ticket unreadable, its time runs from its claim: ${message(erreur)}`);
         return null;
       })) ?? undefined;
-    const temps = chrono.servir(issue, depot);
-    if (temps === null) return;
+    const mesure = chrono.servir(issue, depot);
+    if (mesure === null) return;
+    // La CI de chaque passage en pass, lue sur GitHub : l'attente des runners,
+    // la course, les runs relancés (#3512). Illisible, le temps s'écrit sans
+    // elle — la mesure dit « no measure yet » —, et la station le dit.
+    const temps = await ciDesPasses(issue, mesure);
     // Sa qualité, lue sur l'issue, s'écrit avec son temps (#2707) : le journal
     // ne la sait plus. Illisible, elle reste inconnue, et la station le dit.
     const qualite = await Promise.all([github.corpsDuTicket(issue), github.commentaires(issue)])
@@ -545,6 +554,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     await rattraperLesQualites(options.clone);
     await rattraperLesPrises(options.clone);
+  };
+  const ciDesPasses = async (issue: number, temps: EnregistrementTemps): Promise<EnregistrementTemps> => {
+    const { passes } = temps;
+    if (passes === undefined || github.ciDeLaBranche === undefined) return temps;
+    try {
+      return { ...temps, passes: partagerLaCi(await github.ciDeLaBranche(brancheDuTicket(issue)), passes) };
+    } catch (erreur) {
+      avertir(`brigade : #${issue} sur ${nom} — the CI runs of its branch are unreadable, its CI's wait for runners is not recorded: ${message(erreur)}`);
+      return temps;
+    }
   };
   // Les tickets récents mergés sans leur qualité — avant #2707, ou GitHub muet
   // à leur merge — la reçoivent après un merge, quelques-uns à la fois : les
@@ -1343,6 +1362,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : the gates of PR #${pr.number} (#${ticket.number}) are not run on ${nom} — ${motif}; retried in ${RELANCE_DES_GATES_MS / 60_000} min, or on a new head`);
       return false;
     };
+    // Les gates de la tête sont une phase de la pass (#3512) : l'attente de leur
+    // tour dans la série comprise ; jouées, le ticket attend de nouveau son merge.
+    chrono.marquer(ticket.number, "gates");
     const suite = serieDesGates.then(() => jouerLesGatesDeLaTete(pr.sha, { github: { statuts: statuts.bind(github), poserStatut: poserStatut.bind(github) }, station: nom, preparer: () => preparer(ticket, pr), maintenant: instant }));
     serieDesGates = suite.catch(() => undefined);
     let fait: Awaited<typeof suite>;
@@ -1350,6 +1372,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       fait = await suite;
     } catch (erreur) {
       return ecarter(message(erreur));
+    } finally {
+      chrono.marquer(ticket.number, "ci");
     }
     if (fait.issue === "non-jouees") return ecarter(fait.motif);
     if (fait.issue === "tenues") sansGates.set(pr.number, { sha: pr.sha, jusqua: fait.jusqua });
@@ -2062,6 +2086,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     ...(github.fermerPR === undefined ? {} : { fermerPR: github.fermerPR.bind(github) }),
     journalDuCheck: (check) => github.journalDuCheck(check),
     ...(github.etapesEnEchec === undefined ? {} : { etapesEnEchec: github.etapesEnEchec.bind(github) }),
+    ...(github.ciDeLaBranche === undefined ? {} : { ciDeLaBranche: github.ciDeLaBranche.bind(github) }),
     ci: async (sha) => {
       const lue = instantane?.prs.find((pr) => pr.sha === sha);
       return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;

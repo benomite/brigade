@@ -24,7 +24,30 @@ export type EnregistrementTemps = { ticket: number; claimedAt: string; mergedAt:
     // Depuis #2734, sa première prise lue sur GitHub au merge (#2732), null sans
     // prise lisible ; absente, il a été mesuré avant, et la station la rattrape.
     priseAt?: string | null;
+    // Depuis #3512, les gates que la pass a jouées, en secondes, et chaque
+    // passage de la livraison en pass, renvoyés compris ; absents quand la
+    // station n'a pas vu chaque livraison arriver en pass.
+    gates?: number;
+    passes?: Passage[];
   };
+
+// Un passage d'une livraison en pass (#3512), de son arrivée en pass (`debut`,
+// ISO) à son merge ou à son renvoi (`fin`), ses phases en secondes : l'attente
+// de la pass, les gates, la relecture, la CI, le merge. `ciGitHub`, lu sur
+// GitHub au merge : le temps où un job de sa CI attendait un runner, celui où
+// ses jobs tournaient sans qu'aucun n'attende, et les runs relancés parce que
+// la branche a bougé pendant qu'ils tournaient. Absent quand GitHub ne l'a pas dit.
+export type Passage = {
+  debut: string;
+  fin: string;
+  attente: number;
+  gates: number;
+  revue: number;
+  ci: number;
+  merge: number;
+  renvoyee: boolean;
+  ciGitHub?: { attente: number; course: number; relancees: number };
+};
 
 // Le temps perdu d'un ticket, en secondes : l'attente avant sa prise, ses
 // cooks ratés, ses renvois (les livraisons renvoyées, de leur cook à la reprise).

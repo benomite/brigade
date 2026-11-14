@@ -20,15 +20,16 @@ import { dirname, join } from "node:path";
 import { accepterLaMesure } from "../borne-attente-prise.ts";
 import type { FaitDePrise } from "../github-etat/prise.ts";
 import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, phaseLaPlusLenteDesTickets, seuilDuProjet, ticketsRecents } from "../temps-max/mesure.ts";
-import type { EnregistrementTemps, Pertes } from "./synthese.ts";
+import type { EnregistrementTemps, Passage, Pertes } from "./synthese.ts";
 
 export const FICHIER_DES_TEMPS = ".claude/brigade/temps-tickets.json";
 
 // Les phases d'un ticket, dans l'ordre où il les traverse, et leur nom dans
 // `phases`. `cuissonRatee` est un cook qui n'a rien livré ; `renvoi`, le temps
 // d'une livraison renvoyée jusqu'au cook suivant. `cuissonTests` n'en est pas
-// une : c'est une part de `cuisson`.
-export const ETAPES = ["attenteQualification", "attentePrise", "cuissonRatee", "cuisson", "renvoi", "attentePasse", "revue", "ci", "merge"] as const;
+// une : c'est une part de `cuisson`. `gates` : les gates que la pass joue sur
+// une tête, sur un projet sans CI sur ses PR (#3512).
+export const ETAPES = ["attenteQualification", "attentePrise", "cuissonRatee", "cuisson", "renvoi", "attentePasse", "revue", "gates", "ci", "merge"] as const;
 export type Etape = (typeof ETAPES)[number];
 export const NOMS_DES_ETAPES: Record<Etape, string> = {
   attenteQualification: "qualification wait",
@@ -38,6 +39,7 @@ export const NOMS_DES_ETAPES: Record<Etape, string> = {
   renvoi: "send-back",
   attentePasse: "pass wait",
   revue: "review",
+  gates: "gates",
   ci: "CI",
   merge: "merge",
 };
@@ -62,6 +64,11 @@ export type Marque = { etape: Etape; at: string };
 export type Parcours = { ticket: number; marques: Marque[]; testsMs: number };
 
 const minutes = (secondes: number) => Math.round(secondes / 6) / 10;
+
+// Les phases d'un passage en pass, et leur champ dans `Passage` (#3512).
+const ETAPES_DE_LA_PASSE = ["attentePasse", "revue", "gates", "ci", "merge"] as const;
+type EtapeDeLaPasse = (typeof ETAPES_DE_LA_PASSE)[number];
+const CLE_DE_LA_PASSE = { attentePasse: "attente", revue: "revue", gates: "gates", ci: "ci", merge: "merge" } as const satisfies Record<EtapeDeLaPasse, keyof Passage>;
 
 // Les marques d'avant la prise, tirées du dépôt : l'attente de la
 // qualification jusqu'à `fire`, puis celle d'une prise, jusqu'à la première
@@ -147,6 +154,13 @@ function mesurerLeParcours(parcours: Parcours, mergedAt: string, depot?: DepotDu
   const perdu: Pertes = { attente: 0, ratees: 0, renvois: 0 };
   const prise = marques.findIndex((m) => m.etape !== "attenteQualification" && m.etape !== "attentePrise");
   let reprises = 0;
+  // Chaque passage en pass (#3512) : il s'ouvre quand la livraison arrive en
+  // pass, et se ferme au merge — ou, renvoyé, à la première marque hors de la
+  // pass. Une phase de pass vue hors d'un passage ouvert — la station n'a pas
+  // vu la livraison arriver — laisse les passages inconnus : aucun ne s'écrit.
+  const passes: Passage[] = [];
+  let passage: Passage | null = null;
+  let passesConnues = true;
   let derniere: { etape: Etape; secondes: number } | null = null;
   const fermer = () => {
     if (derniere !== null && derniere.secondes > 0) phases.push({ nom: NOMS_DES_ETAPES[derniere.etape], minutes: minutes(derniere.secondes) });
@@ -155,6 +169,22 @@ function mesurerLeParcours(parcours: Parcours, mergedAt: string, depot?: DepotDu
     const suivante = marques[rang + 1];
     const secondes = seconde(suivante === undefined ? fin : Date.parse(suivante.at)) - seconde(Date.parse(marque.at));
     durees[marque.etape] += secondes;
+    const debutDeLaMarque = new Date(debut + seconde(Date.parse(marque.at)) * 1000).toISOString();
+    if (marque.etape === "attentePasse") {
+      if (passage !== null) passage.renvoyee = true;
+      passage = { debut: debutDeLaMarque, fin: debutDeLaMarque, attente: 0, gates: 0, revue: 0, ci: 0, merge: 0, renvoyee: false };
+      passes.push(passage);
+    } else if (!(ETAPES_DE_LA_PASSE as readonly Etape[]).includes(marque.etape)) {
+      if (passage !== null) passage.renvoyee = true;
+      passage = null;
+    }
+    if ((ETAPES_DE_LA_PASSE as readonly Etape[]).includes(marque.etape)) {
+      if (passage === null) passesConnues = false;
+      else {
+        passage[CLE_DE_LA_PASSE[marque.etape as EtapeDeLaPasse]] += secondes;
+        passage.fin = new Date(debut + seconde(suivante === undefined ? fin : Date.parse(suivante.at)) * 1000).toISOString();
+      }
+    }
     if (marque.etape === "attentePrise" && prise >= 0 && rang > prise) reprises += secondes;
     if (marque.etape === "attenteQualification" || marque.etape === "attentePrise") perdu.attente += secondes;
     else if (marque.etape === "cuissonRatee") perdu.ratees += secondes;
@@ -180,10 +210,12 @@ function mesurerLeParcours(parcours: Parcours, mergedAt: string, depot?: DepotDu
     renvois: durees.renvoi,
     attentePasse: durees.attentePasse,
     revue: durees.revue,
+    gates: durees.gates,
     ci: durees.ci,
     merge: durees.merge,
     phases,
     perdu,
+    ...(passesConnues && passes.length > 0 ? { passes } : {}),
     ...(depot === undefined ? {} : { priseAt: depot.priseAt ?? null }),
   };
   return { temps, reprises };

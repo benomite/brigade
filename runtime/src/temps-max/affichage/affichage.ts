@@ -19,6 +19,7 @@ export const PHASES = [
   ["renvois", "send-backs"],
   ["attentePasse", "pass wait"],
   ["revue", "review"],
+  ["gates", "gates"],
   ["ci", "CI"],
   ["merge", "merge"],
 ] as const;

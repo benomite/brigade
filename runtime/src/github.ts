@@ -14,6 +14,7 @@ import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
+import type { RunDeCi } from "./temps-ticket/ci-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -203,6 +204,10 @@ export type GitHub = {
   // La tentative en cours d'un run de GitHub Actions (1 tant qu'il n'a pas été
   // relancé), et si elle est finie.
   etatDuRun(run: number): Promise<{ tentative: number; termine: boolean }>;
+  // Les runs de GitHub Actions d'une branche et tous leurs jobs, tentatives
+  // relancées comprises : leurs instants, que la mesure de la pass lit au
+  // merge (#3512). Facultatif : seul le client réel le porte.
+  ciDeLaBranche?(branche: string): Promise<RunDeCi[]>;
   // Remplace, sur l'issue, le commentaire dont le corps est `ancien` par
   // `nouveau` : rend faux si aucun ne l'est plus.
   remplacerCommentaire(numero: number, ancien: string, nouveau: string): Promise<boolean>;
@@ -422,6 +427,9 @@ type CheckRun = { name: string; status: string; conclusion: string | null; html_
 export type AnnotationDeCheck = { chemin: string | null; ligne: number | null; titre: string; message: string };
 type AnnotationBrute = { path?: string; start_line?: number; annotation_level?: string; title?: string | null; message?: string };
 type Statut = { context: string; state: string; target_url: string | null };
+// Un run de GitHub Actions et un de ses jobs, tels que l'API les rend (#3512).
+type RunBrut = { id?: number; head_sha?: string; created_at?: string; updated_at?: string; status?: string };
+type JobBrut = { created_at?: string; started_at?: string | null; completed_at?: string | null };
 
 // Les conclusions d'un job qui ne sont pas un échec.
 export const CONCLUSIONS_VERTES = ["success", "neutral", "skipped"];
@@ -892,6 +900,24 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const chemin = `repos/${depot}/actions/runs/${run}`;
       const lu = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as { run_attempt?: number; status?: string };
       return { tentative: lu.run_attempt ?? 1, termine: lu.status === "completed" };
+    },
+    async ciDeLaBranche(branche) {
+      const chemin = `repos/${depot}/actions/runs?branch=${encodeURIComponent(branche)}&per_page=100`;
+      const runs = (await lireLaListe(chemin)).flatMap((page) => (JSON.parse(page.corps) as { workflow_runs?: RunBrut[] }).workflow_runs ?? []);
+      return Promise.all(
+        runs
+          .filter((run) => typeof run.id === "number" && typeof run.head_sha === "string" && typeof run.created_at === "string")
+          .map(async (run): Promise<RunDeCi> => {
+            const jobs = (await lireLaListe(`repos/${depot}/actions/runs/${run.id}/jobs?filter=all&per_page=100`)).flatMap((page) => (JSON.parse(page.corps) as { jobs?: JobBrut[] }).jobs ?? []);
+            return {
+              tete: run.head_sha as string,
+              creeLe: run.created_at as string,
+              finiLe: run.status === "completed" ? (run.updated_at ?? null) : null,
+              // Un job sans création dite part de celle de son run.
+              jobs: jobs.map((job) => ({ creeLe: job.created_at ?? (run.created_at as string), commenceLe: job.started_at ?? null, finiLe: job.completed_at ?? null })),
+            };
+          }),
+      );
     },
     async remplacerCommentaire(numero, ancien, nouveau) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);

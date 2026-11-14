@@ -656,6 +656,15 @@ then what the value is, in this order, each at most once:
   cap (a ticket's size varies). On hover (or on the keyboard): the p75, the heaviest loss and the slowest phase with
   their medians, then the station's other figures (#2672) — lost time, vs estimate, main repairs — each with its
   threshold, and `— over it` when it is.
+- **Pass** (#3512) — `Pass · CI waiting for runners 62% of pass time`: the stage of the pass, or part of its CI,
+  with the largest share of the pass time of the deliveries merged in the last 7 days, from the station's `passe`.
+  On hover, one sentence per line: how many deliveries, each of their passes counted; the heaviest stage in total;
+  each stage — waiting for the pass, gates, review, CI, merge — and each part of the CI — waiting for runners,
+  running — with its median and p75 per delivery, `no measure yet` when nothing measures it and `none` when it
+  lasted on none; the CI runs restarted because the branch moved; the deliveries sent back and the time of their
+  passes sent back. How each stage is measured: "How long each stage of the pass takes" in
+  [`runtime/pass.md`](runtime/pass.md). The Cooks tab the ticket names was removed by #2921: the figure sits beside
+  the ticket time, where the ticket times are shown. Captures: `docs/captures/3512/`.
 - **First try** — `First try 57% · goal 70%`: the station's `first try` figure against its threshold, in red under it;
   what weighs most on hover.
 - **Cooks** — `Cooks 2 running`, their tickets and stations on hover; `none running` when none is. When the reading does

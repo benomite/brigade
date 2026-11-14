@@ -57,3 +57,49 @@ export const enMinutes = (minutes) => dureeEnClair(minutes * 60);
 
 /** @param {Resume} r */
 export const surCombien = (r) => (r.n === 1 ? "the only measured ticket" : `the last ${r.n} measured tickets`);
+
+// Le temps de la pass sur les 7 derniers jours que la station publie sous `temps.passe` (runtime/src/temps-ticket/passe.ts,
+// ticket 3512) : chaque phase et chaque part de la CI, avec sa médiane et son p75 par livraison — null quand rien ne la
+// mesure —, son total et sa part du temps de pass ; la phase et la part qui pèsent le plus, les runs relancés, les renvois.
+// Lu tel quel, jamais recalculé ; null s'il est absent, illisible ou sans part qui pèse (la bande ne pose alors rien).
+/** @typedef {{ cle: string, nom: string, livraisons: number, medianeS: number | null, p75S: number | null, totalS: number }} PartDeLaPasse */
+/** @typedef {{ jours: number, livraisons: number, parts: PartDeLaPasse[], phaseLaPlusLourde: { nom: string, totalS: number } | null, partLaPlusLourde: { nom: string, partPct: number }, relancees: number | null, renvoyees: number, passesRenvoyeesS: number }} Passe */
+
+/** @param {unknown} x */
+const nombreOuNul = (x) => x === null || nombre(x);
+
+/** @param {{ passe?: unknown } | undefined} temps @returns {Passe | null} */
+export function lireLaPasse(temps) {
+  const p = /** @type {Record<string, any> | null | undefined} */ (temps?.passe);
+  if (typeof p !== "object" || p === null || !nombre(p.jours) || !nombre(p.livraisons) || p.livraisons < 1 || !Array.isArray(p.parts)) return null;
+  const lourde = p.partLaPlusLourde;
+  if (typeof lourde?.nom !== "string" || !nombre(lourde.partPct)) return null;
+  if (!nombreOuNul(p.relancees) || !nombre(p.renvoyees) || !nombre(p.passesRenvoyeesS)) return null;
+  /** @type {PartDeLaPasse[]} */
+  const parts = [];
+  for (const part of p.parts) {
+    if (typeof part?.cle !== "string" || typeof part.nom !== "string" || !nombre(part.livraisons) || !nombreOuNul(part.medianeS) || !nombreOuNul(part.p75S) || !nombre(part.totalS)) continue;
+    parts.push({ cle: part.cle, nom: part.nom, livraisons: part.livraisons, medianeS: part.medianeS, p75S: part.p75S, totalS: part.totalS });
+  }
+  const phase = p.phaseLaPlusLourde;
+  return {
+    jours: p.jours,
+    livraisons: p.livraisons,
+    parts,
+    phaseLaPlusLourde: typeof phase?.nom === "string" && nombre(phase.totalS) ? { nom: phase.nom, totalS: phase.totalS } : null,
+    partLaPlusLourde: { nom: lourde.nom, partPct: lourde.partPct },
+    relancees: p.relancees,
+    renvoyees: p.renvoyees,
+    passesRenvoyeesS: p.passesRenvoyeesS,
+  };
+}
+
+// Une part de la pass en clair : sa médiane et son p75 ; « no measure yet » sans livraison qui la mesure, jamais 0 à sa place ;
+// « none » quand elle n'a duré sur aucune.
+/** @param {PartDeLaPasse} part */
+export function partEnClair(part) {
+  const nom = `${part.nom[0]?.toUpperCase() ?? ""}${part.nom.slice(1)}`;
+  if (part.livraisons === 0 || part.medianeS === null || part.p75S === null) return `${nom}: no measure yet.`;
+  if (part.totalS === 0) return `${nom}: none.`;
+  return `${nom}: median ${dureeEnClair(part.medianeS)}, p75 ${dureeEnClair(part.p75S)}.`;
+}

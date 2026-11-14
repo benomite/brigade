@@ -1,14 +1,14 @@
 // @ts-check
 // La bande du haut de l'onglet Rail (tickets 2486, 3013 ; maquette Project.dc.html, décision 4 du 2026-11-08) : une seule
-// ligne de chiffres entre les onglets et le rail — le temps d'un ticket, le premier coup, les cooks en cours et le dernier
-// merge, chacun une fois. Un chiffre sans valeur n'est pas posé du tout : ni « no measure yet », ni aide `?`, ni titre
+// ligne de chiffres entre les onglets et le rail — le temps d'un ticket, la pass (ticket 3512), le premier coup, les cooks
+// en cours et le dernier merge, chacun une fois. Un chiffre sans valeur n'est pas posé du tout : ni « no measure yet », ni aide `?`, ni titre
 // sans rien dessous. Les valeurs sont celles que la station publie (temps-ticket/resume.js), jamais recalculées ; ce qui
 // pèse le plus et le détail sont au survol. Le backlog n'y est plus : il a son bandeau, au-dessus des colonnes
 // (backlog-band/, ticket 3460). Sous la bande, le rail prend toute la hauteur.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { survol } from "../../briques.js";
-import { enMinutes, lireLeResume, lireLesChiffres, pesentLePlus, surCombien } from "../../temps-ticket/resume.js";
+import { enMinutes, lireLaPasse, lireLeResume, lireLesChiffres, partEnClair, pesentLePlus, surCombien } from "../../temps-ticket/resume.js";
 import { dureeEnClair } from "../../temps-ticket/temps-ticket.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
@@ -68,6 +68,27 @@ export function tempsDeLaBande(doc, temps) {
   return chiffre(doc, noeud(doc, "span", "bande-part bande-temps"), "Ticket time", enMinutes(lu.medianMin), "median", detail);
 }
 
+// La pass (ticket 3512) : en une ligne, la part qui pèse le plus sur le temps de pass des 7 derniers jours — « Pass · CI
+// waiting for runners 62% of pass time » ; au survol, chaque phase et chaque part de la CI avec sa médiane et son p75, la
+// phase la plus lourde en tout, les runs relancés et ce que les renvois ont coûté, une phrase par ligne. Null tant que la
+// station n'en publie pas.
+/** @param {Fabrique} doc @param {TempsDuProjet | undefined} temps */
+export function passeDeLaBande(doc, temps) {
+  const p = lireLaPasse(temps);
+  if (p === null) return null;
+  const detail = [
+    `Over the last ${p.jours} days, ${p.livraisons === 1 ? "one delivery" : `${p.livraisons} deliveries`}, each of their passes counted.`,
+    p.phaseLaPlusLourde === null ? "" : `Heaviest stage in total: ${p.phaseLaPlusLourde.nom}, ${dureeEnClair(p.phaseLaPlusLourde.totalS)}.`,
+    ...p.parts.map(partEnClair),
+    p.relancees === null ? "CI runs restarted because the branch moved: no measure yet." : `CI runs restarted because the branch moved: ${p.relancees}.`,
+    p.renvoyees === 0 ? "No delivery sent back." : `Sent back: ${p.renvoyees === 1 ? "one delivery" : `${p.renvoyees} deliveries`}, ${dureeEnClair(p.passesRenvoyeesS)} in the passes sent back.`,
+  ]
+    .filter((phrase) => phrase !== "")
+    .join("\n");
+  const { nom, partPct } = p.partLaPlusLourde;
+  return chiffre(doc, noeud(doc, "span", "bande-part bande-passe"), `Pass · ${nom}`, `${partPct}%`, "of pass time", detail);
+}
+
 // Le premier coup : la part des tickets servis du premier coup, contre son but, tels que la station les publie ; en rouge
 // sous son but, ce qui pèse le plus au survol. Null tant qu'elle n'en publie pas la valeur.
 /** @param {Fabrique} doc @param {TempsDuProjet | undefined} temps */
@@ -123,6 +144,7 @@ export function poserBandeRail(doc, { temps, maintenant, cooks, apres = [] }) {
   bande.ariaLabel = "The project's figures";
   const chiffres = [
     tempsDeLaBande(doc, temps),
+    passeDeLaBande(doc, temps),
     premierCoupDeLaBande(doc, temps),
     cooks === undefined ? null : cooksDeLaBande(doc, cooks),
     dernierMergeDeLaBande(doc, temps, maintenant),

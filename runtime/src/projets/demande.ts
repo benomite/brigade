@@ -104,6 +104,7 @@ import type { Blocage } from "../installation/blocages/blocages.ts";
 import type { Chiffre } from "../chiffres-du-projet.ts";
 import type { Resume } from "../temps-ticket/mesure.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
+import type { ResumeDeLaPasse } from "../temps-ticket/passe.ts";
 import type { Delai } from "../installation/delai/delai.ts";
 import { selectionsLues, type Choix, type Selections } from "../installation/besoins/besoins.ts";
 import type { AccesBloque } from "./acces.ts";
@@ -187,7 +188,8 @@ export type SuiviDuProjet = {
   // Le temps de son ajout à son premier ticket servi (`installation/delai/`).
   delai?: Delai;
   // Les temps des derniers tickets mesurés du projet et le seuil de leur temps perdu (`temps-ticket/ligne-status.ts`).
-  temps?: { enregistrements: TempsTicket[]; lostTimeMaxMin: number; resume?: Resume | null; chiffres?: Chiffre[] };
+  // `passe` : le temps de chaque phase de la pass sur 7 jours (`temps-ticket/passe.ts`, #3512).
+  temps?: { enregistrements: TempsTicket[]; lostTimeMaxMin: number; resume?: Resume | null; chiffres?: Chiffre[]; passe?: ResumeDeLaPasse | null };
   choix?: Choix[];
 };
 

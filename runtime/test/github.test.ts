@@ -672,3 +672,35 @@ test("les statuts d'un commit se lisent sous leur contexte, du plus ancien au pl
   assert.equal(pose[9]?.length, "description=".length + 140);
   assert.equal(pose.at(-1), chemin);
 });
+
+// #3512 : les runs de CI d'une branche et tous leurs jobs, tentatives relancées comprises, lus au merge.
+test("the CI runs of a branch are read with all their jobs; an unreadable list fails the read", async (t) => {
+  const { gh, github } = sonde(t);
+  const runs = `repos/${DEPOT}/actions/runs?branch=cook%2F3537-github&per_page=100`;
+  gh.repondre(runs, {
+    corps: {
+      workflow_runs: [
+        { id: 11, head_sha: "a1", created_at: "2026-11-14T17:13:00Z", updated_at: "2026-11-14T17:50:00Z", status: "completed" },
+        { id: 12, head_sha: "b2", created_at: "2026-11-14T17:41:00Z", updated_at: "2026-11-14T17:45:00Z", status: "in_progress" },
+        { head_sha: "c3" },
+      ],
+    },
+  });
+  gh.repondre(`repos/${DEPOT}/actions/runs/11/jobs?filter=all&per_page=100`, { corps: { jobs: [{ created_at: "2026-11-14T17:13:05Z", started_at: "2026-11-14T17:41:00Z", completed_at: "2026-11-14T17:50:00Z" }, { started_at: null }] } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/12/jobs?filter=all&per_page=100`, { corps: { jobs: [] } });
+
+  assert.deepEqual(await github.ciDeLaBranche("cook/3537-github"), [
+    {
+      tete: "a1",
+      creeLe: "2026-11-14T17:13:00Z",
+      finiLe: "2026-11-14T17:50:00Z",
+      jobs: [
+        { creeLe: "2026-11-14T17:13:05Z", commenceLe: "2026-11-14T17:41:00Z", finiLe: "2026-11-14T17:50:00Z" },
+        { creeLe: "2026-11-14T17:13:00Z", commenceLe: null, finiLe: null },
+      ],
+    },
+    { tete: "b2", creeLe: "2026-11-14T17:41:00Z", finiLe: null, jobs: [] },
+  ]);
+  gh.repondre(runs, { statut: 502, corps: { message: "Bad Gateway" } });
+  await assert.rejects(github.ciDeLaBranche("cook/3537-github"), /HTTP 502/);
+});

@@ -16,7 +16,7 @@ import { ONGLETS, RUBRIQUES } from "../../../../src/onglets.ts";
 import type { Panne } from "../../../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../../../src/projets/projets.ts";
 import type { VuDesStations } from "../../../../src/stations/stations.ts";
-import { cooksDeLaBande, dernierMergeDeLaBande, poserBandeRail, premierCoupDeLaBande, tempsDeLaBande } from "../../../../src/vue/projet/rail/bande-rail.js";
+import { cooksDeLaBande, dernierMergeDeLaBande, passeDeLaBande, poserBandeRail, premierCoupDeLaBande, tempsDeLaBande } from "../../../../src/vue/projet/rail/bande-rail.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -96,6 +96,69 @@ describe("le temps d'un ticket, dans la bande", () => {
     for (const temps of [undefined, { enregistrements: [] }, { enregistrements: LENT.enregistrements, chiffres: CHIFFRES_NORMAL }, { enregistrements: [], resume: { n: 0, medianMin: 0, p75Min: 0 } }, { enregistrements: [], resume: "x" }]) {
       assert.equal(tempsDeLaBande(doc, temps), null);
     }
+  });
+});
+
+// Le temps de la pass sur 7 jours (#3512), tel que la station le publie (`passe`, runtime/src/temps-ticket/passe.ts).
+const part = (cle: string, nom: string, livraisons: number, medianeS: number | null, p75S: number | null, totalS: number) => ({ cle, nom, livraisons, medianeS, p75S, totalS, partPct: null });
+const PASSE = {
+  jours: 7,
+  livraisons: 12,
+  parts: [
+    part("attente", "waiting for the pass", 12, 120, 300, 2400),
+    part("gates", "gates", 12, 0, 0, 0),
+    part("revue", "review", 12, 240, 420, 3600),
+    part("ci", "CI", 12, 1500, 1800, 19_800),
+    part("merge", "merge", 12, 10, 20, 150),
+    part("ciAttente", "CI waiting for runners", 9, 1200, 1680, 16_200),
+    part("ciCourse", "CI running", 9, 420, 540, 4000),
+  ],
+  phaseLaPlusLourde: { nom: "CI", totalS: 19_800 },
+  partLaPlusLourde: { nom: "CI waiting for runners", partPct: 62 },
+  relancees: 4,
+  renvoyees: 2,
+  passesRenvoyeesS: 1500,
+};
+
+describe("la pass, dans la bande", () => {
+  test("en une ligne, la part qui pèse le plus sur le temps de pass de la semaine ; chaque phase, sa médiane et son p75 au survol", () => {
+    const pose = passeDeLaBande(doc, { ...NORMAL, passe: PASSE }) ?? assert.fail("pas de pass");
+    assert.equal(laPart(pose).className, "bande-part bande-passe");
+    assert.equal(pose.textContent, "Pass · CI waiting for runners" + "62%" + "of pass time");
+    assert.equal(
+      auSurvol(pose),
+      [
+        "Over the last 7 days, 12 deliveries, each of their passes counted.",
+        "Heaviest stage in total: CI, 5 h 30 min.",
+        "Waiting for the pass: median 2 min, p75 5 min.",
+        "Gates: none.",
+        "Review: median 4 min, p75 7 min.",
+        "CI: median 25 min, p75 30 min.",
+        "Merge: median 10 s, p75 20 s.",
+        "CI waiting for runners: median 20 min, p75 28 min.",
+        "CI running: median 7 min, p75 9 min.",
+        "CI runs restarted because the branch moved: 4.",
+        "Sent back: 2 deliveries, 25 min in the passes sent back.",
+      ].join("\n"),
+    );
+  });
+
+  test("une mesure qui manque se dit « no measure yet », jamais zéro", () => {
+    const sansCi = { ...PASSE, parts: PASSE.parts.map((p) => (p.cle.startsWith("ciA") || p.cle.startsWith("ciC") ? { ...p, livraisons: 0, medianeS: null, p75S: null, totalS: 0 } : p)), relancees: null, renvoyees: 0 };
+    const dit = auSurvol(passeDeLaBande(doc, { ...NORMAL, passe: sansCi }) ?? assert.fail("pas de pass"));
+    assert.match(dit, /CI waiting for runners: no measure yet\.\nCI running: no measure yet\.\nCI runs restarted because the branch moved: no measure yet\.\nNo delivery sent back\./);
+    assert.doesNotMatch(dit, /runners: median 0|restarted because the branch moved: 0/);
+  });
+
+  test("sans temps de la pass publié ou lisible : rien", () => {
+    for (const temps of [undefined, NORMAL, { ...NORMAL, passe: null }, { ...NORMAL, passe: { ...PASSE, livraisons: 0 } }, { ...NORMAL, passe: { ...PASSE, partLaPlusLourde: null } }, { ...NORMAL, passe: "x" }]) {
+      assert.equal(passeDeLaBande(doc, temps), null);
+    }
+  });
+
+  test("dans la bande, à côté du temps d'un ticket", () => {
+    const bande = poserBandeRail(doc, { temps: { ...NORMAL, passe: PASSE }, maintenant: MAINTENANT, cooks: { nombre: 2, tickets: [] } });
+    assert.deepEqual(classes(bande), ["bande-part bande-temps", "bande-part bande-passe", "bande-part bande-premier-coup", "bande-part bande-cooks", "bande-part bande-dernier-merge"]);
   });
 });
 
@@ -303,6 +366,11 @@ describe("sur l'onglet Rail", () => {
     await ouvrirOnglet(vue, "Rail");
     assert.deepEqual(vue.element("bandeau-sante").children, []);
     assert.notEqual(bande(vue), undefined);
+  });
+
+  test("le temps de la pass que la station publie (#3512) se lit dans la bande de l'onglet Rail, à côté du temps d'un ticket", async () => {
+    const vue = await ouvrir({ ...NORMAL, passe: PASSE });
+    assert.deepEqual(parts(vue).slice(0, 2).map(({ textContent }) => textContent), [TEMPS_NORMAL, "Pass · CI waiting for runners" + "62%" + "of pass time"]);
   });
 
   test("des temps publiés après le rail : la bande les dit sans attendre la lecture suivante du rail", async () => {
