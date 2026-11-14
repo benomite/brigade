@@ -247,7 +247,7 @@ function temporairesDuCook(): string[] {
 // d'autre — ni réseau, ni process, ni écriture. La garde de ce cook passe en
 // argument, encodée : la commande est lue par un shell.
 const CROCHET = fileURLToPath(new URL("./crochet.ts", import.meta.url));
-export function commandeDuCrochet(garde: Garde): string {
+function commandeDuCrochet(garde: Garde): string {
   return `"${process.execPath}" --permission "--allow-fs-read=*" "${CROCHET}" "${encodeURIComponent(JSON.stringify(garde))}"`;
 }
 

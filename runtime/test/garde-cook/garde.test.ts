@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { commandeDuCrochet, garderLeCook, jugerAppel, type Garde } from "../../src/garde-cook/garde.ts";
+import { garderLeCook, jugerAppel, type Garde } from "../../src/garde-cook/garde.ts";
 import { ENV_ENFANT, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -183,8 +183,9 @@ test("gh : l'administration, les réglages, les suppressions, un autre dépôt e
   assert.match(bash(garde, "echo ok && bash -lc 'gh repo delete --yes'") ?? "", /n'est pas ouvert à un cook/);
 });
 
-// Le crochet tel que la station le lance : la commande de `commandeDuCrochet`,
-// jouée par un shell, l'appel sur son entrée standard.
+// Le crochet tel que la station le lance : la commande que `garderLeCook`
+// pose dans les réglages du cook, jouée par un shell, l'appel sur son entrée
+// standard.
 const repondre = (commande: string, entree: string) =>
   new Promise<string>((resoudre, rejeter) => {
     const enfant = spawn("/bin/sh", ["-c", commande], { stdio: ["pipe", "pipe", "pipe"], env: { ...ENV_ENFANT, HOME: "/home/chef" } });
@@ -197,8 +198,13 @@ const appel = (tool_name: string, tool_input: object, cwd: string) => JSON.strin
 const decision = (sortie: string) => (sortie === "" ? null : (JSON.parse(sortie) as { hookSpecificOutput: { hookEventName: string; permissionDecision: string; permissionDecisionReason: string } }).hookSpecificOutput);
 
 test("le crochet décide sur place, sous le modèle de permissions de Node : sans réseau ni process, il refuse, raison dite, ou laisse passer sans rien demander", { skip: posixOnly("the hook command is read by /bin/sh") }, async (t) => {
-  const { garde, worktree, dehors } = unCook(t);
-  const commande = commandeDuCrochet(garde);
+  const { garde, worktree } = unCook(t);
+  const args = garderLeCook(["--disallowedTools", "x"], garde);
+  const reglages = JSON.parse(args[args.indexOf("--settings") + 1] ?? "{}") as { hooks: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> } };
+  const commande = reglages.hooks.PreToolUse[0]?.hooks[0]?.command ?? "";
+  // Les dossiers temporaires sont ici ceux de la station : le dehors est
+  // hors d'eux, et rien n'y est écrit — le crochet ne fait que juger.
+  const dehors = "/usr/share/brigade-garde-test";
   // Le node du crochet ne joint pas le réseau et ne lance rien : il ne lit
   // que le disque. Une garde qui l'essaierait échouerait, et refuserait tout.
   assert.match(commande, /--permission "--allow-fs-read=\*"/);
