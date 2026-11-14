@@ -115,7 +115,7 @@ export async function defautsDeStation(options: OptionsDesDefauts): Promise<Defa
     projet: await projetDuClone(options.dossier),
     coeurs,
     cooks,
-    cooksDit: `from this machine's ${coeurs} cores: two are kept for the kitchen itself, then about two per cook`,
+    cooksDit: `from this machine's ${coeurs} cores: two are kept for the kitchen itself, then about one per cook`,
     espaceDeTravail: worktreesDeLaStation(options.racine, env.HOME),
     capacites: capacitesDeLaMachine(options.sonde ?? sondeDeLaMachine(env)),
   };

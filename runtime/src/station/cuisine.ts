@@ -59,6 +59,7 @@ import { plafondDuProjet } from "../reagir.ts";
 import { lireLeDepot, roadmapALaBase, variablesDesGatesDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { configReviewer } from "../reviewer.ts";
 import { etablirLInterrupteur } from "../interrupteur.ts";
+import { lireMachine } from "../machine.ts";
 import { direLaQualite, mesurerQualite, projetDuClone } from "../mesure-qualite.ts";
 import { qualitesDesTemps } from "../qualite-github.ts";
 import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
@@ -219,7 +220,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
         ici === undefined
           ? { refus: "the project declares no station on this machine" }
           : (() => {
-              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), avertir: dire });
+              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, avertir: dire });
               const ecrivaine = stationDuDepot({
                 nom: ici.nom,
                 places,

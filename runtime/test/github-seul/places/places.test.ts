@@ -18,14 +18,14 @@ function journal(t: TestContext): Journal {
 
 const plafonner = (j: Journal, maxCooks: number | null) => j.ajouter({ project: "brigade", ticket: null, author: "chef", type: "station.capped", payload: { station: BOX.nom, maxCooks } });
 
-test("the GitHub-only station announces itself: status says its cap and where it comes from, 3 on 8 cores for a station declared at 30 (#3446)", (t) => {
+test("the GitHub-only station announces itself: status says its cap and where it comes from, 6 on 8 cores for a station declared at 30 (#3446, #3560)", (t) => {
   const j = journal(t);
   const places = placesDeLaStation(j, "brigade", BOX, { coeurs: 8, avertir: () => {} });
   const etat = etatStation(j.base, BOX.nom);
   assert.ok(etat);
   assert.deepEqual({ engine: etat.engine, provides: etat.provides, maxCooks: etat.maxCooks, cores: etat.cores }, { engine: "claude", provides: ["code"], maxCooks: 30, cores: 8 });
-  assert.equal(direPlafondEn(etat), "3 at most — 8 cores");
-  assert.equal(places(), 3);
+  assert.equal(direPlafondEn(etat), "6 at most — 8 cores");
+  assert.equal(places(), 6);
 });
 
 test("the chef's cap holds at the next turn, above the cores' default too; 0 is no limit, `auto` brings the default back (#3446)", (t) => {
@@ -36,7 +36,7 @@ test("the chef's cap holds at the next turn, above the cores' default too; 0 is 
   plafonner(j, 0);
   assert.equal(places(), Number.POSITIVE_INFINITY);
   plafonner(j, null);
-  assert.equal(places(), 3);
+  assert.equal(places(), 6);
 });
 
 test("a declaration under the cores' default is the default; a log that cannot be read keeps it, said once (#3446)", (t) => {
@@ -61,7 +61,7 @@ test("a log that refuses the announcement leaves the station its default, and sa
     base: { lire: () => [] },
   } as unknown as Journal;
   const places = placesDeLaStation(refuse, "brigade", BOX, { coeurs: 8, avertir: (texte) => avertis.push(texte) });
-  assert.equal(places(), 3);
+  assert.equal(places(), 6);
   assert.match(avertis.join("\n"), /station box\/claude could not announce itself in the log \(disk full\)/);
 });
 

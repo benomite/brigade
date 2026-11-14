@@ -611,10 +611,13 @@ export function etatStation(base: Base, station: string): EtatStation | null {
 }
 
 // The cap the machine's cores allow: two cores kept for the runtime, the
-// pass and its gates, then about two per cook — a cook's `claude`, its tests,
-// its setup. The load stays under the core count: 3 on 8 cores, 7 on 16, and
-// never less than one cook.
-export const plafondDesCoeurs = (coeurs: number): number => Math.max(1, Math.floor((coeurs - 2) / 2));
+// pass and its gates, then about one per cook. 6 on 8 cores, 14 on 16, and
+// never less than one cook. Two cores per cook held the box at 3 cooks and
+// its tickets waited for a place, while its 15-minute load average, read as
+// it served, stood near 2.3 of its 8 cores (#3560). The machine itself is
+// the bound past the first cook: no take while it runs short of processor,
+// memory or disk (`machine.ts`, read by the turn's guards).
+export const plafondDesCoeurs = (coeurs: number): number => Math.max(1, coeurs - 2);
 
 type ReglesDuPlafond = Pick<EtatStation, "maxCooks" | "cores" | "cap">;
 

@@ -2136,10 +2136,10 @@ tests `app/test/vue-station-version/`; screens: `docs/captures/2191/` (`scripts/
 **A click on its line opens the station's page**: at the top, its name, its dot and its state in
 one sentence (#877); below, its faults with their button, the projects the app added to it and the
 "add a project" flow (see "Add a project to your stations, without a terminal").
-Under the header (#1081): the station's cap on cooks and where it comes from (`3 at most — 8 cores`, read from
+Under the header (#1081): the station's cap on cooks and where it comes from (`6 at most — 8 cores`, read from
 `status`), what holds tickets back when it is saturated (memory, processor, value and threshold), no
 field to change it: a station takes as many tickets as it declares places, and its declaration is changed on its machine.
-#1292: the same cap is on each station's line in the Cooks tab — the `Cooks at once` settings row, `3 at most — 8 cores` — read only
+#1292: the same cap is on each station's line in the Cooks tab — the `Cooks at once` settings row, `6 at most — 8 cores` — read only
 while the station's declaration is not read; a declared station's row has the number field that changes its declaration
 (#2920, see "What each declared station provides"). When the station is saturated, one sentence says what holds it (`Saturated on CPU —
 load of 19.4 for at most 12`) and that lowering the cap makes the project run fewer cooks, the machine's load not dropping right away.
@@ -2406,7 +2406,7 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
   rules are in `app/src/vue/choix-station/`.
 - **The number of cooks at a time comes preset**, drawn from the cores of the chosen station itself —
   those it publishes in its gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, by the very rule
-  the station applies: `max(1, ⌊(cores − 2) / 2⌋)`, 3 for 8 cores. Below:
+  the station applies: `max(1, cores − 2)`, 6 for 8 cores. Below:
   `recommended — from <station>'s 8 cores: …`. A station that does not publish its cores yet: 2,
   and the line says so. Choosing another machine makes the number follow its own cores, as long as you have not typed it.
 - **No manager or reviewer setting** (#3187): the calibration that goes out is the one the app

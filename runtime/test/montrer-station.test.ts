@@ -135,21 +135,21 @@ test("sur huit cœurs, le plafond par défaut est trois ; le chef le règle à c
   const { journal, noter, montrer } = cuisine(t);
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 30, cores: 8 } });
 
-  assert.match((await montrer()).sortie, /simultaneous cooks\s+3 at most — 8 cores — `station -- cooks <N>` to change it, 0 for no limit\n/);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+6 at most — 8 cores — `station -- cooks <N>` to change it, 0 for no limit\n/);
 
   const reglage = await montrer("cooks", "5");
   assert.equal(reglage.code, 0);
-  assert.match(reglage.sortie, /box\/claude: simultaneous cooks, 5 at most — set by you, replaces 3 \(8 cores\) — no running cook is stopped/);
-  assert.match((await montrer()).sortie, /simultaneous cooks\s+5 at most — set by you, replaces 3 \(8 cores\)/);
+  assert.match(reglage.sortie, /box\/claude: simultaneous cooks, 5 at most — set by you, replaces 6 \(8 cores\) — no running cook is stopped/);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+5 at most — set by you, replaces 6 \(8 cores\)/);
 
   const retrait = await montrer("cooks", "auto");
   assert.equal(retrait.code, 0);
-  assert.match(retrait.sortie, /box\/claude: simultaneous cooks, 3 at most — 8 cores \(was: 5 at most, set by you\)/);
+  assert.match(retrait.sortie, /box\/claude: simultaneous cooks, 6 at most — 8 cores \(was: 5 at most, set by you\)/);
   assert.deepEqual(journal.tout().at(-1)?.payload, { station: STATION, maxCooks: null });
-  assert.match((await montrer()).sortie, /simultaneous cooks\s+3 at most — 8 cores — /);
+  assert.match((await montrer()).sortie, /simultaneous cooks\s+6 at most — 8 cores — /);
 
   // Rien à retirer : rien n'est écrit.
-  assert.match((await montrer("cooks", "auto")).sortie, /no cap set by you, already the default — 3 at most — 8 cores/);
+  assert.match((await montrer("cooks", "auto")).sortie, /no cap set by you, already the default — 6 at most — 8 cores/);
   assert.equal(journal.tout().filter((evenement) => evenement.type === "station.capped").length, 2);
   // Ni un autre mot.
   assert.equal((await montrer("cooks", "defaut")).code, 2);

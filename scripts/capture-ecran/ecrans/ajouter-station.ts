@@ -10,8 +10,8 @@ export const AJOUTER = { cliquer: "#stations-du-projet button.ajout-de-station:n
 
 // Ce que l'opération du runtime calcule pour ce Mac (#1306) : 10 cœurs, son dossier, ce qu'il a.
 export const DEFAUTS: DefautsDeLaMachine = {
-  cooks: 4,
-  cooksDit: "from this machine's 10 cores: two are kept for the kitchen itself, then about two per cook",
+  cooks: 8,
+  cooksDit: "from this machine's 10 cores: two are kept for the kitchen itself, then about one per cook",
   espaceDeTravail: "/Users/chef/.local/state/brigade/worktrees",
   capacites: [
     { capacite: "postgres", nom: "a Postgres database", detectee: false },

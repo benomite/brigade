@@ -10,6 +10,10 @@
 //   disjoncteur, les plafonds sont ceux du projet ;
 // - le budget du compte Max : un cook qui bute sur le quota l'écrit
 //   (`station.86`, avec son heure de retour), et aucune prise ne part avant ;
+// - la machine (`machine.ts`) : tant qu'il lui manque du processeur, de la
+//   mémoire ou du disque, aucune prise ne part (`station.saturated`). L'ancien
+//   chemin la lisait avant toute autre borne (#98) ; #2061 l'a retirée avec
+//   lui, et ne restait que le plafond tiré des cœurs, qui la devinait (#3560) ;
 // - l'arbitre entre projets, consulté en dernier, pour chaque ticket que la
 //   station s'apprête à prendre. Injoignable, au plus un cook à la fois.
 //
@@ -21,17 +25,18 @@ import { basename, join } from "node:path";
 import type { Arbitrage, Reponse } from "../../arbitrage.ts";
 import type { Lancer } from "../../brigade-github.ts";
 import { lireFlux, verdict } from "../../claude.ts";
-import type { FaitStation, Retenue } from "../../events/station.ts";
+import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
+import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
 import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
 
 // Ce qui retient une prise sur ce chemin : le « stop » du chef, le
-// disjoncteur, le quota du compte épuisé, l'arbitre qui refuse — ou qui ne
-// répond pas alors qu'un cook tourne déjà.
-export type RetenueDuTour = Extract<Retenue, "stopped" | "breaker" | "quota" | "arbiter" | "unarbitrated">;
+// disjoncteur, le quota du compte épuisé, la machine à court, l'arbitre qui
+// refuse — ou qui ne répond pas alors qu'un cook tourne déjà.
+export type RetenueDuTour = Extract<Retenue, "stopped" | "breaker" | "quota" | "machine" | "arbiter" | "unarbitrated">;
 
 // Sans heure de retour dans le flux, le quota est tenu pour épuisé une heure,
 // comme sur l'ancien chemin.
@@ -63,6 +68,9 @@ export type OptionsDesGardes = {
   // Le répertoire d'état du projet, où les garde-fous écrivent le flux des cooks.
   repertoireEtat: string;
   arbitre: Arbitrage | null;
+  // La machine sous la station et ses seuils (`configMachine`). Absente : rien
+  // ne se retient sur elle.
+  machine?: { lire: () => Machine; seuils: Seuils };
   maintenant?: () => Date;
   avertir?: (message: string) => void;
 };
@@ -73,6 +81,7 @@ const DIT: Record<RetenueDuTour, string> = {
   stopped: "the kitchen is stopped by the chef — nothing is taken before `guardrails resume`",
   breaker: "the breaker is open — nothing is taken before `guardrails resume`",
   quota: "the Max quota is spent — nothing is taken before it is back",
+  machine: "the machine runs short of processor, memory or disk — nothing is taken before it recovers",
   arbiter: "the arbiter gives the account's places to other projects",
   unarbitrated: "the arbiter does not answer — one cook at a time until it is back",
 };
@@ -99,6 +108,15 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   let degrade = false;
   // L'attente d'une place en cours chez l'arbitre, s'il y en a une.
   let placeAttendue: Promise<boolean> | null = null;
+  // Les ressources dont la machine manque, telles que le journal les dit : une
+  // saturation ne se lève qu'avec de la marge (`saturations`).
+  let saturees: Ressource[] = (etatStation(base, station)?.saturatedCauses ?? []).map(({ resource }) => resource);
+  // Les prises accordées : la charge moyenne court sur une minute, un cook qui
+  // part ne pèse pas encore — chacun est compté d'avance (`reserver`), qu'un
+  // rail plein ne parte pas d'un bloc.
+  let accordees: number[] = [];
+  let machineIllisible = false;
+  let saturee = false;
 
   const dire = (retenue: RetenueDuTour | null) => {
     if (retenue === tenue) return;
@@ -107,7 +125,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     avertir(retenue === null ? `brigade : GitHub-only station ${station} takes tickets again` : `brigade : GitHub-only station ${station} takes no ticket — ${DIT[retenue]}`);
   };
 
-  const mot = (cooks: number, demande: boolean) => ({ cooks, demande, machine: false, nonArbitres: degrade ? cooks : 0, consommation: consommationDesCooks(base, station, maintenant()) });
+  // `machine` : l'arbitre partage entre les projets ce que la machine porte quand elle sature —
+  // lue par ce runtime, pas une saturation qu'un runtime d'avant a laissée au journal.
+  const mot = (cooks: number, demande: boolean) => ({ cooks, demande, machine: saturee, nonArbitres: degrade ? cooks : 0, consommation: consommationDesCooks(base, station, maintenant()) });
 
   // Demande une place à l'arbitre ; null s'il ne répond pas. L'entrée en mode
   // dégradé et le retour se disent une fois chacun.
@@ -129,12 +149,48 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
   };
 
+  // Ce dont la machine manque, ses prises récentes comptées d'avance ; le
+  // journal le dit quand les ressources en cause changent. Sans cook en vol,
+  // elle ne retient rien : jamais moins d'un cook, comme le plafond des cœurs.
+  // Une machine qui ne se lit pas ne retient rien — les places de la station
+  // bornent toujours ses cooks — et le dit une fois.
+  const machineAcourt = (cooks: number): boolean => {
+    if (options.machine === undefined) return false;
+    let manques: Saturation[];
+    try {
+      const instant = maintenant().getTime();
+      accordees = accordees.filter((a) => instant - a < JEUNE_MS);
+      manques = saturations(reserver(options.machine.lire(), accordees.length), options.machine.seuils, saturees);
+      machineIllisible = false;
+    } catch (erreur) {
+      if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
+      machineIllisible = true;
+      return false;
+    }
+    const ressources = manques.map(({ resource }) => resource);
+    if (ressources.join() !== saturees.join()) {
+      const [premier, ...autres] = manques;
+      if (premier === undefined) {
+        noter({ type: "station.relieved", payload: { station } });
+        avertir(`brigade : the machine under GitHub-only station ${station} has room again`);
+      } else {
+        noter({ type: "station.saturated", payload: { station, ...premier, ...(autres.length > 0 ? { also: autres } : {}) } });
+        const dit = direSaturationsEn(manques);
+        avertir(`brigade : the machine under GitHub-only station ${station} runs short of ${dit.ressources} — ${dit.detail}`);
+      }
+      saturees = ressources;
+    }
+    saturee = manques.length > 0;
+    return saturee && cooks > 0;
+  };
+
   const retenueLue = async (cooks: number): Promise<RetenueDuTour | null> => {
     const etat = etatDesGardeFous(base);
     if (etat.stoppedAt !== null) return "stopped";
     if (etat.breakerOpenedAt !== null) return "breaker";
     const quota = etatStation(base, station)?.quotaUntil ?? null;
     if (quota !== null && quota > maintenant().toISOString()) return "quota";
+    if (machineAcourt(cooks)) return "machine";
     if (arbitre === null) return null;
     const reponse = await echanger(cooks, true);
     if (reponse === null) return cooks === 0 ? null : "unarbitrated";
@@ -186,6 +242,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     retenue: async (cooks) => {
       lueCeTour = true;
       const retenue = await retenueLue(cooks);
+      if (retenue === null) accordees.push(maintenant().getTime());
       if (retenue === "arbiter" || retenue === "unarbitrated") enAttente = true;
       dire(retenue);
       return retenue;
