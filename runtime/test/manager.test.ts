@@ -322,6 +322,56 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(jugements()[1]?.args[1] ?? "", /Yes: grant it, read-only everywhere else\./);
   });
 
+  test("une issue `idea` n'est jamais lue : ni jugement, ni label, ni commentaire (#3536)", async (t) => {
+    const { gh, jugements, labels, dits, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["idea"])] });
+    await laisserTourner();
+
+    assert.equal(jugements().length, 0);
+    assert.deepEqual(labels(30), ["idea"]);
+    assert.deepEqual(gh.labellisations, []);
+    assert.deepEqual(dits(30), []);
+    assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "idea"]]);
+  });
+
+  test("une idée où `fire` est posé à la main est dite une fois, et jamais qualifiée (#3536)", async (t) => {
+    const { jugements, labels, dits, laisserTourner } = brigade(t, { issues: [issue(30, ["idea", "fire"])] });
+    await laisserTourner();
+    await laisserTourner();
+
+    assert.equal(jugements().length, 0);
+    assert.deepEqual(labels(30), ["idea", "fire"]);
+    assert.equal(dits(30).length, 1);
+    assert.match(dits(30)[0] ?? "", /an idea in reserve, not a request/);
+  });
+
+  test("une question dont la recommandée est de ne rien faire est prise par le manager : une ligne, aucune carte (#3536)", async (t) => {
+    const { gh, labels, dits, faits, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision-parquee" }, issues: [issue(30, [])] });
+    await laisserTourner();
+
+    assert.deepEqual(labels(30), []);
+    assert.deepEqual(gh.labellisations, []);
+    assert.equal(dits(30).length, 1);
+    assert.match(dits(30)[0] ?? "", /took the recommended answer itself, nothing to ask:\*\* Keep it parked — Nothing in it asks for work now\./);
+    assert.doesNotMatch(dits(30)[0] ?? "", /\?\s*$|\[resume\]/m);
+    assert.equal(charge(faits(30)[0])?.kind, "settled");
+  });
+
+  test("la réponse du chef n'est jamais suivie de la même question : le manager dit ce qui manque, une fois, et la carte quitte TODO (#3536)", async (t) => {
+    const { gh, labels, dits, jugements, faits } = brigade(t, { manager: { jugement: "juge-decision" }, issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("decision"));
+
+    gh.repondre(30, "<!-- brigade:reponse gesture=resume -->\nIt depends.");
+    gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusqua(() => jugements().length === 2 && dits(30).length === 2);
+
+    assert.equal(dits(30).length, 2);
+    assert.match(dits(30)[1] ?? "", /already asked the chef/);
+    assert.doesNotMatch(dits(30)[1] ?? "", /Do you grant the deploy role write access to the backup bucket\?\n/);
+    assert.deepEqual(gh.labellisations, [[30, ["decision"]]]);
+    assert.deepEqual(labels(30), []);
+    assert.equal(charge(faits(30).filter((e) => e.type === "manager.judged").at(-1))?.kind, "stalled");
+  });
+
   test("une issue refusée au chef avant #3429, sans label ni question, est rejugée une fois et entre dans TODO", async (t) => {
     const { gh, journal, repertoire, labels, dits, jugements, laisserTourner } = brigade(t, { eteint: true, manager: { jugement: "juge-decision" }, issues: [issue(30, []), issue(31, ["waiting"])] });
     for (const ticket of [30, 31]) {

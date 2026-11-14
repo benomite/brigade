@@ -3,7 +3,7 @@
 // port (`java.net.SocketException: Operation not permitted`) a été lu comme « a
 // git gesture » et a envoyé le chef sur la mauvaise piste. Git n'est nommé que
 // lorsqu'une commande git a elle-même échoué.
-import { demandeUnGesteGit } from "../conflit-main/renvoi.ts";
+import { demandeUnGesteGit, demandeUnReglageDuBac } from "../conflit-main/renvoi.ts";
 
 export type NatureDeLArret = "bac-a-sable" | "git" | "autre";
 
@@ -16,7 +16,7 @@ const COMMANDE_GIT = /\bgit\s+(?:merge|rebase|push|pull|fetch|checkout|switch|re
 // La nature de l'arrêt que `texte` (l'erreur ou la raison du cook) dit.
 export function natureDeLArret(texte: string): NatureDeLArret {
   const gitEchoue = COMMANDE_GIT.test(texte) && ECHEC_DE_GIT.test(texte);
-  if (REFUS_DU_BAC.test(texte) && !gitEchoue) return "bac-a-sable";
+  if ((REFUS_DU_BAC.test(texte) || demandeUnReglageDuBac(texte)) && !gitEchoue) return "bac-a-sable";
   if (gitEchoue || demandeUnGesteGit(texte)) return "git";
   return "autre";
 }

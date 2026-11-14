@@ -36,7 +36,7 @@ export const MARQUE_DE_PRISE = /^<!-- brigade:manager-prise station=/;
 export const MARQUEUR_DU_MANAGER = "<!-- brigade:manager -->";
 export const AUTEURS_DE_CONFIANCE: readonly string[] = ["OWNER", "MEMBER", "COLLABORATOR"];
 // Les labels que le manager pose quand il écarte une issue (`events/manager.ts`, `Ecart`) : il l'a prise.
-export const LABELS_D_ECART: readonly string[] = ["roadmap", "epic", "question", "decision", "blocked-on-human", "served-elsewhere", "set-aside:failures"];
+export const LABELS_D_ECART: readonly string[] = ["roadmap", "epic", "question", "decision", "blocked-on-human", "served-elsewhere", "set-aside:failures", "idea"];
 
 export type CommentaireLu = { body: string; association: string };
 

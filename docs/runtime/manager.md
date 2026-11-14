@@ -58,6 +58,13 @@ manager's work on an issue is **claimed on GitHub like a ticket** (`runtime/src/
 The claim is taken under the name the project declares on this machine (`box/claude`); a runtime with no
 station declared here claims nothing.
 
+### A question to the chef is never asked twice (#3536)
+
+A judgment that refuses an issue to the chef (`question`, `decision`) is a card in TODO. Two cases never reach the chef:
+
+- **The recommended answer is to do nothing** ("Keep it parked", "Do nothing"): the manager takes it itself, says so in one line, and sets no label: no card. The judgment is logged as `settled`.
+- **The same question was already asked on the issue** (same words, case and punctuation aside): the chef's answer did not let the manager go on. It says what is missing in one comment, once, sets no label, and the card leaves TODO. The judgment is logged as `stalled`.
+
 ### Upstream of the rail
 
 **An empty rail does not mean a finished project.** `manager -- upstream` lists, for a program, the
@@ -92,6 +99,7 @@ without spending anything:
 | The issue… | What the manager does | In the log |
 |---|---|---|
 | is the roadmap: the issue `BRIGADE_ROADMAP_ISSUE` names, or the one the `**Roadmap**` line of the bindings in `CLAUDE.md` names on the integration branch, reread each turn — recognised before anything else (#3436) | Never judged, never put on the rail, never asks the chef anything. If it carries `question`, `decision` or `chef-todo`, or has a TODO card, the manager removes them, with no gesture from the chef. The LLM reads it once per state for separate work slipped into it (an observation, a bug): each piece becomes a new issue with no label, which the manager judges like any other. The roadmap itself keeps its body, and gets no label and no verdict. While the `**Roadmap**` line has never been read, no issue is judged or split | `manager.set-aside` (`roadmap`); `manager.roadmap-cleared`, `manager.roadmap-read`, `manager.roadmap-filed` |
+| carries `idea` — checked first, before everything else (#3536) | Never read: no judgment, no `decision`, `fire`, `model:` or `effort:`, no card. If it carries `fire` set by hand, the manager says once, in one comment, that it is an idea; it qualifies nothing until `idea` is removed | `manager.set-aside` (`idea`), then `manager.commented` if `fire` is set |
 | is a product vision or a reference document: it carries `vision`, `product-vision` or `reference`, or its title announces a vision (`Product vision — …`, `Vision: …`, `[Vision] …`) — checked before a complete calibration (#3479) | Never judged. If it carries `fire`, the manager removes it and posts **one line** on the issue saying why, once (`brigade:vision`) | `manager.set-aside` (`vision`) |
 | carries `fire` and a complete calibration | Nothing: launched, by you or by it | — |
 | received labels from the manager, and lacks `fire`, `model:` or `effort:` since | Nothing, **until you hand it back**; says so once on the issue, with the command | `manager.set-aside` (`chef-changed`) |
