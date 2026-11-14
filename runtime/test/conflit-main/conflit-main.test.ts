@@ -364,6 +364,17 @@ test("a cook blocked off the conflict path on a git gesture counts its send-back
   assert.deepEqual(cartes(s.commentaires()), []);
 });
 
+test("a sandbox refusal is not worded as a git gesture, a failed git operation is", () => {
+  const refus = "The build stopped on cook/21-github: java.net.SocketException: Operation not permitted, the sandbox refuses a local port; resolve it in MainActivity.kt";
+  assert.equal(demandeUnGesteGit(refus), false);
+  assert.equal(carteDeGesteGit(`**Gesture for the chef:** ${refus}`), false);
+  assert.equal(carteDeGesteGit("**Question for the chef (product):** `git merge origin/main` got Operation not permitted in the sandbox"), false);
+  const echec = "fatal: Operation not permitted — git merge origin/main failed, resolve the conflict in MainActivity.kt";
+  assert.equal(demandeUnGesteGit(echec), true);
+  assert.equal(carteDeGesteGit(`**Gesture for the chef:** ${echec}`), true);
+  assert.equal(demandeUnGesteGit("merge PR #12 into the branch"), true);
+});
+
 test("what reads a git gesture, a ticket's target and the files a text names", () => {
   assert.equal(demandeUnGesteGit("Should we enable push notifications?"), false, "a product question");
   assert.equal(demandeUnGesteGit("Should we merge the two screens into one?"), false, "a product question");
