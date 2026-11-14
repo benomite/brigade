@@ -2638,7 +2638,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
     return lue.relecture;
   };
-  const constatsDe = ({ findings }: Pick<Lue, "findings">) => findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Remark"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
+  // Seul un constat d'une catégorie nommée bloque ; les autres sont des conseils (#3504).
+  const constatsDe = ({ findings }: Pick<Lue, "findings">) => findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Advice"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
   const relireDans = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">): Promise<Jugement> => {
     const lue = await relecture(worktree, run, texte, pr);
     return { verdict: lue.verdict === "green" ? "approve" : "request-changes", motif: [lue.summary, ...constatsDe(lue)].join("\n") };
