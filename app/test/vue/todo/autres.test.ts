@@ -14,6 +14,7 @@ import { BANNIERE, tenirFaits, type Faits } from "../../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
+import { rouges } from "../../aides/rouges.ts";
 import { FauxEcran, type Faux, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const A = "2026-11-09T10:04:12.000Z";
@@ -64,7 +65,8 @@ function recevoir(vue: Jouee, faits: Faits) {
 }
 
 const todo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
-const entree = (zone: Faux) => zone.children.find(({ className }) => className === "entree-todo")?.textContent;
+const sansTodo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail");
+const compte = (vue: Jouee) => rouges(vue.element("rail")).length;
 const pliDe = (colonne: Faux) => colonne.children.find((enfant) => enfant.balise === "details");
 const ouvert = (pli: Faux) => (pli as unknown as { open?: boolean }).open === true;
 function deplier(pli: Faux) {
@@ -72,7 +74,7 @@ function deplier(pli: Faux) {
   pli.declencher("toggle");
 }
 
-describe("« Awaiting others » à côté de l'entrée TODO, hors des colonnes (#2985, #3458)", () => {
+describe("« Awaiting others » sous les colonnes, hors d'elles (#2985, #3458)", () => {
   for (const etroit of [false, true]) {
     test(`${etroit ? "écran étroit" : "écran large"} : les siennes rouges dans leur colonne, puis « Awaiting others (2) », replié, en dernier`, async () => {
       const vue = await ouvrir({ etroit });
@@ -80,7 +82,7 @@ describe("« Awaiting others » à côté de l'entrée TODO, hors des colonnes (
       const pli = pliDe(colonne) ?? assert.fail("pas de « Awaiting others »");
       const rouges = vue.element("rail").dessous("li").filter((li) => li.dataset.carte === "attente" && !pli.dessous("li").includes(li));
       assert.deepEqual(rouges.map((li) => li.children[0]?.children[0]?.textContent), ["#12"]);
-      assert.equal(entree(colonne), "TODO (1)");
+      assert.equal(compte(vue), 1);
       assert.equal(colonne.children.at(-1), pli);
       assert.equal(pli.children[0]?.textContent, "Awaiting others (2)");
       assert.equal(ouvert(pli), false);
@@ -88,7 +90,8 @@ describe("« Awaiting others » à côté de l'entrée TODO, hors des colonnes (
   }
 
   test("déplié : chaque carte dit qui elle attend, et reste sous « Awaiting others », hors du compte de TODO", async () => {
-    const colonne = todo(await ouvrir({ etroit: false }));
+    const vue = await ouvrir({ etroit: false });
+    const colonne = todo(vue);
     const pli = pliDe(colonne) ?? assert.fail("pas de « Awaiting others »");
     deplier(pli);
     assert.deepEqual(
@@ -99,7 +102,7 @@ describe("« Awaiting others » à côté de l'entrée TODO, hors des colonnes (
       pli.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent),
       ["#22", "#23"],
     );
-    assert.equal(entree(colonne), "TODO (1)");
+    assert.equal(compte(vue), 1);
     assert.equal(pli.dessous("*").some((e) => e.textContent === "awaiting you"), false, "elles n'attendent pas le compte connecté");
   });
 
@@ -133,11 +136,11 @@ describe("« Awaiting others » à côté de l'entrée TODO, hors des colonnes (
     assert.equal(ouvert(pliDe(todo(vue)) ?? assert.fail("pas de « Awaiting others »")), true);
   });
 
-  test("rien n'attend un autre humain : pas de « Awaiting others », TODO vide compris", async () => {
+  test("rien n'attend un autre humain : pas de « Awaiting others », le bloc absent quand il est vide", async () => {
     const { attendAutres: _, ...sans } = FAITS;
-    assert.equal(pliDe(todo(await ouvrir({ etroit: false, faits: sans }))), undefined);
+    assert.equal(sansTodo(await ouvrir({ etroit: false, faits: sans })), undefined);
     const seuls = await ouvrir({ etroit: true, faits: { ...FAITS, attend: [], compteurs: { ...FAITS.compteurs, attend: 0 } } });
     assert.equal(pliDe(todo(seuls))?.children[0]?.textContent, "Awaiting others (2)");
-    assert.equal(pliDe(todo(await ouvrir({ etroit: true, faits: { ...sans, attend: [] } }))), undefined);
+    assert.equal(sansTodo(await ouvrir({ etroit: true, faits: { ...sans, attend: [] } })), undefined);
   });
 });

@@ -13,7 +13,8 @@ import { BANNIERE, rail, tenirFaits, type Carte, type Colonne, type Faits } from
 import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
-import { colonneDe, estRouge, LISTE_DU_CHEF, MONTRER, poserLEntree, rangerLeRail, RIEN_ICI, TOUT_MONTRER } from "../../../src/vue/todo/todo.js";
+import { colonneDe, estRouge, LISTE_DU_CHEF, rangerLeRail } from "../../../src/vue/todo/todo.js";
+import { rouges } from "../../aides/rouges.ts";
 import { Faux, FauxEcran, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const A = "2026-11-13T10:04:12.000Z";
@@ -82,29 +83,16 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
     }
   });
 
-  test("le filtre : seules les rouges, où qu'elles soient ; une colonne sans rouge le dit", () => {
-    const range = rangerLeRail(rail(FAITS).colonnes, true);
-    assert.deepEqual(cartes(range.colonnes), [
-      ["On the rail", "2", [20, 60]],
-      ["Taken", "1", [14]],
-      ["Pass", "2", [30, 40]],
-      ["Waiting", "1", [8]],
-      ["Served", "0", []],
-    ]);
-    assert.equal(range.compte, "6");
-    assert.equal(range.colonnes.find(({ nom }) => nom === "Served")?.vide, RIEN_ICI);
-  });
-
   test("rien n'attend le chef : N vaut 0, et rien n'est rouge", () => {
     const range = rangerLeRail(rail({ ...FAITS, attend: [], rail: FAITS.rail.filter(({ ticket: numero }) => numero !== 8) }).colonnes);
     assert.equal(range.compte, "0");
     assert.ok(range.colonnes.every(({ cartes: siennes }) => !siennes.some(estRouge)));
   });
 
-  test("la liste pas lue : N est « ? », et elle dit pourquoi ; la box muette aussi", () => {
+  test("la liste pas lue : N est « ? » ; la box muette aussi", () => {
     const pasLu = rangerLeRail(rail({ ...FAITS, attend: undefined }).colonnes);
     assert.equal(pasLu.compte, "?");
-    assert.match(pasLu.vide ?? "", /^not read: /);
+    assert.equal("vide" in pasLu, false);
     const muette = rangerLeRail(rail(FAITS).colonnes.map((colonne) => ({ ...colonne, compte: "?", cartes: [] })));
     assert.deepEqual([muette.compte, muette.colonnes.map(({ compte }) => compte)], ["?", ["?", "?", "?", "?", "?"]]);
   });
@@ -125,23 +113,6 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
     assert.deepEqual(range.autres?.map(({ ticket: numero }) => numero), [70]);
     assert.ok(!range.colonnes.some(({ cartes: siennes }) => siennes.some(({ ticket: numero }) => numero === 70)));
     assert.equal(range.compte, "6");
-  });
-});
-
-describe("l'entrée « TODO (N) »", () => {
-  const doc = { createElement: (balise: string) => new Faux(balise) };
-  test("au moins une carte : rouge ; zéro : aucun signe ; pas lue : son survol dit pourquoi ; enfoncée sous le filtre", () => {
-    const clics: string[] = [];
-    const rouge = poserLEntree(doc, { compte: "3", filtre: false, basculer: () => clics.push("basculer") });
-    assert.deepEqual([rouge.textContent, rouge.dataset.ton, rouge.ariaPressed, rouge.title], ["TODO (3)", "rouge", "false", MONTRER]);
-    rouge.click();
-    assert.deepEqual(clics, ["basculer"]);
-    const zero = poserLEntree(doc, { compte: "0", filtre: false, basculer: () => {} });
-    assert.deepEqual([zero.textContent, zero.dataset.ton], ["TODO (0)", undefined]);
-    const pasLue = poserLEntree(doc, { compte: "?", filtre: false, vide: "not read: why", basculer: () => {} });
-    assert.deepEqual([pasLue.textContent, pasLue.dataset.ton, pasLue.title], ["TODO (?)", undefined, "not read: why"]);
-    const enfoncee = poserLEntree(doc, { compte: "3", filtre: true, basculer: () => {} });
-    assert.deepEqual([enfoncee.ariaPressed, enfoncee.title], ["true", TOUT_MONTRER]);
   });
 });
 
@@ -167,40 +138,30 @@ function recevoir(vue: Jouee, faits: Faits) {
   const recue = tenirFaits(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
-const entree = (vue: Jouee): Faux => vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo") ?? assert.fail("pas d'entrée TODO");
+// Plus d'entrée « TODO (N) » ni de filtre sur le rail (#3523) : le compte est celui des cartes rouges, que l'accueil dit aussi.
+const entree = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("button").find(({ className }) => className === "entree-todo");
 const lesColonnes = (vue: Jouee) => vue.element("rail").dessous("section").filter(({ className }) => className === "colonne");
 const bonsDe = (colonne: Faux) => colonne.dessous("li").filter(({ className }) => className.split(" ").includes("bon")).map(({ dataset }) => [Number(dataset.ticket), dataset.carte === "attente"]);
 
 describe("la vue du projet, sur un écran large et sur un téléphone", () => {
   for (const etroit of [false, true]) {
-    test(`${etroit ? "téléphone" : "écran large"} : aucune colonne TODO, les rouges en tête de leur étape, « TODO (6) » ; un clic ne montre qu'elles, un second rend tout`, async () => {
+    test(`${etroit ? "téléphone" : "écran large"} : aucune colonne TODO, ni entrée ni filtre ; les rouges en tête de leur étape, au nombre de 6`, async () => {
       const vue = await ouvrir(etroit);
       assert.deepEqual(lesColonnes(vue).map(({ dataset }) => dataset.colonne), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
-      const tout = lesColonnes(vue).map(bonsDe);
-      assert.deepEqual(tout, [
+      assert.deepEqual(lesColonnes(vue).map(bonsDe), [
         [[20, true], [60, true], [21, false]],
         [[14, true], [15, false]],
         [[30, true], [40, true], [31, false]],
         [[8, true], [9, false]],
         [],
       ]);
-      assert.equal(entree(vue).textContent, "TODO (6)");
+      assert.equal(rouges(vue.element("rail")).length, 6);
+      assert.equal(entree(vue), undefined);
       // La colonne où une carte rouge attend le chef est en vue à l'ouverture.
       assert.ok(lesColonnes(vue).filter(({ dataset }) => "attend" in dataset).every(({ dataset }) => "actif" in dataset));
-
-      entree(vue).click();
-      await repos();
-      assert.equal(entree(vue).ariaPressed, "true");
-      assert.deepEqual(lesColonnes(vue).map(bonsDe), [[[20, true], [60, true]], [[14, true]], [[30, true], [40, true]], [[8, true]], []]);
-      assert.match(lesColonnes(vue).at(-1)?.textContent ?? "", new RegExp(RIEN_ICI));
-      // Une lecture suivante garde le filtre.
+      // Une lecture suivante ne change rien : il n'y a pas de filtre à garder.
       recevoir(vue, FAITS);
-      assert.deepEqual(lesColonnes(vue).map(bonsDe), [[[20, true], [60, true]], [[14, true]], [[30, true], [40, true]], [[8, true]], []]);
-
-      entree(vue).click();
-      await repos();
-      assert.equal(entree(vue).ariaPressed, "false");
-      assert.deepEqual(lesColonnes(vue).map(bonsDe), tout);
+      assert.equal(rouges(vue.element("rail")).length, 6);
     });
   }
 
@@ -211,14 +172,14 @@ describe("la vue du projet, sur un écran large et sur un téléphone", () => {
     assert.ok(rouge.dessous("button").some(({ className }) => className === "demander"), "pas de geste sur la carte");
   });
 
-  test("rien n'attend le chef : « TODO (0) », sans rouge nulle part", async () => {
+  test("rien n'attend le chef : aucune carte rouge nulle part", async () => {
     const vue = await ouvrir(false, { ...FAITS, attend: [], rail: FAITS.rail.filter(({ ticket: numero }) => numero !== 8) });
-    assert.deepEqual([entree(vue).textContent, entree(vue).dataset.ton], ["TODO (0)", undefined]);
     assert.equal(vue.element("rail").dessous("li").filter(({ dataset }) => dataset.carte === "attente").length, 0);
+    assert.equal(entree(vue), undefined);
   });
 });
 
-describe("l'accueil dit le même compte que « TODO (N) »", () => {
+describe("l'accueil dit le compte des cartes rouges du rail", () => {
   test("le rail lu, la ligne du projet compte ses cartes rouges ; une lecture qui le change la repose", async () => {
     const vue = await ouvrir(false);
     (vue.element("projets").children.at(0) ?? assert.fail("pas de « Tous les projets »")).click();

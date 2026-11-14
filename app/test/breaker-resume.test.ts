@@ -1,4 +1,4 @@
-// « Resume », sur la ligne du disjoncteur de TODO (#2140, épique #2134) : la cuisine retenue par son disjoncteur reprend
+// « Resume », sur la ligne du disjoncteur, ligne d'état du rail (#2140, épique #2134) : la cuisine retenue par son disjoncteur reprend
 // d'un clic, par GitHub. Le clic poste exactement un commentaire `/resume` sur l'issue ouverte qui porte le label
 // `brigade:breaker-open` ; la ligne dit qu'il part, puis « Resume requested » — ou, GitHub refusant ou aucune issue
 // n'étant ouverte, pourquoi rien n'est parti, et « Resume » est rendu pour réessayer. Ni commande à recopier, ni bouton
@@ -181,10 +181,9 @@ async function ouvrir(reprendre: (projet: string) => Promise<RenduDeLaReprise | 
   return vue;
 }
 
-// TODO n'est pas une colonne (#3458) : la ligne du disjoncteur est à côté de l'entrée « TODO (N) », hors des colonnes.
-const todo = (vue: Jouee): Faux => vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
-const ligneDe = (vue: Jouee): Faux | undefined => todo(vue).dessous("div").find(({ className }) => className === "ligne-disjoncteur");
-const ligne = (vue: Jouee): Faux => ligneDe(vue) ?? assert.fail("pas de ligne du disjoncteur dans TODO");
+// La ligne du disjoncteur est la ligne d'état du rail (#3523) : au-dessus des colonnes, seule avec le bandeau Backlog.
+const ligneDe = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("div").find(({ className }) => className === "ligne-disjoncteur");
+const ligne = (vue: Jouee): Faux => ligneDe(vue) ?? assert.fail("pas de ligne du disjoncteur sur le rail");
 // Les boutons d'une ligne, hors survols.
 const boutons = (ou: Faux) => ou.dessous("button").filter(({ className }) => className !== "aide");
 const reprendre = (ou: Faux): Faux => boutons(ou).find(({ textContent }) => textContent === REPRENDRE) ?? assert.fail("pas de bouton « Resume »");
@@ -196,14 +195,13 @@ function enAttente<T>() {
   return { promesse, rendre };
 }
 
-describe("la ligne du disjoncteur, à côté de l'entrée TODO, hors des colonnes (#3458)", () => {
-  test("le disjoncteur ouvert : sa ligne à côté de l'entrée TODO, un seul bouton « Resume », ni commande ni copie — et la bande ne la redit pas", async () => {
+describe("la ligne du disjoncteur, ligne d'état du rail, au-dessus des colonnes (#3523)", () => {
+  test("le disjoncteur ouvert : sa ligne d'état, un seul bouton « Resume », ni commande ni copie — et la bande ne la redit pas", async () => {
     const vue = await ouvrir(async () => undefined);
     const posee = ligne(vue);
-    // Juste après l'entrée « TODO (N) » (et l'explication de son mot), et dans aucune colonne.
-    const [entree, ...apres] = todo(vue).children.filter(({ dataset }) => dataset.mot === undefined);
-    assert.match(entree?.textContent ?? "", /^TODO \(\d+\)$/);
-    assert.equal(apres[0], posee, "la ligne n'est pas à côté de l'entrée TODO");
+    // Première du rail, avant les colonnes, et dans aucune : c'est la ligne d'état.
+    const enfants = vue.element("rail").children;
+    assert.ok(enfants.indexOf(posee) >= 0 && enfants.indexOf(posee) < enfants.findIndex(({ className }) => className === "colonnes"), "la ligne n'est pas au-dessus des colonnes");
     assert.ok(!vue.element("rail").dessous("section").some((colonne) => colonne.dessous("div").some(({ className }) => className === "ligne-disjoncteur")), "la ligne est dans une colonne");
     assert.match(posee.textContent, /breaker open: the latest launches failed in a row/);
     assert.deepEqual(boutons(posee).map(({ textContent }) => textContent), [REPRENDRE]);
@@ -271,8 +269,9 @@ describe("la ligne du disjoncteur, à côté de l'entrée TODO, hors des colonne
     assert.ok(ligne(vue).dessous("span").some(({ textContent }) => textContent === DEMANDEE));
   });
 
-  test("le disjoncteur refermé : la ligne quitte TODO, et ce qui avait été demandé avec elle", async () => {
+  test("le disjoncteur refermé : la ligne d'état s'en va, et ce qui avait été demandé avec elle", async () => {
     const vue = await ouvrir(async () => ({ demandee: { issue: 2150, url: null } }));
+    assert.ok(vue.element("rail").children.includes(ligne(vue)), "la ligne n'est pas posée sur le rail, au-dessus des colonnes");
     reprendre(ligne(vue)).click();
     await repos();
     vue.dire("surAlertes", bandeLue(REFERME, "ouverte"));

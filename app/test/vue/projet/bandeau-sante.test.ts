@@ -1,6 +1,6 @@
 // Le bandeau de santé (#2490, #2921, ex-Kitchen > Health), une section de Settings (#3014) : les plafonds de durée, réglés là et
 // nulle part ailleurs dans la page du projet, le closer et les lignes de tous les projets. Les chiffres — le temps des
-// tickets, le premier coup — sont dans la bande du rail (#3013, rail/bande-rail.test.ts). Les blocs sont joués avec le faux élément
+// tickets, le premier coup — ne sont plus sur le rail (#3013, #3523). Les blocs sont joués avec le faux élément
 // de l'app (aides/fausse-vue.ts), puis la vue entière, telle qu'elle est.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

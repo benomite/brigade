@@ -77,7 +77,7 @@ function compte(vu: Vu) {
 
 // Un dépôt de référence : un nombre connu d'issues dans chacun des quatre états que les labels disent, deux sur le rail,
 // une PR.
-async function unDepot(t: TestContext) {
+async function unDepot(t: TestContext, autres: Ouverte[] = []) {
   const { amont, manager, noter } = cuisine(t);
   const sortie = await amont([
     ouverte(10, ["fire", "model:haiku", "effort:low"]),
@@ -91,6 +91,7 @@ async function unDepot(t: TestContext) {
     ouverte(21),
     ouverte(22, ["fire", "model:opus", "effort:high"]),
     ouverte(23, [], { pr: true }),
+    ...autres,
   ]);
   return { sortie, manager, noter };
 }
@@ -130,6 +131,26 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     // Sa carte, celle du rail : son numéro ouvrable, sa priorité, son titre, et sur sa ligne ce qui la retient.
     assert.deepEqual(issue(11).carte, { ticket: 11, titre: "Prêt sans feu", ouvrable: true, attendu: false, attend: [], dit: [], fiche: issue(11).fiche, ligne: issue(11).dit, prio: "prio:2" });
     assert.equal(issue(20).carte.prio, undefined);
+  });
+
+  test("une issue que la cuisine a ouverte sur elle-même n'est pas un besoin : ni comptée, ni rangée, mais dite à part (#3523)", async (t) => {
+    const { sortie } = await unDepot(t, [
+      ouverte(34, ["bug"], { title: "Kitchen secondes held: its breaker is open" }),
+      ouverte(35, ["bug"], { title: "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)" }),
+      ouverte(36, [], { title: "The kitchen of the street is idle" }),
+    ]);
+
+    const vu = compte(voir(sortie));
+
+    assert.equal(vu.compte, 9, "8 besoins de référence, et #36, un besoin comme un autre");
+    assert.deepEqual(vu.groupes.flatMap(({ issues }) => issues.map(({ ticket }) => ticket)).filter((ticket) => ticket >= 34), [36]);
+    assert.deepEqual(vu.alertes, [
+      { ticket: 34, titre: "Kitchen secondes held: its breaker is open", genre: "disjoncteur", dit: "Kitchen held: its breaker is open" },
+      { ticket: 35, titre: "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)", genre: "inerte", dit: "Kitchen idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)" },
+    ]);
+    assert.equal(vu.survol.startsWith("9 issues before the rail"), true);
+    // Sans alerte, aucune clé.
+    assert.equal("alertes" in compte(voir((await unDepot(t)).sortie)), false);
   });
 
   test("les cinq états viennent dans l'ordre du bandeau, puis les deux d'un besoin découpé ; un mot que l'app ne connaît pas se pose après eux, tel quel", () => {
