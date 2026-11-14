@@ -203,7 +203,7 @@ describe("la ligne du disjoncteur, ligne d'état du rail, au-dessus des colonnes
     const enfants = vue.element("rail").children;
     assert.ok(enfants.indexOf(posee) >= 0 && enfants.indexOf(posee) < enfants.findIndex(({ className }) => className === "colonnes"), "la ligne n'est pas au-dessus des colonnes");
     assert.ok(!vue.element("rail").dessous("section").some((colonne) => colonne.dessous("div").some(({ className }) => className === "ligne-disjoncteur")), "la ligne est dans une colonne");
-    assert.match(posee.textContent, /breaker open: the latest launches failed in a row/);
+    assert.match(posee.textContent, /breaker open: 3 launches failed in a row/);
     assert.deepEqual(boutons(posee).map(({ textContent }) => textContent), [REPRENDRE]);
     assert.equal(reprendre(posee).className, "recommande");
     assert.doesNotMatch(posee.textContent, /brigade |guardrails|ssh|copy|copier/i);
