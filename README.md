@@ -18,7 +18,7 @@ Questions, sharing and ideas: **[GitHub Discussions](https://github.com/benomite
 
 Presentation and downloads: **[benomite.github.io/brigade](https://benomite.github.io/brigade/)**.
 
-Brigade works through everything it can do while you are away from your computer, and calls you on your phone only for the choices that are yours.
+**Autonomy you can trust.** Brigade works through everything it can do while you are away from your computer, and calls you on your phone only for the choices that are yours. Every change it makes is bounded, judged before it lands, and left in your repository's history, where you can read it and revert it.
 
 Brigade is open source (MIT) and free. The agents run on your own Claude subscription. Ready to try it? Jump to **[Try it](#try-it)**.
 
