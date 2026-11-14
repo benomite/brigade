@@ -9,8 +9,10 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { IssueDepuis } from "../../src/github.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
-import { brancherTicketDEssai, type BaseDuProjet } from "../../src/essai-projet/ticket.ts";
+import { brancherTicketDEssai } from "../../src/essai-projet/ticket.ts";
 import { repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+
+type BaseDuProjet = Parameters<typeof brancherTicketDEssai>[1]["depot"];
 
 const rienNeReste = temporaireDuFichier();
 
