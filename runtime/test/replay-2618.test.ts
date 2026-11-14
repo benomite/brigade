@@ -9,11 +9,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { DEBUT, FIN } from "../src/epique.ts";
 import { suivreLeTour } from "../src/retenue/tour.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
-import { FauxGitHub, fauxClient } from "./faux-github.ts";
+import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "./faux-github.ts";
 import { jusqua } from "./outils.ts";
 
 const MAINTENANT = new Date("2026-11-06T17:40:00Z");
@@ -87,19 +87,12 @@ test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the held-ki
   const lancer: Lancer = () => assert.fail("no cook leaves");
   const suivi = suivreLeTour(() => MAINTENANT);
   const station = stationDuDepot({
+    ...STATION_DU_DEPOT,
     nom: "box/claude",
     places: 4,
-    base: "main",
     depotGitHub: "benomite/brigade",
     github: fauxClient(faux, "box/claude"),
     depot: { connait: () => false, preparer: async () => assert.fail("no worktree"), reprendre: async () => assert.fail("no worktree"), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "", tete: () => "t" },
-    prise: priseDeLaStation,
-    claude: "claude",
-    env: {},
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer,
     observer: suivi.envelopper,

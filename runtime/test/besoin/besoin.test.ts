@@ -10,12 +10,12 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { avecTaches, besoinDe, horsDesBesoins, lienDuCorps, partDe, sortirDuRail } from "../../src/besoin/besoin.ts";
 import { estUneVision, LIGNE_VISION, MARQUE_VISION, sortirLaVision } from "../../src/besoin/vision.ts";
-import { priseDeLaStation, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { DEBUT, FIN, rendreListe } from "../../src/epique.ts";
 import { MARQUEUR_MANAGER } from "../../src/juger.ts";
 import { suivreLeTour } from "../../src/retenue/tour.ts";
 import { chef, CALIBRE, cuisine, issue, type Options } from "../aides/cuisine.ts";
-import { FauxGitHub, fauxClient } from "../faux-github.ts";
+import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { jusqua } from "../outils.ts";
 
 const MAINTENANT = new Date("2026-11-13T17:00:00Z");
@@ -83,19 +83,12 @@ describe("un besoin découpé", { concurrency: 4 }, () => {
     const lancer: Lancer = () => assert.fail("no cook leaves");
     const suivi = suivreLeTour(() => MAINTENANT);
     const station = stationDuDepot({
+      ...STATION_DU_DEPOT,
       nom: "box/claude",
       places: 4,
-      base: "main",
       depotGitHub: "benomite/brigade",
       github: fauxClient(faux, "box/claude"),
       depot: { connait: () => false, preparer: async () => assert.fail("no worktree"), reprendre: async () => assert.fail("no worktree"), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "", tete: () => "t" },
-      prise: priseDeLaStation,
-      claude: "claude",
-      env: {},
-      cloison: null,
-      plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-      graceMs: 1,
-      reviewer: { model: "sonnet", effort: "medium" },
       flux: repertoire,
       lancer,
       observer: suivi.envelopper,
