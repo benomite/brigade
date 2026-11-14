@@ -904,20 +904,22 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async ciDeLaBranche(branche) {
       const chemin = `repos/${depot}/actions/runs?branch=${encodeURIComponent(branche)}&per_page=100`;
       const runs = (await lireLaListe(chemin)).flatMap((page) => (JSON.parse(page.corps) as { workflow_runs?: RunBrut[] }).workflow_runs ?? []);
-      return Promise.all(
-        runs
-          .filter((run) => typeof run.id === "number" && typeof run.head_sha === "string" && typeof run.created_at === "string")
-          .map(async (run): Promise<RunDeCi> => {
-            const jobs = (await lireLaListe(`repos/${depot}/actions/runs/${run.id}/jobs?filter=all&per_page=100`)).flatMap((page) => (JSON.parse(page.corps) as { jobs?: JobBrut[] }).jobs ?? []);
-            return {
-              tete: run.head_sha as string,
-              creeLe: run.created_at as string,
-              finiLe: run.status === "completed" ? (run.updated_at ?? null) : null,
-              // Un job sans création dite part de celle de son run.
-              jobs: jobs.map((job) => ({ creeLe: job.created_at ?? (run.created_at as string), commenceLe: job.started_at ?? null, finiLe: job.completed_at ?? null })),
-            };
-          }),
-      );
+      // Les jobs d'un run après l'autre, jamais tous à la fois : une branche aux
+      // nombreux runs ne lance pas une rafale d'appels sur la limite du compte.
+      const lus: RunDeCi[] = [];
+      for (const run of runs) {
+        if (typeof run.id !== "number" || typeof run.head_sha !== "string" || typeof run.created_at !== "string") continue;
+        const jobs = (await lireLaListe(`repos/${depot}/actions/runs/${run.id}/jobs?filter=all&per_page=100`)).flatMap((page) => (JSON.parse(page.corps) as { jobs?: JobBrut[] }).jobs ?? []);
+        const creeLe = run.created_at;
+        lus.push({
+          tete: run.head_sha,
+          creeLe,
+          finiLe: run.status === "completed" ? (run.updated_at ?? null) : null,
+          // Un job sans création dite part de celle de son run.
+          jobs: jobs.map((job) => ({ creeLe: job.created_at ?? creeLe, commenceLe: job.started_at ?? null, finiLe: job.completed_at ?? null })),
+        });
+      }
+      return lus;
     },
     async remplacerCommentaire(numero, ancien, nouveau) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);

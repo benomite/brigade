@@ -153,7 +153,9 @@ describe("la pass, dans la bande", () => {
     assert.doesNotMatch(dit, /runners: median 0|restarted because the branch moved: 0/);
   });
 
-  test("sans temps de la pass publié ou lisible : rien", () => {
+  test("sans temps de la pass publié ou lisible : rien, quand le même temps lisible la pose", () => {
+    // Le témoin : le temps de la pass lisible pose sa part — sans lui, ce test ne prouverait rien.
+    assert.notEqual(passeDeLaBande(doc, { ...NORMAL, passe: PASSE }), null);
     for (const temps of [undefined, NORMAL, { ...NORMAL, passe: null }, { ...NORMAL, passe: { ...PASSE, livraisons: 0 } }, { ...NORMAL, passe: { ...PASSE, partLaPlusLourde: null } }, { ...NORMAL, passe: "x" }]) {
       assert.equal(passeDeLaBande(doc, temps), null);
     }

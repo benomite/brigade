@@ -58,6 +58,13 @@ describe("the CI of each pass as GitHub tells it", () => {
     // Une course sur deux têtes à la fois compte une fois : 10 s d'attente, 1180 s de course.
     assert.deepEqual(premier?.ciGitHub, { attente: 10 + 10, course: 1200 - 20 - 10, relancees: 1 });
   });
+  // Pushed during the cook, its CI already waiting: only what falls inside the pass counts, never more than the pass.
+  test("the CI of the branch counts only inside the pass, so its parts never exceed the pass time", () => {
+    const runs: RunDeCi[] = [{ tete: "a", creeLe: a(-3000), finiLe: a(900), jobs: [job(-3000, 400, 900)] }];
+    const ci = partagerLaCi(runs, [passe(0, 600)])[0]?.ciGitHub ?? assert.fail("no CI");
+    assert.deepEqual(ci, { attente: 400, course: 200, relancees: 0 });
+    assert.ok(ci.attente + ci.course <= 600);
+  });
   test("a job with an unreadable instant is left out, a job not finished runs to the end of the pass", () => {
     const runs: RunDeCi[] = [{ tete: "a", creeLe: a(0), finiLe: null, jobs: [{ creeLe: "?", commenceLe: null, finiLe: null }, job(0, 100, null)] }];
     assert.deepEqual(partagerLaCi(runs, [passe(0, 300)])[0]?.ciGitHub, { attente: 100, course: 200, relancees: 0 });

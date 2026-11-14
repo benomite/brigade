@@ -78,9 +78,10 @@ and all their jobs, reruns included (`ciDeLaBranche` in `runtime/src/github.ts`)
   (`created_at`) and not yet picked by a runner (`started_at`);
 - **CI running** (`course`): the time during which jobs ran and none waited.
 
-The two never overlap. They are counted on the time the branch's CI existed during the pass, which starts at
-the push, so they overlap the stages above — the CI also runs while the delivery waits for the pass and is
-reviewed — instead of adding to them. **Restarted runs** (`relancees`): a run that a run on another head of
+The two never overlap. They are cut to the pass — a job created at the push, during the cook, counts only
+from the moment the pass opens —, so together they never exceed the pass's time; but they overlap the stages
+above — the CI also runs while the delivery waits for the pass and is reviewed — instead of adding to them.
+Their share of pass time is therefore a share of the same pass time as the stages', not a sixth stage. **Restarted runs** (`relancees`): a run that a run on another head of
 the branch was created after, before it finished — cancelled, or run for nothing, because the branch moved (a
 push, a branch update after another merge). It counts in the pass it was created in, or in the next one when
 it was created during a cook. When GitHub cannot be read at the merge, the time is recorded without `ciGitHub`
