@@ -6,7 +6,9 @@ import { spawn } from "node:child_process";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { priseDeLaStation, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { garderLeCook, jugerAppel, type Garde } from "../../src/garde-cook/garde.ts";
+import { FauxGitHub, fauxClient } from "../faux-github.ts";
 import { ENV_ENFANT, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -64,7 +66,7 @@ test("rm -rf d'un chemin absolu hors du worktree est refusé, comme par `..` ou 
   symlinkSync(dehors, join(worktree, "lien"));
   mkdirSync(join(worktree, "src"));
   // Ce qui passe : un fichier du worktree, un dossier dessous, le temporaire.
-  for (const commande of ["rm a.ts", `rm -f ${join(worktree, "a.ts")}`, "rm -rf node_modules dist", "rm -rf ./src/*", `rm -rf ${join(temporaire, "essai")}`, "cd src && rm -rf ../dist", "mv a.ts b.ts", "rm -rf src/../dist", "echo x > notes.md 2>/dev/null", "git status; ls -la"]) {
+  for (const commande of ["rm a.ts", `rm -f ${join(worktree, "a.ts")}`, "rm -rf node_modules dist", "rm -rf ./src/*", `rm -rf ${join(temporaire, "essai")}`, "cd src && rm -rf ../dist", "mv a.ts b.ts", "mv src/c.ts .", `mv a.ts ${temporaire}`, `mv a.ts ${temporaire}/`, "mv -t . src/c.ts", "rm -rf src/../dist", "echo x > notes.md 2>/dev/null", "git status; ls -la"]) {
     assert.equal(bash(garde, commande), null, commande);
   }
   // Ce qui est refusé, raison dite.
@@ -80,6 +82,7 @@ test("rm -rf d'un chemin absolu hors du worktree est refusé, comme par `..` ou 
     ["rm -rf $HOME/projets", /mène à \/home\/chef\/projets/],
     ["cd .. && rm -rf dehors", /hors de ton worktree/],
     ["rm -rf .", /tout entier/],
+    ["mv . ../ailleurs", /tout entier/],
     [`mv a.ts ${dehors}/`, /hors de ton worktree/],
     [`mv ${join(dehors, "precieux.txt")} ici.txt`, /hors de ton worktree/],
     [`cp a.ts ${join(dehors, "precieux.txt")}`, /hors de ton worktree/],
@@ -254,6 +257,77 @@ test("les arguments d'un cook, gardés : le crochet s'ajoute avant `--disallowed
   assert.deepEqual(fusion.hooks.PermissionRequest, []);
   assert.deepEqual(fusion.hooks.PreToolUse.map(({ matcher }) => matcher), ["Bash", "Write|Edit|MultiEdit|NotebookEdit|Bash"]);
   assert.equal(dansLeSable[dansLeSable.indexOf("--permission-mode") + 1], "dontAsk");
+});
+
+// La garde posée par la station elle-même : le cook qu'elle lance reçoit,
+// dans ses réglages, le crochet qui garde ses appels d'outil — sur son
+// worktree, son ticket, son dépôt, sa branche —, et part toujours sans demande
+// de permission.
+test("le cook que la station lance part sans demande de permission, gardé : une écriture hors de son worktree, ou un `gh` sur un autre ticket, est refusé ; dans son worktree, son issue, cela passe", { skip: posixOnly("the hook command is read by /bin/sh") }, async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const faux = new FauxGitHub();
+  faux.feu(11, ["fire", "model:opus", "effort:high"]);
+  const lancements: Array<{ args: string[]; cwd: string }> = [];
+  const lancer: Lancer = ({ args, cwd, flux }) => {
+    lancements.push({ args, cwd });
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "done" })}\n`);
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => {
+        mkdirSync(join(repertoire, run));
+        return { worktree: join(repertoire, run), branche: `cook/${run}` };
+      },
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => ["a.ts"],
+      diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+    },
+    prise: priseDeLaStation,
+    claude: "claude",
+    env: {},
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: repertoire,
+    lancer,
+    avertir: (texte) => assert.fail(texte),
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  const cook = lancements.find(({ cwd }) => cwd === join(repertoire, "11-github"));
+  assert.ok(cook, JSON.stringify(lancements));
+  // Aucune demande de permission ajoutée : le mode reste celui d'avant.
+  assert.equal(cook.args[cook.args.indexOf("--permission-mode") + 1], "bypassPermissions");
+  assert.equal(cook.args.filter((arg) => arg === "--settings").length, 1);
+  const reglages = JSON.parse(cook.args[cook.args.indexOf("--settings") + 1] ?? "{}") as { hooks?: { PreToolUse?: Array<{ matcher: string; hooks: Array<{ command: string }> }> } };
+  const [crochet] = reglages.hooks?.PreToolUse ?? [];
+  assert.equal(crochet?.matcher, "Write|Edit|MultiEdit|NotebookEdit|Bash");
+  const commande = crochet?.hooks[0]?.command ?? "";
+  const [dedans, dehors, sonIssue, autreTicket] = await Promise.all([
+    repondre(commande, appel("Write", { file_path: join(cook.cwd, "a.ts"), content: "" }, cook.cwd)),
+    repondre(commande, appel("Write", { file_path: "/etc/brigade-garde-test", content: "" }, cook.cwd)),
+    repondre(commande, appel("Bash", { command: "gh issue comment 11 --body ok" }, cook.cwd)),
+    repondre(commande, appel("Bash", { command: "gh pr edit cook/12-github --add-label fire" }, cook.cwd)),
+  ]);
+  assert.deepEqual([dedans, sonIssue], ["", ""]);
+  assert.equal(decision(dehors)?.permissionDecision, "deny");
+  assert.match(decision(dehors)?.permissionDecisionReason ?? "", new RegExp(`hors de ton worktree \\(${cook.cwd.replaceAll("/", "\\/")}\\)`));
+  assert.equal(decision(autreTicket)?.permissionDecision, "deny");
+  assert.match(decision(autreTicket)?.permissionDecisionReason ?? "", /PR d'une autre branche : un cook n'écrit que sur la sienne, cook\/11-github/);
 });
 
 test("garde.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

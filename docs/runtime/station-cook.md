@@ -100,6 +100,9 @@ redirection…) whose target resolves outside them — absolute paths, `..` and 
 Its `gh` stays on its ticket: reads in its repository pass; writes pass only on its issue, on its
 branch's PR (`gh pr …` with no number, or naming its branch) and on its branch; admin and settings
 endpoints, deletions, merges, another repository and another ticket's issue, PR or branch are refused.
+The shell check is best-effort, not a sandbox: it only reads the commands it knows, so other writers
+(`sed -i`, `perl -i`, `git -C`, `python -c`, `node -e`, `curl -o`…) pass unchecked. A `mv` gets the
+root check on its sources only: moving a file into the worktree root, or into `/tmp`, passes.
 Each refusal tells the cook why. What passes gets no decision, so no permission prompt is added. The
 hook decides from the call and the disk alone: its node runs under `--permission`, with no network
 and no child process.

@@ -7,6 +7,9 @@
 //   - une commande Bash qui efface, déplace ou écrit (`rm`, `mv`, `cp`, une
 //     redirection…) ne vise que là, chemins résolus — absolus, `..`, liens ;
 //   - `gh` ne sert que son ticket (`gh.ts`).
+// La garde Bash est de bonne foi, pas étanche : elle ne lit que les commandes
+// qu'elle connaît (`cibles`) ; `sed -i`, `perl -i`, `git -C`, `python -c`,
+// `node -e`, `curl -o`… écrivent sans qu'elle les juge.
 // Un refus dit pourquoi au cook ; ce qui passe ne reçoit aucune décision, et
 // suit son cours : la garde n'ajoute jamais de demande de permission. Rien
 // n'est demandé au réseau, aucun process n'est lancé : la décision se prend sur
@@ -67,9 +70,9 @@ const repertoireCible = (mots: Deplie[]) => {
   return long === undefined ? undefined : { ...long, texte: long.texte.slice("--target-directory=".length) };
 };
 
-// Ce qu'une commande efface ou écrit, d'après son nom : les mots à juger, et
-// si elle efface.
-function cibles(nom: string, mots: Deplie[]): { vises: Deplie[]; efface: boolean } | null {
+// Ce qu'une commande efface ou écrit, d'après son nom : les mots à juger, si
+// elle les efface, et où elle dépose sans effacer (la destination d'un `mv`).
+function cibles(nom: string, mots: Deplie[]): { vises: Deplie[]; efface: boolean; depose?: Deplie } | null {
   const args = argumentsDe(mots);
   switch (nom) {
     case "rm":
@@ -81,8 +84,11 @@ function cibles(nom: string, mots: Deplie[]): { vises: Deplie[]; efface: boolean
     case "trash-put":
       return { vises: args, efface: true };
     case "mv": {
+      // Ses sources disparaissent : la racine y est refusée. Sa destination
+      // reçoit seulement : déplacer un fichier à la racine du worktree passe.
       const t = repertoireCible(mots);
-      return { vises: t === undefined ? args : [...args.filter((mot) => mot !== t), t], efface: true };
+      if (t !== undefined) return { vises: args.filter((mot) => mot !== t), efface: true, depose: t };
+      return args.length > 1 ? { vises: args.slice(0, -1), efface: true, depose: args.at(-1) } : { vises: args, efface: true };
     }
     case "cp":
     case "ln":
@@ -206,6 +212,10 @@ function jugerBash(lieux: Lieux, commande: string, cwdDeDepart: string | null, e
       const vises = cibles(nom, reste);
       for (const vise of vises?.vises ?? []) {
         const dit = juger(lieux, vise, cwd, `\`${nom}\``, vises?.efface ?? false);
+        if (dit !== null) return dit;
+      }
+      if (vises?.depose !== undefined) {
+        const dit = juger(lieux, vises.depose, cwd, `\`${nom}\``, false);
         if (dit !== null) return dit;
       }
     }
