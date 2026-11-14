@@ -19,7 +19,8 @@ import { tmpdir } from "node:os";
 import { isAbsolute } from "node:path";
 import { REGLES_DE_BASE, type Regle } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { argumentsDuBacASable, configurer, type ConfigDeBacASable } from "./configuration.ts";
+import { argumentsDuBacASable, configurer, type ConfigDeBacASable, type Cook } from "./configuration.ts";
+import { lireDeclarationBacASable } from "./declaration.ts";
 import { detecter, type Sondes } from "./detection.ts";
 import { constater, pourLaBox } from "./ordinaires.ts";
 import type { ServiceLocal } from "../sandbox/services-locaux.ts";
@@ -36,8 +37,14 @@ export type Verification = { ok: true; version: string } | { ok: false; raison: 
 // Ce que la cuisine retient de son bac à sable : de quoi configurer celui de
 // chaque lancement. `hotes` : la liste réseau du projet, relue à chaque
 // lancement — celle que sa branche d'intégration déclare. `services` : ses
-// services locaux, relus de même.
-export type BacASableLocal = { version: string; home: string; caches: string[]; hotes: () => Regle[]; services?: () => ServiceLocal[] };
+// services locaux, relus de même. `declaration` : le contenu de sa
+// déclaration de bac à sable (`declaration.ts`), relu de même — nul, il n'en a
+// pas ; `etat` : le répertoire d'état du runtime, qu'aucun dossier déclaré ne
+// touche ; `avertir` : où se dit une déclaration refusée ou illisible.
+export type BacASableLocal = { version: string; home: string; caches: string[]; hotes: () => Regle[]; services?: () => ServiceLocal[] } & Partial<Declaree>;
+
+// Ce que la cuisine sait de la déclaration de bac à sable de son projet.
+export type Declaree = { declaration: () => string | null; etat: string; avertir: (message: string) => void };
 
 // Les lieux d'une cuisine locale, tels que la vérification les éprouve.
 // `worktrees` : où ses cooks travaillent ; `caches` : les caches du projet.
@@ -73,11 +80,11 @@ export function verifier(sondes: Sondes, lieux: Lieux, hotes: Regle[] = REGLES_D
 // Le bac à sable de la cuisine d'un projet. Nul hors de macOS : la cuisine
 // n'est pas locale, et la cloison de sa machine la garde. Sous macOS, une
 // vérification qui échoue est un refus : la cuisine ne s'ouvre pas.
-export function configBacASableLocal(sondes: Sondes, lieux: Lieux, hotes: () => Regle[], services?: () => ServiceLocal[]): BacASableLocal | null {
+export function configBacASableLocal(sondes: Sondes, lieux: Lieux, hotes: () => Regle[], services?: () => ServiceLocal[], declaree?: Declaree): BacASableLocal | null {
   if (sondes.plateforme !== PLATEFORME_LOCALE) return null;
   const verification = verifier(sondes, lieux);
   if (!verification.ok) throw new ConfigInvalide(`sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — ${verification.raison}`, "sandbox-unusable");
-  return { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes, services };
+  return { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes, services, ...declaree };
 }
 
 // Les arguments d'un `claude` lancé dans le bac à sable : ceux qu'il aurait
@@ -97,9 +104,21 @@ export function poserLeBacASable(args: readonly string[], config: ConfigDeBacASa
 // caches du projet, où il écrit.
 // `lit` : les fichiers que la station lui remet à lire hors de ce répertoire.
 // `brigade` : son ticket ne livre que `.claude/brigade/`, il y écrit.
+// La déclaration du projet est relue à chaque lancement. Refusée — une entrée
+// hors des limites — ou illisible, elle ne s'applique pas du tout : le
+// lancement part avec le bac à sable d'avant, et le refus se dit.
 export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = [], brigade = false): string[] {
   if (!bac) return args;
-  return poserLeBacASable(args, configurer({ worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.() }));
+  const cook: Cook = { worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.(), ...(bac.etat === undefined ? {} : { etat: bac.etat }) };
+  if (bac.declaration !== undefined) {
+    try {
+      const declaration = lireDeclarationBacASable(bac.declaration());
+      if (declaration !== null) return poserLeBacASable(args, configurer({ ...cook, declaration }));
+    } catch (erreur) {
+      bac.avertir?.(`brigade : the project's sandbox declaration is not applied, this launch starts without it — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  }
+  return poserLeBacASable(args, configurer(cook));
 }
 
 // Ce que la cuisine dit de son bac à sable au démarrage.

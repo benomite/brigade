@@ -30,6 +30,7 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`etat-et-mesures.md`](etat-et-mesures.md) | Kitchen state, measures |
 | [`carnet-lecons.md`](carnet-lecons.md) | The lessons notebook |
 | [`bac-a-sable.md`](bac-a-sable.md) | The cook's sandbox: what a cook may do on the network |
+| [`declaration-bac-a-sable.md`](declaration-bac-a-sable.md) | A project's sandbox declaration (`.claude/brigade/bac-a-sable.json`): its ports and writable folders, the hard limits, the refusal |
 | [`fermeture.md`](fermeture.md) | The closing that observes, the closing that writes |
 | [`identites-et-secrets.md`](identites-et-secrets.md) | One GitHub identity per role, the project's secrets |
 | [`cloison-et-arbitre.md`](cloison-et-arbitre.md) | The partition, the arbiter between projects |
