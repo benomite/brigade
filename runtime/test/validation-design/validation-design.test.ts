@@ -16,8 +16,10 @@ import { ReglageRefuse, reglagesDuTexte, texteDuFichier } from "../../src/reglag
 import { principal } from "../../src/validation-design/commande.ts";
 import { corpsDeCeQuiEstFait, SANS_RESUME } from "../../src/validation-design/brief.ts";
 import { carteDuCorps, designsValidesParUnHumain, estUneLivraisonDesign, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
+import { ecrirePng, lirePng, type Image } from "../../src/validation-design/png.ts";
 import type { ChoixDeDesign } from "../../src/validation-design/choix-de-design.ts";
 import { CALIBRE, FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
+import { copie, ecrire, page, pixel, poser, remplacer } from "./pages.ts";
 
 type JugeDuChoix = (corps: string) => Promise<ChoixDeDesign>;
 
@@ -838,6 +840,127 @@ test("a card whose PR is still open for an open ticket stays in TODO after the s
   const { s: autre } = station(faux, true);
   await tours(autre, 2);
   assert.equal(ouvertes(faux).length, 1);
+});
+
+// ── La comparaison des captures sur la carte (#3617) ──
+
+// La page de #3602 en petit, avant et après : `apres` la change, ou non.
+function captures(changer: (apres: Image) => void) {
+  const avant = page(360);
+  ecrire(avant, 40, 30, "Brigade — the kitchen that serves its tickets", 0x22);
+  ecrire(avant, 40, 320, "Last served: 2 days ago, by station A");
+  const apres = copie(avant);
+  changer(apres);
+  return new Map([
+    [`docs/captures/${TICKET}/rail-avant.png`, ecrirePng(avant)],
+    [`docs/captures/${TICKET}/rail-apres.png`, ecrirePng(apres)],
+  ]);
+}
+
+// La station A sur une livraison design dont GitHub sert ces captures, et le
+// corps de PR `corpsDeLaPR` ; ce qu'elle publie est gardé.
+async function comparee(fichiers: Map<string, Buffer>, corpsDeLaPR: string) {
+  const faux = enPass(ECRAN);
+  const avertis: string[] = [];
+  const publies: Array<{ fichiers: Array<{ chemin: string; contenu: Uint8Array }>; message: string }> = [];
+  const lus: string[] = [];
+  const issue = fauxClient(faux, "A").issue;
+  const { s } = station(faux, true, avertis, {
+    fichierBinaire: async (chemin, ref) => {
+      lus.push(`${chemin}@${ref}`);
+      return fichiers.get(chemin) ?? null;
+    },
+    publierFichiers: async (publie, message) => {
+      publies.push({ fichiers: [...publie], message });
+      return "c0ffee0000000000000000000000000000000000";
+    },
+    issue: async (numero) => (numero === PR ? { number: PR, title: "PR", labels: [], state: "open", createdAt: "", updatedAt: "", url: "", body: corpsDeLaPR } : issue(numero)),
+  });
+  await tours(s, 3);
+  return { faux, avertis, publies, lus, sha: faux.pr(PR).sha };
+}
+
+test("setting on, one line of small text changed: the card lists the cook's `## Changes` lines above the captures, then the after capture with the line outlined and, next to it, the line cropped and enlarged, before and after side by side", async () => {
+  const fichiers = captures((apres) => remplacer(apres, 40, 320, "Last served: 3 hours ago, by station B"));
+  const { faux, avertis, publies, lus, sha } = await comparee(fichiers, `Closes #${TICKET}\n\n## Changes\n\n- footer of the home page: 'Last served: 2 days ago' -> 'Last served: 3 hours ago'\n`);
+  assert.deepEqual(avertis, []);
+  assert.deepEqual(renvois(faux), []);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.deepEqual(lus, [`docs/captures/${TICKET}/rail-avant.png@${sha}`, `docs/captures/${TICKET}/rail-apres.png@${sha}`]);
+  const [carte, ...autres] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.deepEqual(autres, []);
+  const corps = carte.corps;
+  // Dans cet ordre : le brief, les lignes du cook, les zones changées, puis les captures.
+  const rangs = ["### What was done", "### Changes", "- footer of the home page: 'Last served: 2 days ago' -> 'Last served: 3 hours ago'", "### Changed areas", "### Captures"].map((texte) => corps.indexOf(texte));
+  assert.ok(rangs.every((rang, i) => rang !== -1 && (i === 0 || rang > (rangs[i - 1] ?? 0))), corps);
+  // Une seule publication : la capture entourée et la zone agrandie, en PNG.
+  assert.equal(publies.length, 1);
+  const [publie] = publies as [(typeof publies)[number]];
+  assert.deepEqual(publie.fichiers.map(({ chemin }) => chemin), [`comparison/${TICKET}/rail/changed-areas.png`, `comparison/${TICKET}/rail/area-1.png`]);
+  assert.match(publie.message, new RegExp(`#${TICKET} \\(${sha.slice(0, 7)}\\)`));
+  assert.ok(corps.includes(`![rail — changed areas](https://github.com/faux/depot/blob/c0ffee0000000000000000000000000000000000/comparison/${TICKET}/rail/changed-areas.png?raw=true)`), corps);
+  assert.ok(corps.includes(`| ![rail — changed areas](`) && corps.includes(`) | ![rail — area 1, before and after](https://github.com/faux/depot/blob/c0ffee0000000000000000000000000000000000/comparison/${TICKET}/rail/area-1.png?raw=true)<br>Area 1 |`), corps);
+  assert.match(corps, /1 changed area, outlined in red on the after capture and enlarged next to it — before on the left, after on the right\./);
+  // La capture publiée est la capture après, la ligne changée entourée de rouge.
+  const entouree = lirePng(publie.fichiers[0]?.contenu ?? new Uint8Array());
+  const apres = lirePng(fichiers.get(`docs/captures/${TICKET}/rail-apres.png`) ?? Buffer.alloc(0));
+  assert.equal(entouree.largeur, 1280);
+  const rouges = (y: number) => Array.from({ length: entouree.largeur }, (_, x) => pixel(entouree, x, y)).filter((p) => p.join() === "229,29,72,255").length;
+  assert.ok(rouges(320 - 6 - 1) > 50, "the outline runs above the changed line");
+  assert.equal(rouges(30), 0, "nothing else is outlined");
+  assert.deepEqual(pixel(entouree, 50, 322), pixel(apres, 50, 322));
+  // La zone agrandie : avant à gauche, après à droite, plus grande que la ligne.
+  const zone = lirePng(publie.fichiers[1]?.contenu ?? new Uint8Array());
+  assert.ok(zone.hauteur >= 2 * 7 && zone.largeur > 2 * 2 * 7, `${zone.largeur}×${zone.hauteur}`);
+  // Les captures du ticket restent sur la carte, que l'app lit.
+  assert.ok(corps.includes(`![rail — après](https://github.com/faux/depot/blob/${sha}/docs/captures/40/rail-apres.png?raw=true)`), corps);
+});
+
+test("setting on, a PR body with no `## Changes`: the card is posted all the same, with its comparison and no change lines", async () => {
+  const { faux, publies } = await comparee(captures((apres) => remplacer(apres, 40, 320, "Last served: 3 hours ago")), `Closes #${TICKET}\n\nCooked by station \`A\`.`);
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.ok(!carte.corps.includes("### Changes"), carte.corps);
+  assert.ok(carte.corps.includes("### Changed areas"), carte.corps);
+  assert.equal(publies.length, 1);
+});
+
+test("setting on, identical captures or captures that differ only by anti-aliasing noise: no card for the chef, the delivery goes back to its cook asking for captures of the state that shows the change", async () => {
+  const bruit = (apres: Image) => {
+    for (let y = 0; y < apres.hauteur; y += 1) {
+      for (let x = 0; x < apres.largeur; x += 1) {
+        const [r = 255] = pixel(apres, x, y);
+        if (r < 255) poser(apres, x, y, [Math.min(255, r + 30), Math.min(255, r + 30), Math.min(255, r + 30)]);
+      }
+    }
+  };
+  for (const changer of [() => {}, bruit]) {
+    const { faux, publies, avertis } = await comparee(captures(changer), `Closes #${TICKET}\n\n## Changes\n\n- footer: 'a' -> 'b'`);
+    assert.deepEqual(ouvertes(faux), []);
+    assert.equal(faux.mergee(TICKET), undefined);
+    assert.deepEqual(publies, []);
+    assert.deepEqual(avertis, []);
+    // Chaque livraison du cook — le faux en refait une à chaque tour, avec les mêmes captures — repart.
+    const lesRenvois = renvois(faux);
+    assert.ok(lesRenvois.length >= 1);
+    for (const renvoi of lesRenvois) {
+      assert.match(renvoi.body, /the captures show no change: the before and after captures of `rail` are identical, or differ only by anti-aliasing noise/);
+      assert.match(renvoi.body, /Capture the state of the screen that shows the change/);
+    }
+  }
+});
+
+test("setting on, a capture that is not a readable PNG: the card is posted with its captures, and says that screen could not be compared", async () => {
+  const fichiers = captures(() => {});
+  fichiers.set(`docs/captures/${TICKET}/rail-apres.png`, Buffer.from("not a png"));
+  const { faux, publies } = await comparee(fichiers, `Closes #${TICKET}`);
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.match(carte.corps, /\*\*Screen `rail`\*\* — _its captures could not be compared: `docs\/captures\/40\/rail-apres\.png` is not a readable PNG \(not a PNG file\)\._/);
+  assert.ok(carte.corps.includes("### Captures"), carte.corps);
+  assert.deepEqual(publies, []);
+  assert.deepEqual(renvois(faux), []);
 });
 
 // ── Quand la carte s'ouvre (#3609) ──

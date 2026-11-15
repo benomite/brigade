@@ -1241,6 +1241,7 @@ test("a red main: no PR is merged, and the next turns merge nothing either (#221
 test("a red commit gets exactly one repair issue, however many turns and stations see it (#2214)", async () => {
   const faux = new FauxGitHub();
   faux.base = "red";
+  faux.corpsEcrivables = true;
   const a = faux.station("A", { places: 0, avertir: () => {} });
   const b = faux.station("B", { places: 0, avertir: () => {} });
   for (let i = 0; i < 3; i++) await Promise.all([a.tour(), b.tour()]);
@@ -1251,10 +1252,11 @@ test("a red commit gets exactly one repair issue, however many turns and station
   assert.ok(reparation?.labels.has("prio:0") && reparation.labels.has("fire"));
   // Les deux stations ont créé la leur au même instant : la plus récente s'est fermée.
   assert.equal(reparation?.number, 900);
-  // Un autre commit rouge : une autre réparation.
+  // Un autre commit rouge sur le même check, dans la fenêtre : la même réparation, avec une occurrence de plus (#3614).
   faux.teteDeLaBase = "c".repeat(40);
   await a.tour();
-  assert.equal(reparations(faux).length, 2);
+  assert.equal(reparations(faux).length, 1);
+  assert.ok(reparations(faux)[0]?.corps.includes("`ccccccc`"));
 });
 
 test("a repair issue that GitHub refused to create is retried on the next turn, and the merges stay stopped (#2214)", async () => {
