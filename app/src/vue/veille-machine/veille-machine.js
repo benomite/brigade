@@ -7,11 +7,13 @@
 //     allume ou éteint le réglage.
 // Hors d'un Mac, la station n'en tient aucune : ni ligne, ni case.
 
+import { CET_ORDINATEUR } from "../lexique.js";
+
 /** @typedef {import("../../../../runtime/src/veille-machine/contrat.ts").Veille} Veille */
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
-export const GARDE_EVEILLE = "Keeping this computer awake while cooking";
-export const GARDER_EVEILLE = "Keep this computer awake while cooking";
+export const GARDE_EVEILLE = `Keeping ${CET_ORDINATEUR} awake while cooking`;
+export const GARDER_EVEILLE = `Keep ${CET_ORDINATEUR} awake while cooking`;
 export const REGLAGE_ILLISIBLE = "setting unreadable";
 
 // L'assertion est-elle tenue, d'après ce que la station a écrit — rien de lu, rien de tenu.
