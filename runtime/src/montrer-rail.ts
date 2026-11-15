@@ -22,7 +22,7 @@ import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { CLE_DES_CAPACITES, manqueDuTicket } from "./capacites.ts";
 import { retirerDuRail } from "./geste-ticket.ts";
-import { ouvrirGitHub } from "./github.ts";
+import { ouvrirGitHubDuGeste, PLAFOND_D_UN_GESTE_DU_RAIL } from "./gestes/github-du-geste.ts";
 import { repondreALaCarte } from "./reponse-carte.ts";
 import { confierAUnHumain, GESTE_HUMAIN } from "./sortie-attente-capacite/sortie.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
@@ -80,7 +80,10 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
     }
     // Un geste du chef : la box ne retient aucun de ses appels (limite-github.ts).
-    const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" });
+    // Il en fait au plus PLAFOND_D_UN_GESTE_DU_RAIL (5 — le décompte est dans
+    // gestes/github-du-geste.ts) : un appel de plus est refusé sans partir. Ses
+    // écritures rendent périmées les lectures que la vue relit (#3682).
+    const github = ouvrirGitHubDuGeste({ depot: rail.depot, bin: rail.gh, env: { ...env, BRIGADE_STATE_DIR: repertoireEtat }, plafond: PLAFOND_D_UN_GESTE_DU_RAIL });
     try {
       const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");

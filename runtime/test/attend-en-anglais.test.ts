@@ -182,12 +182,12 @@ const EXEMPLES = {
       ...horsTicket,
       quoi: "disjoncteur",
       echecs: [
-        { run: "44-aa", ticket: 44, at: DEPUIS, code: 1, turns: 4, tokens: 1000 },
-        { run: "x-aa", ticket: null, at: DEPUIS, code: null, turns: null, tokens: null },
+        { run: "44-aa", ticket: 44, at: DEPUIS, code: 1, error: null, turns: 4, tokens: 1000 },
+        { run: "x-aa", ticket: null, at: DEPUIS, code: null, error: null, turns: null, tokens: null },
       ],
       seuil: 2,
     },
-    { ...horsTicket, quoi: "disjoncteur", echecs: [{ run: "45-aa", ticket: 45, at: DEPUIS, code: 1, turns: 4, tokens: 1000 }], seuil: null },
+    { ...horsTicket, quoi: "disjoncteur", echecs: [{ run: "45-aa", ticket: 45, at: DEPUIS, code: 1, error: null, turns: 4, tokens: 1000 }], seuil: null },
     { ...horsTicket, quoi: "disjoncteur", echecs: [], seuil: 3 },
   ],
   pause: [
