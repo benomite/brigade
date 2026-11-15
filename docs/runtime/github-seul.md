@@ -232,7 +232,9 @@ base, the stale-branch pruning).
 - **Guardrails.** The chef's stop, the breaker, the Max quota and the arbiter between projects hold a turn's launches
   (`github-seul/garde-fous/`, #2213). An open breaker is said on GitHub by an issue labelled `brigade:breaker-open`
   (`breaker-issue.ts`); a `/resume` comment on it by someone with write access closes the breaker at the next tick
-  (`breaker-resume-github.ts`).
+  (`breaker-resume-github.ts`). The issue names the station whose breaker opened it: only that station comments
+  « resumed » and closes it when its own breaker closes. Any other station reads it as an open breaker elsewhere, and its
+  chef's queue says « the breaker is open since <time> » instead of « cause unknown » (`file-chef/cause-arret.ts`, #3658).
 - **Stale branches.** The `cook/<n>-github` branches whose issue is closed are deleted, locally and on the origin, at
   each tick (`github-seul/elagage/`).
 - **The manager runs on every station** that serves the project, and its work on an issue (qualify, calibrate,
