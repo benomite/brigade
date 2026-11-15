@@ -36,6 +36,7 @@ import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { lireLeDepot, roadmapALaBase, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
+import type { SuiviDuDisjoncteurServant } from "./file-chef/cause-arret.ts";
 import { brancherRetenue } from "./retenue/brancher.ts";
 import { suivreLeTour } from "./retenue/tour.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
@@ -259,13 +260,14 @@ try {
   // La retenue ne lance rien : rien de servi depuis 30 min alors que des
   // tickets attendent, elle écrit sa cause et son geste — une fois — dans la
   // file du chef, et l'en ôte quand la cuisine sert de nouveau.
-  const retenue = brancherRetenue(datee, { station: process.env.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH });
+  const disjoncteurServant: SuiviDuDisjoncteurServant = { depuis: null };
+  const retenue = brancherRetenue(datee, { disjoncteurServant, station: process.env.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH });
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
   const alertee = brancherAlerteUrgence(retenue);
   // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
   // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts).
-  brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }) });
+  brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }), autre: disjoncteurServant });
   runtime = brancherRepriseParGitHub(alertee, { github: githubs.rail });
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).

@@ -28,6 +28,7 @@ import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "
 import type { CauseReveil, Runtime } from "./runtime.ts";
 import { decouper } from "./github.ts";
 import { execFile } from "./sans-invite.ts";
+import { disjoncteurDesAutres, estDeCetteStation, marqueDeStation, type SuiviDuDisjoncteurServant } from "./file-chef/cause-arret.ts";
 
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
 
@@ -83,11 +84,14 @@ const nommerCode = (code: number | null) => (code === null ? "none (stopped by a
 
 export const titreDeLIssue = (projet: string) => `Kitchen ${projet} held: its breaker is open`;
 
-export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, { ouvert: true }>): string {
+export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, { ouvert: true }>, station: string | null = null): string {
   const { depuis, ticket, code, echecs, seuil, calage } = disjoncteur;
+  // La station dont le disjoncteur s'est ouvert : la seule qui reprend cette issue (cause-arret.ts).
+  const repere = station === null ? [] : [marqueDeStation(station)];
   if (calage !== undefined) {
     return [
       marque(projet),
+      ...repere,
       `The breaker of the \`${projet}\` kitchen opened because a run keeps stalling: no cook leaves until the chef resumes the kitchen, or a run still in progress completes normally.`,
       "",
       `- **What keeps stalling**: ${direLeCalage(calage)}`,
@@ -101,6 +105,7 @@ export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, 
   const compte = echecs.length === 0 ? "failures in a row" : `${echecs.length} failure${echecs.length > 1 ? "s" : ""} in a row${seuil === null ? "" : ` (threshold ${seuil})`}`;
   return [
     marque(projet),
+    ...repere,
     `The breaker of the \`${projet}\` kitchen opened after ${compte}: no cook leaves until the chef resumes the kitchen.`,
     "",
     `- **Failing ticket**: ${nommerTicket(ticket)}`,
@@ -118,15 +123,28 @@ export const commentaireDeReprise = (projet: string, reprisLe: string | null) =>
 // Publie l'état du disjoncteur sur GitHub. Ouvert : rend l'issue de la
 // cuisine — celle qui l'était déjà, ou celle qui vient d'être créée. Fermé :
 // commente et ferme celles de la cuisine encore ouvertes, et rend null.
-export async function publierLeDisjoncteur(client: ClientDuDisjoncteur, projet: string, disjoncteur: Disjoncteur): Promise<number | null> {
+export async function publierLeDisjoncteur(
+  client: ClientDuDisjoncteur,
+  projet: string,
+  disjoncteur: Disjoncteur,
+  { station = null, autre, maintenant = () => new Date() }: { station?: string | null; autre?: SuiviDuDisjoncteurServant; maintenant?: () => Date } = {},
+): Promise<number | null> {
   const ouvertes = (await client.ouvertesAuLabel(LABEL_DU_DISJONCTEUR)).filter(deLaCuisine(projet));
   if (disjoncteur.ouvert) {
+    if (autre !== undefined) autre.depuis = null;
     const [deja] = ouvertes;
     if (deja !== undefined) return deja.numero;
     await client.assurerLabel(DEFINITION_DU_LABEL);
-    return client.creer({ titre: titreDeLIssue(projet), corps: corpsDeLIssue(projet, disjoncteur), labels: [LABEL_DU_DISJONCTEUR] });
+    return client.creer({ titre: titreDeLIssue(projet), corps: corpsDeLIssue(projet, disjoncteur, station), labels: [LABEL_DU_DISJONCTEUR] });
   }
-  for (const { numero } of ouvertes) {
+  // Fermé ici : seule l'issue de cette station se reprend. Celle d'une autre,
+  // son disjoncteur la tient ouverte — et la file du chef le dit.
+  if (autre !== undefined) {
+    const lu = disjoncteurDesAutres(ouvertes, station);
+    // Une issue sans heure se date de la première lecture, et la garde tant qu'elle tient.
+    autre.depuis = lu === null ? null : (lu.depuis ?? autre.depuis ?? maintenant().toISOString());
+  }
+  for (const { numero } of ouvertes.filter((issue) => estDeCetteStation(issue, station))) {
     await client.commenter(numero, commentaireDeReprise(projet, disjoncteur.reprisLe));
     await client.fermer(numero);
   }
@@ -141,6 +159,15 @@ export type OptionsDuDisjoncteur = {
   client: ClientDuDisjoncteur;
   // Où se dit un échec de publication ; par défaut, la sortie d'erreur.
   avertir?: (ligne: string) => void;
+  // La station de ce runtime : son nom est celui que porte l'issue qu'elle ouvre,
+  // et la seule qu'elle reprend (file-chef/cause-arret.ts).
+  station?: string | null;
+  // Ce que cette station lit du disjoncteur ouvert d'une autre, à chaque passe
+  // où le sien est fermé ; la file du chef le lit (`brancherRetenue`). Donné, le
+  // tick relit GitHub même quand l'état voulu n'a pas changé : l'autre
+  // disjoncteur se referme sans que le journal d'ici le sache.
+  autre?: SuiviDuDisjoncteurServant;
+  maintenant?: () => Date;
 };
 
 // Le publieur d'une cuisine : `passer` lit l'état voulu et le publie s'il a
@@ -171,8 +198,9 @@ export function publieurDuDisjoncteur(base: Base, projet: string, options: Optio
     if (echec !== null && cause !== "tick") return Promise.resolve();
     const voulu = disjoncteurDuJournal(base);
     const cle = cleDe(voulu);
-    if (cle === publiee) return Promise.resolve();
-    const courante = publierLeDisjoncteur(options.client, projet, voulu).then(
+    const aSurveiller = !voulu.ouvert && options.autre !== undefined && cause === "tick";
+    if (cle === publiee && !aSurveiller) return Promise.resolve();
+    const courante = publierLeDisjoncteur(options.client, projet, voulu, { station: options.station ?? null, autre: options.autre, maintenant: options.maintenant }).then(
       () => {
         publiee = cle;
         echec = null;
