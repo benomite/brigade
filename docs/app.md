@@ -3892,7 +3892,9 @@ section. With the section laid, `right now` is not repeated under it.
     (`app/src/gestes-idee.ts`). While it goes, both buttons wait; refused, the line says why. Nothing is sent for an
     issue the latest reading does not show as an idea.
 
-  Then **Served**, at the bottom: only the three most recent (`SERVIS_REPLIES` — a need served but still open first,
+  Then **Directions** (#3590): the open needs under the three horizons of the vision, by their `horizon:N` label, then
+  `No direction yet` — each line with its number, its title, and its progress or `idea`, nothing else; neither what
+  awaits the chef nor what was served is there. Then **Served**, at the bottom: only the three most recent (`SERVIS_REPLIES` — a need served but still open first,
   then by closing, the last first), and `show all N` unfolds the rest. **No line carries the manager's words** — no
   calibration, no `fire`, no `not read yet`: one click on a line opens its issue, where they stay. **What awaits the chef
   is not in this list**: it is in Todo. A second click on the title folds the band back to its line, and ends the

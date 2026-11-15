@@ -54,7 +54,7 @@ export type ActiviteDuCook = {
 // de son corps (sous `Context`, s'il en a un) ; `servieLe`, l'heure où une épique découpée, tous ses tickets servis, a
 // été fermée — elle reste 24 h dans le bandeau ; `avancement`, ses tickets servis sur leur total, quand son corps les
 // liste en cases à cocher (vue/backlog/avancement-github.ts, #3480).
-export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite: number | null; etat: string; dit: string; tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string; avancement?: Avancement };
+export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite: number | null; etat: string; dit: string; tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string; avancement?: Avancement; horizon?: number; idee?: true };
 export type AvantLeRailPublie = { lu: string; issues: IssueAvantLeRailPubliee[] };
 
 export type TableauLu = {
@@ -123,6 +123,13 @@ const labelsDe = (issue: Brut): string[] => liste(issue.labels).flatMap(({ name 
 const prioriteDe = (labels: readonly string[]): number | null => {
   const lues = labels.flatMap((label) => { const n = /^prio:(\d+)$/.exec(label)?.[1]; return n === undefined ? [] : [Number(n)]; });
   return lues.length === 0 ? null : Math.min(...lues);
+};
+
+// L'horizon de la vision où une issue est rangée (#3590) : celui de son label `horizon:1`, `horizon:2` ou `horizon:3` ; avec
+// plusieurs, le plus petit ; sans, aucun.
+const horizonDe = (labels: readonly string[]): number | null => {
+  const lus = labels.flatMap((label) => { const n = /^horizon:([123])$/.exec(label)?.[1]; return n === undefined ? [] : [Number(n)]; });
+  return lus.length === 0 ? null : Math.min(...lus);
 };
 
 // L'état avant le rail d'une issue ouverte sans `fire`, d'après ses labels seuls — la box n'est plus là pour dire ce
@@ -241,11 +248,15 @@ async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<
     const tickets = etat.etat === "idee" ? [] : ticketsDe(issue);
     const contexte = contexteDe(corpsDe(issue));
     const avancement = avancementDeLaListe(corpsDe(issue));
+    const labels = labelsDe(issue);
+    const horizon = horizonDe(labels);
     return {
       ticket: issue.number as number,
       titre: typeof issue.title === "string" ? issue.title : "",
-      priorite: prioriteDe(labelsDe(issue)),
+      priorite: prioriteDe(labels),
       ...etat,
+      ...(horizon === null ? {} : { horizon }),
+      ...(labels.includes("idea") ? { idee: true as const } : {}),
       ...(tickets.length === 0 ? {} : { tickets, servis: tickets.filter((ticket) => !numerosOuverts.has(ticket)) }),
       ...(contexte === undefined ? {} : { contexte }),
       ...(avancement === undefined ? {} : { avancement }),

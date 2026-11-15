@@ -29,8 +29,8 @@ import { poserAvancement, progresDuBesoin } from "../backlog/avancement.js";
 /**
  * Un besoin tel que le bandeau le pose.
  * `rouge` : il attend le chef — sa carte est dans TODO (`carte`). `progres` : découpé, ses tickets servis sur leur
- * total. `servi` : découpé, tous servis ; `servieLe`, l'heure où son issue s'est fermée, nulle tant qu'elle est ouverte. `tickets` : ceux de son découpage. `etapes` : ses tickets comptés par étape, découpé seulement.
- * @typedef {{ ticket: number, titre: string, court: string, priorite: number | null, etat: string, groupe: string, mot: string, dit: string, contexte: string | undefined, ouvrable: boolean, rouge: boolean, carte: Carte | undefined, progres: { servis: number, total: number } | null, servi: boolean, servieLe: number | null, tickets: number[], etapes: Etape[] }} Besoin
+ * total. `servi` : découpé, tous servis ; `servieLe`, l'heure où son issue s'est fermée, nulle tant qu'elle est ouverte. `horizon` : celui de la vision où son label le range (1 à 3), nul sans ; `idee` : label `idea` ; `ferme` : son issue est fermée (elle ne reste que 24 h, servie). `tickets` : ceux de son découpage. `etapes` : ses tickets comptés par étape, découpé seulement.
+ * @typedef {{ ticket: number, titre: string, court: string, priorite: number | null, etat: string, groupe: string, mot: string, dit: string, contexte: string | undefined, ouvrable: boolean, rouge: boolean, carte: Carte | undefined, progres: { servis: number, total: number } | null, servi: boolean, servieLe: number | null, tickets: number[], etapes: Etape[], horizon: number | null, idee: boolean, ferme: boolean }} Besoin
  */
 
 // La liste TODO des faits, où le chef a quelque chose à trancher (faits.ts, `T_ATTEND`) : la vue en pose les cartes en rouge
@@ -68,6 +68,14 @@ const MOTS = {
 const ATTEND = "awaits you";
 // Ce qui a été servi, replié en bas de la liste : les plus récents seulement, tant que le chef ne le déplie pas.
 export const SERVIS_REPLIES = 3;
+// Les trois horizons de la vision (docs/superpowers/specs/2026-11-07-vision.md), dans son ordre ; un besoin y est rangé par
+// son label `horizon:N` (ticket 3590).
+export const HORIZONS = [
+  { horizon: 1, nom: "Autonomy now" },
+  { horizon: 2, nom: "Humans as stations" },
+  { horizon: 3, nom: "Any project run on its own" },
+];
+export const SANS_DIRECTION = "No direction yet";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} classe @param {string} [texte] */
 function noeud(doc, balise, classe, texte) {
@@ -137,6 +145,9 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
         servieLe: Number.isNaN(servieLe) ? null : servieLe,
         tickets,
         etapes,
+        horizon: issue.horizon ?? null,
+        idee: issue.idee === true,
+        ferme: issue.servieLe !== undefined,
       };
       return [besoin];
     }),
@@ -144,6 +155,21 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
   /** @param {Besoin} besoin */
   const rang = (besoin) => (besoin.rouge ? 0 : 1);
   return besoins.sort((a, b) => rang(a) - rang(b) || (a.priorite ?? Infinity) - (b.priorite ?? Infinity) || a.ticket - b.ticket);
+}
+
+/**
+ * La section Directions : les trois horizons, toujours dans l'ordre de la vision, chacun avec les besoins ouverts qui s'y
+ * rangent ; puis « No direction yet » pour ceux d'aucun horizon, s'il y en a. Un besoin n'est que sous un horizon (le plus
+ * petit de ses labels, déjà choisi par la lecture) ; un besoin fermé n'y est jamais.
+ * @param {readonly Besoin[]} besoins
+ * @returns {{ horizon: number | null, nom: string, besoins: Besoin[] }[]}
+ */
+function directionsDuBacklog(besoins) {
+  const ouverts = besoins.filter(({ ferme }) => !ferme);
+  return [
+    ...HORIZONS.map(({ horizon, nom }) => ({ horizon, nom, besoins: ouverts.filter((besoin) => besoin.horizon === horizon) })),
+    ...(ouverts.some(({ horizon }) => horizon === null) ? [{ horizon: null, nom: SANS_DIRECTION, besoins: ouverts.filter(({ horizon }) => horizon === null) }] : []),
+  ];
 }
 
 /**
@@ -325,6 +351,9 @@ function listeEntiere(doc, besoins, { servisDeplies, idees }, gestes) {
   enReserve.append(reserve.length === 0 ? noeud(doc, "p", "backlog-band-rien", "no idea in reserve") : lignesDIdees);
   liste.append(suite, enReserve);
 
+  // La troisième section, les directions (ticket 3590), sans ce qui attend le chef ni ce qui a été servi ; puis le passé, tout en bas.
+  liste.append(directions(doc, siens.filter((besoin) => !estServi(besoin)), gestes));
+
   if (servis.length > 0) {
     const { pose: servi, titre } = section(doc, "servis", "Served", servis.length);
     const plie = !servisDeplies && servis.length > SERVIS_REPLIES;
@@ -341,6 +370,37 @@ function listeEntiere(doc, besoins, { servisDeplies, idees }, gestes) {
     liste.append(servi);
   }
   return liste;
+}
+
+/**
+ * La section Directions, après Next et Ideas in reserve : un clic sur une ligne ouvre son issue. Une ligne dit son avancement
+ * ou « idea », jamais l'état du manager (ticket 3589).
+ * @param {Fabrique} doc @param {Besoin[]} besoins @param {Gestes} gestes
+ */
+function directions(doc, besoins, gestes) {
+  const section = noeud(doc, "section", "backlog-band-directions");
+  section.ariaLabel = "Directions";
+  section.append(noeud(doc, "h4", "backlog-band-directions-titre", "Directions"));
+  for (const { horizon, nom, besoins: siens } of directionsDuBacklog(besoins)) {
+    const groupe = noeud(doc, "section", "backlog-band-direction");
+    groupe.dataset.direction = horizon === null ? "aucune" : String(horizon);
+    const titre = noeud(doc, "h5", "backlog-band-section-titre");
+    titre.append(noeud(doc, "span", "backlog-band-section-nom", nom), noeud(doc, "span", "backlog-band-section-compte", String(siens.length)));
+    groupe.append(titre);
+    if (siens.length === 0) groupe.append(noeud(doc, "p", "backlog-band-direction-vide", "nothing is attached to this direction"));
+    else {
+      const lignes = noeud(doc, "ol", "backlog-band-lignes");
+      for (const besoin of siens) {
+        const ligne = noeud(doc, "li", "backlog-band-ligne");
+        const etat = besoin.progres !== null ? `${besoin.progres.servis}/${besoin.progres.total} served` : besoin.idee ? "idea" : undefined;
+        ligne.append(ouvrable(doc, besoin, [noeud(doc, "span", "backlog-band-numero", `#${besoin.ticket}`), noeud(doc, "span", "backlog-band-ligne-titre", besoin.titre), ...(etat === undefined ? [] : [noeud(doc, "span", "backlog-band-ligne-etat", etat)])], gestes));
+        lignes.append(ligne);
+      }
+      groupe.append(lignes);
+    }
+    section.append(groupe);
+  }
+  return section;
 }
 
 /**

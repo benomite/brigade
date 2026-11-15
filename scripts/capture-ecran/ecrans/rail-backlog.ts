@@ -40,29 +40,29 @@ const FACTS = {
 } as Faits;
 
 // Ce qui est avant le rail de « parade », tel que la lecture de GitHub le publie, dans l'ordre où le manager les lit :
-// quinze besoins ouverts, dont deux idées — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
+// quinze besoins ouverts, dont trois idées — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
 // 16 h, et #56 tout servi il y a plus de 24 h, qui n'est plus dans le bandeau.
 export const AVANT_LE_RAIL = {
   lu: LU,
   issues: [
-    { ticket: 41, titre: "Les tickets d'une épique dans l'ordre", priorite: 1, etat: "prete", dit: "calibrated (model:sonnet, effort:medium), without `fire`: the rail takes it once `fire` is set" },
-    { ticket: 38, titre: "Le menu du soir", priorite: 1, etat: "epique", dit: "it carries `epic`: not split yet", contexte: "Le soir, la carte change : trois entrées, trois plats, un menu au prix fixe, que la salle annonce et que la caisse encaisse." },
+    { ticket: 41, titre: "Les tickets d'une épique dans l'ordre", priorite: 1, etat: "prete", horizon: 1, dit: "calibrated (model:sonnet, effort:medium), without `fire`: the rail takes it once `fire` is set" },
+    { ticket: 38, titre: "Le menu du soir", priorite: 1, etat: "epique", horizon: 1, dit: "it carries `epic`: not split yet", contexte: "Le soir, la carte change : trois entrées, trois plats, un menu au prix fixe, que la salle annonce et que la caisse encaisse." },
     { ticket: 55, titre: "Les commandes à emporter", priorite: 2, etat: "servie", dit: "split, all 3 tickets served", tickets: [7, 8, 9], servis: [7, 8, 9], servieLe: "2026-10-12T16:00:00.000Z" },
     { ticket: 44, titre: "Exporter les commandes", priorite: 2, etat: "incomplete", dit: "refused (an incomplete ticket) — No acceptance criterion says what the export holds." },
     { ticket: 45, titre: "Le stock en temps réel", priorite: 2, etat: "non-lue", dit: "the manager has not judged it yet" },
     { ticket: 33, titre: "La carte des allergènes", priorite: 2, etat: "prete", dit: "put on the rail by the manager, sonnet / low — `fire` is not set on it yet" },
-    { ticket: 47, titre: "Les réservations de groupe", priorite: 3, etat: "decoupee", dit: "split into 6 tickets, 2 served", tickets: [14, 21, 22, 30, 60, 61], servis: [60, 61], contexte: "Une table de plus de huit couverts se réserve en un geste : l'acompte, le menu choisi d'avance et le rappel la veille." },
+    { ticket: 47, titre: "Les réservations de groupe", priorite: 3, etat: "decoupee", horizon: 3, dit: "split into 6 tickets, 2 served", tickets: [14, 21, 22, 30, 60, 61], servis: [60, 61], contexte: "Une table de plus de huit couverts se réserve en un geste : l'acompte, le menu choisi d'avance et le rappel la veille." },
     { ticket: 56, titre: "Le plan de salle", priorite: 3, etat: "servie", dit: "split, all 2 tickets served", tickets: [3, 4], servis: [3, 4], servieLe: "2026-10-12T09:00:00.000Z" },
     { ticket: 48, titre: "Un thème clair", priorite: null, etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" },
     { ticket: 49, titre: "Les pourboires partagés", priorite: null, etat: "non-lue", dit: "the manager has not judged it yet" },
     { ticket: 50, titre: "Le bon de livraison imprimé", priorite: null, etat: "non-lue", dit: "returned to the manager, not rejudged yet" },
     { ticket: 51, titre: "Garder les tickets un an ?", priorite: null, etat: "mise-de-cote", dit: "set aside: it carries `question` — a question, left to you" },
     { ticket: 52, titre: "La caisse hors ligne", priorite: null, etat: "incomplete", dit: "refused (an incomplete ticket) — What happens to a payment taken offline is not said." },
-    { ticket: 53, titre: "Le mode sombre de la caisse", priorite: null, etat: "prete", dit: "calibrated (model:haiku, effort:low), without `fire`: the rail takes it once `fire` is set" },
-    // Deux idées en réserve (#3589), et trois besoins de plus tout servis dans les 24 h : le Backlog déplié n'en montre que
+    { ticket: 53, titre: "Le mode sombre de la caisse", priorite: null, etat: "idee", horizon: 3, idee: true, dit: "it carries `idea`: an idea in reserve, not a request" },
+    // Deux idées de plus en réserve (#3589), et trois besoins de plus tout servis dans les 24 h : le Backlog déplié n'en montre que
     // les trois plus récents.
-    { ticket: 57, titre: "Un programme de fidélité", priorite: null, etat: "idee", dit: "it carries `idea`: an idea in reserve, not a request", contexte: "Un client qui revient dix fois a son dessert offert : la caisse compte ses passages, sans carte à tamponner." },
-    { ticket: 58, titre: "Commander à table par QR code", priorite: null, etat: "idee", dit: "it carries `idea`: an idea in reserve, not a request", contexte: "Chaque table a son code : le client lit la carte sur son téléphone et commande sans attendre le serveur." },
+    { ticket: 57, titre: "Un programme de fidélité", priorite: null, etat: "idee", horizon: 2, idee: true, dit: "it carries `idea`: an idea in reserve, not a request", contexte: "Un client qui revient dix fois a son dessert offert : la caisse compte ses passages, sans carte à tamponner." },
+    { ticket: 58, titre: "Commander à table par QR code", priorite: null, etat: "idee", idee: true, dit: "it carries `idea`: an idea in reserve, not a request", contexte: "Chaque table a son code : le client lit la carte sur son téléphone et commande sans attendre le serveur." },
     { ticket: 59, titre: "Le ticket de caisse par e-mail", priorite: 2, etat: "servie", dit: "split, all 2 tickets served", tickets: [62, 63], servis: [62, 63], servieLe: "2026-10-13T08:00:00.000Z" },
     { ticket: 64, titre: "Les horaires d'ouverture", priorite: 3, etat: "servie", dit: "split, all 1 tickets served", tickets: [65], servis: [65], servieLe: "2026-10-12T20:00:00.000Z" },
     { ticket: 66, titre: "Les menus enfants", priorite: null, etat: "servie", dit: "split, all 2 tickets served: the manager closes it", tickets: [67, 68], servis: [67, 68] },
