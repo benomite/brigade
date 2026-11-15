@@ -10,7 +10,7 @@ import { etatDeLaBase } from "../github-etat/etats.ts";
 import type { Issue } from "../github.ts";
 import { PRIO_REPARATION } from "../reparation.ts";
 import type { CheckDeLaBase } from "./ouvre-reparation.ts";
-import { shaDeBaseRouge } from "./ouvre-reparation.ts";
+import { LABEL_CAUSE_CORRIGEE, shaDeBaseRouge, viseLaCause } from "./ouvre-reparation.ts";
 
 // Les tickets que le tour lit déjà : une base verte sans réparation ouverte ne
 // coûte aucun appel de plus à GitHub.
@@ -41,7 +41,10 @@ export function fermeReparation({ github, base }: OptionsDeLaFermeture) {
     const fermees: number[] = [];
     for (const { number, labels, state } of tickets) {
       if (state !== "open" || !labels.includes(PRIO_REPARATION)) continue;
-      if (shaDeBaseRouge(await github.corpsDuTicket(number)) === null) continue;
+      const corps = await github.corpsDuTicket(number);
+      if (shaDeBaseRouge(corps) === null) continue;
+      // Une réparation qui vise la cause (#3614) ne se ferme qu'avec la cause corrigée.
+      if (viseLaCause(corps) && !labels.includes(LABEL_CAUSE_CORRIGEE)) continue;
       await github.commenter(number, commentaireDeLaFermeture(base));
       await github.fermerIssue(number);
       fermees.push(number);
