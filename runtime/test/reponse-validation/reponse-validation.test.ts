@@ -8,7 +8,7 @@ import { ticketJoint } from "../../src/bac-a-sable/hors-github.ts";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour, type StationGitHub } from "../../src/brigade-github.ts";
 import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
 import { MARQUE_DE_RENVOI } from "../../src/qualite-github.ts";
-import { reponseDuCorps } from "../../src/reponse-validation/marques.ts";
+import { questionDuCorps, reponseDuCorps } from "../../src/reponse-validation/marques.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
 const TICKET = 40;
@@ -122,7 +122,9 @@ test("a send-back comment of the chef on the ticket puts the ticket back to a co
 
 test("a comment of the chef on a ticket with no pending validation triggers neither merge nor send-back", async () => {
   const { faux, s, sha } = await retenue();
-  // Aucune question sur le ticket : le chef commente.
+  // Aucune question sur le ticket : la demande que la pass y a posée (#3615)
+  // ôtée, le chef commente — elle se repose ensuite, après ses commentaires.
+  faux.commentaires.set(TICKET, commentaires(faux).filter((c) => questionDuCorps(c.body) === null));
   chef(faux, "Validate.");
   chef(faux, "Make it bigger.");
   await tours(s, 3);
