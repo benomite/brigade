@@ -39,6 +39,8 @@ function station(faux: FauxGitHub, avertis: string[] = [], pannes: Partial<GitHu
     prise: faux.prise(github, "A"),
     depotServi: "faux/depot",
     designsValidesParUnHumain: () => true,
+    // Le modèle voit un choix de design : la livraison attend le chef (#3609).
+    jugerLeChoixDeDesign: async () => ({ choix: "the layout of the rail" }),
     cuisiner: async (ticket) => {
       faux.cuissons.push({ station: "A", issue: ticket.number });
       consignes.push(ticketJoint({ number: ticket.number, title: "the ticket", body: "", commentaires: await lecteur.commentaires(ticket.number) }));
