@@ -36,6 +36,9 @@ export const ETIQUETTES: readonly Etiquette[] = [
   { name: "product-question", color: "FBCA04", description: "A question for the chef about the product" },
   { name: "cook:design", color: "D93F0B", description: "Cooked by the design cook" },
   { name: "idea", color: "C2E0C6", description: "An idea in reserve, not a request: the manager never reads it" },
+  { name: "horizon:1", color: "1D76DB", description: "Direction of the product: autonomy now" },
+  { name: "horizon:2", color: "1D76DB", description: "Direction of the product: humans as stations" },
+  { name: "horizon:3", color: "1D76DB", description: "Direction of the product: any project run on its own" },
   { name: "kitchen-board", color: "BFD4F2", description: "The former board issue of the kitchen: never a card" },
 ];
 

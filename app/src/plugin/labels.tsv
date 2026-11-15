@@ -29,4 +29,7 @@ chef-todo	B60205	A card in the chef's to-do list waits on this ticket
 product-question	FBCA04	A question for the chef about the product
 cook:design	D93F0B	Cooked by the design cook
 idea	C2E0C6	An idea in reserve, not a request: the manager never reads it
+horizon:1	1D76DB	Direction of the product: autonomy now
+horizon:2	1D76DB	Direction of the product: humans as stations
+horizon:3	1D76DB	Direction of the product: any project run on its own
 kitchen-board	BFD4F2	The former board issue of the kitchen: never a card
