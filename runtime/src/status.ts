@@ -15,7 +15,8 @@ import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts"
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { limiteDuCompteDeLaStation } from "./github-limite.ts";
 import { direLeBudget } from "./github/budget-appels.ts";
-import { appelsDeLaStation, budgetDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
+import { appelsDeLaStation, budgetDeLaStation, ecrituresRetenuesDeLaStation, partsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
+import { direLesParts } from "./budget-github/part-des-projets.ts";
 import { direGitHubSeul, lireGitHubSeul } from "./github-seul-etat.ts";
 import { direLesAppelsParIdentite, lireAppelsParIdentite } from "./appels-par-identite.ts";
 import { lireDeriveGithub } from "./closer-github-passe/derive-github.ts";
@@ -32,7 +33,7 @@ import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/lign
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
 import { avecLeRailBloque, railBloqueCherche, railBloqueDuStatus } from "./rail-bloque/status.ts";
-import { attenteDuRailDuStatus, avecLAttenteDuRail } from "./attente-du-rail/status.ts";
+import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile } from "./attente-du-rail/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -80,7 +81,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const lu = journal;
   if (!railBloqueCherche(env)) return ecrire(lignes);
   // Pourquoi la file ne part pas (#3433) : sa phrase au-dessus de la ligne `rail`, la même que le rail de l'app.
-  return Promise.all([railBloqueDuStatus(env, maintenant), attenteDuRailDuStatus(env, maintenant, lu.base)]).then(([rail, attente]) => ecrire(avecLAttenteDuRail(avecLeRailBloque(lignes, rail), attente)), (erreur: unknown) => {
+  return Promise.all([railBloqueDuStatus(env, maintenant), attenteEtRailDuStatus(env, maintenant, lu.base)]).then(([rail, attente]) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(avecLeRailBloque(lignes, rail), attente.enFile), attente.lignes)), (erreur: unknown) => {
     lu.fermer();
     throw erreur;
   });
@@ -165,6 +166,9 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
   if (budget !== null) lignes.push(...direLeBudget(budget).map((texte, i) => `${(i === 0 ? "gh budget" : "").padEnd(11)}${texte}`));
+  // La part de chaque projet dans le budget de la station, et qui en est ralenti (#3683).
+  const parts = partsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
+  if (parts !== null) lignes.push(...direLesParts(parts).map((texte, i) => `${(i === 0 ? "gh share" : "").padEnd(11)}${texte}`));
   // Le mode d'identité qu'a annoncé la cuisine, et les appels de chaque identité, jamais remis à zéro (#2316).
   lignes.push(...direLesAppelsParIdentite(lireAppelsParIdentite(env, etat.projet ?? env.BRIGADE_PROJECT ?? "")).map((texte, i) => `${(i === 0 ? "identity" : "").padEnd(11)}${texte}`));
   if (githubSeul !== null) lignes.push(direGitHubSeul(githubSeul));
