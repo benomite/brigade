@@ -30,7 +30,7 @@ import { porteListe } from "./epique.ts";
 import { commandeRendre, NOMS_DE_NATURE_EN, type Ecart, type FaitManager, type Nature } from "./events/manager.ts";
 import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
-import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
+import { LancementRefuse, STATION_DU_MANAGER, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { ECHECS_ATTEINTS, HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
@@ -54,7 +54,7 @@ import type { Fin } from "./superviseur.ts";
 
 // Le nom sous lequel les jugements figurent au journal, à la place d'une
 // station : c'est par lui que le chef lit ce que le manager lui coûte.
-export const MANAGER = "manager";
+export const MANAGER = STATION_DU_MANAGER;
 const AUTEUR = "manager";
 
 // Les labels par lesquels le chef dit lui-même qu'une issue n'est pas une
@@ -399,11 +399,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   };
 
   // Un jugement consomme le quota du compte : il n'a pas lieu si le chef a dit
-  // « stop », si le disjoncteur est ouvert, ou si une station dit le compte
-  // épuisé ou déconnecté.
+  // « stop », ou si une station dit le compte épuisé ou déconnecté. Le
+  // disjoncteur ouvert ne retient que les cooks, jamais le manager (#3600) : il
+  // qualifie pendant qu'il est ouvert, et les tickets sont prêts à sa fermeture.
   const peutJuger = (): boolean => {
-    const garde = etatDesGardeFous(base);
-    if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
+    if (etatDesGardeFous(base).stoppedAt !== null) return false;
     return !compteRetenu(base, maintenant());
   };
   // Les stations dont les jugements consomment le quota : celles des cooks,
@@ -715,7 +715,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         juger: conclure,
       });
     } catch (erreur) {
-      // « stop » ou disjoncteur, arrivés depuis le dernier regard.
+      // « stop », arrivé depuis le dernier regard.
       if (erreur instanceof LancementRefuse) return null;
       throw erreur;
     }

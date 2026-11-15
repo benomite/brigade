@@ -176,3 +176,47 @@ test("les fermées ne se relisent que quand les ouvertes changent de numéros �
   assert.equal(fermeesLues, 3);
   assert.ok(quatrieme.lu && quatrieme.avantLeRail?.issues.some(({ ticket }) => ticket === 40));
 });
+
+// Le Backlog du chef (#3589) : une idée en réserve a son propre état ; la roadmap n'est jamais une ligne.
+const avecOuvertes = (ouvertes: Brute[], contenu?: () => Promise<{ status: number; data: unknown }>): AppelGitHub => async (chemin) => {
+  if (chemin === `/repos/${DEPOT}/contents/CLAUDE.md` && contenu !== undefined) return contenu();
+  if (chemin.includes("/issues?state=closed")) return { status: 200, data: [] };
+  if (chemin.includes("/issues?") && !chemin.includes("labels=fire")) return { status: 200, data: ouvertes };
+  return github().appeler(chemin);
+};
+const claudeMd = (texte: string) => async () => ({ status: 200, data: { content: Buffer.from(texte).toString("base64") } });
+
+test("une issue au label `idea` est une idée en réserve, quels que soient ses autres labels ; une liste dans son corps ne la découpe pas", async () => {
+  const lu = await lire(avecOuvertes([issue(30, ["idea", "model:opus", "effort:low", "epic"], "## Context\n\nA loyalty card."), issue(31, ["idea"], LISTE([9])), issue(9, [])]));
+  assert.deepEqual(lu.avantLeRail?.issues.map(({ ticket, etat, tickets }) => [ticket, etat, tickets]), [
+    [9, "non-lue", undefined],
+    [30, "idee", undefined],
+    [31, "idee", undefined],
+  ]);
+  assert.equal(lu.avantLeRail?.issues.find(({ ticket }) => ticket === 30)?.contexte, "A loyalty card.");
+  const vu = voir(lectureDuTableau(lu, "parade", 3, [COMMANDE]));
+  assert.ok("groupes" in vu, JSON.stringify(vu));
+  assert.deepEqual(vu.groupes.map(({ etat, nom }) => [etat, nom]), [["non-lue", "not read yet"], ["idee", "ideas in reserve"]]);
+});
+
+test("la roadmap n'est pas un besoin : l'issue au label `roadmap`, ou celle que la ligne « Roadmap » du CLAUDE.md nomme — ce qu'elle liste reste chacun son besoin", async () => {
+  const ouvertes = [issue(1, [], LISTE([9])), issue(2, ["roadmap"], LISTE([21])), issue(9, []), issue(21, ["model:sonnet", "effort:low"])];
+  const lu = await lire(avecOuvertes(ouvertes, claudeMd("## Équipe\n\n- **Roadmap** : issue #1 (writer unique = Manager)\n")));
+  assert.deepEqual(lu.avantLeRail?.issues.map(({ ticket, etat }) => [ticket, etat]), [
+    [9, "non-lue"],
+    [21, "prete"],
+  ]);
+});
+
+test("un CLAUDE.md sans ligne « Roadmap », absent ou illisible ne nomme aucune roadmap : rien n'est écarté sur une supposition — le label `roadmap` écarte toujours —, et le reste se lit", async () => {
+  const ouvertes = [issue(1, [], LISTE([9])), issue(2, ["roadmap"]), issue(9, [])];
+  for (const contenu of [claudeMd("- **Doc vivante** : `docs/` — see issue #1"), async () => ({ status: 404, data: { message: "Not Found" } }), async () => ({ status: 200, data: { content: 7 } }), async () => Promise.reject(new Error("socket hang up"))]) {
+    let demande = false;
+    const lu = await lire(avecOuvertes(ouvertes, async () => {
+      demande = true;
+      return contenu();
+    }));
+    assert.ok(demande, "le CLAUDE.md est demandé à GitHub");
+    assert.deepEqual(lu.avantLeRail?.issues.map(({ ticket, etat }) => [ticket, etat]), [[1, "decoupee"]]);
+  }
+});

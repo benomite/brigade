@@ -113,6 +113,9 @@ export type GardeFous = {
   reprendre(run: string, juger?: DemandeCook["juger"]): CookLance | null;
 };
 
+// La station des jugements du manager : le disjoncteur ouvert ne les retient pas.
+export const STATION_DU_MANAGER = "manager";
+
 export const nomDeRun = (ticket: number | null) => `${ticket ?? "sans-ticket"}-${randomUUID().slice(0, 8)}`;
 
 const jugerParDefaut = (fin: Fin): Verdict => (fin.code === 0 ? "ok" : "failed");
@@ -293,7 +296,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       if (etat.stoppedAt !== null) {
         throw new LancementRefuse("stopped", `cuisine arrêtée par le chef le ${etat.stoppedAt} : aucun cook n'est lancé avant « resume »`);
       }
-      if (etat.breakerOpenedAt !== null) {
+      // Le disjoncteur ne retient que les cooks : un jugement du manager (#3600) part, ouvert ou non.
+      if (etat.breakerOpenedAt !== null && demande.contexte?.station !== STATION_DU_MANAGER) {
         const calage = calageDuDisjoncteur(base);
         throw new LancementRefuse(
           "breaker",

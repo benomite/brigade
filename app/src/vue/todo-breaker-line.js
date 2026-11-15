@@ -44,6 +44,10 @@ export const DEMANDEE_DETAIL = "posted on the kitchen's breaker issue on GitHub:
 // Le prix du geste, au survol du bouton : celui que la bande disait du même geste (alertes.ts).
 export const PRIX = "the breaker closes: queued tickets start again at once, on your quota";
 export const TITRE = "the breaker holds the kitchen";
+// L'état du projet que la ligne dit, partout de la même façon (ticket 3602) : « held: breaker open », puis ce que la station en écrit.
+export const RETENUE = "held: breaker open";
+/** @param {string} dit */
+const retenue = (dit) => dit.replace(/breaker open:?/, `${RETENUE} —`);
 
 // L'étape qui suit la réponse du process principal.
 /** @param {RenduDeLaReprise | undefined} rendu @returns {Etat} */
@@ -102,7 +106,7 @@ export function poserLigneDuDisjoncteur(doc, { marque, dit, releve, pourquoi }, 
   racine.dataset.etape = etat.etape;
   const tete = cree(doc, "p");
   tete.className = "dit";
-  tete.append(marque, cree(doc, "strong", dit), ...(releve === undefined || releve.trim() === "" ? [] : [survol(doc, releve)]));
+  tete.append(marque, cree(doc, "strong", retenue(dit)), ...(releve === undefined || releve.trim() === "" ? [] : [survol(doc, releve)]));
   racine.append(tete);
   if (pourquoi !== undefined && pourquoi.trim() !== "") {
     const raison = cree(doc, "p", pourquoi);

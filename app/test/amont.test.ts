@@ -158,7 +158,7 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
 
     const groupes = grouper([une(1, "mise-de-cote"), une(2, "inconnu"), une(3, "non-lue"), une(4, "prete"), une(5, "epique"), une(6, "non-lue"), une(7, "incomplete")]);
 
-    assert.deepEqual(GROUPES.map(({ etat }) => etat), ["non-lue", "incomplete", "epique", "prete", "mise-de-cote", "decoupee", "servie"]);
+    assert.deepEqual(GROUPES.map(({ etat }) => etat), ["non-lue", "incomplete", "epique", "prete", "mise-de-cote", "decoupee", "servie", "idee"]);
     assert.deepEqual(
       groupes.map(({ etat, issues }) => [etat, issues.map(({ ticket }) => ticket)]),
       [

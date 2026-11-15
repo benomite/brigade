@@ -2,7 +2,7 @@
 // stations ; un clic ouvre le projet ; « Add a project » lance le parcours d'ajout. Joué devant un faux document.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { AJOUTER, ATTEND, ETATS, SANS_STATION, etatDeLaLigne, boutonDAjout, lignesDeProjets, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
+import { AJOUTER, ATTEND, ETATS, SANS_STATION, etatDeLaLigne, boutonDAjout, lignesDeProjets, maintenantDeLaLigne, type ProjetDuBloc } from "../../src/vue/accueil/projets/projets.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -36,7 +36,7 @@ describe("le bloc Projects de l'accueil", () => {
     assert.deepEqual(lignes(bloc).map((l) => l.ariaLabel?.split(" — ").at(-1)), ["parade-box, this computer", "parade-box", SANS_STATION, "this computer"], "les stations restent dites, dans le nom de la ligne");
     // `stuck` : le rail bloqué (ticket 3358, test/rail-bloque/accueil.test.ts) ; `paused` : la pause de quota GitHub du compte
     // (ticket 3482, test/vue/pause-quota/).
-    assert.deepEqual(Object.values(ETATS).map(({ dit }) => dit), ["cooking", "waiting for the chef", "held", "stuck", "paused", "idle"]);
+    assert.deepEqual(Object.values(ETATS).map(({ dit }) => dit), ["cooking", "waiting for the chef", "held", "stuck", "paused", "idle", "held: breaker open"]);
   });
 
   test("un clic sur une ligne ouvre ce projet, une seule fois", () => {
@@ -70,4 +70,38 @@ test("l'état d'une ligne de l'accueil : retenu, attend le chef, cuit, au repos"
   assert.equal(etat("vert", "#12 cooking"), "cooking");
   assert.equal(etat("vert", "nothing cooking, nothing waits for you"), "idle");
   assert.equal(etat("gris", "first read in progress…"), "idle");
+});
+
+describe("un projet dont le disjoncteur est ouvert (#3602)", () => {
+  const BLOQUE = "8 tickets no manager takes, for 14 h";
+  const dit = (...parties: string[]) => ({ ton: "rouge", dit: parties.join(" · ") });
+  const ligneDe = (ligne: { ton: string; dit: string }) => {
+    const [premiere] = lignesDeProjets(doc, [{ nom: "parade", etat: etatDeLaLigne(ligne), stations: [], maintenant: maintenantDeLaLigne(ligne) }], gestes());
+    return premiere as Faux;
+  };
+
+  test("« held: breaker open » en place du rail bloqué — jamais « no manager takes »", () => {
+    for (const ligne of [dit(BLOQUE, "breaker open"), dit("breaker open"), dit("breaker open", BLOQUE)]) {
+      assert.equal(etatDeLaLigne(ligne), "breaker");
+      const rendue = ligneDe(ligne);
+      assert.deepEqual(rendue.children.map(texte).filter((t) => t !== "").slice(0, 2), ["parade", "held: breaker open"]);
+      assert.doesNotMatch(rendue.textContent, /no manager takes|stuck/);
+      assert.match(rendue.ariaLabel ?? "", /^parade — held: breaker open — /);
+    }
+    assert.equal(ETATS.breaker.ton, "rouge");
+  });
+
+  test("ce que la ligne dit d'autre reste dit", () => {
+    assert.equal(maintenantDeLaLigne(dit(BLOQUE, "breaker open", "Max connection down")), "Max connection down");
+    assert.equal(maintenantDeLaLigne(dit("breaker open")), "no cook goes any more");
+  });
+
+  test("une autre cause, ou pas de retenue : les mots d'avant — held, stuck, idle", () => {
+    assert.equal(etatDeLaLigne(dit(BLOQUE, "kitchen stopped")), "stuck");
+    assert.equal(maintenantDeLaLigne(dit(BLOQUE, "kitchen stopped")), `${BLOQUE} · kitchen stopped`);
+    assert.equal(etatDeLaLigne(dit("kitchen stopped")), "held");
+    assert.equal(etatDeLaLigne(dit("kitchen held")), "held");
+    assert.equal(maintenantDeLaLigne(dit("kitchen held")), "kitchen held");
+    assert.equal(etatDeLaLigne({ ton: "gris", dit: "nothing cooking, nothing waits for you" }), "idle");
+  });
 });

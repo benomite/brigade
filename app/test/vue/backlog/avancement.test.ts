@@ -80,5 +80,5 @@ describe("la sortie de ce qui est avant le rail", () => {
 });
 
 function gestes() {
-  return { choisir: () => {}, basculer: () => {}, ouvrirIssue: () => {}, carteDuChef: () => new Faux("div") };
+  return { choisir: () => {}, basculer: () => {}, ouvrirIssue: () => {}, carteDuChef: () => new Faux("div"), basculerServis: () => {}, idee: () => {} };
 }

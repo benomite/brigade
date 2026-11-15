@@ -170,7 +170,8 @@ of kind `abandoned`, answered on its issue.
 **A kitchen held by its breaker is resumed in one click, from the head of Todo** (#2140, epic #2134): while the
 `kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
 failed in a row, no cook goes any more`, what the station writes on hover — and its single button, `Resume`, recommended,
-its price on hover. No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
+its price on hover. The line says the project's state, `held: breaker open — …`, in the same words on Home (the project's
+state, in place of `stuck` and `no manager takes`), on Rail and on the phone (#3602). No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
 `/resume` on the repository's open issue labeled `brigade:breaker-open` (the station publishes it when the breaker opens,
 #2138, and its watcher closes the breaker when it reads the comment, #2139), with the GitHub sign-in of
 this computer's `gh` (`app/src/github/breaker-resume.ts`). While it is posted, the button waits and the line says
@@ -991,8 +992,9 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   the manager's state, the idle-kitchen fault, a kitchen `held` or stopped, Served — is not read from GitHub, and the
   view says nothing of it.
 - **Before the rail** (the Backlog, #1836): the other open issues, without `fire`, filed from their labels alone —
-  `hors-cuisine` or `blocked-on-human`: set aside; `epic`: epic not split yet; both a `model:` and an `effort:` label:
-  ready, not fired; otherwise not calibrated yet. If that reading fails, the view says nothing about it: the rail is
+  `idea`: an idea in reserve (#3589); `hors-cuisine` or `blocked-on-human`: set aside; `epic`: epic not split yet; both a `model:` and an `effort:` label:
+  ready, not fired; otherwise not calibrated yet. The roadmap is left out (the issue labelled `roadmap`, or the one the
+  `**Roadmap**` line of `CLAUDE.md` names). If that reading fails, the view says nothing about it: the rail is
   still shown.
 - **A failed reading** keeps the last columns, said stale (#2151); with nothing read before, it is titled
   `NOT READ FROM GITHUB`, its reason in one sentence. GitHub not reached at all is offline (#1818): the last rail stays,
@@ -3844,6 +3846,7 @@ section. With the section laid, `right now` is not repeated under it.
   idea, a decision to make), not a ticket: one need can be split into many tickets. It is read from GitHub with the rest
   of the rail view (`avantLeRail` in `app/src/tableau/lecture.ts`, #2061): every open issue without `fire`, filed from its
   labels alone, in one of these states:
+  - **idea in reserve**: it carries `idea` (#3589) — whatever its other labels say, and a list in its body does not split it;
   - **not read yet**: neither a `model:` and an `effort:` label, nor any of the labels below — "not calibrated yet";
   - **refused as incomplete**: no label says it, so the reading from GitHub never gives it;
   - **epic, not split yet**: it carries `epic`;
@@ -3858,10 +3861,13 @@ section. With the section laid, `right now` is not repeated under it.
     change, since a need or a ticket that closes leaves them), and keeps each one that carries a tickets list with none
     of its tickets open, with the time it closed. If that request fails, no served need is shown and the rest reads.
 
-  An issue that carries `fire` is not counted: it is on the rail. **One tag per need**: its priority (`prio:1`, or
+  An issue that carries `fire` is not counted: it is on the rail. **The project's roadmap is never a need** (#3589): the
+  issue that carries `roadmap`, or the one the `**Roadmap**` line of the bindings names in the `CLAUDE.md` of the default
+  branch, read from GitHub as the manager reads it — no tag, no line, and what it lists stays a need of its own. A
+  `CLAUDE.md` that is not read names nothing: no issue is left out on a guess. **One tag per need**: its priority (`prio:1`, or
   `no prio`), a short title (cut at a word, the whole title on hover), then, for a split need, its progress as
   served/total (`7/25`), otherwise its state in plain words (`not read yet`, `incomplete`, `to split`, `ready`,
-  `set aside`). **A need that awaits the chef** — its card is in Awaiting you — is a **red tag**, says `awaits you`
+  `set aside`, `idea`). **A need that awaits the chef** — its card is in Awaiting you — is a **red tag**, says `awaits you`
   (or its progress, split) and comes first; the others follow by priority (none last, the oldest first). A served need
   is green, `2/2 served`, and leaves the band 24 hours after its issue closed (`RETENUE_MS`). The title reads
   `Backlog`, the number of needs and, in red, how many await you; on hover, the counts of each state in words — `8
@@ -3878,9 +3884,22 @@ section. With the section laid, `right now` is not repeated under it.
   TODO card** in its detail, the very card of Awaiting you: the question it asks and the button that answers it. While
   a need is chosen, **its tickets stand out in the rail** (an accent outline) and the other cards fade; a second click on
   the same tag, or a click on another, ends the choice and the cards go back to normal. **A click on the title unfolds
-  the whole backlog** as a list grouped by state — what awaits the chef first, then the states in the order above —,
-  sorted by priority within each group; `+N` unfolds it too. A click on a line shows that need's detail like its tag. A
-  second click on the title folds the band back to its line, and ends the choice. A new reading folds nothing.
+  the backlog for the chef** (#3589); `+N` unfolds it too. Two sections, in this order:
+  - **Next**: the open needs and tickets, in the order the kitchen will serve them — `prio:1`, `prio:2`, `prio:3`, then
+    no priority, the oldest first —, each with its priority, its title and, split, its progress (`2/6 served`);
+  - **Ideas in reserve**: the open `idea` issues, each with its title and a one-line summary (its context, cut at the
+    edge, whole on hover), and two buttons: **Put on the rail** removes `idea` and sets `fire` (the manager reads it at
+    its next wake-up), **Drop** closes the issue as not planned — one click each, played on GitHub by the app's access
+    (`app/src/gestes-idee.ts`). While it goes, both buttons wait; refused, the line says why. Nothing is sent for an
+    issue the latest reading does not show as an idea.
+
+  Then **Directions** (#3590): the open needs under the three horizons of the vision, by their `horizon:N` label, then
+  `No direction yet` — each line with its number, its title, and its progress or `idea`, nothing else; neither what
+  awaits the chef nor what was served is there. Then **Served**, at the bottom: only the three most recent (`SERVIS_REPLIES` — a need served but still open first,
+  then by closing, the last first), and `show all N` unfolds the rest. **No line carries the manager's words** — no
+  calibration, no `fire`, no `not read yet`: one click on a line opens its issue, where they stay. **What awaits the chef
+  is not in this list**: it is in Todo. A second click on the title folds the band back to its line, and ends the
+  choice. A new reading folds nothing.
 
   **Nothing on the rail** — no card outside Served —, the On the rail column says so in plain words (#2486):
   `nothing on the rail, nothing before it` when there is nothing before it either; otherwise how many issues, state by
@@ -3891,7 +3910,7 @@ section. With the section laid, `right now` is not repeated under it.
   from a fresh board, the view says nothing about them — no band — and the rail is still shown. A reading that fails
   says `Backlog not read` on the band's line, its reason on hover: it is not "nothing before the rail". The Backlog
   column and the Backlog figure of the line of figures are gone (#3460): every count they gave is on the band's title,
-  its hover and its unfolded list. Captures: `docs/captures/3460/`.
+  its hover and its unfolded list. Captures: `docs/captures/3460/`; the unfolded backlog for the chef: `docs/captures/3589/`.
 - **How long a card has been there (#1811, `app/src/cadence.ts`)**: the 24-hour histogram that stood next to the
   backlog figure left the head of the rail with the line of figures (#3013). **Each Taken or Pass card** carries
   how long it has been in that column (`12 min`, `3 h`, `2 d`), its exact age and the usual time on hover; a card there
@@ -3924,7 +3943,7 @@ The band at the top of the Rail tab is an order book above the rail: **one tag p
 - **Red tags come first**: a tag that awaits the chef is red and stands before the others.
 - **`+N` overflow**: a `+N` tag stands for the needs the line does not show; on a phone-width window the line scrolls sideways instead.
 - **Click on a tag**: unfolds the band with that need's detail and highlights its tickets in the rail.
-- **Click on the title, "Backlog"**: unfolds the whole backlog as a list, grouped by state; a second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
+- **Click on the title, "Backlog"**: unfolds the backlog for the chef (#3589) — **Next**, in the order the kitchen will serve it, then **Ideas in reserve**, each with **Put on the rail** and **Drop**, and what was served folded at the bottom; no technical wording on the lines, and a click on a line opens its issue. What awaits the chef stays in Todo, and the roadmap is never a line. A second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
 - **Served needs stay 24 hours**: a served need stays in the band for 24 hours, then leaves it.
 
 ### Above the rail: at most two lines (#3523)
