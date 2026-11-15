@@ -42,7 +42,7 @@ const normaliser = (texte: string) => texte.replace(/\s+/g, " ").trim().toLowerC
 const meme = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const estQuote = (ligne: string) => ligne.trimStart().startsWith(">");
 // Ce que la cuisine écrit : un bot, une de ses marques, ou la réponse qu'elle vient d'écrire sur l'issue.
-const duBot = (commentaire: Commentaire) => commentaire.author.endsWith("[bot]") || commentaire.body.startsWith(ENTETE_REPONSE) || commentaire.body.split(/\r?\n/).some((ligne) => ligne.trim().startsWith("<!-- brigade:"));
+export const duBot = (commentaire: Commentaire) => commentaire.author.endsWith("[bot]") || commentaire.body.startsWith(ENTETE_REPONSE) || commentaire.body.split(/\r?\n/).some((ligne) => ligne.trim().startsWith("<!-- brigade:"));
 
 // Le bloc de citation qui ouvre le commentaire, et ce qui le suit.
 export function separerLaCitation(corps: string): { citation: string | null; reponse: string } {

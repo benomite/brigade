@@ -103,6 +103,7 @@ import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
+import { agirSurLaReponse } from "./reponse-validation/reponse-validation.ts";
 import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
@@ -1652,6 +1653,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               bouge = true;
               return;
             }
+          }
+          // Le chef a répondu sur le ticket à la question de sa validation
+          // (#3616) : validée, la réponse gardée la laisse merger ; renvoyée,
+          // elle repart à un cook avec son commentaire, et rien ne se merge.
+          if ((await agirSurLaReponse(github, ticket.number, pr)) === "sent-back") {
+            bouge = true;
+            return;
           }
           const tentee = JSON.stringify([pr.sha, pr.version ?? null, checksDeLaBase]);
           // Une livraison retenue pour le chef ne se retente sur la même tête
