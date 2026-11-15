@@ -86,6 +86,7 @@ import { motifArretCook } from "./motif-arret-cook.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
+import { commitsDuRunPrecedent, consigneDuRunPrecedent, estUneRepriseDeGarde, gardeLeTravail, marquerLeTravail } from "./cuisson/reprise/reprise.ts";
 import { reconcilierLesArretsExternes } from "./arrets-externes.ts";
 import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
@@ -2653,8 +2654,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // son essai comptait pour un échec, trois fois jusqu'à `served-elsewhere` (#2577).
     // Une tête qui sauve le travail d'un cook coupé par une relance n'est pas
     // une livraison : un cook la reprend (#2586).
-    const sauvee = reprise && estUneSauvegarde(depot.sujet?.(branche));
-    if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, or it declared itself blocked and the chef has answered on this issue. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
+    // Le travail d'un run tué par la garde d'inactivité, gardé sur sa branche (#3649) :
+    // le cook en repart, et sa consigne nomme la branche et ses commits.
+    const repriseDeGarde = reprise && estUneRepriseDeGarde(depot.sujet?.(branche));
+    const sauvee = reprise && (estUneSauvegarde(depot.sujet?.(branche)) || repriseDeGarde);
+    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
+    if (repriseDeGarde) joint += `\n\n${consigneDuRunPrecedent(branche, await commitsDuRunPrecedent(lancerGit, worktree, base))}`;
+    else if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, or it declared itself blocked and the chef has answered on this issue. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
     if (sansPR && !sauvee && avant !== null && depot.livree !== undefined) {
       const livree = depot.livree(branche);
       // `livree` rend la branche locale quand l'origine n'a pas la sienne
@@ -2676,7 +2682,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         return { branche };
       }
     }
-    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
     // Au départ du cook, sa branche porte la tête de `origin/<base>` (#3001).
     // Une branche neuve en part déjà : `preparer` vient de la rapatrier. Une
     // branche reprise, la station la rapatrie et l'y fusionne ; en conflit,
@@ -2739,7 +2744,19 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
-      depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
+      // Tué par la garde d'inactivité, le cook laisse son travail sur sa
+      // branche pour le run suivant (#3649). Sans rien laissé, ou s'il ne se
+      // marque pas, le ticket repart comme avant.
+      let garde = false;
+      if (gardeLeTravail(conclusion) && depot.recolter !== undefined) {
+        try {
+          garde = marquerLeTravail(depot, worktree, branche, avant);
+          if (garde) avertir(`brigade : #${ticket.number} sur ${nom} — the idle guard stopped the cook: its work stays on \`${branche}\`, and the next run starts from it`);
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the idle guard stopped the cook, and its work could not be kept on \`${branche}\`: ${message(erreur)}`);
+        }
+      }
+      depot.retirer(worktree, reprise || garde || sauves.has(ticket.number) ? undefined : branche);
       const dit = direLaFin({ conclusion, fin, flux: lance.flux ?? flux });
       return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
     }
