@@ -10,6 +10,7 @@ import { placesDeLaStation } from "../github-seul/places/places.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
+import type { SuiviDuDisjoncteurServant } from "../file-chef/cause-arret.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
 import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
@@ -297,7 +298,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // La retenue de la cuisine : rien de servi depuis 30 min alors que des
     // tickets attendent, sa cause et son geste entrent une fois dans la file
     // du chef, et en sortent quand la cuisine sert de nouveau.
-    const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH, dire });
+    const disjoncteurServant: SuiviDuDisjoncteurServant = { depuis: null };
+    const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { disjoncteurServant, station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH, dire });
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
     // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
     const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));
@@ -313,7 +315,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};
     // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
     // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts).
-    brancherIssueDuDisjoncteur(connectee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), station: stations.find((declaree) => !declaree.distante)?.nom ?? null, avertir: dire });
+    brancherIssueDuDisjoncteur(connectee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), station: stations.find((declaree) => !declaree.distante)?.nom ?? null, avertir: dire, autre: disjoncteurServant });
     ouverte = brancherRepriseParGitHub(connectee, { github: githubs.rail, avertir: dire });
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
