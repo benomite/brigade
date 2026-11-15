@@ -274,8 +274,28 @@ test("a breaker opened by cooks that ran and failed: its issue names the ticket 
   const [issue] = github.ouvertes();
   assert.match(issue?.corps ?? "", /\*\*Failing ticket\*\*: #3616$/m);
   assert.match(issue?.corps ?? "", /\*\*Error\*\*: `spawn E2BIG after a relaunch`$/m);
-  assert.match(issue?.corps ?? "", /- #3615: exit code 1, error `stream closed: EPIPE`, .*\n- #3616: exit code none \(stopped by a guardrail or a signal\), error `spawn E2BIG after a relaunch`,/);
+  assert.match(issue?.corps ?? "", /- #3615: exit code 1, error `stream closed: EPIPE`, .*\n- #3616: exit code none \(its process failed: see the error\), error `spawn E2BIG after a relaunch`,/);
   assert.doesNotMatch(issue?.corps ?? "", /a cook that served no ticket/);
+});
+
+test("replaying a breaker opened by three cooks of #3615 that ran (turns > 0) and failed: its issue names #3615 and the error the log recorded, and says its process failed, not a guardrail or a signal (#3660)", async (t) => {
+  const { journal } = cuisine(t);
+  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "guard.configured", payload: { limits: LIMITES, breakerThreshold: 3 } });
+  lancementGitHubSeul(journal, "3615-a", 3615, { turns: 4, code: 1, error: "stream closed: EPIPE" });
+  lancementGitHubSeul(journal, "3615-b", 3615, { turns: 6, code: 1, error: "stream closed: EPIPE" });
+  lancementGitHubSeul(journal, "3615-c", 3615, { turns: 9, code: null, error: "read ECONNRESET" });
+  assert.equal(etatDesGardeFous(journal.base).failures, 3);
+  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: 3, threshold: 3 } } as Fait & { project: string; ticket: null; author: string });
+  const github = fauxGitHub();
+
+  await publierLeDisjoncteur(github.client, PROJET, disjoncteurDuJournal(journal.base));
+
+  const corps = github.ouvertes()[0]?.corps ?? "";
+  assert.match(corps, /after 3 failures in a row \(threshold 3\)/);
+  assert.match(corps, /\*\*Failing ticket\*\*: #3615$/m);
+  assert.match(corps, /\*\*Exit code\*\*: none \(its process failed: see the error\)$/m);
+  assert.match(corps, /\*\*Error\*\*: `read ECONNRESET`$/m);
+  assert.doesNotMatch(corps, /a cook that served no ticket|stopped by a guardrail or a signal/);
 });
 
 // Le disjoncteur de ce journal est fermé ; celui de la station `box/claude`, qui sert le projet, est ouvert depuis 18:51 — le journal le dit.

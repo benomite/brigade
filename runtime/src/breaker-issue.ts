@@ -82,7 +82,9 @@ export const marque = (projet: string) => `<!-- brigade:breaker-open project=${p
 const deLaCuisine = (projet: string) => (issue: IssueDuDisjoncteur) => issue.corps.split(/\r?\n/).some((ligne) => ligne.trim() === marque(projet));
 
 const nommerTicket = (ticket: number | null) => (ticket === null ? "none (a cook that served no ticket)" : `#${ticket}`);
-const nommerCode = (code: number | null) => (code === null ? "none (stopped by a guardrail or a signal)" : String(code));
+// Sans code, mais avec une erreur au journal : son process a échoué, ni garde-fou ni signal (#3660).
+const nommerCode = (code: number | null, erreur: string | null) =>
+  code !== null ? String(code) : erreur === null ? "none (stopped by a guardrail or a signal)" : "none (its process failed: see the error)";
 // L'erreur telle que le journal la garde, sur une ligne.
 const nommerErreur = (erreur: string | null) => (erreur === null ? "none recorded" : `\`${erreur.replace(/\s+/g, " ").replaceAll("`", "'").trim()}\``);
 
@@ -113,10 +115,10 @@ export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, 
     `The breaker of the \`${projet}\` kitchen opened after ${compte}: no cook leaves until the chef resumes the kitchen.`,
     "",
     `- **Failing ticket**: ${nommerTicket(ticket)}`,
-    `- **Exit code**: ${nommerCode(code)}`,
+    `- **Exit code**: ${nommerCode(code, erreur)}`,
     `- **Error**: ${nommerErreur(erreur)}`,
     `- **Opened at**: ${depuis}`,
-    ...(echecs.length > 1 ? ["", "The failures it counted, oldest first:", ...echecs.map((echec) => `- ${nommerTicket(echec.ticket)}: exit code ${nommerCode(echec.code)}, error ${nommerErreur(echec.error)}, at ${echec.at}`)] : []),
+    ...(echecs.length > 1 ? ["", "The failures it counted, oldest first:", ...echecs.map((echec) => `- ${nommerTicket(echec.ticket)}: exit code ${nommerCode(echec.code, echec.error)}, error ${nommerErreur(echec.error)}, at ${echec.at}`)] : []),
     "",
     "brigade comments and closes this issue when the kitchen is resumed.",
   ].join("\n");
