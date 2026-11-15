@@ -1,0 +1,126 @@
+// Le process de l'icône de fond (#3631), lancé par entree.ts quand le binaire de l'app reçoit `--tray-fond` — à
+// l'ouverture de session par son agent launchd ou sa valeur `Run` (systeme.ts), et par l'app à chaque ouverture. Il n'a
+// pas de fenêtre : une icône dans la barre des menus du Mac ou la zone de notification de Windows, qui reste là l'app
+// fermée. Toutes les quinze secondes, il relit les `facts` de chaque projet que la station de cet ordinateur sert, et
+// redit la ligne et le menu quand ils changent (tray-fond.ts). Le chef la retire dans Settings, comme celle de l'app
+// (`barreDeMenus`, config.ts).
+import { spawn } from "node:child_process";
+import { homedir, userInfo } from "node:os";
+import { dirname, join } from "node:path";
+import { setTimeout as attendre } from "node:timers/promises";
+import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
+import { lancerIci, type Locale } from "../box.ts";
+import type { ProjetLu } from "../barre-de-menus.ts";
+import { cheminConfiguration, lireConfiguration } from "../config.ts";
+import { cheminDe, emplacementsDe, lireCheminDuShell } from "../emplacements.ts";
+import { estUnMac, shellDuPoste } from "../plateforme.ts";
+import { servisPar } from "../poste/cuisine-ici.ts";
+import { ICONE_DE_LA_BARRE, pastillee } from "./icone.ts";
+import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
+import { executer, quitterLaStation } from "./systeme.ts";
+import { confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
+
+const INTERVALLE_MS = 15_000;
+const DELAI_MS = 30_000;
+
+// Ses propres données, à part de celles de l'app : les deux tournent en même temps. Un seul process d'icône par compte.
+app.setPath("userData", join(app.getPath("userData"), "tray-fond"));
+if (!app.requestSingleInstanceLock()) app.exit(0);
+// Ni fenêtre, ni icône dans le Dock.
+app.on("window-all-closed", () => {});
+
+const plateforme = process.platform;
+const src = join(import.meta.dirname, "..");
+const emplacements = emplacementsDe({ ressources: process.resourcesPath, src, env: process.env });
+// Lancée par launchd, elle n'a que le PATH du système : celui du shell de connexion du chef, comme l'app (emplacements.ts).
+const chemin = cheminDe({ emplacements, env: process.env, maison: homedir(), plateforme, duShell: () => (plateforme === "win32" ? undefined : lireCheminDuShell(shellDuPoste(plateforme, process.env).commande, 10_000)) });
+if (chemin !== undefined) process.env.PATH = chemin;
+const racine = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
+const locale: Locale = { node: emplacements.node, runtime: emplacements.runtime, racine, env: process.env };
+const lancer: Lancer = (projet, commande) => lancerIci(locale, projet, commande, DELAI_MS);
+
+let icone: Tray | undefined;
+let projets: ProjetLu[] = [];
+let dite = "";
+let enCours = false;
+
+// L'app : lancée, ou ramenée devant si elle tourne — elle ne garde qu'un process, et ramène sa fenêtre (entree.ts).
+function ouvrirLApp(): void {
+  const args = emplacements.facon === "installee" ? [] : [app.getAppPath()];
+  const enfant = spawn(process.execPath, args, { detached: true, stdio: "ignore", windowsHide: false });
+  enfant.once("error", (erreur) => void dialog.showMessageBox({ type: "error", message: "brigade could not be opened", detail: erreur.message }));
+  enfant.unref();
+}
+
+async function dire(echecs: readonly string[]): Promise<void> {
+  if (echecs.length > 0) await dialog.showMessageBox({ type: "warning", message: "The station did not take the whole action", detail: echecs.join("\n\n") });
+}
+
+async function jouer(geste: Geste): Promise<void> {
+  if (geste === "ouvrir") return ouvrirLApp();
+  if (enCours) return;
+  enCours = true;
+  try {
+    if (geste === "quitter") {
+      const texte = confirmationDeQuitter(projets);
+      const { response } = await dialog.showMessageBox({ type: "warning", message: texte.message, detail: texte.detail, buttons: [texte.quitter, texte.annuler], defaultId: 1, cancelId: 1 });
+      if (response !== 0) return;
+      await dire(await quitterLaStation({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, binaire: process.execPath, executer }));
+      app.quit();
+      return;
+    }
+    await dire(await jouerLeGeste(geste, projets, lancer, DELAI_MS));
+    await relire();
+  } finally {
+    enCours = false;
+  }
+}
+
+function entreeDuMenu(entree: EntreeDuFond): MenuItemConstructorOptions {
+  if (entree.genre === "separateur") return { type: "separator" };
+  if (entree.genre === "texte") return { label: entree.libelle, enabled: false };
+  const { geste } = entree;
+  return { label: entree.libelle, enabled: entree.actif, click: () => void jouer(geste) };
+}
+
+function poser(actif: boolean): void {
+  if (!actif) {
+    icone?.destroy();
+    icone = undefined;
+    dite = "";
+    return;
+  }
+  const image = nativeImage.createFromPath(ICONE_DE_LA_BARRE);
+  if (icone === undefined) {
+    if (image.isEmpty()) {
+      console.error(`brigade: the station's icon could not be read: ${ICONE_DE_LA_BARRE}`);
+      return;
+    }
+    icone = new Tray(image);
+    // Sous Windows, le clic gauche n'ouvre pas le menu de lui-même : sur un Mac, si.
+    if (!estUnMac(plateforme)) icone.on("click", () => icone?.popUpContextMenu());
+  }
+  const station = etatDeLaStation(projets);
+  const entrees = menuDuFond(projets, station);
+  const pose = JSON.stringify(entrees);
+  if (pose === dite) return;
+  dite = pose;
+  const ligne = ligneDuFond(projets, station);
+  icone.setToolTip(`brigade station — ${ligne}`);
+  if (estUnMac(plateforme)) icone.setTitle(` ${ligne}`);
+  else icone.setImage(pastillee(image, questionsDuFond(projets)));
+  icone.setContextMenu(Menu.buildFromTemplate(entrees.map(entreeDuMenu)));
+}
+
+async function relire(): Promise<void> {
+  projets = await lireLesProjets(servisPar(racine), lancer);
+  poser(lireConfiguration(cheminConfiguration()).barreDeMenus !== false);
+}
+
+void app.whenReady().then(async () => {
+  app.dock?.hide();
+  for (;;) {
+    await relire().catch((erreur: unknown) => console.error(`brigade: the station's icon could not read the station — ${erreur instanceof Error ? erreur.message : String(erreur)}`));
+    await attendre(INTERVALLE_MS);
+  }
+});

@@ -3041,6 +3041,33 @@ The module is `app/src/barre-de-menus.ts` (the line, the menu, the disc); `main.
 icon is `app/src/icones/barre-de-menus.png` and its `@2x`, cut from the app's icon by `app/packaging/icones.ts`. Tests:
 `app/test/barre-de-menus.test.ts`, `app/test/barre-de-menus-reglage.test.ts`.
 
+#### With the app closed: the station's icon (#3631)
+
+When this computer runs the background station of [`installation-station.md`](installation-station.md) (its launchd
+agent `brigade.station` on a Mac, its launcher under `%LOCALAPPDATA%\brigade-station\` on Windows), the installed app
+hands the icon to a process of its own binary started with `--tray-fond`, which stays when the app closes. The app
+registers it at login on each opening — a launchd agent `~/Library/LaunchAgents/brigade.tray-fond.plist` on a Mac, the
+`brigade-tray` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows — and no longer puts its own
+icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front.
+
+- **The line** is the same (`3 cooking · 1 for you`, the disc on Windows), read every 15 s from the `facts` of each
+  project the station serves, through the station's own gesture, as the app reads them. It adds `· paused` or
+  `· stopped` when the station is.
+- **The menu**: **Open brigade** (starts the app, or brings it to the front), **Pause the station** (`switch off` on
+  each project: running cooks finish, nothing new starts — then **Resume the station**, `switch on`), **Stop the
+  station** (`station stop <station>` on each project, for this computer's stations: it takes no more ticket, running
+  cooks finish — then **Start the station**, `station start <station>`), and **Quit the station…**.
+- **Quit is the only action that stops the kitchen.** It first asks: `Quit the station? This stops the kitchen.` —
+  the running cooks stop, and the projects stop cooking on this computer until the station starts again. Cancel leaves
+  it running. Confirmed, it unloads the station's launchd agent then the icon's own (`launchctl bootout`), or on Windows
+  stops the station's launcher, then the station and its cooks. Both come back at the next login.
+- A command the station refuses is shown in a dialog; the `Menu bar` setting turns this icon off too.
+
+The modules are in `app/src/tray-fond/`: `tray-fond.ts` (the line, the menu, the commands, the confirmation),
+`lecture.ts` (reading `facts`, playing a gesture), `systeme.ts` (login registration, quit), `processus.ts` (the Electron
+process), `entree.ts` (the app's entry, which routes `--tray-fond`). Tests: `app/test/tray-fond.test.ts`,
+`app/test/tray-fond-station.test.ts`.
+
 ### The Settings tab, and the log by its action
 
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
