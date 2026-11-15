@@ -9,6 +9,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import type { Activite } from "./activite.ts";
 import { calageDuDisjoncteur, direLeCalage, estUnCalage, natureDuRun } from "./breaker/calage.ts";
+import { arretsDeGardeDesTickets, gardeRepetee } from "./gardes-historique/historique.ts";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
 import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
 import { cooksEnCours, echecsExternes, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
@@ -306,7 +307,13 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
             : `disjoncteur ouvert le ${etat.breakerOpenedAt} : un run cale encore après ses relances — ${direLeCalage(calage)} ; aucun cook n'est lancé avant « resume », ou avant qu'un run en cours finisse bien`,
         );
       }
-      return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
+      const lance = noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
+      // Le même garde-fou a déjà tué ce ticket deux fois : la relance le dit au journal, avec la raison (#3650).
+      if (demande.ticket !== null && natureDuRun(run, demande.contexte?.station ?? null) === "cook") {
+        const garde = gardeRepetee(arretsDeGardeDesTickets(base, [demande.ticket]).get(demande.ticket) ?? []);
+        if (garde !== null) noter(demande.ticket, { type: "guard.relaunched", payload: { run, ...garde } });
+      }
+      return lance;
     });
 
     let cook: S;

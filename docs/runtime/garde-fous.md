@@ -30,6 +30,21 @@ the refusal to launch and the breaker's GitHub issue say what keeps stalling. A 
 way **closes by itself** (`breaker.lifted`, `after: <run>`) as soon as a run still in progress
 completes normally; otherwise it waits for "resume".
 
+### A ticket killed twice by the same guardrail
+
+Each stop of a ticket's cook by a guardrail (`duration`, `tokens`, `idle`, `lease`, `removals` — not the chef's
+`stop`) is a `guard.tripped` in the log, read back with the run and the last activity that run said
+(`runtime/src/gardes-historique/`, #3650). When the **same guardrail has stopped the same ticket twice**, the
+ticket is not relaunched silently:
+
+- the relaunch writes `guard.relaunched` next to its `cook.launched` — the new run, the guardrail, and each of its
+  stops (run, time, activity the cook was in, e.g. `finishing`);
+- the ticket's entry on the rail (`facts`) carries `gardeRepetee` with the same stops, and its card in the app says
+  so (below).
+
+The count restarts when a cook of the ticket exits `ok`, or when the ticket arrives, is served or leaves. A ticket
+stopped once, or once by two different guardrails, carries nothing.
+
 ### In a row, across several cooks
 
 The breaker counts failures of **all** the project's launches (cooks, reviews, manager judgements) on
