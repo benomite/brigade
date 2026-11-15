@@ -8,6 +8,7 @@
 // c'est le même geste sur toutes les plateformes, Windows compris. Joué par Node seul : rien ne
 // s'importe ici hors de Node.
 import { pathToFileURL } from "node:url";
+import { doitSurvivre } from "../mise-a-jour-fond/survie.ts";
 
 const [, , principal] = process.argv;
 if (principal === undefined || principal === "") {
@@ -23,5 +24,8 @@ await import(pathToFileURL(principal).href);
 // Après l'import : la station a posé ce qu'elle fait d'un SIGTERM. Une entrée fermée plus tôt
 // attend ici d'être lue, elle ne se perd pas.
 process.stdin.on("error", () => {});
-process.stdin.once("end", () => void process.emit("SIGTERM", "SIGTERM"));
+// Sauf quand l'app se ferme pour sa mise à jour : la station continue, ses cooks aussi (#3632).
+process.stdin.once("end", () => {
+  if (!doitSurvivre(process.env.BRIGADE_STATION_DIR)) void process.emit("SIGTERM", "SIGTERM");
+});
 process.stdin.resume();

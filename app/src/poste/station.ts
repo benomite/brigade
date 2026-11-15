@@ -21,6 +21,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
+import { arreterLaSurvivante, laisserSurvivre, reprendreLaSurvivante } from "../mise-a-jour-fond/survie.ts";
 import type { Appairage } from "../stations/stations.ts";
 
 // Ce que la station écrit quand elle attend d'être appairée — sa ligne, sur un serveur comme ici.
@@ -61,8 +62,9 @@ export type StationLocale = {
   // Un process de station tourne-t-il pour cet ordinateur ? Pas entre sa mort et sa relance, ni
   // refusée ou arrêtée ; tenue par une autre app, oui : c'est elle qui la fait tourner.
   tourne(): boolean;
-  // Ferme son entrée et attend qu'elle se soit arrêtée.
-  arreter(): Promise<void>;
+  // Ferme son entrée et attend qu'elle se soit arrêtée. `laisser` : l'app se ferme pour sa mise à jour, la
+  // station et ses cooks continuent (mise-a-jour-fond/survie.ts).
+  arreter(options?: { laisser?: boolean }): Promise<void>;
 };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -89,6 +91,8 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
   let minuteur: NodeJS.Timeout | undefined;
   let arretee = false;
   let tenant: number | undefined;
+  // Le pid d'une station qu'une app fermée pour sa mise à jour a laissée en route, et que celle-ci a reprise.
+  let reprise: number | undefined;
   // Le code que la station affiche, tant qu'il n'est pas appairé.
   let code: string | null = null;
   let derniere = "";
@@ -132,7 +136,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     }
   };
 
-  const tourne = () => enfant !== undefined || etat === "tenue-ailleurs";
+  const tourne = () => enfant !== undefined || reprise !== undefined || etat === "tenue-ailleurs";
   let dit = false;
   // Dit le changement de `tourne()`, une seule fois par changement.
   const signaler = () => {
@@ -183,11 +187,37 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
       return plusTard(lancer, reessaiMs);
     }
     tenant = undefined;
+    const survivante = reprendreLaSurvivante(racine);
+    if (survivante !== undefined) return reprendre(survivante);
     if (options.avantLancement === undefined) return demarrer();
     // La marque de l'app est posée : une seconde app n'ouvre pas la station pendant ce temps.
     void options.avantLancement().catch(() => {}).then(() => {
       if (!arretee) demarrer();
     });
+  };
+
+  // La station que la mise à jour de l'app a laissée en route est reprise telle quelle : une seconde ne
+  // s'ouvre pas à côté. Morte d'elle-même, elle est relancée comme les autres.
+  const reprendre = (survivante: number) => {
+    reprise = survivante;
+    etat = lances++ === 0 ? "demarree" : "relancee";
+    signaler();
+    dire(`brigade: this computer's station kept running while the app updated (pid ${survivante}) — the app took it back`);
+    const veiller = () => {
+      if (arretee || reprise !== survivante) return;
+      try {
+        process.kill(survivante, 0);
+      } catch (erreur) {
+        if ((erreur as NodeJS.ErrnoException).code !== "EPERM") {
+          reprise = undefined;
+          signaler();
+          dire(`brigade: this computer's station stopped — relaunched in ${Math.round(relanceMs / 1000)} s`);
+          return plusTard(lancer, relanceMs);
+        }
+      }
+      plusTard(veiller, 2_000);
+    };
+    plusTard(veiller, 2_000);
   };
 
   const demarrer = () => {
@@ -239,11 +269,27 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
   return {
     etat: () => etat,
     tourne,
-    async arreter() {
+    async arreter(arret) {
       if (arretee) return fin;
       arretee = true;
       clearTimeout(minuteur);
       for (const lever of [...attentes]) lever();
+      if (arret?.laisser === true) {
+        // L'app se ferme pour sa mise à jour : la station et ses cooks continuent, la marque la garde en vie.
+        if (enfant !== undefined) laisserSurvivre(racine);
+        etat = "arretee";
+        reprise = undefined;
+        signaler();
+        return rendre();
+      }
+      const survivante = reprise;
+      if (survivante !== undefined) {
+        reprise = undefined;
+        await arreterLaSurvivante(survivante, options.gardeMs ?? 30_000);
+        etat = "arretee";
+        signaler();
+        return rendre();
+      }
       const enCours = enfant;
       if (enCours !== undefined) {
         enCours.stdin?.end();
