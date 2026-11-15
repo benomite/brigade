@@ -283,6 +283,17 @@ cooked after all the rules above: its first commit rewrote the idle-kitchen inte
 an inertia bug from the station into the `waiting` case that files none, so the ticket's positive case
 was tested from the station no more, and its second commit added it back next to the new one.
 
+The same instruction tells the cook that the pass replays each test its diff adds — a new test file, or
+a new case in a file that existed — alone on the base, without its change ("Red on main, green on the
+branch", [`pass.md`](pass.md)): a test that already passes there proves nothing about its ticket, and
+sends the delivery back naming it, whatever the review says; only a `tech` ticket is exempt. Before
+committing, the cook plays each new test without its change — it sets aside the files its diff changes
+outside the tests (`git stash push --include-untracked -- <files>`), sees the test fail, puts its change
+back (`git stash pop`) and sees it pass — and rewrites a test that passes on both sides. Blocking review
+was still the first send-back reason after #3466 brought the rule to the pass (#3628: 5 over 20 merged
+tickets), and 4 of those 5 were this rule — #3528 twice, #3559, #3600 —, which the cook's instructions
+did not name: the cook played its test on its branch only.
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
