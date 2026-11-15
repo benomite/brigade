@@ -3,6 +3,7 @@
 
 import type { Activite } from "../activite.ts";
 import type { Calage } from "../breaker/calage.ts";
+import type { GardeRepetee } from "../gardes-historique/historique.ts";
 
 // What a cook cannot exceed, whatever its ticket.
 export type Plafonds = { durationMs: number; tokens: number; idleMs: number };
@@ -87,6 +88,10 @@ export type FaitGardeFous =
   // The reason for a stop, written before the signal: if the runtime dies
   // between the two, the reason is already in the log.
   | { type: "guard.tripped"; payload: { run: string; reason: MotifArret; limit: number | null; observed: number | null } }
+  // A ticket's cook launched again after the same guardrail killed that ticket twice (#3650): the relaunch is not
+  // silent. `run`: the new cook; `guard` and `kills`: the guardrail, and each of its stops — run, time, and the
+  // activity the cook was in. Written with `cook.launched`; the ticket's card says the same while it holds.
+  | { type: "guard.relaunched"; payload: { run: string } & GardeRepetee }
   // The end of the process, whatever the cause.
   | {
       type: "cook.exited";

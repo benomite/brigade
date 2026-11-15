@@ -136,6 +136,7 @@ import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLE
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
+import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
@@ -2878,6 +2879,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (ticket 1895).
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
+  // Tuée deux fois par le même garde-fou : la carte le dit, sous sa tête, tant que la box le dit (ticket 3650).
+  if (carte.garde !== undefined) tete.after(poserGardeRepetee(document, carte.garde));
   // Un agent y travaille en ce moment : la poêle grésille au bout de sa tête (ticket 2984).
   if (cuit) tete.append(poele(document));
   // Une carte que plus aucun cook ne prendra dit en haut pourquoi, en mots simples (ticket 3147) ; ce que la station en a écrit
@@ -4707,6 +4710,7 @@ function ongletDesStations(projet) {
       lecture,
       quiCuit: ajout !== undefined,
       ...(tenu !== undefined && "tableau" in tenu && tenu.tableau.quotaGithub !== undefined ? { quota: tenu.tableau.quotaGithub } : {}),
+      ...(veilleVue === undefined ? {} : { veille: veilleVue }),
     },
     {
       choisirQuiCuit: () => ajout?.gestes.ouvrir(),
@@ -7946,6 +7950,8 @@ function poserBlocStation() {
 // dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
 /** @type {unknown} */
 let statutDeLaStationVu;
+/** @type {import("./veille-machine/veille-machine.js").Veille | undefined} */
+let veilleVue;
 function poserLesVersions() {
   if (telephoneVu !== undefined) return versionsDesStations.replaceChildren();
   const cases = casesDesVersions({ stations: stationsVues?.stations, locale: projetsVus?.locale ?? null, poste: POSTE.nom, statut: statutDeLaStationVu });
@@ -9081,6 +9087,19 @@ void Promise.resolve(brigade.statutDeLaStation?.()).then(
     statutDeLaStationVu = statut;
     poserLesVersions();
     poserBlocStation();
+  },
+  () => undefined,
+);
+// La veille de la station de cet ordinateur (ticket 3642) : lue au lancement, puis à chaque changement ; la carte de la
+// station suit. Une lecture qui échoue la laisse inconnue : la carte n'en dit rien.
+brigade.surVeilleMachine?.((veille) => {
+  veilleVue = veille;
+  reposerLOngletStations();
+});
+void Promise.resolve(brigade.veilleMachine?.()).then(
+  (veille) => {
+    veilleVue = veille;
+    reposerLOngletStations();
   },
   () => undefined,
 );

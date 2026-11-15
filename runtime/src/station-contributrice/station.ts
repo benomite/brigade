@@ -91,7 +91,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
   // Lue une fois par tour : la liste peut changer entre deux tours, pas pendant l'un.
   let refusees: readonly string[] = [];
   const contexte: ContexteDeReclamation = { github, station: nom, login, maintenant, refusees: () => refusees, ...(options.bailMs === undefined ? {} : { bailMs: options.bailMs }) };
-  const lancer: Lancer = options.lancer ?? gardes?.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
+  const lancer: Lancer = options.lancer ?? gardes?.lancer ?? (({ commande, args, entree, cwd, env, flux }) => superviser({ commande, args, ...(entree === undefined ? {} : { entree }), cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
   const envDuCook = () => environnementClaude(environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), options.env);
   mkdirSync(options.flux, { recursive: true });
 
@@ -141,8 +141,8 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
     }
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
-    const lancement = envelopper(options.cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, cwd: worktree, env: envDuCook(), flux });
+    const lancement = envelopper(options.cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
+    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: envDuCook(), flux });
     const fin = await lance.fin;
     const fichier = lance.flux ?? flux;
     const lu = lireFlux(existsSync(fichier) ? readFileSync(fichier, "utf8") : "");
