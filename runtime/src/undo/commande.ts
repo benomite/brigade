@@ -7,7 +7,7 @@
 import { Sortie, type Appel } from "../appel.ts";
 import { lireCible } from "../attente-github/attente-github.ts";
 import { brancheDuTicket } from "../brigade-github.ts";
-import { ouvrirGitHub } from "../github.ts";
+import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import { GesteRefuse } from "../rail.ts";
 import { annuler, type GitHubDeLAnnulation } from "./undo.ts";
 
@@ -15,7 +15,7 @@ const USAGE = ["usage: npm --prefix runtime run undo -- <owner>/<repo>#<ticket>"
 
 export type OuvrirGitHub = (depot: string) => GitHubDeLAnnulation & { fermer(): void };
 
-export async function principal({ args, env, dire, redire }: Appel, ouvrir: OuvrirGitHub = (depot) => ouvrirGitHub({ depot, bin: env.BRIGADE_GH_BIN || "gh", usage: "geste" })): Promise<void> {
+export async function principal({ args, env, dire, redire }: Appel, ouvrir: OuvrirGitHub = (depot) => ouvrirGitHubDuGeste({ depot, bin: env.BRIGADE_GH_BIN || "gh", env })): Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);

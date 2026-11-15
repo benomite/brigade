@@ -1090,12 +1090,14 @@ function limiteDuRefus(reponse: ReponseHttp): LimiteDuRefus {
 // et rend l'erreur à lever. Plusieurs refus d'une même rafale, arrivés pendant
 // la pause qu'ils ont posée, ne la doublent pas. `lecture` : la sorte de l'appel
 // refusé, la seule que la pause retient (#3481) — sans elle, toutes. Le quota
-// horaire épuisé (`core`) les retient toutes : GitHub les refuserait toutes.
+// horaire épuisé (`core`) les retient toutes, sauf quand c'est un appel du gist
+// qui est refusé (#3681) : ceux de la cuisine se refuseront d'eux-mêmes.
 export async function constaterLimite(limite: Limite, reponse: ReponseHttp, options: { gh: string; env?: NodeJS.ProcessEnv; maintenant?: () => number; lecture?: Lecture }): Promise<LimiteGitHubAtteinte> {
   const maintenant = options.maintenant ?? (() => Date.now());
   const instant = maintenant();
   const nature = limiteDuRefus(reponse);
-  const lecture = nature === "core" ? undefined : options.lecture;
+  // Le refus d'un appel du gist ne retient jamais que le gist, même au quota `core` : le canal de la station vers l'app ne doit pas arrêter la cuisine (#3681).
+  const lecture = nature === "core" && options.lecture !== "gist" ? undefined : options.lecture;
   const classe = classerLeRefus(reponse.statut, reponse.entetes, instant);
   let jusqua: number | null = classe.kind === "rate-limit" ? classe.resetAt : null;
   // La ressource que l'appel refusé dépense, que GitHub dit dans la réponse : `core` pour l'API REST, par défaut.

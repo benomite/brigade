@@ -50,3 +50,16 @@ The app reads what the station says: the line `brigade: station update — resta
 A station restarted on a release is not kept across an app restart: the bundle's version (`1.0.91`)
 sorts after a release's (`0.<date>…`), so the reopened app starts the bundled station, which finds the
 release behind and updates again.
+
+## An app update does not stop the station (#3632)
+
+Installing an app update closes the app, and the station would stop with it, its cooks too. For an
+update, the app first writes `survit-a-l-app` in the station directory
+(`app/src/mise-a-jour-fond/survie.ts`): the wrapper (`poste/enveloppe.ts`) then ignores the closed
+input and the station keeps running. The reopened app reads the pid in `en-service`, takes the station
+back instead of starting a second one, and stops it with a `SIGTERM` when it closes. On Windows the
+installer replaces the executable the station runs, so the station stops with the app there.
+
+A station update (runtime `station-update/`) is the other half: from the moment a release is ready the
+station takes no new ticket, its cooks in flight finish, and the restart is asked only when none is
+left — no deadline, nothing cut.

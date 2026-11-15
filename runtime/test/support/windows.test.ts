@@ -19,6 +19,13 @@ test("the part's guard falls before the job's cap, which cuts it with no annotat
   assert.ok(GARDE_MS + MARGE_MS <= plafond * 60_000, `the guard (${GARDE_MS / 60_000} min) leaves the job (${plafond} min) less than ${MARGE_MS / 60_000} min`);
 });
 
+test("the checkout of a part leaves out docs/captures/, whose extraction ate the margin the guard leaves the job (#3680)", () => {
+  const checkout = /- uses: actions\/checkout@v\d+\n((?: {8}.*\n)*)/.exec(WORKFLOW)?.[1] ?? assert.fail("runtime-windows.yml has no checkout");
+  assert.match(checkout, /^\s*sparse-checkout-cone-mode:\s*false\s*$/m);
+  const motifs = /sparse-checkout: \|\n((?: {12}.*\n)+)/.exec(checkout)?.[1]?.split("\n").map((ligne) => ligne.trim()).filter(Boolean);
+  assert.deepEqual(motifs, ["/*", "!/docs/captures/"]);
+});
+
 test("the matrix plays every part the command and the check name count", () => {
   const parts = /^\s*part:\s*\[([^\]]*)\]/m.exec(WORKFLOW)?.[1]?.split(",").map((p) => Number(p.trim()));
   const commande = Number(/--part \$\{\{ matrix\.part \}\}\/(\d+)/.exec(WORKFLOW)?.[1]);
