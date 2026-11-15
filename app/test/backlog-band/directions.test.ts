@@ -1,6 +1,6 @@
 // La section Directions du bandeau Backlog (#3590) : les besoins ouverts rangés sous les trois horizons de la vision par leur
 // label `horizon:N` — lus de GitHub (tableau/lecture.ts), passés par amont.ts, posés par backlog-band.js. L'ordre des horizons,
-// « No direction yet », la ligne d'un horizon vide, le besoin à plusieurs labels (sous le plus petit, jamais deux fois), le
+// « No direction yet. », la ligne d'un horizon vide, le besoin à plusieurs labels (sous le plus petit, jamais deux fois), le
 // besoin fermé jamais là, le clic qui ouvre l'issue. GitHub est une doublure.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -61,13 +61,13 @@ const directionsDuBacklog = (besoins: ReturnType<typeof besoinsDe>) => {
 };
 
 describe("directionsDuBacklog", () => {
-  test("les trois horizons dans l'ordre de la vision, chacun avec ses besoins ; « No direction yet » après eux", () => {
+  test("les trois horizons dans l'ordre de la vision, chacun avec ses besoins ; « No direction yet. » après eux", () => {
     const directions = directionsDuBacklog(besoinsDe([donnee(1, { horizon: 3 }), donnee(2), donnee(3, { horizon: 1 }), donnee(4, { horizon: 1 }), donnee(5, { horizon: 2 })]));
     assert.deepEqual(directions.map(({ horizon, nom, besoins }) => [horizon, nom, besoins.map(({ ticket }) => ticket).sort()]), [
       [1, "Autonomy now", [3, 4]],
       [2, "Humans as stations", [5]],
       [3, "Any project run on its own", [1]],
-      [null, "No direction yet", [2]],
+      [null, "No direction yet.", [2]],
     ]);
   });
 
@@ -92,7 +92,7 @@ describe("la section Directions, dans la liste dépliée", () => {
     const liste = bandeau.dessous("div").find(({ className }) => className === "backlog-band-liste") ?? assert.fail("pas de liste");
     assert.equal(liste.children.at(-1)?.className, "backlog-band-directions");
     const blocs = section(bandeau).dessous("section");
-    assert.deepEqual(blocs.map((bloc) => bloc.dessous("span")[0]?.textContent), ["Autonomy now", "Humans as stations", "Any project run on its own", "No direction yet"]);
+    assert.deepEqual(blocs.map((bloc) => bloc.dessous("span")[0]?.textContent), ["Autonomy now", "Humans as stations", "Any project run on its own", "No direction yet."]);
     assert.deepEqual(blocs.map((bloc) => bloc.dessous("p").map(({ textContent }) => textContent)), [[], ["nothing is attached to this direction"], [], []]);
     // Titre et avancement, ou la marque « idea ».
     assert.deepEqual(blocs[0]?.dessous("button")[0]?.children.map(({ textContent }) => textContent), ["#1", "Need 1", "1/2 served"]);

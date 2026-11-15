@@ -17,6 +17,7 @@
 // n'est deviné. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { poserAvancement, progresDuBesoin } from "../backlog/avancement.js";
+import { PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../amont.ts").Vu} Vu */
@@ -64,13 +65,13 @@ const MOTS = {
 };
 const ATTEND = "awaits you";
 // Les trois horizons de la vision (docs/superpowers/specs/2026-11-07-vision.md), dans son ordre ; un besoin y est rangé par
-// son label `horizon:N` (#3590).
+// son label `horizon:N` (ticket 3590).
 export const HORIZONS = [
   { horizon: 1, nom: "Autonomy now" },
   { horizon: 2, nom: "Humans as stations" },
   { horizon: 3, nom: "Any project run on its own" },
 ];
-export const SANS_DIRECTION = "No direction yet";
+export const SANS_DIRECTION = PAS_ENCORE("direction");
 
 /** @param {Fabrique} doc @param {string} balise @param {string} classe @param {string} [texte] */
 function noeud(doc, balise, classe, texte) {
@@ -153,7 +154,7 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
 
 /**
  * La section Directions : les trois horizons, toujours dans l'ordre de la vision, chacun avec les besoins ouverts qui s'y
- * rangent ; puis « No direction yet » pour ceux d'aucun horizon, s'il y en a. Un besoin n'est que sous un horizon (le plus
+ * rangent ; puis « No direction yet. » pour ceux d'aucun horizon, s'il y en a. Un besoin n'est que sous un horizon (le plus
  * petit de ses labels, déjà choisi par la lecture) ; un besoin fermé n'y est jamais.
  * @param {readonly Besoin[]} besoins
  * @returns {{ horizon: number | null, nom: string, besoins: Besoin[] }[]}
