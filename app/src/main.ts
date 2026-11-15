@@ -166,6 +166,8 @@ const dire = (canal: string, ...faits: unknown[]) => {
 // chef ou à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
 // Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`. Le même chemin sur
 // un Mac et sous Windows : seuls l'installeur publié qu'elle lit et ce qui le joue sont du poste.
+// Vrai quand l'app se ferme pour s'installer : la station et ses cooks ne s'arrêtent pas avec elle (mise-a-jour-fond/survie.ts, #3632).
+let quitterPourMiseAJour = false;
 const dossierDeMiseAJour = join(dirname(cheminConfiguration()), "mise-a-jour");
 const installeur = installeurDuPoste({ plateforme, ressources: process.resourcesPath, executable: process.execPath, pid: process.pid, dossier: dossierDeMiseAJour });
 // Un quart d'heure, et non plus six heures (#2431) : une version publiée le matin se voit dans la matinée. Les deux
@@ -179,7 +181,10 @@ const miseAJour = tenirMiseAJour({
   dossier: dossierDeMiseAJour,
   installable: installeur.installable,
   installer: installeur.installer,
-  quitter: () => app.quit(),
+  quitter: () => {
+    quitterPourMiseAJour = true;
+    app.quit();
+  },
   surEtat: (etat) => dire("miseAJour", etat),
 });
 // Une version téléchargée lors d'une session précédente s'installe avant que rien ne démarre : sa
@@ -1986,7 +1991,8 @@ app.on("will-quit", () => {
   stations.fermer();
   clearInterval(controles);
   // La station de l'ordinateur s'arrête avec l'app, et écrit sur GitHub l'heure de son arrêt.
-  void stationLocale?.arreter();
+  // Sauf pour la mise à jour de l'app : sous Windows, l'installeur remplace l'exécutable que la station joue, elle s'arrête.
+  void stationLocale?.arreter({ laisser: quitterPourMiseAJour && plateforme !== "win32" });
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir. Et le retard des clones : il

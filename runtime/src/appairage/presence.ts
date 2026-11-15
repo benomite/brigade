@@ -24,7 +24,7 @@ import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
 import { ecrireSecret } from "../droits.ts";
 import type { QuotaGithub } from "../appels-github/quota-github.ts";
-import { LimiteGitHubAtteinte } from "../limite-github.ts";
+import { LimiteGitHubAtteinte, RECUL_MAX_MS } from "../limite-github.ts";
 import { cuisine, ORDINATEUR, type Sorte } from "../stations-globales/sorte.ts";
 import type { Canal } from "./canal.ts";
 import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
@@ -165,6 +165,8 @@ export function tenirPresence(options: OptionsPresence): Presence {
   // GitHub a dit sa limite atteinte : jusqu'à cet instant, la station n'appelle
   // plus, et ne le dit qu'une fois.
   let attenteJusqua = Number.NEGATIVE_INFINITY;
+  // Les refus de limite d'affilée, sans écriture réussie entre eux : l'attente double à chacun (#3681).
+  let refus = 0;
   let regard: (() => void) | null = null;
 
   // Une lecture qui lève ne prive pas la station de son signe de vie.
@@ -298,6 +300,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
         sauver();
       }
       publie = ecriture.cle;
+      refus = 0;
     }
     if (appele && panne !== null) dire("brigade : station — GitHub répond de nouveau : son état y est publié");
     if (appele) panne = null;
@@ -312,7 +315,10 @@ export function tenirPresence(options: OptionsPresence): Presence {
     fil = fil.then(() =>
       cycle(arret).catch((erreur: unknown) => {
         if (erreur instanceof LimiteGitHubAtteinte) {
-          attenteJusqua = erreur.jusqua;
+          // Au moins 1, 2, 4… minutes, au plus RECUL_MAX_MS, quoi que dise la fenêtre de GitHub.
+          const recul = Math.min(ecartMinimalMs * 2 ** refus, RECUL_MAX_MS);
+          refus += 1;
+          attenteJusqua = Math.max(erreur.jusqua, maintenant() + recul);
           if (erreur.message !== panne) dire(`brigade : station — ${erreur.message}`);
           panne = erreur.message;
           return;

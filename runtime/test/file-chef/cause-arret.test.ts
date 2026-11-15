@@ -18,7 +18,7 @@ const MAC = "mac/claude";
 const OUVERTURE = "2026-11-15T19:10:00.000Z";
 const A = (hhmmss: string) => `2026-11-15T${hhmmss}.000Z`;
 
-const OUVERT: Extract<Disjoncteur, { ouvert: true }> = { ouvert: true, depuis: OUVERTURE, ticket: 3644, code: 1, echecs: [], seuil: 3 };
+const OUVERT: Extract<Disjoncteur, { ouvert: true }> = { ouvert: true, depuis: OUVERTURE, ticket: 3644, code: 1, erreur: null, echecs: [], seuil: 3 };
 const FERME: Disjoncteur = { ouvert: false, reprisLe: null };
 
 // GitHub tel que le disjoncteur le voit : une issue ouverte par la box, et ce qu'on y écrit.

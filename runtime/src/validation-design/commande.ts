@@ -9,7 +9,7 @@
 import { Sortie, type Appel } from "../appel.ts";
 import { lireCible } from "../attente-github/attente-github.ts";
 import { brancheDuTicket } from "../brigade-github.ts";
-import { ouvrirGitHub } from "../github.ts";
+import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import { GesteRefuse } from "../rail.ts";
 import { renvoyerLeDesign, valider, validationEnConflit, validationGardee, type GitHubDesGestes } from "./validation-design.ts";
 
@@ -21,7 +21,7 @@ const USAGE = [
 
 export type OuvrirGitHub = (depot: string) => GitHubDesGestes & { fermer(): void };
 
-export async function principal({ args, env, dire, redire }: Appel, ouvrir: OuvrirGitHub = (depot) => ouvrirGitHub({ depot, bin: env.BRIGADE_GH_BIN || "gh", usage: "geste" })): Promise<void> {
+export async function principal({ args, env, dire, redire }: Appel, ouvrir: OuvrirGitHub = (depot) => ouvrirGitHubDuGeste({ depot, bin: env.BRIGADE_GH_BIN || "gh", env })): Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);

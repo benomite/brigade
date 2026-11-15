@@ -53,6 +53,25 @@ A tenth of the quota is the **reserve of the chef's gestures** (`RESERVE_DES_GES
   pass's comments) are never queued or held by the box. They are sent and counted, and may spend the
   reserve. They fail only if GitHub itself refuses.
 
+### What a gesture costs (#3682)
+
+Each gesture of the app is a runtime command in its own process, so the in-process ETag cache starts
+empty every time. Two bounds keep the gestures off the kitchen's budget (`runtime/src/gestes/`):
+
+- **Reads that gestures share** (`lectures-des-gestes.ts`): a read a gesture made less than
+  `FENETRE_DES_LECTURES_MS` (15 s) ago is returned from `<BRIGADE_STATE_DIR>/lectures-des-gestes/` with no
+  call. Only the view's re-read uses it (`manager upstream`, and `manager backlog`): N re-reads within the
+  window cost the calls of one. Older, the read goes out with the ETag it kept, and an unchanged list costs
+  a 304 that GitHub and the box do not count. **Every write of a gesture marks them all stale**: the next
+  re-read goes to GitHub and sees what the gesture wrote. A write by the kitchen, or by the app straight
+  on GitHub, shows at most one window later. An unreadable entry reads as absent; a stale mark that cannot
+  be written is said on stderr.
+- **A cap per gesture** (`github-du-geste.ts`): a rail gesture (`rail remove`, `choose`, `answer`,
+  `human`) makes at most `PLAFOND_D_UN_GESTE_DU_RAIL` (5) calls — the count is next to the constant. One
+  call more is refused without leaving.
+
+These calls are still counted under the kind `gesture` in `status`.
+
 ## When GitHub refuses: a pause on the account, by kind of call
 
 When GitHub refuses a call (a 429, or a 403 saying "rate limit"; a 403 on a forbidden merge is an
