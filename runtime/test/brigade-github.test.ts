@@ -2231,6 +2231,38 @@ test("an open PR whose ticket is still open keeps holding its zone: 'zone held b
   assert.ok(sauts.some((ligne) => ligne.includes("zone held by #412")), sauts.join("\n"));
 });
 
+test("full places stop the claim gate out loud: each claimable ticket left says the station's places are taken, and by which tickets (#3677)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE, zoneDe("runtime/src/a.ts"));
+  faux.feu(2, CALIBRE, zoneDe("runtime/src/b.ts"));
+  const sauts: Array<[number, string]> = [];
+  let finir: (fait: { branche: string }) => void = () => {};
+  const a = faux.station("A", { places: 1, sauter: (numero, ligne) => sauts.push([numero, ligne]), cuisiner: () => new Promise((resoudre) => (finir = resoudre)) });
+  await a.tour();
+  assert.deepEqual(faux.pris(), [1]);
+  assert.deepEqual(sauts, [[2, "#2 is claimable but not claimed, the claim gate skipped it: the station's one place is taken (#1)"]]);
+  finir({ branche: brancheDuTicket(1) });
+  await a.calme();
+});
+
+test("a full pass stops the claim gate out loud: each claimable ticket left names the deliveries that fill it (#3677)", async () => {
+  const faux = new FauxGitHub();
+  for (let n = 41; n < 41 + PASS_MAX; n += 1) {
+    faux.feu(n, [...CALIBRE, LABEL_IN_PASS]);
+    const sha = faux.sha();
+    faux.prs.push({ number: 1000 + n, issue: n, branche: brancheDuTicket(n), sha, state: "open", merged: false, enRetard: false, mergeePar: null, fichiers: [`runtime/src/f${n}.ts`] });
+    faux.poster(1000 + n, "A", `<!-- brigade:verdict station=A verdict=approve sha=${sha} -->\nApproved by station \`A\`.`);
+    faux.ciEnCours.add(1000 + n);
+  }
+  faux.feu(50, CALIBRE, zoneDe("runtime/src/z.ts"));
+  const sauts: Array<[number, string]> = [];
+  const a = faux.station("A", { places: 3, sauter: (numero, ligne) => sauts.push([numero, ligne]) });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, []);
+  assert.deepEqual(sauts, [[50, "#50 is claimable but not claimed, the claim gate skipped it: the pass holds 5 deliveries, its most is 5 (#41, #42, #43, #44, #45)"]]);
+});
+
 test("a free zone is claimed, a zone inside or around a changed folder is held, an own PR holds nothing (#2188)", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, CALIBRE, zoneDe("app/src/x.ts"));

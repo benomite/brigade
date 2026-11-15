@@ -132,7 +132,14 @@ base, the stale-branch pruning).
   takes a new ticket. A ticket sent back from the pass to a cook leaves it in the very turn it is sent back. A delivery
   the pass holds for the chef — the validation of its screen, the review of a sensitive ticket — takes no place while
   its head is the one held: it waits for a human, not for the pass, and counted, five deliveries waiting for the chef
-  stopped every claim of the project until he answered (#3446, [diagnosis](claim-wait-2026-11-13.md)).
+  stopped every claim of the project until he answered (#3446, [diagnosis](claim-wait-2026-11-13.md)). Nor does it
+  hold its zone at the claim gate ([station-cook.md](station-cook.md), #3677).
+- **A full stop says so.** When the places or the pass are full, the claim gate stops; each claimable ticket it leaves
+  says which bound holds it, and by which tickets — `the station's 6 places are all taken (#3643, #3649, …)`, `the
+  pass holds 5 deliveries, its most is 5 (#3601, …)` — unless it waits for an open ticket, which it names instead
+  (#3647). These lines are what the held kitchen reads (`kitchen.held`, its `skips`); before #3677 these two stops
+  said nothing, and a held kitchen with sixteen tickets waiting read `unknown`, or the CI of a single delivery
+  ([diagnosis](claim-wait-2026-11-15.md)).
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
   gives its ticket back on the issue, and at its first turn a restarted station gives back the tickets it held with no
   cook (#2179). Its places are read again at each turn: the cap the chef sets live (`station -- cooks <N>`, `0` for no
