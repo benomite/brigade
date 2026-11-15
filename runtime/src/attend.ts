@@ -272,7 +272,7 @@ export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
 // réponses de commandes).
 const BOUTON_RESUME = "the `Resume` button on the breaker line of TODO";
 const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
-const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `Kitchen` line of the project's Settings";
+export const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `Kitchen` line of the project's Settings";
 // Un réglage du projet gardé dans son dépôt se change sur sa ligne de Settings : changée, elle ouvre sa PR (#2920).
 const LIGNE_DU_PROJET = (reglage: string) => `on the \`${reglage}\` line of the project's Settings`;
 const SANS_BOUTON = "no app button for it yet";
@@ -534,11 +534,18 @@ function direMiseDeCoteBloqueeEn({ aside }: Extract<Attente, { quoi: "aside" }>)
 
 // Le disjoncteur ouvert : ce qui l'a ouvert, une ligne par échec — ticket,
 // code de sortie, tours, tokens —, puis le geste qui le referme.
-function direDisjoncteurEn({ echecs, seuil }: Extract<Attente, { quoi: "disjoncteur" }>): string {
-  const lignes = echecs.map(({ ticket, code, turns, tokens }) => `${ticket === null ? "no ticket" : `#${ticket}`}: exit ${code ?? "no code"}, ${turns ?? "?"} turns, ${tokens ?? "?"} tokens`);
-  const cause = lignes.length === 0 ? "failures in a row" : `${lignes.length} failure${lignes.length > 1 ? "s" : ""} in a row${seuil === null ? "" : ` (threshold ${seuil})`} — ${lignes.join("; ")}`;
+const direEchecEn = ({ ticket, code, turns, tokens }: EchecDuDisjoncteur) => `${ticket === null ? "no ticket" : `#${ticket}`}: exit ${code ?? "no code"}, ${turns ?? "?"} turns, ${tokens ?? "?"} tokens`;
+const echecsDAffileeEn = ({ echecs, seuil }: Extract<Attente, { quoi: "disjoncteur" }>) =>
+  echecs.length === 0 ? "failures in a row" : `${echecs.length} failure${echecs.length > 1 ? "s" : ""} in a row${seuil === null ? "" : ` (threshold ${seuil})`}`;
+function direDisjoncteurEn(attente: Extract<Attente, { quoi: "disjoncteur" }>, echecsDessous = false): string {
+  const cause = echecsDessous || attente.echecs.length === 0 ? echecsDAffileeEn(attente) : `${echecsDAffileeEn(attente)} — ${attente.echecs.map(direEchecEn).join("; ")}`;
   return `breaker open: ${cause} — no cook leaves any more — to do: look at what fails, then press ${BOUTON_RESUME}`;
 }
+
+// Ce que le bloc pose sous l'entrée, plus en retrait (#3601) : une ligne par
+// échec qui a ouvert le disjoncteur. Rien sous les autres entrées.
+const RETRAIT_DE_SUITE = "    ";
+const suiteEn = (attente: Attente): string[] => (attente.quoi === "disjoncteur" ? attente.echecs.map((echec) => `${RETRAIT_DE_SUITE}${direEchecEn(echec)}`) : []);
 
 // Ce que le setup a dit à la fin, sur une ligne, borné : la fin de sa sortie,
 // jamais le début. Rien s'il n'a rien dit.
@@ -742,7 +749,8 @@ export const nommerAttente = (attente: Attente): string => (attente.ticket !== n
 const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename", retenue: "kitchen" };
 export const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
 
-// Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis la version
+// Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision — et,
+// sous le disjoncteur, une par échec qui l'a ouvert —, puis la version
 // passée en service ce jour. Il est toujours
 // là, entre les mêmes bords : la file vide, il le dit — un silence ne se
 // distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
@@ -760,7 +768,7 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
   return [
     `${TETE_AWAITING.padEnd(11)}${tete}`,
     ...enPause,
-    ...attentes.map((attente) => `  ${nommerEn(attente)}  for ${depuis(attente.since)}  ${direAttenteEn(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
+    ...attentes.flatMap((attente) => [`  ${nommerEn(attente)}  for ${depuis(attente.since)}  ${attente.quoi === "disjoncteur" ? direDisjoncteurEn(attente, true) : direAttenteEn(attente)}${attente.title === null ? "" : `  ${attente.title}`}`, ...suiteEn(attente)]),
     ...passee,
     FIN_AWAITING,
     "",
