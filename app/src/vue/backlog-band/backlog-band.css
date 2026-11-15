@@ -260,3 +260,16 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Directions (#3590) : sous les groupes, les trois horizons de la vision ; un horizon sans rien le dit en une ligne. */
+#rail .backlog-band-directions-titre {
+  margin: 0;
+  font-size: var(--taille-corps);
+  font-weight: 700;
+  color: var(--texte-doux);
+}
+#rail .backlog-band-direction-vide {
+  margin: 0;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
