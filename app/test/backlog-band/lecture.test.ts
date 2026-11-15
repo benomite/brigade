@@ -208,10 +208,15 @@ test("la roadmap n'est pas un besoin : l'issue au label `roadmap`, ou celle que 
   ]);
 });
 
-test("un CLAUDE.md sans ligne « Roadmap », absent ou illisible ne nomme aucune roadmap : rien n'est écarté sur une supposition, et le reste se lit", async () => {
-  const ouvertes = [issue(1, [], LISTE([9])), issue(9, [])];
+test("un CLAUDE.md sans ligne « Roadmap », absent ou illisible ne nomme aucune roadmap : rien n'est écarté sur une supposition — le label `roadmap` écarte toujours —, et le reste se lit", async () => {
+  const ouvertes = [issue(1, [], LISTE([9])), issue(2, ["roadmap"]), issue(9, [])];
   for (const contenu of [claudeMd("- **Doc vivante** : `docs/` — see issue #1"), async () => ({ status: 404, data: { message: "Not Found" } }), async () => ({ status: 200, data: { content: 7 } }), async () => Promise.reject(new Error("socket hang up"))]) {
-    const lu = await lire(avecOuvertes(ouvertes, contenu));
+    let demande = false;
+    const lu = await lire(avecOuvertes(ouvertes, async () => {
+      demande = true;
+      return contenu();
+    }));
+    assert.ok(demande, "le CLAUDE.md est demandé à GitHub");
     assert.deepEqual(lu.avantLeRail?.issues.map(({ ticket, etat }) => [ticket, etat]), [[1, "decoupee"]]);
   }
 });
