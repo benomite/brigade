@@ -21,7 +21,7 @@ export const marqueDeStation = (station: string) => `<!-- brigade:breaker-statio
 const lignes = (corps: string) => corps.split(/\r?\n/).map((ligne) => ligne.trim());
 
 // La station qui a ouvert l'issue, nulle si elle ne la nomme pas.
-export const stationDeLIssue = (issue: IssueDuDisjoncteur): string | null => {
+const stationDeLIssue = (issue: IssueDuDisjoncteur): string | null => {
   for (const ligne of lignes(issue.corps)) {
     const nom = MARQUE_DE_STATION.exec(ligne)?.[1];
     if (nom !== undefined) return nom;
@@ -30,7 +30,7 @@ export const stationDeLIssue = (issue: IssueDuDisjoncteur): string | null => {
 };
 
 // L'heure d'ouverture que l'issue dit, nulle si elle ne se lit pas.
-export const ouvertureDeLIssue = (issue: IssueDuDisjoncteur): string | null => {
+const ouvertureDeLIssue = (issue: IssueDuDisjoncteur): string | null => {
   for (const ligne of lignes(issue.corps)) {
     const instant = OUVERTURE.exec(ligne)?.[1];
     if (instant !== undefined && !Number.isNaN(Date.parse(instant))) return instant;

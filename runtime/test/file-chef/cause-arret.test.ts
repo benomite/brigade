@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { corpsDeLIssue, disjoncteurDuJournal, LABEL_DU_DISJONCTEUR, marque, publieurDuDisjoncteur, publierLeDisjoncteur, type ClientDuDisjoncteur, type Disjoncteur } from "../../src/breaker-issue.ts";
 import { decrireEtat, lireEtat } from "../../src/etat.ts";
-import { stationDeLIssue, type SuiviDuDisjoncteurServant } from "../../src/file-chef/cause-arret.ts";
+import type { SuiviDuDisjoncteurServant } from "../../src/file-chef/cause-arret.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherRetenue } from "../../src/retenue/brancher.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
@@ -58,18 +58,17 @@ test("le disjoncteur d'ici est fermé, celui de la station qui sert le projet es
 
 test("le disjoncteur de la station qui sert le projet est fermé : le commentaire « resumed » est écrit, puis l'issue se ferme", async () => {
   const github = githubAvecUneIssueDe(BOX);
-  assert.equal(stationDeLIssue({ numero: 3644, corps: github.corps }), BOX);
+  assert.match(github.corps, /^<!-- brigade:breaker-station name=box\/claude -->$/m);
   await publierLeDisjoncteur(github.client, PROJET, { ouvert: false, reprisLe: A("20:21:00") }, { station: BOX });
   assert.equal(github.gestes.length, 2);
   assert.match(github.gestes[0] ?? "", /^commenter #3644: The `brigade` kitchen is resumed \(2026-11-15T20:21:00.000Z\): its breaker is closed/);
   assert.equal(github.gestes[1], "fermer #3644");
-});
 
-test("une issue d'avant le repère de station est reprise par toute station, comme avant", async () => {
-  const github = githubAvecUneIssueDe(null);
-  assert.equal(stationDeLIssue({ numero: 3644, corps: github.corps }), null);
-  await publierLeDisjoncteur(github.client, PROJET, FERME, { station: MAC });
-  assert.equal(github.gestes.length, 2);
+  // Une issue d'avant le repère de station est reprise par toute station, comme avant.
+  const ancienne = githubAvecUneIssueDe(null);
+  assert.doesNotMatch(ancienne.corps, /brigade:breaker-station/);
+  await publierLeDisjoncteur(ancienne.client, PROJET, FERME, { station: MAC });
+  assert.equal(ancienne.gestes.length, 2);
 });
 
 // Une cuisine dont le test tient l'horloge : un ticket qui attend depuis minuit, la retenue branchée.
