@@ -50,6 +50,7 @@ import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
+import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-design/choix-de-design.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
@@ -371,6 +372,10 @@ export type OptionsDeStation = {
   // relu à chaque merge : une livraison design verte attend sa carte au lieu
   // d'être mergée (`validation-design/`). Absent, non.
   designsValidesParUnHumain?: () => boolean;
+  // Le jugement du modèle sur une livraison design : fait-elle un choix de
+  // design que les critères du ticket n'ont pas tranché (#3609) ? Absent, la
+  // pass ne merge pas une livraison design et le dit.
+  jugerLeChoixDeDesign?: (ticket: { number: number; title: string; body: string }, fichiers: readonly string[], pr: { number: number; sha: string }) => Promise<ChoixDeDesign>;
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -1684,7 +1689,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     }
                     // Une livraison design attend l'humain qui valide les designs du projet (#3184).
                     if (options.designsValidesParUnHumain?.() === true) {
-                      const motif = await retenirLeDesign(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, fichiers: sienne?.fichiers ?? null, renvoyer: (raison) => renvoyer(ticket, sha, raison, 1, "review") });
+                      const motif = await retenirLeDesign(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, fichiers: sienne?.fichiers ?? null, renvoyer: (raison) => renvoyer(ticket, sha, raison, 1, "review"), ...(options.jugerLeChoixDeDesign === undefined ? {} : { jugerLeChoix: (corps: string) => options.jugerLeChoixDeDesign!({ number: ticket.number, title: ticket.title, body: corps }, sienne?.fichiers ?? [], { number: numero, sha }) }) });
                       if (motif !== null) {
                         retenue = true;
                         return { fait: false, motif };
@@ -3005,6 +3010,25 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
+  // Le jugement du choix de design (#3609) : le reviewer, sous la cloison, en
+  // lecture seule, lit le diff de la PR contre les critères du ticket.
+  const jugerLeChoixDeDesign = async (ticket: { number: number; title: string; body: string }, fichiers: readonly string[], pr: { number: number; sha: string }): Promise<ChoixDeDesign> => {
+    const run = `design-${ticket.number}-github`;
+    const worktree = await depot.reprendre(run, brancheDuTicket(ticket.number));
+    try {
+      const texte = consigneDuChoix({ ticket, fichiers, diff: depot.diff(brancheDuTicket(ticket.number)) });
+      const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
+      const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+      await lance.fin;
+      const lu = lireLeChoix(lireLeFlux(lance.flux ?? flux).message);
+      if ("illisible" in lu) throw new Error(`the design judgment of PR #${pr.number} is unreadable: ${lu.illisible}`);
+      return lu;
+    } finally {
+      depot.retirer(worktree);
+    }
+  };
+
   // Le ticket de temps perdu resté hors cuisine est redéposé sur brigade (#2786) :
   // sa perte est réelle tant que les temps du clone sont au-dessus du seuil.
   const { clone, githubDeLaBrigade } = options;
@@ -3013,7 +3037,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

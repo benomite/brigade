@@ -47,6 +47,7 @@ import { estUnRenvoiPourConflit, MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { GesteRefuse } from "../rail.ts";
 import { possede } from "../zones.ts";
 import { ceQuiEstDemande, ceQuiEstFait, lignesDuBrief } from "./brief.ts";
+import { estTechnique, type ChoixDeDesign } from "./choix-de-design.ts";
 
 // Le titre de la carte, et la sorte de son commentaire de carte : l'app les lit.
 export const TITRE_DE_CARTE = "Validate its screen";
@@ -202,6 +203,10 @@ export type LivraisonARetenir = {
   fichiers: readonly string[] | null;
   // Le renvoi de la pass au cook, avec sa raison.
   renvoyer(raison: string): Promise<void>;
+  // Le jugement du modèle sur le diff visible, lu contre les critères du ticket
+  // (#3609). Absent, la pass ne sait pas dire si la livraison demande le chef :
+  // elle lève, ne merge pas, et réessaie.
+  jugerLeChoix?: (corpsDuTicket: string) => Promise<ChoixDeDesign>;
 };
 
 // La raison du renvoi d'une livraison design sans ses captures.
@@ -375,6 +380,19 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
   const { ticket, pr, fichiers } = livraison;
   if (fichiers === null) throw new Error(`the files of PR #${pr.number} could not be read: whether it is a design delivery, which a human validates on this project, is not known — not merged on this turn`);
   if (!estUneLivraisonDesign(ticket.number, fichiers, ticket.labels)) return null;
+  // Un ticket technique ne demande jamais le chef, sans modèle (#3609).
+  const issue = github.issue === undefined ? null : await github.issue(ticket.number);
+  const corps = issue?.body ?? "";
+  if (estTechnique({ title: ticket.title, labels: ticket.labels, body: corps }) !== null) return null;
+  // Une carte déjà posée pour la PR tient : la question est posée, le modèle ne la rejuge pas.
+  let choix: string | null = null;
+  const enAttente = await carteEnAttenteDuChef(DESIGN, github, ticket.number, pr.number);
+  if (enAttente === null) {
+    if (livraison.jugerLeChoix === undefined) throw new Error(`no judge says whether the delivery of PR #${pr.number} makes a design choice the ticket did not settle — not merged on this turn`);
+    choix = (await livraison.jugerLeChoix(corps)).choix;
+    // Ni choix à faire valider, ni carte : la pass vérifie la livraison sur les critères et merge.
+    if (choix === null) return null;
+  }
   const screens = capturesLivrees(ticket.number, fichiers);
   const manque = capturesManquantes(screens);
   if (manque !== null) {
@@ -383,7 +401,7 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
   }
   // L'écran de la livraison : ceux de ses fichiers qui en font une livraison design.
   const ecran = fichiers.filter((fichier) => estUneLivraisonDesign(ticket.number, [fichier], []));
-  return tenirPourLeChef(DESIGN, github, livraison, async (depot) => [...(await briefDeLaCarte(github, ticket, pr.number)), ...direCaptures(depot, ticket.number, { sha: pr.sha, screens })], [], (depuis) => ecranChange(github, ecran, depuis, pr.sha));
+  return tenirPourLeChef(DESIGN, github, livraison, async (depot) => [...(choix === null ? [] : [`**Design choice:** ${choix}`, ""]), ...(await briefDeLaCarte(github, ticket, pr.number)), ...direCaptures(depot, ticket.number, { sha: pr.sha, screens })], [], (depuis) => ecranChange(github, ecran, depuis, pr.sha));
 }
 
 // Le brief en tête de la carte (#3330) : ce que le ticket demandait, tiré de
