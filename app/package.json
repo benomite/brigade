@@ -4,7 +4,7 @@
   "private": true,
   "description": "App desktop de brigade V2 : une fenêtre, un espace par projet, un vrai terminal dedans",
   "type": "module",
-  "main": "src/main.ts",
+  "main": "src/tray-fond/entree.ts",
   "engines": {
     "node": ">=26"
   },

@@ -49,7 +49,10 @@ const PROJET = "parade";
 const SHA = "3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345";
 const TICKET = 58;
 const PR = 60;
-const CARTE = 61;
+// La validation se demande sur le ticket même (ticket 3615) : la carte est le ticket.
+const CARTE = TICKET;
+// La première issue neuve : un ticket de suite.
+const SUIVI = 61;
 const JETON = "gho_du_chef";
 const API = "https://api.github.com";
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -63,7 +66,9 @@ type Panne = (demande: Ecrite) => ReponseGitHub | undefined;
 // du runtime (`github`) comme par son API (`api`), sur le même état.
 function fauxGitHub(panne: Panne = () => undefined) {
   const issues = new Map<number, IssueFausse>([[TICKET, { title: "Export the journal as CSV", body: "", labels: new Set(["fire", "in-pass"]), state: "open", comments: [] }]]);
-  let prochaine = CARTE;
+  let prochaine = SUIVI;
+  // Les commentaires de la PR : la copie de la validation demandée sur le ticket.
+  const surLaPR: IssueFausse["comments"] = [];
   const pr = { number: PR, url: `https://github.com/${DEPOT}/pull/${PR}`, base: "main", sha: SHA, state: "open" as "open" | "closed", merged: false, enRetard: false, mergeePar: null, ref: `cook/${TICKET}-github` };
   const merges: Array<[number, string]> = [];
   const refus = { merge: null as null | { status: number; message: string } };
@@ -83,11 +88,12 @@ function fauxGitHub(panne: Panne = () => undefined) {
       issues.set(numero, { title: titre, body: corps, labels: new Set(labels), state: "open", comments: [] });
       return numero;
     },
-    commenter: async (numero: number, corps: string) => void sienne(numero).comments.push({ body: corps, association: "OWNER" }),
+    commenter: async (numero: number, corps: string) => void (numero === PR ? surLaPR : sienne(numero).comments).push({ body: corps, association: "OWNER" }),
+    labelliser: async (numero: number, labels: string[]) => labels.forEach((label) => sienne(numero).labels.add(label)),
     delabelliser: async (numero: number, label: string) => void sienne(numero).labels.delete(label),
     fermerIssue: async (numero: number) => void (sienne(numero).state = "closed"),
-    // La PR n'a aucun commentaire : son cook n'a rien dit de l'écran (ticket 3330).
-    commentaires: async (numero: number) => (numero === PR ? [] : sienne(numero).comments),
+    // La PR n'a d'autre commentaire que la copie de la validation : son cook n'a rien dit de l'écran (ticket 3330).
+    commentaires: async (numero: number) => (numero === PR ? surLaPR : sienne(numero).comments),
     issue: async (numero: number) => {
       const lue = issues.get(numero);
       return lue === undefined ? null : { number: numero, title: lue.title, labels: [...lue.labels], state: lue.state, createdAt: "2026-11-11T12:00:00Z", updatedAt: "2026-11-11T12:00:00Z", url: `https://github.com/${DEPOT}/issues/${numero}` };
@@ -162,7 +168,7 @@ function fauxGitHub(panne: Panne = () => undefined) {
 }
 type Monde = ReturnType<typeof fauxGitHub>;
 
-// La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures.
+// La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures : sur le ticket.
 async function carteDEssai(panne?: Panne): Promise<Monde> {
   const monde = fauxGitHub(panne);
   const motif = await retenirLeDesign(monde.github, {
@@ -174,7 +180,8 @@ async function carteDEssai(panne?: Panne): Promise<Monde> {
     renvoyer: async () => assert.fail("une livraison qui porte ses captures n'est pas renvoyée"),
     jugerLeChoix: async () => ({ choix: "the layout of the rail" }),
   });
-  assert.match(motif ?? "", /card #61/);
+  assert.match(motif ?? "", /asked on #58/);
+  assert.equal(monde.issues.size, 1, "no issue apart");
   return monde;
 }
 
@@ -212,7 +219,6 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
     assert.deepEqual(telephone, runtime);
     assert.deepEqual(telephone, { fait: `${DEPOT}#${PR} validated: merged, card #${CARTE} closed — ticket #${TICKET} is served` });
     assert.deepEqual(monde.merges, [[PR, SHA]]);
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
     const attente = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: monde.appeler });
     assert.deepEqual(attente.lue ? attente.attentes : assert.fail("TODO illisible"), [], "la carte a quitté TODO");
@@ -221,11 +227,11 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   test("« Send back to the kitchen » : le commentaire posté sur le ticket comme ce qu'il faut changer, `in-pass` retiré, rien de mergé, la carte fermée", async () => {
     const { runtime, telephone, monde } = await deuxFois(RENVOI);
     assert.deepEqual(telephone, runtime);
-    assert.match("fait" in telephone ? telephone.fait : assert.fail(JSON.stringify(telephone)), /sent back: #58 goes back to a cook with your comment, card #61 closed/);
+    assert.match("fait" in telephone ? telephone.fait : assert.fail(JSON.stringify(telephone)), /sent back: #58 goes back to a cook with your comment, card #58 closed/);
     assert.deepEqual(monde.merges, []);
     assert.ok(monde.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`${MARQUE_DE_RENVOI} n=1 sha=${SHA} -->`) && body.includes("The export button is cut off.\nKeep it on one line.")));
     assert.equal(monde.issues.get(TICKET)?.labels.has(LABEL_IN_PASS), false);
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
   test("la branche mise à jour depuis sa base depuis la carte (ticket 3332) : rien n'est mergé tout de suite, la validation est gardée sur le ticket, la carte se ferme et le dit", async () => {
@@ -234,16 +240,15 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
     assert.deepEqual(telephone, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #${CARTE} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
     assert.deepEqual(monde.merges, []);
     assert.ok(monde.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=${CARTE} pr=${PR} sha=${SHA} -->\nValidated by the chef on card #${CARTE} — merge pending.`)));
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
   test("la livraison est repartie en cuisine depuis la carte : rien n'est mergé, la carte se ferme", async () => {
     const renvoi = (monde: Monde) => void monde.issues.get(TICKET)?.comments.push({ body: `${MARQUE_DE_RENVOI} n=1 sha=${SHA} -->\nThe CI went red.`, association: "OWNER" });
     const { telephone, monde } = await deuxFois({ geste: "valider" }, renvoi);
-    assert.match("refus" in telephone ? telephone.refus : assert.fail("validée"), /the delivery of PR #60 went back to a cook since card #61: nothing merged, card #61 closed/);
+    assert.match("refus" in telephone ? telephone.refus : assert.fail("validée"), /the delivery of PR #60 went back to a cook since card #58: nothing merged, card #58 closed/);
     assert.deepEqual(monde.merges, []);
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
   test("la PR fermée sans merge : rien à valider ni à renvoyer", async () => {
@@ -258,22 +263,22 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
     const { telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void Object.assign(monde.pr, { state: "closed", merged: true }));
     assert.ok("fait" in telephone);
     assert.deepEqual(monde.merges, []);
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
   test("la PR déjà mergée : « Send back » ouvre un ticket de suite avec le commentaire du chef et ferme la carte, au lieu d'échouer", async () => {
     const { runtime, telephone, monde } = await deuxFois(RENVOI, (monde) => void Object.assign(monde.pr, { state: "closed", merged: true }));
     assert.deepEqual(telephone, runtime);
-    assert.match("fait" in telephone ? telephone.fait : assert.fail("renvoyée"), /was already merged: your comment is the follow-up ticket #62, card #61 closed/);
-    assert.match(monde.issues.get(62)?.body ?? "", /The export button is cut off\./);
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.match("fait" in telephone ? telephone.fait : assert.fail("renvoyée"), /was already merged: your comment is the follow-up ticket #61, card #58 closed/);
+    assert.match(monde.issues.get(SUIVI)?.body ?? "", /The export button is cut off\./);
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
     assert.equal(monde.issues.get(TICKET)?.comments.length, 1, "le ticket ne reçoit aucun renvoi : sa livraison est mergée");
   });
 
   test("un merge que GitHub refuse : la carte reste ouverte, et dit ce que GitHub a répondu", async () => {
     const { telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void (monde.refus.merge = { status: 405, message: "Required status check is expected" }));
-    assert.equal("refus" in telephone && telephone.refus, "nothing was done: GitHub refused to merge PR #60 — HTTP 405 — Required status check is expected; card #61 stays open");
-    assert.equal(monde.issues.get(CARTE)?.state, "open");
+    assert.equal("refus" in telephone && telephone.refus, "nothing was done: GitHub refused to merge PR #60 — HTTP 405 — Required status check is expected; card #58 stays open");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), true);
   });
 
   test("une carte fermée ailleurs depuis la lecture : rien ne part", async () => {
@@ -290,7 +295,7 @@ describe("ce que le téléphone ne tient pas pour fait", () => {
     const design = await designLu(monde);
     assert.deepEqual(await parLeTelephone(monde, design, { geste: "renvoyer", commentaire: " \n " }), { refus: VIDE, detail: "" });
     assert.deepEqual(await validerSurGithub({ depot: DEPOT, carte: CARTE, design: undefined, geste: { geste: "valider" }, client: monde.client }), { refus: INCONNUE, detail: "" });
-    assert.deepEqual(await validerSurGithub({ depot: DEPOT, carte: "61", design, geste: { geste: "valider" }, client: monde.client }), { refus: INCONNUE, detail: "" });
+    assert.deepEqual(await validerSurGithub({ depot: DEPOT, carte: "58", design, geste: { geste: "valider" }, client: monde.client }), { refus: INCONNUE, detail: "" });
     assert.deepEqual(monde.ecrites, []);
   });
 
@@ -313,7 +318,7 @@ describe("ce que le téléphone ne tient pas pour fait", () => {
     assert.equal(monde.issues.get(CARTE)?.state, "open", "la carte reste dans TODO");
     enPanne = false;
     assert.ok("fait" in (await parLeTelephone(monde, design, RENVOI)));
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
   test("ce que le téléphone écrit et lit est ce que le runtime écrit et lit", () => {
@@ -383,7 +388,7 @@ describe("les gestes du téléphone et ses captures", () => {
   test("une carte dont le corps ne montre aucune capture le dit en une ligne, ce que l'app y cherche au survol", async () => {
     const monde = await carteDEssai();
     const carte = monde.issues.get(CARTE) ?? assert.fail("pas de carte");
-    carte.body = carte.body.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+    for (const commentaire of carte.comments) commentaire.body = commentaire.body.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
     const design = await designLu(monde);
     const todo = carteDuChefDeTodo({ sorte: "design-validation", texte: "Does the screen of #58 look right?", design }) ?? assert.fail("pas de carte de TODO");
     assert.deepEqual(todo.captures?.ecrans, []);
@@ -459,7 +464,7 @@ describe("par le pont de l'APK, sans station ni runtime", () => {
     const rendu = JSON.parse(JSON.stringify(await pont.gesteDeValidation!(PROJET, CARTE, { geste: "valider" })));
     assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: merged, card #${CARTE} closed — ticket #${TICKET} is served` });
     assert.deepEqual(monde.merges, [[PR, SHA]]);
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
     await jusqua(() => natifs.includes("Pont.retirer 7"));
   });
 
@@ -467,8 +472,8 @@ describe("par le pont de l'APK, sans station ni runtime", () => {
     const monde = await carteDEssai();
     const { pont } = await pontDeLAPK(monde);
     const rendu = JSON.parse(JSON.stringify(await pont.gesteDeValidation!(PROJET, CARTE, { geste: "renvoyer", commentaire: "Keep the label on one line." })));
-    assert.match(rendu.fait, /sent back: #58 goes back to a cook with your comment, card #61 closed/);
+    assert.match(rendu.fait, /sent back: #58 goes back to a cook with your comment, card #58 closed/);
     assert.ok(monde.issues.get(TICKET)?.comments.some(({ body }) => body.includes("Keep the label on one line.")));
-    assert.equal(monde.issues.get(CARTE)?.state, "closed");
+    assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 });

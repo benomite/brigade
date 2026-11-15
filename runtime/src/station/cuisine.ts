@@ -219,6 +219,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const places = ici === undefined ? 0 : placesDeLaStation(socle.journal, projet, ici, { avertir: dire });
     // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
     const suiviDuTour = suivreLeTour();
+    // Le chef, résolu plus bas : la validation demandée sur un ticket le mentionne (#3615).
+    let chefDuProjet: (() => Promise<string | null>) | null = null;
     const ouvert = brancherBrigadeGithub({
       ...(options.departMs === undefined ? {} : { premierTourMs: options.departMs }),
       noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
@@ -263,6 +265,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 setup: { delaiMs: delaiGatesMs },
                 // L'humain `review` du projet reçoit la carte d'une PR externe (#2933).
                 projet: () => duDepot.suivis.relire() ?? duDepot.reglages,
+                // La validation demandée sur un ticket mentionne le chef (#3615).
+                chef: async () => (chefDuProjet === null ? null : chefDuProjet()),
               });
               // Sans l'écriture sur le dépôt, la station est contributrice : elle cuisine dans sa fourche et livre par une PR du dehors (#2935).
               return aiguillerLaStation(githubs.pass, ecrivaine, {
@@ -314,6 +318,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
     const { chef } = brancherLeChef(ouverte, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
+    chefDuProjet = chef;
     brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
     brancherReponseParCommentaire(ouverte, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });

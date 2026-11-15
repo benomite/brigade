@@ -191,7 +191,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       const marque = lus
         .flatMap((commentaire) => {
           const carte = carteDuCommentaire(texte(commentaire.body));
-          return carte === null ? [] : [{ carte, le: date(commentaire.created_at) }];
+          return carte === null ? [] : [{ carte, corps: texte(commentaire.body), le: date(commentaire.created_at) }];
         })
         .at(-1);
       const { ticket } = entree(issue);
@@ -200,10 +200,12 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
         illisibles.push(`#${ticket} carries \`${LABEL_DU_CHEF}\` but is not shown in Todo: ${pourquoi} — write the question on the ticket (the chef sees it once it is written), or take the label off if it is technical`);
         continue;
       }
-      // La carte « Validate its screen » (ticket 3185) : sa PR et ses captures, lues du corps de son issue.
-      const design = marque.carte.sorte === SORTE_DE_VALIDATION ? validationDuCorps(depot, texte(issue.body)) : null;
-      // La carte « review before merge » d'un ticket sensible (ticket 3224) : sa PR et son ticket, lus du corps de son issue.
-      const sensible = marque.carte.sorte === SORTE_SENSIBLE ? revueDuCorps(depot, texte(issue.body)) : null;
+      // La carte « Validate its screen » (ticket 3185) : sa PR et ses captures, lues du corps de son issue — ou du commentaire
+      // de la carte, quand la validation est demandée sur le ticket même (ticket 3615).
+      const design = marque.carte.sorte === SORTE_DE_VALIDATION ? (validationDuCorps(depot, texte(issue.body)) ?? validationDuCorps(depot, marque.corps)) : null;
+      // La carte « review before merge » d'un ticket sensible (ticket 3224) : sa PR et son ticket, lus du corps de son issue —
+      // ou du commentaire de la carte (ticket 3615).
+      const sensible = marque.carte.sorte === SORTE_SENSIBLE ? (revueDuCorps(depot, texte(issue.body)) ?? revueDuCorps(depot, marque.corps)) : null;
       const chef = { ...marque.carte, ...(design === null ? {} : { design }), ...(sensible === null ? {} : { sensible }) };
       poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef });
     }

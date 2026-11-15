@@ -1167,8 +1167,9 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 with choices, a click on each gesture against a fake GitHub).*
 
 **The card `Validate its screen` (#3185, epic #3180).** On a project where a human validates the designs, the pass holds a
-green design delivery for the chef instead of merging it (#3184, `docs/runtime/pass.md`): a `chef-todo` issue titled
-`Validate its screen`, its marked comment of kind `design-validation`. In Todo, its line says `A design delivery waits for
+green design delivery for the chef instead of merging it (#3184, `docs/runtime/pass.md`): since #3615, the ticket itself,
+labelled `chef-todo`, its marked comment of kind `design-validation` carrying the pull request, the head and the captures
+(a card posted before as a `chef-todo` issue titled `Validate its screen` reads the same from its body). In Todo, its line says `A design delivery waits for
 you to validate its screen.`, then the card shows, in this order: the question (`Does the screen of #<ticket> look
 right? …`); the before and after captures of each screen the delivery changes, one under the other, read without a click
 (each image read by this computer's `gh`, as for any Todo card); `Pull request #<PR>`, which opens the pull request; then its
@@ -1229,8 +1230,8 @@ Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 **A sensitive ticket, and its card `review before merge` (#3224, epic #3214).** A ticket labelled `sensitive`
 ([sensitive-tickets.md](sensitive-tickets.md)) carries the tag `sensitive` on its card of the rail, first of its tags,
 outlined in red, what it means on hover; a ticket without the label carries none. The pass does not merge its green
-delivery (#3223, `docs/runtime/pass.md`): a `chef-todo` issue titled `review before merge`, its marked comment of kind
-`review-before-merge`. In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
+delivery (#3223, `docs/runtime/pass.md`): since #3615, the ticket itself, labelled `chef-todo`, its marked comment of kind
+`review-before-merge` carrying the pull request (before, a `chef-todo` issue titled `review before merge`). In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
 in this order: the question (`#<ticket> is sensitive: review PR #<PR> before it is merged. …`); `Pull request #<PR>`, which
 opens the pull request in one click; then its two answers, each with its price on hover:
 
@@ -3040,6 +3041,33 @@ text next to a notification-area icon, so the number of questions waiting is pai
 The module is `app/src/barre-de-menus.ts` (the line, the menu, the disc); `main.ts` wires it to Electron's `Tray`. The
 icon is `app/src/icones/barre-de-menus.png` and its `@2x`, cut from the app's icon by `app/packaging/icones.ts`. Tests:
 `app/test/barre-de-menus.test.ts`, `app/test/barre-de-menus-reglage.test.ts`.
+
+#### With the app closed: the station's icon (#3631)
+
+When this computer runs the background station of [`installation-station.md`](installation-station.md) (its launchd
+agent `brigade.station` on a Mac, its launcher under `%LOCALAPPDATA%\brigade-station\` on Windows), the installed app
+hands the icon to a process of its own binary started with `--tray-fond`, which stays when the app closes. The app
+registers it at login on each opening — a launchd agent `~/Library/LaunchAgents/brigade.tray-fond.plist` on a Mac, the
+`brigade-tray` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows — and no longer puts its own
+icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front.
+
+- **The line** is the same (`3 cooking · 1 for you`, the disc on Windows), read every 15 s from the `facts` of each
+  project the station serves, through the station's own gesture, as the app reads them. It adds `· paused` or
+  `· stopped` when the station is.
+- **The menu**: **Open brigade** (starts the app, or brings it to the front), **Pause the station** (`switch off` on
+  each project: running cooks finish, nothing new starts — then **Resume the station**, `switch on`), **Stop the
+  station** (`station stop <station>` on each project, for this computer's stations: it takes no more ticket, running
+  cooks finish — then **Start the station**, `station start <station>`), and **Quit the station…**.
+- **Quit is the only action that stops the kitchen.** It first asks: `Quit the station? This stops the kitchen.` —
+  the running cooks stop, and the projects stop cooking on this computer until the station starts again. Cancel leaves
+  it running. Confirmed, it unloads the station's launchd agent then the icon's own (`launchctl bootout`), or on Windows
+  stops the station's launcher, then the station and its cooks. Both come back at the next login.
+- A command the station refuses is shown in a dialog; the `Menu bar` setting turns this icon off too.
+
+The modules are in `app/src/tray-fond/`: `tray-fond.ts` (the line, the menu, the commands, the confirmation),
+`lecture.ts` (reading `facts`, playing a gesture), `systeme.ts` (login registration, quit), `processus.ts` (the Electron
+process), `entree.ts` (the app's entry, which routes `--tray-fond`). Tests: `app/test/tray-fond.test.ts`,
+`app/test/tray-fond-station.test.ts`.
 
 ### The Settings tab, and the log by its action
 

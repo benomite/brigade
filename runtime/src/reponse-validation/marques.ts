@@ -5,14 +5,19 @@
 //
 // - La question : un commentaire de la cuisine dont la première ligne est
 //   `<!-- brigade:validation-question pr=<PR> sha=<commit> -->` (`commit=` vaut
-//   `sha=`, dans n'importe quel ordre). Le ticket qui la pose la documente ;
-//   elle se lit ici, sans importer son code.
+//   `sha=`, dans n'importe quel ordre). La demande que la pass pose sur le
+//   ticket (#3615, `validation-sur-ticket/`) en est une aussi : sa première
+//   ligne, `<!-- brigade:todo kind=<sorte> pr=<PR> ticket=<ticket> sha=<sha> -->`,
+//   est la carte de TODO du ticket, et porte la PR et le commit. Elle se lit
+//   ici, sans importer son code.
 // - La réponse gardée, clé PR et commit de la question :
 //   `<!-- brigade:validation-answer pr=<PR> sha=<commit> answer=validated|sent-back -->`.
 //   La pass la lit pour merger (`validation-design.ts`, `validationQuiTient`),
 //   et le côté qui pose la question pour savoir le chef répondu.
 export const MOT_DE_QUESTION = "validation-question";
 export const MOT_DE_REPONSE = "validation-answer";
+// La carte de TODO, que la demande de validation posée sur le ticket ouvre (#3615).
+const MOT_DE_CARTE = "todo";
 
 export type Reponse = "validated" | "sent-back";
 
@@ -28,7 +33,7 @@ const commit = (texte: string | undefined) => (texte !== undefined && /^[0-9a-f]
 
 // La PR et le commit qu'une question de validation nomme ; null si ce n'en est pas une.
 export function questionDuCorps(corps: string): { pr: number; sha: string } | null {
-  const lus = attributs(MOT_DE_QUESTION, corps);
+  const lus = attributs(MOT_DE_QUESTION, corps) ?? attributs(MOT_DE_CARTE, corps);
   if (lus === null) return null;
   const pr = numero(lus.get("pr"));
   const sha = commit(lus.get("sha") ?? lus.get("commit"));
