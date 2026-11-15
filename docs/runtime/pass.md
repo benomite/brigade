@@ -473,6 +473,28 @@ after it), the pass merges nothing for it, even on a station that does not read 
 
 The chef's send-back counts among the ticket's send-backs, like the pass's.
 
+**The chef can also answer on the ticket itself** (#3616, epic #3612, `runtime/src/reponse-validation/`),
+with no separate validation issue. The question is a kitchen comment on the ticket whose first line is
+`<!-- brigade:validation-question pr=<PR> sha=<commit> -->` (`commit=` is read as `sha=`). At each turn,
+before trying again the merge of a delivery it holds for the chef, the pass reads its ticket's comments
+(a delivery it does not hold has no question, and its ticket is not read for one):
+
+- a question is **pending** for the PR if it is the last one asked for it, and neither a kept answer for its
+  PR and commit nor a send-back follows it;
+- the answer is the first comment after it from a trusted account (owner, member, collaborator) that is not
+  the kitchen's (no `<!-- brigade:` line, not a bot), its quote (`>` lines) removed; an empty one is not an
+  answer. A comment of the chef that follows no pending question does nothing;
+- `validate` (or `validated`, `approve`, `lgtm`, `ok`, `yes`, `merge`, 👍, ✅, `oui`, `validé`…; case, spaces
+  and a final `.`/`!` ignored) **validates**: the answer is kept on the ticket, and the pass merges the PR
+  as for a validation kept on a card — through the same send-back, conflict and screen-change rules;
+- any other text **sends the delivery back** to a cook, the comment as the change to make (a `brigade:renvoi`
+  on the ticket, `in-pass` removed, as for the `send-back` gesture); nothing is merged.
+
+Either answer is kept on the ticket as `<!-- brigade:validation-answer pr=<PR> sha=<commit>
+answer=validated|sent-back -->`, keyed by the question's PR and commit: the asking side reads it to know the
+chef answered. A send-back is posted before the answer is kept. When the ticket's comments cannot be read,
+or an answer cannot be written, nothing is merged; the station says why and reads again at its next turn.
+
 ### A sensitive ticket, reviewed by the chef before merge
 
 A ticket is **sensitive** when it carries the label `sensitive` (the chef, the second or the manager can
