@@ -3836,7 +3836,9 @@ section. With the section laid, `right now` is not repeated under it.
   or out of GitHub quota; the manager runs but takes nothing; or not known when the stations cannot be read. When a
   gesture unblocks it from the app — **Add the project to a station** — it is the line's recommended button,
   which opens the Stations tab; otherwise, and on a read-only project, there is no button. A stopped or offline station
-  has no button, because the app cannot start it: the sentence says `Start it on its computer.` While this computer's
+  on this computer has the button **Start this computer's station**, which starts it (`station start <station>`, the
+  tray's **Start the station** gesture) and says why when the station does not start; a station on another computer has
+  no button, because the app cannot start it from here: the sentence says `Start it on its computer.` While this computer's
   station restarts for an update, the project says `restarting: update to <version>` (yellow) and shows neither
   `FAULT` nor stuck-rail nor queue-wait alert for a stopped or offline station (#3637). On "All projects" the
   project is **stuck**, in red (`8 tickets no manager takes, for 14 h`, the whole sentence on hover). The same sentence
@@ -3849,8 +3851,9 @@ section. With the section laid, `right now` is not repeated under it.
   its station is stopped; its station is offline or out of quota; the station waits for the GitHub quota; the cook cap
   is reached; a delivery is in the pass; every queued ticket waits for another ticket; else a normal wait, which says a
   cook takes the ticket within minutes and how long the oldest queued ticket has waited since `fire` was put on it (from
-  five minutes on: "longer than usual"). The first three name the gesture that lifts them (`Start it on its computer.`,
-  **Add the project to a station** — a red `FAULT` line, with the button that opens the Stations tab only for the latter); the others say
+  five minutes on: "longer than usual"). The first three name the gesture that lifts them (**Start this computer's station** on this
+  computer, `Start it on its computer.` on another one, **Add the project to a station** — a red `FAULT` line, with the
+  button that opens the Stations tab for the latter); the others say
   they resolve by themselves. A queued card that will not start next carries `after #N` (behind another queued ticket)
   or `waiting for #N to merge` (behind a ticket a cook holds or the pass judges), read from the `Depends on #N` lines of
   its issue; the card that starts next and a card without dependency have none, and "Will not start: …" or a blocking

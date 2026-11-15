@@ -111,13 +111,31 @@ describe("la ligne de chaque carte en file", () => {
 
 describe("la ligne en tête du rail", () => {
   test("une panne (raisons 1 à 3) : FAULT, la phrase, et le geste en bouton qui ouvre Stations", () => {
-    const attente = faitsDe(lecture([ticket(4)], [station({ stoppedAt: "2026-11-12T09:59:40.000Z" })])).attenteDuRail;
+    const attente = faitsDe(lecture([ticket(4)], [])).attenteDuRail;
     const appels: string[] = [];
     const [ligne] = ligneDeLAttente(doc, attente, { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
     assert.ok(ligne !== undefined);
     assert.equal(ligne.role, "alert");
-    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start. Start it on its computer."]);
-    assert.deepEqual(ligne.dessous("button"), []);
+    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", attente?.phrase, "Add the project to a station"]);
+    ligne.dessous("button")[0]?.click();
+    assert.deepEqual(appels, ["stations"]);
+  });
+
+  test("la station de cet ordinateur est arrêtée : le bouton la démarre, et la phrase ne renvoie pas à « its computer » (#3637)", () => {
+    const attente = faitsDe(lecture([ticket(4)], [station({ stoppedAt: "2026-11-12T09:59:40.000Z" })])).attenteDuRail;
+    const appels: string[] = [];
+    const [ligne] = ligneDeLAttente(doc, attente, { ouvrirStations: () => appels.push("stations"), demarrerIci: () => appels.push("demarrer") }) as unknown as Faux[];
+    assert.deepEqual(ligne?.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start.", "Start this computer's station"]);
+    ligne?.dessous("button")[0]?.click();
+    assert.deepEqual(appels, ["demarrer"]);
+  });
+
+  test("la station d'un autre ordinateur est arrêtée : aucun bouton, la phrase dit où la démarrer (#3637)", () => {
+    const attente = faitsDe(lecture([ticket(4)], [station({ stoppedAt: "2026-11-12T09:59:40.000Z" })])).attenteDuRail;
+    const appels: string[] = [];
+    const [ligne] = ligneDeLAttente(doc, attente, { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
+    assert.deepEqual(ligne?.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start. Start it on its computer."]);
+    assert.deepEqual(ligne?.dessous("button"), []);
     assert.deepEqual(appels, []);
   });
 

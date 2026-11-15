@@ -5,7 +5,7 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { RENDU_BLOQUE } from "./rail-bloque-commun.ts";
 
 export const ecran: Ecran = {
-  dit: "Le rail de « parade » bloqué : huit tickets `fire` qu'aucun manager n'a pris depuis 14 h, sa station box/claude arrêtée — la ligne en tête du rail, sa cause et « Start the station » (#3358)",
+  dit: "Le rail de « parade » bloqué : huit tickets `fire` qu'aucun manager n'a pris depuis 14 h, sa station box/claude arrêtée — la ligne en tête du rail, sa cause et, la station étant celle de cet ordinateur, le bouton « Start this computer's station » (#3358, #3637)",
   largeur: 1440,
   hauteur: 640,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],

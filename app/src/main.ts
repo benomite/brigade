@@ -17,7 +17,8 @@ import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
-import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
+import { lancerIci, lancerLa, ouvrirVeille, type Lu } from "./box.ts";
+import { demarrerLaStationDuProjet } from "./tray-fond/lecture.ts";
 import { situationDe } from "./histoire.ts";
 import { LiensLus } from "./liens-lus.ts";
 import { commenter, demanderAuSecond, noteDeLaQuestion } from "./discussion.ts";
@@ -1413,6 +1414,17 @@ ipcMain.handle("compteGitHub", async () => {
 });
 // Le bloc de la station de l'accueil (ticket 2640) : installer celle de cet ordinateur (poste/installer.ts).
 ipcMain.handle("installerLaStation", () => installerLaStation(stationLocale, () => stations.relire()));
+// « Start this computer's station », sur l'alerte d'un projet dont la station est arrêtée (#3637) : le geste `demarrage` de
+// l'icône de fond (tray-fond/lecture.ts), pour ce projet — `station start <station>` sur la station de cet ordinateur.
+ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  if (role.role !== "station") return { refus: "this computer is a workstation, not a station: there is no station here to start" };
+  const locale = { node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env };
+  const rendu = await demarrerLaStationDuProjet({ nom: vise.nom, faits: faits.dernier(vise.nom)?.faits }, (projet, commande) => lancerIci(locale, projet, commande, 30_000), 30_000);
+  void stations.relire();
+  return rendu;
+});
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();

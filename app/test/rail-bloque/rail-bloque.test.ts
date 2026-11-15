@@ -52,7 +52,25 @@ describe("la ligne en tête du rail", () => {
     assert.match(ligne.title, /^#4, #5, #6, #7, #8, #9, #10, #11 — no manager has taken them\.$/);
   });
 
-  test("une station arrêtée : la phrase dit quoi faire, et aucun bouton ne mène à un écran où il n'y a rien à démarrer (#3637)", () => {
+  test("la station arrêtée est celle de cet ordinateur : « Start this computer's station » la démarre, FAULT et la cause restent (#3637)", () => {
+    const appels: string[] = [];
+    const arretee = bloque([station({ lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" })]);
+    const [ligne] = ligneDuRailBloque(doc, arretee, { ouvrirStations: () => appels.push("stations"), demarrerIci: () => appels.push("demarrer") }) as unknown as Faux[];
+    assert.equal(ligne?.role, "alert");
+    assert.deepEqual(ligne?.children.map((enfant) => enfant.textContent), ["FAULT", "8 tickets on the rail, no manager has taken them for 14 h: its station box/claude is stopped.", "Start this computer's station"]);
+    const [bouton] = ligne?.dessous("button") ?? [];
+    assert.equal(bouton?.className, "recommande");
+    bouton?.click();
+    assert.deepEqual(appels, ["demarrer"]);
+  });
+
+  test("le démarrage refusé par la station dit sa raison à côté du bouton (#3637)", () => {
+    const arretee = bloque([station({ lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" })]);
+    const [ligne] = ligneDuRailBloque(doc, arretee, { ouvrirStations: () => {}, demarrerIci: () => {}, demarrageRefuse: "exit code 2" }) as unknown as Faux[];
+    assert.match(ligne?.textContent ?? "", /Start this computer's station.*The station did not start: exit code 2$/);
+  });
+
+  test("la station arrêtée est celle d'un autre ordinateur : aucun bouton, la phrase dit où la démarrer (#3637)", () => {
     const [ligne] = ligneDuRailBloque(doc, bloque([station({ lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" })]), { ouvrirStations: () => {} }) as unknown as Faux[];
     assert.deepEqual(ligne?.children.map((enfant) => enfant.textContent), ["FAULT", "8 tickets on the rail, no manager has taken them for 14 h: its station box/claude is stopped. Start it on its computer."]);
     assert.deepEqual(ligne?.dessous("button"), []);
@@ -71,7 +89,7 @@ describe("la ligne en tête du rail", () => {
     assert.deepEqual(seule?.dessous("button"), []);
   });
 
-  test("les mots des boutons sont ceux du runtime ; seul le geste que l'onglet Stations accomplit a un bouton (#3637)", () => {
+  test("les mots du bouton qui ouvre Stations sont ceux du runtime ; « Start the station » n'est le mot d'aucun geste du runtime (#3637)", () => {
     assert.deepEqual(GESTES, { "ajouter-a-une-station": MOTS_DU_GESTE["ajouter-a-une-station"] });
     assert.ok(!Object.values(MOTS_DU_GESTE).includes("Start the station"));
   });
