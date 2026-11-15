@@ -5,9 +5,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { priseDeLaStation, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { signalerHorsZone } from "../../src/passe-hors-zone/hors-zone.ts";
-import { FauxGitHub, fauxClient } from "../faux-github.ts";
+import { FauxGitHub, fauxClient, STATION_DU_DEPOT } from "../faux-github.ts";
 
 // La ligne que `signalerHorsZone` poserait, ou null.
 async function ligneHorsZone(zone: string[], fichiers: string[]): Promise<string | null> {
@@ -33,10 +33,7 @@ async function parLaStation(t: TestContext, zone: string, fichiers: string[], ve
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const station = stationDuDepot({
-    nom: "box",
-    places: 1,
-    base: "main",
-    depotGitHub: "faux/depot",
+    ...STATION_DU_DEPOT,
     github: fauxClient(faux),
     depot: {
       connait: () => false,
@@ -49,13 +46,7 @@ async function parLaStation(t: TestContext, zone: string, fichiers: string[], ve
       changes: () => fichiers,
       diff: () => "diff --git a/x b/x\n+x\n",
     },
-    prise: priseDeLaStation,
-    claude: "claude",
     env: { PATH: process.env.PATH },
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer,
     avertir,

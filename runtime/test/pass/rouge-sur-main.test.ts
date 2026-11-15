@@ -11,8 +11,7 @@ import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { jouerOutil } from "../../src/gates.ts";
 import { consigneDeRelecture, lireRelecture } from "../../src/reviewer.ts";
 import { etatDuCritere, journalDeLaPreuve, lignesDesCriteres, ligneDeLaPreuve, motifDuRenvoi, nomsDesCas, prouver, RESULTAT_TAP, resultatsTap, testsAjoutes, vertsSurLaBase, type Preuve } from "../../src/pass/rouge-sur-main.ts";
-import { priseDeLaStation } from "../../src/brigade-github.ts";
-import { FauxGitHub, fauxClient } from "../faux-github.ts";
+import { FauxGitHub, fauxClient, STATION_DU_DEPOT } from "../faux-github.ts";
 
 const BOGUE = "export const somme = (a: number, b: number) => a - b;\n";
 const CORRIGE = "export const somme = (a: number, b: number) => a + b;\n";
@@ -167,10 +166,7 @@ async function parLaStation(t: TestContext, tests: string, labels = ["fire", "mo
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const station = stationDuDepot({
-    nom: "box",
-    places: 1,
-    base: "main",
-    depotGitHub: "faux/depot",
+    ...STATION_DU_DEPOT,
     github: fauxClient(faux),
     depot: {
       connait: () => false,
@@ -188,13 +184,7 @@ async function parLaStation(t: TestContext, tests: string, labels = ["fire", "mo
       },
       jeter: (nom) => void jetes.push(nom ?? ""),
     },
-    prise: priseDeLaStation,
-    claude: "claude",
     env: { PATH: process.env.PATH },
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer,
     avertir: (texte) => void journal.push(texte),
