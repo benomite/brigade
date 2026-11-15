@@ -10,6 +10,7 @@ import { carteEnCours, CHEF_TODO, type Sorte } from "../../src/github-seul/carte
 import type { GitHub } from "../../src/github.ts";
 import { LABEL_SENSITIVE } from "../../src/sensible/sensible.ts";
 import { corpsDeCeQuiEstFait } from "../../src/validation-design/brief.ts";
+import { reponseDuCorps } from "../../src/reponse-validation/marques.ts";
 import { demandeDuCorps, demanderSurLeTicket } from "../../src/validation-sur-ticket/validation-sur-ticket.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -151,6 +152,22 @@ test("once the chef has answered for the pull request and the commit, the pass a
   assert.deepEqual(demandes(faux, "design-validation", PR), []);
   assert.equal((faux.commentaires.get(PR) ?? []).length, avant[1]);
   assert.equal(faux.ticket(TICKET).labels.has(CHEF_TODO), false);
+  assert.deepEqual(creees, []);
+});
+
+test("the request the pass posts on the ticket is the question the chef answers there (#3616): the chef's `validate` under it is kept for its pull request and commit, the pull request is merged, and nothing more is asked", async () => {
+  const faux = enPass(ECRAN);
+  const sha = faux.pr(PR).sha;
+  const { s, creees } = station(faux);
+  await tours(s, 3);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(demandes(faux, "design-validation", TICKET).length, 1);
+  faux.poster(TICKET, "chef", "Validate.");
+  await tours(s, 3);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.deepEqual((faux.commentaires.get(TICKET) ?? []).flatMap((c) => reponseDuCorps(c.body) ?? []), [{ pr: PR, sha, reponse: "validated" }]);
+  assert.equal(demandes(faux, "design-validation", TICKET).length, 1);
+  assert.equal(demandes(faux, "design-validation", PR).length, 1);
   assert.deepEqual(creees, []);
 });
 
