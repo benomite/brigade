@@ -133,7 +133,9 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.ok(!existsSync(join(ressources, "app", "node_modules", "electron")));
   assert.ok(!existsSync(join(ressources, "app", "node_modules", "typescript")));
   const declare = JSON.parse(readFileSync(join(ressources, "app", "package.json"), "utf8"));
-  assert.equal(declare.main, "src/main.ts");
+  // L'entrée du binaire aiguille vers l'app ou, avec `--tray-fond`, vers l'icône de la station de fond (#3631).
+  assert.equal(declare.main, "src/tray-fond/entree.ts");
+  assert.ok(existsSync(join(ressources, "app", declare.main)));
   assert.equal(declare.type, "module");
   assert.equal(declare.productName, "Brigade");
   assert.equal(declare.version, "0.20261019.151600+g76f93fe");
