@@ -14,7 +14,7 @@ import { AJOUTER_UN_PROJET } from "../../lexique.js";
 export const RAIL_BLOQUE = /^\d+ tickets? no manager takes, for /;
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
-/** @typedef {"cooking" | "waiting" | "held" | "stuck" | "paused" | "idle"} EtatDeProjet */
+/** @typedef {"cooking" | "waiting" | "held" | "stuck" | "paused" | "idle" | "breaker"} EtatDeProjet */
 // `maintenant` : ce qui s'y passe, en une phrase (accueil.ts) ; `attend` : combien de décisions attendent le chef, absent quand aucune.
 /** @typedef {{ nom: string, etat: EtatDeProjet, stations: string[], maintenant: string, attend?: number, survol?: string }} ProjetDuBloc */
 /** @typedef {{ ouvrir(nom: string): void, ajouter(): void, pastille?(dit: string, ton: string): any }} GestesDuBloc */
@@ -31,15 +31,31 @@ export const ETATS = {
   // La pause de quota GitHub du compte (pause-quota/, ticket 3482) : rien n'y est en panne, il reprend seul.
   paused: { dit: "paused", ton: "bleu" },
   idle: { dit: "idle", ton: "gris" },
+  // La cuisine retenue par son disjoncteur (ticket 3602) : la cause que la ligne de l'accueil porte déjà (accueil.ts, `causes`)
+  // devient l'état du projet, en place de « stuck » quand son rail est aussi bloqué.
+  breaker: { dit: "held: breaker open", ton: "rouge" },
 };
+// La ligne d'un projet dont le disjoncteur est ouvert (accueil.ts, `causes`).
+const DISJONCTEUR_OUVERT = /^breaker open$/;
+// Les parties de la ligne, telles que l'accueil les joint (accueil.ts, `ligneDeProjet`).
+const SEPARATEUR = " · ";
+const parties = (/** @type {string} */ dit) => dit.split(SEPARATEUR);
 // L'état d'un projet, d'après la ligne que l'accueil en dit (accueil.ts) : rouge, il est retenu ; jaune, il attend le chef ;
 // vert, il cuit s'il a des cooks ou des tickets à la pass, sinon il est au repos ; gris, rien n'y est lu — au repos.
 /** @param {{ ton: string, dit: string }} ligne @returns {EtatDeProjet} */
 export function etatDeLaLigne({ ton, dit }) {
-  if (ton === "rouge") return RAIL_BLOQUE.test(dit) ? "stuck" : "held";
+  if (ton === "rouge") return parties(dit).some((partie) => DISJONCTEUR_OUVERT.test(partie)) ? "breaker" : RAIL_BLOQUE.test(dit) ? "stuck" : "held";
   if (ton === "jaune") return "waiting";
   if (ton === "bleu") return "paused";
   return ton === "vert" && !/^nothing cooking/.test(dit) && /cooking|at work|at the pass/.test(dit) ? "cooking" : "idle";
+}
+// Ce que la ligne d'un projet retenu par son disjoncteur dit en plus de son état : ni le disjoncteur, déjà l'état, ni le rail
+// bloqué, qu'il explique — aucun manager ne prend rien tant que le disjoncteur est ouvert.
+/** @param {{ ton: string, dit: string }} ligne */
+export function maintenantDeLaLigne(ligne) {
+  if (etatDeLaLigne(ligne) !== "breaker") return ligne.dit;
+  const reste = parties(ligne.dit).filter((partie) => !DISJONCTEUR_OUVERT.test(partie) && !RAIL_BLOQUE.test(partie));
+  return reste.length === 0 ? "no cook goes any more" : reste.join(SEPARATEUR);
 }
 export const SANS_STATION = "no station";
 export const AJOUTER = AJOUTER_UN_PROJET;
