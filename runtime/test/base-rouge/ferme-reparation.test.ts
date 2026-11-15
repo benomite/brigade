@@ -76,3 +76,9 @@ test("unrelated open issues without the marker are never touched", async () => {
   assert.deepEqual(depot.commentaires.map((c) => c.numero), [7]);
   assert.ok(!depot.lectures.includes(3), "a ticket that is not a repair candidate is not even read");
 });
+
+test("a green base does not close a repair whose goal is the cause, until the cause is marked fixed", async () => {
+  const cause = (number: number, labels: string[]): Issue => ({ number, body: `${marqueDeBaseRouge("a".repeat(40))}\n<!-- brigade:base-rouge-cause -->\n\n## Context`, state: "open", labels });
+  const depot = new FauxDepot([cause(7, ["fire", "prio:0"]), cause(8, ["fire", "prio:0", "cause-fixed"])]);
+  assert.deepEqual(await fermeReparation({ github: depot.github(), base: "main" })(VERTE, depot.tickets()), [8]);
+});

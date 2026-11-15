@@ -211,6 +211,14 @@ that writes none posts nothing, and a comment GitHub refuses is said, the delive
 the same. The pass copies the last of them onto the `Validate its screen` card ([`pass.md`](pass.md)).
 *Code: `runtime/src/validation-design/brief.ts`.*
 
+**The cook lists its visible changes under `## Changes` (#3617).** The same instructions ask it to
+write, in its last message, each visible change under a `## Changes` heading, one bullet per change:
+`- <place on the screen>: '<before>' -> '<after>'`. The station puts those bullets in the body of the PR
+it opens, under the same heading; on a new delivery to a PR still open, it replaces the section, or removes
+it when the cook wrote none, and a body GitHub refuses to write is said, the delivery going to the pass all
+the same. The pass lists them on the `Validate its screen` card, above the captures.
+*Code: `runtime/src/validation-design/changements.ts`.*
+
 **The cook rereads its diff as the reviewer will, before committing.** Its instructions
 (`CONSIGNE_DE_RELECTURE`, both the first cook's and the resuming cook's) name what the reviewer holds
 as blocking: what the ticket asks and the diff does not do, a criterion the ticket writes out and the

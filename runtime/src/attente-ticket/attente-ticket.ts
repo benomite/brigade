@@ -6,14 +6,18 @@
 // seulement « merge PR ». Rien n'y était à décider : il fallait attendre.
 //
 // Ce qu'un ticket attend se lit de trois sources, sur son issue : les lignes
-// `Depends on #N` de son corps (`dependancesOuvertes`), la ligne `attend` de sa
+// `Depends on #N` de son corps et ce qu'il y dit attendre en toutes lettres —
+// « with the identity of #49 », « once #12 is done » (#3622) —, suivis dans
+// les tickets d'un découpage (`attendusDuCorps`), la ligne `attend` de sa
 // fiche, et la marque que la station écrit quand son cook s'arrête sur un
 // ticket ouvert dont il dépend. Tant qu'un de ces tickets est ouvert, la porte
 // de prise le saute, et la ligne de son saut le nomme (`#A`) ; servi — son
 // issue fermée —, il ne retient plus rien, et un cook le prend au tour suivant,
 // sans geste de personne. Aucune carte TODO n'est posée.
+import { dependancesDuCorps } from "../attente-du-rail/raison.ts";
 import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
 import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
+import { ticketsDeLaListe } from "../epique.ts";
 import { fiche } from "../fiche.ts";
 import { direSaut } from "../retenue/retenue.ts";
 
@@ -25,6 +29,29 @@ export const MARQUE_D_ATTENTE_DE_TICKET = "<!-- brigade:attend-ticket";
 const DEPENDANCE = /depend|d[ée]pend|unmerged|not (?:yet )?merged|isn't merged|is not merged|builds? (?:up)?on|waits? (?:for|on)|waiting (?:for|on)|awaits?|blocked (?:by|on)|pas (?:encore )?merg|non merg|repose sur|s'appuie sur|bâtit sur|attend/i;
 
 const numeros = (texte: string) => [...texte.matchAll(/#([1-9]\d*)\b/g)].map(([, n]) => Number(n));
+
+// Les tickets encore ouverts que le corps de `ticket` lui fait attendre : ceux de ses lignes `Depends on #N` et ceux
+// qu'il dit attendre en toutes lettres (#3622). Un ticket attendu découpé — son corps porte la liste des tickets du
+// découpage — est attendu dans ses tickets encore ouverts, `ticket` excepté : l'épique reste ouverte jusqu'à son
+// dernier, mais c'est eux qui portent le travail, et la ligne du saut les nomme. Une liste toute fermée ne retient
+// plus rien ; une épique ouverte dont la liste est vide se garde attendue. Une lecture qui échoue lève : l'appelant
+// garde le ticket en attente, comme une dépendance illisible.
+export async function attendusDuCorps(ticket: number, corps: string, lire: (numero: number) => Promise<{ state: string; body?: string } | null>): Promise<number[]> {
+  const attendus = new Set<number>();
+  for (const dependance of dependancesDuCorps(corps).filter((n) => n !== ticket)) {
+    const lue = await lire(dependance);
+    if (lue?.state !== "open") continue;
+    const decoupage = ticketsDeLaListe(lue.body ?? "").filter((n) => n !== dependance);
+    if (decoupage.length === 0) {
+      attendus.add(dependance);
+      continue;
+    }
+    const autres = decoupage.filter((n) => n !== ticket);
+    const etats = await Promise.all(autres.map(async (n) => (await lire(n))?.state));
+    for (const [rang, n] of autres.entries()) if (etats[rang] === "open") attendus.add(n);
+  }
+  return [...attendus].sort((a, b) => a - b);
+}
 
 // Les tickets ouverts dont le cook dit, dans sa question, que son ticket
 // dépend : nommés `#N` dans une phrase qui dit la dépendance, et parmi
