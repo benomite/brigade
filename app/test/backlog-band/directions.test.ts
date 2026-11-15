@@ -8,7 +8,7 @@ import { comprendre, grouper, voir, type Vu } from "../../src/amont.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { amontDuTableau } from "../../src/tableau/rail.ts";
-import { besoinsDuBacklog, directionsDuBacklog, poserBandeauBacklog } from "../../src/vue/backlog-band/backlog-band.js";
+import { besoinsDuBacklog, poserBandeauBacklog } from "../../src/vue/backlog-band/backlog-band.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";
@@ -52,6 +52,13 @@ describe("lecture des labels horizon:N", () => {
     assert.match((comprendre(sortie(4)) as { informe: string }).informe, /horizon/);
   });
 });
+
+// Les horizons tels que la section les pose : [horizon, nom, tickets] de chaque bloc.
+const directionsDuBacklog = (besoins: ReturnType<typeof besoinsDe>) => {
+  const bandeau = poserBandeauBacklog(doc, { vu: vu([]), besoins, selection: undefined, deplie: true, rouges: 0 }, gestes()) as unknown as Faux;
+  const section = bandeau.dessous("section").find(({ className }) => className === "backlog-band-directions") ?? assert.fail("pas de section Directions");
+  return section.dessous("section").map((bloc) => ({ horizon: bloc.dataset.direction === "aucune" ? null : Number(bloc.dataset.direction), nom: bloc.dessous("span")[0]?.textContent, besoins: bloc.dessous("button").map((b) => ({ ticket: Number(b.dataset.ticket) })) }));
+};
 
 describe("directionsDuBacklog", () => {
   test("les trois horizons dans l'ordre de la vision, chacun avec ses besoins ; « No direction yet » après eux", () => {

@@ -158,7 +158,7 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
  * @param {readonly Besoin[]} besoins
  * @returns {{ horizon: number | null, nom: string, besoins: Besoin[] }[]}
  */
-export function directionsDuBacklog(besoins) {
+function directionsDuBacklog(besoins) {
   const ouverts = besoins.filter(({ ferme }) => !ferme);
   return [
     ...HORIZONS.map(({ horizon, nom }) => ({ horizon, nom, besoins: ouverts.filter((besoin) => besoin.horizon === horizon) })),
