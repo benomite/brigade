@@ -24,7 +24,7 @@ function cuire(corps: string) {
   const worktree = realpathSync(mkdtempSync(join(tmpdir(), "ecriture-brigade-")));
   git(worktree, "init", "-q");
   git(worktree, "commit", "-q", "--allow-empty", "-m", "base");
-  const args = dansLeBacASableLocal(BAC, argumentsClaude("go", { model: "sonnet", effort: "low" }), worktree, [], livreSousBrigade(corps));
+  const args = dansLeBacASableLocal(BAC, argumentsClaude({ model: "sonnet", effort: "low" }), worktree, [], livreSousBrigade(corps));
   const identite = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
   const cook = spawnSync(process.execPath, [FAUX_COOK, ...args], { cwd: worktree, encoding: "utf8", env: { ...process.env, ...identite, FAUX_COOK: "ecrit-brigade" } });
   return { cook, worktree, commits: git(worktree, "log", "--format=%s").stdout.trim().split("\n"), suivis: git(worktree, "ls-files").stdout.trim() };

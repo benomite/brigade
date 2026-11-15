@@ -206,7 +206,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     noter({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: lecture.quota?.fenetre ?? null } });
   };
 
-  const lancer: Lancer = ({ commande, args, cwd, env, flux: demande }) => {
+  const lancer: Lancer = ({ commande, args, entree, cwd, env, flux: demande }) => {
     // Le run est unique au journal : un ticket renvoyé repart sous un autre.
     const run = `${basename(demande).replace(/\.flux\.jsonl$|\.jsonl$/, "")}-${randomUUID().slice(0, 8)}`;
     const fluxDe = (essai: string) => join(repertoireEtat, "runs", `${essai}.jsonl`);
@@ -219,6 +219,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
         contexte: { station },
         commande,
         args,
+        ...(entree === undefined ? {} : { entree }),
         cwd,
         env,
         juger: (fin, essai) => {

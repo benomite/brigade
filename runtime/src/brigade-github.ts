@@ -2349,7 +2349,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
 
 // Un lancement de `claude` sous supervision : le cook, ou le reviewer.
 // `flux` rendu : là où son flux s'est écrit, s'il ne l'a pas été où demandé.
-export type Lancer = (lancement: Lancement & { cwd: string; env: NodeJS.ProcessEnv; flux: string }) => Pick<Supervise, "fin"> & { flux?: string };
+export type Lancer = (lancement: Lancement & { entree?: string; cwd: string; env: NodeJS.ProcessEnv; flux: string }) => Pick<Supervise, "fin"> & { flux?: string };
 
 export type OptionsDuDepot = {
   nom: string;
@@ -2482,7 +2482,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const { nom, base, depot, depotGitHub, cloison } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   mkdirSync(options.flux, { recursive: true });
-  const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
+  const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, entree, cwd, env, flux }) => superviser({ commande, args, ...(entree === undefined ? {} : { entree }), cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
   // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
@@ -2764,9 +2764,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
-    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
+    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, cwd: worktree, env: env(envDuCook), flux });
+    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(envDuCook), flux });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {

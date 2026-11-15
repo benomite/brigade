@@ -44,6 +44,8 @@ export type DemandeCook = {
   plafonds?: Partial<Plafonds>;
   commande: string;
   args: string[];
+  // Ce que le cook lit sur son entrée : sa consigne (voir `OptionsSupervision`).
+  entree?: string;
   cwd?: string;
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
@@ -426,7 +428,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       const essayer = (run: string, contexte: DemandeCook["contexte"]) =>
         partir({ ...demande, run, contexte }, (nom, plafonds, surArret) => {
           mkdirSync(repertoireRuns, { recursive: true });
-          const commun = { commande: demande.commande, args: demande.args, cwd: demande.cwd, env: demande.env, plafonds, graceMs: reglages.graceMs, flux: join(repertoireRuns, `${nom}.jsonl`), surArret };
+          const commun = { commande: demande.commande, args: demande.args, ...(demande.entree === undefined ? {} : { entree: demande.entree }), cwd: demande.cwd, env: demande.env, plafonds, graceMs: reglages.graceMs, flux: join(repertoireRuns, `${nom}.jsonl`), surArret };
           return demande.survivant ? relayer(superviserParRelais({ ...commun, run: nom, secrets: demande.survivant.secrets, veille })) : superviser({ ...commun, masquer: demande.masquer, veille });
         });
       const premier = demande.run ?? nomDeRun(demande.ticket);

@@ -155,8 +155,8 @@ test("after a restart at the deadline, the ticket whose cook was interrupted is 
   // La station relancée reprend le ticket depuis la branche sauvée, avec un cook.
   const apres: string[] = [];
   const vus: { fichier: boolean; consigne: boolean }[] = [];
-  const seconde = ouvrir(({ cwd, args, flux }) => {
-    vus.push({ fichier: existsSync(join(cwd, "a-moitie.txt")), consigne: args.join(" ").includes("Work saved before a restart") });
+  const seconde = ouvrir(({ cwd, args, entree, flux }) => {
+    vus.push({ fichier: existsSync(join(cwd, "a-moitie.txt")), consigne: [...args, entree ?? ""].join(" ").includes("Work saved before a restart") });
     commiter(cwd, "fini.txt");
     conclut(flux);
     return { fin: Promise.resolve(fini) };

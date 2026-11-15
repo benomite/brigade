@@ -51,7 +51,7 @@ const COMMENTAIRES: Commentaire[] = [
 // Le flux d'un cook qui conclut.
 const fluxQuiConclut = `${JSON.stringify({ type: "result", is_error: false, result: "done" })}\n`;
 
-type Lance = { args: string[]; env: NodeJS.ProcessEnv };
+type Lance = { args: string[]; entree: string; env: NodeJS.ProcessEnv };
 
 // Une station du chemin GitHub seul, sur le Mac du chef, avec un ticket à
 // prendre. `github` remplace ce que le client en mémoire fait du ticket et de
@@ -61,8 +61,8 @@ function cuisine(t: TestContext, github: Partial<Pick<GitHub, "issue" | "comment
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const lances: Lance[] = [];
   const fait: string[] = [];
-  const lancer: Lancer = ({ args, env, flux }) => {
-    lances.push({ args, env });
+  const lancer: Lancer = ({ args, entree, env, flux }) => {
+    lances.push({ args, entree: entree ?? "", env });
     writeFileSync(flux, fluxQuiConclut);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
@@ -124,7 +124,7 @@ function cuisine(t: TestContext, github: Partial<Pick<GitHub, "issue" | "comment
   return { servir, lances, fait };
 }
 
-const consigneDe = (lance: Lance) => lance.args[lance.args.indexOf("-p") + 1] ?? "";
+const consigneDe = (lance: Lance) => lance.entree;
 const reglagesDe = (lance: Lance) => JSON.parse(lance.args[lance.args.indexOf("--settings") + 1] ?? "{}");
 
 test("in the sandbox, without the chef's gh config, the cook's prompt carries its ticket: body, zone and last comments", async (t) => {

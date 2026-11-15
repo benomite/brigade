@@ -34,6 +34,8 @@ import { masqueDesSecrets } from "./masque.ts";
 export type ConsigneDuRelais = {
   commande: string;
   args: string[];
+  // Ce que le cook lit sur son entrée (sa consigne), s'il en a une.
+  entree?: string;
   cwd?: string;
   env: NodeJS.ProcessEnv;
   // Le flux brut ; la sortie d'erreur va dans `<flux>.stderr`.
@@ -109,8 +111,10 @@ function relayer(consigne: ConsigneDuRelais): void {
       // Son propre groupe : un signal envoyé au groupe atteint aussi ce qu'il
       // a lancé, et jamais le relais.
       detached: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
+    enfant.stdin?.on("error", () => {});
+    enfant.stdin?.end(consigne.entree);
   } catch (erreur) {
     finir({ code: null, signal: null, erreur: erreur instanceof Error ? erreur.message : String(erreur) });
     return;
