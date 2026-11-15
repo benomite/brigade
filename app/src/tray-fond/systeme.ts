@@ -15,6 +15,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { estUnMac } from "../plateforme.ts";
+import { INSCRITE_PAR_L_APP } from "../station-fond/inscription.ts";
 
 const ETIQUETTE_DE_LA_STATION = "brigade.station";
 const ETIQUETTE_DU_FOND = "brigade.tray-fond";
@@ -56,7 +57,8 @@ const dossierDeLaStationWindows = (s: Pick<Systeme, "localAppData">) => (s.local
 export function stationDeFondInstallee(s: Pick<Systeme, "plateforme" | "maison" | "localAppData">): boolean {
   if (estUnMac(s.plateforme)) return existsSync(join(s.maison, "Library", "LaunchAgents", `${ETIQUETTE_DE_LA_STATION}.plist`));
   const dossier = dossierDeLaStationWindows(s);
-  if (s.plateforme === "win32") return dossier !== undefined && existsSync(join(dossier, "lancer-station.ps1"));
+  // Le lanceur de l'installeur, ou la station de fond que l'app a inscrite elle-même (station-fond/inscription.ts, #3630).
+  if (s.plateforme === "win32") return dossier !== undefined && (existsSync(join(dossier, "lancer-station.ps1")) || existsSync(join(dossier, INSCRITE_PAR_L_APP)));
   return false;
 }
 

@@ -1454,7 +1454,7 @@ matter, **in this order**, and the app skips none:
 | 1 | **Prime the repo** — `Run /brigade:init in the second` | opens the space's second on the session: `claude /brigade:init`, a fresh conversation in the project folder | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
 | 2 | **Merge** — the box `The result of /brigade:init is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
 | 3 | **Check** | runs `installation` through the project's station, for you, and displays **everything** it returned | settle what it names, and check again |
-| 4 | **Start** | writes nothing: this computer's station runs with the app, there is no service to start | — |
+| 4 | **Start** | writes nothing: this computer's station runs in the background, started at login or by the app when it opens, there is no service to start | — |
 
 **Three states**, and the check is possible only once init is said merged: **init is not said merged** (`Check` is
 inactive: `No check: the result of /brigade:init is not said merged…`); **the check is incomplete** (`NOT READY`, or
@@ -2356,7 +2356,7 @@ Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (
 *Spec: [the station rebuilt from scratch](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
 
 **On a computer — Mac, Windows, desktop Linux —, the installed app is a station.** Once open,
-it starts the machine's station: **the same as a server's**, the same entry point
+it finds the machine's station running, or starts it: **the same as a server's**, the same entry point
 (`runtime/src/station/main.ts`, the one the Debian package's service starts), the same held directory,
 the same project configuration (one line each, in `projets`), the same presence on
 GitHub. Only the installation differs: a package on a server, the app here (`app/src/poste/`).
@@ -2364,28 +2364,44 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
 - **Its directory** is `station/`, next to the projects file (`~/.config/brigade/station`) —
   or `BRIGADE_STATION_DIR`, if it is set. It runs under your account, with your `gh` and your
   `claude`.
-- **It pairs itself.** As on a server, it displays its code in its log; the app
-  reads it and types it for you, through the same gesture as "+ station" in All stations. The machine appears
+- **It pairs itself.** As on a server, it displays its code; the background station hands it to the app
+  (`station/fond-appairage.json`), which types it for you while open, through the same gesture as "+ station" in All stations. The machine appears
   in "Stations", like the others: `macbook  online · idle · no project`, its machine and its
-  version (`code 1a2b3c4d5e6f`) on hover. If GitHub does not show its gist yet: the code is retyped every thirty
+  version (`code 1a2b3c4d5e6f`) on hover. If GitHub does not show its gist yet: the code is retyped every ten
   seconds, and the refusal is stated once.
 - **A project it is the main station of cooks there**, exactly as on a server: its line
   in `projets`, its state under `etat/`, its cooks started by the station.
-- **It lives with the app.** Closed — or killed outright —, the app closes its station's entry, and the station
-  stops as on a SIGTERM: its projects stop, and GitHub carries the time it stopped —
-  the home screen says it is offline. **The kitchen of the projects it is the main station of therefore stops
-  with the app.** Dead on its own, it is restarted five seconds later; refusing to start
-  (code 2), it is not, and the app says why.
-- **Only one per machine and per account.** A second open app does not start a second
-  station (`station/app.pid` names the app that holds it): it says so, and takes over when the
-  first one closes.
+- **It runs in the background, without the app (#3630).** The station is a process of its own, the background
+  station (`app/src/station-fond/hote.ts`, run by the app's `node`), which holds it as the app used to: dead on its
+  own, the station is restarted five seconds later, and a station release replaces only its process. Quitting,
+  restarting or updating the app does not touch it: **a cook in progress goes on**, its worktree and its uncommitted
+  work intact. One exception: on Windows, an app update stops the background station, because the installer replaces
+  the `node` it runs; its cooks stop with it, and the app reopened after the update starts it again. Only an explicit quit of the station stops it — "Quit the station" in the station's icon (see "With the
+  app closed: the station's icon"), or the system's own stop of its login item: it then stops as on a SIGTERM, its
+  projects stop, and GitHub carries the time it stopped. A station that refuses to start (code 2) takes the
+  background station down with it, saying why in `station/fond.json`: the app opened next, or the next login,
+  tries again.
+- **It starts at login.** On each opening, the installed app registers it: on a Mac, the launchd agent
+  `~/Library/LaunchAgents/brigade.station.plist`; on Windows, the `brigade-station` value of
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs the app's binary with `--station-fond` to start
+  it without a console. A loaded agent is never reloaded, which would stop the running station. The agent or launcher that
+  [`installation-station.md`](installation-station.md)'s command installed is left as it is: its station is the one
+  that runs. On desktop Linux, and when the app is launched from the repository, nothing is registered: the station
+  does not start at login there, only when the app opens, and it then outlives the app
+  (`app/src/station-fond/inscription.ts`).
+- **Only one per machine and per account.** The app that opens attaches to the station that runs — whoever started
+  it, `station/app.pid` names the process that holds it, which removes it when it stops; a mark written before the
+  system started does not count, its pid may have gone to another process — and never starts a second one: same process, same pid
+  after an app restart. A second background station started anyway says the first runs and leaves, and the station
+  itself refuses to start (code 2) on a directory another station process holds
+  (`runtime/src/station-fond/seule.ts`).
 - **One kitchen per project (#2110).** Before each launch, the app reads the account's stations: a
   project of this computer's configuration that another station already serves (and that cooks) is not
   read by the station — its line stays in `projets` as a `# held-back (served by <station>): …`
   comment, no kitchen opens and no board is published here — and the app logs which station serves
   it. The line comes back as soon as no other station serves the repository. A reading that fails
   changes nothing (`app/src/station-embarquee-cuisine-unique.ts`).
-- What the station says is written as is in the terminal that started the app, like its service log
+- What the station says is written to its log, `station/fond.log`, like its service log
   on a server. It is run by the `node` of `npm start` (`BRIGADE_NODE_BIN` to give
   another): Electron is not one. **The installed app** (the `.dmg`) runs the runtime and the
   `node` of its package, never those of the machine (`app/src/emplacements.ts`).
@@ -3052,8 +3068,9 @@ icon is `app/src/icones/barre-de-menus.png` and its `@2x`, cut from the app's ic
 
 #### With the app closed: the station's icon (#3631)
 
-When this computer runs the background station of [`installation-station.md`](installation-station.md) (its launchd
-agent `brigade.station` on a Mac, its launcher under `%LOCALAPPDATA%\brigade-station\` on Windows), the installed app
+When this computer runs the background station of [`installation-station.md`](installation-station.md) or the one the
+app registers itself (its launchd agent `brigade.station` on a Mac, its launcher under `%LOCALAPPDATA%\brigade-station\`
+or the app's `inscrite-par-l-app` mark there on Windows), the installed app
 hands the icon to a process of its own binary started with `--tray-fond`, which stays when the app closes. The app
 registers it at login on each opening — a launchd agent `~/Library/LaunchAgents/brigade.tray-fond.plist` on a Mac, the
 `brigade-tray` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows — and no longer puts its own
@@ -4413,9 +4430,9 @@ line says so:
 
 Closing the window quits the app, and quitting **stops all its terminals** — seconds and shells — and
 the readings in progress. Shells opened with `+ shell` only detach from it: their sessions hold,
-and they come back on the first click on their project (see above). **And this computer's station**: it runs with the
-app, so a project that cooks here stops cooking when the app closes (see "This computer is a station; a phone is a
-workstation"). Conversations, for their part, are kept by `claude`: on reopening,
+and they come back on the first click on their project (see above). **This computer's station does not stop**: it runs in the
+background, and a project that cooks here keeps cooking with the app closed (see "This computer is a station; a phone
+is a workstation"). Conversations, for their part, are kept by `claude`: on reopening,
 the first click on a project resumes its thread, and the line under the right-hand tabs tells you
 whether that worked.
 
@@ -4650,8 +4667,8 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
 
 - Prepare a box, or put the installation action on it: that is once per box, on it, by hand
   (`docs/installer.md`, "Prepare the box"). The app says what to do and where, it does not do it.
-- Start a service for you: this computer's station runs with the app, and a station on another machine is started
-  on that machine.
+- Start a service for you: this computer's station runs in the background, started at login or by the app when it
+  opens, and a station on another machine is started on that machine.
 - Know whether the result of `/brigade:init` is merged, or whether the session succeeded: you say
   so, and `installation` verifies it on the origin.
 - Fix what `installation` names — create the labels, protect the branch: it shows the arrow, the
