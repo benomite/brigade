@@ -41,6 +41,10 @@ export type Fin = {
   // Combien de fois ce qui a la forme d'identifiants de Claude a été masqué
   // dans ce qu'il a dit, flux et sortie d'erreur. Absent : jamais.
   masques?: number;
+  // Le cook a dit son résultat sans sortir — une tâche de fond le tenait — :
+  // le superviseur l'a terminé passé ce délai, en millisecondes, et sa fin est
+  // celle que son résultat dit (#3648). Absent : il est sorti seul.
+  apresResultatMs?: number;
 };
 
 export type OptionsSupervision = {
@@ -80,6 +84,14 @@ export type Supervise = {
   abandonner(): void;
   fin: Promise<Fin>;
 };
+
+// Ce qu'un cook qui a dit son résultat a pour sortir : `claude` rend la main en
+// quelques secondes une fois son résultat écrit. Au-delà, quelque chose le
+// tient — une commande ou un agent laissés en fond (#3648) — et il se tairait
+// jusqu'à la garde d'inactivité, son travail perdu. Toujours bien en deçà de
+// cette garde : le quart de son délai au plus.
+const FINITION_MS = 60_000;
+const delaiDeFinition = (plafonds: Pick<Plafonds, "idleMs">) => Math.min(FINITION_MS, Math.floor(plafonds.idleMs / 4));
 
 const nombre = (valeur: unknown) => (typeof valeur === "number" ? valeur : 0);
 
@@ -213,6 +225,38 @@ export function superviser(options: OptionsSupervision): Supervise {
     masquer: (texte) => masquerIdentifiants(options.masquer?.(texte) ?? texte).texte,
   });
 
+  // Le cook qui a dit son résultat rend son travail : il a `delaiDeFinition`
+  // pour sortir. Passé ce délai, il est terminé, et sa fin est celle que son
+  // résultat dit — 0 s'il réussit, 1 sinon, comme `claude` sort après lui. Le
+  // délai court tant que son dernier geste est ce résultat : un cook qui
+  // reprend la parole travaille, et la garde d'inactivité le veille à nouveau.
+  let finition: NodeJS.Timeout | undefined;
+  let resultatEnErreur = true;
+  let apresResultat: number | null = null;
+  const veillerLaFinition = (ligne: string) => {
+    if (lecteur.activite()?.doing !== "finishing") {
+      clearTimeout(finition);
+      finition = undefined;
+      return;
+    }
+    try {
+      const evenement = JSON.parse(ligne);
+      if (evenement?.type === "result") resultatEnErreur = evenement.is_error !== false;
+    } catch {
+      // Une ligne illisible ne change pas le résultat dit.
+    }
+    if (finition !== undefined || arret || mort) return;
+    const delai = delaiDeFinition(plafonds);
+    finition = setTimeout(() => {
+      if (arret || mort) return;
+      apresResultat = delai;
+      // Le cook n'est plus inactif : c'est le superviseur qui le termine.
+      clearTimeout(inactivite);
+      void signaler("SIGTERM");
+      grace = setTimeout(() => void signaler("SIGKILL"), options.graceMs);
+    }, delai);
+  };
+
   const lignes = createInterface({ input: enfant.stdout });
   let fluxLu = false;
   lignes.once("close", () => {
@@ -222,17 +266,23 @@ export function superviser(options: OptionsSupervision): Supervise {
     veiller();
     compter(ligne);
     lecteur.lire(ligne);
+    veillerLaFinition(ligne);
     const depasse = depassement(plafonds, compte);
     if (depasse) arreter(depasse);
   });
 
   const fin = new Promise<Fin>((resoudre) => {
-    const conclure = (code: number | null, signal: string | null, erreur: string | null) => {
+    const conclure = (sortie: number | null, signe: string | null, erreur: string | null) => {
       if (mort) return;
       mort = true;
       clearTimeout(duree);
       clearTimeout(inactivite);
       clearTimeout(grace);
+      clearTimeout(finition);
+      // Terminé après son résultat, sans qu'un garde-fou l'ait arrêté entre-temps : sa fin est ce résultat.
+      const termine = apresResultat !== null && arret === null && erreur === null;
+      const code = termine ? (resultatEnErreur ? 1 : 0) : sortie;
+      const signal = termine ? null : signe;
       // Rien ne survit à son cook : ce qui reste du groupe (un petit-enfant
       // sourd à SIGTERM, un serveur laissé en fond) est tué maintenant. Après
       // ce point, plus aucun signal ne part — le numéro du groupe peut être
@@ -245,7 +295,17 @@ export function superviser(options: OptionsSupervision): Supervise {
       let filet: NodeJS.Timeout | undefined;
       const rendre = () => {
         clearTimeout(filet);
-        resoudre({ code, signal, turns: compte.turns, tokens: compte.tokens, durationMs: ecoule(), arret, erreur, ...(masques === 0 ? {} : { masques }) });
+        resoudre({
+          code,
+          signal,
+          turns: compte.turns,
+          tokens: compte.tokens,
+          durationMs: ecoule(),
+          arret,
+          erreur,
+          ...(masques === 0 ? {} : { masques }),
+          ...(termine && apresResultat !== null ? { apresResultatMs: apresResultat } : {}),
+        });
       };
       const unDeMoins = () => {
         attendus -= 1;

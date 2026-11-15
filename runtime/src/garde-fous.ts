@@ -227,6 +227,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           ...(resultat.erreur === null ? {} : { error: resultat.erreur }),
           ...(cause === null ? {} : { cause }),
           ...(resultat.masques === undefined ? {} : { credentialsMasked: resultat.masques }),
+          ...(resultat.apresResultatMs === undefined ? {} : { endedAfterResultMs: resultat.apresResultatMs }),
         },
       });
       // Un disjoncteur ouvert par des calages se referme seul dès qu'un run
