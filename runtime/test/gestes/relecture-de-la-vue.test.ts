@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { FENETRE_DES_LECTURES_MS, ouvrirLecturesDesGestes, REPERTOIRE_DES_LECTURES } from "../../src/gestes/lectures-des-gestes.ts";
+import { ouvrirLecturesDesGestes } from "../../src/gestes/lectures-des-gestes.ts";
 import { ouvrirGitHubDuGeste } from "../../src/gestes/github-du-geste.ts";
 import type { Gardee } from "../../src/github.ts";
 import { appelsDeLaStation, direLesAppels, limiteDeLaStation } from "../../src/limite-github.ts";
@@ -16,6 +16,9 @@ import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, repertoireTempo
 
 const OUVERTES = `repos/${DEPOT}/issues?state=open&per_page=100`;
 const RELECTURES = 6;
+// La fenêtre des lectures gardées, et leur répertoire (gestes/lectures-des-gestes.ts).
+const FENETRE_MS = 15_000;
+const REPERTOIRE = "lectures-des-gestes";
 
 // Un projet dont le runtime a tourné, et la doublure de `gh` qu'il lit.
 function projet(t: TestContext) {
@@ -89,7 +92,7 @@ test("compté par la station : les relectures d'un geste restent sous la sorte `
   assert.equal(gh.appels().length, 1);
   assert.deepEqual(direLesAppels(appelsDeLaStation(station, instant) ?? assert.fail("no count")), ["1 calls in the last hour", "most calls: project brigade (1), kind gesture (1)"]);
 
-  instant += FENETRE_DES_LECTURES_MS;
+  instant += FENETRE_MS;
   assert.deepEqual(await relire(), [19]);
   assert.deepEqual(gh.appels().at(-1), ["api", "-i", "-H", 'If-None-Match: "v1"', OUVERTES]);
   assert.equal(appelsDeLaStation(station, instant)?.total, 1);
@@ -99,7 +102,7 @@ test("une lecture gardée illisible se lit comme absente : la relecture part ver
   const { gh, relire, repertoire } = projet(t);
   gh.repondre(OUVERTES, { etag: '"v1"', corps: [issueGitHub(19, { labels: [] })] });
   await relire();
-  const dossier = join(repertoire, REPERTOIRE_DES_LECTURES);
+  const dossier = join(repertoire, REPERTOIRE);
   for (const fichier of readdirSync(dossier).filter((nom) => nom.endsWith(".json"))) writeFileSync(join(dossier, fichier), "{ pas du JSON");
   gh.repondre(OUVERTES, { etag: '"v2"', corps: [issueGitHub(21, { labels: [] })] });
 

@@ -28,12 +28,12 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, wri
 import { join } from "node:path";
 import type { Gardee } from "../github.ts";
 
-export const REPERTOIRE_DES_LECTURES = "lectures-des-gestes";
+const REPERTOIRE_DES_LECTURES = "lectures-des-gestes";
 // Assez pour couvrir une rafale de relectures de la vue (un onglet, une fenêtre,
 // la veille de l'app), assez court pour qu'une écriture de la cuisine s'y voie vite.
-export const FENETRE_DES_LECTURES_MS = 15_000;
+const FENETRE_DES_LECTURES_MS = 15_000;
 // Au-delà, les lectures les plus anciennes sortent.
-export const LECTURES_GARDEES = 300;
+const LECTURES_GARDEES = 300;
 const VERSION = 1;
 // Le fichier qui dit l'instant de la dernière écriture d'un geste.
 const OUBLI = "oubli";
