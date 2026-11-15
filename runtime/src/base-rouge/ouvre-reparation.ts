@@ -222,9 +222,10 @@ export type OuvertureDeLaReparation = {
   // Pourquoi le ticket n'a pas pu être ouvert ou retrouvé : le tour suivant
   // réessaie, la base rouge n'en retient pas moins les merges.
   erreur?: string;
-  // Pourquoi l'occurrence n'a pas pu être consignée sur la réparation
-  // regroupée ; la réparation est rouverte, le tour suivant réessaie.
-  occurrence?: string;
+  // La consignation du rouge sur la réparation regroupée (occurrence, titre de
+  // la cause) : le tour la joue une fois la réparation dispatchée, et le tour
+  // suivant réessaie si elle échoue.
+  consigner?: () => Promise<void>;
 };
 
 export type OptionsDeLOuverture = {
@@ -237,7 +238,7 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
   // Cache, pas état : les rouges dont on sait déjà le ticket.
   const connus = new Map<string, number>();
   // Deux appels sur le même rouge : GitHub n'est lu qu'une fois.
-  const enCours = new Map<string, Promise<{ numero: number; occurrence?: string }>>();
+  const enCours = new Map<string, Promise<{ numero: number; consigner?: () => Promise<void> }>>();
 
   // Ce qui a échoué, avec la sortie de chaque check. Un journal illisible
   // n'empêche pas le ticket, sauf GitHub qui limite ses appels : le tour
@@ -259,7 +260,7 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
   };
 
   type Lue = Awaited<ReturnType<GitHubDeLaReparation["issuesDepuis"]>>[number];
-  const reparationDe = (sha: string, rouges: CheckDeLaBase[]): Promise<{ numero: number; occurrence?: string }> => {
+  const reparationDe = (sha: string, rouges: CheckDeLaBase[]): Promise<{ numero: number; consigner?: () => Promise<void> }> => {
     const connu = connus.get(sha);
     if (connu !== undefined) return Promise.resolve({ numero: connu });
     const deja = enCours.get(sha);
@@ -303,14 +304,13 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
           reprise = undefined;
         }
       }
-      const jour = jourDe(maintenant_);
-      const echecs = await echecsDe(rouges);
-      const ligne = ligneDOccurrence(sha, jour, identites, echecs);
       if (reprise !== undefined) {
         const retenue = reprise;
-        const reprises = retenue.number;
-        try {
-          if (github.ecrireCorps === undefined) throw new Error("this GitHub client cannot rewrite an issue");
+        // La consignation vient après la réparation : le tour la joue une fois
+        // celle-ci dispatchée, et un échec ne la retarde ni ne la retient.
+        const consigner = async () => {
+          const jour = jourDe(maintenant_);
+          const ligne = ligneDOccurrence(sha, jour, identites, await echecsDe(rouges));
           let corps = ajouteUneOccurrence(retenue.body, ligne);
           let titre: string | null = null;
           const repetees = identites.find((identite) => occurrencesDe(corps).filter((o) => o.jour >= coupure && o.checks.includes(identite)).length >= SEUIL_DE_REPETITION);
@@ -318,15 +318,19 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
             corps = corpsDeLaCause(base, repetees, corps);
             titre = titreDeLaCause(base, repetees);
           }
-          await github.ecrireCorps(reprises, corps);
-          if (titre !== null) await github.ecrireTitre?.(reprises, titre);
-        } catch (erreur) {
-          if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
-          return { numero: reprises, occurrence: erreur instanceof Error ? erreur.message : String(erreur) };
-        }
-        connus.set(sha, reprises);
-        return { numero: reprises };
+          if (github.ecrireCorps === undefined) throw new Error("this GitHub client cannot rewrite an issue");
+          // Le titre d'abord : s'il échoue, le corps ne dit pas encore la cause et le tour suivant réessaie les deux.
+          if (titre !== null) {
+            if (github.ecrireTitre === undefined) throw new Error("this GitHub client cannot rewrite an issue's title");
+            await github.ecrireTitre(retenue.number, titre);
+          }
+          await github.ecrireCorps(retenue.number, corps);
+          connus.set(sha, retenue.number);
+        };
+        return { numero: retenue.number, consigner };
       }
+      const echecs = await echecsDe(rouges);
+      const ligne = ligneDOccurrence(sha, jourDe(maintenant_), identites, echecs);
       const creee = await github.creerIssue({ titre: titreDeLaReparation(base, sha, echecs), corps: corpsDeLaReparation(base, sha, echecs, ligne), labels: LABELS_REPARATION });
       // Deux stations qui ont vu le rouge ensemble en ont chacune ouvert une :
       // la plus ancienne reste, l'autre se ferme.
@@ -348,8 +352,8 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
     const rouges = checks.filter((check) => check.outcome === "red");
     const sha = await github.teteDeLaBase();
     try {
-      const { numero, occurrence } = await reparationDe(sha, rouges);
-      return { sha, reparation: numero, ...(occurrence === undefined ? {} : { occurrence }) };
+      const { numero, consigner } = await reparationDe(sha, rouges);
+      return { sha, reparation: numero, ...(consigner === undefined ? {} : { consigner }) };
     } catch (erreur) {
       return { sha, reparation: null, erreur: erreur instanceof Error ? erreur.message : String(erreur) };
     }

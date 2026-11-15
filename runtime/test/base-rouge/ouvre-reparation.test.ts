@@ -145,7 +145,9 @@ test("a new red commit on a check with no recent occurrence gets its own ticket"
 const rougeLe = async (depot: FauxDepot, ouvrir: ReturnType<typeof ouvreReparation>, jour: string, sha: string, checks: CheckDeLaBase[]) => {
   depot.maintenant = new Date(`${jour}T10:00:00Z`);
   depot.tete = sha.repeat(40);
-  return ouvrir(checks);
+  const ouverture = await ouvrir(checks);
+  await ouverture.consigner?.();
+  return ouverture;
 };
 
 test("a shard suffix is not part of a check's identity", () => {
@@ -254,12 +256,13 @@ test("a reopening that fails still opens the repair as before; a failed write is
   const gh = autre.github();
   const ouvrir2 = ouvreReparation({ github: { ...gh, ecrireCorps: async (n, c) => (casse ? Promise.reject(new Error("HTTP 502")) : gh.ecrireCorps?.(n, c)) }, base: "main", maintenant: () => autre.maintenant });
   await rougeLe(autre, ouvrir2, "2026-11-01", "a", rouge);
-  const echec = await rougeLe(autre, ouvrir2, "2026-11-02", "b", rouge);
+  autre.maintenant = new Date("2026-11-02T10:00:00Z");
+  autre.tete = "b".repeat(40);
+  const echec = await ouvrir2(rouge);
   assert.equal(echec.reparation, 100);
-  assert.match(echec.occurrence ?? "", /502/);
+  await assert.rejects(() => echec.consigner?.() ?? Promise.resolve(), /502/);
   casse = false;
-  const repris = await rougeLe(autre, ouvrir2, "2026-11-02", "b", rouge);
-  assert.equal(repris.occurrence, undefined);
+  await rougeLe(autre, ouvrir2, "2026-11-02", "b", rouge);
   assert.ok(autre.issues[0]?.corps.includes("`bbbbbbb`"));
 });
 
@@ -363,4 +366,24 @@ test("an error output carrying backticks stays inside its code block", async () 
   depot.journaux.set("tests", "```\nnot ok\n##[error]exit 1");
   await ouvreReparation({ github: depot.github(), base: "main" })([{ name: "tests", outcome: "red", url: job(1, 1) }]);
   assert.match(depot.issues[0]?.corps ?? "", /````\n```\nnot ok\n##\[error\]exit 1\n````/);
+});
+
+test("a red commit on a known check is dispatched before anything is read or written for its occurrence", async () => {
+  const depot = new FauxDepot();
+  const github = depot.github();
+  const rouge: CheckDeLaBase[] = [{ name: "windows app tests", outcome: "red" }];
+  await rougeLe(depot, ouvreReparation({ github, base: "main", maintenant: () => depot.maintenant }), "2026-11-01", "a", rouge);
+  (depot.issues[0] as Issue).state = "closed";
+  depot.journauxLus.length = 0;
+  depot.ordre.length = 0;
+  // Ni le journal ni l'écriture ne répondent : la réparation n'en attend aucun.
+  const ouvrir = ouvreReparation({ github: { ...github, journalDuCheck: () => new Promise(() => {}), ecrireCorps: () => new Promise(() => {}) }, base: "main", maintenant: () => depot.maintenant });
+  depot.maintenant = new Date("2026-11-03T10:00:00Z");
+  depot.tete = "b".repeat(40);
+  const ouverture = await ouvrir(rouge);
+  assert.equal(ouverture.reparation, 100);
+  assert.equal((depot.issues[0] as Issue).state, "open");
+  assert.deepEqual(depot.ordre, ["rouvrir #100"]);
+  assert.equal(depot.journauxLus.length, 0);
+  assert.equal(typeof ouverture.consigner, "function");
 });
