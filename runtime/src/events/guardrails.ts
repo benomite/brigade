@@ -109,6 +109,11 @@ export type FaitGardeFous =
         // How many times what has the shape of Claude credentials was masked
         // in its raw stream and its error output. Absent: never.
         credentialsMasked?: number;
+        // The cook wrote its result but did not exit — a background task held
+        // it: brigade ended it after this wait, in milliseconds, well before
+        // the inactivity guard, and its end is the one its result says (#3648).
+        // Absent: it exited by itself.
+        endedAfterResultMs?: number;
       };
     }
   // Written at startup for a launch with no end: the cook died with the

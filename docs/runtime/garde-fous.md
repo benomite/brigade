@@ -14,6 +14,13 @@ returns no line is tried again on the next round, unless PowerShell is missing o
 that still lives at its exit is killed too. **An open breaker and the "stop" both hold**, restarts
 included, until "resume".
 
+A cook that **wrote its result but does not exit** (`claude` held by a background command or
+agent; its activity stays `finishing`) gets a quarter of the idle delay, at most a minute, to exit
+(#3648, `runtime/src/superviseur.ts`). Past it, it is stopped like any cook, and its end is the one
+its result says — exit code 0 if it succeeded, 1 otherwise —, so a station delivers its work
+instead of the idle guardrail killing it. `cook.exited` carries `endedAfterResultMs`. A cook that
+speaks again after its result is working: the idle guardrail watches it as before.
+
 ### Stalled runs
 
 A run the idle guardrail stops **having never started** (0 turns, 0 tokens) or **hung on a command
@@ -169,7 +176,7 @@ Every stop is in the ticket's log: `npm --prefix runtime run log -- <ticket>`.
 | `cook.launched` | A cook leaves: calibration (`model`, `effort`), station, branch, caps, raw stream (`runs/<run>.jsonl`; errors in `.stderr`) |
 | `cook.progressed` | The cook's reading at each tick: `turns`, `tokens`, `activity` (below) |
 | `guard.tripped` | A guardrail stops it. `reason`: `duration`, `tokens`, `idle`, `lease` or `stop`; `limit`, `observed` |
-| `cook.exited` | Process dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `credentialsMasked`: times Claude's credentials were masked in its stream and errors ([`identites-et-secrets.md`](identites-et-secrets.md)) |
+| `cook.exited` | Process dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `endedAfterResultMs`: it wrote its result without exiting and was ended after that wait (#3648); `credentialsMasked`: times Claude's credentials were masked in its stream and errors ([`identites-et-secrets.md`](identites-et-secrets.md)) |
 | `cook.interrupted` | The runtime stopped while the cook ran: it died with it |
 | `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | The breaker opens; "stop", "resume" (off any ticket) |
 
