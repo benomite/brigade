@@ -18,7 +18,7 @@
 //
 // Ce que la station dit s'écrit tel quel dans le terminal qui a lancé l'app.
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { arreterLaSurvivante, laisserSurvivre, reprendreLaSurvivante } from "../mise-a-jour-fond/survie.ts";
@@ -187,8 +187,10 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
       return plusTard(lancer, reessaiMs);
     }
     tenant = undefined;
+    const marquee = existsSync(join(racine, "survit-a-l-app"));
     const survivante = reprendreLaSurvivante(racine);
     if (survivante !== undefined) return reprendre(survivante);
+    if (marquee) dire("brigade: a station was left running for the app update but could not be confirmed as the station — not taken back, a new one starts");
     if (options.avantLancement === undefined) return demarrer();
     // La marque de l'app est posée : une seconde app n'ouvre pas la station pendant ce temps.
     void options.avantLancement().catch(() => {}).then(() => {
@@ -276,7 +278,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
       for (const lever of [...attentes]) lever();
       if (arret?.laisser === true) {
         // L'app se ferme pour sa mise à jour : la station et ses cooks continuent, la marque la garde en vie.
-        if (enfant !== undefined) laisserSurvivre(racine);
+        if (enfant !== undefined || reprise !== undefined) laisserSurvivre(racine);
         etat = "arretee";
         reprise = undefined;
         signaler();

@@ -78,6 +78,30 @@ test("l'app fermée pour sa mise à jour laisse la station en route ; l'app rouv
   assert.equal(vivant(pid), false);
 });
 
+test("deux mises à jour de l'app de suite : la station reprise reste en route, et la troisième app la reprend encore", { skip: SANS_POSIX }, async (t) => {
+  const machine = repertoireTemporaire(t);
+  const racine = join(machine, "station");
+  const principal = join(machine, "runtime", "src", "station", "main.ts");
+  mkdirSync(join(machine, "runtime", "src", "station"), { recursive: true });
+  writeFileSync(principal, STATION);
+  const enService = () => JSON.parse(readFileSync(join(racine, "en-service"), "utf8")) as { pid: number };
+
+  const premiere = ouvrir(t, racine, principal, 900_011);
+  await jusqua(() => premiere.dit().includes("en service"));
+  const pid = enService().pid;
+  await premiere.tenue.arreter({ laisser: true });
+  const seconde = ouvrir(t, racine, principal, 900_012);
+  await jusqua(() => seconde.dit().includes("kept running while the app updated"));
+  // La seconde app, qui n'a que la station reprise, se ferme à son tour pour une mise à jour.
+  await seconde.tenue.arreter({ laisser: true });
+  assert.equal(vivant(pid), true);
+  const troisieme = ouvrir(t, racine, principal, 900_013);
+  await jusqua(() => troisieme.dit().includes("kept running while the app updated"));
+  assert.equal(enService().pid, pid);
+  await troisieme.tenue.arreter();
+  assert.equal(vivant(pid), false);
+});
+
 test("sans marque, ou sans station vivante derrière elle, rien n'est repris — et la marque se lève", (t: TestContext) => {
   const racine = repertoireTemporaire(t);
   assert.equal(reprendreLaSurvivante(racine, () => true), undefined);
