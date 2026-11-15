@@ -369,10 +369,10 @@ export function jugementDe(rendu: RenduDeBox, delaiMs: number, cuisine?: Cuisine
 
 const sansBox = (nom: string) => `“${nom}” does not say where its station is: there is nothing to install there.`;
 
-// Ce que « Démarrer » écrit pour ce projet : rien. La station de cet ordinateur tourne avec l'app, aucun
+// Ce que « Démarrer » écrit pour ce projet : rien. La station de cet ordinateur tourne en fond (#3630), aucun
 // service n'y est à démarrer.
 export function commandeDeDemarrage(_projet: Projet): { refus: string } {
-  return { refus: "nothing is written: this computer's station runs with the app — there is no service to start" };
+  return { refus: "nothing is written: this computer's station runs in the background, started at login or by the app — there is no service to start" };
 }
 
 // Ce que le contrôle d'un projet installé a lu sur sa box. `a` : l'instant où il a fini.
@@ -1058,7 +1058,7 @@ export function tenirServices(options: {
       });
     },
 
-    // « Démarrer » : la station de cet ordinateur tourne avec l'app, aucun service n'y est à démarrer.
+    // « Démarrer » : la station de cet ordinateur tourne en fond (#3630), aucun service n'y est à démarrer.
     demarrer(projet: Projet): Promise<Terminal | { refus: string }> {
       return Promise.resolve(commandeDeDemarrage(projet));
     },

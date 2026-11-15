@@ -1,24 +1,24 @@
-// La station de l'ordinateur, tenue par l'app : installer l'app, c'est installer la station de la
-// machine. L'app la lance comme le système lance celle d'un serveur — le même point d'entrée
+// La station de l'ordinateur, tenue par un process : installer l'app, c'est installer la station de la
+// machine. Elle est lancée comme le système lance celle d'un serveur — le même point d'entrée
 // (runtime/src/station/main.ts), le même répertoire tenu (`BRIGADE_STATION_DIR`), la même
-// configuration des projets, la même présence sur GitHub —, et rien d'autre ne change.
+// configuration des projets, la même présence sur GitHub —, et rien d'autre ne change. Ce qui la tient
+// est la station de fond (station-fond/hote.ts, #3630), qui ne dépend pas de l'app.
 //
-// - **Elle vit avec l'app.** L'app ouverte, la station tourne ; l'app fermée, ou tuée, son entrée
-//   se ferme et elle s'arrête comme sur un SIGTERM (poste/enveloppe.ts) : ses projets s'arrêtent,
-//   et GitHub porte l'heure de son arrêt. Morte d'elle-même, elle est relancée cinq secondes plus
-//   tard — sauf si elle a refusé de démarrer (code 2) : réessayer ne changerait rien. C'est ce que
-//   fait systemd pour celle d'un serveur.
-// - **Elle s'appaire seule.** La station affiche son code dans son journal, comme sur un serveur ;
-//   l'app, qui le lit, le tape à la place du chef, par le geste du champ de la home
-//   (stations/stations.ts). Refusé — GitHub ne montre pas encore son gist —, il est retapé toutes
-//   les trente secondes, tant qu'il est le code affiché.
-// - **Une seule par machine et par compte.** Le répertoire de la station porte le pid de l'app qui
-//   la tient (`app.pid`) : une deuxième app ouverte ne lance pas une deuxième station, et le dit ;
-//   elle la reprend si la première se ferme.
+// - **Elle vit avec ce qui la tient.** Son entrée fermée — l'hôte arrêté, ou tué —, elle s'arrête
+//   comme sur un SIGTERM (poste/enveloppe.ts) : ses projets s'arrêtent, et GitHub porte l'heure de
+//   son arrêt. Morte d'elle-même, elle est relancée cinq secondes plus tard — sauf si elle a refusé
+//   de démarrer (code 2) : réessayer ne changerait rien. C'est ce que fait systemd pour celle d'un serveur.
+// - **Elle s'appaire.** La station affiche son code dans son journal, comme sur un serveur ; ce qui la
+//   tient le lit et le fait taper par le geste du champ de la home (stations/stations.ts, par l'app :
+//   station-fond/fond.ts). Refusé — GitHub ne montre pas encore son gist —, il est retapé à chaque
+//   essai, tant qu'il est le code affiché.
+// - **Une seule par machine et par compte.** Le répertoire de la station porte le pid du process qui
+//   la tient (`app.pid`) : un second ne lance pas une deuxième station, et le dit.
 //
-// Ce que la station dit s'écrit tel quel dans le terminal qui a lancé l'app.
+// Ce que la station dit passe par `dire` : le journal de la station de fond.
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { uptime } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { arreterLaSurvivante, laisserSurvivre, reprendreLaSurvivante } from "../mise-a-jour-fond/survie.ts";
@@ -79,12 +79,66 @@ function vivant(pid: number): boolean {
   }
 }
 
+// La marque `tenue` nomme-t-elle encore le process `lu` ? Il vit, et elle a été écrite depuis le démarrage du système :
+// celle d'avant un redémarrage, ou une coupure, nomme un pid que le système a pu redonner à un tout autre process. La
+// marge couvre l'arrondi de `uptime()`, en secondes.
+function marqueVivante(tenue: string, lu: number): boolean {
+  if (!Number.isInteger(lu) || lu <= 0 || !vivant(lu)) return false;
+  try {
+    return statSync(tenue).mtimeMs >= Date.now() - uptime() * 1000 - 2_000;
+  } catch {
+    return false;
+  }
+}
+
+// Prend la station de ce répertoire pour le process `pid`, ou rend le pid de celui qui la tient déjà. Une marque laissée
+// par un process mort, ou d'avant le démarrage du système, ne tient plus rien : elle est reprise.
+export function prendreLaStation(racine: string, pid: number): number | undefined {
+  const tenue = join(racine, TENUE_PAR);
+  mkdirSync(racine, { recursive: true });
+  for (let essai = 0; essai < 2; essai++) {
+    try {
+      writeFileSync(tenue, `${pid}\n`, { flag: "wx" });
+      return undefined;
+    } catch (erreur) {
+      if ((erreur as NodeJS.ErrnoException).code !== "EEXIST") throw erreur;
+    }
+    const lu = Number.parseInt(readFileSync(tenue, "utf8"), 10);
+    if (lu === pid) return undefined;
+    if (marqueVivante(tenue, lu)) return lu;
+    // Un process parti sans rendre la station : sa marque ne tient plus rien.
+    rmSync(tenue, { force: true });
+  }
+  return undefined;
+}
+
+// Le pid du process vivant qui tient la station de ce répertoire, sans la prendre : aucun quand la marque manque, ne se
+// lit pas, nomme un process mort, ou date d'avant le démarrage du système.
+export function tenantDeLaStation(racine: string): number | undefined {
+  const tenue = join(racine, TENUE_PAR);
+  try {
+    const lu = Number.parseInt(readFileSync(tenue, "utf8"), 10);
+    return marqueVivante(tenue, lu) ? lu : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Rend la station de ce répertoire, si c'est bien le process `pid` qui la tient : celle d'un autre n'est pas touchée.
+export function rendreLaStation(racine: string, pid: number): void {
+  const tenue = join(racine, TENUE_PAR);
+  try {
+    if (Number.parseInt(readFileSync(tenue, "utf8"), 10) === pid) rmSync(tenue, { force: true });
+  } catch {
+    // Déjà rendue.
+  }
+}
+
 export function tenirStationLocale(options: OptionsStationLocale): StationLocale {
   const { racine, dire } = options;
   const pid = options.pid ?? process.pid;
   const relanceMs = options.relanceMs ?? 5_000;
   const reessaiMs = options.reessaiMs ?? 30_000;
-  const tenue = join(racine, TENUE_PAR);
   let etat: EtatStationLocale = "arretee";
   let enfant: ChildProcess | undefined;
   let fin: Promise<void> = Promise.resolve();
@@ -110,31 +164,8 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
       attentes.add(lever);
     });
 
-  // Prend la station pour cette app, ou rend le pid de l'app qui la tient déjà.
-  const prendre = (): number | undefined => {
-    mkdirSync(racine, { recursive: true });
-    for (let essai = 0; essai < 2; essai++) {
-      try {
-        writeFileSync(tenue, `${pid}\n`, { flag: "wx" });
-        return undefined;
-      } catch (erreur) {
-        if ((erreur as NodeJS.ErrnoException).code !== "EEXIST") throw erreur;
-      }
-      const lu = Number.parseInt(readFileSync(tenue, "utf8"), 10);
-      if (lu === pid) return undefined;
-      if (Number.isInteger(lu) && lu > 0 && vivant(lu)) return lu;
-      // Une app partie sans rendre la station : sa marque ne tient plus rien.
-      rmSync(tenue, { force: true });
-    }
-    return undefined;
-  };
-  const rendre = () => {
-    try {
-      if (Number.parseInt(readFileSync(tenue, "utf8"), 10) === pid) rmSync(tenue, { force: true });
-    } catch {
-      // Déjà rendue.
-    }
-  };
+  const prendre = () => prendreLaStation(racine, pid);
+  const rendre = () => rendreLaStation(racine, pid);
 
   const tourne = () => enfant !== undefined || reprise !== undefined || etat === "tenue-ailleurs";
   let dit = false;

@@ -1,7 +1,7 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
 import { appendFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuDeLApp } from "./aide-communaute.ts";
@@ -9,7 +9,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, p
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
 import { ICONE_DE_LA_BARRE, pastillee } from "./tray-fond/icone.ts";
-import { stationDeFondInstallee } from "./tray-fond/systeme.ts";
+import { executer, stationDeFondInstallee } from "./tray-fond/systeme.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
 import { lireFeu } from "./feu.ts";
@@ -93,8 +93,9 @@ import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
 import { roleDe } from "./poste/role.ts";
 import { ceQueFournitCetOrdinateur } from "./stations/fournit.ts";
-import { environnementDeLaStation, tenirProcessDeStation } from "./station-process/superviseur.ts";
-import { garderUneSeuleCuisine } from "./station-embarquee-cuisine-unique.ts";
+import { tenirLaStationDeFond } from "./station-fond/attache.ts";
+import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
+import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
@@ -724,35 +725,22 @@ async function tenirCeQueFournitCetOrdinateur(vu: VuDesStations): Promise<void> 
     console.error(`brigade: what this computer's station provides could not be written on GitHub — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
 }
-// Sur un ordinateur, l'app est une station (`role`) : elle lance celle de la machine — la même
-// que celle d'un serveur —, sous `station/` à côté du fichier des projets, et l'appaire seule,
-// par le geste du champ de la home (poste/station.ts). Ce que la station dit s'écrit dans le
-// terminal qui a lancé l'app.
+// Sur un ordinateur, l'app est une station (`role`) : la station de la machine — la même que celle d'un serveur —, sous
+// `station/` à côté du fichier des projets, tourne en fond, sans dépendre de l'app (station-fond/, #3630). L'app
+// installée l'inscrit à l'ouverture de session ; ouverte, elle la rejoint si elle tourne, la lance sinon, et l'appaire
+// seule, par le geste du champ de la home. Ce que la station dit va à son journal (`station/fond.log`).
 const stationLocale =
   role.role === "station" && !installeeAuLancement
-    ? tenirProcessDeStation({
-        // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
-        node: emplacements.node,
-        // La station de départ est celle du paquet ; une release que sa mise à jour a téléchargée la remplace seule (#2287).
-        embarque: role.principal,
-        versions: join(racineDeLaStation, "station-update", "releases"),
-        dossierDuRuntime: (version) => join(racineDeLaStation, "station-update", "releases", version, "runtime"),
+    ? tenirLaStationDeFond({
         racine: racineDeLaStation,
-        // La station se met à jour d'elle-même (#2189) et laisse l'app la relancer : `app`.
-        env: environnementDeLaStation(process.env),
+        inscrire: async () =>
+          emplacements.facon === "installee"
+            ? inscrireLaStationDeFond({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer, node: emplacements.node, hote: HOTE, racine: racineDeLaStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath })
+            : { par: "aucune" },
+        // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
+        lancer: () => lancerLeFond({ node: emplacements.node, embarque: role.principal, racine: racineDeLaStation, env: process.env }),
         dire: (ligne) => console.error(ligne),
         appairer: async (code) => stations.appairer(code, await ceQueFournitIci()),
-        // Un projet qu'une autre station sert déjà n'ouvre pas de seconde cuisine ici (#2110).
-        avantLancement: () =>
-          garderUneSeuleCuisine({
-            racine: racineDeLaStation,
-            lire: async () => {
-              const { lireLesStationsDuChef } = (await import(pathToFileURL(join(emplacements.runtime, "src", "appairage", "stations-du-chef.ts")).href)) as typeof import("../../runtime/src/appairage/stations-du-chef.ts");
-              return lireLesStationsDuChef({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env });
-            },
-            soi: () => ({ gist: gistLocal(racineDeLaStation), nom: process.env.BRIGADE_STATION_NOM ?? "" }),
-            dire: (ligne) => console.error(ligne),
-          }),
         // Lancée ou arrêtée : la page d'un projet qui cuit ici le dit, ou cesse de le dire.
         surChangement: () => dire("configuration", affichee(), []),
       })
@@ -1990,9 +1978,18 @@ app.on("will-quit", () => {
   clearInterval(verificationsDeVersion);
   stations.fermer();
   clearInterval(controles);
-  // La station de l'ordinateur s'arrête avec l'app, et écrit sur GitHub l'heure de son arrêt.
-  // Sauf pour la mise à jour de l'app : sous Windows, l'installeur remplace l'exécutable que la station joue, elle s'arrête.
-  void stationLocale?.arreter({ laisser: quitterPourMiseAJour && plateforme !== "win32" });
+  // La station de l'ordinateur ne s'arrête pas avec l'app (#3630) : l'app cesse seulement de la regarder, même pour
+  // sa mise à jour. Sauf sous Windows, où l'installeur remplace le `node` que la station de fond joue (#3632) : son hôte
+  // est arrêté, la station avec lui (son entrée fermée), et l'app rouverte la relance.
+  const hoteDuFond = quitterPourMiseAJour && plateforme === "win32" ? stationLocale?.pid() : undefined;
+  stationLocale?.fermer();
+  if (hoteDuFond !== undefined) {
+    try {
+      process.kill(hoteDuFond);
+    } catch (erreur) {
+      console.error(`brigade: the background station (pid ${hoteDuFond}) could not be stopped for the app update — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  }
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir. Et le retard des clones : il
