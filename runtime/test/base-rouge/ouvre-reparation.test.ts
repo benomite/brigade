@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { Check } from "../../src/events/pass.ts";
 import { LimiteGitHubAtteinte } from "../../src/limite-github.ts";
 import { marqueDeReparation } from "../../src/reparation.ts";
-import { estUneReparation, identiteDuCheck, LABEL_CAUSE_CORRIGEE, LIGNES_MAX, marqueDeBaseRouge, ouvreReparation, shaDeBaseRouge, sortieDErreur, type CheckDeLaBase, type GitHubDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
+import { estUneReparation, LABEL_CAUSE_CORRIGEE, LIGNES_MAX, marqueDeBaseRouge, ouvreReparation, shaDeBaseRouge, sortieDErreur, type CheckDeLaBase, type GitHubDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
 
 type Issue = { number: number; titre: string; corps: string; labels: string[]; state: "open" | "closed"; association: string };
 
@@ -150,11 +150,13 @@ const rougeLe = async (depot: FauxDepot, ouvrir: ReturnType<typeof ouvreReparati
   return ouverture;
 };
 
-test("a shard suffix is not part of a check's identity", () => {
-  assert.equal(identiteDuCheck("windows tests (1/8)"), "windows tests");
-  assert.equal(identiteDuCheck("windows tests (5/8)"), "windows tests");
-  assert.equal(identiteDuCheck("windows app tests"), "windows app tests");
-  assert.equal(identiteDuCheck("tests (ubuntu)"), "tests (ubuntu)");
+test("a shard suffix is not part of a check's identity: 'windows app tests' and 'windows tests' stay apart", async () => {
+  const depot = new FauxDepot();
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  await rougeLe(depot, ouvrir, "2026-11-01", "a", [{ name: "windows tests (1/8)", outcome: "red" }]);
+  await rougeLe(depot, ouvrir, "2026-11-02", "b", [{ name: "windows app tests", outcome: "red" }]);
+  await rougeLe(depot, ouvrir, "2026-11-03", "c", [{ name: "tests (ubuntu)", outcome: "red" }]);
+  assert.equal(depot.issues.length, 3);
 });
 
 test("three red commits on 'windows app tests' within 14 days: one issue, three occurrences, a goal on the cause", async () => {

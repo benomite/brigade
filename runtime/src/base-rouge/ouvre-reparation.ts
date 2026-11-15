@@ -74,7 +74,7 @@ const MARQUE_CAUSE = "<!-- brigade:base-rouge-cause -->";
 export const viseLaCause = (corps: string): boolean => corps.includes(MARQUE_CAUSE);
 
 // L'identité d'un check : son nom sans le suffixe de shard ` (n/N)`.
-export const identiteDuCheck = (nom: string): string => nom.replace(/ \(\d+\/\d+\)$/, "");
+const identiteDuCheck = (nom: string): string => nom.replace(/ \(\d+\/\d+\)$/, "");
 
 const ENTETE_OCCURRENCES = "## Occurrences";
 // Une ligne par commit rouge : sha court, date, checks (identités), erreur.
