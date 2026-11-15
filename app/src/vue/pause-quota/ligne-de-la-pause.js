@@ -3,7 +3,7 @@
 // compte, en tête de l'app — au-dessus de l'accueil comme d'un projet, au bureau comme sur le téléphone —, d'une couleur
 // calme, avec une horloge : quelle limite, la reprise et dans combien de temps, et qu'il n'y a rien à faire. Le compte à
 // rebours bouge, et la ligne tombe d'elle-même à la reprise. Chaque projet dit seulement qu'il est en pause pour la même
-// raison : ni FAULT, ni « offline », ni « Start the station » — sauf la panne qui ne vient pas de la pause (aucune station ne
+// raison : ni FAULT, ni « offline », ni « Start it on its computer » — sauf la panne qui ne vient pas de la pause (aucune station ne
 // le sert, ou la sienne est vraiment arrêtée), qui garde sa ligne et son geste.
 // La pause vient de `facts` (`pauseQuota`, pause-quota.ts) ; ce module ne touche ni `document` ni l'horloge : il reçoit une
 // fabrique, l'élément de tête et l'instant.
@@ -132,10 +132,17 @@ export function tenirLaPause(element, doc, options) {
 /** @typedef {{ raison: string }} AttenteVue */
 /**
  * @template {RailBloqueVu} R @template {AttenteVue} A
- * @param {{ pauseQuota?: PauseDuCompte, railBloque?: R, attenteDuRail?: A }} tableau @param {number} maintenant
+ * `redemarre` : la station de cet ordinateur redémarre pour une mise à jour (ticket 3637) : « arrêtée » et « hors ligne » ne sont pas
+ * des pannes, aucune alerte ne demande rien au chef — le projet le dit par « restarting » (onglet Stations).
+ * @param {{ pauseQuota?: PauseDuCompte, railBloque?: R, attenteDuRail?: A }} tableau @param {number} maintenant @param {boolean} [redemarre]
  * @returns {{ railBloque?: R, attenteDuRail?: A, enPause: boolean }}
  */
-export function ceQueLeRailDit({ pauseQuota, railBloque, attenteDuRail }, maintenant) {
+export function ceQueLeRailDit({ pauseQuota, railBloque, attenteDuRail }, maintenant, redemarre = false) {
+  if (redemarre) {
+    const relance = (/** @type {string} */ cause) => cause === "arretee" || cause === "hors-ligne";
+    railBloque = railBloque !== undefined && "cause" in railBloque && relance(railBloque.cause) ? undefined : railBloque;
+    attenteDuRail = attenteDuRail !== undefined && relance(attenteDuRail.raison) ? undefined : attenteDuRail;
+  }
   if (!enCours(pauseQuota, maintenant)) return { railBloque, attenteDuRail, enPause: false };
   const horsPause = (/** @type {string} */ raison) => PANNES_HORS_PAUSE.includes(raison);
   const bloque = railBloque !== undefined && ("illisible" in railBloque || horsPause(railBloque.cause)) ? railBloque : undefined;

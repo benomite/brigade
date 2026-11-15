@@ -23,7 +23,7 @@ export type CauseDeRetenue =
   | { kind: "base-red"; sha: string | null; checks: string[] }
   | { kind: "github-limit"; limit: string | null; backAt: string; refusedAt?: string; pauses?: PausesDeLaCause }
   | { kind: "write-pacer"; writes: number; nextAt: string }
-  | { kind: "breaker"; since: string }
+  | { kind: "breaker"; since: string; station?: string }
   | { kind: "ci-wait"; tickets: number[]; running: string[] }
   | { kind: "tickets"; lines: string[] }
   | { kind: "unknown" };

@@ -3,6 +3,10 @@
 // lève quand il y en a un.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { Fait } from "../../src/evenements.ts";
+import { ouvrirJournal } from "../../src/journal.ts";
+import { signauxDuJournal } from "../../src/retenue/brancher.ts";
+import { repertoireTemporaire } from "../outils.ts";
 import { cleDeCause, detecterRetenue, diagnostiquer, direRetenue, direRetenueEn, GESTE_DE_LA_BASE, GESTE_DE_LA_CI, GESTE_DU_DISJONCTEUR, RETENUE_APRES_MS, SANS_SIGNAL, type Observation, type Signaux } from "../../src/retenue/retenue.ts";
 
 const A = (hhmmss: string) => `2026-11-04T${hhmmss}.000Z`;
@@ -116,4 +120,23 @@ test("au-delà de cinq tickets, la ligne en nomme cinq et compte les autres", ()
   const retenue = detecterRetenue({ ...OBSERVATION, enAttente: [1, 2, 3, 4, 5, 6, 7] }, SANS_SIGNAL, MAINTENANT);
   assert.match(direRetenueEn(retenue!), /while 7 tickets wait \(#1, #2, #3, #4, #5 \+2\)/);
   assert.match(direRetenueEn({ ...retenue!, tickets: [9] }), /while 1 ticket waits \(#9\)/);
+});
+
+test("cause : la station retenue par le disjoncteur le dit, avec son nom, au lieu d'une cause inconnue", () => {
+  const retenue = detecterRetenue(OBSERVATION, signaux({ disjoncteurDeStation: { station: "box/claude", since: A("02:00:00") } }), MAINTENANT);
+  assert.deepEqual(retenue?.cause, { kind: "breaker", since: A("02:00:00"), station: "box/claude" });
+  assert.match(direRetenueEn(retenue!), /cause: the breaker of station box\/claude is open since \d\d:\d\d, no cook leaves/);
+  assert.doesNotMatch(direRetenueEn(retenue!), /cause unknown/);
+});
+
+test("le journal d'une station retenue par `breaker` donne le signal de la file, disjoncteur du projet fermé", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  t.after(() => journal.fermer());
+  const noter = (fait: Fait) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...fait });
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 2 } } as Fait);
+  assert.equal(signauxDuJournal(journal.base).disjoncteurDeStation, null);
+  noter({ type: "station.held", payload: { station: "box/claude", reason: "breaker" } } as Fait);
+  const { disjoncteur, disjoncteurDeStation } = signauxDuJournal(journal.base);
+  assert.equal(disjoncteur, null);
+  assert.equal(disjoncteurDeStation?.station, "box/claude");
 });

@@ -24,6 +24,7 @@ import { calageDuDisjoncteur, direLeCalage, type Calage } from "./breaker/calage
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Base } from "./base.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type ReponseHttp } from "./limite-github.ts";
+import { stationRetenueParLeDisjoncteur } from "./projections/stations.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/guardrails.ts";
 import type { CauseReveil, Runtime } from "./runtime.ts";
 import { decouper } from "./github.ts";
@@ -143,6 +144,8 @@ const cleDe = (disjoncteur: Disjoncteur) => (disjoncteur.ouvert ? `ouvert ${disj
 
 export type OptionsDuDisjoncteur = {
   client: ClientDuDisjoncteur;
+  // La station qui sert le projet : tant que le journal la dit retenue par le disjoncteur, la cuisine n'est pas dite reprise.
+  station?: string | null;
   // Où se dit un échec de publication ; par défaut, la sortie d'erreur.
   avertir?: (ligne: string) => void;
 };
@@ -174,6 +177,8 @@ export function publieurDuDisjoncteur(base: Base, projet: string, options: Optio
     // Après un échec, seul le tick rejoue : pas un appel à GitHub par écriture du journal.
     if (echec !== null && cause !== "tick") return Promise.resolve();
     const voulu = disjoncteurDuJournal(base);
+    // Le disjoncteur fermé ici ne dit rien de celui de la station qui sert le projet.
+    if (!voulu.ouvert && options.station != null && stationRetenueParLeDisjoncteur(base, [options.station]) !== null) return Promise.resolve();
     const cle = cleDe(voulu);
     if (cle === publiee) return Promise.resolve();
     const courante = publierLeDisjoncteur(options.client, projet, voulu).then(

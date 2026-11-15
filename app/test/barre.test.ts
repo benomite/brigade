@@ -54,4 +54,17 @@ describe("la barre d'icônes", () => {
       { nom: "parade", dossier: "/projets/parade", etiquette: "PA" },
     ]);
   });
+
+  test("pendant que la mise à jour de la station de cet ordinateur la redémarre, ses projets portent la version et pas « sans station » (#3637)", () => {
+    const configuration = { chemin: "/chef/app.json", projets: [{ nom: "parade", dossier: "/p/a" }, { nom: "autre", dossier: "/p/b" }] };
+    const ici = (nom: string) => nom === "parade";
+    const [parade, autre] = pourLaBarre(configuration, () => true, ici, () => false, () => "2.5.0").projets;
+    assert.equal(parade?.redemarre, "2.5.0");
+    assert.equal(parade?.sansStation, undefined);
+    assert.equal(autre?.redemarre, undefined);
+    // Sans redémarrage, une station qui ne tourne pas reste « sans station ».
+    const [arretee] = pourLaBarre(configuration, () => true, ici, () => false).projets;
+    assert.equal(arretee?.sansStation, true);
+    assert.equal(arretee?.redemarre, undefined);
+  });
 });
