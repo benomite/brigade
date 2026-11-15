@@ -1147,6 +1147,12 @@ const amonts = new Map();
 const backlogsDeplies = new Set();
 /** @type {Map<string, number>} */
 const besoinsChoisis = new Map();
+// Les projets dont le chef a déplié tout ce qui a été servi, au bas de la liste du Backlog (ticket 3589) ; et le geste de
+// chaque idée en réserve, par projet et issue (`<projet>#<n>`) : en route, ou pourquoi il n'est pas passé.
+/** @type {Set<string>} */
+const servisDeplies = new Set();
+/** @type {Map<string, import("./backlog-band/backlog-band.js").GesteDIdee>} */
+const gestesDIdees = new Map();
 // La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
@@ -4435,10 +4441,11 @@ function teteDuRail(projet) {
 }
 
 // Le bandeau Backlog, au-dessus des colonnes du rail (backlog-band/, ticket 3460) : une étiquette par besoin hors du rail,
-// ceux qui t'attendent en rouge d'abord. Un clic sur une étiquette — ou sur une ligne de la liste — choisit le besoin : son
-// détail se déplie, ses tickets ressortent dans le rail ; un second clic, ou un autre besoin, finit ce choix. Un clic sur
-// le titre déplie tout le backlog ; un second le replie sur sa ligne, sans choix. Ce qui t'attend s'y pose avec sa carte de
-// TODO, celle que le rail pose en rouge.
+// ceux qui t'attendent en rouge d'abord. Un clic sur une étiquette choisit le besoin : son détail se déplie, ses tickets
+// ressortent dans le rail ; un second clic, ou un autre besoin, finit ce choix. Ce qui t'attend s'y pose avec sa carte de
+// TODO, celle que le rail pose en rouge. Un clic sur le titre déplie le backlog du chef (ticket 3589) — Next, les idées en
+// réserve et leurs gestes, ce qui a été servi replié en bas —, une ligne y ouvre son issue ; un second le replie sur sa
+// ligne, sans choix.
 /** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
 function bandeauBacklog(projet, colonnes) {
   const vu = amonts.get(projet.nom);
@@ -4450,7 +4457,15 @@ function bandeauBacklog(projet, colonnes) {
   const bandeau = poserBandeauBacklog(
     document,
     // Le titre dit combien t'attendent : le nombre que l'entrée TODO (N) compte (ticket 3458).
-    { vu, besoins, selection: choisi?.ticket, deplie: backlogsDeplies.has(projet.nom), rouges: rougesDuBacklog(vu, colonnes, maintenant) },
+    {
+      vu,
+      besoins,
+      selection: choisi?.ticket,
+      deplie: backlogsDeplies.has(projet.nom),
+      rouges: rougesDuBacklog(vu, colonnes, maintenant),
+      servisDeplies: servisDeplies.has(projet.nom),
+      idees: new Map(besoins.flatMap(({ ticket }) => { const geste = gestesDIdees.get(`${projet.nom}#${ticket}`); return geste === undefined ? [] : [[ticket, geste]]; })),
+    },
     {
       choisir: (ticket) => {
         if (besoinsChoisis.get(projet.nom) === ticket) besoinsChoisis.delete(projet.nom);
@@ -4458,10 +4473,17 @@ function bandeauBacklog(projet, colonnes) {
         poserRail(projet);
       },
       basculer: () => {
-        if (backlogsDeplies.delete(projet.nom)) besoinsChoisis.delete(projet.nom);
-        else backlogsDeplies.add(projet.nom);
+        if (backlogsDeplies.delete(projet.nom)) {
+          besoinsChoisis.delete(projet.nom);
+          servisDeplies.delete(projet.nom);
+        } else backlogsDeplies.add(projet.nom);
         poserRail(projet);
       },
+      basculerServis: () => {
+        if (!servisDeplies.delete(projet.nom)) servisDeplies.add(projet.nom);
+        poserRail(projet);
+      },
+      idee: (ticket, id) => void jouerLIdee(projet, ticket, id),
       ouvrirIssue: (ticket) => void ouvrirIssue(projet, ticket),
       carteDuChef: (carte) => {
         const liste = document.createElement("ol");
@@ -4471,6 +4493,29 @@ function bandeauBacklog(projet, colonnes) {
     },
   );
   return { bandeau, choisi };
+}
+
+// Un geste d'une idée en réserve (gestes-idee.ts, ticket 3589) : « Put on the rail » ou « Drop », joué sur GitHub par le
+// process principal. Fait, la lecture suivante ne la montre plus parmi les idées ; refusé, sa ligne dit pourquoi.
+/** @param {Projet} projet @param {number} ticket @param {"rail" | "abandonner"} id */
+async function jouerLIdee(projet, ticket, id) {
+  const cle = `${projet.nom}#${ticket}`;
+  const enCours = gestesDIdees.get(cle);
+  if (enCours !== undefined && "envoi" in enCours) return;
+  gestesDIdees.set(cle, { envoi: id });
+  poserRail(projet);
+  /** @type {{ refus: string } | undefined} */
+  let dit;
+  try {
+    const rendu = await brigade.idee(projet.nom, id, ticket);
+    if ("fait" in rendu) lireLesFaits();
+    else dit = { refus: "refus" in rendu ? rendu.refus : "nothing was changed" };
+  } catch (erreur) {
+    dit = { refus: `nothing was changed: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  if (dit === undefined) gestesDIdees.delete(cle);
+  else gestesDIdees.set(cle, dit);
+  poserRail(projet);
 }
 
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
@@ -4951,6 +4996,7 @@ function lignesDeCetOrdinateur(projet) {
 function replierLeBacklog(nom) {
   backlogsDeplies.delete(nom);
   besoinsChoisis.delete(nom);
+  servisDeplies.delete(nom);
 }
 /** @param {Projet} projet */
 function poserRail(projet) {

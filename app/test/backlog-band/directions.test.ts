@@ -8,7 +8,7 @@ import { comprendre, grouper, voir, type Vu } from "../../src/amont.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { amontDuTableau } from "../../src/tableau/rail.ts";
-import { besoinsDuBacklog, poserBandeauBacklog } from "../../src/vue/backlog-band/backlog-band.js";
+import { besoinsDuBacklog, COLONNE_DU_CHEF, poserBandeauBacklog } from "../../src/vue/backlog-band/backlog-band.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";
@@ -18,7 +18,7 @@ type Donnee = Parameters<typeof grouper>[0][number];
 const donnee = (ticket: number, autres: Partial<Donnee> = {}): Donnee => ({ ticket, titre: `Need ${ticket}`, url: `https://github.com/${DEPOT}/issues/${ticket}`, priorite: null, etat: "non-lue", dit: "not read", ...autres });
 const vu = (issues: Donnee[]): Vu => ({ projet: "parade", demande: 1, a: "x", vide: "", compte: issues.length, lu: "x", groupes: grouper(issues), survol: "x" });
 const besoinsDe = (issues: Donnee[]) => besoinsDuBacklog(vu(issues), [], LU_LE.getTime());
-const gestes = (ouvrirIssue: (ticket: number) => void = () => {}) => ({ choisir: () => {}, basculer: () => {}, ouvrirIssue, carteDuChef: () => new Faux("li") });
+const gestes = (ouvrirIssue: (ticket: number) => void = () => {}) => ({ choisir: () => {}, basculer: () => {}, ouvrirIssue, carteDuChef: () => new Faux("li"), basculerServis: () => {}, idee: () => {} });
 
 // Les issues ouvertes que GitHub donne, lues jusqu'à la vue.
 async function lues(issues: { number: number; labels: string[]; state?: string }[]): Promise<Donnee[]> {
@@ -97,6 +97,31 @@ describe("la section Directions, dans la liste dépliée", () => {
     // Titre et avancement, ou la marque « idea ».
     assert.deepEqual(blocs[0]?.dessous("button")[0]?.children.map(({ textContent }) => textContent), ["#1", "Need 1", "1/2 served"]);
     assert.deepEqual(blocs[2]?.dessous("button")[0]?.children.map(({ textContent }) => textContent), ["#2", "Need 2", "idea"]);
+  });
+
+  test("avec Next et Ideas in reserve (#3589) : Directions vient après elles, et ce qui a été servi reste tout en bas", () => {
+    const servie = donnee(9, { etat: "servie", tickets: [10], servis: [10], servieLe: "2026-11-13T10:00:00.000Z" });
+    const bandeau = poser([donnee(1, { horizon: 1 }), donnee(2, { etat: "idee", idee: true }), servie]);
+    const liste = bandeau.dessous("div").find(({ className }) => className === "backlog-band-liste") ?? assert.fail("pas de liste");
+    assert.deepEqual(liste.children.map(({ className, dataset }) => dataset.section ?? className), ["suite", "idees", "backlog-band-directions", "servis"]);
+  });
+
+  test("une ligne n'y dit jamais l'état du manager : ni `not read yet`, ni ce qui la retient", () => {
+    const lignes = section(poser([donnee(1, { horizon: 2 }), donnee(2, { etat: "prete", dit: "calibrated (model:haiku, effort:low)" })])).dessous("button");
+    assert.deepEqual(lignes.map((ligne) => ligne.children.map(({ textContent }) => textContent)), [["#1", "Need 1"], ["#2", "Need 2"]]);
+  });
+
+  test("ce qui attend le chef n'y est pas (#3589) : il reste dans TODO", () => {
+    const issues = [donnee(1, { horizon: 1 }), donnee(2, { horizon: 1 })];
+    const carte = { ticket: 2 } as unknown as Parameters<typeof besoinsDuBacklog>[1][number]["cartes"][number];
+    const besoins = besoinsDuBacklog(vu(issues), [{ nom: COLONNE_DU_CHEF, cartes: [carte] }], LU_LE.getTime());
+    const bandeau = poserBandeauBacklog(doc, { vu: vu(issues), besoins, selection: undefined, deplie: true, rouges: 1 }, gestes()) as unknown as Faux;
+    assert.deepEqual(section(bandeau).dessous("button").map(({ dataset }) => dataset.ticket), ["1"]);
+  });
+
+  test("un besoin tout servi encore ouvert n'y est pas (#3589) : il est dans Served, en bas", () => {
+    const bandeau = poser([donnee(1, { horizon: 1 }), donnee(2, { horizon: 1, etat: "decoupee", tickets: [5], servis: [5] })]);
+    assert.deepEqual(section(bandeau).dessous("button").map(({ dataset }) => dataset.ticket), ["1"]);
   });
 
   test("un clic sur une ligne ouvre son issue", () => {

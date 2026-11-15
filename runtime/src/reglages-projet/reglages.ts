@@ -429,13 +429,9 @@ export function brancheDuClaudeMd(claudeMd: string): string | null {
   return branche !== undefined && brancheValide(branche) ? branche : null;
 }
 
-// L'issue de roadmap que la ligne « Roadmap » du `CLAUDE.md` nomme —
-// `- **Roadmap** : issue #1 (writer unique = Manager)`, telle que
-// `/brigade:init` l'écrit —, ou null.
-export function roadmapDuClaudeMd(claudeMd: string): number | null {
-  const [, numero] = /^[ \t]*(?:[-*][ \t]+)?(?:\*\*)?Roadmap(?:\*\*)?[ \t]*:[ \t]*(?:issue[ \t]+)?`?#([1-9][0-9]*)\b/im.exec(claudeMd) ?? [];
-  return numero === undefined ? null : Number(numero);
-}
+// L'issue de roadmap que la ligne « Roadmap » du `CLAUDE.md` nomme : sa règle vit
+// sans E/S dans ligne-roadmap.ts, que l'app relit aussi (#3589).
+export { roadmapDuClaudeMd } from "./ligne-roadmap.ts";
 
 // Les réglages que porte le texte du fichier, où qu'on l'ait lu — l'arbre du
 // clone, ou une branche (`en-vigueur.ts`). Un texte qui porte autre chose que

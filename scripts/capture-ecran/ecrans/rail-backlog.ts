@@ -40,7 +40,7 @@ const FACTS = {
 } as Faits;
 
 // Ce qui est avant le rail de « parade », tel que la lecture de GitHub le publie, dans l'ordre où le manager les lit :
-// douze besoins ouverts — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
+// quinze besoins ouverts, dont trois idées — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
 // 16 h, et #56 tout servi il y a plus de 24 h, qui n'est plus dans le bandeau.
 export const AVANT_LE_RAIL = {
   lu: LU,
@@ -58,7 +58,14 @@ export const AVANT_LE_RAIL = {
     { ticket: 50, titre: "Le bon de livraison imprimé", priorite: null, etat: "non-lue", dit: "returned to the manager, not rejudged yet" },
     { ticket: 51, titre: "Garder les tickets un an ?", priorite: null, etat: "mise-de-cote", dit: "set aside: it carries `question` — a question, left to you" },
     { ticket: 52, titre: "La caisse hors ligne", priorite: null, etat: "incomplete", dit: "refused (an incomplete ticket) — What happens to a payment taken offline is not said." },
-    { ticket: 53, titre: "Le mode sombre de la caisse", priorite: null, etat: "prete", horizon: 3, idee: true, dit: "calibrated (model:haiku, effort:low), without `fire`: the rail takes it once `fire` is set" },
+    { ticket: 53, titre: "Le mode sombre de la caisse", priorite: null, etat: "idee", horizon: 3, idee: true, dit: "it carries `idea`: an idea in reserve, not a request" },
+    // Deux idées de plus en réserve (#3589), et trois besoins de plus tout servis dans les 24 h : le Backlog déplié n'en montre que
+    // les trois plus récents.
+    { ticket: 57, titre: "Un programme de fidélité", priorite: null, etat: "idee", horizon: 2, idee: true, dit: "it carries `idea`: an idea in reserve, not a request", contexte: "Un client qui revient dix fois a son dessert offert : la caisse compte ses passages, sans carte à tamponner." },
+    { ticket: 58, titre: "Commander à table par QR code", priorite: null, etat: "idee", idee: true, dit: "it carries `idea`: an idea in reserve, not a request", contexte: "Chaque table a son code : le client lit la carte sur son téléphone et commande sans attendre le serveur." },
+    { ticket: 59, titre: "Le ticket de caisse par e-mail", priorite: 2, etat: "servie", dit: "split, all 2 tickets served", tickets: [62, 63], servis: [62, 63], servieLe: "2026-10-13T08:00:00.000Z" },
+    { ticket: 64, titre: "Les horaires d'ouverture", priorite: 3, etat: "servie", dit: "split, all 1 tickets served", tickets: [65], servis: [65], servieLe: "2026-10-12T20:00:00.000Z" },
+    { ticket: 66, titre: "Les menus enfants", priorite: null, etat: "servie", dit: "split, all 2 tickets served: the manager closes it", tickets: [67, 68], servis: [67, 68] },
   ],
 };
 

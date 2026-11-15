@@ -1,7 +1,8 @@
 // Le bandeau Backlog dans la vue de l'app (#3460), jouée telle qu'elle est (aides/fausse-vue.ts), sur ce que l'app lit de
 // GitHub (tableau/lecture.ts, tableau/rail.ts, amont.ts) : au-dessus des colonnes du rail, une ligne d'étiquettes ; un clic
 // sur une étiquette choisit le besoin — son détail, ses tickets qui ressortent dans le rail —, un second ou un autre finit
-// ce choix ; un clic sur le titre déplie tout le backlog, un second le replie. Ni la colonne Backlog ni le chiffre de la
+// ce choix ; un clic sur le titre déplie le backlog du chef — Next, les idées en réserve et leurs gestes (#3589) —, un second
+// le replie. Ni la colonne Backlog ni le chiffre de la
 // bande du rail ne sont plus là, et chaque compte qu'ils donnaient se lit dans le bandeau. Ce que dit un rail vide, et une
 // lecture ratée, viennent avec lui (repris de test/amont.test.ts).
 import assert from "node:assert/strict";
@@ -190,38 +191,65 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     assert.equal(todo.dataset.besoin, "sien");
   });
 
-  test("un clic sur le titre déplie tout le backlog en liste, par état — ce qui t'attend d'abord —, chacun par priorité ; une ligne choisit son besoin ; un second clic replie sur la ligne", async () => {
+  test("un clic sur le titre déplie le backlog du chef : Next, puis Ideas in reserve — ni ce qui t'attend, ni les mots du manager ; une ligne ouvre son issue ; un second clic replie sur la ligne", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
 
     titre(vue).click();
     assert.equal(titre(vue).ariaExpanded, "true");
-    const groupes = () => leBandeau(vue).dessous("section").filter(({ className }) => className === "backlog-band-groupe");
+    const sections = () => leBandeau(vue).dessous("section").filter(({ className }) => className === "backlog-band-section");
+    const lignes = (pose: Faux | undefined) => (pose?.dessous("button") ?? []).filter(({ className }) => className === "backlog-band-ouvrir");
     assert.deepEqual(
-      groupes().map((groupe) => [groupe.dataset.etat, groupe.dessous("h5")[0]?.textContent, groupe.dessous("button").map(({ dataset }) => Number(dataset.ticket))]),
+      sections().map((pose) => [pose.dataset.section, pose.dessous("h5")[0]?.textContent, lignes(pose).map(({ dataset }) => Number(dataset.ticket))]),
       [
-        ["attend", "awaits you1", [17]],
-        ["non-lue", "not read yet3", [14, 20, 21]],
-        ["prete", "ready, not fired1", [11]],
-        ["mise-de-cote", "set aside2", [12, 13]],
-        ["decoupee", "split into tickets1", [16]],
+        // #16 d'abord (prio:1), puis #11 (prio:2), puis ceux sans priorité, le plus ancien d'abord. #17 t'attend : il est dans TODO.
+        ["suite", "Next7", [16, 11, 12, 13, 14, 20, 21]],
+        ["idees", "Ideas in reserve0", []],
       ],
     );
+    assert.deepEqual(lignes(sections()[0])[0]?.children.map(({ textContent }) => textContent), ["prio:1", "Une épique", "1/2 served"]);
+    assert.doesNotMatch(sections()[0]?.textContent ?? "", /model:|effort:|fire|not read yet|calibrat|awaits you/);
     // Une lecture neuve ne la replie pas.
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
-    assert.equal(groupes().length, 5);
-    // Une ligne : le détail de son besoin, comme son étiquette.
-    groupes()[4]?.dessous("button")[0]?.click();
-    assert.match(detail(vue)?.textContent ?? "", /^#16Une épique/);
-    assert.equal(grille(vue).dataset.besoin, "16");
-    // Le titre, une seconde fois : la ligne seule, sans liste ni choix.
+    assert.equal(sections().length, 2);
+    // Une ligne : son issue s'ouvre — aucun besoin n'est choisi.
+    lignes(sections()[0])[0]?.click();
+    await repos();
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "ouvrirIssue").map(({ args }) => args), [[PARADE, 16]]);
+    assert.equal(detail(vue), undefined);
+    assert.equal(grille(vue).dataset.besoin, undefined);
+    // Le titre, une seconde fois : la ligne seule, sans liste.
     titre(vue).click();
     assert.equal(titre(vue).ariaExpanded, "false");
-    assert.equal(groupes().length, 0);
-    assert.equal(detail(vue), undefined);
+    assert.equal(sections().length, 0);
     assert.equal("deplie" in leBandeau(vue).dataset, false);
-    assert.equal(grille(vue).dataset.besoin, undefined);
+  });
+
+  test("une idée en réserve : son résumé sur sa ligne ; « Put on the rail » et « Drop » partent sur GitHub par le process principal, un refus se dit sur sa ligne", async () => {
+    const reponses = { rail: { fait: "put on the rail on GitHub" }, abandonner: { refus: "nothing was changed: GitHub did not close #23" } };
+    const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], ouvrirIssue: () => true, gestesDeFiche: (carte) => gestesDeCarte(carte), idee: (_projet, id) => reponses[id] });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    recevoirFaits(vue, FAITS);
+    vue.dire("surAmont", tenirAmont().recevoir(await amontDe([...ISSUES, ouverte(23, ["idea"], "Un programme de fidélité", "Un client qui revient dix fois a son dessert offert.\n\nLa caisse compte."), ouverte(24, ["idea", "prio:2"], "Commander par QR code")])));
+    titre(vue).click();
+    const reserve = () => leBandeau(vue).dessous("section").find(({ dataset }) => dataset.section === "idees") ?? assert.fail("pas d'idées");
+    const ligne = (ticket: number) => reserve().dessous("li").find((li) => li.dessous("button")[0]?.dataset.ticket === String(ticket)) ?? assert.fail(`pas de ligne #${ticket}`);
+    assert.deepEqual(ligne(23).dessous("button")[0]?.children.map(({ textContent }) => textContent), ["Un programme de fidélité", "Un client qui revient dix fois a son dessert offert."]);
+    // Les idées ne sont pas dans Next.
+    const suite = leBandeau(vue).dessous("section").find(({ dataset }) => dataset.section === "suite");
+    assert.doesNotMatch(suite?.textContent ?? "", /fidélité|QR code/);
+    const geste = (ticket: number, id: string) => ligne(ticket).dessous("button").find(({ dataset }) => dataset.geste === id) ?? assert.fail(`pas de geste ${id}`);
+    geste(24, "rail").click();
+    geste(23, "abandonner").click();
+    await repos();
+    assert.deepEqual(vue.appels.filter(({ geste: nom }) => nom === "idee").map(({ args }) => args), [
+      [PARADE, "rail", 24],
+      [PARADE, "abandonner", 23],
+    ]);
+    assert.equal(ligne(23).dessous("p").find(({ className }) => className === "backlog-band-idee-refus")?.textContent, "nothing was changed: GitHub did not close #23");
+    assert.equal(ligne(24).dessous("p").length, 0);
   });
 
   test("rail vide : sa colonne On the rail le dit, et dit ce qui est avant lui — ou qu'il n'y a rien, ni sur le rail ni avant lui", async () => {

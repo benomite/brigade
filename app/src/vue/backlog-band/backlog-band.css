@@ -198,26 +198,44 @@
   list-style: none;
   max-width: 420px;
 }
-/* La liste entière : groupée par état, ce qui attend le chef d'abord ; une ligne par besoin. */
+/* La liste entière, pour le chef (ticket 3589) : Next, puis les idées en réserve, puis ce qui a été servi, replié en bas. Une
+   ligne ouvre son issue. */
 #rail .backlog-band-liste {
   display: flex;
   flex-direction: column;
   gap: var(--pas-3);
   margin-top: var(--pas-3);
 }
-#rail .backlog-band-groupe-titre {
+#rail .backlog-band-section-titre {
   display: flex;
+  align-items: baseline;
   gap: var(--pas-2);
   margin: 0 0 var(--pas-1);
   font-size: var(--taille-corps);
   font-weight: 600;
   color: var(--texte-doux);
 }
-#rail .backlog-band-groupe[data-etat="attend"] .backlog-band-groupe-titre {
-  color: var(--rouge-clair);
-}
-#rail .backlog-band-groupe-compte {
+#rail .backlog-band-section[data-section="servis"] .backlog-band-section-titre {
   font-weight: 400;
+  color: var(--discret);
+}
+#rail .backlog-band-section-compte {
+  font-weight: 400;
+  color: var(--discret);
+}
+#rail .backlog-band-servis-bascule {
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+#rail .backlog-band-rien {
+  margin: 0;
+  padding: var(--pas-1) var(--pas-2);
+  font-size: var(--taille-corps);
   color: var(--discret);
 }
 #rail .backlog-band-lignes {
@@ -226,11 +244,18 @@
   padding: 0;
   list-style: none;
 }
-#rail .backlog-band-choix {
+#rail .backlog-band-ligne {
   display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  border-bottom: 1px dashed var(--trait-doux);
+}
+#rail .backlog-band-ouvrir {
+  display: flex;
+  flex: 1;
   align-items: baseline;
   gap: var(--pas-3);
-  width: 100%;
+  min-width: 0;
   padding: var(--pas-1) var(--pas-2);
   font: inherit;
   font-size: var(--taille-corps);
@@ -238,19 +263,62 @@
   color: var(--texte-doux);
   background: none;
   border: 0;
-  border-bottom: 1px dashed var(--trait-doux);
   cursor: pointer;
 }
-#rail .backlog-band-choix:hover,
-#rail .backlog-band-choix[aria-pressed="true"] {
+#rail .backlog-band-ouvrir:hover:not(:disabled) {
   color: var(--texte);
   background: var(--case);
 }
+#rail .backlog-band-ouvrir:disabled {
+  cursor: default;
+}
 #rail .backlog-band-ligne-titre {
+  flex: none;
   color: var(--texte);
+}
+#rail .backlog-band-section[data-section="servis"] .backlog-band-ligne-titre {
+  color: var(--texte-doux);
 }
 #rail .backlog-band-ligne-etat {
   color: var(--discret);
+}
+/* Une idée : son résumé sur une ligne, coupé au bord (en entier au survol), puis ses deux gestes. */
+#rail .backlog-band-resume {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--discret);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#rail .backlog-band-idee-actions {
+  display: flex;
+  flex: none;
+  gap: var(--pas-2);
+  padding: var(--pas-1) var(--pas-2);
+}
+#rail .backlog-band-idee-geste {
+  padding: 0 var(--pas-2);
+  font: inherit;
+  font-size: var(--taille-corps);
+  color: var(--texte);
+  background: var(--case);
+  border: 1px solid var(--trait-doux);
+  cursor: pointer;
+}
+#rail .backlog-band-idee-geste[data-geste="abandonner"] {
+  color: var(--texte-doux);
+  background: none;
+}
+#rail .backlog-band-idee-geste:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+#rail .backlog-band-idee-refus {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0 var(--pas-2) var(--pas-1);
+  font-size: var(--taille-corps);
+  color: var(--rouge-clair);
 }
 /* Un besoin choisi : ses tickets ressortent dans le rail, les autres cartes s'effacent. */
 #rail .colonnes[data-besoin] [data-besoin="autre"] {
@@ -260,7 +328,7 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-/* Directions (#3590) : sous les groupes, les trois horizons de la vision ; un horizon sans rien le dit en une ligne. */
+/* Directions (#3590) : après Next et Ideas in reserve, avant ce qui a été servi, les trois horizons de la vision ; un horizon sans rien le dit en une ligne. */
 #rail .backlog-band-directions-titre {
   margin: 0;
   font-size: var(--taille-corps);
