@@ -152,7 +152,7 @@ import { poserLaDemandeDeStation, tenirLesDemandesDeStation } from "./installati
 import { poserPremierTicket, tenirLesPremiersTickets } from "./premier-ticket/premier-ticket.js";
 import { poserRecitDuPremierTicket, tenirLeRecitDuPremierTicket } from "./recit-premier-ticket/recit-premier-ticket.js";
 import { depotCollePar, PAS_UN_DEPOT } from "./parcours-projet/etape-projet.js";
-import { boutonDAjout, etatDeLaLigne, lignesDeProjets } from "./accueil/projets/projets.js";
+import { boutonDAjout, etatDeLaLigne, lignesDeProjets, maintenantDeLaLigne } from "./accueil/projets/projets.js";
 import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, etatDit, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, tonDe, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { direLaLecture, poserLaLecture } from "./rail-lecture-perimee.js";
@@ -6226,7 +6226,7 @@ function poserAccueil() {
       const todo = compteDuTodo(projet.nom);
       todosDeLAccueil.set(projet.nom, todo);
       const attend = todo ?? ligne.attend;
-      return { nom: projet.nom, etat: etatDeLaLigne(ligne), stations, maintenant: ligne.dit, ...(attend === undefined ? {} : { attend }), survol: `${ligne.dit}${ligne.survol === "" ? "" : ` — ${ligne.survol}`}` };
+      return { nom: projet.nom, etat: etatDeLaLigne(ligne), stations, maintenant: maintenantDeLaLigne(ligne), ...(attend === undefined ? {} : { attend }), survol: `${ligne.dit}${ligne.survol === "" ? "" : ` — ${ligne.survol}`}` };
     }),
     gestesDuBloc,
   );

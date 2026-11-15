@@ -170,7 +170,8 @@ of kind `abandoned`, answered on its issue.
 **A kitchen held by its breaker is resumed in one click, from the head of Todo** (#2140, epic #2134): while the
 `kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
 failed in a row, no cook goes any more`, what the station writes on hover — and its single button, `Resume`, recommended,
-its price on hover. No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
+its price on hover. The line says the project's state, `held: breaker open — …`, in the same words on Home (the project's
+state, in place of `stuck` and `no manager takes`), on Rail and on the phone (#3602). No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
 `/resume` on the repository's open issue labeled `brigade:breaker-open` (the station publishes it when the breaker opens,
 #2138, and its watcher closes the breaker when it reads the comment, #2139), with the GitHub sign-in of
 this computer's `gh` (`app/src/github/breaker-resume.ts`). While it is posted, the button waits and the line says
