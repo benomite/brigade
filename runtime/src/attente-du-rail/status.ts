@@ -14,7 +14,8 @@ import { lireGitHubSeul } from "../github-seul-etat.ts";
 import { clientGh } from "../proteger-branche.ts";
 import { feuPoseLe, lesFeux, type Lire } from "../rail-bloque/lecture.ts";
 import { LABELS_D_ECART, type StationsLues } from "../rail-bloque/rail-bloque.ts";
-import { dependancesDuCorps, expliquerLAttente, lignesDeStatus, lignesDesCartes, type TicketDuRail } from "./raison.ts";
+import { limiteDuCompteDeLaStation } from "../github-limite.ts";
+import { dependancesDuCorps, expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail } from "./raison.ts";
 
 const LABEL_DU_TABLEAU = "kitchen-board";
 const PAR_PAGE = 100;
@@ -56,19 +57,27 @@ const nonLue = (depot: string, raison: string) => `${TITRE.padEnd(11)}not checke
 
 // Les lignes, d'après ce que `lire` rend de GitHub et les stations lues : aucune quand rien n'attend ou qu'un cook tourne.
 // `plafondAtteint` : la station locale a pris tous ses cooks (`plafondAtteintDeLaStation`), ce que GitHub ne publie pas.
-export async function lignesDeLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean }): Promise<string[]> {
-  const { depot, lire, maintenant, plafondAtteint = false } = options;
+export async function lignesDeLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<string[]> {
+  return (await lireLAttente(options)).lignes;
+}
+
+// Les lignes de l'attente et, quand GitHub limite la station (#3684), les tickets en file que la ligne `rail` doit lister : le
+// journal local n'en sait rien sur une station GitHub seul, et dit `empty`.
+export type AttenteLue = { lignes: string[]; enFile: number[] };
+async function lireLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<AttenteLue> {
+  const { depot, lire, maintenant, plafondAtteint = false, limite = null } = options;
   let tickets: TicketDuRail[];
   try {
     tickets = await lireLeRailEnFile({ depot, lire });
   } catch (erreur) {
-    return [nonLue(depot, erreur instanceof Error ? erreur.message : String(erreur))];
+    return { lignes: [nonLue(depot, erreur instanceof Error ? erreur.message : String(erreur))], enFile: [] };
   }
   const cartes = lignesDesCartes(tickets);
   // Rien en file, ou un cook qui tourne : les stations n'ont rien à dire, elles ne se lisent pas.
-  if (!tickets.some(({ etat }) => etat === "queued") || tickets.some(({ etat }) => etat === "taken")) return lignesDeStatus(null, cartes);
-  const attente = expliquerLAttente({ depot, tickets, stations: await options.stations(), plafondAtteint, maintenant });
-  return lignesDeStatus(attente?.phrase ?? null, cartes);
+  if (!tickets.some(({ etat }) => etat === "queued") || tickets.some(({ etat }) => etat === "taken")) return { lignes: lignesDeStatus(null, cartes), enFile: [] };
+  const attente = expliquerLAttente({ depot, tickets, stations: await options.stations(), plafondAtteint, maintenant, limite });
+  const limitee = attente?.raison === "quota-github" && limite !== null;
+  return { lignes: lignesDeStatus(attente?.phrase ?? null, cartes), enFile: limitee ? tickets.filter(({ etat }) => etat === "queued").map(({ ticket }) => ticket) : [] };
 }
 
 // Le plafond de cooks est-il atteint ? Chaque station annoncée par le journal local qui a un plafond fait tourner autant de cooks
@@ -85,8 +94,12 @@ export function plafondAtteintDeLaStation(base: Base): boolean {
 // Ce que `status` ajoute : rien hors d'une station GitHub seul (le rail n'est lu sur GitHub que là, comme le rail bloqué de
 // #3358), ou sans dépôt nommé.
 export async function attenteDuRailDuStatus(env: Record<string, string | undefined>, maintenant: Date, base: Base): Promise<string[]> {
+  return (await attenteEtRailDuStatus(env, maintenant, base)).lignes;
+}
+
+export async function attenteEtRailDuStatus(env: Record<string, string | undefined>, maintenant: Date, base: Base): Promise<AttenteLue> {
   const depot = env.BRIGADE_GITHUB_REPO;
-  if (!depot || lireGitHubSeul(env.BRIGADE_STATE_DIR)?.etat !== "accepted") return [];
+  if (!depot || lireGitHubSeul(env.BRIGADE_STATE_DIR)?.etat !== "accepted") return { lignes: [], enFile: [] };
   const gh = env.BRIGADE_GH_BIN || "gh";
   const client = clientGh(gh, env as NodeJS.ProcessEnv);
   const lire: Lire = async (chemin) => {
@@ -98,7 +111,10 @@ export async function attenteDuRailDuStatus(env: Record<string, string | undefin
     const lues = await lireLesStationsDuCompte({ gh, env: env as NodeJS.ProcessEnv, maintenant: () => maintenant.getTime() });
     return lues.state === "listed" ? { lues: lues.stations } : { illisibles: lues.reason };
   };
-  return lignesDeLAttente({ depot, lire, stations, maintenant: maintenant.getTime(), plafondAtteint: plafondAtteintDeLaStation(base) });
+  // La limite du compte que la station a vue, tant que sa reprise n'est pas passée.
+  const limiteLue = limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR);
+  const limite = limiteLue !== null && Date.parse(limiteLue.backAt) > maintenant.getTime() ? { backAt: limiteLue.backAt } : null;
+  return lireLAttente({ depot, lire, stations, maintenant: maintenant.getTime(), plafondAtteint: plafondAtteintDeLaStation(base), limite });
 }
 
 // Les lignes de `status`, posées juste au-dessus de la ligne `rail` — la file —, ou à la fin sans elle.
@@ -106,4 +122,11 @@ export function avecLAttenteDuRail(lignes: readonly string[], attente: readonly 
   if (attente.length === 0) return [...lignes];
   const rang = lignes.findIndex((ligne) => ligne.startsWith("rail "));
   return rang === -1 ? [...lignes, ...attente] : [...lignes.slice(0, rang), ...attente, ...lignes.slice(rang)];
+}
+
+// La ligne `rail` d'une photo qui dit `empty` alors que des tickets `fire` attendent sur GitHub (#3684) : elle les liste.
+export function avecLeRailEnFile(lignes: readonly string[], enFile: readonly number[]): string[] {
+  const rang = lignes.findIndex((ligne) => /^rail\s+empty$/.test(ligne));
+  if (enFile.length === 0 || rang === -1) return [...lignes];
+  return [...lignes.slice(0, rang), `${"rail".padEnd(11)}${enFile.length} queued, held by GitHub's rate limit`, ...enFile.map((ticket) => `  #${ticket}  queued`), ...lignes.slice(rang + 1)];
 }
