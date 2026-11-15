@@ -2,7 +2,7 @@
 // GitHub seul (`stationGitHub`, `stationDuDepot`) sur le faux GitHub, et les
 // deux gestes que l'app appelle (`npm run design`), joués par leur `principal`.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -17,8 +17,11 @@ import { principal } from "../../src/validation-design/commande.ts";
 import { corpsDeCeQuiEstFait, SANS_RESUME } from "../../src/validation-design/brief.ts";
 import { carteDuCorps, designsValidesParUnHumain, estUneLivraisonDesign, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
 import { ecrirePng, lirePng, type Image } from "../../src/validation-design/png.ts";
+import type { ChoixDeDesign } from "../../src/validation-design/choix-de-design.ts";
 import { CALIBRE, FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { copie, ecrire, page, pixel, poser, remplacer } from "./pages.ts";
+
+type JugeDuChoix = (corps: string) => Promise<ChoixDeDesign>;
 
 const TICKET = 40;
 const PR = 1040;
@@ -37,7 +40,7 @@ function enPass(fichiers: string[], labels: string[] = CALIBRE) {
 // La station A, sous ce réglage, ses relectures attendues à chaque tour ; ses
 // cartes gardent leur titre, que le faux oublie. Le cook d'un renvoi pousse une
 // tête neuve, hors de conflit avec la base.
-function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pannes: Partial<GitHubDuTour> = {}) {
+function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pannes: Partial<GitHubDuTour> = {}, juge: JugeDuChoix | null = async () => ({ choix: "the layout of the rail" })) {
   const titres = new Map<number, string>();
   const bas = { ...faux.pour("A"), ouvertes: gestes(faux).ouvertes, prDeBranche: fauxClient(faux, "A").prDeBranche, ...pannes };
   const github = {
@@ -56,6 +59,7 @@ function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pann
     prise: faux.prise(github, "A"),
     depotServi: "faux/depot",
     designsValidesParUnHumain: () => valide,
+    ...(juge === null ? {} : { jugerLeChoixDeDesign: async (ticket: { number: number; title: string; body: string }) => juge(ticket.body) }),
     cuisiner: async (ticket) => {
       faux.cuissons.push({ station: "A", issue: ticket.number });
       const ouverte = faux.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
@@ -750,9 +754,13 @@ async function parLeDepot(t: TestContext, projet: unknown) {
   const station = stationDuDepot({
     ...STATION_DU_DEPOT,
     github: { ...fauxClient(faux), creerIssue: faux.pour("box").creerIssue },
-    depot: { connait: () => false, preparer: async () => assert.fail("nothing is cooked"), reprendre: async () => assert.fail("nothing is cooked"), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "" },
+    depot: { connait: () => false, preparer: async () => assert.fail("nothing is cooked"), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 0, changes: () => [], diff: () => "" },
     flux: repertoire,
-    lancer: () => assert.fail("the PR is already approved: no review"),
+    // La PR est déjà approuvée : le seul lancement est le jugement du choix de design (#3609).
+    lancer: ({ flux }) => {
+      writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "<choix-de-design>oui: the layout of the rail</choix-de-design>" })}\n`);
+      return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+    },
     avertir: (texte) => avertis.push(texte),
     projet: () => projet,
   });
@@ -953,4 +961,88 @@ test("setting on, a capture that is not a readable PNG: the card is posted with 
   assert.ok(carte.corps.includes("### Captures"), carte.corps);
   assert.deepEqual(publies, []);
   assert.deepEqual(renvois(faux), []);
+});
+
+// ── Quand la carte s'ouvre (#3609) ──
+
+const VUE = ["app/src/vue/rail.js", `docs/captures/${TICKET}/rail-avant.png`, `docs/captures/${TICKET}/rail-apres.png`];
+
+// Une livraison design verte de ce ticket, jugée par `juge`, sur trois tours de pass.
+async function jugee(titre: string, labels: string[], corps: string, juge: JugeDuChoix | null) {
+  const faux = enPass(VUE, labels);
+  Object.assign(faux.ticket(TICKET), { title: titre, corps });
+  const avertis: string[] = [];
+  const { s } = station(faux, true, avertis, {}, juge);
+  await tours(s, 3);
+  return { faux, avertis };
+}
+
+test("#3593 replayed: a repair of main at prio:0 opened by a station, whose diff touches a view, opens no card like #3595 and the model is never asked", async () => {
+  let appels = 0;
+  const { faux, avertis } = await jugee("Repair `main`, red on 08de823: windows app tests", [...CALIBRE, "prio:0"], "_Opened by a station, with no gesture from the chef._", async () => {
+    appels += 1;
+    return { choix: "a group title" };
+  });
+  assert.equal(appels, 0);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.notEqual(faux.mergee(TICKET), undefined, avertis.join("\n"));
+});
+
+for (const [exclusion, titre, labels, corps] of [
+  ["prio:0 alone", "Tidy the rail", [...CALIBRE, "prio:0"], "the ticket's body"],
+  ["a station opening alone", "Tidy the rail", CALIBRE, "<!-- brigade:qualite -->\nquality alert"],
+  ["a title that repairs main alone", "Repair `main`, red on 08de823", CALIBRE, "the ticket's body"],
+] as const) {
+  test(`technical rule, no model call: ${exclusion} opens no card`, async () => {
+    let appels = 0;
+    const { faux } = await jugee(titre, [...labels], corps, async () => {
+      appels += 1;
+      return { choix: "x" };
+    });
+    assert.equal(appels, 0);
+    assert.deepEqual(ouvertes(faux), []);
+    assert.notEqual(faux.mergee(TICKET), undefined);
+  });
+}
+
+test("#3602 replayed: a wording the ticket's criteria already set — the judge says there is no choice — opens no card like #3606; the pass merges, and the judge read the ticket's criteria", async () => {
+  const lus: string[] = [];
+  const { faux } = await jugee("The rail says held: breaker open", CALIBRE, "## Acceptance criteria\n\n- the group says “held: breaker open”", async (corps) => {
+    lus.push(corps);
+    return { choix: null };
+  });
+  assert.equal(lus.length, 1);
+  assert.match(lus[0] ?? "", /held: breaker open/);
+  assert.deepEqual(ouvertes(faux), []);
+  assert.notEqual(faux.mergee(TICKET), undefined);
+});
+
+for (const exclusion of ["punctuation only", "a fix restoring what was already there"]) {
+  test(`judge outcome no (${exclusion}): no card, the delivery is merged`, async () => {
+    const { faux } = await jugee("Fix the rail", CALIBRE, "the ticket's body", async () => ({ choix: null }));
+    assert.deepEqual(ouvertes(faux), []);
+    assert.notEqual(faux.mergee(TICKET), undefined);
+  });
+}
+
+test("judge outcome yes (a new layout): a card opens, and its text has one line naming the design choice", async () => {
+  const { faux } = await jugee("Rework the rail", CALIBRE, "the ticket's body", async () => ({ choix: "the rail becomes two columns instead of one list" }));
+  const [carte, ...autres] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  assert.deepEqual(autres, []);
+  assert.ok(carte.corps.split("\n").includes("**Design choice:** the rail becomes two columns instead of one list"), carte.corps);
+  assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("a judge that cannot answer, or no judge at all, decides nothing: no card, no merge, and the pass says why", async () => {
+  const sansReponse = await jugee("Rework the rail", CALIBRE, "the ticket's body", async () => {
+    throw new Error("the design judgment of PR #1040 is unreadable: no block");
+  });
+  assert.deepEqual(ouvertes(sansReponse.faux), []);
+  assert.equal(sansReponse.faux.mergee(TICKET), undefined);
+  assert.ok(sansReponse.avertis.some((a) => a.includes("unreadable")), sansReponse.avertis.join("\n"));
+  const sansJuge = await jugee("Rework the rail", CALIBRE, "the ticket's body", null);
+  assert.deepEqual(ouvertes(sansJuge.faux), []);
+  assert.equal(sansJuge.faux.mergee(TICKET), undefined);
+  assert.ok(sansJuge.avertis.some((a) => a.includes("no judge")), sansJuge.avertis.join("\n"));
 });
