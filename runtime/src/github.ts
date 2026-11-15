@@ -4,6 +4,9 @@
 // nées d'un découpage, corps d'une épique, PR, CI, merge. Seul module qui lance `gh`. Sous l'identité unique de la
 // machine, c'est `gh` qui porte l'authentification ; sous une identité de rôle,
 // le jeton lui est remis à chaque appel (voir `identites.ts`).
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { refusDeLaCreation } from "./conflit-main/renvoi.ts";
 import { execFile } from "./sans-invite.ts";
 import { lienDuCorps } from "./besoin/besoin.ts";
@@ -260,6 +263,14 @@ export type GitHub = {
   creerCommit?(commit: { message: string; arbre: string; parents: string[] }): Promise<string>;
   // Crée la branche `branche` sur le commit `sha`.
   creerBranche?(branche: string, sha: string): Promise<void>;
+  // Un fichier du dépôt tel que `ref` le porte, octet pour octet — une image —,
+  // ou null s'il n'y est pas (#3617). Facultatif : seul le client réel le porte.
+  fichierBinaire?(chemin: string, ref: string): Promise<Buffer | null>;
+  // Publie ces fichiers dans un commit à eux seuls, sans parent ni branche,
+  // que GitHub garde sous `refs/brigade/captures/<sha>` : les images que la
+  // carte « Validate its screen » montre (#3617). Rend le sha du commit.
+  // Facultatif : seul le client réel le porte.
+  publierFichiers?(fichiers: ReadonlyArray<{ chemin: string; contenu: Uint8Array }>, message: string): Promise<string>;
   // Fusionne le commit `sha` dans `branche`, chez GitHub : le sha du commit de
   // fusion, ou `conflit` quand les deux ne se fusionnent pas sans conflit.
   fusionnerDansLaBranche?(branche: string, sha: string, message: string): Promise<{ sha: string } | { conflit: true }>;
@@ -485,7 +496,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -578,6 +589,22 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
   const creer = async (chemin: string, champs: Record<string, string>): Promise<Reponse> => {
     const args = Object.entries(champs).flatMap(([nom, valeur]) => ["-f", `${nom}=${valeur}`]);
     return exiger(await appeler(["-X", "POST", ...args, chemin]), chemin, 201);
+  };
+
+  // Une création dont le corps part en JSON, par un fichier que `gh` lit
+  // (`--input`) : une image en base64 dépasse ce qu'un argument peut porter.
+  // Rend le `sha` de ce qui est créé.
+  const envoyer = async (chemin: string, corps: unknown): Promise<{ sha: string }> => {
+    const dossier = mkdtempSync(join(tmpdir(), "brigade-gh-"));
+    try {
+      const fichier = join(dossier, "corps.json");
+      writeFileSync(fichier, JSON.stringify(corps));
+      const { sha } = JSON.parse(exiger(await appeler(["-X", "POST", "--input", fichier, chemin]), chemin, 201).corps) as { sha?: unknown };
+      if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${chemin} : création sans sha`);
+      return { sha };
+    } finally {
+      rmSync(dossier, { recursive: true, force: true });
+    }
   };
 
   // Le sha du dernier commit d'une branche.
@@ -904,6 +931,31 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const { content, encoding, sha } = JSON.parse(exiger(reponse, lu).corps) as { content?: unknown; encoding?: unknown; sha?: unknown };
       if (typeof content !== "string" || encoding !== "base64" || typeof sha !== "string" || sha === "") throw new Error(`gh api ${lu} : fichier illisible`);
       return { texte: Buffer.from(content, "base64").toString("utf8"), sha };
+    },
+    async fichierBinaire(chemin, ref) {
+      const lu = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
+      const reponse = await lireSousCondition([lu]);
+      if (reponse.statut === 404) return null;
+      const { content, encoding, sha } = JSON.parse(exiger(reponse, lu).corps) as { content?: unknown; encoding?: unknown; sha?: unknown };
+      if (typeof content === "string" && content !== "" && encoding === "base64") return Buffer.from(content, "base64");
+      // Au-delà d'un mégaoctet, GitHub ne rend pas le contenu du fichier : son
+      // blob, si.
+      if (typeof sha !== "string" || sha === "") throw new Error(`gh api ${lu} : fichier illisible`);
+      const blob = `repos/${depot}/git/blobs/${sha}`;
+      const lue = JSON.parse(exiger(await lireSousCondition([blob]), blob).corps) as { content?: unknown; encoding?: unknown };
+      if (typeof lue.content !== "string" || lue.encoding !== "base64") throw new Error(`gh api ${blob} : blob illisible`);
+      return Buffer.from(lue.content, "base64");
+    },
+    async publierFichiers(fichiers, message) {
+      const arbre = [];
+      for (const { chemin, contenu } of fichiers) {
+        const { sha } = await envoyer(`repos/${depot}/git/blobs`, { content: Buffer.from(contenu).toString("base64"), encoding: "base64" });
+        arbre.push({ path: chemin, mode: "100644", type: "blob", sha });
+      }
+      const { sha: tree } = await envoyer(`repos/${depot}/git/trees`, { tree: arbre });
+      const { sha: commit } = await envoyer(`repos/${depot}/git/commits`, { message, tree, parents: [] });
+      await creer(`repos/${depot}/git/refs`, { ref: `refs/brigade/captures/${commit}`, sha: commit });
+      return commit;
     },
     async ecrireSurBranche({ base, branche, chemin, texte, sha, message }) {
       const tete = await teteDe(base);

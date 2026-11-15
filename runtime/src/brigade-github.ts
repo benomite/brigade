@@ -50,6 +50,7 @@ import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
+import { avecChangements, lireChangements } from "./validation-design/changements.ts";
 import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-design/choix-de-design.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
@@ -191,6 +192,10 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // le temps du ticket s'écrit sans eux.
     ciDeLaBranche?: GitHub["ciDeLaBranche"];
     assigner?: GitHub["assigner"];
+    // Lire les captures d'une livraison design et publier leur comparaison
+    // (#3617). Absents, la carte « Validate its screen » se pose sans elle.
+    fichierBinaire?: GitHub["fichierBinaire"];
+    publierFichiers?: GitHub["publierFichiers"];
   } & GitHubDeLaRelance;
 
 // La fermeture du ticket d'une branche `cook/<n>-…` : son numéro et sa date,
@@ -283,7 +288,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[] } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -1042,11 +1047,25 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           // chaque tour : le ticket retourne à un cook avec le motif, et suit la
           // voie des échecs (#2610).
           try {
-            const adresse = await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: `Closes #${issue}\n\nCooked by station \`${nom}\`.` });
+            const adresse = await github.ouvrirPR({ branche: fait.branche, base, titre: `#${issue} — ${ticket.title}`, corps: avecChangements(`Closes #${issue}\n\nCooked by station \`${nom}\`.`, fait.changements ?? null) });
             livree = numeroDeLaPR(adresse);
           } catch (erreur) {
             if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
             refusee = `GitHub refused the pull request of \`${fait.branche}\`: ${message(erreur)}`;
+          }
+        }
+        // Une livraison de plus sur la PR encore ouverte : son corps prend les
+        // lignes de changement de ce cook-ci, ou perd celles du précédent
+        // (#3617). Non écrit, la carte montre celles que la PR porte ; la
+        // livraison part quand même.
+        if (ouverte !== null && ouverte.state === "open" && github.issue !== undefined && github.ecrireCorps !== undefined) {
+          try {
+            const corps = (await github.issue(ouverte.number))?.body;
+            const neuf = corps === undefined ? corps : avecChangements(corps, fait.changements ?? null);
+            if (neuf !== undefined && neuf !== corps) await github.ecrireCorps(ouverte.number, neuf);
+          } catch (erreur) {
+            if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+            avertir(`brigade : #${issue} sur ${nom} — the cook's change lines could not be written in the body of PR #${ouverte.number}: ${message(erreur)}`);
           }
         }
         // Ce que le cook a changé à l'écran, posté sur la PR : la pass le
@@ -2261,6 +2280,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     relancerLesEchecs: (run) => github.relancerLesEchecs(run),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
     ...(github.fichiersEntre === undefined ? {} : { fichiersEntre: github.fichiersEntre.bind(github) }),
+    ...(github.fichierBinaire === undefined || github.publierFichiers === undefined ? {} : { fichierBinaire: github.fichierBinaire.bind(github), publierFichiers: github.publierFichiers.bind(github) }),
     ...(github.statuts === undefined || github.poserStatut === undefined ? {} : { statuts: github.statuts.bind(github), poserStatut: github.poserStatut.bind(github) }),
     merger: (numero, sha) => github.merger(numero, sha),
     labelliser: (numero, labels) => github.labelliser(numero, labels),
@@ -2809,7 +2829,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     // Ce qu'il a changé à l'écran, pour le brief de la carte du chef (#3330).
     const aLEcran = lirePointsALEcran(messageFinal);
-    return aLEcran === null ? { branche } : { branche, aLEcran };
+    // Et ses lignes de changement, pour le corps de la PR (#3617).
+    const changements = lireChangements(messageFinal);
+    return { branche, ...(aLEcran === null ? {} : { aLEcran }), ...(changements === null ? {} : { changements }) };
   };
 
   // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,
