@@ -20,6 +20,7 @@ import {
   FIRE_EN_ATTENTE,
   PERSONNE,
   phraseDuHaut,
+  REDEMARRE,
   REFUSANT,
   servantesDe,
   UNE_MINUTE_MS,
@@ -251,5 +252,35 @@ describe("cet ordinateur fait tourner le projet sans le servir (#3399)", () => {
     assert.equal(FIRE_EN_ATTENTE(1), "1 fire ticket waiting");
     assert.equal(FIRE_EN_ATTENTE(0), "0 fire tickets waiting");
     assert.equal(phraseDuHaut(hautDe({ servantes: [], deplacement: null, maintenant: MAINTENANT })), PERSONNE);
+  });
+});
+
+describe("la station de cet ordinateur redémarre pour une mise à jour (#3637)", () => {
+  // Son signe de vie a du retard : la cuisson la dit hors ligne alors que son process est en train d'être remplacé.
+  const ICI = { projet: "parade", lignes: [ligne("macbook/claude", "idle", { distante: false, presente: false })], stations: [MAC], locale: "gmac", ici: true, maintenant: MAINTENANT };
+
+  test("sans redémarrage, elle est hors ligne : rien ne cuit", () => {
+    const haut = hautDe({ servantes: servantesDe(ICI), deplacement: null, maintenant: MAINTENANT });
+    assert.equal(haut.etat, "hors-ligne");
+  });
+
+  test("la ligne du haut dit « restarting: update to <version> », en jaune, jamais « offline » ni « nothing cooks »", () => {
+    const servantes = servantesDe({ ...ICI, redemarre: "2.5.0" });
+    assert.deepEqual(servantes.map(({ nom, ici, etat, dit }) => ({ nom, ici, etat, dit })), [{ nom: "macbook", ici: true, etat: "redemarre", dit: "restarting: update to 2.5.0" }]);
+    const haut = hautDe({ servantes, deplacement: null, maintenant: MAINTENANT });
+    assert.equal(haut.etat, "redemarre");
+    assert.equal(phraseDuHaut(haut), `macbook cooks this project, it is ${REDEMARRE("2.5.0")}`);
+    assert.doesNotMatch(phraseDuHaut(haut), /offline|nothing cooks/);
+    assert.equal(tonDuHaut(haut), "jaune");
+  });
+
+  test("une station qui sert le projet et qui est en ligne l'emporte : « Cooked by »", () => {
+    const servantes = servantesDe({ ...ICI, lignes: [...ICI.lignes, ligne("parade-box/claude", "idle", { presente: true })], stations: [BOX, MAC], redemarre: "2.5.0" });
+    assert.equal(hautDe({ servantes, deplacement: null, maintenant: MAINTENANT }).etat, "cuit");
+  });
+
+  test("une autre station hors ligne le reste : seule celle de cet ordinateur se relance", () => {
+    const servantes = servantesDe({ projet: "parade", lignes: [ligne("parade-box/claude", "idle", { presente: false })], stations: [BOX, MAC], locale: "gmac", maintenant: MAINTENANT, redemarre: "2.5.0" });
+    assert.equal(hautDe({ servantes, deplacement: null, maintenant: MAINTENANT }).etat, "hors-ligne");
   });
 });

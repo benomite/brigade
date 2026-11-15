@@ -8,7 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { ExecFileException } from "node:child_process";
 import type { Rendu } from "../src/box.ts";
 import type { Faits } from "../src/faits.ts";
-import { jouerLeGeste, lireLesProjets, type Lancer } from "../src/tray-fond/lecture.ts";
+import { demarrerLaStationDuProjet, jouerLeGeste, lireLesProjets, type Lancer } from "../src/tray-fond/lecture.ts";
 import { inscrireLeFond, quitterLaStation, stationDeFondInstallee } from "../src/tray-fond/systeme.ts";
 
 type Systeme = Parameters<typeof inscrireLeFond>[0];
@@ -193,5 +193,20 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
     assert.ok(processus.includes("await jouerLeGeste(geste, projets, lancer, DELAI_MS)"));
     assert.ok(processus.includes("const texte = confirmationDeQuitter(projets);"));
     assert.match(processus, /if \(response !== 0\) return;\n\s+await dire\(await quitterLaStation\(/);
+  });
+});
+
+describe("« Start this computer's station » sur l'alerte d'un projet (#3637)", () => {
+  test("c'est le `station start <station>` du geste `demarrage` de l'icône, pour ce projet", async () => {
+    const lances: string[] = [];
+    const rendu = await demarrerLaStationDuProjet({ nom: "parade", faits: faits(0, 0) }, async (projet, commande) => (lances.push(`${projet} ${commande}`), ok("")), 30_000);
+    assert.deepEqual(lances, ["parade station start mac/claude"]);
+    assert.deepEqual(rendu, {});
+  });
+
+  test("la station qui ne démarre pas rend sa raison ; un projet dont rien ne se lit n'envoie rien", async () => {
+    const refus = await demarrerLaStationDuProjet({ nom: "parade", faits: faits(0, 0) }, async () => rate(1, "no node"), 30_000);
+    assert.match(refus.refus ?? "", /^parade: station start mac\/claude failed — .*→ exit code 1$/s);
+    assert.deepEqual(await demarrerLaStationDuProjet({ nom: "parade", faits: undefined }, async () => assert.fail("rien ne part"), 30_000), { refus: "no project of this station could be read: nothing was sent" });
   });
 });

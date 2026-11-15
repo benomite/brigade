@@ -465,6 +465,8 @@ export const stations = definirProjection<Ecoutes>({
     "worktree.prepared": () => {},
     // Likewise: the project page reads it from the log (`onboarding/lire.ts`).
     "preparation.setup-failed": () => {},
+    // Likewise: the computer's sleep is read from the log (#3643).
+    "station.slept": () => {},
     // The issue says it; here only the cause counts, the one the
     // next failure is compared with.
     "setup.failed": (base, { payload }) => {
@@ -746,6 +748,17 @@ export function arreteeDepuis(base: Base, station: string): string | null {
 // station is no longer one.
 export function stationsAnnoncees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations ORDER BY station").map((ligne) => ligne.station);
+}
+
+// The station among `stations` that the log records held with the cause
+// `breaker`, and since when: the breaker it keeps closed on is open for it,
+// whatever another station's journal says of its own.
+export function stationRetenueParLeDisjoncteur(base: Base, stations: string[]): { station: string; since: string } | null {
+  for (const station of stations) {
+    const etat = etatStation(base, station);
+    if (etat?.heldReason === "breaker" && etat.heldAt !== null) return { station, since: etat.heldAt };
+  }
+  return null;
 }
 
 // The cause that set the project's latest ticket aside, if no cook has left

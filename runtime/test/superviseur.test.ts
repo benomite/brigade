@@ -417,6 +417,44 @@ describe("superviser, à l'horloge du test", () => {
   });
 
 
+  // Le run 53-github-928d9bb8 de secondes (#3648) : son résultat écrit, `claude` ne sortait pas, et la garde
+  // d'inactivité le tuait dix minutes plus tard, son travail perdu. Le délai de finition est le quart de celui
+  // d'inactivité, ici 250 ms.
+  const aFini = async (activite: () => { doing: string } | null) => {
+    while (activite()?.doing !== "finishing") await souffler();
+  };
+
+  test("un cook qui a dit son résultat sans sortir est terminé passé le délai de finition, bien avant la garde d'inactivité, et sa fin est son résultat (#3648)", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { fin, activite, arrets } = cook(t, "livre-puis-reste", { idleMs: 1000 });
+    assert.ok(activite);
+    await aFini(activite);
+    let fini = false;
+    void fin.then(() => (fini = true));
+
+    t.mock.timers.tick(249);
+    await souffler();
+    assert.equal(fini, false);
+    // Jusqu'au délai d'inactivité : la finition passe la première, et la garde ne part jamais.
+    t.mock.timers.tick(751);
+    const resultat = await fin;
+
+    assert.deepEqual(arrets, []);
+    assert.deepEqual([resultat.arret, resultat.code, resultat.signal, resultat.apresResultatMs, resultat.erreur], [null, 0, null, 250, null]);
+  });
+
+  test("un cook dont le résultat est une erreur, et qui ne sort pas, finit en erreur passé le délai de finition (#3648)", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { fin, activite, arrets } = cook(t, "echoue-puis-reste", { idleMs: 1000 });
+    assert.ok(activite);
+    await aFini(activite);
+    t.mock.timers.tick(1000);
+    const resultat = await fin;
+
+    assert.deepEqual(arrets, []);
+    assert.deepEqual([resultat.arret, resultat.code, resultat.signal, resultat.apresResultatMs], [null, 1, null, 250]);
+  });
+
   test("un cook muet est détecté comme inactif et arrêté", async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const { fin } = cook(t, "muet", { idleMs: 150 });

@@ -27,7 +27,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
   test("2 : sa station est arrêtée", () => {
     assert.deepEqual(attente([file(4)], [station({ stoppedAt: iso(T0 - 20_000) })]), {
       raison: "arretee",
-      phrase: "Station box/claude is stopped, so no cook can start. Start the station.",
+      phrase: "Station box/claude is stopped, so no cook can start. Start it on its computer.",
       geste: "demarrer-la-station",
       stations: ["box/claude"],
     });
@@ -36,7 +36,7 @@ describe("la raison pour laquelle la file ne part pas", () => {
   test("3 : sa station est hors ligne ou sans quota", () => {
     assert.deepEqual(attente([file(4)], [station({ lastSeen: iso(T0 - 3_600_000) })]), {
       raison: "hors-ligne",
-      phrase: "Station box/claude is offline or out of quota, so no cook can start. Start the station.",
+      phrase: "Station box/claude is offline or out of quota, so no cook can start. Start it on its computer.",
       geste: "demarrer-la-station",
       stations: ["box/claude"],
     });
