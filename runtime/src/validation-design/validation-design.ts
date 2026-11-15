@@ -39,6 +39,13 @@
 //   commentaire du chef comme ce qu'il faut changer, et ferme la carte. La
 //   livraison suivante revient en carte neuve, avec ses captures neuves.
 //
+// - La carte montre aussi ce qui a changé (#3617) : au-dessus des captures, les
+//   lignes que le cook a écrites sous `## Changes` dans le corps de la PR
+//   (`changements.ts`), puis, écran par écran, la capture après, les zones
+//   changées entourées, et chaque zone agrandie, avant et après côte à côte
+//   (`comparer-les-captures.ts`). Des captures qui ne montrent aucun
+//   changement visible ne vont pas au chef : la livraison repart à son cook.
+//
 // Réglage absent ou faux : rien ne change, la pass merge.
 //
 // La carte, la pose d'une seule par tête et les deux gestes valent pour toute
@@ -54,6 +61,8 @@ import { GesteRefuse } from "../rail.ts";
 import { possede } from "../zones.ts";
 import { demandeDuCorps, demanderSurLeTicket } from "../validation-sur-ticket/validation-sur-ticket.ts";
 import { ceQuiEstDemande, ceQuiEstFait, lignesDuBrief } from "./brief.ts";
+import { lignesDesChangements, lireChangements } from "./changements.ts";
+import { comparerLesCaptures, raisonSansChangement } from "./comparer-les-captures.ts";
 import { estTechnique, type ChoixDeDesign } from "./choix-de-design.ts";
 
 // Le titre de la carte, et la sorte de son commentaire de carte : l'app les lit.
@@ -191,7 +200,7 @@ export async function reponsesGardees(sortes: readonly SorteDeRetenue[], github:
   return sortes.filter((sorte) => validationQuiTient(sorte, commentaires, pr) !== null).length;
 }
 
-export type GitHubDeLaRetenue = Pick<GitHub, "commenter" | "labelliser" | "delabelliser" | "fermerIssue"> & { commentaires(numero: number): Promise<Array<{ body: string; association: string }>>; issue?: GitHub["issue"]; fichiersEntre?: GitHub["fichiersEntre"] };
+export type GitHubDeLaRetenue = Pick<GitHub, "commenter" | "labelliser" | "delabelliser" | "fermerIssue"> & { commentaires(numero: number): Promise<Array<{ body: string; association: string }>>; issue?: GitHub["issue"]; fichiersEntre?: GitHub["fichiersEntre"] } & Partial<Pick<GitHub, "fichierBinaire" | "publierFichiers">>;
 
 export type LivraisonARetenir = {
   // `owner/name` du projet ; absent, la carte ne sait pas montrer ses captures.
@@ -359,13 +368,15 @@ export async function fermerLesCartesCaduques(
 // ou une demande que GitHub n'écrit pas, lèvent : la pass le dit, ne merge
 // pas, et réessaie. La demande porte, après le lien de la PR, le brief — ce
 // que le ticket demandait, ce que le cook a fait (#3330) —, puis `suite` (les
-// captures d'un design), lus seulement quand une demande se pose ; `avant`
-// précède le brief (le choix de design qu'elle fait valider, #3609).
+// captures d'un design), lus seulement quand une demande se pose ; `suite` peut
+// rendre à la place le motif pour lequel aucune ne se pose (#3617 : des
+// captures qui ne montrent aucun changement). `avant` précède le brief (le
+// choix de design qu'elle fait valider, #3609).
 export async function tenirPourLeChef(
   sorte: SorteDeRetenue,
   github: GitHubDeLaRetenue,
   livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr" | "chef">,
-  suite: (depot: string) => Promise<readonly string[]> = async () => [],
+  suite: (depot: string) => Promise<readonly string[] | { motif: string }> = async () => [],
   repondues: readonly SorteDeRetenue[] = [],
   ecran?: (depuis: string) => Promise<string | null>,
   avant: readonly string[] = [],
@@ -384,6 +395,8 @@ export async function tenirPourLeChef(
   if (tenue !== null) return `${sorte.tenue} (${ouAttend(tenue, ticket.number)})`;
   if (livraison.depot === undefined) throw new Error(`the station does not know its repository: the validation of PR #${pr.number} cannot link it — not merged on this turn`);
   const depot = livraison.depot;
+  const portee = await suite(depot);
+  if ("motif" in portee) return portee.motif;
   const brief = await briefDeLaDemande(github, ticket, pr.number);
   await demanderSurLeTicket(github, {
     sorte: sorte.sorte,
@@ -392,7 +405,7 @@ export async function tenirPourLeChef(
     sha: pr.sha,
     question: sorte.question(ticket.number, pr.number),
     chef: livraison.chef ?? null,
-    suite: [...(redemande === null ? [] : [redemande, ""]), `Station \`${livraison.station}\`: ${sorte.pourquoi} — ${sorte.tenue}.`, `Pull request: ${adresseDeLaPR(depot, pr.number)}`, "", ...avant, ...brief, ...(await suite(depot))],
+    suite: [...(redemande === null ? [] : [redemande, ""]), `Station \`${livraison.station}\`: ${sorte.pourquoi} — ${sorte.tenue}.`, `Pull request: ${adresseDeLaPR(depot, pr.number)}`, "", ...avant, ...brief, ...portee],
   });
   return `${sorte.tenue} (${ouAttend(ticket.number, ticket.number)})`;
 }
@@ -442,7 +455,30 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
   }
   // L'écran de la livraison : ceux de ses fichiers qui en font une livraison design.
   const ecran = fichiers.filter((fichier) => estUneLivraisonDesign(ticket.number, [fichier], []));
-  return tenirPourLeChef(DESIGN, github, livraison, async (depot) => direCaptures(depot, ticket.number, { sha: pr.sha, screens }), [], (depuis) => ecranChange(github, ecran, depuis, pr.sha), choix === null ? [] : [`**Design choice:** ${choix}`, ""]);
+  const suite = async (depot: string) => {
+    const comparaison = await comparer(github, depot, ticket.number, pr.sha, screens);
+    if ("sansChangement" in comparaison) {
+      await livraison.renvoyer(raisonSansChangement(ticket.number, comparaison.sansChangement));
+      return { motif: `design delivery whose captures show no change (${comparaison.sansChangement.map((ecran) => (ecran === "" ? "the screen" : ecran)).join(", ")}): sent back to its cook for captures that show it` };
+    }
+    return [...lignesDesChangements(await changementsDeLaPR(github, pr.number)), ...comparaison.lignes, ...direCaptures(depot, ticket.number, { sha: pr.sha, screens })];
+  };
+  return tenirPourLeChef(DESIGN, github, livraison, suite, [], (depuis) => ecranChange(github, ecran, depuis, pr.sha), choix === null ? [] : [`**Design choice:** ${choix}`, ""]);
+}
+
+// La comparaison des captures (#3617), par le client qui lit et publie des
+// images ; un client qui ne le sait pas — celui des tests qui n'en jouent
+// pas — pose la demande sans elle.
+function comparer(github: GitHubDeLaRetenue, depot: string, ticket: number, sha: string, screens: readonly CapturesDEcran[]) {
+  const { fichierBinaire, publierFichiers } = github;
+  if (fichierBinaire === undefined || publierFichiers === undefined) return Promise.resolve({ lignes: [] });
+  return comparerLesCaptures({ fichierBinaire: fichierBinaire.bind(github), publierFichiers: publierFichiers.bind(github) }, depot, ticket, sha, screens);
+}
+
+// Les lignes `## Changes` du corps de la PR (#3617) ; nulles s'il n'y en a
+// pas, ou que GitHub ne la trouve pas. Une lecture qui échoue lève.
+async function changementsDeLaPR(github: GitHubDeLaRetenue, pr: number): Promise<string[] | null> {
+  return lireChangements(github.issue === undefined ? null : (await github.issue(pr))?.body);
 }
 
 // Le brief de la demande (#3330) : ce que le ticket demandait, tiré de son

@@ -27,10 +27,18 @@ export type GitHubDeLaReparation = {
   // Le dernier commit de la branche d'intégration.
   teteDeLaBase(): Promise<string>;
   // Les issues modifiées depuis `instant`, ouvertes ou fermées, avec leur corps.
-  issuesDepuis(instant: string): Promise<Pick<IssueOuverte, "number" | "body" | "association">[]>;
+  // Titre, état, labels et date de modification servent à regrouper les rouges
+  // d'un même check (#3614) ; sans eux, une issue ne se regroupe pas.
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "title" | "state" | "labels" | "updatedAt">>)[]>;
   // Crée une issue ; rend son numéro.
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
+  // Regrouper les rouges d'un check (#3614) : rouvrir une réparation fermée,
+  // réécrire son corps et son titre. Facultatifs : sans eux, chaque commit
+  // rouge ouvre son ticket comme avant.
+  rouvrirIssue?(numero: number): Promise<void>;
+  ecrireCorps?(numero: number, corps: string): Promise<void>;
+  ecrireTitre?(numero: number, titre: string): Promise<void>;
   // Le journal du job d'un check de GitHub Actions, ou null. Sans lui, le
   // ticket nomme ses checks sans leur sortie.
   journalDuCheck?(check: Check): Promise<string | null>;
@@ -51,6 +59,56 @@ export const estUneReparation = (corps: string, labels: string[]): boolean => la
 // Jusqu'où on cherche, sur GitHub, la réparation d'un rouge dont cette station
 // n'a pas ouvert le ticket (une autre, ou elle-même avant un redémarrage).
 const FENETRE_MS = 7 * 24 * 3600 * 1000;
+
+// Un check qui casse la base plusieurs fois a une seule réparation, qui suit sa
+// cause (#3614) : un rouge sur un check dont une occurrence date de moins de
+// `FENETRE_REPETITION_JOURS` jours rouvre ou complète cette réparation au lieu
+// d'en ouvrir une autre ; à `SEUIL_DE_REPETITION` occurrences dans la fenêtre,
+// son but devient la cause.
+export const FENETRE_REPETITION_JOURS = 14;
+export const SEUIL_DE_REPETITION = 3;
+// Posé sur une réparation dont le but est la cause : le vert de la base ne la
+// ferme plus. Elle ne se ferme que lorsque ce label dit la cause corrigée.
+export const LABEL_CAUSE_CORRIGEE = "cause-fixed";
+const MARQUE_CAUSE = "<!-- brigade:base-rouge-cause -->";
+export const viseLaCause = (corps: string): boolean => corps.includes(MARQUE_CAUSE);
+
+// L'identité d'un check : son nom sans le suffixe de shard ` (n/N)`.
+const identiteDuCheck = (nom: string): string => nom.replace(/ \(\d+\/\d+\)$/, "");
+
+const ENTETE_OCCURRENCES = "## Occurrences";
+// Une ligne par commit rouge : sha court, date, checks (identités), erreur.
+const OCCURRENCE = /^- `([0-9A-Za-z]+)` · (\d{4}-\d{2}-\d{2}) · (.*?) · (.*)$/;
+type Occurrence = { sha: string; jour: string; checks: string[]; ligne: string };
+const occurrencesDe = (corps: string): Occurrence[] =>
+  corps.split(/\r?\n/).flatMap((ligne) => {
+    const lue = OCCURRENCE.exec(ligne);
+    return lue === null ? [] : [{ sha: lue[1] as string, jour: lue[2] as string, checks: (lue[3] as string).split(", "), ligne }];
+  });
+const jourDe = (instant: number) => new Date(instant).toISOString().slice(0, 10);
+
+// La fin utile d'une sortie, en une ligne : la dernière ligne qui nomme une
+// erreur, sinon la dernière ligne.
+const resumeDeLErreur = (sortie: string | null): string => {
+  const lignes = (sortie ?? "").split("\n").map((ligne) => ligne.replace(/^##\[error\]/, "").trim()).filter((ligne) => ligne !== "");
+  const ligne = lignes.findLast((candidate) => /\b(?:\w*Error|not ok|FAIL)\b/.test(candidate)) ?? lignes.at(-1);
+  if (ligne === undefined) return "no output from GitHub";
+  return ligne.length > 160 ? `${ligne.slice(0, 159)}…` : ligne;
+};
+const ligneDOccurrence = (sha: string, jour: string, identites: string[], echecs: EchecDeLaBase[]) =>
+  `- \`${court(sha)}\` · ${jour} · ${identites.join(", ").replaceAll(" · ", " ")} · ${resumeDeLErreur(echecs.find(({ sortie }) => sortie !== null && sortie !== "")?.sortie ?? null)}`;
+
+// Ajoute une ligne à la fin de la liste des occurrences, sans toucher aux
+// précédentes ; sans liste, elle s'ouvre en fin de corps.
+const ajouteUneOccurrence = (corps: string, ligne: string): string => {
+  const lignes = corps.split("\n");
+  const entete = lignes.indexOf(ENTETE_OCCURRENCES);
+  if (entete === -1) return `${corps.trimEnd()}\n\n${ENTETE_OCCURRENCES}\n\n${ligne}\n`;
+  let fin = entete + 1;
+  for (let i = entete + 1; i < lignes.length && !/^(?:## |---)/.test(lignes[i] as string); i++) if (OCCURRENCE.test(lignes[i] as string)) fin = i + 1;
+  lignes.splice(fin, 0, ligne);
+  return lignes.join("\n");
+};
 
 // La sortie d'un check gardée dans le ticket : ses dernières lignes, jusqu'à la
 // dernière erreur que GitHub Actions y annonce. Le corps d'une issue tient en
@@ -97,7 +155,36 @@ export function titreDeLaReparation(base: string, sha: string, echecs: EchecDeLa
   return `Repair \`${base}\`, red on ${court(sha)}: ${premier?.nom ?? "checks"}${autres.length === 0 ? "" : ` (and ${autres.length} more)`}`;
 }
 
-export function corpsDeLaReparation(base: string, sha: string, echecs: EchecDeLaBase[]): string {
+export const titreDeLaCause = (base: string, identite: string) => `Repair \`${base}\`: ${identite} keeps failing`;
+
+// Le corps d'une réparation dont le but est la cause : le premier commit rouge
+// et la liste des occurrences, telle qu'elle est, sont gardés.
+export function corpsDeLaCause(base: string, identite: string, ancien: string): string {
+  const marque = MARQUE.exec(ancien)?.[0].trim();
+  return [
+    ...(marque === undefined ? [] : [marque]),
+    MARQUE_CAUSE,
+    "",
+    "## Context",
+    "",
+    `The check \`${identite}\` has broken \`${base}\` ${SEUIL_DE_REPETITION} times or more within ${FENETRE_REPETITION_JOURS} days. This ticket tracks its cause, not one commit: each new red commit on it is added to the list below, and the base's green does not close it.`,
+    "",
+    ENTETE_OCCURRENCES,
+    "",
+    ...occurrencesDe(ancien).map(({ ligne }) => ligne),
+    "",
+    "## Acceptance criteria",
+    "",
+    `- The cause that makes \`${identite}\` fail is found and fixed: no test is removed, skipped or weakened to turn green.`,
+    `- The ticket closes only when the cause is fixed: put the \`${LABEL_CAUSE_CORRIGEE}\` label on it, and the next green of \`${base}\` closes it.`,
+    "",
+    "---",
+    "",
+    `_Opened by a station, with no gesture from the chef: \`${PRIO_REPARATION}\`, it goes before the whole rail._`,
+  ].join("\n");
+}
+
+export function corpsDeLaReparation(base: string, sha: string, echecs: EchecDeLaBase[], occurrence?: string): string {
   const sorties = echecs.flatMap(({ nom, url, sortie }) => {
     const titre = `### \`${nom}\``;
     if (sortie === null || sortie === "") return [titre, "", url === null ? "_GitHub gives no output for this check._" : `_GitHub gives no output for this check: ${url}_`, ""];
@@ -115,6 +202,7 @@ export function corpsDeLaReparation(base: string, sha: string, echecs: EchecDeLa
     "",
     ...(echecs.length === 0 ? ["- (GitHub names no failing check)"] : echecs.map(({ nom }) => `- \`${nom}\``)),
     "",
+    ...(occurrence === undefined ? [] : [ENTETE_OCCURRENCES, "", occurrence, ""]),
     ...(sorties.length === 0 ? [] : ["## Error output", "", ...sorties]),
     "## Acceptance criteria",
     "",
@@ -134,6 +222,10 @@ export type OuvertureDeLaReparation = {
   // Pourquoi le ticket n'a pas pu être ouvert ou retrouvé : le tour suivant
   // réessaie, la base rouge n'en retient pas moins les merges.
   erreur?: string;
+  // La consignation du rouge sur la réparation regroupée (occurrence, titre de
+  // la cause) : le tour la joue une fois la réparation dispatchée, et le tour
+  // suivant réessaie si elle échoue.
+  consigner?: () => Promise<void>;
 };
 
 export type OptionsDeLOuverture = {
@@ -146,7 +238,7 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
   // Cache, pas état : les rouges dont on sait déjà le ticket.
   const connus = new Map<string, number>();
   // Deux appels sur le même rouge : GitHub n'est lu qu'une fois.
-  const enCours = new Map<string, Promise<number>>();
+  const enCours = new Map<string, Promise<{ numero: number; consigner?: () => Promise<void> }>>();
 
   // Ce qui a échoué, avec la sortie de chaque check. Un journal illisible
   // n'empêche pas le ticket, sauf GitHub qui limite ses appels : le tour
@@ -167,32 +259,86 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
     return echecs;
   };
 
-  const reparationDe = (sha: string, rouges: CheckDeLaBase[]): Promise<number> => {
+  type Lue = Awaited<ReturnType<GitHubDeLaReparation["issuesDepuis"]>>[number];
+  const reparationDe = (sha: string, rouges: CheckDeLaBase[]): Promise<{ numero: number; consigner?: () => Promise<void> }> => {
     const connu = connus.get(sha);
-    if (connu !== undefined) return Promise.resolve(connu);
+    if (connu !== undefined) return Promise.resolve({ numero: connu });
     const deja = enCours.get(sha);
     if (deja !== undefined) return deja;
     const ouverture = (async () => {
-      const depuis = new Date(maintenant().getTime() - FENETRE_MS).toISOString();
+      const maintenant_ = maintenant().getTime();
+      const depuis = new Date(maintenant_ - Math.max(FENETRE_MS, FENETRE_REPETITION_JOURS * 24 * 3600 * 1000)).toISOString();
+      const lire = async (): Promise<Lue[]> => (await github.issuesDepuis(depuis)).filter((issue) => DE_CONFIANCE.includes(issue.association));
       // Les réparations de ce rouge, de la plus ancienne à la plus récente. Une
-      // marque posée par un inconnu ne fait taire aucun rouge.
-      const dece = async () =>
-        (await github.issuesDepuis(depuis))
-          .filter((issue) => DE_CONFIANCE.includes(issue.association) && shaDeBaseRouge(issue.body) === sha)
+      // marque posée par un inconnu ne fait taire aucun rouge ; une occurrence
+      // déjà consignée sur une réparation regroupée le fait taire aussi.
+      const dece = (lues: Lue[]) =>
+        lues
+          .filter((issue) => shaDeBaseRouge(issue.body) === sha || occurrencesDe(issue.body).some((occurrence) => occurrence.sha === court(sha)))
           .map((issue) => issue.number)
           .sort((x, y) => x - y);
-      let [numero] = await dece();
-      if (numero === undefined) {
-        const echecs = await echecsDe(rouges);
-        const creee = await github.creerIssue({ titre: titreDeLaReparation(base, sha, echecs), corps: corpsDeLaReparation(base, sha, echecs), labels: LABELS_REPARATION });
-        // Deux stations qui ont vu le rouge ensemble en ont chacune ouvert une :
-        // la plus ancienne reste, l'autre se ferme.
-        const [premiere = creee] = await dece();
-        if (premiere < creee) await github.fermerIssue(creee);
-        numero = Math.min(premiere, creee);
+      const lues = await lire();
+      let [numero] = dece(lues);
+      if (numero !== undefined) {
+        connus.set(sha, numero);
+        return { numero };
       }
+      // Le rouge d'un check dont une occurrence est récente complète sa
+      // réparation, la plus récemment modifiée. Rouvrir est le geste qui
+      // dispatche : il passe avant toute lecture de journal et toute écriture,
+      // et s'il échoue la réparation s'ouvre comme avant (#3614).
+      const identites = [...new Set(rouges.map((check) => identiteDuCheck(nomDe(check))))];
+      const coupure = jourDe(maintenant_ - FENETRE_REPETITION_JOURS * 24 * 3600 * 1000);
+      let reprise = lues
+        .filter((issue) => !(issue.labels ?? []).includes(LABEL_CAUSE_CORRIGEE) && occurrencesDe(issue.body).some((occurrence) => occurrence.jour >= coupure && occurrence.checks.some((check) => identites.includes(check))))
+        // Deux stations qui ont ouvert chacune la réparation d'un même commit
+        // en ont fermé la plus récente : elle ne se rouvre pas, la plus ancienne reste.
+        .filter((issue, _, candidates) => candidates.every((autre) => autre.number >= issue.number || occurrencesDe(autre.body)[0]?.sha !== occurrencesDe(issue.body)[0]?.sha))
+        .sort((x, y) => (y.updatedAt ?? "").localeCompare(x.updatedAt ?? "") || y.number - x.number)[0];
+      if (reprise !== undefined && reprise.state === "closed") {
+        try {
+          if (github.rouvrirIssue === undefined) throw new Error("this GitHub client cannot reopen an issue");
+          await github.rouvrirIssue(reprise.number);
+        } catch (erreur) {
+          if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+          reprise = undefined;
+        }
+      }
+      if (reprise !== undefined) {
+        const retenue = reprise;
+        // La consignation vient après la réparation : le tour la joue une fois
+        // celle-ci dispatchée, et un échec ne la retarde ni ne la retient.
+        const consigner = async () => {
+          const jour = jourDe(maintenant_);
+          const ligne = ligneDOccurrence(sha, jour, identites, await echecsDe(rouges));
+          let corps = ajouteUneOccurrence(retenue.body, ligne);
+          let titre: string | null = null;
+          const repetees = identites.find((identite) => occurrencesDe(corps).filter((o) => o.jour >= coupure && o.checks.includes(identite)).length >= SEUIL_DE_REPETITION);
+          if (repetees !== undefined && !viseLaCause(retenue.body)) {
+            corps = corpsDeLaCause(base, repetees, corps);
+            titre = titreDeLaCause(base, repetees);
+          }
+          if (github.ecrireCorps === undefined) throw new Error("this GitHub client cannot rewrite an issue");
+          // Le titre d'abord : s'il échoue, le corps ne dit pas encore la cause et le tour suivant réessaie les deux.
+          if (titre !== null) {
+            if (github.ecrireTitre === undefined) throw new Error("this GitHub client cannot rewrite an issue's title");
+            await github.ecrireTitre(retenue.number, titre);
+          }
+          await github.ecrireCorps(retenue.number, corps);
+          connus.set(sha, retenue.number);
+        };
+        return { numero: retenue.number, consigner };
+      }
+      const echecs = await echecsDe(rouges);
+      const ligne = ligneDOccurrence(sha, jourDe(maintenant_), identites, echecs);
+      const creee = await github.creerIssue({ titre: titreDeLaReparation(base, sha, echecs), corps: corpsDeLaReparation(base, sha, echecs, ligne), labels: LABELS_REPARATION });
+      // Deux stations qui ont vu le rouge ensemble en ont chacune ouvert une :
+      // la plus ancienne reste, l'autre se ferme.
+      const [premiere = creee] = dece(await lire());
+      if (premiere < creee) await github.fermerIssue(creee);
+      numero = Math.min(premiere, creee);
       connus.set(sha, numero);
-      return numero;
+      return { numero };
     })().finally(() => enCours.delete(sha));
     enCours.set(sha, ouverture);
     return ouverture;
@@ -206,7 +352,8 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
     const rouges = checks.filter((check) => check.outcome === "red");
     const sha = await github.teteDeLaBase();
     try {
-      return { sha, reparation: await reparationDe(sha, rouges) };
+      const { numero, consigner } = await reparationDe(sha, rouges);
+      return { sha, reparation: numero, ...(consigner === undefined ? {} : { consigner }) };
     } catch (erreur) {
       return { sha, reparation: null, erreur: erreur instanceof Error ? erreur.message : String(erreur) };
     }
