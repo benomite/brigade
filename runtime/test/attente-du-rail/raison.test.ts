@@ -221,8 +221,8 @@ describe("`Depends on #N`", () => {
   });
 
   test("ne lit ni un numéro cité sans tournure, ni entre backticks, ni dans un bloc de code, ni d'un autre dépôt", () => {
-    assert.deepEqual(dependancesDuCorps("Taken in parallel with #53, see #5, related to #10 (#2968)."), []);
-    assert.deepEqual(dependancesDuCorps("The phrase `after #4` is an example.\n```\nonce #6 is done\n```"), []);
-    assert.deepEqual(dependancesDuCorps("Ported after secondes#49."), []);
+    assert.deepEqual(dependancesDuCorps("Taken in parallel with #53, see #5, related to #10 (#2968), after #12."), [12]);
+    assert.deepEqual(dependancesDuCorps("The phrase `after #4` is an example.\n```\nonce #6 is done\n```\nOnce #7 is done."), [7]);
+    assert.deepEqual(dependancesDuCorps("Ported after secondes#49, after #50."), [50]);
   });
 });
