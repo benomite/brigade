@@ -679,10 +679,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const run = `${sujet.prefixe}-${sujet.numero}-${randomUUID().slice(0, 8)}`;
     let lecture: Lecture | null = null;
     let lue: ReturnType<typeof lire> | null = null;
-    const conclure = (fin: Fin): Verdict => {
+    // `essai` : le run qui finit — une relance quand le jugement a calé (#3599).
+    const conclure = (fin: Fin, essai: string): Verdict => {
       let flux = "";
       try {
-        flux = readFileSync(join(options.repertoireEtat, "runs", `${run}.jsonl`), "utf8");
+        flux = readFileSync(join(options.repertoireEtat, "runs", `${essai}.jsonl`), "utf8");
       } catch {
         // Sans flux, il n'y a pas de décision.
       }
@@ -732,7 +733,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       return null;
     }
     if (comment === "disconnected") {
-      noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run } }));
+      noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: fin.run } }));
       avertir(`brigade : connexion Max absente ou expirée, vue par un ${sujet.nom} du manager — \`claude /login\` sous le compte du service — la cuisine reprend seule dans la minute`);
       return null;
     }
@@ -744,14 +745,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       avertir(`brigade : ${sujet.nom} de l'issue #${sujet.numero} refusé par le modèle (${direRefus(flux)}), essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`);
       if (refus < REFUS_MAX) return null;
       // Posé sur l'issue : en anglais.
-      return { run, illisible: `model refusal${flux?.refus?.categorie ? ` (${flux.refus.categorie})` : ""}, ${refus} times in a row (\`stop_reason: refusal\`)` };
+      return { run: fin.run, illisible: `model refusal${flux?.refus?.categorie ? ` (${flux.refus.categorie})` : ""}, ${refus} times in a row (\`stop_reason: refusal\`)` };
     }
     // Seul un jugement allé à son terme dit quelque chose de l'issue, que sa
     // réponse se lise ou non : il s'épingle sur son état. Tout le reste —
     // binaire introuvable, panne réseau, arrêt par un garde-fou — dit quelque
     // chose de la machine : rien n'est épinglé ni commenté, il repart au
     // réveil suivant, et c'est le disjoncteur qui borne.
-    if (comment === "done" && reponse) return { run, ...reponse };
+    if (comment === "done" && reponse) return { run: fin.run, ...reponse };
     const raison = fin.arret
       ? `guard:${fin.arret.reason}`
       : (fin.erreur ?? (fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`));

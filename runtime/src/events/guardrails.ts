@@ -2,6 +2,7 @@
 // chef commands to the kitchen.
 
 import type { Activite } from "../activite.ts";
+import type { Calage } from "../breaker/calage.ts";
 
 // What a cook cannot exceed, whatever its ticket.
 export type Plafonds = { durationMs: number; tokens: number; idleMs: number };
@@ -14,9 +15,10 @@ export type MotifArret = "duration" | "tokens" | "idle" | "lease" | "removals" |
 
 // How a cook ended, from the breaker's point of view: `failed` and `guard` are
 // failures, `ok` resets the counter to zero, `stop`, `neutral` (the 86, which
-// the station recognises) and `refused` (the model refused to answer) count
-// neither for nor against.
-export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral" | "refused";
+// the station recognises), `refused` (the model refused to answer) and
+// `stalled` (stopped for inactivity having never started, or hung on a command
+// — `breaker/calage.ts`, #3599) count neither for nor against.
+export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral" | "refused" | "stalled";
 
 export const RELEVE = "cook.progressed";
 
@@ -40,6 +42,8 @@ export const RELEVE = "cook.progressed";
 // `continues`: the cook that takes over the preserved work of another — that
 // of a remote station that vanished mid-cook (`travail-conserve.ts`): the run
 // of that cook. Its branch is its own.
+// `stallRetry` (#3599): the relaunch of a stalled run, which the kitchen does
+// by itself — the run it relaunches, and which relaunch this is (1 for the first).
 // `lessons`: the ids of the project's provisional lessons the cook of a ticket
 // received in its prompt, most recent first (`apprentissage/injection.ts`) —
 // empty, it received none. Absent: a cook that serves no ticket (a manager
@@ -58,6 +62,7 @@ export type ContexteCook = {
   resumes?: { run: string; session: string };
   continues?: string;
   lessons?: string[];
+  stallRetry?: { of: string; attempt: number };
 };
 
 export type FaitGardeFous =
@@ -121,8 +126,11 @@ export type FaitGardeFous =
   // killed from outside (exit code 143, no guardrail, no error): its failure is dropped.
   | { type: "cook.reclassified"; payload: { run: string; from: "failed"; to: "stop"; reason: "external" } }
   // Startup reconciliation (#3528): the breaker opened on failures that no longer hold.
-  | { type: "breaker.lifted"; payload: { failures: number; threshold: number } }
-  | { type: "breaker.opened"; payload: { failures: number; threshold: number } }
+  // `after` (#3599): a breaker opened by stalls, closed by a later run that completed normally — that run.
+  | { type: "breaker.lifted"; payload: { failures: number; threshold: number; after?: string } }
+  // `stalled` (#3599): the breaker opened because a run kept stalling after its
+  // relaunches — what keeps stalling, for the chef. Absent: real failures opened it.
+  | { type: "breaker.opened"; payload: { failures: number; threshold: number; stalled?: Calage } }
   // The chef's commands: "stop" and "resume".
   | { type: "kitchen.stopped"; payload: Record<string, never> }
   | { type: "kitchen.resumed"; payload: Record<string, never> };

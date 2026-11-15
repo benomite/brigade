@@ -1,6 +1,7 @@
 // Les réglages des garde-fous : des valeurs par défaut fixées par le chef, que
 // l'environnement du runtime (l'unité systemd) peut ajuster. Les mêmes pour
 // tous les tickets d'un projet.
+import { RELANCES_SUR_CALAGE } from "./breaker/calage.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -14,6 +15,11 @@ export type Reglages = {
   // ne se recouvrent pas (`file-de-la-pass.ts`). Un : une à la fois. Absent :
   // celui par défaut.
   jugements?: number;
+  // Combien de fois un run calé — jamais démarré, ou pendu à une commande — est
+  // relancé sur place avant que le disjoncteur s'ouvre pour le dire au chef
+  // (`breaker/calage.ts`, #3599). Absent : il n'est pas relancé ici, et son
+  // calage ne compte pas plus au disjoncteur.
+  relancesSurCalage?: number;
 };
 
 // Le plafond des jugements simultanés, tant que l'environnement n'en dit rien.
@@ -51,5 +57,6 @@ export function lireReglages(env: NodeJS.ProcessEnv): Reglages {
     seuilDisjoncteur: entier(env, "BRIGADE_BREAKER_FAILURES", 3),
     graceMs: 10_000,
     jugements: entier(env, "BRIGADE_MAX_JUDGEMENTS", JUGEMENTS_PAR_DEFAUT),
+    relancesSurCalage: RELANCES_SUR_CALAGE,
   };
 }

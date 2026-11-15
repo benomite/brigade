@@ -209,8 +209,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   const lancer: Lancer = ({ commande, args, cwd, env, flux: demande }) => {
     // Le run est unique au journal : un ticket renvoyé repart sous un autre.
     const run = `${basename(demande).replace(/\.flux\.jsonl$|\.jsonl$/, "")}-${randomUUID().slice(0, 8)}`;
-    const flux = join(repertoireEtat, "runs", `${run}.jsonl`);
-    const lu = () => lireFlux(existsSync(flux) ? readFileSync(flux, "utf8") : "");
+    const fluxDe = (essai: string) => join(repertoireEtat, "runs", `${essai}.jsonl`);
+    const flux = fluxDe(run);
+    const lu = (essai: string) => lireFlux(existsSync(fluxDe(essai)) ? readFileSync(fluxDe(essai), "utf8") : "");
     try {
       const lance = garde.lancer({
         ticket: null,
@@ -220,14 +221,25 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
         args,
         cwd,
         env,
-        juger: (fin) => {
-          const lecture = lu();
+        juger: (fin, essai) => {
+          const lecture = lu(essai);
           const conclusion = verdict(lecture, fin.code);
           if (conclusion === "86") noterLeQuota(lecture);
           return jugerDuFlux(conclusion);
         },
       });
-      return { fin: lance.fin, flux };
+      // Un run calé est relancé sous un autre nom, avec son flux (#3599) : le
+      // flux qui se lit après la fin est celui du dernier essai.
+      let dernier = run;
+      return {
+        fin: lance.fin.then((fin) => {
+          dernier = fin.run;
+          return fin;
+        }),
+        get flux() {
+          return fluxDe(dernier);
+        },
+      };
     } catch (erreur) {
       // Le « stop » ou le disjoncteur tombé entre la prise et le lancement :
       // rien n'est parti, et le cook le dit comme une fin sans livraison.

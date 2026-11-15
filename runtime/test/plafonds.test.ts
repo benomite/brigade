@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { RELANCES_SUR_CALAGE } from "../src/breaker/calage.ts";
 import { lireReglages } from "../src/plafonds.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 
@@ -9,6 +10,7 @@ test("sans rien régler, les plafonds sont ceux que le chef a fixés", () => {
     seuilDisjoncteur: 3,
     graceMs: 10_000,
     jugements: 3,
+    relancesSurCalage: RELANCES_SUR_CALAGE,
   });
 });
 
