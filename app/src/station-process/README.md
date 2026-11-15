@@ -1,7 +1,7 @@
 # The station process, replaced on its own (#2190)
 
-On a computer, the app runs this computer's station (`app/src/poste/station.ts`). The supervisor
-here (`superviseur.ts`, `tenirProcessDeStation`) holds that process and can replace it with
+On a computer, the background station (`app/src/station-fond/hote.ts`, #3630) runs this computer's station
+(`app/src/poste/station.ts`). The supervisor here (`superviseur.ts`, `tenirProcessDeStation`) holds that process and can replace it with
 another station release, with no reinstall, no Gatekeeper prompt and no app restart. The window,
 the Second tabs, the shells and their `claude` sessions are processes of the app, not of the
 station: a restart neither stops nor reattaches them.
@@ -17,14 +17,14 @@ station: a restart neither stops nor reattaches them.
 
 - **The request carries a version, never a path.** The app only starts what is under its releases
   folder; a version that is not a plain release number (`../…`) is ignored, and said.
-- The app that runs the station reads the request about every two seconds, deletes it, and
+- The background station reads the request about every two seconds, deletes it, and
   restarts the station on `X`. Requests are not queued: one that arrives during a restart waits
   for the next look.
 - **A release is kept** when the station says it is in service in `X` (`en-service`, written by
   `runtime/src/mise-a-jour/en-service.ts`: version `X`, a new and live pid, `depuis` after the
   restart) and still serves the projects the previous release served — the box's rule
-  (`runtime/src/mise-a-jour/mettre-a-jour.ts`). It then becomes `retenue`, and the app reopened
-  starts on it, unless its own bundle carries a newer runtime.
+  (`runtime/src/mise-a-jour/mettre-a-jour.ts`). It then becomes `retenue`, and the background station
+  started again starts on it, unless the app's bundle carries a newer runtime.
 - **Otherwise the previous release runs again** — it refused to start (code 2), it died right
   after its launch, or it did not say it was in service within two minutes. `derniere` reads
   `{"quoi":"revenue","visee":"X","restauree":"<previous>","motif":"…","retour":null}` (`retour`
@@ -35,18 +35,20 @@ station: a restart neither stops nor reattaches them.
 
 `derniere`, `retenue` and `ratees` are what the station screen (#2191) can show.
 
-## Wired in the app (#2287)
+## Wired in the background station (#2287, #3630)
 
-`app/src/main.ts` holds the computer's station with `tenirProcessDeStation`. It starts it with
+`app/src/station-fond/hote.ts` — no longer `app/src/main.ts`, which only attaches to it — holds the computer's
+station with `tenirProcessDeStation`. It starts it with
 `BRIGADE_MISE_A_JOUR_SOURCE=github:benomite/brigade` (unless the environment already says another
 source) and `BRIGADE_STATION_RELANCE=app` (`environnementDeLaStation`), and its releases folder is
 `<BRIGADE_STATION_DIR>/station-update/releases` — where the station's updater downloads `X` to
 `<X>/runtime/` (`dossierDuRuntime`).
 
-The app reads what the station says: the line `brigade: station update — restart with release <X>:
+The background station reads what the station says: the line `brigade: station update — restart with release <X>:
 <main>` (`LIGNE_DE_RELANCE`) restarts the station on `X`, as the `redemarrage` file does. `<main>` must be
 `X`'s entry point under the releases folder; any other path is ignored and said.
 
-A station restarted on a release is not kept across an app restart: the bundle's version (`1.0.91`)
-sorts after a release's (`0.<date>…`), so the reopened app starts the bundled station, which finds the
-release behind and updates again.
+A station restarted on a release keeps running across app restarts, which do not touch the background
+station. It is not kept across a restart of the background station (a login, an explicit quit): the bundle's
+version (`1.0.91`) sorts after a release's (`0.<date>…`), so the background station starts the bundled
+station again, which finds the release behind and updates again.

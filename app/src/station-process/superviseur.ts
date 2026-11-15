@@ -1,5 +1,5 @@
-// Le process de la station, remplaçable seul (#2190) : l'app tient la station de l'ordinateur comme
-// avant (poste/station.ts), mais le runtime qu'elle joue n'est plus forcément celui du paquet de
+// Le process de la station, remplaçable seul (#2190) : la station de fond (station-fond/hote.ts, #3630) tient la
+// station de l'ordinateur (poste/station.ts), mais le runtime qu'elle joue n'est plus forcément celui du paquet de
 // l'app. Quand la station demande « redémarre-moi sur la version X » — sa mise à jour a téléchargé X
 // et ses cooks ont fini (#2189) —, seul ce process est arrêté, et X démarre à sa place : ni
 // réinstallation, ni Gatekeeper, ni relance de l'app. La fenêtre, les onglets du second, les shells
@@ -16,8 +16,8 @@
 //   sous un pid neuf et vivant, depuis le redémarrage, et sert au moins les projets que la version
 //   d'avant servait —, comme sur la box (runtime/src/mise-a-jour/mettre-a-jour.ts). Sinon la
 //   version d'avant est relancée, et l'issue le dit. Une version ratée n'est pas réessayée.
-// - **Ce qui est gardé survit à l'app.** La version retenue est notée sous `<versions>/` : l'app
-//   rouverte relance la station sur elle, sauf si son paquet en porte une plus récente.
+// - **Ce qui est gardé survit à son tenant.** La version retenue est notée sous `<versions>/` : la station de
+//   fond relancée relance la station sur elle, sauf si le paquet de l'app en porte une plus récente.
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { PRINCIPAL } from "../poste/role.ts";

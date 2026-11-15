@@ -38,6 +38,7 @@ import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } f
 import { avertirSiTropAncienne } from "./version-minimale.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 import { tenirLaVeille } from "../veille-machine/veille.ts";
+import { garderLaStationSeule } from "../station-fond/seule.ts";
 
 // Ce que la station dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -92,6 +93,15 @@ if (fenetreDeDepartMs === null) refuser(`BRIGADE_STATION_FENETRE_S=${fenetreS} �
 const relaisMs = process.env.BRIGADE_STATION_RELAIS_MS;
 if (relaisMs !== undefined && !/^[1-9]\d*$/.test(relaisMs)) refuser(`BRIGADE_STATION_RELAIS_MS=${relaisMs} — attendu un nombre entier de millisecondes`);
 mkdirSync(racine, { recursive: true });
+// Une seule station par répertoire (#3630) : une seconde, lancée par l'app, l'ouverture de session ou un installeur
+// pendant que la première tourne, refuse de démarrer. Le verrou est tenu jusqu'à la fin du process.
+let seule: ReturnType<typeof garderLaStationSeule>;
+try {
+  seule = garderLaStationSeule(racine);
+} catch (erreur) {
+  refuser(`son répertoire ${racine} ne se verrouille pas : ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+}
+if ("refus" in seule) refuser(seule.refus);
 // Son nom, retenu à son premier démarrage — avant qu'aucun projet ne s'ouvre,
 // qui le relit (`cuisine.ts`) : la machine renommée par macOS reste la même
 // station (nom.ts).
