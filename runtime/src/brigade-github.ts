@@ -86,6 +86,7 @@ import { motifArretCook } from "./motif-arret-cook.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
+import { commitsDuRunPrecedent, consigneDuRunPrecedent, estUneRepriseDeGarde, gardeLeTravail, marquerLeTravail } from "./cuisson/reprise/reprise.ts";
 import { reconcilierLesArretsExternes } from "./arrets-externes.ts";
 import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
@@ -323,7 +324,7 @@ export type OptionsDeStation = {
   // Appelé quand la porte de prise ne prend pas un ticket prenable, avec la
   // ligne qui dit pourquoi (zone tenue, capacité, calibrage, dépendance mise de
   // côté) : la retenue de la cuisine la reprend (#2429).
-  sauter?: (ticket: number, ligne: string) => void;
+  sauter?: (ticket: number, ligne: string, attendus?: readonly number[]) => void;
   // Les garde-fous (#2213) : le « stop », le disjoncteur,
   // le quota et l'arbitre, lus avant chaque prise. Absents, rien ne retient.
   gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter"> & Partial<Pick<GardesDuTour, "attendreUnePlace">>;
@@ -1967,12 +1968,28 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Les plus prioritaires d'abord (`prio:0` avant `prio:1`…, sans `prio:` en
     // dernier), puis les plus anciens (#2209).
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
-    for (const ticket of libres) {
+    // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
+    // qui attendent un ticket ouvert le disent encore, sans quoi la retenue ne
+    // sait plus pourquoi ils n'avancent pas (#3647).
+    const direLesAttentes = async (restants: readonly TicketLu[]) => {
+      for (const reste of restants) {
+        if (enVol.has(reste.number)) continue;
+        const attendus = await defaireLesBoucles(github, reste.number, lus).catch(() => []);
+        if (attendus.length > 0) options.sauter?.(reste.number, direAttenteDeTicket(reste.number, attendus), attendus);
+      }
+    };
+    for (const [rang, ticket] of libres.entries()) {
       if (baseManquante !== null) break;
-      if (enVol.size + aRendre.size >= (typeof places === "number" ? places : places())) break;
+      if (enVol.size + aRendre.size >= (typeof places === "number" ? places : places())) {
+        await direLesAttentes(libres.slice(rang));
+        break;
+      }
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
       // Celles que la pass retient pour le chef n'y comptent pas (#3446).
-      if (enPass(tickets, new Set([...renvoyes, ...retenuesDuTour])) >= PASS_MAX) break;
+      if (enPass(tickets, new Set([...renvoyes, ...retenuesDuTour])) >= PASS_MAX) {
+        await direLesAttentes(libres.slice(rang));
+        break;
+      }
       if (enVol.has(ticket.number)) continue;
       // Sa PR est déjà approuvée par son dernier verdict : elle n'a rien à
       // reprendre, ses remarques sont closes. Le ticket retourne au pass, quels
@@ -2029,7 +2046,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       try {
         const attendus = await defaireLesBoucles(github, ticket.number, lus);
         if (attendus.length > 0) {
-          options.sauter?.(ticket.number, direAttenteDeTicket(ticket.number, attendus));
+          options.sauter?.(ticket.number, direAttenteDeTicket(ticket.number, attendus), attendus);
           continue;
         }
       } catch (erreur) {
@@ -2388,7 +2405,7 @@ export type OptionsDuDepot = {
   // part dans un worktree tel que git l'a posé, sans dépendances.
   setup?: { delaiMs: number };
   // Ce que la porte de prise a dit d'un ticket qu'elle n'a pas pris (#2429).
-  sauter?: (ticket: number, ligne: string) => void;
+  sauter?: (ticket: number, ligne: string, attendus?: readonly number[]) => void;
   // Les stations que le projet déclare (#3057), où va un ticket dont les gates
   // ne se jouent pas sur celle-ci.
   stationsDuProjet?: () => readonly string[];
@@ -2653,8 +2670,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // son essai comptait pour un échec, trois fois jusqu'à `served-elsewhere` (#2577).
     // Une tête qui sauve le travail d'un cook coupé par une relance n'est pas
     // une livraison : un cook la reprend (#2586).
-    const sauvee = reprise && estUneSauvegarde(depot.sujet?.(branche));
-    if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, or it declared itself blocked and the chef has answered on this issue. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
+    // Le travail d'un run tué par la garde d'inactivité, gardé sur sa branche (#3649) :
+    // le cook en repart, et sa consigne nomme la branche et ses commits.
+    const repriseDeGarde = reprise && estUneRepriseDeGarde(depot.sujet?.(branche));
+    const sauvee = reprise && (estUneSauvegarde(depot.sujet?.(branche)) || repriseDeGarde);
+    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
+    if (repriseDeGarde) joint += `\n\n${consigneDuRunPrecedent(branche, await commitsDuRunPrecedent(lancerGit, worktree, base))}`;
+    else if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, or it declared itself blocked and the chef has answered on this issue. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
     if (sansPR && !sauvee && avant !== null && depot.livree !== undefined) {
       const livree = depot.livree(branche);
       // `livree` rend la branche locale quand l'origine n'a pas la sienne
@@ -2676,7 +2698,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         return { branche };
       }
     }
-    const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
     // Au départ du cook, sa branche porte la tête de `origin/<base>` (#3001).
     // Une branche neuve en part déjà : `preparer` vient de la rapatrier. Une
     // branche reprise, la station la rapatrie et l'y fusionne ; en conflit,
@@ -2739,7 +2760,20 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
-      depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
+      // Tué par la garde d'inactivité, le cook laisse son travail sur sa
+      // branche pour le run suivant (#3649). Sans rien laissé, ou s'il ne se
+      // marque pas, le ticket repart comme avant.
+      let garde = false;
+      const recolter = depot.recolter;
+      if (gardeLeTravail(conclusion) && recolter !== undefined) {
+        try {
+          garde = marquerLeTravail({ recolter, commits: (nom) => depot.commits(nom), ...(depot.tete === undefined ? {} : { tete: depot.tete }) }, worktree, branche, avant);
+          if (garde) avertir(`brigade : #${ticket.number} sur ${nom} — the idle guard stopped the cook: its work stays on \`${branche}\`, and the next run starts from it`);
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the idle guard stopped the cook, and its work could not be kept on \`${branche}\`: ${message(erreur)}`);
+        }
+      }
+      depot.retirer(worktree, reprise || garde || sauves.has(ticket.number) ? undefined : branche);
       const dit = direLaFin({ conclusion, fin, flux: lance.flux ?? flux });
       return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
     }
