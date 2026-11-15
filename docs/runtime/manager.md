@@ -24,6 +24,16 @@ kitchen and is merged when green. Before switching on, set `blocked-on-human` on
 an issue that carries it is never judged, **an epic that carries it is never split**. It sets no
 dependencies between issues you wrote (unless you write `attend` in a card), but does between the
 tickets of an epic it splits.
+The kitchen still holds a ticket whose body says it builds on another one — a `Depends on #N` line, or
+in plain words on one line: "with the identity of #49", "once #12 is done", "after #12", "builds on
+#12", "on top of #12", "requires #12", and their French forms (#3622) — until that ticket is closed;
+a `#N` between backticks, in a code block or from another repository (`other#N`) does not count. When
+that ticket was split (its body carries the list of its tickets), the wait goes to the open tickets of
+the split, and the skip line names them, as does the card's line in `status`. The phrases are read
+broadly: a sentence like "after #12" or "with the title of #5" that is not a dependency holds the ticket
+too, until that ticket is closed — and a ticket that is never served (left off the rail, or
+`blocked-on-human`) holds it for good. The skip line is the signal: rewrite the sentence, or close the
+awaited ticket, to release it.
 
 **Count before you turn it on.** `manager -- backlog` says in one line, for example `12 open issues, of
 which 3 carry blocked-on-human — read just now on GitHub`, what turning on commits to. It is **a read**

@@ -28,6 +28,13 @@ describe("les lignes de l'attente de la file", () => {
     assert.deepEqual(lignes, ["queue wait No station serves this project, so no cook can start. Add the project to a station.", "  #5  after #4"]);
   });
 
+  test("un ticket qui dit en toutes lettres bâtir sur une épique découpée : sa ligne nomme le ticket du découpage, pas l'épique (#3622)", async () => {
+    const epique = issue(49, ["fire"], `The app's identity.\n${DEBUT}\n- [ ] #53\n${FIN}`);
+    const feux = [epique, issue(53, ["fire", "taken"]), issue(50, ["fire"], "Restyle the screen with the identity of #49.")];
+    const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: feux }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT });
+    assert.deepEqual(lignes, ["  #50  waiting for #53 to merge"]);
+  });
+
   test("une station en ligne : l'attente normale, depuis l'instant où `fire` a été posé", async () => {
     const lignes = await lignesDeLAttente({
       depot: DEPOT,

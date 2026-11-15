@@ -7,7 +7,7 @@
 // calme faute de l'avoir lue.
 import type { Base } from "../base.ts";
 import { cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees } from "../projections/stations.ts";
-import { porteListe } from "../epique.ts";
+import { porteListe, ticketsDeLaListe } from "../epique.ts";
 import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-compte.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { lireGitHubSeul } from "../github-seul-etat.ts";
@@ -25,14 +25,21 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 
 // Les tickets du rail, d'après les issues `fire` ouvertes. L'entrée dans la file d'un ticket en file se lit de ses événements :
 // `fire` posé ; ils ne se lisent pas, il n'en dit rien (nul) — la durée n'est alors pas dite, jamais inventée.
+// Un ticket attendu découpé — une épique du rail, que la file saute — est attendu dans les tickets de son découpage, comme
+// la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme.
 export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<TicketDuRail[]> {
   const { depot, lire } = options;
   const tickets: TicketDuRail[] = [];
-  for (const issue of await lesFeux(depot, lire)) {
+  const feux = await lesFeux(depot, lire);
+  const decoupages = new Map(feux.flatMap((issue) => (typeof issue.number === "number" && porteListe(texte(issue.body)) ? [[issue.number, ticketsDeLaListe(texte(issue.body))] as const] : [])));
+  for (const issue of feux) {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
     const labels = (Array.isArray(issue.labels) ? issue.labels : []).flatMap((label) => (typeof objet(label)?.name === "string" ? [objet(label)?.name as string] : []));
     if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_WAITING)) continue;
-    const depend = dependancesDuCorps(texte(issue.body));
+    const depend = dependancesDuCorps(texte(issue.body)).flatMap((n) => {
+      const decoupage = decoupages.get(n)?.filter((m) => m !== n && m !== issue.number) ?? [];
+      return decoupage.length > 0 ? decoupage : [n];
+    });
     if (labels.includes(LABEL_TAKEN)) tickets.push({ ticket: issue.number, etat: "taken", entreLe: null, depend });
     else if (labels.includes(LABEL_IN_PASS)) tickets.push({ ticket: issue.number, etat: "pass", entreLe: null, depend });
     else if (!labels.some((label) => LABELS_D_ECART.includes(label))) {
