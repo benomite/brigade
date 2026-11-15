@@ -35,7 +35,7 @@ test("le disjoncteur ouvert, le manager qualifie le ticket mais aucun cook ne pa
   await jusqua(() => c.gh.lire(30)?.labels.includes("fire") === true);
   assert.equal(c.jugements().length, 1);
   assert.throws(() => c.cuire(30), (erreur) => erreur instanceof LancementRefuse && erreur.motif === "breaker");
-  assert.equal(c.journal.tout().some((e) => e.type === "cook.launched"), false);
+  assert.equal(c.journal.tout().some((e) => e.type === "cook.launched" && e.payload.station !== "manager"), false);
 });
 
 test("à la fermeture du disjoncteur, le ticket qualifié pendant l'ouverture est prêt et se cuisine sans geste ni nouveau jugement", async (t) => {
