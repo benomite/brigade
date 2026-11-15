@@ -154,7 +154,7 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
 
 /**
  * La section Directions : les trois horizons, toujours dans l'ordre de la vision, chacun avec les besoins ouverts qui s'y
- * rangent ; puis « No direction yet » pour ceux d'aucun horizon, s'il y en a. Un besoin n'est que sous un horizon (le plus
+ * rangent ; puis « No direction yet. » pour ceux d'aucun horizon, s'il y en a. Un besoin n'est que sous un horizon (le plus
  * petit de ses labels, déjà choisi par la lecture) ; un besoin fermé n'y est jamais.
  * @param {readonly Besoin[]} besoins
  * @returns {{ horizon: number | null, nom: string, besoins: Besoin[] }[]}
