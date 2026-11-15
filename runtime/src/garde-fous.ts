@@ -7,6 +7,8 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
+import type { Activite } from "./activite.ts";
+import { calageDuDisjoncteur, direLeCalage, estUnCalage, natureDuRun } from "./breaker/calage.ts";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
 import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
 import { cooksEnCours, echecsExternes, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
@@ -52,14 +54,20 @@ export type DemandeCook = {
   survivant?: { secrets: Record<string, string> };
   // Par défaut : code de sortie 0 → réussite, tout autre → échec. Appelé aussi
   // pour un cook qu'un garde-fou a arrêté (`fin.arret`) : seul « ok » en fait
-  // alors autre chose qu'un arrêt par garde-fou.
-  juger?: (fin: Fin) => Verdict;
+  // alors autre chose qu'un arrêt par garde-fou. `run` : celui qui finit — une
+  // relance d'un run calé a le sien (#3599), et son propre flux.
+  juger?: (fin: Fin, run: string) => Verdict;
 };
 
 // `interrupted` : le runtime s'est arrêté pendant que le cook tournait. Rien
 // n'en est écrit sur le moment — le démarrage suivant le note.
-export type FinDeCook = Fin & { outcome: Issue | "interrupted" };
+// `run` : celui qui a fini — la dernière relance quand le run a calé (#3599).
+// `activite` : ce qu'il faisait à sa fin, d'après son flux ; nulle s'il n'a
+// rien dit, absente quand rien ne lit son flux.
+export type FinDeCook = Fin & { outcome: Issue | "interrupted"; run: string; activite?: Activite | null };
 
+// `run` et `pid` : ceux du premier lancement ; `arreter` vise la relance en
+// cours quand le run a calé (#3599).
 export type CookLance = {
   run: string;
   pid: number | undefined;
@@ -102,7 +110,7 @@ export type GardeFous = {
   // Reprend un survivant : il est suivi comme s'il venait d'être lancé ici —
   // plafonds, relevés, « stop », fin jugée et écrite. Rend null si ce run
   // n'est pas, ou plus, un survivant à reprendre.
-  reprendre(run: string, juger?: (fin: Fin) => Verdict): CookLance | null;
+  reprendre(run: string, juger?: DemandeCook["juger"]): CookLance | null;
 };
 
 // La station des jugements du manager : le disjoncteur ouvert ne les retient pas.
@@ -114,12 +122,15 @@ const jugerParDefaut = (fin: Fin): Verdict => (fin.code === 0 ? "ok" : "failed")
 
 // Le « stop » du chef et un lancement impossible ne se jugent pas. Tout le
 // reste, si : même arrêté par un garde-fou, un cook peut avoir livré — c'est à
-// celui qui l'a lancé de le dire. S'il ne le dit pas, l'arrêt reste un arrêt.
-function issue(resultat: Fin, juger: (fin: Fin) => Verdict): Issue {
+// celui qui l'a lancé de le dire. S'il ne le dit pas, l'arrêt reste un arrêt —
+// ou un calage, s'il n'a jamais démarré ou est resté pendu à une commande
+// (#3599) : ni l'un ni l'autre ne dit que le travail est mauvais.
+function issue(resultat: Fin, run: string, activite: Activite | null, juger: NonNullable<DemandeCook["juger"]>): Issue {
   if (resultat.arret?.reason === "stop") return "stop";
   if (resultat.erreur !== null) return "failed";
-  const verdict = juger(resultat);
-  return resultat.arret && verdict !== "ok" ? "guard" : verdict;
+  const verdict = juger(resultat, run);
+  if (resultat.arret && verdict !== "ok") return estUnCalage(resultat, activite) ? "stalled" : "guard";
+  return verdict;
 }
 
 // Un cook tué par SIGTERM (143) sans que le superviseur l'ait arrêté : quelqu'un
@@ -218,7 +229,25 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           ...(resultat.masques === undefined ? {} : { credentialsMasked: resultat.masques }),
         },
       });
+      // Un disjoncteur ouvert par des calages se referme seul dès qu'un run
+      // fini après lui a marché (#3599) : la cuisine n'était pas cassée.
+      if (outcome === "ok" && calageDuDisjoncteur(base) !== null) {
+        noter(null, { type: "breaker.lifted", payload: { failures: etatDesGardeFous(base).failures, threshold: reglages.seuilDisjoncteur, after: run } });
+      }
       disjoncter();
+    });
+  };
+
+  // Un run calé encore après ses `relancesSurCalage` relances (#3599) : le
+  // disjoncteur s'ouvre pour le dire au chef, avec ce qui cale — sauf s'il
+  // l'est déjà.
+  const escalader = (premier: string, station: string | null, fin: FinDeCook, relances: number) => {
+    base.transaction(() => {
+      const etat = etatDesGardeFous(base);
+      if (etat.breakerOpenedAt !== null) return;
+      const activity = fin.activite ? { doing: fin.activite.doing, target: fin.activite.target } : null;
+      const stalled = { run: fin.run, kind: natureDuRun(premier, station), turns: fin.turns, tokens: fin.tokens, activity, retries: relances };
+      noter(null, { type: "breaker.opened", payload: { failures: etat.failures, threshold: reglages.seuilDisjoncteur, stalled } });
     });
   };
 
@@ -269,9 +298,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       }
       // Le disjoncteur ne retient que les cooks : un jugement du manager (#3600) part, ouvert ou non.
       if (etat.breakerOpenedAt !== null && demande.contexte?.station !== STATION_DU_MANAGER) {
+        const calage = calageDuDisjoncteur(base);
         throw new LancementRefuse(
           "breaker",
-          `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « resume »`,
+          calage === null
+            ? `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « resume »`
+            : `disjoncteur ouvert le ${etat.breakerOpenedAt} : un run cale encore après ses relances — ${direLeCalage(calage)} ; aucun cook n'est lancé avant « resume », ou avant qu'un run en cours finisse bien`,
         );
       }
       return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
@@ -295,7 +327,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         erreur: erreur instanceof Error ? erreur.message : String(erreur),
       };
       noterFin(demande.ticket, run, resultat, "failed");
-      return { run, cook: null, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
+      return { run, cook: null, fin: Promise.resolve({ ...resultat, outcome: "failed", run }) };
     }
     return { run, cook, fin: suivreLaFin(cook, lancement, demande.ticket, run, demande.juger) };
   };
@@ -308,11 +340,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     return cook.fin.then((resultat): FinDeCook => {
       cooks.delete(cook);
       releves.delete(cook);
-      if (arrete) return { ...resultat, outcome: "interrupted" };
+      const activite = cook.activite?.() ?? null;
+      if (arrete) return { ...resultat, outcome: "interrupted", run, activite };
       const cause = causeDeLArret(resultat, lancement);
-      const outcome = cause === null ? issue(resultat, juger ?? jugerParDefaut) : "stop";
+      const outcome = cause === null ? issue(resultat, run, activite, juger ?? jugerParDefaut) : "stop";
       noterFin(ticket, run, resultat, outcome, cause);
-      return { ...resultat, outcome };
+      return { ...resultat, outcome, run, activite };
     });
   };
 
@@ -348,12 +381,37 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   return {
     ...runtime,
     lancer(demande) {
-      const { run, cook, fin } = partir(demande, (nom, plafonds, surArret) => {
-        mkdirSync(repertoireRuns, { recursive: true });
-        const commun = { commande: demande.commande, args: demande.args, cwd: demande.cwd, env: demande.env, plafonds, graceMs: reglages.graceMs, flux: join(repertoireRuns, `${nom}.jsonl`), surArret };
-        return demande.survivant ? relayer(superviserParRelais({ ...commun, run: nom, secrets: demande.survivant.secrets })) : superviser({ ...commun, masquer: demande.masquer });
-      });
-      return { run, pid: cook?.pid, arreter: cook?.arreter ?? (() => {}), fin };
+      const essayer = (run: string, contexte: DemandeCook["contexte"]) =>
+        partir({ ...demande, run, contexte }, (nom, plafonds, surArret) => {
+          mkdirSync(repertoireRuns, { recursive: true });
+          const commun = { commande: demande.commande, args: demande.args, cwd: demande.cwd, env: demande.env, plafonds, graceMs: reglages.graceMs, flux: join(repertoireRuns, `${nom}.jsonl`), surArret };
+          return demande.survivant ? relayer(superviserParRelais({ ...commun, run: nom, secrets: demande.survivant.secrets })) : superviser({ ...commun, masquer: demande.masquer });
+        });
+      const premier = demande.run ?? nomDeRun(demande.ticket);
+      let courant = essayer(premier, demande.contexte);
+      // Un run qui cale est relancé ici, tel quel, sous un run à lui, jusqu'à
+      // `relancesSurCalage` fois (#3599) ; calé encore, le disjoncteur s'ouvre
+      // pour le dire au chef. Un « stop » ou le disjoncteur tombés entre deux
+      // essais : le calage est la fin du run.
+      const relances = reglages.relancesSurCalage ?? 0;
+      const fin = (async (): Promise<FinDeCook> => {
+        for (let essai = 1; ; essai++) {
+          const resultat = await courant.fin;
+          if (resultat.outcome !== "stalled" || relances === 0 || arrete) return resultat;
+          if (essai > relances) {
+            escalader(premier, demande.contexte?.station ?? null, resultat, relances);
+            return resultat;
+          }
+          try {
+            courant = essayer(`${premier}-r${essai}`, { ...demande.contexte, stallRetry: { of: premier, attempt: essai } });
+          } catch (erreur) {
+            if (!(erreur instanceof LancementRefuse)) console.error(`brigade : run ${premier} calé, non relancé — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+            return resultat;
+          }
+        }
+      })();
+      const pid = courant.cook?.pid;
+      return { run: premier, pid, arreter: (motif) => courant.cook?.arreter(motif), fin };
     },
     survivants: () => [...survivants.values()].map(({ run, ticket }) => ({ run, ticket })),
     reprendre(run, juger) {

@@ -36,6 +36,7 @@ import { porteDeQualite, prisApres, TICKETS_A_ATTENDRE, type DecisionDeQualite }
 import { LABEL, type IssueOuverte } from "../github.ts";
 import { mesurerQualite, type QualiteDuTicket } from "../mesure-qualite.ts";
 import { avecLaPreuve, type SorteDeMesure } from "../preuve-mesure.ts";
+import { corpsSuivi, messageDeRetour, type Mesure } from "../suivi-alerte.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { dureeDuTicket, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, tempsPerdu, ticketsRecents, totauxParPerte } from "./mesure.ts";
 
@@ -60,6 +61,9 @@ export type GitHubDeLaCorrection = {
   issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt" | "author">> & { servieLe?: string | null })[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
+  // Le suivi de la dérive (#3613) : remplacer le corps de l'issue ouverte, dire son retour sous le seuil.
+  ecrireCorps?(numero: number, corps: string): Promise<void>;
+  commenter?(numero: number, corps: string): Promise<void>;
 };
 
 // Au dixième de minute sous 10 min — le seuil est de 2 min —, entières au-delà.
@@ -68,7 +72,7 @@ const pourcent = (part: number) => `${Math.round(part * 100)}%`;
 
 // Le ticket de correction du temps perdu, ou null quand le temps perdu médian
 // des tickets récents est au seuil ou en dessous (ou qu'aucun ticket n'est mesuré).
-export function ticketDeCorrection(enregistrements: readonly TempsTicket[], seuilMin: number): { titre: string; corps: string } | null {
+export function ticketDeCorrection(enregistrements: readonly TempsTicket[], seuilMin: number): { titre: string; corps: string; mesure: Mesure } | null {
   const med = medianePerdueDesRecents(enregistrements);
   if (med === null || med <= seuilMin * 60) return null;
   const recents = ticketsRecents(enregistrements);
@@ -112,8 +116,19 @@ export function ticketDeCorrection(enregistrements: readonly TempsTicket[], seui
     "",
     `_Opened by a station, with no gesture from the chef: \`${PRIO_CORRECTION}\`, it goes before the whole rail. No other one opens while this one is open._`,
   ].join("\n");
-  return { titre, corps };
+  return { titre, corps, mesure: mesureDuTemps(med, seuilMin, lourde.nom) };
 }
+
+// La médiane perdue, telle que le suivi la porte : au dixième de minute sous 10 min, entière au-delà.
+export const mesureDuTemps = (medianeSecondes: number, seuilMin: number, raison: string | null): Mesure => ({
+  cle: "temps-perdu",
+  libelle: "Median lost time per ticket",
+  valeur: medianeSecondes < 600 ? Math.round(medianeSecondes / 6) / 10 : Math.round(medianeSecondes / 60),
+  unite: " min",
+  seuil: `a threshold of ${seuilMin} min`,
+  hautEstBien: false,
+  raison,
+});
 
 export type DecisionDeCorrection =
   | { issue: "sous-le-seuil"; mediane: number | null; seuilMin: number }
@@ -138,6 +153,8 @@ export type OptionsDeLaCorrection = {
   // sur les temps et la qualité lus (`preuve-mesure.ts`, #2839). Absente, le corps n'en a pas.
   preuve?: (sorte: SorteDeMesure, enregistrements: readonly TempsTicket[], qualites: ReadonlyMap<number, QualiteDuTicket>) => Promise<string>;
   maintenant?: () => Date;
+  // Dit un suivi qui n'a pas pu s'écrire (#3613).
+  avertir?: (message: string) => void;
 };
 
 // La dernière correction servie : celle, fermée, dont le merge est le plus
@@ -163,22 +180,56 @@ export function derniereCorrectionServie(fermees: readonly number[], enregistrem
 // ait des tickets récents à elle, ou en ouvre un. `ouvertes` : les issues
 // ouvertes que l'appelant vient de lire, s'il en a — le ticket déjà connu qui y
 // est ne coûte aucune lecture de GitHub, ni la correction à l'essai déjà connue.
-export function correctionDuTemps({ github, lire, preuve, echantillonMin = TICKETS_A_ATTENDRE, maintenant = () => new Date() }: OptionsDeLaCorrection) {
+export function correctionDuTemps({ github, lire, preuve, echantillonMin = TICKETS_A_ATTENDRE, maintenant = () => new Date(), avertir = () => {} }: OptionsDeLaCorrection) {
   let connue: number | null = null;
+  // Ce que le suivi a écrit la dernière fois : un tour qui mesure la même chose ne lit ni n'écrit rien (#3613).
+  let dernierSuivi: string | null = null;
+  let verifie = false;
   let aLEssai: { numero: number; servie: number } | null = null;
-  const porte = porteDeQualite({ github, echantillonMin, maintenant });
+  const porte = porteDeQualite({ github, echantillonMin, maintenant, avertir });
 
   // Les tickets de correction, ouverts et fermés, chacun du plus ancien au plus
   // récent. Le début de la fenêtre tombe à minuit (UTC) : la même requête toute la journée.
-  const corrections = async (): Promise<{ ouverts: number[]; fermes: number[]; ailleurs: Map<number, string | null> }> => {
+  const corrections = async (): Promise<{ ouverts: number[]; fermes: number[]; ailleurs: Map<number, string | null>; corps: Map<number, string> }> => {
     const debut = new Date(maintenant().getTime() - FENETRE_MS);
     debut.setUTCHours(0, 0, 0, 0);
     const marquees = (await github.issuesDepuis(debut.toISOString())).filter((issue) => DE_CONFIANCE.includes(issue.association) && issue.body.includes(MARQUE_CORRECTION));
     const numeros = (fermee: boolean) => marquees.filter((issue) => (issue.state === "closed") === fermee).map((issue) => issue.number).sort((x, y) => x - y);
     const ailleurs = new Map(marquees.flatMap((issue) => (issue.servieLe === undefined ? [] : [[issue.number, issue.servieLe] as const])));
-    return { ouverts: numeros(false), fermes: numeros(true), ailleurs };
+    return { ouverts: numeros(false), fermes: numeros(true), ailleurs, corps: new Map(marquees.map((issue) => [issue.number, issue.body])) };
   };
   const ouverts = async () => (await corrections()).ouverts;
+
+  // La dérive dure : l'issue ouverte porte la dernière valeur, les précédentes, la tendance et la raison d'aujourd'hui.
+  // Une écriture qui échoue est dite et ne retient pas la décision ; elle se retente au tour suivant.
+  const suivre = async (mesure: Mesure, numero: number, corpsConnu?: string) => {
+    if (github.ecrireCorps === undefined) return;
+    const signature = JSON.stringify([mesure.valeur, mesure.raison]);
+    if (signature === dernierSuivi) return;
+    try {
+      const corpsOuvert = corpsConnu ?? (await corrections()).corps.get(numero);
+      if (corpsOuvert === undefined) return;
+      const corps = corpsSuivi(corpsOuvert, [mesure], maintenant());
+      if (corps !== corpsOuvert) await github.ecrireCorps(numero, corps);
+      dernierSuivi = signature;
+    } catch (echec) {
+      avertir(`brigade : the lost-time alert could not be updated with the latest measure — ${echec instanceof Error ? echec.message : String(echec)}`);
+    }
+  };
+  // Le temps perdu est repassé sous son seuil : l'alerte ouverte le dit et se ferme.
+  const refermer = async (mediane: number, seuilMin: number, recents: number, ouvertes?: readonly number[]) => {
+    if (recents < echantillonMin) return;
+    // Sans issue connue, la station ne lit GitHub qu'une fois, si des issues sont ouvertes : une alerte d'avant son démarrage.
+    if (connue !== null && ouvertes !== undefined && !ouvertes.includes(connue)) connue = null;
+    if (connue === null && (verifie || ouvertes === undefined || ouvertes.length === 0)) return;
+    verifie = true;
+    for (const numero of await ouverts()) {
+      await github.commenter?.(numero, messageDeRetour([mesureDuTemps(mediane, seuilMin, null)]));
+      await github.fermerIssue(numero);
+    }
+    connue = null;
+    dernierSuivi = null;
+  };
 
   return async (ouvertes?: readonly number[]): Promise<DecisionDeCorrection> => {
     const { enregistrements, lostTimeMaxMin: seuilMin, qualites, projet } = lire();
@@ -191,8 +242,14 @@ export function correctionDuTemps({ github, lire, preuve, echantillonMin = TICKE
     if (qualite !== null) return { issue: "qualite", qualite };
     const ticket = ticketDeCorrection(enregistrements, seuilMin);
     const mediane = medianePerdueDesRecents(enregistrements);
-    if (ticket === null || mediane === null) return { issue: "sous-le-seuil", mediane, seuilMin };
-    if (connue !== null && ouvertes?.includes(connue)) return { issue: "deja-ouverte", numero: connue, mediane, seuilMin };
+    if (ticket === null || mediane === null) {
+      if (mediane !== null) await refermer(mediane, seuilMin, ticketsRecents(enregistrements).length, ouvertes);
+      return { issue: "sous-le-seuil", mediane, seuilMin };
+    }
+    if (connue !== null && ouvertes?.includes(connue)) {
+      await suivre(ticket.mesure, connue);
+      return { issue: "deja-ouverte", numero: connue, mediane, seuilMin };
+    }
     // Servie, une correction n'est jugée que sur 20 tickets pris après son merge, et sur eux seuls (#2868).
     const essai = (numero: number, servie: number) => {
       const manque = TICKETS_A_ATTENDRE - prisApres(enregistrements, servie).length;
@@ -204,6 +261,7 @@ export function correctionDuTemps({ github, lire, preuve, echantillonMin = TICKE
     const [deja] = lues.ouverts;
     if (deja !== undefined) {
       connue = deja;
+      await suivre(ticket.mesure, deja, lues.corps.get(deja));
       return { issue: "deja-ouverte", numero: deja, mediane, seuilMin };
     }
     aLEssai = derniereCorrectionServie(lues.fermes, enregistrements, lues.ailleurs);
@@ -215,7 +273,9 @@ export function correctionDuTemps({ github, lire, preuve, echantillonMin = TICKE
     if (mesure === null || medianeMesuree === null) return { issue: "sous-le-seuil", mediane: medianeMesuree, seuilMin };
     // Une médiane sur moins de 20 tickets ne dit rien (#3012) : rien ne s'ouvre.
     if (mesures.length < echantillonMin) return { issue: "sous-le-seuil", mediane: medianeMesuree, seuilMin };
-    const corps = await avecLaPreuve(mesure.corps, preuve && (() => preuve("temps-perdu", mesures, qualites ?? new Map())));
+    // L'alerte fermée que celle-ci reprend est nommée dans son corps.
+    const corpsDeSuivi = corpsSuivi(mesure.corps, [mesure.mesure], maintenant(), lues.fermes.at(-1) ?? null);
+    const corps = await avecLaPreuve(corpsDeSuivi, preuve && (() => preuve("temps-perdu", mesures, qualites ?? new Map())));
     const creee = await github.creerIssue({ titre: mesure.titre, corps, labels: LABELS_CORRECTION });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.
     const [premier = creee] = await ouverts();

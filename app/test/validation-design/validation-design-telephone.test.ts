@@ -178,6 +178,7 @@ async function carteDEssai(panne?: Panne): Promise<Monde> {
     pr: { number: PR, sha: SHA },
     fichiers: ["app/src/vue/rail.js", `docs/captures/${TICKET}/rail-avant.png`, `docs/captures/${TICKET}/rail-apres.png`],
     renvoyer: async () => assert.fail("une livraison qui porte ses captures n'est pas renvoyée"),
+    jugerLeChoix: async () => ({ choix: "the layout of the rail" }),
   });
   assert.match(motif ?? "", /asked on #58/);
   assert.equal(monde.issues.size, 1, "no issue apart");

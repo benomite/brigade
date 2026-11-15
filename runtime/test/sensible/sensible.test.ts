@@ -55,6 +55,7 @@ function station(faux: FauxGitHub, { avertis = [], pannes = {}, designs = false 
     prise: faux.prise(github, "A"),
     depotServi: "faux/depot",
     designsValidesParUnHumain: () => designs,
+    jugerLeChoixDeDesign: async () => ({ choix: "the layout of the rail" }),
     cuisiner: async (ticket) => {
       faux.cuissons.push({ station: "A", issue: ticket.number });
       const ouverte = faux.prs.findLast((p) => p.issue === ticket.number && p.state === "open");

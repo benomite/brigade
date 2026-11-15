@@ -227,7 +227,8 @@ function rendreApresCook(base: Base, ticket: number | null, at: string): void {
 // The cook endings after which the ticket has nothing left to await from its
 // station. `ok`, `neutral` and `refused` are not: the station says what comes
 // next (the pass, the 86, a new attempt or the escalation to the chef).
-export const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop"];
+// `stalled` (#3599): the stall the guardrails stopped relaunching.
+export const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop", "stalled"];
 
 // Served wins over gone, in both orders, and is not undone.
 function noterServi(base: Base, ticket: number, seq: number): void {

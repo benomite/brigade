@@ -30,8 +30,9 @@ function enPass(fichiers: string[], labels: string[] = CALIBRE) {
   return faux;
 }
 
-// La station A, qui valide les designs par un humain ; chaque création
-// d'issue est notée, et refusée.
+// La station A, qui valide les designs par un humain et dont le juge voit un
+// choix de design dans chaque livraison (#3609) ; chaque création d'issue est
+// notée, et refusée.
 function station(faux: FauxGitHub, { avertis = [], pannes = {}, chef = async () => CHEF }: { avertis?: string[]; pannes?: Partial<GitHubDuTour>; chef?: () => Promise<string | null> } = {}) {
   const creees: string[] = [];
   const client = fauxClient(faux, "A");
@@ -58,6 +59,7 @@ function station(faux: FauxGitHub, { avertis = [], pannes = {}, chef = async () 
     prise: faux.prise(github, "A"),
     depotServi: "faux/depot",
     designsValidesParUnHumain: () => true,
+    jugerLeChoixDeDesign: async () => ({ choix: "the TODO column takes the full width" }),
     chef,
     cuisiner: async (ticket) => {
       faux.cuissons.push({ station: "A", issue: ticket.number });

@@ -54,6 +54,7 @@ import { GesteRefuse } from "../rail.ts";
 import { possede } from "../zones.ts";
 import { demandeDuCorps, demanderSurLeTicket } from "../validation-sur-ticket/validation-sur-ticket.ts";
 import { ceQuiEstDemande, ceQuiEstFait, lignesDuBrief } from "./brief.ts";
+import { estTechnique, type ChoixDeDesign } from "./choix-de-design.ts";
 
 // Le titre de la carte, et la sorte de son commentaire de carte : l'app les lit.
 export const TITRE_DE_CARTE = "Validate its screen";
@@ -128,10 +129,6 @@ export function carteDuCorpsDe(sorte: SorteDeRetenue, corps: string): { pr: numb
   const lu = new RegExp(`^<!-- brigade:${sorte.mot} pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->`).exec(corps);
   return lu === null ? null : { pr: Number(lu[1]), ticket: Number(lu[2]), sha: lu[3] ?? "" };
 }
-
-// La PR, le ticket et la tête jugée verte qu'une carte valide, lus dans son
-// corps ; null si ce n'en est pas une.
-export const carteDuCorps = (corps: string) => carteDuCorpsDe(DESIGN, corps);
 
 const adresseDeLaPR = (depot: string, pr: number) => `https://github.com/${depot}/pull/${pr}`;
 
@@ -209,6 +206,10 @@ export type LivraisonARetenir = {
   chef?: string | null;
   // Le renvoi de la pass au cook, avec sa raison.
   renvoyer(raison: string): Promise<void>;
+  // Le jugement du modèle sur le diff visible, lu contre les critères du ticket
+  // (#3609). Absent, la pass ne sait pas dire si la livraison demande le chef :
+  // elle lève, ne merge pas, et réessaie.
+  jugerLeChoix?: (corpsDuTicket: string) => Promise<ChoixDeDesign>;
 };
 
 // La raison du renvoi d'une livraison design sans ses captures.
@@ -358,7 +359,8 @@ export async function fermerLesCartesCaduques(
 // ou une demande que GitHub n'écrit pas, lèvent : la pass le dit, ne merge
 // pas, et réessaie. La demande porte, après le lien de la PR, le brief — ce
 // que le ticket demandait, ce que le cook a fait (#3330) —, puis `suite` (les
-// captures d'un design), lus seulement quand une demande se pose.
+// captures d'un design), lus seulement quand une demande se pose ; `avant`
+// précède le brief (le choix de design qu'elle fait valider, #3609).
 export async function tenirPourLeChef(
   sorte: SorteDeRetenue,
   github: GitHubDeLaRetenue,
@@ -366,6 +368,7 @@ export async function tenirPourLeChef(
   suite: (depot: string) => Promise<readonly string[]> = async () => [],
   repondues: readonly SorteDeRetenue[] = [],
   ecran?: (depuis: string) => Promise<string | null>,
+  avant: readonly string[] = [],
 ): Promise<string | null> {
   const { ticket, pr } = livraison;
   const commentaires = await github.commentaires(ticket.number);
@@ -389,7 +392,7 @@ export async function tenirPourLeChef(
     sha: pr.sha,
     question: sorte.question(ticket.number, pr.number),
     chef: livraison.chef ?? null,
-    suite: [...(redemande === null ? [] : [redemande, ""]), `Station \`${livraison.station}\`: ${sorte.pourquoi} — ${sorte.tenue}.`, `Pull request: ${adresseDeLaPR(depot, pr.number)}`, "", ...brief, ...(await suite(depot))],
+    suite: [...(redemande === null ? [] : [redemande, ""]), `Station \`${livraison.station}\`: ${sorte.pourquoi} — ${sorte.tenue}.`, `Pull request: ${adresseDeLaPR(depot, pr.number)}`, "", ...avant, ...brief, ...(await suite(depot))],
   });
   return `${sorte.tenue} (${ouAttend(ticket.number, ticket.number)})`;
 }
@@ -418,6 +421,19 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
   const { ticket, pr, fichiers } = livraison;
   if (fichiers === null) throw new Error(`the files of PR #${pr.number} could not be read: whether it is a design delivery, which a human validates on this project, is not known — not merged on this turn`);
   if (!estUneLivraisonDesign(ticket.number, fichiers, ticket.labels)) return null;
+  // Un ticket technique ne demande jamais le chef, sans modèle (#3609).
+  const issue = github.issue === undefined ? null : await github.issue(ticket.number);
+  const corps = issue?.body ?? "";
+  if (estTechnique({ title: ticket.title, labels: ticket.labels, body: corps }) !== null) return null;
+  // Une carte déjà posée pour la PR tient : la question est posée, le modèle ne la rejuge pas.
+  let choix: string | null = null;
+  const enAttente = await carteEnAttenteDuChef(DESIGN, github, ticket.number, pr.number);
+  if (enAttente === null) {
+    if (livraison.jugerLeChoix === undefined) throw new Error(`no judge says whether the delivery of PR #${pr.number} makes a design choice the ticket did not settle — not merged on this turn`);
+    choix = (await livraison.jugerLeChoix(corps)).choix;
+    // Ni choix à faire valider, ni carte : la pass vérifie la livraison sur les critères et merge.
+    if (choix === null) return null;
+  }
   const screens = capturesLivrees(ticket.number, fichiers);
   const manque = capturesManquantes(screens);
   if (manque !== null) {
@@ -426,7 +442,7 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
   }
   // L'écran de la livraison : ceux de ses fichiers qui en font une livraison design.
   const ecran = fichiers.filter((fichier) => estUneLivraisonDesign(ticket.number, [fichier], []));
-  return tenirPourLeChef(DESIGN, github, livraison, async (depot) => direCaptures(depot, ticket.number, { sha: pr.sha, screens }), [], (depuis) => ecranChange(github, ecran, depuis, pr.sha));
+  return tenirPourLeChef(DESIGN, github, livraison, async (depot) => direCaptures(depot, ticket.number, { sha: pr.sha, screens }), [], (depuis) => ecranChange(github, ecran, depuis, pr.sha), choix === null ? [] : [`**Design choice:** ${choix}`, ""]);
 }
 
 // Le brief de la demande (#3330) : ce que le ticket demandait, tiré de son
