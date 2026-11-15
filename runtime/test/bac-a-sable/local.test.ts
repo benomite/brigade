@@ -83,7 +83,7 @@ test("sur un Mac, la cuisine locale a son bac à sable ; s'il n'y est pas, elle 
 test("le profil se pose sur chaque `claude` : le cook perd `bypassPermissions`, le reviewer et le jugement le reçoivent devant `--setting-sources`", () => {
   const config = configurer({ worktree: "/Users/chef/wt/12", caches: [], hotes: HOTES, home: HOME });
   const profil = argumentsDuBacASable(config);
-  const cook = argumentsClaude("consigne", CALIBRAGE);
+  const cook = argumentsClaude(CALIBRAGE);
   const place = cook.indexOf("--permission-mode");
   assert.deepEqual(poserLeBacASable(cook, config), [...cook.slice(0, place), ...profil, ...cook.slice(place + 2)]);
   assert.equal(poserLeBacASable(cook, config).includes("bypassPermissions"), false);
@@ -95,7 +95,7 @@ test("le profil se pose sur chaque `claude` : le cook perd `bypassPermissions`, 
 });
 
 test("sans bac à sable, les arguments partent tels quels ; avec, le répertoire du lancement est le seul ouvert à l'écriture, avec les caches", () => {
-  const args = argumentsClaude("consigne", CALIBRAGE);
+  const args = argumentsClaude(CALIBRAGE);
   assert.equal(dansLeBacASableLocal(null, args, "/Users/chef/wt/12"), args);
   let lues = 0;
   const bac: BacASableLocal = { version: "2.1.300", home: HOME, caches: ["/Users/chef/Library/Caches/brigade"], hotes: () => (lues++, HOTES) };

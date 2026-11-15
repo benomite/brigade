@@ -119,6 +119,7 @@ import { gistDesPreferences } from "./reglages-perso/gist.ts";
 import { reglagesPerso } from "./reglages-perso/reglages-perso.ts";
 import { tenirPreferences } from "./reglages-perso/synchro.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
+import { suivreLaVeille } from "./vue/veille-machine/suivre.ts";
 
 // Où sont le runtime de la station, son `node` et le clone de l'app : dans le dépôt, ou dans le
 // paquet de l'app installée (emplacements.ts). Installée, l'app prend le PATH du shell de
@@ -1167,7 +1168,7 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, oui: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, oui, cuisines.cuisineDe(vise));
 });
-// Un geste de WAITING, sur une carte du rail ou sa fiche : quand la cuisine du projet tourne sur ce poste, sa commande
+// Un geste de WAITING, sur une carte du rail ou sa fiche : « resume », quand la cuisine du projet tourne sur ce poste, sa commande
 // part dans le second du projet, comme un geste du socle (attente.ts) ; sinon il s'écrit sur l'issue, comme la commande
 // l'y écrit (vue/attente/attente-github.ts, #3075). La vue nomme le geste et le ticket, et donne ce que le chef a rempli.
 // « It arrived, back to the kitchen » n'a pas de commande : il retire `waiting` de l'issue (gestes-github.ts), comme le
@@ -1277,6 +1278,16 @@ ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // du paquet (emplacements.ts).
 const ghIci = process.env.BRIGADE_GH_BIN || "gh";
 const duRuntime = <M>(...chemin: string[]) => import(pathToFileURL(join(emplacements.runtime, "src", ...chemin)).href) as Promise<M>;
+// La veille de la station de cet ordinateur (#3642) : garde-t-elle ce Mac éveillé, dit à la vue quand cela change.
+const veilleMachine =
+  role.role === "station"
+    ? suivreLaVeille({
+        lire: async () => (await duRuntime<typeof import("../../runtime/src/veille-machine/contrat.ts")>("veille-machine", "contrat.ts")).lireVeille(racineDeLaStation, process.platform),
+        dire: (veille) => dire("veilleMachine", veille),
+        avertir: (ligne) => console.error(ligne),
+      })
+    : undefined;
+ipcMain.handle("veilleMachine", () => veilleMachine?.relire());
 void duRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>("second-propositions", "canal.ts").then(
   (canal) => {
     propositionsDuSecond = tenirLesPropositions({ canal, surProposition: (projet, proposition) => dire("proposition", projet, proposition) });

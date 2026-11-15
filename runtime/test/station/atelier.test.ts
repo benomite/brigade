@@ -114,7 +114,7 @@ test("ce qui ne se déménage pas reste où il est, et se dit : un clone déjà 
 // Les réglages qu'un `claude` lancé dans ce répertoire reçoit de la cuisine.
 function reglagesDansLeBacASable(home: string, worktrees: string, ou: string): Reglages {
   const bac = configBacASableLocal(MAC, { home, worktrees, caches: [] }, () => REGLES_DE_BASE);
-  const args = dansLeBacASableLocal(bac, argumentsClaude("consigne", { model: "sonnet", effort: "low" }), ou);
+  const args = dansLeBacASableLocal(bac, argumentsClaude({ model: "sonnet", effort: "low" }), ou);
   return JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as Reglages;
 }
 

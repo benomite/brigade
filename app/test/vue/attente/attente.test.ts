@@ -177,19 +177,20 @@ const SECOND: Terminal = { id: 1, projet: PROJET, genre: "second", titre: "secon
 const dansDixJours = () => jourDe(new Date(Date.now() + 10 * 86_400_000));
 
 describe("les gestes : la commande du runtime quand il tourne ici, sinon l'issue", () => {
-  test("le runtime ici : « waiting for… » et « resume » partent par sa commande, rien sur GitHub ; « it arrived » retire `waiting`", async () => {
+  test("le runtime ici : « resume » part par sa commande, rien sur GitHub ; « waiting for… » s'écrit sur l'issue, rien dans le second ; « it arrived » retire `waiting`", async () => {
     const monde = github();
     const lu = await lueParLApp(monde);
     const commandes: string[] = [];
     const parLeRuntime = (id: string) => () => (commandes.push(id), SECOND);
     const jouer = (id: string, ticket: number, saisie?: unknown) => jouerLAttente({ id, ticket, saisie, aujourdhui: new Date(), lu: () => lu, client: monde.client, parLeRuntime: parLeRuntime(id) });
-    assert.equal(await jouer("attente-poser", 20, { quoi: "x", qui: "y", relance: dansDixJours() }), SECOND);
+    assert.ok("fait" in (await jouer("attente-poser", 20, { quoi: "x", qui: "y", relance: dansDixJours() })));
+    assert.deepEqual(commandes, []);
+    assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
     assert.equal(await jouer("attente-reprendre", 40), SECOND);
-    assert.deepEqual(commandes, ["attente-poser", "attente-reprendre"]);
-    assert.deepEqual(monde.ecrites, []);
+    assert.deepEqual(commandes, ["attente-reprendre"]);
     assert.ok("fait" in (await jouer("attente-arrivee", 40)));
-    assert.deepEqual(commandes, ["attente-poser", "attente-reprendre"]);
-    assert.deepEqual(monde.ecrites, [`DELETE /repos/${DEPOT}/issues/40/labels/waiting`]);
+    assert.deepEqual(commandes, ["attente-reprendre"]);
+    assert.equal(monde.ecrites.at(-1), `DELETE /repos/${DEPOT}/issues/40/labels/waiting`);
   });
 
   test("sans runtime ici : « waiting for… » pose la marque puis `waiting` ; relue, la carte est dans WAITING avec quoi, de qui et sa relance", async () => {

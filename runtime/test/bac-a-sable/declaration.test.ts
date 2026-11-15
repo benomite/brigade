@@ -24,7 +24,7 @@ const HOTES = reglesDuProjet(["registry.npmjs.org"]);
 const cook = (): Cook => ({ worktree: WORKTREE, caches: [], hotes: HOTES, home: HOME, etat: ETAT });
 const avec = (texte: string) => configurer({ ...cook(), declaration: lireDeclarationBacASable(texte) ?? undefined }).reglages;
 const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n", temporaire: () => "/private/var/folders/xy/T" };
-const ARGS = argumentsClaude("consigne", { model: "sonnet", effort: "low" });
+const ARGS = argumentsClaude({ model: "sonnet", effort: "low" });
 const reglagesDe = (args: string[]) => JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as Reglages;
 
 // Le bac à sable de Claude Code n'a pas de champ par port : `allowLocalBinding`
