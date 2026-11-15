@@ -16,7 +16,8 @@
 // ensuite : le ticket ne s'offre plus aux autres stations.
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { brancheDuTicket, dependancesDuCorps, ECHECS_MAX, runDuTicket, A_LA_MAIN, type Lancer, type StationGitHub } from "../brigade-github.ts";
+import { attendusDuCorps } from "../attente-ticket/attente-ticket.ts";
+import { brancheDuTicket, ECHECS_MAX, runDuTicket, A_LA_MAIN, type Lancer, type StationGitHub } from "../brigade-github.ts";
 import { environnementHorsGitHub, ticketJoint } from "../bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "../calibrage.ts";
@@ -211,9 +212,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
         if (calibrage === null) continue;
         const issue = await github.issue(ticket.number);
         if (issue === null || issue.state !== "open") continue;
-        const dependances = dependancesDuCorps(issue.body ?? "").filter((dependance) => dependance !== ticket.number);
-        const etats = await Promise.all(dependances.map(async (dependance) => (await github.issue(dependance))?.state));
-        if (etats.includes("open")) continue;
+        if ((await attendusDuCorps(ticket.number, issue.body ?? "", (dependance) => github.issue(dependance))).length > 0) continue;
         if (gardes !== undefined && (await gardes.retenue(enVol.size)) !== null) break;
         const { prise } = await reclamer(ticket.number, contexte);
         if (!prise) continue;
