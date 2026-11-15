@@ -4,6 +4,7 @@ import type { ReprendreLeTicket } from "../src/reprise-du-manager.ts";
 import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
 import { lienDuCorps } from "../src/besoin/besoin.ts";
 import { porteListe } from "../src/epique.ts";
+import { avecLAlerte } from "../src/alerte-cuisine/alerte-cuisine.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub, StatutDeCommit } from "../src/github.ts";
@@ -132,7 +133,7 @@ export class FauxGitHub {
     return {
       fires: async () => {
         await noter("fires");
-        return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, ...(porteListe(t.corps) ? { epique: true as const } : {}), ...lienDuCorps(t.number, t.corps) }));
+        return [...this.tickets.values()].filter((t) => t.state === "open" && t.labels.has("fire")).map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, ...(porteListe(t.corps) ? { epique: true as const } : {}), ...lienDuCorps(t.number, t.corps), ...avecLAlerte({ title: t.title, labels: [...t.labels], body: t.corps }) }));
       },
       dependancesOuvertes: async (issue) => {
         await noter("dependancesOuvertes");

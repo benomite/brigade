@@ -37,7 +37,7 @@ import type { Projet } from "./config.ts";
 import { tenirFaits, type Dessinable } from "./faits.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { lireCaptureSurLAPI, type Image } from "./captures.ts";
-import { cuisineRetenueParLeDisjoncteur, LABEL_DU_DISJONCTEUR, lireLesIssuesDuDisjoncteur } from "./github/breaker-resume.ts";
+import { cuisineRetenueParLeDisjoncteur, lireLIssueDuDisjoncteur } from "./github/breaker-resume.ts";
 import { ouvrirLesGestesGitHub } from "./gestes-github-telephone.ts";
 import { clientDeLaPriorite, type EnvoiGitHub } from "./priorite.ts";
 import { FICHIER_PROJETS, lireDemande } from "./projets/demande.ts";
@@ -222,14 +222,15 @@ export function ouvrirLaLectureGitHub(options: Options) {
     if (vu !== undefined) dire("surAccueil", vu);
   };
 
-  // Le disjoncteur ouvert, lu de GitHub seul : la station publie une issue `brigade:breaker-open` quand il s'ouvre (#2138). Ouverte,
+  // Le disjoncteur ouvert, lu de GitHub seul : la station publie une issue `brigade:breaker-open` quand il s'ouvre (#2138), sur
+  // la brigade, marquée du dépôt du projet (#3620). Ouverte,
   // elle fait dire à la cuisine qu'elle est retenue, et à sa ligne `kitchen`, en tête de `status`, « breaker OPEN » et pourquoi — d'où la bande, la ligne de « Awaiting you » et
   // son « Resume » (alertes.ts). Une lecture qui échoue ne dit rien du disjoncteur : le rail reste tel qu'il est lu, et la
   // lecture suivante, trente secondes après, la refait.
   async function avecLeDisjoncteur(lu: TableauLu, lecteur: AppelGitHub): Promise<TableauLu> {
     let issue;
     try {
-      [issue] = await lireLesIssuesDuDisjoncteur(lecteur, lu.depot, LABEL_DU_DISJONCTEUR);
+      issue = await lireLIssueDuDisjoncteur(lecteur, lu.depot);
     } catch {
       return lu;
     }

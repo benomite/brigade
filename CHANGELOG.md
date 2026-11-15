@@ -19,6 +19,7 @@ Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new
 
 ### Fixed
 
+- Kitchen alerts go to Brigade, never to the project's repository: the idle-kitchen bug (every cause, `empty-rail` included) and the breaker issue are filed on `benomite/brigade`, marked with the project, and the `/resume` that resumes a kitchen is read there — from the runtime, the desktop's `Resume` and the phone's. An issue the station opened about the kitchen itself (its `brigade:cuisine-inerte` or `brigade:breaker-open` mark, its label, or its known title) is never a ticket of a project: the manager sets it aside (`kitchen-alert`) without judging it, and no station hands it to a cook, even one already open and fired. Seen on benomite/secondes #45 and #46, where a cook took an idle-kitchen alert in an Android app's repository (#3620)
 - A ticket in WAITING stays there when its follow-up date passes (its WAITING card shows it): it leaves only on the chef's gesture, never on a date, a new comment or a box update; those an older version turned back to TODO return to WAITING; a ticket waiting for a missing machine or station is no longer a TODO card (#1833)
 - Declare the report command in the commands table and its walkthrough (#1610)
 

@@ -172,7 +172,8 @@ of kind `abandoned`, answered on its issue.
 failed in a row, no cook goes any more`, what the station writes on hover — and its single button, `Resume`, recommended,
 its price on hover. The line says the project's state, `held: breaker open — …`, in the same words on Home (the project's
 state, in place of `stuck` and `no manager takes`), on Rail and on the phone (#3602). No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
-`/resume` on the repository's open issue labeled `brigade:breaker-open` (the station publishes it when the breaker opens,
+`/resume` on the project's open issue labeled `brigade:breaker-open` on `benomite/brigade` — the one whose body carries
+`<!-- brigade:projet=<owner>/<repo> -->` for this project, #3620 — (the station publishes it when the breaker opens,
 #2138, and its watcher closes the breaker when it reads the comment, #2139), with the GitHub sign-in of
 this computer's `gh` (`app/src/github/breaker-resume.ts`). While it is posted, the button waits and the line says
 `requesting the resume on GitHub…`; posted, it says `Resume requested` (the comment's address on hover) and offers no
@@ -181,8 +182,8 @@ labeled issue being open, the line says why in one line (`resume not requested: 
 `Resume` back to try again. On Rail the alert band does not repeat the line; on the other tabs, where there is no Todo,
 the band carries it with the same `Resume` (`app/src/vue/todo-breaker-line.js`). Captures: `docs/captures/2140/`.
 **On the phone the breaker line is at the head of `Awaiting you`, with the same `Resume`** (#3371). The phone has no
-station to ask: its reading lists the repository's open issues labeled `brigade:breaker-open` (`app/src/lecture-github-telephone.ts`,
-`avecLeDisjoncteur`). An open one says the kitchen held, with a `kitchen` line built from the issue the station wrote (how long,
+station to ask: its reading lists the open issues labeled `brigade:breaker-open` on `benomite/brigade` and keeps the one
+marked with the project's repository (`app/src/lecture-github-telephone.ts`, `avecLeDisjoncteur`, #3620). An open one says the kitchen held, with a `kitchen` line built from the issue the station wrote (how long,
 how many failures in a row, the failing ticket, its exit code: `cuisineRetenueParLeDisjoncteur`); the band's breaker alert follows,
 and the list shows it with that line written under it (a phone has no hover). `Resume` posts `/resume` on that issue through
 `reprendreLeDisjoncteur` of `app/src/gestes-github-telephone.ts`, the code the desktop runs. A reading of the issues that fails
@@ -4022,7 +4023,8 @@ something holds the kitchen**. The columns start right under them.
   fault (#1863); the project off, with its switch (#3454); a stale or offline reading; the wait of the queue (#3433).
 - **A kitchen-filed issue is never a need.** `Kitchen <project> held: its breaker is open` and `The kitchen is idle: …`
   (`app/src/amont.ts`, `alerteDeLaCuisine`) are left out of the Backlog — no tag, no row in the unfolded list, not counted —
-  and their content is the status line.
+  and their content is the status line. Since #3620 the station files them on `benomite/brigade`, never in the project's
+  repository: only those opened there before still reach a project's list.
 - **The status line never says "no reason is found" when a reason is known**: with the kitchen held, its breaker open, a
   ticket set aside or the kitchen stopped, the wait line names it (`The queue waits: #12, #13 are set aside.`,
   `app/src/vue/ligne-de-statut/`). Only when nothing is known does the runtime's sentence stand.

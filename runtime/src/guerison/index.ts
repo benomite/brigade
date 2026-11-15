@@ -12,7 +12,7 @@
 // - la clôture d'une épique dont tous les sous-tickets sont fermés
 //   (`epique-finie.ts`, #2754) ;
 // - le bug d'une cuisine inerte : des tickets à prendre, et rien n'avance
-//   depuis 90 min (`cuisine-inerte.ts`, #2755) ;
+//   depuis 90 min (`cuisine-inerte.ts`, #2755), déposé sur la brigade (#3620) ;
 // - le défaut d'une carte de TODO sans question, déposé sur la brigade
 //   (`../signalement-carte-sans-question.ts`, #3134).
 // La lacune technique que le manager complète seul (#2753) est dans ses
@@ -62,9 +62,9 @@ export type OptionsDeLaGuerison = {
   // La branche d'intégration du projet.
   base: string;
   avertir: (message: string) => void;
-  // Le projet servi et le GitHub de la brigade : une cause de l'inertie qui vit
-  // dans la station se dépose sur la brigade (#3098). Absents, ou sur la
-  // brigade elle-même, le bug reste sur le projet.
+  // Le projet servi et le GitHub de la brigade : le bug de l'inertie se dépose
+  // sur la brigade, jamais dans le dépôt du projet (#3098, #3620). Sur la
+  // brigade elle-même, il reste dans son dépôt ; sans eux, il ne se dépose pas.
   servi?: string;
   brigade?: GitHubDeLaBrigade;
   // En millisecondes ; l'horloge du système par défaut.
@@ -96,7 +96,10 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 
 export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const { github, station, base, avertir, servi } = options;
-  const brigade = servi === undefined || servi.toLowerCase() === DEPOT_BRIGADE ? undefined : options.brigade;
+  const projetBrigade = servi?.toLowerCase() === DEPOT_BRIGADE;
+  const brigade = servi === undefined || projetBrigade ? undefined : options.brigade;
+  // Une cuisine inerte sans brigade où déposer son bug : dit une fois.
+  let sansBrigadeDit = false;
   const maintenant = options.maintenant ?? Date.now;
   const claim = ouvrirClaimPerime({ github, maintenant });
   // Le défaut d'une carte sans question va sur la brigade, le projet servi la brigade elle-même compris :
@@ -265,6 +268,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
           // Les zones tenues des tickets sautés au dernier tour de la porte de prise.
           zonesTenues: async () => [...zonesTenues].map(([ticket, tenant]) => ({ ticket, tenant })),
         },
+        projetBrigade,
         ...(brigade === undefined || servi === undefined
           ? {}
           : {
@@ -282,6 +286,8 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
         bilan.inertie = fait.bug;
         avertir(`brigade : idle kitchen on ${station} (${fait.cause}) — bug #${fait.bug} filed${fait.sur === "brigade" ? ` on ${DEPOT_BRIGADE}` : ""}`);
       }
+      if (fait.fait === "sans-brigade" && !sansBrigadeDit) avertir(`brigade : idle kitchen on ${station} — no bug filed: no ${DEPOT_BRIGADE} client, and a kitchen alert is never filed in the project's repository`);
+      sansBrigadeDit = fait.fait === "sans-brigade";
     });
 
     // Une carte de TODO qui ne pose pas de question : son défaut sur la brigade, une fois (#3134).

@@ -108,10 +108,12 @@ the ticket is retried like any cook without a delivery, then goes to the manager
 
 ### The breaker on GitHub
 
-An open breaker is also **an issue of the project's repository**, labeled `brigade:breaker-open`
-(`runtime/src/breaker-issue.ts`): its body names the failing ticket, its exit code, the error the log
+An open breaker is also **an issue on `benomite/brigade`**, never in the project's repository (#3620): it says how the
+kitchen runs, not the project's code, and a cook of the project could do nothing with it. It is labeled `brigade:breaker-open`
+(`runtime/src/breaker-issue.ts`) and filed with the machine's `gh`; its body names the failing ticket, its exit code, the error the log
 recorded for it, and the time the breaker opened — and, for each failure counted, its ticket and error (#3656) — or, opened by stalls, what keeps stalling (#3599). An issue already open for this kitchen is reused, never doubled — its body carries
-`<!-- brigade:breaker-open project=<project> -->`. On "resume", or when the breaker closes by itself,
+`<!-- brigade:breaker-open project=<project> -->`, and names the project's repository with
+`<!-- brigade:projet=<owner>/<repo> -->`, by which the app finds it. On "resume", or when the breaker closes by itself,
 the issue receives a comment saying the kitchen is resumed, and is closed. The label is created if the repository lacks it. Nothing is
 added to the log: the runtime reads the breaker at every wake-up and publishes only what changed —
 at startup it reads GitHub once, so a breaker closed while it was down still closes its issue. A
@@ -131,9 +133,10 @@ state shows `caps per ticket`, `pass judgements` (`3 at once at most — … (BR
 (`kitchen already stopped since …`); `reprendre` still answers until 2027-01-14.
 
 **Resume from GitHub, without `ssh`** (`runtime/src/breaker-resume-github.ts`): while the breaker is
-open, each GitHub poll reads the comments of the open issue labeled `brigade:breaker-open`. A comment
+open, each GitHub poll reads the comments of the open issue labeled `brigade:breaker-open` on
+`benomite/brigade` that carries this kitchen's mark — another kitchen's issue resumes nothing. A comment
 whose body is exactly `/resume`, posted after the breaker opened by the owner, a member or a
-collaborator of the repo, plays `guardrails resume` in the runtime's process: same events, same
+collaborator of `benomite/brigade`, plays `guardrails resume` in the runtime's process: same events, same
 answer, logged to `journalctl`. Any other comment is ignored; no labeled issue, nothing to do. With
 the breaker closed, nothing is read.
 

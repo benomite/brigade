@@ -13,10 +13,14 @@
 // ouvert se relit du client GitHub à chaque appel. Aucune valeur n'est propre
 // à un projet : le client et l'horloge viennent de l'appelant.
 //
-// Une cause qui vit dans la station (`held-zone`) ne se répare pas dans le
-// dépôt du projet servi : le bug se dépose sur la brigade, comme le ticket du
-// temps perdu (`../routage-temps-perdu.ts`, #2783), et ne va jamais à un cook
-// du projet (#3098). Une cause du projet (`stale-claim`, `empty-rail`) y reste.
+// L'inertie dit comment la cuisine elle-même tourne, quelle que soit sa cause :
+// elle ne se répare pas dans le dépôt du projet servi, où le code de la cuisine
+// n'est pas. Le bug se dépose sur la brigade, comme le ticket du temps perdu
+// (`../routage-temps-perdu.ts`, #2783), et ne va jamais à un cook du projet
+// (#3098, #3620) ; sans la brigade, il ne se dépose nulle part. La brigade qui
+// se sert elle-même le garde chez elle, dans le dépôt du projet. Le 15 novembre
+// 2026, un `empty-rail` déposé sur secondes y a été pris par un cook qui n'y
+// pouvait rien.
 
 // Depuis combien de minutes sans fusion la cuisine est dite inerte.
 export const INERTIE_MINUTES = 90;
@@ -25,9 +29,6 @@ export const INERTIE_MINUTES = 90;
 export const LABEL_DU_BUG = "fix";
 
 export type Cause = "stale-claim" | "held-zone" | "empty-rail" | "unknown";
-
-// Les causes qui vivent dans la station.
-const CAUSES_DE_LA_STATION: readonly Cause[] = ["held-zone"];
 
 // Ce qui tient la zone d'un ticket sauté : le ticket tenant (null sans numéro
 // dans sa branche), sa branche, la date de sa fermeture (YYYY-MM-DD) s'il est
@@ -58,8 +59,8 @@ export type GitHubDeLInertie = {
   zonesTenues?(): Promise<{ ticket: number; tenant: TenantDeZone }[]>;
 };
 
-// Le dépôt de la brigade, où va une cause de la station : son bug ouvert pour
-// le projet servi, et la création. Absent, tout reste sur le projet.
+// Le dépôt de la brigade, où va le bug : son bug ouvert pour le projet servi,
+// et la création.
 export type BrigadeDeLInertie = {
   issuesOuvertes(label: string): Promise<{ number: number; body: string }[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
@@ -68,12 +69,17 @@ export type BrigadeDeLInertie = {
   servi: string;
 };
 
-export type ContexteDeLInertie = { github: GitHubDeLInertie; maintenant: Date; brigade?: BrigadeDeLInertie };
+// `brigade` : où le bug se dépose ; absente, il ne se dépose pas, sauf si
+// `projetBrigade` dit que le projet servi est la brigade elle-même — il se
+// dépose alors dans son propre dépôt.
+export type ContexteDeLInertie = { github: GitHubDeLInertie; maintenant: Date; brigade?: BrigadeDeLInertie; projetBrigade?: boolean };
 
 // `sur: "brigade"` : le bug est celui du dépôt de la brigade, pas du projet servi.
 export type Inertie =
   | { fait: "bug"; cause: Cause; bug: number; sur?: "brigade" }
   | { fait: "deja-signale"; bug: number; sur?: "brigade" }
+  // La cuisine est inerte, mais rien ne dit où déposer le bug : il ne se dépose pas.
+  | { fait: "sans-brigade" }
   | { fait: "rien"; pourquoi: string };
 
 const DIT: Record<Cause, string> = {
@@ -110,23 +116,26 @@ export async function signalerInertie(contexte: ContexteDeLInertie): Promise<Ine
   if (dernier !== null && minutesDepuis(dernier, maintenant) < INERTIE_MINUTES) return { fait: "rien", pourquoi: "a PR was merged recently" };
   const cuisinables = await github.cuisinables();
   if (cuisinables.length === 0) return { fait: "rien", pourquoi: "no cookable ticket" };
-  const ouvert = (await github.issuesOuvertes(LABEL_DU_BUG)).find((i) => i.body.includes(MARQUE_D_INERTIE));
-  if (ouvert) return { fait: "deja-signale", bug: ouvert.number };
-  const { cause, detail } = await causeProbable(contexte);
   const { brigade } = contexte;
-  const surLaBrigade = brigade !== undefined && CAUSES_DE_LA_STATION.includes(cause);
+  const surLaBrigade = brigade !== undefined;
+  // Jamais dans le dépôt d'un projet (#3620).
+  if (!surLaBrigade && contexte.projetBrigade !== true) return { fait: "sans-brigade" };
   if (surLaBrigade) {
     // Un bug par projet : celui d'un autre projet ne fait taire personne.
     const deja = (await brigade.issuesOuvertes(LABEL_DU_BUG)).find((i) => i.body.includes(MARQUE_D_INERTIE) && i.body.includes(brigade.marqueDuProjet));
     if (deja) return { fait: "deja-signale", bug: deja.number, sur: "brigade" };
+  } else {
+    const ouvert = (await github.issuesOuvertes(LABEL_DU_BUG)).find((i) => i.body.includes(MARQUE_D_INERTIE));
+    if (ouvert) return { fait: "deja-signale", bug: ouvert.number };
   }
+  const { cause, detail } = await causeProbable(contexte);
   const depuis = dernier === null ? "ever" : `since ${dernier}`;
   const ouvrir = surLaBrigade ? brigade.creerIssue : github.creerIssue;
   const bug = await ouvrir({
     titre: `The kitchen is idle: no merge for ${INERTIE_MINUTES} minutes with ${cuisinables.length} cookable ticket(s) (${cause})`,
     corps: [
       MARQUE_D_INERTIE,
-      ...(surLaBrigade ? [brigade.marqueDuProjet, "", `> Seen on the served project **${brigade.servi}**: the cause lives in the station code (\`runtime/src\`), which is why this ticket is filed here and not on ${brigade.servi}.`] : []),
+      ...(surLaBrigade ? [brigade.marqueDuProjet, "", `> Seen on the served project **${brigade.servi}**: the kitchen's code lives here (\`runtime/src\`), not on ${brigade.servi}: a kitchen alert is filed here, never in the project's repository.`] : []),
       `No PR has been merged ${depuis}, for at least ${INERTIE_MINUTES} minutes, while ${cuisinables.length} ticket(s) are cookable: ${cuisinables.map((t) => `#${t.number}`).join(", ")}.`,
       "",
       "## Likely cause",

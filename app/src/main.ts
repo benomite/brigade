@@ -1775,8 +1775,8 @@ ipcMain.handle("compter", (_, nom: unknown) => {
   passage.set(servi.nom, rendu);
   return rendu;
 });
-// « Resume », sur la ligne du disjoncteur de TODO (#2140) : `/resume` posté sur l'issue `brigade:breaker-open` du dépôt du
-// projet, par le jeton du `gh` de ce poste — sans box jointe. La station le lit à sa veille suivante et referme le
+// « Resume », sur la ligne du disjoncteur de TODO (#2140) : `/resume` posté sur l'issue `brigade:breaker-open` du projet,
+// sur la brigade (#3620), par le jeton du `gh` de ce poste — sans box jointe. La station le lit à sa veille suivante et referme le
 // disjoncteur (#2139) ; la ligne part avec la lecture qui ne le dit plus ouvert.
 const clientDuDisjoncteur = clientDuDisjoncteurGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
 ipcMain.handle("reprendreLeDisjoncteur", async (_, nom: unknown) => {

@@ -19,6 +19,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { horsDesBesoins } from "./besoin/besoin.ts";
+import { horsDesTickets } from "./alerte-cuisine/alerte-cuisine.ts";
 import { fiche, type Fiche } from "./fiche.ts";
 import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
@@ -114,7 +115,8 @@ import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
 // par eux, jamais ne se prend (#2618). `besoin` : celui dont il est né (#3479).
-export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state" | "epique" | "besoin">;
+// `alerte` : une alerte que la station a ouverte sur la cuisine — pas un ticket (#3620).
+export type TicketLu = Pick<Issue, "number" | "title" | "labels" | "state" | "epique" | "besoin" | "alerte">;
 
 // La prise d'un ticket (`github-etat/prise.ts`, #2056), liée à la station qui
 // l'appelle et au client GitHub qui la porte. `prendre` poste sa prise si
@@ -1590,7 +1592,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
     const tenusAvant = tenusDuTour;
     tenusDuTour = new Map();
-    const fires = await github.fires();
+    // Une alerte que la station a ouverte sur la cuisine n'est pas un ticket du
+    // projet, même lancée et calibrée : aucun cook ne la prend, rien du tour ne la
+    // lit (#3620). Sur la brigade, l'alerte d'inertie en reste un (#3098).
+    const fires = (await github.fires()).filter((ticket) => !horsDesTickets(ticket.alerte, options.depotServi));
     // Une fois, au premier tour, avant la guérison : les tickets que des cooks tués du dehors ont fait mettre de côté reviennent sur le rail (#3528).
     if (!arretsExternesReconcilies) {
       const { rendus, complete } = await reconcilierLesArretsExternes(fires, { github, station: nom, echecs: async (numero) => (await depuisLeRelancement(github, numero, await github.commentaires(numero), MARQUE_D_ECHEC)).map(({ body }) => ({ body })), avertir });

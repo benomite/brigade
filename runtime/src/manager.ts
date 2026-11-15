@@ -49,6 +49,7 @@ import { ouvrirRoadmap } from "./manager/roadmap.ts";
 import { ouvrirVerdictIncomplet } from "./manager/verdict-incomplet.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { estLaPauseDeGitHub } from "./limite-github.ts";
+import { alerteDeLaCuisine, horsDesTickets } from "./alerte-cuisine/alerte-cuisine.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -168,6 +169,7 @@ const RAISONS: Partial<Record<Ecart, string>> = {
   "set-aside:failures": "it has the `set-aside:failures` label: its failure count set it aside",
   "already-split": "it is an epic whose body already lists its tickets",
   vision: "it is a product vision or a reference document, not a deliverable",
+  "kitchen-alert": "it is an alert the station opened about the kitchen itself, not a ticket about this project's code",
 };
 
 const nombre = (valeur: number) => valeur.toLocaleString("en-US");
@@ -266,6 +268,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
+    // Une alerte que la station a ouverte sur la cuisine elle-même n'est jamais
+    // un ticket du projet : ni jugée, ni lancée, ni au chef, quoi qu'elle porte (#3620).
+    if (horsDesTickets(alerteDeLaCuisine(issue), options.depotGitHub)) return { quoi: "ecart", raison: "kitchen-alert", fired };
     // Une idée en réserve n'est jamais lue : ni jugée, ni qualifiée, ni au chef (#3536).
     if (issue.labels.includes(LABEL_IDEE)) return { quoi: "ecart", raison: "idea", fired };
     // La roadmap est un document de suivi, jamais un ticket : reconnue avant

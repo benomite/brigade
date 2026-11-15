@@ -34,7 +34,8 @@ function depot(etat: { dernierMerge?: string | null; cuisinables?: TicketCuisina
       return number;
     },
   };
-  return { issues, surLaBrigade, appeler: () => signalerInertie({ github, maintenant: MAINTENANT }), appelerAvecBrigade: () => signalerInertie({ github, maintenant: MAINTENANT, brigade }) };
+  // `appeler` : la brigade qui se sert elle-même, dont le bug reste dans son propre dépôt (#3620).
+  return { issues, surLaBrigade, appeler: () => signalerInertie({ github, maintenant: MAINTENANT, projetBrigade: true }), appelerAvecBrigade: () => signalerInertie({ github, maintenant: MAINTENANT, brigade }) };
 }
 
 const TENANT_FERME: TenantDeZone = { ticket: 412, branche: "cook/412-github", fermeLe: "2026-10-23", pr: 489 };
@@ -120,11 +121,11 @@ test("a held zone, bug still open on the brigade for this project: no second bug
   assert.equal(d.surLaBrigade.length, 2);
 });
 
-test("a really empty rail keeps its bug on the served project, brigade known or not", async () => {
+test("a really empty rail is filed on the brigade too, never on the served project (#3620)", async () => {
   const d = depot({ prsEnPasse: 0 });
-  assert.deepEqual(await d.appelerAvecBrigade(), { fait: "bug", cause: "empty-rail", bug: 200 });
-  assert.equal(d.surLaBrigade.length, 0);
-  assert.equal(d.issues.length, 1);
+  assert.deepEqual(await d.appelerAvecBrigade(), { fait: "bug", cause: "empty-rail", bug: 700, sur: "brigade" });
+  assert.equal(d.surLaBrigade.length, 1);
+  assert.equal(d.issues.length, 0);
 });
 
 test("a held zone with no brigade to file on (the brigade serving itself): the bug stays on the project", async () => {

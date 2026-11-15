@@ -42,6 +42,8 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
       return { motif: "its body already lists the tickets of an epic, split by hand", geste: "remove that list from its body: the epic is split on the next wake-up" };
     case "roadmap":
       return { motif: "it is the project's roadmap", geste: null };
+    case "kitchen-alert":
+      return { motif: "it is an alert the station opened about the kitchen itself (an idle kitchen, its breaker), not a ticket about this project's code: no cook takes it", geste: null };
     case "vision":
       return { motif: "it is a product vision or a reference document, not a deliverable: `fire` is removed", geste: null };
     case "untrusted-author":
