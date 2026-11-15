@@ -383,11 +383,10 @@ At the deadline, the station first saves the work of each cook in flight on its 
 ready (`prete` in `en-vol`), and takes no ticket until the restart. The ticket is given back; the next
 cook resumes the saved branch, told so in its brief, and that head is never sent to the pass as a
 delivery cut before its PR (#2577). A station that never says it is ready has its cooks cut 30 s
-after the deadline, as before. **The computer's station waits the same way** (#2815,
-`runtime/src/station-update/`): a ready release no longer stops its claims until its last cook ends —
-it keeps taking tickets and restarts at the first moment with no cook in flight or, at the latest, an
-hour later, its cooks' work saved; drained at nearly every release, it made claim wait the whole lost
-time of BOBL-tech/mirrorscreen's tickets. A restart it asked for and the app did not play (a refused
+after the deadline, as before. **The computer's station waits too** (#3632,
+`runtime/src/station-update/`): a ready release stops its claims, its cooks in flight finish, and the
+restart is asked as soon as none is left — no deadline, no save, nothing cut; an app update leaves the
+station and its cooks running (`app/src/mise-a-jour-fond/`). A restart it asked for and the app did not play (a refused
 release, a missing runtime) no longer holds its claims for good: still running 5 minutes after its
 request, it takes its tickets again and waits for a newer release (#2820). After a send back, "added
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
