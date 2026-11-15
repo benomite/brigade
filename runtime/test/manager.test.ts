@@ -1128,7 +1128,8 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => journal.tout().some((e) => e.type === "breaker.opened"));
     await laisserTourner();
 
-    assert.equal(jugements().length, 3);
+    // Le disjoncteur ouvert ne retient plus le manager (#3600) : il retente, au moins jusqu'au seuil.
+    assert.ok(jugements().length >= 3);
     assert.deepEqual(faits(30), []);
     assert.deepEqual(dits(30), []);
     assert.deepEqual(labels(30), []);
