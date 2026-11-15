@@ -9,6 +9,7 @@
 // sous un marqueur qui dit la tête qu'elle concerne.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { dernierVerdict } from "./github-etat/fusion.ts";
+import { REGLE as REGLE_ROUGE_SUR_MAIN } from "./pass/rouge-sur-main.ts";
 
 export const BALISE_DE_REPONSE = "reponse-pr";
 const MARQUE_DE_REPONSE = /^<!-- brigade:reponse-cook sha=([0-9a-f]+) -->/;
@@ -16,7 +17,11 @@ const MARQUE_DE_REPONSE = /^<!-- brigade:reponse-cook sha=([0-9a-f]+) -->/;
 // Un commentaire de la PR, dans l'ordre où GitHub les rend.
 type CommentaireLu = { body: string; association: string; createdAt: string };
 
-// Ce que le brief d'un cook renvoyé lui dit du désaccord.
+// Ce que le brief d'un cook renvoyé lui dit du désaccord. Sauf sur le rejeu
+// des tests ajoutés (#3694) : #3632, renvoyé sur un test déjà vert sur la base,
+// a commenté ce test comme une garde d'un comportement que la base avait, et
+// sa tête est revenue sur le même motif jusqu'à 06f7aac, qui l'a retiré : la
+// relecture juge une réponse, mais le rejeu ne lit aucune réponse.
 export function consigneDuDesaccord(pr: number): string {
   const [ouvre, ferme] = [`<${BALISE_DE_REPONSE}>`, `</${BALISE_DE_REPONSE}>`];
   return [
@@ -25,6 +30,8 @@ export function consigneDuDesaccord(pr: number): string {
     `The review's remarks are on PR #${pr}. If you judge one of them already addressed by your delivery, or wrong, do not end silently: reply on the PR. You have no access to GitHub: write your reply in your last message between ${ouvre} and ${ferme}, bare tags, once, and the station posts it on PR #${pr}. Answer remark by remark: where it is already addressed, or why it does not hold.`,
     "",
     "If you then add nothing to the branch, your delivery goes back to the pass as it is, and the pass judges your reply: it accepts it, or sends the delivery back with its reasoning. A stop that adds nothing without such a reply counts as a failed cook.",
+    "",
+    `A "${REGLE_ROUGE_SUR_MAIN}" remark is not the review's: the pass replays each test your delivery adds alone on the base, judges no reply, and sends the same head back for as long as the test passes there. A reply, or a comment in the test saying it guards a behavior the base already has, does not lift it. Make the named test fail without your change, or remove it from your delivery.`,
   ].join("\n");
 }
 
