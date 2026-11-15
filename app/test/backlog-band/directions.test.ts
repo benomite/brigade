@@ -78,7 +78,7 @@ describe("directionsDuBacklog", () => {
     assert.equal(directions.flatMap(({ besoins }) => besoins).some(({ ticket }) => ticket === 9), false);
   });
 
-  test("sans besoin sans direction, pas de groupe « No direction yet. »", () => {
+  test("sans besoin sans direction, pas de groupe « No direction yet »", () => {
     assert.deepEqual(directionsDuBacklog(besoinsDe([donnee(1, { horizon: 1 })])).map(({ nom }) => nom), ["Autonomy now", "Humans as stations", "Any project run on its own"]);
   });
 });
