@@ -30,10 +30,12 @@ test("le disjoncteur ouvert, un ticket mis sur le rail est jugé et qualifié pa
   assert.doesNotMatch(tout, /disjoncteur|breaker/i);
 });
 
-test("le disjoncteur ouvert, aucun cook ne part", (t) => {
+test("le disjoncteur ouvert, le manager qualifie le ticket mais aucun cook ne part", async (t) => {
   const c = disjoncteurOuvert(t, 30);
-  assert.throws(() => c.cuire(31), (erreur) => erreur instanceof LancementRefuse && erreur.motif === "breaker");
-  assert.equal(c.journal.tout().some((e) => e.type === "cook.launched" && e.ticket === 31), false);
+  await jusqua(() => c.gh.lire(30)?.labels.includes("fire") === true);
+  assert.equal(c.jugements().length, 1);
+  assert.throws(() => c.cuire(30), (erreur) => erreur instanceof LancementRefuse && erreur.motif === "breaker");
+  assert.equal(c.journal.tout().some((e) => e.type === "cook.launched"), false);
 });
 
 test("à la fermeture du disjoncteur, le ticket qualifié pendant l'ouverture est prêt et se cuisine sans geste ni nouveau jugement", async (t) => {
