@@ -3,7 +3,7 @@
 // horloges sont celles du test : un sommeil de dix minutes est un saut.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { guetterLeSilence, veilleMachine, type Sommeil } from "../../src/reveil-machine/veille.ts";
+import { guetterLeSilence, veilleMachine } from "../../src/reveil-machine/veille.ts";
 
 const DIX_MINUTES = 600_000;
 
@@ -11,7 +11,7 @@ function machine(t: TestContext) {
   const horloges = { mono: 1_000, mur: Date.parse("2026-11-15T10:00:00Z") };
   const veille = veilleMachine({ periodeMs: 5_000, seuilMs: 60_000, horloges: { mono: () => horloges.mono, mur: () => horloges.mur } });
   t.after(() => veille.arreter());
-  const reveils: Sommeil[] = [];
+  const reveils: Array<{ gapMs: number }> = [];
   veille.surReveil((sommeil) => reveils.push(sommeil));
   // Le temps passe éveillé (les deux horloges), ou endormi : l'horloge murale
   // saute toujours, la monotone selon la machine.

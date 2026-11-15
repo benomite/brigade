@@ -33,7 +33,11 @@ function cuisine(t: TestContext) {
     veille.regarder();
   };
   const dormir = (ms: number) => passer(ms);
-  const evenements = (type: string) => runtime.journal.tout().filter((e) => e.type === type);
+  const evenements = (type: string) =>
+    runtime.journal
+      .tout()
+      .filter((e) => e.type === type)
+      .map((e) => ({ payload: e.payload as Record<string, unknown> }));
   return { runtime, passer, dormir, evenements };
 }
 

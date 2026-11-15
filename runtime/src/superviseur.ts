@@ -13,7 +13,8 @@ import type { MotifArret, Plafonds } from "./events/guardrails.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { lignesMasquees } from "./lignes-masquees.ts";
 import { ecrireAtomique, type ConsigneDuRelais, type FinDuRelais } from "./relais.ts";
-import { guetterLeSilence, veilleDuProcess, type VeilleMachine } from "./reveil-machine/veille.ts";
+import { veilleDuProcess } from "./reveil-machine/du-process.ts";
+import { guetterLeSilence, type VeilleMachine } from "./reveil-machine/veille.ts";
 
 export type Arret = { reason: MotifArret; limit: number | null; observed: number | null };
 

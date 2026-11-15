@@ -15,11 +15,11 @@
 
 // Les deux horloges du process. `mono` : celle que mesurent les garde-fous
 // (`performance.now()`) ; `mur` : l'heure murale (`Date.now()`).
-export type Horloges = { mono(): number; mur(): number };
+type Horloges = { mono(): number; mur(): number };
 
 // Un sommeil : où il commence et finit, à chacune des horloges, et sa durée,
 // la plus longue des deux.
-export type Sommeil = { debutMono: number; finMono: number; debutMur: number; finMur: number; gapMs: number };
+type Sommeil = { debutMono: number; finMono: number; debutMur: number; finMur: number; gapMs: number };
 
 export type VeilleMachine = {
   // L'instant, à l'horloge monotone : celle dont les autres mesures partent.
@@ -41,8 +41,8 @@ export type VeilleMachine = {
 // La période de la minuterie qui guette le sommeil, et le retard au-delà
 // duquel la machine a dormi : bien plus qu'un tour de boucle chargé, bien
 // moins que l'inactivité permise à un cook (dix minutes par défaut).
-export const PERIODE_MS = 5_000;
-export const SEUIL_MS = 60_000;
+const PERIODE_MS = 5_000;
+const SEUIL_MS = 60_000;
 // Ce qu'on garde des sommeils passés : un cook ne vit pas davantage.
 const GARDES = 64;
 
@@ -105,11 +105,6 @@ export function veilleMachine(options: { periodeMs?: number; seuilMs?: number; h
     },
   };
 }
-
-// La veille de ce process : une seule minuterie, quels que soient les projets
-// et les cooks qu'il tient.
-let laVeille: VeilleMachine | null = null;
-export const veilleDuProcess = (): VeilleMachine => (laVeille ??= veilleMachine());
 
 // La minuterie d'inactivité d'un cook, armée à `veille.maintenant()` : au bout
 // de `idleMs`, elle appelle `surSilence` avec le silence observé — sauf si la

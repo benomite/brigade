@@ -13,7 +13,8 @@ import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guar
 import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
 import { cooksEnCours, echecsExternes, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
-import { veilleDuProcess, type VeilleMachine } from "./reveil-machine/veille.ts";
+import { veilleDuProcess } from "./reveil-machine/du-process.ts";
+import type { VeilleMachine } from "./reveil-machine/veille.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 
 export { lireReglages, type Reglages } from "./plafonds.ts";
