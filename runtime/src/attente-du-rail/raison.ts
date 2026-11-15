@@ -100,8 +100,10 @@ export function expliquerLAttente(options: { depot: string; tickets: readonly Ti
   if (enFile.length === 0 || tickets.some(({ etat }) => etat === "taken")) return null;
   const dit = (raison: Exclude<Raison, "normale">, stations: readonly string[] = [], phrase?: string): AttenteDuRail => ({ raison, phrase: phrase ?? PHRASES[raison](stations), geste: GESTES[raison] ?? null, stations: [...stations] });
   const noms = (lesquelles: readonly { name: string }[]) => [...new Set(lesquelles.map(({ name }) => stationDe(name)))].sort();
-  // Des stations qui ne se lisent pas ne font ni la raison 1, ni 2, ni 3, ni 4.
-  if (!("illisibles" in options.stations)) {
+  // Des stations qui ne se lisent pas ne font ni la raison 1, ni 2, ni 3, ni 4 ; sous la limite de GitHub, c'est elle qui les rend illisibles.
+  if ("illisibles" in options.stations) {
+    if (options.limite != null) return dit("quota-github", [], phraseDeLaLimite(options.limite));
+  } else {
     const servantes = options.stations.lues.filter(({ selection }) => selection?.some((choisi) => memeDepot(choisi, depot)) === true);
     if (servantes.length === 0) return dit("aucune-station");
     const arretee = ({ stoppedAt, lastSeen }: (typeof servantes)[number]) => stoppedAt !== null && Date.parse(stoppedAt) >= Date.parse(lastSeen);

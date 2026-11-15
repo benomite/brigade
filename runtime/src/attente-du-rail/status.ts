@@ -64,7 +64,7 @@ export async function lignesDeLAttente(options: { depot: string; lire: Lire; sta
 // Les lignes de l'attente et, quand GitHub limite la station (#3684), les tickets en file que la ligne `rail` doit lister : le
 // journal local n'en sait rien sur une station GitHub seul, et dit `empty`.
 export type AttenteLue = { lignes: string[]; enFile: number[] };
-export async function lireLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<AttenteLue> {
+async function lireLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<AttenteLue> {
   const { depot, lire, maintenant, plafondAtteint = false, limite = null } = options;
   let tickets: TicketDuRail[];
   try {
