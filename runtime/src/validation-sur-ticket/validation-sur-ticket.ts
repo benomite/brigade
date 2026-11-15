@@ -28,7 +28,7 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import { CHEF_TODO, type Sorte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { GitHub } from "../github.ts";
 
-export const marqueDeDemande = (sorte: Sorte, pr: number, ticket: number, sha: string) => `<!-- brigade:todo kind=${sorte} pr=${pr} ticket=${ticket} sha=${sha} -->`;
+const marqueDeDemande = (sorte: Sorte, pr: number, ticket: number, sha: string) => `<!-- brigade:todo kind=${sorte} pr=${pr} ticket=${ticket} sha=${sha} -->`;
 
 export type Demande = { pr: number; ticket: number; sha: string };
 
@@ -67,7 +67,7 @@ export type DemandeAPoser = {
 
 // Le commentaire de la demande : le marqueur, la question, le chef mentionné
 // sous elle, puis la suite.
-export const corpsDeLaDemande = ({ sorte, ticket, pr, sha, question, chef, suite }: DemandeAPoser) =>
+const corpsDeLaDemande = ({ sorte, ticket, pr, sha, question, chef, suite }: DemandeAPoser) =>
   [marqueDeDemande(sorte, pr, ticket, sha), `**${question}**`, ...(chef === null ? [] : [`cc @${chef}`]), ...(suite.length === 0 ? [] : ["", ...suite])].join("\n");
 
 // Pose la demande sur le ticket et sur sa PR, et met le ticket en attente du

@@ -10,7 +10,7 @@ import { carteEnCours, CHEF_TODO, type Sorte } from "../../src/github-seul/carte
 import type { GitHub } from "../../src/github.ts";
 import { LABEL_SENSITIVE } from "../../src/sensible/sensible.ts";
 import { corpsDeCeQuiEstFait } from "../../src/validation-design/brief.ts";
-import { demandeDuCorps, demanderSurLeTicket, marqueDeDemande } from "../../src/validation-sur-ticket/validation-sur-ticket.ts";
+import { demandeDuCorps, demanderSurLeTicket } from "../../src/validation-sur-ticket/validation-sur-ticket.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
 const TICKET = 40;
@@ -99,7 +99,7 @@ test("a design validation creates no issue: one comment on the ticket and one on
   assert.ok(surLeTicket !== undefined && surLaPR !== undefined);
   assert.deepEqual([autres, plus], [[], []]);
   for (const { body } of [surLeTicket, surLaPR]) {
-    assert.ok(body.startsWith(`${marqueDeDemande("design-validation", PR, TICKET, sha)}\n`), body);
+    assert.ok(body.startsWith(`<!-- brigade:todo kind=design-validation pr=${PR} ticket=${TICKET} sha=${sha} -->\n`), body);
     assert.match(body, /Does the screen of #40 look right\?/);
     assert.ok(body.includes(`Pull request: https://github.com/faux/depot/pull/${PR}`), body);
     assert.ok(body.includes("### What was asked"), body);
@@ -222,7 +222,6 @@ test("without a resolved chef, the validation is still asked on the ticket, ment
 });
 
 test("the marker of a validation request: its first line names the kind, the pull request, the ticket and the commit, and only that line is read", () => {
-  assert.equal(marqueDeDemande("design-validation", 12, 3, "abcdef1"), "<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->");
   assert.deepEqual(demandeDuCorps("design-validation", "<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->\n**Q?**"), { pr: 12, ticket: 3, sha: "abcdef1" });
   assert.equal(demandeDuCorps("review-before-merge", "<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->"), null);
   assert.equal(demandeDuCorps("design-validation", "text\n<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->"), null);
