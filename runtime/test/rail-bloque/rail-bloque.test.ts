@@ -32,13 +32,13 @@ describe("le diagnostic", () => {
     assert.deepEqual(bloque?.stations, ["box/claude"]);
     assert.equal(bloque?.geste, "demarrer-la-station");
     assert.equal(bloque?.constat, "8 tickets on the rail, no manager has taken them for 14 h: its station box/claude is stopped.");
-    assert.equal(bloque?.phrase, `${bloque?.constat} Start the station.`);
+    assert.equal(bloque?.phrase, `${bloque?.constat} Start it on its computer.`);
   });
 
   test("la station qui le sert s'est tue : hors ligne, le geste est de la démarrer", () => {
     const bloque = diagnostic(avec(station("Mac de Chef", { lastSeen: "2026-11-11T12:00:00.000Z" })));
     assert.equal(bloque?.cause, "hors-ligne");
-    assert.equal(bloque?.phrase, "8 tickets on the rail, no manager has taken them for 14 h: its station mac-de-chef/claude is offline. Start the station.");
+    assert.equal(bloque?.phrase, "8 tickets on the rail, no manager has taken them for 14 h: its station mac-de-chef/claude is offline. Start it on its computer.");
   });
 
   test("la station qui le sert n'a plus de quota GitHub : jusqu'à quand, et aucun geste", () => {

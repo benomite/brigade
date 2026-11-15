@@ -101,7 +101,7 @@ describe("la même ligne dans `status` et dans la file du second", { skip: SANS_
     const gh = ghDe(repertoire, monde(["fire"], instant));
     const station_ = SOUS_LA_TETE(await statusDeLaStation(t, gh));
     const app = await lecturesDeLApp(gh, instant);
-    const attendue = "  STUCK RAIL  8 tickets on the rail, no manager has taken them for 3 d: its station box/claude is stopped. Start the station.";
+    const attendue = "  STUCK RAIL  8 tickets on the rail, no manager has taken them for 3 d: its station box/claude is stopped. Start it on its computer.";
     assert.equal(station_, attendue);
     assert.equal(SOUS_LA_TETE(app.file), attendue);
     assert.equal(SOUS_LA_TETE(app.status), attendue);

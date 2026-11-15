@@ -61,6 +61,8 @@ export type Observation = {
 // lues par le tour GitHub seul ; absente ailleurs.
 export type Signaux = {
   disjoncteur: string | null;
+  // La station que le journal dit retenue par le disjoncteur quand celui du projet est fermé.
+  disjoncteurDeStation?: { station: string; since: string } | null;
   limiteGitHub: { limit: string | null; backAt: string; refusedAt?: string; pauses?: PausesDeLaCause } | null;
   ecritures: { writes: number; nextAt: string } | null;
   baseRouge: { sha: string | null; checks: string[] } | null;
@@ -92,8 +94,9 @@ export const GESTE_DU_DISJONCTEUR = "look at what fails, then press the `Resume`
 export const GESTE_DE_LA_CI = "check that the project's CI runs on its PRs; with no CI on its PRs, a station runs its gates (`.claude/brigade/gates.sh`) on the PR head — the station's service log says why it did not: no app button for it yet";
 export const GESTE_DE_LA_BASE = "fix the base by hand, the kitchen starts again on its own once it is green; a red that is not down to the code is replayed on the station: no app button for it yet";
 
-export function diagnostiquer({ disjoncteur, limiteGitHub, ecritures, baseRouge, attenteCI = null, explications }: Signaux): Diagnostic {
+export function diagnostiquer({ disjoncteur, disjoncteurDeStation = null, limiteGitHub, ecritures, baseRouge, attenteCI = null, explications }: Signaux): Diagnostic {
   if (disjoncteur !== null) return { cause: { kind: "breaker", since: disjoncteur }, gesture: GESTE_DU_DISJONCTEUR };
+  if (disjoncteurDeStation !== null) return { cause: { kind: "breaker", since: disjoncteurDeStation.since, station: disjoncteurDeStation.station }, gesture: GESTE_DU_DISJONCTEUR };
   if (limiteGitHub !== null) {
     const { limit, backAt, refusedAt, pauses } = limiteGitHub;
     return { cause: { kind: "github-limit", limit, backAt, ...(refusedAt === undefined ? {} : { refusedAt }), ...(pauses === undefined ? {} : { pauses }) }, gesture: null };
@@ -172,7 +175,7 @@ export function direCause(cause: CauseDeRetenue): string {
     case "write-pacer":
       return `cause: the GitHub write budget holds the kitchen's writes, ${cause.writes} of ${ECRITURES_PAR_HEURE} in the last hour, next write at ${hhmm(cause.nextAt)}`;
     case "breaker":
-      return `cause: the breaker is open since ${hhmm(cause.since)}, no cook leaves`;
+      return `cause: the breaker ${cause.station === undefined ? "" : `of station ${cause.station} `}is open since ${hhmm(cause.since)}, no cook leaves`;
     case "ci-wait": {
       const n = cause.tickets.length;
       return `cause: ${n} deliver${n > 1 ? "ies" : "y"} in pass wait${n > 1 ? "" : "s"} for a CI on ${n > 1 ? "their" : "its"} PR head (${nommerTickets(cause.tickets)}), ${cause.running.length === 0 ? "and no check has started there" : `still running: ${cause.running.join(", ")}`}`;

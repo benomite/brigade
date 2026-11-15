@@ -313,7 +313,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};
     // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
     // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts).
-    brancherIssueDuDisjoncteur(connectee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), avertir: dire });
+    brancherIssueDuDisjoncteur(connectee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), station: stations.find((declaree) => !declaree.distante)?.nom ?? null, avertir: dire });
     ouverte = brancherRepriseParGitHub(connectee, { github: githubs.rail, avertir: dire });
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).

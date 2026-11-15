@@ -243,3 +243,44 @@ test("le client réel, contre un faux `gh` : la liste ouverte au label sans les 
   await client.fermer(12);
   assert.deepEqual(gh.appels().at(-1), ["api", "-i", "--input", "-", "-X", "PATCH", `repos/${DEPOT}/issues/12`]);
 });
+
+// Le disjoncteur de ce journal est fermé ; celui de la station `box/claude`, qui sert le projet, est ouvert depuis 18:51 — le journal le dit.
+function stationsDuProjet(journal: ReturnType<typeof cuisine>["journal"], retenueDeLaBox: boolean) {
+  const noter = (fait: Fait) => journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...fait });
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 2 } } as Fait);
+  noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["code"], maxCooks: 1 } } as Fait);
+  if (retenueDeLaBox) noter({ type: "station.held", payload: { station: "box/claude", reason: "breaker" } } as Fait);
+}
+
+test("la station qui sert le projet est retenue par son disjoncteur : aucun commentaire « resumed », même si celui d'une autre station est fermé", async (t) => {
+  const { journal, disjoncter, reprendre } = cuisine(t);
+  const github = fauxGitHub();
+  stationsDuProjet(journal, true);
+  disjoncter();
+  await publieurDuDisjoncteur(journal.base, PROJET, { client: github.client, station: "box/claude", avertir: () => {} }).passer();
+  reprendre();
+
+  await publieurDuDisjoncteur(journal.base, PROJET, { client: github.client, station: "box/claude", avertir: () => {} }).passer();
+
+  assert.deepEqual(github.issues.flatMap((issue) => issue.commentaires), []);
+  assert.equal(github.ouvertes().length, 1, "l'issue reste ouverte");
+});
+
+test("la station qui sert le projet n'est plus retenue : le commentaire « resumed » est écrit alors, une fois, et l'issue se ferme", async (t) => {
+  const { journal, disjoncter, reprendre } = cuisine(t);
+  const github = fauxGitHub();
+  stationsDuProjet(journal, true);
+  disjoncter();
+  const publieur = publieurDuDisjoncteur(journal.base, PROJET, { client: github.client, station: "box/claude", avertir: () => {} });
+  await publieur.passer();
+  reprendre();
+  await publieur.passer();
+  assert.deepEqual(github.issues.flatMap((issue) => issue.commentaires), [], "retenue : rien n'est dit");
+
+  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "station.released", payload: { station: "box/claude" } });
+  await publieur.passer();
+
+  assert.equal(github.issues.flatMap((issue) => issue.commentaires).length, 1);
+  assert.match(github.issues[0]?.commentaires[0] ?? "", /kitchen is resumed/);
+  assert.equal(github.ouvertes().length, 0);
+});
