@@ -42,7 +42,8 @@ export type SuiviDuTour = {
   client(): GitHubDuTour | null;
   // La porte de prise n'a pas pris ce ticket prenable, et `ligne` dit pourquoi
   // (#2429) : ce qu'elle a dit au dernier tour est ce que la retenue en lit.
-  sauter(ticket: number, ligne: string): void;
+  // `attendus` : les tickets ouverts qu'il attend, quand c'est ce qui le retient (#3647).
+  sauter(ticket: number, ligne: string, attendus?: readonly number[]): void;
   vue(): VueDuTour;
 };
 
@@ -55,14 +56,25 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   let attendent = new Map<number, string>();
   let enPass = new Set<number>();
   let sauts = new Map<number, string>();
+  // Les tickets que la porte de prise a vus attendre un ticket ouvert (#3647), et les tickets en cuisson ou en pass.
+  let attentes = new Map<number, number[]>();
+  let enCuisson = new Set<number>();
   let enveloppe: GitHubDuTour | null = null;
   // La tête de la PR de chaque ticket, et les checks lus sur chaque tête.
   const tetes = new Map<number, string>();
+  // Les fichiers que change la PR ouverte de chaque ticket, lus avec les PR ouvertes du tour.
+  const fichiersDesPR = new Map<number, string[]>();
+  const queDeLaDoc = (ticket: number): boolean => {
+    const fichiers = fichiersDesPR.get(ticket);
+    return fichiers !== undefined && fichiers.length > 0 && fichiers.every((fichier) => /\.(md|txt)$/i.test(fichier) || fichier.startsWith("docs/"));
+  };
   const ciDesTetes = new Map<string, Array<{ name?: string; outcome: string }>>();
 
   const noterTickets = (tickets: TicketLu[]) => {
     const instant = maintenant().toISOString();
     sauts = new Map();
+    attentes = new Map();
+    enCuisson = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_TAKEN) || labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
     const ouverts = new Set(tickets.map(({ number }) => number));
     if ([...enPass].some((ticket) => !ouverts.has(ticket))) dernierService = instant;
     const suivants = new Map<number, string>();
@@ -81,7 +93,10 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
 
   return {
     client: () => enveloppe,
-    sauter: (ticket, ligne) => void sauts.set(ticket, ligne),
+    sauter: (ticket, ligne, attendus) => {
+      sauts.set(ticket, ligne);
+      if (attendus !== undefined) attentes.set(ticket, [...attendus]);
+    },
     envelopper: (github) => (enveloppe = {
       ...github,
       fires: async () => {
@@ -106,6 +121,15 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         ciDesTetes.set(sha, lus);
         return lus;
       },
+      prsOuvertes: async () => {
+        const ouvertes = await github.prsOuvertes();
+        fichiersDesPR.clear();
+        for (const { branche, fichiers } of ouvertes) {
+          const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+          if (numero !== undefined) fichiersDesPR.set(Number(numero), fichiers);
+        }
+        return ouvertes;
+      },
       merger: async (numero, sha) => {
         const merge = await github.merger(numero, sha);
         if (merge.fait) dernierService = maintenant().toISOString();
@@ -113,6 +137,8 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       },
     }),
     vue: () => {
+      // Un ticket qui n'attend que des tickets en cuisson n'attend pas la cuisine : le cook en cours le lèvera (#3647).
+      for (const [ticket, attendus] of attentes) if (attendus.length > 0 && attendus.every((attendu) => enCuisson.has(attendu))) attendent.delete(ticket);
       const depuis = [...attendent.values()].sort()[0] ?? null;
       // Ce qu'on ne garde plus : les têtes des tickets sortis du pass.
       for (const ticket of tetes.keys()) if (!enPass.has(ticket)) tetes.delete(ticket);
@@ -126,7 +152,8 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
           if (lus === undefined || lus.some(({ outcome }) => outcome === "red")) return false;
           const tournent = lus.filter(({ outcome }) => outcome === "pending");
           for (const { name } of tournent) enCours.add(name ?? "unnamed check");
-          return lus.length === 0 || tournent.length > 0;
+          // Une livraison qui ne change que de la doc n'a rien à tester : sa tête n'attend aucune CI (#3647).
+          return (lus.length === 0 && !queDeLaDoc(ticket)) || tournent.length > 0;
         })
         .sort((a, b) => a - b);
       const attenteCI = attendentLaCI.length === 0 ? null : { tickets: attendentLaCI, running: [...enCours].sort() };

@@ -45,6 +45,8 @@ export const RELEVE = "cook.progressed";
 // of that cook. Its branch is its own.
 // `stallRetry` (#3599): the relaunch of a stalled run, which the kitchen does
 // by itself — the run it relaunches, and which relaunch this is (1 for the first).
+// `sleepRetry` (#3643): the same, for a run whose process died while the
+// computer slept.
 // `lessons`: the ids of the project's provisional lessons the cook of a ticket
 // received in its prompt, most recent first (`apprentissage/injection.ts`) —
 // empty, it received none. Absent: a cook that serves no ticket (a manager
@@ -64,6 +66,7 @@ export type ContexteCook = {
   continues?: string;
   lessons?: string[];
   stallRetry?: { of: string; attempt: number };
+  sleepRetry?: { of: string; attempt: number };
 };
 
 export type FaitGardeFous =
@@ -110,10 +113,18 @@ export type FaitGardeFous =
         // it counts neither for the breaker nor for its ticket's tries.
         // Absent: its end is not of brigade's doing, and if it is a failure, it
         // counts for the breaker.
-        cause?: "stop" | "update" | "move" | "external";
+        // `slept` (#3643): it died while the computer slept, or just after it
+        // woke: not its doing either — it counts neither for the breaker, and
+        // the kitchen relaunches it in its worktree (`sleepRetry`).
+        cause?: "stop" | "update" | "move" | "external" | "slept";
         // How many times what has the shape of Claude credentials was masked
         // in its raw stream and its error output. Absent: never.
         credentialsMasked?: number;
+        // The cook wrote its result but did not exit — a background task held
+        // it: brigade ended it after this wait, in milliseconds, well before
+        // the inactivity guard, and its end is the one its result says (#3648).
+        // Absent: it exited by itself.
+        endedAfterResultMs?: number;
       };
     }
   // Written at startup for a launch with no end: the cook died with the

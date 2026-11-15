@@ -566,6 +566,31 @@ test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il 
   assert.deepEqual(mesuresDesCooksEnCours(runtime.journal.base), []);
 });
 
+// Le run 53-github-928d9bb8 de secondes (#3648) : son résultat écrit, `claude` ne sortait pas ; son activité
+// est restée « finishing » dix minutes, jusqu'à la garde d'inactivité, rien de livré.
+test("un cook qui a dit son résultat sans sortir livre avant la garde d'inactivité, et ses relevés continuent pendant sa finition (#3648)", async (t) => {
+  const idleMs = 1200;
+  const runtime = brancherGardeFous(
+    { ...REGLAGES, plafonds: { ...PLAFONDS, idleMs } },
+    demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 5 }),
+  );
+  t.after(() => runtime.arreter("test"));
+
+  const lance = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "livre-puis-reste" } });
+  const fin = await lance.fin;
+
+  const faits = runtime.journal.duTicket(7);
+  assert.equal(fin.outcome, "ok");
+  assert.deepEqual(faits.filter((e) => e.type === "guard.tripped"), []);
+  const sortie = faits.find((e) => e.type === "cook.exited");
+  assert.equal(sortie?.payload.endedAfterResultMs, idleMs / 4);
+  // Pendant la finition, le relevé dit ce qu'il fait, à chaque tick : jamais un silence aussi long que la garde.
+  const releves = faits.filter((e) => e.type === "cook.progressed");
+  assert.ok(releves.some((e) => e.payload.activity?.doing === "finishing"));
+  const instants = [...releves, sortie].map((e) => Date.parse(e?.at ?? ""));
+  for (let i = 1; i < instants.length; i += 1) assert.ok((instants[i] ?? 0) - (instants[i - 1] ?? 0) < idleMs, `relevés espacés de ${(instants[i] ?? 0) - (instants[i - 1] ?? 0)} ms`);
+});
+
 test("un runtime arrêté ne lance plus rien", (t) => {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
