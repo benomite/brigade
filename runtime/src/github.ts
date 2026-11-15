@@ -17,6 +17,7 @@ import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
+import type { LecturesDesGestes } from "./gestes/lectures-des-gestes.ts";
 import type { RunDeCi } from "./temps-ticket/ci-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
@@ -341,6 +342,14 @@ export type OptionsGitHub = {
   // Les humains que le projet déclare (`humans`) : leur réponse vaut sur une
   // carte qui leur est assignée, même sans l'écriture (#2762).
   humains?: readonly HumainDeclare[];
+  // Les lectures que les gestes du chef se passent d'un process à l'autre
+  // (gestes/lectures-des-gestes.ts, #3682) : une lecture faite depuis moins que
+  // leur fenêtre se rend sans appel, et chaque écriture de ce GitHub les dit
+  // périmées. Absentes, rien ne se garde hors du process.
+  lecturesDesGestes?: LecturesDesGestes;
+  // Le plus d'appels que ce GitHub fait (gestes/github-du-geste.ts, #3682) : le
+  // suivant est refusé, sans partir. Absent, aucun plafond.
+  plafond?: number;
 };
 
 // Un appel tel qu'il part : les arguments de `gh api -i`, et ce que `gh` en
@@ -513,8 +522,24 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
   // cuisine que le quota réel retient ne part pas. Chaque réponse dit le quota
   // qui reste ; un 304, que GitHub ne compte pas, sort du compte de la box.
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
+  let partis = 0;
   const appeler = async (brut: string[]): Promise<Reponse> => {
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
+    if (options.plafond !== undefined && partis >= options.plafond) {
+      throw new Error(`gh api ${args.at(-1)} : this gesture has made its ${options.plafond} GitHub calls, the most it may make — nothing more is sent`);
+    }
+    partis += 1;
+    // Une écriture rend périmées les lectures que les gestes se passent, qu'elle aboutisse ou non.
+    if (estUneEcriture(args)) {
+      try {
+        return await appelerSousLeCompteur(args);
+      } finally {
+        options.lecturesDesGestes?.oublier();
+      }
+    }
+    return appelerSousLeCompteur(args);
+  };
+  const appelerSousLeCompteur = async (args: string[]): Promise<Reponse> => {
     const limite = options.limite ?? limiteDuProcess();
     // `GH_TOKEN` l'emporte sur la connexion du compte, et ne se lit pas dans
     // la liste des process.
@@ -559,21 +584,30 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     carte.set(cle, valeur);
     if (carte.size > 500) carte.delete(carte.keys().next().value as string);
   };
+  // Les lectures des gestes (`lecturesDesGestes`) passent avant : fraîche, la
+  // réponse se rend sans appel ; plus vieille, son ETag sert la condition.
+  const lectures = options.lecturesDesGestes;
   const lireSousCondition = (args: string[], liste = false): Promise<Reponse> => {
     const cle = [bin, compte, ...args].join("\0");
     const deja = enVol.get(cle);
     if (deja) return deja;
     const lecture = (async () => {
-      const gardee = gardees.get(cle);
+      const partagee = lectures?.lire(cle) ?? null;
+      if (partagee?.fraiche) return partagee.gardee.reponse;
+      const gardee = gardees.get(cle) ?? partagee?.gardee;
       const condition = gardee === undefined || gardee.pleine ? [] : ["-H", `If-None-Match: ${gardee.etag}`];
+      const depuis = lectures?.instant();
       const reponse = await appeler([...condition, ...args]);
       if (reponse.statut === 304 && gardee !== undefined) {
         garder(cle, gardee);
+        if (depuis !== undefined) lectures?.garder(cle, gardee, depuis);
         return gardee.reponse;
       }
       const etag = reponse.entetes.get("etag");
       const gardable = reponse.statut === 200 && etag !== undefined && etag !== "" && reponse.corps.length <= TAILLE_GARDEE;
-      garder(cle, gardable ? { etag, reponse, pleine: liste && dernierePagePleine(args.at(-1) ?? "", reponse) } : null);
+      const neuve = gardable ? { etag, reponse, pleine: liste && dernierePagePleine(args.at(-1) ?? "", reponse) } : null;
+      garder(cle, neuve);
+      if (depuis !== undefined) lectures?.garder(cle, neuve, depuis);
       return reponse;
     })().finally(() => enVol.delete(cle));
     enVol.set(cle, lecture);
