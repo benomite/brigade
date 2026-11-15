@@ -393,17 +393,21 @@ request, it takes its tickets again and waits for a newer release (#2820). After
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
 stopping earlier means it never worked on the review's remarks, and waits like a stop it did not
 cause — but the third such stop in a row counts as a failed cook, so a cook that never works does
-not loop for ever.
+not loop for ever. Past its first 3 turns, that refusal of a cook finished `ok` stops its tries at
+once (#3651, below).
 
 **A written finding serves a ticket whose criteria accept one** (#2854, `runtime/src/constat-seul.ts`).
 A ticket whose acceptance criteria section says its deliverable is a written finding or comment
-("the deliverable is a written comment on the issue…", « le livrable est un constat… ») is served
+("the deliverable is a written comment on the issue…", "a finding posted as a comment on this
+issue…", "this ticket builds nothing", « le livrable est un constat… », « ne construit rien ») is served
 without a commit: a cook that commits nothing and delimits a deliverable is not a failed cook. The
 station posts that deliverable on the issue (`brigade:constat` marker) and closes the ticket. Only
 the criteria section counts, and not what it quotes (backticks, quotation marks, `>` quotes); a
 ticket without that section, a cook without a delimited deliverable, or a branch whose PR is still
 open stays a cook without a delivery. Before, every correct cook of a diagnosis-only ticket counted
-as a failure, until `served-elsewhere` (BOBL-tech/espace#826).
+as a failure, until `served-elsewhere` (BOBL-tech/espace#826). The last three phrasings come from
+benomite/secondes#48, a feasibility check whose cooks each delivered their finding and were each
+counted as a failure, about fifteen runs in half an hour (#3651).
 
 A cook that proves the ticket is **already satisfied on the integration branch** has served it too (#3146).
 It commits nothing and delimits, in its deliverable, `<deja-servi>` … `</deja-servi>` naming the commit.
@@ -417,6 +421,11 @@ still open, the cook's answer is an ordinary failed attempt, with the reason in 
 
 A station on GitHub alone stops trying a ticket after 3 cooks in a row without a delivery (or 2 in a
 row with the same stop reason, #2729), or when the pass refuses its delivery again after 2 sends back.
+**A cook that finished `ok` and whose delivery the station refuses** — it committed nothing, added
+nothing since its last delivery, or said the ticket is already satisfied and the station could not
+confirm it — **stops the tries at that first refusal** (#3651): another cook on the ticket as it stands
+ends the same way, and each one's stop reason differed only by its last message, so the 2-in-a-row
+rule never caught it. The `brigade:echec` comment carries the refusal reason at once.
 One more try almost never helps: repeated failures say the ticket is unclear or too big, not that the
 cook is weak. So the ticket **goes to the manager, not to the chef** (#3513,
 `runtime/src/reprise-du-manager.ts`). The station gives the manager — with its calibration, in a
