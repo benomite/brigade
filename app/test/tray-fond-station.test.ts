@@ -9,7 +9,10 @@ import type { ExecFileException } from "node:child_process";
 import type { Rendu } from "../src/box.ts";
 import type { Faits } from "../src/faits.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "../src/tray-fond/lecture.ts";
-import { inscrireLeFond, plistDuFond, quitterLaStation, stationDeFondInstallee, type Executer, type Systeme } from "../src/tray-fond/systeme.ts";
+import { inscrireLeFond, quitterLaStation, stationDeFondInstallee } from "../src/tray-fond/systeme.ts";
+
+type Systeme = Parameters<typeof inscrireLeFond>[0];
+type Executer = Systeme["executer"];
 import { ligneDuFond, etatDeLaStation } from "../src/tray-fond/tray-fond.ts";
 
 const A = "2026-11-15T10:00:00.000Z";
@@ -111,7 +114,9 @@ describe("l'icône à l'ouverture de session", () => {
     const { s, lancees } = systeme(t, "darwin", (_, args) => (args[0] === "print" && lancees.length > 2 ? 0 : args[0] === "print" ? 113 : 0));
     assert.equal(await inscrireLeFond(s), undefined);
     const plist = join(s.maison, "Library", "LaunchAgents", "brigade.tray-fond.plist");
-    assert.equal(readFileSync(plist, "utf8"), plistDuFond(s.binaire, join(s.maison, "Library", "Logs", "brigade-tray.log")));
+    assert.match(readFileSync(plist, "utf8"), /<key>Label<\/key>\n  <string>brigade\.tray-fond<\/string>/);
+    assert.match(readFileSync(plist, "utf8"), /<key>RunAtLoad<\/key>\n  <true\/>/);
+    assert.ok(readFileSync(plist, "utf8").includes(`<string>${join(s.maison, "Library", "Logs", "brigade-tray.log")}</string>`));
     assert.match(readFileSync(plist, "utf8"), /<string>\/Applications\/Brigade\.app\/Contents\/MacOS\/Brigade<\/string>\n    <string>--tray-fond<\/string>/);
     assert.deepEqual(lancees, ["launchctl print gui/501/brigade.tray-fond", `launchctl bootstrap gui/501 ${plist}`]);
     // Chargé, et le même : rien n'est relancé.

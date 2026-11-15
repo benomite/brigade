@@ -13,7 +13,7 @@ import { enAttente, etatDeLaCuisine, ligneDe, type ProjetLu } from "../barre-de-
 
 // La station de fond, d'après les faits de ses projets : en pause quand chacun est éteint, arrêtée quand chaque station
 // de cet ordinateur l'est sur chacun — ou rien d'elle ne se lit.
-export type EtatDeLaStation = { pause: boolean; arret: boolean } | "illisible";
+type EtatDeLaStation = { pause: boolean; arret: boolean } | "illisible";
 
 export type Geste = "ouvrir" | "pause" | "reprise" | "arret" | "demarrage" | "quitter";
 export type EntreeDuFond = { genre: "texte"; libelle: string } | { genre: "separateur" } | { genre: "geste"; geste: Geste; libelle: string; actif: boolean };

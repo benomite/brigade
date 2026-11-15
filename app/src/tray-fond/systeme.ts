@@ -16,14 +16,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { estUnMac } from "../plateforme.ts";
 
-export const ETIQUETTE_DE_LA_STATION = "brigade.station";
-export const ETIQUETTE_DU_FOND = "brigade.tray-fond";
-export const CLE_RUN = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-export const VALEUR_RUN = "brigade-tray";
+const ETIQUETTE_DE_LA_STATION = "brigade.station";
+const ETIQUETTE_DU_FOND = "brigade.tray-fond";
+const CLE_RUN = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+const VALEUR_RUN = "brigade-tray";
 export const ARGUMENT = "--tray-fond";
 
 // Une commande du système, lancée une fois : son code de sortie (null : elle n'a pas pu partir) et ce qu'elle a écrit.
-export type Executer = (commande: string, args: readonly string[]) => Promise<{ code: number | null; sortie: string }>;
+type Executer = (commande: string, args: readonly string[]) => Promise<{ code: number | null; sortie: string }>;
 
 // Celle du système : la commande lancée sans shell, ses deux sorties lues ensemble.
 export const executer: Executer = (commande, args) =>
@@ -36,7 +36,7 @@ export const executer: Executer = (commande, args) =>
     enfant.once("close", (code) => resoudre({ code, sortie }));
   });
 
-export type Systeme = {
+type Systeme = {
   plateforme: NodeJS.Platform;
   // Le dossier de l'utilisateur (`~`) et, sous Windows, `%LOCALAPPDATA%`.
   maison: string;
@@ -63,7 +63,7 @@ export function stationDeFondInstallee(s: Pick<Systeme, "plateforme" | "maison" 
 const xml = (texte: string) => texte.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
 // L'agent launchd de l'icône : lancé à l'ouverture de session, relancé s'il tombe, pas quand il quitte de lui-même.
-export function plistDuFond(binaire: string, journal: string): string {
+function plistDuFond(binaire: string, journal: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Written by the brigade app (app/src/tray-fond/systeme.ts), and rewritten when it changes: do not edit. -->

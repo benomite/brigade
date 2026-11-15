@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { ProjetLu } from "../src/barre-de-menus.ts";
 import type { Faits } from "../src/faits.ts";
-import { commandesDuGeste, confirmationDeQuitter, etatDeLaStation, ligneDuFond, menuDuFond, questionsDuFond, type EtatDeLaStation } from "../src/tray-fond/tray-fond.ts";
+import { commandesDuGeste, confirmationDeQuitter, etatDeLaStation, ligneDuFond, menuDuFond, questionsDuFond } from "../src/tray-fond/tray-fond.ts";
+
+type EtatDeLaStation = ReturnType<typeof etatDeLaStation>;
 
 const A = "2026-11-15T10:00:00.000Z";
 const station = (nom: string, cuisson: string, distante = false) => ({ station: nom, distante, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson });
