@@ -37,7 +37,8 @@ export function etatDeLaStation(projets: readonly ProjetLu[]): EtatDeLaStation {
 export function ligneDuFond(projets: readonly ProjetLu[], station: EtatDeLaStation): string {
   if (projets.length === 0) return "no project on this station";
   const ligne = ligneDe(etatDeLaCuisine(projets));
-  if (station === "illisible") return ligne === "not read yet" ? ligne : `${ligne} · station not read`;
+  // Rien de lu : `ligneDe` dit déjà « not read yet ».
+  if (station === "illisible") return ligne;
   return `${ligne}${station.pause ? " · paused" : ""}${station.arret ? " · stopped" : ""}`;
 }
 
