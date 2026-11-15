@@ -11,6 +11,7 @@
 // seconde.
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { calageDuDisjoncteur, direLeCalage } from "./breaker/calage.ts";
 import { enAnglais } from "./commandes.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -92,11 +93,15 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     if (pause !== null && pause.agreedAt === null) ligne("code rename", `asks to pause the kitchen for about ${pause.minutes} min since ${pause.since} — \`pause yes\` to agree, \`pause no\` to decline`);
     const echec = pause === null ? echecDuRenommage(base) : null;
     if (echec !== null) ligne("code rename", `FAILED on ${echec.at}: ${echec.why} — nothing was merged; \`pause no\` once read`);
+    // Ouvert par des calages (#3599) : ce qui cale, plutôt qu'un compte d'échecs.
+    const calage = etat.breakerOpenedAt === null ? null : calageDuDisjoncteur(base);
     ligne(
       "breaker",
       etat.breakerOpenedAt === null
         ? `closed — ${pluriel(etat.failures, "failure")} in a row, opens at ${etat.breakerThreshold ?? "?"}`
-        : `OPEN since ${etat.breakerOpenedAt} after ${pluriel(etat.failures, "failure")} in a row — no more cooks are launched; \`resume\` to close it`,
+        : calage !== null
+          ? `OPEN since ${etat.breakerOpenedAt}: a run keeps stalling — ${direLeCalage(calage)} — no more cooks are launched; it closes by itself if a running cook completes, or \`resume\` to close it`
+          : `OPEN since ${etat.breakerOpenedAt} after ${pluriel(etat.failures, "failure")} in a row — no more cooks are launched; \`resume\` to close it`,
     );
     const cooks = cooksEnCours(base);
     ligne("cooks running", cooks.length === 0 ? "none" : String(cooks.length));

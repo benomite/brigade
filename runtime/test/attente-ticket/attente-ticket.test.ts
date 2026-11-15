@@ -6,14 +6,15 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
-import { attendusDesCommentaires, attendusDuBlocage, corpsDeLAttente, MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
+import { describe, test, type TestContext } from "node:test";
+import { attendusDesCommentaires, attendusDuBlocage, attendusDuCorps, corpsDeLAttente, MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { MARQUEUR } from "../../src/fiche.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import type { GitHub } from "../../src/github.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
+import { avecListe, rendreListe } from "../../src/epique.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
 const B = 20;
@@ -164,4 +165,50 @@ test("an awaited ticket that cannot be read on GitHub holds the ticket, and the 
   await s.tour();
   assert.equal(s.cooks(), 0, "an unreadable awaited ticket holds it, as an unreadable dependency does");
   assert.ok(s.avertissements.some((texte) => texte.includes(`#${B}`) && texte.includes("HTTP 502")), s.avertissements.join("\n"));
+});
+
+// Le corps d'une épique découpée : ce qu'un humain a écrit, puis la liste que le manager tient.
+const decoupee = (epic: number, tickets: readonly number[]) => avecListe("The app's identity.", rendreListe(epic, tickets.map((ticket) => ({ ticket, title: "part", state: "open", served: false }))));
+
+test("a ticket that says in plain words it builds on a split ticket waits for the open tickets of the split, its skip line naming them, and starts once they are served — the epic still open (#3622)", async (t) => {
+  const s = station(t, {
+    avant: (faux) => {
+      faux.feu(A, ["model:opus"], decoupee(A, [C]));
+      faux.feu(C, OUVERT, "The app's identity: notebook look.");
+      faux.ticket(B).corps = `## Context\n\nRestyle the home screen with the identity of #${A}.`;
+    },
+  });
+  assert.equal(await s.tour(), `#${B} is claimable but not claimed, the claim gate skipped it: waiting for #${C} — it starts on its own once it is served`);
+  assert.equal(s.cooks(), 0);
+  s.faux.ticket(C).state = "closed";
+  assert.equal(await s.tour(), null);
+  assert.equal(s.cooks(), 1);
+  assert.ok(s.commentaires().every((corps) => !corps.startsWith(MARQUE_D_ATTENTE_DE_TICKET)), "no waiting mark: the body alone holds it");
+});
+
+describe("what a body makes a ticket wait for (#3622)", () => {
+  const lecteur = (issues: Record<number, { state: string; body?: string }>) => async (numero: number) => issues[numero] ?? null;
+
+  test("an open ticket named in plain words is awaited, a closed or missing one is not", async () => {
+    const lire = lecteur({ 12: { state: "open" }, 13: { state: "closed" } });
+    assert.deepEqual(await attendusDuCorps(20, "Do it once #12 is done, after #13 and #14.", lire), [12]);
+    assert.deepEqual(await attendusDuCorps(20, "Depends on #12", lire), [12]);
+  });
+
+  test("a split ticket is awaited in its open tickets; a split all closed holds nothing; an open epic with no ticket yet holds", async () => {
+    assert.deepEqual(await attendusDuCorps(20, "with the identity of #49", lecteur({ 49: { state: "open", body: decoupee(49, [53, 54, 55]) }, 53: { state: "open" }, 54: { state: "closed" }, 55: { state: "open" } })), [53, 55]);
+    assert.deepEqual(await attendusDuCorps(20, "with the identity of #49", lecteur({ 49: { state: "open", body: decoupee(49, [53]) }, 53: { state: "closed" } })), []);
+    assert.deepEqual(await attendusDuCorps(20, "with the identity of #49", lecteur({ 49: { state: "open", body: decoupee(49, []) } })), [49]);
+  });
+
+  test("a ticket of the split that names its own epic waits for its siblings, never for itself or the epic", async () => {
+    const lire = lecteur({ 49: { state: "open", body: decoupee(49, [20, 53]) }, 20: { state: "open" }, 53: { state: "open" } });
+    assert.deepEqual(await attendusDuCorps(20, "builds on #49", lire), [53]);
+    assert.deepEqual(await attendusDuCorps(20, "builds on #49", lecteur({ 49: { state: "open", body: decoupee(49, [20]) }, 20: { state: "open" } })), []);
+  });
+
+  test("a ticket the body names that cannot be read throws: the claim gate keeps it waiting", async () => {
+    await assert.rejects(attendusDuCorps(20, "after #12", async () => Promise.reject(new Error("HTTP 502"))), /HTTP 502/);
+    await assert.rejects(attendusDuCorps(20, "after #49", async (n) => (n === 49 ? { state: "open", body: decoupee(49, [53]) } : Promise.reject(new Error("HTTP 502")))), /HTTP 502/);
+  });
 });

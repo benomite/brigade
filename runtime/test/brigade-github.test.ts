@@ -24,6 +24,7 @@ import { direCause, diagnostiquer } from "../src/retenue/retenue.ts";
 import { suivreLeTour } from "../src/retenue/tour.ts";
 import { lireLaConsigne } from "../src/second-juge.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "./faux-github.ts";
+import { avecListe, rendreListe } from "../src/epique.ts";
 
 const zoneDe = (...chemins: string[]) => `## Context\n\nwhatever\n\n## Zone\n\n${chemins.map((c) => `- \`${c}\``).join("\n")}\n\n## Acceptance\n\n- done\n`;
 
@@ -68,6 +69,22 @@ test("a ticket whose dependency is open is held back, and claimed once the depen
   await a.tour();
   await a.calme();
   assert.deepEqual(faux.cuissons.map((cuisson: { issue: number }) => cuisson.issue), [2, 3]);
+});
+
+test("the secondes day of 2026-11-15 replayed: three screens restyled \"with the identity of #49\", #49 split into #53 — #53 is cooked first, then #50, #51 and #52, with no hand-written card (#3622)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(49, ["model:opus"], avecListe("The app's identity: notebook look, French, Young Serif.", rendreListe(49, [{ ticket: 53, title: "The app's identity", state: "open", served: false }])));
+  faux.feu(53, CALIBRE, "Epic: #49\n\nThe app's identity: notebook look, French, Young Serif.");
+  for (const ecran of [50, 51, 52]) faux.feu(ecran, CALIBRE, `Restyle the screen with the identity of #49.`);
+  const a = faux.station("A", { places: 5 });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map(({ issue }) => issue), [53]);
+  faux.ticket(53).state = "closed";
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map(({ issue }) => issue).sort((x, y) => x - y), [50, 51, 52, 53]);
+  assert.equal(faux.ticket(49).state, "open", "the epic itself held nothing once its ticket was served");
 });
 
 test("the `Depends on` lines of an issue body name its dependencies", () => {
