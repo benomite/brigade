@@ -345,6 +345,21 @@ FIN
       assistant
       rester
       ;;
+    # Rend son compte-rendu, puis ne sort pas : une tâche laissée en fond le
+    # tient, comme le run 53-github-928d9bb8 de secondes (#3648).
+    livre-puis-reste)
+      assistant
+      resultat <<'FIN'
+Le travail est rendu.
+FIN
+      rester
+      ;;
+    # Rend un résultat en erreur, puis ne sort pas.
+    echoue-puis-reste)
+      assistant
+      printf '{"type":"result","subtype":"error_during_execution","is_error":true,"num_turns":%d}\n' "$tours"
+      rester
+      ;;
     commite-puis-bavarde)
       commiter
       vivre bavard

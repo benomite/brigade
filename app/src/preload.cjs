@@ -158,6 +158,8 @@ const pont = {
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
+  // Démarre la station de cet ordinateur, depuis l'alerte d'un projet dont elle est arrêtée (ticket 3637).
+  demarrerLaStationIci: (projet) => ipcRenderer.invoke("demarrerLaStationIci", projet),
   // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).
   compteGitHub: () => ipcRenderer.invoke("compteGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),

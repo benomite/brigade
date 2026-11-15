@@ -13,6 +13,8 @@ import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guar
 import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
 import { cooksEnCours, echecsExternes, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
+import { veilleDuProcess } from "./reveil-machine/du-process.ts";
+import type { VeilleMachine } from "./reveil-machine/veille.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 
 export { lireReglages, type Reglages } from "./plafonds.ts";
@@ -66,7 +68,9 @@ export type DemandeCook = {
 // `run` : celui qui a fini — la dernière relance quand le run a calé (#3599).
 // `activite` : ce qu'il faisait à sa fin, d'après son flux ; nulle s'il n'a
 // rien dit, absente quand rien ne lit son flux.
-export type FinDeCook = Fin & { outcome: Issue | "interrupted"; run: string; activite?: Activite | null };
+// `endormi` : il est mort pendant que la machine dormait (#3643) — sa fin est
+// un « stop », et il est relancé tel quel.
+export type FinDeCook = Fin & { outcome: Issue | "interrupted"; run: string; activite?: Activite | null; endormi?: true };
 
 // `run` et `pid` : ceux du premier lancement ; `arreter` vise la relance en
 // cours quand le run a calé (#3599).
@@ -140,11 +144,19 @@ function issue(resultat: Fin, run: string, activite: Activite | null, juger: Non
 // un « stop » du chef. Ce n'est jamais un échec du cook.
 const mortParSigterm = (fin: Fin) => fin.arret === null && fin.erreur === null && (fin.code === 143 || fin.signal === "SIGTERM");
 
+// Un cook mort de lui-même, en échec, pendant que la machine dormait ou dans la
+// minute qui suit son réveil (#3643) : ce qui l'a tué est le sommeil, pas son
+// travail. Un cook qu'un garde-fou arrête n'est pas mort en dormant.
+const FENETRE_DU_REVEIL_MS = 60_000;
+const mortEnDormant = (fin: Fin, outcome: Issue) => fin.arret === null && outcome === "failed";
+
 // Rend le runtime, augmenté du lancement gardé. Son `arreter` emporte les
 // cooks qu'il tient avec lui ; ceux qu'un relais porte lui survivent, et le
 // runtime suivant les reprend.
-export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime: R): R & GardeFous {
+// `veille` : ce qui voit dormir la machine — par défaut, la veille du process.
+export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime: R, options: { veille?: VeilleMachine } = {}): R & GardeFous {
   const { journal, projet } = runtime;
+  const veille = options.veille ?? veilleDuProcess();
   const base = journal.base;
   const noter = (ticket: number | null, fait: FaitGardeFous) =>
     journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
@@ -214,7 +226,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
 
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
   // si elle porte les échecs d'affilée à son seuil.
-  const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue, cause: "stop" | "update" | "external" | null = null) => {
+  const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue, cause: "stop" | "update" | "external" | "slept" | null = null) => {
     base.transaction(() => {
       noter(ticket, {
         type: "cook.exited",
@@ -229,6 +241,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           ...(resultat.erreur === null ? {} : { error: resultat.erreur }),
           ...(cause === null ? {} : { cause }),
           ...(resultat.masques === undefined ? {} : { credentialsMasked: resultat.masques }),
+          ...(resultat.apresResultatMs === undefined ? {} : { endedAfterResultMs: resultat.apresResultatMs }),
         },
       });
       // Un disjoncteur ouvert par des calages se referme seul dès qu'un run
@@ -282,6 +295,18 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     }
   });
 
+  // La machine se réveille (#3643) : le journal dit combien elle a dormi, et
+  // les cooks qui tournaient — ils reprennent, vivants, ou relancés s'ils sont
+  // morts en dormant. Une ligne qui ne s'écrit pas manque au chef, pas aux cooks.
+  const desabonnerVeille = veille.surReveil((sommeil) => {
+    if (arrete) return;
+    try {
+      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "station.slept", payload: { gapMs: Math.round(sommeil.gapMs), resumed: [...releves.values()].map(({ run }) => run) } });
+    } catch (erreur) {
+      console.error(`brigade : réveil de la machine non journalisé — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  });
+
   // Le lancement gardé : `surveiller` rend ce qui surveille le cook. Tout ce
   // qui s'écrit et se compte passe par ici.
   const partir = <S extends Supervise>(demande: Pick<DemandeCook, "ticket" | "run" | "contexte" | "plafonds" | "juger">, surveiller: (run: string, plafonds: Plafonds, surArret: (arret: Arret) => void) => S): { run: string; cook: S | null; fin: Promise<FinDeCook> } => {
@@ -311,6 +336,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
     });
 
+    const ne = veille.maintenant();
     let cook: S;
     try {
       cook = surveiller(run, plafonds, (arret) => {
@@ -331,21 +357,30 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       noterFin(demande.ticket, run, resultat, "failed");
       return { run, cook: null, fin: Promise.resolve({ ...resultat, outcome: "failed", run }) };
     }
-    return { run, cook, fin: suivreLaFin(cook, lancement, demande.ticket, run, demande.juger) };
+    return { run, cook, fin: suivreLaFin(cook, lancement, ne, demande.ticket, run, demande.juger) };
   };
 
   // Ce qui suit un cook jusqu'à sa fin, lancé ici ou repris : il compte pour
-  // le « stop », laisse ses relevés, et sa fin s'écrit jugée.
-  const suivreLaFin = (cook: Supervise, lancement: number, ticket: number | null, run: string, juger: DemandeCook["juger"]): Promise<FinDeCook> => {
+  // le « stop », laisse ses relevés, et sa fin s'écrit jugée. `ne` : l'instant
+  // où il est suivi, à l'horloge de la veille.
+  const suivreLaFin = (cook: Supervise, lancement: number, ne: number, ticket: number | null, run: string, juger: DemandeCook["juger"]): Promise<FinDeCook> => {
     cooks.set(cook, lancement);
     releves.set(cook, { ticket, run });
     return cook.fin.then((resultat): FinDeCook => {
+      // Regardé avant qu'il ne quitte les cooks en cours : un réveil vu ici
+      // le compte parmi ceux qui reprennent.
+      const reveil = veille.reveilRecent(ne, FENETRE_DU_REVEIL_MS);
       cooks.delete(cook);
       releves.delete(cook);
       const activite = cook.activite?.() ?? null;
       if (arrete) return { ...resultat, outcome: "interrupted", run, activite };
       const cause = causeDeLArret(resultat, lancement);
       const outcome = cause === null ? issue(resultat, run, activite, juger ?? jugerParDefaut) : "stop";
+      // Mort en dormant (#3643) : aucun échec n'est compté, il sera relancé.
+      if (reveil !== null && mortEnDormant(resultat, outcome)) {
+        noterFin(ticket, run, resultat, "stop", "slept");
+        return { ...resultat, outcome: "stop", run, activite, endormi: true };
+      }
       noterFin(ticket, run, resultat, outcome, cause);
       return { ...resultat, outcome, run, activite };
     });
@@ -387,7 +422,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         partir({ ...demande, run, contexte }, (nom, plafonds, surArret) => {
           mkdirSync(repertoireRuns, { recursive: true });
           const commun = { commande: demande.commande, args: demande.args, ...(demande.entree === undefined ? {} : { entree: demande.entree }), cwd: demande.cwd, env: demande.env, plafonds, graceMs: reglages.graceMs, flux: join(repertoireRuns, `${nom}.jsonl`), surArret };
-          return demande.survivant ? relayer(superviserParRelais({ ...commun, run: nom, secrets: demande.survivant.secrets })) : superviser({ ...commun, masquer: demande.masquer });
+          return demande.survivant ? relayer(superviserParRelais({ ...commun, run: nom, secrets: demande.survivant.secrets, veille })) : superviser({ ...commun, masquer: demande.masquer, veille });
         });
       const premier = demande.run ?? nomDeRun(demande.ticket);
       let courant = essayer(premier, demande.contexte);
@@ -395,10 +430,25 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       // `relancesSurCalage` fois (#3599) ; calé encore, le disjoncteur s'ouvre
       // pour le dire au chef. Un « stop » ou le disjoncteur tombés entre deux
       // essais : le calage est la fin du run.
+      // Un run mort pendant que la machine dormait est relancé de même, dans
+      // son worktree tel qu'il l'a laissé, sous un run à lui (#3643).
       const relances = reglages.relancesSurCalage ?? 0;
+      let reveils = 0;
       const fin = (async (): Promise<FinDeCook> => {
         for (let essai = 1; ; essai++) {
           const resultat = await courant.fin;
+          if (resultat.endormi && !arrete) {
+            reveils += 1;
+            try {
+              courant = essayer(`${premier}-s${reveils}`, { ...demande.contexte, sleepRetry: { of: premier, attempt: reveils } });
+            } catch (erreur) {
+              if (!(erreur instanceof LancementRefuse)) console.error(`brigade : run ${premier} mort en dormant, non relancé — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+              return resultat;
+            }
+            // Ce n'était pas un calage : le compte des relances n'avance pas.
+            essai -= 1;
+            continue;
+          }
           if (resultat.outcome !== "stalled" || relances === 0 || arrete) return resultat;
           if (essai > relances) {
             escalader(premier, demande.contexte?.station ?? null, resultat, relances);
@@ -425,6 +475,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         flux: join(dirname(repertoireRuns), stream),
         plafonds: limits,
         graceMs: reglages.graceMs,
+        veille,
         surArret: (arret) => {
           if (!arrete) noter(ticket, { type: "guard.tripped", payload: { run, ...arret } });
         },
@@ -436,7 +487,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       }
       noter(ticket, { type: "cook.resumed", payload: { run, pid: cook.pid ?? null } });
       const lancement = base.lire<{ seq: number }>("SELECT launched_seq AS seq FROM cook_runs WHERE run = ?", run)[0]?.seq ?? 0;
-      const fin = suivreLaFin(relayer(cook), lancement, ticket, run, juger);
+      const fin = suivreLaFin(relayer(cook), lancement, veille.maintenant(), ticket, run, juger);
       // La cuisine a été arrêtée pendant que personne ne la tenait : le cook
       // repris s'arrête comme s'il avait été là.
       if (etatDesGardeFous(base).stoppedAt !== null) cook.arreter();
@@ -452,6 +503,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       if (!arrete) {
         arrete = true;
         desabonner();
+        desabonnerVeille();
         // Un cook relayé survit au runtime : il est lâché, pas tué. Le
         // runtime suivant le reprendra.
         for (const cook of cooks.keys()) {

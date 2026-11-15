@@ -1,6 +1,6 @@
 // Après le troisième essai raté, le ticket va au manager, pas au chef (#3513).
 // Le premier test passe par la station du dépôt (`stationDuDepot`), sur un faux
-// GitHub : le faux `claude` est un cook qui finit sans rien commiter, ou le
+// GitHub : le faux `claude` est un cook qui finit en erreur sans rien commiter, ou le
 // manager consulté, reconnu à la marque de sa consigne. Les suivants passent par
 // la station du faux GitHub, dont le manager est une doublure.
 import assert from "node:assert/strict";
@@ -39,7 +39,8 @@ test("through the station of the repository: after its failed tries, the ticket 
     if (manager) consultations.push(args);
     else cooks += 1;
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: manager ? JSON.stringify(REECRIRE) : `I tried, try ${cooks}.` })}\n`);
-    return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+    // Le cook finit en erreur : un cook fini `ok` dont la livraison est refusée va au manager dès ce refus (#3651).
+    return { fin: Promise.resolve({ code: manager ? 0 : 1, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const github: GitHub = { ...fauxClient(faux), ecrireCorps: async (numero, nouveau) => void (faux.ticket(numero).corps = nouveau) };
   const station = stationDuDepot({ ...STATION_DU_DEPOT, github, depot: depotNeuf(repertoire), manager: () => ({ model: "opus", effort: "medium" }), flux: repertoire, lancer, avertir: () => {} });

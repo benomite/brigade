@@ -1,7 +1,7 @@
 // Un ticket qui dépend d'un ticket ouvert l'attend sur le rail, jamais le chef
 // (#2968). Les tests passent par la station (`stationDuDepot`), sur un faux
 // GitHub : le faux `claude` est un cook qui finit sur un `<bloque>` qui nomme
-// le ticket dont il dépend, ou sur un mot sans blocage.
+// le ticket dont il dépend, ou sur un mot sans blocage, en erreur.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -41,9 +41,11 @@ function station(t: TestContext, { bloque = null, avant }: Options = {}) {
     const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
     if (consulte) consultations.push(args);
     else cooks += 1;
-    const message = consulte ? JSON.stringify({ issue: "geste", geste: "merge the PR" }) : cooks === 1 && bloque !== null ? `I stopped.\n<livrable>\n<bloque>${bloque}</bloque>\n</livrable>` : "Done.\n<livrable>\nNothing.\n</livrable>";
+    const bloqueIci = !consulte && cooks === 1 && bloque !== null;
+    const message = consulte ? JSON.stringify({ issue: "geste", geste: "merge the PR" }) : bloqueIci ? `I stopped.\n<livrable>\n<bloque>${bloque}</bloque>\n</livrable>` : "Done.\n<livrable>\nNothing.\n</livrable>";
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
-    return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+    // Sans blocage, le cook finit en erreur : fini `ok` sans rien commiter, il irait au manager dès ce refus (#3651).
+    return { fin: Promise.resolve({ code: consulte || bloqueIci ? 0 : 1, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const avertissements: string[] = [];
   const sauts = new Map<number, string>();
