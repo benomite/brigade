@@ -37,6 +37,7 @@ import { nomDeLaStation } from "./nom.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { avertirSiTropAncienne } from "./version-minimale.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
+import { tenirLaVeille } from "../veille-machine/veille.ts";
 
 // Ce que la station dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -215,6 +216,8 @@ choisis = servirLesProjetsChoisis({
   dejaServis: () => Object.values(station.servisSurGitHub()),
 });
 const projetsChoisis = choisis;
+// Sur un Mac, l'ordinateur reste éveillé tant qu'un de ses cooks cuit, si le chef ne l'a pas éteint (#3642).
+const veille = tenirLaVeille({ racine, plateforme: process.platform, cooks: () => station.enCuisine().length + projetsChoisis.enCuisine().length, dire });
 const projetsDeLApp = tenirProjetsDeLApp({
   racine,
   canal,
@@ -238,6 +241,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     cacheEtag.arreter();
     projetsDeLApp.arreter();
     void projetsChoisis.arreter();
+    veille.arreter();
     miseAJour?.arreter();
     vidange?.arreter();
     station.arreter(signal);

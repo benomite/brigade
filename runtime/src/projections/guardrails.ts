@@ -179,6 +179,8 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       const duTicket = base.lire<{ ticket: number | null }>("SELECT ticket FROM cook_runs WHERE run = ?", run)[0]?.ticket != null;
       if (outcome === "failed" || (outcome === "guard" && !duTicket)) juger(base, run, "bad", evenement.seq);
     },
+    // Rien à retenir : la relance est un fait du journal, relu avec les arrêts (gardes-historique/).
+    "guard.relaunched": () => {},
     "cook.interrupted": (base, evenement) => {
       base.executer(
         "UPDATE cook_runs SET ended_seq = ?, ended_at = ?, ending = 'interrupted' WHERE run = ?",

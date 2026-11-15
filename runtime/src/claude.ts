@@ -43,7 +43,14 @@ export const SOURCES_DE_REGLAGES: string[] = [];
 // Le début de tout lancement de `claude` : la consigne, le flux que lisent
 // la station, le manager et la pass, le modèle et l'effort.
 export function lancementEnFlux(texte: string, calibrage: Calibrage): string[] {
-  return ["-p", texte, "--output-format", "stream-json", "--verbose", "--model", calibrage.model, "--effort", calibrage.effort];
+  return ["-p", texte, ...optionsDeFlux(calibrage)];
+}
+
+// Le même début, sans la consigne : `-p` seul la lit sur l'entrée de `claude`.
+// Celle d'un cook ne tient pas dans un argument — Linux en plafonne un à
+// 128 Kio, et `spawn` échoue en `E2BIG` (#3655).
+function optionsDeFlux(calibrage: Calibrage): string[] {
+  return ["--output-format", "stream-json", "--verbose", "--model", calibrage.model, "--effort", calibrage.effort];
 }
 
 // Il n'y a pas de calibrage par défaut : qui lance fournit modèle et effort.
@@ -52,9 +59,12 @@ export function lancementEnFlux(texte: string, calibrage: Calibrage): string[] {
 // la conversation du cook précédent (`reprise-de-session.ts`). Elle est
 // bifurquée : le lancement écrit la sienne, sous un identifiant neuf, et celle
 // du cook précédent reste telle qu'il l'a laissée.
-export function argumentsClaude(texte: string, calibrage: Calibrage, session?: string): string[] {
+// La consigne n'y est pas : elle part sur l'entrée du cook (`entree` du
+// lancement), jamais sur sa ligne de commande.
+export function argumentsClaude(calibrage: Calibrage, session?: string): string[] {
   return [
-    ...lancementEnFlux(texte, calibrage),
+    "-p",
+    ...optionsDeFlux(calibrage),
     // Personne n'est là pour répondre à une demande de permission.
     "--permission-mode",
     "bypassPermissions",
