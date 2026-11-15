@@ -3,16 +3,20 @@ import { test } from "node:test";
 import type { Check } from "../../src/events/pass.ts";
 import { LimiteGitHubAtteinte } from "../../src/limite-github.ts";
 import { marqueDeReparation } from "../../src/reparation.ts";
-import { estUneReparation, LIGNES_MAX, marqueDeBaseRouge, ouvreReparation, shaDeBaseRouge, sortieDErreur, type CheckDeLaBase, type GitHubDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
+import { estUneReparation, LABEL_CAUSE_CORRIGEE, LIGNES_MAX, marqueDeBaseRouge, ouvreReparation, shaDeBaseRouge, sortieDErreur, type CheckDeLaBase, type GitHubDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
 
 type Issue = { number: number; titre: string; corps: string; labels: string[]; state: "open" | "closed"; association: string };
 
 // Le GitHub d'un projet, réduit à ce que l'ouverture lit et écrit.
 class FauxDepot {
   issues: Issue[] = [];
+  dates = new Map<number, string>();
   journaux = new Map<string, string>();
   journauxLus: Check[] = [];
   tete: string;
+  // Le temps de la station, et celui que chaque modification date.
+  maintenant = new Date("2026-11-01T10:00:00Z");
+  ordre: string[] = [];
   constructor(tete = "a".repeat(40)) {
     this.tete = tete;
   }
@@ -20,15 +24,33 @@ class FauxDepot {
   github(): GitHubDeLaReparation {
     return {
       teteDeLaBase: async () => this.tete,
-      issuesDepuis: async () => this.issues.map(({ number, corps, association }) => ({ number, body: corps, association })),
+      issuesDepuis: async () => this.issues.map(({ number, titre, corps, association, state, labels }) => ({ number, title: titre, body: corps, association, state, labels, updatedAt: this.dates.get(number) ?? "" })),
       creerIssue: async ({ titre, corps, labels }) => {
         const number = 100 + this.issues.length;
         this.issues.push({ number, titre, corps, labels, state: "open", association: "OWNER" });
+        this.dates.set(number, this.maintenant.toISOString());
+        this.ordre.push(`creer #${number}`);
         return number;
       },
       fermerIssue: async (numero) => {
         const issue = this.issues.find((i) => i.number === numero);
         if (issue) issue.state = "closed";
+      },
+      rouvrirIssue: async (numero) => {
+        this.ordre.push(`rouvrir #${numero}`);
+        const issue = this.issues.find((i) => i.number === numero);
+        if (issue) issue.state = "open";
+        this.dates.set(numero, this.maintenant.toISOString());
+      },
+      ecrireCorps: async (numero, corps) => {
+        this.ordre.push(`corps #${numero}`);
+        const issue = this.issues.find((i) => i.number === numero);
+        if (issue) issue.corps = corps;
+        this.dates.set(numero, this.maintenant.toISOString());
+      },
+      ecrireTitre: async (numero, titre) => {
+        const issue = this.issues.find((i) => i.number === numero);
+        if (issue) issue.titre = titre;
       },
       journalDuCheck: async (check) => {
         this.journauxLus.push(check);
@@ -107,17 +129,143 @@ test("called twice for the same red commit, the handler opens one ticket: the se
   assert.equal(autre.issues.length, 1);
 });
 
-test("a new red commit while the old repair ticket is still open gets its own ticket", async () => {
+test("a new red commit on a check with no recent occurrence gets its own ticket", async () => {
   const depot = new FauxDepot();
-  const ouvrir = ouvreReparation({ github: depot.github(), base: "main" });
-  await ouvrir(ROUGE);
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  await ouvrir([{ name: "tests", outcome: "red" }]);
   depot.tete = "b".repeat(40);
-  await ouvrir(ROUGE);
+  await ouvrir([{ name: "lint", outcome: "red" }]);
   assert.equal(depot.ouvertes().length, 2);
   assert.deepEqual(
     depot.ouvertes().map(({ corps }) => shaDeBaseRouge(corps)),
     ["a".repeat(40), "b".repeat(40)],
   );
+});
+
+const rougeLe = async (depot: FauxDepot, ouvrir: ReturnType<typeof ouvreReparation>, jour: string, sha: string, checks: CheckDeLaBase[]) => {
+  depot.maintenant = new Date(`${jour}T10:00:00Z`);
+  depot.tete = sha.repeat(40);
+  const ouverture = await ouvrir(checks);
+  await ouverture.consigner?.();
+  return ouverture;
+};
+
+test("a shard suffix is not part of a check's identity: 'windows app tests' and 'windows tests' stay apart", async () => {
+  const depot = new FauxDepot();
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  await rougeLe(depot, ouvrir, "2026-11-01", "a", [{ name: "windows tests (1/8)", outcome: "red" }]);
+  await rougeLe(depot, ouvrir, "2026-11-02", "b", [{ name: "windows app tests", outcome: "red" }]);
+  await rougeLe(depot, ouvrir, "2026-11-03", "c", [{ name: "tests (ubuntu)", outcome: "red" }]);
+  assert.equal(depot.issues.length, 3);
+});
+
+test("three red commits on 'windows app tests' within 14 days: one issue, three occurrences, a goal on the cause", async () => {
+  const depot = new FauxDepot();
+  depot.journaux.set("windows app tests", journal("Error: EPERM, operation not permitted"));
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  const rouge: CheckDeLaBase[] = [{ name: "windows app tests", outcome: "red" }];
+  const premiere = await rougeLe(depot, ouvrir, "2026-11-01", "a", rouge);
+  await rougeLe(depot, ouvrir, "2026-11-05", "b", rouge);
+  // Après un merge vert, la réparation du commit est fermée : le rouge suivant la rouvre.
+  const [issue] = depot.issues;
+  assert.ok(issue);
+  const deuxiemeLigne = issue.corps.split("\n").find((ligne) => ligne.includes("`bbbbbbb`"));
+  assert.ok(deuxiemeLigne);
+  issue.state = "closed";
+  const troisieme = await rougeLe(depot, ouvrir, "2026-11-09", "c", rouge);
+
+  assert.equal(depot.issues.length, 1);
+  assert.equal(troisieme.reparation, premiere.reparation);
+  assert.equal(issue.state, "open");
+  const lignes = issue.corps.split("\n").filter((ligne) => /^- `[a-c]{7}` · /.test(ligne));
+  assert.deepEqual(
+    lignes.map((ligne) => ligne.slice(0, 26)),
+    ["- `aaaaaaa` · 2026-11-01 ·", "- `bbbbbbb` · 2026-11-05 ·", "- `ccccccc` · 2026-11-09 ·"],
+  );
+  assert.ok(lignes.every((ligne) => ligne.endsWith("Error: EPERM, operation not permitted")));
+  // Les entrées anciennes ne sont pas réécrites.
+  assert.equal(lignes[1], deuxiemeLigne);
+  assert.equal(issue.titre, "Repair `main`: windows app tests keeps failing");
+  assert.ok(!issue.titre.includes("ccccccc"));
+  assert.ok(issue.corps.includes("tracks its cause"));
+  assert.ok(estUneReparation(issue.corps, issue.labels));
+  // Rouvrir passe avant toute écriture : c'est le geste qui dispatche la réparation.
+  assert.ok(depot.ordre.indexOf("rouvrir #100") < depot.ordre.lastIndexOf("corps #100"));
+});
+
+test("recording the same commit twice adds no second line", async () => {
+  const depot = new FauxDepot();
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  const rouge: CheckDeLaBase[] = [{ name: "windows app tests", outcome: "red" }];
+  await rougeLe(depot, ouvrir, "2026-11-01", "a", rouge);
+  await rougeLe(depot, ouvrir, "2026-11-02", "b", rouge);
+  // Une autre station, rien en cache.
+  const autre = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  await autre(rouge);
+  assert.equal(depot.issues.length, 1);
+  assert.equal(depot.issues[0]?.corps.split("\n").filter((ligne) => ligne.includes("`bbbbbbb`")).length, 1);
+});
+
+test("'windows tests (1/8)' and 'windows tests (5/8)' going red give one issue, not two", async () => {
+  const depot = new FauxDepot();
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  await rougeLe(depot, ouvrir, "2026-11-01", "a", [{ name: "windows tests (1/8)", outcome: "red" }]);
+  await rougeLe(depot, ouvrir, "2026-11-03", "b", [{ name: "windows tests (5/8)", outcome: "red" }]);
+  assert.equal(depot.issues.length, 1);
+  assert.equal(depot.issues[0]?.corps.split("\n").filter((ligne) => /^- `\w{7}` · /.test(ligne)).length, 2);
+});
+
+test("a red commit on a check whose last occurrence is older than 14 days opens a new issue", async () => {
+  const depot = new FauxDepot();
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  await rougeLe(depot, ouvrir, "2026-11-01", "a", [{ name: "windows app tests", outcome: "red" }]);
+  await rougeLe(depot, ouvrir, "2026-11-16", "b", [{ name: "windows app tests", outcome: "red" }]);
+  assert.equal(depot.issues.length, 2);
+  assert.equal(depot.issues[1]?.titre.startsWith("Repair `main`, red on bbbbbbb"), true);
+});
+
+test("of several matching issues, the most recently updated is reused; one whose cause is fixed is not", async () => {
+  const depot = new FauxDepot();
+  const ouvrir = ouvreReparation({ github: depot.github(), base: "main", maintenant: () => depot.maintenant });
+  const rouge: CheckDeLaBase[] = [{ name: "windows app tests", outcome: "red" }];
+  await rougeLe(depot, ouvrir, "2026-11-01", "a", rouge);
+  const ancienne = depot.issues[0] as Issue;
+  depot.issues.push({ ...ancienne, number: 200, corps: ancienne.corps.replace("`aaaaaaa` ·", "`9999999` ·") });
+  depot.dates.set(200, "2026-11-01T11:00:00.000Z");
+  depot.dates.set(100, "2026-11-01T10:00:00.000Z");
+  await rougeLe(depot, ouvrir, "2026-11-03", "b", rouge);
+  assert.equal(depot.issues.length, 2);
+  assert.ok(depot.issues[1]?.corps.includes("`bbbbbbb`"));
+  assert.ok(!depot.issues[0]?.corps.includes("`bbbbbbb`"));
+  // Avec la cause corrigée, le rouge suivant ouvre une issue neuve.
+  for (const issue of depot.issues) issue.labels = [...issue.labels, LABEL_CAUSE_CORRIGEE];
+  await rougeLe(depot, ouvrir, "2026-11-04", "c", rouge);
+  assert.equal(depot.issues.length, 3);
+});
+
+test("a reopening that fails still opens the repair as before; a failed write is said and retried", async () => {
+  const depot = new FauxDepot();
+  const github = depot.github();
+  const ouvrir = ouvreReparation({ github: { ...github, rouvrirIssue: async () => { throw new Error("HTTP 500"); } }, base: "main", maintenant: () => depot.maintenant });
+  const rouge: CheckDeLaBase[] = [{ name: "tests", outcome: "red" }];
+  await rougeLe(depot, ouvrir, "2026-11-01", "a", rouge);
+  (depot.issues[0] as Issue).state = "closed";
+  await rougeLe(depot, ouvrir, "2026-11-02", "b", rouge);
+  assert.equal(depot.issues.length, 2);
+
+  const autre = new FauxDepot();
+  let casse = true;
+  const gh = autre.github();
+  const ouvrir2 = ouvreReparation({ github: { ...gh, ecrireCorps: async (n, c) => (casse ? Promise.reject(new Error("HTTP 502")) : gh.ecrireCorps?.(n, c)) }, base: "main", maintenant: () => autre.maintenant });
+  await rougeLe(autre, ouvrir2, "2026-11-01", "a", rouge);
+  autre.maintenant = new Date("2026-11-02T10:00:00Z");
+  autre.tete = "b".repeat(40);
+  const echec = await ouvrir2(rouge);
+  assert.equal(echec.reparation, 100);
+  await assert.rejects(() => echec.consigner?.() ?? Promise.resolve(), /502/);
+  casse = false;
+  await rougeLe(autre, ouvrir2, "2026-11-02", "b", rouge);
+  assert.ok(autre.issues[0]?.corps.includes("`bbbbbbb`"));
 });
 
 test("a base green after its re-run, or whose re-run still runs, opens no ticket", async () => {
@@ -220,4 +368,24 @@ test("an error output carrying backticks stays inside its code block", async () 
   depot.journaux.set("tests", "```\nnot ok\n##[error]exit 1");
   await ouvreReparation({ github: depot.github(), base: "main" })([{ name: "tests", outcome: "red", url: job(1, 1) }]);
   assert.match(depot.issues[0]?.corps ?? "", /````\n```\nnot ok\n##\[error\]exit 1\n````/);
+});
+
+test("a red commit on a known check is dispatched before anything is read or written for its occurrence", async () => {
+  const depot = new FauxDepot();
+  const github = depot.github();
+  const rouge: CheckDeLaBase[] = [{ name: "windows app tests", outcome: "red" }];
+  await rougeLe(depot, ouvreReparation({ github, base: "main", maintenant: () => depot.maintenant }), "2026-11-01", "a", rouge);
+  (depot.issues[0] as Issue).state = "closed";
+  depot.journauxLus.length = 0;
+  depot.ordre.length = 0;
+  // Ni le journal ni l'écriture ne répondent : la réparation n'en attend aucun.
+  const ouvrir = ouvreReparation({ github: { ...github, journalDuCheck: () => new Promise(() => {}), ecrireCorps: () => new Promise(() => {}) }, base: "main", maintenant: () => depot.maintenant });
+  depot.maintenant = new Date("2026-11-03T10:00:00Z");
+  depot.tete = "b".repeat(40);
+  const ouverture = await ouvrir(rouge);
+  assert.equal(ouverture.reparation, 100);
+  assert.equal((depot.issues[0] as Issue).state, "open");
+  assert.deepEqual(depot.ordre, ["rouvrir #100"]);
+  assert.equal(depot.journauxLus.length, 0);
+  assert.equal(typeof ouverture.consigner, "function");
 });

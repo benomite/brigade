@@ -1521,8 +1521,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     retenuesDuTour.clear();
     const checksDeLaBase = await relancerLaBase(await github.checksDeLaBase());
     // Rouge après sa relance, la base a son ticket de réparation : un seul par commit (#2339).
-    const { erreur } = await ouvrirLaReparation(checksDeLaBase);
+    const { erreur, consigner } = await ouvrirLaReparation(checksDeLaBase);
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
+    // Le rouge se consigne sur sa réparation (#3614) en parallèle du tour, sans
+    // rien lui retenir : la réparation est déjà dispatchée. Un échec est dit, le tour suivant réessaie.
+    const consignation = consigner?.().catch((echec) => avertir(`brigade : ${base} is red and its repair ticket is open, but the new red commit could not be recorded on it on ${nom} — ${message(echec)}; retried next turn`));
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
     // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
@@ -2032,6 +2035,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
     await gardes?.redire(enVol.size);
+    await consignation;
   };
 
   const station: StationGitHub = {
@@ -2216,6 +2220,8 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     issuesDepuis: (instant) => github.issuesDepuis(instant),
     creerIssue: (issue) => github.creerIssue(issue),
     fermerIssue: (numero) => github.fermerIssue(numero),
+    ...(github.rouvrirIssue === undefined ? {} : { rouvrirIssue: github.rouvrirIssue.bind(github) }),
+    ...(github.ecrireTitre === undefined ? {} : { ecrireTitre: github.ecrireTitre.bind(github) }),
     ...(github.fermerPR === undefined ? {} : { fermerPR: github.fermerPR.bind(github) }),
     journalDuCheck: (check) => github.journalDuCheck(check),
     ...(github.etapesEnEchec === undefined ? {} : { etapesEnEchec: github.etapesEnEchec.bind(github) }),
