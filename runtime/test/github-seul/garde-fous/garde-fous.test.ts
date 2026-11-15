@@ -509,6 +509,8 @@ test("three cooks whose launch fails before they run (spawn E2BIG, 0 turns) do n
   }
   assert.deepEqual(faits("breaker.opened"), []);
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+  // Hors ticket au journal, chaque lancement dit le ticket qu'il sert.
+  assert.deepEqual(faits("cook.launched").map(({ payload }) => payload.serves).sort(), [3615, 3616, 3617]);
   for (const numero of [3615, 3616, 3617]) {
     const dits = faux.commentaires.filter(({ issue }) => issue === numero).map(({ corps }) => corps);
     assert.equal(dits.length, 1, `#${numero}: ${dits.join(" | ")}`);
