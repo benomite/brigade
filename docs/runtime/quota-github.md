@@ -68,7 +68,7 @@ the chef's Mac) and divides it between the **six projects** it serves (`PROJETS_
 - The station's own calls (heartbeat, gist channel: project `station`) and the chef's gestures are never
   held by a share. The gestures still count in their project's calls.
 - The log says it once: `appels GitHub du projet <project> retenus par sa part — N sur 666 sur l'heure
-  écoulée, le suivant à HH:MM`.
+  écoulée (le budget de la station, 4000, en 6 parts), le suivant à HH:MM`.
 
 
 
