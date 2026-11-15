@@ -287,9 +287,11 @@ The same instruction tells the cook that the pass replays each test its diff add
 a new case in a file that existed — alone on the base, without its change ("Red on main, green on the
 branch", [`pass.md`](pass.md)): a test that already passes there proves nothing about its ticket, and
 sends the delivery back naming it, whatever the review says; only a `tech` ticket is exempt. Before
-committing, the cook plays each new test without its change — it sets aside the files its diff changes
-outside the tests (`git stash push --include-untracked -- <files>`), sees the test fail, puts its change
-back (`git stash pop`) and sees it pass — and rewrites a test that passes on both sides. Blocking review
+committing, the cook plays each new test as the pass will: in a throwaway checkout of the base
+(`git worktree add --detach <throwaway folder> origin/<base>`, never `git stash`, whose stack every
+worktree of the repo shares), it copies its test files and their helpers, sees the test fail there,
+throws the checkout away (`git worktree remove --force`), and sees the test pass on its branch; it
+rewrites a test that passes on both sides. Blocking review
 was still the first send-back reason after #3466 brought the rule to the pass (#3628: 5 over 20 merged
 tickets), and 4 of those 5 were this rule — #3528 twice, #3559, #3600 —, which the cook's instructions
 did not name: the cook played its test on its branch only.
