@@ -27,7 +27,7 @@ const FAITS: Faits = {
   cooks: [],
   attend: [],
 };
-const PANNE = (stations: string[], raison = "arretee") => ({ raison, phrase: `Station ${stations.join(", ")} is stopped, so no cook can start. Start the station.`, geste: "demarrer-la-station", stations });
+const PANNE = (stations: string[], raison = "arretee") => ({ raison, phrase: `Station ${stations.join(", ")} is stopped, so no cook can start. Start it on its computer.`, geste: "demarrer-la-station", stations });
 
 const SILENCIEUSE = { station: "macbook-air-de-benoit/claude", distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: false, cuisson: "stopped", cooks: [], vueLe: A };
 const demarrage = () => ({
@@ -65,12 +65,12 @@ test("la panne nomme la station arrêtée : l'étiquette de Stations la nomme, j
 });
 
 test("la panne du rail bloqué nomme la station : « Cooks on », le geste une seule fois, pas « choose its machine »", async () => {
-  const bloque = { tickets: [4], depuis: A, cause: "arretee", stations: ["macbook-air-de-benoit/claude"], geste: "demarrer-la-station", constat: "queued", phrase: "Station macbook-air-de-benoit/claude is stopped, so no cook can start. Start the station." };
+  const bloque = { tickets: [4], depuis: A, cause: "arretee", stations: ["macbook-air-de-benoit/claude"], geste: "demarrer-la-station", constat: "queued", phrase: "Station macbook-air-de-benoit/claude is stopped, so no cook can start. Start it on its computer." };
   const { vue, bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], railBloque: bloque });
   assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.doesNotMatch(bloc.textContent, /No station cooks/);
   assert.equal(bloc.dessous("button").some((bouton) => bouton.textContent === "choose its machine"), false);
-  assert.equal((bloc.textContent.match(/Start the station/g) ?? []).length, 0);
+  assert.equal((bloc.textContent.match(/Start it on its computer/g) ?? []).length, 0);
 });
 
 const boutons = (bloc: ReturnType<Jouee["element"]>) => bloc.dessous("button").map((bouton) => bouton.textContent);
@@ -85,11 +85,11 @@ test("une station arrêtée, la file vide : aucune panne, et la page la nomme �
 test("secondes : la station arrêtée est nommée par la ligne des stations, et le geste qui la démarre ne se dit qu'une fois dans la page", async () => {
   const { vue, bloc } = await ouvrir({ ...FAITS, stations: [SILENCIEUSE], attenteDuRail: PANNE(["macbook-air-de-benoit/claude"]) });
   assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
-  assert.equal((bloc.textContent.match(/Start the station/g) ?? []).length, 0);
+  assert.equal((bloc.textContent.match(/Start it on its computer/g) ?? []).length, 0);
   assert.doesNotMatch(bloc.textContent, /No station cooks/);
   assert.equal(boutons(bloc).includes("choose its machine"), false);
   // Au plus une ligne d'état au-dessus des colonnes (#3523) : la phrase de la panne et son bouton, jamais deux fois.
-  assert.ok((vue.element("rail").textContent.match(/Start the station/g) ?? []).length <= 2, "la phrase de la panne et son bouton : un seul geste");
+  assert.ok((vue.element("rail").textContent.match(/Start it on its computer/g) ?? []).length <= 1, "la phrase de la panne, sans bouton : un seul geste");
 });
 
 test("« choose its machine » ne s'offre que sans station : aucune n'a servi le projet, ou celle qui le servait est retirée", async () => {
