@@ -174,6 +174,18 @@ test("a delivery held for the chef's validation takes no place of the pass: with
   assert.deepEqual(faux.cuissons, [{ station: "A", issue: 50 }]);
 });
 
+test("a delivery held for the chef's validation holds no zone: a ticket that names its screen's file is claimed while the card waits, as it waits for no pass place (#3677)", async () => {
+  const faux = enPass(ECRAN);
+  faux.feu(50);
+  faux.ticket(50).corps = "## Context\n\nwhatever\n\n## Zone\n\n- `app/src/vue/rail.js`\n";
+  const { s } = station(faux, true);
+  await tours(s, 3, () => faux.cuissons.some((c) => c.issue === 50));
+  assert.equal(ouvertes(faux).length, 1);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.ok(faux.ticket(TICKET).labels.has(LABEL_IN_PASS));
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 50 }]);
+});
+
 test("the card opens with a brief: what was asked, from the ticket's title and body, and what was done, the cook's points the station posted on the PR (#3330)", async () => {
   const faux = enPass(ECRAN);
   faux.ticket(TICKET).corps = "## Context\n\nThe chef cannot tell what changed between the captures.\n\n## Acceptance criteria\n\n- a long list";
