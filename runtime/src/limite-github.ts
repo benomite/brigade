@@ -34,6 +34,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
 import { compteurDuProcess } from "./appels-par-identite.ts";
+import { PART_D_UN_PROJET, PartAtteinte, partsDe, retenueDeLaPart, type PartDuProjet } from "./budget-github/part-des-projets.ts";
 import { alerteAEmettre, categorieDe, categorieDeLaLecture, direLAlerte, instantaneDe, preparerLeRegistre, ticketDe, type AlerteDeBudget, type Categorie, type InstantaneDuBudget } from "./github/budget-appels.ts";
 
 export const FENETRE_MS = 60 * 60_000;
@@ -372,7 +373,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { debit: number; points: number } | { appel: number; alerte: AlerteDeBudget | null } => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { debit: number; points: number } | { part: number; appels: number; projet: string } | { appel: number; alerte: AlerteDeBudget | null } => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
@@ -391,6 +392,10 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           const quota = quotaDe(compte, instant);
           const jusqua = quota === null ? null : retenue(quota);
           if (quota !== null && jusqua !== null) return { quota, jusqua };
+          // La part du projet dans le budget de la station : à sa part, il attend seul (#3683).
+          const projet = etiquette?.projet ?? PROJET_DE_LA_STATION;
+          const part = retenueDeLaPart((sql, ...params) => base.lire(sql, ...params), projet, instant);
+          if (part !== null) return { part: part.jusqua, appels: part.appels, projet };
           // Le rythme des écritures du compte, tous projets ensemble : la
           // suivante part quand la plus ancienne de la fenêtre pleine en sort.
           if (etiquette?.ecriture === true) {
@@ -429,6 +434,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
       }
       if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()), refus.ecrites);
       if ("debit" in refus) throw new AppelEspace(refus.debit, Math.max(0, refus.debit - maintenant()), refus.points);
+      if ("part" in refus) throw new PartAtteinte(refus.projet, refus.part, Math.max(0, refus.part - maintenant()), refus.appels);
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
@@ -560,6 +566,24 @@ export function budgetDeLaStation(racine: string | undefined, maintenant: number
   try {
     base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
     return instantaneDe(base, maintenant);
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
+// Les parts des projets de la station dont `racine` est le répertoire (#3683),
+// lues sans rien écrire ni rien créer : null sans compteur, ou s'il ne se lit
+// pas — `status` n'en dit alors rien plutôt que d'inventer des zéros.
+export function partsDeLaStation(racine: string | undefined, maintenant: number): PartDuProjet[] | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    return partsDe((sql, ...params) => base!.lire(sql, ...params), maintenant);
   } catch {
     return null;
   } finally {
@@ -821,7 +845,7 @@ function fileDe(limite: Limite): File {
       });
   };
 
-  const retenir = (entree: EnAttente, espacee: EcritureEspacee) => {
+  const retenir = (entree: EnAttente, espacee: EcritureEspacee | PartAtteinte) => {
     if (entree.retenue) return;
     entree.retenue = true;
     commencerLaRetenue(espacee);
@@ -837,10 +861,12 @@ function fileDe(limite: Limite): File {
     const retenus = new Map<string, EcritureEspacee>();
     // Les comptes dont un appel attend le débit : tous les suivants restent derrière lui (#2443).
     const tenus = new Map<string, AppelEspace>();
+    // Les projets dont un appel attend sa part : leurs suivants restent derrière lui, les autres projets partent (#3683).
+    const parts = new Map<string, PartAtteinte>();
     let prochain: { jusqua: number; par: EnAttente } | null = null;
     for (const entree of [...attente]) {
       if (enVol >= REQUETES_EN_VOL) break;
-      const devant = tenus.get(entree.compte) ?? (entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined);
+      const devant = tenus.get(entree.compte) ?? (entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined) ?? parts.get(entree.etiquette?.projet ?? PROJET_DE_LA_STATION);
       if (devant !== undefined) {
         retenir(entree, devant);
         continue;
@@ -849,6 +875,12 @@ function fileDe(limite: Limite): File {
       try {
         appel = limite.prendre(entree.usage, entree.compte, entree.etiquette);
       } catch (erreur) {
+        if (erreur instanceof PartAtteinte) {
+          parts.set(erreur.projet, erreur);
+          retenir(entree, erreur);
+          if (prochain === null || erreur.jusqua < prochain.jusqua) prochain = { jusqua: erreur.jusqua, par: entree };
+          continue;
+        }
         if (erreur instanceof EcritureEspacee) {
           if (erreur instanceof AppelEspace) tenus.set(entree.compte, erreur);
           retenus.set(entree.compte, erreur);
@@ -948,11 +980,13 @@ export function journaliserLaRetenue(dire: (ligne: string) => void): void {
   direLaRetenueDansLeJournal = dire;
 }
 
-function commencerLaRetenue(erreur: EcritureEspacee): void {
+function commencerLaRetenue(erreur: EcritureEspacee | PartAtteinte): void {
   enAttente += 1;
   if (enAttente !== 1) return;
   direLaRetenueDansLeJournal?.(
-    erreur instanceof AppelEspace
+    erreur instanceof PartAtteinte
+      ? `brigade : appels GitHub du projet ${erreur.projet} retenus par sa part — ${erreur.appels} sur ${PART_D_UN_PROJET} sur l'heure écoulée, le suivant à ${heure(erreur.jusqua)}`
+      : erreur instanceof AppelEspace
       ? `brigade : appels GitHub espacés par le débit — ${erreur.points} points sur ${POINTS_PAR_MINUTE} sur la minute écoulée, le suivant à ${heure(erreur.jusqua)}`
       : `brigade : écritures GitHub retenues par le budget — ${erreur.ecrites} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${heure(erreur.jusqua)}`,
   );

@@ -53,7 +53,24 @@ A tenth of the quota is the **reserve of the chef's gestures** (`RESERVE_DES_GES
   pass's comments) are never queued or held by the box. They are sent and counted, and may spend the
   reserve. They fail only if GitHub itself refuses.
 
-## When GitHub refuses: a pause on the account, by kind of call
+## Each project has its share of the station's budget
+
+A station serves several projects on the same account, and one project calling too much made GitHub stop
+all of them (#3683). The station gives itself a budget of **4,000 calls an hour**
+(`BUDGET_DE_LA_STATION_PAR_HEURE`: GitHub's 5,000 minus the reserve of the chef's gestures and a margin for
+the chef's Mac) and divides it between the **six projects** it serves (`PROJETS_DE_LA_STATION`): the
+**share of a project** is 666 calls over the last hour (`PART_D_UN_PROJET`). All three constants are in
+`runtime/src/budget-github/part-des-projets.ts`.
+
+- A kitchen call of a project that has made its share in the last hour is not sent and not counted. It
+  waits in the queue until its oldest call of the hour leaves the window, then goes. Only the later calls
+  of the same project wait behind it: the calls of the other projects go.
+- The station's own calls (heartbeat, gist channel: project `station`) and the chef's gestures are never
+  held by a share. The gestures still count in their project's calls.
+- The log says it once: `appels GitHub du projet <project> retenus par sa part — N sur 666 sur l'heure
+  écoulée, le suivant à HH:MM`.
+
+
 
 When GitHub refuses a call (a 429, or a 403 saying "rate limit"; a 403 on a forbidden merge is an
 ordinary refusal), the station records a pause on the shared counter, visible to all its processes.
@@ -107,6 +124,9 @@ first successful call of that account after it (an HTTP status below 400) remove
   - when GitHub refused: `GitHub is rate-limiting calls: <limit>, since HH:MM, back around HH:MM`, where
     `<limit>` is `primary limit (hourly quota)`, `secondary limit (writes per minute)` or `secondary limit
     (concurrent requests)`.
+- **`status`, `gh share` lines**: one per project that called GitHub in the last hour, the biggest first:
+  `<project> N/666 calls in the last hour`, followed by ` — slowed by its share` when the project has made
+  its share. No line when the station has no counter, or when it cannot be read.
 - **The app's alert band**, in the chef's local time (`app/src/alertes.ts`): `GitHub is rate-limiting
   calls, back around HH:MM`. Each project of the account says it, since each receives the same entry.
 - **The app's own pause** (`app/src/budget-github.ts`): the app reads GitHub with the chef's token. When
