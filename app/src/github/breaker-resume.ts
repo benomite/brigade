@@ -1,12 +1,15 @@
 // « Resume », sur la ligne du disjoncteur de TODO (#2140, épique #2134) : la cuisine retenue par son disjoncteur reprend
 // d'un clic, par GitHub — ni `ssh`, ni commande à recopier. Le clic poste un commentaire dont le corps est exactement
 // `/resume` sur l'issue ouverte du dépôt qui porte le label `brigade:breaker-open` : la station la publie quand le
-// disjoncteur s'ouvre (#2138), et sa veille lit le commentaire et referme le disjoncteur (#2139).
+// disjoncteur s'ouvre (#2138), et sa veille lit le commentaire et referme le disjoncteur (#2139). L'issue est sur la
+// brigade, jamais dans le dépôt du projet (#3620) : celle du projet est celle dont le corps porte la marque de son dépôt
+// (`marqueDuProjet`, runtime/src/alerte-cuisine/alerte-cuisine.ts).
 // Ce module compose les demandes, avec les mêmes en-têtes et le même jeton que les autres appels de l'app à GitHub
 // (tableau/client.ts) ; ce qui les porte est donné par la plateforme. Il ne parle qu'à GitHub :
 // aucune box, aucune station n'est jointe.
 import { clientGitHub, refusDe, type AppelGitHub, type Poste } from "../tableau/client.ts";
 import { dureeEn } from "../tableau/rail.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../../runtime/src/alerte-cuisine/alerte-cuisine.ts";
 
 // Le label de l'issue que la station ouvre avec le disjoncteur, et le corps exact que sa veille attend.
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
@@ -28,19 +31,23 @@ export type RenduDeLaReprise = { demandee: { issue: number; url: string | null }
 
 const messageDe = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Poste `/resume`, une seule fois, sur l'issue du disjoncteur de ce dépôt — la plus récente, s'il y en a plusieurs.
-// Aucune issue ouverte ne porte le label : rien n'est posté, et la ligne le dit.
+// L'issue est celle du projet de ce dépôt : son corps porte, sur une ligne, la marque du dépôt.
+const duDepot = (depot: string) => (issue: IssueDuDisjoncteur): boolean =>
+  (issue.corps ?? "").split(/\r?\n/).some((ligne) => ligne.trim().toLowerCase() === marqueDuProjet(depot).toLowerCase());
+
+// Poste `/resume`, une seule fois, sur l'issue du disjoncteur du projet de ce dépôt, sur la brigade — la plus récente,
+// s'il y en a plusieurs. Aucune issue ouverte de ce projet ne porte le label : rien n'est posté, et la ligne le dit.
 export async function reprendreLeDisjoncteur(depot: string, client: ClientDuDisjoncteur): Promise<RenduDeLaReprise> {
   let issues: IssueDuDisjoncteur[];
   try {
-    issues = await client.issuesOuvertes(depot, LABEL_DU_DISJONCTEUR);
+    issues = (await client.issuesOuvertes(DEPOT_BRIGADE, LABEL_DU_DISJONCTEUR)).filter(duDepot(depot));
   } catch (erreur) {
     return { refus: "resume not requested: GitHub could not be read", detail: messageDe(erreur) };
   }
   const issue = issues[0];
-  if (issue === undefined) return { refus: "resume not requested: no breaker issue is open on GitHub", detail: `no open issue of ${depot} carries the label \`${LABEL_DU_DISJONCTEUR}\`: the station publishes it when the breaker opens` };
+  if (issue === undefined) return { refus: "resume not requested: no breaker issue is open on GitHub", detail: `no open issue of ${DEPOT_BRIGADE} for ${depot} carries the label \`${LABEL_DU_DISJONCTEUR}\`: the station publishes it when the breaker opens` };
   try {
-    const { url } = await client.commenter(depot, issue.numero, CORPS_DE_LA_REPRISE);
+    const { url } = await client.commenter(DEPOT_BRIGADE, issue.numero, CORPS_DE_LA_REPRISE);
     return { demandee: { issue: issue.numero, url } };
   } catch (erreur) {
     return { refus: "resume not requested: GitHub did not take the comment", detail: messageDe(erreur) };
@@ -58,10 +65,10 @@ export type OptionsDuClient = {
 const objet = (valeur: unknown): Record<string, unknown> => (typeof valeur === "object" && valeur !== null ? (valeur as Record<string, unknown>) : {});
 
 // Les issues ouvertes du dépôt qui portent ce label, la plus récente d'abord — lues par le `GET` de l'app. Lève quand GitHub
-// refuse, ou ne répond pas.
+// refuse, ou ne répond pas. Une page de cent : la brigade porte celles de tous les projets.
 export async function lireLesIssuesDuDisjoncteur(appeler: AppelGitHub, depot: string, label: string): Promise<IssueDuDisjoncteur[]> {
   // GitHub les rend de la plus récente à la plus ancienne ; une PR qui porterait le label n'est pas une issue.
-  const reponse = await appeler(`/repos/${depot}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=10`);
+  const reponse = await appeler(`/repos/${depot}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=100`);
   if (reponse.status !== 200) throw refusDe(`the reading of the issues labeled \`${label}\``, reponse);
   if (!Array.isArray(reponse.data)) throw new Error("GitHub's answer is not a list of issues");
   return reponse.data.flatMap((brute): IssueDuDisjoncteur[] => {
@@ -84,6 +91,12 @@ export function cuisineRetenueParLeDisjoncteur(issue: IssueDuDisjoncteur, lu: st
   const code = champ("Exit code");
   const pourquoi = [compte, ticket === undefined ? undefined : `failing ticket ${ticket}`, code === undefined ? undefined : `exit code ${code}`].filter((dit) => dit !== undefined).join(", ");
   return `open · breaker OPEN${depuis === undefined ? "" : ` for ${depuis}`} (${pourquoi === "" ? `see issue #${issue.numero}` : pourquoi})`;
+}
+
+// L'issue ouverte du disjoncteur du projet de ce dépôt, lue sur la brigade — la plus récente —, ou undefined. Lève quand
+// GitHub refuse, ou ne répond pas.
+export async function lireLIssueDuDisjoncteur(appeler: AppelGitHub, depot: string): Promise<IssueDuDisjoncteur | undefined> {
+  return (await lireLesIssuesDuDisjoncteur(appeler, DEPOT_BRIGADE, LABEL_DU_DISJONCTEUR)).find(duDepot(depot));
 }
 
 export function clientDuDisjoncteurGitHub({ jeton, poster, appeler }: OptionsDuClient): ClientDuDisjoncteur {

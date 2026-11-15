@@ -202,8 +202,23 @@ test("a ticket that becomes cookable after 90 minutes with nothing to take is co
   assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
 });
 
+// La brigade, où le bug de l'inertie se dépose (#3620) : ce qu'on y a déposé.
+function brigadeEnMemoire() {
+  const deposees: { titre: string; corps: string; labels: string[] }[] = [];
+  const brigade = {
+    issuesDepuis: async () => deposees.map((d, rang) => ({ number: 800 + rang, body: d.corps, association: "OWNER", state: "open" })),
+    creerIssue: async (issue: { titre: string; corps: string; labels: string[] }) => {
+      deposees.push(issue);
+      return 800 + deposees.length - 1;
+    },
+    fermerIssue: async () => {},
+  } as unknown as GitHubDeLaBrigade;
+  return { brigade, deposees };
+}
+
 test("a ticket that becomes cookable after a long empty rail files the inertia bug only once it has waited 90 minutes untaken", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
+  const { brigade, deposees } = brigadeEnMemoire();
+  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
   await p.passer();
   p.avancer(INERTIE_MINUTES * MINUTE);
   await p.passer();
@@ -212,15 +227,17 @@ test("a ticket that becomes cookable after a long empty rail files the inertia b
   await p.passer();
   p.avancer(INERTIE_MINUTES * MINUTE - MINUTE);
   await p.passer();
-  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+  assert.equal(deposees.length, 0, p.avertis.join("\n"));
   p.avancer(MINUTE);
   await p.passer();
-  assert.equal(p.faux.creations.length, 1, p.avertis.join("\n"));
+  assert.equal(deposees.length, 1, p.avertis.join("\n"));
+  assert.equal(p.faux.creations.length, 0, "nothing on the served project");
   assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
 });
 
 test("a kitchen with a fire ticket to take (a model label, nothing else) and nothing at work for 90 minutes files one inertia bug, once, without blocked-on-human", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
+  const { brigade, deposees } = brigadeEnMemoire();
+  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
   p.faux.feu(30, CALIBRE, "Depends on #31");
   p.faux.feu(31, [...CALIBRE, HORS_CUISINE]);
   await p.passer();
@@ -230,9 +247,9 @@ test("a kitchen with a fire ticket to take (a model label, nothing else) and not
   p.avancer(INERTIE_MINUTES * MINUTE);
   await p.passer();
   await p.passer();
-  assert.equal(p.faux.creations.length, 1, p.avertis.join("\n"));
-  const [bug] = p.faux.creations;
-  assert.ok(!p.faux.ticket(bug as number).labels.has("blocked-on-human"));
+  assert.equal(deposees.length, 1, p.avertis.join("\n"));
+  assert.equal(p.faux.creations.length, 0, "nothing on the served project");
+  assert.ok(!deposees[0]?.labels.includes("blocked-on-human"));
   assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
 });
 

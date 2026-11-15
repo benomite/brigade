@@ -22,11 +22,14 @@ import { ecritureParCapacitor, ouvrirLesGestesGitHub, type DemandeNative } from 
 import { cuisineRetenueParLeDisjoncteur, LABEL_DU_DISJONCTEUR, type RenduDeLaReprise } from "../src/github/breaker-resume.ts";
 import { ouvrirLaLectureGitHub } from "../src/lecture-github-telephone.ts";
 import { API_GITHUB, clientGitHub, type Envoi, type ReponseGitHub } from "../src/tableau/client.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../runtime/src/alerte-cuisine/alerte-cuisine.ts";
 
 const DEPOT = "chef/parade";
 const LU = "2026-11-06T09:00:00.000Z";
+// L'issue de la station, sur la brigade, marquée du dépôt du projet (#3620).
 const CORPS = [
   "<!-- brigade:breaker-open project=parade -->",
+  marqueDuProjet(DEPOT),
   "The breaker of the `parade` kitchen opened after 3 failures in a row (threshold 3): no cook leaves until the chef resumes the kitchen.",
   "",
   "- **Failing ticket**: #21",
@@ -36,14 +39,14 @@ const CORPS = [
 
 // Un faux GitHub : le dépôt de parade, sans ticket, et — si `ouvertes` — l'issue du disjoncteur. `refuse` : la lecture des issues
 // du disjoncteur que GitHub refuse. Les commentaires postés sont notés.
-function github({ ouvertes = true, refuse = false }: { ouvertes?: boolean; refuse?: boolean } = {}) {
+function github({ ouvertes = true, refuse = false, corps = CORPS }: { ouvertes?: boolean; refuse?: boolean; corps?: string } = {}) {
   const postes: { adresse: string; corps: unknown }[] = [];
   const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
   const lire: Envoi = async (adresse) => {
     const chemin = adresse.slice(API_GITHUB.length);
-    if (chemin.includes(`labels=${encodeURIComponent(LABEL_DU_DISJONCTEUR)}`)) {
+    if (chemin.startsWith(`/repos/${DEPOT_BRIGADE}/issues?`) && chemin.includes(`labels=${encodeURIComponent(LABEL_DU_DISJONCTEUR)}`)) {
       if (refuse) return { status: 403, data: { message: "Resource not accessible" } };
-      return ok(ouvertes ? [{ number: 2150, html_url: `https://github.com/${DEPOT}/issues/2150`, body: CORPS }] : []);
+      return ok(ouvertes ? [{ number: 2150, html_url: `https://github.com/${DEPOT_BRIGADE}/issues/2150`, body: corps }] : []);
     }
     if (chemin.startsWith(`/repos/${DEPOT}/issues?`) || chemin.startsWith(`/repos/${DEPOT}/pulls?`)) return ok([]);
     if (chemin === `/repos/${DEPOT}`) return ok({ owner: { login: "chef", type: "User" } });
@@ -92,6 +95,13 @@ describe("le téléphone lit le disjoncteur ouvert sur GitHub, et la bande de so
     assert.equal(alerte.releve, "breaker OPEN for 2 h 05 (3 failures in a row, failing ticket #21, exit code 1)");
   });
 
+  test("on Brigade, only the issue of another project is open: no breaker line (#3620)", async () => {
+    const { lecture, derniere } = telephone(github({ corps: CORPS.replace(marqueDuProjet(DEPOT), marqueDuProjet("autre/projet")) }));
+    await lecture.faits(1);
+    await lecture.tous(2);
+    assert.deepEqual(derniere()?.alertes.filter(({ appel }) => appel !== undefined && "reprise" in appel), []);
+  });
+
   test("aucune issue ouverte : pas de ligne du disjoncteur", async () => {
     const { lecture, derniere } = telephone(github({ ouvertes: false }));
     await lecture.faits(1);
@@ -120,10 +130,10 @@ describe("« Resume » sur le téléphone : `/resume` posté sur l'issue du disj
     });
   }
 
-  test("un seul commentaire, de corps `/resume`, sur l'issue ouverte du dépôt", async () => {
+  test("un seul commentaire, de corps `/resume`, sur l'issue ouverte du projet, sur la brigade", async () => {
     const monde = github();
     const rendu = await gestes(monde).reprendreLeDisjoncteur("parade");
-    assert.deepEqual(monde.postes, [{ adresse: `${API_GITHUB}/repos/${DEPOT}/issues/2150/comments`, corps: { body: "/resume" } }]);
+    assert.deepEqual(monde.postes, [{ adresse: `${API_GITHUB}/repos/${DEPOT_BRIGADE}/issues/2150/comments`, corps: { body: "/resume" } }]);
     assert.ok("demandee" in rendu && rendu.demandee.issue === 2150);
   });
 

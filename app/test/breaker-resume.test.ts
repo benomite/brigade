@@ -23,6 +23,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { ReponseGitHub } from "../src/tableau/client.ts";
 import { DEMANDEE, EN_ROUTE, REPRENDRE } from "../src/vue/todo-breaker-line.js";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../runtime/src/alerte-cuisine/alerte-cuisine.ts";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";
@@ -48,19 +49,28 @@ function fauxGitHub(issues: IssueDuDisjoncteur[], refuse: { lecture?: Error; com
   };
   return { client, postes, lus };
 }
-const ISSUE: IssueDuDisjoncteur = { numero: 2150, url: "https://github.com/chef/parade/issues/2150" };
+// L'issue du disjoncteur est sur la brigade, marquée du dépôt du projet (#3620).
+const MARQUE = marqueDuProjet(DEPOT);
+const ISSUE: IssueDuDisjoncteur = { numero: 2150, url: `https://github.com/${DEPOT_BRIGADE}/issues/2150`, corps: `<!-- brigade:breaker-open project=parade -->\n${MARQUE}\nThe breaker opened.` };
 
 describe("le geste : `/resume` sur l'issue du disjoncteur", () => {
   test("un seul commentaire, de corps exactement `/resume`, sur l'issue ouverte qui porte `brigade:breaker-open`", async () => {
     const github = fauxGitHub([ISSUE]);
     const rendu = await reprendreLeDisjoncteur(DEPOT, github.client);
-    assert.deepEqual(github.lus, [{ depot: DEPOT, label: "brigade:breaker-open" }]);
-    assert.deepEqual(github.postes, [{ depot: DEPOT, issue: 2150, corps: "/resume" }]);
-    assert.deepEqual(rendu, { demandee: { issue: 2150, url: "https://github.com/chef/parade/issues/2150#issuecomment-1" } });
+    assert.deepEqual(github.lus, [{ depot: DEPOT_BRIGADE, label: "brigade:breaker-open" }]);
+    assert.deepEqual(github.postes, [{ depot: DEPOT_BRIGADE, issue: 2150, corps: "/resume" }]);
+    assert.deepEqual(rendu, { demandee: { issue: 2150, url: `https://github.com/${DEPOT_BRIGADE}/issues/2150#issuecomment-1` } });
+  });
+
+  test("on Brigade, the breaker issue of another project is not this one's: nothing is posted (#3620)", async () => {
+    const github = fauxGitHub([{ numero: 2151, url: null, corps: `${marqueDuProjet("autre/projet")}\nThe breaker opened.` }]);
+    const rendu = await reprendreLeDisjoncteur(DEPOT, github.client);
+    assert.deepEqual(github.postes, []);
+    assert.ok("refus" in rendu && rendu.refus === "resume not requested: no breaker issue is open on GitHub");
   });
 
   test("plusieurs issues ouvertes : la plus récente seule, celle que GitHub rend en premier", async () => {
-    const github = fauxGitHub([ISSUE, { numero: 2001, url: null }]);
+    const github = fauxGitHub([ISSUE, { ...ISSUE, numero: 2001, url: null }]);
     await reprendreLeDisjoncteur(DEPOT, github.client);
     assert.deepEqual(github.postes.map(({ issue }) => issue), [2150]);
   });
@@ -84,7 +94,7 @@ describe("le geste : `/resume` sur l'issue du disjoncteur", () => {
 
 describe("le client GitHub du geste", () => {
   // Un faux `GET` et un faux `POST` : ce qu'ils ont reçu, et ce qu'ils rendent.
-  function fauxReseau({ issues = { status: 200, data: [] as unknown }, commentaire = { status: 201, data: { id: 9, html_url: "https://github.com/chef/parade/issues/2150#issuecomment-9" } as unknown } } = {}) {
+  function fauxReseau({ issues = { status: 200, data: [] as unknown }, commentaire = { status: 201, data: { id: 9, html_url: `https://github.com/${DEPOT_BRIGADE}/issues/2150#issuecomment-9` } as unknown } } = {}) {
     const lus: string[] = [];
     const postes: { adresse: string; entetes: Record<string, string>; corps: unknown }[] = [];
     const client = clientDuDisjoncteurGitHub({
@@ -102,27 +112,27 @@ describe("le client GitHub du geste", () => {
   }
 
   test("les issues ouvertes du label, sans les PR ; le commentaire en `POST`, avec le jeton de l'app", async () => {
-    const reseau = fauxReseau({ issues: { status: 200, data: [{ number: 2150, html_url: ISSUE.url }, { number: 2149, html_url: "x", pull_request: {} }] } });
+    const reseau = fauxReseau({ issues: { status: 200, data: [{ number: 2150, html_url: ISSUE.url, body: ISSUE.corps }, { number: 2149, html_url: "x", body: ISSUE.corps, pull_request: {} }] } });
     const rendu = await reprendreLeDisjoncteur(DEPOT, reseau.client);
-    assert.deepEqual(reseau.lus, ["/repos/chef/parade/issues?state=open&labels=brigade%3Abreaker-open&per_page=10"]);
+    assert.deepEqual(reseau.lus, [`/repos/${DEPOT_BRIGADE}/issues?state=open&labels=brigade%3Abreaker-open&per_page=100`]);
     assert.equal(reseau.postes.length, 1);
     const [poste] = reseau.postes;
-    assert.equal(poste?.adresse, "https://api.github.com/repos/chef/parade/issues/2150/comments");
+    assert.equal(poste?.adresse, `https://api.github.com/repos/${DEPOT_BRIGADE}/issues/2150/comments`);
     assert.deepEqual(poste?.corps, { body: CORPS_DE_LA_REPRISE });
     assert.equal(poste?.entetes.Authorization, "Bearer gho_jeton");
     assert.equal(poste?.entetes["Content-Type"], "application/json");
-    assert.deepEqual(rendu, { demandee: { issue: 2150, url: "https://github.com/chef/parade/issues/2150#issuecomment-9" } });
+    assert.deepEqual(rendu, { demandee: { issue: 2150, url: `https://github.com/${DEPOT_BRIGADE}/issues/2150#issuecomment-9` } });
   });
 
   test("seule une PR porte le label : aucune issue, rien n'est posté", async () => {
-    const reseau = fauxReseau({ issues: { status: 200, data: [{ number: 2149, pull_request: {} }] } });
+    const reseau = fauxReseau({ issues: { status: 200, data: [{ number: 2149, body: ISSUE.corps, pull_request: {} }] } });
     const rendu = await reprendreLeDisjoncteur(DEPOT, reseau.client);
     assert.deepEqual(reseau.postes, []);
     assert.ok("refus" in rendu && /no breaker issue/.test(rendu.refus));
   });
 
   test("GitHub refuse : son code et sa phrase sont dans le détail", async () => {
-    const commentaire = await reprendreLeDisjoncteur(DEPOT, fauxReseau({ issues: { status: 200, data: [{ number: 2150 }] }, commentaire: { status: 403, data: { message: "Resource not accessible by integration." } } }).client);
+    const commentaire = await reprendreLeDisjoncteur(DEPOT, fauxReseau({ issues: { status: 200, data: [{ number: 2150, body: ISSUE.corps }] }, commentaire: { status: 403, data: { message: "Resource not accessible by integration." } } }).client);
     assert.deepEqual(commentaire, { refus: "resume not requested: GitHub did not take the comment", detail: "GitHub refused the comment (HTTP 403): Resource not accessible by integration" });
     const lecture = await reprendreLeDisjoncteur(DEPOT, fauxReseau({ issues: { status: 404, data: { message: "Not Found" } } }).client);
     assert.ok("refus" in lecture);
@@ -260,13 +270,13 @@ describe("la ligne du disjoncteur, ligne d'état du rail, au-dessus des colonnes
     assert.equal(appelsDe(vue).length, 3);
   });
 
-  test("bout à bout : le pont joue le vrai geste sur un faux GitHub — un seul `/resume` posté, sur l'issue du disjoncteur du dépôt du projet", async () => {
+  test("bout à bout : le pont joue le vrai geste sur un faux GitHub — un seul `/resume` posté, sur l'issue du disjoncteur du projet, sur la brigade", async () => {
     const github = fauxGitHub([ISSUE]);
     const vue = await ouvrir(() => reprendreLeDisjoncteur(DEPOT, github.client));
     reprendre(ligne(vue)).click();
     await repos();
     await repos();
-    assert.deepEqual(github.postes, [{ depot: DEPOT, issue: 2150, corps: "/resume" }]);
+    assert.deepEqual(github.postes, [{ depot: DEPOT_BRIGADE, issue: 2150, corps: "/resume" }]);
     assert.ok(ligne(vue).dessous("span").some(({ textContent }) => textContent === DEMANDEE));
   });
 

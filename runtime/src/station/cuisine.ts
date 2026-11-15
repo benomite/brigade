@@ -11,7 +11,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import type { SuiviDuDisjoncteurServant } from "../file-chef/cause-arret.ts";
-import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
+import { brancherIssueDuDisjoncteur, clientDuDisjoncteur } from "../breaker-issue.ts";
 import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
 import { fichierDesRefus, lireLesRefus } from "../station-contributrice/refus.ts";
@@ -311,12 +311,11 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherRapportHebdo(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat })), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
-    const roles = identites;
-    const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};
     // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
-    // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts).
-    brancherIssueDuDisjoncteur(connectee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), station: stations.find((declaree) => !declaree.distante)?.nom ?? null, avertir: dire, autre: disjoncteurServant });
-    ouverte = brancherRepriseParGitHub(connectee, { github: githubs.rail, avertir: dire });
+    // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts). L'issue se dépose
+    // sur la brigade, jamais dans le dépôt du projet (#3620).
+    brancherIssueDuDisjoncteur(connectee, { client: clientDuDisjoncteur({ bin: rail.gh, projet }), servi: rail.depot, station: stations.find((declaree) => !declaree.distante)?.nom ?? null, avertir: dire, autre: disjoncteurServant });
+    ouverte = brancherRepriseParGitHub(connectee, { github: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }), projet: connectee.projet, avertir: dire });
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
     const { chef } = brancherLeChef(ouverte, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });

@@ -16,6 +16,7 @@
 import type { Check } from "../events/pass.ts";
 import { lienDuCorps } from "../besoin/besoin.ts";
 import { porteListe } from "../epique.ts";
+import { avecLAlerte, type AlerteDeLaCuisine } from "../alerte-cuisine/alerte-cuisine.ts";
 import { CONCLUSIONS_VERTES } from "../github.ts";
 
 export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
@@ -45,8 +46,9 @@ export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
 }`;
 
 // `epique` : son corps porte la liste des tickets d'une épique (`epique.ts`).
-// `besoin` : le besoin dont il se dit né (`besoin/besoin.ts`).
-export type TicketDeLInstantane = { number: number; title: string; labels: string[]; state: "open"; epique?: true; besoin?: number };
+// `besoin` : le besoin dont il se dit né (`besoin/besoin.ts`). `alerte` : une
+// alerte que la station a ouverte sur la cuisine (`alerte-cuisine/`, #3620).
+export type TicketDeLInstantane = { number: number; title: string; labels: string[]; state: "open"; epique?: true; besoin?: number; alerte?: AlerteDeLaCuisine };
 export type PRDeLInstantane = {
   number: number;
   branche: string;
@@ -109,7 +111,10 @@ export function lireInstantane(data: unknown): Instantane {
   if (depot === undefined || depot === null) throw new Error("GraphQL : no repository in the answer");
   const issues = depot.issues as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<{ number: number; title: string; body?: string | null; labels?: { nodes?: Array<{ name: string }> } }> };
   const prs = depot.pullRequests as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<Record<string, unknown>> };
-  const tickets = (issues.nodes ?? []).map((n) => ({ number: n.number, title: n.title, labels: (n.labels?.nodes ?? []).map((l) => l.name), state: "open" as const, ...(porteListe(n.body ?? "") ? { epique: true as const } : {}), ...lienDuCorps(n.number, n.body ?? "") }));
+  const tickets = (issues.nodes ?? []).map((n) => {
+    const ticket = { number: n.number, title: n.title, labels: (n.labels?.nodes ?? []).map((l) => l.name), state: "open" as const };
+    return { ...ticket, ...(porteListe(n.body ?? "") ? { epique: true as const } : {}), ...lienDuCorps(n.number, n.body ?? ""), ...avecLAlerte({ ...ticket, body: n.body }) };
+  });
   const baseRollup = (depot.ref as { target?: { statusCheckRollup?: unknown } } | null)?.target?.statusCheckRollup ?? null;
   return {
     tickets,

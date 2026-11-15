@@ -16,7 +16,7 @@
 //     kitchen » sur une carte de WAITING : le téléphone ne joint aucun runtime, il les écrit sur l'issue comme le desktop
 //     sans runtime ici (vue/attente/attente-github.ts, `attenteSurGithub`).
 //   - « Resume » sur la ligne du disjoncteur, à côté de « TODO (N) » (#3458) : `/resume` posté sur l'issue `brigade:breaker-open`
-//     du dépôt (github/breaker-resume.ts), le même code que le desktop ;
+//     du projet, sur la brigade (github/breaker-resume.ts, #3620), le même code que le desktop ;
 //   - les deux gestes de la carte « Validate its screen » (ticket 3185) — « Validate » et « Send back to the kitchen » : le
 //     téléphone ne porte pas la commande du runtime que le desktop joue, il écrit sur GitHub ce qu'elle y écrit
 //     (vue/validation-design/validation-design-github.ts, `validerSurGithub`) — la PR mergée et la carte fermée, ou le
@@ -116,7 +116,7 @@ export function ouvrirLesGestesGitHub(options: Options) {
       return rendu;
     },
 
-    // « Resume » sur la ligne du disjoncteur : `/resume` sur l'issue du disjoncteur du dépôt de ce projet. Rien n'est écrit
+    // « Resume » sur la ligne du disjoncteur : `/resume` sur l'issue du disjoncteur de ce projet, sur la brigade. Rien n'est écrit
     // pour un projet dont la dernière lecture ne dit pas le dépôt.
     async reprendreLeDisjoncteur(projet: string): Promise<RenduDeLaReprise> {
       const depot = options.depot(projet);

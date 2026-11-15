@@ -19,11 +19,10 @@ import { MARQUE_QUALITE } from "./alerte-qualite.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
 import type { GitHub } from "./github.ts";
 import { MARQUE_CORRECTION, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "./alerte-cuisine/alerte-cuisine.ts";
 
-export const DEPOT_BRIGADE = "benomite/brigade";
-
-// La marque cachée qui nomme le projet servi dans le ticket déposé sur la brigade.
-export const marqueDuProjet = (servi: string) => `<!-- brigade:projet=${servi} -->`;
+// Le dépôt de la brigade et la marque du projet servi, définis avec les alertes de la cuisine qui s'y déposent (#3620).
+export { DEPOT_BRIGADE, marqueDuProjet };
 
 // Une famille (#2833) : une mesure (qualité, temps perdu) sur un projet mesuré.
 // Sa clé ne porte ni le nombre du titre ni la parenthèse « (measured on …) » :

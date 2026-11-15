@@ -113,6 +113,16 @@ base, the stale-branch pruning).
   ticket's `RENVOIS_MAX`. A green, pending or check-less CI, a free ticket, or another branch is left alone; open
   PRs are read only when a held ticket exists. A CI or head that cannot be read sends nothing back and is warned.
   Seen on #2908, whose red CI ended as a "merge it" request to the chef (#2970).
+- **Kitchen alerts go to Brigade, never to the project's repository** (#3620). The idle-kitchen bug — no merge for 90
+  minutes with a cookable ticket, whatever its cause, `empty-rail` included — is filed on `benomite/brigade` with the
+  project's `<!-- brigade:projet=<owner>/<repo> -->` mark, one per project while it is open
+  (`runtime/src/guerison/cuisine-inerte.ts`); with no Brigade client it is filed nowhere, and the turn says so once.
+  `benomite/brigade` serving itself keeps it in its own repository, where its cooks can fix the kitchen. An issue the
+  station opened about the kitchen itself — its `<!-- brigade:cuisine-inerte -->` or `<!-- brigade:breaker-open … -->`
+  mark, the `brigade:breaker-open` label, or the title the station gives it — is never a ticket of a project, even
+  fired and calibrated: the turn leaves it out before anything reads its tickets, so no cook takes it
+  (`runtime/src/alerte-cuisine/alerte-cuisine.ts`). Seen on benomite/secondes #45 (`empty-rail`), taken by a cook in an
+  Android app's repository, and #46, the breaker issue.
 - **A TODO card that asks no question is filed as a defect on benomite/brigade.** At each turn's healing, a ticket of
   the turn (`fire`) that carries `chef-todo` with no marked comment `<!-- brigade:todo kind=… -->` from the repository,
   or one whose text is empty, is reported with no action from the chef: a `fix` issue on `benomite/brigade` names the
@@ -235,7 +245,7 @@ base, the stale-branch pruning).
 - **Leftover PRs** (#3097): at most every ten minutes, a turn closes each open PR whose ticket (`cook/<n>-…` branch) is closed, with one comment — `its ticket #N was closed on <date>; nothing serves this PR any more` — and keeps its branch. The comment is read before it is posted, so a failed close does not double it on the next pass. A PR from a fork is never closed.
 - **Guardrails.** The chef's stop, the breaker, the Max quota and the arbiter between projects hold a turn's launches
   (`github-seul/garde-fous/`, #2213). An open breaker is said on GitHub by an issue labelled `brigade:breaker-open`
-  (`breaker-issue.ts`); a `/resume` comment on it by someone with write access closes the breaker at the next tick
+  on `benomite/brigade`, never in the project's repository (`breaker-issue.ts`, #3620); a `/resume` comment on it by someone with write access closes the breaker at the next tick
   (`breaker-resume-github.ts`). The issue names the station whose breaker opened it: only that station comments
   « resumed » and closes it when its own breaker closes. Any other station reads it as an open breaker elsewhere, and its
   chef's queue says « the breaker is open since <time> » instead of « cause unknown » (`file-chef/cause-arret.ts`, #3658).

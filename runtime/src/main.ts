@@ -3,7 +3,7 @@
 import { placesDeLaStation } from "./github-seul/places/places.ts";
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
-import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
+import { brancherIssueDuDisjoncteur, clientDuDisjoncteur } from "./breaker-issue.ts";
 import { brancherRepriseParGitHub } from "./breaker-resume-github.ts";
 import { noterGitHubSeul } from "./github-seul-etat.ts";
 import { fichierDesRefus, lireLesRefus } from "./station-contributrice/refus.ts";
@@ -267,8 +267,9 @@ try {
   const alertee = brancherAlerteUrgence(retenue);
   // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
   // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts).
-  brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }), station: stations.find((declaree) => !declaree.distante)?.nom ?? null, autre: disjoncteurServant });
-  runtime = brancherRepriseParGitHub(alertee, { github: githubs.rail });
+  // L'issue se dépose sur la brigade, jamais dans le dépôt du projet (#3620).
+  brancherIssueDuDisjoncteur(alertee, { client: clientDuDisjoncteur({ bin: rail.gh, projet: alertee.projet }), servi: rail.depot, station: stations.find((declaree) => !declaree.distante)?.nom ?? null, autre: disjoncteurServant });
+  runtime = brancherRepriseParGitHub(alertee, { github: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }), projet: alertee.projet });
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
   const { chef } = brancherLeChef(runtime, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat });

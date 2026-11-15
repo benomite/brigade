@@ -11,6 +11,7 @@ import { refusDeLaCreation } from "./conflit-main/renvoi.ts";
 import { execFile } from "./sans-invite.ts";
 import { lienDuCorps } from "./besoin/besoin.ts";
 import { porteListe } from "./epique.ts";
+import { avecLAlerte, type AlerteDeLaCuisine } from "./alerte-cuisine/alerte-cuisine.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
@@ -54,6 +55,10 @@ export type Issue = {
   // montre pas ce besoin à côté de lui (`besoin/besoin.ts`). Seul le sondage
   // des tickets le dit.
   besoin?: number;
+  // Une issue que la station a ouverte sur la cuisine elle-même — une cuisine
+  // inerte, son disjoncteur —, reconnue à sa marque (`alerte-cuisine/`, #3620) :
+  // ce n'est pas un ticket du projet. Seul le sondage des tickets le dit.
+  alerte?: AlerteDeLaCuisine;
 };
 
 // Une issue telle que le manager la juge : avec son corps, et le lien de son
@@ -686,7 +691,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
   const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE", author: brute.user?.login ?? "" });
 
   return {
-    tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, (brute) => ({ ...lire(brute), ...(porteListe(brute.body ?? "") ? { epique: true as const } : {}), ...lienDuCorps(brute.number, brute.body ?? "") })),
+    tickets: () =>
+      sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, (brute) => {
+        const issue = lire(brute);
+        return { ...issue, ...(porteListe(brute.body ?? "") ? { epique: true as const } : {}), ...lienDuCorps(brute.number, brute.body ?? ""), ...avecLAlerte({ ...issue, body: brute.body }) };
+      }),
     ouvertes: () => sonder(`repos/${depot}/issues?state=open&per_page=100`, lireOuverte),
     async issue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;

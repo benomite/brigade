@@ -1,8 +1,8 @@
 // Le disjoncteur vu de GitHub (#2138, épique #2134) : le chef sait, sans la
 // box ni l'app, que la cuisine est retenue, et pourquoi.
 //
-// Quand le disjoncteur s'ouvre (`breaker.opened`, garde-fous.ts), une issue du
-// dépôt du projet porte le label `brigade:breaker-open` : son corps dit le
+// Quand le disjoncteur s'ouvre (`breaker.opened`, garde-fous.ts), une issue
+// porte le label `brigade:breaker-open` : son corps dit le
 // ticket dont l'échec l'a ouvert, son code de sortie, son erreur et l'heure d'ouverture.
 // Une issue déjà ouverte pour cette cuisine est reprise telle quelle : ouvrir
 // deux fois n'en crée pas une seconde. Quand il se referme (`kitchen.resumed`),
@@ -17,9 +17,16 @@
 // le runtime était arrêté. Un échec se dit une fois, et se rejoue au tick
 // suivant — jamais à chaque écriture du journal.
 //
+// L'issue se dépose sur la brigade (`DEPOT_BRIGADE`), jamais dans le dépôt du
+// projet servi (#3620) : elle dit comment la cuisine tourne, pas le code du
+// projet, et un cook du projet n'y peut rien. Le `/resume` du chef s'y lit
+// (`breaker-resume-github.ts`). Son corps nomme aussi le dépôt du projet servi
+// (`marqueDuProjet`) : l'app, qui ne connaît que lui, y retrouve l'issue de sa cuisine.
+//
 // L'issue d'une cuisine se reconnaît à une marque, en commentaire HTML que
-// GitHub n'affiche pas, qui nomme le projet : un dépôt que deux projets
-// partageraient garde une issue par cuisine.
+// GitHub n'affiche pas, qui nomme le projet : la brigade, que tous les projets
+// partagent, garde une issue par cuisine.
+import { DEPOT_BRIGADE, LABEL_DU_DISJONCTEUR, marqueDuDisjoncteur, marqueDuProjet } from "./alerte-cuisine/alerte-cuisine.ts";
 import { calageDuDisjoncteur, direLeCalage, type Calage } from "./breaker/calage.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Base } from "./base.ts";
@@ -31,7 +38,8 @@ import { decouper } from "./github.ts";
 import { execFile } from "./sans-invite.ts";
 import { disjoncteurDesAutres, estDeCetteStation, marqueDeStation, type SuiviDuDisjoncteurServant } from "./file-chef/cause-arret.ts";
 
-export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
+// Le label et la marque sont ceux qui font reconnaître l'issue comme une alerte de la cuisine (`alerte-cuisine/`, #3620).
+export { LABEL_DU_DISJONCTEUR };
 
 // Le label tel qu'il est créé s'il manque : sa couleur et sa description sont
 // ensuite au projet.
@@ -78,7 +86,7 @@ export function disjoncteurDuJournal(base: Base): Disjoncteur {
 }
 
 // La marque de l'issue d'une cuisine.
-export const marque = (projet: string) => `<!-- brigade:breaker-open project=${projet} -->`;
+export const marque = marqueDuDisjoncteur;
 const deLaCuisine = (projet: string) => (issue: IssueDuDisjoncteur) => issue.corps.split(/\r?\n/).some((ligne) => ligne.trim() === marque(projet));
 
 const nommerTicket = (ticket: number | null) => (ticket === null ? "none (a cook that served no ticket)" : `#${ticket}`);
@@ -90,10 +98,11 @@ const nommerErreur = (erreur: string | null) => (erreur === null ? "none recorde
 
 export const titreDeLIssue = (projet: string) => `Kitchen ${projet} held: its breaker is open`;
 
-export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, { ouvert: true }>, station: string | null = null): string {
+// `servi` : le dépôt du projet servi (`<owner>/<repo>`), nommé par sa marque.
+export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, { ouvert: true }>, station: string | null = null, servi: string | null = null): string {
   const { depuis, ticket, code, erreur, echecs, seuil, calage } = disjoncteur;
   // La station dont le disjoncteur s'est ouvert : la seule qui reprend cette issue (cause-arret.ts).
-  const repere = station === null ? [] : [marqueDeStation(station)];
+  const repere = [...(servi === null ? [] : [marqueDuProjet(servi)]), ...(station === null ? [] : [marqueDeStation(station)])];
   if (calage !== undefined) {
     return [
       marque(projet),
@@ -134,7 +143,7 @@ export async function publierLeDisjoncteur(
   client: ClientDuDisjoncteur,
   projet: string,
   disjoncteur: Disjoncteur,
-  { station = null, autre, maintenant = () => new Date() }: { station?: string | null; autre?: SuiviDuDisjoncteurServant; maintenant?: () => Date } = {},
+  { station = null, servi = null, autre, maintenant = () => new Date() }: { station?: string | null; servi?: string | null; autre?: SuiviDuDisjoncteurServant; maintenant?: () => Date } = {},
 ): Promise<number | null> {
   const ouvertes = (await client.ouvertesAuLabel(LABEL_DU_DISJONCTEUR)).filter(deLaCuisine(projet));
   if (disjoncteur.ouvert) {
@@ -142,7 +151,7 @@ export async function publierLeDisjoncteur(
     const [deja] = ouvertes;
     if (deja !== undefined) return deja.numero;
     await client.assurerLabel(DEFINITION_DU_LABEL);
-    return client.creer({ titre: titreDeLIssue(projet), corps: corpsDeLIssue(projet, disjoncteur, station), labels: [LABEL_DU_DISJONCTEUR] });
+    return client.creer({ titre: titreDeLIssue(projet), corps: corpsDeLIssue(projet, disjoncteur, station, servi), labels: [LABEL_DU_DISJONCTEUR] });
   }
   // Fermé ici : seule l'issue de cette station se reprend. Celle d'une autre,
   // son disjoncteur la tient ouverte — et la file du chef le dit.
@@ -167,6 +176,8 @@ export type OptionsDuDisjoncteur = {
   // La station de ce runtime, qui sert le projet : tant que le journal la dit retenue par le disjoncteur, la cuisine n'est
   // pas dite reprise ; son nom est celui que porte l'issue qu'elle ouvre, la seule qu'elle reprend (file-chef/cause-arret.ts).
   station?: string | null;
+  // Le dépôt du projet servi (`<owner>/<repo>`), que le corps de l'issue nomme.
+  servi?: string;
   // Où se dit un échec de publication ; par défaut, la sortie d'erreur.
   avertir?: (ligne: string) => void;
   // Ce que cette station lit du disjoncteur ouvert d'une autre, à chaque passe
@@ -209,7 +220,7 @@ export function publieurDuDisjoncteur(base: Base, projet: string, options: Optio
     const cle = cleDe(voulu);
     const aSurveiller = !voulu.ouvert && options.autre !== undefined && cause === "tick";
     if (cle === publiee && !aSurveiller) return Promise.resolve();
-    const courante = publierLeDisjoncteur(options.client, projet, voulu, { station: options.station ?? null, autre: options.autre, maintenant: options.maintenant }).then(
+    const courante = publierLeDisjoncteur(options.client, projet, voulu, { station: options.station ?? null, servi: options.servi ?? null, autre: options.autre, maintenant: options.maintenant }).then(
       () => {
         publiee = cle;
         echec = null;
@@ -291,6 +302,12 @@ export const lancerGhApi = (
     enfant.stdin?.on("error", () => {});
     enfant.stdin?.end(entree === undefined ? "" : masquerIdentifiants(JSON.stringify(entree)).texte);
   });
+
+// Le client de l'issue telle que la station la dépose : sur la brigade, jamais
+// dans le dépôt du projet servi (#3620), sous le `gh` de la machine — comme le
+// ticket du temps perdu (`routage-temps-perdu.ts`) : l'identité d'un projet n'a
+// pas la main sur la brigade.
+export const clientDuDisjoncteur = (options: Omit<OptionsClient, "depot" | "jeton" | "compte">): ClientDuDisjoncteur => clientGitHubDuDisjoncteur({ ...options, depot: DEPOT_BRIGADE });
 
 // Le client réel, par `gh api` : chaque appel prend le sien au compteur du
 // quota réel, sous l'usage de la cuisine.
