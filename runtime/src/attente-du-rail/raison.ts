@@ -30,6 +30,11 @@ export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; 
 // `stations` : les stations du projet que la raison nomme (la phrase les nomme aussi) ; vide quand elle n'en nomme aucune.
 export type AttenteDuRail = { raison: Raison; phrase: string; geste: Geste | null; stations: string[] };
 
+// La limite que GitHub impose au compte de la station (#3684) : son heure de reprise (ISO), dite en UTC.
+export type LimiteDite = { backAt: string };
+const hhmmUtc = (iso: string) => new Date(iso).toISOString().slice(11, 16);
+const phraseDeLaLimite = ({ backAt }: LimiteDite) => `GitHub is rate-limiting the station, so no cook can start before about ${hhmmUtc(backAt)} UTC. It resolves by itself.`;
+
 const memeDepot = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 // Les phrases : une par raison, fixes. Les trois premières nomment leur geste ; les suivantes disent qu'elles passent seules.
@@ -89,11 +94,11 @@ export function lignesDesCartes(tickets: readonly TicketDuRail[]): Record<number
 
 // Pourquoi la file ne part pas, ou null : rien en file, ou un cook qui tourne.
 // `plafondAtteint` : la station a pris tous ses cooks ; GitHub ne le publie pas, l'appelant le dit quand il le sait.
-export function expliquerLAttente(options: { depot: string; tickets: readonly TicketDuRail[]; stations: StationsLues; plafondAtteint: boolean; maintenant: number }): AttenteDuRail | null {
+export function expliquerLAttente(options: { depot: string; tickets: readonly TicketDuRail[]; stations: StationsLues; plafondAtteint: boolean; maintenant: number; limite?: LimiteDite | null }): AttenteDuRail | null {
   const { depot, tickets, maintenant } = options;
   const enFile = tickets.filter(({ etat }) => etat === "queued");
   if (enFile.length === 0 || tickets.some(({ etat }) => etat === "taken")) return null;
-  const dit = (raison: Exclude<Raison, "normale">, stations: readonly string[] = []): AttenteDuRail => ({ raison, phrase: PHRASES[raison](stations), geste: GESTES[raison] ?? null, stations: [...stations] });
+  const dit = (raison: Exclude<Raison, "normale">, stations: readonly string[] = [], phrase?: string): AttenteDuRail => ({ raison, phrase: phrase ?? PHRASES[raison](stations), geste: GESTES[raison] ?? null, stations: [...stations] });
   const noms = (lesquelles: readonly { name: string }[]) => [...new Set(lesquelles.map(({ name }) => stationDe(name)))].sort();
   // Des stations qui ne se lisent pas ne font ni la raison 1, ni 2, ni 3, ni 4.
   if (!("illisibles" in options.stations)) {
@@ -104,8 +109,10 @@ export function expliquerLAttente(options: { depot: string; tickets: readonly Ti
     // Une station arrêtée n'est pas une panne tant qu'une autre du projet n'est pas arrêtée : seules les actives sont nommées.
     if (actives.length === 0) return dit("arretee", noms(servantes));
     const enLigne = actives.filter((station) => disponible(station, maintenant));
-    if (enLigne.length === 0) return dit("hors-ligne", noms(actives));
-    if (enLigne.every((station) => retenueJusqua(station, maintenant) !== null)) return dit("quota-github");
+    // Des stations muettes pendant que GitHub limite le compte ne sont pas hors ligne : elles attendent la reprise.
+    const limite = options.limite ?? null;
+    if (enLigne.length === 0) return limite === null ? dit("hors-ligne", noms(actives)) : dit("quota-github", [], phraseDeLaLimite(limite));
+    if (enLigne.every((station) => retenueJusqua(station, maintenant) !== null)) return dit("quota-github", [], limite === null ? undefined : phraseDeLaLimite(limite));
   }
   if (options.plafondAtteint) return dit("plafond");
   if (tickets.some(({ etat }) => etat === "pass")) return dit("pass");
