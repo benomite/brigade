@@ -36,7 +36,7 @@ const REPRISE = "2026-11-13T18:11:00.000Z";
 const minutes = (n: number) => new Date(A + n * 60_000).toISOString();
 const doc = { createElement: (balise: string) => new Faux(balise) };
 // Ce qui ne se dit jamais d'une pause.
-const PANNE = /FAULT|offline|Start it on its computer/;
+const PANNE = /FAULT|offline|Start the station|Start it on its computer/;
 
 type Quota = { limite: string; pauseJusqua: string | null; utilise: number; maximum: number; renouvellement: string; parStationEtProjet: Record<string, number> };
 const quota = (autres: Partial<Quota> = {}): Quota => ({ limite: "core", pauseJusqua: REPRISE, utilise: 5000, maximum: 5000, renouvellement: REPRISE, parStationEtProjet: { [`box/${DEPOT}`]: 5000 }, ...autres });
@@ -92,7 +92,7 @@ describe("le contrat `quotaGithub`", () => {
 });
 
 describe("la pause du compte, de la lecture du rail", () => {
-  test("le quota épuisé : `facts` porte la pause — la limite, la reprise —, et le rail ne dit ni FAULT, ni offline, ni « Start it on its computer »", () => {
+  test("le quota épuisé : `facts` porte la pause — la limite, la reprise —, et le rail ne dit ni FAULT, ni offline, ni « Start the station »", () => {
     const faits = faitsDe(lecture({ lus: [enPause()] }));
     assert.deepEqual(faits.pauseQuota, { limite: "core", jusqua: REPRISE });
     // La station est retenue par GitHub, pas tue : les raisons du runtime le disent déjà.
@@ -154,12 +154,12 @@ describe("une station vraiment arrêtée", () => {
 });
 
 describe("la station que l'app voit tourner sur cet ordinateur", () => {
-  test("son signe de vie a quinze minutes, mais elle tourne ici : ni offline, ni « Start it on its computer »", () => {
+  test("son signe de vie a quinze minutes, mais elle tourne ici : ni offline, ni « Start the station »", () => {
     const signes = avecLaStationLocale([box()], "gistbox", A);
     assert.equal(signes[0]?.lastSeen, LU);
     // Vivante, elle ne cache pas une autre panne (ici, son manager qui ne prend rien) : elle n'est juste pas dite tue.
     const tete = teteDuRail(faitsDe(lecture({ lus: signes })));
-    assert.doesNotMatch(tete, /offline|Start it on its computer/);
+    assert.doesNotMatch(tete, /offline|Start the station|Start it on its computer/);
     // Sans elle — elle ne tourne pas ici —, rien ne change.
     assert.deepEqual(avecLaStationLocale([box()], null, A), [box()]);
     assert.match(teteDuRail(faitsDe(lecture({ lus: avecLaStationLocale([box()], "autre", A) }))), /FAULT/);
