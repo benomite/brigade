@@ -13,6 +13,7 @@ import type { MotifArret, Plafonds } from "./events/guardrails.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { lignesMasquees } from "./lignes-masquees.ts";
 import { ecrireAtomique, type ConsigneDuRelais, type FinDuRelais } from "./relais.ts";
+import { guetterLeSilence, veilleDuProcess, type VeilleMachine } from "./reveil-machine/veille.ts";
 
 export type Arret = { reason: MotifArret; limit: number | null; observed: number | null };
 
@@ -64,6 +65,9 @@ export type OptionsSupervision = {
   // Ce qu'une sortie sans saut de ligne peut faire attendre en mémoire, en
   // octets, avant d'être écrite sans lui. Par défaut, `ATTENTE_MAX`.
   attenteMax?: number;
+  // Ce qui voit dormir la machine : son sommeil ne compte pas pour un silence
+  // (#3643). Par défaut, la veille du process.
+  veille?: VeilleMachine;
 };
 
 export type Supervise = {
@@ -193,16 +197,15 @@ export function superviser(options: OptionsSupervision): Supervise {
     () => arreter({ reason: "duration", limit: plafonds.durationMs, observed: ecoule() }),
     plafonds.durationMs,
   );
-  let inactivite: NodeJS.Timeout | undefined;
+  let inactivite: { annuler(): void } | undefined;
   // Une ligne lue après la mort du cook ne repose pas le minuteur d'inactivité :
   // plus rien ne l'effacerait, et il tiendrait le process une minute (#2537).
+  // Le sommeil de la machine ne compte pas pour un silence (#3643).
   const veiller = () => {
-    clearTimeout(inactivite);
+    inactivite?.annuler();
     if (mort) return;
-    const depuis = performance.now();
-    inactivite = setTimeout(
-      () => arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(performance.now() - depuis) }),
-      plafonds.idleMs,
+    inactivite = guetterLeSilence(options.veille ?? veilleDuProcess(), plafonds.idleMs, (silence) =>
+      arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(silence) }),
     );
   };
   veiller();
@@ -231,7 +234,7 @@ export function superviser(options: OptionsSupervision): Supervise {
       if (mort) return;
       mort = true;
       clearTimeout(duree);
-      clearTimeout(inactivite);
+      inactivite?.annuler();
       clearTimeout(grace);
       // Rien ne survit à son cook : ce qui reste du groupe (un petit-enfant
       // sourd à SIGTERM, un serveur laissé en fond) est tué maintenant. Après
@@ -445,7 +448,7 @@ export function arreterParLeRelais(flux: string): void {
 
 // Reprend le suivi d'un cook qu'un runtime précédent a lancé par un relais.
 // Rend null si rien ne permet de le suivre : ni relais vivant, ni fin écrite.
-export function suivreLeRelais(options: Pick<OptionsRelais, "plafonds" | "graceMs" | "flux" | "surArret">): (Supervise & { lacher(): void }) | null {
+export function suivreLeRelais(options: Pick<OptionsRelais, "plafonds" | "graceMs" | "flux" | "surArret" | "veille">): (Supervise & { lacher(): void }) | null {
   const fichiers = fichiersDuRelais(options.flux);
   const trace = lireTrace(fichiers);
   if (trace === null || !relaisASuivre(options.flux)) return null;
@@ -457,7 +460,7 @@ export function suivreLeRelais(options: Pick<OptionsRelais, "plafonds" | "graceM
 // tenu, et la fin est celle que le relais écrit. Un relais mort sans l'avoir
 // écrite — tué avec son cook — rend une fin par signal.
 function suivre(
-  options: Pick<OptionsRelais, "plafonds" | "graceMs" | "surArret">,
+  options: Pick<OptionsRelais, "plafonds" | "graceMs" | "surArret" | "veille">,
   fichiers: FichiersDuRelais,
   relais: { pid: number | null; debut: number; sorti: () => boolean },
 ): Supervise & { lacher(): void; regarder(): void } {
@@ -490,11 +493,10 @@ function suivre(
   // La durée court depuis le lancement, pas depuis la reprise : un cook repris
   // n'a pas un plafond neuf.
   const duree = setTimeout(() => arreter({ reason: "duration", limit: plafonds.durationMs, observed: ecoule() }), Math.max(0, plafonds.durationMs - ecoule()));
-  let inactivite: NodeJS.Timeout | undefined;
+  let inactivite: { annuler(): void } | undefined;
   const veiller = () => {
-    clearTimeout(inactivite);
-    const depuis = performance.now();
-    inactivite = setTimeout(() => arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(performance.now() - depuis) }), plafonds.idleMs);
+    inactivite?.annuler();
+    inactivite = guetterLeSilence(options.veille ?? veilleDuProcess(), plafonds.idleMs, (silence) => arreter({ reason: "idle", limit: plafonds.idleMs, observed: Math.round(silence) }));
   };
   veiller();
 
@@ -545,7 +547,7 @@ function suivre(
     lire(true);
     mort = true;
     clearTimeout(duree);
-    clearTimeout(inactivite);
+    inactivite?.annuler();
     clearInterval(lecture);
     resoudre({
       code: lue.code,
@@ -590,7 +592,7 @@ function suivre(
       if (mort || lache) return;
       lache = true;
       clearTimeout(duree);
-      clearTimeout(inactivite);
+      inactivite?.annuler();
       clearInterval(lecture);
       resoudre({ code: null, signal: null, turns: compte.turns, tokens: compte.tokens, durationMs: ecoule(), arret, erreur: null });
     },
