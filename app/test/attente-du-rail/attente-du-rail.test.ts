@@ -116,9 +116,9 @@ describe("la ligne en tête du rail", () => {
     const [ligne] = ligneDeLAttente(doc, attente, { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
     assert.ok(ligne !== undefined);
     assert.equal(ligne.role, "alert");
-    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start. Start the station.", "Open the stations"]);
-    ligne.dessous("button")[0]?.click();
-    assert.deepEqual(appels, ["stations"]);
+    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start. Start it on its computer."]);
+    assert.deepEqual(ligne.dessous("button"), []);
+    assert.deepEqual(appels, []);
   });
 
   test("une attente qui passe seule : la phrase, sans alarme ni bouton", () => {

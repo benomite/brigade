@@ -2,8 +2,8 @@
 // La ligne du rail bloqué, en tête du rail d'un projet (ticket 3358) : des tickets `fire` qu'aucun manager n'a pris au-delà
 // du délai. Une panne, comme la cuisine oisive : marquée FAULT, en rouge, au-dessus des colonnes. Elle dit en une phrase
 // combien de tickets, depuis combien de temps, et la cause (rail-bloque.ts) ; le geste qui débloque, quand il y en a un,
-// est son bouton (recommandé) — « Open the stations » ou « Add the project to a station » —, qui ouvre l'onglet Stations où il se fait :
-// aucun bouton ne s'appelle « Start the station », l'app ne démarre pas la station d'ici (ticket 3637).
+// est son bouton (recommandé) — « Add the project to a station » —, qui ouvre l'onglet Stations où il se fait. Démarrer une station
+// ne se fait pas d'ici : la phrase le dit (« Start it on its computer »), aucun bouton ne le promet (ticket 3637).
 // Sans geste, pas de bouton ; ni dans un projet en lecture seule, où aucun geste n'est offert. Les tickets bloqués se lisent
 // au survol.
 // Ce module ne touche pas `document` : il reçoit une fabrique et ce que le bouton appelle, et rend des éléments.
@@ -14,10 +14,10 @@ import { boutonAction } from "../briques.js";
 /** @typedef {import("./rail-bloque.ts").RailBloqueLu} RailBloqueLu */
 
 export const MARQUE = "FAULT";
-// Les mots des boutons (la phrase du runtime, `MOTS_DU_GESTE`, dit le geste en toutes lettres ; le bouton, lui, ne promet que
-// ce qu'il fait : ouvrir l'onglet) : la vue ne charge pas le runtime.
+// Les mots des boutons, ceux du runtime (`MOTS_DU_GESTE`) : la vue ne charge pas le runtime. Seul le geste que l'onglet Stations
+// accomplit a son bouton ; « demarrer-la-station » n'en a pas.
 /** @type {Record<string, string>} */
-export const GESTES = { "demarrer-la-station": "Open the stations", "ajouter-a-une-station": "Add the project to a station" };
+export const GESTES = { "ajouter-a-une-station": "Add the project to a station" };
 
 // La ligne, ou rien : sans rail bloqué, ou quand les tickets non pris ne se lisent pas — la file du second le dit.
 /** @param {Fabrique} doc @param {RailBloqueLu | undefined} railBloque @param {{ ouvrirStations(): void } | null} gestes @returns {HTMLElement[]} */
@@ -31,9 +31,11 @@ export function ligneDuRailBloque(doc, railBloque, gestes) {
   marque.className = "marque";
   marque.textContent = MARQUE;
   const constat = doc.createElement("strong");
-  constat.textContent = railBloque.constat;
-  ligne.append(marque, constat);
   const geste = railBloque.geste === null ? undefined : GESTES[railBloque.geste];
+  // Sans bouton, la phrase dit le geste en toutes lettres (« Start it on its computer ») ; avec lui, le bouton le dit.
+  const avecBouton = geste !== undefined && gestes !== null;
+  constat.textContent = railBloque.geste !== null && !avecBouton ? railBloque.phrase : railBloque.constat;
+  ligne.append(marque, constat);
   if (geste !== undefined && gestes !== null) ligne.append(boutonAction(doc, geste, () => gestes.ouvrirStations(), { recommande: true }));
   return [ligne];
 }

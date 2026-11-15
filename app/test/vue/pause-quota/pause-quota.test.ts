@@ -1,5 +1,5 @@
 // La pause de quota GitHub du compte (ticket 3482) : les stations tournent mais ne peuvent plus écrire leur signe de vie.
-// Ni FAULT, ni rouge, ni « offline », ni « Start the station » : une ligne calme en tête de l'app, dite une fois pour tout
+// Ni FAULT, ni rouge, ni « offline », ni « Start it on its computer » : une ligne calme en tête de l'app, dite une fois pour tout
 // le compte, et chaque projet qui dit seulement qu'il est en pause pour la même raison. Les fixtures ont la forme du
 // contrat : l'état de chaque station porte `quotaGithub` = { limite, pauseJusqua, utilise, maximum, renouvellement,
 // parStationEtProjet }.
@@ -36,7 +36,7 @@ const REPRISE = "2026-11-13T18:11:00.000Z";
 const minutes = (n: number) => new Date(A + n * 60_000).toISOString();
 const doc = { createElement: (balise: string) => new Faux(balise) };
 // Ce qui ne se dit jamais d'une pause.
-const PANNE = /FAULT|offline|Start the station/;
+const PANNE = /FAULT|offline|Start it on its computer/;
 
 type Quota = { limite: string; pauseJusqua: string | null; utilise: number; maximum: number; renouvellement: string; parStationEtProjet: Record<string, number> };
 const quota = (autres: Partial<Quota> = {}): Quota => ({ limite: "core", pauseJusqua: REPRISE, utilise: 5000, maximum: 5000, renouvellement: REPRISE, parStationEtProjet: { [`box/${DEPOT}`]: 5000 }, ...autres });
@@ -92,7 +92,7 @@ describe("le contrat `quotaGithub`", () => {
 });
 
 describe("la pause du compte, de la lecture du rail", () => {
-  test("le quota épuisé : `facts` porte la pause — la limite, la reprise —, et le rail ne dit ni FAULT, ni offline, ni « Start the station »", () => {
+  test("le quota épuisé : `facts` porte la pause — la limite, la reprise —, et le rail ne dit ni FAULT, ni offline, ni « Start it on its computer »", () => {
     const faits = faitsDe(lecture({ lus: [enPause()] }));
     assert.deepEqual(faits.pauseQuota, { limite: "core", jusqua: REPRISE });
     // La station est retenue par GitHub, pas tue : les raisons du runtime le disent déjà.
@@ -133,13 +133,13 @@ describe("la pause du compte, de la lecture du rail", () => {
 });
 
 describe("une station vraiment arrêtée", () => {
-  test("arrêtée, même avec un quota en pause : FAULT et « Start the station » restent, la pause ne la couvre pas", () => {
+  test("arrêtée, même avec un quota en pause : FAULT et « Start it on its computer » restent, la pause ne la couvre pas", () => {
     const arretee = { ...enPause(), stoppedAt: minutes(-14) };
     const faits = faitsDe(lecture({ lus: [arretee] }));
     assert.equal(faits.pauseQuota, undefined);
     const tete = teteDuRail(faits);
     assert.match(tete, /FAULT/);
-    assert.match(tete, /Open the stations/);
+    assert.match(tete, /Start it on its computer/);
   });
 
   test("arrêtée pendant que le compte est en pause (une autre station la porte) : sa panne garde sa ligne et son geste", () => {
@@ -148,21 +148,33 @@ describe("une station vraiment arrêtée", () => {
     const faits = faitsDe(lecture({ lus: [arretee, ailleurs] }));
     assert.deepEqual(faits.pauseQuota, { limite: "core", jusqua: REPRISE });
     const tete = teteDuRail(faits);
-    assert.match(tete, /Open the stations/);
+    assert.match(tete, /Start it on its computer/);
     assert.ok(!tete.includes(PROJET_EN_PAUSE), tete);
   });
 });
 
 describe("la station que l'app voit tourner sur cet ordinateur", () => {
-  test("son signe de vie a quinze minutes, mais elle tourne ici : ni offline, ni « Start the station »", () => {
+  test("son signe de vie a quinze minutes, mais elle tourne ici : ni offline, ni « Start it on its computer »", () => {
     const signes = avecLaStationLocale([box()], "gistbox", A);
     assert.equal(signes[0]?.lastSeen, LU);
     // Vivante, elle ne cache pas une autre panne (ici, son manager qui ne prend rien) : elle n'est juste pas dite tue.
     const tete = teteDuRail(faitsDe(lecture({ lus: signes })));
-    assert.doesNotMatch(tete, /offline|Start the station/);
+    assert.doesNotMatch(tete, /offline|Start it on its computer/);
     // Sans elle — elle ne tourne pas ici —, rien ne change.
     assert.deepEqual(avecLaStationLocale([box()], null, A), [box()]);
     assert.match(teteDuRail(faitsDe(lecture({ lus: avecLaStationLocale([box()], "autre", A) }))), /FAULT/);
+  });
+
+  test("sa mise à jour la redémarre : ni FAULT ni file bloquée, même arrêtée ou hors ligne (#3637)", () => {
+    const arretee = box({ stoppedAt: "2026-11-11T12:01:00.000Z" });
+    const tableauDe = (lus: ReturnType<typeof box>[]) => tableau(faitsDe(lecture({ lus } as unknown as SignesDeVie)));
+    for (const lus of [[arretee], [box()]]) {
+      const sans = ceQueLeRailDit(tableauDe(lus), A);
+      const avec = ceQueLeRailDit(tableauDe(lus), A, true);
+      assert.ok(sans.railBloque !== undefined || sans.attenteDuRail !== undefined, "sans redémarrage, la panne se lit");
+      assert.equal(avec.railBloque, undefined);
+      assert.equal(avec.attenteDuRail, undefined);
+    }
   });
 
   test("la liste des stations du compte la dit en ligne", () => {

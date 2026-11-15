@@ -5201,7 +5201,7 @@ function poserLeRail(projet) {
   const retenues = retenuesConnues({ misDeCote: vuAmont !== undefined && "groupes" in vuAmont ? (vuAmont.groupes.find(({ etat }) => etat === "mise-de-cote")?.issues.map(({ ticket }) => ticket) ?? []) : [], arretee: tenu.tableau.arretee });
   // Pendant la pause de quota GitHub du compte (ticket 3482), le rail dit seulement qu'il l'attend : ni le rail bloqué, ni
   // l'attente de la file — sauf une panne que la pause n'explique pas, qui garde sa ligne et son geste.
-  const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now());
+  const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now(), projet.redemarre !== undefined);
   const attente = ditDuRail.railBloque === undefined ? ditDuRail.attenteDuRail : undefined;
   const statut =
     [

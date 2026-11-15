@@ -41,15 +41,21 @@ const faitsDe = (lu: TableauLu) => comprendre(JSON.stringify(lu.faits)) as Faits
 describe("la ligne en tête du rail", () => {
   test("le compte, la durée et la cause, marqués FAULT ; le geste est le bouton recommandé, qui ouvre Stations", () => {
     const appels: string[] = [];
-    const [ligne] = ligneDuRailBloque(doc, bloque([station({ lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" })]), { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
+    const [ligne] = ligneDuRailBloque(doc, bloque([]), { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
     assert.ok(ligne !== undefined);
     assert.equal(ligne.role, "alert");
-    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "8 tickets on the rail, no manager has taken them for 14 h: its station box/claude is stopped.", "Open the stations"]);
+    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "8 tickets on the rail, no manager has taken them for 14 h: no station serves this project.", "Add the project to a station"]);
     const [bouton] = ligne.dessous("button");
     assert.equal(bouton?.className, "recommande");
     bouton?.click();
     assert.deepEqual(appels, ["stations"]);
     assert.match(ligne.title, /^#4, #5, #6, #7, #8, #9, #10, #11 — no manager has taken them\.$/);
+  });
+
+  test("une station arrêtée : la phrase dit quoi faire, et aucun bouton ne mène à un écran où il n'y a rien à démarrer (#3637)", () => {
+    const [ligne] = ligneDuRailBloque(doc, bloque([station({ lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" })]), { ouvrirStations: () => {} }) as unknown as Faux[];
+    assert.deepEqual(ligne?.children.map((enfant) => enfant.textContent), ["FAULT", "8 tickets on the rail, no manager has taken them for 14 h: its station box/claude is stopped. Start it on its computer."]);
+    assert.deepEqual(ligne?.dessous("button"), []);
   });
 
   test("aucune station ne le sert : « Add the project to a station »", () => {
@@ -65,10 +71,9 @@ describe("la ligne en tête du rail", () => {
     assert.deepEqual(seule?.dessous("button"), []);
   });
 
-  test("le bouton ne promet que ce qu'il fait : il ouvre l'onglet Stations, aucun ne s'appelle « Start the station » (#3637)", () => {
-    assert.equal(GESTES["ajouter-a-une-station"], MOTS_DU_GESTE["ajouter-a-une-station"]);
-    assert.deepEqual(Object.keys(GESTES), Object.keys(MOTS_DU_GESTE));
-    assert.ok(!Object.values(GESTES).includes("Start the station"));
+  test("les mots des boutons sont ceux du runtime ; seul le geste que l'onglet Stations accomplit a un bouton (#3637)", () => {
+    assert.deepEqual(GESTES, { "ajouter-a-une-station": MOTS_DU_GESTE["ajouter-a-une-station"] });
+    assert.ok(!Object.values(MOTS_DU_GESTE).includes("Start the station"));
   });
 
   test("rien de bloqué, ou des tickets non pris qui ne se lisent pas : aucune ligne sur le rail", () => {
@@ -138,7 +143,7 @@ describe("« Tous les projets »", () => {
     const stuck = ligne(avecLeRail(VIDE, rail(HUIT), { lus: [station({ lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" })] }));
     assert.equal(stuck.ton, "rouge");
     assert.equal(stuck.dit, "8 tickets no manager takes, for 14 h");
-    assert.match(stuck.survol, /8 tickets on the rail, no manager has taken them for 14 h: its station box\/claude is stopped\. Start the station\./);
+    assert.match(stuck.survol, /8 tickets on the rail, no manager has taken them for 14 h: its station box\/claude is stopped\. Start it on its computer\./);
     assert.equal(etatDeLaLigne(stuck), "stuck");
     assert.equal(ETATS.stuck.ton, "rouge");
 
