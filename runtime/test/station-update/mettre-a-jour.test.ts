@@ -82,6 +82,8 @@ test("une release plus récente est téléchargée sous le répertoire de la sta
   assert.equal(demandes.length, 1);
 });
 
+// Garde du critère « sans cook, la mise à jour est appliquée aussitôt » : ce comportement existait déjà
+// sur `main`, ce test le protège et ne prouve pas ce ticket (les autres, rouges sur `main`, le font).
 test("sans cook en vol, la relance est demandée aussitôt, et la station ne prend plus rien jusqu'à sa relance (#3632)", async (t) => {
   const { publiees, demandes, ouvrir, racine } = station(t);
   publier(publiees, "0.20261102.100000");

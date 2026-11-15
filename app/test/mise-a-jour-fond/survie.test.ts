@@ -18,7 +18,8 @@ const fichier = join(process.env.BRIGADE_STATION_DIR, "en-service");
 writeFileSync(fichier + ".neuf", JSON.stringify({ version: "1", pid: process.pid, depuis: new Date().toISOString(), servis: [], refuses: {} }));
 renameSync(fichier + ".neuf", fichier);
 console.log("en service");
-const veille = setInterval(() => {}, 60_000);
+// Elle continue de parler : l'app partie, ses tuyaux sont fermés (EPIPE), ce qui ne doit pas la couper.
+const veille = setInterval(() => { console.log("encore là"); console.error("encore là"); }, 100);
 process.on("SIGTERM", () => { clearInterval(veille); process.exit(0); });
 `;
 
@@ -62,8 +63,8 @@ test("l'app fermée pour sa mise à jour laisse la station en route ; l'app rouv
   await jusqua(() => premiere.dit().includes("en service"));
   const pid = enService().pid;
   await premiere.tenue.arreter({ laisser: true });
-  // La station, et son cook avec elle, n'a pas été coupée : l'entrée fermée ne l'arrête plus.
-  await new Promise((resoudre) => setTimeout(resoudre, 300));
+  // La station, et son cook avec elle, n'a pas été coupée : l'entrée fermée ne l'arrête plus, ni ses lignes écrites vers l'app partie.
+  await new Promise((resoudre) => setTimeout(resoudre, 600));
   assert.equal(vivant(pid), true);
 
   // La nouvelle app : la même station est reprise, pas de seconde.
