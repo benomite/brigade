@@ -29,14 +29,14 @@ const station = (t: TestContext, numero: number, lancer: Lancer) => {
 test("a run killed by the idle guard after committing is relaunched on its branch: the new run's worktree has its commit and what it left uncommitted, and its prompt names the branch and its commits (#3649)", async (t) => {
   const vus: { commit: boolean; nonCommite: boolean; prompt: string }[] = [];
   let run = 0;
-  const { station: ouverte, clone } = station(t, 53, ({ cwd, args, flux }) => {
+  const { station: ouverte, clone } = station(t, 53, ({ cwd, args, entree, flux }) => {
     run += 1;
     if (run === 1) {
       commiter(cwd, "premier.txt");
       writeFileSync(join(cwd, "a-moitie.txt"), "work in progress\n");
       return { fin: Promise.resolve(tue) };
     }
-    vus.push({ commit: existsSync(join(cwd, "premier.txt")), nonCommite: existsSync(join(cwd, "a-moitie.txt")), prompt: args.join(" ") });
+    vus.push({ commit: existsSync(join(cwd, "premier.txt")), nonCommite: existsSync(join(cwd, "a-moitie.txt")), prompt: [...args, entree ?? ""].join(" ") });
     commiter(cwd, "fini.txt");
     conclut(flux);
     return { fin: Promise.resolve(fini) };
@@ -61,10 +61,10 @@ test("a run killed by the idle guard after committing is relaunched on its branc
 test("a run killed by the idle guard that left nothing does not keep its branch: the next run starts from the base, as before (#3649)", async (t) => {
   const prompts: string[] = [];
   let run = 0;
-  const { station: ouverte, clone } = station(t, 54, ({ args, flux }) => {
+  const { station: ouverte, clone } = station(t, 54, ({ args, entree, flux }) => {
     run += 1;
     if (run === 1) return { fin: Promise.resolve(tue) };
-    prompts.push(args.join(" "));
+    prompts.push([...args, entree ?? ""].join(" "));
     conclut(flux);
     return { fin: Promise.resolve(fini) };
   });

@@ -83,6 +83,11 @@ if [ -n "${FAUX_CLAUDE_TEMOIN:-}" ]; then
       printf '%s\0%s\0' "$variable" "${!variable}"
     done
   } >"$FAUX_CLAUDE_TEMOIN/$lancement"
+  # La consigne d'un cook (`-p` seul, #3655) arrive sur l'entrée, que le
+  # lanceur ferme : elle se note à côté, `<lancement>.entree`.
+  if [ "${1:-}" = -p ] && [ "${2:-}" = --output-format ]; then
+    cat >"$FAUX_CLAUDE_TEMOIN/$lancement.entree"
+  fi
   echo "$lancement" >>"$FAUX_CLAUDE_TEMOIN/ordre"
 fi
 

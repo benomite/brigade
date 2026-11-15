@@ -46,6 +46,9 @@ export type Fin = {
 export type OptionsSupervision = {
   commande: string;
   args: string[];
+  // Ce que le cook lit sur son entrée, puis plus rien : sa consigne, que sa
+  // ligne de commande ne porte pas. Absent, son entrée est fermée.
+  entree?: string;
   cwd?: string;
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
@@ -124,8 +127,12 @@ export function superviser(options: OptionsSupervision): Supervise {
     cwd: options.cwd,
     env: options.env,
     detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
+  // Un cook qui part sans avoir tout lu ne doit pas tuer le runtime. Sans
+  // consigne, son entrée se ferme aussitôt : elle est vide.
+  enfant.stdin.on("error", () => {});
+  enfant.stdin.end(options.entree);
   const fichiers = [createWriteStream(options.flux, { flags: "a" }), createWriteStream(`${options.flux}.stderr`, { flags: "a" })] as const;
   // Un flux brut qui ne peut pas s'écrire (disque plein, runs/ supprimé) ne
   // doit ni tuer le runtime ni désarmer les garde-fous : rien de ce qui sert à
@@ -376,6 +383,7 @@ export function superviserParRelais(options: OptionsRelais): Supervise & { lache
   const consigne: ConsigneDuRelais = {
     commande: options.commande,
     args: options.args,
+    ...(options.entree === undefined ? {} : { entree: options.entree }),
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     env: options.env ?? process.env,
     flux: options.flux,

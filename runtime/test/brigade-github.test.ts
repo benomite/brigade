@@ -1426,9 +1426,9 @@ test("the station of this runtime: a delivery that changes what judges it is rev
   faux.feu(12, ["fire", "model:sonnet", "effort:low"]);
   const fait: string[] = [];
   const lancements: Array<{ args: string[]; cwd: string; flux: string }> = [];
-  const lancer: Lancer = ({ args, cwd, flux }) => {
+  const lancer: Lancer = ({ args, entree, cwd, flux }) => {
     lancements.push({ args, cwd, flux });
-    const texte = args[args.indexOf("-p") + 1] ?? "";
+    const texte = entree ?? args[args.indexOf("-p") + 1] ?? "";
     const reponse = texte.startsWith("Tu es le **second juge**")
       ? JSON.stringify({ verdict: "approuve", motif: "Runs one more check; weakens none." })
       : args.includes("--tools")
@@ -2001,8 +2001,8 @@ test("a cook that takes a ticket whose PR's CI is red is given what the red chec
   const job = "https://github.com/faux/depot/actions/runs/7/job/";
   const lus: string[] = [];
   let consigne = "";
-  const lancer: Lancer = ({ args, flux }) => {
-    consigne = args[args.indexOf("-p") + 1] ?? "";
+  const lancer: Lancer = ({ entree, flux }) => {
+    consigne = entree ?? "";
     writeFileSync(flux, fluxQuiConclut("done"));
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 12, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };

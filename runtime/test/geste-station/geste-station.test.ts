@@ -30,16 +30,16 @@ async function demande(t: TestContext, { question, geste, issues, tours = 2, ech
   const faux = new FauxGitHub();
   faux.feu(TICKET, ["fire", "model:opus", "effort:medium"], "## Context\n\nAudit the closing pass.");
   faux.feu(AUTRE, ["bug", "triage"], "another issue");
-  const cooks: string[][] = [];
+  const cooks: string[] = [];
   let consultations = 0;
-  const lancer: Lancer = ({ args, flux }) => {
+  const lancer: Lancer = ({ args, entree, flux }) => {
     const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
     let message: string;
     if (consulte) {
       consultations += 1;
       message = consultations === 1 ? JSON.stringify({ issue: "geste", geste, ...(issues === undefined ? {} : { issues_a_ouvrir: issues }), question_en: question }) : TECHNIQUE;
     } else {
-      cooks.push(args);
+      cooks.push(entree ?? "");
       message = `I stopped.\n<livrable>\n<bloque>${cooks.length === 1 ? question : "Do I go on?"}</bloque>\n</livrable>`;
     }
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
@@ -86,7 +86,7 @@ async function demande(t: TestContext, { question, geste, issues, tours = 2, ech
     await station.calme();
   }
   const commentaires = (numero: number) => (faux.commentaires.get(numero) ?? []).map((c) => c.body);
-  return { faux, cooks, appels, relances, avertissements, ticket: faux.ticket(TICKET), commentaires, consigneDuCook: (n: number) => cooks[n]?.[(cooks[n]?.indexOf("-p") ?? -2) + 1] ?? "" };
+  return { faux, cooks, appels, relances, avertissements, ticket: faux.ticket(TICKET), commentaires, consigneDuCook: (n: number) => cooks[n] ?? "" };
 }
 
 // Aucune carte du chef : ni `blocked-on-human` posé, ni commentaire de carte.
