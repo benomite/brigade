@@ -17,7 +17,8 @@
 //
 // Ce que la station dit passe par `dire` : le journal de la station de fond.
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { uptime } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { arreterLaSurvivante, laisserSurvivre, reprendreLaSurvivante } from "../mise-a-jour-fond/survie.ts";
@@ -78,8 +79,20 @@ function vivant(pid: number): boolean {
   }
 }
 
+// La marque `tenue` nomme-t-elle encore le process `lu` ? Il vit, et elle a été écrite depuis le démarrage du système :
+// celle d'avant un redémarrage, ou une coupure, nomme un pid que le système a pu redonner à un tout autre process. La
+// marge couvre l'arrondi de `uptime()`, en secondes.
+function marqueVivante(tenue: string, lu: number): boolean {
+  if (!Number.isInteger(lu) || lu <= 0 || !vivant(lu)) return false;
+  try {
+    return statSync(tenue).mtimeMs >= Date.now() - uptime() * 1000 - 2_000;
+  } catch {
+    return false;
+  }
+}
+
 // Prend la station de ce répertoire pour le process `pid`, ou rend le pid de celui qui la tient déjà. Une marque laissée
-// par un process mort ne tient plus rien : elle est reprise.
+// par un process mort, ou d'avant le démarrage du système, ne tient plus rien : elle est reprise.
 export function prendreLaStation(racine: string, pid: number): number | undefined {
   const tenue = join(racine, TENUE_PAR);
   mkdirSync(racine, { recursive: true });
@@ -92,7 +105,7 @@ export function prendreLaStation(racine: string, pid: number): number | undefine
     }
     const lu = Number.parseInt(readFileSync(tenue, "utf8"), 10);
     if (lu === pid) return undefined;
-    if (Number.isInteger(lu) && lu > 0 && vivant(lu)) return lu;
+    if (marqueVivante(tenue, lu)) return lu;
     // Un process parti sans rendre la station : sa marque ne tient plus rien.
     rmSync(tenue, { force: true });
   }
@@ -100,13 +113,24 @@ export function prendreLaStation(racine: string, pid: number): number | undefine
 }
 
 // Le pid du process vivant qui tient la station de ce répertoire, sans la prendre : aucun quand la marque manque, ne se
-// lit pas, ou nomme un process mort.
+// lit pas, nomme un process mort, ou date d'avant le démarrage du système.
 export function tenantDeLaStation(racine: string): number | undefined {
+  const tenue = join(racine, TENUE_PAR);
   try {
-    const lu = Number.parseInt(readFileSync(join(racine, TENUE_PAR), "utf8"), 10);
-    return Number.isInteger(lu) && lu > 0 && vivant(lu) ? lu : undefined;
+    const lu = Number.parseInt(readFileSync(tenue, "utf8"), 10);
+    return marqueVivante(tenue, lu) ? lu : undefined;
   } catch {
     return undefined;
+  }
+}
+
+// Rend la station de ce répertoire, si c'est bien le process `pid` qui la tient : celle d'un autre n'est pas touchée.
+export function rendreLaStation(racine: string, pid: number): void {
+  const tenue = join(racine, TENUE_PAR);
+  try {
+    if (Number.parseInt(readFileSync(tenue, "utf8"), 10) === pid) rmSync(tenue, { force: true });
+  } catch {
+    // Déjà rendue.
   }
 }
 
@@ -115,7 +139,6 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
   const pid = options.pid ?? process.pid;
   const relanceMs = options.relanceMs ?? 5_000;
   const reessaiMs = options.reessaiMs ?? 30_000;
-  const tenue = join(racine, TENUE_PAR);
   let etat: EtatStationLocale = "arretee";
   let enfant: ChildProcess | undefined;
   let fin: Promise<void> = Promise.resolve();
@@ -142,13 +165,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     });
 
   const prendre = () => prendreLaStation(racine, pid);
-  const rendre = () => {
-    try {
-      if (Number.parseInt(readFileSync(tenue, "utf8"), 10) === pid) rmSync(tenue, { force: true });
-    } catch {
-      // Déjà rendue.
-    }
-  };
+  const rendre = () => rendreLaStation(racine, pid);
 
   const tourne = () => enfant !== undefined || reprise !== undefined || etat === "tenue-ailleurs";
   let dit = false;

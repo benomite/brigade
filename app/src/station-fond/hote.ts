@@ -9,13 +9,16 @@
 // demandé à lui (SIGTERM, SIGINT — « Quit the station » de l'icône de fond, tray-fond/systeme.ts) arrête la station.
 //
 // - **Un seul par ordinateur.** Il prend la marque `app.pid` de la station ; tenue par un autre process vivant, il le
-//   dit et s'en va (code 0 : launchd ne le relance pas).
+//   dit et s'en va (code 0 : launchd ne le relance pas). Il la tient toute sa vie — réécrite si elle manque, sa date
+//   rafraîchie deux fois par seconde (poste/station.ts ne croit pas une marque d'avant le démarrage du système) — et la rend à
+//   sa sortie, quelle qu'elle soit : un pid mort que le système redonnerait n'empêche pas la station suivante.
 // - **Une station qui refuse de démarrer** (code 2) le fait partir aussi, après l'avoir écrit dans `fond.json` : l'app
 //   rouverte, ou l'ouverture de session suivante, réessaie.
+import { utimesSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { gistLocal } from "../pannes/login.ts";
-import { prendreLaStation } from "../poste/station.ts";
+import { prendreLaStation, rendreLaStation, TENUE_PAR } from "../poste/station.ts";
 import { garderUneSeuleCuisine } from "../station-embarquee-cuisine-unique.ts";
 import { environnementDeLaStation, tenirProcessDeStation, type ProcessDeStation } from "../station-process/superviseur.ts";
 import { demanderAppairage, ecrireEtatDuFond, type EtatDuFond } from "./fond.ts";
@@ -41,6 +44,20 @@ if (autre !== undefined) {
   dire(`brigade: this computer's station already runs (pid ${autre}) — no second one is started`);
   process.exit(0);
 }
+// Toute sortie la rend : « Quit the station », l'arrêt de launchd ou de la session, une station refusée.
+process.on("exit", () => rendreLaStation(racine, process.pid));
+// La station relancée sur une autre version la rend en passant : l'hôte, qui vit, la reprend.
+const garderLaMarque = () => {
+  try {
+    if (prendreLaStation(racine, process.pid) === undefined) {
+      const maintenant = new Date();
+      utimesSync(join(racine, TENUE_PAR), maintenant, maintenant);
+    }
+  } catch {
+    // Reprise à la seconde suivante.
+  }
+};
+setInterval(garderLaMarque, 500);
 ecrireLePidPourLIcone({ plateforme: process.platform, localAppData: process.env.LOCALAPPDATA, pid: process.pid, dire });
 
 const runtime = dirname(dirname(dirname(embarque)));

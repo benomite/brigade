@@ -1454,7 +1454,7 @@ matter, **in this order**, and the app skips none:
 | 1 | **Prime the repo** — `Run /brigade:init in the second` | opens the space's second on the session: `claude /brigade:init`, a fresh conversation in the project folder | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
 | 2 | **Merge** — the box `The result of /brigade:init is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
 | 3 | **Check** | runs `installation` through the project's station, for you, and displays **everything** it returned | settle what it names, and check again |
-| 4 | **Start** | writes nothing: this computer's station runs with the app, there is no service to start | — |
+| 4 | **Start** | writes nothing: this computer's station runs in the background, started at login or by the app when it opens, there is no service to start | — |
 
 **Three states**, and the check is possible only once init is said merged: **init is not said merged** (`Check` is
 inactive: `No check: the result of /brigade:init is not said merged…`); **the check is incomplete** (`NOT READY`, or
@@ -2375,7 +2375,8 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   station (`app/src/station-fond/hote.ts`, run by the app's `node`), which holds it as the app used to: dead on its
   own, the station is restarted five seconds later, and a station release replaces only its process. Quitting,
   restarting or updating the app does not touch it: **a cook in progress goes on**, its worktree and its uncommitted
-  work intact. Only an explicit quit of the station stops it — "Quit the station" in the station's icon (see "With the
+  work intact. One exception: on Windows, an app update stops the background station, because the installer replaces
+  the `node` it runs; its cooks stop with it, and the app reopened after the update starts it again. Only an explicit quit of the station stops it — "Quit the station" in the station's icon (see "With the
   app closed: the station's icon"), or the system's own stop of its login item: it then stops as on a SIGTERM, its
   projects stop, and GitHub carries the time it stopped. A station that refuses to start (code 2) takes the
   background station down with it, saying why in `station/fond.json`: the app opened next, or the next login,
@@ -2385,10 +2386,12 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs the app's binary with `--station-fond` to start
   it without a console. A loaded agent is never reloaded, which would stop the running station. The agent or launcher that
   [`installation-station.md`](installation-station.md)'s command installed is left as it is: its station is the one
-  that runs. On desktop Linux, and when the app is launched from the repository, nothing is registered: the app
-  starts the background station when it opens, and it outlives the app (`app/src/station-fond/inscription.ts`).
+  that runs. On desktop Linux, and when the app is launched from the repository, nothing is registered: the station
+  does not start at login there, only when the app opens, and it then outlives the app
+  (`app/src/station-fond/inscription.ts`).
 - **Only one per machine and per account.** The app that opens attaches to the station that runs — whoever started
-  it, `station/app.pid` names the process that holds it — and never starts a second one: same process, same pid
+  it, `station/app.pid` names the process that holds it, which removes it when it stops; a mark written before the
+  system started does not count, its pid may have gone to another process — and never starts a second one: same process, same pid
   after an app restart. A second background station started anyway says the first runs and leaves, and the station
   itself refuses to start (code 2) on a directory another station process holds
   (`runtime/src/station-fond/seule.ts`).
@@ -4664,8 +4667,8 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
 
 - Prepare a box, or put the installation action on it: that is once per box, on it, by hand
   (`docs/installer.md`, "Prepare the box"). The app says what to do and where, it does not do it.
-- Start a service for you: this computer's station runs with the app, and a station on another machine is started
-  on that machine.
+- Start a service for you: this computer's station runs in the background, started at login or by the app when it
+  opens, and a station on another machine is started on that machine.
 - Know whether the result of `/brigade:init` is merged, or whether the session succeeded: you say
   so, and `installation` verifies it on the origin.
 - Fix what `installation` names — create the labels, protect the branch: it shows the arrow, the

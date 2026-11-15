@@ -3,13 +3,14 @@
 // seconde station n'est jamais lancée. Contre une station d'essai : de vrais process, ni GitHub ni `claude`.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { uptime } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { PRINCIPAL } from "../../src/poste/role.ts";
-import { prendreLaStation, tenantDeLaStation } from "../../src/poste/station.ts";
+import { prendreLaStation, tenantDeLaStation, TENUE_PAR } from "../../src/poste/station.ts";
 import { demanderAppairage, HOTE, lireEtatDuFond, rejoindreOuLancer, repondreAuxAppairages } from "../../src/station-fond/fond.ts";
 import { tenirLaStationDeFond } from "../../src/station-fond/attache.ts";
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
@@ -42,12 +43,12 @@ const vivant = (pid: number) => {
   }
 };
 
-function unOrdinateur(t: TestContext) {
+function unOrdinateur(t: TestContext, station = STATION) {
   const machine = repertoireTemporaire(t);
   const runtime = join(machine, "runtime");
   mkdirSync(join(runtime, "src", "station"), { recursive: true });
   writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ name: "brigade-runtime", version: "1.0.0" })}\n`);
-  writeFileSync(join(runtime, PRINCIPAL), STATION);
+  writeFileSync(join(runtime, PRINCIPAL), station);
   const racine = join(machine, "station");
   // La station de fond, arrêtée en fin de test comme « Quit the station » l'arrête, et son cook avec elle.
   t.after(async () => {
@@ -90,6 +91,42 @@ test("une seconde station de fond lancée pendant que la première tourne s'en v
   const { stdout } = await enProcess(process.execPath, [HOTE, ordi.racine, ordi.embarque], { env: { ...process.env, ...CACHE_DE_COMPILATION } });
   assert.match(stdout, new RegExp(`this computer's station already runs \\(pid ${pid}\\) — no second one is started`));
   assert.equal(tenantDeLaStation(ordi.racine), pid);
+});
+
+test("« Quit the station » arrête l'hôte, qui rend sa marque : un pid mort que le système redonnerait n'empêche pas la station suivante", { skip: SOUS_POSIX }, async (t) => {
+  const ordi = unOrdinateur(t);
+  const pid = (await ouvrirLApp(ordi)).lancee ?? assert.fail("not launched");
+  await jusqua(() => existsSync(join(ordi.racine, "cook.pid")), 2_000);
+  process.kill(pid, "SIGTERM");
+  await jusqua(() => !vivant(pid), 2_000);
+  assert.equal(existsSync(join(ordi.racine, TENUE_PAR)), false);
+  assert.equal(lireEtatDuFond(ordi.racine)?.etat, "arretee");
+});
+
+test("une station qui refuse de démarrer emporte l'hôte, qui rend sa marque en partant", { skip: SOUS_POSIX }, async (t) => {
+  const ordi = unOrdinateur(t, `console.log("its configuration is wrong"); process.exit(2);\n`);
+  await enProcess(process.execPath, [HOTE, ordi.racine, ordi.embarque], { env: { ...process.env, ...CACHE_DE_COMPILATION } });
+  assert.equal(lireEtatDuFond(ordi.racine)?.etat, "refusee");
+  assert.equal(existsSync(join(ordi.racine, TENUE_PAR)), false);
+});
+
+test("l'hôte qui tourne reprend sa marque quand elle disparaît", { skip: SOUS_POSIX }, async (t) => {
+  const ordi = unOrdinateur(t);
+  const pid = (await ouvrirLApp(ordi)).lancee ?? assert.fail("not launched");
+  rmSync(join(ordi.racine, TENUE_PAR));
+  await jusqua(() => tenantDeLaStation(ordi.racine) === pid, 2_000);
+});
+
+test("une marque écrite avant le démarrage du système ne tient rien, même quand son pid a été redonné à un process vivant", (t) => {
+  const racine = repertoireTemporaire(t);
+  // Un process vivant qui n'est pas la station : le parent de ce test.
+  writeFileSync(join(racine, TENUE_PAR), `${process.ppid}\n`);
+  assert.equal(tenantDeLaStation(racine), process.ppid);
+  const avant = new Date(Date.now() - uptime() * 1000 - 60_000);
+  utimesSync(join(racine, TENUE_PAR), avant, avant);
+  assert.equal(tenantDeLaStation(racine), undefined);
+  assert.equal(prendreLaStation(racine, process.pid), undefined);
+  assert.equal(readFileSync(join(racine, TENUE_PAR), "utf8"), `${process.pid}\n`);
 });
 
 test("l'app rejoint la station qui tient le répertoire, quelle qu'elle soit, sans rien lancer ni l'arrêter en fermant", async (t) => {
