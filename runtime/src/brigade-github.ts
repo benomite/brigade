@@ -23,7 +23,7 @@ import { fiche, type Fiche } from "./fiche.ts";
 import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { defaireLesBoucles } from "./boucle-attente/boucle-attente.ts";
-import { attendusDuBlocage, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
+import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
 import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapables, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, LABEL_COOK_DESIGN, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
@@ -147,8 +147,10 @@ export type GitHubDuTour = GitHubDeLaFusion &
     depotDuTicket?(numero: number): Promise<DepotDuTicket | null>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
-    // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui
-    // sont encore ouvertes : tant qu'il y en a, le ticket n'est pas à prendre.
+    // Les issues dont le ticket dépend (`Depends on #N` dans son corps, ou dit
+    // en toutes lettres, #3622) et qui sont encore ouvertes — celles d'un
+    // ticket découpé, ses tickets ouverts (`attendusDuCorps`) : tant qu'il y en
+    // a, le ticket n'est pas à prendre.
     dependancesOuvertes(issue: number): Promise<number[]>;
     // La PR qui livre le ticket, ou null. `version` change avec tout ce que
     // GitHub change à la PR.
@@ -2191,11 +2193,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       sonde.confirmer();
       return derniers;
     },
-    dependancesOuvertes: async (numero) => {
-      const dependances = dependancesDuCorps((await github.issue(numero))?.body ?? "").filter((dependance) => dependance !== numero);
-      const etats = await Promise.all(dependances.map(async (dependance) => (await github.issue(dependance))?.state));
-      return dependances.filter((_, rang) => etats[rang] === "open");
-    },
+    dependancesOuvertes: async (numero) => attendusDuCorps(numero, (await github.issue(numero))?.body ?? "", (dependance) => github.issue(dependance)),
     // Une PR ouverte se lit dans l'instantané ; une PR mergée ou fermée n'y est
     // pas, et se lit en REST — ce qui n'arrive qu'une fois par ticket.
     prDuTicket: async (issue) => {
