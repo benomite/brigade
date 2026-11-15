@@ -371,6 +371,10 @@ export type OptionsDeStation = {
   // relu à chaque merge : une livraison design verte attend sa carte au lieu
   // d'être mergée (`validation-design/`). Absent, non.
   designsValidesParUnHumain?: () => boolean;
+  // Le compte GitHub du chef, résolu à chaque demande de validation (#3615) :
+  // la demande posée sur le ticket le mentionne. Absent, nul ou illisible, elle
+  // ne mentionne personne, et la station le dit.
+  chef?: () => Promise<string | null>;
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -534,6 +538,23 @@ const arretSubi = (conclusion: string, fin: { code: number | null; signal: strin
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  // Le chef que la demande de validation posée sur le ticket mentionne (#3615) :
+  // sans chef résolu, elle ne mentionne personne, et la station le dit une fois.
+  const chefsNonMentionnes = new Set<string>();
+  const chefAMentionner = async (): Promise<string | null> => {
+    let chef: string | null = null;
+    let pourquoi = "no chef resolved (`status` says why): set `chef` to the chef's GitHub login in `.claude/brigade/projet.json`";
+    try {
+      chef = (await options.chef?.())?.trim() || null;
+    } catch (erreur) {
+      pourquoi = `the chef does not resolve: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    }
+    if (chef === null && options.chef !== undefined && !chefsNonMentionnes.has(pourquoi)) {
+      chefsNonMentionnes.add(pourquoi);
+      avertir(`brigade : chef not mentioned on a validation asked on its ticket — ${pourquoi}`);
+    }
+    return chef;
+  };
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
   const ouvrirLaReparation = ouvreReparation({ github, base });
@@ -1683,7 +1704,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     }
                     // Une livraison design attend l'humain qui valide les designs du projet (#3184).
                     if (options.designsValidesParUnHumain?.() === true) {
-                      const motif = await retenirLeDesign(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, fichiers: sienne?.fichiers ?? null, renvoyer: (raison) => renvoyer(ticket, sha, raison, 1, "review") });
+                      const motif = await retenirLeDesign(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, fichiers: sienne?.fichiers ?? null, chef: await chefAMentionner(), renvoyer: (raison) => renvoyer(ticket, sha, raison, 1, "review") });
                       if (motif !== null) {
                         retenue = true;
                         return { fait: false, motif };
@@ -1698,7 +1719,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       }
                     }
                     // Un ticket \`sensitive\` attend la revue du chef avant son merge (#3223).
-                    const sensible = await retenirLeSensible(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha } });
+                    const sensible = await retenirLeSensible(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, chef: await chefAMentionner() });
                     if (sensible !== null) {
                       retenue = true;
                       return { fait: false, motif: sensible };
@@ -2336,6 +2357,9 @@ export type OptionsDuDepot = {
   // Relue aussi à chaque merge : `humanValidatesDesigns` y retient une
   // livraison design pour sa carte (#3184). Absente, la pass merge.
   projet?: () => unknown;
+  // Le compte GitHub du chef, que mentionne une validation demandée sur son
+  // ticket (#3615). Absent, elle ne mentionne personne.
+  chef?: () => Promise<string | null>;
 };
 
 // Le plafond de durée des gates d'une tête, en millisecondes (#2456) : 30 min
@@ -3012,7 +3036,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()) });
+  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

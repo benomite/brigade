@@ -5,9 +5,10 @@
 //
 // - La pass, au moment de merger (`brigade-github.ts`, `merger`), demande à
 //   `retenirLeSensible` : nul, le ticket n'est pas sensible et elle merge comme
-//   avant ; un motif, elle ne merge pas. Une issue `chef-todo` « review before
-//   merge » porte la question et le lien de la PR — la carte que
-//   `validation-design/` pose déjà pour un design (`tenirPourLeChef`) : une
+//   avant ; un motif, elle ne merge pas. La carte « review before merge » se
+//   demande sur le ticket même (#3615) : un commentaire sur le ticket et sur sa
+//   PR porte la question et le lien de la PR, le ticket prend `chef-todo` — la
+//   carte que `validation-design/` pose déjà pour un design (`tenirPourLeChef`) : une
 //   seule par livraison, quel que soit le nombre de tours de la pass ou de
 //   mises à jour de sa branche depuis la base (#3332).
 // - Deux réponses, par la commande `sensitive` (`commande.ts`) : `merge`
@@ -45,7 +46,7 @@ export const estSensible = (labels: readonly string[]) => labels.includes(LABEL_
 // elle ne la merge pas — la carte « review before merge » la tient. Le dépôt
 // inconnu, ou une carte que GitHub ne crée pas, lèvent : la pass le dit, ne
 // merge pas, et réessaie au tour suivant.
-export async function retenirLeSensible(github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr">): Promise<string | null> {
+export async function retenirLeSensible(github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr" | "chef">): Promise<string | null> {
   if (!estSensible(livraison.ticket.labels)) return null;
   // Une livraison design sensible attend sa seule carte « Validate its
   // screen » : la validation du chef, gardée après une mise à jour de la

@@ -8,6 +8,7 @@ import { A_LA_MAIN } from "../../../src/brigade-github.ts";
 import { CHEF_TODO as CHEF_TODO_DES_CARTES, corpsDeCarte, SORTES } from "../../../src/github-seul/carte-todo/carte-todo.ts";
 import { LABEL } from "../../../src/github.ts";
 import { MARQUE_DE_RENVOI as MARQUE_DE_LA_STATION } from "../../../src/qualite-github.ts";
+import { corpsDeLaDemande } from "../../../src/validation-sur-ticket/validation-sur-ticket.ts";
 
 const MAINTENANT = new Date("2026-11-11T12:00:00.000Z");
 const JOUR = 24 * 3600 * 1000;
@@ -35,6 +36,8 @@ describe("autonomy figures from GitHub", () => {
     assert.equal(CHEF_TODO, CHEF_TODO_DES_CARTES);
     assert.equal(MARQUE_DE_RENVOI, MARQUE_DE_LA_STATION);
     for (const sorte of SORTES) assert.match(corpsDeCarte({ sorte, texte: "x" }), MARQUE_DE_CARTE);
+    // La validation demandée sur le ticket même (#3615) est une carte : son marqueur porte des attributs.
+    assert.match(corpsDeLaDemande({ sorte: "design-validation", ticket: 3, pr: 12, sha: "abcdef1", question: "Q?", chef: null, suite: [] }), MARQUE_DE_CARTE);
   });
 
   test("a TODO card or `blocked-on-human` makes a ticket served with a human, with the question it asked; neither, served without", () => {

@@ -1167,8 +1167,9 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 with choices, a click on each gesture against a fake GitHub).*
 
 **The card `Validate its screen` (#3185, epic #3180).** On a project where a human validates the designs, the pass holds a
-green design delivery for the chef instead of merging it (#3184, `docs/runtime/pass.md`): a `chef-todo` issue titled
-`Validate its screen`, its marked comment of kind `design-validation`. In Todo, its line says `A design delivery waits for
+green design delivery for the chef instead of merging it (#3184, `docs/runtime/pass.md`): since #3615, the ticket itself,
+labelled `chef-todo`, its marked comment of kind `design-validation` carrying the pull request, the head and the captures
+(a card posted before as a `chef-todo` issue titled `Validate its screen` reads the same from its body). In Todo, its line says `A design delivery waits for
 you to validate its screen.`, then the card shows, in this order: the question (`Does the screen of #<ticket> look
 right? …`); the before and after captures of each screen the delivery changes, one under the other, read without a click
 (each image read by this computer's `gh`, as for any Todo card); `Pull request #<PR>`, which opens the pull request; then its
@@ -1229,8 +1230,8 @@ Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 **A sensitive ticket, and its card `review before merge` (#3224, epic #3214).** A ticket labelled `sensitive`
 ([sensitive-tickets.md](sensitive-tickets.md)) carries the tag `sensitive` on its card of the rail, first of its tags,
 outlined in red, what it means on hover; a ticket without the label carries none. The pass does not merge its green
-delivery (#3223, `docs/runtime/pass.md`): a `chef-todo` issue titled `review before merge`, its marked comment of kind
-`review-before-merge`. In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
+delivery (#3223, `docs/runtime/pass.md`): since #3615, the ticket itself, labelled `chef-todo`, its marked comment of kind
+`review-before-merge` carrying the pull request (before, a `chef-todo` issue titled `review before merge`). In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
 in this order: the question (`#<ticket> is sensitive: review PR #<PR> before it is merged. …`); `Pull request #<PR>`, which
 opens the pull request in one click; then its two answers, each with its price on hover:
 

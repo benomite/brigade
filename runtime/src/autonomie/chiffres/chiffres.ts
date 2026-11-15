@@ -22,14 +22,17 @@ import { mediane } from "../../temps-ticket/synthese.ts";
 // The marks the stations write, with the constants of their writers:
 // `MARQUE_DE_RENVOI` (qualite-github.ts), `CHEF_TODO` and `marqueur`
 // (github-seul/carte-todo/carte-todo.ts), `A_LA_MAIN` (brigade-github.ts) — the
-// test compares them —, and `marqueDeRetenue` (validation-design/validation-design.ts).
+// test compares them —, and the trace of a card posted as an issue apart before
+// #3615 (validation-design/validation-design.ts). A validation asked on the
+// ticket itself (#3615) is a `brigade:todo` comment whose mark carries
+// attributes after its kind: `MARQUE_DE_CARTE` reads it too.
 // Restated rather than imported: those modules pull the kitchen's rail, which
 // the app does not load.
 export const FIRE = "fire";
 export const BLOCKED_ON_HUMAN = "blocked-on-human";
 export const CHEF_TODO = "chef-todo";
 export const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
-export const MARQUE_DE_CARTE = /^\s*<!--\s*brigade:todo\s+kind=[A-Za-z0-9_-]+\s*-->/;
+export const MARQUE_DE_CARTE = /^\s*<!--\s*brigade:todo\s+kind=[A-Za-z0-9_-]+(?:\s+[a-z]+=[^\s>]+)*\s*-->/;
 export const MARQUE_DE_RETENUE = /^\s*<!--\s*brigade:validation-design-carte\b[^>]*-->/;
 // Only whoever has a hand on the repository writes a station's comments: anyone
 // can comment a public issue.

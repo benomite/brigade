@@ -38,7 +38,9 @@ function fauxGitHub() {
       issues.set(numero, { title: titre, body: corps, labels: new Set(labels), state: "open", comments: [] });
       return numero;
     },
-    commenter: async (numero: number, corps: string) => void sienne(numero).comments.push({ body: corps, author: "brigade", association: "OWNER", createdAt: "2026-11-11T12:00:00Z" }),
+    // Sur la PR, la copie de la validation demandée sur le ticket (ticket 3615).
+    commenter: async (numero: number, corps: string) => void (numero === PR ? surLaPR : sienne(numero).comments).push({ body: corps, author: "brigade", association: "OWNER", createdAt: "2026-11-11T12:00:00Z" }),
+    labelliser: async (numero: number, labels: string[]) => labels.forEach((label) => sienne(numero).labels.add(label)),
     delabelliser: async (numero: number, label: string) => void sienne(numero).labels.delete(label),
     fermerIssue: async (numero: number) => void (sienne(numero).state = "closed"),
     commentaires: async (numero: number) => (numero === PR ? surLaPR : sienne(numero).comments),
@@ -79,8 +81,8 @@ function fauxGitHub() {
   return { github, appeler, issues, merges, pr, surLaPR };
 }
 
-// La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures. `avant` : ce
-// qui se passe sur le faux avant que la pass ne la pose.
+// La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures : sur le ticket
+// même, qui devient la carte (ticket 3615). `avant` : ce qui se passe sur le faux avant que la pass ne la pose.
 async function carteDEssai(avant: (faux: ReturnType<typeof fauxGitHub>) => void = () => {}) {
   const faux = fauxGitHub();
   avant(faux);
@@ -92,7 +94,8 @@ async function carteDEssai(avant: (faux: ReturnType<typeof fauxGitHub>) => void 
     fichiers: ["app/src/vue/rail.js", `docs/captures/${TICKET}/rail-avant.png`, `docs/captures/${TICKET}/rail-apres.png`],
     renvoyer: async () => assert.fail("une livraison qui porte ses captures n'est pas renvoyée"),
   });
-  assert.match(motif ?? "", /card #61/);
+  assert.match(motif ?? "", /asked on #58/);
+  assert.equal(faux.issues.size, 1, "no issue apart");
   return faux;
 }
 
@@ -116,7 +119,7 @@ describe("l'app lit la carte que le runtime pose", () => {
     const faux = await carteDEssai();
     const [carte, ...autres] = await lue(faux.appeler);
     assert.deepEqual(autres, []);
-    assert.equal(carte?.ticket, 61);
+    assert.equal(carte?.ticket, TICKET);
     assert.equal(carte?.chef?.sorte, SORTE_DE_VALIDATION);
     const design = carte?.chef?.design ?? assert.fail("la carte ne dit pas ce qu'elle valide");
     assert.equal(design.pr, PR);
@@ -150,14 +153,14 @@ describe("l'app lit la carte que le runtime pose", () => {
     const faux = await carteDEssai();
     const [carte] = await lue(faux.appeler);
     const tenus = tenirFaits(() => new Map());
-    const faits = { etat: "ouverte", lu: "2026-11-11T12:00:00Z", dernierTick: "2026-11-11T12:00:00Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [{ ticket: 61, titre: carte?.titre, url: carte?.url, chef: carte?.chef }] };
+    const faits = { etat: "ouverte", lu: "2026-11-11T12:00:00Z", dernierTick: "2026-11-11T12:00:00Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [{ ticket: TICKET, titre: carte?.titre, url: carte?.url, chef: carte?.chef }] };
     tenus.recevoir({ projet: "parade", demande: 0, a: "2026-11-11T12:00:00Z", sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
-    assert.equal(tenus.chef("parade", 61)?.design?.pr, PR);
-    assert.equal(tenus.pr("parade", 61), `https://github.com/${DEPOT}/pull/${PR}`);
-    assert.match(tenus.capture("parade", 61, "rail", "apres") ?? "", new RegExp(`/blob/${SHA}/docs/captures/58/rail-apres\\.png\\?raw=true$`));
+    assert.equal(tenus.chef("parade", TICKET)?.design?.pr, PR);
+    assert.equal(tenus.pr("parade", TICKET), `https://github.com/${DEPOT}/pull/${PR}`);
+    assert.match(tenus.capture("parade", TICKET, "rail", "apres") ?? "", new RegExp(`/blob/${SHA}/docs/captures/58/rail-apres\\.png\\?raw=true$`));
     // Ce qui n'a pas la forme d'une carte n'est pas gardé.
-    tenus.recevoir({ projet: "parade", demande: 1, a: "2026-11-11T12:01:00Z", sorties: [{ commande: "facts", texte: JSON.stringify({ ...faits, attend: [{ ticket: 61, titre: "x", url: carte?.url, chef: { ...carte?.chef, design: { pr: "60" } } }] }) }] });
-    assert.equal(tenus.chef("parade", 61)?.design, undefined);
+    tenus.recevoir({ projet: "parade", demande: 1, a: "2026-11-11T12:01:00Z", sorties: [{ commande: "facts", texte: JSON.stringify({ ...faits, attend: [{ ticket: TICKET, titre: "x", url: carte?.url, chef: { ...carte?.chef, design: { pr: "60" } } }] }) }] });
+    assert.equal(tenus.chef("parade", TICKET)?.design, undefined);
   });
 
   test("son brief (ticket 3330) : ce que le ticket demandait et ce que le cook a changé à l'écran, posté sur la PR — sur la carte de TODO et dans les faits", async () => {
@@ -170,9 +173,9 @@ describe("l'app lit la carte que le runtime pose", () => {
     assert.deepEqual(carte?.chef?.design?.brief, attendu);
     assert.deepEqual(carteDuChefDeTodo(carte?.chef ?? assert.fail("pas de carte"))?.brief, attendu);
     const tenus = tenirFaits(() => new Map());
-    const faits = { etat: "ouverte", lu: "2026-11-11T12:00:00Z", dernierTick: "2026-11-11T12:00:00Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [{ ticket: 61, titre: carte?.titre, url: carte?.url, chef: carte?.chef }] };
+    const faits = { etat: "ouverte", lu: "2026-11-11T12:00:00Z", dernierTick: "2026-11-11T12:00:00Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [{ ticket: TICKET, titre: carte?.titre, url: carte?.url, chef: carte?.chef }] };
     tenus.recevoir({ projet: "parade", demande: 0, a: "2026-11-11T12:00:00Z", sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
-    assert.deepEqual(tenus.chef("parade", 61)?.design?.brief, attendu);
+    assert.deepEqual(tenus.chef("parade", TICKET)?.design?.brief, attendu);
   });
 
   test("sans résumé posté sur la PR, le brief n'a rien de fait et garde ce qui était demandé ; une carte d'avant le ticket 3330 garde le titre de son ticket", async () => {
@@ -198,7 +201,9 @@ describe("l'app lit la carte que le runtime pose", () => {
 
   test("une issue dont le corps ne dit pas sa PR : la carte le dit, sans geste à jouer", async () => {
     const faux = await carteDEssai();
-    (faux.issues.get(61) ?? assert.fail("pas de carte")).body = "Someone rewrote the card.";
+    // Son commentaire de carte réécrit sans ce qu'il valide.
+    const commentaires = (faux.issues.get(TICKET) ?? assert.fail("pas de carte")).comments;
+    for (const commentaire of commentaires) commentaire.body = commentaire.body.replace(/^<!-- brigade:todo kind=design-validation [^>]*-->/, "<!-- brigade:todo kind=design-validation -->");
     const [carte] = await lue(faux.appeler);
     assert.equal(carte?.chef?.design, undefined);
     const todo = carteDuChefDeTodo(carte?.chef ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de TODO");
@@ -214,9 +219,9 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const appels: string[][] = [];
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux, appels) });
     assert.deepEqual(appels, [["validate", `${DEPOT}#${PR}`]]);
-    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: merged, card #61 closed — ticket #${TICKET} is served` });
+    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: merged, card #58 closed — ticket #${TICKET} is served` });
     assert.deepEqual(faux.merges, [[PR, SHA]]);
-    assert.equal(faux.issues.get(61)?.state, "closed");
+    assert.equal(faux.issues.get(TICKET)?.labels.has("chef-todo"), false);
     assert.deepEqual(await lue(faux.appeler), [], "la carte a quitté TODO");
   });
 
@@ -226,7 +231,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const appels: string[][] = [];
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "renvoyer", commentaire: "  The export button is cut off.\r\nKeep it on one line.  " }, env: {}, commande: commandeSur(faux, appels) });
     assert.deepEqual(appels, [["send-back", `${DEPOT}#${PR}`, "--comment", "The export button is cut off.\nKeep it on one line."]]);
-    assert.match("fait" in rendu ? rendu.fait : assert.fail(JSON.stringify(rendu)), /sent back: #58 goes back to a cook with your comment, card #61 closed/);
+    assert.match("fait" in rendu ? rendu.fait : assert.fail(JSON.stringify(rendu)), /sent back: #58 goes back to a cook with your comment, card #58 closed/);
     assert.deepEqual(faux.merges, []);
     assert.ok(faux.issues.get(TICKET)?.comments.some(({ body }) => body.includes("The export button is cut off.\nKeep it on one line.")));
     assert.equal(faux.issues.get(TICKET)?.labels.has("in-pass"), false);
@@ -241,7 +246,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     assert.deepEqual(await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "renvoyer", commentaire: "  \n " }, env: {}, commande }), { refus: VIDE, detail: "" });
     assert.deepEqual(await jouerLaValidation({ depot: DEPOT, design: undefined, geste: { geste: "valider" }, env: {}, commande }), { refus: INCONNUE, detail: "" });
     assert.equal(lancee, false);
-    assert.equal(faux.issues.get(61)?.state, "open");
+    assert.equal(faux.issues.get(TICKET)?.labels.has("chef-todo"), true);
   });
 
   test("un refus du runtime — la PR fermée sans merge — se dit en une ligne, son détail au survol, et la carte reste", async () => {
@@ -261,10 +266,10 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const [carte] = await lue(faux.appeler);
     faux.pr.sha = "b".repeat(40);
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux) });
-    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #61 closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
+    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #58 closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
     assert.deepEqual(faux.merges, []);
     assert.deepEqual(await lue(faux.appeler), [], "la carte a quitté TODO");
-    assert.ok(faux.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=61 pr=${PR} sha=${SHA} -->\nValidated by the chef on card #61 — merge pending.`)));
+    assert.ok(faux.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=58 pr=${PR} sha=${SHA} -->\nValidated by the chef on card #58 — merge pending.`)));
   });
 
   test("une commande qui ne se charge pas, ou qui lève, se dit : rien n'est fait", async () => {
@@ -281,6 +286,6 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const systeme = Object.assign(new Error("spawn gh ENOENT"), { code: -2 });
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: chargee(async ({ redire }) => (redire("brigade : not this line"), Promise.reject(systeme))) });
     assert.deepEqual(rendu, { refus: "nothing was done: the kitchen's command could not run", detail: "spawn gh ENOENT" });
-    assert.equal(faux.issues.get(61)?.state, "open");
+    assert.equal(faux.issues.get(TICKET)?.labels.has("chef-todo"), true);
   });
 });

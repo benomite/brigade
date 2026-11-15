@@ -20,7 +20,9 @@ export const SORTE_SENSIBLE = "review-before-merge";
 // Ce que la carte retient : sa PR et son adresse, le ticket livré, la tête jugée verte.
 export type RevueSensible = { pr: number; ticket: number; sha: string; url: string };
 
-const MARQUE = /^\s*<!-- brigade:sensitive-review pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
+// Le marqueur du corps de la carte, ou celui de la revue demandée sur le ticket même, en tête de son commentaire (ticket
+// 3615, runtime/src/validation-sur-ticket/) : `<!-- brigade:todo kind=review-before-merge pr=… ticket=… sha=… -->`.
+const MARQUE = /^\s*<!-- brigade:(?:sensitive-review|todo kind=review-before-merge) pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
 
 // La carte que le corps de l'issue porte, pour le projet de `depot` — nulle si son marqueur n'y est pas.
 export function revueDuCorps(depot: string, corps: string): RevueSensible | null {
