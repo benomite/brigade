@@ -5,6 +5,7 @@
 import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { agentsEnCours, runsHorsTicket, type AgentEnCours, type RunHorsTicket } from "./agents-en-cours.ts";
+import { gardesRepetees, type GardeRepetee } from "./gardes-historique/historique.ts";
 import { sejoursEnColonne, type Essai, type Sejour } from "./sejour-en-colonne.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import { attenteDeLaCarte, carteDeLAttente, type CarteDuTicket } from "./carte-todo/cartes.ts";
@@ -114,6 +115,9 @@ export type EtatCuisine = {
   // Le séjour de chaque ticket pris dans sa colonne, depuis sa première prise à travers les relances (#1893).
   // Absent d'un état construit sans lui : la carte garde alors `since`.
   sejours?: Map<number, Sejour>;
+  // Le garde-fou qui a tué deux fois le même ticket, tant que ce ticket est sur le rail (#3650) : sa carte le dit.
+  // Absent d'un état construit sans lui.
+  gardesRepetees?: Map<number, GardeRepetee>;
   // Les captures de la dernière livraison de chaque ticket d'interface en
   // pass ou servi dans les 24 h (captures.ts). Un ticket qui n'y est pas n'en
   // a pas : il n'est pas d'interface, ou il n'a rien livré.
@@ -238,6 +242,7 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
     activites: activitesDuRail(base, rail),
     reprises: reprisesDuRail(base, rail),
     sortiesAvec: aSortirAvec(base, rail),
+    gardesRepetees: gardesRepetees(base, rail.map(({ ticket }) => ticket)),
     sejours: sejoursEnColonne(base, rail.filter(({ state }) => state === "taken").map(({ ticket }) => ticket)),
     captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
@@ -1105,6 +1110,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
         url: ticket.url,
         depuis: etat.sejours?.get(ticket.ticket)?.depuis ?? ticket.since,
         ...(etat.sejours?.has(ticket.ticket) ? { essais: etat.sejours.get(ticket.ticket)?.essais } : {}),
+        ...(etat.gardesRepetees?.has(ticket.ticket) ? { gardeRepetee: etat.gardesRepetees.get(ticket.ticket) } : {}),
         activite: etat.activites.get(ticket.ticket) ?? null,
         attente:
           ticket.state === "86"

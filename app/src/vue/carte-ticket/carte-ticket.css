@@ -1,0 +1,16 @@
+/* Le garde-fou qui a tué deux fois un ticket (ticket 3650, carte-ticket.js) : une ligne en gras, à l'encre d'alerte de la
+   carte comme celle d'une carte refusée (bon.css) ; ses arrêts dessous, une ligne chacun. */
+.bon .garde-repetee {
+  padding-top: 0;
+  border-top: 0;
+}
+.bon .garde-repetee p.garde-repetee-ligne {
+  margin: 0;
+  font-weight: 600;
+  color: var(--bon-alerte, var(--bon-encre));
+}
+.bon .garde-repetee ul.garde-repetee-arrets {
+  margin: var(--pas-1) 0 0;
+  padding-inline-start: var(--pas-3);
+  color: var(--bon-encre);
+}

@@ -673,6 +673,14 @@ kept (#2151, below); offline, the last rail stays dimmed, marked `offline since`
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
 
+### A ticket killed twice by the same guardrail says why on its card (#3650, epic #3645)
+
+When the same guardrail has stopped the same ticket twice (`gardeRepetee` of its entry in `facts`,
+`docs/runtime/garde-fous.md`), its card on the rail says it under its head, in the card's alert ink: **"Stopped 2 times by
+the idle guard"**, then one line per stop — its time and the activity where the cook was (`07:12 — was finishing`, or
+`no activity read`), the run on hover. It stays as long as the box sends it: the ticket is not relaunched silently. A ticket
+stopped once, or by two different guardrails, shows nothing.
+
 ### The line of figures is gone (#2486, #3013, #3523)
 
 The line of figures that stood above the columns — ticket time, first try, `Cooks 2 running` / `Cooks none running`, last
