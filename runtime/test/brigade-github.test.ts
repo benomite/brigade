@@ -819,6 +819,36 @@ test("a ticket whose cooks fail 3 times goes off the kitchen instead of looping 
   assert.ok(!faux.ticket(35).labels.has("served-elsewhere"));
 });
 
+test("runs that ended ok do not count toward the failure threshold, however many there were (#3652)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  for (let i = 1; i <= 6; i += 1) faux.poster(35, "A", `<!-- brigade:echec n=${i} run=ok -->\nStation \`A\`: the cook stopped without a delivery — the cook committed nothing (${i})`);
+  let n = 0;
+  const a = faux.station("A", { cuisiner: async () => ({ echec: `crashed ${(n += 1)}` }), avertir: () => {} });
+  for (let i = 0; i < 2; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(n, 2);
+  assert.ok(!faux.ticket(35).labels.has("set-aside:failures"));
+});
+
+test("the failed runs set the ticket aside at the threshold, and the reason names them, not the runs that ended ok (#3652)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(35);
+  faux.poster(35, "A", "<!-- brigade:echec n=1 run=ok -->\nStation `A`: the cook stopped without a delivery — committed nothing");
+  let n = 0;
+  const a = faux.station("A", { cuisiner: async () => ({ echec: `crashed ${(n += 1)}` }), avertir: () => {} });
+  for (let i = 0; i < 6 && !faux.ticket(35).labels.has("set-aside:failures"); i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.ok(faux.ticket(35).labels.has("set-aside:failures"));
+  const dernier = (faux.commentaires.get(35) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).at(-1);
+  assert.match(dernier?.body ?? "", /after 3 failed cook runs: \(1\) crashed 1; \(2\) crashed 2; \(3\) crashed 3/);
+  assert.doesNotMatch(dernier?.body ?? "", /committed nothing/);
+});
+
 const echecsDe = (faux: FauxGitHub, issue: number) => (faux.commentaires.get(issue) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length;
 
 test("two consecutive failures with the same stop reason set the ticket aside at once, no third cook (#2729)", async () => {
