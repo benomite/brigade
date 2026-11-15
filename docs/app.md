@@ -3841,8 +3841,13 @@ section. With the section laid, `right now` is not repeated under it.
   the cause read from the stations' signs of life — `8 tickets on the rail, no manager has taken them for 14 h: its
   station box/claude is stopped.` The cause is one of: no station serves the project; its station is stopped, offline
   or out of GitHub quota; the manager runs but takes nothing; or not known when the stations cannot be read. When a
-  gesture unblocks it — **Start the station**, **Add the project to a station** — it is the line's recommended button,
-  which opens the Stations tab; otherwise, and on a read-only project, there is no button. On "All projects" the
+  gesture unblocks it from the app — **Add the project to a station** — it is the line's recommended button,
+  which opens the Stations tab; otherwise, and on a read-only project, there is no button. A stopped or offline station
+  on this computer has the button **Start this computer's station**, which starts it (`station start <station>`, the
+  tray's **Start the station** gesture) and says why when the station does not start; a station on another computer has
+  no button, because the app cannot start it from here: the sentence says `Start it on its computer.` While this computer's
+  station restarts for an update, the project says `restarting: update to <version>` (yellow) and shows neither
+  `FAULT` nor stuck-rail nor queue-wait alert for a stopped or offline station (#3637). On "All projects" the
   project is **stuck**, in red (`8 tickets no manager takes, for 14 h`, the whole sentence on hover). The same sentence
   is under the head of the `awaiting` block of the app's `status`, of the second's queue, and of
   `brigade <project> status` on a GitHub-only station. Tickets whose comments cannot be read are said there as `not
@@ -3853,8 +3858,9 @@ section. With the section laid, `right now` is not repeated under it.
   its station is stopped; its station is offline or out of quota; the station waits for the GitHub quota; the cook cap
   is reached; a delivery is in the pass; every queued ticket waits for another ticket; else a normal wait, which says a
   cook takes the ticket within minutes and how long the oldest queued ticket has waited since `fire` was put on it (from
-  five minutes on: "longer than usual"). The first three name the gesture that lifts them (**Start the station**,
-  **Add the project to a station** — a red `FAULT` line with the button that opens the Stations tab); the others say
+  five minutes on: "longer than usual"). The first three name the gesture that lifts them (**Start this computer's station** on this
+  computer, `Start it on its computer.` on another one, **Add the project to a station** — a red `FAULT` line, with the
+  button that opens the Stations tab for the latter); the others say
   they resolve by themselves. A queued card that will not start next carries `after #N` (behind another queued ticket)
   or `waiting for #N to merge` (behind a ticket a cook holds or the pass judges), read from the `Depends on #N` lines of
   its issue; the card that starts next and a card without dependency have none, and "Will not start: …" or a blocking
@@ -3870,7 +3876,7 @@ section. With the section laid, `right now` is not repeated under it.
   account`; with no resume time, `When it resumes is not known yet.`). The countdown moves every second, and the line
   goes by itself at the resume time or at the first reading that no longer carries the pause. Each project only says
   `Paused for the same reason: GitHub quota of the account.` at the head of its rail, and on "All projects" it is
-  **paused**, with a blue marker — no `FAULT`, no stuck rail, no **Start the station**. A project whose station is
+  **paused**, with a blue marker — no `FAULT`, no stuck rail, no `Start it on its computer.`. A project whose station is
   really stopped, or that no station serves, keeps its `FAULT` line and its button. The station the app sees running
   on this computer is never said offline, even when its sign of life on GitHub is old. The phone reads each station's
   quota from the registration in its gist, the gist it already reads for the projects.

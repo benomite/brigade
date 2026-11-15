@@ -1,7 +1,7 @@
 // La pause de quota GitHub du compte (ticket 3482, épique 3475) : quand le quota GitHub du compte est épuisé, les stations
 // tournent mais ne peuvent plus écrire leur signe de vie. Ce n'est pas une panne : rien n'est à faire, elles reprennent
 // seules. La pause se dit une fois pour tout le compte, en tête de l'app (ligne-de-la-pause.js) ; chaque projet dit
-// seulement qu'il est en pause pour la même raison, jamais « offline » ni « Start the station ».
+// seulement qu'il est en pause pour la même raison, jamais « offline » ni « Start it on its computer ».
 //
 // Le contrat (publié par le runtime, ticket du même épique) : l'état de chaque station porte `quotaGithub` =
 // `{ limite: 'core' | 'ecriture', pauseJusqua: ISO | null, utilise, maximum, renouvellement, parStationEtProjet }`.

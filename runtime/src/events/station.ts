@@ -200,4 +200,9 @@ export type FaitStation =
   // de la station — le runtime d'ici (`runtime.started`), ou une station
   // distante qui réclame en disant avoir démarré depuis (`since`) —, ou dès
   // qu'un cook de la station lancé depuis produit un tour.
-  | { type: "station.unstartable"; payload: { station: string; run: string; reason: string } };
+  | { type: "station.unstartable"; payload: { station: string; run: string; reason: string } }
+  // L'ordinateur s'est réveillé (#3643) : il a dormi `gapMs`, une pause que les
+  // garde-fous retranchent de l'inactivité des cooks. `resumed` : les runs des
+  // cooks qui tournaient, et reprennent — vivants, ou relancés dans leur
+  // worktree s'ils sont morts en dormant.
+  | { type: "station.slept"; payload: { gapMs: number; resumed: string[] } };

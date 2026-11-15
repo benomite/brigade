@@ -136,7 +136,7 @@ const GESTES: Record<Cause, Geste | null> = {
 
 // Le geste, dans les mots du chef : le libellé du bouton de l'app, et la fin de la phrase.
 export const MOTS_DU_GESTE: Record<Geste, string> = {
-  "demarrer-la-station": "Start the station",
+  "demarrer-la-station": "Start it on its computer",
   "ajouter-a-une-station": "Add the project to a station",
 };
 

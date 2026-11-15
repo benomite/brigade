@@ -234,6 +234,7 @@ export type Pont = {
   // Installe la station de cet ordinateur (ticket 2640, accueil/station/) : rien quand elle est installée, ou pourquoi elle ne
   // l'est pas, en une ligne et son détail. Absent, le bouton de l'accueil dit que cet appareil ne l'installe pas.
   installerLaStation?(): Promise<{ refus: string; detail?: string } | undefined>;
+  demarrerLaStationIci?(projet: string): Promise<{ refus?: string }>;
   surStatutDeLaStation?(recevoir: (statut: unknown) => void): void;
   // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
   // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.

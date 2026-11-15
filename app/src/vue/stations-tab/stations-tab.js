@@ -136,7 +136,7 @@ function cree(doc, balise, texte) {
 
 // Le ton de la ligne du haut : vert quand une station le cuit ou attend son prochain ticket, et seulement alors.
 /** @param {Haut} haut */
-export const tonDuHaut = (haut) => (haut.vert ? "vert" : haut.etat === "deplacement" ? "jaune" : haut.etat === "hors-ligne" ? "rouge" : "gris");
+export const tonDuHaut = (haut) => (haut.vert ? "vert" : haut.etat === "deplacement" || haut.etat === "redemarre" ? "jaune" : haut.etat === "hors-ligne" ? "rouge" : "gris");
 
 // La ligne du haut : sa pastille, sa phrase, et ses gestes.
 /** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {GestesDeLOnglet} gestes */
@@ -218,7 +218,7 @@ function leChoix(doc, choix, gestes) {
 // L'état d'une station, à l'instant : sa pilule, son ton — vert seulement en ligne.
 /** @param {Servante} station */
 export const etatDit = ({ etat, dit }) =>
-  etat === "en-ligne" ? { mot: EN_LIGNE, ton: "vert" } : etat === "demarre" ? { mot: DEMARRE, ton: "jaune" } : { mot: dit, ton: etat === "illisible" ? "gris" : "rouge" };
+  etat === "en-ligne" ? { mot: EN_LIGNE, ton: "vert" } : etat === "demarre" ? { mot: DEMARRE, ton: "jaune" } : etat === "redemarre" ? { mot: dit, ton: "jaune" } : { mot: dit, ton: etat === "illisible" ? "gris" : "rouge" };
 
 // La clé d'une station de l'onglet : son gist, sinon son nom — une station que le projet nomme sans que l'app la connaisse.
 // Ses gestes et son « Details » la retrouvent par elle.

@@ -4604,6 +4604,7 @@ function lectureDesServantes(projet, maintenant) {
     maintenant,
     ...(Number.isNaN(luLe) ? {} : { lu: luLe }),
     ...(iciSert === undefined ? {} : { iciSert, hote: POSTE.nom }),
+    ...(projet.redemarre === undefined ? {} : { redemarre: projet.redemarre }),
   };
   return { base, lues, locale, tenu, cuisson };
 }
@@ -5013,6 +5014,16 @@ function poserRail(projet) {
   poserLaVisite();
   if (disjoncteursEnTodo.has(projet.nom) !== avant && courant?.nom === projet.nom) poserAlertes(projet);
 }
+// Le refus du dernier « Start this computer's station », par projet (ticket 3637) : sa raison se dit à côté du bouton.
+/** @type {Map<string, string>} */
+const demarragesIci = new Map();
+/** @param {Projet} projet */
+async function demarrerLaStationIci(projet) {
+  demarragesIci.delete(projet.nom);
+  const rendu = await Promise.resolve(brigade.demarrerLaStationIci?.(projet.nom)).catch((/** @type {unknown} */ erreur) => ({ refus: erreur instanceof Error ? erreur.message : String(erreur) }));
+  if (rendu !== undefined && typeof rendu.refus === "string") demarragesIci.set(projet.nom, rendu.refus);
+  if (courant?.nom === projet.nom) poserLeRail(projet);
+}
 /** @param {Projet} projet */
 function poserLeRail(projet) {
   const tenu = tenus.get(projet.nom);
@@ -5195,13 +5206,15 @@ function poserLeRail(projet) {
   // Au-dessus des colonnes, au plus deux lignes (ticket 3523) : le bandeau Backlog et, si quelque chose retient la cuisine, une
   // ligne d'état — la première cause de cette liste, jamais deux : ce qui retient la cuisine d'abord, puis une lecture hors ligne
   // ou périmée, puis l'attente de la file. Sa fraîcheur, quand elle est bonne, est au survol de la ligne et du bandeau.
-  const gestesDuRail = lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS) } : null;
+  // « Start this computer's station » n'est offert que pour un projet qui cuit sur cet ordinateur : la station arrêtée est la sienne.
+  const demarrage = demarragesIci.get(projet.nom);
+  const gestesDuRail = lectureSeuleDe(projet) === undefined ? { ouvrirStations: () => choisirOnglet(STATIONS), ...(projet.ici === true && brigade.demarrerLaStationIci !== undefined ? { demarrerIci: () => void demarrerLaStationIci(projet), ...(demarrage === undefined ? {} : { demarrageRefuse: demarrage }) } : {}) } : null;
   const vuAmont = amonts.get(projet.nom);
   const alertes = vuAmont !== undefined && "groupes" in vuAmont ? vuAmont.alertes : undefined;
   const retenues = retenuesConnues({ misDeCote: vuAmont !== undefined && "groupes" in vuAmont ? (vuAmont.groupes.find(({ etat }) => etat === "mise-de-cote")?.issues.map(({ ticket }) => ticket) ?? []) : [], arretee: tenu.tableau.arretee });
   // Pendant la pause de quota GitHub du compte (ticket 3482), le rail dit seulement qu'il l'attend : ni le rail bloqué, ni
   // l'attente de la file — sauf une panne que la pause n'explique pas, qui garde sa ligne et son geste.
-  const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now());
+  const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now(), projet.redemarre !== undefined);
   const attente = ditDuRail.railBloque === undefined ? ditDuRail.attenteDuRail : undefined;
   const statut =
     [

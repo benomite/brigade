@@ -26,8 +26,9 @@ import { RETENUE } from "../stations-du-compte.js";
 // Ce qu'est une station pour le chef : cet ordinateur, une box toujours allumée, ou un autre ordinateur.
 /** @typedef {"ici" | "box" | "ordinateur"} Sorte */
 // Son état à l'instant : en ligne, hors ligne (son `dit` dit depuis quand), illisible, qui refuse le projet, ou qui démarre —
-// la station où la cuisine déménage, tant qu'elle ne la sert pas encore.
-/** @typedef {"en-ligne" | "hors-ligne" | "illisible" | "refuse" | "demarre"} EtatDeStation */
+// la station où la cuisine déménage, tant qu'elle ne la sert pas encore — ou qui redémarre : la station de cet ordinateur,
+// dont la mise à jour remplace le process (ticket 3637), n'est pas hors ligne.
+/** @typedef {"en-ligne" | "hors-ligne" | "illisible" | "refuse" | "demarre" | "redemarre"} EtatDeStation */
 /**
  * Une station qui sert le projet, telle que sa carte la montre : son état et ses mots (`dit`) ; `note` : ce qui la retient
  * encore — sa machine pleine, la limite de GitHub, son refus et sa raison. `cooks`, `agents` : ce qu'elle tient du projet à
@@ -47,6 +48,7 @@ import { RETENUE } from "../stations-du-compte.js";
  *   | { etat: "deplacement", vert: false, de: string, vers: string, attend: string, depuis: number, bloque: string | null }
  *   | { etat: "eteint", vert: false, dit: string, releve: string, servi: boolean }
  *   | { etat: "hors-ligne", vert: false, station: string, ici: boolean, sorte: Sorte, dit: string }
+ *   | { etat: "redemarre", vert: false, station: string, dit: string }
  *   | { etat: "personne", vert: false, fire?: number }} Haut
  */
 
@@ -112,10 +114,12 @@ function horsLigneDe({ etat, vueLe, dit, presente }, maintenant) {
  * si elle ne l'est pas. Elle fait foi pour cet ordinateur, avant que sa station ne publie ce qu'elle sert : sans le
  * projet, cet ordinateur n'a pas de carte ; avec lui, il en a une, au nom de sa station (`hote`, le nom d'hôte que la
  * station publie, à défaut).
- * @param {{ projet: string, lignes?: readonly LigneDeStation[], stations?: readonly StationVue[], declarees?: readonly { nom: string, distante: boolean }[], locale?: string | null, ici?: boolean, vers?: string, maintenant: number, lu?: number, iciSert?: boolean, hote?: string }} lu
+ * `redemarre` : la version que la mise à jour de la station de cet ordinateur vise tant qu'elle la redémarre (ticket 3637) :
+ * sa carte, hors ligne ou pas encore annoncée, dit « restarting » à la place — elle n'est pas hors ligne, elle se relance.
+ * @param {{ projet: string, lignes?: readonly LigneDeStation[], stations?: readonly StationVue[], declarees?: readonly { nom: string, distante: boolean }[], locale?: string | null, ici?: boolean, vers?: string, maintenant: number, lu?: number, iciSert?: boolean, hote?: string, redemarre?: string }} lu
  * @returns {Servante[]}
  */
-export function servantesDe({ projet, lignes = [], stations = [], declarees = [], locale, ici = false, vers, maintenant, lu = maintenant, iciSert, hote = CET_ORDINATEUR }) {
+export function servantesDe({ projet, lignes = [], stations = [], declarees = [], locale, ici = false, vers, maintenant, lu = maintenant, iciSert, hote = CET_ORDINATEUR, redemarre }) {
   /** @type {Servante[]} */
   const servantes = [];
   const prises = new Set();
@@ -166,7 +170,8 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
         : { id: sienne.id, nom: sienne.nom, ici: true, sorte: "ici", etat: sienne.etat, dit: sienne.dit, cooks: [], agents: [] },
     );
   }
-  return [...gardees.filter((servante) => servante.ici), ...gardees.filter((servante) => !servante.ici)];
+  const relancees = redemarre === undefined ? gardees : gardees.map((servante) => (servante.ici && (servante.etat === "hors-ligne" || servante.etat === "illisible") ? { ...servante, etat: /** @type {const} */ ("redemarre"), dit: REDEMARRE(redemarre) } : servante));
+  return [...relancees.filter((servante) => servante.ici), ...relancees.filter((servante) => !servante.ici)];
 }
 
 /**
@@ -221,6 +226,8 @@ export function hautDe({ servantes, deplacement, maintenant, fire, eteint }) {
   if (eteint !== undefined) return { etat: "eteint", vert: false, dit: eteint.dit, releve: eteint.releve, servi: servantes.some(({ etat }) => etat !== "demarre") };
   const enLigne = servantes.filter(({ etat }) => etat === "en-ligne");
   if (enLigne.length > 0) return { etat: "cuit", vert: true, stations: enLigne.map(({ nom }) => nom), cooks: enLigne.reduce((somme, { cooks }) => somme + cooks.length, 0) };
+  const relance = servantes.find(({ etat }) => etat === "redemarre");
+  if (relance !== undefined) return { etat: "redemarre", vert: false, station: relance.nom, dit: relance.dit };
   const absente = servantes.find(({ etat }) => etat !== "demarre");
   if (absente !== undefined) return { etat: "hors-ligne", vert: false, station: absente.nom, ici: absente.ici, sorte: absente.sorte, dit: absente.dit };
   return { etat: "personne", vert: false, ...(fire === undefined ? {} : { fire }) };
@@ -241,6 +248,10 @@ export const EN_DEPLACEMENT = (de, vers, attend, depuis) => `Moving from ${de} t
 export const BLOQUE = (bloque) => `Not done after a minute: ${bloque}`;
 /** @param {string} station @param {string} dit */
 export const HORS_LIGNE = (station, dit) => `${station} cooks this project, but it is ${dit}: nothing cooks`;
+/** @param {string} version */
+export const REDEMARRE = (version) => `restarting: update to ${version}`;
+/** @param {string} station @param {string} dit */
+export const EN_REDEMARRAGE = (station, dit) => `${station} cooks this project, it is ${dit}`;
 export const PERSONNE = "No station cooks this project";
 // Le projet éteint : la phrase de la bande, celle de la tête du rail, en tête de ligne.
 /** @param {string} dit */
@@ -257,5 +268,6 @@ export function phraseDuHaut(haut) {
   if (haut.etat === "deplacement") return EN_DEPLACEMENT(haut.de, haut.vers, haut.attend, haut.depuis);
   if (haut.etat === "eteint") return ETEINT(haut.dit);
   if (haut.etat === "hors-ligne") return HORS_LIGNE(haut.station, haut.dit);
+  if (haut.etat === "redemarre") return EN_REDEMARRAGE(haut.station, haut.dit);
   return haut.fire === undefined ? PERSONNE : `${PERSONNE} · ${FIRE_EN_ATTENTE(haut.fire)}`;
 }
