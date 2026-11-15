@@ -11,7 +11,7 @@
 
 // Le sujet du commit qui marque le travail d'un cook tué par la garde
 // d'inactivité. Il porte ce que le cook n'avait pas commité, ou rien.
-export const SUJET_DE_REPRISE = "brigade: work in progress saved after the idle guard stopped the cook (#3649)";
+const SUJET_DE_REPRISE = "brigade: work in progress saved after the idle guard stopped the cook (#3649)";
 
 export const estUneRepriseDeGarde = (sujet: string | null | undefined): boolean => sujet === SUJET_DE_REPRISE;
 
@@ -23,7 +23,6 @@ export const gardeLeTravail = (conclusion: string): boolean => conclusion === "g
 // Ce que la station sait faire de la branche d'un cook, sous les noms du dépôt.
 export type DepotDeReprise = {
   recolter(worktree: string, branche: string, sujet?: string, vide?: boolean): string | null;
-  intact(worktree: string): boolean;
   commits(branche: string): number;
   tete?(branche: string): string;
 };
@@ -36,9 +35,8 @@ export type DepotDeReprise = {
 // l'appelant de le dire, et de retirer la branche comme avant.
 export function marquerLeTravail(depot: DepotDeReprise, worktree: string, branche: string, avant: string | null): boolean {
   const avance = avant === null ? depot.commits(branche) > 0 : depot.tete?.(branche) !== avant;
-  if (!avance && depot.intact(worktree)) return false;
-  depot.recolter(worktree, branche, SUJET_DE_REPRISE, true);
-  return true;
+  // Sans commit du cook, le marqueur n'est posé que s'il porte ce qu'il n'avait pas commité.
+  return depot.recolter(worktree, branche, SUJET_DE_REPRISE, avance) !== null;
 }
 
 // Combien de commits du run précédent la consigne cite, des plus récents.

@@ -5,14 +5,15 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer, type StationGitHub } from "../../../src/brigade-github.ts";
-import { commitsDuRunPrecedent, consigneDuRunPrecedent, SUJET_DE_REPRISE } from "../../../src/cuisson/reprise/reprise.ts";
+import { commitsDuRunPrecedent, consigneDuRunPrecedent } from "../../../src/cuisson/reprise/reprise.ts";
+import type { Fin } from "../../../src/superviseur.ts";
 import { ouvrirDepot } from "../../../src/depot.ts";
 import { FauxGitHub, fauxClient } from "../../faux-github.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "../../outils.ts";
 
 const conclut = (flux: string) => writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "done" })}\n`);
 const fini = { code: 0, signal: null, turns: 12, tokens: 1, durationMs: 1, arret: null, erreur: null };
-const tue = { ...fini, code: null, signal: "SIGTERM", turns: 35, arret: { reason: "idle", limit: 60_000, observed: 60_000 } };
+const tue: Fin = { ...fini, code: null, signal: "SIGTERM", turns: 35, arret: { reason: "idle", limit: 60_000, observed: 60_000 } };
 const options = { claude: "claude", env: ENV_GIT, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1, reviewer: { model: "sonnet", effort: "medium" } } as const;
 
 const station = (t: TestContext, numero: number, lancer: Lancer) => {
@@ -43,7 +44,7 @@ test("a run killed by the idle guard after committing is relaunched on its branc
   await ouverte.tour();
   await ouverte.calme();
   assert.equal(run, 1);
-  assert.deepEqual(git(clone, "log", "--format=%s", `${BASE}..cook/53-github`).split("\n"), [SUJET_DE_REPRISE, "ajoute premier.txt"]);
+  assert.deepEqual(git(clone, "log", "--format=%s", `${BASE}..cook/53-github`).split("\n"), ["brigade: work in progress saved after the idle guard stopped the cook (#3649)", "ajoute premier.txt"]);
 
   await ouverte.tour();
   await ouverte.calme();

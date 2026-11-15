@@ -2748,9 +2748,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // branche pour le run suivant (#3649). Sans rien laissé, ou s'il ne se
       // marque pas, le ticket repart comme avant.
       let garde = false;
-      if (gardeLeTravail(conclusion) && depot.recolter !== undefined) {
+      const recolter = depot.recolter;
+      if (gardeLeTravail(conclusion) && recolter !== undefined) {
         try {
-          garde = marquerLeTravail(depot, worktree, branche, avant);
+          garde = marquerLeTravail({ recolter, commits: (nom) => depot.commits(nom), ...(depot.tete === undefined ? {} : { tete: depot.tete }) }, worktree, branche, avant);
           if (garde) avertir(`brigade : #${ticket.number} sur ${nom} — the idle guard stopped the cook: its work stays on \`${branche}\`, and the next run starts from it`);
         } catch (erreur) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the idle guard stopped the cook, and its work could not be kept on \`${branche}\`: ${message(erreur)}`);
