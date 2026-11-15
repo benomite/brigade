@@ -207,6 +207,25 @@ A Windows station serves a project like any other. What Windows does differently
 `runtime/test/cuisson-de-bout-en-bout.test.ts` proves the rest on every platform, the Windows CI job
 included.
 
+### Keeping the Mac awake while a cook runs
+
+*Ticket #3642, epic #3641. Code: `runtime/src/veille-machine/` (`veille.ts`, the hold; `contrat.ts`, the two files),
+wired in `station/main.ts`.* On the chef's MacBook Air, idle sleep on battery froze a running cook for 10 minutes. On a
+Mac, while at least one cook runs on the station (the tickets of its kitchens and of the projects it serves from GitHub
+only), the station runs `caffeinate -i -w <its pid>`: `pmset -g assertions` lists its PreventUserIdleSystemSleep
+assertion. Every second it counts its cooks again and rereads its setting; when the last cook ends, or the setting is
+turned off, it stops `caffeinate`, and the Mac sleeps as usual. Stopped (SIGTERM), it releases the hold at once; killed,
+even by SIGKILL, it leaves none behind, since `caffeinate -w` ends with the pid it watches. Elsewhere than on a Mac it does
+nothing. Its log says each hold and each release.
+
+- **The setting**, `keep awake while cooking`, is on by default and kept in `<BRIGADE_STATION_DIR>/veille-machine.json`
+  (`{"garderEveille": false}` when off), next to the station's other files: it survives a restart. The station's icon
+  writes it (its menu's checkbox, see [`app.md`](../app.md)). A file that cannot be read is said once in the log, the
+  station keeps the last value it read, and the checkbox refuses to overwrite it.
+- **The state**, `<BRIGADE_STATION_DIR>/veille-machine-etat.json`, is written at each hold and release:
+  `{"tenue": true, "caffeinate": <pid>, "station": <pid>}`, or `{"tenue": false}`. The app reads it (`lireVeille`) and
+  shows the hold only while both processes are alive.
+
 ### The worktree setup comes before the cook
 
 If the project has a `.claude/brigade/worktree-setup.sh` on the cook's branch, the station plays it

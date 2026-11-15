@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { setTimeout as attendre } from "node:timers/promises";
 import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import { lancerIci, type Locale } from "../box.ts";
@@ -19,6 +20,7 @@ import { ICONE_DE_LA_BARRE, pastillee } from "./icone.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
 import { executer, quitterLaStation } from "./systeme.ts";
 import { confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
+import type { Veille } from "../vue/veille-machine/veille-machine.js";
 
 const INTERVALLE_MS = 15_000;
 const DELAI_MS = 30_000;
@@ -41,6 +43,11 @@ const lancer: Lancer = (projet, commande) => lancerIci(locale, projet, commande,
 
 let icone: Tray | undefined;
 let projets: ProjetLu[] = [];
+// Garder ce Mac éveillé tant qu'un cook cuit (#3642) : le réglage et l'état que la station écrit sous son répertoire, lus
+// et écrits par le module du runtime qui les tient.
+const veilleDuRuntime = () => import(pathToFileURL(join(emplacements.runtime, "src", "veille-machine", "contrat.ts")).href) as Promise<typeof import("../../../runtime/src/veille-machine/contrat.ts")>;
+let veille: Veille | undefined;
+let veilleIllisible = "";
 let dite = "";
 let enCours = false;
 
@@ -69,6 +76,21 @@ async function jouer(geste: Geste): Promise<void> {
       app.quit();
       return;
     }
+    if (geste === "veille") {
+      // Éteint, la station relâche l'assertion au regard suivant, dans la seconde ; rallumé, elle la reprend si un cook cuit.
+      const ecrit = await veilleDuRuntime().then(
+        ({ ecrireReglage, lireReglage }) => {
+          const reglage = lireReglage(racine);
+          return "garderEveille" in reglage ? ecrireReglage(racine, !reglage.garderEveille) : { refus: `nothing was changed: ${reglage.illisible}` };
+        },
+        (erreur: unknown) => ({ refus: `nothing was changed: the station's keep-awake setting cannot be reached — ${erreur instanceof Error ? erreur.message : String(erreur)}` }),
+      );
+      await dire("refus" in ecrit ? [ecrit.refus] : []);
+      // La station relit le réglage chaque seconde : le menu se relit après elle, pour dire ce qu'elle tient alors.
+      await attendre(1500);
+      await relire();
+      return;
+    }
     await dire(await jouerLeGeste(geste, projets, lancer, DELAI_MS));
     await relire();
   } finally {
@@ -79,6 +101,7 @@ async function jouer(geste: Geste): Promise<void> {
 function entreeDuMenu(entree: EntreeDuFond): MenuItemConstructorOptions {
   if (entree.genre === "separateur") return { type: "separator" };
   if (entree.genre === "texte") return { label: entree.libelle, enabled: false };
+  if (entree.genre === "case") return { type: "checkbox", label: entree.libelle, checked: entree.coche, enabled: entree.actif, click: () => void jouer(entree.geste) };
   const { geste } = entree;
   return { label: entree.libelle, enabled: entree.actif, click: () => void jouer(geste) };
 }
@@ -101,7 +124,7 @@ function poser(actif: boolean): void {
     if (!estUnMac(plateforme)) icone.on("click", () => icone?.popUpContextMenu());
   }
   const station = etatDeLaStation(projets);
-  const entrees = menuDuFond(projets, station);
+  const entrees = menuDuFond(projets, station, veille);
   const pose = JSON.stringify(entrees);
   if (pose === dite) return;
   dite = pose;
@@ -114,6 +137,19 @@ function poser(actif: boolean): void {
 
 async function relire(): Promise<void> {
   projets = await lireLesProjets(servisPar(racine), lancer);
+  // Illisible, le menu n'en dit rien ; la raison se dit une fois.
+  veille = await veilleDuRuntime().then(
+    ({ lireVeille }) => {
+      veilleIllisible = "";
+      return lireVeille(racine, plateforme);
+    },
+    (erreur: unknown) => {
+      const raison = erreur instanceof Error ? erreur.message : String(erreur);
+      if (raison !== veilleIllisible) console.error(`brigade: the station's keep-awake state could not be read — ${raison}`);
+      veilleIllisible = raison;
+      return undefined;
+    },
+  );
   poser(lireConfiguration(cheminConfiguration()).barreDeMenus !== false);
 }
 

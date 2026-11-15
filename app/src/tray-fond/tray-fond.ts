@@ -10,13 +10,19 @@
 // « Piloter ») : la pause, `switch off` — les cooks en cours finissent, rien de neuf n'est pris — ; l'arrêt,
 // `station stop <station>` sur chaque station de cet ordinateur — elle ne prend plus rien, ses cooks finissent.
 import { enAttente, etatDeLaCuisine, ligneDe, type ProjetLu } from "../barre-de-menus.ts";
+import { menuDeVeille, type Veille } from "../vue/veille-machine/veille-machine.js";
 
 // La station de fond, d'après les faits de ses projets : en pause quand chacun est éteint, arrêtée quand chaque station
 // de cet ordinateur l'est sur chacun — ou rien d'elle ne se lit.
 type EtatDeLaStation = { pause: boolean; arret: boolean } | "illisible";
 
-export type Geste = "ouvrir" | "pause" | "reprise" | "arret" | "demarrage" | "quitter";
-export type EntreeDuFond = { genre: "texte"; libelle: string } | { genre: "separateur" } | { genre: "geste"; geste: Geste; libelle: string; actif: boolean };
+export type Geste = "ouvrir" | "pause" | "reprise" | "arret" | "demarrage" | "quitter" | "veille";
+// `case` : un réglage qui se coche — garder ce Mac éveillé tant qu'un cook cuit (#3642).
+export type EntreeDuFond =
+  | { genre: "texte"; libelle: string }
+  | { genre: "separateur" }
+  | { genre: "geste"; geste: Geste; libelle: string; actif: boolean }
+  | { genre: "case"; geste: "veille"; libelle: string; coche: boolean; actif: boolean };
 
 // Un projet tel que le fond le lit : `ProjetLu`, et les stations de cet ordinateur que ses faits déclarent.
 const stationsIci = ({ faits }: ProjetLu): { station: string; cuisson?: string }[] => (faits?.stations ?? []).filter(({ distante }) => !distante);
@@ -44,17 +50,22 @@ export function ligneDuFond(projets: readonly ProjetLu[], station: EtatDeLaStati
 
 // Le menu : la ligne, puis les gestes. Pause devient « Resume » sur une station en pause, arrêt devient « Start » sur une
 // station arrêtée ; aucun des deux ne se propose sur une station qui ne se lit pas. Ouvrir l'app et quitter, toujours.
-export function menuDuFond(projets: readonly ProjetLu[], station: EtatDeLaStation): EntreeDuFond[] {
+// Sur un Mac (#3642), la ligne qui dit qu'il est gardé éveillé, tant qu'il l'est, et la case qui en décide
+// (veille-machine.js) ; hors d'un Mac, ni l'une ni l'autre.
+export function menuDuFond(projets: readonly ProjetLu[], station: EtatDeLaStation, veille?: Veille): EntreeDuFond[] {
   const lue = station !== "illisible";
   const enPause = lue && station.pause;
   const arretee = lue && station.arret;
+  const { ligne, interrupteur } = menuDeVeille(veille);
   return [
     { genre: "texte", libelle: ligneDuFond(projets, station) },
+    ...(ligne === null ? [] : [{ genre: "texte", libelle: ligne } as const]),
     { genre: "separateur" },
     { genre: "geste", geste: "ouvrir", libelle: "Open brigade", actif: true },
     { genre: "separateur" },
     enPause ? { genre: "geste", geste: "reprise", libelle: "Resume the station", actif: true } : { genre: "geste", geste: "pause", libelle: "Pause the station", actif: lue },
     arretee ? { genre: "geste", geste: "demarrage", libelle: "Start the station", actif: true } : { genre: "geste", geste: "arret", libelle: "Stop the station", actif: lue },
+    ...(interrupteur === null ? [] : [{ genre: "case", geste: "veille", ...interrupteur } as const]),
     { genre: "geste", geste: "quitter", libelle: "Quit the station…", actif: true },
   ];
 }
