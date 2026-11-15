@@ -480,6 +480,12 @@ const REJEU_MAX_MS = 5 * 60_000;
 // met en conflit à chaque merge.
 export const PASS_MAX = 5;
 
+// Ce que la porte de prise dit des tickets qu'elle laisse quand ses places, ou
+// le pass, sont pleins (#3677) : la borne, et les tickets qui la tiennent.
+const numeros = (tickets: readonly number[]) => [...tickets].sort((a, b) => a - b).map((n) => `#${n}`).join(", ");
+const direPlacesPrises = (places: number, tenues: readonly number[]): string => `${places === 1 ? "the station's one place is" : `the station's ${places} places are all`} taken${tenues.length === 0 ? "" : ` (${numeros(tenues)})`}`;
+const direPassPlein = (livraisons: readonly number[]): string => `the pass holds ${livraisons.length} deliveries, its most is ${PASS_MAX} (${numeros(livraisons)})`;
+
 // Les tickets en pass : ceux qui portent `in-pass`, hors ceux que ce tour vient
 // de renvoyer à un cook — la liste lue peut porter encore leur label.
 export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
@@ -1933,6 +1939,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // attend tous (`attend`), et part au tour qui suit leur merge (#3509). Un
     // ticket en pass tient sa zone jusqu'à son merge, pas seulement les
     // fichiers que sa PR change.
+    // Sauf une livraison que la pass retient pour le chef, sur la tête retenue
+    // (`retenuesDuTour`) : elle attend un humain, pas la cuisine, et ne tient
+    // pas plus sa zone qu'une place du pass (#3446). Tenue, le ticket qui la
+    // recoupait attendait la réponse du chef : #3513, 282 min derrière la
+    // livraison de #3560, pris 13 s après son merge, venu juste après la
+    // réponse du chef sur la carte #3567 (#3677).
+    const pourLeChefCeTour = (branche: string): boolean => {
+      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+      return numero !== undefined && retenuesDuTour.has(Number(numero));
+    };
     const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
@@ -1942,6 +1958,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       let pr: (typeof ouvertes)[number] | undefined;
       for (const ouverte of ouvertes) {
         if (ouverte.branche === propre || !ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier)))) continue;
+        if (pourLeChefCeTour(ouverte.branche)) continue;
         if (await ticketFerme(ouverte.branche)) continue;
         pr = ouverte;
         break;
@@ -1950,6 +1967,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const enVolDuTour: EnVol[] = [];
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || autre.labels.includes(LABEL_IN_PASS) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
+        if (retenuesDuTour.has(autre.number)) continue;
         enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
       }
       const attente = attenteDeZone(ticket.number, zone, enVolDuTour);
@@ -1975,24 +1993,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
     // qui attendent un ticket ouvert le disent encore, sans quoi la retenue ne
-    // sait plus pourquoi ils n'avancent pas (#3647).
-    const direLesAttentes = async (restants: readonly TicketLu[]) => {
+    // sait plus pourquoi ils n'avancent pas (#3647). Les autres disent l'arrêt
+    // qui les retient (#3677) : muet, il laissait la retenue sans cause
+    // (`unknown`, ou la CI d'une seule livraison) quand seize tickets
+    // attendaient leur prise depuis trente minutes, et l'attente d'une prise
+    // sans rien qui dise laquelle de ces deux bornes la tenait (#3446).
+    const direLesAttentes = async (restants: readonly TicketLu[], arret: string) => {
       for (const reste of restants) {
         if (enVol.has(reste.number)) continue;
         const attendus = await defaireLesBoucles(github, reste.number, lus).catch(() => []);
         if (attendus.length > 0) options.sauter?.(reste.number, direAttenteDeTicket(reste.number, attendus), attendus);
+        else options.sauter?.(reste.number, direSaut(reste.number, arret));
       }
     };
     for (const [rang, ticket] of libres.entries()) {
       if (baseManquante !== null) break;
-      if (enVol.size + aRendre.size >= (typeof places === "number" ? places : places())) {
-        await direLesAttentes(libres.slice(rang));
+      const limite = typeof places === "number" ? places : places();
+      if (enVol.size + aRendre.size >= limite) {
+        await direLesAttentes(libres.slice(rang), direPlacesPrises(limite, [...enVol.keys(), ...aRendre.keys()]));
         break;
       }
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
       // Celles que la pass retient pour le chef n'y comptent pas (#3446).
-      if (enPass(tickets, new Set([...renvoyes, ...retenuesDuTour])) >= PASS_MAX) {
-        await direLesAttentes(libres.slice(rang));
+      const exclues = new Set([...renvoyes, ...retenuesDuTour]);
+      if (enPass(tickets, exclues) >= PASS_MAX) {
+        await direLesAttentes(libres.slice(rang), direPassPlein(tickets.filter((t) => t.labels.includes(LABEL_IN_PASS) && !exclues.has(t.number)).map(({ number }) => number)));
         break;
       }
       if (enVol.has(ticket.number)) continue;
