@@ -472,7 +472,8 @@ The chef's send-back counts among the ticket's send-backs, like the pass's.
 **The chef can also answer on the ticket itself** (#3616, epic #3612, `runtime/src/reponse-validation/`),
 with no separate validation issue. The question is a kitchen comment on the ticket whose first line is
 `<!-- brigade:validation-question pr=<PR> sha=<commit> -->` (`commit=` is read as `sha=`). At each turn,
-before trying the merge of a ticket in pass, the pass reads its comments:
+before trying again the merge of a delivery it holds for the chef, the pass reads its ticket's comments
+(a delivery it does not hold has no question, and its ticket is not read for one):
 
 - a question is **pending** for the PR if it is the last one asked for it, and neither a kept answer for its
   PR and commit nor a send-back follows it;

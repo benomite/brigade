@@ -4,8 +4,9 @@
 // chef y répond par un commentaire, sur github.com, GitHub Mobile ou le mail
 // de la notification.
 //
-// La pass lit cette réponse à chaque tour, pour chaque ticket en pass dont la
-// PR est ouverte (`brigade-github.ts`), avant de tenter son merge :
+// La pass lit cette réponse à chaque tour, pour chaque livraison qu'elle
+// retient pour le chef (`brigade-github.ts`, `pourLeChef`) — seule une telle
+// livraison porte une question —, avant de retenter son merge :
 //
 // - Une question est en attente pour la PR si c'est la dernière posée pour
 //   elle et qu'après elle, aucune réponse n'est gardée pour sa PR et son commit

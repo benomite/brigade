@@ -1657,7 +1657,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           // Le chef a répondu sur le ticket à la question de sa validation
           // (#3616) : validée, la réponse gardée la laisse merger ; renvoyée,
           // elle repart à un cook avec son commentaire, et rien ne se merge.
-          if ((await agirSurLaReponse(github, ticket.number, pr)) === "sent-back") {
+          // Seule une livraison que la pass retient pour le chef porte une
+          // question : les autres ne relisent pas leur ticket pour rien.
+          if (pourLeChef.has(ticket.number) && (await agirSurLaReponse(github, ticket.number, pr)) === "sent-back") {
             bouge = true;
             return;
           }
