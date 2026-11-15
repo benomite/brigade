@@ -3,7 +3,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { deflateSync } from "node:zlib";
-import { agrandir, agrandissement, entourer, MARGE, TRAIT, zonesChangees, type Zone } from "../../src/validation-design/comparaison.ts";
+import { agrandir, entourer, zonesChangees, type Zone } from "../../src/validation-design/comparaison.ts";
+
+// La marge gardée autour d'une zone, et le trait rouge qui l'entoure.
+const MARGE = 6;
+const ROUGE = [229, 29, 72, 255];
+const EPAISSEUR = 4;
 import { ecrirePng, lirePng, PngIllisible } from "../../src/validation-design/png.ts";
 import { copie, ecrire, LARGEUR, page, pixel, poser, remplacer } from "./pages.ts";
 
@@ -90,8 +95,8 @@ test("the after capture shows each area outlined in red all around it, and nothi
   const entouree = entourer(apres, [zone]);
   assert.equal(entouree.largeur, apres.largeur);
   assert.equal(entouree.hauteur, apres.hauteur);
-  const rouge = [...TRAIT.couleur];
-  for (const [x, y] of [[zone.x - 1, zone.y + 5], [zone.x + zone.largeur, zone.y + 5], [zone.x + 50, zone.y - TRAIT.epaisseur], [zone.x + 50, zone.y + zone.hauteur + TRAIT.epaisseur - 1]] as const) assert.deepEqual(pixel(entouree, x, y), rouge, `${x},${y}`);
+  const rouge = ROUGE;
+  for (const [x, y] of [[zone.x - 1, zone.y + 5], [zone.x + zone.largeur, zone.y + 5], [zone.x + 50, zone.y - EPAISSEUR], [zone.x + 50, zone.y + zone.hauteur + EPAISSEUR - 1]] as const) assert.deepEqual(pixel(entouree, x, y), rouge, `${x},${y}`);
   // Le dedans de la zone et le reste de la page sont ceux de la capture.
   assert.deepEqual(pixel(entouree, zone.x + 6, zone.y + 6), pixel(apres, zone.x + 6, zone.y + 6));
   assert.deepEqual(pixel(entouree, 600, 30), pixel(apres, 600, 30));
@@ -104,10 +109,9 @@ test("an area is cropped and enlarged, before on the left and after on the right
   const apres = copie(avant);
   remplacer(apres, 40, 320, "Last served: 3 hours ago");
   const [zone] = zonesChangees(avant, apres) as [Zone];
-  const fois = agrandissement(zone);
-  assert.ok(fois >= 2 && fois <= 4);
   const image = agrandir(avant, apres, zone);
-  assert.equal(image.hauteur, zone.hauteur * fois);
+  const fois = image.hauteur / zone.hauteur;
+  assert.ok(Number.isInteger(fois) && fois >= 2 && fois <= 4, String(fois));
   const large = zone.largeur * fois;
   assert.ok(image.largeur > 2 * large);
   // Chaque pixel agrandi est celui de sa capture, à sa place.

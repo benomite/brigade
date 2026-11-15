@@ -16,10 +16,10 @@
 // - Aucune zone : les captures ne montrent aucun changement visible.
 import { imageVide, type Image } from "./png.ts";
 
-export const SEUIL = 48;
-export const PIXELS_MIN = 8;
-export const ECART = 16;
-export const MARGE = 6;
+const SEUIL = 48;
+const PIXELS_MIN = 8;
+const ECART = 16;
+const MARGE = 6;
 // Les cases où se comptent les pixels changés : `ECART` en vaut deux.
 const CASE = 8;
 
@@ -131,7 +131,7 @@ function fusionner(zones: Zone[]): Zone[] {
 
 // Le trait qui entoure une zone : rouge, et assez épais pour se voir sur une
 // page entière réduite à la largeur de la carte.
-export const TRAIT = { epaisseur: 4, couleur: [229, 29, 72, 255] } as const;
+const TRAIT = { epaisseur: 4, couleur: [229, 29, 72, 255] } as const;
 
 // La capture après, chaque zone entourée d'un trait tout autour d'elle.
 export function entourer(apres: Image, zones: readonly Zone[]): Image {
@@ -157,8 +157,8 @@ export function entourer(apres: Image, zones: readonly Zone[]): Image {
 
 // L'agrandissement d'une zone : au moins deux fois, au plus quatre, vers
 // `LARGEUR_AGRANDIE` pixels de large pour chacune des deux captures.
-export const LARGEUR_AGRANDIE = 640;
-export const agrandissement = (zone: Zone) => Math.min(4, Math.max(2, Math.floor(LARGEUR_AGRANDIE / zone.largeur)));
+const LARGEUR_AGRANDIE = 640;
+const agrandissement = (zone: Zone) => Math.min(4, Math.max(2, Math.floor(LARGEUR_AGRANDIE / zone.largeur)));
 
 const SEPARATION = 16;
 // Ce qui tient la place d'un pixel hors d'une capture plus petite que l'autre.

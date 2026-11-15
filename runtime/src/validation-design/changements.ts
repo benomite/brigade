@@ -14,10 +14,10 @@
 //   puce (`lignesDesChangements`). Pas de section `## Changes` : la carte se
 //   pose quand même, sans lignes.
 
-export const TITRE_DES_CHANGEMENTS = "## Changes";
+const TITRE_DES_CHANGEMENTS = "## Changes";
 // Le titre des lignes sur la carte : un titre de niveau 3, comme ceux du brief
 // que l'app lit, pour que « What was done » s'arrête avant elles.
-export const TITRE_SUR_LA_CARTE = "### Changes";
+const TITRE_SUR_LA_CARTE = "### Changes";
 
 export const CONSIGNE_DES_CHANGEMENTS = `Écris aussi, dans ce dernier message, chaque changement visible sous un titre \`${TITRE_DES_CHANGEMENTS}\` seul sur sa ligne, une puce par changement, en anglais : \`- <place on the screen>: '<before>' -> '<after>'\` (par exemple \`- footer of the home page: 'v1.2' -> 'v1.3'\`). La station les recopie dans le corps de la PR, et la carte du chef les montre au-dessus des captures.`;
 

@@ -22,11 +22,11 @@ import { ecrirePng, lirePng, PngIllisible, type Image } from "./png.ts";
 
 export type GitHubDesComparaisons = Required<Pick<GitHub, "fichierBinaire" | "publierFichiers">>;
 
-export const TITRE_DES_ZONES = "### Changed areas";
+const TITRE_DES_ZONES = "### Changed areas";
 // Au-delà, les zones sont entourées sur la capture, sans être agrandies.
-export const ZONES_AGRANDIES = 8;
+const ZONES_AGRANDIES = 8;
 
-export type Comparaison = { sansChangement: string[] } | { lignes: string[] };
+type Comparaison = { sansChangement: string[] } | { lignes: string[] };
 
 const nomDeLEcran = (screen: string) => (screen === "" ? "the screen" : `\`${screen}\``);
 

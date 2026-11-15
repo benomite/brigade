@@ -16,7 +16,6 @@ import { ReglageRefuse, reglagesDuTexte, texteDuFichier } from "../../src/reglag
 import { principal } from "../../src/validation-design/commande.ts";
 import { corpsDeCeQuiEstFait, SANS_RESUME } from "../../src/validation-design/brief.ts";
 import { carteDuCorps, designsValidesParUnHumain, estUneLivraisonDesign, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
-import { MARGE } from "../../src/validation-design/comparaison.ts";
 import { ecrirePng, lirePng, type Image } from "../../src/validation-design/png.ts";
 import { CALIBRE, FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { copie, ecrire, page, pixel, poser, remplacer } from "./pages.ts";
@@ -900,7 +899,7 @@ test("setting on, one line of small text changed: the card lists the cook's `## 
   const apres = lirePng(fichiers.get(`docs/captures/${TICKET}/rail-apres.png`) ?? Buffer.alloc(0));
   assert.equal(entouree.largeur, 1280);
   const rouges = (y: number) => Array.from({ length: entouree.largeur }, (_, x) => pixel(entouree, x, y)).filter((p) => p.join() === "229,29,72,255").length;
-  assert.ok(rouges(320 - MARGE - 1) > 50, "the outline runs above the changed line");
+  assert.ok(rouges(320 - 6 - 1) > 50, "the outline runs above the changed line");
   assert.equal(rouges(30), 0, "nothing else is outlined");
   assert.deepEqual(pixel(entouree, 50, 322), pixel(apres, 50, 322));
   // La zone agrandie : avant à gauche, après à droite, plus grande que la ligne.
