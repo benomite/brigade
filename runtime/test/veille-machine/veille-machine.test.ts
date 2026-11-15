@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assertionTenue, ecrireEtat, ecrireReglage, ETAT, lireReglage, lireVeille, REGLAGE } from "../../src/veille-machine/contrat.ts";
-import { tenirLaVeille, type OptionsDeLaVeille } from "../../src/veille-machine/veille.ts";
+import { tenirLaVeille } from "../../src/veille-machine/veille.ts";
 import { aArreter, ENV_ENFANT, jusqua, repertoireTemporaire, vivant } from "../outils.ts";
 
 const FAUX = join(import.meta.dirname, "aides", "faux-caffeinate.ts");
@@ -17,7 +17,7 @@ const lancements = (temoin: string): { pid: number; args: string[] }[] =>
   existsSync(temoin) ? readFileSync(temoin, "utf8").trim().split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne)) : [];
 
 // Une veille sur le faux, que le test regarde à la main : son intervalle ne vient jamais pendant le test.
-function veille(t: TestContext, cooks: () => number, plus: Partial<OptionsDeLaVeille> = {}) {
+function veille(t: TestContext, cooks: () => number, plus: Partial<Parameters<typeof tenirLaVeille>[0]> = {}) {
   const racine = repertoireTemporaire(t);
   const temoin = join(racine, "lancements");
   const dits: string[] = [];

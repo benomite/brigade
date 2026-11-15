@@ -11,7 +11,7 @@ import { ecrireEtat, lireReglage } from "./contrat.ts";
 
 const INTERVALLE_MS = 1000;
 
-export type OptionsDeLaVeille = {
+type OptionsDeLaVeille = {
   // Le répertoire de la station : son réglage et son état.
   racine: string;
   plateforme: NodeJS.Platform;
