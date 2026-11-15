@@ -81,7 +81,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const lu = journal;
   if (!railBloqueCherche(env)) return ecrire(lignes);
   // Pourquoi la file ne part pas (#3433) : sa phrase au-dessus de la ligne `rail`, la même que le rail de l'app.
-  return Promise.all([railBloqueDuStatus(env, maintenant), attenteEtRailDuStatus(env, maintenant, lu.base)]).then(([rail, attente]) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(avecLeRailBloque(lignes, rail), attente.enFile), attente.lignes)), (erreur: unknown) => {
+  return Promise.all([railBloqueDuStatus(env, maintenant, lu.base), attenteEtRailDuStatus(env, maintenant, lu.base)]).then(([rail, attente]) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(avecLeRailBloque(lignes, rail), attente.enFile), attente.lignes)), (erreur: unknown) => {
     lu.fermer();
     throw erreur;
   });

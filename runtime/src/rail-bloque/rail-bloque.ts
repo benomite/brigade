@@ -14,8 +14,12 @@
 // Le diagnostic dit combien de tickets, depuis combien de temps, la cause que
 // les stations du compte disent d'elles (leur signe de vie,
 // `enregistrement-station/contrat.ts`), et le geste qui débloque quand il y en
-// a un. L'app (tableau/lecture.ts) et `brigade <project> status`
-// (`status.ts`) lisent le même diagnostic et écrivent la même phrase.
+// a un. La cuisine retenue (#3601) passe avant les stations : son journal dit
+// pourquoi elle ne prend rien — son disjoncteur ouvert, le « stop » du chef, ou
+// la cause de son `kitchen.held` —, et la ligne nomme cette cause, jamais un
+// manager qui ne prendrait rien. L'app (tableau/lecture.ts) et `brigade <project> status`
+// (`status.ts`) lisent le même diagnostic et écrivent la même phrase — hors la
+// cuisine retenue : l'app ne lit aucun journal.
 //
 // Ce module ne lit rien : `lecture.ts` lit GitHub, il juge. Il n'importe rien
 // de lourd — l'app le charge dans son process principal.
@@ -69,8 +73,17 @@ export type StationsLues = { lues: readonly StationDuCompte[] } | { illisibles: 
 //   arretee          ses stations sont arrêtées (l'une au moins par son geste d'arrêt) ;
 //   hors-ligne       ses stations se sont tues ;
 //   manager-muet     une station en ligne le sert : son manager tourne, mais ne prend rien ;
-//   inconnue         les stations du compte ne se lisent pas.
-export type Cause = "aucune-station" | "sans-quota" | "arretee" | "hors-ligne" | "manager-muet" | "inconnue";
+//   inconnue         les stations du compte ne se lisent pas ;
+//   cuisine-retenue  le journal de la cuisine dit ce qui la retient (`CuisineRetenue`), avant toute station.
+export type Cause = "aucune-station" | "sans-quota" | "arretee" | "hors-ligne" | "manager-muet" | "inconnue" | "cuisine-retenue";
+
+// Ce qui retient la cuisine, tel que son journal le dit (#3601, `status.ts`,
+// `cuisineDuJournal`) : `kind`, le mot du journal — `breaker`, `stop`, ou le
+// `cause.kind` de son `kitchen.held` ; `dit`, la cause en clair ; `geste`, ce
+// qui la lève, nul quand elle se lève seule ou qu'on ne le sait pas.
+export type CuisineRetenue = { kind: string; dit: string; geste: string | null };
+// Le journal lu, ou pourquoi il ne se lit pas : la ligne le dit, sans deviner la cuisine ouverte.
+export type CuisineLue = CuisineRetenue | { illisible: string } | null;
 // Le geste qui débloque, quand il y en a un.
 export type Geste = "demarrer-la-station" | "ajouter-a-une-station";
 
@@ -101,7 +114,7 @@ export function dureeCourte(ms: number): string {
 }
 
 // Une heure, comme `status` les écrit : `14:05 UTC`.
-const heureUtc = (iso: string) => `${new Date(iso).toISOString().slice(11, 16)} UTC`;
+export const heureUtc = (iso: string) => `${new Date(iso).toISOString().slice(11, 16)} UTC`;
 const liste = (noms: readonly string[]) => (noms.length <= 1 ? (noms[0] ?? "") : `${noms.slice(0, -1).join(", ")} and ${noms.at(-1)}`);
 
 // La cause, d'après les stations qui servent le projet.
@@ -132,6 +145,7 @@ const GESTES: Record<Cause, Geste | null> = {
   "sans-quota": null,
   "manager-muet": null,
   inconnue: null,
+  "cuisine-retenue": null,
 };
 
 // Le geste, dans les mots du chef : le libellé du bouton de l'app, et la fin de la phrase.
@@ -156,23 +170,43 @@ function direLaCause(cause: Cause, stations: readonly string[], jusqua: string |
       return `the manager runs on ${liste(stations)} but takes nothing`;
     case "inconnue":
       return "the cause is not known: your stations could not be read";
+    case "cuisine-retenue":
+      return "the kitchen is held";
   }
 }
 
+const enMajuscule = (texte: string) => `${texte.charAt(0).toUpperCase()}${texte.slice(1)}`;
+
 // Le rail de ce dépôt est-il bloqué à cet instant ? Null quand aucun ticket non
-// pris n'a passé le délai.
-export function diagnostiquer(options: { depot: string; nonPris: readonly TicketNonPris[]; stations: StationsLues; maintenant: number; delaiMs?: number }): RailBloque | null {
+// pris n'a passé le délai. `cuisine` : ce que le journal de la cuisine en dit ;
+// retenue, c'est sa cause, et `stations` n'est pas lu — null quand il ne l'a pas été.
+export function diagnostiquer(options: { depot: string; nonPris: readonly TicketNonPris[]; stations: StationsLues | null; maintenant: number; delaiMs?: number; cuisine?: CuisineLue }): RailBloque | null {
   const { depot, maintenant, delaiMs = DELAI_MS } = options;
   const bloquants = options.nonPris
     .filter(({ depuis }) => !Number.isNaN(Date.parse(depuis)) && maintenant - Date.parse(depuis) > delaiMs)
     .sort((a, b) => Date.parse(a.depuis) - Date.parse(b.depuis) || a.ticket - b.ticket);
   const [premier] = bloquants;
   if (premier === undefined) return null;
-  const { cause, stations, jusqua } = causeDe(depot, options.stations, maintenant);
-  const geste = GESTES[cause];
   const un = bloquants.length === 1;
-  const tete = `${bloquants.length} ticket${un ? "" : "s"} on the rail, no manager has taken ${un ? "it" : "them"} for ${dureeCourte(maintenant - Date.parse(premier.depuis))}`;
-  const constat = `${tete}: ${direLaCause(cause, stations, jusqua)}.`;
+  const duree = dureeCourte(maintenant - Date.parse(premier.depuis));
+  const { cuisine = null } = options;
+  if (cuisine !== null && !("illisible" in cuisine)) {
+    const constat = `${bloquants.length} ticket${un ? "" : "s"} on the rail, none taken for ${duree}: the kitchen is held, cause ${cuisine.kind} — ${cuisine.dit}.`;
+    return {
+      tickets: bloquants.map(({ ticket }) => ticket),
+      depuis: premier.depuis,
+      cause: "cuisine-retenue",
+      stations: [],
+      geste: null,
+      constat,
+      phrase: `${constat}${cuisine.geste === null ? "" : ` ${enMajuscule(cuisine.geste)}.`}`,
+    };
+  }
+  const { cause, stations, jusqua } = options.stations === null ? { cause: "inconnue" as const, stations: [] } : causeDe(depot, options.stations, maintenant);
+  const geste = GESTES[cause];
+  const tete = `${bloquants.length} ticket${un ? "" : "s"} on the rail, no manager has taken ${un ? "it" : "them"} for ${duree}`;
+  const nonLue = cuisine === null ? "" : ` The kitchen's state could not be read from its journal: ${cuisine.illisible}.`;
+  const constat = `${tete}: ${direLaCause(cause, stations, jusqua)}.${nonLue}`;
   return {
     tickets: bloquants.map(({ ticket }) => ticket),
     depuis: premier.depuis,

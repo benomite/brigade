@@ -219,7 +219,9 @@ test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucu
     assert.equal(lignes[0], `awaiting   ${TOUTES.length} decisions await the chef — the oldest for 3 d`);
     assert.equal(lignes.at(-2), "end awaiting");
     assert.equal(lignes.filter((ligne) => ligne.startsWith("awaiting")).length, 1);
-    assert.equal(lignes.length, TOUTES.length + 4);
+    // Sous le disjoncteur, une ligne par échec qui l'a ouvert (#3601).
+    const echecs = TOUTES.flatMap((attente) => (attente.quoi === "disjoncteur" ? attente.echecs : [])).length;
+    assert.equal(lignes.length, TOUTES.length + echecs + 4);
     sansMotFrancais(lignes);
   }
   // Une seule décision, puis aucune : les deux autres têtes.
