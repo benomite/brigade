@@ -14,6 +14,13 @@ returns no line is tried again on the next round, unless PowerShell is missing o
 that still lives at its exit is killed too. **An open breaker and the "stop" both hold**, restarts
 included, until "resume".
 
+A cook that **wrote its result but does not exit** (`claude` held by a background command or
+agent; its activity stays `finishing`) gets a quarter of the idle delay, at most a minute, to exit
+(#3648, `runtime/src/superviseur.ts`). Past it, it is stopped like any cook, and its end is the one
+its result says — exit code 0 if it succeeded, 1 otherwise —, so a station delivers its work
+instead of the idle guardrail killing it. `cook.exited` carries `endedAfterResultMs`. A cook that
+speaks again after its result is working: the idle guardrail watches it as before.
+
 ### Stalled runs
 
 A run the idle guardrail stops **having never started** (0 turns, 0 tokens) or **hung on a command
@@ -29,6 +36,24 @@ kind of run (`manager`, `cook`, `review`…), its run, its turns and tokens, its
 the refusal to launch and the breaker's GitHub issue say what keeps stalling. A breaker opened that
 way **closes by itself** (`breaker.lifted`, `after: <run>`) as soon as a run still in progress
 completes normally; otherwise it waits for "resume".
+
+### The computer sleeps
+
+A computer that sleeps mid-cook does not stop the cook (#3643, `runtime/src/reveil-machine/`). A
+five-second timer watches for the sleep: when it fires more than a minute late, on the wall clock or
+the monotonic one, the computer slept, and the whole interval since its last beat counts as a
+**pause**. The idle guardrail takes the pause out of the silence it measures: on wake it does not
+trip, and the cook keeps running; a real silence after the wake, longer than the idle delay, still
+trips it as before.
+
+A cook whose process died by itself, in error, while the computer slept or within the minute after
+it woke, is not a failure: `cook.exited` says `outcome: stop`, `cause: slept`, and nothing counts for
+the breaker. The kitchen relaunches it **by itself**, in the same worktree with its uncommitted work
+as it left it, under the run name `<run>-s<n>` (`cook.launched` carries `sleepRetry`). A cook a
+guardrail stopped, or that died more than a minute after the wake, is judged as before.
+
+On wake the log says it: `station.slept`, with `gapMs`, how long the computer slept, and `resumed`,
+the runs of the cooks that were running.
 
 ### In a row, across several cooks
 
@@ -169,8 +194,9 @@ Every stop is in the ticket's log: `npm --prefix runtime run log -- <ticket>`.
 | `cook.launched` | A cook leaves: calibration (`model`, `effort`), station, branch, caps, raw stream (`runs/<run>.jsonl`; errors in `.stderr`) |
 | `cook.progressed` | The cook's reading at each tick: `turns`, `tokens`, `activity` (below) |
 | `guard.tripped` | A guardrail stops it. `reason`: `duration`, `tokens`, `idle`, `lease` or `stop`; `limit`, `observed` |
-| `cook.exited` | Process dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `credentialsMasked`: times Claude's credentials were masked in its stream and errors ([`identites-et-secrets.md`](identites-et-secrets.md)) |
+| `cook.exited` | Process dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `endedAfterResultMs`: it wrote its result without exiting and was ended after that wait (#3648); `credentialsMasked`: times Claude's credentials were masked in its stream and errors ([`identites-et-secrets.md`](identites-et-secrets.md)) |
 | `cook.interrupted` | The runtime stopped while the cook ran: it died with it |
+| `station.slept` | The computer woke after `gapMs` of sleep; `resumed`: the runs that were running (off any ticket) |
 | `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | The breaker opens; "stop", "resume" (off any ticket) |
 
 ### What a cook is doing right now

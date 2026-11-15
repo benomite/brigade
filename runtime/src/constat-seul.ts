@@ -16,9 +16,16 @@ import { criteresDuCorps } from "./manager/verdict-incomplet.ts";
 
 export const MARQUE_DE_CONSTAT = "<!-- brigade:constat";
 
+// Les mots de benomite/secondes#48 aussi : une étude de faisabilité qui « ne
+// construit rien », dont le constat est posté en commentaire sur l'issue même.
+// Ses cooks le rendaient sans commit, chacun compté pour un échec (#3651).
 const LIVRABLE_ECRIT = [
-  /\bdeliverable is (?:a|the) (?:written )?(?:finding|comment|diagnosis)\b/i,
+  /\bdeliverable is (?:a|the) (?:[\w-]+ ){0,2}(?:finding|comment|diagnosis)\b/i,
+  /\bposted as a comment on (?:this|its) (?:issue|ticket)\b/i,
+  /\bbuilds nothing\b/i,
   /\blivrable est (?:un|le) (?:constat|commentaire|diagnostic)\b/i,
+  /\bpost[ée]e? en commentaire sur (?:cette|ce|son|sa) (?:issue|ticket)\b/i,
+  /\bne construit rien\b/i,
 ];
 
 export function admetUnConstat(corps: string): boolean {
