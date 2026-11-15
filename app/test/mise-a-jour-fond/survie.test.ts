@@ -83,9 +83,22 @@ test("sans marque, ou sans station vivante derrière elle, rien n'est repris —
   writeFileSync(join(racine, SURVIT), "x\n");
   assert.equal(reprendreLaSurvivante(racine, () => true), undefined);
   writeFileSync(join(racine, SURVIT), "x\n");
-  writeFileSync(join(racine, "en-service"), JSON.stringify({ pid: 4242 }));
-  assert.equal(reprendreLaSurvivante(racine, () => false), undefined);
+  const depuis = Date.parse("2026-01-01T10:00:00Z");
+  writeFileSync(join(racine, "en-service"), JSON.stringify({ pid: 4242, depuis: new Date(depuis).toISOString() }));
+  assert.equal(reprendreLaSurvivante(racine, () => false, () => depuis - 1000), undefined);
   writeFileSync(join(racine, SURVIT), "x\n");
-  assert.equal(reprendreLaSurvivante(racine, () => true), 4242);
-  assert.equal(reprendreLaSurvivante(racine, () => true), undefined);
+  assert.equal(reprendreLaSurvivante(racine, () => true, () => depuis - 1000), 4242);
+  assert.equal(reprendreLaSurvivante(racine, () => true, () => depuis - 1000), undefined);
+});
+
+test("une marque périmée dont le pid a été réutilisé par un autre process n'est pas reprise (elle ne sera jamais tuée)", (t: TestContext) => {
+  const racine = repertoireTemporaire(t);
+  const depuis = Date.parse("2026-01-01T10:00:00Z");
+  writeFileSync(join(racine, "en-service"), JSON.stringify({ pid: 4242, depuis: new Date(depuis).toISOString() }));
+  // Le process vivant sous ce pid a démarré une heure après la station : ce n'est pas elle.
+  writeFileSync(join(racine, SURVIT), "x\n");
+  assert.equal(reprendreLaSurvivante(racine, () => true, () => depuis + 3_600_000), undefined);
+  // Son âge ne se lit pas : dans le doute, rien n'est repris.
+  writeFileSync(join(racine, SURVIT), "x\n");
+  assert.equal(reprendreLaSurvivante(racine, () => true, () => undefined), undefined);
 });

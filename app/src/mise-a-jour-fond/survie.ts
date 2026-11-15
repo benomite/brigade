@@ -7,6 +7,7 @@
 //
 // Une station reprise n'a plus d'entrée à fermer : l'app l'arrête par un SIGTERM sur son pid
 // (`arreterLaSurvivante`), ce que l'entrée fermée lui donnait.
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -31,14 +32,32 @@ const vivant = (pid: number): boolean => {
   }
 };
 
-// Le pid de la station qu'une app fermée pour sa mise à jour a laissée en route — rien sans marque, ou
-// quand le process dit n'est plus là. La marque se lève : une reprise ne se refait pas.
-export function reprendreLaSurvivante(racine: string, estVivant: (pid: number) => boolean = vivant): number | undefined {
+// Quand le process `pid` a démarré (ms), ou `undefined` si le système ne le dit pas (`ps`, sous Linux et macOS).
+const demarreA = (pid: number): number | undefined => {
+  try {
+    const secondes = Number(execFileSync("ps", ["-o", "etimes=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim());
+    return Number.isFinite(secondes) ? Date.now() - secondes * 1000 : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// `en-service.depuis` est écrit par la station une fois démarrée : un process qui a démarré après lui n'est
+// pas elle, c'est un pid réutilisé. La marge couvre la seconde entière de `ps`.
+const MARGE_MS = 5000;
+
+// Le pid de la station qu'une app fermée pour sa mise à jour a laissée en route — rien sans marque, quand
+// le process dit n'est plus là, ou quand ce n'est pas la station (pid réutilisé, ou âge illisible : on ne
+// reprend pas ce qu'on pourrait tuer à tort). La marque se lève : une reprise ne se refait pas.
+export function reprendreLaSurvivante(racine: string, estVivant: (pid: number) => boolean = vivant, demarre: (pid: number) => number | undefined = demarreA): number | undefined {
   if (!existsSync(join(racine, SURVIT))) return undefined;
   rmSync(join(racine, SURVIT), { force: true });
   try {
-    const { pid } = JSON.parse(readFileSync(join(racine, EN_SERVICE), "utf8")) as { pid?: unknown };
-    return typeof pid === "number" && Number.isInteger(pid) && pid > 0 && pid !== process.pid && estVivant(pid) ? pid : undefined;
+    const { pid, depuis } = JSON.parse(readFileSync(join(racine, EN_SERVICE), "utf8")) as { pid?: unknown; depuis?: unknown };
+    if (typeof pid !== "number" || !Number.isInteger(pid) || pid <= 0 || pid === process.pid || !estVivant(pid)) return undefined;
+    const ecrit = typeof depuis === "string" ? Date.parse(depuis) : NaN;
+    const parti = demarre(pid);
+    return Number.isFinite(ecrit) && parti !== undefined && parti <= ecrit + MARGE_MS ? pid : undefined;
   } catch {
     // Pas de `en-service` lisible : la station n'a pas démarré jusqu'au bout, rien à reprendre.
     return undefined;
