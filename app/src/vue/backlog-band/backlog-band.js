@@ -10,8 +10,10 @@
 //   - Un clic sur une étiquette déplie le détail du besoin : son contexte, ses tickets comptés par étape, le lien de son
 //     issue — et, s'il attend le chef, sa carte de TODO, la question et le bouton qui y répond. Ses tickets ressortent dans
 //     le rail, les autres cartes s'effacent (`marquerLeRail`). Un second clic, ou un clic sur une autre, finit la sélection.
-//   - Un clic sur le titre déplie tout le backlog en liste, groupée par état — ce qui attend le chef d'abord —, triée par
-//     priorité dans chaque groupe ; une ligne s'y choisit comme une étiquette. Un second clic replie le bandeau sur sa ligne.
+//   - Un clic sur le titre déplie tout le backlog en liste, pour le chef (ticket 3589) : « Next », ce qui vient ensuite dans
+//     l'ordre où la cuisine le servira, puis « Ideas in reserve », chacune avec son résumé, « Put on the rail » et « Drop » ;
+//     ce qui a été servi, replié en bas. Ce qui attend le chef n'y est pas (il est dans TODO), ni aucun mot du manager ; un
+//     clic sur une ligne ouvre son issue. Un second clic sur le titre replie le bandeau sur sa ligne.
 //   - Un besoin découpé dont tous les tickets sont servis reste 24 h, marqué servi, puis quitte le bandeau.
 // Tout ce qu'il dit vient de la lecture de ce qui est avant le rail (amont.ts) et des colonnes du rail (faits.ts) : rien
 // n'est deviné. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
@@ -27,8 +29,8 @@ import { poserAvancement, progresDuBesoin } from "../backlog/avancement.js";
 /**
  * Un besoin tel que le bandeau le pose.
  * `rouge` : il attend le chef — sa carte est dans TODO (`carte`). `progres` : découpé, ses tickets servis sur leur
- * total. `servi` : découpé, tous servis. `tickets` : ceux de son découpage. `etapes` : ses tickets comptés par étape, découpé seulement.
- * @typedef {{ ticket: number, titre: string, court: string, priorite: number | null, etat: string, groupe: string, mot: string, dit: string, contexte: string | undefined, ouvrable: boolean, rouge: boolean, carte: Carte | undefined, progres: { servis: number, total: number } | null, servi: boolean, tickets: number[], etapes: Etape[] }} Besoin
+ * total. `servi` : découpé, tous servis ; `servieLe`, l'heure où son issue s'est fermée, nulle tant qu'elle est ouverte. `tickets` : ceux de son découpage. `etapes` : ses tickets comptés par étape, découpé seulement.
+ * @typedef {{ ticket: number, titre: string, court: string, priorite: number | null, etat: string, groupe: string, mot: string, dit: string, contexte: string | undefined, ouvrable: boolean, rouge: boolean, carte: Carte | undefined, progres: { servis: number, total: number } | null, servi: boolean, servieLe: number | null, tickets: number[], etapes: Etape[] }} Besoin
  */
 
 // La liste TODO des faits, où le chef a quelque chose à trancher (faits.ts, `T_ATTEND`) : la vue en pose les cartes en rouge
@@ -61,8 +63,11 @@ const MOTS = {
   "mise-de-cote": "set aside",
   decoupee: "split",
   servie: "served",
+  idee: "idea",
 };
 const ATTEND = "awaits you";
+// Ce qui a été servi, replié en bas de la liste : les plus récents seulement, tant que le chef ne le déplie pas.
+export const SERVIS_REPLIES = 3;
 
 /** @param {Fabrique} doc @param {string} balise @param {string} classe @param {string} [texte] */
 function noeud(doc, balise, classe, texte) {
@@ -129,6 +134,7 @@ export function besoinsDuBacklog(vu, colonnes, maintenant) {
         carte,
         progres,
         servi: progres !== null && progres.servis === progres.total,
+        servieLe: Number.isNaN(servieLe) ? null : servieLe,
         tickets,
         etapes,
       };
@@ -167,9 +173,11 @@ export function combienTiennent(largeurs, place, largeurPlus, ecart) {
 /**
  * Ce que le bandeau reçoit de la vue.
  * `selection` : le besoin choisi, son détail déplié ; `deplie` : la liste entière dépliée ; `rouges` : combien t'attendent
- * (`rougesDuBacklog`), que le titre dit.
- * @typedef {{ vu: Vu | undefined, besoins: Besoin[], selection: number | undefined, deplie: boolean, rouges: number }} Etat
- * @typedef {{ choisir: (ticket: number) => void, basculer: () => void, ouvrirIssue: (ticket: number) => void, carteDuChef: (carte: Carte) => any }} Gestes
+ * (`rougesDuBacklog`), que le titre dit. `servisDeplies` : ce qui a été servi, déplié en entier au bas de la liste ;
+ * `idees` : le geste d'une idée en route (`envoi`), ou pourquoi il n'est pas passé (`refus`), par issue.
+ * @typedef {{ envoi: "rail" | "abandonner" } | { refus: string }} GesteDIdee
+ * @typedef {{ vu: Vu | undefined, besoins: Besoin[], selection: number | undefined, deplie: boolean, rouges: number, servisDeplies?: boolean, idees?: ReadonlyMap<number, GesteDIdee> }} Etat
+ * @typedef {{ choisir: (ticket: number) => void, basculer: () => void, ouvrirIssue: (ticket: number) => void, carteDuChef: (carte: Carte) => any, basculerServis: () => void, idee: (ticket: number, id: "rail" | "abandonner") => void }} Gestes
  */
 
 /** @param {Fabrique} doc @param {Besoin} besoin @param {boolean} choisi @param {Gestes} gestes */
@@ -223,44 +231,114 @@ function detail(doc, besoin, gestes) {
   return pose;
 }
 
-/** @param {Fabrique} doc @param {Besoin[]} besoins @param {string[]} etats l'ordre des groupes de la lecture @param {number | undefined} selection @param {Gestes} gestes */
-function listeEntiere(doc, besoins, etats, selection, gestes) {
-  const liste = noeud(doc, "div", "backlog-band-liste");
-  /** @type {{ cle: string, nom: string, besoins: Besoin[] }[]} */
-  const groupes = [];
-  for (const besoin of besoins) {
-    const cle = besoin.rouge ? "attend" : besoin.etat;
-    const groupe = groupes.find((un) => un.cle === cle) ?? groupes[groupes.push({ cle, nom: besoin.rouge ? ATTEND : besoin.groupe, besoins: [] }) - 1];
-    groupe?.besoins.push(besoin);
-  }
-  // Ce qui attend le chef d'abord ; puis les groupes dans l'ordre de la lecture (amont.ts, `GROUPES`), chacun par priorité.
-  /** @param {string} cle */
-  const ordre = (cle) => (cle === "attend" ? -1 : etats.indexOf(cle));
-  groupes.sort((a, b) => ordre(a.cle) - ordre(b.cle));
-  for (const { cle, nom, besoins: siens } of groupes) {
-    const groupe = noeud(doc, "section", "backlog-band-groupe");
-    groupe.dataset.etat = cle;
-    const titre = noeud(doc, "h5", "backlog-band-groupe-titre");
-    titre.append(noeud(doc, "span", "backlog-band-groupe-nom", nom), noeud(doc, "span", "backlog-band-groupe-compte", String(siens.length)));
-    const lignes = noeud(doc, "ol", "backlog-band-lignes");
-    for (const besoin of siens) {
-      const ligne = noeud(doc, "li", "backlog-band-ligne");
-      const bouton = noeud(doc, "button", "backlog-band-choix");
-      bouton.type = "button";
-      bouton.ariaPressed = String(besoin.ticket === selection);
-      bouton.dataset.ticket = String(besoin.ticket);
-      bouton.append(
-        noeud(doc, "span", "backlog-band-numero", `#${besoin.ticket}`),
+/** @param {Besoin} besoin */
+const estServi = (besoin) => besoin.servi || besoin.etat === "servie";
+
+/** @param {Fabrique} doc @param {string} cle @param {string} nom @param {number} compte */
+function section(doc, cle, nom, compte) {
+  const pose = noeud(doc, "section", "backlog-band-section");
+  pose.dataset.section = cle;
+  const titre = noeud(doc, "h5", "backlog-band-section-titre");
+  titre.append(noeud(doc, "span", "backlog-band-section-nom", nom), noeud(doc, "span", "backlog-band-section-compte", String(compte)));
+  pose.append(titre);
+  return { pose, titre };
+}
+
+// Une ligne qui ouvre l'issue d'un clic : son titre, puis ce que `morceaux` ajoute. Sans adresse https, elle ne s'ouvre pas.
+/** @param {Fabrique} doc @param {Besoin} besoin @param {any[]} morceaux @param {Gestes} gestes */
+function ouvrable(doc, besoin, morceaux, gestes) {
+  const bouton = noeud(doc, "button", "backlog-band-ouvrir");
+  bouton.type = "button";
+  bouton.dataset.ticket = String(besoin.ticket);
+  bouton.title = `#${besoin.ticket} ${besoin.titre} — open its issue`;
+  bouton.disabled = !besoin.ouvrable;
+  bouton.append(...morceaux);
+  bouton.addEventListener("click", () => gestes.ouvrirIssue(besoin.ticket));
+  return bouton;
+}
+
+/** @param {Fabrique} doc @param {Besoin} besoin @param {Gestes} gestes */
+function ligneSuivante(doc, besoin, gestes) {
+  const ligne = noeud(doc, "li", "backlog-band-ligne");
+  ligne.append(
+    ouvrable(
+      doc,
+      besoin,
+      [
         noeud(doc, "span", "backlog-tag-prio", prioDe(besoin.priorite)),
         noeud(doc, "span", "backlog-band-ligne-titre", besoin.titre),
-        noeud(doc, "span", "backlog-band-ligne-etat", besoin.progres === null ? besoin.dit : `${besoin.progres.servis}/${besoin.progres.total} served`),
-      );
-      bouton.addEventListener("click", () => gestes.choisir(besoin.ticket));
-      ligne.append(bouton);
-      lignes.append(ligne);
+        ...(besoin.progres === null ? [] : [noeud(doc, "span", "backlog-band-ligne-etat", `${besoin.progres.servis}/${besoin.progres.total} served`)]),
+      ],
+      gestes,
+    ),
+  );
+  return ligne;
+}
+
+/** @param {Fabrique} doc @param {Besoin} besoin @param {GesteDIdee | undefined} geste @param {Gestes} gestes */
+function ligneDIdee(doc, besoin, geste, gestes) {
+  const ligne = noeud(doc, "li", "backlog-band-ligne backlog-band-idee");
+  const resume = noeud(doc, "span", "backlog-band-resume", besoin.contexte ?? "");
+  if (besoin.contexte !== undefined) resume.title = besoin.contexte;
+  const actions = noeud(doc, "span", "backlog-band-idee-actions");
+  const envoi = geste !== undefined && "envoi" in geste ? geste.envoi : undefined;
+  for (const [id, libelle, enCours] of /** @type {const} */ ([
+    ["rail", "Put on the rail", "putting on the rail…"],
+    ["abandonner", "Drop", "dropping…"],
+  ])) {
+    const bouton = noeud(doc, "button", "backlog-band-idee-geste", envoi === id ? enCours : libelle);
+    bouton.type = "button";
+    bouton.dataset.geste = id;
+    bouton.title = id === "rail" ? `put #${besoin.ticket} on the rail: the manager reads it at its next wake-up` : `drop #${besoin.ticket}: its issue is closed as not planned`;
+    bouton.disabled = envoi !== undefined;
+    bouton.addEventListener("click", () => gestes.idee(besoin.ticket, id));
+    actions.append(bouton);
+  }
+  ligne.append(ouvrable(doc, besoin, [noeud(doc, "span", "backlog-band-ligne-titre", besoin.titre), resume], gestes), actions);
+  if (geste !== undefined && "refus" in geste) ligne.append(noeud(doc, "p", "backlog-band-idee-refus", geste.refus));
+  return ligne;
+}
+
+/**
+ * Le backlog déplié, pour le chef (ticket 3589) : ce qui vient ensuite, dans l'ordre où la cuisine le servira — `prio:1`, `prio:2`,
+ * `prio:3`, puis sans priorité —, puis les idées en réserve, chacune avec son résumé et ses deux gestes ; ce qui a été servi,
+ * replié en bas sur les plus récents. Ce qui attend le chef n'y est pas : il est dans TODO. Aucun mot du manager sur les
+ * lignes (calibrage, `fire`, `not read yet`) : un clic ouvre l'issue, où ils restent.
+ * @param {Fabrique} doc @param {Besoin[]} besoins @param {{ servisDeplies: boolean, idees: ReadonlyMap<number, GesteDIdee> }} etat @param {Gestes} gestes
+ */
+function listeEntiere(doc, besoins, { servisDeplies, idees }, gestes) {
+  const liste = noeud(doc, "div", "backlog-band-liste");
+  const siens = besoins.filter(({ rouge }) => !rouge);
+  const suivants = siens.filter((besoin) => besoin.etat !== "idee" && !estServi(besoin));
+  const reserve = siens.filter((besoin) => besoin.etat === "idee");
+  // Les plus récents d'abord : un besoin tout servi encore ouvert, puis par fermeture, la dernière d'abord.
+  const servis = siens.filter((besoin) => besoin.etat !== "idee" && estServi(besoin)).sort((a, b) => (b.servieLe ?? Infinity) - (a.servieLe ?? Infinity) || a.ticket - b.ticket);
+
+  const { pose: suite } = section(doc, "suite", "Next", suivants.length);
+  const lignes = noeud(doc, "ol", "backlog-band-lignes");
+  lignes.append(...suivants.map((besoin) => ligneSuivante(doc, besoin, gestes)));
+  suite.append(suivants.length === 0 ? noeud(doc, "p", "backlog-band-rien", "nothing next before the rail") : lignes);
+
+  const { pose: enReserve } = section(doc, "idees", "Ideas in reserve", reserve.length);
+  const lignesDIdees = noeud(doc, "ol", "backlog-band-lignes");
+  lignesDIdees.append(...reserve.map((besoin) => ligneDIdee(doc, besoin, idees.get(besoin.ticket), gestes)));
+  enReserve.append(reserve.length === 0 ? noeud(doc, "p", "backlog-band-rien", "no idea in reserve") : lignesDIdees);
+  liste.append(suite, enReserve);
+
+  if (servis.length > 0) {
+    const { pose: servi, titre } = section(doc, "servis", "Served", servis.length);
+    const plie = !servisDeplies && servis.length > SERVIS_REPLIES;
+    if (servis.length > SERVIS_REPLIES) {
+      const bascule = noeud(doc, "button", "backlog-band-servis-bascule", plie ? `show all ${servis.length}` : "show the most recent only");
+      bascule.type = "button";
+      bascule.ariaExpanded = String(!plie);
+      bascule.addEventListener("click", gestes.basculerServis);
+      titre.append(bascule);
     }
-    groupe.append(titre, lignes);
-    liste.append(groupe);
+    const lignesServies = noeud(doc, "ol", "backlog-band-lignes");
+    lignesServies.append(...(plie ? servis.slice(0, SERVIS_REPLIES) : servis).map((besoin) => ligneSuivante(doc, besoin, gestes)));
+    servi.append(lignesServies);
+    liste.append(servi);
   }
   return liste;
 }
@@ -270,7 +348,7 @@ function listeEntiere(doc, besoins, etats, selection, gestes) {
  * Une lecture ratée le dit sur la ligne, sa raison au survol : ce n'est jamais « rien avant le rail ».
  * @param {Fabrique} doc @param {Etat} etat @param {Gestes} gestes
  */
-export function poserBandeauBacklog(doc, { vu, besoins, selection, deplie, rouges }, gestes) {
+export function poserBandeauBacklog(doc, { vu, besoins, selection, deplie, rouges, servisDeplies = false, idees = new Map() }, gestes) {
   if (vu === undefined || "nonPublie" in vu) return null;
   const bandeau = noeud(doc, "section", "backlog-band");
   bandeau.ariaLabel = "Backlog: the needs before the rail";
@@ -316,7 +394,7 @@ export function poserBandeauBacklog(doc, { vu, besoins, selection, deplie, rouge
   tags.append(plus);
   ligne.append(tags);
   if (choisi !== undefined) bandeau.append(detail(doc, choisi, gestes));
-  if (deplie) bandeau.append(listeEntiere(doc, besoins, vu.groupes.map(({ etat }) => etat), selection, gestes));
+  if (deplie) bandeau.append(listeEntiere(doc, besoins, { servisDeplies, idees }, gestes));
   return bandeau;
 }
 

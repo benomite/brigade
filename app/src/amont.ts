@@ -36,6 +36,8 @@ export const GROUPES = [
   { etat: "mise-de-cote", nom: "set aside" },
   { etat: "decoupee", nom: "split into tickets" },
   { etat: "servie", nom: "served" },
+  // Une idée en réserve (label `idea`) : le manager ne la lit pas ; le Backlog la range à part (#3589).
+  { etat: "idee", nom: "ideas in reserve" },
 ] as const;
 
 // Une issue avant le rail : son numéro, son titre, sa priorité, ce qui la retient, et ce que le bandeau Backlog lit

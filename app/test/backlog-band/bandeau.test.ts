@@ -1,7 +1,7 @@
 // Le bandeau Backlog (#3460, vue/backlog-band/backlog-band.js), joué seul, avec le faux élément de l'app : l'ordre de ses
 // étiquettes — ce qui attend le chef d'abord, puis la priorité —, ce que chacune dit, le `+N` qui ne coupe jamais une
-// étiquette, le choix d'un besoin et sa fin, le nombre d'étiquettes rouges, et le besoin tout servi gardé 24 h, à
-// l'horloge donnée.
+// étiquette, le choix d'un besoin et sa fin, le nombre d'étiquettes rouges, le besoin tout servi gardé 24 h, à
+// l'horloge donnée — et la liste dépliée du chef : Next, les idées en réserve, ce qui a été servi replié (#3589).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Vu } from "../../src/amont.ts";
@@ -25,14 +25,15 @@ const colonnes = (parColonne: Record<string, number[]>) => Object.entries(parCol
 
 // Un backlog de référence : un besoin non lu sans priorité, une épique à découper prio:2, une découpée prio:1 en cours,
 // une prête prio:3 — et deux qui attendent le chef (leurs cartes sont dans Awaiting you), prio:3 et sans priorité.
-const REFERENCE = vu([
+const BESOINS_DE_REFERENCE = [
   besoin(5, "non-lue", null),
   besoin(6, "epique", 2),
   besoin(7, "decoupee", 1, { tickets: [20, 21, 22, 23, 24], servis: [23, 24], contexte: "Why it matters." }),
   besoin(8, "prete", 3),
   besoin(9, "mise-de-cote", null, { titre: "Garder les tickets un an, ou les effacer au bout de six mois ?" }),
   besoin(10, "epique", 3),
-]);
+];
+const REFERENCE = vu(BESOINS_DE_REFERENCE);
 const RAIL = colonnes({ "On the rail": [20], Taken: [21], Pass: [], "Awaiting you": [9, 10, 22], Waiting: [], Served: [] });
 
 describe("les étiquettes, dans leur ordre", () => {
@@ -198,28 +199,119 @@ describe("choisir un besoin, et finir ce choix", () => {
 });
 
 describe("le titre déplie tout le backlog", () => {
-  test("une liste groupée par état — ce qui attend le chef d'abord, puis dans l'ordre de la lecture —, triée par priorité dans chaque groupe ; une ligne se choisit comme une étiquette", () => {
-    const choisis: number[] = [];
-    let bascules = 0;
-    const besoins = besoinsDuBacklog(REFERENCE, RAIL, MAINTENANT);
-    const bandeau = poser(doc, { vu: REFERENCE, besoins, selection: undefined, deplie: true, rouges: 0 }, gestes({ choisir: (t) => void choisis.push(t), basculer: () => void bascules++ })) ?? assert.fail("pas de bandeau");
-    const titre = bandeau.dessous("button").find(({ className }) => className === "backlog-band-titre") ?? assert.fail("pas de titre");
+  // Le backlog de référence, plus deux idées en réserve et quatre besoins tout servis, fermés à des heures différentes.
+  const IDEES = vu([
+    ...BESOINS_DE_REFERENCE,
+    besoin(11, "non-lue", 1),
+    besoin(30, "idee", null, { titre: "Un programme de fidélité", contexte: "Un client qui revient dix fois a son dessert offert." }),
+    besoin(31, "idee", null, { titre: "La commande par QR code" }),
+    besoin(40, "servie", 2, { tickets: [41], servis: [41], servieLe: "2026-11-13T08:00:00.000Z" }),
+    besoin(42, "servie", null, { tickets: [43], servis: [43], servieLe: "2026-11-13T11:00:00.000Z" }),
+    besoin(44, "servie", 1, { tickets: [45], servis: [45], servieLe: "2026-11-12T20:00:00.000Z" }),
+    besoin(46, "servie", 3, { tickets: [47, 48], servis: [47, 48] }),
+  ]);
+  const deplie = (etat: Partial<Parameters<typeof poserBandeauBacklog>[1]> = {}, autres: Partial<Parameters<typeof poserBandeauBacklog>[2]> = {}) =>
+    poser(doc, { vu: IDEES, besoins: besoinsDuBacklog(IDEES, RAIL, MAINTENANT), selection: undefined, deplie: true, rouges: 0, ...etat }, gestes(autres)) ?? assert.fail("pas de bandeau");
+  const sections = (bandeau: Faux) => bandeau.dessous("section").filter(({ className }) => className === "backlog-band-section");
+  const lignes = (pose: Faux | undefined) => (pose ?? assert.fail("pas de section")).dessous("li").filter(({ className }) => className.startsWith("backlog-band-ligne"));
+  const textes = (ligne: Faux) => (ligne.dessous("button")[0] ?? assert.fail("pas de bouton")).children.map(({ textContent }) => textContent);
+
+  test("deux sections, dans cet ordre : Next, puis Ideas in reserve ; ce qui a été servi en bas", () => {
+    const titre = deplie().dessous("button").find(({ className }) => className === "backlog-band-titre") ?? assert.fail("pas de titre");
     assert.equal(titre.ariaExpanded, "true");
-    const groupes = bandeau.dessous("section").filter(({ className }) => className === "backlog-band-groupe");
     assert.deepEqual(
-      groupes.map((groupe) => [groupe.dataset.etat, groupe.dessous("h5")[0]?.textContent, groupe.dessous("button").map(({ dataset }) => Number(dataset.ticket))]),
+      sections(deplie()).map((pose) => [pose.dataset.section, pose.dessous("h5")[0]?.children.slice(0, 2).map(({ textContent }) => textContent)]),
       [
-        ["attend", "awaits you2", [10, 9]],
-        ["non-lue", "not read yet1", [5]],
-        ["epique", "epic, not split yet1", [6]],
-        ["prete", "ready, not fired1", [8]],
-        ["decoupee", "split into tickets1", [7]],
+        ["suite", ["Next", "5"]],
+        ["idees", ["Ideas in reserve", "2"]],
+        ["servis", ["Served", "4"]],
       ],
     );
-    groupes[2]?.dessous("button")[0]?.click();
-    assert.deepEqual(choisis, [6]);
-    titre.click();
+  });
+
+  test("Next : les besoins dans l'ordre où la cuisine les servira — prio:1, 2, 3, puis sans —, chacun son titre, sa priorité et, découpé, son avancement ; ni ce qui t'attend, ni les mots du manager", () => {
+    const suite = lignes(sections(deplie())[0]);
+    assert.deepEqual(suite.map(textes), [
+      ["prio:1", "Besoin 7", "2/5 served"],
+      ["prio:1", "Besoin 11"],
+      ["prio:2", "Besoin 6"],
+      ["prio:3", "Besoin 8"],
+      ["no prio", "Besoin 5"],
+    ]);
+    // #9 et #10 t'attendent : ils sont dans TODO, pas ici.
+    assert.equal(suite.some((ligne) => /Besoin (9|10)\b|Garder/.test(ligne.textContent)), false);
+    const tout = deplie().dessous("div").find(({ className }) => className === "backlog-band-liste")?.textContent ?? "";
+    assert.doesNotMatch(tout, /model:|effort:|fire|not read yet|calibrat|awaits you|said/);
+  });
+
+  test("un clic sur une ligne ouvre son issue ; une issue sans adresse ne s'ouvre pas", () => {
+    const ouvertes: number[] = [];
+    const choisis: number[] = [];
+    const bandeau = deplie({}, { ouvrirIssue: (t) => void ouvertes.push(t), choisir: (t) => void choisis.push(t) });
+    for (const pose of sections(bandeau)) lignes(pose)[0]?.dessous("button")[0]?.click();
+    assert.deepEqual(ouvertes, [7, 30, 46]);
+    assert.deepEqual(choisis, []);
+    const sansAdresse = vu([besoin(5, "non-lue", null, { url: "file:///x" })]);
+    const pose = poser(doc, { vu: sansAdresse, besoins: besoinsDuBacklog(sansAdresse, [], MAINTENANT), selection: undefined, deplie: true, rouges: 0 }, gestes()) ?? assert.fail("pas de bandeau");
+    assert.equal(lignes(sections(pose)[0])[0]?.dessous("button")[0]?.disabled, true);
+  });
+
+  test("Ideas in reserve : chacune son titre et son résumé en une ligne, « Put on the rail » et « Drop » d'un geste", () => {
+    const joues: [number, string][] = [];
+    const reserve = lignes(sections(deplie({}, { idee: (t, id) => void joues.push([t, id]) }))[1]);
+    assert.deepEqual(reserve.map(textes), [
+      ["Un programme de fidélité", "Un client qui revient dix fois a son dessert offert."],
+      ["La commande par QR code", ""],
+    ]);
+    const gestesDe = (ligne: Faux | undefined) => (ligne ?? assert.fail("pas de ligne")).dessous("button").filter(({ className }) => className === "backlog-band-idee-geste");
+    assert.deepEqual(gestesDe(reserve[0]).map(({ textContent }) => textContent), ["Put on the rail", "Drop"]);
+    gestesDe(reserve[0])[0]?.click();
+    gestesDe(reserve[1])[1]?.click();
+    assert.deepEqual(joues, [
+      [30, "rail"],
+      [31, "abandonner"],
+    ]);
+  });
+
+  test("une idée dont le geste part : ses deux boutons attendent ; refusé, sa ligne dit pourquoi", () => {
+    const idees = new Map([
+      [30, { envoi: "rail" as const }],
+      [31, { refus: "nothing was changed: GitHub did not close #31" }],
+    ]);
+    const reserve = lignes(sections(deplie({ idees }))[1]);
+    const boutons = (reserve[0] ?? assert.fail("pas de ligne")).dessous("button").filter(({ className }) => className === "backlog-band-idee-geste");
+    assert.deepEqual(boutons.map(({ textContent, disabled }) => [textContent, disabled]), [
+      ["putting on the rail…", true],
+      ["Drop", true],
+    ]);
+    assert.equal(reserve[1]?.dessous("p").find(({ className }) => className === "backlog-band-idee-refus")?.textContent, "nothing was changed: GitHub did not close #31");
+  });
+
+  test("Served : replié sur les trois plus récents — celui encore ouvert, puis par fermeture —, déplié d'un clic", () => {
+    let bascules = 0;
+    const replie = sections(deplie({}, { basculerServis: () => void bascules++ }))[2];
+    assert.deepEqual(lignes(replie).map(textes), [
+      ["prio:3", "Besoin 46", "2/2 served"],
+      ["no prio", "Besoin 42", "1/1 served"],
+      ["prio:2", "Besoin 40", "1/1 served"],
+    ]);
+    const bascule = replie?.dessous("button").find(({ className }) => className === "backlog-band-servis-bascule") ?? assert.fail("pas de bascule");
+    assert.equal(bascule.textContent, "show all 4");
+    assert.equal(bascule.ariaExpanded, "false");
+    bascule.click();
     assert.equal(bascules, 1);
+    const ouvert = sections(deplie({ servisDeplies: true }))[2];
+    assert.deepEqual(lignes(ouvert).map((ligne) => textes(ligne)[1]), ["Besoin 46", "Besoin 42", "Besoin 40", "Besoin 44"]);
+    assert.equal(ouvert?.dessous("button").find(({ className }) => className === "backlog-band-servis-bascule")?.ariaExpanded, "true");
+  });
+
+  test("rien de suivant ni d'idée : chaque section le dit ; rien de servi : pas de section Served", () => {
+    const vide = vu([besoin(9, "mise-de-cote", null)]);
+    const bandeau = poser(doc, { vu: vide, besoins: besoinsDuBacklog(vide, RAIL, MAINTENANT), selection: undefined, deplie: true, rouges: 1 }, gestes()) ?? assert.fail("pas de bandeau");
+    assert.deepEqual(sections(bandeau).map((pose) => [pose.dataset.section, pose.dessous("p")[0]?.textContent]), [
+      ["suite", "nothing next before the rail"],
+      ["idees", "no idea in reserve"],
+    ]);
   });
 
   test("le `+N` déplie la liste entière", () => {
@@ -274,5 +366,5 @@ describe("ce que le bandeau dit quand rien n'est lu", () => {
 });
 
 function gestes(autres: Partial<Parameters<typeof poserBandeauBacklog>[2]> = {}): Parameters<typeof poserBandeauBacklog>[2] {
-  return { choisir: () => {}, basculer: () => {}, ouvrirIssue: () => {}, carteDuChef: () => new Faux("li"), ...autres };
+  return { choisir: () => {}, basculer: () => {}, ouvrirIssue: () => {}, carteDuChef: () => new Faux("li"), basculerServis: () => {}, idee: () => {}, ...autres };
 }
