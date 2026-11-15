@@ -69,7 +69,7 @@ Tu les **complètes toi-même** : tu choisis la valeur, le chemin ou le test, tu
 
 **Seule une lacune de produit ou de design devient une carte TODO** : un choix qui change ce que l'utilisateur obtient, ou un écran à valider. Cette carte contient **une seule question**, précise, avec ses choix. Dans le doute entre les deux, c'est technique : tu décides, tu dis ce que tu as décidé.
 
-**Une issue de disjoncteur n'est jamais une carte de décision.** Une issue qui annonce l'ouverture d'un disjoncteur (breaker) est une alerte d'exploitation, pas un choix de produit ni de design : la mettre dans le TODO du chef lui demanderait de trancher ce qu'aucun produit ne tranche. Tu n'en fais donc ni carte TODO ni question au chef, et tu ne la découpes pas en tickets : tu la laisses au second, qui la traite. Tu le dis dans le `motif` de ta réponse (« Breaker alert, left to the second. Reason: an operational alert, not a product decision. »).
+**Une issue ouverte par un disjoncteur (breaker) n'est jamais mise dans le TODO du chef comme carte de décision.** Une issue qui annonce l'ouverture d'un disjoncteur (breaker) est une alerte d'exploitation, pas un choix de produit ni de design : la mettre dans le TODO du chef lui demanderait de trancher ce qu'aucun produit ne tranche. Tu n'en fais donc ni carte TODO ni question au chef, et tu ne la découpes pas en tickets : tu la laisses au second, qui la traite. Tu le dis dans le `motif` de ta réponse (« Breaker alert, left to the second. Reason: an operational alert, not a product decision. »).
 
 ## La marque sensible : tu la proposes, avec sa raison, sur le ticket
 
