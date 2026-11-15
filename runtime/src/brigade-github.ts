@@ -41,6 +41,7 @@ import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis,
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
+import { jamaisParti } from "./projections/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
@@ -2374,7 +2375,8 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
 
 // Un lancement de `claude` sous supervision : le cook, ou le reviewer.
 // `flux` rendu : là où son flux s'est écrit, s'il ne l'a pas été où demandé.
-export type Lancer = (lancement: Lancement & { entree?: string; cwd: string; env: NodeJS.ProcessEnv; flux: string }) => Pick<Supervise, "fin"> & { flux?: string };
+// `ticket` : celui que sert le cook, que le disjoncteur nomme s'il échoue (#3656).
+export type Lancer = (lancement: Lancement & { entree?: string; cwd: string; env: NodeJS.ProcessEnv; flux: string; ticket?: number }) => Pick<Supervise, "fin"> & { flux?: string };
 
 export type OptionsDuDepot = {
   nom: string;
@@ -2791,7 +2793,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(envDuCook), flux });
+    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(envDuCook), flux, ticket: ticket.number });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
@@ -2810,7 +2812,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       }
       depot.retirer(worktree, reprise || garde || sauves.has(ticket.number) ? undefined : branche);
       const dit = direLaFin({ conclusion, fin, flux: lance.flux ?? flux });
-      return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
+      if (arretSubi(conclusion, fin)) return { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null };
+      // Jamais parti (#3656) : le ticket le dit, et la cuisine sert les autres.
+      if (jamaisParti(fin)) return { echec: `the cook of #${ticket.number} never started, its launch failed: ${dit}. A launch that fails before the cook runs does not count toward the kitchen's breaker: the kitchen keeps serving other tickets` };
+      return { echec: dit };
     }
     const arretDuCook = () => ({ message: lireLeFlux(lance.flux ?? flux).message ?? null, turns: fin.turns, code: fin.code });
     // Le cook déclare la décision ou la condition qui lui manque (#2073) : ce
@@ -2940,10 +2945,11 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,
   // en lecture seule, sans jeton GitHub ni secret du projet.
   // `criteres` : combien de critères d'acceptation la consigne lui donne (#3466).
-  const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0): Promise<Lue> => {
+  // `ticket` : celui dont elle relit la livraison, absent pour une PR du dehors (#3656).
+  const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0, ticket?: number): Promise<Lue> => {
     const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
-    const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+    const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ...(ticket === undefined ? {} : { ticket }) });
     await lance.fin;
     const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message, null, criteres);
     if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
@@ -2998,7 +3004,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
-      const [prouvee, relue] = await Promise.allSettled([prouverLaLivraison(ticket, worktree, diff.fichiers), relecture(worktree, run, texte, pr, criteres.length)]);
+      const [prouvee, relue] = await Promise.allSettled([prouverLaLivraison(ticket, worktree, diff.fichiers), relecture(worktree, run, texte, pr, criteres.length, ticket.number)]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
       const verts = vertsSurLaBase(preuve);
       // Un test ajouté déjà vert sur la base renvoie la livraison, que la relecture ait pu se lire ou non.
@@ -3076,7 +3082,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             const texte = consigneDuBlocage({ depot: depotGitHub, issue: { number: ticket.number, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: commentaires.slice(-DERNIERS_COMMENTAIRES).map(({ body }) => body), question, reponses });
             const flux = join(options.flux, `${run}-${reponses.length + 1}.flux.jsonl`);
             const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
-            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux, ticket: ticket.number });
             const fin = await lance.fin;
             const lu = lireLeFlux(lance.flux ?? flux);
             const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
@@ -3102,7 +3108,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             const texte = consigneDeReprise({ depot: depotGitHub, issue: { number: ticket.number, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: commentaires.slice(-DERNIERS_COMMENTAIRES).map(({ body }) => body), calibrage, plafond, motifs });
             const flux = join(options.flux, `${run}-${Date.now()}.flux.jsonl`);
             const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
-            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux, ticket: ticket.number });
             const fin = await lance.fin;
             const lu = lireLeFlux(lance.flux ?? flux);
             const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
@@ -3129,7 +3135,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const texte = consigneDuSecondJuge(consigne, { depot: depotGitHub, base, pr: pr.number, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, juges, diff });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, CALIBRAGE_DU_SECOND_JUGE), worktree) }, { cwd: worktree, depot: "lecture" });
-      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ticket: ticket.number });
       await lance.fin;
       const lu = lireSecondJugement(lireLeFlux(lance.flux ?? flux).message);
       if ("illisible" in lu) throw new Error(`the second judge of PR #${pr.number} is unreadable: ${lu.illisible}`);
@@ -3148,7 +3154,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const texte = consigneDuChoix({ ticket, fichiers, diff: depot.diff(brancheDuTicket(ticket.number)) });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
-      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ticket: ticket.number });
       await lance.fin;
       const lu = lireLeChoix(lireLeFlux(lance.flux ?? flux).message);
       if ("illisible" in lu) throw new Error(`the design judgment of PR #${pr.number} is unreadable: ${lu.illisible}`);

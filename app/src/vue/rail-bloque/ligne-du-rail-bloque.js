@@ -11,6 +11,7 @@
 // Ce module ne touche pas `document` : il reçoit une fabrique et ce que le bouton appelle, et rend des éléments.
 
 import { boutonAction } from "../briques.js";
+import { CET_ORDINATEUR } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./rail-bloque.ts").RailBloqueLu} RailBloqueLu */
@@ -21,7 +22,7 @@ export const MARQUE = "FAULT";
 export const GESTES = { "ajouter-a-une-station": "Add the project to a station" };
 // Le bouton qui démarre la station de cet ordinateur : le runtime dit « Start it on its computer » dans sa phrase, la vue
 // sait, elle, que la station est ici.
-export const DEMARRER_ICI = "Start this computer's station";
+export const DEMARRER_ICI = `Start ${CET_ORDINATEUR}'s station`;
 
 /** @typedef {{ ouvrirStations(): void, demarrerIci?(): void, demarrageRefuse?: string }} GestesDuRail */
 

@@ -17,7 +17,8 @@ import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { decrire, decrireEcart, ecart } from "./dire-manager.ts";
 import type { Ecart } from "./events/manager.ts";
-import { ouvrirGitHub, type IssueOuverte } from "./github.ts";
+import { type IssueOuverte } from "./github.ts";
+import { ouvrirGitHubDuGeste } from "./gestes/github-du-geste.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
@@ -154,7 +155,10 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     }
     const { depot } = rail;
     // Une commande du chef : la box ne retient aucun de ses appels (limite-github.ts).
-    const github = ouvrirGitHub({ depot, bin: rail.gh, usage: "geste" });
+    // C'est la relecture de la vue (`upstream`, toutes les minutes et à chaque
+    // regard de l'app) : une liste lue par un geste depuis moins de
+    // FENETRE_DES_LECTURES_MS se rend sans appel (gestes/lectures-des-gestes.ts, #3682).
+    const github = ouvrirGitHubDuGeste({ depot, bin: rail.gh, env, servir: true });
     try {
       const sondage = await github.ouvertes();
       // Un GitHub ouvert à l'instant n'a pas d'ETag : la liste est toujours rendue — sans elle, rien n'est compté.

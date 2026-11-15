@@ -8,7 +8,7 @@
 // Rien ne passe par la box ni par son répertoire d'état : chaque geste s'écrit
 // sur l'issue, sous le `gh` du poste (`BRIGADE_GH_BIN`, sinon `gh`).
 import { Sortie, type Appel } from "../appel.ts";
-import { ouvrirGitHub } from "../github.ts";
+import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import { GesteRefuse } from "../rail.ts";
 import { cestArriveGitHub, direAttenteGitHub, lireCartesGitHub, lireCible, lireDepot, mettreEnAttenteGitHub, reprendreGitHub, type GitHubDeLAttente } from "./attente-github.ts";
 
@@ -30,7 +30,7 @@ export async function principalGitHub(
   args: readonly string[],
   { env, dire, redire }: Appel,
   maintenant: () => Date,
-  ouvrir: OuvrirGitHub = (depot) => ouvrirGitHub({ depot, bin: env.BRIGADE_GH_BIN || "gh", usage: "geste" }),
+  ouvrir: OuvrirGitHub = (depot) => ouvrirGitHubDuGeste({ depot, bin: env.BRIGADE_GH_BIN || "gh", env }),
 ): Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
