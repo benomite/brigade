@@ -1165,7 +1165,7 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, oui: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, oui, cuisines.cuisineDe(vise));
 });
-// Un geste de WAITING, sur une carte du rail ou sa fiche : quand la cuisine du projet tourne sur ce poste, sa commande
+// Un geste de WAITING, sur une carte du rail ou sa fiche : « resume », quand la cuisine du projet tourne sur ce poste, sa commande
 // part dans le second du projet, comme un geste du socle (attente.ts) ; sinon il s'écrit sur l'issue, comme la commande
 // l'y écrit (vue/attente/attente-github.ts, #3075). La vue nomme le geste et le ticket, et donne ce que le chef a rempli.
 // « It arrived, back to the kitchen » n'a pas de commande : il retire `waiting` de l'issue (gestes-github.ts), comme le
