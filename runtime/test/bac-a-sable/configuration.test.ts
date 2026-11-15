@@ -23,6 +23,19 @@ const projet = (hotes: string[] = []): Cook => ({ worktree: WORKTREE, caches: CA
 const INSTALLATION = droitsDInstallation(HOME);
 const projetBrigade = (): Cook => ({ ...projet(), brigade: true });
 const projetSeul = (hotes: Regle[]): Cook => ({ ...projet(), hotes });
+// Les hôtes que joint le cook de toute station, Claude et GitHub, avant ceux de la liste du projet.
+const HOTES_DE_LA_STATION = [
+  "anthropic.com",
+  "*.anthropic.com",
+  "claude.ai",
+  "*.claude.ai",
+  "claude.com",
+  "*.claude.com",
+  "github.com",
+  "*.github.com",
+  "githubusercontent.com",
+  "*.githubusercontent.com",
+];
 
 test("l'écriture n'est ouverte que dans le worktree et les caches du projet — au bac à sable comme aux outils de `claude`", () => {
   const { modeDePermission, reglages } = configurer(projet());
@@ -147,19 +160,7 @@ test("un cook peut ouvrir un port local (Gradle, serveur de test), et cela n'ajo
   const { network } = reglages.sandbox;
   assert.equal(network.allowLocalBinding, true);
   // Ni caractère générique, ni adresse : seule la liste du projet et celle de la station.
-  assert.deepEqual(network.allowedDomains, [
-    "anthropic.com",
-    "*.anthropic.com",
-    "claude.ai",
-    "*.claude.ai",
-    "claude.com",
-    "*.claude.com",
-    "github.com",
-    "*.github.com",
-    "githubusercontent.com",
-    "*.githubusercontent.com",
-    "registry.npmjs.org",
-  ]);
+  assert.deepEqual(network.allowedDomains, [...HOTES_DE_LA_STATION, "registry.npmjs.org"]);
   assert.equal(network.allowedDomains.includes("*"), false);
   assert.equal(network.allowedDomains.some((nom) => /localhost|127\.|0\.0\.0\.0|::/.test(nom)), false);
   assert.equal(network.strictAllowlist, true);
@@ -170,16 +171,7 @@ test("seuls les hôtes de la liste réseau du projet sont joignables, et un hôt
   const { reglages } = configurer(projet(["registry.npmjs.org", "*.example.org", "db.example.net:5432"]));
   const { network } = reglages.sandbox;
   assert.deepEqual(network.allowedDomains, [
-    "anthropic.com",
-    "*.anthropic.com",
-    "claude.ai",
-    "*.claude.ai",
-    "claude.com",
-    "*.claude.com",
-    "github.com",
-    "*.github.com",
-    "githubusercontent.com",
-    "*.githubusercontent.com",
+    ...HOTES_DE_LA_STATION,
     "registry.npmjs.org",
     "example.org",
     "*.example.org",

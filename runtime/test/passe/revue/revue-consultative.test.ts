@@ -8,8 +8,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { priseDeLaStation, stationDuDepot, type Lancer } from "../../../src/brigade-github.ts";
-import { FauxGitHub, fauxClient } from "../../faux-github.ts";
+import { stationDuDepot, type Lancer } from "../../../src/brigade-github.ts";
+import { FauxGitHub, fauxClient, STATION_DU_DEPOT } from "../../faux-github.ts";
 
 const CORPS = "## Context\n\nCONTEXTE-DU-TICKET\n\n## Acceptance criteria\n\n- It adds two numbers\n- The doc says so";
 const COMPTE_RENDU = "COMPTE-RENDU-DU-COOK: I added the sum and wrote the doc.";
@@ -31,10 +31,7 @@ async function parLaStation(t: TestContext, constats: unknown[]) {
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const station = stationDuDepot({
-    nom: "box",
-    places: 1,
-    base: "main",
-    depotGitHub: "faux/depot",
+    ...STATION_DU_DEPOT,
     github: fauxClient(faux),
     depot: {
       connait: () => false,
@@ -47,13 +44,7 @@ async function parLaStation(t: TestContext, constats: unknown[]) {
       changes: () => ["lib/somme.ts"],
       diff: () => DIFF,
     },
-    prise: priseDeLaStation,
-    claude: "claude",
     env: { PATH: process.env.PATH },
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
     flux: repertoire,
     lancer,
     avertir: () => {},
