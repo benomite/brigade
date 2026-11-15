@@ -282,6 +282,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/rail-bloque/rail-bloque.ts",
     // Le ticket qu'une PR sert, sans E/S : la règle que le récapitulatif du runtime lit sur les mêmes PR (ticket 3581).
     "runtime/src/recap/servis.ts",
+    // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).
+    "runtime/src/reglages-projet/ligne-roadmap.ts",
     "runtime/src/stations-github/stations.ts",
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.

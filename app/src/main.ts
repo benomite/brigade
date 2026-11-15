@@ -51,6 +51,7 @@ import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot }
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
+import { jouerLIdee } from "./gestes-idee.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
@@ -973,6 +974,15 @@ ipcMain.handle("refus", async (_, nom: unknown, id: unknown, ticket: unknown) =>
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const rendu = await jouerLeRefus(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
+  if ("fait" in rendu) tableaux.oublier();
+  return rendu;
+});
+// Un geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Put on the rail » retire `idea` et pose `fire`,
+// « Drop » ferme l'issue comme non prévue — par l'accès GitHub de l'app (gestes-idee.ts).
+ipcMain.handle("idee", async (_, nom: unknown, id: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  const rendu = await jouerLIdee(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
