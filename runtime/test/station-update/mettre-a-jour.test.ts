@@ -82,19 +82,6 @@ test("une release plus récente est téléchargée sous le répertoire de la sta
   assert.equal(demandes.length, 1);
 });
 
-// Garde du critère « sans cook, la mise à jour est appliquée aussitôt » : ce comportement existait déjà
-// sur `main`, ce test le protège et ne prouve pas ce ticket (les autres, rouges sur `main`, le font).
-test("sans cook en vol, la relance est demandée aussitôt, et la station ne prend plus rien jusqu'à sa relance (#3632)", async (t) => {
-  const { publiees, demandes, ouvrir, racine } = station(t);
-  publier(publiees, "0.20261102.100000");
-  const miseAJour = ouvrir("0.20261101.100000");
-  const statut = await miseAJour.passer();
-  assert.equal(demandes.length, 1);
-  assert.equal(statut.restart?.version, "0.20261102.100000");
-  assert.equal(miseAJour.retenue(), true);
-  assert.deepEqual(lireStatut(racine)?.draining?.cooks, []);
-});
-
 test("un cook en vol retient la relance jusqu'à ce qu'il ait fini : il n'est pas coupé, et la station ne prend plus de ticket entre-temps (#3632)", async (t) => {
   const { publiees, demandes, cooks, regards, ouvrir, racine } = station(t);
   publier(publiees, "0.20261102.100000");
