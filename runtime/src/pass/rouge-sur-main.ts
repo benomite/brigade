@@ -175,7 +175,7 @@ export const prouves = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve
 export const vertsSurLaBase = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.main) : []);
 
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n === 1 ? "" : "s"}`;
-const REGLE = "Red on main, green on the branch";
+export const REGLE = "Red on main, green on the branch";
 
 // La ligne que la pass écrit d'une preuve : dans son résumé sur la PR.
 export function ligneDeLaPreuve(preuve: Preuve, base: string): string {
@@ -195,9 +195,11 @@ export function journalDeLaPreuve(preuve: Preuve, base: string): string | null {
   return `${REGLE}: only the tests this delivery adds were replayed on \`${base}\`, not the suite — ${preuve.rejeux.map((rejeu) => `${nomDuTest(rejeu)} ${rejeu.main ? "green" : "red"} on \`${base}\`, ${rejeu.branche ? "green" : "red"} on the branch`).join("; ")}`;
 }
 
-// Le motif du renvoi : chaque test déjà vert sur la base, nommé.
+// Le motif du renvoi : chaque test déjà vert sur la base, nommé. Il dit au
+// cook que seul un changement du test le lève (#3694 : #3632 a gardé son test
+// avec un commentaire de garde, et sa tête est revenue sur le même motif).
 export function motifDuRenvoi(verts: readonly Rejeu[], base: string): string[] {
-  return verts.map((rejeu) => `- **Blocking**: ${REGLE} — the added test ${nomDuTest(rejeu)} already passes on \`${base}\`: it proves nothing about this ticket. Make it fail without this delivery's change, or replace it with a test that does.`);
+  return verts.map((rejeu) => `- **Blocking**: ${REGLE} — the added test ${nomDuTest(rejeu)} already passes on \`${base}\`: it proves nothing about this ticket. Make it fail without this delivery's change, or replace it with a test that does: no reply on the PR, nor a comment saying it guards a behavior \`${base}\` already has, lifts this remark.`);
 }
 
 // Ce que la relecture dit d'un critère d'acceptation : les tests du diff qui le
