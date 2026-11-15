@@ -38,7 +38,12 @@ that cook has opened its PR. Before #2741 only the body was read and only open P
 left on the same files, and the second delivered came back in conflict with the base. A ticket **in
 pass** holds its whole zone until it is merged, not only the files its PR changes, and the skip names
 **every** ticket that holds it — `zone held by #1, #2` —: it is claimed at the first tick after they
-are all merged (#3509, `runtime/src/chevauchement/`). **A readable card that announces no zone**
+are all merged (#3509, `runtime/src/chevauchement/`). **Except a delivery the pass holds for the
+chef** — the validation of its screen, the review of a sensitive ticket —, while its head is the one
+held: it waits for a human, not for the kitchen, and holds no zone, as it takes no place of the pass
+(#3446). Held, the tickets that overlapped it waited for the chef's answer: #3513 waited 282 min
+behind #3560's delivery, and was claimed 13 s after its merge (#3677,
+[diagnosis](claim-wait-2026-11-15.md)). **A readable card that announces no zone**
 (`zone: none`, or no `zone` line) with no `Zone` section in the body is refused at the claim gate:
 the skip asks the manager to name the files and folders it expects to touch on the card's `zone`
 line (#3509). **A ticket with no declared zone and no card** — every ticket not born of an epic — owns **the paths its body names** (`fichiersDuCorps`): before #2758 it held nothing and waited

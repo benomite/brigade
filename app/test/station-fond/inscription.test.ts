@@ -5,9 +5,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { ecrireLePidPourLIcone, inscrireLaStationDeFond, INSCRITE_PAR_L_APP, type Systeme } from "../../src/station-fond/inscription.ts";
+import { ecrireLePidPourLIcone, inscrireLaStationDeFond, INSCRITE_PAR_L_APP } from "../../src/station-fond/inscription.ts";
 import { stationDeFondInstallee } from "../../src/tray-fond/systeme.ts";
 
+type Systeme = Parameters<typeof inscrireLaStationDeFond>[0];
 function unSysteme(maison: string, plateforme: NodeJS.Platform, reponses: Record<string, number> = {}) {
   const appels: string[] = [];
   const systeme: Systeme = {

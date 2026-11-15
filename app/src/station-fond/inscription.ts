@@ -28,7 +28,7 @@ const MARQUE = "Written by the brigade app (app/src/station-fond/inscription.ts)
 
 type Executer = (commande: string, args: readonly string[]) => Promise<{ code: number | null; sortie: string }>;
 
-export type Systeme = {
+type Systeme = {
   plateforme: NodeJS.Platform;
   maison: string;
   localAppData: string | undefined;

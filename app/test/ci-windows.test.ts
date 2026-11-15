@@ -14,8 +14,9 @@ const PLAFOND = Number(/^ {4}timeout-minutes:\s*(\d+)\s*$/m.exec(JOB)?.[1]);
 // Les pas, chacun du `- ` qui l'ouvre au suivant.
 const PAS = JOB.split(/^ {6}- /m).slice(1);
 
-// Ce que le job fait hors des pas plafonnés : le checkout, node, et son ménage. Le checkout extrait les captures de
-// docs/captures/, qui grossissent à chaque livraison design : une minute n'y suffisait plus (#3344).
+// Ce que le job fait hors des pas plafonnés : le checkout, node, et son ménage. Le checkout extrayait les captures de
+// docs/captures/, qui grossissent à chaque livraison design : une minute n'y suffisait plus (#3344), et quatre non
+// plus sur 20d5919 (#3680) — il les laisse de côté depuis.
 const MARGE_MIN = 4;
 
 test("each step that runs npm in windows app tests has its own cap", () => {
@@ -31,4 +32,11 @@ test("the steps' caps fall before the job's cap, which cuts it with no log (#240
   assert.ok(PLAFOND > 0, "the tests job of app-windows.yml gives no timeout-minutes");
   const somme = PAS.reduce((total, pas) => total + Number(/^\s*timeout-minutes:\s*(\d+)\s*$/m.exec(pas)?.[1] ?? 0), 0);
   assert.ok(somme + MARGE_MIN <= PLAFOND, `the steps' caps (${somme} min) leave the job (${PLAFOND} min) less than ${MARGE_MIN} min`);
+});
+
+test("the checkout of windows app tests leaves out docs/captures/, whose extraction killed the job with no log (#3680)", () => {
+  const checkout = PAS.find((pas) => /^uses: actions\/checkout@/.test(pas)) ?? assert.fail("the tests job of app-windows.yml has no checkout");
+  assert.match(checkout, /^\s*sparse-checkout-cone-mode:\s*false\s*$/m);
+  const motifs = /sparse-checkout: \|\n((?:\s{12}\S.*\n?)+)/.exec(checkout)?.[1]?.split("\n").map((ligne) => ligne.trim()).filter(Boolean);
+  assert.deepEqual(motifs, ["/*", "!/docs/captures/"]);
 });

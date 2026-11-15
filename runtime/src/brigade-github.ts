@@ -41,6 +41,7 @@ import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis,
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
+import { jamaisParti } from "./projections/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
@@ -480,6 +481,12 @@ const REJEU_MAX_MS = 5 * 60_000;
 // vide moins vite que les cooks livrent ; l'amas s'y relit à chaque tour et s'y
 // met en conflit à chaque merge.
 export const PASS_MAX = 5;
+
+// Ce que la porte de prise dit des tickets qu'elle laisse quand ses places, ou
+// le pass, sont pleins (#3677) : la borne, et les tickets qui la tiennent.
+const numeros = (tickets: readonly number[]) => [...tickets].sort((a, b) => a - b).map((n) => `#${n}`).join(", ");
+const direPlacesPrises = (places: number, tenues: readonly number[]): string => `${places === 1 ? "the station's one place is" : `the station's ${places} places are all`} taken${tenues.length === 0 ? "" : ` (${numeros(tenues)})`}`;
+const direPassPlein = (livraisons: readonly number[]): string => `the pass holds ${livraisons.length} deliveries, its most is ${PASS_MAX} (${numeros(livraisons)})`;
 
 // Les tickets en pass : ceux qui portent `in-pass`, hors ceux que ce tour vient
 // de renvoyer à un cook — la liste lue peut porter encore leur label.
@@ -1938,6 +1945,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // attend tous (`attend`), et part au tour qui suit leur merge (#3509). Un
     // ticket en pass tient sa zone jusqu'à son merge, pas seulement les
     // fichiers que sa PR change.
+    // Sauf une livraison que la pass retient pour le chef, sur la tête retenue
+    // (`retenuesDuTour`) : elle attend un humain, pas la cuisine, et ne tient
+    // pas plus sa zone qu'une place du pass (#3446). Tenue, le ticket qui la
+    // recoupait attendait la réponse du chef : #3513, 282 min derrière la
+    // livraison de #3560, pris 13 s après son merge, venu juste après la
+    // réponse du chef sur la carte #3567 (#3677).
+    const pourLeChefCeTour = (branche: string): boolean => {
+      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+      return numero !== undefined && retenuesDuTour.has(Number(numero));
+    };
     const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
@@ -1947,6 +1964,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       let pr: (typeof ouvertes)[number] | undefined;
       for (const ouverte of ouvertes) {
         if (ouverte.branche === propre || !ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier)))) continue;
+        if (pourLeChefCeTour(ouverte.branche)) continue;
         if (await ticketFerme(ouverte.branche)) continue;
         pr = ouverte;
         break;
@@ -1955,6 +1973,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const enVolDuTour: EnVol[] = [];
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || autre.labels.includes(LABEL_IN_PASS) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
+        if (retenuesDuTour.has(autre.number)) continue;
         enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
       }
       const attente = attenteDeZone(ticket.number, zone, enVolDuTour);
@@ -1980,24 +1999,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
     // qui attendent un ticket ouvert le disent encore, sans quoi la retenue ne
-    // sait plus pourquoi ils n'avancent pas (#3647).
-    const direLesAttentes = async (restants: readonly TicketLu[]) => {
+    // sait plus pourquoi ils n'avancent pas (#3647). Les autres disent l'arrêt
+    // qui les retient (#3677) : muet, il laissait la retenue sans cause
+    // (`unknown`, ou la CI d'une seule livraison) quand seize tickets
+    // attendaient leur prise depuis trente minutes, et l'attente d'une prise
+    // sans rien qui dise laquelle de ces deux bornes la tenait (#3446).
+    const direLesAttentes = async (restants: readonly TicketLu[], arret: string) => {
       for (const reste of restants) {
         if (enVol.has(reste.number)) continue;
         const attendus = await defaireLesBoucles(github, reste.number, lus).catch(() => []);
         if (attendus.length > 0) options.sauter?.(reste.number, direAttenteDeTicket(reste.number, attendus), attendus);
+        else options.sauter?.(reste.number, direSaut(reste.number, arret));
       }
     };
     for (const [rang, ticket] of libres.entries()) {
       if (baseManquante !== null) break;
-      if (enVol.size + aRendre.size >= (typeof places === "number" ? places : places())) {
-        await direLesAttentes(libres.slice(rang));
+      const limite = typeof places === "number" ? places : places();
+      if (enVol.size + aRendre.size >= limite) {
+        await direLesAttentes(libres.slice(rang), direPlacesPrises(limite, [...enVol.keys(), ...aRendre.keys()]));
         break;
       }
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
       // Celles que la pass retient pour le chef n'y comptent pas (#3446).
-      if (enPass(tickets, new Set([...renvoyes, ...retenuesDuTour])) >= PASS_MAX) {
-        await direLesAttentes(libres.slice(rang));
+      const exclues = new Set([...renvoyes, ...retenuesDuTour]);
+      if (enPass(tickets, exclues) >= PASS_MAX) {
+        await direLesAttentes(libres.slice(rang), direPassPlein(tickets.filter((t) => t.labels.includes(LABEL_IN_PASS) && !exclues.has(t.number)).map(({ number }) => number)));
         break;
       }
       if (enVol.has(ticket.number)) continue;
@@ -2349,7 +2375,8 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
 
 // Un lancement de `claude` sous supervision : le cook, ou le reviewer.
 // `flux` rendu : là où son flux s'est écrit, s'il ne l'a pas été où demandé.
-export type Lancer = (lancement: Lancement & { entree?: string; cwd: string; env: NodeJS.ProcessEnv; flux: string }) => Pick<Supervise, "fin"> & { flux?: string };
+// `ticket` : celui que sert le cook, que le disjoncteur nomme s'il échoue (#3656).
+export type Lancer = (lancement: Lancement & { entree?: string; cwd: string; env: NodeJS.ProcessEnv; flux: string; ticket?: number }) => Pick<Supervise, "fin"> & { flux?: string };
 
 export type OptionsDuDepot = {
   nom: string;
@@ -2766,7 +2793,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(envDuCook), flux });
+    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(envDuCook), flux, ticket: ticket.number });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
@@ -2785,7 +2812,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       }
       depot.retirer(worktree, reprise || garde || sauves.has(ticket.number) ? undefined : branche);
       const dit = direLaFin({ conclusion, fin, flux: lance.flux ?? flux });
-      return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
+      if (arretSubi(conclusion, fin)) return { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null };
+      // Jamais parti (#3656) : le ticket le dit, et la cuisine sert les autres.
+      if (jamaisParti(fin)) return { echec: `the cook of #${ticket.number} never started, its launch failed: ${dit}. A launch that fails before the cook runs does not count toward the kitchen's breaker: the kitchen keeps serving other tickets` };
+      return { echec: dit };
     }
     const arretDuCook = () => ({ message: lireLeFlux(lance.flux ?? flux).message ?? null, turns: fin.turns, code: fin.code });
     // Le cook déclare la décision ou la condition qui lui manque (#2073) : ce
@@ -2915,10 +2945,11 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,
   // en lecture seule, sans jeton GitHub ni secret du projet.
   // `criteres` : combien de critères d'acceptation la consigne lui donne (#3466).
-  const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0): Promise<Lue> => {
+  // `ticket` : celui dont elle relit la livraison, absent pour une PR du dehors (#3656).
+  const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0, ticket?: number): Promise<Lue> => {
     const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
     const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
-    const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+    const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ...(ticket === undefined ? {} : { ticket }) });
     await lance.fin;
     const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message, null, criteres);
     if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
@@ -2973,7 +3004,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
-      const [prouvee, relue] = await Promise.allSettled([prouverLaLivraison(ticket, worktree, diff.fichiers), relecture(worktree, run, texte, pr, criteres.length)]);
+      const [prouvee, relue] = await Promise.allSettled([prouverLaLivraison(ticket, worktree, diff.fichiers), relecture(worktree, run, texte, pr, criteres.length, ticket.number)]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
       const verts = vertsSurLaBase(preuve);
       // Un test ajouté déjà vert sur la base renvoie la livraison, que la relecture ait pu se lire ou non.
@@ -3051,7 +3082,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             const texte = consigneDuBlocage({ depot: depotGitHub, issue: { number: ticket.number, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: commentaires.slice(-DERNIERS_COMMENTAIRES).map(({ body }) => body), question, reponses });
             const flux = join(options.flux, `${run}-${reponses.length + 1}.flux.jsonl`);
             const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
-            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux, ticket: ticket.number });
             const fin = await lance.fin;
             const lu = lireLeFlux(lance.flux ?? flux);
             const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
@@ -3077,7 +3108,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             const texte = consigneDeReprise({ depot: depotGitHub, issue: { number: ticket.number, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: commentaires.slice(-DERNIERS_COMMENTAIRES).map(({ body }) => body), calibrage, plafond, motifs });
             const flux = join(options.flux, `${run}-${Date.now()}.flux.jsonl`);
             const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
-            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux, ticket: ticket.number });
             const fin = await lance.fin;
             const lu = lireLeFlux(lance.flux ?? flux);
             const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
@@ -3104,7 +3135,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const texte = consigneDuSecondJuge(consigne, { depot: depotGitHub, base, pr: pr.number, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, juges, diff });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, CALIBRAGE_DU_SECOND_JUGE), worktree) }, { cwd: worktree, depot: "lecture" });
-      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ticket: ticket.number });
       await lance.fin;
       const lu = lireSecondJugement(lireLeFlux(lance.flux ?? flux).message);
       if ("illisible" in lu) throw new Error(`the second judge of PR #${pr.number} is unreadable: ${lu.illisible}`);
@@ -3123,7 +3154,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const texte = consigneDuChoix({ ticket, fichiers, diff: depot.diff(brancheDuTicket(ticket.number)) });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
-      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ticket: ticket.number });
       await lance.fin;
       const lu = lireLeChoix(lireLeFlux(lance.flux ?? flux).message);
       if ("illisible" in lu) throw new Error(`the design judgment of PR #${pr.number} is unreadable: ${lu.illisible}`);

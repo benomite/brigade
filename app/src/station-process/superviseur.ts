@@ -348,11 +348,12 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
     etatDesVersions: () => etatDesVersions,
     redemarrer,
     redemarrage: () => (enCours === null ? null : viseeEnCours),
-    async arreter() {
+    async arreter(arret) {
       arretee = true;
       clearInterval(veille);
-      await enCours;
-      await station.arreter();
+      // Pour une mise à jour de l'app, rien n'attend : la station n'est pas arrêtée, un redémarrage en cours non plus.
+      if (arret?.laisser !== true) await enCours;
+      await station.arreter(arret);
     },
   };
 }

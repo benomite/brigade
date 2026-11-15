@@ -167,6 +167,8 @@ const dire = (canal: string, ...faits: unknown[]) => {
 // chef ou à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
 // Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`. Le même chemin sur
 // un Mac et sous Windows : seuls l'installeur publié qu'elle lit et ce qui le joue sont du poste.
+// Vrai quand l'app se ferme pour s'installer : la station et ses cooks ne s'arrêtent pas avec elle (mise-a-jour-fond/survie.ts, #3632).
+let quitterPourMiseAJour = false;
 const dossierDeMiseAJour = join(dirname(cheminConfiguration()), "mise-a-jour");
 const installeur = installeurDuPoste({ plateforme, ressources: process.resourcesPath, executable: process.execPath, pid: process.pid, dossier: dossierDeMiseAJour });
 // Un quart d'heure, et non plus six heures (#2431) : une version publiée le matin se voit dans la matinée. Les deux
@@ -180,7 +182,10 @@ const miseAJour = tenirMiseAJour({
   dossier: dossierDeMiseAJour,
   installable: installeur.installable,
   installer: installeur.installer,
-  quitter: () => app.quit(),
+  quitter: () => {
+    quitterPourMiseAJour = true;
+    app.quit();
+  },
   surEtat: (etat) => dire("miseAJour", etat),
 });
 // Une version téléchargée lors d'une session précédente s'installe avant que rien ne démarre : sa
@@ -1973,8 +1978,18 @@ app.on("will-quit", () => {
   clearInterval(verificationsDeVersion);
   stations.fermer();
   clearInterval(controles);
-  // La station de l'ordinateur ne s'arrête pas avec l'app (#3630) : l'app cesse seulement de la regarder.
+  // La station de l'ordinateur ne s'arrête pas avec l'app (#3630) : l'app cesse seulement de la regarder, même pour
+  // sa mise à jour. Sauf sous Windows, où l'installeur remplace le `node` que la station de fond joue (#3632) : son hôte
+  // est arrêté, la station avec lui (son entrée fermée), et l'app rouverte la relance.
+  const hoteDuFond = quitterPourMiseAJour && plateforme === "win32" ? stationLocale?.pid() : undefined;
   stationLocale?.fermer();
+  if (hoteDuFond !== undefined) {
+    try {
+      process.kill(hoteDuFond);
+    } catch (erreur) {
+      console.error(`brigade: the background station (pid ${hoteDuFond}) could not be stopped for the app update — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  }
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir. Et le retard des clones : il

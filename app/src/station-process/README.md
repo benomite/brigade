@@ -52,3 +52,18 @@ A station restarted on a release keeps running across app restarts, which do not
 station. It is not kept across a restart of the background station (a login, an explicit quit): the bundle's
 version (`1.0.91`) sorts after a release's (`0.<date>…`), so the background station starts the bundled
 station again, which finds the release behind and updates again.
+
+## An app update does not stop the station (#3632)
+
+Installing an app update closes the app, which no longer holds the station: the background station keeps
+running, its cooks too (#3630). On Windows the installer replaces the `node` the background station runs, so
+the closing app stops the background station there, and the reopened app starts it again.
+
+A station left running by an app from before the background station, closed for its update, carries
+`survit-a-l-app` in the station directory (`app/src/mise-a-jour-fond/survie.ts`): the wrapper
+(`poste/enveloppe.ts`) ignored its closed input. The background station reads the pid in `en-service` and
+takes that station back instead of starting a second one, and stops it with a `SIGTERM` when it stops.
+
+A station update (runtime `station-update/`) is the other half: from the moment a release is ready the
+station takes no new ticket, its cooks in flight finish, and the restart is asked only when none is
+left — no deadline, nothing cut.
