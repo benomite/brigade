@@ -47,6 +47,8 @@ export const RELEVE = "cook.progressed";
 // by itself — the run it relaunches, and which relaunch this is (1 for the first).
 // `sleepRetry` (#3643): the same, for a run whose process died while the
 // computer slept.
+// `serves` (#3656): the ticket a GitHub-only launch serves, which the log
+// keeps off any ticket — what the breaker's issue names when it fails.
 // `lessons`: the ids of the project's provisional lessons the cook of a ticket
 // received in its prompt, most recent first (`apprentissage/injection.ts`) —
 // empty, it received none. Absent: a cook that serves no ticket (a manager
@@ -67,6 +69,7 @@ export type ContexteCook = {
   lessons?: string[];
   stallRetry?: { of: string; attempt: number };
   sleepRetry?: { of: string; attempt: number };
+  serves?: number;
 };
 
 export type FaitGardeFous =

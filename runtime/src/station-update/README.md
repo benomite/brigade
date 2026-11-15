@@ -45,21 +45,13 @@ that fails — network down, a bad digest, an archive that does not extract, a r
 version — leaves the running station untouched: no wait, no request; `check` says why, and the next
 check tries again.
 
-## Waiting for its moment: no cook is cut, no ticket waits
+## Waiting for its moment: no cook is cut (#3632)
 
-Once the release is ready, the station keeps taking its tickets up to its places, and asks for its
-restart, once, at the first moment no cook is in flight (`enVol()` is empty) — or, if none comes,
-`ECHEANCE_MS` (one hour, the box's batch interval) after the release was ready: then the work of each
-cook in flight is saved on its branch (`sauver`, the box's save of #2586, `../mise-a-jour/attente/`)
-and its ticket handed back, for the restarted station to resume. It takes no new ticket only from that
-moment to its restart (`retenue()` is true, and `retenirLaPrise` makes a GitHub-only station's claim say
-"not taken" without writing on the issue): a cook started in between would be cut with nothing to save
-it.
-
-It used to drain: no claim from the release being ready until its last cook ended. A release is
-published at every runtime merge and checked every ten minutes, so the station sat drained most of the
-time, and its projects' tickets waited for a claim: on BOBL-tech/mirrorscreen, claim wait was 96 of
-their 96 lost minutes, 71 min for #969 alone (#2815).
+Once the release is ready, the station takes no new ticket: `retenue()` is true from that moment to its
+restart, and `retenirLaPrise` makes a GitHub-only station's claim say "not taken" without writing on the
+issue. The cooks in flight finish, and the restart is asked, once, as soon as none is left (`enVol()` is
+empty) — right away when none ran. There is no deadline and no save: an update never cuts a cook, it is
+just pending until it can be applied, and `status.json` (`draining.cooks`) says which cooks it waits for.
 
 A ticket the station still holds without a cook (one whose cook failed to hand it back, for example)
 is handed back on GitHub by the restarted station at its first round, exactly as after a box update
@@ -119,6 +111,6 @@ published release: the runtime the app bundles carries the app's version (`1.0.8
 ## Still to wire
 
 The updater is a module: the station's entry point (`../station/main.ts`) opens it with
-`ouvrirLaMiseAJour({ racine, env, enVol, sauver, dire })`, gives it its cooks in flight across its kitchens and how to save them,
+`ouvrirLaMiseAJour({ racine, env, enVol, dire })`, gives it its cooks in flight across its kitchens,
 and wraps each kitchen's claim with `retenirLaPrise(prise, miseAJour.retenue)`. The app side (reading
 the request, relaunching on `main`, showing `behind`) is the app's tickets.

@@ -13,7 +13,8 @@
 // qui ne se lit pas sort avec le code 2.
 import { configRail } from "../alimenter.ts";
 import { Sortie, type Appel } from "../appel.ts";
-import { ouvrirGitHub, type GitHub } from "../github.ts";
+import { type GitHub } from "../github.ts";
+import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { fichierDesRefus, ouvrirLesRefus, ROLE_DU_CHEF } from "./refus.ts";
 import { NOM_DE_STATION, stationsQuiOntPris } from "./reclamation.ts";
@@ -76,7 +77,7 @@ export async function principal({ args, env, dire, redire }: Appel): Promise<voi
     throw erreur;
   }
   // Un geste du chef, par l'app : la box ne retient aucun de ses appels (limite-github.ts).
-  const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" });
+  const github = ouvrirGitHubDuGeste({ depot: rail.depot, bin: rail.gh, env });
   try {
     const depuis = new Date(Date.now() - JOURS_VUS * 86_400_000).toISOString();
     dire(JSON.stringify({ stations: await listerLesStations(github, refus.liste(), depuis) }));

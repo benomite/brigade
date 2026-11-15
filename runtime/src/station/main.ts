@@ -161,7 +161,7 @@ try {
   dire(`brigade : station — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
 }
 const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(fenetreDeDepartMs === null ? {} : { fenetreDeDepartMs }), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }), ...(relaisMs === undefined ? {} : { intervalleRelaisMs: Number(relaisMs) }) });
-const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], sauver: async () => [...(await station.sauver()), ...((await choisis?.sauver?.()) ?? [])], dire });
+const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
 if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
 const vidange = miseAJour !== null || dossierMiseAJour === null ? null : tenirLaVidange({ racine, dossier: dossierMiseAJour, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], sauver: async () => [...(await station.sauver()), ...((await choisis?.sauver?.()) ?? [])], dire });
