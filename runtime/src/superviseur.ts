@@ -255,7 +255,7 @@ export function superviser(options: OptionsSupervision): Supervise {
       if (arret || mort) return;
       apresResultat = delai;
       // Le cook n'est plus inactif : c'est le superviseur qui le termine.
-      clearTimeout(inactivite);
+      inactivite?.annuler();
       void signaler("SIGTERM");
       grace = setTimeout(() => void signaler("SIGKILL"), options.graceMs);
     }, delai);
