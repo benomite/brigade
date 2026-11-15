@@ -465,6 +465,8 @@ export const stations = definirProjection<Ecoutes>({
     "worktree.prepared": () => {},
     // Likewise: the project page reads it from the log (`onboarding/lire.ts`).
     "preparation.setup-failed": () => {},
+    // Likewise: the computer's sleep is read from the log (#3643).
+    "station.slept": () => {},
     // The issue says it; here only the cause counts, the one the
     // next failure is compared with.
     "setup.failed": (base, { payload }) => {

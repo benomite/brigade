@@ -29,9 +29,11 @@ function station(t: TestContext, avant: (faux: FauxGitHub) => void, bloque: stri
   let cooks = 0;
   const lancer: Lancer = ({ flux }) => {
     cooks += 1;
-    const message = cooks === 1 && bloque !== null ? `I stopped.\n<livrable>\n<bloque>${bloque}</bloque>\n</livrable>` : "Done.\n<livrable>\nNothing.\n</livrable>";
+    const bloqueIci = cooks === 1 && bloque !== null;
+    const message = bloqueIci ? `I stopped.\n<livrable>\n<bloque>${bloque}</bloque>\n</livrable>` : "Done.\n<livrable>\nNothing.\n</livrable>";
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
-    return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+    // Sans blocage, le cook finit en erreur : fini `ok` sans rien commiter, il irait au manager dès ce refus (#3651).
+    return { fin: Promise.resolve({ code: bloqueIci ? 0 : 1, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const sauts = new Map<number, string>();
   const github: GitHub = { ...fauxClient(faux) };

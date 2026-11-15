@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "../src/constat-seul.ts";
@@ -27,12 +27,15 @@ const LIVRAISON = ["## Context", "", "The alert is wrong.", "", "## Acceptance c
 const CONSTAT = "Root cause: the detector counted waiting tickets as cookable; fixed upstream by #2848.";
 
 // Une station dont le cook ne commite rien et finit sur `message`, sur un ticket de corps `corps`, jouée `tours` fois.
-async function cookSansCommit(t: TestContext, corps: string, message: string, tours = 1) {
+// `manager` : la station a un manager à consulter. `runs` : ce qu'elle a lancé, cook, relecture ou manager, dans l'ordre.
+async function cookSansCommit(t: TestContext, corps: string, message: string, tours = 1, manager = false) {
   const repertoire = mkdtempSync(join(tmpdir(), "constat-seul-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
   faux.feu(TICKET, ["fire", "model:opus", "effort:medium"], corps);
+  const runs: string[] = [];
   const lancer: Lancer = ({ flux }) => {
+    runs.push(basename(flux));
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 12, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
@@ -66,6 +69,7 @@ async function cookSansCommit(t: TestContext, corps: string, message: string, to
     lancer,
     maintenant: () => new Date(heure),
     avertir: () => {},
+    ...(manager ? { manager: () => ({ model: "opus", effort: "medium" }) as const } : {}),
   });
   assert.ok(!("refus" in station));
   if ("refus" in station) throw new Error(String(station.refus));
@@ -74,7 +78,7 @@ async function cookSansCommit(t: TestContext, corps: string, message: string, to
     await station.calme();
     heure += 24 * 3_600_000;
   }
-  return { faux, corps: (faux.commentaires.get(TICKET) ?? []).map((c) => c.body) };
+  return { faux, runs, corps: (faux.commentaires.get(TICKET) ?? []).map((c) => c.body) };
 }
 
 test("a diagnosis-only ticket whose cook commits nothing and delivers a finding is served: the finding is posted, the ticket closed, no echec and no served-elsewhere (#2854)", async (t) => {
@@ -95,14 +99,57 @@ test("a delivery-expecting ticket whose cook commits nothing still records an ec
   assert.equal(faux.ticket(TICKET).state, "open");
 });
 
-test("a diagnosis-only ticket whose cook commits nothing and delimits no deliverable records an echec, and is set aside as before (#2854)", async (t) => {
+test("a diagnosis-only ticket whose cook commits nothing and delimits no deliverable records an echec, and is set aside (#2854, #3651)", async (t) => {
   const { faux, corps } = await cookSansCommit(t, DIAGNOSTIC, "I looked around and found nothing conclusive.", 2);
-  // Deux arrêts de suite au même motif suffisent à l'écarter (#2729).
-  assert.equal(corps.filter((c) => c.startsWith(MARQUE_D_ECHEC)).length, 2);
+  // Fini `ok`, sa livraison refusée : il est écarté dès ce premier refus (#3651).
+  assert.equal(corps.filter((c) => c.startsWith(MARQUE_D_ECHEC)).length, 1);
   assert.equal(corps.filter((c) => c.startsWith(MARQUE_DE_CONSTAT)).length, 0);
   assert.equal(faux.ticket(TICKET).labels.has(ECHECS_ATTEINTS), true);
   assert.equal(faux.ticket(TICKET).labels.has(HORS_CUISINE), false);
   assert.equal(faux.ticket(TICKET).state, "open");
+});
+
+// benomite/secondes#48, 2026-11-15 : réécrit en étude de faisabilité qui ne
+// construit rien, son constat posté en commentaire ; une quinzaine de cooks
+// finis `ok` en 15 à 50 s, puis `blocage-48`, `reprise-48`, trois `review-48`.
+const FAISABILITE = [
+  "## Context",
+  "",
+  "Rewritten as a feasibility check: can the export run offline?",
+  "",
+  "## Acceptance criteria",
+  "",
+  "- A written finding, posted as a comment on this issue, says whether the export can run offline, and what blocks it if not.",
+  "- This ticket builds nothing.",
+].join("\n");
+
+test("a feasibility check whose finding is posted as a comment on its issue is served by one cook run: the finding posted, the ticket closed, no PR, no blocage, reprise or review run (#3651)", async (t) => {
+  const { faux, runs, corps } = await cookSansCommit(t, FAISABILITE, `<livrable>\nThe export cannot run offline: it reads the catalogue from the API on every page.\n</livrable>`, 3, true);
+  assert.deepEqual(runs, [`${TICKET}-github.flux.jsonl`]);
+  assert.equal(corps.filter((c) => c.startsWith(MARQUE_DE_CONSTAT) && c.includes("The export cannot run offline")).length, 1);
+  assert.equal(corps.filter((c) => c.startsWith(MARQUE_D_ECHEC)).length, 0);
+  assert.equal(faux.ticket(TICKET).state, "closed");
+  assert.equal(faux.prs.length, 0);
+});
+
+test("a cook finished ok whose delivery is refused is not relaunched as is: the refusal reason is on the ticket at the first refusal, and no second cook runs (#3651)", async (t) => {
+  const { faux, runs, corps } = await cookSansCommit(t, LIVRAISON, "I read the code; nothing to change.", 3);
+  assert.deepEqual(runs, [`${TICKET}-github.flux.jsonl`]);
+  const echecs = corps.filter((c) => c.startsWith(MARQUE_D_ECHEC));
+  assert.equal(echecs.length, 1);
+  assert.match(echecs[0] ?? "", /the cook committed nothing[\s\S]*finished `ok` and its delivery was refused/);
+  assert.equal(faux.ticket(TICKET).labels.has(ECHECS_ATTEINTS), true);
+  assert.equal(faux.ticket(TICKET).state, "open");
+});
+
+test("a cook finished ok whose delivery is refused goes to the manager at the first refusal, never to a second cook on the ticket as it stands (#3651)", async (t) => {
+  const { faux, runs, corps } = await cookSansCommit(t, LIVRAISON, "I read the code; nothing to change.", 3, true);
+  // Le faux manager ne répond rien de lisible : le ticket va au chef, avec le refus.
+  assert.deepEqual(runs.map((run) => run.replace(/-\d+\.flux\.jsonl$/, "")), [`${TICKET}-github.flux.jsonl`, `reprise-${TICKET}-github`]);
+  const echecs = corps.filter((c) => c.startsWith(MARQUE_D_ECHEC));
+  assert.equal(echecs.length, 1);
+  assert.match(echecs[0] ?? "", /the cook committed nothing/);
+  assert.equal(faux.ticket(TICKET).labels.has(ECHECS_ATTEINTS), true);
 });
 
 test("only the acceptance criteria saying the deliverable is a written finding or comment admit a finding, never a quote of them (#2854)", () => {
@@ -117,6 +164,12 @@ test("only the acceptance criteria saying the deliverable is a written finding o
   assert.equal(admetUnConstat('## Acceptance criteria\n\n- A ticket whose criteria say "the deliverable is a written finding" is closed with it.'), false);
   assert.equal(admetUnConstat("## Acceptance criteria\n\n> the deliverable is a written finding\n\n- A test covers it."), false);
   assert.equal(admetUnConstat("## Acceptance criteria\n\n- `the deliverable is a written comment` is recognised."), false);
+  // Les mots de benomite/secondes#48 (#3651), dans les critères seulement.
+  assert.equal(admetUnConstat(FAISABILITE), true);
+  assert.equal(admetUnConstat("## Acceptance criteria\n\n- The only deliverable is a feasibility finding."), true);
+  assert.equal(admetUnConstat("## Context\n\nThis ticket builds nothing.\n\n## Acceptance criteria\n\n- A test covers it."), false);
+  assert.equal(admetUnConstat("## Acceptance criteria\n\n- The station's answer is posted as a comment on the PR."), false);
+  assert.equal(admetUnConstat('## Acceptance criteria\n\n- A ticket that says "it builds nothing" is closed with its finding.'), false);
   // Le corps de #2854 lui-même attend un commit.
   assert.equal(
     admetUnConstat(

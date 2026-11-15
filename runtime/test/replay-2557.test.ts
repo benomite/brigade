@@ -1,8 +1,8 @@
 // Le rejeu de #2557, le 2026-11-06 : renvoyé après une relecture, le cook tourne
 // 6 tours et s'arrête sans livrer. Le commentaire du ticket porte son dernier
 // message, ses tours et son code de sortie ; avec une réponse sur la PR, l'arrêt
-// est un désaccord et le ticket reste en cuisine ; sans, le même motif trois
-// fois de suite le sort de la cuisine. Horloge fixée, aucune station réelle.
+// est un désaccord et le ticket reste en cuisine ; sans, ce refus d'un cook
+// fini `ok` le sort de la cuisine dès le premier (#3651). Horloge fixée, aucune station réelle.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -69,14 +69,15 @@ test("#2557 on 2026-11-06: the same stop without a reply on the PR is a failure 
   assert.equal(faux.ticket(TICKET).labels.has("served-elsewhere"), false, "one failure does not take the ticket off the kitchen");
 });
 
-test("#2557 on 2026-11-06: the same stop without a reply, with the same reason twice in a row, ends in served-elsewhere", async (t) => {
+test("#2557 on 2026-11-06: the same stop without a reply, a cook finished ok whose delivery is refused, is set aside at the first refusal (#3651)", async (t) => {
   const { faux, corps } = await cuisinerLe6Novembre(t, DERNIER_MESSAGE, 16);
   const echecs = corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec"));
-  // Mis de côté, le ticket est relancé deux fois par la guérison (#2757) —
-  // la relecture de sa PR demande des changements — et pas une troisième.
-  assert.equal(echecs.length, 4);
+  // Mis de côté à chaque refus, le ticket est relancé deux fois par la
+  // guérison (#2757) — la relecture de sa PR demande des changements — et pas
+  // une troisième.
+  assert.equal(echecs.length, 3);
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
-  assert.match(echecs[1] ?? "", /Set aside by its failure count/);
+  assert.match(echecs[0] ?? "", /Set aside \(`set-aside:failures`\) at this refusal/);
   assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:relance")).length, 2);
   assert.ok(faux.ticket(TICKET).labels.has("set-aside:failures"));
   assert.ok(!faux.ticket(TICKET).labels.has("served-elsewhere"));
