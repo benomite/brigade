@@ -44,6 +44,8 @@ export const RELEVE = "cook.progressed";
 // of that cook. Its branch is its own.
 // `stallRetry` (#3599): the relaunch of a stalled run, which the kitchen does
 // by itself — the run it relaunches, and which relaunch this is (1 for the first).
+// `serves` (#3656): the ticket a GitHub-only launch serves, which the log
+// keeps off any ticket — what the breaker's issue names when it fails.
 // `lessons`: the ids of the project's provisional lessons the cook of a ticket
 // received in its prompt, most recent first (`apprentissage/injection.ts`) —
 // empty, it received none. Absent: a cook that serves no ticket (a manager
@@ -63,6 +65,7 @@ export type ContexteCook = {
   continues?: string;
   lessons?: string[];
   stallRetry?: { of: string; attempt: number };
+  serves?: number;
 };
 
 export type FaitGardeFous =

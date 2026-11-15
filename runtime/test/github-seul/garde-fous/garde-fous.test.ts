@@ -18,6 +18,7 @@ import { brancherGardeFous } from "../../../src/garde-fous.ts";
 import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
 import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
+import { etatDesGardeFous } from "../../../src/projections/guardrails.ts";
 import { etatStation } from "../../../src/projections/stations.ts";
 import { demarrer } from "../../../src/runtime.ts";
 import { ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire } from "../../outils.ts";
@@ -429,4 +430,119 @@ test("the station of this runtime launches its cook through the guards: the stre
   assert.match(String(lance?.payload.stream), /^runs\/1-github-[0-9a-f]{8}\.jsonl$/);
   assert.deepEqual(faits("cook.exited").map((evenement) => evenement.payload.outcome), ["ok"]);
   assert.equal(runtime.journal.tout().filter((evenement) => evenement.type === "station.86").length, 0);
+});
+
+// Le tour de la station du dépôt (`stationDuDepot`), lancé par les gardes, où
+// le ticket de chaque numéro d'`enormes` porte un titre trop long pour un
+// lancement : sa consigne fait buter `spawn` (E2BIG) avant que le cook ne parte.
+function stationAuxTitresEnormes(t: TestContext, enormes: ReadonlySet<number>) {
+  const kitchen = cuisine(t);
+  const { repertoire, gardes, faux } = kitchen;
+  const tour = faux.client();
+  const titre = (numero: number) => (enormes.has(numero) ? "x".repeat(2_500_000) : `ticket ${numero}`);
+  const client: Partial<GitHub> = {
+    tickets: async () => ({ inchange: false, issues: (await tour.fires()).map((lu) => ({ ...lu, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
+    prDeBranche: async () => null,
+    ci: async () => [],
+    issue: async (numero) => ({ number: numero, title: titre(numero), labels: faux.labels(numero), state: "open", createdAt: "", updatedAt: "", url: "", body: "" }),
+    commentaires: async () => [],
+    commenter: tour.commenter,
+    labelliser: tour.labelliser,
+    delabelliser: tour.delabelliser,
+    ouvrirPR: tour.ouvrirPR,
+    mettreAJour: tour.mettreAJour,
+    merger: tour.merger,
+    retraitsDeLabels: async () => [],
+    prsOuvertes: async () => [],
+  };
+  const station = stationDuDepot({
+    nom: STATION,
+    places: 4,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: client as GitHub,
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: repertoire, branche: `cook/${run}` }),
+      reprendre: async () => repertoire,
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => [],
+      diff: () => "",
+    },
+    prise: () => faux.prise(),
+    claude: FAUX_CLAUDE,
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" },
+    cloison: null,
+    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
+    graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" },
+    flux: join(repertoire, "github-seul"),
+    gardes,
+    avertir: (texte) => { if (!/the cook stopped without a delivery|takes no ticket|takes tickets again/.test(texte)) assert.fail(texte); },
+  });
+  if ("refus" in station) assert.fail(station.refus);
+  // L'erreur que le journal garde de chaque lancement raté, par ticket servi.
+  const erreurs = () => kitchen.runtime.journal.tout().flatMap((evenement) => (evenement.type === "cook.exited" && typeof evenement.payload.error === "string" ? [{ run: String(evenement.payload.run), error: evenement.payload.error, turns: evenement.payload.turns, outcome: evenement.payload.outcome }] : []));
+  return { ...kitchen, station, erreurs };
+}
+
+// Ce que le journal garde de l'erreur d'un lancement : `spawn E2BIG` hors Windows, dont la
+// ligne de commande bute plus tôt et sous un autre nom.
+const erreurDuLancement = (erreur: string) => (process.platform === "win32" ? assert.match(erreur, /^spawn /) : assert.equal(erreur, "spawn E2BIG"));
+
+test("three cooks whose launch fails before they run (spawn E2BIG, 0 turns) do not open the breaker: the kitchen is not held, and each ticket is told, by number, with the error (#3656)", async (t) => {
+  const { runtime, faux, station, faits, erreurs } = stationAuxTitresEnormes(t, new Set([3615, 3616, 3617]));
+  for (const numero of [3615, 3616, 3617]) faux.feu(numero);
+
+  await station.tour();
+  await station.calme();
+
+  const rates = erreurs();
+  assert.equal(rates.length, 3);
+  for (const { error, turns, outcome } of rates) {
+    erreurDuLancement(error);
+    assert.equal(turns, 0);
+    assert.equal(outcome, "failed");
+  }
+  assert.deepEqual(faits("breaker.opened"), []);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+  for (const numero of [3615, 3616, 3617]) {
+    const dits = faux.commentaires.filter(({ issue }) => issue === numero).map(({ corps }) => corps);
+    assert.equal(dits.length, 1, `#${numero}: ${dits.join(" | ")}`);
+    assert.ok(dits[0]!.includes(`#${numero}`), dits[0]!);
+    assert.ok(dits[0]!.includes(rates[0]!.error), dits[0]!);
+  }
+
+  // Le tour suivant n'est pas retenu par le disjoncteur : il reprend des tickets.
+  faux.feu(3618);
+  await station.tour();
+  await station.calme();
+  assert.notEqual(etatStation(runtime.journal.base, STATION)?.heldReason, "breaker");
+  assert.ok(faux.prises.includes(3618));
+});
+
+test("replaying 2026-11-15: #3615 fails four times at launch (spawn E2BIG), the kitchen still takes and serves another ticket, and #3615 carries a line saying why (#3656)", async (t) => {
+  const { runtime, faux, station, faits, erreurs } = stationAuxTitresEnormes(t, new Set([3615]));
+  faux.feu(3615);
+  for (let essai = 0; essai < 4; essai++) {
+    await station.tour();
+    await station.calme();
+  }
+  assert.deepEqual(faux.prises, [3615, 3615, 3615, 3615]);
+  assert.equal(erreurs().length, 4);
+  for (const { error } of erreurs()) erreurDuLancement(error);
+  assert.deepEqual(faits("breaker.opened"), []);
+
+  faux.feu(3700);
+  await station.tour();
+  await station.calme();
+  assert.ok(faux.prises.includes(3700));
+  assert.ok(faux.prs.includes(brancheDuTicket(3700)), faux.prs.join(", "));
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason ?? null, null);
+  const [pourquoi] = faux.commentaires.filter(({ issue }) => issue === 3615).map(({ corps }) => corps);
+  assert.ok(pourquoi?.includes(`the cook of #3615 never started, its launch failed: ${erreurs()[0]!.error}`), pourquoi ?? "no comment on #3615");
+  assert.match(pourquoi ?? "", /does not count toward the kitchen's breaker: the kitchen keeps serving other tickets/);
 });

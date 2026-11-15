@@ -16,6 +16,7 @@ import {
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirLimite } from "../src/limite-github.ts";
+import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import type { CauseReveil, Runtime } from "../src/runtime.ts";
 import { DEPOT, fauxGh, jusqua, repertoireTemporaire } from "./outils.ts";
 
@@ -242,4 +243,37 @@ test("le client réel, contre un faux `gh` : la liste ouverte au label sans les 
   gh.repondre(`repos/${DEPOT}/issues/12`, { corps: { number: 12, state: "closed" } });
   await client.fermer(12);
   assert.deepEqual(gh.appels().at(-1), ["api", "-i", "--input", "-", "-X", "PATCH", `repos/${DEPOT}/issues/12`]);
+});
+
+// Un lancement du chemin GitHub seul, tel que ses gardes l'écrivent : hors ticket au journal,
+// le ticket servi dans `serves` (#3656), et sa fin.
+function lancementGitHubSeul(journal: ReturnType<typeof ouvrirJournal>, run: string, serves: number, fin: { turns: number; code: number | null; error: string }) {
+  const noter = (fait: Fait) => journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...fait });
+  noter({ type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: "box/claude", serves } } as Fait);
+  noter({ type: "cook.exited", payload: { run, outcome: "failed", code: fin.code, signal: null, turns: fin.turns, tokens: fin.turns * 100, durationMs: 10, error: fin.error } } as Fait);
+}
+
+test("three cook.exited, failed with 0 turns and the error `spawn E2BIG`, count for nothing: the breaker counts no failure and stays closed (#3656)", (t) => {
+  const { journal } = cuisine(t);
+  for (const run of ["3615-a", "3615-b", "3615-c"]) lancementGitHubSeul(journal, run, 3615, { turns: 0, code: null, error: "spawn E2BIG" });
+
+  assert.equal(etatDesGardeFous(journal.base).failures, 0);
+  assert.equal(disjoncteurDuJournal(journal.base).ouvert, false);
+});
+
+test("a breaker opened by cooks that ran and failed: its issue names the ticket they served and the error the log recorded, never 'a cook that served no ticket' (#3656)", async (t) => {
+  const { journal } = cuisine(t);
+  lancementGitHubSeul(journal, "3615-a", 3615, { turns: 4, code: 1, error: "stream closed: EPIPE" });
+  lancementGitHubSeul(journal, "3616-a", 3616, { turns: 7, code: null, error: "spawn E2BIG after a relaunch" });
+  assert.equal(etatDesGardeFous(journal.base).failures, 2);
+  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: 2, threshold: 2 } } as Fait & { project: string; ticket: null; author: string });
+  const github = fauxGitHub();
+
+  await publierLeDisjoncteur(github.client, PROJET, disjoncteurDuJournal(journal.base));
+
+  const [issue] = github.ouvertes();
+  assert.match(issue?.corps ?? "", /\*\*Failing ticket\*\*: #3616$/m);
+  assert.match(issue?.corps ?? "", /\*\*Error\*\*: `spawn E2BIG after a relaunch`$/m);
+  assert.match(issue?.corps ?? "", /- #3615: exit code 1, error `stream closed: EPIPE`, .*\n- #3616: exit code none \(stopped by a guardrail or a signal\), error `spawn E2BIG after a relaunch`,/);
+  assert.doesNotMatch(issue?.corps ?? "", /a cook that served no ticket/);
 });

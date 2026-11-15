@@ -41,6 +41,7 @@ import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis,
 import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
+import { jamaisParti } from "./projections/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
@@ -2339,7 +2340,8 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
 
 // Un lancement de `claude` sous supervision : le cook, ou le reviewer.
 // `flux` rendu : là où son flux s'est écrit, s'il ne l'a pas été où demandé.
-export type Lancer = (lancement: Lancement & { cwd: string; env: NodeJS.ProcessEnv; flux: string }) => Pick<Supervise, "fin"> & { flux?: string };
+// `ticket` : celui que sert le cook, que le disjoncteur nomme s'il échoue (#3656).
+export type Lancer = (lancement: Lancement & { cwd: string; env: NodeJS.ProcessEnv; flux: string; ticket?: number }) => Pick<Supervise, "fin"> & { flux?: string };
 
 export type OptionsDuDepot = {
   nom: string;
@@ -2756,7 +2758,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, cwd: worktree, env: env(envDuCook), flux });
+    const lance = lancer({ ...lancement, cwd: worktree, env: env(envDuCook), flux, ticket: ticket.number });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
@@ -2775,7 +2777,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       }
       depot.retirer(worktree, reprise || garde || sauves.has(ticket.number) ? undefined : branche);
       const dit = direLaFin({ conclusion, fin, flux: lance.flux ?? flux });
-      return arretSubi(conclusion, fin) ? { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null } : { echec: dit };
+      if (arretSubi(conclusion, fin)) return { subi: dit, retour: lireLeFlux(lance.flux ?? flux).quota?.retour ?? null };
+      // Jamais parti (#3656) : le ticket le dit, et la cuisine sert les autres.
+      if (jamaisParti(fin)) return { echec: `the cook of #${ticket.number} never started, its launch failed: ${dit}. A launch that fails before the cook runs does not count toward the kitchen's breaker: the kitchen keeps serving other tickets` };
+      return { echec: dit };
     }
     const arretDuCook = () => ({ message: lireLeFlux(lance.flux ?? flux).message ?? null, turns: fin.turns, code: fin.code });
     // Le cook déclare la décision ou la condition qui lui manque (#2073) : ce

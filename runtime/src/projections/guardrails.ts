@@ -58,6 +58,12 @@ const compterLesEchecs = (base: Base) =>
          AND launched_seq > coalesce((SELECT max(launched_seq) FROM cook_runs WHERE judgment = 'good'), 0)
      )`,
   );
+// A cook that never started (#3656): its launch failed before it ran a single
+// turn — `spawn E2BIG`, a prompt too long for the system. That says one launch
+// is broken, not the kitchen: it does not count for the breaker, and the
+// station of its ticket says so on the ticket.
+export const jamaisParti = (fin: { turns: unknown; erreur: unknown }): boolean => fin.turns === 0 && typeof fin.erreur === "string" && fin.erreur !== "";
+
 const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) => {
   base.executer("UPDATE cook_runs SET judgment = ?, judged_seq = ? WHERE run = ?", verdict, seq, run);
   compterLesEchecs(base);
@@ -177,7 +183,8 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       // compte pas. Un lancement hors ticket (jugement du manager, relecture) que
       // son garde-fou arrête compte encore : rien d'autre ne borne ses reprises.
       const duTicket = base.lire<{ ticket: number | null }>("SELECT ticket FROM cook_runs WHERE run = ?", run)[0]?.ticket != null;
-      if (outcome === "failed" || (outcome === "guard" && !duTicket)) juger(base, run, "bad", evenement.seq);
+      const lancementRate = jamaisParti({ turns, erreur: evenement.payload.error });
+      if ((outcome === "failed" && !lancementRate) || (outcome === "guard" && !duTicket)) juger(base, run, "bad", evenement.seq);
     },
     "cook.interrupted": (base, evenement) => {
       base.executer(
@@ -232,17 +239,22 @@ export function plafondDesJugements(base: Base): number | null {
 }
 
 // A failure that counts for the breaker: the cook, its ticket, how it
-// ended. `code`: that of its exit, null if it died from a signal or a
-// guardrail.
-export type EchecDuDisjoncteur = { run: string; ticket: number | null; at: string; code: number | null; turns: number | null; tokens: number | null };
+// ended. `ticket`: the one it served — written on its launch, or, for a
+// GitHub-only launch that the log keeps off any ticket, the one it `serves`
+// (#3656). `code`: that of its exit, null if it died from a signal or a
+// guardrail. `error`: the error its exit recorded, null if none.
+export type EchecDuDisjoncteur = { run: string; ticket: number | null; at: string; code: number | null; error: string | null; turns: number | null; tokens: number | null };
 
 // The consecutive failures the breaker counts, in launch order: the same rule
 // as `juger`.
 export function echecsDuDisjoncteur(base: Base): EchecDuDisjoncteur[] {
   return base.lire<EchecDuDisjoncteur>(
-    `SELECT r.run AS run, r.ticket AS ticket, coalesce(r.ended_at, r.launched_at) AS at, r.turns AS turns, r.tokens AS tokens,
+    `SELECT r.run AS run, coalesce(r.ticket, (SELECT json_extract(l.payload, '$.serves') FROM events l WHERE l.seq = r.launched_seq)) AS ticket,
+            coalesce(r.ended_at, r.launched_at) AS at, r.turns AS turns, r.tokens AS tokens,
             (SELECT json_extract(e.payload, '$.code') FROM events e
-              WHERE e.type = 'cook.exited' AND json_extract(e.payload, '$.run') = r.run ORDER BY e.seq DESC LIMIT 1) AS code
+              WHERE e.type = 'cook.exited' AND json_extract(e.payload, '$.run') = r.run ORDER BY e.seq DESC LIMIT 1) AS code,
+            (SELECT json_extract(e.payload, '$.error') FROM events e
+              WHERE e.type = 'cook.exited' AND json_extract(e.payload, '$.run') = r.run ORDER BY e.seq DESC LIMIT 1) AS error
      FROM cook_runs r
      WHERE r.judgment = 'bad'
        AND r.judged_seq > coalesce((SELECT resumed_seq FROM guard_state WHERE id = 1), 0)

@@ -208,7 +208,7 @@ test("un cook muet est arrêté pour inactivité, et le journal le dit", async (
   assert.equal(motif?.payload.reason, "idle");
 });
 
-test("un cook qui sort en erreur est un échec ; un binaire introuvable aussi, avec sa raison", async (t) => {
+test("un cook qui sort en erreur est un échec ; un binaire introuvable aussi, avec sa raison — mais jamais parti, il ne compte pas pour le disjoncteur (#3656)", async (t) => {
   const { runtime, cook } = cuisine(t);
 
   const echec = await cook(7, "echec").fin;
@@ -218,10 +218,10 @@ test("un cook qui sort en erreur est un échec ; un binaire introuvable aussi, a
   assert.equal(introuvable.outcome, "failed");
   const sortie = runtime.journal.duTicket(8).find((e) => e.type === "cook.exited");
   assert.match(sortie?.payload.error ?? "", /ENOENT/);
-  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 2);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 1);
 });
 
-test("un cook qui ne peut même pas être lancé reçoit quand même sa fin au journal : un échec, pas un cook fantôme", async (t) => {
+test("un cook qui ne peut même pas être lancé reçoit quand même sa fin au journal : un échec, pas un cook fantôme — qui ne compte pas pour le disjoncteur (#3656)", async (t) => {
   const { runtime, repertoire, faits } = cuisine(t);
   // Un fichier là où le répertoire des flux devrait se créer.
   writeFileSync(join(repertoire, "runs"), "");
@@ -231,7 +231,7 @@ test("un cook qui ne peut même pas être lancé reçoit quand même sa fin au j
   assert.equal(fin.outcome, "failed");
   assert.deepEqual(faits(7), ["cook.launched", "cook.exited"]);
   assert.deepEqual(cooksEnCours(runtime.journal.base), []);
-  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 1);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
 });
 
 test("la station peut dire qu'une fin n'est ni un échec ni une réussite — le 86", async (t) => {
@@ -651,12 +651,12 @@ test("des arrêts externes entre de vrais échecs ne comptent pas : le disjoncte
 });
 
 // Le journal de secondes, 2026-11-14 : trois cooks tués en 143 comptés pour des échecs, le disjoncteur ouvert.
-function journalDeSecondes(repertoire: string, sorties: Array<{ code: number; signal?: string | null; erreur?: string }>) {
+function journalDeSecondes(repertoire: string, sorties: Array<{ code: number; signal?: string | null; erreur?: string; turns?: number }>) {
   const journal = ouvrirJournal(repertoire);
-  sorties.forEach(({ code, signal, erreur }, i) => {
+  sorties.forEach(({ code, signal, erreur, turns }, i) => {
     const run = `${20 + i}-aaaa`;
     journal.ajouter({ project: "brigade", ticket: 20 + i, author: "station", type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl` } });
-    journal.ajouter({ project: "brigade", ticket: 20 + i, author: "runtime", type: "cook.exited", payload: { run, outcome: "failed", code, signal: signal ?? null, turns: 0, tokens: 0, durationMs: 1, ...(erreur === undefined ? {} : { error: erreur }) } });
+    journal.ajouter({ project: "brigade", ticket: 20 + i, author: "runtime", type: "cook.exited", payload: { run, outcome: "failed", code, signal: signal ?? null, turns: turns ?? 0, tokens: 0, durationMs: 1, ...(erreur === undefined ? {} : { error: erreur }) } });
   });
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: sorties.length, threshold: 3 } });
   journal.fermer();
@@ -677,7 +677,8 @@ test("au démarrage, le disjoncteur ouvert sur trois arrêts 143 se referme sans
 
 test("au démarrage, le disjoncteur que de vrais échecs ont ouvert reste ouvert : seuls les arrêts externes sont écartés (#3528)", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  journalDeSecondes(repertoire, [{ code: 143 }, { code: 1 }, { code: 1 }, { code: 1, erreur: "spawn failed" }]);
+  // Le dernier a tourné (#3656) : un lancement jamais parti ne compterait pas.
+  journalDeSecondes(repertoire, [{ code: 143 }, { code: 1 }, { code: 1 }, { code: 1, erreur: "spawn failed", turns: 2 }]);
 
   const { runtime, cook } = cuisine(t, { seuilDisjoncteur: 3 }, repertoire);
 

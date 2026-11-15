@@ -4,7 +4,7 @@
 |---|---|
 | Cap on duration, tokens | A cook going over one is stopped. Tokens count input, output and cache writes, not cache reads. **No cap on turns**: these two caps bound what a ticket spends |
 | Idle | A cook that produced nothing since the idle delay is stopped |
-| Breaker | After N failures in a row, no more cooks are launched. A failure is a cook that exited in error or could not be launched. Not counted: a ticket's cook stopped by a guardrail (cap, idleness, lapsed lease) — but a launch off any ticket, a manager judgement or a review stopped by one still counts —, a cook whose delivery is judged red (a manager relaunch whose delivery is red, `relaunch.judged`, counts for nothing; its green one still clears the counter), the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart, a stalled run (below) |
+| Breaker | After N failures in a row, no more cooks are launched. A failure is a cook that exited in error. Not counted: a launch that failed **before the cook ran** (0 turns and a launch error such as `spawn E2BIG`, #3656) — its ticket is told instead (below) —, a ticket's cook stopped by a guardrail (cap, idleness, lapsed lease) — but a launch off any ticket, a manager judgement or a review stopped by one still counts —, a cook whose delivery is judged red (a manager relaunch whose delivery is red, `relaunch.judged`, counts for nothing; its green one still clears the counter), the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart, a stalled run (below) |
 | "stop" | Every running cook is stopped within the second, and none is launched |
 
 Stopping a cook: `SIGTERM` to its process group, then `SIGKILL` ten seconds later. On Windows the
@@ -58,13 +58,19 @@ What holds the station is written once per change (`station.held`, reason `stopp
 launched by the runtime's guardrails, off any ticket and under the station's name: the "stop" stops
 them within the second (the ticket is given back on its issue), their failures count for the
 breaker, the caps are the project's. A cook stopped by a cap counts as a failure here, as any
-launch off a ticket does — except a stall, which is relaunched (above).
+launch off a ticket does — except a stall, which is relaunched (above). Each launch also records the
+ticket it serves (`cook.launched` carries `serves`), which the breaker's issue names (#3656).
+
+A cook whose launch fails before it runs (0 turns, a launch error: `spawn E2BIG` when its prompt is too
+long for the system) does not count for the breaker: the kitchen keeps serving other tickets. Its
+station comments on its ticket — `the cook of #<n> never started, its launch failed: <error> …` —, and
+the ticket is retried like any cook without a delivery, then goes to the manager when its tries are spent (#3656).
 
 ### The breaker on GitHub
 
 An open breaker is also **an issue of the project's repository**, labeled `brigade:breaker-open`
-(`runtime/src/breaker-issue.ts`): its body names the failing ticket, its exit code and the time the
-breaker opened — or, opened by stalls, what keeps stalling (#3599). An issue already open for this kitchen is reused, never doubled — its body carries
+(`runtime/src/breaker-issue.ts`): its body names the failing ticket, its exit code, the error the log
+recorded for it, and the time the breaker opened — and, for each failure counted, its ticket and error (#3656) — or, opened by stalls, what keeps stalling (#3599). An issue already open for this kitchen is reused, never doubled — its body carries
 `<!-- brigade:breaker-open project=<project> -->`. On "resume", or when the breaker closes by itself,
 the issue receives a comment saying the kitchen is resumed, and is closed. The label is created if the repository lacks it. Nothing is
 added to the log: the runtime reads the breaker at every wake-up and publishes only what changed —

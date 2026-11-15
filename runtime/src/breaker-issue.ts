@@ -3,7 +3,7 @@
 //
 // Quand le disjoncteur s'ouvre (`breaker.opened`, garde-fous.ts), une issue du
 // dépôt du projet porte le label `brigade:breaker-open` : son corps dit le
-// ticket dont l'échec l'a ouvert, son code de sortie et l'heure d'ouverture.
+// ticket dont l'échec l'a ouvert, son code de sortie, son erreur et l'heure d'ouverture.
 // Une issue déjà ouverte pour cette cuisine est reprise telle quelle : ouvrir
 // deux fois n'en crée pas une seconde. Quand il se referme (`kitchen.resumed`),
 // l'issue reçoit un commentaire qui dit la cuisine reprise, puis se ferme. Le
@@ -54,11 +54,12 @@ export type ClientDuDisjoncteur = {
 };
 
 // Ce que le journal dit du disjoncteur. Ouvert : depuis quand, l'échec qui l'a
-// ouvert — le dernier des échecs d'affilée —, et ceux qu'il a comptés. Fermé :
+// ouvert — le dernier des échecs d'affilée —, l'erreur que le journal en
+// garde (#3656), et ceux qu'il a comptés. Fermé :
 // la dernière reprise de la cuisine — ou le dernier disjoncteur refermé seul —, nulle s'il n'y en a jamais eu. `calage` :
 // ce qui cale encore après ses relances, quand c'est lui qui l'a ouvert (#3599).
 export type Disjoncteur =
-  | { ouvert: true; depuis: string; ticket: number | null; code: number | null; echecs: EchecDuDisjoncteur[]; seuil: number | null; calage?: Calage }
+  | { ouvert: true; depuis: string; ticket: number | null; code: number | null; erreur: string | null; echecs: EchecDuDisjoncteur[]; seuil: number | null; calage?: Calage }
   | { ouvert: false; reprisLe: string | null };
 
 export function disjoncteurDuJournal(base: Base): Disjoncteur {
@@ -71,7 +72,7 @@ export function disjoncteurDuJournal(base: Base): Disjoncteur {
   const echecs = echecsDuDisjoncteur(base);
   const dernier = echecs.at(-1);
   const calage = calageDuDisjoncteur(base);
-  return { ouvert: true, depuis: garde.breakerOpenedAt, ticket: dernier?.ticket ?? null, code: dernier?.code ?? null, echecs, seuil: garde.breakerThreshold, ...(calage === null ? {} : { calage }) };
+  return { ouvert: true, depuis: garde.breakerOpenedAt, ticket: dernier?.ticket ?? null, code: dernier?.code ?? null, erreur: dernier?.error ?? null, echecs, seuil: garde.breakerThreshold, ...(calage === null ? {} : { calage }) };
 }
 
 // La marque de l'issue d'une cuisine.
@@ -80,11 +81,13 @@ const deLaCuisine = (projet: string) => (issue: IssueDuDisjoncteur) => issue.cor
 
 const nommerTicket = (ticket: number | null) => (ticket === null ? "none (a cook that served no ticket)" : `#${ticket}`);
 const nommerCode = (code: number | null) => (code === null ? "none (stopped by a guardrail or a signal)" : String(code));
+// L'erreur telle que le journal la garde, sur une ligne.
+const nommerErreur = (erreur: string | null) => (erreur === null ? "none recorded" : `\`${erreur.replace(/\s+/g, " ").replaceAll("`", "'").trim()}\``);
 
 export const titreDeLIssue = (projet: string) => `Kitchen ${projet} held: its breaker is open`;
 
 export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, { ouvert: true }>): string {
-  const { depuis, ticket, code, echecs, seuil, calage } = disjoncteur;
+  const { depuis, ticket, code, erreur, echecs, seuil, calage } = disjoncteur;
   if (calage !== undefined) {
     return [
       marque(projet),
@@ -105,8 +108,9 @@ export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, 
     "",
     `- **Failing ticket**: ${nommerTicket(ticket)}`,
     `- **Exit code**: ${nommerCode(code)}`,
+    `- **Error**: ${nommerErreur(erreur)}`,
     `- **Opened at**: ${depuis}`,
-    ...(echecs.length > 1 ? ["", "The failures it counted, oldest first:", ...echecs.map((echec) => `- ${nommerTicket(echec.ticket)}: exit code ${nommerCode(echec.code)}, at ${echec.at}`)] : []),
+    ...(echecs.length > 1 ? ["", "The failures it counted, oldest first:", ...echecs.map((echec) => `- ${nommerTicket(echec.ticket)}: exit code ${nommerCode(echec.code)}, error ${nommerErreur(echec.error)}, at ${echec.at}`)] : []),
     "",
     "brigade comments and closes this issue when the kitchen is resumed.",
   ].join("\n");
