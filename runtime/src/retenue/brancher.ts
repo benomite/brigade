@@ -26,6 +26,7 @@ import { etatDesGardeFous } from "../projections/guardrails.ts";
 import { etatDeLaBase, gatesDuRouge } from "../projections/pass.ts";
 import { lireRail } from "../projections/rail.ts";
 import { sessionEnCours } from "../projections/sessions.ts";
+import { stationRetenueParLeDisjoncteur, stationsAnnoncees } from "../projections/stations.ts";
 import { etatDeLInterrupteur } from "../projections/switch.ts";
 import { echecsDesGates } from "../reparation.ts";
 import type { Runtime } from "../runtime.ts";
@@ -93,11 +94,12 @@ export function observationDuJournal(base: Base, maintenant: Date): Observation 
 
 // Ce que le journal dit de ce qui peut retenir la cuisine : le disjoncteur, et
 // la base rouge que la pass y a constatée, avec ce que ses gates nomment.
-export function signauxDuJournal(base: Base): Pick<Signaux, "disjoncteur" | "baseRouge"> {
+export function signauxDuJournal(base: Base): Pick<Signaux, "disjoncteur" | "disjoncteurDeStation" | "baseRouge"> {
   const controle = etatDeLaBase(base);
   const gates = controle?.outcome === "red" ? gatesDuRouge(base) : null;
   return {
     disjoncteur: etatDesGardeFous(base).breakerOpenedAt,
+    disjoncteurDeStation: stationRetenueParLeDisjoncteur(base, stationsAnnoncees(base)),
     baseRouge: controle?.outcome === "red" ? { sha: controle.sha, checks: gates === null ? [] : echecsDesGates(gates) } : null,
   };
 }

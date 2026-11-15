@@ -748,6 +748,17 @@ export function stationsAnnoncees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations ORDER BY station").map((ligne) => ligne.station);
 }
 
+// The station among `stations` that the log records held with the cause
+// `breaker`, and since when: the breaker it keeps closed on is open for it,
+// whatever another station's journal says of its own.
+export function stationRetenueParLeDisjoncteur(base: Base, stations: string[]): { station: string; since: string } | null {
+  for (const station of stations) {
+    const etat = etatStation(base, station);
+    if (etat?.heldReason === "breaker" && etat.heldAt !== null) return { station, since: etat.heldAt };
+  }
+  return null;
+}
+
 // The cause that set the project's latest ticket aside, if no cook has left
 // since: it is what the next one is compared with.
 export function derniereMiseDeCote(base: Base): string | null {
