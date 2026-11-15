@@ -4604,6 +4604,7 @@ function lectureDesServantes(projet, maintenant) {
     maintenant,
     ...(Number.isNaN(luLe) ? {} : { lu: luLe }),
     ...(iciSert === undefined ? {} : { iciSert, hote: POSTE.nom }),
+    ...(projet.redemarre === undefined ? {} : { redemarre: projet.redemarre }),
   };
   return { base, lues, locale, tenu, cuisson };
 }

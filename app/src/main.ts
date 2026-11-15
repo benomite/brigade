@@ -262,8 +262,9 @@ const signesDeVie = tenirLesSignesDeVie({
   },
 });
 // La station de cet ordinateur, que l'app voit tourner, n'est pas tue, même quand le quota GitHub du compte l'empêche
-// d'écrire son signe de vie (ticket 3482, vue/pause-quota/) : son gist, nul quand elle ne tourne pas ici.
-const gistQuiTourneIci = (): string | null => (stationLocale?.tourne() === true ? gistLocal(racineDeLaStation) : null);
+// d'écrire son signe de vie (ticket 3482, vue/pause-quota/) : son gist, nul quand elle ne tourne pas ici. Pendant que sa mise
+// à jour la redémarre (#3637), elle n'est pas tue non plus : son process est entre deux versions, son signe de vie en retard.
+const gistQuiTourneIci = (): string | null => (stationLocale?.tourne() === true || stationLocale?.redemarrage() != null ? gistLocal(racineDeLaStation) : null);
 const signesVus = async (): Promise<SignesDeVie> => {
   const signes = await signesDeVie.signes();
   return "lus" in signes ? { lus: avecLaStationLocale(signes.lus, gistQuiTourneIci(), Date.now()) } : signes;
@@ -612,7 +613,7 @@ function colorer(): void {
 // sur cet ordinateur est lu du tableau de sa cuisine sur GitHub.
 let dernierVuDesProjets: VuDesProjets | undefined;
 const projets = () => suivi.configuration().projets;
-const affichee = () => pourLaBarre(suivi.configuration(), lisible, cuisines.ici, () => stationLocale?.tourne() === true);
+const affichee = () => pourLaBarre(suivi.configuration(), lisible, cuisines.ici, () => stationLocale?.tourne() === true, () => stationLocale?.redemarrage() ?? null);
 // Un projet du fichier, qu'il s'ouvre ou non : sa cuisine se lit, et se vérifie, sans son dossier.
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
 // Le même, tel que le fichier le déclare.

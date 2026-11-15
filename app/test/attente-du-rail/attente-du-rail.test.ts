@@ -116,7 +116,7 @@ describe("la ligne en tête du rail", () => {
     const [ligne] = ligneDeLAttente(doc, attente, { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
     assert.ok(ligne !== undefined);
     assert.equal(ligne.role, "alert");
-    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start. Start the station.", "Start the station"]);
+    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "Station box/claude is stopped, so no cook can start. Start the station.", "Open the stations"]);
     ligne.dessous("button")[0]?.click();
     assert.deepEqual(appels, ["stations"]);
   });

@@ -44,7 +44,7 @@ describe("la ligne en tête du rail", () => {
     const [ligne] = ligneDuRailBloque(doc, bloque([station({ lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" })]), { ouvrirStations: () => appels.push("stations") }) as unknown as Faux[];
     assert.ok(ligne !== undefined);
     assert.equal(ligne.role, "alert");
-    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "8 tickets on the rail, no manager has taken them for 14 h: its station box/claude is stopped.", "Start the station"]);
+    assert.deepEqual(ligne.children.map((enfant) => enfant.textContent), ["FAULT", "8 tickets on the rail, no manager has taken them for 14 h: its station box/claude is stopped.", "Open the stations"]);
     const [bouton] = ligne.dessous("button");
     assert.equal(bouton?.className, "recommande");
     bouton?.click();
@@ -65,8 +65,10 @@ describe("la ligne en tête du rail", () => {
     assert.deepEqual(seule?.dessous("button"), []);
   });
 
-  test("les mots des gestes sont ceux du runtime : le bouton dit ce que la phrase de `status` dit", () => {
-    assert.deepEqual(GESTES, MOTS_DU_GESTE);
+  test("le bouton ne promet que ce qu'il fait : il ouvre l'onglet Stations, aucun ne s'appelle « Start the station » (#3637)", () => {
+    assert.equal(GESTES["ajouter-a-une-station"], MOTS_DU_GESTE["ajouter-a-une-station"]);
+    assert.deepEqual(Object.keys(GESTES), Object.keys(MOTS_DU_GESTE));
+    assert.ok(!Object.values(GESTES).includes("Start the station"));
   });
 
   test("rien de bloqué, ou des tickets non pris qui ne se lisent pas : aucune ligne sur le rail", () => {

@@ -82,6 +82,8 @@ export type ProcessDeStation = StationLocale & {
   // Redémarre la station sur la version `version` des données de l'app. Rend l'issue, ou nul quand
   // rien n'a été arrêté parce qu'il n'y avait rien à faire.
   redemarrer(version: string): Promise<Issue | null>;
+  // La version que la mise à jour de la station vise tant que son process est remplacé (#3637), nulle sinon.
+  redemarrage(): string | null;
   etatDesVersions(): EtatDesVersions;
 };
 
@@ -226,6 +228,7 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
   let station = lancer(principal);
   let arretee = false;
   let enCours: Promise<Issue | null> | null = null;
+  let viseeEnCours: string | null = null;
 
   const conclure = (issue: Issue): Issue => {
     etatDesVersions = { ...etatDesVersions, derniere: issue };
@@ -308,6 +311,7 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
   const redemarrer = (visee: string): Promise<Issue | null> => {
     if (arretee) return Promise.resolve(null);
     if (enCours !== null) return enCours;
+    viseeEnCours = visee;
     enCours = jouer(visee)
       .catch((erreur) => {
         dire(`brigade: this computer's station restart on ${visee} failed — ${message(erreur)}`);
@@ -315,6 +319,7 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
       })
       .finally(() => {
         enCours = null;
+        viseeEnCours = null;
       });
     return enCours;
   };
@@ -342,6 +347,7 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
     version: () => version,
     etatDesVersions: () => etatDesVersions,
     redemarrer,
+    redemarrage: () => (enCours === null ? null : viseeEnCours),
     async arreter() {
       arretee = true;
       clearInterval(veille);

@@ -139,7 +139,7 @@ describe("une station vraiment arrêtée", () => {
     assert.equal(faits.pauseQuota, undefined);
     const tete = teteDuRail(faits);
     assert.match(tete, /FAULT/);
-    assert.match(tete, /Start the station/);
+    assert.match(tete, /Open the stations/);
   });
 
   test("arrêtée pendant que le compte est en pause (une autre station la porte) : sa panne garde sa ligne et son geste", () => {
@@ -148,7 +148,7 @@ describe("une station vraiment arrêtée", () => {
     const faits = faitsDe(lecture({ lus: [arretee, ailleurs] }));
     assert.deepEqual(faits.pauseQuota, { limite: "core", jusqua: REPRISE });
     const tete = teteDuRail(faits);
-    assert.match(tete, /Start the station/);
+    assert.match(tete, /Open the stations/);
     assert.ok(!tete.includes(PROJET_EN_PAUSE), tete);
   });
 });
