@@ -52,6 +52,7 @@ import { CHEF_TODO, corpsDeCarte, type Sorte } from "../github-seul/carte-todo/c
 import type { GitHub, PR } from "../github.ts";
 import { estUnRenvoiPourConflit, MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { GesteRefuse } from "../rail.ts";
+import { questionDuCorps, reponseDuCorps } from "../reponse-validation/marques.ts";
 import { possede } from "../zones.ts";
 import { ceQuiEstDemande, ceQuiEstFait, lignesDuBrief } from "./brief.ts";
 import { lignesDesChangements, lireChangements } from "./changements.ts";
@@ -179,17 +180,26 @@ const marqueDeValidation = (sorte: SorteDeRetenue, carte: number, pr: number, sh
 // laisse tenir — `conflit` le dit —, et la pass vérifie l'écran (#3426) ; une
 // carte de cette sorte posée depuis pour la PR la dépasse : le chef y est
 // redemandé.
-function validationQuiTient(sorte: SorteDeRetenue, commentaires: ReadonlyArray<{ body: string; association: string }>, pr: number): { carte: number; sha: string; conflit: boolean } | null {
+// La validation que le chef a donnée sur le ticket lui-même (#3616,
+// `reponse-validation/`) tient de même : sans carte, `carte` est nul ; une
+// question posée depuis pour la PR la dépasse, comme une carte neuve.
+function validationQuiTient(sorte: SorteDeRetenue, commentaires: ReadonlyArray<{ body: string; association: string }>, pr: number): { carte: number | null; sha: string; conflit: boolean } | null {
   const marque = new RegExp(`^<!-- brigade:${sorte.mot}-validee carte=([1-9][0-9]*) pr=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->`);
   const carteNeuve = new RegExp(`^<!-- brigade:${sorte.mot}-carte carte=[1-9][0-9]* pr=${pr} `);
+  const validation = (corps: string): { carte: number | null; pr: number; sha: string } | null => {
+    const lu = marque.exec(corps);
+    if (lu !== null) return { carte: Number(lu[1]), pr: Number(lu[2]), sha: lu[3] ?? "" };
+    const surLeTicket = reponseDuCorps(corps);
+    return surLeTicket?.reponse === "validated" ? { carte: null, pr: surLeTicket.pr, sha: surLeTicket.sha } : null;
+  };
   const sures = commentaires.filter((c) => DE_CONFIANCE.includes(c.association));
-  const rang = sures.findLastIndex((c) => Number(marque.exec(c.body)?.[2]) === pr);
+  const rang = sures.findLastIndex((c) => validation(c.body)?.pr === pr);
   if (rang === -1) return null;
   const apres = sures.slice(rang + 1);
   const conflit = sorte.survitAuConflit && apres.some((c) => estUnRenvoiPourConflit(c.body));
-  if (apres.some((c) => (c.body.startsWith(MARQUE_DE_RENVOI) && !(sorte.survitAuConflit && estUnRenvoiPourConflit(c.body))) || carteNeuve.test(c.body))) return null;
-  const lu = marque.exec(sures[rang]?.body ?? "");
-  return { carte: Number(lu?.[1]), sha: lu?.[3] ?? "", conflit };
+  if (apres.some((c) => (c.body.startsWith(MARQUE_DE_RENVOI) && !(sorte.survitAuConflit && estUnRenvoiPourConflit(c.body))) || carteNeuve.test(c.body) || questionDuCorps(c.body)?.pr === pr)) return null;
+  const lue = validation(sures[rang]?.body ?? "");
+  return lue === null ? null : { carte: lue.carte, sha: lue.sha, conflit };
 }
 
 // Combien de réponses du chef tiennent `pr` sur le ticket, toutes sortes de
@@ -354,7 +364,7 @@ export async function tenirPourLeChef(
     if (tient === null) continue;
     const change = repondue === sorte && ecran !== undefined && tient.sha !== pr.sha ? await ecran(tient.sha) : null;
     if (change === null) return null;
-    redemande = `${tient.conflit ? `PR #${pr.number} could not be updated on the base without changing its screen` : `The update of PR #${pr.number} on the base changed its screen`} since the chef validated it on card #${tient.carte}: ${change}. The chef is asked again, on the new captures.`;
+    redemande = `${tient.conflit ? `PR #${pr.number} could not be updated on the base without changing its screen` : `The update of PR #${pr.number} on the base changed its screen`} since the chef validated it ${tient.carte === null ? "on the ticket" : `on card #${tient.carte}`}: ${change}. The chef is asked again, on the new captures.`;
   }
   const tenue = await carteQuiTient(sorte, github, commentaires, pr.number);
   if (tenue !== null) return `${sorte.tenue} (card #${tenue})`;
@@ -546,6 +556,16 @@ export const validationEnConflit = (nom: string, carte: number, pr: number) => `
 // Valider : merger la carte « Validate its screen ».
 export const valider = (github: GitHubDesGestes, pr: number, brancheDuTicket: (ticket: number) => string) => mergerLaCarte(DESIGN, github, pr, brancheDuTicket);
 
+// Le renvoi que le chef demande : un renvoi sur la tête `sha`, que le cook
+// lit sur le ticket avec `texte` comme ce qu'il faut changer, et `in-pass`
+// retiré — un cook reprend le ticket. Sa carte (`renvoyerLaCarte`), ou sa
+// réponse sur le ticket (`reponse-validation/`, #3616).
+export async function renvoyerAuCook(github: Pick<GitHub, "commenter" | "delabelliser"> & Pick<GitHubDeLaRetenue, "commentaires">, ticket: number, sha: string, texte: string): Promise<void> {
+  const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
+  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${sha} -->\n${texte}`);
+  await github.delabelliser(ticket, LABEL_IN_PASS);
+}
+
 // Renvoyer la carte : la livraison repart à un cook, la note du chef comme ce
 // qu'il faut changer — un renvoi sur sa tête, que le cook lit sur le ticket,
 // et `in-pass` retiré —, puis la carte se ferme. Une note vide est refusée.
@@ -561,9 +581,7 @@ export async function renvoyerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGe
     return { carte, ticket, suivi };
   }
   if (lue.state !== "open") throw new GesteRefuse(`PR #${pr} is no longer open: there is nothing to send back`);
-  const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
-  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\n${sorte.renvoi(pr, aChanger)}`);
-  await github.delabelliser(ticket, LABEL_IN_PASS);
+  await renvoyerAuCook(github, ticket, lue.sha, sorte.renvoi(pr, aChanger));
   await fermerLaCarte(github, carte, `Sent back to a cook by the chef: ${aChanger}`);
   return { carte, ticket };
 }
