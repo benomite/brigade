@@ -250,6 +250,8 @@ export type GitHub = {
   // Ce que l'annulation d'un ticket servi écrit (undo/, #3274), facultatif :
   // seul le client réel le porte. Rouvrir une issue fermée.
   rouvrirIssue?(numero: number): Promise<void>;
+  // Réécrit le titre d'une issue (#3614). Facultatif : seul le client réel le porte.
+  ecrireTitre?(numero: number, titre: string): Promise<void>;
   // Un commit tel que l'API Git le garde : son arbre et ses parents, dans
   // leur ordre ; null si GitHub ne le connaît pas.
   commitGit?(sha: string): Promise<{ arbre: string; parents: string[] } | null>;
@@ -635,6 +637,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async ecrireCorps(numero, corps) {
       const chemin = `repos/${depot}/issues/${numero}`;
       exiger(await appeler(["-X", "PATCH", "-f", `body=${corps}`, chemin]), chemin);
+    },
+    async ecrireTitre(numero, titre) {
+      const chemin = `repos/${depot}/issues/${numero}`;
+      exiger(await appeler(["-X", "PATCH", "-f", `title=${titre}`, chemin]), chemin);
     },
     async creerIssue({ titre, corps, labels }) {
       // Jamais un ticket dont le travail est de changer la branche d'un autre :
