@@ -35,9 +35,9 @@ async function lancer(t: TestContext, consigne: string) {
   return { fin, ...(JSON.parse(readFileSync(temoin, "utf8")) as { argv: string[]; entree: string }) };
 }
 
-test("une consigne de 300 Kio se lance sans spawn E2BIG, et le cook la reçoit entière", async (t) => {
-  const consigne = "é".repeat(150 * 1024) + "\nfin";
-  assert.ok(Buffer.byteLength(consigne) > 300 * 1024);
+test("une consigne de 1 Mio se lance sans spawn E2BIG, et le cook la reçoit entière", async (t) => {
+  const consigne = "é".repeat(512 * 1024) + "\nfin";
+  assert.ok(Buffer.byteLength(consigne) >= 1024 * 1024);
 
   const { fin, entree, argv } = await lancer(t, consigne);
 
