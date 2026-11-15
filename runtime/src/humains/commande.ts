@@ -12,7 +12,7 @@
 // usage qui ne se lit pas sort avec le code 2.
 import { configRail } from "../alimenter.ts";
 import { Sortie, type Appel } from "../appel.ts";
-import { ouvrirGitHub } from "../github.ts";
+import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import { avecLaBrancheDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { ouvrirHumains } from "./service.ts";
@@ -37,7 +37,7 @@ export async function principal({ args, env, dire, redire }: Appel): Promise<voi
   if (!base) echouer(2, `BRIGADE_BASE_BRANCH is not set\n${USAGE}`);
 
   // Un geste du chef, par l'app : la box ne retient aucun de ses appels (limite-github.ts).
-  const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" });
+  const github = ouvrirGitHubDuGeste({ depot: rail.depot, bin: rail.gh, env });
   try {
     const humains = ouvrirHumains({ github, depot: rail.depot, base });
     if (quoi === undefined) {
