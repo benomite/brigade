@@ -20,6 +20,7 @@ import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
 import { attentesDuChef } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
+import type { SuiviDuDisjoncteurServant } from "../file-chef/cause-arret.ts";
 import type { Journal } from "../journal.ts";
 import { dernierRefusDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, pausesDeLaStation, retenueDeLaStation, type PausesDites } from "../limite-github.ts";
 import { etatDesGardeFous } from "../projections/guardrails.ts";
@@ -183,6 +184,10 @@ export type OptionsRetenue = {
   relance?: PorteDeLaRelance | null;
   // La branche d'intégration, que lisent les checks Windows de la base (#2413) ; `main` par défaut.
   branche?: string;
+  // Le disjoncteur ouvert de la station qui sert le projet, quand ce n'est pas
+  // celle-ci : ce que son issue dit (file-chef/cause-arret.ts). Le disjoncteur
+  // du journal passe avant.
+  disjoncteurServant?: SuiviDuDisjoncteurServant;
   maintenant?: () => Date;
   // Une ligne du journal de service.
   dire?: (ligne: string) => void;
@@ -191,7 +196,7 @@ export type OptionsRetenue = {
 };
 
 // Ce qu'une passe observe et lit, à `maintenant`.
-export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<OptionsRetenue, "station" | "tour">): { observation: Observation; signaux: () => Signaux } {
+export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<OptionsRetenue, "station" | "tour" | "disjoncteurServant">): { observation: Observation; signaux: () => Signaux } {
   const vue = options.tour?.vue() ?? null;
   const brute =
     vue === null
@@ -204,7 +209,8 @@ export function lireLaCuisine(base: Base, maintenant: Date, options: Pick<Option
   const signaux = (): Signaux => {
     const duJournal = signauxDuJournal(base);
     const baseRouge = vue === null ? duJournal.baseRouge : vue.checksRouges !== null && vue.checksRouges.length > 0 ? { sha: null, checks: vue.checksRouges } : null;
-    return { ...duJournal, baseRouge, attenteCI: vue?.attenteCI ?? null, ...signauxDeLaStation(options.station, maintenant), explications: observation.explications ?? [] };
+    const disjoncteur = duJournal.disjoncteur ?? options.disjoncteurServant?.depuis ?? null;
+    return { ...duJournal, disjoncteur, baseRouge, attenteCI: vue?.attenteCI ?? null, ...signauxDeLaStation(options.station, maintenant), explications: observation.explications ?? [] };
   };
   return { observation, signaux };
 }
