@@ -17,6 +17,7 @@ import { GARDES, REGLE_GARDE_CORRECTION, TITRE_SECTION } from "./garde-correctio
 import { LABEL, type IssueOuverte } from "./github.ts";
 import { REPARATIONS_PAR_MERGE_MAX, type Compte, type Qualite } from "./mesure-qualite.ts";
 import { avecLaPreuve, type Preuve } from "./preuve-mesure.ts";
+import { corpsSuivi, messageDeRetour, type Mesure } from "./suivi-alerte.ts";
 
 export const MARQUE_QUALITE = "<!-- brigade:qualite -->";
 // Les tickets que ce ticket de qualité a comptés (#2804) : tant que la fenêtre
@@ -42,6 +43,9 @@ export type GitHubDeLaQualite = {
   issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt">> & { servieLe?: string | null })[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
+  // Le suivi de la dérive (#3613) : remplacer le corps de l'issue ouverte, dire son retour sous le seuil.
+  ecrireCorps?(numero: number, corps: string): Promise<void>;
+  commenter?(numero: number, corps: string): Promise<void>;
 };
 
 // Pourquoi la qualité passe avant le temps : le premier coup sous le seuil,
@@ -68,6 +72,19 @@ export function causesDeQualite(q: Qualite): CauseDeQualite[] {
 
 // La qualité en défaut : les alertes de temps n'ouvrent rien.
 export const qualiteEnDefaut = (q: Qualite): boolean => causesDeQualite(q).length > 0;
+
+// Les mesures du ticket de qualité telles qu'elles sont : celles en défaut, ou toutes (`toutes`, le retour sous le seuil).
+export function mesuresDeQualite(q: Qualite, toutes = false): Mesure[] {
+  const causes = causesDeQualite(q);
+  return [
+    ...(q.premierCoup !== null && (toutes || causes.includes("premier-coup"))
+      ? [{ cle: "premier-coup", libelle: "First-try rate", valeur: Math.round(q.premierCoup * 100), unite: "%", seuil: `a threshold of ${q.seuilPremierCoup}%`, hautEstBien: true, raison: q.motifsDeRenvoi[0]?.nom ?? null }]
+      : []),
+    ...(toutes || causes.includes("base-cassee")
+      ? [{ cle: "base-cassee", libelle: `Repairs of main over ${q.mesures} merged PRs`, valeur: q.reparations, unite: "", seuil: `a limit of under one per ${MERGES_PAR_REPARATION}`, hautEstBien: false, raison: q.checksCasses[0]?.nom ?? null }]
+      : []),
+  ];
+}
 
 const pourcent = (part: number) => `${Math.round(part * 100)}%`;
 const liste = (comptes: readonly Compte[], vide: string) =>
@@ -139,8 +156,11 @@ export function prisApres<T extends TempsDuTicket>(temps: readonly T[], instant:
 // `ouvertes` : les issues ouvertes que l'appelant vient de lire, s'il en a.
 // `preuve` : la section « Evidence » ajoutée au corps du ticket qui s'ouvre (#2839).
 // `suite` (#2868) : les temps du projet et la mesure qui les prend. Sans elle, pas d'attente.
-export function porteDeQualite({ github, echantillonMin = TICKETS_A_ATTENDRE, maintenant = () => new Date() }: { github: GitHubDeLaQualite; echantillonMin?: number; maintenant?: () => Date }) {
+export function porteDeQualite({ github, echantillonMin = TICKETS_A_ATTENDRE, maintenant = () => new Date(), avertir = () => {} }: { github: GitHubDeLaQualite; echantillonMin?: number; maintenant?: () => Date; avertir?: (message: string) => void }) {
   let connue: number | null = null;
+  // Ce que le suivi a écrit la dernière fois : un tour qui mesure la même chose ne lit ni n'écrit rien.
+  let dernierSuivi: string | null = null;
+  let verifie = false;
 
   // Les tickets de qualité de confiance, du plus ancien au plus récent.
   const lues = async () => {
@@ -152,15 +172,55 @@ export function porteDeQualite({ github, echantillonMin = TICKETS_A_ATTENDRE, ma
   };
   const ouverts = async (): Promise<number[]> => (await lues()).filter((issue) => issue.state !== "closed").map((issue) => issue.number);
 
+  // La dérive dure : l'issue ouverte porte la dernière valeur, les précédentes, la tendance et la raison d'aujourd'hui.
+  // Une écriture qui échoue est dite et ne retient pas la décision ; elle se retente au tour suivant.
+  const suivre = async (qualite: Qualite, corpsOuvert?: string, numero?: number) => {
+    if (github.ecrireCorps === undefined) return;
+    const mesures = mesuresDeQualite(qualite);
+    const signature = JSON.stringify(mesures.map((m) => [m.cle, m.valeur, m.raison]));
+    if (signature === dernierSuivi) return;
+    try {
+      const ouverte = numero === undefined || corpsOuvert === undefined ? (await lues()).find((issue) => issue.state !== "closed") : { number: numero, body: corpsOuvert };
+      if (ouverte === undefined) return;
+      const corps = corpsSuivi(ouverte.body, mesures, maintenant());
+      if (corps !== ouverte.body) await github.ecrireCorps(ouverte.number, corps);
+      dernierSuivi = signature;
+    } catch (echec) {
+      avertir(`brigade : the quality alert could not be updated with the latest measure — ${echec instanceof Error ? echec.message : String(echec)}`);
+    }
+  };
+  // La qualité est repassée sous ses seuils : l'alerte ouverte le dit et se ferme. Sans mesure lisible, rien ne se ferme.
+  const refermer = async (qualite: Qualite, ouvertes?: readonly number[]) => {
+    if (qualite.premierCoup === null || qualite.mesures < echantillonMin) return;
+    // Sans issue connue, la station ne lit GitHub qu'une fois, si des issues sont ouvertes : une alerte d'avant son démarrage.
+    if (connue !== null && ouvertes !== undefined && !ouvertes.includes(connue)) connue = null;
+    if (connue === null && (verifie || ouvertes === undefined || ouvertes.length === 0)) return;
+    verifie = true;
+    for (const issue of (await lues()).filter((i) => i.state !== "closed")) {
+      await github.commenter?.(issue.number, messageDeRetour(mesuresDeQualite(qualite, true)));
+      await github.fermerIssue(issue.number);
+    }
+    connue = null;
+    dernierSuivi = null;
+  };
+
   return async (qualite: Qualite, ouvertes?: readonly number[], preuve?: Preuve, suite?: { temps: readonly TempsDuTicket[]; mesurer: (temps: readonly TempsDuTicket[]) => Qualite }): Promise<DecisionDeQualite | null> => {
     let ticket = ticketDeQualite(qualite);
-    if (ticket === null) return null;
+    if (ticket === null) {
+      await refermer(qualite, ouvertes);
+      return null;
+    }
     let { causes } = ticket;
-    if (connue !== null && ouvertes?.includes(connue)) return { issue: "deja-ouverte", numero: connue, causes };
+    if (connue !== null && ouvertes?.includes(connue)) {
+      await suivre(qualite);
+      return { issue: "deja-ouverte", numero: connue, causes };
+    }
     const toutes = await lues();
-    const deja = toutes.find((issue) => issue.state !== "closed")?.number;
+    const dejaOuverte = toutes.find((issue) => issue.state !== "closed");
+    const deja = dejaOuverte?.number;
     if (deja !== undefined) {
       connue = deja;
+      await suivre(qualite, dejaOuverte?.body, deja);
       return { issue: "deja-ouverte", numero: deja, causes };
     }
     // Le dernier ticket de qualité servi, daté par son merge dans les temps du projet (ou par sa
@@ -190,7 +250,9 @@ export function porteDeQualite({ github, echantillonMin = TICKETS_A_ATTENDRE, ma
     const compte = (ticket: number) => comptes.has(ticket) || Date.parse(qualite.mergesDesFautifs.get(ticket) ?? "") <= ouvertureSansMarque;
     const derniere = toutes.at(-1);
     if (derniere !== undefined && qualite.fautifs.every(compte)) return { issue: "deja-servie", numero: derniere.number, causes };
-    const creee = await github.creerIssue({ titre: ticket.titre, corps: await avecLaPreuve(ticket.corps, preuve), labels: LABELS_QUALITE });
+    // L'alerte fermée que celle-ci reprend est nommée dans son corps.
+    const corpsDeSuivi = corpsSuivi(ticket.corps, mesuresDeQualite(qualite), maintenant(), derniere?.number ?? null);
+    const creee = await github.creerIssue({ titre: ticket.titre, corps: await avecLaPreuve(corpsDeSuivi, preuve), labels: LABELS_QUALITE });
     // Deux stations qui l'ont ouvert ensemble : le plus ancien reste, l'autre se ferme.
     const [premier = creee] = await ouverts();
     if (premier < creee) await github.fermerIssue(creee);

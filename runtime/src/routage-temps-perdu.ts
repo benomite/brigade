@@ -78,6 +78,12 @@ export type GitHubDeLaBrigade = Omit<GitHubDeLaCorrection, "issuesDepuis"> & Par
   issuesDepuis(instant: string): Promise<(Awaited<ReturnType<GitHubDeLaCorrection["issuesDepuis"]>>[number] & { closedAt?: string })[]>;
 };
 
+// Le suivi de la dérive (#3613) passe par le même dépôt que celui où le ticket se dépose.
+const suiviDe = ({ ecrireCorps, commenter }: Pick<GitHubDeLaCorrection, "ecrireCorps" | "commenter">): Pick<GitHubDeLaCorrection, "ecrireCorps" | "commenter"> => ({
+  ...(ecrireCorps === undefined ? {} : { ecrireCorps: (numero: number, corps: string) => ecrireCorps(numero, corps) }),
+  ...(commenter === undefined ? {} : { commenter: (numero: number, corps: string) => commenter(numero, corps) }),
+});
+
 // Sur son propre dépôt, la station ne date un ticket de mesure que par son merge
 // dans ses temps. Un ticket fermé qu'aucune ligne des temps ne porte (`dansLesTemps`)
 // est servi à sa fermeture si une PR mergée l'a fermé (`prQuiFerme`) : mergé par
@@ -104,6 +110,7 @@ export function dateeParSaFermeture({ github, dansLesTemps }: { github: GitHubDe
   return {
     creerIssue: (issue) => github.creerIssue(issue),
     fermerIssue: (numero) => github.fermerIssue(numero),
+    ...suiviDe(github),
     issuesDepuis: async (instant) => {
       const issues = await github.issuesDepuis(instant);
       const mesure = (body: string) => body.includes(MARQUE_QUALITE) || body.includes(MARQUE_CORRECTION);
@@ -161,5 +168,6 @@ export function routerLeTempsPerdu({ github, servi, brigade, dansLesTemps, maint
       });
     },
     fermerIssue: (numero) => brigade.fermerIssue(numero),
+    ...suiviDe(brigade),
   };
 }
