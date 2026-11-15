@@ -212,6 +212,9 @@ const pont = {
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
+  // La veille de la station de cet ordinateur (ticket 3642) : la dernière lue, puis chaque changement.
+  veilleMachine: () => ipcRenderer.invoke("veilleMachine"),
+  surVeilleMachine: (recevoir) => void ipcRenderer.on("veilleMachine", (_, veille) => recevoir(veille)),
   surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),
   surAccueil: (recevoir) => void ipcRenderer.on("accueil", (_, vu) => recevoir(vu)),
   surOuverture: (recevoir) => void ipcRenderer.on("ouverture", (_, depot, etape) => recevoir(depot, etape)),

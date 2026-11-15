@@ -490,6 +490,10 @@ export type Pont = {
   // Les stations appairées, relues sur GitHub toutes les trente secondes, chacune en une ligne. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
   surStations(recevoir: (vu: VuDesStations) => void): void;
+  // La veille de la station de cet ordinateur (ticket 3642, runtime/src/veille-machine/contrat.ts) : garde-t-elle ce Mac
+  // éveillé à l'instant. Absente sur un poste sans station ; chaque changement arrive par `surVeilleMachine`.
+  veilleMachine?(): Promise<import("../../../runtime/src/veille-machine/contrat.ts").Veille | undefined>;
+  surVeilleMachine?(recevoir: (veille: import("../../../runtime/src/veille-machine/contrat.ts").Veille | undefined) => void): void;
   // Les projets des stations, relus à chaque lecture des stations : où en est chacun, sur chacune.
   surProjetsDesStations(recevoir: (vu: VuDesProjets) => void): void;
   // L'accueil (accueil.ts), redessiné à chaque lecture qui le change : une ligne par projet, une par

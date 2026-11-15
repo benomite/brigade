@@ -23,6 +23,7 @@ import { lignesDeCooks } from "../stations-de-cuisson.js";
 import { poserLeQuota } from "../stations-quota/stations-quota.js";
 import { poserLesChoix } from "./choix.js";
 import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
+import { ligneDeVeille, veilleTenue } from "../veille-machine/veille-machine.js";
 
 /** @typedef {import("../composants/poele/poele.js").Fabrique} Fabrique */
 /** @typedef {import("./etat.js").Haut} Haut */
@@ -48,6 +49,8 @@ import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
  *   `lecture`     l'écran étroit : il se lit sans rien régler (ticket 1186) — ni geste, ni « Details ».
  *   `quota`       le quota GitHub du compte (`quotaGithub` des faits) : la affiche, en tête, et son détail par station et projet
  *                 (stations-quota/, ticket 3483) ; absent, pas de quota affiché.
+ *   `veille`      ce que la station de cet ordinateur écrit de sa veille (veille-machine/, ticket 3642) : sa carte dit qu'elle
+ *                 garde l'ordinateur éveillé tant que c'est vrai.
  *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163) ; et,
  *                 quand une station le sert déjà, « Add a station » (ticket 3402).
  * @typedef {{
@@ -69,6 +72,7 @@ import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
  *   lecture?: boolean,
  *   quiCuit?: boolean,
  *   quota?: import("../stations-quota/stations-quota.js").QuotaGithub,
+ *   veille?: import("../veille-machine/veille-machine.js").Veille,
  * }} VuDeLOnglet
  */
 /**
@@ -256,6 +260,7 @@ function carte(doc, vu, station, gestes) {
   const ceQuElleEst = cree(doc, "p", CE_QU_ELLE_EST(vu.poste)[station.sorte]);
   ceQuElleEst.className = "ce-qu-elle-est";
   racine.append(tete, ceQuElleEst);
+  if (station.ici && veilleTenue(vu.veille)) racine.append(ligneDeVeille(doc));
   // Ce qu'elle tient du projet : les tickets de ses cooks, ce qu'elle fait tourner d'autre ; rien, elle est au repos.
   const tient = station.cooks.length + station.agents.length > 0;
   racine.append(
