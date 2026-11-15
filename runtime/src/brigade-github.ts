@@ -83,6 +83,7 @@ import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreu
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
+import { direLaMiseDeCote, RUN_OK, runFiniOk, runsEchoues } from "./set-aside.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
@@ -290,7 +291,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; runOk?: true } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -1285,15 +1286,19 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
       // Compté depuis le dernier retrait de `served-elsewhere` (#2430).
       const precedents = await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC);
-      const echecs = precedents.length + 1;
+      // Seuls les runs échoués comptent vers la mise de côté : un run fini `ok` sans livraison est relancé (#3652).
+      const runOk = "runOk" in fait && fait.runOk === true;
+      const essais = [...precedents.map((c) => ({ motif: motifDe(c.body), runOk: runFiniOk(c.body) })), { motif: fait.echec, runOk }];
+      const echoues = runsEchoues(essais);
+      const echecs = echoues.length;
       // Hors cuisine après `ECHECS_MAX` arrêts de suite, ou dès que deux de suite ont le même motif (#2729).
-      const sortie = horsCuisine([...precedents.map((c) => ({ motif: motifDe(c.body), desaccord: false })), { motif: fait.echec, desaccord: false }]);
+      const sortie = !runOk && horsCuisine(essais.filter((essai) => !essai.runOk).map((essai) => ({ motif: essai.motif, desaccord: false })));
       // Ses essais épuisés, le ticket va au manager, pas au chef (#3513).
-      const suite = sortie ? await apresLesEssais(ticket, [...precedents.map((c) => motifDe(c.body)), fait.echec]) : null;
-      avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (try ${echecs}/${ECHECS_MAX}): ${fait.echec}`);
+      const suite = sortie ? await apresLesEssais(ticket, echoues) : null;
+      avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (${runOk ? "its run ended ok, not counted" : `try ${echecs}/${ECHECS_MAX}`}): ${fait.echec}`);
       await github.commenter(
         issue,
-        `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${suite === null ? "" : "auChef" in suite ? `\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${echecs} cooks without a delivery: not served elsewhere, nobody serves it. A human decides; remove the label to try again.\n\n${suite.auChef}` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
+        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${runOk ? ` ${RUN_OK}` : ""} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${runOk ? "\n\nIts run ended ok: it does not count among the ticket's failed runs, and a cook takes the ticket again." : ""}${suite === null ? "" : "auChef" in suite ? `\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere, nobody serves it. A human decides; remove the label to try again.\n\n${suite.auChef}` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
       );
       chrono.rater(issue);
       if (suite !== null && "auChef" in suite) {
@@ -2860,14 +2865,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (affirmation !== null) {
         if (abandon.signal.aborted) return { subi: "the station stopped while it checked that the ticket is already satisfied" };
         if (dejaServi !== null && "servi" in dejaServi) return { dejaServi: dejaServi.servi, affirmation };
-        return { echec: motifArretCook(`the cook stated that the ticket is already satisfied on \`${base}\`, but the station could not confirm it: ${dejaServi !== null && "refus" in dejaServi ? dejaServi.refus : "nothing was checked"}`, arretDuCook()) };
+        return { echec: motifArretCook(`the cook stated that the ticket is already satisfied on \`${base}\`, but the station could not confirm it: ${dejaServi !== null && "refus" in dejaServi ? dejaServi.refus : "nothing was checked"}`, arretDuCook()), runOk: true };
       }
       // Sans commit, le constat qu'il a délimité est le livrable d'un ticket
       // dont les critères l'admettent (#2854). Une PR encore ouverte attend
       // une livraison sur sa branche : là, rien commité reste un échec.
       const constat = constatAdmis && prOuverte === null ? lireLivrable(lireLeFlux(lance.flux ?? flux).message ?? null).texte : null;
       if (constat !== null) return { constat };
-      return { echec: motifArretCook("the cook committed nothing", arretDuCook()) };
+      return { echec: motifArretCook("the cook committed nothing", arretDuCook()), runOk: true };
     }
     // Sa réponse aux remarques, que la station poste pour lui sur la PR (#2592).
     const reponse = prOuverte === null ? null : reponseDuMessage(lireLeFlux(lance.flux ?? flux).message ?? null);
@@ -2888,7 +2893,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // Un cook qui s'arrête dans ses premiers tours n'a pas travaillé sur les
       // remarques de la relecture : ce n'est pas un essai (#2508).
       if (fin.turns <= TOURS_POUR_TRAVAILLER) return { court: true, subi: `the cook stopped after ${fin.turns} turn${fin.turns === 1 ? "" : "s"}, before it could work on the review's remarks, and added nothing since its last delivery` };
-      return { echec: motifArretCook("the cook added nothing since its last delivery", arretDuCook()) };
+      return { echec: motifArretCook("the cook added nothing since its last delivery", arretDuCook()), runOk: true };
     }
     try {
       depot.pousser(branche);
