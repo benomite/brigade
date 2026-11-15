@@ -223,3 +223,34 @@ test("GitHub seul : un check Windows rouge sur la base lu par le tour met une se
   await lire({ outcome: "green", name: "runtime-windows" }, { outcome: "green", name: "app-windows" });
   assert.deepEqual(c.cartes(), []);
 });
+
+test("#3647 : un ticket qui n'attend que des tickets en cuisson n'attend pas la cuisine ; un qui en attend un qui attend aussi, si", () => {
+  const suivi = suivreLeTour(() => new Date(A("00:00:00")));
+  const { dicte, client } = clientDicte();
+  const github = suivi.envelopper(client);
+  dicte.tickets = [ticket(50), ticket(51), ticket(52), ticket(53, "taken")];
+  return github.fires().then(() => {
+    suivi.sauter(50, "#50 waits", [53]);
+    suivi.sauter(51, "#51 waits", [53]);
+    suivi.sauter(52, "#52 waits", [53, 54]);
+    assert.deepEqual(suivi.vue().enAttente, [52]);
+    assert.deepEqual(suivi.vue().explications, ["#52 waits"]);
+  });
+});
+
+test("#3647 : une livraison qui ne change que de la doc n'attend aucune CI ; une qui touche du code, si", async () => {
+  const suivi = suivreLeTour(() => new Date(A("00:00:00")));
+  const { dicte, client } = clientDicte();
+  const prs = [
+    { branche: "cook/48-finding", fichiers: ["docs/finding.md"] },
+    { branche: "cook/49-code", fichiers: ["docs/a.md", "src/a.ts"] },
+  ];
+  const github = suivi.envelopper({ ...client, prsOuvertes: async () => prs } as unknown as GitHubDuTour);
+  dicte.tickets = [ticket(48, "in-pass"), ticket(49, "in-pass")];
+  dicte.tetes.set(48, "sha48");
+  dicte.tetes.set(49, "sha49");
+  await github.fires();
+  await github.prsOuvertes();
+  for (const issue of [48, 49]) await github.ci((await github.prDuTicket(issue))!.sha);
+  assert.deepEqual(suivi.vue().attenteCI, { tickets: [49], running: [] });
+});
