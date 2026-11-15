@@ -93,8 +93,8 @@ async function renvoyeQuiSArrete(t: TestContext, message: string) {
   faux.prs.push({ number: 99, issue: 14, branche: "cook/14-github", sha: tete, state: "open", merged: false, enRetard: false, mergeePar: null, fichiers: [] });
   faux.poster(99, "box", corpsDeVerdict("box", tete, { verdict: "request-changes", motif: "- **Blocking**: the empty case is not handled." }));
   const consignes: string[] = [];
-  const lancer: Lancer = ({ flux, args }) => {
-    consignes.push(args.join("\n"));
+  const lancer: Lancer = ({ flux, args, entree }) => {
+    consignes.push([...args, entree ?? ""].join("\n"));
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };

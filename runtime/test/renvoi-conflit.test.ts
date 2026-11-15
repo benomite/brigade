@@ -49,10 +49,10 @@ async function renvoiPourConflit(t: TestContext, git: ReturnType<typeof fauxGit>
   const consignes: string[] = [];
   const vuAuDepart: Array<{ fusionTentee: boolean; fusionCommitee: boolean }> = [];
   const gestes: string[] = [];
-  const lancer: Lancer = ({ args, flux }) => {
-    consignes.push(args.join("\n"));
+  const lancer: Lancer = ({ args, entree, flux }) => {
+    consignes.push([...args, entree ?? ""].join("\n"));
     vuAuDepart.push({ ...git.etat });
-    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: cook(args.join("\n"), git.etat) })}\n`);
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: cook([...args, entree ?? ""].join("\n"), git.etat) })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 12, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const station = stationDuDepot({

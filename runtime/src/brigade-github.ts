@@ -84,6 +84,7 @@ import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreu
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
+import { direLaMiseDeCote, RUN_OK, runFiniOk, runsEchoues } from "./set-aside.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
@@ -1286,20 +1287,24 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
       // Compté depuis le dernier retrait de `served-elsewhere` (#2430).
       const precedents = await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC);
-      const echecs = precedents.length + 1;
+      // Seuls les runs échoués comptent vers la mise de côté : un run fini `ok` sans livraison est relancé (#3652).
+      const fini = "fini" in fait && fait.fini === true;
+      const essais = [...precedents.map((c) => ({ motif: motifDe(c.body), runOk: runFiniOk(c.body) })), { motif: fait.echec, runOk: fini }];
+      const echoues = runsEchoues(essais);
+      const echecs = echoues.length;
       // Hors cuisine après `ECHECS_MAX` arrêts de suite, ou dès que deux de suite ont le même motif (#2729).
       // Un cook fini `ok` dont la livraison est refusée en sort dès ce refus :
       // relancé tel quel, le suivant finit pareil — quinze cooks sur
       // benomite/secondes#48, chacun d'un motif différent par son dernier
       // message (#3651). Le manager le reprend, ou le chef lit ce refus.
-      const fini = "fini" in fait && fait.fini === true;
-      const sortie = fini || horsCuisine([...precedents.map((c) => ({ motif: motifDe(c.body), desaccord: false })), { motif: fait.echec, desaccord: false }]);
+      // Les runs finis `ok` ne comptent pas parmi les échecs (#3652).
+      const sortie = fini || horsCuisine(essais.filter((essai) => !essai.runOk).map((essai) => ({ motif: essai.motif, desaccord: false })));
       // Ses essais épuisés, le ticket va au manager, pas au chef (#3513).
-      const suite = sortie ? await apresLesEssais(ticket, [...precedents.map((c) => motifDe(c.body)), fait.echec]) : null;
-      avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (try ${echecs}/${ECHECS_MAX}): ${fait.echec}`);
+      const suite = sortie ? await apresLesEssais(ticket, echoues) : null;
+      avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (${fini ? "its run ended ok, not counted" : `try ${echecs}/${ECHECS_MAX}`}): ${fait.echec}`);
       await github.commenter(
         issue,
-        `${MARQUE_D_ECHEC} n=${echecs} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere, nobody serves it. A human decides; remove the label to try again.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) after ${echecs} cooks without a delivery: not served elsewhere, nobody serves it. A human decides; remove the label to try again.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
+        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere, nobody serves it. A human decides; remove the label to try again.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere, nobody serves it. A human decides; remove the label to try again.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
       );
       chrono.rater(issue);
       if (suite !== null && "auChef" in suite) {
@@ -2346,7 +2351,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
 // Un lancement de `claude` sous supervision : le cook, ou le reviewer.
 // `flux` rendu : là où son flux s'est écrit, s'il ne l'a pas été où demandé.
 // `ticket` : celui que sert le cook, que le disjoncteur nomme s'il échoue (#3656).
-export type Lancer = (lancement: Lancement & { cwd: string; env: NodeJS.ProcessEnv; flux: string; ticket?: number }) => Pick<Supervise, "fin"> & { flux?: string };
+export type Lancer = (lancement: Lancement & { entree?: string; cwd: string; env: NodeJS.ProcessEnv; flux: string; ticket?: number }) => Pick<Supervise, "fin"> & { flux?: string };
 
 export type OptionsDuDepot = {
   nom: string;
@@ -2479,7 +2484,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const { nom, base, depot, depotGitHub, cloison } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   mkdirSync(options.flux, { recursive: true });
-  const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
+  const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, entree, cwd, env, flux }) => superviser({ commande, args, ...(entree === undefined ? {} : { entree }), cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
   // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
@@ -2761,9 +2766,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
-    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(texte, calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
+    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, cwd: worktree, env: env(envDuCook), flux, ticket: ticket.number });
+    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(envDuCook), flux, ticket: ticket.number });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {

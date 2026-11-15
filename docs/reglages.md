@@ -163,6 +163,9 @@ machine reads them. What a station decides for itself:
   it takes the ordinary tickets (`ordinaires`, `ensemble`) — see [`runtime/station-machine.md`](runtime/station-machine.md);
 - **its folders** — where it puts its clones and its worktrees (`BRIGADE_STATION_DIR` on a server);
 - **its projects** — one line per project it serves, and whether this station is the project's main one.
+- **keep awake while cooking** — on a Mac, whether it keeps the computer awake while a cook runs; on by default, kept in
+  `<BRIGADE_STATION_DIR>/veille-machine.json`, set from its icon's menu — see
+  [`runtime/station.md`](runtime/station.md#keeping-the-mac-awake-while-a-cook-runs).
 
 These are the settings the writer of `projet.json` refuses: a project's file never carries them.
 

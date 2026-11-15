@@ -433,18 +433,19 @@ test("the station of this runtime launches its cook through the guards: the stre
 });
 
 // Le tour de la station du dépôt (`stationDuDepot`), lancé par les gardes, où
-// le ticket de chaque numéro d'`enormes` porte un titre trop long pour un
-// lancement : sa consigne fait buter `spawn` (E2BIG) avant que le cook ne parte.
-function stationAuxTitresEnormes(t: TestContext, enormes: ReadonlySet<number>) {
+// le cook de chaque numéro d'`enormes` reçoit une branche au nom trop long pour
+// un lancement : ses arguments (la garde de son `gh`, qui la nomme) font buter
+// `spawn` (E2BIG) avant que le cook ne parte.
+function stationAuxBranchesEnormes(t: TestContext, enormes: ReadonlySet<number>) {
   const kitchen = cuisine(t);
   const { repertoire, gardes, faux } = kitchen;
   const tour = faux.client();
-  const titre = (numero: number) => (enormes.has(numero) ? "x".repeat(2_500_000) : `ticket ${numero}`);
+  const branche = (run: string) => (enormes.has(Number.parseInt(run, 10)) ? `cook/${"x".repeat(200_000)}` : `cook/${run}`);
   const client: Partial<GitHub> = {
     tickets: async () => ({ inchange: false, issues: (await tour.fires()).map((lu) => ({ ...lu, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
     prDeBranche: async () => null,
     ci: async () => [],
-    issue: async (numero) => ({ number: numero, title: titre(numero), labels: faux.labels(numero), state: "open", createdAt: "", updatedAt: "", url: "", body: "" }),
+    issue: async (numero) => ({ number: numero, title: `ticket ${numero}`, labels: faux.labels(numero), state: "open", createdAt: "", updatedAt: "", url: "", body: "" }),
     commentaires: async () => [],
     commenter: tour.commenter,
     labelliser: tour.labelliser,
@@ -463,7 +464,7 @@ function stationAuxTitresEnormes(t: TestContext, enormes: ReadonlySet<number>) {
     github: client as GitHub,
     depot: {
       connait: () => false,
-      preparer: async (run) => ({ worktree: repertoire, branche: `cook/${run}` }),
+      preparer: async (run) => ({ worktree: repertoire, branche: branche(run) }),
       reprendre: async () => repertoire,
       retirer: () => {},
       ranger: async () => null,
@@ -494,7 +495,7 @@ function stationAuxTitresEnormes(t: TestContext, enormes: ReadonlySet<number>) {
 const erreurDuLancement = (erreur: string) => (process.platform === "win32" ? assert.match(erreur, /^spawn /) : assert.equal(erreur, "spawn E2BIG"));
 
 test("three cooks whose launch fails before they run (spawn E2BIG, 0 turns) do not open the breaker: the kitchen is not held, and each ticket is told, by number, with the error (#3656)", async (t) => {
-  const { runtime, faux, station, faits, erreurs } = stationAuxTitresEnormes(t, new Set([3615, 3616, 3617]));
+  const { runtime, faux, station, faits, erreurs } = stationAuxBranchesEnormes(t, new Set([3615, 3616, 3617]));
   for (const numero of [3615, 3616, 3617]) faux.feu(numero);
 
   await station.tour();
@@ -527,7 +528,7 @@ test("three cooks whose launch fails before they run (spawn E2BIG, 0 turns) do n
 });
 
 test("replaying 2026-11-15: #3615 fails four times at launch (spawn E2BIG), the kitchen still takes and serves another ticket, and #3615 carries a line saying why (#3656)", async (t) => {
-  const { runtime, faux, station, faits, erreurs } = stationAuxTitresEnormes(t, new Set([3615]));
+  const { runtime, faux, station, faits, erreurs } = stationAuxBranchesEnormes(t, new Set([3615]));
   faux.feu(3615);
   for (let essai = 0; essai < 4; essai++) {
     await station.tour();

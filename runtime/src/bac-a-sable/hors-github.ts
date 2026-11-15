@@ -20,8 +20,8 @@ import type { Commentaire } from "../github.ts";
 import { VARIABLES_GITHUB } from "../identites.ts";
 
 // Les commentaires remis, parmi les derniers de l'issue — la fiche en plus,
-// où qu'elle soit. La consigne part en argument de `claude` : un argument ne
-// passe pas 128 Kio sous Linux, d'où ces bornes, en octets.
+// où qu'elle soit. Ces bornes, en octets, gardent la consigne d'une taille
+// raisonnable : elle part sur l'entrée de `claude`, plus en argument (#3655).
 export const DERNIERS_COMMENTAIRES = 8;
 export const OCTETS_DU_CORPS = 32_000;
 export const OCTETS_D_UN_COMMENTAIRE = 6_000;

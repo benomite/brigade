@@ -32,7 +32,8 @@ export function lancementsDuFauxBwrap(temoin: string): string[][] {
   return readdirSync(temoin).map((nom) => readFileSync(join(temoin, nom), "utf8").split("\0").slice(0, -1));
 }
 
-export type LancementDuFauxClaude = { args: string[]; cwd: string; env: Record<string, string> };
+// `entree` : ce que le lancement a lu sur son entrée — la consigne d'un cook —, vide sinon.
+export type LancementDuFauxClaude = { args: string[]; entree: string; cwd: string; env: Record<string, string> };
 
 // Les lancements de la doublure qu'un répertoire FAUX_CLAUDE_TEMOIN a notés,
 // dans l'ordre. Un nom en cours d'inscription n'en est pas encore un.
@@ -47,7 +48,8 @@ export function lancementsDuFauxClaude(temoin: string): LancementDuFauxClaude[] 
     const variables = suite.slice(Number(nombre));
     const env: Record<string, string> = {};
     for (let i = 0; i < variables.length; i += 2) env[variables[i] ?? ""] = variables[i + 1] ?? "";
-    return { args: suite.slice(0, Number(nombre)), cwd, env };
+    const entree = existsSync(join(temoin, `${nom}.entree`)) ? readFileSync(join(temoin, `${nom}.entree`), "utf8") : "";
+    return { args: suite.slice(0, Number(nombre)), entree, cwd, env };
   });
 }
 

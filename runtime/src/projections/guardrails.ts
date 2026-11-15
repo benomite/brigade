@@ -186,6 +186,8 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       const lancementRate = jamaisParti({ turns, erreur: evenement.payload.error });
       if ((outcome === "failed" && !lancementRate) || (outcome === "guard" && !duTicket)) juger(base, run, "bad", evenement.seq);
     },
+    // Rien à retenir : la relance est un fait du journal, relu avec les arrêts (gardes-historique/).
+    "guard.relaunched": () => {},
     "cook.interrupted": (base, evenement) => {
       base.executer(
         "UPDATE cook_runs SET ended_seq = ?, ended_at = ?, ending = 'interrupted' WHERE run = ?",

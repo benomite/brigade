@@ -673,6 +673,14 @@ kept (#2151, below); offline, the last rail stays dimmed, marked `offline since`
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
 
+### A ticket killed twice by the same guardrail says why on its card (#3650, epic #3645)
+
+When the same guardrail has stopped the same ticket twice (`gardeRepetee` of its entry in `facts`,
+`docs/runtime/garde-fous.md`), its card on the rail says it under its head, in the card's alert ink: **"Stopped 2 times by
+the idle guard"**, then one line per stop — its time and the activity where the cook was (`07:12 — was finishing`, or
+`no activity read`), the run on hover. It stays as long as the box sends it: the ticket is not relaunched silently. A ticket
+stopped once, or by two different guardrails, shows nothing.
+
 ### The line of figures is gone (#2486, #3013, #3523)
 
 The line of figures that stood above the columns — ticket time, first try, `Cooks 2 running` / `Cooks none running`, last
@@ -3063,6 +3071,13 @@ icon, so there is only one. The installed app keeps one process: opened again, i
   it running. Confirmed, it unloads the station's launchd agent then the icon's own (`launchctl bootout`), or on Windows
   stops the station's launcher, then the station and its cooks. Both come back at the next login.
 - A command the station refuses is shown in a dialog; the `Menu bar` setting turns this icon off too.
+- **Keep-awake, on a Mac (#3642).** While the station keeps this Mac awake for a running cook, the menu shows
+  `Keeping this computer awake while cooking` under the line. **Keep this computer awake while cooking** is a checkbox
+  of the menu: unchecked, the station releases its hold within a second and holds none for later cooks; checked again,
+  it holds again if a cook is running. The setting survives a station restart. A setting file that cannot be read shows
+  the checkbox greyed out, `— setting unreadable`, and nothing overwrites it. On Windows, neither the line nor the
+  checkbox appears. The same line shows on this computer's card in a project's Stations tab
+  (`app/src/vue/veille-machine/`). What the station does is in [`runtime/station.md`](runtime/station.md#keeping-the-mac-awake-while-a-cook-runs).
 
 The modules are in `app/src/tray-fond/`: `tray-fond.ts` (the line, the menu, the commands, the confirmation),
 `lecture.ts` (reading `facts`, playing a gesture), `systeme.ts` (login registration, quit), `processus.ts` (the Electron

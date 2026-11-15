@@ -53,7 +53,7 @@ test("un poste dont la configuration ne tient pas est indisponible, et la raison
 });
 
 test("la commande d'un cook dans le bac à sable : celle d'un cook de la box, dont le mode de permission cède la place à celui du bac à sable et à ses réglages", () => {
-  const args = argumentsClaude("la consigne", { model: "sonnet", effort: "low" });
+  const args = argumentsClaude({ model: "sonnet", effort: "low" });
   const constat = constater(DIT, HOTES);
   const config = configurerLeCook(constat.disponible ? constat.poste : (null as never), "run", HOTES);
   const dedans = dansLeBacASable(args, config);
