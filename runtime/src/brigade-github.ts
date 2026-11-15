@@ -670,6 +670,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }),
             ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined || options.depotServi.toLowerCase() === DEPOT_BRIGADE ? {} : { projetMesure: options.depotServi }),
           }),
+          avertir,
           ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
           ...(options.echantillonMin === undefined ? {} : { echantillonMin: options.echantillonMin }),
         });

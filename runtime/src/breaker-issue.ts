@@ -20,6 +20,7 @@
 // L'issue d'une cuisine se reconnaît à une marque, en commentaire HTML que
 // GitHub n'affiche pas, qui nomme le projet : un dépôt que deux projets
 // partageraient garde une issue par cuisine.
+import { calageDuDisjoncteur, direLeCalage, type Calage } from "./breaker/calage.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Base } from "./base.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type ReponseHttp } from "./limite-github.ts";
@@ -54,20 +55,23 @@ export type ClientDuDisjoncteur = {
 
 // Ce que le journal dit du disjoncteur. Ouvert : depuis quand, l'échec qui l'a
 // ouvert — le dernier des échecs d'affilée —, et ceux qu'il a comptés. Fermé :
-// la dernière reprise de la cuisine, nulle s'il n'y en a jamais eu.
+// la dernière reprise de la cuisine — ou le dernier disjoncteur refermé seul —, nulle s'il n'y en a jamais eu. `calage` :
+// ce qui cale encore après ses relances, quand c'est lui qui l'a ouvert (#3599).
 export type Disjoncteur =
-  | { ouvert: true; depuis: string; ticket: number | null; code: number | null; echecs: EchecDuDisjoncteur[]; seuil: number | null }
+  | { ouvert: true; depuis: string; ticket: number | null; code: number | null; echecs: EchecDuDisjoncteur[]; seuil: number | null; calage?: Calage }
   | { ouvert: false; reprisLe: string | null };
 
 export function disjoncteurDuJournal(base: Base): Disjoncteur {
   const garde = etatDesGardeFous(base);
   if (garde.breakerOpenedAt === null) {
-    const reprisLe = base.lire<{ at: string }>("SELECT at FROM events WHERE type = 'kitchen.resumed' ORDER BY seq DESC LIMIT 1")[0]?.at ?? null;
+    // Repris par le chef, ou refermé seul (#3528, #3599).
+    const reprisLe = base.lire<{ at: string }>("SELECT at FROM events WHERE type IN ('kitchen.resumed', 'breaker.lifted') ORDER BY seq DESC LIMIT 1")[0]?.at ?? null;
     return { ouvert: false, reprisLe };
   }
   const echecs = echecsDuDisjoncteur(base);
   const dernier = echecs.at(-1);
-  return { ouvert: true, depuis: garde.breakerOpenedAt, ticket: dernier?.ticket ?? null, code: dernier?.code ?? null, echecs, seuil: garde.breakerThreshold };
+  const calage = calageDuDisjoncteur(base);
+  return { ouvert: true, depuis: garde.breakerOpenedAt, ticket: dernier?.ticket ?? null, code: dernier?.code ?? null, echecs, seuil: garde.breakerThreshold, ...(calage === null ? {} : { calage }) };
 }
 
 // La marque de l'issue d'une cuisine.
@@ -80,7 +84,20 @@ const nommerCode = (code: number | null) => (code === null ? "none (stopped by a
 export const titreDeLIssue = (projet: string) => `Kitchen ${projet} held: its breaker is open`;
 
 export function corpsDeLIssue(projet: string, disjoncteur: Extract<Disjoncteur, { ouvert: true }>): string {
-  const { depuis, ticket, code, echecs, seuil } = disjoncteur;
+  const { depuis, ticket, code, echecs, seuil, calage } = disjoncteur;
+  if (calage !== undefined) {
+    return [
+      marque(projet),
+      `The breaker of the \`${projet}\` kitchen opened because a run keeps stalling: no cook leaves until the chef resumes the kitchen, or a run still in progress completes normally.`,
+      "",
+      `- **What keeps stalling**: ${direLeCalage(calage)}`,
+      `- **Opened at**: ${depuis}`,
+      "",
+      `A stall is not a failure of the work: the kitchen relaunched this run by itself, ${calage.retries} time${calage.retries === 1 ? "" : "s"}, and it stalled every time.`,
+      "",
+      "brigade comments and closes this issue when the breaker closes.",
+    ].join("\n");
+  }
   const compte = echecs.length === 0 ? "failures in a row" : `${echecs.length} failure${echecs.length > 1 ? "s" : ""} in a row${seuil === null ? "" : ` (threshold ${seuil})`}`;
   return [
     marque(projet),

@@ -4,7 +4,7 @@
 |---|---|
 | Cap on duration, tokens | A cook going over one is stopped. Tokens count input, output and cache writes, not cache reads. **No cap on turns**: these two caps bound what a ticket spends |
 | Idle | A cook that produced nothing since the idle delay is stopped |
-| Breaker | After N failures in a row, no more cooks are launched. A failure is a cook that exited in error or could not be launched. Not counted: a ticket's cook stopped by a guardrail (cap, idleness, lapsed lease) — but a launch off any ticket, a manager judgement or a review stopped by one still counts —, a cook whose delivery is judged red (a manager relaunch whose delivery is red, `relaunch.judged`, counts for nothing; its green one still clears the counter), the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart |
+| Breaker | After N failures in a row, no more cooks are launched. A failure is a cook that exited in error or could not be launched. Not counted: a ticket's cook stopped by a guardrail (cap, idleness, lapsed lease) — but a launch off any ticket, a manager judgement or a review stopped by one still counts —, a cook whose delivery is judged red (a manager relaunch whose delivery is red, `relaunch.judged`, counts for nothing; its green one still clears the counter), the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart, a stalled run (below) |
 | "stop" | Every running cook is stopped within the second, and none is launched |
 
 Stopping a cook: `SIGTERM` to its process group, then `SIGKILL` ten seconds later. On Windows the
@@ -13,6 +13,22 @@ grace (`runtime/src/arbre.ts`); a table PowerShell returns with an error is stil
 returns no line is tried again on the next round, unless PowerShell is missing or used its whole delay (#2829); a relayed cook is killed by its pid. Whatever a cook started and
 that still lives at its exit is killed too. **An open breaker and the "stop" both hold**, restarts
 included, until "resume".
+
+### Stalled runs
+
+A run the idle guardrail stops **having never started** (0 turns, 0 tokens) or **hung on a command
+that never returned** (its last activity is `running`, as a `cat` waiting for its input on
+2026-11-15) is a **stall**, not a failure of the work (#3599, `runtime/src/breaker/calage.ts`):
+`cook.exited` says `outcome: stalled`, and it counts neither for nor against the breaker. Any other
+idle stop (a run that worked, then went silent) stays a guardrail stop, counted as above.
+
+The kitchen relaunches a stalled run **by itself**, as it was, under the run name `<run>-r<n>`
+(`cook.launched` carries `stallRetry`), at most `RELANCES_SUR_CALAGE` times (2). If the last relaunch
+stalls too, the breaker opens to **escalate to the chef**: `breaker.opened` carries `stalled` — the
+kind of run (`manager`, `cook`, `review`…), its run, its turns and tokens, its last activity —, and
+the refusal to launch and the breaker's GitHub issue say what keeps stalling. A breaker opened that
+way **closes by itself** (`breaker.lifted`, `after: <run>`) as soon as a run still in progress
+completes normally; otherwise it waits for "resume".
 
 ### In a row, across several cooks
 
@@ -42,15 +58,15 @@ What holds the station is written once per change (`station.held`, reason `stopp
 launched by the runtime's guardrails, off any ticket and under the station's name: the "stop" stops
 them within the second (the ticket is given back on its issue), their failures count for the
 breaker, the caps are the project's. A cook stopped by a cap counts as a failure here, as any
-launch off a ticket does.
+launch off a ticket does — except a stall, which is relaunched (above).
 
 ### The breaker on GitHub
 
 An open breaker is also **an issue of the project's repository**, labeled `brigade:breaker-open`
 (`runtime/src/breaker-issue.ts`): its body names the failing ticket, its exit code and the time the
-breaker opened. An issue already open for this kitchen is reused, never doubled — its body carries
-`<!-- brigade:breaker-open project=<project> -->`. On "resume", the issue receives a comment saying
-the kitchen is resumed, and is closed. The label is created if the repository lacks it. Nothing is
+breaker opened — or, opened by stalls, what keeps stalling (#3599). An issue already open for this kitchen is reused, never doubled — its body carries
+`<!-- brigade:breaker-open project=<project> -->`. On "resume", or when the breaker closes by itself,
+the issue receives a comment saying the kitchen is resumed, and is closed. The label is created if the repository lacks it. Nothing is
 added to the log: the runtime reads the breaker at every wake-up and publishes only what changed —
 at startup it reads GitHub once, so a breaker closed while it was down still closes its issue. A
 failed publication is said once and retried at the next tick.
