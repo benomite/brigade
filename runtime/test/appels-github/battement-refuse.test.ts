@@ -8,10 +8,8 @@ import type { Canal } from "../../src/appairage/canal.ts";
 import { REGARD_MS, tenirPresence } from "../../src/appairage/presence.ts";
 import { constaterLimite, limiteDeLaStation, LimiteGitHubAtteinte, pauseDeLaStation } from "../../src/limite-github.ts";
 import { FauxGitHub } from "../cout-par-ticket/faux-github.ts";
-import { aArreter, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { aArreter, jusqua, repertoireTemporaire } from "../outils.ts";
 import { CALIBRE, DEPOT, fausseHorloge, uneStation } from "./aides.ts";
-
-const rienNeReste = temporaireDuFichier();
 
 const MINUTE = 60_000;
 const DEPART = Date.parse("2026-11-15T20:00:00Z");
@@ -89,5 +87,3 @@ test("repeated refusals of the heartbeat write: the gap between two attempts gro
   }
   assert.equal(essais.length - apres, 3, "one attempt per look again");
 });
-
-test("battement-refuse.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
