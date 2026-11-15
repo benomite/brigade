@@ -138,7 +138,7 @@ export async function attenteSurGithub(options: { id: unknown; ticket: unknown; 
 
 // Un geste de WAITING, d'où qu'il parte : « resume » par la commande du runtime quand il tourne ici (`parLeRuntime`,
 // attente.ts), sinon écrit sur GitHub. « waiting for… » s'écrit toujours sur l'issue, jamais dans le second : la commande
-// du runtime refuse une carte de TODO hors du rail (`decision`, `chef-todo`), l'écriture sur l'issue les prend toutes (#3653).
+// du runtime refuse une carte de TODO hors du rail (`decision`, `chef-todo`), l'écriture sur l'issue les prend toutes.
 // « It arrived » n'est pas une commande.
 export async function jouerLAttente<R>(options: { id: unknown; ticket: unknown; saisie: unknown; aujourdhui: Date; lu: () => TableauLu | undefined; client: ClientDeLaPriorite; parLeRuntime?: () => R | undefined }): Promise<R | Ecrit> {
   const parti = options.id !== "attente-reprendre" ? undefined : options.parLeRuntime?.();
