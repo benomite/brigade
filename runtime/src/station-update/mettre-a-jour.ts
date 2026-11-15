@@ -336,8 +336,8 @@ export function configDeLaMiseAJour(env: NodeJS.ProcessEnv): { versions: SourceD
 
 // La mise à jour d'une station, ouverte d'après son environnement et tenue à
 // sa cadence ; null quand elle n'a pas lieu ici. La station lui dit ses cooks
-// en vol (`enVol`), et retient ses
-// prises tant que `retenue()` est vrai (`retenirLaPrise`).
+// en vol (`enVol`), et retient ses prises tant que `retenue()` est vrai
+// (`retenirLaPrise`).
 export function ouvrirLaMiseAJour(options: { racine: string; env: NodeJS.ProcessEnv; enVol: () => number[]; dire: (ligne: string) => void }): { miseAJour: MiseAJourDeLaStation; arreter: () => void } | null {
   const config = configDeLaMiseAJour(options.env);
   if (config === null) return null;

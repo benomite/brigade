@@ -197,7 +197,6 @@ test("pendant l'attente de sa relance, la station GitHub seul garde son cook en 
   assert.equal(demandes[0]?.version, "0.20261102.100000");
 });
 
-
 test("le statut dit la version qui tourne, la plus récente publiée et le retard : en retard, puis à jour une fois la station relancée sur la release", async (t) => {
   const { racine, publiees, demandes, ouvrir } = station(t);
   publier(publiees, "0.20261101.100000");
