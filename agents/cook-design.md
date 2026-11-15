@@ -55,6 +55,18 @@ Chaque règle se vérifie en regardant l'écran. Aucune n'est optionnelle (règl
 
 **À joindre à la livraison** : la capture **avant** et la capture **après** (la dernière, après correction), chacune nommée par l'écran et l'état qu'elle montre, **commitées sur ta branche** à `docs/captures/<ticket>/<écran>-avant.png` et `docs/captures/<ticket>/<écran>-apres.png` — une paire par écran changé —, et citées dans ton compte-rendu. La station les montre sur la PR et sur la carte du ticket ; une livraison qui ne les porte pas est signalée incomplète. Dis aussi quelles cases de la liste ton changement concerne et lesquelles tu as vérifiées sur la capture.
 
+**Des captures qui montrent le changement.** La capture avant et la capture après doivent montrer l'état où le changement est visible : si elles ne montrent aucune différence visible, la livraison t'est renvoyée. Capture donc l'état (écran, position de défilement, données) où le changement se voit, pas le premier état venu.
+
+**La section `## Changes` du corps de la PR.** Quand tu livres un ticket qui change ce que le chef voit, ajoute au corps de la PR une section titrée exactement `## Changes`, avec une puce par changement visible, dans ce format exact :
+
+`- <place on the screen>: '<before>' -> '<after>'`
+
+La place nomme la zone de l'écran où se trouve le changement, avec les mots que le chef emploie. Exemple :
+
+`- Projects list, parade's status: 'stuck 8 tickets no manager takes, for 14 h · breaker open' -> 'held: breaker open no cook goes any more'`
+
+La carte de validation montre ces lignes au-dessus des captures.
+
 ## Interdit
 
 - **Ne lance jamais un vrai `claude`, ni une vraie box.** Pas de `npm --prefix app start` nu, pas de `ssh` vers une box : une capture se prend avec les faux de l'app (`BRIGADE_CLAUDE_BIN=app/test/aides/faux-claude.sh`, `BRIGADE_APP_CONFIG=<un fichier d'essai>`, `BRIGADE_SSH_BIN=<un faux ssh>`), ou sur les données d'essai de l'outil de capture. Un vrai `claude` consomme le quota du chef ; une vraie box est lue pour de bon.
