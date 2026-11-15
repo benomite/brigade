@@ -35,3 +35,10 @@ export async function jouerLeGeste(geste: Parameters<typeof commandesDuGeste>[0]
   }
   return echecs;
 }
+
+// « Start the station » depuis un projet de l'app (#3637) : le même `station start <station>` que le geste `demarrage` de
+// l'icône de fond, joué pour ce seul projet. Rend la raison de ce qui a échoué, ou rien.
+export async function demarrerLaStationDuProjet(projet: ProjetLu, lancer: Lancer, delaiMs: number): Promise<{ refus?: string }> {
+  const echecs = await jouerLeGeste("demarrage", [projet], lancer, delaiMs);
+  return echecs.length === 0 ? {} : { refus: echecs.join("\n") };
+}

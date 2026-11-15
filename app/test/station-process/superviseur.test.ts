@@ -243,6 +243,20 @@ test("une version qui ne se dit jamais en service dans le temps laissé : la ver
   assert.equal(enService(ordi.racine)?.version, "1.0.0");
 });
 
+test("pendant le remplacement de son process, la station dit sur quelle version elle redémarre ; avant et après, rien (#3637)", { skip: SANS_POSIX }, async (t) => {
+  const ordi = unOrdinateur(t);
+  ordi.telecharger("1.0.1");
+  const { station } = tenir(t, ordi);
+  await jusqua(() => enService(ordi.racine)?.version === "1.0.0");
+  assert.equal(station.redemarrage(), null);
+
+  const issue = station.redemarrer("1.0.1");
+  assert.equal(station.redemarrage(), "1.0.1");
+  assert.equal((await issue)?.quoi, "passee");
+
+  assert.equal(station.redemarrage(), null);
+});
+
 test("une version absente des données de l'app, ou un chemin à la place d'une version : rien n'est arrêté", { skip: SANS_POSIX }, async (t) => {
   const ordi = unOrdinateur(t);
   const { station, dit } = tenir(t, ordi);
