@@ -30,7 +30,10 @@ export const CHEF_TODO = "chef-todo";
 export const SORTES = ["blocked", "merge-by-hand", "product-question", "abandoned", "design-validation", "review-before-merge"] as const;
 export type Sorte = (typeof SORTES)[number];
 
-const MARQUE = /^<!-- brigade:todo kind=([a-z-]+) -->/;
+// Le marqueur peut porter, après la sorte, des attributs `nom=valeur` : la
+// demande de validation posée sur le ticket (#3615, `validation-sur-ticket/`)
+// y nomme sa PR, son ticket et sa tête.
+const MARQUE = /^<!-- brigade:todo kind=([a-z-]+)(?: [a-z]+=[^\s>]+)* -->/;
 const estSorte = (mot: string): mot is Sorte => (SORTES as readonly string[]).includes(mot);
 
 export const marqueur = (sorte: Sorte) => `<!-- brigade:todo kind=${sorte} -->`;
@@ -50,9 +53,10 @@ type CommentaireLu = { body: string; association: string };
 // issue publique, seul le dépôt pose les cartes.
 function carteDuCommentaire({ body, association }: CommentaireLu): Carte | null {
   if (!DE_CONFIANCE.includes(association)) return null;
-  const sorte = MARQUE.exec(body)?.[1];
-  if (sorte === undefined || !estSorte(sorte)) return null;
-  return { sorte, texte: body.slice(marqueur(sorte).length).trim() };
+  const lu = MARQUE.exec(body);
+  const sorte = lu?.[1];
+  if (lu === null || sorte === undefined || !estSorte(sorte)) return null;
+  return { sorte, texte: body.slice(lu[0].length).trim() };
 }
 
 // La carte qui attend le chef, d'après les labels et les commentaires de

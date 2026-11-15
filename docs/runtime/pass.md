@@ -432,12 +432,12 @@ delivery, and every delivery of a project without the setting, is merged as befo
 | it is not technical, no open card holds its PR, and the model, reading the delivery's diff against the ticket's acceptance criteria, answers that it makes no visual or interaction choice the criteria did not settle (wording they set, punctuation, a fix restoring what was there) (#3609) | **merged**, no card |
 | the judgment cannot be read, or the station has no judge | not merged, said, tried again at the next turn |
 | it has them, the model answers it makes a choice, but the before and after captures of a screen show no visible change — identical, or differing only by anti-aliasing noise (#3617) | **sent back to its cook** (`brigade:renvoi`): the captures show no change, capture the state that shows the change; no card, no chef |
-| it has them, no open card holds its PR, and the model answers that it makes a new screen, layout, component or gesture choice | **not merged**: an issue `Validate its screen`, labelled `chef-todo`, carries the question, a line `**Design choice:** …` naming the choice it asks about (a card with no such line is not created), the link of the PR, its brief (#3330: `### What was asked`, the ticket's title and the first paragraph of its body, cut to 240 characters; `### What was done`, the points the cook's station posted on the PR, or a line saying no summary is available), the cook's change lines (#3617: `### Changes`, one line per bullet found under `## Changes` in the PR body, none when the body has no such section), the changed areas of each screen (#3617: `### Changed areas`, the after capture with each changed area outlined in red and, next to it, each area cropped and enlarged, before and after side by side — images published in a commit of their own, on no branch, kept under `refs/brigade/captures/<sha>`; a capture that is not a readable PNG is said, and that screen is not compared) and each screen before and after as images; its body opens on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, `sha` the head judged green, and its card comment is `kind=design-validation`. The ticket stays `in-pass` and says its card |
+| it has them, no open card holds its PR, and the model answers that it makes a new screen, layout, component or gesture choice | **not merged**: the validation is asked on the ticket itself, never as an issue apart (#3615): one comment on the ticket's issue, and the same on its PR, carries the question, the link of the PR, a line `**Design choice:** …` naming the choice it asks about (a request with no such line is not posted), its brief (#3330: `### What was asked`, the ticket's title and the first paragraph of its body, cut to 240 characters; `### What was done`, the points the cook's station posted on the PR, or a line saying no summary is available), the cook's change lines (#3617: `### Changes`, one line per bullet found under `## Changes` in the PR body, none when the body has no such section), the changed areas of each screen (#3617: `### Changed areas`, the after capture with each changed area outlined in red and, next to it, each area cropped and enlarged, before and after side by side — images published in a commit of their own, on no branch, kept under `refs/brigade/captures/<sha>`; a capture that is not a readable PNG is said, and that screen is not compared) and each screen before and after as images. The comment opens on `<!-- brigade:todo kind=design-validation pr=<PR> ticket=<ticket> sha=<sha> -->`, `sha` the head judged green (format in the header of `runtime/src/validation-sur-ticket/validation-sur-ticket.ts`): it is the ticket's TODO card, and the ticket takes `chef-todo` — the ticket is the card. The chef is mentioned once, on the line under the question of the ticket's comment (`cc @<chef>`, the chef `status` resolves; none resolved, nobody is mentioned and the station says so); no `decision` label is set. A request already posted for that PR and head is never posted again. The ticket stays `in-pass`. A card posted before #3615 as an issue `Validate its screen` (its body opening on `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`) is still read, answered and closed as before |
 | a card already holds it, on this head or on another one with no send-back since the card (the branch was updated from its base: the screen is the same) | not merged, no second card (#3332) |
 | the chef validated it (`<!-- brigade:validation-design-validee carte=<card> pr=<PR> sha=<sha> -->` on the ticket) and no send-back follows that validation, other than a send-back for a conflict with the base | **merged**, without a new card, whatever its head (#3332), as long as none of its screen files — its view, site, mockup and capture files — changed since the validated head (#3426) |
 | the chef validated it, but its screen files changed since the validated head (the update on the base changed them, or the cook who resolved the conflict did), or GitHub cannot say they did not | not merged; **a new card** with the new head's captures says why the chef is asked again (#3426) |
 | a send-back follows the card or the validation (a cook changed the delivery) | the card, if still open, is closed at the send-back; the next delivery, judged green, gets **a new card** |
-| its files, its ticket's issue or its PR's comments cannot be read, or the card cannot be created | not merged; the station says why, and tries again at its next turn |
+| its files, its ticket's issue or its PR's comments cannot be read, or the request cannot be posted | not merged; the station says why, and tries again at its next turn |
 
 Two gestures answer the card, which the app calls (`brigade <projet> design`, [`exploitation.md`](exploitation.md)):
 
@@ -471,11 +471,16 @@ The open card is the guard of the merge, not the setting alone: while a card hol
 after it), the pass merges nothing for it, even on a station that does not read `humanValidatesDesigns` as
 `true` (#3347).
 
+A card that is the ticket itself is never closed by these gestures or by the pass: it is lifted — `chef-todo`
+taken off, with no comment, the ticket left open (#3615). Every "closed" above reads "lifted" for it.
+
 The chef's send-back counts among the ticket's send-backs, like the pass's.
 
 **The chef can also answer on the ticket itself** (#3616, epic #3612, `runtime/src/reponse-validation/`),
 with no separate validation issue. The question is a kitchen comment on the ticket whose first line is
-`<!-- brigade:validation-question pr=<PR> sha=<commit> -->` (`commit=` is read as `sha=`). At each turn,
+`<!-- brigade:validation-question pr=<PR> sha=<commit> -->` (`commit=` is read as `sha=`), or the request the
+pass posts on the ticket (#3615), whose first line `<!-- brigade:todo kind=<kind> pr=<PR> ticket=<ticket> sha=<sha> -->`
+names the PR and the commit too. At each turn,
 before trying again the merge of a delivery it holds for the chef, the pass reads its ticket's comments
 (a delivery it does not hold has no question, and its ticket is not read for one):
 
@@ -499,11 +504,12 @@ or an answer cannot be written, nothing is merged; the station says why and read
 
 A ticket is **sensitive** when it carries the label `sensitive` (the chef, the second or the manager can
 set it). The pass cooks and judges it exactly as any other, but **does not merge its green delivery**
-(#3223, `runtime/src/sensible/`): an issue `review before merge`, labelled `chef-todo`, carries the
-question and the link of the PR; its body opens on `<!-- brigade:sensitive-review pr=<PR> ticket=<ticket>
-sha=<sha> -->` and its card comment is `kind=review-before-merge`. The ticket stays `in-pass` and says its
-card. The card is the design one's: one card per delivery, never a second however many times the pass
-runs or the branch is updated from its base; a send-back closes it, and the next delivery gets a new one; a card that cannot be created
+(#3223, `runtime/src/sensible/`): the review is asked on the ticket itself, as for a design (#3615) — one
+comment on the ticket and the same on its PR carry the question, the link of the PR and its brief, opening on
+`<!-- brigade:todo kind=review-before-merge pr=<PR> ticket=<ticket> sha=<sha> -->`, and the ticket takes
+`chef-todo`. The ticket stays `in-pass`; a card posted before #3615 as an issue `review before merge` is
+still read and answered. The card is the design one's: one card per delivery, never a second however many times the pass
+runs or the branch is updated from its base; a send-back closes it, and the next delivery gets a new one; a card that cannot be posted
 is not merged, said, and tried again at the next turn. A ticket without the label is merged as before.
 A sensitive design delivery on a project where a human validates designs waits on its one
 `Validate its screen` card, which already holds it for the chef: the chef's validation on it, kept after

@@ -35,6 +35,8 @@ describe("autonomy figures from GitHub", () => {
     assert.equal(CHEF_TODO, CHEF_TODO_DES_CARTES);
     assert.equal(MARQUE_DE_RENVOI, MARQUE_DE_LA_STATION);
     for (const sorte of SORTES) assert.match(corpsDeCarte({ sorte, texte: "x" }), MARQUE_DE_CARTE);
+    // La validation demandée sur le ticket même (#3615) est une carte : son marqueur porte des attributs.
+    assert.match("<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->\n**Q?**", MARQUE_DE_CARTE);
   });
 
   test("a TODO card or `blocked-on-human` makes a ticket served with a human, with the question it asked; neither, served without", () => {

@@ -15,7 +15,9 @@ import type { RevueSensible } from "../vue/carte-sensible/carte-sensible-github.
 import type { ValidationDesign } from "../vue/validation-design/validation-design-github.ts";
 
 export const LABEL_DU_CHEF = "chef-todo";
-const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)\s*-->\s*([\s\S]*)$/;
+// Le marqueur peut porter, après la sorte, des attributs `nom=valeur` : la validation demandée sur le ticket (#3615,
+// runtime/src/validation-sur-ticket/) y nomme sa PR, son ticket et sa tête.
+const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)(?:\s+[a-z]+=[^\s>]+)*\s*-->\s*([\s\S]*)$/;
 // Une carte du chef pose une question, ou n'est pas dans TODO (#2455) : sans commentaire marqué, ou sans texte, elle n'est
 // pas montrée, et le second en est prévenu (attente-du-chef.ts).
 

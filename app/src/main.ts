@@ -5,9 +5,11 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuDeLApp } from "./aide-communaute.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions, type NativeImage } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
-import { avecPastille, tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
+import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
+import { ICONE_DE_LA_BARRE, pastillee } from "./tray-fond/icone.ts";
+import { stationDeFondInstallee } from "./tray-fond/systeme.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
 import { lireFeu } from "./feu.ts";
@@ -412,19 +414,9 @@ const urgences = tenirNotifications({
 // dessus, la ligne au survol. Son menu liste les questions qui attendent ; une question cliquée ramène la fenêtre sur sa
 // carte (`ouvrirCarte`, que la vue ouvre comme une notification touchée sur le téléphone). Elle compte sur les derniers
 // `faits` lus de chaque projet qui se lit, et se redit à chaque lecture ; le chef la retire dans Settings.
-const ICONE_DE_LA_BARRE = join(import.meta.dirname, "icones", "barre-de-menus.png");
-// L'icône avec la pastille de `questions`, à chaque échelle qu'elle porte (16 px, et 32 px pour un écran à 200 %).
-function pastillee(image: NativeImage, questions: number): NativeImage {
-  if (questions <= 0) return image;
-  const peinte = nativeImage.createEmpty();
-  for (const scaleFactor of image.getScaleFactors()) {
-    const { width, height } = image.getSize(scaleFactor);
-    const bitmap = image.toBitmap({ scaleFactor });
-    if (width !== height || bitmap.length !== width * height * 4) continue;
-    peinte.addRepresentation({ scaleFactor, width, height, buffer: avecPastille(bitmap, width, questions) });
-  }
-  return peinte.isEmpty() ? image : peinte;
-}
+// Quand la station de fond est installée, l'icône est tenue à côté d'elle, l'app fermée comme ouverte (tray-fond/, #3631) :
+// l'app ne pose pas la sienne, pour qu'il n'y en ait qu'une.
+const iconeAuFond = emplacements.facon === "installee" && stationDeFondInstallee({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA });
 function entreeDuMenu(entree: Entree): MenuItemConstructorOptions {
   switch (entree.genre) {
     case "separateur":
@@ -459,7 +451,7 @@ const barreDeMenus = tenirBarreDeMenus({
 });
 function poserLaBarreDeMenus(): void {
   if (!barrePrete) return;
-  barreDeMenus.poser(suivi.configuration().barreDeMenus !== false, projets().filter(lisible).map(({ nom }) => ({ nom, faits: faits.dernier(nom)?.faits })));
+  barreDeMenus.poser(suivi.configuration().barreDeMenus !== false && !iconeAuFond, projets().filter(lisible).map(({ nom }) => ({ nom, faits: faits.dernier(nom)?.faits })));
 }
 const veilleDesFaits = ouvrirVeilleDuTableau({
   lire: tableaux.lire,

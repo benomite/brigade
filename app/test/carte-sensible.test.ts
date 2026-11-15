@@ -36,22 +36,23 @@ const DEPOT = "chef/parade";
 const SHA = "5b1d0e7c9a2f4e6081a3b5c7d9e1f20314253647";
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 
-// La carte que le runtime pose pour la livraison verte de #30 (PR #41) : l'issue #62 et son commentaire de carte.
-async function poseeParLeRuntime(): Promise<{ corps: string; commentaire: string; titre: string }> {
-  const ecrits: { titre: string; corps: string; commentaires: string[] } = { titre: "", corps: "", commentaires: [] };
+// La carte que le runtime pose pour la livraison verte de #30 (PR #41) : sur le ticket même (ticket 3615), son commentaire de
+// carte, dont le marqueur dit la PR — aucune issue à part.
+async function poseeParLeRuntime(): Promise<{ commentaire: string; labels: string[] }> {
+  const ecrits: { commentaires: string[]; labels: string[] } = { commentaires: [], labels: [] };
   const github: GitHubDeLaRetenue = {
-    creerIssue: async ({ titre, corps }) => ((ecrits.titre = titre), (ecrits.corps = corps), 62),
-    commenter: async (numero, corps) => void (numero === 62 && ecrits.commentaires.push(corps)),
+    commenter: async (numero, corps) => void (numero === 30 && ecrits.commentaires.push(corps)),
+    labelliser: async (numero, labels) => void (numero === 30 && ecrits.labels.push(...labels)),
     delabelliser: async () => {},
     fermerIssue: async () => {},
     commentaires: async () => [],
   };
   await tenirPourLeChef(SENSIBLE, github, { depot: DEPOT, station: "box", ticket: { number: 30, title: "Delete a user's data on request", labels: ["fire", "sensitive"] }, pr: { number: 41, sha: SHA } });
-  return { titre: ecrits.titre, corps: ecrits.corps, commentaire: ecrits.commentaires[0] ?? assert.fail("pas de commentaire de carte") };
+  return { labels: ecrits.labels, commentaire: ecrits.commentaires[0] ?? assert.fail("pas de commentaire de carte") };
 }
 // La carte du chef telle que l'app la lit de GitHub (tableau/attente-du-chef.ts).
 async function carteLue(): Promise<CarteDuChef> {
-  const { corps, commentaire } = await poseeParLeRuntime();
+  const { commentaire: corps, commentaire } = await poseeParLeRuntime();
   const marquee = carteDuCommentaire(commentaire) ?? assert.fail("le commentaire de carte ne se lit pas");
   const sensible = revueDuCorps(DEPOT, corps) ?? assert.fail("le corps ne dit pas sa PR");
   return { ...marquee, sensible };
@@ -66,8 +67,8 @@ describe("ce que l'app lit de GitHub", () => {
   });
 
   test("la carte posée par le runtime se lit : sa PR, son adresse, son ticket — et sa question garde « #30 »", async () => {
-    const { titre, corps } = await poseeParLeRuntime();
-    assert.equal(titre, "review before merge");
+    const { labels, commentaire: corps } = await poseeParLeRuntime();
+    assert.deepEqual(labels, ["chef-todo"]);
     assert.deepEqual(revueDuCorps(DEPOT, corps), { pr: 41, ticket: 30, sha: SHA, url: `https://github.com/${DEPOT}/pull/41` });
     const todo = carteDuChefDeTodo(await carteLue()) ?? assert.fail("pas de carte de TODO");
     assert.equal(todo.question, SENSIBLE.question(30, 41));
@@ -81,6 +82,9 @@ describe("ce que l'app lit de GitHub", () => {
     assert.equal(revueDuCorps(DEPOT, "<!-- brigade:validation-design pr=41 ticket=30 sha=5b1d0e7 -->"), null);
     const { sensible: _, ...sansPR } = await carteLue();
     assert.deepEqual(carteDuChefDeTodo(sansPR)?.revue, { illisible: "its issue does not say which pull request it holds: review it on GitHub" });
+    // Le marqueur d'une carte de TODO qui ne dit pas sa PR, ou celui d'une autre sorte, n'en dit aucune non plus.
+    assert.equal(revueDuCorps(DEPOT, "<!-- brigade:todo kind=review-before-merge -->\n**#30 is sensitive**"), null);
+    assert.equal(revueDuCorps(DEPOT, "<!-- brigade:todo kind=design-validation pr=41 ticket=30 sha=5b1d0e7 -->"), null);
   });
 
   test("le rail lu de GitHub marque le ticket au label `sensitive`, et lui seul", async () => {
