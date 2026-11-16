@@ -59,7 +59,7 @@ const minuscules = (texte: string) => texte.toLowerCase();
 export type ProjetAServir = { depot: string; nom: string; clone: string; worktrees: string; base: string };
 
 // Le tour d'un projet : celui de la box (`StationGitHub`).
-export type TourDuProjet = Pick<StationGitHub, "tour" | "enCuisine" | "calme" | "quitter" | "presser" | "sauver">;
+export type TourDuProjet = Pick<StationGitHub, "tour" | "enCuisine" | "enAttente" | "calme" | "quitter" | "presser" | "sauver">;
 
 export type OptionsDuService = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa liste et ses lieux.
@@ -97,6 +97,8 @@ export type ServiceDeLOrdinateur = {
   refus(): Record<string, string>;
   // Les tickets que ses cooks cuisinent : ce que sa mise à jour attend (#2189).
   enCuisine(): number[];
+  // Les tickets qui attendent une prise : ce qui garde le Mac éveillé sans cook qui cuise (#3713).
+  enAttente(): number[];
   // Sauve le travail de ces cooks sur leur branche, avant une relance (#2586).
   sauver?(): Promise<number[]>;
   // Plus aucun tour ; ce qu'un tour tient est rendu.
@@ -297,6 +299,7 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
     servis: () => [...ouverts.values()].map(({ depot }) => depot),
     refus: () => Object.fromEntries(refus),
     enCuisine: () => [...[...ouverts.values()].map(({ tour }) => tour), ...retires].flatMap((tour) => tour.enCuisine()),
+    enAttente: () => [...ouverts.values()].flatMap(({ tour }) => tour.enAttente?.() ?? []),
     sauver: async () => (await Promise.all([...[...ouverts.values()].map(({ tour }) => tour), ...retires].map(async (tour) => (await tour.sauver?.()) ?? []))).flat(),
     arreter: async () => {
       arrete = true;

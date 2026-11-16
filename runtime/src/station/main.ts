@@ -226,8 +226,15 @@ choisis = servirLesProjetsChoisis({
   dejaServis: () => Object.values(station.servisSurGitHub()),
 });
 const projetsChoisis = choisis;
-// Sur un Mac, l'ordinateur reste éveillé tant qu'un de ses cooks cuit, si le chef ne l'a pas éteint (#3642).
-const veille = tenirLaVeille({ racine, plateforme: process.platform, cooks: () => station.enCuisine().length + projetsChoisis.enCuisine().length, dire });
+// Sur un Mac, l'ordinateur reste éveillé tant qu'un de ses cooks cuit (#3642), ou qu'un ticket qu'elle sert attend sa
+// prise (#3713), si le chef ne l'a pas éteint.
+const veille = tenirLaVeille({
+  racine,
+  plateforme: process.platform,
+  cooks: () => station.enCuisine().length + projetsChoisis.enCuisine().length,
+  attentes: () => station.enAttente().length + projetsChoisis.enAttente().length,
+  dire,
+});
 const projetsDeLApp = tenirProjetsDeLApp({
   racine,
   canal,
