@@ -52,7 +52,7 @@ test("au démarrage de la station, un projet mis de côté n'est pas servi — n
     canal,
     station: "box",
     env: {},
-    servis: { projets: () => lireConfiguration(readFileSync(join(racine, "projets"), "utf8")).projets.map(({ nom }) => nom) },
+    servis: { projets: () => lireConfiguration(readFileSync(join(racine, "projets"), "utf8")).projets.map(({ nom }) => nom), refus: () => null },
     apresEcriture: () => {},
     dire: () => {},
     cadenceMs: 3_600_000,
