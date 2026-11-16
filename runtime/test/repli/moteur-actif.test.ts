@@ -13,7 +13,7 @@ import { test, type TestContext } from "node:test";
 import { brancherGardeFous } from "../../src/garde-fous.ts";
 import { gardesDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { etatStation } from "../../src/projections/stations.ts";
-import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR, VARIABLE_DU_REPLI } from "../../src/repli/moteur-actif.ts";
+import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../src/repli/moteur-actif.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "../outils.ts";
 
@@ -30,7 +30,7 @@ function cuisine(t: TestContext, options: { repli?: string; maintenant?: () => D
     return runtime.lancer(demande);
   } };
   const avertis: string[] = [];
-  const gardes = gardesDuTour({ garde, station: STATION, repertoireEtat: repertoire, arbitre: null, avertir: (texte) => avertis.push(texte), env: options.repli === undefined ? {} : { [VARIABLE_DU_REPLI]: options.repli }, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+  const gardes = gardesDuTour({ garde, station: STATION, repertoireEtat: repertoire, arbitre: null, avertir: (texte) => avertis.push(texte), env: options.repli === undefined ? {} : { BRIGADE_FALLBACK_ENGINE: options.repli }, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
   let rang = 0;
   // Un cook du tour, s'il n'est pas retenu : la doublure de `claude` joue `scenario`.
   const cook = async (scenario: string, enVol: number, env: Record<string, string> = {}) => {
@@ -123,11 +123,11 @@ test("the status exposes the active engine, the fallback flag and the date until
 
 test("a fallbackEngine that is not an engine name, or is the main engine itself, is set aside and said: the station runs with no fallback", () => {
   assert.deepEqual(moteursDeLaStation(STATION, {}), { engine: "claude", fallbackEngine: null, refus: null });
-  assert.deepEqual(moteursDeLaStation(STATION, { [VARIABLE_DU_REPLI]: "codex" }), { engine: "claude", fallbackEngine: "codex", refus: null });
-  const meme = moteursDeLaStation(STATION, { [VARIABLE_DU_REPLI]: "claude" });
+  assert.deepEqual(moteursDeLaStation(STATION, { BRIGADE_FALLBACK_ENGINE: "codex" }), { engine: "claude", fallbackEngine: "codex", refus: null });
+  const meme = moteursDeLaStation(STATION, { BRIGADE_FALLBACK_ENGINE: "claude" });
   assert.equal(meme.fallbackEngine, null);
   assert.match(meme.refus ?? "", /is the main engine of station box\/claude itself/);
-  const illisible = moteursDeLaStation(STATION, { [VARIABLE_DU_REPLI]: "API Key" });
+  const illisible = moteursDeLaStation(STATION, { BRIGADE_FALLBACK_ENGINE: "API Key" });
   assert.equal(illisible.fallbackEngine, null);
   assert.match(illisible.refus ?? "", /is not an engine name/);
 });

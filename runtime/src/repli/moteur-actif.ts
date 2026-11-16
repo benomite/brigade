@@ -13,7 +13,7 @@
 // l'affaire d'un autre ticket.
 import { NOM_DE_STATION } from "../stations-declarees.ts";
 
-export const VARIABLE_DU_REPLI = "BRIGADE_FALLBACK_ENGINE";
+const VARIABLE_DU_REPLI = "BRIGADE_FALLBACK_ENGINE";
 export const VARIABLE_DU_MOTEUR = "BRIGADE_ENGINE";
 
 // Une station et ses moteurs, et jusqu'à quand chacun dit son quota épuisé
