@@ -2254,6 +2254,8 @@ sign of life) is stated only once: the page header does not repeat the state whe
 - **Update failed and rolled back**: the target version did not start, the station
   stayed on its own; the next one will be tried alone. "dismiss" clears the line, as long as
   the app is open. The reason for the failure is not stated here: it is in the projects' queue.
+  A target version that stops serving a project the app held back for another station
+  (`# held-back (served by …)`) has not failed: it is kept (#3709).
 - **Max connection lost**: nothing cooks on the station any more. "log in" runs `claude auth login`,
   which opens the login page in your browser; the station sees the connection restored within
   the minute, and the kitchen resumes on its own. **Only the station of this computer** reconnects
