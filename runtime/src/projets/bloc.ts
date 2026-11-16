@@ -21,6 +21,39 @@ const utiles = (lignes: string[]) => lignes.map((ligne) => ligne.trim()).filter(
 // Les lignes du bloc.
 export const lignesDuBloc = (texte: string): string[] => utiles(couper(texte).dedans);
 
+// Une ligne que l'app a mise de côté au lancement, parce qu'une autre station
+// sert déjà le projet (#2110, `app/src/station-embarquee-cuisine-unique.ts`) :
+// le commentaire garde la ligne telle quelle et nomme la station qui le sert.
+const MISE_DE_COTE = /^# held-back \(served by (.+?)\): (.*)$/;
+export type MiseDeCote = { ligne: string; station: string; dansLeBloc: boolean };
+
+// Les projets mis de côté, dans le bloc ou hors du bloc, par nom. Une
+// réécriture du bloc les garde : sans eux, un redémarrage de la station
+// rouvrirait une seconde cuisine du projet à côté de celle de l'autre (#3703).
+export function misesDeCote(texte: string): Map<string, MiseDeCote> {
+  const { avant, dedans, apres } = couper(texte);
+  const trouvees = new Map<string, MiseDeCote>();
+  const lire = (lignes: string[], dansLeBloc: boolean) => {
+    for (const brute of lignes) {
+      const ligne = brute.trim();
+      const lu = MISE_DE_COTE.exec(ligne);
+      const nom = lu?.[2]?.split(/\s+/)[0];
+      if (lu === null || nom === undefined || nom === "") continue;
+      trouvees.set(nom, { ligne, station: lu[1]!, dansLeBloc });
+    }
+  };
+  lire([...avant, ...apres], false);
+  lire(dedans, true);
+  return trouvees;
+}
+
+// Les lignes du bloc telles que la station les réécrit : celles qu'elle sert
+// et celles que l'app a mises de côté, dans l'ordre du fichier.
+export const lignesEcritesDuBloc = (texte: string): string[] =>
+  couper(texte)
+    .dedans.map((ligne) => ligne.trim())
+    .filter((ligne) => ligne !== "" && (!ligne.startsWith("#") || MISE_DE_COTE.test(ligne)));
+
 // Les noms de projet que le chef a écrits hors du bloc.
 export const nomsHorsDuBloc = (texte: string): string[] => {
   const { avant, apres } = couper(texte);

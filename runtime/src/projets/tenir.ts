@@ -69,7 +69,7 @@ import type { Sonde } from "../installation/besoins/fourni.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts";
-import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
+import { lignesDuBloc, lignesEcritesDuBloc, misesDeCote, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type Demande, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
@@ -356,6 +356,8 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
 
     const texte = lireTexte(fichier);
     const avant = lignesDuBloc(texte);
+    const ecritesAvant = lignesEcritesDuBloc(texte);
+    const misDeCote = misesDeCote(texte);
     const aLaMain = new Set(nomsHorsDuBloc(texte));
     const lignes: string[] = [];
     const suivis = new Map<string, SuiviDuProjet>();
@@ -400,6 +402,14 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
           lignes.push(ligne);
           motifs.set(projet.nom, motif);
         } else suivis.set(projet.nom, { ...suiviDu(projet, "secondaire", motif), bascule: bascules.get(projet.nom) ?? null });
+        continue;
+      }
+      // Mis de côté par l'app : une autre station le sert, sa ligne reste en
+      // commentaire et aucune cuisine ne s'ouvre ici (#3703).
+      const aCote = misDeCote.get(projet.nom);
+      if (aCote !== undefined) {
+        if (aCote.dansLeBloc) lignes.push(aCote.ligne);
+        suivis.set(projet.nom, { ...suiviDu(projet, "secondaire", `served by ${aCote.station}: this computer's station opens no kitchen for it`), cuitSur: aCote.station });
         continue;
       }
       if (aLaMain.has(projet.nom)) {
@@ -474,12 +484,13 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     }
 
     const remis = new Set(aRemettre.map(({ projet }) => projet.nom));
-    if (lignes.join("\n") !== avant.join("\n")) {
+    if (lignes.join("\n") !== ecritesAvant.join("\n")) {
       // La configuration se remplace d'un coup : la station ne lit jamais une moitié.
       const neuf = reecrireBloc(lireTexte(fichier), lignes);
       writeFileSync(`${fichier}.app`, neuf);
       renameSync(`${fichier}.app`, fichier);
-      const noms = (liste: string[]) => new Set(liste.map(nomDe));
+      // Une ligne mise de côté n'est ni ajoutée ni retirée : elle reste en commentaire.
+      const noms = (liste: string[]) => new Set(liste.filter((ligne) => !ligne.startsWith("#")).map(nomDe));
       const [anciens, nouveaux] = [noms(avant), noms(lignes)];
       for (const nom of nouveaux) if (!anciens.has(nom)) dire(`brigade : station — ${nom} ajouté depuis l'app : sa ligne est écrite dans la configuration`);
       for (const nom of anciens) {

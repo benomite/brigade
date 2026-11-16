@@ -2402,7 +2402,9 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   read by the station — its line stays in `projets` as a `# held-back (served by <station>): …`
   comment, no kitchen opens and no board is published here — and the app logs which station serves
   it. The line comes back as soon as no other station serves the repository. A reading that fails
-  changes nothing (`app/src/station-embarquee-cuisine-unique.ts`).
+  changes nothing (`app/src/station-embarquee-cuisine-unique.ts`). When the station rewrites its block of
+  projects (a restart, a hot update), a held-back line stays a comment: the project is followed as served by
+  the other station, and no second kitchen opens here (#3703, `runtime/src/projets/bloc.ts`).
 - What the station says is written to its log, `station/fond.log`, like its service log
   on a server. It is run by the `node` of `npm start` (`BRIGADE_NODE_BIN` to give
   another): Electron is not one. **The installed app** (the `.dmg`) runs the runtime and the

@@ -236,6 +236,24 @@ test("retiré depuis l'app, sa ligne quitte la configuration — celles écrites
   assert.ok(existsSync(join(station.racine, "clones/shop/.git")));
 });
 
+test("#3703 : une ligne que l'app a mise de côté (une autre station sert le projet) reste en commentaire à la relecture — aucune seconde cuisine ne s'ouvre", async (t) => {
+  const station = uneStation(t);
+  // Le fichier du Mac du 2026-11-16 : une ligne mise de côté hors du bloc, une autre dedans.
+  const misDeCote = `# held-back (served by parade-box): other acme/other main\n${DEBUT}\n# held-back (served by parade-box): shop acme/shop main\n${FIN}\n`;
+  writeFileSync(join(station.racine, "projets"), misDeCote);
+  station.demander(SHOP, { ...SHOP, nom: "other", depot: "acme/other" });
+  await station.projets.relire();
+
+  assert.equal(station.configuration(), misDeCote);
+  assert.equal(station.relectures(), 0);
+  assert.deepEqual(station.clones, []);
+  assert.ok(!station.lignes.some((ligne) => ligne.includes("ajouté depuis l'app")));
+  assert.deepEqual(
+    station.suivi()?.map(({ nom, etat, dit, cuitSur }) => ({ nom, etat, dit, cuitSur })),
+    ["shop", "other"].map((nom) => ({ nom, etat: "secondaire", dit: "served by parade-box: this computer's station opens no kitchen for it", cuitSur: "parade-box" })),
+  );
+});
+
 test("Apps non autorisées sur le dépôt : rien n'est cloné ni écrit, le suivi porte les pages où le chef les autorise — autorisées, le projet est servi", async (t) => {
   const station = uneStation(t);
   const pages = ["https://github.com/apps/brigade-cook/installations/new", "https://github.com/apps/brigade-pass/installations/new"];
