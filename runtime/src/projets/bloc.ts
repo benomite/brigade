@@ -21,6 +21,18 @@ const utiles = (lignes: string[]) => lignes.map((ligne) => ligne.trim()).filter(
 // Les lignes du bloc.
 export const lignesDuBloc = (texte: string): string[] => utiles(couper(texte).dedans);
 
+// Les lignes de commentaire du bloc : celles que l'app y écrit (`# held-back …`,
+// un projet mis de côté parce qu'une autre station le sert) et celles du chef.
+// La réécriture les garde, telles quelles.
+export const commentairesDuBloc = (texte: string): string[] => couper(texte).dedans.filter((ligne) => ligne.trim().startsWith("#"));
+
+// Les noms des projets que l'app a mis de côté (`# held-back (served by X): nom …`), dans le bloc comme hors du bloc.
+export const nomsMisDeCote = (texte: string): string[] =>
+  texte.split("\n").flatMap((ligne) => {
+    const nom = /^# held-back \(served by .+?\): (\S+)/.exec(ligne.trim())?.[1];
+    return nom === undefined ? [] : [nom];
+  });
+
 // Les noms de projet que le chef a écrits hors du bloc.
 export const nomsHorsDuBloc = (texte: string): string[] => {
   const { avant, apres } = couper(texte);
@@ -28,9 +40,11 @@ export const nomsHorsDuBloc = (texte: string): string[] => {
 };
 
 // Le texte, son bloc réécrit avec ces lignes, à sa place. Sans ligne, le bloc
-// disparaît ; sans bloc, il s'ajoute à la fin.
+// disparaît, sauf s'il porte des commentaires (ils restent, avant les lignes) ;
+// sans bloc, il s'ajoute à la fin.
 export function reecrireBloc(texte: string, lignes: string[]): string {
-  const bloc = lignes.length === 0 ? [] : [DEBUT, ...lignes, FIN];
+  const commentaires = commentairesDuBloc(texte);
+  const bloc = lignes.length === 0 && commentaires.length === 0 ? [] : [DEBUT, ...commentaires, ...lignes, FIN];
   if (texte.split("\n").includes(DEBUT)) {
     const { avant, apres } = couper(texte);
     // Le blanc qui le séparait des lignes à la main part avec lui.
