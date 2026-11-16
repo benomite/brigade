@@ -132,6 +132,18 @@ function lireValeurs(fichier: string): { valeurs: Map<string, string> } | { prob
   return { valeurs };
 }
 
+// Une valeur que la machine détient pour le runtime lui-même, hors de toute
+// déclaration du dépôt : la clé d'API du moteur `claude-api-key`
+// (`moteur/moteur.ts`, #3744). Son nom est réservé (`ANTHROPIC_`) : aucune
+// déclaration ne la donne au setup, au cook ou aux gates. Le problème dit le
+// fichier et le nom, jamais une valeur.
+export function valeurDeLaMachine(fichier: string, nom: string): { valeur: string } | { probleme: string } {
+  const lues = lireValeurs(fichier);
+  if ("probleme" in lues) return lues;
+  const valeur = lues.valeurs.get(nom)?.trim();
+  return valeur ? { valeur } : { probleme: `${fichier} has no \`${nom}\` line` };
+}
+
 // Les secrets du worktree : ce que sa branche déclare, avec les valeurs que la
 // machine détient à cet instant. `fichier` : celui de `BRIGADE_SECRETS_FILE`,
 // ou null. Au moindre problème, rien n'est rendu : aucun process ne part avec

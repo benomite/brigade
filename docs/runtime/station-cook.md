@@ -95,6 +95,31 @@ declares** and no others (`BRIGADE_SECRETS_FILE`, "The project's secrets"); the 
 So **the repository's hooks do not run under a cook**, and a `CLAUDE.md`'s imports (`@file`) are
 followed only if the cook reads them.
 
+### The station's engine
+
+`BRIGADE_ENGINE`, on the station's environment or its project line, says what its cooks run on
+(#3744, `runtime/src/moteur/`). A value it does not know, or a missing key, refuses to open the station.
+
+- **`claude-subscription`** (the default, the setting unset): the `claude` binary on the machine's Max
+  connection, as described above.
+- **`claude-api-key`**: the same binary, the same arguments, billed to the API key the station holds in
+  its secrets — the `ANTHROPIC_API_KEY` line of the file `BRIGADE_SECRETS_FILE` names, read again at each
+  launch. No Max connection is needed. The key reaches only that `claude`, never the setup or the gates
+  (the `ANTHROPIC_` prefix is reserved, no repository can declare it); its value is masked in everything
+  the runtime keeps or publishes, like the Max token. Before any push, what the push would publish is read:
+  if it carries the key, the cook's branch is deleted from the clone, nothing is pushed, and the try fails.
+  A key that cannot be read at launch starts no cook; the ticket is given back without counting.
+- **`codex`**: `codex exec --json` (`BRIGADE_CODEX_BIN`, else `codex`), on Codex's own connection, with
+  the same brief on its input, in Codex's `workspace-write` sandbox — the worktree and the clone's git
+  directory, network open. Its stream is rewritten into `claude`'s (`codex-en-flux.ts`), so the station
+  reads its turns, its last message and its end as for any cook. The model stays Codex's; the ticket's
+  effort is passed on, `xhigh` and `max` as `high`.
+
+The rail does not change: worktree, branch, brief, push, PR, pass. The reviewer and the pass stay on
+`claude`. Each delivery pushed to the pass is recorded, one JSON line per delivery, in
+`<BRIGADE_STATE_DIR>/github-seul/livraisons.jsonl`: `at`, `ticket`, `branch`, `engine`, and for
+`claude-api-key` `costUsd`, the `total_cost_usd` of the cook's result (`null` when the stream does not say it).
+
 ### The cook does not deliver, the station harvests
 
 The cook commits in its worktree. `git push`, `git merge` and `gh pr merge` are

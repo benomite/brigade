@@ -53,6 +53,7 @@ import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
 import { avecChangements, lireChangements } from "./validation-design/changements.ts";
+import { cleDansLaLivraison, lancementDuCook, moteurDeLaStation, noterLaLivraison } from "./moteur/moteur.ts";
 import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-design/choix-de-design.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
@@ -2443,7 +2444,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "ajouts">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -2555,6 +2556,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
   if (options.github.prsOuvertes === undefined) return { refus: "the GitHub client cannot list the files of the open PRs" };
   const { nom, base, depot, depotGitHub, cloison } = options;
+  // Le moteur de ses cooks (#3744) : réglé de travers, la station ne s'ouvre pas.
+  const moteur = moteurDeLaStation(options.env);
+  if ("refus" in moteur) return { refus: moteur.refus };
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   mkdirSync(options.flux, { recursive: true });
   const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, entree, cwd, env, flux }) => superviser({ commande, args, ...(entree === undefined ? {} : { entree }), cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
@@ -2841,8 +2845,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
-    const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(envDuCook), flux, ticket: ticket.number });
+    // Sur le moteur de la station (#3744) : `claude` tel quel, à la clé d'API, ou Codex.
+    const surLeMoteur = lancementDuCook(moteur, { claude: { commande: options.claude, args, env: env(envDuCook) }, worktree, calibrage });
+    if ("refus" in surLeMoteur) {
+      depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
+      return { subi: surLeMoteur.refus };
+    }
+    const lancement = envelopper(cloison, { commande: surLeMoteur.commande, args: surLeMoteur.args }, { cwd: worktree, depot: "ecriture" });
+    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
     const fin = await lance.fin;
     const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
@@ -2925,6 +2935,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work could not be marked as saved on \`${branche}\`: ${message(erreur)}`);
         }
       }
+      // La clé d'API du moteur n'est jamais poussée (#3744).
+      const fuite = cleDansLaLivraison(surLeMoteur, depot, worktree, branche);
+      if (fuite !== null) return { echec: fuite };
       await depot.ranger(worktree, branche);
       if (depot.commits(branche) > 0) {
         try {
@@ -2944,6 +2957,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if (affirmation !== null && depot.commits(branche) === 0) {
       dejaServi = await verifierLeDejaServi(ticket, worktree, affirmation);
     }
+    const fuite = cleDansLaLivraison(surLeMoteur, depot, worktree, branche);
+    if (fuite !== null) return { echec: fuite };
     await depot.ranger(worktree, branche);
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
     // motif nommé, qui ne compte pas vers `served-elsewhere` (#2738).
@@ -2987,6 +3002,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       depot.pousser(branche);
     } catch (erreur) {
       return { echec: `its branch could not be pushed: ${message(erreur)}` };
+    }
+    // Le moteur de la livraison, et son coût à la clé d'API (#3744). Non
+    // écrits, la livraison part quand même.
+    try {
+      noterLaLivraison(options.flux, { ticket: ticket.number, branche, moteur, flux: lance.flux ?? flux, at: new Date() });
+    } catch (erreur) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the engine and cost of this delivery could not be recorded: ${message(erreur)}`);
     }
     // Ce qu'il a changé à l'écran, pour le brief de la carte du chef (#3330).
     const aLEcran = lirePointsALEcran(messageFinal);
