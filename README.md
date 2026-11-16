@@ -6,6 +6,14 @@
   brigade — You decide. The kitchen ships.
 </h1>
 
+<img src="docs/marketing/readme-demo/brigade-at-work.svg" alt="A ticket goes from queued on the rail to taken by a cook, to a pull request, to served with the pass's verdict" width="900">
+
+## Install
+
+- **macOS** (Apple silicon): download `Brigade-<version>-mac-arm64.dmg` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v).
+- **Linux** (x64): download `brigade-<version>-linux-x64.AppImage` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v), then `chmod +x` it and run it ([details](docs/installation-linux.md)).
+- **Windows** (x64): download `Brigade-<version>-windows-x64-setup.exe` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v).
+
 **[Brigade builds itself — see its live autonomy figures](https://benomite.github.io/brigade/autonomie.html)**
 
 You write the ticket, a **cook** takes it, the **pass** merges it: you are called only for product choices. Open source, free. No Brigade account needed — just GitHub and your Claude subscription.
