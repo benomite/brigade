@@ -9,7 +9,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, p
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
 import { ICONE_DE_LA_BARRE, pastillee } from "./tray-fond/icone.ts";
-import { executer, stationDeFondInstallee } from "./tray-fond/systeme.ts";
+import { executer, garderLIcone, stationDeFondInstallee } from "./tray-fond/systeme.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
 import { lireFeu } from "./feu.ts";
@@ -456,6 +456,20 @@ const barreDeMenus = tenirBarreDeMenus({
       retirer: () => icone.destroy(),
     };
   },
+});
+// Ce qui empêche l'icône de fond de se montrer, que Settings dit (#3711) : relu toutes les minutes, et l'agent relancé s'il
+// est tombé. Vide quand elle tourne, ou que le chef l'a retirée.
+let iconeDeFondRefusee = "";
+async function garderLIconeDeFond(): Promise<void> {
+  if (!iconeAuFond || suivi.configuration().barreDeMenus === false) {
+    iconeDeFondRefusee = "";
+    return;
+  }
+  iconeDeFondRefusee = (await garderLIcone({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, binaire: process.execPath, executer }).catch((erreur: unknown) => `the menu bar icon could not be checked: ${erreur instanceof Error ? erreur.message : String(erreur)}`)) ?? "";
+}
+ipcMain.handle("iconeDeFond", async () => {
+  await garderLIconeDeFond();
+  return iconeDeFondRefusee;
 });
 function poserLaBarreDeMenus(): void {
   if (!barrePrete) return;

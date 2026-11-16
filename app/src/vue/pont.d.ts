@@ -44,6 +44,7 @@ export type Pont = {
   // Montre ou retire l'état de la cuisine de la barre des menus du Mac, de la zone de notification de Windows
   // (barre-de-menus.ts, ticket 3269). Rend la raison, si rien n'a été écrit. Écrit, il arrive par `surConfiguration`. Pas sur le téléphone.
   changerBarreDeMenus?(actif: boolean): Promise<string | undefined>;
+  iconeDeFond?(): Promise<string>;
   // Le bloc « tickets ordinaires » de cet ordinateur pour un projet (ordinaires.ts) — rien, quand l'option n'existe pas ici.
   ordinaires(projet: string): Promise<Bloc | undefined>;
   // Règle l'option et la limite de cooks de cet ordinateur (`null` : aucune). Rend la raison, si rien n'a été écrit.

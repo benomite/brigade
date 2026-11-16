@@ -1263,6 +1263,8 @@ let couleurRefusee = { projet: "", refus: "" };
 let sigleRefuse = { projet: "", refus: "" };
 // Le dernier refus du réglage de la barre des menus, sous sa ligne.
 let barreDeMenusRefusee = "";
+// Ce qui empêche l'icône de fond de se montrer (main.ts, `iconeDeFond`), relu toutes les minutes ; vide, rien ne la gêne.
+let iconeDeFondRefusee = "";
 // Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
 /** @type {VuDuCode | undefined} */
 let codeVu;
@@ -2546,7 +2548,13 @@ function poserBarreDeMenus() {
   const ou = POSTE.mac ? "menu bar" : "notification area";
   const bascule = interrupteurDeLApp(document, { texte: allumee ? "on" : "off", allume: allumee, libelle: `Show the kitchen's state in the ${ou}` }, (voulue) => void reglerBarreDeMenus(voulue));
   const aide = `how many cooks are working and how many questions wait for you — "3 cooking · 1 for you" — in the ${ou}; a click lists the questions, and opens the app on the one you pick. For the whole app, not this project only`;
-  barreDeMenus.replaceChildren(rangeeDeReglage(POSTE.mac ? "Menu bar" : "Notification area", [bloc("span", allumee ? "shown" : "hidden"), survol(document, aide)], [bascule], refusDeReglage(barreDeMenusRefusee), { cle: "barre-de-menus", niveau: niveauDe(document, "barre-de-menus") }));
+  barreDeMenus.replaceChildren(rangeeDeReglage(POSTE.mac ? "Menu bar" : "Notification area", [bloc("span", allumee ? "shown" : "hidden"), survol(document, aide)], [bascule], refusDeReglage(barreDeMenusRefusee || (allumee ? iconeDeFondRefusee : "")), { cle: "barre-de-menus", niveau: niveauDe(document, "barre-de-menus") }));
+}
+async function lireLIconeDeFond() {
+  const refus = (await brigade.iconeDeFond?.()) ?? "";
+  if (refus === iconeDeFondRefusee) return;
+  iconeDeFondRefusee = refus;
+  poserBarreDeMenus();
 }
 /** @param {boolean} voulue */
 async function reglerBarreDeMenus(voulue) {
@@ -9363,6 +9371,10 @@ miseAJourVue ??= demarrage.miseAJour;
 bandeauDeVersion.suivre(miseAJourVue);
 CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
+if (brigade.iconeDeFond !== undefined) {
+  void lireLIconeDeFond();
+  setInterval(() => void lireLIconeDeFond(), 60_000);
+}
 // Le téléphone (l'app Android) : ce que le pont en garde — rien sur le desktop. Pas encore connecté à GitHub (le ticket
 // 2500), l'app s'ouvre sur l'écran qui l'y connecte, et le reste de l'app est caché derrière ; connecté, elle passe à
 // « Tous les projets », où une ligne dit sous quel compte (connexion-github.js).

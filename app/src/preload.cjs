@@ -15,6 +15,7 @@ const pont = {
   demarrage: () => ipcRenderer.invoke("demarrage"),
   colorer: (projet, role, couleur) => ipcRenderer.invoke("colorer", projet, role, couleur),
   changerSigle: (projet, sigle) => ipcRenderer.invoke("changerSigle", projet, sigle),
+  iconeDeFond: () => ipcRenderer.invoke("iconeDeFond"),
   changerBarreDeMenus: (actif) => ipcRenderer.invoke("changerBarreDeMenus", actif),
   ordinaires: (projet) => ipcRenderer.invoke("ordinaires", projet),
   reglerOrdinaires: (projet, actif, limite) => ipcRenderer.invoke("reglerOrdinaires", projet, actif, limite),
