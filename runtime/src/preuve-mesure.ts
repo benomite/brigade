@@ -30,11 +30,20 @@
 // du dépôt du ticket), et le corps ne renvoie ni à ses issues ni au chemin de
 // son état pour porter cette preuve.
 //
+// Les silences de la station (#3713) : le runtime écrit son battement
+// (`runtime.ticked`) chaque minute tant qu'il tourne. Chaque silence de plus de
+// 10 min de la fenêtre est nommé, avec l'arrêt que le journal en dit — ou
+// aucun : le process tué, la machine endormie — et les minutes d'attente d'une
+// prise des tickets mesurés qui y tombent. Sans eux, la nuit où
+// benomite/secondes#50 et #52 ont attendu leur prise ne se lisait que par les
+// événements cités à ses bouts : rien ne disait si la station tournait.
+//
 // Une lecture qui échoue ne fait tomber ni la section ni le dépôt du ticket :
 // la ligne qui en dépend le dit, avec l'erreur, et rien n'est inventé à sa place.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "./attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_REPONSE } from "./blocage-au-manager.ts";
+import { BATTEMENT } from "./events/runtime.ts";
 import { ouvrirJournal } from "./journal.ts";
 import type { QualiteDuTicket } from "./mesure-qualite.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "./qualite-github.ts";
@@ -60,7 +69,7 @@ export const LONGUEUR_SECTION_MAX = 30_000;
 // Combien de tickets se lisent sur GitHub à la fois.
 const LECTURES_EN_PARALLELE = 4;
 // Les événements du journal qui ne disent rien de la fenêtre : le battement du runtime et le suivi des sessions.
-const BRUIT = ["runtime.ticked", "session.observed", "token.observed", "cook.progressed"];
+const BRUIT = [BATTEMENT, "session.observed", "token.observed", "cook.progressed"];
 
 // Ce que la preuve sait d'un ticket mesuré. `raisons` : celles de ses renvois,
 // de ses cooks sans livraison comptés pour un essai (`echecs`) et des autres
@@ -79,7 +88,8 @@ export type RaisonsLues = { renvois: string[]; echecs: string[]; arrets?: string
 
 export type EvenementDuJournal = { at: string; type: string; ticket: number | null; payload: unknown };
 // Les événements de la fenêtre, ou pourquoi ils ne se lisent pas.
-export type JournalDeLaFenetre = { debut: string; fin: string } & ({ evenements: EvenementDuJournal[] } | { erreur: string });
+// `battements` : les instants des battements du runtime dans la fenêtre, ou pourquoi ils ne se lisent pas.
+export type JournalDeLaFenetre = { debut: string; fin: string; battements?: string[] | { erreur: string } } & ({ evenements: EvenementDuJournal[] } | { erreur: string });
 
 const court = (texte: string, longueur = LONGUEUR_MAX) => (texte.length > longueur ? `${texte.slice(0, longueur - 1)}…` : texte);
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -330,10 +340,79 @@ export function sectionDuTempsPerdu(tickets: readonly PreuveDuTicket[], journal:
     "",
     ...tickets.flatMap((p) => lignesDuTemps(p, projet)),
     "",
+    ...sectionDesSilences(tickets, journal, projet),
     `### Station journal, ${journal.debut} to ${journal.fin}`,
     "",
     ...evenements,
   ].join("\n");
+}
+
+// Un silence de la station : plus de 10 min sans battement du runtime, qui en écrit un par minute.
+const SILENCE_MS = 10 * 60_000;
+// Combien de silences la section nomme, au plus : les plus longs.
+const SILENCES_CITES = 20;
+const enMinutes = (ms: number) => `${Math.round(ms / 6000) / 10} min`;
+
+// Les silences de la fenêtre : du dernier battement (ou du début de la
+// fenêtre) au suivant (ou à sa fin), quand plus de `SILENCE_MS` les séparent.
+function silencesDeLaFenetre(battements: readonly string[], debut: string, fin: string): { debut: number; fin: number }[] {
+  const bornes = [Date.parse(debut), ...battements.map((b) => Date.parse(b)).filter((n) => !Number.isNaN(n)), Date.parse(fin)].sort((a, b) => a - b);
+  return bornes.slice(1).flatMap((at, rang) => {
+    const avant = bornes[rang] as number;
+    return at - avant > SILENCE_MS ? [{ debut: avant, fin: at }] : [];
+  });
+}
+
+// La section des silences : chacun, ce que le journal dit de son arrêt et de
+// sa reprise, et l'attente d'une prise de chaque ticket qui y tombe. Rien sans
+// battements lus (une section bâtie sans eux).
+function sectionDesSilences(tickets: readonly PreuveDuTicket[], journal: JournalDeLaFenetre, projet?: string): string[] {
+  const battements = journal.battements;
+  if (battements === undefined) return [];
+  const titre = ["### Station heartbeat", ""];
+  if (!Array.isArray(battements)) return [...titre, `- the station's heartbeat could not be read: ${court(battements.erreur)}`, ""];
+  const silences = silencesDeLaFenetre(battements, journal.debut, journal.fin);
+  if (silences.length === 0) return [...titre, `- the station's runtime wrote its heartbeat every minute while it ran, with no silence over ${enMinutes(SILENCE_MS)} in this window`, ""];
+  const evenements = "erreur" in journal ? null : journal.evenements;
+  const attentes = tickets.map((p) => ({ ticket: p.temps.ticket, attentes: attentesDuTicket(p) }));
+  const dedans = (s: { debut: number; fin: number }) =>
+    attentes
+      .map(({ ticket, attentes }) => ({ ticket, ms: attentes.reduce((somme, a) => somme + Math.max(0, Math.min(a.fin, s.fin) - Math.max(a.debut, s.debut)), 0) }))
+      .filter(({ ms }) => ms > 0);
+  const total = attentes.reduce((somme, { attentes }) => somme + attentes.reduce((s, a) => s + (a.fin - a.debut), 0), 0);
+  const tombees = silences.reduce((somme, s) => somme + dedans(s).reduce((t, { ms }) => t + ms, 0), 0);
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const ligne = (s: { debut: number; fin: number }) => {
+    const entre = (type: string) => evenements?.filter((e) => e.type === type && Date.parse(e.at) >= s.debut && Date.parse(e.at) <= s.fin) ?? [];
+    const arret = entre("runtime.stopped")[0];
+    const depart = entre("runtime.started").at(-1);
+    const signal = (e: EvenementDuJournal) => (e.payload as { signal?: unknown } | null)?.signal;
+    const cause =
+      evenements === null
+        ? "the journal does not say why"
+        : `${arret === undefined ? "no stop written: the runtime was killed, or the machine slept" : `the runtime stopped at ${arret.at}${typeof signal(arret) === "string" ? ` (${signal(arret)})` : ""}`}${depart === undefined ? "" : `, started again at ${depart.at}`}`;
+    const attente = dedans(s);
+    return `- ${iso(s.debut)} to ${iso(s.fin)} (${enMinutes(s.fin - s.debut)}): ${cause}; claim wait inside: ${attente.length === 0 ? "none" : attente.map(({ ticket, ms }) => `${nomme(ticket, projet)} ${enMinutes(ms)}`).join(", ")}`;
+  };
+  const cites = [...silences].sort((a, b) => b.fin - b.debut - (a.fin - a.debut)).slice(0, SILENCES_CITES).sort((a, b) => a.debut - b.debut);
+  return [
+    ...titre,
+    `_The station's runtime writes a heartbeat to its journal every minute while it runs. ${silences.length} silence${silences.length === 1 ? "" : "s"} over ${enMinutes(SILENCE_MS)} in this window; ${enMinutes(tombees)} of the measured tickets' ${enMinutes(total)} of waits before a claim (from filing or \`fire\`, and after each cook given back) fall in them._`,
+    "",
+    ...cites.map(ligne),
+    ...(silences.length > cites.length ? [`- and ${silences.length - cites.length} shorter`] : []),
+    "",
+  ];
+}
+
+// Les instants des battements du runtime entre `debut` et `fin` (ISO), dans l'ordre.
+function battementsDeLaFenetre(repertoireEtat: string, debut: string, fin: string): string[] {
+  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+  try {
+    return journal.base.lire<{ at: string }>("SELECT at FROM events WHERE type = ? AND at >= ? AND at <= ? ORDER BY seq", BATTEMENT, debut, fin).map(({ at }) => at);
+  } finally {
+    journal.fermer();
+  }
 }
 
 // La fenêtre mesurée : du premier dépôt (ou de la première prise) au dernier merge des tickets.
@@ -409,11 +488,17 @@ export function preuveDeMesure({ github, repertoireEtat, projetMesure }: { githu
     const fenetre = fenetreDesTickets(recents);
     if (fenetre === null) return sectionDuTempsPerdu(tickets, { debut: "unknown", fin: "unknown", erreur: "the measured tickets carry no readable instant" }, projetMesure);
     if (repertoireEtat === undefined) return sectionDuTempsPerdu(tickets, { ...fenetre, erreur: "this station was started without a state directory" }, projetMesure);
+    let battements: string[] | { erreur: string };
+    try {
+      battements = battementsDeLaFenetre(repertoireEtat, fenetre.debut, fenetre.fin);
+    } catch (erreur) {
+      battements = { erreur: message(erreur) };
+    }
     let journal: JournalDeLaFenetre;
     try {
-      journal = { ...fenetre, evenements: evenementsDeLaFenetre(repertoireEtat, fenetre.debut, fenetre.fin) };
+      journal = { ...fenetre, battements, evenements: evenementsDeLaFenetre(repertoireEtat, fenetre.debut, fenetre.fin) };
     } catch (erreur) {
-      journal = { ...fenetre, erreur: message(erreur) };
+      journal = { ...fenetre, battements, erreur: message(erreur) };
     }
     return sectionDuTempsPerdu(tickets, journal, projetMesure);
   };

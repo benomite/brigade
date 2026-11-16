@@ -578,6 +578,22 @@ station that cannot run the ticket's gates (#3057), a station whose base branch 
 a cook stopped with its station (#2543) (#3422). BOBL-tech/mirrorlab#706 read "first try" over 6 min of failed
 cook, then waited 549 min for a claim, and its evidence did not say which stop had given it back.
 A read that fails is named on its line, with its error: the ticket is filed all the same.
+Before the journal events, a "Station heartbeat" section names each silence of the runtime's heartbeat over 10 min in
+the window (#3713). The runtime writes a heartbeat to its journal every minute while it runs. For each silence, the
+section gives the stop the journal has for it, with its signal and the next start, or `no stop written: the runtime was
+killed, or the machine slept`. It also gives the claim wait of each measured ticket that falls in it, and its first line
+says how many of the tickets' minutes of waits before a claim fall in silences. benomite/secondes#50 and #52 were
+claimed at 17:41 and 17:44 on 2026-11-15 and lost 7.4 and 4.3 min in a failed cook. Their claim waits, 1061 and 1096 min,
+then ran on to the next morning, while #53 and #48 were claimed at 18:39 and 19:02. Of the 40 journal events cited, none falls
+between `runtime.started` at 17:48:43 and `station.relieved` at 09:45:12, and nothing in the evidence said whether the
+station was running in between.
+What that evidence fits, without proving it: from the evening on, the Mac's station was not running. It would then
+have started again only with the app the next morning, and its first machine read lifted the saturation the journal
+still held. Two fixes on `main` remove that way of staying down, though they landed after the measured tickets' waits.
+#3701 (`5cd9047`) retries a station that refuses to start after a hot update, instead of leaving it stopped until the
+app restarts. #3711 (`75e8dc3`) relaunches the menu bar agent after any exit. A sleeping Mac would leave the same
+silence, and only its line separates the two: a stop written, or none. If the next measure still shows long silences
+with no stop written, keeping the machine awake while tickets wait is a decision for the chef.
 When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,
 #2783), the cook can reach neither its issues nor its state: the section copies the tickets (numbers, reasons),
 their timestamps and the journal events in full, names each ticket by its project (`owner/repo#101`, never a bare
