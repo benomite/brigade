@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 440" width="900" height="440" role="img" aria-label="A ticket goes from queued on the rail to taken by a cook, to a pull request, to served with the pass's verdict.">
+<title>Brigade at work: a ticket goes from the rail to a served pull request</title>
+<style>
+text{font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;fill:#e6edf3}
+.m{font-family:ui-monospace,Menlo,Consolas,monospace}
+.dim{fill:#8b949e}
+.col{fill:#161b22;stroke:#30363d}
+.sc{opacity:0;animation-duration:36s;animation-iteration-count:infinite;animation-timing-function:linear}
+#s1{animation-name:v1}#s2{animation-name:v2}#s3{animation-name:v3}#s4{animation-name:v4}
+#card{animation:mv 36s infinite;animation-timing-function:ease-in-out}
+#ok{opacity:0;animation:okk 36s infinite}
+#l1{animation:l1 36s infinite;opacity:0}#l2{animation:l2 36s infinite;opacity:0}#l3{animation:l3 36s infinite;opacity:0}
+@keyframes v1{0%{opacity:0}0%{opacity:0}0.1%{opacity:1}22%{opacity:1}23%{opacity:0}100%{opacity:0}}@keyframes v2{0%{opacity:0}24%{opacity:0}25%{opacity:1}52%{opacity:1}53%{opacity:0}100%{opacity:0}}@keyframes v3{0%{opacity:0}54%{opacity:0}55%{opacity:1}75%{opacity:1}76%{opacity:0}100%{opacity:0}}@keyframes v4{0%{opacity:0}77%{opacity:0}78%{opacity:1}97%{opacity:1}98%{opacity:0}100%{opacity:0}}@keyframes mv{0%{transform:translate(0,0)}22%{transform:translate(0,0)}26%{transform:translate(205px,0)}52%{transform:translate(205px,0)}56%{transform:translate(410px,0)}76%{transform:translate(410px,0)}80%{transform:translate(615px,0)}97%{transform:translate(615px,0)}99%{transform:translate(0,0)}100%{transform:translate(0,0)}}@keyframes okk{0%{opacity:0}79%{opacity:0}82%{opacity:1}97%{opacity:1}99%{opacity:0}100%{opacity:0}}}@keyframes l1{0%{opacity:0}30%{opacity:0}31%{opacity:1}100%{opacity:1}}@keyframes l2{0%{opacity:0}38%{opacity:0}39%{opacity:1}100%{opacity:1}}@keyframes l3{0%{opacity:0}46%{opacity:0}47%{opacity:1}100%{opacity:1}}</style>
+<rect width="900" height="440" rx="12" fill="#0d1117"/>
+<text x="40" y="40" font-size="20" font-weight="700">The rail</text>
+<text x="130" y="40" font-size="14" class="dim">ticket #42 — "Add a dark mode toggle"</text>
+<rect class="col" x="40" y="70" width="190" height="120" rx="8"/><text x="54" y="94" font-size="14" class="dim">queued</text><rect class="col" x="245" y="70" width="190" height="120" rx="8"/><text x="259" y="94" font-size="14" class="dim">taken</text><rect class="col" x="450" y="70" width="190" height="120" rx="8"/><text x="464" y="94" font-size="14" class="dim">in pass</text><rect class="col" x="655" y="70" width="190" height="120" rx="8"/><text x="669" y="94" font-size="14" class="dim">served</text>
+<g id="card"><rect x="54" y="106" width="162" height="68" rx="6" fill="#1f6feb"/><text x="66" y="130" font-size="14" font-weight="700">#42</text><text x="66" y="152" font-size="12">Add a dark mode toggle</text><g id="ok"><circle cx="196" cy="124" r="10" fill="#238636"/><path d="M190 124l4 4 8-9" stroke="#fff" stroke-width="2.5" fill="none"/></g></g>
+<rect x="40" y="215" width="820" height="185" rx="8" fill="#161b22" stroke="#30363d"/>
+<g id="s1" class="sc"><text x="64" y="252" font-size="20" font-weight="700">1. A ticket is queued on the rail</text>
+<text x="64" y="285" font-size="16">The second wrote it, you said yes: it waits for a cook.</text>
+<text x="64" y="315" font-size="14" class="dim m">labels: fire</text></g>
+<g id="s2" class="sc"><text x="64" y="252" font-size="20" font-weight="700">2. A cook takes it</text>
+<text x="64" y="278" font-size="14" class="dim">Its own worktree, its own branch.</text>
+<g class="m" font-size="14"><text x="64" y="312">$ claude  # cook on #42</text>
+<text id="l1" x="64" y="334">editing app/src/theme.ts</text>
+<text id="l2" x="64" y="356">running tests … 31 passed</text>
+<text id="l3" x="64" y="378">git commit -m "feat(#42): dark mode toggle"</text></g></g>
+<g id="s3" class="sc"><text x="64" y="252" font-size="20" font-weight="700">3. The cook delivers a pull request</text>
+<rect x="64" y="275" width="600" height="86" rx="6" fill="#0d1117" stroke="#30363d"/>
+<circle cx="90" cy="305" r="9" fill="#8957e5"/><text x="112" y="311" font-size="16" font-weight="700">Pull request #43 — feat(#42): dark mode toggle</text>
+<text x="112" y="340" font-size="14" class="dim">opened by the cook · CI green · waiting for the pass</text></g>
+<g id="s4" class="sc"><text x="64" y="252" font-size="20" font-weight="700">4. The pass judges it</text>
+<text x="64" y="285" font-size="16">Gates ✓   CI ✓   Independent review ✓</text>
+<rect x="64" y="310" width="360" height="56" rx="8" fill="#238636"/><text x="84" y="346" font-size="20" font-weight="700">Verdict: merged — ticket served</text></g>
+</svg>
