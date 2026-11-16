@@ -81,6 +81,7 @@ import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renv
 import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
+import { motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
@@ -3055,6 +3056,19 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // La réponse du cook aux remarques d'avant, s'il en a posté une : la pass la juge (#2592).
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
+      // Un test d'acceptation gelé modifié renvoie la livraison sans relecture (#3726).
+      // Un historique illisible ne la renvoie pas : le contrôle n'a pas eu lieu, la pass le dit.
+      // Un dépôt qui ne sait pas faire de checkout jetable n'est pas un clone git (une doublure) : rien à lire.
+      const gel = (() => {
+        if (depot.essayer === undefined) return null;
+        try {
+          return motifDuGel(violationsDuGel(worktree, `origin/${base}`));
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be checked: ${message(erreur)}`);
+          return null;
+        }
+      })();
+      if (gel !== null) return { verdict: "request-changes", motif: gel };
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
       const [prouvee, relue] = await Promise.allSettled([prouverLaLivraison(ticket, worktree, diff.fichiers), relecture(worktree, run, texte, pr, criteres.length, ticket.number)]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
