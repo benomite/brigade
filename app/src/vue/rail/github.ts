@@ -22,6 +22,7 @@ import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, SANS_R
 import { etatDeLaBaseGithub, MOT_DE_L_ETAT, ticketDeLaPR } from "../../tableau/rail-github.ts";
 import { stationsDeGithub, tenantDeLIssue, type Prise } from "../cooks/prises.ts";
 import { estSensible } from "../carte-sensible/label.ts";
+import { PR_DU_TICKET } from "../pr-du-ticket.js";
 import { dernierRenvoi, type Renvoi } from "./renvoi.ts";
 import { railBloqueDe, type NonPrisLus } from "../rail-bloque/rail-bloque.ts";
 import { attenteDuRailDe } from "../attente-du-rail/attente-du-rail.ts";
@@ -198,7 +199,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const issueLue: IssueLue = { state: "open", labels, pr: pr === null ? null : { state: "open", merged: false } };
     const label = labelDeMiseDeCote(labels);
     const deLaMiseDeCote = label === null ? undefined : await toutesLesPages(lire, `/repos/${depot}/issues/${numero}/comments`);
-    const miseDeCote = label === null || deLaMiseDeCote === undefined ? undefined : miseDeCoteDe(depot, label, deLaMiseDeCote);
+    const miseDeCote = label === null || deLaMiseDeCote === undefined ? undefined : miseDeCoteDe(depot, label, deLaMiseDeCote, numero);
     const dit = etatDuTicket(issueLue, base);
     const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit === null ? MOT_EN_FILE : MOT_DE_L_ETAT[dit];
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
@@ -234,10 +235,10 @@ function ligneDuTicket({ ticket, etat, priorite, titre, creeLe, pr, prise }: Tic
 }
 
 // Ce que la cuisine fait du ticket, en une ligne de sa carte (faits.ts, `direEnCeMoment`) : pris, son cook cuisine depuis
-// sa prise ; en pass, sa PR attend d'être jugée et mergée.
-function activiteDe({ etat, pr, prise }: TicketSurGithub): { activite?: { fait: string; cible: string | null; depuis: string } | null } {
+// sa prise ; en pass, sa PR attend d'être jugée et mergée — dite par son ticket (pr-du-ticket.js, ticket 3716).
+function activiteDe({ ticket, etat, pr, prise }: TicketSurGithub): { activite?: { fait: string; cible: string | null; depuis: string } | null } {
   if (etat === "pris") return { activite: prise === null ? null : { fait: "cooking", cible: null, depuis: prise.le } };
-  if ((etat === "en pass" || etat === "base rouge") && pr !== null) return { activite: pr.le === "" ? null : { fait: "awaiting review and merge", cible: `PR #${pr.numero}`, depuis: pr.le } };
+  if ((etat === "en pass" || etat === "base rouge") && pr !== null) return { activite: pr.le === "" ? null : { fait: "awaiting review and merge", cible: PR_DU_TICKET(ticket), depuis: pr.le } };
   return {};
 }
 

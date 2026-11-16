@@ -6,6 +6,7 @@ import { echec, lancer, type Reglages } from "./question.ts";
 import { NON_COMMUNIQUE, instant, type EtapeDite, type Histoire } from "./histoire.ts";
 import type { Discussion, MessageDit } from "./discussion.ts";
 import { liensDe, rendre } from "./markdown.ts";
+import { PR_DU_TICKET } from "./vue/pr-du-ticket.js";
 
 const objet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
@@ -76,10 +77,10 @@ export async function histoireDeGitHub(reglages: Reglages, depot: string, ticket
     const pr = await lireJson(reglages, ["pr", "view", String(ref.number), "--repo", depot, "--json", "createdAt,mergedAt"], ticket, depot);
     if ("sans" in pr) return pr;
     const { createdAt: livree, mergedAt } = pr.lu;
-    if (heure(livree)) etapes.push({ t: Date.parse(livree), etape: { libelle: `delivered (PR #${String(ref.number)})`, at: instant(livree) } });
+    if (heure(livree)) etapes.push({ t: Date.parse(livree), etape: { libelle: `delivered (${PR_DU_TICKET(ticket)})`, at: instant(livree) } });
     if (heure(mergedAt)) {
       merge = true;
-      etapes.push({ t: Date.parse(mergedAt), etape: { libelle: `merged (PR #${String(ref.number)})`, at: instant(mergedAt) } });
+      etapes.push({ t: Date.parse(mergedAt), etape: { libelle: `merged (${PR_DU_TICKET(ticket)})`, at: instant(mergedAt) } });
     }
   }
   if (!merge && heure(closedAt)) etapes.push({ t: Date.parse(closedAt), etape: { libelle: "closed without a merge", at: instant(closedAt) } });

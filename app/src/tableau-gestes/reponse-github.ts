@@ -10,7 +10,8 @@
 //      - `resume` (un choix, ou tout texte libre) : `served-elsewhere`, `blocked-on-human`, `question`, `decision` et `chef-todo`
 //        retirés — le ticket revient sur le rail, ou au manager qui le juge (#3370) ;
 //      - `merge` : la PR que la carte nomme est mergée — celle que le libellé du choix nomme (`#N`), sinon la PR ouverte
-//        du ticket ; aucune, rien ne part. `blocked-on-human` est retiré : la mise de côté de la station levée (#3368) ;
+//        du ticket — celle d'un libellé qui la dit par son ticket (`PR of #T`, ticket 3716) ; aucune, rien ne part.
+//        `blocked-on-human` est retiré : la mise de côté de la station levée (#3368) ;
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
 //      - `close` : l'issue est fermée ;
 //      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
@@ -28,6 +29,7 @@ import { BLOCKED_ON_HUMAN, SERVED_ELSEWHERE } from "../tableau/mise-de-cote-gith
 import { ticketDeLaPR } from "../tableau/rail-github.ts";
 import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/todo-github.ts";
 import { refusDe } from "../tableau/client.ts";
+import { PR_DU_TICKET } from "../vue/pr-du-ticket.js";
 import { ecrireLAttente } from "../vue/attente/attente-github.ts";
 import { relanceProposee, saisieLue } from "../vue/attente/saisie.ts";
 
@@ -62,7 +64,8 @@ const objet = (valeur: unknown): Record<string, unknown> => (typeof valeur === "
 // La PR ouverte que la carte nomme : le `#N` du libellé du choix, s'il nomme une PR ouverte ; sinon celle dont la branche
 // ou le corps nomme le ticket (rail-github.ts, `ticketDeLaPR`). Rien : nulle.
 async function prNommee(depot: string, ticket: number, libelle: string, client: ClientDeLaReponse): Promise<number | null> {
-  const nommee = /#(\d+)\b/.exec(libelle)?.[1];
+  // « Merge the PR of #T » nomme la PR par son ticket (ticket 3716) : c'est la PR ouverte du ticket, pas la PR #T.
+  const nommee = /PR of #\d+/.test(libelle) ? undefined : /#(\d+)\b/.exec(libelle)?.[1];
   if (nommee !== undefined) {
     const lue = await client.lire(`/repos/${depot}/pulls/${nommee}`);
     if (lue.status === 200 && objet(lue.data).state === "open") return Number(nommee);
@@ -87,8 +90,8 @@ async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: numb
   }
   if (geste === "merge" && pr !== null) {
     const mergee = await client.ecrire("PUT", `/repos/${depot}/pulls/${pr}/merge`, { merge_method: "merge" });
-    if (mergee.status !== 200) throw refusDe(`the merge of PR #${pr}`, mergee);
-    fait = `PR #${pr} merged`;
+    if (mergee.status !== 200) throw refusDe(`the merge of the ${PR_DU_TICKET(ticket)}`, mergee);
+    fait = `the ${PR_DU_TICKET(ticket)} merged`;
   }
   if (geste === "close") {
     const fermee = await client.ecrire("PATCH", issue, { state: "closed", state_reason: "not_planned" });

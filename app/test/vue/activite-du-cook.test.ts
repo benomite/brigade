@@ -139,7 +139,7 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     assert.equal(maintenant(vue), undefined);
     assert.deepEqual(etapes(vue), ["reading runtime/src/etat.ts", "writing app/src/bon.ts", "running the tests"]);
     const pr = boutonPr(vue) ?? assert.fail("pas de bouton vers sa PR");
-    assert.equal(pr.textContent, "open PR #40");
+    assert.equal(pr.textContent, "open the PR of #14");
     pr.click();
     await repos();
     // La vue nomme le projet et le ticket : l'adresse reste au process principal, lue de la même lecture.
@@ -172,5 +172,21 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     assert.ok(!vue.element("fiche").dessous("button").some((bouton) => /browser|page/.test(bouton.textContent)));
     assert.doesNotMatch(vue.element("fiche").textContent, /port \d/);
     assert.ok(!vue.appels.some(({ geste }) => geste === "ouvrirPage"));
+  });
+});
+
+// Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR #40 de #14 se lirait comme un ticket.
+describe("la fiche dit la PR du cook par son ticket (ticket 3716)", () => {
+  test("fini avec sa PR #40 : « open the PR of #14 », jamais « #40 » ; le bouton ouvre toujours sa PR", async () => {
+    const vue = await ouvrir();
+    await ouvrirLaFiche(vue);
+    vue.dire("surActivites", lu([{ ...EN_COURS_14, finiLe: "2026-10-23T10:04:10.000Z", fin: "ok", maintenant: null, etapes: [LIT], pr: { numero: 40, url: PR } }]));
+    await repos();
+    assert.doesNotMatch(dite(vue).textContent, /#40\b/);
+    const pr = boutonPr(vue) ?? assert.fail("pas de bouton vers sa PR");
+    assert.equal(pr.textContent, "open the PR of #14");
+    pr.click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirPrDuCook"), [PARADE, 14]);
   });
 });

@@ -16,6 +16,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "../briques.js";
+import { direLaPrParSonTicket, PR_DU_TICKET } from "../pr-du-ticket.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../faits.ts").EtapeDuTicket} EtapeDuTicket */
@@ -43,14 +44,14 @@ export const MOTS = { pris: "Taken", repris: "Taken again", pr: "Pull request", 
 export const PRIS = (ticket) => `A cook took #${ticket}: a claude session that works in its own copy of the repository (a worktree), so nothing it does touches your files until it is merged.`;
 /** @param {number} ticket */
 export const REPRIS = (ticket) => `A cook took #${ticket} again, in its own copy, to fix what the pass said.`;
-/** @param {number | null} numero */
-export const PR_OUVERTE = (numero) => `The cook handed over its work as a pull request${numero === null ? "" : ` (#${numero})`}: the change it proposes to your repository, open for checking.`;
+/** @param {number} ticket @param {number | null} numero */
+export const PR_OUVERTE = (ticket, numero) => `The cook handed over its work as a pull request${numero === null ? "" : ` (the ${PR_DU_TICKET(ticket)})`}: the change it proposes to your repository, open for checking.`;
 export const EN_PASS = "The pass is checking the pull request: the gates (the project's own checks), the CI, and a review by another session that did not write it.";
 export const RENVOYE = "The pass sent the work back to a cook, because:";
 /** @param {number} ticket @param {number | null} numero */
-export const SERVI = (ticket, numero) => `The pass merged the pull request${numero === null ? "" : ` #${numero}`}: #${ticket} is done, and its change is in your repository.`;
-/** @param {number | null} numero */
-export const OUVRIR_LA_PR = (numero) => (numero === null ? "open the pull request" : `open pull request #${numero}`);
+export const SERVI = (ticket, numero) => `The pass merged ${numero === null ? "the pull request" : `the ${PR_DU_TICKET(ticket)}`}: #${ticket} is done, and its change is in your repository.`;
+/** @param {number} ticket @param {number | null} numero */
+export const OUVRIR_LA_PR = (ticket, numero) => (numero === null ? "open the pull request" : `open the ${PR_DU_TICKET(ticket)}`);
 
 // Les mots d'état d'un ticket qu'un cook tient, et ceux de la pass (rail/github.ts, `MOT_DE_L_ETAT`).
 const PRIS_MOTS = ["pris"];
@@ -186,7 +187,7 @@ function explication({ cle, pr }, ticket) {
   const numero = pr?.numero ?? null;
   if (cle === "pris") return PRIS(ticket);
   if (cle === "repris") return REPRIS(ticket);
-  if (cle === "pr") return PR_OUVERTE(numero);
+  if (cle === "pr") return PR_OUVERTE(ticket, numero);
   if (cle === "pass") return EN_PASS;
   if (cle === "renvoi") return RENVOYE;
   return SERVI(ticket, numero);
@@ -215,12 +216,12 @@ export function poserRecitDuPremierTicket(doc, { ticket, lignes }, geste) {
     dit.className = "dit";
     pose.append(mot, dit);
     if (ligne.cle === "renvoi" && ligne.raison !== undefined && ligne.raison.trim() !== "") {
-      const raison = cree(doc, "p", ligne.raison);
+      const raison = cree(doc, "p", direLaPrParSonTicket(ligne.raison, ticket));
       raison.className = "raison";
       pose.append(raison);
     }
     const pr = ligne.pr;
-    if (pr !== undefined && (ligne.cle === "pr" || ligne.cle === "servi")) pose.append(boutonAction(doc, OUVRIR_LA_PR(pr.numero), geste.ouvrir));
+    if (pr !== undefined && (ligne.cle === "pr" || ligne.cle === "servi")) pose.append(boutonAction(doc, OUVRIR_LA_PR(ticket, pr.numero), geste.ouvrir));
     liste.append(pose);
   }
   racine.append(tete, liste);

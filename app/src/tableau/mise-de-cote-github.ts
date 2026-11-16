@@ -10,8 +10,8 @@
 // (`SANS_RAISON`), et reste dans TODO.
 //
 // Ce qui entre dans TODO (#2422) : seul ce qui demande quelque chose au chef. `blocked-on-human` — la livraison touche à ce
-// qui la juge : la merger à la main — est une question à lui, avec son bouton (« Merge PR #N by hand? », `Merge PR #N`,
-// #3368). `served-elsewhere` n'en est une que si un commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217,
+// qui la juge : la merger à la main — est une question à lui, avec son bouton (« Merge the PR of #T by hand? »,
+// `Merge the PR of #T`, #3368, #3716). `served-elsewhere` n'en est une que si un commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217,
 // todo-github.ts) en pose une ; pour une cause technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de
 // mise de côté, avec sa ligne : c'est le travail du second. Un `kitchen-board` n'est jamais une carte.
 //
@@ -20,6 +20,7 @@
 // GitHub mène de l'une à l'autre.
 
 import { carteDuCommentaire, formeDuChef, type CarteDuChef, type ChoixDuChef, type Recommandee } from "./todo-github.ts";
+import { direLaPrParSonTicket, PR_DU_TICKET } from "../vue/pr-du-ticket.js";
 
 export const SERVED_ELSEWHERE = "served-elsewhere";
 export const BLOCKED_ON_HUMAN = "blocked-on-human";
@@ -80,28 +81,30 @@ function couper(ligne: string): string {
   return `${(espace > LONGUEUR_MAX / 2 ? coupee.slice(0, espace) : coupee).replace(/[\s,;:—-]+$/, "")}…`;
 }
 
-// La ligne qu'un commentaire de mise de côté donne à la carte.
-export function ligneDuCommentaire(corps: string): string | null {
+// La ligne qu'un commentaire de mise de côté donne à la carte. Avec `ticket`, la PR qu'elle nomme est la livraison du
+// ticket, dite par lui (pr-du-ticket.js, ticket 3716).
+export function ligneDuCommentaire(corps: string, ticket?: number): string | null {
+  const dite = (ligne: string) => (ticket === undefined ? ligne : direLaPrParSonTicket(ligne, ticket));
   const texte = sansStation(nettoyer(corps));
   const tete = texte.split(/\n\s*\n/)[0] ?? "";
   // Les renvois épuisés (renvois.ts, brigade-github.ts) : « still not mergeable after 2 sends back — <raison> ».
   const renvois = /^still not mergeable after (\d+) sends? back — ([\s\S]*)$/.exec(tete);
   if (renvois !== null) {
     const pourquoi = motif(renvois[2] as string);
-    return couper(`off the kitchen after ${renvois[1]} sends back${pourquoi === "" ? "" : ` — ${pourquoi}`}`);
+    return dite(couper(`off the kitchen after ${renvois[1]} sends back${pourquoi === "" ? "" : ` — ${pourquoi}`}`));
   }
   // Les cooks sans livraison (brigade-github.ts) : « the cook stopped without a delivery — <échec> », puis leur nombre.
   const echec = /^the cook stopped without a delivery — ([\s\S]*)$/.exec(tete);
   const cooks = /after (\d+) cooks without a delivery/.exec(texte);
-  if (echec !== null && cooks !== null) return couper(`off the kitchen after ${cooks[1]} cooks without a delivery — ${(echec[1] as string).split("\n")[0]?.trim()}`);
+  if (echec !== null && cooks !== null) return dite(couper(`off the kitchen after ${cooks[1]} cooks without a delivery — ${(echec[1] as string).split("\n")[0]?.trim()}`));
   // Une livraison qui touche à ce qui la juge (brigade-github.ts) : la merger à la main.
   const juges = JUGES.exec(texte);
-  if (juges !== null) return `Merge PR #${juges[1]} by hand? It changes what judges it.`;
+  if (juges !== null) return dite(`Merge PR #${juges[1]} by hand? It changes what judges it.`);
   const premiere = texte
     .split("\n")
     .map((ligne) => ligne.replace(/^\s*(?:#+|>|[-*])\s*/, "").trim())
     .find((ligne) => ligne !== "");
-  return premiere === undefined ? null : couper(premiere);
+  return premiere === undefined ? null : dite(couper(premiere));
 }
 
 // La question que le dernier commentaire marqué d'un auteur du dépôt pose au chef — rien si ce n'est pas une
@@ -129,11 +132,12 @@ function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { d
   return { dit: question?.commentaire ?? dit, question: question?.carte ?? null };
 }
 
-// La carte du chef d'une livraison qui touche à ce qui la juge (#3368) : sa question, et un seul choix, `Merge PR #N`, que la
-// réponse joue sur GitHub (tableau-gestes/reponse-github.ts) — la PR mergée, `blocked-on-human` retiré —, dans l'app comme
+// La carte du chef d'une livraison qui touche à ce qui la juge (#3368) : sa question, et un seul choix,
+// `Merge the PR of #T`, que la réponse joue sur GitHub (tableau-gestes/reponse-github.ts) — la PR mergée, `blocked-on-human` retiré —, dans l'app comme
 // sur le téléphone, qui ne liste que les cartes qui posent une question.
 const SORTE_DU_MERGE = "merge-by-hand";
-const carteDuMerge = (numero: number, raison: string | null): CarteDuChef => ({ sorte: SORTE_DU_MERGE, texte: `${raison ?? `Merge PR #${numero} by hand?`}\n- [merge] Merge PR #${numero}` });
+// La PR s'y dit par son ticket (ticket 3716) : le choix ne nomme pas son numéro, et la réponse merge la PR ouverte du ticket.
+const carteDuMerge = (ticket: number, raison: string | null): CarteDuChef => ({ sorte: SORTE_DU_MERGE, texte: `${raison ?? `Merge the ${PR_DU_TICKET(ticket)} by hand?`}\n- [merge] Merge the ${PR_DU_TICKET(ticket)}` });
 
 // La carte du chef d'un ticket que la station a mis de côté sans PR à merger (#3369) : lever la retenue, ou fermer l'issue.
 // `resume` retire `blocked-on-human` (tableau-gestes/reponse-github.ts) : le ticket revient sur le rail.
@@ -207,18 +211,19 @@ export function miseDeCoteLe(label: string, commentaires: readonly Brut[]): stri
   return typeof le === "string" && !Number.isNaN(Date.parse(le)) ? le : null;
 }
 
-// Ce que la carte dit d'un ticket mis de côté par `label`, d'après les commentaires de son issue, du plus ancien au plus
-// récent, tels que l'API de GitHub les rend.
-export function miseDeCoteDe(depot: string, label: string, commentaires: readonly Brut[]): MiseDeCote {
+// Ce que la carte dit du ticket `ticket` mis de côté par `label`, d'après les commentaires de son issue, du plus ancien au
+// plus récent, tels que l'API de GitHub les rend.
+export function miseDeCoteDe(depot: string, label: string, commentaires: readonly Brut[], ticket: number): MiseDeCote {
   const source = sourceDeLaMiseDeCote(label, commentaires);
   const question = source.question;
   const dit = question === null ? source.dit : undefined;
-  const raison = question !== null ? couper(question.texte.split("\n")[0] ?? "") || null : dit === undefined ? null : ligneDuCommentaire(dit.body as string);
+  const raison = question !== null ? couper(question.texte.split("\n")[0] ?? "") || null : dit === undefined ? null : ligneDuCommentaire(dit.body as string, ticket);
   const numeros = [...new Set([...(raison ?? "").matchAll(/#(\d+)\b/g)].map((trouve) => Number(trouve[1])))];
   const juges = label === BLOCKED_ON_HUMAN && dit !== undefined ? JUGES.exec((dit.body as string).replace(/`/g, "")) : null;
   const pr = juges === null ? null : { numero: Number(juges[1]), url: `https://github.com/${depot}/pull/${juges[1]}` };
-  const liens = numeros.map((numero) => (numero === pr?.numero ? pr : { numero, url: `https://github.com/${depot}/issues/${numero}` }));
-  const complete = label !== SERVED_ELSEWHERE || question !== null || dit === undefined ? "" : sansStation(nettoyer(dit.body as string));
-  const chef = question ?? (pr !== null ? carteDuMerge(pr.numero, raison) : label === BLOCKED_ON_HUMAN ? carteDeLaRetenue(raison) : null);
+  // La PR, que la raison dit par son ticket (ticket 3716), garde son lien : son adresse est celle de la PR.
+  const liens = [...numeros.map((numero) => (numero === pr?.numero ? pr : { numero, url: `https://github.com/${depot}/issues/${numero}` })), ...(pr === null || numeros.includes(pr.numero) ? [] : [pr])];
+  const complete = label !== SERVED_ELSEWHERE || question !== null || dit === undefined ? "" : direLaPrParSonTicket(sansStation(nettoyer(dit.body as string)), ticket);
+  const chef = question ?? (pr !== null ? carteDuMerge(ticket, raison) : label === BLOCKED_ON_HUMAN ? carteDeLaRetenue(raison) : null);
   return { label, raison, ...(complete === "" ? {} : { complete }), liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(chef === null ? {} : { chef }) };
 }

@@ -64,8 +64,8 @@ describe("l'histoire d'une carte, lue de GitHub", () => {
     assert.ok("etapes" in histoire);
     assert.deepEqual(histoire.etapes, [
       { libelle: "arrived", at: "2026-10-14 08:00 UTC" },
-      { libelle: "delivered (PR #40)", at: "2026-10-14 09:30 UTC" },
-      { libelle: "merged (PR #40)", at: "2026-10-14 10:30 UTC" },
+      { libelle: "delivered (PR of #12)", at: "2026-10-14 09:30 UTC" },
+      { libelle: "merged (PR of #12)", at: "2026-10-14 10:30 UTC" },
     ]);
     assert.deepEqual(histoire.cout, { tokens: "not communicated", duree: "not communicated", essais: "not communicated", minimum: false });
     assert.ok("sans" in histoire.retro);
@@ -79,5 +79,14 @@ describe("l'histoire d'une carte, lue de GitHub", () => {
     assert.deepEqual(histoire.etapes.map(({ libelle }) => libelle), ["arrived", "closed without a merge"]);
     const absente = await histoireDeGitHub(essai(t, {}, "HTTP 404: Not Found").reglages, "acme/kitchen", 12);
     assert.ok("sans" in absente && absente.sans.includes("is not on GitHub"));
+  });
+
+  // Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR #40 de #12 se lirait comme un ticket.
+  test("la livraison et le merge disent la PR par son ticket : « PR of #12 », jamais « #40 » (ticket 3716)", { skip: SANS_POSIX }, async (t) => {
+    const histoire = await histoireDeGitHub(essai(t, { "issue-12": ISSUE, "pr-40": PR }).reglages, "acme/kitchen", 12);
+    assert.ok("etapes" in histoire);
+    const libelles = histoire.etapes.map(({ libelle }) => libelle);
+    assert.deepEqual(libelles.filter((libelle) => libelle.includes("PR")), ["delivered (PR of #12)", "merged (PR of #12)"]);
+    assert.ok(libelles.every((libelle) => !libelle.includes("#40")), libelles.join(" | "));
   });
 });

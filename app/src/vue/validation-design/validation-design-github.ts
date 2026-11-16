@@ -18,6 +18,7 @@ import { capturesDeCarte, lireAdresse, type CapturesDeCarte, type CapturesLues }
 import type { MethodeDEcriture } from "../../priorite.ts";
 import { refusDe, type AppelGitHub, type ReponseGitHub } from "../../tableau/client.ts";
 import { LABEL_DU_CHEF } from "../../tableau/todo-github.ts";
+import { direLaPrParSonTicket } from "../pr-du-ticket.js";
 
 // La sorte de la carte, telle que le runtime l'écrit (runtime/src/validation-design/validation-design.ts, `SORTE_DE_CARTE`).
 export const SORTE_DE_VALIDATION = "design-validation";
@@ -162,13 +163,16 @@ export async function jouerLaValidation({ depot, design, geste, commande, env }:
   if ("refus" in lu || design === undefined) return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const cible = `${depot}#${design.pr}`;
   const args = lu.geste === "valider" ? ["validate", cible] : ["send-back", cible, "--comment", lu.commentaire];
-  return jouerLaCommande({ args, commande, env, parDefaut: `${livraisonDe(design.ticket, design.pr)} ${lu.geste === "valider" ? "validated" : "sent back"}` });
+  return jouerLaCommande({ args, commande, env, parDefaut: `${livraisonDe(design.ticket, design.pr)} ${lu.geste === "valider" ? "validated" : "sent back"}`, livraison: design });
 }
 
 // Une commande du runtime que le process principal joue, avec ses arguments : ce qu'elle a dit en dernier — `parDefaut`, si
 // elle n'a rien dit —, ou pourquoi rien n'est fait. La carte « review before merge » (vue/carte-sensible/, ticket 3224) joue
 // la sienne par ce même chemin.
-export async function jouerLaCommande({ args, commande, env, parDefaut }: { args: string[]; commande: () => Promise<CommandeChargee>; env: Record<string, string | undefined>; parDefaut: string }): Promise<RenduDeValidation> {
+// `livraison` : la PR que la commande nomme par son numéro, dite par son ticket dans la ligne que la carte montre (ticket
+// 3716) — le détail au survol reste mot pour mot ce que la commande a dit.
+export async function jouerLaCommande({ args, commande, env, parDefaut, livraison }: { args: string[]; commande: () => Promise<CommandeChargee>; env: Record<string, string | undefined>; parDefaut: string; livraison?: { ticket: number; pr: number } }): Promise<RenduDeValidation> {
+  const dite = (ligne: string) => (livraison === undefined ? ligne : direLaPrParSonTicket(ligne, livraison.ticket, livraison.pr));
   const dits: string[] = [];
   const redits: string[] = [];
   let chargee: CommandeChargee | undefined;
@@ -177,9 +181,9 @@ export async function jouerLaCommande({ args, commande, env, parDefaut }: { args
     await chargee.principal({ args, env, dire: (ligne) => void dits.push(ligne), redire: (ligne) => void redits.push(ligne) });
   } catch (erreur) {
     if (chargee?.estUneSortie(erreur) !== true) return { refus: "nothing was done: the kitchen's command could not run", detail: message(erreur) };
-    return { refus: `nothing was done: ${sansPrefixe(redits[0] ?? `the command ended with code ${erreur.code}`)}`, detail: redits.join("\n") };
+    return { refus: dite(`nothing was done: ${sansPrefixe(redits[0] ?? `the command ended with code ${erreur.code}`)}`), detail: redits.join("\n") };
   }
-  return { fait: dits.at(-1) ?? parDefaut };
+  return { fait: dite(dits.at(-1) ?? parDefaut) };
 }
 
 // ── Les deux gestes sur le téléphone, sur l'API de GitHub ──
@@ -217,7 +221,7 @@ export async function validerSurGithub({ depot, carte, design, geste, client }: 
   const lu = gesteLu(design, geste);
   if ("refus" in lu || design === undefined || typeof carte !== "number") return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const ecrits: string[] = [];
-  const github = gestesSurLAPI(depot, client, ecrits);
+  const github = gestesSurLAPI(depot, client, ecrits, design.ticket);
   const nom = `${depot}: ${livraisonDe(design.ticket, design.pr)}`;
   try {
     if (lu.geste === "valider") {
@@ -234,8 +238,9 @@ export async function validerSurGithub({ depot, carte, design, geste, client }: 
   }
 }
 
-// Ce que les deux gestes lisent et écrivent sur GitHub ; chaque écriture faite est notée dans `ecrits`.
-function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: string[]) {
+// Ce que les deux gestes lisent et écrivent sur GitHub ; chaque écriture faite est notée dans `ecrits`. La PR y est dite
+// par son ticket, `ticket` (ticket 3716) : ce que GitHub refuse arrive au chef.
+function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: string[], ticket: number) {
   const lire = async (chemin: string, quoi: string): Promise<unknown> => {
     const lu = await client.lire(chemin);
     if (lu.status !== 200) throw refusDe(quoi, lu);
@@ -249,7 +254,7 @@ function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: stri
   };
   return {
     issue: async (numero: number) => objet(await lire(`/repos/${depot}/issues/${numero}`, `the reading of #${numero}`)),
-    pr: async (numero: number) => objet(await lire(`/repos/${depot}/pulls/${numero}`, `the reading of PR #${numero}`)),
+    pr: async (numero: number) => objet(await lire(`/repos/${depot}/pulls/${numero}`, `the reading of ${livraisonDe(ticket, numero)}`)),
     // Les commentaires de l'issue, page après page — dix au plus, comme toute liste que l'app lit.
     async commentaires(numero: number): Promise<Array<{ body: string; association: string }>> {
       const tous: Array<{ body: string; association: string }> = [];
@@ -276,10 +281,10 @@ function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: stri
     async merger(numero: number, sha: string): Promise<{ fait: true } | { fait: false; motif: string }> {
       const rendu = await client.ecrire("PUT", `/repos/${depot}/pulls/${numero}/merge`, { sha, merge_method: "merge" });
       if (rendu.status === 200) {
-        ecrits.push(`PR #${numero} merged`);
+        ecrits.push(`${livraisonDe(ticket, numero)} merged`);
         return { fait: true };
       }
-      if (rendu.status < 400 || rendu.status >= 500) throw refusDe(`the merge of PR #${numero}`, rendu);
+      if (rendu.status < 400 || rendu.status >= 500) throw refusDe(`the merge of ${livraisonDe(ticket, numero)}`, rendu);
       const dit = chaine(objet(rendu.data).message);
       return { fait: false, motif: `HTTP ${rendu.status}${dit === "" ? "" : ` — ${dit}`}` };
     },

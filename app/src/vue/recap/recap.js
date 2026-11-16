@@ -14,6 +14,7 @@ import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { LECTURE_DE, NON_ATTEINT } from "../lexique.js";
 import { estRouge, rangerLeRail } from "../todo/todo.js";
+import { direLaPrParSonTicket, PR_DU_TICKET } from "../pr-du-ticket.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./recap-box.ts").LectureDuRecap} Lecture */
@@ -31,13 +32,12 @@ const INDISPONIBLE = NON_ATTEINT("recap");
 const ATTEND_DANS_TODO = "Waiting for you in TODO";
 /** @param {number} nombre */
 const DANS_TODO = (nombre) => `${ATTEND_DANS_TODO} (${nombre})`;
-/** @param {number} pr */
-const LA_PR = (pr) => `PR #${pr}`;
 const SURVOL_DE_LA_PR = "its gates, CI and review, on GitHub";
 /** @param {string} instant */
 const DEPUIS = (instant) => `Since ${new Date(instant).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}.`;
 /** @param {Recap["sentBack"][number]} renvoi */
-const LIGNE_DU_RENVOI = ({ ticket, kind, reason }) => `#${ticket} ${kind === "refused" ? "refused" : "sent back to a cook"}: ${reason.replace(/`([^`]*)`/g, "$1")}`;
+// La PR que la raison nomme est la livraison du ticket : elle se dit par lui (pr-du-ticket.js, ticket 3716).
+const LIGNE_DU_RENVOI = ({ ticket, kind, reason }) => `#${ticket} ${kind === "refused" ? "refused" : "sent back to a cook"}: ${direLaPrParSonTicket(reason.replace(/`([^`]*)`/g, "$1"), ticket)}`;
 
 /**
  * Ce qui attend le chef dans TODO, tel que TODO le montre : les cartes rouges du rail rangé, dans l'ordre de leurs
@@ -122,9 +122,9 @@ function duProjet(doc, { projet, lecture, todo }, { ouvrir }) {
         liste(
           doc,
           "servis",
-          served.map(({ ticket, title, pr, prUrl }) => {
+          served.map(({ ticket, title, prUrl }) => {
             const li = ligne(doc, `#${ticket} ${title}`);
-            const lien = bouton(doc, LA_PR(pr), () => ouvrir(prUrl), { sorte: "discret" });
+            const lien = bouton(doc, PR_DU_TICKET(ticket), () => ouvrir(prUrl), { sorte: "discret" });
             lien.className += " pr";
             lien.title = `${SURVOL_DE_LA_PR} — ${prUrl}`;
             li.dataset.ticket = String(ticket);

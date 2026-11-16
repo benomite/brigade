@@ -80,8 +80,8 @@ describe("the recap reads the facts the rail and TODO read (#3581)", () => {
     assert.deepEqual(todo.map(({ ticket }) => ticket), [2322, 2408]);
     const attendu = ceQuiAttendDansTodo(vu.rail.colonnes);
     assert.deepEqual(attendu, [
-      { ticket: 2322, texte: "Merge PR #2325 by hand? It changes what judges it." },
-      { ticket: 2408, texte: "Merge PR #2416 by hand? It changes what judges it." },
+      { ticket: 2322, texte: "Merge the PR of #2322 by hand? It changes what judges it." },
+      { ticket: 2408, texte: "Merge the PR of #2408 by hand? It changes what judges it." },
     ]);
     const file = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: appelDeLApp(DEPOT, () => MONDE), maintenant: () => new Date(LU) });
     assert.ok(file.lue);

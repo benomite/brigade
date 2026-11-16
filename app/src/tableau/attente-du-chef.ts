@@ -174,7 +174,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     const epiquesLues = await Promise.all(epiques.map((issue) => commentaires(issue.number as number).then((lus) => ({ issue, lus }))));
     // Les tickets du rail mis de côté qui demandent quelque chose au chef.
     for (const { issue, label, lus } of misesDeCote) {
-      const miseDeCote = miseDeCoteDe(depot, label, lus);
+      const miseDeCote = miseDeCoteDe(depot, label, lus, issue.number as number);
       if (miseDeCote.auChef !== true) continue;
       poser({
         ...entree(issue),

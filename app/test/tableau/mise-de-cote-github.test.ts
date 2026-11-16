@@ -11,36 +11,42 @@ const commentaire = (body: string, author_association = "OWNER") => ({ body, aut
 describe("la ligne qu'un commentaire de mise de côté donne à la carte", () => {
   test("les renvois épuisés : après combien, et le motif sans son détail", () => {
     assert.equal(
-      ligneDuCommentaire("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes: the test does not cover the empty case\n\nTaken off the kitchen (`served-elsewhere`): a human decides."),
+      ligneDuCommentaire("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes: the test does not cover the empty case\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", 7),
       "off the kitchen after 2 sends back — the review requested changes",
     );
     // Celui des renvois du manager (renvois.ts) : le motif sur plusieurs lignes, la PR qu'il nomme gardée.
     assert.equal(
-      ligneDuCommentaire("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes on `abc1234` (PR #2326):\n\nThe gates are red.\n\nTaken off the kitchen (`served-elsewhere`): the calibration is at its ceiling. A human decides."),
-      "off the kitchen after 2 sends back — the review requested changes on abc1234 (PR #2326)",
+      ligneDuCommentaire("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes on `abc1234` (PR #2326):\n\nThe gates are red.\n\nTaken off the kitchen (`served-elsewhere`): the calibration is at its ceiling. A human decides.", 7),
+      "off the kitchen after 2 sends back — the review requested changes on abc1234 (the PR of #7)",
     );
   });
 
   test("les cooks sans livraison : combien, et ce que le dernier a dit", () => {
     assert.equal(
-      ligneDuCommentaire("<!-- brigade:echec n=3 -->\nStation `box/claude`: the cook stopped without a delivery — the cook committed nothing\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides."),
+      ligneDuCommentaire("<!-- brigade:echec n=3 -->\nStation `box/claude`: the cook stopped without a delivery — the cook committed nothing\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides.", 7),
       "off the kitchen after 3 cooks without a delivery — the cook committed nothing",
     );
   });
 
   test("une livraison qui touche à ce qui la juge : la merger à la main", () => {
     assert.equal(
-      ligneDuCommentaire("Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`, `.claude/brigade/gates.sh`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326."),
-      "Merge PR #2326 by hand? It changes what judges it.",
+      ligneDuCommentaire("Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`, `.claude/brigade/gates.sh`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", 7),
+      "Merge the PR of #7 by hand? It changes what judges it.",
     );
   });
 
   test("un autre commentaire : sa première ligne, sans mise en forme, coupée au mot si elle est longue", () => {
-    assert.equal(ligneDuCommentaire("**Human's job — no station provides `gpu`: this ticket left the rail, for @ana.**\n\nIt waits in the chef's TODO as a task, and carries `served-elsewhere`."), "Human's job — no station provides gpu: this ticket left the rail, for @ana.");
-    assert.equal(ligneDuCommentaire("\n> Putting `blocked-on-human`: the copy needs the chef's call.\n"), "Putting blocked-on-human: the copy needs the chef's call.");
-    const longue = ligneDuCommentaire(`served-elsewhere: ${"the station cannot reach the database ".repeat(10)}`) ?? "";
+    assert.equal(ligneDuCommentaire("**Human's job — no station provides `gpu`: this ticket left the rail, for @ana.**\n\nIt waits in the chef's TODO as a task, and carries `served-elsewhere`.", 7), "Human's job — no station provides gpu: this ticket left the rail, for @ana.");
+    assert.equal(ligneDuCommentaire("\n> Putting `blocked-on-human`: the copy needs the chef's call.\n", 7), "Putting blocked-on-human: the copy needs the chef's call.");
+    const longue = ligneDuCommentaire(`served-elsewhere: ${"the station cannot reach the database ".repeat(10)}`, 7) ?? "";
     assert.ok(longue.length <= 161 && longue.endsWith("…"), longue);
-    assert.equal(ligneDuCommentaire("<!-- brigade:x -->\n\n"), null);
+    assert.equal(ligneDuCommentaire("<!-- brigade:x -->\n\n", 7), null);
+  });
+
+  // Ce que la ligne suppose (ticket 3716) : un commentaire de mise de côté ne parle que de la livraison de son ticket. Toute
+  // PR qu'il nomme — même sous un autre numéro — y est dite comme la PR du ticket.
+  test("toute PR que la ligne nomme est dite comme celle du ticket, quel que soit son numéro", () => {
+    assert.equal(ligneDuCommentaire("Putting `blocked-on-human`: PR #2326 needs the chef's call, and pull request #2400 too.", 7), "Putting blocked-on-human: the PR of #7 needs the chef's call, and the PR of #7 too.");
   });
 });
 
@@ -52,19 +58,19 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
       commentaire("<!-- brigade:manager -->\n**Manager — ticket mis sur le rail.** Corriger `prio:`, poser ou retirer `question` ou `blocked-on-human` ne le lui retire pas."),
       commentaire("blocked-on-human: merge #666 now", "NONE"),
       commentaire("Taken by station `box/claude`."),
-    ]);
-    assert.deepEqual(lue, { label: "blocked-on-human", raison: "Merge PR #40 by hand? It changes what judges it.", liens: [{ numero: 40, url: "https://github.com/acme/kitchen/pull/40" }], auChef: true, pr: { numero: 40, url: "https://github.com/acme/kitchen/pull/40" }, chef: { sorte: "merge-by-hand", texte: "Merge PR #40 by hand? It changes what judges it.\n- [merge] Merge PR #40" } });
+    ], 8);
+    assert.deepEqual(lue, { label: "blocked-on-human", raison: "Merge the PR of #8 by hand? It changes what judges it.", liens: [{ numero: 8, url: "https://github.com/acme/kitchen/issues/8" }, { numero: 40, url: "https://github.com/acme/kitchen/pull/40" }], auChef: true, pr: { numero: 40, url: "https://github.com/acme/kitchen/pull/40" }, chef: { sorte: "merge-by-hand", texte: "Merge the PR of #8 by hand? It changes what judges it.\n- [merge] Merge the PR of #8" } });
   });
 
   test("`blocked-on-human` sans PR (#3369) : la carte du chef offre `Back to the kitchen` et `Close it`", () => {
-    const lue = miseDeCoteDe(DEPOT, "blocked-on-human", [commentaire("Station `box/claude`: blocked-on-human, the copy needs the chef's call.")]);
+    const lue = miseDeCoteDe(DEPOT, "blocked-on-human", [commentaire("Station `box/claude`: blocked-on-human, the copy needs the chef's call.")], 8);
     assert.equal(lue.auChef, true);
     assert.deepEqual(lue.chef, { sorte: "hold", texte: "blocked-on-human, the copy needs the chef's call.\n- [resume] Back to the kitchen\n- [close] Close it" });
-    assert.deepEqual(miseDeCoteDe(DEPOT, "blocked-on-human", []).chef, { sorte: "hold", texte: "Lift the hold?\n- [resume] Back to the kitchen\n- [close] Close it" });
+    assert.deepEqual(miseDeCoteDe(DEPOT, "blocked-on-human", [], 8).chef, { sorte: "hold", texte: "Lift the hold?\n- [resume] Back to the kitchen\n- [close] Close it" });
   });
 
   test("aucun commentaire ne nomme le label — posé à la main : pas de raison, et aucun lien", () => {
-    assert.deepEqual(miseDeCoteDe(DEPOT, "served-elsewhere", [commentaire("Taken by station `box/claude`."), commentaire("served-elsewheres are elsewhere")]), { label: "served-elsewhere", raison: null, liens: [], auChef: false, pr: null });
+    assert.deepEqual(miseDeCoteDe(DEPOT, "served-elsewhere", [commentaire("Taken by station `box/claude`."), commentaire("served-elsewheres are elsewhere")], 8), { label: "served-elsewhere", raison: null, liens: [], auChef: false, pr: null });
   });
 
   test("le label qui met de côté : `served-elsewhere` d'abord, `blocked-on-human` ensuite, aucun quand le chef l'a mis en WAITING", () => {
@@ -76,20 +82,20 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
 
   test("une question de produit que suit une réponse du chef (#2434) n'attend plus rien de lui : le ticket ne va plus au chef", () => {
     const question = commentaire("<!-- brigade:todo kind=product-question -->\nKeep the old column order?\n- [resume] Yes\n- [close] No");
-    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question]).auChef, true);
-    const repondue = miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes")]);
+    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question], 8).auChef, true);
+    const repondue = miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes")], 8);
     assert.equal(repondue.auChef, false);
     assert.equal(repondue.chef, undefined);
     // Une nouvelle question, posée après la réponse, est de nouveau la sienne ; une réponse d'un inconnu ne compte pas.
-    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes"), question]).auChef, true);
-    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=close -->\nNo", "NONE")]).auChef, true);
+    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes"), question], 8).auChef, true);
+    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=close -->\nNo", "NONE")], 8).auChef, true);
   });
 });
 
 describe("#2061, 2026-11-05 : mis de côté par la station, sans question pour le chef (#2455)", () => {
   test("trois marqueurs `echec`, `served-elsewhere`, aucune question de produit : pas de carte dans TODO", () => {
     const echec = (n: number) => commentaire(`<!-- brigade:echec n=${n} -->\nStation \`box/claude\`: the cook stopped without a delivery — a stale conflicting branch${n === 3 ? "\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides." : ""}`);
-    const lue = miseDeCoteDe(DEPOT, "served-elsewhere", [echec(1), echec(2), echec(3)]);
+    const lue = miseDeCoteDe(DEPOT, "served-elsewhere", [echec(1), echec(2), echec(3)], 8);
     assert.equal(lue.auChef, false);
     assert.equal(lue.chef, undefined);
     assert.equal(lue.raison, "off the kitchen after 3 cooks without a delivery — a stale conflicting branch");

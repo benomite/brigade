@@ -438,7 +438,7 @@ recap per project that is read on this computer**, each in its own card — two 
 different recaps. A recap covers what happened since the project's "last seen" marker, kept by the project's runtime
 (`recap.json` in its state directory), and says the instant it starts from:
 
-- **Served**: each ticket served, with a `PR #N` link to the pull request that served it — its gates, CI and review are
+- **Served**: each ticket served, with a `PR of #<ticket>` link to the pull request that served it (#3716: a pull request is named by its ticket, never by its own number) — its gates, CI and review are
   checked there. The served tickets are read from the closed pull requests, as the rail's Served column reads them.
 - **Sent back or refused by the pass**: one line per ticket, its latest send-back (`sent back to a cook`) or refusal
   (`refused`, the delivery set aside after its sends back) with its reason — the station's `brigade:renvoi` comment.
@@ -644,11 +644,11 @@ real step, as the readings of the rail show it: the kitchen word first, then wha
 | Word | What the line says | When |
 |---|---|---|
 | `Taken` | a cook took the ticket: a claude session that works in its own copy of the repository (a worktree) | a reading shows it taken (or already in pass) |
-| `Pull request` | the cook handed over its work as a pull request, with `open pull request #N` | the reading carries its open pull request |
+| `Pull request` | the cook handed over its work as a pull request, with `open the PR of #<ticket>` | the reading carries its open pull request |
 | `In pass` | the pass is checking it: the gates, the CI, and a review by another session | a reading shows it in pass |
 | `Sent back` | the pass sent the work back to a cook, and why — the station's reason, word for word | the issue carries a send-back (`brigade:renvoi`) of a higher rank than the last one told |
 | `Taken again` | a cook took it again, to fix what the pass said | taken, right after a send-back |
-| `Served` | the pass merged the pull request, with `open pull request #N` | the ticket is among the served ones, with its merged pull request |
+| `Served` | the pass merged the PR of #<ticket>, with `open the PR of #<ticket>` | the ticket is among the served ones, with its merged pull request |
 
 **Which project, which ticket.** The chef's first project is the first one **Add a project** adds while the projects
 file has no other project than the tour's demo kitchen (`benomite/brigade`); a chef who already had one is told nothing.
@@ -1013,7 +1013,7 @@ answer but a 304) in any hour, under the 1,000 the test allows.
   `blocked-on-human` delivery keeps `in-pass`: it is not in Pass); with `waiting` as well, the chef moved it to a third
   party: it is in Waiting. Then:
   - **`blocked-on-human`** (the delivery changes what judges it) is a question with its gesture: the card in Todo reads
-    "Merge PR #2416 by hand? It changes what judges it." with one button, `Merge PR #2416` (#3368): one click merges the
+    "Merge the PR of #2408 by hand? It changes what judges it." with one button, `Merge the PR of #2408` (#3368, #3716): one click merges the
     PR and removes `blocked-on-human`, and the card leaves Todo; a merge GitHub refuses is said on the card, which stays.
     On the phone the card is in the list, with the same button. Set aside by the station with no PR to merge (#3369),
     the card reads "Lift the hold?" with two buttons: `Back to the kitchen` removes `blocked-on-human` (the ticket is
@@ -1093,7 +1093,7 @@ question. On the repository's open issues, read with the token of this computer'
 
 | GitHub fact | its line: the question, then the gesture |
 |---|---|
-| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge PR #N by hand? It changes what judges it. — answer on its Todo card: “Merge PR #N” — or in your own words` |
+| `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge the PR of #<ticket> by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #<ticket>” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
 | `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
@@ -1181,7 +1181,7 @@ labelled `chef-todo`, its marked comment of kind `design-validation` carrying th
 (a card posted before as a `chef-todo` issue titled `Validate its screen` reads the same from its body). In Todo, its line says `A design delivery waits for
 you to validate its screen.`, then the card shows, in this order: the question (`Does the screen of #<ticket> look
 right? …`); the before and after captures of each screen the delivery changes, one under the other, read without a click
-(each image read by this computer's `gh`, as for any Todo card); `Pull request #<PR>`, which opens the pull request; then its
+(each image read by this computer's `gh`, as for any Todo card); `PR of #<ticket>`, which opens the pull request (#3716); then its
 two gestures, each with its price on hover:
 
 | gesture | what it plays | then |
@@ -1218,7 +1218,7 @@ validation (#<card>)` when another design validation awaits you, and `Close`; th
 body: `What was asked`, cut to two lines (whole on hover), and `What was done`, the cook's points one per line — or "No
 summary of what was done is available" when the card carries none (a card posted before #3330 shows its ticket's title
 as what was asked); for each screen, `Zoom out`, `Zoom in` and
-`Fit`, then its before and after captures side by side, each as large as the window allows; then `Pull request #<PR>`,
+`Fit`, then its before and after captures side by side, each as large as the window allows; then `PR of #<ticket>`,
 `Validate`, and the comment field with `Send back to the kitchen` — the card's gestures, with the same comment. Each
 capture zooms with the wheel (around the pointer), by pinching, by its buttons or by a double click (a second one fits it
 again), and pans by dragging; the before and after of a screen share one view, so zooming or panning one does the same on
@@ -1241,7 +1241,7 @@ Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 outlined in red, what it means on hover; a ticket without the label carries none. The pass does not merge its green
 delivery (#3223, `docs/runtime/pass.md`): since #3615, the ticket itself, labelled `chef-todo`, its marked comment of kind
 `review-before-merge` carrying the pull request (before, a `chef-todo` issue titled `review before merge`). In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
-in this order: the question (`#<ticket> is sensitive: review the delivery of #<ticket> (PR <PR>) before it is merged. …`); `Pull request #<PR>`, which
+in this order: the question (`#<ticket> is sensitive: review the delivery of #<ticket> (PR <PR>) before it is merged. …`); `PR of #<ticket>` (#3716), which
 opens the pull request in one click; then its two answers, each with its price on hover:
 
 | answer | what it plays | then |
@@ -1289,7 +1289,7 @@ Tests: `app/test/cartes-assignees/cartes-assignees.test.ts`, `app/test/vue/todo/
 `app/test/lecture-github-telephone.test.ts`, `app/test/gestes-github.test.ts`.*
 
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A `blocked-on-human` ticket
-is the question "Merge PR #N by hand? It changes what judges it." with its `Merge PR #N` button (#3368), or, with no PR, "Lift the hold?" with `Back to the kitchen` and `Close it` (#3369); a technical
+is the question "Merge the PR of #<ticket> by hand? It changes what judges it." with its `Merge the PR of #<ticket>` button (#3368, #3716), or, with no PR, "Lift the hold?" with `Back to the kitchen` and `Close it` (#3369); a technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
 set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
 carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures:
@@ -3596,7 +3596,7 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
 from the ticket's issue and PR with this computer's GitHub account alone — no other machine reached
 (`app/src/tableau/lecture.ts`, `activitesPubliees`) — every 30 seconds with the rail, and an open sheet follows it
 without a gesture: a `cooking` pill, its station and since its claim; `now` and what the kitchen is doing (`cooking`,
-or `awaiting review and merge` of `PR #40`); and `open PR #40`, which opens its PR in the browser — or `it opened no
+or `awaiting review and merge` of `PR of #<ticket>`); and `open the PR of #<ticket>`, which opens its PR in the browser — or `it opened no
 PR`. No turns, tokens or steps: only the station's log carries them. The last line, `as GitHub said at HH:MM UTC`,
 dates what it shows by the app's reading, where it comes from in its hover. A ticket no station has claimed has no
 section. With the section laid, `right now` is not repeated under it.

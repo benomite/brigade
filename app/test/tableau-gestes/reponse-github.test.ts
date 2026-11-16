@@ -261,14 +261,14 @@ describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un s
     return leMonde;
   };
 
-  test("merge d'une livraison mise de côté par la station : sa carte pose la question avec le bouton `Merge PR #2330` ; un clic merge la PR, lève `blocked-on-human`, et la carte part", async () => {
+  test("merge d'une livraison mise de côté par la station : sa carte pose la question avec le bouton `Merge the PR of #2326`, sa PR dite par son ticket (ticket 3716) ; un clic merge la PR, lève `blocked-on-human`, et la carte part", async () => {
     const leMonde = avecLaMiseDeCote();
     const carte = carteDe(await todo(leMonde.client), 2326);
-    assert.equal(carte.todo?.question, "Merge PR #2330 by hand? It changes what judges it.");
-    assert.deepEqual(carte.todo?.choix.map(({ texte }) => texte), ["Merge PR #2330"]);
-    const rendu = await cliquer(leMonde, 2326, "Merge PR #2330");
+    assert.equal(carte.todo?.question, "Merge the PR of #2326 by hand? It changes what judges it.");
+    assert.deepEqual(carte.todo?.choix.map(({ texte }) => texte), ["Merge the PR of #2326"]);
+    const rendu = await cliquer(leMonde, 2326, "Merge the PR of #2326");
     assert.ok("repondue" in rendu, JSON.stringify(rendu));
-    assert.match(rendu.dit, /PR #2330 merged, `blocked-on-human` removed/);
+    assert.match(rendu.dit, /the PR of #2326 merged, `blocked-on-human` removed/);
     assert.equal(leMonde.prs.get(2330)?.merged, true);
     assert.ok(!leMonde.issues.get(2326)?.labels.has("blocked-on-human"));
     assert.equal(leMonde.issues.get(2326)?.state, "open");
@@ -278,12 +278,12 @@ describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un s
   test("merge d'une livraison mise de côté refusé par GitHub : la raison est dite en une ligne, la mise de côté reste, et sa carte aussi", async () => {
     const leMonde = avecLaMiseDeCote();
     leMonde.refusees.add(2330);
-    const rendu = await cliquer(leMonde, 2326, "Merge PR #2330");
+    const rendu = await cliquer(leMonde, 2326, "Merge the PR of #2326");
     assert.ok("refus" in rendu, JSON.stringify(rendu));
-    assert.equal(rendu.detail, "GitHub refused the merge of PR #2330 (HTTP 405): Pull Request is not mergeable");
+    assert.equal(rendu.detail, "GitHub refused the merge of the PR of #2326 (HTTP 405): Pull Request is not mergeable");
     assert.equal(leMonde.prs.get(2330)?.merged, false);
     assert.ok(leMonde.issues.get(2326)?.labels.has("blocked-on-human"));
-    assert.deepEqual(carteDe(await todo(leMonde.client), 2326).todo?.choix.map(({ texte }) => texte), ["Merge PR #2330"]);
+    assert.deepEqual(carteDe(await todo(leMonde.client), 2326).todo?.choix.map(({ texte }) => texte), ["Merge the PR of #2326"]);
   });
 
   test("close : l'issue est fermée", async () => {

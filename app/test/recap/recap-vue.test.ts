@@ -20,8 +20,9 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { avecCeQuiAttendLeChef } from "../../src/tableau/attente-du-chef.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { lireLeRecap, marquerLeRecap } from "../../src/vue/recap/recap-box.ts";
+import { poserLeRecap } from "../../src/vue/recap/recap.js";
 import { CLE_DE_LA_DERNIERE_OUVERTURE, FERMER } from "../../src/vue/absence/absence.js";
-import { FauxStockage, type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { Faux, FauxStockage, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 import { appelDeLApp, boxDe, fermee, issue, stationDuRecap, type Monde } from "./monde.ts";
 
 const PROJETS: Projet[] = [
@@ -82,12 +83,12 @@ describe("the recap on the home screen (#3581)", () => {
     await repos();
     assert.match(vue.element("recap-de-l-accueil").textContent, new RegExp(TITRE));
     const parade = section(vue, "parade");
-    assert.deepEqual(lignes(parade, "servis"), ["#12 Ticket 12PR #41", "#11 Ticket 11PR #40"]);
-    assert.deepEqual(lignes(parade, "renvoyes"), ["#20 sent back to a cook: the CI is red on 7579211 (PR #50)"]);
+    assert.deepEqual(lignes(parade, "servis"), ["#12 Ticket 12PR of #12", "#11 Ticket 11PR of #11"]);
+    assert.deepEqual(lignes(parade, "renvoyes"), ["#20 sent back to a cook: the CI is red on 7579211 (the PR of #20)"]);
     assert.deepEqual(lignes(parade, "arrets"), ["The cook of #14 was stopped by the duration cap."]);
     assert.doesNotMatch(parade.textContent, new RegExp(RIEN));
     // Le lien de la PR d'un ticket servi : là où se voient ses gates, sa CI et sa relecture.
-    const pr = parade.dessous("button").find(({ textContent }) => textContent === "PR #41") ?? assert.fail("no link to PR #41");
+    const pr = parade.dessous("button").find(({ textContent }) => textContent === "PR of #12") ?? assert.fail("no link to the PR of #12");
     assert.match(pr.title, /gates, CI and review/);
     pr.click();
     assert.deepEqual(ouvertes, ["https://github.com/chef/parade/pull/41"]);
@@ -110,7 +111,7 @@ describe("the recap on the home screen (#3581)", () => {
     const rouverte = await ouvrir();
     await repos();
     const parade = section(rouverte, "parade");
-    assert.deepEqual(lignes(parade, "servis"), ["#13 Ticket 13PR #42"]);
+    assert.deepEqual(lignes(parade, "servis"), ["#13 Ticket 13PR of #13"]);
     assert.deepEqual(lignes(parade, "renvoyes"), ["#21 sent back to a cook: the review requested changes"]);
     assert.deepEqual(lignes(parade, "arrets"), []);
     assert.match(section(rouverte, "cantine").textContent, new RegExp(RIEN));
@@ -153,7 +154,7 @@ describe("the recap on the home screen (#3581)", () => {
     await repos();
     const parade = section(vue, "parade");
     assert.match(parade.textContent, /Waiting for you in TODO \(1\)/);
-    assert.deepEqual(lignes(parade, "dans-todo"), ["#2408 Merge PR #2416 by hand? It changes what judges it."]);
+    assert.deepEqual(lignes(parade, "dans-todo"), ["#2408 Merge the PR of #2408 by hand? It changes what judges it."]);
     assert.match(section(vue, "cantine").textContent, /Reading TODO…/);
   });
 
@@ -170,5 +171,28 @@ describe("the recap on the home screen (#3581)", () => {
     await repos();
     assert.throws(() => vue.element("recap-de-l-accueil"));
     assert.equal(vue.element("tous").children[1]?.id, "accueil-bloc-projets");
+  });
+});
+
+// Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR 3710 de #3709 se lirait comme un ticket. L'accueil dit
+// la PR d'un ticket servi, et celle que nomme la raison d'un renvoi, par son ticket ; le lien ouvre toujours la PR.
+describe("l'accueil dit la PR d'un ticket par son ticket (ticket 3716)", () => {
+  test("#3709 servi par sa PR 3710, puis renvoyé : « PR of #3709 », jamais « #3710 » ; le lien ouvre la PR", () => {
+    const doc = { createElement: (balise: string) => new Faux(balise) };
+    const PR_URL = "https://github.com/chef/parade/pull/3710";
+    const recap = {
+      since: "2026-11-10T00:00:00Z",
+      served: [{ ticket: 3709, title: "The station keeps the update", url: "https://github.com/chef/parade/issues/3709", pr: 3710, prUrl: PR_URL, servedAt: "2026-11-10T02:00:00Z" }],
+      sentBack: [{ ticket: 3709, url: "https://github.com/chef/parade/issues/3709", kind: "sent-back" as const, reason: "the CI is red on `7579211` (PR #3710):", at: "2026-11-10T01:00:00Z" }],
+      stops: [],
+    };
+    const ouverts: string[] = [];
+    const pose = poserLeRecap(doc as never, [{ projet: "parade", lecture: { recap } as never, todo: [] }], { ouvrir: (url) => void ouverts.push(url) }) as unknown as Faux;
+    assert.match(pose.textContent, /PR of #3709/);
+    assert.match(pose.textContent, /the CI is red on 7579211 \(the PR of #3709\)/);
+    assert.doesNotMatch(pose.textContent, /#3710/);
+    const lien = pose.dessous("button").find(({ textContent }) => textContent === "PR of #3709") ?? assert.fail("no link to the PR of #3709");
+    lien.click();
+    assert.deepEqual(ouverts, [PR_URL]);
   });
 });

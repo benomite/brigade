@@ -321,6 +321,20 @@ describe("ce que le téléphone ne tient pas pour fait", () => {
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
 
+  test("ce que GitHub refuse sur la PR dit la livraison par son ticket, jamais « PR #<pr> » (ticket 3716)", async () => {
+    const lecture = await carteDEssai((demande) => (demande.methode === "GET" && demande.chemin === `/repos/${DEPOT}/pulls/${PR}` ? { status: 500, data: { message: "Server Error" } } : undefined));
+    const lue = await parLeTelephone(lecture, await designLu(lecture), { geste: "valider" });
+    assert.match("refus" in lue ? lue.detail : assert.fail("validée"), /^GitHub refused the reading of the delivery of #58 \(PR 60\) \(HTTP 500\)/);
+
+    const merge = await carteDEssai((demande) => (demande.methode === "PUT" ? { status: 502, data: { message: "Bad Gateway" } } : undefined));
+    const mergee = await parLeTelephone(merge, await designLu(merge), { geste: "valider" });
+    assert.match("refus" in mergee ? mergee.detail : assert.fail("validée"), /^GitHub refused the merge of the delivery of #58 \(PR 60\) \(HTTP 502\)/);
+
+    const fermeture = await carteDEssai((demande) => (demande.methode === "DELETE" ? { status: 502, data: { message: "Bad Gateway" } } : undefined));
+    const fermee = await parLeTelephone(fermeture, await designLu(fermeture), { geste: "valider" });
+    assert.equal("refus" in fermee && fermee.refus, "GitHub stopped the gesture midway — already written: the delivery of #58 (PR 60) merged; play it again");
+  });
+
   test("ce que le téléphone écrit et lit est ce que le runtime écrit et lit", () => {
     assert.deepEqual(DE_CONFIANCE, DE_CONFIANCE_DU_RUNTIME);
     assert.equal(MARQUE_DE_RENVOI, RENVOI_DU_RUNTIME);

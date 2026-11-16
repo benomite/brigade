@@ -96,6 +96,8 @@ function lire(vue: Jouee, deux: boolean, brief: readonly string[] = []): void {
   vue.dire("surFaits", { ...dessinable(deux, brief), demande: demandes.at(-1)?.args[0] as number });
 }
 
+// La question telle que la carte la dit : sa PR par son ticket (ticket 3716).
+const questionDite = (ticket: number, pr: number) => question(ticket, pr).replace(`PR #${pr}`, `the PR of #${ticket}`);
 const laCarte = (ou: Faux) => ou.dessous("section").find(({ className }) => className.includes("carte-validation")) ?? assert.fail("pas de carte de validation");
 const bouton = (ou: Faux, libelle: string) => ou.dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`);
 const sans = (ou: Faux, libelle: string) => assert.ok(!ou.dessous("button").some(({ textContent }) => textContent === libelle), `pas de « ${libelle} »`);
@@ -165,11 +167,11 @@ for (const [ecran, ouvrir] of [
       const vue = await ouvrir();
       const ici = detail(vue);
       assert.equal(ici.hidden, false);
-      assert.ok(ici.dessous("p").some(({ textContent }) => textContent === question(58, 60)));
+      assert.ok(ici.dessous("p").some(({ textContent }) => textContent === questionDite(58, 60)));
       assert.deepEqual(images(ici).map(({ alt }) => alt), ["rail — before", "rail — after"]);
       assert.ok(images(ici).every(({ src }) => src === IMAGE.image));
       assert.equal(cadres(ici).length, 2, "côte à côte, chacune son cadre");
-      bouton(ici, "Pull request #60").click();
+      bouton(ici, "PR of #58").click();
       assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 61]);
       assert.equal(bouton(ici, VALIDER).className, "recommande");
       assert.equal(bouton(ici, RENVOYER).disabled, true);
@@ -188,7 +190,7 @@ for (const [ecran, ouvrir] of [
       assert.deepEqual(brief.dessous("p").map(({ textContent }) => textContent), [DEMANDEE]);
       assert.deepEqual(brief.dessous("li").map(({ textContent }) => textContent), ["the rail shows the count", "cards show their question on one line"]);
       assert.equal(brief.dessous("p").some(({ textContent }) => textContent === SANS_RESUME), false);
-      bouton(ici, "Pull request #60").click();
+      bouton(ici, "PR of #58").click();
       assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 61]);
       bouton(ici, VALIDER);
       bouton(ici, RENVOYER);
@@ -373,7 +375,7 @@ for (const [ecran, ouvrir] of [
       assert.ok(briefDe(ici));
       bouton(ici, VALIDER);
       bouton(ici, RENVOYER);
-      bouton(ici, "Pull request #60");
+      bouton(ici, "PR of #58");
     });
 
     test("un seul écran : ni indicateur ni boutons de passage", async () => {
@@ -385,11 +387,11 @@ for (const [ecran, ouvrir] of [
     test("deux cartes attendent : « Next validation » ouvre la suivante sans repasser par TODO, puis revient à la première", async () => {
       const vue = await ouvrir(true);
       bouton(detail(vue), SUIVANTE(65)).click();
-      assert.ok(detail(vue).dessous("p").some(({ textContent }) => textContent === question(59, 64)));
-      bouton(detail(vue), "Pull request #64").click();
+      assert.ok(detail(vue).dessous("p").some(({ textContent }) => textContent === questionDite(59, 64)));
+      bouton(detail(vue), "PR of #59").click();
       assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 65]);
       bouton(detail(vue), SUIVANTE(61)).click();
-      assert.ok(detail(vue).dessous("p").some(({ textContent }) => textContent === question(58, 60)));
+      assert.ok(detail(vue).dessous("p").some(({ textContent }) => textContent === questionDite(58, 60)));
     });
   });
 }
@@ -424,7 +426,7 @@ describe("sur la carte", () => {
     await repos();
     const carte = laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte"));
     carte.declencher("click", { target: carte.dessous("textarea")[0] ?? assert.fail("pas de champ") });
-    carte.declencher("click", { target: bouton(carte, "Pull request #60") });
+    carte.declencher("click", { target: bouton(carte, "PR of #58") });
     assert.equal(detail(vue).hidden, true);
     carte.dessous("div").find(({ className }) => className === "captures-de-validation")?.declencher("keydown", { key: "Enter" });
     assert.equal(detail(vue).hidden, false, "Entrée sur ses captures l'ouvre");

@@ -19,7 +19,7 @@ const COMMENTAIRES = [
     created_at: DEPUIS,
   },
 ];
-const miseDeCote = miseDeCoteDe(DEPOT, BLOCKED_ON_HUMAN, COMMENTAIRES);
+const miseDeCote = miseDeCoteDe(DEPOT, BLOCKED_ON_HUMAN, COMMENTAIRES, 22);
 
 export const CARTE: AttenteDuChef = {
   ticket: 22,
