@@ -18,7 +18,7 @@ import type { IssueAJuger } from "../juger.ts";
 import { consigneDuClassement, corpsDeLApplication, corpsDeLaCarte, corpsDeLaProposition, lireLeClassement, PIED, type Classement, type Proposition } from "./proposition.ts";
 
 // L'auteur du commit d'amendement : le manager, jamais le cook.
-export const AUTEUR_DU_MANAGER = "brigade manager <manager@brigade.localhost>";
+const AUTEUR_DU_MANAGER = "brigade manager <manager@brigade.localhost>";
 const COURRIEL_DU_MANAGER = "manager@brigade.localhost";
 
 type LancerGit = (args: string[], worktree: string) => Promise<{ code: number; stdout: string; stderr: string }>;

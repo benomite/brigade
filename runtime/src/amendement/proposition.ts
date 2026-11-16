@@ -21,11 +21,11 @@ const BALISE = "amendement";
 // Le pied du commit du manager : le seul qui touche un test gelé.
 export const PIED = (issue: number) => `Amendment: #${issue}`;
 // La première ligne de la consigne du manager : ce qui la distingue, pour qui lit les lancements.
-export const MARQUE_DU_CLASSEMENT = "<!-- brigade:amendement-au-manager -->";
+const MARQUE_DU_CLASSEMENT = "<!-- brigade:amendement-au-manager -->";
 // La proposition du cook, postée sur l'issue.
-export const MARQUE_DE_PROPOSITION = "<!-- brigade:amendement-propose -->";
+const MARQUE_DE_PROPOSITION = "<!-- brigade:amendement-propose -->";
 // L'amendement appliqué par le manager, sur l'issue.
-export const MARQUE_D_APPLICATION = "<!-- brigade:amendement-applique";
+const MARQUE_D_APPLICATION = "<!-- brigade:amendement-applique";
 
 export type Proposition = { test: string; ancien: string; nouveau: string; pourquoi: string };
 

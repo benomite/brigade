@@ -7,12 +7,16 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { AUTEUR_DU_MANAGER } from "../../src/amendement/amender.ts";
-import { MARQUE_D_APPLICATION, MARQUE_DE_PROPOSITION, MARQUE_DU_CLASSEMENT } from "../../src/amendement/proposition.ts";
 import { A_LA_MAIN, brancheDuTicket, stationDuDepot, type Lancer, type OptionsDuDepot } from "../../src/brigade-github.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { ENV_GIT, repertoireTemporaire } from "../outils.ts";
+
+// Les marques et l'auteur que la station écrit, tels qu'ils se lisent.
+const AUTEUR_DU_MANAGER = "brigade manager <manager@brigade.localhost>";
+const MARQUE_DU_CLASSEMENT = "<!-- brigade:amendement-au-manager -->";
+const MARQUE_DE_PROPOSITION = "<!-- brigade:amendement-propose -->";
+const MARQUE_D_APPLICATION = "<!-- brigade:amendement-applique";
 
 const TICKET = 41;
 const BRANCHE = brancheDuTicket(TICKET);
