@@ -13,7 +13,7 @@ import { brancheDuTicket } from "../../../runtime/src/brigade-github.ts";
 import { accepterSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
 import { BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { roleDe } from "../../src/poste/role.ts";
-import { tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationLocale } from "../../src/poste/station.ts";
+import { delaiDuReessai, tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationLocale } from "../../src/poste/station.ts";
 import { FICHIER_STATION } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import { tenirStations, type Appairage, type Stations } from "../../src/stations/stations.ts";
@@ -227,6 +227,25 @@ test("une station refusée parce qu'une autre tient encore le répertoire démar
   });
   await jusqua(() => existsSync(compte) && readFileSync(compte, "utf8").length === 3 && station.etat() === "relancee" && station.tourne());
   assert.match(dit(), /refused to start — une autre station tourne déjà; trying again in 0 s/);
+  await station.arreter();
+});
+
+test("les essais d'une station refusée restent à plat la première minute, puis leur délai double jusqu'à cinq minutes", () => {
+  const delais = Array.from({ length: 20 }, (_, i) => delaiDuReessai(i + 1, 5_000, 60_000) / 1000);
+  assert.deepEqual(delais.slice(0, 13), [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 10]);
+  assert.deepEqual(delais.slice(13, 18), [20, 40, 80, 160, 300]);
+  assert.equal(delais[19], 300);
+});
+
+test("un répertoire qu'on ne peut pas écrire n'arrête pas la station jusqu'au redémarrage de l'app : elle est retentée", async (t) => {
+  const dossier = repertoireTemporaire(t);
+  const fichier = join(dossier, "fichier");
+  writeFileSync(fichier, "");
+  const { station, dit } = tenir(t, { node: process.execPath, principal: unPrincipal(t, ATTENDRE_SIGTERM), racine: join(fichier, "station"), env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), relanceMs: 10 });
+  assert.equal(station.etat(), "refusee");
+  assert.match(dit(), /cannot be written.*trying again in 0 s/);
+  rmSync(fichier);
+  await jusqua(() => station.tourne());
   await station.arreter();
 });
 

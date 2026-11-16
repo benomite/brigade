@@ -2379,9 +2379,10 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   work intact. One exception: on Windows, an app update stops the background station, because the installer replaces
   the `node` it runs; its cooks stop with it, and the app reopened after the update starts it again. Only an explicit quit of the station stops it — "Quit the station" in the station's icon (see "With the
   app closed: the station's icon"), or the system's own stop of its login item: it then stops as on a SIGTERM, its
-  projects stop, and GitHub carries the time it stopped. A station that refuses to start (code 2) takes the
-  background station down with it, saying why in `station/fond.json`: the app opened next, or the next login,
-  tries again.
+  projects stop, and GitHub carries the time it stopped. A station that refuses to start (code 2) — for
+  instance a hot update that finds the old station still holding the directory — does not take the background
+  station down: it says why in `station/fond.json` and is tried again on its own, every 5 s for the first minute,
+  then with a delay that doubles up to 5 min. No gesture is needed.
 - **It starts at login.** On each opening, the installed app registers it: on a Mac, the launchd agent
   `~/Library/LaunchAgents/brigade.station.plist`; on Windows, the `brigade-station` value of
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs the app's binary with `--station-fond` to start
