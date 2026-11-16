@@ -55,7 +55,7 @@ En qualifiant un ticket, tu classes **chacun de ses critères d'acceptation**, u
 
 **Un critère qui décrit un comportement n'est jamais classé `not-testable`.** Si l'utilisateur peut l'observer en faisant quelque chose, c'est un test gelé qui le juge, pas une capture ni un diff. Dans le doute, il est `testable`.
 
-La fiche du ticket montre chaque critère avec sa classe et, pour un critère `not-testable`, sa preuve. Un ticket dont aucun critère n'est testable saute l'étape des tests, et sa fiche dit pourquoi, par une ligne de la forme `no testable criterion: proof by <kind>` (ex. `no testable criterion: proof by diff`). Les mutations ne se jouent que sur un ticket qui a des tests gelés.
+La fiche du ticket montre chaque critère avec sa classe et, pour un critère `not-testable`, sa preuve : chaque critère y porte `class` (`testable` ou `not-testable`) et, s'il est `not-testable`, une `proof` non vide. Un ticket dont aucun critère n'est testable saute l'étape des tests, et sa fiche dit pourquoi, par une ligne de la forme `no testable criterion: proof by <kind>` (ex. `no testable criterion: proof by diff`). Les mutations ne se jouent que sur un ticket qui a des tests gelés.
 
 ## Le temps de cuisson attendu : un label `time:<minutes>`
 

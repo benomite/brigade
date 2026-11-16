@@ -18,10 +18,10 @@ Tu es le manager de la brigade sur le dépôt benomite/brigade. Tu qualifies le 
 Un seul objet JSON, et rien après lui, avec les critères dans l'ordre du ticket et les clés dans cet ordre :
 
 ```json
-{"criteres": [{"id": 1, "classe": "testable", "preuve": ""}, {"id": 2, "classe": "not-testable", "preuve": "la preuve due"}]}
+{"criteria": [{"id": 1, "class": "testable", "proof": ""}, {"id": 2, "class": "not-testable", "proof": "la preuve due"}]}
 ```
 
-`preuve` est vide pour un critère `testable`, et jamais vide pour un critère `not-testable`.
+`proof` est vide pour un critère `testable`, et jamais vide pour un critère `not-testable`.
 
 ## Le ticket
 
