@@ -56,19 +56,26 @@ export function retenueDeLaPart(lire: Lire, projet: string, instant: number, par
   return { jusqua: (sortant?.instant ?? instant) + FENETRE_MS, appels };
 }
 
-// Un projet, ses appels de l'heure glissante, et s'il attend sa part.
-export type PartDuProjet = { projet: string; appels: number; part: number; ralenti: boolean };
+// Un projet, ses appels de l'heure glissante, et, s'il attend sa part,
+// l'instant où elle le laisse repartir (#3705) ; null s'il part.
+export type PartDuProjet = { projet: string; appels: number; part: number; reprise: number | null };
 
 export function partsDe(lire: Lire, instant: number, part = PART_D_UN_PROJET): PartDuProjet[] {
   return lire<{ projet: string; appels: number }>(
     "SELECT projet, count(*) AS appels FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ? GROUP BY projet ORDER BY appels DESC, projet ASC",
     PROJET_DE_LA_STATION,
     instant - FENETRE_MS,
-  ).map(({ projet, appels }) => ({ projet, appels, part, ralenti: appels >= part }));
+  ).map(({ projet, appels }) => ({ projet, appels, part, reprise: appels >= part ? (retenueDeLaPart(lire, projet, instant, part)?.jusqua ?? null) : null }));
+}
+
+// Ce qui se dit d'un projet que sa part retient : retenu, et l'heure (UTC) où il reprend (#3705).
+export function direLaRetenueDeLaPart(reprise: number): string {
+  return `held back for its GitHub share, resumes at ${new Date(reprise).toISOString().slice(11, 16)} UTC`;
 }
 
 // Les lignes de `status` : chaque projet, ses appels de l'heure contre sa part,
-// et s'il en est ralenti. Sans appel d'un projet dans l'heure, aucune ligne.
+// et, pour le seul projet que sa part retient, l'heure où il reprend. Sans appel
+// d'un projet dans l'heure, aucune ligne.
 export function direLesParts(parts: readonly PartDuProjet[]): string[] {
-  return parts.map(({ projet, appels, part, ralenti }) => `${projet} ${appels}/${part} calls in the last hour${ralenti ? " — slowed by its share" : ""}`);
+  return parts.map(({ projet, appels, part, reprise }) => `${projet} ${appels}/${part} calls in the last hour${reprise === null ? "" : ` — ${direLaRetenueDeLaPart(reprise)}`}`);
 }

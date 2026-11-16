@@ -144,8 +144,12 @@ first successful call of that account after it (an HTTP status below 400) remove
     `<limit>` is `primary limit (hourly quota)`, `secondary limit (writes per minute)` or `secondary limit
     (concurrent requests)`.
 - **`status`, `gh share` lines**: one per project that called GitHub in the last hour, the biggest first:
-  `<project> N/666 calls in the last hour`, followed by ` — slowed by its share` when the project has made
-  its share. No line when the station has no counter, or when it cannot be read.
+  `<project> N/666 calls in the last hour`, followed by ` — held back for its GitHub share, resumes at HH:MM
+  UTC` when the project has made its share. No line when the station has no counter, or when it cannot be read.
+- **The computer station's log**, from `runtime/src/station-ordinateur/servir.ts`: when a call of a project's
+  turn waits for its share, the station does not wait for that turn. It says `GitHub-only turn on <repo> —
+  held back for its GitHub share, resumes at HH:MM UTC` and goes on with its other projects. The held turn
+  ends on its own once the share lets it go, and the project gets new turns again after that (#3705).
 - **The app's alert band**, in the chef's local time (`app/src/alertes.ts`): `GitHub is rate-limiting
   calls, back around HH:MM`. Each project of the account says it, since each receives the same entry.
 - **The app's own pause** (`app/src/budget-github.ts`): the app reads GitHub with the chef's token. When
