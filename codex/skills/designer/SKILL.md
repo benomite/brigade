@@ -15,3 +15,5 @@ description: Endosser le rôle de Designer du projet pour traiter les issues vis
 8. **Langue** : le texte rédigé sur GitHub (issues, tickets, fiches, commentaires, titres et corps de PR, questions citées) est en anglais, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en français.
 
 Ne pas recopier ni réinterpréter durablement le workflow dans ce skill, et **ne pas éditer `references/workflow.md`** : c’est une copie, régénérée par `/brigade:sync`. Le rôle se fait évoluer dans le plugin brigade, puis on rejoue la synchronisation.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.

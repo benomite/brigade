@@ -169,3 +169,5 @@ Ce que ce rôle fait, et que le classifieur du mode auto peut refuser. La liste 
 3. **Tu ne contournes pas** : ni le même geste par un autre chemin (`bash -c`, un autre binaire, un autre hôte, un script intermédiaire), ni un geste voisin qui obtient le même effet. Tu ne réessaies pas non plus, reformulé. Le refus est une décision du chef, pas un obstacle.
 
 Argument (`$ARGUMENTS`) : une consigne ponctuelle (« voilà le bug X », « brainstorme la feature Y ») → **mode réflexe**, §0. Aucun argument → **mode topo**, §1. Dans les deux, la file d'abord.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.

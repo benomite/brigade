@@ -66,3 +66,5 @@ Ce que le designer ne fait **pas**, donc ne tente pas : merger, supprimer son wo
 3. **Tu ne contournes pas** : ni le même geste par un autre chemin (`bash -c`, un autre binaire, un autre hôte, un script intermédiaire), ni un geste voisin qui obtient le même effet. Tu ne réessaies pas non plus, reformulé. Le refus est une décision du chef, pas un obstacle.
 
 Argument éventuel (`$ARGUMENTS`) : un n° d'issue `design` ou une consigne ad hoc (« refais l'accueil »). Sinon, fais le point (`gh issue list --label design`) et demande à l'humain par quoi commencer.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.
