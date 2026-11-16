@@ -83,3 +83,5 @@ En qualifiant un ticket, tu peux proposer de le marquer **sensible**. Tu la prop
 La proposition est visible sur le ticket : tu ajoutes le label `sensitive` et tu postes un commentaire qui énonce la proposition et sa raison **en une seule phrase**, en anglais comme tout texte GitHub (ex. « Proposing the sensitive mark: this ticket changes how a refused payment is retried. »).
 
 Quand aucun de ces quatre cas ne s'applique, tu ne proposes rien : pas de label `sensitive`, pas de commentaire sur la marque.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.

@@ -77,3 +77,5 @@ La carte de validation montre ces lignes au-dessus des captures.
 Joue les gates du dépôt (`npm --prefix app test`, `npm --prefix app run typecheck`) : aucun test ne lance Electron, la vue reste mince. Mets à jour la doc vivante sous `docs/` si le comportement visible change. Ton compte-rendu dit l'écran changé, ce qu'il faut y regarder, et joint les deux captures.
 
 - **Langue** : tout texte que tu écris sur GitHub (corps de PR, issue `triage`, commentaire) est en anglais, avec les mots de `docs/glossary.md` ; le dialogue avec le chef reste en français. Les signaux normalisés (`prêt #N`, `hors-scope #N`, …) restent tels quels.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.

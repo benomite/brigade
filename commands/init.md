@@ -475,3 +475,5 @@ Quatre listes, franches :
 **La déclaration d'essai tient aussi sa ligne** : la déclaration écrite et ce qui la justifie (la ligne `←` de sa sortie), « déjà là » ou « rien de reconnu, aucun fichier écrit ».
 
 Termine par le verdict de l'étape 7 et le geste qui reste : merger la PR, si l'init en a ouvert une. Aucune commande de rôle à taper ensuite : dans l'onglet Second de l'app, le second reprend son rôle dès le message suivant. Pas d'offre de priorités, de modèle ni d'effort — ils sont au manager.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.
