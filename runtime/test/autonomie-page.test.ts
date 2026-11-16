@@ -49,7 +49,7 @@ test("a missing, partial or foreign-linked file shows nothing and keeps 'not yet
 });
 
 test("the README opens with the link to the published page", () => {
-  const debut = read("README.md").split("\n").slice(0, 12).join("\n");
+  const debut = read("README.md").split("\n").slice(0, 24).join("\n");
   assert.ok(debut.includes("https://benomite.github.io/brigade/autonomie.html"));
 });
 

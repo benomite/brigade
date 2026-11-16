@@ -10,9 +10,9 @@
 
 ## Install
 
-- **macOS** (Apple silicon): download `Brigade-<version>-arm64.dmg` from the [latest release](https://github.com/benomite/brigade/releases/latest).
-- **Linux** (x64): download `Brigade-<version>-linux-x64.AppImage` from the [latest release](https://github.com/benomite/brigade/releases/latest), then `chmod +x` it and run it ([details](docs/installation-linux.md)).
-- **Windows** (x64): download `Brigade-<version>-x64-setup.exe` from the [latest release](https://github.com/benomite/brigade/releases/latest).
+- **macOS** (Apple silicon): download `Brigade-<version>-mac-arm64.dmg` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v).
+- **Linux** (x64): download `brigade-<version>-linux-x64.AppImage` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v), then `chmod +x` it and run it ([details](docs/installation-linux.md)).
+- **Windows** (x64): download `Brigade-<version>-windows-x64-setup.exe` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v).
 
 **[Brigade builds itself — see its live autonomy figures](https://benomite.github.io/brigade/autonomie.html)**
 
