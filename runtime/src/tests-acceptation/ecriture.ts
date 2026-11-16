@@ -10,7 +10,7 @@
 import { corpsDesFiches, criteresDuTicket, ficheNeuve, type FicheDeCritere } from "./fiche.ts";
 import { LABEL_TESTS_ECRITS, sujetDuCommitDesTests, TRAILER } from "./etape.ts";
 
-export const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:tests-acceptation-consigne -->";
+const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:tests-acceptation-consigne -->";
 
 export type Git = (args: string[], worktree: string) => Promise<{ code: number; stdout: string; stderr: string }>;
 

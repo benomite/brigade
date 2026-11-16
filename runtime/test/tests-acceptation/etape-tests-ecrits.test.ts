@@ -10,8 +10,7 @@ import { test, type TestContext } from "node:test";
 import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
-import { MARQUE_DE_LA_CONSIGNE } from "../../src/tests-acceptation/ecriture.ts";
-import { ETAPES_DU_RAIL, etapeDuRail, LABEL_TESTS_ECRITS } from "../../src/tests-acceptation/etape.ts";
+import { etapeDuRail, LABEL_TESTS_ECRITS } from "../../src/tests-acceptation/etape.ts";
 import { lireLesFiches } from "../../src/tests-acceptation/fiche.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
@@ -22,6 +21,8 @@ const CALIBRE = ["fire", "model:opus", "effort:medium"];
 const CRITERES = ["The dashboard shows the second screen", "A click on the arrow goes back to the first screen", "The second screen keeps its scroll position"];
 const CORPS = ["## Context", "", "The dashboard's second screen.", "", "## Acceptance criteria", "", ...CRITERES.map((critere) => `- ${critere}`)].join("\n");
 const CHEMINS = CRITERES.map((_, rang) => `test/acceptation/critere-${rang + 1}.test.ts`);
+// La première ligne de la consigne du manager qui écrit les tests.
+const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:tests-acceptation-consigne -->";
 const RENDU = (message: string) => `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`;
 
 // Le manager : écrit `ecrits` dans son worktree et répond `CHEMINS`.
@@ -83,7 +84,6 @@ function station(t: TestContext, manager: Manager = MANAGER) {
 }
 
 test("the rail's steps: 'tests written' comes between 'queued' and 'taken'", () => {
-  assert.deepEqual(ETAPES_DU_RAIL, ["queued", "tests written", "taken"]);
   assert.equal(etapeDuRail(CALIBRE), "queued");
   assert.equal(etapeDuRail([...CALIBRE, LABEL_TESTS_ECRITS]), "tests written");
   assert.equal(etapeDuRail([...CALIBRE, LABEL_TESTS_ECRITS, LABEL_TAKEN]), "taken");

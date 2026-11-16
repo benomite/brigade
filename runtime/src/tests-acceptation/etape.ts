@@ -13,7 +13,7 @@ import { LABEL_TAKEN } from "../github-etat/etats.ts";
 export const LABEL_TESTS_ECRITS = "tests-written";
 
 // Les étapes du rail jusqu'au cook, dans leur ordre.
-export const ETAPES_DU_RAIL = ["queued", "tests written", "taken"] as const;
+const ETAPES_DU_RAIL = ["queued", "tests written", "taken"] as const;
 export type EtapeDuRail = (typeof ETAPES_DU_RAIL)[number];
 
 // L'étape d'un ticket du rail, d'après ses labels.
