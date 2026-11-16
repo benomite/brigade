@@ -2988,7 +2988,7 @@ main > header,
 .chers-cout .avec-prix .ticket-cher {
   grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 5em 6em;
 }
-.chers-cout .avec-prix.avec-part .ticket-cher {
+.chers-cout .avec-part.avec-prix .ticket-cher {
   grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 5em 4.5em 6em;
 }
 .chers-cout .ticket-cher:hover {

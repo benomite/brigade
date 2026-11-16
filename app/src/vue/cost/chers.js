@@ -148,7 +148,10 @@ export function poserChers(doc, projets, lectures, titres, ouvrir, quotaBrut, ma
   const chers = plusChers(projets, lectures, quota);
   const prix = new Map(chers.map(({ projet, ticket }) => [`${projet.nom}#${ticket}`, poserPrix(doc, moteurs(projet.nom, ticket))]));
   const avecPrix = [...prix.values()].some(({ textContent }) => textContent !== "");
-  liste.className = `chers${partDite(quota, 0) !== null ? " avec-part" : ""}${avecPrix ? " avec-prix" : ""}`;
+  liste.className = "chers";
+  if (partDite(quota, 0) !== null) liste.className = "chers avec-part";
+  if (avecPrix) liste.className = "chers avec-prix";
+  if (avecPrix && partDite(quota, 0) !== null) liste.className = "chers avec-part avec-prix";
   // La semaine se dit même sans ticket cher à lister ; sans quota, la ligne unique remplace toute part.
   const semaine = coutDeLaSemaine(projets, lectures, quota, maintenant);
   const partDeLaSemaine = partDite(quota, semaine.ponderes);

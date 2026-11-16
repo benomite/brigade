@@ -1,4 +1,4 @@
-// Le moteur qui a cuisiné une livraison (#3747, épique #3518), tel que `facts` le donne : `engine`, et pour
+// Le moteur qui a cuisiné une livraison (ticket 3747, épique 3518), tel que `facts` le donne : `engine`, et pour
 // `claude-api-key` seulement `costUsd`. Ce module ne touche pas `document` ; son affichage est dans affichage.js.
 
 export const MOTEURS = ["claude-subscription", "claude-api-key", "codex"] as const;

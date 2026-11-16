@@ -1,5 +1,5 @@
 // @ts-check
-// Le moteur d'une livraison, à deux endroits (#3747) : sur sa fiche, « cooked with … », et sur la page des coûts, le prix
+// Le moteur d'une livraison, à deux endroits (ticket 3747) : sur sa fiche, « cooked with … », et sur la page des coûts, le prix
 // d'une livraison cuisinée sur une clé d'API Claude. Subscription et Codex n'ont aucun prix. Ce module ne touche pas
 // `document` : il reçoit de quoi créer un élément (briques.js).
 
