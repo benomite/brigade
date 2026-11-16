@@ -28,11 +28,11 @@ const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 const estDuCode = (fichier: string) => CODE.test(fichier) && !fichier.endsWith(".d.ts") && !FICHIER_DE_TEST.test(fichier) && !SOUS_LES_TESTS.test(fichier);
 
 // Une ligne que la livraison ajoute ou change, sur sa branche (numérotée de 1).
-export type LigneChangee = { fichier: string; ligne: number };
+type LigneChangee = { fichier: string; ligne: number };
 
 // Les lignes que le diff unifié ajoute, par leur numéro dans le fichier tel
 // que la branche le porte. Un fichier supprimé n'en a aucune.
-export function lignesAjoutees(diff: string): LigneChangee[] {
+function lignesAjoutees(diff: string): LigneChangee[] {
   const lignes: LigneChangee[] = [];
   let fichier: string | null = null;
   let numero = 0;
@@ -98,10 +98,10 @@ function horsDesChaines(ligne: string): Array<[number, number]> {
 }
 
 // Une mutation d'une ligne : ce qui y était, ce qui le remplace, et la ligne mutée.
-export type Mutation = { avant: string; apres: string; texte: string };
+type Mutation = { avant: string; apres: string; texte: string };
 
 // Le mutant d'une ligne de code, ou null si rien ne s'y mute.
-export function muterLaLigne(ligne: string): Mutation | null {
+function muterLaLigne(ligne: string): Mutation | null {
   if (SANS_LOGIQUE.test(ligne)) return null;
   const morceaux = horsDesChaines(ligne);
   for (const { motif, vers } of OPERATEURS) {
@@ -118,11 +118,11 @@ export function muterLaLigne(ligne: string): Mutation | null {
   return null;
 }
 
-export type Mutant = LigneChangee & Mutation;
+type Mutant = LigneChangee & Mutation;
 
 // Les mutants d'une livraison : un au plus par ligne de code qu'elle ajoute
 // ou change. `lire` rend un fichier tel que la branche le porte (null s'il n'y est pas).
-export function mutantsDuDiff(diff: string, lire: (fichier: string) => string | null): Mutant[] {
+function mutantsDuDiff(diff: string, lire: (fichier: string) => string | null): Mutant[] {
   const contenus = new Map<string, string[] | null>();
   const mutants: Mutant[] = [];
   for (const { fichier, ligne } of lignesAjoutees(diff)) {
@@ -137,13 +137,13 @@ export function mutantsDuDiff(diff: string, lire: (fichier: string) => string | 
 }
 
 // Les tests gelés : ceux que la livraison ajoute et qui passent sur sa branche.
-export const testsGeles = (preuve: Preuve): Unite[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.branche).map(({ fichier, nom }) => ({ fichier, nom })) : []);
+const testsGeles = (preuve: Preuve): Unite[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.branche).map(({ fichier, nom }) => ({ fichier, nom })) : []);
 
 const cle = ({ fichier, nom }: Unite) => `${fichier}\0${nom ?? ""}`;
 
 // Un mutant joué : les tests gelés qui l'ont tué (vide : il a survécu), ou
 // null s'il n'a pas été joué avant la fin du budget.
-export type MutantJoue = Mutant & { tuePar: string[] | null };
+type MutantJoue = Mutant & { tuePar: string[] | null };
 
 // Ce que l'étape a établi. `aucunMutant` : la livraison ne change aucune ligne
 // de code qui se mute. `sansTest` : il y a des mutants, mais aucun test gelé
@@ -155,7 +155,7 @@ export type Mutations =
   | { injouable: string }
   | { mutants: MutantJoue[]; budgetMs: number; depasse: boolean };
 
-export type OutilsDesMutations = {
+type OutilsDesMutations = {
   // Les fichiers que la livraison change, et son diff, par rapport à la base.
   fichiers: readonly string[];
   diff: string;
@@ -242,11 +242,11 @@ export async function muter(preuve: Preuve, outils: OutilsDesMutations): Promise
 }
 
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n === 1 ? "" : "s"}`;
-export const REGLE_DES_MUTATIONS = "Mutation check";
+const REGLE_DES_MUTATIONS = "Mutation check";
 
 // Les mutants joués, et ceux qui ont survécu à tous les tests gelés.
 const joues = (mutations: Mutations): MutantJoue[] => ("mutants" in mutations ? mutations.mutants.filter(({ tuePar }) => tuePar !== null) : []);
-export const survivants = (mutations: Mutations): MutantJoue[] => joues(mutations).filter(({ tuePar }) => tuePar!.length === 0);
+const survivants = (mutations: Mutations): MutantJoue[] => joues(mutations).filter(({ tuePar }) => tuePar!.length === 0);
 
 const ou = (mutant: Mutant) => `\`${mutant.fichier}:${mutant.ligne}\``;
 
@@ -270,7 +270,7 @@ export function motifDesMutations(mutations: Mutations): string[] {
 // L'enregistrement d'un critère d'acceptation et d'un fichier de test qui le
 // couvre. La pass y écrit ce que les mutations ont établi ; `redOnMain` et
 // `greenOnBranch` sont à la preuve qui les établit.
-export type EnregistrementDuCritere = {
+type EnregistrementDuCritere = {
   criterion: number;
   testPath: string;
   redOnMain?: boolean;
@@ -282,7 +282,7 @@ export type EnregistrementDuCritere = {
 
 // Un enregistrement par critère et par fichier de test prouvé que la relecture
 // lui rattache : les mutants joués que ses tests tuent, et les lignes des autres.
-export function enregistrementsDesCriteres(criteres: number, couvertures: readonly Couverture[] | null, preuve: Preuve, mutations: Mutations): EnregistrementDuCritere[] {
+function enregistrementsDesCriteres(criteres: number, couvertures: readonly Couverture[] | null, preuve: Preuve, mutations: Mutations): EnregistrementDuCritere[] {
   const faits = joues(mutations);
   if (faits.length === 0) return [];
   const enregistrements: EnregistrementDuCritere[] = [];

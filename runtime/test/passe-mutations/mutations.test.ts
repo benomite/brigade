@@ -9,7 +9,9 @@ import { test, type TestContext } from "node:test";
 import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { jouerOutil } from "../../src/gates.ts";
 import { RESULTAT_TAP, type Preuve } from "../../src/pass/rouge-sur-main.ts";
-import { enregistrementsDesCriteres, ligneDesMutations, lignesAjoutees, motifDesMutations, muter, muterLaLigne, type OutilsDesMutations } from "../../src/passe-mutations/mutations.ts";
+import { ligneDesMutations, motifDesMutations, muter, resumeDesMutations } from "../../src/passe-mutations/mutations.ts";
+
+type OutilsDesMutations = Parameters<typeof muter>[1];
 import { FauxGitHub, fauxClient, STATION_DU_DEPOT } from "../faux-github.ts";
 
 const BOGUE = "export const somme = (a: number, b: number) => a - b;\n";
@@ -81,17 +83,34 @@ function livraison(t: TestContext, tests: string): { outils: OutilsDesMutations;
   };
 }
 
-test("only the lines the diff adds are read, by their number on the branch, and a line mutates outside its strings and comments", () => {
-  assert.deepEqual(lignesAjoutees(DIFF), [
-    { fichier: "lib/calcul.ts", ligne: 1 },
-    { fichier: "lib/calcul.ts", ligne: 2 },
-    { fichier: "lib/calcul.test.ts", ligne: 1 },
-    { fichier: "lib/calcul.test.ts", ligne: 2 },
-  ]);
-  assert.deepEqual(muterLaLigne("  if (a === b && c) return x > 0;"), { avant: "===", apres: "!==", texte: "  if (a !== b && c) return x > 0;" });
-  assert.deepEqual(muterLaLigne('  log("a && b"); return n > 0;'), { avant: ">", apres: "<=", texte: '  log("a && b"); return n <= 0;' });
-  assert.equal(muterLaLigne("  run(); // a && b"), null);
-  assert.equal(muterLaLigne('import { a } from "./a.ts";'), null);
+test("only the code lines the diff adds are mutated, by their number on the branch, outside their strings and comments", async (t) => {
+  const { outils } = livraison(t, ADDITION);
+  const diff = [
+    ...DIFF.split("\n").slice(0, 8),
+    "diff --git a/lib/autre.ts b/lib/autre.ts",
+    "--- a/lib/autre.ts",
+    "+++ b/lib/autre.ts",
+    "@@ -1,2 +1,5 @@",
+    " export const a = 1;",
+    '+  log("a && b"); return n > 0;',
+    "+  run(); // a && b",
+    '+import { b } from "./b.ts";',
+    " export const c = a === 1;",
+    ...DIFF.split("\n").slice(8),
+  ].join("\n");
+  writeFileSync(join(outils.branche, "lib/autre.ts"), 'export const a = 1;\n  log("a && b"); return n > 0;\n  run(); // a && b\nimport { b } from "./b.ts";\nexport const c = a === 1;\n');
+  // Chaque mutant est tué : seuls comptent ici ceux que la pass fabrique.
+  const mutations = await muter({ rejeux: [gele("adds two numbers")] }, { ...outils, fichiers: [...outils.fichiers, "lib/autre.ts"], diff, jouer: async () => ({ code: 1, lignes: ["not ok 1 - adds two numbers"] }) });
+  assert.ok("mutants" in mutations);
+  assert.deepEqual(
+    mutations.mutants.map(({ fichier, ligne, avant, apres, texte }) => ({ fichier, ligne, avant, apres, texte })),
+    [
+      { fichier: "lib/calcul.ts", ligne: 1, avant: "+", apres: "-", texte: "export const somme = (a: number, b: number) => a - b;" },
+      { fichier: "lib/calcul.ts", ligne: 2, avant: ">", apres: "<=", texte: "export const positif = (n: number) => n <= 0;" },
+      { fichier: "lib/autre.ts", ligne: 2, avant: ">", apres: "<=", texte: '  log("a && b"); return n <= 0;' },
+    ],
+  );
+  assert.equal(ligneDesMutations(mutations), "Mutation check: 3 of 3 mutations caught — only the lines this delivery changes are mutated, each mutant run against the tests it adds.");
 });
 
 test("tests that let a mutation through: the line says how many were caught, and the reason names the file and line of the surviving one", async (t) => {
@@ -102,9 +121,8 @@ test("tests that let a mutation through: the line says how many were caught, and
   assert.deepEqual(motifDesMutations(mutations), [
     "- **Blocking**: Mutation check — the mutation of `lib/calcul.ts:2` (`>` → `<=`) survived: every test this delivery adds still passes with that line changed. Add or sharpen a test that fails when it changes.",
   ]);
-  assert.deepEqual(enregistrementsDesCriteres(1, [{ tests: ["adds two numbers"], relecture: false }], preuve, mutations), [
-    { criterion: 1, testPath: "lib/calcul.test.ts", mutationsCaught: 1, mutationsTotal: 2, survivingLines: ["lib/calcul.ts:2"] },
-  ]);
+  // L'enregistrement du critère que couvre le test gelé : ses mutants tués, et les lignes des autres.
+  assert.equal(resumeDesMutations(mutations, 2, [{ tests: ["adds two numbers"], relecture: false }, { tests: [], relecture: true }], preuve).split("\n")[1], "- Criterion 1, `lib/calcul.test.ts`: 1 of 2 mutations caught (surviving: `lib/calcul.ts:2`)");
   assert.deepEqual(jetes.sort(), checkouts.sort(), "every throwaway checkout is thrown away");
 });
 
