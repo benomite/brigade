@@ -89,6 +89,7 @@ import { poele } from "./composants/poele/poele.js";
 import { carteAttente, carteDeReponse } from "./composants/carte-attente/carte-attente.js";
 import { etatDuTon, formeDe, marque as marqueDePastille, pastille as pastilleDEtat } from "./composants/pastille/pastille.js";
 import { poserChers } from "./cost/chers.js";
+import { poserMoteur, SANS_MOTEUR } from "./livraison-moteur/affichage.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
@@ -3362,7 +3363,7 @@ function suivreFiche(cartes, posees) {
 // ticket livré, ce qui a été livré.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
 function poserDetailsDeFiche(projet, carte) {
-  const { ticket, livraison, dit } = carte;
+  const { ticket, livraison, dit, moteur } = carte;
   const pose = [];
   // Rien n'est dit deux fois : « right now » est dans sa section, et la station où il cuit s'ajoute à qui le tient.
   const cuit = dit.find(({ libelle }) => libelle === "cooks on");
@@ -3381,7 +3382,7 @@ function poserDetailsDeFiche(projet, carte) {
     );
     pose.push(porte);
   }
-  if (livraison !== undefined) pose.push(...poserLivraison(projet, ticket, livraison));
+  if (livraison !== undefined) pose.push(poserMoteur(document, moteur ?? SANS_MOTEUR), ...poserLivraison(projet, ticket, livraison));
   if (pose.length === 0) return [];
   const details = document.createElement("section");
   details.className = "details";
@@ -5974,7 +5975,7 @@ function poserCout() {
     poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
     autonomieDeTous.poser(),
     poserPerdus(document, projets, coutsLus, titreSurLeRail, perdusOuverts, basculerPerdus, ouvrirTicketDepuisLesCouts),
-    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts, configuration.quotaMax),
+    poserChers(document, projets, coutsLus, titreSurLeRail, ouvrirTicketDepuisLesCouts, configuration.quotaMax, undefined, (nom, ticket) => carteSurLeRail(nom, ticket)?.moteur),
     poserCourbe(document, projets, coutsLus),
   );
 }
