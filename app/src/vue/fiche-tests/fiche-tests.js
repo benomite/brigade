@@ -1,7 +1,7 @@
 // @ts-check
 // Sur la fiche d'un ticket : pour chaque critère d'acceptation, son test et le chemin qui l'a vérifié — rouge sur main, vert
 // sur la branche, N mutations survécues (ticket 3728). Ce que la fiche lit est un enregistrement par critère, produit
-// ailleurs (l'étape du rail, le contrôle de #3465, le contrôle de mutations de la pass) : ce module ne fait que le lire et
+// ailleurs (l'étape du rail, le contrôle du ticket 3465, le contrôle de mutations de la pass) : ce module ne fait que le lire et
 // le poser. Une étape que l'enregistrement ne donne pas, ou donne mal formée, est « pending » — jamais « done ».
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
