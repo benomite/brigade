@@ -368,11 +368,14 @@ test("with the four guards clear, a GitHub-only cook starts as before: claimed, 
   assert.equal(arbitre.etat().projets.find((projet) => projet.projet === PROJET)?.cooks, 0);
 });
 
-test("the station of this runtime launches its cook through the guards: the stream the guardrails wrote is the one it reads, and the delivery goes to the pass", async (t) => {
-  const { repertoire, runtime, gardes, faux, faits } = cuisine(t);
-  faux.feu(1);
+// Le tour de la station du dépôt (`stationDuDepot`) d'une cuisine, lancé par ses
+// gardes, sur le client du runtime tel que le tour le lit. Le cook de chaque run
+// a pour worktree le répertoire de la cuisine et pour branche `branche(run)` ;
+// `fait` note ce que la station pousse et retire, et elle ne dit rien d'autre
+// que ce qu'`avertir` admet.
+function stationDuTour(kitchen: ReturnType<typeof cuisine>, { places, branche, avertir }: { places: number; branche: (run: string) => string; avertir: RegExp }) {
+  const { repertoire, gardes, faux } = kitchen;
   const tour = faux.client();
-  // Le client du runtime, tel que le tour le lit.
   const client: Partial<GitHub> = {
     tickets: async () => ({ inchange: false, issues: (await tour.fires()).map((lu) => ({ ...lu, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
     prDeBranche: async () => null,
@@ -391,17 +394,17 @@ test("the station of this runtime launches its cook through the guards: the stre
   const fait: string[] = [];
   const station = stationDuDepot({
     nom: STATION,
-    places: 1,
+    places,
     base: "main",
     depotGitHub: "faux/depot",
     github: client as GitHub,
     depot: {
       connait: () => false,
-      preparer: async (run) => ({ worktree: repertoire, branche: `cook/${run}` }),
+      preparer: async (run) => ({ worktree: repertoire, branche: branche(run) }),
       reprendre: async () => repertoire,
       retirer: () => void fait.push("retirer"),
       ranger: async () => null,
-      pousser: (branche) => void fait.push(`pousser ${branche}`),
+      pousser: (poussee) => void fait.push(`pousser ${poussee}`),
       commits: () => 1,
       changes: () => [],
       diff: () => "",
@@ -415,10 +418,17 @@ test("the station of this runtime launches its cook through the guards: the stre
     reviewer: { model: "sonnet", effort: "medium" },
     flux: join(repertoire, "github-seul"),
     gardes,
-    avertir: (texte) => { if (!/the cook stopped without a delivery/.test(texte)) assert.fail(texte); },
+    avertir: (texte) => { if (!avertir.test(texte)) assert.fail(texte); },
   });
-  assert.ok(!("refus" in station));
-  if ("refus" in station) return;
+  if ("refus" in station) assert.fail(station.refus);
+  return { station, fait };
+}
+
+test("the station of this runtime launches its cook through the guards: the stream the guardrails wrote is the one it reads, and the delivery goes to the pass", async (t) => {
+  const kitchen = cuisine(t);
+  const { runtime, faux, faits } = kitchen;
+  faux.feu(1);
+  const { station, fait } = stationDuTour(kitchen, { places: 1, branche: (run) => `cook/${run}`, avertir: /the cook stopped without a delivery/ });
 
   await station.tour();
   await station.calme();
@@ -432,59 +442,16 @@ test("the station of this runtime launches its cook through the guards: the stre
   assert.equal(runtime.journal.tout().filter((evenement) => evenement.type === "station.86").length, 0);
 });
 
-// Le tour de la station du dépôt (`stationDuDepot`), lancé par les gardes, où
-// le cook de chaque numéro d'`enormes` reçoit une branche au nom trop long pour
-// un lancement : ses arguments (la garde de son `gh`, qui la nomme) font buter
-// `spawn` (E2BIG) avant que le cook ne parte.
+// Le tour de la station du dépôt, où le cook de chaque numéro d'`enormes` reçoit
+// une branche au nom trop long pour un lancement : ses arguments (la garde de son
+// `gh`, qui la nomme) font buter `spawn` (E2BIG) avant que le cook ne parte.
 function stationAuxBranchesEnormes(t: TestContext, enormes: ReadonlySet<number>) {
   const kitchen = cuisine(t);
-  const { repertoire, gardes, faux } = kitchen;
-  const tour = faux.client();
-  const branche = (run: string) => (enormes.has(Number.parseInt(run, 10)) ? `cook/${"x".repeat(200_000)}` : `cook/${run}`);
-  const client: Partial<GitHub> = {
-    tickets: async () => ({ inchange: false, issues: (await tour.fires()).map((lu) => ({ ...lu, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
-    prDeBranche: async () => null,
-    ci: async () => [],
-    issue: async (numero) => ({ number: numero, title: `ticket ${numero}`, labels: faux.labels(numero), state: "open", createdAt: "", updatedAt: "", url: "", body: "" }),
-    commentaires: async () => [],
-    commenter: tour.commenter,
-    labelliser: tour.labelliser,
-    delabelliser: tour.delabelliser,
-    ouvrirPR: tour.ouvrirPR,
-    mettreAJour: tour.mettreAJour,
-    merger: tour.merger,
-    retraitsDeLabels: async () => [],
-    prsOuvertes: async () => [],
-  };
-  const station = stationDuDepot({
-    nom: STATION,
+  const { station } = stationDuTour(kitchen, {
     places: 4,
-    base: "main",
-    depotGitHub: "faux/depot",
-    github: client as GitHub,
-    depot: {
-      connait: () => false,
-      preparer: async (run) => ({ worktree: repertoire, branche: branche(run) }),
-      reprendre: async () => repertoire,
-      retirer: () => {},
-      ranger: async () => null,
-      pousser: () => {},
-      commits: () => 1,
-      changes: () => [],
-      diff: () => "",
-    },
-    prise: () => faux.prise(),
-    claude: FAUX_CLAUDE,
-    env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" },
-    cloison: null,
-    plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 },
-    graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" },
-    flux: join(repertoire, "github-seul"),
-    gardes,
-    avertir: (texte) => { if (!/the cook stopped without a delivery|takes no ticket|takes tickets again/.test(texte)) assert.fail(texte); },
+    branche: (run) => (enormes.has(Number.parseInt(run, 10)) ? `cook/${"x".repeat(200_000)}` : `cook/${run}`),
+    avertir: /the cook stopped without a delivery|takes no ticket|takes tickets again/,
   });
-  if ("refus" in station) assert.fail(station.refus);
   // L'erreur que le journal garde de chaque lancement raté, par ticket servi.
   const erreurs = () => kitchen.runtime.journal.tout().flatMap((evenement) => (evenement.type === "cook.exited" && typeof evenement.payload.error === "string" ? [{ run: String(evenement.payload.run), error: evenement.payload.error, turns: evenement.payload.turns, outcome: evenement.payload.outcome }] : []));
   return { ...kitchen, station, erreurs };
