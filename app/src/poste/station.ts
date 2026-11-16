@@ -33,6 +33,7 @@ const REFUS = 2;
 const REFUS_MAX_MS = 300_000;
 // Pendant la première minute d'échecs, le délai ne grandit pas : une mise à jour à chaud démarre dans la minute.
 const REFUS_PLAT_MS = 60_000;
+const dureeDite = (ms: number) => (ms < 1000 ? `${ms} ms` : `${Math.round(ms / 1000)} s`);
 export const TENUE_PAR = "app.pid";
 const ENVELOPPE = join(import.meta.dirname, "enveloppe.ts");
 
@@ -52,6 +53,8 @@ export type OptionsStationLocale = {
   // Le pid de l'app qui la tient.
   pid?: number;
   relanceMs?: number;
+  // Combien de temps les essais d'une station refusée restent à `relanceMs`, avant que leur délai ne double (60 s).
+  platMs?: number;
   reessaiMs?: number;
   // Le temps laissé à la station pour s'arrêter, avant qu'elle soit tuée.
   gardeMs?: number;
@@ -141,7 +144,7 @@ export function rendreLaStation(racine: string, pid: number): void {
 
 // Le délai avant le `essai`-ième nouvel essai d'une station refusée : `relanceMs` tant que `platMs` n'est pas écoulé — une
 // mise à jour à chaud démarre dans la minute —, puis il double d'un essai à l'autre, jusqu'à `REFUS_MAX_MS`.
-export function delaiDuReessai(essai: number, relanceMs: number, platMs: number): number {
+function delaiDuReessai(essai: number, relanceMs: number, platMs: number): number {
   const plats = Math.ceil(platMs / relanceMs);
   if (essai <= plats) return relanceMs;
   return Math.min(relanceMs * 2 ** (essai - plats), Math.max(REFUS_MAX_MS, relanceMs));
@@ -166,7 +169,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
   let lances = 0;
   // Les démarrages refusés ou impossibles qui se suivent : le délai du suivant double.
   let plats = 0;
-  const platMs = REFUS_PLAT_MS;
+  const platMs = options.platMs ?? REFUS_PLAT_MS;
   let essais = 0;
   const delaiApresEchec = () => delaiDuReessai(++essais, relanceMs, platMs);
   const repartir = () => {
@@ -230,7 +233,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
       const delai = delaiApresEchec();
       etat = "refusee";
       signaler();
-      dire(`brigade: this computer's station is not launched — its directory ${racine} cannot be written: ${message(erreur)}; trying again in ${Math.round(delai / 1000)} s`);
+      dire(`brigade: this computer's station is not launched — its directory ${racine} cannot be written: ${message(erreur)}; trying again in ${dureeDite(delai)}`);
       return plusTard(lancer, delai);
     }
     if (autre !== undefined) {
@@ -319,7 +322,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
         // Une station qui a tourné longtemps avant de refuser repart de zéro.
         if (Date.now() - lancee > REFUS_PLAT_MS) repartir();
           delai = delaiApresEchec();
-        finir(`brigade: this computer's station ${pourquoi}; trying again in ${Math.round(delai / 1000)} s`, false);
+        finir(`brigade: this computer's station ${pourquoi}; trying again in ${dureeDite(delai)}`, false);
       };
       lance.once("error", (erreur) => echouer(`could not be launched — ${message(erreur)} (\`${options.node}\`)`));
       lance.once("close", (sortie, signal) => {

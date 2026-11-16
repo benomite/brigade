@@ -13,7 +13,7 @@ import { brancheDuTicket } from "../../../runtime/src/brigade-github.ts";
 import { accepterSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
 import { BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { roleDe } from "../../src/poste/role.ts";
-import { delaiDuReessai, tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationLocale } from "../../src/poste/station.ts";
+import { tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationLocale } from "../../src/poste/station.ts";
 import { FICHIER_STATION } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import { tenirStations, type Appairage, type Stations } from "../../src/stations/stations.ts";
@@ -192,7 +192,7 @@ test("la station refusée (code 2) est retentée d'elle-même avec un délai qui
   const racine = join(repertoireTemporaire(t), "station");
   const refusee = tenir(t, { node: process.execPath, principal: unPrincipal(t, `console.error("brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port"); process.exit(2);`), racine, env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), relanceMs: 10 });
   await jusqua(() => refusee.station.etat() === "refusee");
-  assert.match(refusee.dit(), /this computer's station refused to start — brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port; trying again in 0 s/);
+  assert.match(refusee.dit(), /this computer's station refused to start — brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port; trying again in 10 ms/);
   assert.doesNotMatch(refusee.dit(), /until the app restarts/);
   // Rendue entre deux essais : une autre app pourra la tenter.
   await refusee.station.arreter();
@@ -226,15 +226,20 @@ test("une station refusée parce qu'une autre tient encore le répertoire démar
     relanceMs: 10,
   });
   await jusqua(() => existsSync(compte) && readFileSync(compte, "utf8").length === 3 && station.etat() === "relancee" && station.tourne());
-  assert.match(dit(), /refused to start — une autre station tourne déjà; trying again in 0 s/);
+  assert.match(dit(), /refused to start — une autre station tourne déjà; trying again in 10 ms/);
   await station.arreter();
 });
 
-test("les essais d'une station refusée restent à plat la première minute, puis leur délai double jusqu'à cinq minutes", () => {
-  const delais = Array.from({ length: 20 }, (_, i) => delaiDuReessai(i + 1, 5_000, 60_000) / 1000);
-  assert.deepEqual(delais.slice(0, 13), [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 10]);
-  assert.deepEqual(delais.slice(13, 18), [20, 40, 80, 160, 300]);
-  assert.equal(delais[19], 300);
+test("les essais d'une station refusée restent à plat tant que la première minute dure, puis leur délai double", async (t) => {
+  const refuse = `console.error("une autre station tourne déjà"); process.exit(2);`;
+  const plate = tenir(t, { node: process.execPath, principal: unPrincipal(t, refuse), racine: join(repertoireTemporaire(t), "station"), env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), relanceMs: 10 });
+  await jusqua(() => (plate.dit().match(/trying again in 10 ms/g) ?? []).length >= 3);
+  assert.doesNotMatch(plate.dit(), /trying again in 20 ms/);
+  await plate.station.arreter();
+  const doublee = tenir(t, { node: process.execPath, principal: unPrincipal(t, refuse), racine: join(repertoireTemporaire(t), "station"), env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), relanceMs: 10, platMs: 0 });
+  await jusqua(() => /trying again in 80 ms/.test(doublee.dit()));
+  assert.match(doublee.dit(), /trying again in 20 ms[\s\S]*trying again in 40 ms[\s\S]*trying again in 80 ms/);
+  await doublee.station.arreter();
 });
 
 test("un répertoire qu'on ne peut pas écrire n'arrête pas la station jusqu'au redémarrage de l'app : elle est retentée", async (t) => {
@@ -243,7 +248,7 @@ test("un répertoire qu'on ne peut pas écrire n'arrête pas la station jusqu'au
   writeFileSync(fichier, "");
   const { station, dit } = tenir(t, { node: process.execPath, principal: unPrincipal(t, ATTENDRE_SIGTERM), racine: join(fichier, "station"), env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), relanceMs: 10 });
   assert.equal(station.etat(), "refusee");
-  assert.match(dit(), /cannot be written.*trying again in 0 s/);
+  assert.match(dit(), /cannot be written.*trying again in 10 ms/);
   rmSync(fichier);
   await jusqua(() => station.tourne());
   await station.arreter();
