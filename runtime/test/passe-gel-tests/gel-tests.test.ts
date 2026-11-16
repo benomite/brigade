@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { motifDuGel, RAISON_GEL, violationsDuGel } from "../../src/passe-gel-tests/gel-tests.ts";
+import { motifDuGel, violationsDuGel } from "../../src/passe-gel-tests/gel-tests.ts";
 import { ENV_GIT, git } from "../outils.ts";
 
 // Une branche : un commit de base, puis le commit gelé du cook.
@@ -37,9 +37,8 @@ test("un test gelé modifié renvoie la livraison, avec la raison de la fiche", 
   writeFileSync(join(dossier, "test", "a.test.ts"), "changé\n");
   valider(dossier, "touch", "cook");
   const motif = verdict(dossier);
-  assert.ok(motif !== null && motif.startsWith(RAISON_GEL));
+  assert.ok(motif !== null && motif.startsWith("a frozen acceptance test was modified"));
   assert.match(motif, /test\/a\.test\.ts/);
-  assert.equal(RAISON_GEL, "a frozen acceptance test was modified");
 });
 
 test("un test gelé supprimé ou renommé renvoie la livraison", (t) => {

@@ -6,7 +6,7 @@
 import { execFileSync } from "../sans-invite.ts";
 
 // Le motif de renvoi que la fiche du ticket énonce.
-export const RAISON_GEL = "a frozen acceptance test was modified";
+const RAISON_GEL = "a frozen acceptance test was modified";
 
 // L'auteur d'un commit du manager : son nom git, avec ou sans le `[bot]` d'une App GitHub.
 const AUTEUR_MANAGER = /^manager(\[bot\])?$/i;

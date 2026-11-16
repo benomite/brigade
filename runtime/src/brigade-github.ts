@@ -3033,7 +3033,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
       // Un test d'acceptation gelé modifié renvoie la livraison sans relecture (#3726).
       // Un historique illisible ne la renvoie pas : le contrôle n'a pas eu lieu, la pass le dit.
+      // Un dépôt qui ne sait pas faire de checkout jetable n'est pas un clone git (une doublure) : rien à lire.
       const gel = (() => {
+        if (depot.essayer === undefined) return null;
         try {
           return motifDuGel(violationsDuGel(worktree, `origin/${base}`));
         } catch (erreur) {
