@@ -6,6 +6,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
 import { marque } from "../composants/pastille/pastille.js";
+import { NON_ATTEINT } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {"done" | "failed" | "pending"} Etat */
@@ -100,7 +101,7 @@ export function poserTestsDeFiche(doc, tests) {
   if (!Array.isArray(criteria)) {
     const phrase = doc.createElement("p");
     phrase.className = "sans";
-    phrase.textContent = "the criteria and their tests are unavailable";
+    phrase.textContent = NON_ATTEINT("the criteria and their tests");
     section.append(phrase);
     return [section];
   }

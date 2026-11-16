@@ -87,7 +87,7 @@ describe("la section de la fiche", () => {
     assert.deepEqual(poserTestsDeFiche(doc, undefined), []);
     assert.deepEqual(poserTestsDeFiche(doc, null), []);
     const illisible = poserTestsDeFiche(doc, { criteria: "three" })[0] as Faux;
-    assert.equal(illisible.textContent, "the criteria and their tests are unavailable");
+    assert.equal(illisible.textContent, "The criteria and their tests not reached.");
     assert.equal(lignes(illisible).length, 0);
   });
 });
