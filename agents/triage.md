@@ -53,3 +53,5 @@ La carte dit, en français, dans la langue du chef, sans fichier ni code :
 - **ses choix** : chaque voie en une phrase, avec ce que l'utilisateur en retrouve ; pour une validation de design, ce qui est à valider et ce qui se passe si on refuse.
 
 Pas de question ouverte (« que fait-on ? »), pas deux questions, pas de carte sans choix.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.

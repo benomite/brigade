@@ -218,6 +218,13 @@ turned off, it stops `caffeinate`, and the Mac sleeps as usual. Stopped (SIGTERM
 even by SIGKILL, it leaves none behind, since `caffeinate -w` ends with the pid it watches. Elsewhere than on a Mac it does
 nothing. Its log says each hold and each release.
 
+It also holds the Mac awake while at least one ticket it serves on GitHub waits for a claim: open, fired, not taken, not
+in the pass, not held for the chef (*ticket #3713*). Tickets that waited for a claim with no cook running left nothing to
+hold the Mac, and a station that does not run claims nothing until the Mac wakes. The count is the free tickets of each
+project's last GitHub turn (`enAttente` in `brigade-github.ts`), less those claimed since; a turn that stops before it
+reads them keeps the previous count. The hold is released only when no cook runs and no ticket waits. The same setting
+governs both cases: turned off, nothing is held, whether a cook runs or a ticket waits.
+
 - **The setting**, `keep awake while cooking`, is on by default and kept in `<BRIGADE_STATION_DIR>/veille-machine.json`
   (`{"garderEveille": false}` when off), next to the station's other files: it survives a restart. The station's icon
   writes it (its menu's checkbox, see [`app.md`](../app.md)). A file that cannot be read is said once in the log, the

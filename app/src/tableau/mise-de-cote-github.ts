@@ -81,34 +81,30 @@ function couper(ligne: string): string {
   return `${(espace > LONGUEUR_MAX / 2 ? coupee.slice(0, espace) : coupee).replace(/[\s,;:—-]+$/, "")}…`;
 }
 
-// La ligne qu'un commentaire de mise de côté donne à la carte de `ticket` : la PR qu'elle nomme est la livraison du ticket,
-// dite par lui (pr-du-ticket.js, ticket 3716).
-export function ligneDuCommentaire(corps: string, ticket: number): string | null {
-  const ligne = ligneBrute(corps);
-  return ligne === null ? null : direLaPrParSonTicket(ligne, ticket);
-}
-
-function ligneBrute(corps: string): string | null {
+// La ligne qu'un commentaire de mise de côté donne à la carte. Avec `ticket`, la PR qu'elle nomme est la livraison du
+// ticket, dite par lui (pr-du-ticket.js, ticket 3716).
+export function ligneDuCommentaire(corps: string, ticket?: number): string | null {
+  const dite = (ligne: string) => (ticket === undefined ? ligne : direLaPrParSonTicket(ligne, ticket));
   const texte = sansStation(nettoyer(corps));
   const tete = texte.split(/\n\s*\n/)[0] ?? "";
   // Les renvois épuisés (renvois.ts, brigade-github.ts) : « still not mergeable after 2 sends back — <raison> ».
   const renvois = /^still not mergeable after (\d+) sends? back — ([\s\S]*)$/.exec(tete);
   if (renvois !== null) {
     const pourquoi = motif(renvois[2] as string);
-    return couper(`off the kitchen after ${renvois[1]} sends back${pourquoi === "" ? "" : ` — ${pourquoi}`}`);
+    return dite(couper(`off the kitchen after ${renvois[1]} sends back${pourquoi === "" ? "" : ` — ${pourquoi}`}`));
   }
   // Les cooks sans livraison (brigade-github.ts) : « the cook stopped without a delivery — <échec> », puis leur nombre.
   const echec = /^the cook stopped without a delivery — ([\s\S]*)$/.exec(tete);
   const cooks = /after (\d+) cooks without a delivery/.exec(texte);
-  if (echec !== null && cooks !== null) return couper(`off the kitchen after ${cooks[1]} cooks without a delivery — ${(echec[1] as string).split("\n")[0]?.trim()}`);
+  if (echec !== null && cooks !== null) return dite(couper(`off the kitchen after ${cooks[1]} cooks without a delivery — ${(echec[1] as string).split("\n")[0]?.trim()}`));
   // Une livraison qui touche à ce qui la juge (brigade-github.ts) : la merger à la main.
   const juges = JUGES.exec(texte);
-  if (juges !== null) return `Merge PR #${juges[1]} by hand? It changes what judges it.`;
+  if (juges !== null) return dite(`Merge PR #${juges[1]} by hand? It changes what judges it.`);
   const premiere = texte
     .split("\n")
     .map((ligne) => ligne.replace(/^\s*(?:#+|>|[-*])\s*/, "").trim())
     .find((ligne) => ligne !== "");
-  return premiere === undefined ? null : couper(premiere);
+  return premiere === undefined ? null : dite(couper(premiere));
 }
 
 // La question que le dernier commentaire marqué d'un auteur du dépôt pose au chef — rien si ce n'est pas une
@@ -131,7 +127,7 @@ function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { d
     [...commentaires]
       .reverse()
       .filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DU_MANAGER) && ditLaMiseDeCote(body, label))
-      .find(({ body }) => ligneBrute(body as string) !== null);
+      .find(({ body }) => ligneDuCommentaire(body as string) !== null);
   const question = label === SERVED_ELSEWHERE ? questionDuChef(commentaires) : null;
   return { dit: question?.commentaire ?? dit, question: question?.carte ?? null };
 }

@@ -18,7 +18,7 @@ import { capturesDeCarte, lireAdresse, type CapturesDeCarte, type CapturesLues }
 import type { MethodeDEcriture } from "../../priorite.ts";
 import { refusDe, type AppelGitHub, type ReponseGitHub } from "../../tableau/client.ts";
 import { LABEL_DU_CHEF } from "../../tableau/todo-github.ts";
-import { direLaPrParSonTicket, PR_DU_TICKET } from "../pr-du-ticket.js";
+import { direLaPrParSonTicket } from "../pr-du-ticket.js";
 
 // La sorte de la carte, telle que le runtime l'écrit (runtime/src/validation-design/validation-design.ts, `SORTE_DE_CARTE`).
 export const SORTE_DE_VALIDATION = "design-validation";
@@ -163,7 +163,7 @@ export async function jouerLaValidation({ depot, design, geste, commande, env }:
   if ("refus" in lu || design === undefined) return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const cible = `${depot}#${design.pr}`;
   const args = lu.geste === "valider" ? ["validate", cible] : ["send-back", cible, "--comment", lu.commentaire];
-  return jouerLaCommande({ args, commande, env, parDefaut: lu.geste === "valider" ? `the ${PR_DU_TICKET(design.ticket)} validated` : `the ${PR_DU_TICKET(design.ticket)} sent back`, livraison: design });
+  return jouerLaCommande({ args, commande, env, parDefaut: `${livraisonDe(design.ticket, design.pr)} ${lu.geste === "valider" ? "validated" : "sent back"}`, livraison: design });
 }
 
 // Une commande du runtime que le process principal joue, avec ses arguments : ce qu'elle a dit en dernier — `parDefaut`, si
@@ -196,6 +196,10 @@ export const DE_CONFIANCE: readonly string[] = ["OWNER", "MEMBER", "COLLABORATOR
 export const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 export const LABEL_IN_PASS = "in-pass";
 export const brancheDuTicket = (ticket: number) => `cook/${ticket}-github`;
+// Une PR nommée pour le chef, son ticket d'abord (runtime : `livraisonDe`, ticket 3718).
+const livraisonDe = (ticket: number, pr: number) => `the delivery of #${ticket} (PR ${pr})`;
+// La même, en tête de phrase (runtime : `capitale`).
+const capitale = (texte: string) => texte.charAt(0).toUpperCase() + texte.slice(1);
 const MARQUE_DE_RETENUE = /^<!-- brigade:validation-design-carte carte=([1-9][0-9]*) pr=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
 // La validation demandée sur le ticket même (ticket 3615, runtime/src/validation-sur-ticket/) : la carte est le ticket.
 const DEMANDE = /^<!-- brigade:todo kind=design-validation pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
@@ -217,8 +221,8 @@ export async function validerSurGithub({ depot, carte, design, geste, client }: 
   const lu = gesteLu(design, geste);
   if ("refus" in lu || design === undefined || typeof carte !== "number") return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const ecrits: string[] = [];
-  const github = gestesSurLAPI(depot, client, ecrits);
-  const nom = `${depot}#${design.pr}`;
+  const github = gestesSurLAPI(depot, client, ecrits, design.ticket);
+  const nom = `${depot}: ${livraisonDe(design.ticket, design.pr)}`;
   try {
     if (lu.geste === "valider") {
       const { ticket, enAttente } = await validerLaCarte(github, carte, design);
@@ -234,8 +238,9 @@ export async function validerSurGithub({ depot, carte, design, geste, client }: 
   }
 }
 
-// Ce que les deux gestes lisent et écrivent sur GitHub ; chaque écriture faite est notée dans `ecrits`.
-function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: string[]) {
+// Ce que les deux gestes lisent et écrivent sur GitHub ; chaque écriture faite est notée dans `ecrits`. La PR y est dite
+// par son ticket, `ticket` (ticket 3716) : ce que GitHub refuse arrive au chef.
+function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: string[], ticket: number) {
   const lire = async (chemin: string, quoi: string): Promise<unknown> => {
     const lu = await client.lire(chemin);
     if (lu.status !== 200) throw refusDe(quoi, lu);
@@ -249,7 +254,7 @@ function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: stri
   };
   return {
     issue: async (numero: number) => objet(await lire(`/repos/${depot}/issues/${numero}`, `the reading of #${numero}`)),
-    pr: async (numero: number) => objet(await lire(`/repos/${depot}/pulls/${numero}`, `the reading of PR #${numero}`)),
+    pr: async (numero: number) => objet(await lire(`/repos/${depot}/pulls/${numero}`, `the reading of ${livraisonDe(ticket, numero)}`)),
     // Les commentaires de l'issue, page après page — dix au plus, comme toute liste que l'app lit.
     async commentaires(numero: number): Promise<Array<{ body: string; association: string }>> {
       const tous: Array<{ body: string; association: string }> = [];
@@ -276,10 +281,10 @@ function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: stri
     async merger(numero: number, sha: string): Promise<{ fait: true } | { fait: false; motif: string }> {
       const rendu = await client.ecrire("PUT", `/repos/${depot}/pulls/${numero}/merge`, { sha, merge_method: "merge" });
       if (rendu.status === 200) {
-        ecrits.push(`PR #${numero} merged`);
+        ecrits.push(`${livraisonDe(ticket, numero)} merged`);
         return { fait: true };
       }
-      if (rendu.status < 400 || rendu.status >= 500) throw refusDe(`the merge of PR #${numero}`, rendu);
+      if (rendu.status < 400 || rendu.status >= 500) throw refusDe(`the merge of ${livraisonDe(ticket, numero)}`, rendu);
       const dit = chaine(objet(rendu.data).message);
       return { fait: false, motif: `HTTP ${rendu.status}${dit === "" ? "" : ` — ${dit}`}` };
     },
@@ -288,7 +293,7 @@ function gestesSurLAPI(depot: string, client: ClientDeLaValidation, ecrits: stri
 type GitHubDeLaValidation = ReturnType<typeof gestesSurLAPI>;
 
 // La carte, relue : encore ouverte, posée par un auteur de confiance, et portant la PR, le ticket et la tête que la
-// dernière lecture en a lus — sinon elle ne tient plus cette livraison (runtime : `carteDeLaPR`). La carte qui est le ticket
+// dernière lecture en a lus — sinon elle ne tient plus cette livraison (runtime : `carteDuNumero`). La carte qui est le ticket
 // même (ticket 3615) : ouverte tant qu'il porte `chef-todo`, sa dernière demande les porte.
 async function carteQuiTient(github: GitHubDeLaValidation, carte: number, { pr, ticket, sha }: ValidationDesign): Promise<void> {
   const issue = await github.issue(carte);
@@ -302,14 +307,14 @@ async function carteQuiTient(github: GitHubDeLaValidation, carte: number, { pr, 
       ? chaine(issue.body)
       : "";
   const lu = (surLeTicket ? DEMANDE : MARQUE).exec(corps);
-  if (issue.state !== "open" || lu === null || Number(lu[1]) !== pr || Number(lu[2]) !== ticket || lu[3] !== sha) throw new Refus(`no open “Validate its screen” card holds the ${PR_DU_TICKET(ticket)}`);
+  if (issue.state !== "open" || lu === null || Number(lu[1]) !== pr || Number(lu[2]) !== ticket || lu[3] !== sha) throw new Refus(`no open “Validate its screen” card answers to ${pr}: it is neither an open ticket nor the pull request of a held delivery`);
 }
 
 // La PR de la carte, relue : encore la livraison de son ticket, sur sa branche (runtime : `prDeLaCarte`).
 async function prDeLaCarte(github: GitHubDeLaValidation, { pr, ticket }: ValidationDesign): Promise<{ sha: string; state: string; merged: boolean }> {
   const lue = await github.pr(pr);
   const tete = objet(lue.head);
-  if (tete.ref !== brancheDuTicket(ticket)) throw new Refus(`the PR of this card is no longer the delivery of #${ticket}`);
+  if (tete.ref !== brancheDuTicket(ticket)) throw new Refus(`${livraisonDe(ticket, pr)} is no longer on the branch of #${ticket}`);
   return { sha: chaine(tete.sha), state: chaine(lue.state), merged: lue.merged === true || (lue.merged_at ?? null) !== null };
 }
 
@@ -341,23 +346,23 @@ async function validerLaCarte(github: GitHubDeLaValidation, carte: number, desig
   await carteQuiTient(github, carte, design);
   const lue = await prDeLaCarte(github, design);
   if (!lue.merged) {
-    if (lue.state !== "open") throw new Refus(`the ${PR_DU_TICKET(ticket)} is closed without being merged: there is nothing to validate`);
+    if (lue.state !== "open") throw new Refus(`${livraisonDe(ticket, pr)} is closed without being merged: there is nothing to validate`);
     const retenue = derniereRetenue(await github.commentaires(ticket), carte);
     if (retenue === null || retenue.renvoyee) {
-      const pourquoi = retenue === null ? `ticket #${ticket} does not say card #${carte}` : `the delivery of #${ticket} went back to a cook since card #${carte}`;
+      const pourquoi = retenue === null ? `ticket #${ticket} does not say card #${carte}` : `${livraisonDe(ticket, pr)} went back to a cook since card #${carte}`;
       await fermerLaCarte(github, carte, `Closed by the kitchen: ${pourquoi}. Its next delivery comes back as a new card.`, ticket);
       throw new Refus(`${pourquoi}: nothing merged, card #${carte} closed — its next delivery comes back as a new card`);
     }
     if (lue.sha !== sha) {
       const de = `\`${sha.slice(0, 7)}\` → \`${lue.sha.slice(0, 7)}\``;
-      await github.commenter(ticket, `<!-- brigade:validation-design-validee carte=${carte} pr=${pr} sha=${sha} -->\nValidated by the chef on card #${carte} — merge pending. The branch of PR #${pr} was updated since the card (${de}), with no new delivery of a cook: the answer is kept, and the pass merges PR #${pr} once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`);
-      await fermerLaCarte(github, carte, `Validated by the chef: the answer is kept — merge pending. The branch of PR #${pr} was updated since this card (${de}) and is being checked again: the pass merges it once its head is green.`, ticket);
+      await github.commenter(ticket, `<!-- brigade:validation-design-validee carte=${carte} pr=${pr} sha=${sha} -->\nValidated by the chef on card #${carte} — merge pending. The branch of ${livraisonDe(ticket, pr)} was updated since the card (${de}), with no new delivery of a cook: the answer is kept, and the pass merges it once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`);
+      await fermerLaCarte(github, carte, `Validated by the chef: the answer is kept — merge pending. The branch of ${livraisonDe(ticket, pr)} was updated since this card (${de}) and is being checked again: the pass merges it once its head is green.`, ticket);
       return { ticket, enAttente: true };
     }
     const merge = await github.merger(pr, sha);
-    if (!merge.fait) throw new Refus(`GitHub refused to merge the ${PR_DU_TICKET(ticket)} — ${merge.motif}; card #${carte} stays open`);
+    if (!merge.fait) throw new Refus(`GitHub refused to merge ${livraisonDe(ticket, pr)} — ${merge.motif}; card #${carte} stays open`);
   }
-  await fermerLaCarte(github, carte, `Validated by the chef: PR #${pr} is merged.`, ticket);
+  await fermerLaCarte(github, carte, `Validated by the chef: ${livraisonDe(ticket, pr)} is merged.`, ticket);
   return { ticket, enAttente: false };
 }
 
@@ -368,13 +373,13 @@ async function renvoyerLaCarte(github: GitHubDeLaValidation, carte: number, desi
   await carteQuiTient(github, carte, design);
   const lue = await prDeLaCarte(github, design);
   if (lue.merged) {
-    const suivi = await github.creer(`Follow-up of #${ticket}: the chef asks for changes after PR #${pr} was merged`, `PR #${pr}, the delivery of #${ticket}, was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`);
-    await fermerLaCarte(github, carte, `PR #${pr} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`, ticket);
+    const suivi = await github.creer(`Follow-up of #${ticket}: the chef asks for changes after ${livraisonDe(ticket, pr)} was merged`, `${capitale(livraisonDe(ticket, pr))} was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`);
+    await fermerLaCarte(github, carte, `${capitale(livraisonDe(ticket, pr))} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`, ticket);
     return { ticket, suivi };
   }
-  if (lue.state !== "open") throw new Refus(`the ${PR_DU_TICKET(ticket)} is no longer open: there is nothing to send back`);
+  if (lue.state !== "open") throw new Refus(`${livraisonDe(ticket, pr)} is no longer open: there is nothing to send back`);
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
-  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\nThe chef sent the design of PR #${pr} back to a cook — the chef asks for changes to the screen:\n\n${aChanger}\n\nChange the screen as asked, take its before and after captures again, and deliver.`);
+  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\nThe chef sent the design of ${livraisonDe(ticket, pr)} back to a cook — the chef asks for changes to the screen:\n\n${aChanger}\n\nChange the screen as asked, take its before and after captures again, and deliver.`);
   await github.delabelliser(ticket, LABEL_IN_PASS);
   await fermerLaCarte(github, carte, `Sent back to a cook by the chef: ${aChanger}`, ticket);
   return { ticket };

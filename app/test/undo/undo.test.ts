@@ -33,7 +33,7 @@ const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "sec
 const issue = (ticket: number) => `https://github.com/${DEPOT}/issues/${ticket}`;
 
 const CONFLIT = "#9 cannot be undone in one click: later work builds on it — ticket #44 asks the kitchen to undo it by hand";
-const PROPRE = "#9 undone: PR #45 goes through the pass as ticket #44, and #9 is reopened";
+const PROPRE = "#9 undone: the delivery of #44 (PR 45) goes through the pass as ticket #44, and #9 is reopened";
 
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),

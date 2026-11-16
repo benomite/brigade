@@ -578,6 +578,12 @@ station that cannot run the ticket's gates (#3057), a station whose base branch 
 a cook stopped with its station (#2543) (#3422). BOBL-tech/mirrorlab#706 read "first try" over 6 min of failed
 cook, then waited 549 min for a claim, and its evidence did not say which stop had given it back.
 A read that fails is named on its line, with its error: the ticket is filed all the same.
+Before the journal events, a "Station heartbeat" section names each silence of the runtime's heartbeat over 10 min in
+the window (#3713). The runtime writes a heartbeat to its journal every minute while it runs. For each silence, the
+section gives every stop (with its signal) and start the journal has inside it, in order, or `no stop written: the
+runtime was killed, or the machine slept`. It also gives the claim wait of each measured ticket that falls in it, and its first line
+says how many of the tickets' minutes of waits before a claim fall in silences. The journal is opened once for the
+events and the heartbeat: a journal that cannot be opened is said once, in the journal section.
 When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,
 #2783), the cook can reach neither its issues nor its state: the section copies the tickets (numbers, reasons),
 their timestamps and the journal events in full, names each ticket by its project (`owner/repo#101`, never a bare

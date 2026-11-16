@@ -112,3 +112,5 @@ Ce que le dev ne fait **pas**, donc ne tente pas : merger, supprimer son worktre
 1. **Dis-le au chef, en une phrase** : ce que tu voulais faire, pourquoi c'est bloqué (le motif que le refus donne, `[Exfil Scouting]`, `[Merge Without Review]`…), et **le geste à faire** — la commande exacte à lancer lui-même avec `!`, ou l'approbation à donner.
 2. **Jamais de refus muet** : tu ne passes pas à autre chose sans l'avoir dit.
 3. **Tu ne contournes pas** : ni le même geste par un autre chemin (`bash -c`, un autre binaire, un autre hôte, un script intermédiaire), ni un geste voisin qui obtient le même effet. Tu ne réessaies pas non plus, reformulé. Le refus est une décision du chef, pas un obstacle.
+
+**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.

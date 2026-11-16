@@ -115,7 +115,7 @@ test("a design validation creates no issue: one comment on the ticket and one on
   assert.ok(ticket.labels.has(CHEF_TODO));
   assert.equal(ticket.labels.has("decision"), false);
   assert.equal(carteEnCours([...ticket.labels], faux.commentaires.get(TICKET) ?? [])?.sorte, "design-validation");
-  assert.deepEqual(surLeTicket.body.split("\n").slice(1, 3), [`**${"Does the screen of #40 look right? Validate it and PR #1040 is merged; send it back with what to change and a cook takes it up again."}**`, `cc @${CHEF}`]);
+  assert.deepEqual(surLeTicket.body.split("\n").slice(1, 3), [`**${"Does the screen of #40 look right? Validate it and the delivery of #40 (PR 1040) is merged; send it back with what to change and a cook takes it up again."}**`, `cc @${CHEF}`]);
   // TODO montre la question seule, sans la mention.
   assert.match(carteEnCours([...ticket.labels], faux.commentaires.get(TICKET) ?? [])?.texte.split("\n")[0] ?? "", /^\*\*Does the screen of #40 look right\?.*\*\*$/);
   assert.equal(mentions(faux), 1);
@@ -209,7 +209,7 @@ test("a validation that is not a design — a sensitive ticket held for the chef
   assert.deepEqual([autres, plus], [[], []]);
   assert.deepEqual(demandeDuCorps("review-before-merge", surLeTicket.body), { pr: PR, ticket: TICKET, sha });
   for (const { body } of [surLeTicket, surLaPR]) {
-    assert.match(body, /#40 is sensitive: review PR #1040 before it is merged\./);
+    assert.match(body, /#40 is sensitive: review the delivery of #40 \(PR 1040\) before it is merged\./);
     assert.ok(body.includes("### What was asked") && body.includes("### What was done\n\n- the TODO column takes the full width"), body);
   }
   assert.deepEqual(demandes(faux, "design-validation", TICKET), []);

@@ -9,6 +9,7 @@ import { lireCible } from "../attente-github/attente-github.ts";
 import { brancheDuTicket } from "../brigade-github.ts";
 import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import { GesteRefuse } from "../rail.ts";
+import { livraisonDe } from "../validation-design/validation-design.ts";
 import { annuler, type GitHubDeLAnnulation } from "./undo.ts";
 
 const USAGE = ["usage: npm --prefix runtime run undo -- <owner>/<repo>#<ticket>", "  undo the served ticket: a pull request reverts its merge and goes through the pass, and the ticket is reopened"].join("\n");
@@ -29,7 +30,7 @@ export async function principal({ args, env, dire, redire }: Appel, ouvrir: Ouvr
     const annulation = await annuler(github, ticket, brancheDuTicket);
     if (annulation.issue === "deja") dire(`#${ticket} is already being undone: ticket #${annulation.undo}`);
     else if (annulation.issue === "conflit") dire(`#${ticket} cannot be undone in one click: later work builds on it — ticket #${annulation.undo} asks the kitchen to undo it by hand`);
-    else dire(`#${ticket} undone: ${annulation.pr === null ? "its revert" : `PR #${annulation.pr}`} goes through the pass as ticket #${annulation.undo}, and #${ticket} is reopened`);
+    else dire(`#${ticket} undone: ${annulation.pr === null ? "its revert" : livraisonDe(annulation.undo, annulation.pr)} goes through the pass as ticket #${annulation.undo}, and #${ticket} is reopened`);
   } catch (erreur) {
     if (erreur instanceof Sortie) throw erreur;
     if (erreur instanceof GesteRefuse) echouer(1, erreur.message);

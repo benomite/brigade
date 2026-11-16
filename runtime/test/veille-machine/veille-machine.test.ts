@@ -151,3 +151,27 @@ test("l'app lit l'état : tenue seulement si la station et son caffeinate vivent
   writeFileSync(join(racine, ETAT), "illisible");
   assert.equal(assertionTenue(racine, () => true), false);
 });
+
+// benomite/secondes#50 à #52 (#3713) : une nuit de tickets qui attendaient leur prise, sans cook qui cuise — rien ne
+// tenait le Mac. Un ticket servi qui attend sa prise tient l'assertion seul, sous le même réglage.
+test("un ticket qui attend sa prise, sans cook, tient l'assertion ; plus rien qui attende la relâche ; le réglage éteint ne la prend pas (#3713)", async (t) => {
+  let attentes = 1;
+  const { racine, temoin, tenue } = veille(t, () => 0, { attentes: () => attentes });
+  assert.equal(tenue.tenue(), true);
+  await jusqua(() => lancements(temoin).length === 1);
+  const lance = dernier(temoin);
+  assert.equal(assertionTenue(racine), true);
+
+  attentes = 0;
+  tenue.regarder();
+  assert.equal(tenue.tenue(), false);
+  assert.equal(assertionTenue(racine), false);
+  await jusqua(() => !vivant(lance));
+
+  // Éteint par le chef, le réglage vaut aussi pour les tickets qui attendent.
+  assert.deepEqual(ecrireReglage(racine, false), { fait: true });
+  attentes = 2;
+  tenue.regarder();
+  assert.equal(tenue.tenue(), false);
+  assert.equal(lancements(temoin).length, 1, "rien n'est relancé");
+});

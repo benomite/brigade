@@ -414,6 +414,9 @@ export type StationGitHub = {
   tour(): Promise<void>;
   // Les tickets que ses cooks cuisinent.
   enCuisine(): number[];
+  // Les tickets qui attendent une prise, lus au dernier tour : ouverts, lancés,
+  // ni pris, ni en pass, ni retenus pour le chef — ce qui garde le Mac éveillé (#3713).
+  enAttente?(): number[];
   // Attend que ses cooks en vol aient fini.
   calme(): Promise<void>;
   // Attend les relectures et les merges en cours, hors du tour (#2329).
@@ -810,6 +813,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // cook bloqué peut nommer comme attendus (#2968).
   let ouvertsDuTour = new Set<number>();
   let ticketsDuTour: TicketLu[] = [];
+  // Les tickets libres du dernier tour qui a lu le rail (#3713) : un tour que GitHub arrête avant garde ceux d'avant.
+  let attendentDuTour = new Set<number>();
   // Les tickets que la porte de prise a sautés au tour en cours parce qu'une
   // PR ouverte, ou un ticket en cuisson, tient leur zone. La cuisine inerte
   // les lit au tour suivant : ils ne sont pas à prendre, ce qui les tient
@@ -2012,6 +2017,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Les plus prioritaires d'abord (`prio:0` avant `prio:1`…, sans `prio:` en
     // dernier), puis les plus anciens (#2209).
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
+    attendentDuTour = new Set(libres.map(({ number }) => number));
     // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
     // qui attendent un ticket ouvert le disent encore, sans quoi la retenue ne
     // sait plus pourquoi ils n'avancent pas (#3647). Les autres disent l'arrêt
@@ -2151,6 +2157,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       if (!pris.prise) continue;
       prisCeTour.add(ticket.number);
+      attendentDuTour.delete(ticket.number);
       chrono.prendre(ticket.number);
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
@@ -2164,6 +2171,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       arretee = true;
     },
     enCuisine: () => [...enVol.keys()],
+    enAttente: () => [...attendentDuTour],
     relu: async () => {
       while (enRelecture.size > 0 || externesEnCours.size > 0) await Promise.all([...enRelecture.values(), ...externesEnCours.values()]);
     },
@@ -2193,7 +2201,7 @@ export type OptionsDuProjet = {
 // Un projet ouvert : ses cooks, et son arrêt. `refus` : la station ne peut pas
 // le servir, et ne cuisine rien pour lui. `presser` : un tour tout de suite,
 // quand le manager vient de rendre un ticket prenable (#2796).
-export type ProjetOuvert = { arreter(): Promise<void>; enCuisine(): number[]; sauver?(): Promise<number[]>; presser?(): void; refus?: string };
+export type ProjetOuvert = { arreter(): Promise<void>; enCuisine(): number[]; enAttente?(): number[]; sauver?(): Promise<number[]>; presser?(): void; refus?: string };
 
 // Ouvre le projet : un tour de la station, puis un autre l'intervalle passé,
 // jusqu'à l'arrêt.
@@ -2266,6 +2274,8 @@ export function brancherBrigadeGithub(options: OptionsDuProjet): ProjetOuvert {
   return {
     // Les tickets que ses cooks cuisinent : ce qu'une mise à jour attend (#2189).
     enCuisine: () => station.enCuisine(),
+    // Les tickets qui attendent une prise : ce qui garde le Mac éveillé (#3713).
+    enAttente: () => station.enAttente?.() ?? [],
     sauver: async () => (await station.sauver?.()) ?? [],
     // Le ticket que le manager vient de lancer se prend à ce tour, pas au
     // suivant : sans lui, il attendait sa prise jusqu'à l'intervalle (#2796).

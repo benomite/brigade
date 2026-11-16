@@ -52,6 +52,9 @@ export type Station = {
   // Les tickets que les cooks GitHub seul de ses cuisines cuisinent : ce que
   // sa mise à jour attend avant de demander sa relance (#2189).
   enCuisine(): number[];
+  // Les tickets de ses cuisines qui attendent une prise sur GitHub : ce qui
+  // garde le Mac éveillé sans cook qui cuise (#3713).
+  enAttente(): number[];
   // Sauve le travail de ces cooks sur leur branche, avant une relance (#2586).
   sauver(): Promise<number[]>;
   // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
@@ -201,6 +204,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     relire,
     projets: () => [...ouvertes.keys()],
     enCuisine: () => [...ouvertes.values()].flatMap(({ cuisine }) => cuisine.enCuisine?.() ?? []),
+    enAttente: () => [...ouvertes.values()].flatMap(({ cuisine }) => cuisine.enAttente?.() ?? []),
     sauver: async () => (await Promise.all([...ouvertes.values()].map(async ({ cuisine }) => (await cuisine.sauver?.()) ?? []))).flat(),
     depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
     servisSurGitHub: () => Object.fromEntries([...ouvertes].filter(([, { cuisine }]) => (cuisine.refusGitHub?.() ?? null) === null).map(([nom, { depot }]) => [nom, depot])),

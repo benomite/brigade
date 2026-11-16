@@ -30,11 +30,20 @@
 // du dépôt du ticket), et le corps ne renvoie ni à ses issues ni au chemin de
 // son état pour porter cette preuve.
 //
+// Les silences de la station (#3713) : le runtime écrit son battement
+// (`runtime.ticked`) chaque minute tant qu'il tourne. Chaque silence de plus de
+// 10 min de la fenêtre est nommé, avec l'arrêt que le journal en dit — ou
+// aucun : le process tué, la machine endormie — et les minutes d'attente d'une
+// prise des tickets mesurés qui y tombent. Sans eux, une attente d'une nuit ne
+// se lisait que par les événements cités à ses bouts : rien ne disait si la
+// station tournait.
+//
 // Une lecture qui échoue ne fait tomber ni la section ni le dépôt du ticket :
 // la ligne qui en dépend le dit, avec l'erreur, et rien n'est inventé à sa place.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "./attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_REPONSE } from "./blocage-au-manager.ts";
+import { BATTEMENT } from "./events/runtime.ts";
 import { ouvrirJournal } from "./journal.ts";
 import type { QualiteDuTicket } from "./mesure-qualite.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "./qualite-github.ts";
@@ -60,7 +69,7 @@ export const LONGUEUR_SECTION_MAX = 30_000;
 // Combien de tickets se lisent sur GitHub à la fois.
 const LECTURES_EN_PARALLELE = 4;
 // Les événements du journal qui ne disent rien de la fenêtre : le battement du runtime et le suivi des sessions.
-const BRUIT = ["runtime.ticked", "session.observed", "token.observed", "cook.progressed"];
+const BRUIT = [BATTEMENT, "session.observed", "token.observed", "cook.progressed"];
 
 // Ce que la preuve sait d'un ticket mesuré. `raisons` : celles de ses renvois,
 // de ses cooks sans livraison comptés pour un essai (`echecs`) et des autres
@@ -79,7 +88,8 @@ export type RaisonsLues = { renvois: string[]; echecs: string[]; arrets?: string
 
 export type EvenementDuJournal = { at: string; type: string; ticket: number | null; payload: unknown };
 // Les événements de la fenêtre, ou pourquoi ils ne se lisent pas.
-export type JournalDeLaFenetre = { debut: string; fin: string } & ({ evenements: EvenementDuJournal[] } | { erreur: string });
+// `battements` : les instants des battements du runtime dans la fenêtre, lus avec ses événements.
+export type JournalDeLaFenetre = { debut: string; fin: string; battements?: string[] } & ({ evenements: EvenementDuJournal[] } | { erreur: string });
 
 const court = (texte: string, longueur = LONGUEUR_MAX) => (texte.length > longueur ? `${texte.slice(0, longueur - 1)}…` : texte);
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -330,10 +340,72 @@ export function sectionDuTempsPerdu(tickets: readonly PreuveDuTicket[], journal:
     "",
     ...tickets.flatMap((p) => lignesDuTemps(p, projet)),
     "",
+    ...sectionDesSilences(tickets, journal, projet),
     `### Station journal, ${journal.debut} to ${journal.fin}`,
     "",
     ...evenements,
   ].join("\n");
+}
+
+// Un silence de la station : plus de 10 min sans battement du runtime, qui en écrit un par minute.
+const SILENCE_MS = 10 * 60_000;
+// Combien de silences la section nomme, au plus : les plus longs.
+const SILENCES_CITES = 20;
+// Combien d'arrêts et de départs du runtime une ligne de silence nomme, au plus.
+const BOUTS_CITES = 6;
+const enMinutes = (ms: number) => `${Math.round(ms / 6000) / 10} min`;
+
+// Les silences de la fenêtre : du dernier battement (ou du début de la
+// fenêtre) au suivant (ou à sa fin), quand plus de `SILENCE_MS` les séparent.
+function silencesDeLaFenetre(battements: readonly string[], debut: string, fin: string): { debut: number; fin: number }[] {
+  const bornes = [Date.parse(debut), ...battements.map((b) => Date.parse(b)).filter((n) => !Number.isNaN(n)), Date.parse(fin)].sort((a, b) => a - b);
+  return bornes.slice(1).flatMap((at, rang) => {
+    const avant = bornes[rang] as number;
+    return at - avant > SILENCE_MS ? [{ debut: avant, fin: at }] : [];
+  });
+}
+
+// La section des silences : chacun, ce que le journal dit de son arrêt et de
+// sa reprise, et l'attente d'une prise de chaque ticket qui y tombe. Rien sans
+// battements lus : un journal illisible se dit dans sa section, une fois.
+function sectionDesSilences(tickets: readonly PreuveDuTicket[], journal: JournalDeLaFenetre, projet?: string): string[] {
+  const battements = journal.battements;
+  if (battements === undefined || "erreur" in journal) return [];
+  const titre = ["### Station heartbeat", ""];
+  const silences = silencesDeLaFenetre(battements, journal.debut, journal.fin);
+  if (silences.length === 0) return [...titre, `- the station's runtime wrote its heartbeat every minute while it ran, with no silence over ${enMinutes(SILENCE_MS)} in this window`, ""];
+  const evenements = journal.evenements;
+  const attentes = tickets.map((p) => ({ ticket: p.temps.ticket, attentes: attentesDuTicket(p) }));
+  const dedans = (s: { debut: number; fin: number }) =>
+    attentes
+      .map(({ ticket, attentes }) => ({ ticket, ms: attentes.reduce((somme, a) => somme + Math.max(0, Math.min(a.fin, s.fin) - Math.max(a.debut, s.debut)), 0) }))
+      .filter(({ ms }) => ms > 0);
+  const total = attentes.reduce((somme, { attentes }) => somme + attentes.reduce((s, a) => s + (a.fin - a.debut), 0), 0);
+  const tombees = silences.reduce((somme, s) => somme + dedans(s).reduce((t, { ms }) => t + ms, 0), 0);
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const ligne = (s: { debut: number; fin: number }) => {
+    // Chaque arrêt et chaque départ du runtime dans le silence, dans l'ordre du
+    // journal : plusieurs relances d'un même silence ne s'apparient pas au hasard.
+    const bouts = evenements.filter((e) => (e.type === "runtime.stopped" || e.type === "runtime.started") && Date.parse(e.at) >= s.debut && Date.parse(e.at) <= s.fin);
+    const signal = (e: EvenementDuJournal) => (e.payload as { signal?: unknown } | null)?.signal;
+    const dit = (e: EvenementDuJournal) => (e.type === "runtime.started" ? `started at ${e.at}` : `stopped at ${e.at}${typeof signal(e) === "string" ? ` (${signal(e)})` : ""}`);
+    const nommes = bouts.slice(0, BOUTS_CITES).map(dit);
+    const plus = bouts.length > BOUTS_CITES ? `, and ${bouts.length - BOUTS_CITES} more stops and starts` : "";
+    const cause = !bouts.some((e) => e.type === "runtime.stopped")
+      ? `no stop written: the runtime was killed, or the machine slept${nommes.length === 0 ? "" : `; the runtime ${nommes.join(", ")}${plus}`}`
+      : `the runtime ${nommes.join(", ")}${plus}`;
+    const attente = dedans(s);
+    return `- ${iso(s.debut)} to ${iso(s.fin)} (${enMinutes(s.fin - s.debut)}): ${cause}; claim wait inside: ${attente.length === 0 ? "none" : attente.map(({ ticket, ms }) => `${nomme(ticket, projet)} ${enMinutes(ms)}`).join(", ")}`;
+  };
+  const cites = [...silences].sort((a, b) => b.fin - b.debut - (a.fin - a.debut)).slice(0, SILENCES_CITES).sort((a, b) => a.debut - b.debut);
+  return [
+    ...titre,
+    `_The station's runtime writes a heartbeat to its journal every minute while it runs. ${silences.length} silence${silences.length === 1 ? "" : "s"} over ${enMinutes(SILENCE_MS)} in this window; ${enMinutes(tombees)} of the measured tickets' ${enMinutes(total)} of waits before a claim (from filing or \`fire\`, and after each cook given back) fall in them._`,
+    "",
+    ...cites.map(ligne),
+    ...(silences.length > cites.length ? [`- and ${silences.length - cites.length} shorter`] : []),
+    "",
+  ];
 }
 
 // La fenêtre mesurée : du premier dépôt (ou de la première prise) au dernier merge des tickets.
@@ -344,25 +416,42 @@ export function fenetreDesTickets(temps: readonly TempsTicket[]): { debut: strin
   return { debut: new Date(Math.min(...debuts)).toISOString(), fin: new Date(Math.max(...fins)).toISOString() };
 }
 
-// Les événements du journal de la station entre `debut` et `fin` (ISO), dans
-// l'ordre, sans le bruit. Le journal s'ouvre en lecture seule et se referme.
-export function evenementsDeLaFenetre(repertoireEtat: string, debut: string, fin: string): EvenementDuJournal[] {
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+type JournalOuvert = ReturnType<typeof ouvrirJournal>;
+
+// Les événements du journal ouvert entre `debut` et `fin` (ISO), dans l'ordre, sans le bruit.
+function lireLesEvenements(journal: JournalOuvert, debut: string, fin: string): EvenementDuJournal[] {
+  return journal.base
+    .lire<{ at: string; type: string; ticket: number | null; payload: string }>(
+      "SELECT at, type, ticket, payload FROM events WHERE at >= ? AND at <= ? AND type NOT IN (SELECT value FROM json_each(?)) ORDER BY seq",
+      debut,
+      fin,
+      JSON.stringify(BRUIT),
+    )
+    .map(({ payload, ...e }) => {
+      let lu: unknown = payload;
+      try {
+        lu = JSON.parse(payload);
+      } catch {}
+      return { ...e, payload: lu };
+    });
+}
+
+// Le journal de la fenêtre, lu d'une seule ouverture en lecture seule : ses
+// événements, sans le bruit, et les instants des battements du runtime. Un
+// journal qui ne s'ouvre pas ou ne se lit pas est une seule erreur, que la
+// section du journal dit ; la section des silences n'invente rien sans lui.
+function lireLaFenetre(repertoireEtat: string, fenetre: { debut: string; fin: string }): JournalDeLaFenetre {
+  let journal: JournalOuvert;
   try {
-    return journal.base
-      .lire<{ at: string; type: string; ticket: number | null; payload: string }>(
-        "SELECT at, type, ticket, payload FROM events WHERE at >= ? AND at <= ? AND type NOT IN (SELECT value FROM json_each(?)) ORDER BY seq",
-        debut,
-        fin,
-        JSON.stringify(BRUIT),
-      )
-      .map(({ payload, ...e }) => {
-        let lu: unknown = payload;
-        try {
-          lu = JSON.parse(payload);
-        } catch {}
-        return { ...e, payload: lu };
-      });
+    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+  } catch (erreur) {
+    return { ...fenetre, erreur: message(erreur) };
+  }
+  try {
+    const battements = journal.base.lire<{ at: string }>("SELECT at FROM events WHERE type = ? AND at >= ? AND at <= ? ORDER BY seq", BATTEMENT, fenetre.debut, fenetre.fin).map(({ at }) => at);
+    return { ...fenetre, battements, evenements: lireLesEvenements(journal, fenetre.debut, fenetre.fin) };
+  } catch (erreur) {
+    return { ...fenetre, erreur: message(erreur) };
   } finally {
     journal.fermer();
   }
@@ -409,12 +498,7 @@ export function preuveDeMesure({ github, repertoireEtat, projetMesure }: { githu
     const fenetre = fenetreDesTickets(recents);
     if (fenetre === null) return sectionDuTempsPerdu(tickets, { debut: "unknown", fin: "unknown", erreur: "the measured tickets carry no readable instant" }, projetMesure);
     if (repertoireEtat === undefined) return sectionDuTempsPerdu(tickets, { ...fenetre, erreur: "this station was started without a state directory" }, projetMesure);
-    let journal: JournalDeLaFenetre;
-    try {
-      journal = { ...fenetre, evenements: evenementsDeLaFenetre(repertoireEtat, fenetre.debut, fenetre.fin) };
-    } catch (erreur) {
-      journal = { ...fenetre, erreur: message(erreur) };
-    }
+    const journal = lireLaFenetre(repertoireEtat, fenetre);
     return sectionDuTempsPerdu(tickets, journal, projetMesure);
   };
 }

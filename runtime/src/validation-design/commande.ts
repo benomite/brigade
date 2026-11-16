@@ -1,9 +1,10 @@
 // La commande des livraisons design retenues pour le chef (#3184), que l'app
 // appelle sur la carte « Validate its screen » :
-//   npm --prefix runtime run design -- validate <owner>/<repo>#<PR>                          merge la PR, ferme la carte
+//   npm --prefix runtime run design -- validate <owner>/<repo>#<ticket>                          merge la PR, ferme la carte
 //     (la tête a bougé depuis la carte : la validation est gardée, la pass merge la PR une fois sa tête verte ;
 //      la PR en conflit avec sa base : la validation est gardée, la cuisine met la PR à jour de sa base, puis la merge)
-//   npm --prefix runtime run design -- send-back <owner>/<repo>#<PR> --comment "<à changer>"  la renvoie à un cook, ferme la carte
+//   npm --prefix runtime run design -- send-back <owner>/<repo>#<ticket> --comment "<à changer>"  la renvoie à un cook, ferme la carte
+// Le numéro du ticket nomme sa livraison ; celui de la PR reste un alias (#3718).
 // Rien ne passe par la box ni par son répertoire d'état : chaque geste s'écrit
 // sur GitHub, sous le `gh` du poste (`BRIGADE_GH_BIN`, sinon `gh`).
 import { Sortie, type Appel } from "../appel.ts";
@@ -11,12 +12,13 @@ import { lireCible } from "../attente-github/attente-github.ts";
 import { brancheDuTicket } from "../brigade-github.ts";
 import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import { GesteRefuse } from "../rail.ts";
-import { renvoyerLeDesign, valider, validationEnConflit, validationGardee, type GitHubDesGestes } from "./validation-design.ts";
+import { livraisonDe, renvoyerLeDesign, valider, validationEnConflit, validationGardee, type GitHubDesGestes } from "./validation-design.ts";
 
 const USAGE = [
-  "usage: npm --prefix runtime run design -- <gesture> <owner>/<repo>#<PR> …",
-  "  validate <owner>/<repo>#<PR>                          merge the delivery, close its card",
-  "  send-back <owner>/<repo>#<PR> --comment <what to change>   send the delivery back to a cook, close its card",
+  "usage: npm --prefix runtime run design -- <gesture> <owner>/<repo>#<ticket> …",
+  "  validate <owner>/<repo>#<ticket>                          merge the delivery, close its card",
+  "  send-back <owner>/<repo>#<ticket> --comment <what to change>   send the delivery back to a cook, close its card",
+  "  the number of the ticket's pull request is still accepted in place of the ticket's",
 ].join("\n");
 
 export type OuvrirGitHub = (depot: string) => GitHubDesGestes & { fermer(): void };
@@ -29,7 +31,7 @@ export async function principal({ args, env, dire, redire }: Appel, ouvrir: Ouvr
   const [geste, mot, ...suite] = args;
   const cible = lireCible(mot);
   if (geste !== "validate" && geste !== "send-back") echouer(2, geste === undefined ? USAGE : `unknown gesture: “${geste}”\n${USAGE}`);
-  if (cible === null) echouer(2, `the pull request is named <owner>/<repo>#<PR>\n${USAGE}`);
+  if (cible === null) echouer(2, `the delivery is named by its ticket, <owner>/<repo>#<ticket>\n${USAGE}`);
   let commentaire: string | null = null;
   if (geste === "send-back") {
     if (suite.length !== 2 || suite[0] !== "--comment") echouer(2, `send-back: --comment <what to change> is to be said\n${USAGE}`);
@@ -37,16 +39,17 @@ export async function principal({ args, env, dire, redire }: Appel, ouvrir: Ouvr
   } else if (suite.length > 0) echouer(2, USAGE);
 
   const github = ouvrir(cible.depot);
-  const nom = `${cible.depot}#${cible.numero}`;
+  // La livraison, nommée par son ticket d'abord (#3718).
+  const nom = (ticket: number, pr: number) => `${cible.depot}: ${livraisonDe(ticket, pr)}`;
   try {
     if (commentaire === null) {
-      const { carte, ticket, enAttente, enConflit } = await valider(github, cible.numero, brancheDuTicket);
-      if (enConflit) dire(validationEnConflit(nom, carte, cible.numero));
-      else dire(enAttente ? validationGardee(nom, carte) : `${nom} validated: merged, card #${carte} closed — ticket #${ticket} is served`);
+      const { carte, ticket, pr, enAttente, enConflit } = await valider(github, cible.numero, brancheDuTicket);
+      if (enConflit) dire(validationEnConflit(nom(ticket, pr), carte));
+      else dire(enAttente ? validationGardee(nom(ticket, pr), carte) : `${nom(ticket, pr)} validated: merged, card #${carte} closed — ticket #${ticket} is served`);
     } else {
-      const { carte, ticket, suivi } = await renvoyerLeDesign(github, cible.numero, commentaire, brancheDuTicket);
-      if (suivi !== undefined) dire(`${nom} was already merged: your comment is the follow-up ticket #${suivi}, card #${carte} closed`);
-      else dire(`${nom} sent back: #${ticket} goes back to a cook with your comment, card #${carte} closed — its next delivery comes back as a new card`);
+      const { carte, ticket, pr, suivi } = await renvoyerLeDesign(github, cible.numero, commentaire, brancheDuTicket);
+      if (suivi !== undefined) dire(`${nom(ticket, pr)} was already merged: your comment is the follow-up ticket #${suivi}, card #${carte} closed`);
+      else dire(`${nom(ticket, pr)} sent back: #${ticket} goes back to a cook with your comment, card #${carte} closed — its next delivery comes back as a new card`);
     }
   } catch (erreur) {
     if (erreur instanceof Sortie) throw erreur;

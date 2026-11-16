@@ -31,7 +31,7 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import type { GitHub } from "../github.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { duBot, separerLaCitation } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
-import { renvoyerAuCook } from "../validation-design/validation-design.ts";
+import { livraisonDe, renvoyerAuCook } from "../validation-design/validation-design.ts";
 import { marqueDeReponse, questionDuCorps, reponseDuCorps, type Reponse } from "./marques.ts";
 
 // Les mots qui valident ; tout autre texte renvoie la livraison à un cook.
@@ -88,7 +88,7 @@ function reponseDuChef(commentaires: readonly Commentaire[], pr: number): { sha:
 
 export type GitHubDeLaReponse = Pick<GitHub, "commenter" | "delabelliser"> & { commentaires(numero: number): Promise<Commentaire[]> };
 
-const renvoiDuChef = (pr: number, texte: string) => `The chef sent PR #${pr} back to a cook, answering its validation on this ticket — the chef asks for these changes:\n\n${texte}\n\nChange what is asked, and deliver.`;
+const renvoiDuChef = (ticket: number, pr: number, texte: string) => `The chef sent ${livraisonDe(ticket, pr)} back to a cook, answering its validation on this ticket — the chef asks for these changes:\n\n${texte}\n\nChange what is asked, and deliver.`;
 
 // Agit sur la réponse du chef à la validation de la PR `pr` (sa tête `tete`),
 // sur le ticket : `validated`, la réponse est gardée et la pass peut merger ;
@@ -99,10 +99,10 @@ export async function agirSurLaReponse(github: GitHubDeLaReponse, ticket: number
   if (lue === null) return null;
   const court = `\`${lue.sha.slice(0, 7)}\``;
   if (lue.reponse === "validated") {
-    await github.commenter(ticket, `${marqueDeReponse(pr.number, lue.sha, "validated")}\nValidated by the chef on this ticket, for PR #${pr.number} at ${court}: the pass merges it once its head is green.`);
+    await github.commenter(ticket, `${marqueDeReponse(pr.number, lue.sha, "validated")}\nValidated by the chef on this ticket, for ${livraisonDe(ticket, pr.number)} at ${court}: the pass merges it once its head is green.`);
     return "validated";
   }
-  await renvoyerAuCook(github, ticket, pr.sha, renvoiDuChef(pr.number, lue.texte));
-  await github.commenter(ticket, `${marqueDeReponse(pr.number, lue.sha, "sent-back")}\nSent back to a cook by the chef on this ticket, for PR #${pr.number} at ${court}.`);
+  await renvoyerAuCook(github, ticket, pr.sha, renvoiDuChef(ticket, pr.number, lue.texte));
+  await github.commenter(ticket, `${marqueDeReponse(pr.number, lue.sha, "sent-back")}\nSent back to a cook by the chef on this ticket, for ${livraisonDe(ticket, pr.number)} at ${court}.`);
   return "sent-back";
 }

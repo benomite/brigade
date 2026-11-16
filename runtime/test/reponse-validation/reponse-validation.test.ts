@@ -120,6 +120,22 @@ test("a send-back comment of the chef on the ticket puts the ticket back to a co
   assert.equal(renvois(faux).length, 1);
 });
 
+test("the chef's answers kept on the ticket name the delivery ticket first, not by its pull request alone (#3718)", async () => {
+  const validee = await retenue();
+  question(validee.faux, validee.sha);
+  chef(validee.faux, "Validate.");
+  await tours(validee.s, 3, () => validee.faux.mergee(TICKET) !== undefined);
+  assert.ok(commentaires(validee.faux).some((c) => c.body.includes(`\nValidated by the chef on this ticket, for the delivery of #40 (PR 1040) at \`${validee.sha.slice(0, 7)}\``)), "no validation kept naming the ticket first");
+
+  const renvoyee = await retenue();
+  question(renvoyee.faux, renvoyee.sha);
+  chef(renvoyee.faux, "Make the take button stand out.");
+  await tours(renvoyee.s, 1);
+  const [renvoi] = renvois(renvoyee.faux);
+  assert.match(renvoi?.body ?? "", /\nThe chef sent the delivery of #40 \(PR 1040\) back to a cook, answering its validation on this ticket/);
+  assert.ok(commentaires(renvoyee.faux).some((c) => c.body.includes(`\nSent back to a cook by the chef on this ticket, for the delivery of #40 (PR 1040) at \`${renvoyee.sha.slice(0, 7)}\`.`)), "no send-back kept naming the ticket first");
+});
+
 test("a comment of the chef on a ticket with no pending validation triggers neither merge nor send-back", async () => {
   const { faux, s, sha } = await retenue();
   // Aucune question sur le ticket : la demande que la pass y a posée (#3615)

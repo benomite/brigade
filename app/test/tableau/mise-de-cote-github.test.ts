@@ -42,6 +42,12 @@ describe("la ligne qu'un commentaire de mise de côté donne à la carte", () =>
     assert.ok(longue.length <= 161 && longue.endsWith("…"), longue);
     assert.equal(ligneDuCommentaire("<!-- brigade:x -->\n\n", 7), null);
   });
+
+  // Ce que la ligne suppose (ticket 3716) : un commentaire de mise de côté ne parle que de la livraison de son ticket. Toute
+  // PR qu'il nomme — même sous un autre numéro — y est dite comme la PR du ticket.
+  test("toute PR que la ligne nomme est dite comme celle du ticket, quel que soit son numéro", () => {
+    assert.equal(ligneDuCommentaire("Putting `blocked-on-human`: PR #2326 needs the chef's call, and pull request #2400 too.", 7), "Putting blocked-on-human: the PR of #7 needs the chef's call, and the PR of #7 too.");
+  });
 });
 
 describe("ce que la carte dit d'un ticket mis de côté, d'après les commentaires de son issue", () => {

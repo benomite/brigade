@@ -30,6 +30,7 @@ import { LABEL_IN_PASS } from "../github-etat/etats.ts";
 import { LABEL, type GitHub } from "../github.ts";
 import { GesteRefuse } from "../rail.ts";
 import { numeroDeLaPR } from "../validation-design/brief.ts";
+import { capitale, livraisonDe } from "../validation-design/validation-design.ts";
 
 // Ce que l'annulation lit et écrit de GitHub.
 export type GitHubDeLAnnulation = Pick<GitHub, "issue" | "ouvertes" | "prQuiFerme" | "commenter" | "labelliser" | "delabelliser" | "creerIssue" | "ouvrirPR" | "fermerIssue"> &
@@ -77,9 +78,9 @@ export async function annuler(github: GitHubDeLAnnulation, ticket: number, branc
   if (pr === null || pr.commitDeMerge === undefined) throw new GesteRefuse(`#${ticket} was not closed by a merged pull request: there is no merge to undo`);
   const merge = await github.commitGit(pr.commitDeMerge);
   const [avant] = merge?.parents ?? [];
-  if (avant === undefined) throw new GesteRefuse(`the merge of PR #${pr.number} (${court(pr.commitDeMerge)}) is not known to GitHub: there is nothing to revert`);
+  if (avant === undefined) throw new GesteRefuse(`the merge of ${livraisonDe(ticket, pr.number)}, commit ${court(pr.commitDeMerge)}, is not known to GitHub: there is nothing to revert`);
   const base = await github.commitGit(avant);
-  if (base === null) throw new GesteRefuse(`the commit before the merge of PR #${pr.number} (${court(avant)}) is not known to GitHub`);
+  if (base === null) throw new GesteRefuse(`the commit before the merge of ${livraisonDe(ticket, pr.number)}, ${court(avant)}, is not known to GitHub`);
   const { login } = await github.droits();
   const titre = issue.title;
 
@@ -130,8 +131,8 @@ export async function annuler(github: GitHubDeLAnnulation, ticket: number, branc
     await github.rouvrirIssue(ticket);
     if (issue.labels.includes(LABEL)) await github.delabelliser(ticket, LABEL);
     const numero = numeroDeLaPR(url);
-    const laPR = numero === null ? url : `PR #${numero}`;
-    await github.commenter(ticket, `Undone by @${login} from its card: ${laPR} reverts its merge (PR #${pr.number}), and goes through the pass like any delivery as #${undo}. #${ticket} is reopened off the rail: put \`${LABEL}\` back on it to have it cooked again.`);
+    const laPR = numero === null ? url : capitale(livraisonDe(undo, numero));
+    await github.commenter(ticket, `Undone by @${login} from its card: ${laPR} reverts the merge of ${livraisonDe(ticket, pr.number)}, and goes through the pass like any delivery as #${undo}. #${ticket} is reopened off the rail: put \`${LABEL}\` back on it to have it cooked again.`);
     return { issue: "ouverte", undo, pr: numero, url };
   } finally {
     // Une branche d'essai que GitHub n'a pas supprimée ne retient rien : aucune

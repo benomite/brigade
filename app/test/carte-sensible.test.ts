@@ -71,7 +71,7 @@ describe("ce que l'app lit de GitHub", () => {
     assert.deepEqual(labels, ["chef-todo"]);
     assert.deepEqual(revueDuCorps(DEPOT, corps), { pr: 41, ticket: 30, sha: SHA, url: `https://github.com/${DEPOT}/pull/41` });
     const todo = carteDuChefDeTodo(await carteLue()) ?? assert.fail("pas de carte de TODO");
-    assert.equal(todo.question, "#30 is sensitive: review the PR of #30 before it is merged. Merge it and the kitchen merges the PR of #30; send it back with a note and a cook takes #30 up again with your note.");
+    assert.equal(todo.question, SENSIBLE.question(30, 41));
     assert.match(todo.question ?? "", /^#30 is sensitive/);
     assert.deepEqual(todo.revue, { pr: 41, ticket: 30 });
     assert.deepEqual(todo.choix, [], "ni choix ni réponse libre : ses deux réponses sont sur la carte");
@@ -173,7 +173,7 @@ describe("la carte « review before merge »", () => {
   test("la question, le lien de la PR qui l'ouvre d'un clic, et exactement deux réponses — « Merge » recommandé, « Send back » éteint sans note", async () => {
     const vue = await ouvrir();
     const carte = laCarte(vue) ?? assert.fail("pas de carte « review before merge »");
-    assert.ok(carte.dessous("p").some(({ textContent }) => textContent === SENSIBLE.question(30, 41).replaceAll("PR #41", "the PR of #30")));
+    assert.ok(carte.dessous("p").some(({ textContent }) => textContent === SENSIBLE.question(30, 41)));
     bouton(carte, "PR of #30").click();
     assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 62]);
     const libelles = carte.dessous("button").map(({ textContent }) => textContent);
@@ -299,7 +299,7 @@ describe("la carte « review before merge » dit sa PR par son ticket (ticket 37
     const carte = laCarte(vue) ?? assert.fail("pas de carte « review before merge »");
     const survols = [...carte.descendants()].flatMap(({ title, ariaLabel }) => [title, ariaLabel ?? ""]);
     assert.doesNotMatch([carte.textContent, ...survols].join("\n"), /#41\b/);
-    assert.match(carte.textContent, /review the PR of #30 before it is merged/);
+    assert.match(carte.textContent, /review the delivery of #30 \(PR 41\) before it is merged/);
     assert.ok(survols.some((survol) => survol.startsWith("The PR of #30 is merged into the integration branch")), survols.join(" | "));
     bouton(carte, "PR of #30").click();
     assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 62]);

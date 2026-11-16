@@ -1241,7 +1241,7 @@ Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 outlined in red, what it means on hover; a ticket without the label carries none. The pass does not merge its green
 delivery (#3223, `docs/runtime/pass.md`): since #3615, the ticket itself, labelled `chef-todo`, its marked comment of kind
 `review-before-merge` carrying the pull request (before, a `chef-todo` issue titled `review before merge`). In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
-in this order: the question (`#<ticket> is sensitive: review the PR of #<ticket> before it is merged. …` — the runtime's `PR #<PR>` said by its ticket, #3716); `PR of #<ticket>`, which
+in this order: the question (`#<ticket> is sensitive: review the delivery of #<ticket> (PR <PR>) before it is merged. …`); `PR of #<ticket>` (#3716), which
 opens the pull request in one click; then its two answers, each with its price on hover:
 
 | answer | what it plays | then |
@@ -3095,7 +3095,8 @@ icon, so there is only one. The installed app keeps one process: opened again, i
 - **Keep-awake, on a Mac (#3642).** While the station keeps this Mac awake for a running cook, the menu shows
   `Keeping this computer awake while cooking` under the line. **Keep this computer awake while cooking** is a checkbox
   of the menu: unchecked, the station releases its hold within a second and holds none for later cooks; checked again,
-  it holds again if a cook is running. The setting survives a station restart. A setting file that cannot be read shows
+  it holds again if a cook is running. Since #3713 the station also holds the Mac awake while a ticket it serves waits
+  for a claim, under the same checkbox, and the menu shows the same line then. The setting survives a station restart. A setting file that cannot be read shows
   the checkbox greyed out, `— setting unreadable`, and nothing overwrites it. On Windows, neither the line nor the
   checkbox appears. The same line shows on this computer's card in a project's Stations tab
   (`app/src/vue/veille-machine/`). What the station does is in [`runtime/station.md`](runtime/station.md#keeping-the-mac-awake-while-a-cook-runs).
