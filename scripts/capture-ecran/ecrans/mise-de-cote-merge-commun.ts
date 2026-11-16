@@ -20,7 +20,7 @@ const COMMENTAIRES = [
     created_at: DEPUIS,
   },
 ];
-const miseDeCote = miseDeCoteDe(DEPOT, BLOCKED_ON_HUMAN, COMMENTAIRES);
+const miseDeCote = miseDeCoteDe(DEPOT, BLOCKED_ON_HUMAN, COMMENTAIRES, 22);
 const pr = miseDeCote.pr ?? { numero: 45, url: `https://github.com/${DEPOT}/pull/45` };
 
 export const CARTE: AttenteDuChef = {

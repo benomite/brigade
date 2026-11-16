@@ -23,6 +23,8 @@ const A = "2026-11-11T12:04:12.000Z";
 const DEPOT = "chef/parade";
 const SHA = "3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345";
 const QUESTION = "Does the screen of #58 look right? Validate it and PR #60 is merged; send it back with what to change and a cook takes it up again.";
+// La question telle que la carte la dit : sa PR par son ticket (ticket 3716).
+const QUESTION_DITE = QUESTION.replace("PR #60", "the PR of #58");
 const capture = (fichier: string) => `https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/${fichier}?raw=true`;
 const CORPS = [`<!-- brigade:validation-design pr=60 ticket=58 sha=${SHA} -->`, `| ![rail — avant](${capture("rail-avant.png")}) | ![rail — après](${capture("rail-apres.png")}) |`].join("\n");
 const CHEF = { sorte: "design-validation", texte: `${QUESTION}\n\nPull request: https://github.com/${DEPOT}/pull/60`, design: validationDuCorps(DEPOT, CORPS) };
@@ -94,7 +96,7 @@ for (const [ecran, ouvrir, ou] of [
     test("la question, les captures avant et après posées sans un clic, le lien de la PR, « Validate » recommandé, le champ et « Send back to the kitchen » éteint", async () => {
       const vue = await ouvrir();
       const carte = laCarte(ou(vue) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation");
-      assert.ok(carte.dessous("p").some(({ textContent }) => textContent === QUESTION));
+      assert.ok(carte.dessous("p").some(({ textContent }) => textContent === QUESTION_DITE));
       const images = carte.dessous("img") as unknown as Array<{ alt: string; src: string }>;
       assert.deepEqual(images.map(({ alt }) => alt), ["rail — before", "rail — after"]);
       assert.ok(images.every(({ src }) => src === IMAGE.image));
@@ -105,7 +107,7 @@ for (const [ecran, ouvrir, ou] of [
           [61, "rail", "apres"],
         ],
       );
-      bouton(carte, "Pull request #60").click();
+      bouton(carte, "PR of #58").click();
       assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 61]);
       assert.equal(bouton(carte, VALIDER).className, "recommande");
       assert.equal(carte.dessous("textarea")[0]?.placeholder, CHAMP);
@@ -193,7 +195,7 @@ describe("« ask the second », comme toute carte de TODO (ticket 3133)", () => 
     const large = await ouvrirLarge({ passerAuSecond: () => SECOND });
     bouton(laCarte(carteDuTicket(large, 61) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation"), "ask the second").click();
     await repos();
-    assert.deepEqual(large.dernier("passerAuSecond"), ["parade", 61, QUESTION]);
+    assert.deepEqual(large.dernier("passerAuSecond"), ["parade", 61, QUESTION_DITE]);
     const telephone = await ouvrirAuTelephone();
     assert.ok(!(laCarte(telephone.element("cartes-du-chef")) ?? assert.fail("pas de carte")).dessous("button").some(({ textContent }) => textContent === "ask the second"));
   });
@@ -212,5 +214,20 @@ describe("une carte faite quitte ses colonnes", () => {
       { nom: "Taken", compte: "1", cartes: [{ ticket: 14 }] },
     ]);
     assert.equal(sansLesValidees(colonnes, new Set()), colonnes);
+  });
+});
+
+// Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR #60 de #58 se lirait comme un ticket. La carte dit sa
+// PR par son ticket, dans sa question, son lien et le prix de « Validate » ; le lien ouvre toujours la PR.
+describe("la carte « Validate its screen » dit sa PR par son ticket (ticket 3716)", () => {
+  test("dans TODO : « PR of #58 », jamais « #60 » — texte et survols ; son lien ouvre la PR de la carte", async () => {
+    const vue = await ouvrirLarge();
+    const carte = laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte")) ?? assert.fail("pas de carte de validation");
+    const survols = [...carte.descendants()].flatMap(({ title, ariaLabel }) => [title, ariaLabel ?? ""]);
+    assert.doesNotMatch([carte.textContent, ...survols].join("\n"), /#60\b/);
+    assert.match(carte.textContent, /Validate it and the PR of #58 is merged/);
+    assert.ok(survols.some((survol) => survol.startsWith("The PR of #58 is merged into the integration branch")), survols.join(" | "));
+    bouton(carte, "PR of #58").click();
+    assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 61]);
   });
 });

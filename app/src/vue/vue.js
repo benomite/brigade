@@ -5499,7 +5499,7 @@ function poserLaValidation(projet, ticket, todo, grand) {
   );
 }
 
-// La carte « review before merge » d'un ticket sensible (carte-sensible/, ticket 3224) : « Pull request #N » l'ouvre d'un
+// La carte « review before merge » d'un ticket sensible (carte-sensible/, ticket 3224) : « PR of #<ticket> » l'ouvre d'un
 // clic ; « Merge » et « Send back » jouent la commande `sensitive` du runtime par le process principal. `grand` : à la
 // largeur d'un téléphone, sur la carte ouverte depuis la liste.
 /** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo @param {boolean} grand */

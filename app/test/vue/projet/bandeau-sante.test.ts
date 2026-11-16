@@ -181,11 +181,11 @@ describe("le closer, sur Health", () => {
     assert.equal(bloc.dataset.bloc, "closer");
     const passes = partieDe(bloc, "passes").children.filter(({ className }) => className === "passe");
     assert.deepEqual(passes.map(texte), [
-      "#2531Oct 10in progress — its PR is in the pass3 candidatesPR #2533",
-      "#2477Oct 8−1,234 lines+56 added1 candidatePR #2480",
-      "#2410Oct 6nothing removedits PR was closed without a mergeno candidatePR #2412",
+      "#2531Oct 10in progress — its PR is in the pass3 candidatesPR of #2531",
+      "#2477Oct 8−1,234 lines+56 added1 candidatePR of #2477",
+      "#2410Oct 6nothing removedits PR was closed without a mergeno candidatePR of #2410",
     ]);
-    boutonNomme(bloc, "PR #2480").click();
+    boutonNomme(bloc, "PR of #2477").click();
     boutonNomme(bloc, "#2531").click();
     assert.deepEqual(ouverts, ["https://github.com/chef/parade/pull/2480", "https://github.com/chef/parade/issues/2531"]);
   });

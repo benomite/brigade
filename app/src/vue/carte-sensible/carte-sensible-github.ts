@@ -12,6 +12,7 @@
 // `send-back <owner>/<repo>#<PR> --note <…>` renvoie le ticket à un cook avec la note, et ferme la carte. Une note vide ne
 // part pas.
 import { jouerLaCommande, type CommandeChargee, type RenduDeValidation } from "../validation-design/validation-design-github.ts";
+import { PR_DU_TICKET } from "../pr-du-ticket.js";
 
 // La sorte de la carte, telle que le runtime l'écrit (runtime/src/sensible/sensible.ts, `SORTE_DE_CARTE`). Le label du
 // ticket est dans label.ts.
@@ -66,5 +67,5 @@ export async function jouerLaRevue({ depot, revue, geste, commande, env }: { dep
   if ("refus" in lu || revue === undefined) return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const cible = `${depot}#${revue.pr}`;
   const args = lu.geste === "merger" ? ["merge", cible] : ["send-back", cible, "--note", lu.note];
-  return jouerLaCommande({ args, commande, env, parDefaut: lu.geste === "merger" ? `PR #${revue.pr} merged` : `PR #${revue.pr} sent back` });
+  return jouerLaCommande({ args, commande, env, parDefaut: lu.geste === "merger" ? `the ${PR_DU_TICKET(revue.ticket)} merged` : `the ${PR_DU_TICKET(revue.ticket)} sent back`, livraison: revue });
 }

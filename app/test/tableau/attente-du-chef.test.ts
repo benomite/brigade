@@ -71,7 +71,7 @@ describe("ce qui attend le chef, lu de GitHub", () => {
       [
         { ticket: 30, quoi: "ecart", depuis: "2026-11-05T06:00:00Z", ligne: ECART_30 },
         { ticket: 12, quoi: "mise-de-cote", depuis: "2026-11-05T08:00:00Z", ligne: "Does the export keep the old column order? — answer on its Todo card: “Yes, merge PR #1560 as delivered” or “No, we drop the export” — or in your own words" },
-        { ticket: 8, quoi: "mise-de-cote", depuis: "2026-11-05T09:00:00Z", ligne: "Merge PR #2326 by hand? It changes what judges it. — answer on its Todo card: “Merge PR #2326” — or in your own words" },
+        { ticket: 8, quoi: "mise-de-cote", depuis: "2026-11-05T09:00:00Z", ligne: "Merge the PR of #8 by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #8” — or in your own words" },
         { ticket: 20, quoi: "carte", depuis: "2026-11-05T10:00:00Z", ligne: "Which token does the box use for the registry? — answer on its Todo card, in your own words" },
       ],
     );
@@ -85,7 +85,7 @@ describe("ce qui attend le chef, lu de GitHub", () => {
       "awaiting   4 decisions await the chef — the oldest for 6 h 00",
       `  #30  for 6 h 00  ${ECART_30}  Ticket 30`,
       "  #12  for 4 h 00  Does the export keep the old column order? — answer on its Todo card: “Yes, merge PR #1560 as delivered” or “No, we drop the export” — or in your own words  Ticket 12",
-      "  #8  for 3 h 00  Merge PR #2326 by hand? It changes what judges it. — answer on its Todo card: “Merge PR #2326” — or in your own words  Ticket 8",
+      "  #8  for 3 h 00  Merge the PR of #8 by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #8” — or in your own words  Ticket 8",
       "  #20  for 2 h 00  Which token does the box use for the registry? — answer on its Todo card, in your own words  Ticket 20",
       "end awaiting",
       "",

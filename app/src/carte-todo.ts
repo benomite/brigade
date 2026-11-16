@@ -14,6 +14,7 @@ import { LONGUEUR_MAX } from "./discussion.ts";
 import { formeDuChef, type CarteDuChef } from "./tableau/todo-github.ts";
 import { SORTE_SENSIBLE } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { capturesDeLaValidation, SORTE_DE_VALIDATION } from "./vue/validation-design/validation-design-github.ts";
+import { direLaPrParSonTicket } from "./vue/pr-du-ticket.js";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
 // au plus (`resume`, la forme unique de l'épique #1764 : runtime/src/carte-todo/forme.ts — absent d'un
@@ -91,8 +92,18 @@ function situationDe(contexte: string): string | undefined {
 // La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
 // libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
 // commentaire vide : il n'y a rien à quoi répondre.
-export function carteDuChefDeTodo({ sorte, texte, design, sensible, recommandee }: CarteDuChef): CarteDeTodo | undefined {
-  const { question, choix, contexte } = formeDuChef(texte);
+// La question d'une carte du chef telle que le chef la lit : celle d'une validation de design ou d'une revue sensible nomme sa
+// PR par son numéro (runtime/src/validation-design/, runtime/src/sensible/) — la carte la dit par son ticket (ticket 3716).
+export function questionDuChef({ texte, design, sensible }: CarteDuChef): string | null {
+  const { question } = formeDuChef(texte);
+  const livraison = design ?? sensible;
+  return question === null || livraison === undefined ? question : direLaPrParSonTicket(question, livraison.ticket, livraison.pr);
+}
+
+export function carteDuChefDeTodo(carte: CarteDuChef): CarteDeTodo | undefined {
+  const { sorte, texte, design, sensible, recommandee } = carte;
+  const { choix, contexte } = formeDuChef(texte);
+  const question = questionDuChef(carte);
   if (question === null) return undefined;
   // La carte « Validate its screen » (ticket 3185) : sa question, ses captures et sa PR, et ses deux gestes — valider, ou
   // renvoyer en cuisine avec un commentaire —, ni choix ni réponse libre. Son lien de PR est dit sur la carte, pas en

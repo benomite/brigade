@@ -15,6 +15,7 @@ import { ditDuPlafond, EN_COURS, poserUnPlafond } from "./PlafondsDuree.js";
 import { ditDuReglage, PAR_PR, rangeeDeReglage } from "../../composants/reglage/reglage.js";
 import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
+import { PR_DU_TICKET } from "../../pr-du-ticket.js";
 import { PAS_ENCORE, PASSE_DE_FERMETURE, LECTURE_DE, LECTURE } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
@@ -115,7 +116,7 @@ function ligneDePasse(doc, passe, ouvrir) {
   sur.className = "sur";
   const total = passe.candidats.length + passe.restants;
   sur.append(cree(doc, "small", total === 0 ? "no candidate" : `${total} candidate${s(total)}`));
-  if (passe.pr !== null) sur.append(lien(doc, `PR #${passe.pr.numero}`, passe.pr.url, ouvrir));
+  if (passe.pr !== null) sur.append(lien(doc, PR_DU_TICKET(passe.numero), passe.pr.url, ouvrir));
   rangee.append(qui, quoi, sur);
   return rangee;
 }

@@ -17,6 +17,7 @@ import { bouton } from "../composants/bouton/bouton.js";
 import { carteDeReponse } from "../composants/carte-attente/carte-attente.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { rangeeDuSecond } from "../todo-carte/demander-au-second.js";
+import { PR_DU_TICKET } from "../pr-du-ticket.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../carte-todo.ts").CarteDeTodo} CarteDeTodo */
@@ -52,10 +53,11 @@ export const RENVOYE = "sent back ✓";
 export const CONFIRMATION_MS = 1200;
 // Le champ de la note, tel que la vue le reconnaît pour lui rendre le clavier quand la page est reposée.
 export const CHAMP_DE_LA_NOTE = "note-sensible";
-/** @param {number} pr */
-export const LIEN = (pr) => `Pull request #${pr}`;
-/** @param {number} pr */
-export const PRIX_MERGER = (pr) => `PR #${pr} is merged into the integration branch from your GitHub account, and the card is closed — a merge is not undone from the app`;
+// La PR se dit par son ticket (pr-du-ticket.js, ticket 3716) ; son lien ouvre la PR.
+/** @param {number} ticket */
+export const LIEN = (ticket) => PR_DU_TICKET(ticket);
+/** @param {number} ticket */
+export const PRIX_MERGER = (ticket) => `The ${PR_DU_TICKET(ticket)} is merged into the integration branch from your GitHub account, and the card is closed — a merge is not undone from the app`;
 /** @param {number} ticket */
 export const PRIX_RENVOYER = (ticket) => `your note is posted on #${ticket} as what to change, and the card is closed: a cook takes the ticket up again — it may be launched on the project's quota`;
 export const SANS_PONT = "nothing was done: this app does not play the kitchen's command — answer this card from the desktop app";
@@ -115,7 +117,7 @@ export function poserCarteSensible(doc, ticket, carte, etat, { note, cle, lectur
   if (revue === undefined || "illisible" in revue) {
     racine.append(cree(doc, "p", "revue-illisible", revue?.illisible ?? "this card does not say which pull request it holds"));
   } else {
-    const lien = bouton(doc, LIEN(revue.pr), gestes.ouvrirPr, { sorte: "discret" });
+    const lien = bouton(doc, LIEN(revue.ticket), gestes.ouvrirPr, { sorte: "discret" });
     lien.className = `${lien.className} lien-de-la-pr`.trim();
     lien.title = "opens the pull request on GitHub";
     racine.append(lien);
@@ -137,7 +139,7 @@ function poserLesReponses(doc, revue, etat, { note, cle, grand }, gestes) {
   const geste = etat.etape === "envoi" || etat.etape === "fait" ? etat.geste : undefined;
   const dit = (/** @type {GesteSensible["geste"]} */ lequel, /** @type {string} */ libelle) =>
     geste !== lequel ? libelle : enRoute ? (lequel === "merger" ? EN_MERGE : EN_RENVOI) : fait ? (lequel === "merger" ? MERGE : RENVOYE) : libelle;
-  const merger = boutonAction(doc, dit("merger", MERGER), gestes.merger, { recommande: true, grand, prix: PRIX_MERGER(revue.pr) });
+  const merger = boutonAction(doc, dit("merger", MERGER), gestes.merger, { recommande: true, grand, prix: PRIX_MERGER(revue.ticket) });
   const boutonMerger = merger.children?.[0];
   if (boutonMerger !== undefined) boutonMerger.disabled = enRoute || fait;
 

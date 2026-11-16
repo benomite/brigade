@@ -246,7 +246,7 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   test("la livraison est repartie en cuisine depuis la carte : rien n'est mergé, la carte se ferme", async () => {
     const renvoi = (monde: Monde) => void monde.issues.get(TICKET)?.comments.push({ body: `${MARQUE_DE_RENVOI} n=1 sha=${SHA} -->\nThe CI went red.`, association: "OWNER" });
     const { telephone, monde } = await deuxFois({ geste: "valider" }, renvoi);
-    assert.match("refus" in telephone ? telephone.refus : assert.fail("validée"), /the delivery of PR #60 went back to a cook since card #58: nothing merged, card #58 closed/);
+    assert.match("refus" in telephone ? telephone.refus : assert.fail("validée"), /the delivery of #58 went back to a cook since card #58: nothing merged, card #58 closed/);
     assert.deepEqual(monde.merges, []);
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
@@ -254,9 +254,9 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   test("la PR fermée sans merge : rien à valider ni à renvoyer", async () => {
     const fermee = (monde: Monde) => void (monde.pr.state = "closed");
     const valider = await deuxFois({ geste: "valider" }, fermee);
-    assert.match("refus" in valider.telephone ? valider.telephone.refus : "", /^nothing was done: PR #60 is closed without being merged/);
+    assert.match("refus" in valider.telephone ? valider.telephone.refus : "", /^nothing was done: the PR of #58 is closed without being merged/);
     const renvoyer = await deuxFois(RENVOI, fermee);
-    assert.match("refus" in renvoyer.telephone ? renvoyer.telephone.refus : "", /^nothing was done: PR #60 is no longer open: there is nothing to send back/);
+    assert.match("refus" in renvoyer.telephone ? renvoyer.telephone.refus : "", /^nothing was done: the PR of #58 is no longer open: there is nothing to send back/);
   });
 
   test("la PR déjà mergée : « Validate » ferme la carte, sans merger une seconde fois", async () => {
@@ -277,14 +277,14 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
 
   test("un merge que GitHub refuse : la carte reste ouverte, et dit ce que GitHub a répondu", async () => {
     const { telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void (monde.refus.merge = { status: 405, message: "Required status check is expected" }));
-    assert.equal("refus" in telephone && telephone.refus, "nothing was done: GitHub refused to merge PR #60 — HTTP 405 — Required status check is expected; card #58 stays open");
+    assert.equal("refus" in telephone && telephone.refus, "nothing was done: GitHub refused to merge the PR of #58 — HTTP 405 — Required status check is expected; card #58 stays open");
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), true);
   });
 
   test("une carte fermée ailleurs depuis la lecture : rien ne part", async () => {
     const { runtime, telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void ((monde.issues.get(CARTE) ?? assert.fail("pas de carte")).state = "closed"));
     assert.deepEqual(telephone, { refus: "refus" in runtime ? runtime.refus : assert.fail("le runtime a validé"), detail: "" });
-    assert.equal("refus" in telephone && telephone.refus, "nothing was done: no open “Validate its screen” card holds PR #60");
+    assert.equal("refus" in telephone && telephone.refus, "nothing was done: no open “Validate its screen” card holds the PR of #58");
     assert.deepEqual(monde.ecrites, []);
   });
 });

@@ -256,7 +256,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     faux.pr.state = "closed";
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux) });
     assert.ok("refus" in rendu);
-    assert.match(rendu.refus, /^nothing was done: PR #60 is closed without being merged/);
+    assert.match(rendu.refus, /^nothing was done: the PR of #58 is closed without being merged/);
     assert.match(rendu.detail, /^brigade : PR #60 is closed without being merged/);
     assert.deepEqual(faux.merges, []);
     assert.equal((await lue(faux.appeler)).length, 1, "la carte reste dans TODO");

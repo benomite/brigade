@@ -132,7 +132,7 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
       { libelle: "since", valeur: "2026-11-04 02:58 UTC" },
     ]);
     const carte = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Pass")?.cartes[0];
-    assert.match(carte?.dit.find(({ libelle }) => libelle === "right now")?.valeur ?? "", /^awaiting review and merge PR #40, for /);
+    assert.match(carte?.dit.find(({ libelle }) => libelle === "right now")?.valeur ?? "", /^awaiting review and merge PR of #3, for /);
     assert.equal(carte?.dit.find(({ libelle }) => libelle === "cooked by")?.valeur, "mac/claude");
     // L'âge du rail est celui de la lecture de GitHub.
     assert.equal(lu.luLe, LU.toISOString());
@@ -202,6 +202,16 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
     assert.deepEqual(seconde, premiere);
     assert.ok(conditions.some((chemin) => chemin.includes("labels=fire")) && conditions.some((chemin) => chemin.includes("/issues/2/comments")));
   });
+
+  // Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR #40 de #3 se lirait comme un ticket.
+  test("la carte d'un ticket en pass dit sa PR par son ticket : « PR of #3 », jamais « #40 » (ticket 3716)", async () => {
+    const lu = await lire(github());
+    assert.ok(lu.lu);
+    const carte = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Pass")?.cartes.find(({ ticket }) => ticket === 3) ?? assert.fail("pas de carte #3 dans Pass");
+    const dits = carte.dit.map(({ valeur }) => valeur).join("\n");
+    assert.match(dits, /awaiting review and merge PR of #3, for /);
+    assert.doesNotMatch(dits, /#40\b/);
+  });
 });
 
 // Un ticket mis de côté (#2075) : #7 sorti de la cuisine après ses renvois, #8 en pass retenu par `blocked-on-human` — sa
@@ -233,7 +243,7 @@ describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, 
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(
       todo.map(({ ticket, ligne, miseDeCote, fiche, todo: carte }) => ({ ticket, ligne, miseDeCote, attendu: fiche.attendu, question: carte?.question })),
-      [{ ticket: 8, ligne: "Green, but not merged: merge it yourself.", miseDeCote: { label: "blocked-on-human", liens: [2326] }, attendu: "Green, but not merged: merge it yourself.", question: "Merge PR #2326 by hand? It changes what judges it." }],
+      [{ ticket: 8, ligne: "Green, but not merged: merge it yourself.", miseDeCote: { label: "blocked-on-human", liens: [8, 2326] }, attendu: "Green, but not merged: merge it yourself.", question: "Merge the PR of #8 by hand? It changes what judges it." }],
     );
     const rail = vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? [];
     const dit = Object.fromEntries(rail.map(({ ticket, ligne }) => [ticket, ligne]));
@@ -259,6 +269,19 @@ describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, 
     assert.ok(lu.lu);
     assert.deepEqual(lu.faits?.cooks, []);
     assert.match(statusDuTableau(lu), /^rail {7}1 WAITING · 1 queued · 3 set aside$/m);
+  });
+
+  // Ticket 3716 : la PR à merger à la main se dit par son ticket ; son lien reste celui de la PR.
+  test("la carte de #8 dit « Merge the PR of #8 », jamais « #2326 » ; la PR garde son lien (ticket 3716)", async () => {
+    const lu = await lireMisDeCote();
+    assert.ok(lu.lu);
+    const carte = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes.find(({ ticket }) => ticket === 8) ?? assert.fail("pas de carte #8 dans TODO");
+    const textes = [carte.todo?.question ?? "", ...(carte.todo?.choix.map(({ texte }) => texte) ?? [])];
+    assert.deepEqual(textes, ["Merge the PR of #8 by hand? It changes what judges it.", "Merge the PR of #8"]);
+    assert.ok(textes.every((texte) => !texte.includes("#2326")), textes.join(" | "));
+    const tenus = tenirFaits();
+    tenus.recevoir({ projet: "kitchen", demande: 0, a: LU.toISOString(), sorties: [{ commande: "facts", texte: JSON.stringify(lu.faits) }] });
+    assert.equal(tenus.adresse("kitchen", 2326), `https://github.com/${DEPOT}/pull/2326`);
   });
 });
 
@@ -286,12 +309,12 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
     const vu = await lireLeTodo();
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(todo.map(({ ticket, todo: carte }) => [ticket, carte?.question, carte?.choix.map(({ texte }) => texte)]), [
-      [2322, "Merge PR #2325 by hand? It changes what judges it.", ["Merge PR #2325"]],
-      [2408, "Merge PR #2416 by hand? It changes what judges it.", ["Merge PR #2416"]],
+      [2322, "Merge the PR of #2322 by hand? It changes what judges it.", ["Merge the PR of #2322"]],
+      [2408, "Merge the PR of #2408 by hand? It changes what judges it.", ["Merge the PR of #2408"]],
     ]);
     // Le merge est le choix de sa carte (#3368), joué par sa réponse : aucun autre geste de la fiche ne merge.
     for (const carte of todo) assert.ok(!gestesDeCarte(carte).some(({ id }) => (id as string) === "merger"), `#${carte.ticket} offers no other merge gesture`);
-    assert.deepEqual(todo.map(({ miseDeCote }) => miseDeCote?.liens), [[2325], [2416]]);
+    assert.deepEqual(todo.map(({ miseDeCote }) => miseDeCote?.liens), [[2322, 2325], [2408, 2416]]);
   });
 
   test("les onze `served-elsewhere` techniques sont sur le rail, avec leur ligne, et aucun dans Todo", async () => {

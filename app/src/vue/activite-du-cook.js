@@ -12,6 +12,7 @@ import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { bouton } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { NON_ATTEINT, CET_ORDINATEUR } from "./lexique.js";
+import { PR_DU_TICKET } from "./pr-du-ticket.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../tableau/lecture.ts").ActiviteDuCook} Activite */
@@ -140,9 +141,9 @@ export function poserLActiviteDuCook(doc, { publiees, ticket, pastille, ouvrirPr
     }
     section.append(cree(doc, "p", fini ? "its last steps" : "before that"), liste);
   }
-  // Sa PR, dès que la box la connaît ; fini sans PR, une ligne le dit.
+  // Sa PR, dès que la box la connaît — dite par son ticket (ticket 3716) ; fini sans PR, une ligne le dit.
   if (cook.pr !== null) {
-    const ouvre = bouton(doc, cook.pr.numero === null ? "open its PR" : `open PR #${cook.pr.numero}`, () => ouvrirPr());
+    const ouvre = bouton(doc, cook.pr.numero === null ? "open its PR" : `open the ${PR_DU_TICKET(ticket)}`, () => ouvrirPr());
     ouvre.className = "pr";
     ouvre.title = `open #${ticket}'s PR in the browser`;
     section.append(ouvre);

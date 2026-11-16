@@ -181,7 +181,7 @@ describe("ce que la page en dit", () => {
       etapes.map((li) => [li.dessous("strong")[0]?.textContent, li.dessous("span").find(({ className }) => className === "dit")?.textContent]),
       [
         [MOTS.pris, PRIS(5)],
-        [MOTS.pr, PR_OUVERTE(6)],
+        [MOTS.pr, PR_OUVERTE(5, 6)],
         [MOTS.pass, EN_PASS],
         [MOTS.renvoi, RENVOYE],
         [MOTS.repris, REPRIS(5)],
@@ -189,14 +189,14 @@ describe("ce que la page en dit", () => {
         [MOTS.servi, SERVI(5, 6)],
       ],
     );
-    assert.equal(etapes[3]?.dessous("p").find(({ className }) => className === "raison")?.textContent, RAISON);
+    assert.equal(etapes[3]?.dessous("p").find(({ className }) => className === "raison")?.textContent, RAISON.replace("PR #6", "the PR of #5"));
     // Le mot de la cuisine, et ce qu'il veut dire en clair : une copie à lui, les gates, la CI, la relecture.
     assert.match(PRIS(5), /its own copy of the repository/);
     assert.match(EN_PASS, /gates.*CI.*review/);
     // Le lien de la PR : sur sa ligne ouverte et sur le service — pas ailleurs.
     assert.deepEqual(
       etapes.map((li) => li.dessous("button").map(({ textContent }) => textContent)),
-      [[], [OUVRIR_LA_PR(6)], [], [], [], [], [OUVRIR_LA_PR(6)]],
+      [[], [OUVRIR_LA_PR(5, 6)], [], [], [], [], [OUVRIR_LA_PR(5, 6)]],
     );
     etapes[6]?.dessous("button")[0]?.click();
     (pose.dessous("button").find(({ textContent }) => textContent === RANGER) ?? assert.fail("pas de « dismiss »")).click();
@@ -322,7 +322,7 @@ describe("la vue jouée : le premier ticket du premier projet, raconté à mesur
     await lire(vue, lecture([entree("en pass", { pr: PR, renvoi: { n: 1, raison: RAISON } })]));
     await lire(vue, lecture([], [{ ticket: 5, titre: "La carte du midi", url: null, livre: A, station: "box/claude", pr: PR.url }]));
     assert.deepEqual(etapesDites(vue), ["pris", "pr", "pass", "renvoi", "repris", "pass", "servi"]);
-    assert.ok(section(vue).dessous("p").some(({ textContent }) => textContent === RAISON));
+    assert.ok(section(vue).dessous("p").some(({ textContent }) => textContent === RAISON.replace("PR #6", "the PR of #5")));
     const servi = section(vue).dessous("li").at(-1) ?? assert.fail("pas de ligne servie");
     (servi.dessous("button")[0] ?? assert.fail("pas de lien")).click();
     await repos();

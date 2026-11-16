@@ -11,7 +11,7 @@
 // Une carte notifie une fois : elle est retenue par son dépôt, son ticket et sa question. Elle est retirée — sa
 // notification disparaît — quand le chef y répond dans l'app (`carteRepondue`), ou quand la lecture suivante ne la porte
 // plus (répondue sur GitHub). Un projet dont la lecture échoue ne retire rien : « rien n'est lu » n'est pas « répondu ».
-import { formeDuChef } from "./tableau/todo-github.ts";
+import { questionDuChef } from "./carte-todo.ts";
 import type { AppelGitHub } from "./tableau/client.ts";
 import { lireCeQuiAttendLeChef, type AttenteDuChef } from "./tableau/attente-du-chef.ts";
 import { lireLesProjetsDuCompte, type ProjetDuCompte } from "./lecture-github-telephone.ts";
@@ -49,7 +49,7 @@ export function identifiantDe(cle: string): number {
 
 // La question qu'une entrée de TODO pose : celle de sa carte, à défaut le début de sa ligne.
 export function questionDe({ chef, ligne }: AttenteDuChef): string {
-  return (chef === undefined ? null : formeDuChef(chef.texte).question) ?? ligne.split(" — ")[0] ?? ligne;
+  return (chef === undefined ? null : questionDuChef(chef)) ?? ligne.split(" — ")[0] ?? ligne;
 }
 
 export function notificationDe(projet: string, ticket: number, question: string): Notification {

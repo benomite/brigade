@@ -71,7 +71,7 @@ describe("ce que l'app lit de GitHub", () => {
     assert.deepEqual(labels, ["chef-todo"]);
     assert.deepEqual(revueDuCorps(DEPOT, corps), { pr: 41, ticket: 30, sha: SHA, url: `https://github.com/${DEPOT}/pull/41` });
     const todo = carteDuChefDeTodo(await carteLue()) ?? assert.fail("pas de carte de TODO");
-    assert.equal(todo.question, SENSIBLE.question(30, 41));
+    assert.equal(todo.question, "#30 is sensitive: review the PR of #30 before it is merged. Merge it and the kitchen merges the PR of #30; send it back with a note and a cook takes #30 up again with your note.");
     assert.match(todo.question ?? "", /^#30 is sensitive/);
     assert.deepEqual(todo.revue, { pr: 41, ticket: 30 });
     assert.deepEqual(todo.choix, [], "ni choix ni réponse libre : ses deux réponses sont sur la carte");
@@ -173,12 +173,12 @@ describe("la carte « review before merge »", () => {
   test("la question, le lien de la PR qui l'ouvre d'un clic, et exactement deux réponses — « Merge » recommandé, « Send back » éteint sans note", async () => {
     const vue = await ouvrir();
     const carte = laCarte(vue) ?? assert.fail("pas de carte « review before merge »");
-    assert.ok(carte.dessous("p").some(({ textContent }) => textContent === SENSIBLE.question(30, 41)));
-    bouton(carte, "Pull request #41").click();
+    assert.ok(carte.dessous("p").some(({ textContent }) => textContent === SENSIBLE.question(30, 41).replaceAll("PR #41", "the PR of #30")));
+    bouton(carte, "PR of #30").click();
     assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 62]);
     const libelles = carte.dessous("button").map(({ textContent }) => textContent);
     // Hors le lien, « ask the second » de toute carte de TODO et le « ? » du prix de chaque réponse : deux réponses.
-    assert.deepEqual(libelles.filter((libelle) => !["Pull request #41", "ask the second", "?"].includes(libelle)), [MERGER, RENVOYER], "deux réponses, pas une de plus");
+    assert.deepEqual(libelles.filter((libelle) => !["PR of #30", "ask the second", "?"].includes(libelle)), [MERGER, RENVOYER], "deux réponses, pas une de plus");
     assert.equal(bouton(carte, MERGER).className, "recommande");
     assert.equal(carte.dessous("textarea")[0]?.placeholder, CHAMP);
     assert.equal(bouton(carte, RENVOYER).disabled, true);
@@ -283,10 +283,25 @@ describe("les deux réponses jouées par la commande du runtime", () => {
       redire("brigade : PR #41 is not held by a review before merge card");
       throw new Sortie(1);
     });
-    assert.deepEqual(await jouerLaRevue({ depot: DEPOT, revue, geste: { geste: "merger" }, env: {}, commande: refuse }), { refus: "nothing was done: PR #41 is not held by a review before merge card", detail: "brigade : PR #41 is not held by a review before merge card" });
+    assert.deepEqual(await jouerLaRevue({ depot: DEPOT, revue, geste: { geste: "merger" }, env: {}, commande: refuse }), { refus: "nothing was done: the PR of #30 is not held by a review before merge card", detail: "brigade : PR #41 is not held by a review before merge card" });
     const absente = async () => {
       throw new Error("Cannot find module sensible/commande.ts");
     };
     assert.deepEqual(await jouerLaRevue({ depot: DEPOT, revue, geste: { geste: "merger" }, env: {}, commande: absente }), { refus: "nothing was done: the kitchen's command could not run", detail: "Cannot find module sensible/commande.ts" });
+  });
+});
+
+// Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR #41 de #30 se lirait comme un ticket. La carte dit sa
+// PR par son ticket, dans sa question, son lien et le prix de « Merge » ; le lien ouvre toujours la PR.
+describe("la carte « review before merge » dit sa PR par son ticket (ticket 3716)", () => {
+  test("dans TODO : « PR of #30 », jamais « #41 » — texte et survols ; son lien ouvre la PR de la carte", async () => {
+    const vue = await ouvrir();
+    const carte = laCarte(vue) ?? assert.fail("pas de carte « review before merge »");
+    const survols = [...carte.descendants()].flatMap(({ title, ariaLabel }) => [title, ariaLabel ?? ""]);
+    assert.doesNotMatch([carte.textContent, ...survols].join("\n"), /#41\b/);
+    assert.match(carte.textContent, /review the PR of #30 before it is merged/);
+    assert.ok(survols.some((survol) => survol.startsWith("The PR of #30 is merged into the integration branch")), survols.join(" | "));
+    bouton(carte, "PR of #30").click();
+    assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 62]);
   });
 });

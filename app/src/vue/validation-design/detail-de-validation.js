@@ -182,7 +182,7 @@ export function poserDetailDeValidation(doc, ticket, carte, etat, affichage, { i
   if (validation === undefined || "illisible" in validation) {
     pied.append(cree(doc, "p", "validation-illisible", validation?.illisible ?? "this card does not say which pull request it validates"));
   } else {
-    const lien = bouton(doc, LIEN(validation.pr), gestes.ouvrirPr, { sorte: "discret" });
+    const lien = bouton(doc, LIEN(validation.ticket), gestes.ouvrirPr, { sorte: "discret" });
     lien.className = `${lien.className} lien-de-la-pr`.trim();
     lien.title = "opens the pull request on GitHub";
     pied.append(lien);
