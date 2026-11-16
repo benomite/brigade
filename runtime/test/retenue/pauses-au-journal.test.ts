@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { APPELS_AVANT_LA_PAUSE, constaterLimite, limiteDeLaStation, pausesDeLaStation, type ReponseHttp } from "../../src/limite-github.ts";
-import { evenementsDeLaFenetre, LONGUEUR_D_UNE_RETENUE, sectionDuTempsPerdu } from "../../src/preuve-mesure.ts";
+import { LONGUEUR_D_UNE_RETENUE, lireLaFenetre, sectionDuTempsPerdu } from "../../src/preuve-mesure.ts";
 import { annoncerRetenue, signauxDeLaStation } from "../../src/retenue/brancher.ts";
 import type { CauseDeRetenue } from "../../src/retenue/evenements.ts";
 import { detecterRetenue, direSaut, SANS_SIGNAL, type Observation } from "../../src/retenue/retenue.ts";
@@ -107,8 +107,7 @@ test("a kitchen held by GitHub's limit writes to the journal the pause, its refu
   assert.deepEqual(payload.skips, [SAUT]);
 
   // La preuve du temps perdu cite la ligne entière : coupée à 300 caractères, elle s'arrêtait avant les pauses.
-  const evenements = evenementsDeLaFenetre(etat, iso("12:00"), iso("13:00"));
-  const section = sectionDuTempsPerdu([], { debut: iso("12:00"), fin: iso("13:00"), evenements });
+  const section = sectionDuTempsPerdu([], lireLaFenetre(etat, { debut: iso("12:00"), fin: iso("13:00") }));
   const ligne = section.split("\n").find((l) => l.includes("`kitchen.held`"));
   assert.ok(ligne);
   assert.ok(ligne.length > 300 && ligne.length < LONGUEUR_D_UNE_RETENUE, String(ligne.length));

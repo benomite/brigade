@@ -88,8 +88,8 @@ export type RaisonsLues = { renvois: string[]; echecs: string[]; arrets?: string
 
 export type EvenementDuJournal = { at: string; type: string; ticket: number | null; payload: unknown };
 // Les événements de la fenêtre, ou pourquoi ils ne se lisent pas.
-// `battements` : les instants des battements du runtime dans la fenêtre, ou pourquoi ils ne se lisent pas.
-export type JournalDeLaFenetre = { debut: string; fin: string; battements?: string[] | { erreur: string } } & ({ evenements: EvenementDuJournal[] } | { erreur: string });
+// `battements` : les instants des battements du runtime dans la fenêtre, lus avec ses événements.
+export type JournalDeLaFenetre = { debut: string; fin: string; battements?: string[] } & ({ evenements: EvenementDuJournal[] } | { erreur: string });
 
 const court = (texte: string, longueur = LONGUEUR_MAX) => (texte.length > longueur ? `${texte.slice(0, longueur - 1)}…` : texte);
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -367,15 +367,14 @@ function silencesDeLaFenetre(battements: readonly string[], debut: string, fin: 
 
 // La section des silences : chacun, ce que le journal dit de son arrêt et de
 // sa reprise, et l'attente d'une prise de chaque ticket qui y tombe. Rien sans
-// battements lus (une section bâtie sans eux).
+// battements lus : un journal illisible se dit dans sa section, une fois.
 function sectionDesSilences(tickets: readonly PreuveDuTicket[], journal: JournalDeLaFenetre, projet?: string): string[] {
   const battements = journal.battements;
-  if (battements === undefined) return [];
+  if (battements === undefined || "erreur" in journal) return [];
   const titre = ["### Station heartbeat", ""];
-  if (!Array.isArray(battements)) return [...titre, `- the station's heartbeat could not be read: ${court(battements.erreur)}`, ""];
   const silences = silencesDeLaFenetre(battements, journal.debut, journal.fin);
   if (silences.length === 0) return [...titre, `- the station's runtime wrote its heartbeat every minute while it ran, with no silence over ${enMinutes(SILENCE_MS)} in this window`, ""];
-  const evenements = "erreur" in journal ? null : journal.evenements;
+  const evenements = journal.evenements;
   const attentes = tickets.map((p) => ({ ticket: p.temps.ticket, attentes: attentesDuTicket(p) }));
   const dedans = (s: { debut: number; fin: number }) =>
     attentes
@@ -387,17 +386,14 @@ function sectionDesSilences(tickets: readonly PreuveDuTicket[], journal: Journal
   const ligne = (s: { debut: number; fin: number }) => {
     // Chaque arrêt et chaque départ du runtime dans le silence, dans l'ordre du
     // journal : plusieurs relances d'un même silence ne s'apparient pas au hasard.
-    const bouts = evenements?.filter((e) => (e.type === "runtime.stopped" || e.type === "runtime.started") && Date.parse(e.at) >= s.debut && Date.parse(e.at) <= s.fin) ?? [];
+    const bouts = evenements.filter((e) => (e.type === "runtime.stopped" || e.type === "runtime.started") && Date.parse(e.at) >= s.debut && Date.parse(e.at) <= s.fin);
     const signal = (e: EvenementDuJournal) => (e.payload as { signal?: unknown } | null)?.signal;
     const dit = (e: EvenementDuJournal) => (e.type === "runtime.started" ? `started at ${e.at}` : `stopped at ${e.at}${typeof signal(e) === "string" ? ` (${signal(e)})` : ""}`);
     const nommes = bouts.slice(0, BOUTS_CITES).map(dit);
     const plus = bouts.length > BOUTS_CITES ? `, and ${bouts.length - BOUTS_CITES} more stops and starts` : "";
-    const cause =
-      evenements === null
-        ? "the journal does not say why"
-        : !bouts.some((e) => e.type === "runtime.stopped")
-          ? `no stop written: the runtime was killed, or the machine slept${nommes.length === 0 ? "" : `; the runtime ${nommes.join(", ")}${plus}`}`
-          : `the runtime ${nommes.join(", ")}${plus}`;
+    const cause = !bouts.some((e) => e.type === "runtime.stopped")
+      ? `no stop written: the runtime was killed, or the machine slept${nommes.length === 0 ? "" : `; the runtime ${nommes.join(", ")}${plus}`}`
+      : `the runtime ${nommes.join(", ")}${plus}`;
     const attente = dedans(s);
     return `- ${iso(s.debut)} to ${iso(s.fin)} (${enMinutes(s.fin - s.debut)}): ${cause}; claim wait inside: ${attente.length === 0 ? "none" : attente.map(({ ticket, ms }) => `${nomme(ticket, projet)} ${enMinutes(ms)}`).join(", ")}`;
   };
@@ -440,22 +436,11 @@ function lireLesEvenements(journal: JournalOuvert, debut: string, fin: string): 
     });
 }
 
-// Les événements du journal de la station entre `debut` et `fin` (ISO), dans
-// l'ordre, sans le bruit. Le journal s'ouvre en lecture seule et se referme.
-export function evenementsDeLaFenetre(repertoireEtat: string, debut: string, fin: string): EvenementDuJournal[] {
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
-  try {
-    return lireLesEvenements(journal, debut, fin);
-  } finally {
-    journal.fermer();
-  }
-}
-
-// Le journal de la fenêtre, lu d'une seule ouverture : ses événements et les
-// instants des battements du runtime. Un journal qui ne s'ouvre pas, ou dont
-// les événements ne se lisent pas, est une seule erreur, que la section du
-// journal dit ; des battements seuls illisibles se disent dans la leur.
-function lireLaFenetre(repertoireEtat: string, fenetre: { debut: string; fin: string }): JournalDeLaFenetre {
+// Le journal de la fenêtre, lu d'une seule ouverture en lecture seule : ses
+// événements, sans le bruit, et les instants des battements du runtime. Un
+// journal qui ne s'ouvre pas ou ne se lit pas est une seule erreur, que la
+// section du journal dit ; la section des silences n'invente rien sans lui.
+export function lireLaFenetre(repertoireEtat: string, fenetre: { debut: string; fin: string }): JournalDeLaFenetre {
   let journal: JournalOuvert;
   try {
     journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
@@ -463,12 +448,7 @@ function lireLaFenetre(repertoireEtat: string, fenetre: { debut: string; fin: st
     return { ...fenetre, erreur: message(erreur) };
   }
   try {
-    let battements: string[] | { erreur: string };
-    try {
-      battements = journal.base.lire<{ at: string }>("SELECT at FROM events WHERE type = ? AND at >= ? AND at <= ? ORDER BY seq", BATTEMENT, fenetre.debut, fenetre.fin).map(({ at }) => at);
-    } catch (erreur) {
-      battements = { erreur: message(erreur) };
-    }
+    const battements = journal.base.lire<{ at: string }>("SELECT at FROM events WHERE type = ? AND at >= ? AND at <= ? ORDER BY seq", BATTEMENT, fenetre.debut, fenetre.fin).map(({ at }) => at);
     return { ...fenetre, battements, evenements: lireLesEvenements(journal, fenetre.debut, fenetre.fin) };
   } catch (erreur) {
     return { ...fenetre, erreur: message(erreur) };

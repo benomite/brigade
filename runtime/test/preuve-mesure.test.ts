@@ -211,10 +211,10 @@ test("the lost-time evidence cites each claim wait of a ticket, the longest firs
 // benomite/secondes#50 et #52 (#3713) : une nuit d'attente d'une prise, que la
 // preuve ne disait que par les événements cités à ses bouts — rien ne disait si
 // la station tournait. Le battement du runtime, écrit chaque minute, le dit :
-// chaque silence de plus de 10 min est nommé, avec son arrêt s'il y en a un,
-// et l'attente d'une prise de chaque ticket qui y tombe.
-test("the lost-time evidence names each silence of the station's heartbeat over 10 min, its stop if the journal has one, and the claim wait that falls in it (#3713)", async (t) => {
-  const enregistrements = temps();
+// chaque silence de plus de 10 min est nommé, avec ses arrêts et ses départs
+// s'il y en a, et l'attente d'une prise de chaque ticket qui y tombe.
+// Un journal d'état où l'on écrit à l'heure qu'on dit : `noter` un fait, `battre` le runtime chaque minute de `de` à `a`, `fermer` avant de lire la preuve.
+function journalDuBattement(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   let maintenant = new Date("2026-11-07T08:00:00.000Z");
   const journal = ouvrirJournal(repertoire, { maintenant: () => maintenant });
@@ -225,6 +225,11 @@ test("the lost-time evidence names each silence of the station's heartbeat over 
   const battre = (de: string, a: string) => {
     for (let at = Date.parse(de); at <= Date.parse(a); at += 60_000) noter(new Date(at).toISOString(), "runtime.ticked", { intervalMs: 60_000 });
   };
+  return { repertoire, noter, battre, fermer: () => journal.fermer() };
+}
+
+test("the lost-time evidence names each silence of the station's heartbeat over 10 min, its stop or none, and the claim wait that falls in it (#3713)", async (t) => {
+  const { repertoire, noter, battre, fermer } = journalDuBattement(t);
   battre("2026-11-07T09:00:00.000Z", "2026-11-07T10:05:00.000Z");
   noter("2026-11-07T10:05:30.000Z", "runtime.stopped", { signal: "SIGTERM" });
   noter("2026-11-07T10:29:30.000Z", "runtime.started", { pid: 1, host: "box", node: "v26" });
@@ -232,41 +237,39 @@ test("the lost-time evidence names each silence of the station's heartbeat over 
   // Une demi-heure sans battement ni arrêt : le process tué, ou la machine endormie.
   battre("2026-11-07T11:40:00.000Z", "2026-11-07T12:30:00.000Z");
   // Cinq minutes sans battement ne sont pas un silence.
-  battre("2026-11-07T12:35:00.000Z", "2026-11-07T12:40:00.000Z");
-  // Deux relances dans un même silence : chaque arrêt et chaque départ, dans l'ordre, sans en apparier deux au hasard.
+  battre("2026-11-07T12:35:00.000Z", "2026-11-07T13:00:00.000Z");
+  fermer();
+  const corps = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: repertoire })("temps-perdu", temps(), QUALITES);
+  assert.match(
+    corps,
+    /### Station heartbeat\n\n_The station's runtime writes a heartbeat to its journal every minute while it runs\. 2 silences over 10 min in this window; 25 min of the measured tickets' 88 min of waits before a claim \(from filing or `fire`, and after each cook given back\) fall in them\._\n\n/,
+  );
+  assert.ok(corps.includes("- 2026-11-07T10:05:00.000Z to 2026-11-07T10:30:00.000Z (25 min): the runtime stopped at 2026-11-07T10:05:30.000Z (SIGTERM), started at 2026-11-07T10:29:30.000Z; claim wait inside: #102 15 min\n"), corps);
+  assert.ok(corps.includes("- 2026-11-07T11:10:00.000Z to 2026-11-07T11:40:00.000Z (30 min): no stop written: the runtime was killed, or the machine slept; claim wait inside: #103 10 min\n"), corps);
+  assert.doesNotMatch(corps, /12:30:00\.000Z to/);
+  // La section des silences précède le journal, qui reste la dernière.
+  assert.ok(corps.indexOf("### Station heartbeat") < corps.indexOf("### Station journal"));
+});
+
+test("a silence with several stops and starts of the runtime names each of them in the journal's order (#3713)", async (t) => {
+  const { repertoire, noter, battre, fermer } = journalDuBattement(t);
+  battre("2026-11-07T09:00:00.000Z", "2026-11-07T12:40:00.000Z");
   noter("2026-11-07T12:41:00.000Z", "runtime.stopped", { signal: "SIGTERM" });
   noter("2026-11-07T12:42:00.000Z", "runtime.started", { pid: 2, host: "box", node: "v26" });
   noter("2026-11-07T12:43:00.000Z", "runtime.stopped", { signal: "SIGKILL" });
   noter("2026-11-07T12:54:00.000Z", "runtime.started", { pid: 3, host: "box", node: "v26" });
   battre("2026-11-07T12:55:00.000Z", "2026-11-07T13:00:00.000Z");
-  journal.fermer();
-  const corps = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
-  assert.match(
-    corps,
-    /### Station heartbeat\n\n_The station's runtime writes a heartbeat to its journal every minute while it runs\. 3 silences over 10 min in this window; 25 min of the measured tickets' 88 min of waits before a claim \(from filing or `fire`, and after each cook given back\) fall in them\._\n\n/,
-  );
-  assert.ok(corps.includes("- 2026-11-07T10:05:00.000Z to 2026-11-07T10:30:00.000Z (25 min): the runtime stopped at 2026-11-07T10:05:30.000Z (SIGTERM), started at 2026-11-07T10:29:30.000Z; claim wait inside: #102 15 min\n"), corps);
-  assert.ok(corps.includes("- 2026-11-07T11:10:00.000Z to 2026-11-07T11:40:00.000Z (30 min): no stop written: the runtime was killed, or the machine slept; claim wait inside: #103 10 min\n"), corps);
+  fermer();
+  const corps = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: repertoire })("temps-perdu", temps(), QUALITES);
   assert.ok(corps.includes("- 2026-11-07T12:40:00.000Z to 2026-11-07T12:55:00.000Z (15 min): the runtime stopped at 2026-11-07T12:41:00.000Z (SIGTERM), started at 2026-11-07T12:42:00.000Z, stopped at 2026-11-07T12:43:00.000Z (SIGKILL), started at 2026-11-07T12:54:00.000Z; claim wait inside: none\n"), corps);
-  assert.doesNotMatch(corps, /12:30:00\.000Z to/);
-  // La section des silences précède le journal, qui reste la dernière.
-  assert.ok(corps.indexOf("### Station heartbeat") < corps.indexOf("### Station journal"));
-  // Un battement régulier : aucun silence, et la section le dit.
-  const regulier = repertoireTemporaire(t);
-  maintenant = new Date("2026-11-07T08:00:00.000Z");
-  const autre = ouvrirJournal(regulier, { maintenant: () => maintenant });
-  for (let at = Date.parse("2026-11-07T09:00:00.000Z"); at <= Date.parse("2026-11-07T13:00:00.000Z"); at += 60_000) {
-    maintenant = new Date(at);
-    autre.ajouter({ project: "p", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
-  }
-  autre.fermer();
-  const sansSilence = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: regulier })("temps-perdu", enregistrements, QUALITES);
-  assert.match(sansSilence, /### Station heartbeat\n\n- the station's runtime wrote its heartbeat every minute while it ran, with no silence over 10 min in this window\n/);
-  // Un journal illisible : dit une fois, dans la section du journal, sans silence inventé.
-  const illisible = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: repertoireTemporaire(t) })("temps-perdu", enregistrements, QUALITES);
-  assert.equal(illisible.match(/no log in /g)?.length, 1, illisible);
-  assert.match(illisible, /- the station's journal could not be read: no log in /);
-  assert.doesNotMatch(illisible, /### Station heartbeat|silences? over/);
+});
+
+test("a heartbeat with no silence over 10 min in the window is said so in its section (#3713)", async (t) => {
+  const { repertoire, battre, fermer } = journalDuBattement(t);
+  battre("2026-11-07T09:00:00.000Z", "2026-11-07T13:00:00.000Z");
+  fermer();
+  const corps = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: repertoire })("temps-perdu", temps(), QUALITES);
+  assert.match(corps, /### Station heartbeat\n\n- the station's runtime wrote its heartbeat every minute while it ran, with no silence over 10 min in this window\n/);
 });
 
 // BOBL-tech/mirrorlab#670 (#3036) : son cook s'est arrêté bloqué, le manager a
@@ -356,6 +359,9 @@ test("a read that fails names its error in the evidence and invents nothing: com
   assert.match(corps, /#102.*\n {2}- filed, fire and first claim not read on GitHub \(rate limited\); recorded start 2026-11-07T10:00:00.000Z, recorded first claim none/);
   assert.match(corps, /#103.*\n {2}- filed, fire and first claim not read on GitHub \(the issue was not found\)/);
   assert.match(corps, /- the station's journal could not be read: no log in /);
+  // Lu d'une seule ouverture, le journal illisible se dit une fois, et aucun silence ne s'invente (#3713).
+  assert.equal(corps.match(/no log in /g)?.length, 1, corps);
+  assert.doesNotMatch(corps, /### Station heartbeat/);
   // Sans répertoire d'état, la section le dit.
   assert.match(await preuveDeMesure({ github })("temps-perdu", enregistrements, QUALITES), /- the station's journal could not be read: this station was started without a state directory/);
   // Une preuve qui lève ne retient pas le corps.
