@@ -77,7 +77,8 @@ export type OptionsDesGardes = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-const DIT: Record<RetenueDuTour, string> = {
+// Ce que dit chaque retenue : au journal, et sur les tickets qu'elle laisse (#3699).
+export const DIT_DES_RETENUES: Record<RetenueDuTour, string> = {
   stopped: "the kitchen is stopped by the chef — nothing is taken before `guardrails resume`",
   breaker: "the breaker is open — nothing is taken before `guardrails resume`",
   quota: "the Max quota is spent — nothing is taken before it is back",
@@ -122,7 +123,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     if (retenue === tenue) return;
     tenue = retenue;
     noter(retenue === null ? { type: "station.released", payload: { station } } : { type: "station.held", payload: { station, reason: retenue } });
-    avertir(retenue === null ? `brigade : GitHub-only station ${station} takes tickets again` : `brigade : GitHub-only station ${station} takes no ticket — ${DIT[retenue]}`);
+    avertir(retenue === null ? `brigade : GitHub-only station ${station} takes tickets again` : `brigade : GitHub-only station ${station} takes no ticket — ${DIT_DES_RETENUES[retenue]}`);
   };
 
   // `machine` : l'arbitre partage entre les projets ce que la machine porte quand elle sature —

@@ -123,6 +123,12 @@ base, the stale-branch pruning).
   fired and calibrated: the turn leaves it out before anything reads its tickets, so no cook takes it
   (`runtime/src/alerte-cuisine/alerte-cuisine.ts`). Seen on benomite/secondes #45 (`empty-rail`), taken by a cook in an
   Android app's repository, and #46, the breaker issue.
+- **The idle-kitchen alert names what the claim gate said** (#3699). Every line the claim gate gives for a cookable
+  ticket it skips — a ticket it waits for, a missing capability, a card with no zone, the wait after a stop — is kept
+  for the next turn's healing, and so is the guardrail that holds the kitchen (the chef's stop, the breaker, the
+  quota, the machine, the arbiter), now given for each ticket left behind. When the gate skipped every cookable
+  ticket, the alert's cause is `skipped` and it lists those lines; `empty-rail` is left for a cookable ticket the gate
+  neither took nor skipped. Seen on benomite/secondes #50, #51 and #52, filed as `empty-rail` on #3699.
 - **A TODO card that asks no question is filed as a defect on benomite/brigade.** At each turn's healing, a ticket of
   the turn (`fire`) that carries `chef-todo` with no marked comment `<!-- brigade:todo kind=… -->` from the repository,
   or one whose text is empty, is reported with no action from the chef: a `fix` issue on `benomite/brigade` names the
