@@ -136,6 +136,18 @@ base, the stale-branch pruning).
   issue of the brigade that carries that mark — open or closed, changed within 30 days, from the repository or from
   this station's account — covers the card: no second one. A brigade that cannot be read files nothing and is
   warned; the next turn tries again (`runtime/src/signalement-carte-sans-question.ts`, #3134).
+- **No cook takes a ticket before its acceptance tests are written** (#3725, epic #3724). Between `queued` and `taken`,
+  the rail has the step `tests written`. When the claim gate reaches a ticket without the `tests-written` label, it
+  does not take it: the station prepares the ticket's branch `cook/<n>-github` on the base and runs the manager there,
+  which writes one test per acceptance criterion and names their paths. The station checks that the tree carries
+  these files and no other, commits them as the branch's first and only commit with the trailer
+  `Acceptance-Tests: frozen`, pushes the branch, posts on the issue one record per criterion
+  (`<!-- brigade:tests-acceptation -->`: `criterion`, `testPath`, then `redOnMain`, `greenOnBranch`, `mutationsCaught`,
+  `mutationsTotal`, `survivingLines`, left empty for other tickets to fill) and sets `tests-written`. The cook then
+  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. A
+  writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
+  the skip line says why. A ticket whose branch the clone already has was taken before the step existed and is taken
+  as is (`runtime/src/tests-acceptation/`).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a
