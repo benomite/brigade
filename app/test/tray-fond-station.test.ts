@@ -9,7 +9,7 @@ import type { ExecFileException } from "node:child_process";
 import type { Rendu } from "../src/box.ts";
 import type { Faits } from "../src/faits.ts";
 import { demarrerLaStationDuProjet, jouerLeGeste, lireLesProjets, type Lancer } from "../src/tray-fond/lecture.ts";
-import { inscrireLeFond, quitterLaStation, stationDeFondInstallee } from "../src/tray-fond/systeme.ts";
+import { garderLIcone, inscrireLeFond, quitterLaStation, stationDeFondInstallee } from "../src/tray-fond/systeme.ts";
 
 type Systeme = Parameters<typeof inscrireLeFond>[0];
 type Executer = Systeme["executer"];
@@ -125,6 +125,54 @@ describe("l'icône à l'ouverture de session", () => {
     // L'app a bougé : l'agent est rechargé sur le nouveau binaire.
     assert.equal(await inscrireLeFond({ ...s, binaire: "/Applications/Autre.app/Contents/MacOS/Brigade" }), undefined);
     assert.deepEqual(lancees.slice(3), ["launchctl print gui/501/brigade.tray-fond", "launchctl bootout gui/501/brigade.tray-fond", `launchctl bootstrap gui/501 ${plist}`]);
+  });
+
+  test("son agent est relancé quelle que soit sa sortie, un 0 compris (#3711)", async (t) => {
+    const { s } = systeme(t, "darwin", (_, args) => (args[0] === "print" ? 113 : 0));
+    await inscrireLeFond(s);
+    const plist = readFileSync(join(s.maison, "Library", "LaunchAgents", "brigade.tray-fond.plist"), "utf8");
+    assert.match(plist, /<key>KeepAlive<\/key>\n  <true\/>/);
+    assert.doesNotMatch(plist, /SuccessfulExit/);
+  });
+
+  describe("garderLIcone : l'agent tourne, sinon il est relancé, sinon la raison est dite", () => {
+    const agent = (t: TestContext, reponses: Array<{ code: number; sortie: string }>, lancees: string[]) => {
+      const { s } = systeme(t, "darwin");
+      let lectures = 0;
+      const executer: Executer = async (commande, args) => {
+        lancees.push([commande, ...args].join(" "));
+        if (args[0] !== "print") return { code: 0, sortie: "" };
+        return reponses[Math.min(lectures++, reponses.length - 1)] ?? { code: 1, sortie: "" };
+      };
+      return { ...s, executer };
+    };
+    const tourne = { code: 0, sortie: "brigade.tray-fond = {\n\tstate = running\n}" };
+    const arrete = { code: 0, sortie: "brigade.tray-fond = {\n\tstate = not running\n\tlast exit code = 0\n}" };
+    const pas = async () => {};
+
+    test("qui tourne : rien n'est relancé", async (t) => {
+      const lancees: string[] = [];
+      assert.equal(await garderLIcone(agent(t, [tourne], lancees), pas), undefined);
+      assert.ok(!lancees.some((l) => l.includes("kickstart")));
+    });
+
+    test("sorti avec 0 : il est relancé, et il tourne", async (t) => {
+      const lancees: string[] = [];
+      // inscrireLeFond lit l'agent chargé (code 0), puis l'état : arrêté, puis en marche après le kickstart.
+      assert.equal(await garderLIcone(agent(t, [arrete, arrete, tourne], lancees), pas), undefined);
+      assert.ok(lancees.includes("launchctl kickstart gui/501/brigade.tray-fond"));
+    });
+
+    test("relancé mais retombé, ou refusé : la raison est dite", async (t) => {
+      const retombe = await garderLIcone(agent(t, [arrete], []), pas);
+      assert.match(retombe ?? "", /^the menu bar icon is not running: launchd started it .*brigade-tray\.log$/);
+      const { s } = systeme(t, "darwin", (_, args) => (args[0] === "kickstart" ? 113 : 0));
+      assert.match((await garderLIcone(s, pas)) ?? "", /^the menu bar icon is not running and launchd would not start it .* \(exit code 113\)$/);
+    });
+
+    test("hors d'un Mac : rien à garder", async (t) => {
+      assert.equal(await garderLIcone(systeme(t, "win32").s, pas), undefined);
+    });
   });
 
   test("launchd qui refuse l'agent : c'est dit", async (t) => {

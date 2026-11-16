@@ -64,7 +64,8 @@ export function stationDeFondInstallee(s: Pick<Systeme, "plateforme" | "maison" 
 
 const xml = (texte: string) => texte.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-// L'agent launchd de l'icône : lancé à l'ouverture de session, relancé s'il tombe, pas quand il quitte de lui-même.
+// L'agent launchd de l'icône : lancé à l'ouverture de session, relancé quelle que soit sa sortie — un 0 compris (#3711) : rien d'autre ne le ramène. Une
+// deuxième icône s'efface en quittant, et launchd la relance au bout de `ThrottleInterval` : l'agent tient la place.
 function plistDuFond(binaire: string, journal: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -83,10 +84,7 @@ function plistDuFond(binaire: string, journal: string): string {
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-  </dict>
+  <true/>
   <key>ThrottleInterval</key>
   <integer>5</integer>
   <key>StandardOutPath</key>
@@ -134,6 +132,27 @@ export async function inscrireLeFond(s: Systeme): Promise<string | undefined> {
     return undefined;
   }
   return undefined;
+}
+
+const ATTENTE_APRES_LANCEMENT_MS = 3000;
+
+// Sur un Mac, l'agent de l'icône tourne-t-il ? Sinon, il est relancé (`launchctl kickstart`), puis relu. Rend ce qui
+// l'empêche de tourner, ou rien — ailleurs que sur un Mac, rien : l'icône y a sa valeur `Run`, sans agent à relire.
+// À rejouer toutes les minutes : un agent tombé revient dans la minute, même si launchd ne l'a pas relancé.
+export async function garderLIcone(s: Systeme, attendre: (ms: number) => Promise<void> = (ms) => new Promise((fini) => setTimeout(fini, ms))): Promise<string | undefined> {
+  if (!estUnMac(s.plateforme)) return undefined;
+  const refus = await inscrireLeFond(s);
+  if (refus !== undefined) return refus;
+  const cible = `gui/${s.uid}/${ETIQUETTE_DU_FOND}`;
+  const tourne = async () => {
+    const lu = await s.executer("launchctl", ["print", cible]);
+    return lu.code === 0 && /^\s*state = running$/m.test(lu.sortie);
+  };
+  if (await tourne()) return undefined;
+  const lance = await s.executer("launchctl", ["kickstart", cible]);
+  if (lance.code !== 0) return echec(`the menu bar icon is not running and launchd would not start it (${cible})`, lance);
+  await attendre(ATTENTE_APRES_LANCEMENT_MS);
+  return (await tourne()) ? undefined : `the menu bar icon is not running: launchd started it (${cible}) and it ended again — see ${join(s.maison, "Library", "Logs", "brigade-tray.log")}`;
 }
 
 const pidLu = (fichier: string): number | undefined => {
