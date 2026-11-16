@@ -440,7 +440,7 @@ function lireLesEvenements(journal: JournalOuvert, debut: string, fin: string): 
 // événements, sans le bruit, et les instants des battements du runtime. Un
 // journal qui ne s'ouvre pas ou ne se lit pas est une seule erreur, que la
 // section du journal dit ; la section des silences n'invente rien sans lui.
-export function lireLaFenetre(repertoireEtat: string, fenetre: { debut: string; fin: string }): JournalDeLaFenetre {
+function lireLaFenetre(repertoireEtat: string, fenetre: { debut: string; fin: string }): JournalDeLaFenetre {
   let journal: JournalOuvert;
   try {
     journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
