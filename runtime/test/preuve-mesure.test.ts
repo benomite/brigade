@@ -232,15 +232,22 @@ test("the lost-time evidence names each silence of the station's heartbeat over 
   // Une demi-heure sans battement ni arrêt : le process tué, ou la machine endormie.
   battre("2026-11-07T11:40:00.000Z", "2026-11-07T12:30:00.000Z");
   // Cinq minutes sans battement ne sont pas un silence.
-  battre("2026-11-07T12:35:00.000Z", "2026-11-07T13:00:00.000Z");
+  battre("2026-11-07T12:35:00.000Z", "2026-11-07T12:40:00.000Z");
+  // Deux relances dans un même silence : chaque arrêt et chaque départ, dans l'ordre, sans en apparier deux au hasard.
+  noter("2026-11-07T12:41:00.000Z", "runtime.stopped", { signal: "SIGTERM" });
+  noter("2026-11-07T12:42:00.000Z", "runtime.started", { pid: 2, host: "box", node: "v26" });
+  noter("2026-11-07T12:43:00.000Z", "runtime.stopped", { signal: "SIGKILL" });
+  noter("2026-11-07T12:54:00.000Z", "runtime.started", { pid: 3, host: "box", node: "v26" });
+  battre("2026-11-07T12:55:00.000Z", "2026-11-07T13:00:00.000Z");
   journal.fermer();
   const corps = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: repertoire })("temps-perdu", enregistrements, QUALITES);
   assert.match(
     corps,
-    /### Station heartbeat\n\n_The station's runtime writes a heartbeat to its journal every minute while it runs\. 2 silences over 10 min in this window; 25 min of the measured tickets' 88 min of waits before a claim \(from filing or `fire`, and after each cook given back\) fall in them\._\n\n/,
+    /### Station heartbeat\n\n_The station's runtime writes a heartbeat to its journal every minute while it runs\. 3 silences over 10 min in this window; 25 min of the measured tickets' 88 min of waits before a claim \(from filing or `fire`, and after each cook given back\) fall in them\._\n\n/,
   );
-  assert.ok(corps.includes("- 2026-11-07T10:05:00.000Z to 2026-11-07T10:30:00.000Z (25 min): the runtime stopped at 2026-11-07T10:05:30.000Z (SIGTERM), started again at 2026-11-07T10:29:30.000Z; claim wait inside: #102 15 min\n"), corps);
+  assert.ok(corps.includes("- 2026-11-07T10:05:00.000Z to 2026-11-07T10:30:00.000Z (25 min): the runtime stopped at 2026-11-07T10:05:30.000Z (SIGTERM), started at 2026-11-07T10:29:30.000Z; claim wait inside: #102 15 min\n"), corps);
   assert.ok(corps.includes("- 2026-11-07T11:10:00.000Z to 2026-11-07T11:40:00.000Z (30 min): no stop written: the runtime was killed, or the machine slept; claim wait inside: #103 10 min\n"), corps);
+  assert.ok(corps.includes("- 2026-11-07T12:40:00.000Z to 2026-11-07T12:55:00.000Z (15 min): the runtime stopped at 2026-11-07T12:41:00.000Z (SIGTERM), started at 2026-11-07T12:42:00.000Z, stopped at 2026-11-07T12:43:00.000Z (SIGKILL), started at 2026-11-07T12:54:00.000Z; claim wait inside: none\n"), corps);
   assert.doesNotMatch(corps, /12:30:00\.000Z to/);
   // La section des silences précède le journal, qui reste la dernière.
   assert.ok(corps.indexOf("### Station heartbeat") < corps.indexOf("### Station journal"));
@@ -255,10 +262,11 @@ test("the lost-time evidence names each silence of the station's heartbeat over 
   autre.fermer();
   const sansSilence = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: regulier })("temps-perdu", enregistrements, QUALITES);
   assert.match(sansSilence, /### Station heartbeat\n\n- the station's runtime wrote its heartbeat every minute while it ran, with no silence over 10 min in this window\n/);
-  // Un journal illisible : la section le dit, sans silence inventé.
+  // Un journal illisible : dit une fois, dans la section du journal, sans silence inventé.
   const illisible = await preuveDeMesure({ github: githubDeLaPreuve(), repertoireEtat: repertoireTemporaire(t) })("temps-perdu", enregistrements, QUALITES);
-  assert.match(illisible, /### Station heartbeat\n\n- the station's heartbeat could not be read: no log in /);
-  assert.doesNotMatch(illisible, /silences? over/);
+  assert.equal(illisible.match(/no log in /g)?.length, 1, illisible);
+  assert.match(illisible, /- the station's journal could not be read: no log in /);
+  assert.doesNotMatch(illisible, /### Station heartbeat|silences? over/);
 });
 
 // BOBL-tech/mirrorlab#670 (#3036) : son cook s'est arrêté bloqué, le manager a
