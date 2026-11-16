@@ -17,7 +17,7 @@ export type ViolationDuGel = { commit: string; fichiers: string[] };
 const SEP_COMMIT = "\x01";
 const SEP_CHAMP = "\x00";
 
-const git = (worktree: string, ...args: string[]) => execFileSync("git", args, { cwd: worktree, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+const git = (worktree: string, ...args: string[]) => execFileSync("git", args, { cwd: worktree, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
 
 const fichiersDe = (worktree: string, commit: string) => git(worktree, "diff-tree", "--no-commit-id", "--name-only", "-r", "--no-renames", "-z", commit).split("\0").filter(Boolean);
 
