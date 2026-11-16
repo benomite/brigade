@@ -103,11 +103,28 @@ test("« Quit the station » arrête l'hôte, qui rend sa marque : un pid mort q
   assert.equal(lireEtatDuFond(ordi.racine)?.etat, "arretee");
 });
 
-test("une station qui refuse de démarrer emporte l'hôte, qui rend sa marque en partant", { skip: SOUS_POSIX }, async (t) => {
-  const ordi = unOrdinateur(t, `console.log("its configuration is wrong"); process.exit(2);\n`);
-  await enProcess(process.execPath, [HOTE, ordi.racine, ordi.embarque], { env: { ...process.env, ...CACHE_DE_COMPILATION } });
-  assert.equal(lireEtatDuFond(ordi.racine)?.etat, "refusee");
-  assert.equal(existsSync(join(ordi.racine, TENUE_PAR)), false);
+// Une station qui refuse de démarrer la première fois (une autre tient encore le répertoire), puis démarre.
+const REFUSE_UNE_FOIS = `import { existsSync as existe, writeFileSync as ecrire } from "node:fs";
+import { join as chemin } from "node:path";
+const essai = chemin(process.env.BRIGADE_STATION_DIR, "..", "essai");
+if (!existe(essai)) { ecrire(essai, "x"); console.log("une autre station tourne déjà"); process.exit(2); }
+${STATION}`;
+
+test("une station qui refuse de démarrer n'emporte pas l'hôte : il le dit dans fond.json et la retente d'elle-même, jusqu'à ce qu'elle démarre (mise à jour à chaud, #3701)", { skip: SOUS_POSIX }, async (t) => {
+  const ordi = unOrdinateur(t, REFUSE_UNE_FOIS);
+  process.env.BRIGADE_HOTE_RELANCE_MS = "300";
+  t.after(() => delete process.env.BRIGADE_HOTE_RELANCE_MS);
+  const ouverte = await ouvrirLApp(ordi);
+  // Selon la course, l'app voit la station lancée ou déjà refusée : dans les deux cas, l'hôte reste.
+  assert.ok(ouverte.lancee !== undefined || /refused to start — .*une autre station tourne déjà/.test(ouverte.refus ?? ""), JSON.stringify(ouverte));
+  await jusqua(() => lireEtatDuFond(ordi.racine)?.etat === "refusee", 2_000);
+  const hote = lireEtatDuFond(ordi.racine)?.pid ?? assert.fail("no state");
+  assert.match(lireEtatDuFond(ordi.racine)?.motif ?? "", /une autre station tourne déjà/);
+  assert.ok(vivant(hote), "l'hôte reste là");
+  // Sans geste : la station est retentée, et démarre.
+  await jusqua(() => existsSync(join(ordi.racine, "cook.pid")), 2_000);
+  assert.ok(vivant(hote));
+  assert.equal(lireEtatDuFond(ordi.racine)?.etat, "relancee");
 });
 
 test("l'hôte qui tourne reprend sa marque quand elle disparaît", { skip: SOUS_POSIX }, async (t) => {

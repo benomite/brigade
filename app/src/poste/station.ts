@@ -6,8 +6,9 @@
 //
 // - **Elle vit avec ce qui la tient.** Son entrée fermée — l'hôte arrêté, ou tué —, elle s'arrête
 //   comme sur un SIGTERM (poste/enveloppe.ts) : ses projets s'arrêtent, et GitHub porte l'heure de
-//   son arrêt. Morte d'elle-même, elle est relancée cinq secondes plus tard — sauf si elle a refusé
-//   de démarrer (code 2) : réessayer ne changerait rien. C'est ce que fait systemd pour celle d'un serveur.
+//   son arrêt. Morte d'elle-même, elle est relancée cinq secondes plus tard. Refusée au démarrage (code 2 : une autre
+//   station tenait encore le répertoire, comme à la mise à jour à chaud), elle est retentée d'elle-même, avec un délai
+//   qui double jusqu'à cinq minutes (#3701) : jamais « jusqu'au redémarrage de l'app ».
 // - **Elle s'appaire.** La station affiche son code dans son journal, comme sur un serveur ; ce qui la
 //   tient le lit et le fait taper par le geste du champ de la home (stations/stations.ts, par l'app :
 //   station-fond/fond.ts). Refusé — GitHub ne montre pas encore son gist —, il est retapé à chaque
@@ -28,6 +29,11 @@ import type { Appairage } from "../stations/stations.ts";
 const CODE_AFFICHE = /tape ce code dans l'app : ([0-9A-Z]{4}-[0-9A-Z]{4})/;
 // Le code de sortie d'une station qui refuse de démarrer.
 const REFUS = 2;
+// Le plus long délai entre deux essais d'une station qui refuse de démarrer.
+const REFUS_MAX_MS = 300_000;
+// Pendant la première minute d'échecs, le délai ne grandit pas : une mise à jour à chaud démarre dans la minute.
+const REFUS_PLAT_MS = 60_000;
+const dureeDite = (ms: number) => (ms < 1000 ? `${ms} ms` : `${Math.round(ms / 1000)} s`);
 export const TENUE_PAR = "app.pid";
 const ENVELOPPE = join(import.meta.dirname, "enveloppe.ts");
 
@@ -47,6 +53,8 @@ export type OptionsStationLocale = {
   // Le pid de l'app qui la tient.
   pid?: number;
   relanceMs?: number;
+  // Combien de temps les essais d'une station refusée restent à `relanceMs`, avant que leur délai ne double (60 s).
+  platMs?: number;
   reessaiMs?: number;
   // Le temps laissé à la station pour s'arrêter, avant qu'elle soit tuée.
   gardeMs?: number;
@@ -134,6 +142,14 @@ export function rendreLaStation(racine: string, pid: number): void {
   }
 }
 
+// Le délai avant le `essai`-ième nouvel essai d'une station refusée : `relanceMs` tant que `platMs` n'est pas écoulé — une
+// mise à jour à chaud démarre dans la minute —, puis il double d'un essai à l'autre, jusqu'à `REFUS_MAX_MS`.
+function delaiDuReessai(essai: number, relanceMs: number, platMs: number): number {
+  const plats = Math.ceil(platMs / relanceMs);
+  if (essai <= plats) return relanceMs;
+  return Math.min(relanceMs * 2 ** (essai - plats), Math.max(REFUS_MAX_MS, relanceMs));
+}
+
 export function tenirStationLocale(options: OptionsStationLocale): StationLocale {
   const { racine, dire } = options;
   const pid = options.pid ?? process.pid;
@@ -151,6 +167,14 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
   let code: string | null = null;
   let derniere = "";
   let lances = 0;
+  // Les démarrages refusés ou impossibles qui se suivent : le délai du suivant double.
+  let plats = 0;
+  const platMs = options.platMs ?? REFUS_PLAT_MS;
+  let essais = 0;
+  const delaiApresEchec = () => delaiDuReessai(++essais, relanceMs, platMs);
+  const repartir = () => {
+    essais = 0;
+  };
   // Les attentes en cours entre deux essais d'appairage : l'arrêt les lève.
   const attentes = new Set<() => void>();
   const attendre = (ms: number) =>
@@ -206,9 +230,11 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
       autre = prendre();
     } catch (erreur) {
       // Un répertoire qu'on ne peut pas écrire : l'app s'ouvre quand même, sans sa station.
+      const delai = delaiApresEchec();
       etat = "refusee";
       signaler();
-      return dire(`brigade: this computer's station is not launched — its directory ${racine} cannot be written: ${message(erreur)}`);
+      dire(`brigade: this computer's station is not launched — its directory ${racine} cannot be written: ${message(erreur)}; trying again in ${dureeDite(delai)}`);
+      return plusTard(lancer, delai);
     }
     if (autre !== undefined) {
       if (tenant !== autre) dire(`brigade: this computer's station is run by another app (pid ${autre}) — this one takes it over when that one closes`);
@@ -276,6 +302,8 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     lance.stdin.on("error", () => {});
     fin = new Promise((resoudre) => {
       let fini = false;
+      let delai = relanceMs;
+      const lancee = Date.now();
       const finir = (dit: string | undefined, relancer: boolean) => {
         if (fini) return;
         fini = true;
@@ -288,10 +316,18 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
         if (relancer) return plusTard(lancer, relanceMs);
         etat = "refusee";
         rendre();
+        plusTard(lancer, delai);
       };
-      lance.once("error", (erreur) => finir(`brigade: this computer's station could not be launched — ${message(erreur)} (\`${options.node}\`); it is not launched again until the app restarts`, false));
+      const echouer = (pourquoi: string) => {
+        // Une station qui a tourné longtemps avant de refuser repart de zéro.
+        if (Date.now() - lancee > REFUS_PLAT_MS) repartir();
+          delai = delaiApresEchec();
+        finir(`brigade: this computer's station ${pourquoi}; trying again in ${dureeDite(delai)}`, false);
+      };
+      lance.once("error", (erreur) => echouer(`could not be launched — ${message(erreur)} (\`${options.node}\`)`));
       lance.once("close", (sortie, signal) => {
-        if (sortie === REFUS) return finir(`brigade: this computer's station refused to start — ${derniere}; it is not launched again until the app restarts`, false);
+        if (sortie === REFUS) return echouer(`refused to start — ${derniere}`);
+        repartir();
         finir(`brigade: this computer's station stopped (${signal ?? `code ${sortie}`}) — relaunched in ${Math.round(relanceMs / 1000)} s`, true);
       });
     });

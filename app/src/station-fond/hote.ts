@@ -12,8 +12,9 @@
 //   dit et s'en va (code 0 : launchd ne le relance pas). Il la tient toute sa vie — réécrite si elle manque, sa date
 //   rafraîchie deux fois par seconde (poste/station.ts ne croit pas une marque d'avant le démarrage du système) — et la rend à
 //   sa sortie, quelle qu'elle soit : un pid mort que le système redonnerait n'empêche pas la station suivante.
-// - **Une station qui refuse de démarrer** (code 2) le fait partir aussi, après l'avoir écrit dans `fond.json` : l'app
-//   rouverte, ou l'ouverture de session suivante, réessaie.
+// - **Une station qui refuse de démarrer** (code 2) ne le fait pas partir (#3701) : l'hôte l'écrit dans `fond.json` et la
+//   retente d'elle-même (poste/station.ts), cinq secondes d'abord — une mise à jour à chaud qui trouve encore l'ancienne
+//   station sur le répertoire démarre dès qu'elle est partie, sans geste du chef.
 import { utimesSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -79,11 +80,6 @@ const noter = () => {
       dire(`brigade: the background station could not write its state (${racine}) — ${message(erreur)}`);
     }
   }
-  if (etat.etat === "refusee" && !fini) {
-    fini = true;
-    dire("brigade: the background station stops: its station refused to start — the app, or the next login, tries again");
-    process.exit(0);
-  }
 };
 
 station = tenirProcessDeStation({
@@ -101,6 +97,8 @@ station = tenirProcessDeStation({
   // L'app ouverte tape le code ; la station relit sa réponse à l'essai suivant.
   appairer: async (code) => demanderAppairage(racine, code),
   reessaiMs: 10_000,
+  // Le délai entre deux essais d'une station morte ou refusée : cinq secondes, sauf pour les tests qui ne l'attendent pas.
+  ...(Number(process.env.BRIGADE_HOTE_RELANCE_MS) > 0 ? { relanceMs: Number(process.env.BRIGADE_HOTE_RELANCE_MS) } : {}),
   avantLancement: () =>
     garderUneSeuleCuisine({
       racine,
