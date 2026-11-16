@@ -24,7 +24,7 @@ const entier = (/** @type {unknown} */ valeur) => (typeof valeur === "number" &&
 // Les trois étapes d'un critère, dans l'ordre. Un booléen absent est pending ; faux est failed. Les mutations ne se lisent
 // que si le total et les attrapées se tiennent (0 ≤ attrapées ≤ total, total > 0) : sinon pending.
 /** @param {Enregistrement} enregistrement @returns {Etape[]} */
-export function etapesDe(enregistrement) {
+function etapesDe(enregistrement) {
   const { redOnMain, greenOnBranch } = enregistrement;
   /** @param {unknown} valeur @param {string} nom @returns {Etape} */
   const booleen = (valeur, nom) => ({ etat: valeur === true ? "done" : valeur === false ? "failed" : "pending", dit: nom });

@@ -13,7 +13,7 @@ import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
-import { etapesDe, poserTestsDeFiche } from "../../../src/vue/fiche-tests/fiche-tests.js";
+import { poserTestsDeFiche } from "../../../src/vue/fiche-tests/fiche-tests.js";
 import { carteDuTicket, Faux, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -32,20 +32,23 @@ const section = () => (poserTestsDeFiche(doc, FIXTURE)[0] as Faux | undefined) ?
 const lignes = (racine: Faux) => racine.dessous("li").filter(({ className }) => className === "critere-teste");
 const etapes = (ligne: Faux) => (ligne.dessous("ol").find(({ className }) => className === "critere-etapes") ?? assert.fail("pas d'étapes")).children as Faux[];
 
+// Les étapes d'un critère, lues par la section que la fiche pose.
+const etatsDe = (enregistrement: object) => {
+  const [ligne] = lignes(poserTestsDeFiche(doc, { criteria: [enregistrement] })[0] as Faux);
+  return etapes(ligne ?? assert.fail("pas de ligne")).map((e) => e.dataset.etat);
+};
+
 describe("les étapes d'un critère", () => {
   test("rouge sur main, vert sur la branche, puis N = total − attrapées mutations survécues, avec le total", () => {
-    assert.deepEqual(etapesDe(FIXTURE.criteria[1] ?? {}), [
-      { etat: "done", dit: "red on main" },
-      { etat: "done", dit: "green on the branch" },
-      { etat: "failed", dit: "survived 2 of 5 mutations" },
-    ]);
-    assert.deepEqual(etapesDe({ redOnMain: false, greenOnBranch: false, mutationsCaught: 4, mutationsTotal: 4 }).map(({ etat }) => etat), ["failed", "failed", "done"]);
+    const [, rate] = lignes(section());
+    assert.deepEqual(etapes(rate ?? assert.fail("")).map((e) => [e.dataset.etat, e.dessous("span").at(-1)?.textContent]), [["done", "red on main"], ["done", "green on the branch"], ["failed", "survived 2 of 5 mutations"]]);
+    assert.deepEqual(etatsDe({ redOnMain: false, greenOnBranch: false, mutationsCaught: 4, mutationsTotal: 4 }), ["failed", "failed", "done"]);
   });
 
   test("un champ qui manque ou qui ne se lit pas est pending, jamais done", () => {
-    assert.deepEqual(etapesDe({}).map(({ etat }) => etat), ["pending", "pending", "pending"]);
+    assert.deepEqual(etatsDe({}), ["pending", "pending", "pending"]);
     for (const mal of [{ mutationsTotal: 5 }, { mutationsCaught: 5 }, { mutationsCaught: 0, mutationsTotal: 0 }, { mutationsCaught: 6, mutationsTotal: 5 }, { mutationsCaught: -1, mutationsTotal: 5 }, { mutationsCaught: "5", mutationsTotal: 5 }, { redOnMain: "yes", greenOnBranch: 1 }]) {
-      assert.deepEqual(etapesDe(mal as never).map(({ etat }) => etat), ["pending", "pending", "pending"], JSON.stringify(mal));
+      assert.deepEqual(etatsDe(mal), ["pending", "pending", "pending"], JSON.stringify(mal));
     }
   });
 });
