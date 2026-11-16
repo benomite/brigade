@@ -188,14 +188,15 @@ const veille = setInterval(() => {}, 1000);
 process.on("SIGTERM", () => { console.log("arrêtée"); clearInterval(veille); });
 `;
 
-test("la station refusée (code 2) n'est pas relancée, et le refus est dit ; morte d'elle-même, elle est relancée", async (t) => {
+test("la station refusée (code 2) est retentée d'elle-même avec un délai qui double, et le refus est dit ; morte d'elle-même, elle est relancée", async (t) => {
   const racine = join(repertoireTemporaire(t), "station");
   const refusee = tenir(t, { node: process.execPath, principal: unPrincipal(t, `console.error("brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port"); process.exit(2);`), racine, env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), relanceMs: 10 });
   await jusqua(() => refusee.station.etat() === "refusee");
-  assert.match(refusee.dit(), /this computer's station refused to start — brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port; it is not launched again/);
-  // Rendue : une autre app pourra la tenter.
-  assert.equal(existsSync(join(racine, TENUE_PAR)), false);
+  assert.match(refusee.dit(), /this computer's station refused to start — brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port; trying again in 0 s/);
+  assert.doesNotMatch(refusee.dit(), /until the app restarts/);
+  // Rendue entre deux essais : une autre app pourra la tenter.
   await refusee.station.arreter();
+  assert.equal(existsSync(join(racine, TENUE_PAR)), false);
 
   const autre = join(repertoireTemporaire(t), "station");
   const compte = join(autre, "..", "lancements");
@@ -211,6 +212,22 @@ test("la station refusée (code 2) n'est pas relancée, et le refus est dit ; mo
   assert.match(tombee.dit(), /this computer's station stopped \(code 1\) — relaunched in 0 s/);
   await tombee.station.arreter();
   assert.match(tombee.dit(), /arrêtée/);
+});
+
+test("une station refusée parce qu'une autre tient encore le répertoire démarre d'elle-même dès que l'autre est partie (mise à jour à chaud)", async (t) => {
+  const racine = join(repertoireTemporaire(t), "station");
+  const compte = join(racine, "..", "essais");
+  const { station, dit } = tenir(t, {
+    node: process.execPath,
+    principal: unPrincipal(t, `import { appendFileSync, readFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(compte)}, "x");\nif (readFileSync(${JSON.stringify(compte)}, "utf8").length < 3) { console.error("une autre station tourne déjà"); process.exit(2); }\n${ATTENDRE_SIGTERM}`),
+    racine,
+    env: { ...CACHE_DE_COMPILATION },
+    appairer: () => assert.fail(),
+    relanceMs: 10,
+  });
+  await jusqua(() => existsSync(compte) && readFileSync(compte, "utf8").length === 3 && station.etat() === "relancee" && station.tourne());
+  assert.match(dit(), /refused to start — une autre station tourne déjà; trying again in 0 s/);
+  await station.arreter();
 });
 
 test("le code refusé — GitHub ne montre pas encore la station — est retapé jusqu'à être appairé, et le refus n'est dit qu'une fois", async (t) => {

@@ -6,8 +6,9 @@
 //
 // - **Elle vit avec ce qui la tient.** Son entrée fermée — l'hôte arrêté, ou tué —, elle s'arrête
 //   comme sur un SIGTERM (poste/enveloppe.ts) : ses projets s'arrêtent, et GitHub porte l'heure de
-//   son arrêt. Morte d'elle-même, elle est relancée cinq secondes plus tard — sauf si elle a refusé
-//   de démarrer (code 2) : réessayer ne changerait rien. C'est ce que fait systemd pour celle d'un serveur.
+//   son arrêt. Morte d'elle-même, elle est relancée cinq secondes plus tard. Refusée au démarrage (code 2 : une autre
+//   station tenait encore le répertoire, comme à la mise à jour à chaud), elle est retentée d'elle-même, avec un délai
+//   qui double jusqu'à cinq minutes (#3701) : jamais « jusqu'au redémarrage de l'app ».
 // - **Elle s'appaire.** La station affiche son code dans son journal, comme sur un serveur ; ce qui la
 //   tient le lit et le fait taper par le geste du champ de la home (stations/stations.ts, par l'app :
 //   station-fond/fond.ts). Refusé — GitHub ne montre pas encore son gist —, il est retapé à chaque
@@ -28,6 +29,8 @@ import type { Appairage } from "../stations/stations.ts";
 const CODE_AFFICHE = /tape ce code dans l'app : ([0-9A-Z]{4}-[0-9A-Z]{4})/;
 // Le code de sortie d'une station qui refuse de démarrer.
 const REFUS = 2;
+// Le plus long délai entre deux essais d'une station qui refuse de démarrer.
+const REFUS_MAX_MS = 300_000;
 export const TENUE_PAR = "app.pid";
 const ENVELOPPE = join(import.meta.dirname, "enveloppe.ts");
 
@@ -151,6 +154,9 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
   let code: string | null = null;
   let derniere = "";
   let lances = 0;
+  // Les démarrages refusés ou impossibles qui se suivent : le délai du suivant double.
+  let echecs = 0;
+  const delaiApresEchec = () => Math.min(relanceMs * 2 ** (echecs - 1), Math.max(REFUS_MAX_MS, relanceMs));
   // Les attentes en cours entre deux essais d'appairage : l'arrêt les lève.
   const attentes = new Set<() => void>();
   const attendre = (ms: number) =>
@@ -276,6 +282,7 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
     lance.stdin.on("error", () => {});
     fin = new Promise((resoudre) => {
       let fini = false;
+      let delai = relanceMs;
       const finir = (dit: string | undefined, relancer: boolean) => {
         if (fini) return;
         fini = true;
@@ -288,10 +295,17 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
         if (relancer) return plusTard(lancer, relanceMs);
         etat = "refusee";
         rendre();
+        plusTard(lancer, delai);
       };
-      lance.once("error", (erreur) => finir(`brigade: this computer's station could not be launched — ${message(erreur)} (\`${options.node}\`); it is not launched again until the app restarts`, false));
+      const echouer = (pourquoi: string) => {
+        echecs++;
+        delai = delaiApresEchec();
+        finir(`brigade: this computer's station ${pourquoi}; trying again in ${Math.round(delai / 1000)} s`, false);
+      };
+      lance.once("error", (erreur) => echouer(`could not be launched — ${message(erreur)} (\`${options.node}\`)`));
       lance.once("close", (sortie, signal) => {
-        if (sortie === REFUS) return finir(`brigade: this computer's station refused to start — ${derniere}; it is not launched again until the app restarts`, false);
+        if (sortie === REFUS) return echouer(`refused to start — ${derniere}`);
+        echecs = 0;
         finir(`brigade: this computer's station stopped (${signal ?? `code ${sortie}`}) — relaunched in ${Math.round(relanceMs / 1000)} s`, true);
       });
     });
