@@ -217,7 +217,7 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   test("« Validate » : la PR mergée à la tête jugée verte, la carte fermée — elle quitte TODO", async () => {
     const { runtime, telephone, monde } = await deuxFois({ geste: "valider" });
     assert.deepEqual(telephone, runtime);
-    assert.deepEqual(telephone, { fait: `${DEPOT}#${PR} validated: merged, card #${CARTE} closed — ticket #${TICKET} is served` });
+    assert.deepEqual(telephone, { fait: `${DEPOT}: the delivery of #${TICKET} (PR ${PR}) validated: merged, card #${CARTE} closed — ticket #${TICKET} is served` });
     assert.deepEqual(monde.merges, [[PR, SHA]]);
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
     const attente = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler: monde.appeler });
@@ -237,7 +237,7 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   test("la branche mise à jour depuis sa base depuis la carte (ticket 3332) : rien n'est mergé tout de suite, la validation est gardée sur le ticket, la carte se ferme et le dit", async () => {
     const { runtime, telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void (monde.pr.sha = "b".repeat(40)));
     assert.deepEqual(telephone, runtime);
-    assert.deepEqual(telephone, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #${CARTE} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
+    assert.deepEqual(telephone, { fait: `${DEPOT}: the delivery of #${TICKET} (PR ${PR}) validated: your validation is kept, card #${CARTE} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
     assert.deepEqual(monde.merges, []);
     assert.ok(monde.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=${CARTE} pr=${PR} sha=${SHA} -->\nValidated by the chef on card #${CARTE} — merge pending.`)));
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
@@ -246,7 +246,7 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   test("la livraison est repartie en cuisine depuis la carte : rien n'est mergé, la carte se ferme", async () => {
     const renvoi = (monde: Monde) => void monde.issues.get(TICKET)?.comments.push({ body: `${MARQUE_DE_RENVOI} n=1 sha=${SHA} -->\nThe CI went red.`, association: "OWNER" });
     const { telephone, monde } = await deuxFois({ geste: "valider" }, renvoi);
-    assert.match("refus" in telephone ? telephone.refus : assert.fail("validée"), /the delivery of PR #60 went back to a cook since card #58: nothing merged, card #58 closed/);
+    assert.match("refus" in telephone ? telephone.refus : assert.fail("validée"), /the delivery of #58 \(PR 60\) went back to a cook since card #58: nothing merged, card #58 closed/);
     assert.deepEqual(monde.merges, []);
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
   });
@@ -254,9 +254,9 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   test("la PR fermée sans merge : rien à valider ni à renvoyer", async () => {
     const fermee = (monde: Monde) => void (monde.pr.state = "closed");
     const valider = await deuxFois({ geste: "valider" }, fermee);
-    assert.match("refus" in valider.telephone ? valider.telephone.refus : "", /^nothing was done: PR #60 is closed without being merged/);
+    assert.match("refus" in valider.telephone ? valider.telephone.refus : "", /^nothing was done: the delivery of #58 \(PR 60\) is closed without being merged/);
     const renvoyer = await deuxFois(RENVOI, fermee);
-    assert.match("refus" in renvoyer.telephone ? renvoyer.telephone.refus : "", /^nothing was done: PR #60 is no longer open: there is nothing to send back/);
+    assert.match("refus" in renvoyer.telephone ? renvoyer.telephone.refus : "", /^nothing was done: the delivery of #58 \(PR 60\) is no longer open: there is nothing to send back/);
   });
 
   test("la PR déjà mergée : « Validate » ferme la carte, sans merger une seconde fois", async () => {
@@ -277,14 +277,14 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
 
   test("un merge que GitHub refuse : la carte reste ouverte, et dit ce que GitHub a répondu", async () => {
     const { telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void (monde.refus.merge = { status: 405, message: "Required status check is expected" }));
-    assert.equal("refus" in telephone && telephone.refus, "nothing was done: GitHub refused to merge PR #60 — HTTP 405 — Required status check is expected; card #58 stays open");
+    assert.equal("refus" in telephone && telephone.refus, "nothing was done: GitHub refused to merge the delivery of #58 (PR 60) — HTTP 405 — Required status check is expected; card #58 stays open");
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), true);
   });
 
   test("une carte fermée ailleurs depuis la lecture : rien ne part", async () => {
     const { runtime, telephone, monde } = await deuxFois({ geste: "valider" }, (monde) => void ((monde.issues.get(CARTE) ?? assert.fail("pas de carte")).state = "closed"));
     assert.deepEqual(telephone, { refus: "refus" in runtime ? runtime.refus : assert.fail("le runtime a validé"), detail: "" });
-    assert.equal("refus" in telephone && telephone.refus, "nothing was done: no open “Validate its screen” card holds PR #60");
+    assert.equal("refus" in telephone && telephone.refus, "nothing was done: no open “Validate its screen” card answers to 60: it is neither an open ticket nor the pull request of a held delivery");
     assert.deepEqual(monde.ecrites, []);
   });
 });
@@ -462,7 +462,7 @@ describe("par le pont de l'APK, sans station ni runtime", () => {
     const { pont, natifs } = await pontDeLAPK(monde);
     assert.deepEqual(await pont.lireCapture!(PROJET, CARTE, "rail", "apres"), { image: `data:image/png;base64,${PNG}` });
     const rendu = JSON.parse(JSON.stringify(await pont.gesteDeValidation!(PROJET, CARTE, { geste: "valider" })));
-    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: merged, card #${CARTE} closed — ticket #${TICKET} is served` });
+    assert.deepEqual(rendu, { fait: `${DEPOT}: the delivery of #${TICKET} (PR ${PR}) validated: merged, card #${CARTE} closed — ticket #${TICKET} is served` });
     assert.deepEqual(monde.merges, [[PR, SHA]]);
     assert.equal(monde.issues.get(CARTE)?.labels.has(LABEL_DU_CHEF), false);
     await jusqua(() => natifs.includes("Pont.retirer 7"));

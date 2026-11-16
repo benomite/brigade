@@ -139,7 +139,7 @@ test("a `sensitive` ticket whose pass verdict is good is not merged: the ticket 
   // Le TODO du chef la lit comme une carte : sa sorte, sa question et le lien.
   const lue = carteEnCours([...carte.labels], faux.commentaires.get(carte.number) ?? []);
   assert.equal(lue?.sorte, "review-before-merge");
-  assert.match(lue?.texte ?? "", /^\*\*#41 is sensitive: review PR #1041 before it is merged\./);
+  assert.match(lue?.texte ?? "", /^\*\*#41 is sensitive: review the delivery of #41 \(PR 1041\) before it is merged\./);
   assert.ok(lue?.texte.includes(URL_DE_LA_PR), lue?.texte);
   // Le ticket reste en pass, et dit pourquoi ; sa PR porte la même demande ; aucun refus de GitHub n'est dit, rien n'est renvoyé.
   assert.ok(faux.ticket(TICKET).labels.has(LABEL_IN_PASS));
@@ -175,7 +175,7 @@ test("answering `merge` on the card merges the pull request and closes the card;
   assert.ok(carte !== undefined);
   const fin = await sensitive(faux, "merge", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
-  assert.match(fin.lignes.join("\n"), new RegExp(`faux/depot#${PR} merged, card #${carte.number} closed — ticket #${TICKET} is served`));
+  assert.match(fin.lignes.join("\n"), new RegExp(`faux/depot: the delivery of #${TICKET} \\(PR ${PR}\\) merged, card #${carte.number} closed — ticket #${TICKET} is served`));
   assert.equal(faux.mergee(TICKET)?.number, PR);
   assert.deepEqual(ouvertes(faux), []);
   assert.equal(faux.ticket(carte.number).labels.has(CHEF_TODO), false);
@@ -185,7 +185,63 @@ test("answering `merge` on the card merges the pull request and closes the card;
   // Plus de carte : une seconde réponse est refusée.
   const encore = await sensitive(faux, "merge", `faux/depot#${PR}`);
   assert.equal(encore.code, 1);
-  assert.match(encore.lignes.join("\n"), /no open “review before merge” card holds PR #1041/);
+  assert.match(encore.lignes.join("\n"), /no open “review before merge” card answers to 1041: it is neither an open ticket nor the pull request of a held delivery/);
+});
+
+test("answering `merge` with the ticket's number merges that ticket's pull request, and the answer names it ticket first (#3718)", async () => {
+  const { faux } = await retenu();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  const fin = await sensitive(faux, "merge", `faux/depot#${TICKET}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #41 (PR 1041) merged, card #${carte.number} closed — ticket #41 is served`]);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.deepEqual(ouvertes(faux), []);
+});
+
+test("answering `send back` with the ticket's number sends that ticket back to a cook with the note, and the answer names its delivery ticket first (#3718)", async () => {
+  const { faux, sha } = await retenu();
+  const note = "Keep the old flag readable for one more release.";
+  const fin = await sensitive(faux, "send-back", `faux/depot#${TICKET}`, "--note", note);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #41 (PR 1041) sent back: #41 goes back to a cook with your note, card #41 closed — its next delivery comes back as a new card`]);
+  const [renvoi] = renvois(faux);
+  assert.ok(renvoi?.body.startsWith(`<!-- brigade:renvoi n=1 sha=${sha} -->\n`), renvoi?.body ?? "no send-back");
+  assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("the send-back posted on the ticket names the delivery ticket first, not by its pull request alone (#3718)", async () => {
+  const { faux } = await retenu();
+  const fin = await sensitive(faux, "send-back", `faux/depot#${PR}`, "--note", "Keep the old flag readable.");
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  const [renvoi] = renvois(faux);
+  assert.match(renvoi?.body ?? "", /\nThe chef sent the delivery of #41 \(PR 1041\) back to a cook after reviewing it:\n\nKeep the old flag readable\./);
+});
+
+test("an answer on a ticket with no pull request is refused naming the ticket, and does nothing (#3718)", async () => {
+  const { faux } = await retenu();
+  faux.feu(77, [LABEL_SENSITIVE]);
+  for (const args of [["merge", "faux/depot#77"], ["send-back", "faux/depot#77", "--note", "Change it."]]) {
+    const fin = await sensitive(faux, ...args);
+    assert.equal(fin.code, 1, args.join(" "));
+    assert.deepEqual(fin.lignes, ["brigade : ticket #77 has no pull request: there is no delivery to answer, nothing was done"]);
+  }
+  assert.deepEqual(renvois(faux), []);
+  assert.equal(ouvertes(faux).length, 1);
+  assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("an answer on a ticket two open cards hold for two pull requests is refused naming the ticket and both, and does nothing; the pull request's number still answers (#3718)", async () => {
+  const { faux, sha } = await retenu();
+  faux.feu(500, [], `<!-- brigade:sensitive-review pr=999 ticket=${TICKET} sha=${sha} -->\nan older card`);
+  const fin = await sensitive(faux, "merge", `faux/depot#${TICKET}`);
+  assert.equal(fin.code, 1);
+  assert.deepEqual(fin.lignes, [`brigade : ticket #41 has several open “review before merge” cards, for PR 999, PR 1041: name the pull request to answer`]);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
+  const parLaPR = await sensitive(faux, "merge", `faux/depot#${PR}`);
+  assert.equal(parLaPR.code, 0, parLaPR.lignes.join("\n"));
+  assert.equal(faux.mergee(TICKET)?.number, PR);
 });
 
 test("answering `send back` with a note returns the ticket to cooking, the note reaches the cook, the card closes; the next delivery comes back as a new card", async () => {
@@ -243,7 +299,7 @@ test("merge after the branch was updated from its base merges nothing at once: t
   faux.ciEnCours.add(PR);
   const fin = await sensitive(faux, "merge", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
-  assert.deepEqual(fin.lignes, [`faux/depot#${PR}: your answer is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}): your answer is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
   assert.equal(faux.pr(PR).merged, false);
   assert.deepEqual(ouvertes(faux), []);
   assert.ok((faux.commentaires.get(TICKET) ?? []).some((c) => c.body.startsWith(`<!-- brigade:sensitive-review-validee carte=${carte.number} pr=${PR} `) && c.body.includes("Merge accepted by the chef on card")));
@@ -260,7 +316,7 @@ test("merge on a PR that conflicts with the base: the answer is recorded, the ca
   faux.pr(PR).enConflit = true;
   const fin = await sensitive(faux, "merge", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
-  assert.deepEqual(fin.lignes, [`faux/depot#${PR}: your answer is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}): your answer is recorded, card #${carte.number} closed — it conflicts with the base: the kitchen first updates it on the base, then merges it`]);
   assert.equal(faux.pr(PR).merged, false);
   assert.deepEqual(ouvertes(faux), []);
   assert.ok((faux.commentaires.get(TICKET) ?? []).some((c) => c.body.startsWith(`<!-- brigade:sensitive-review-validee carte=${carte.number} pr=${PR} `) && c.body.includes("If a cook has to resolve the conflict, a new card asks the chef again.")));

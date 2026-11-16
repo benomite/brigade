@@ -439,9 +439,13 @@ delivery, and every delivery of a project without the setting, is merged as befo
 | a send-back follows the card or the validation (a cook changed the delivery) | the card, if still open, is closed at the send-back; the next delivery, judged green, gets **a new card** |
 | its files, its ticket's issue or its PR's comments cannot be read, or the request cannot be posted | not merged; the station says why, and tries again at its next turn |
 
-Two gestures answer the card, which the app calls (`brigade <projet> design`, [`exploitation.md`](exploitation.md)):
+Two gestures answer the card, which the app calls (`brigade <projet> design`, [`exploitation.md`](exploitation.md)).
+Each names the delivery by its ticket's number; the pull request's number is still accepted in place of it (#3718).
+A ticket with no pull request, or one that two open cards hold for two pull requests, is refused with a message
+naming the ticket, and nothing is done. What the gesture says names the pull request ticket first: `the delivery
+of #<ticket> (PR <PR>)`.
 
-- **`validate <owner>/<repo>#<PR>`** merges the head the card carries, the one the pass judged green, then
+- **`validate <owner>/<repo>#<ticket>`** merges the head the card carries, the one the pass judged green, then
   closes the card. When the PR's head is no longer that one and no send-back follows the card — the branch
   was updated from its base — it merges nothing at once: the validation is written on the ticket
   (`Validated by the chef on card #<card> — merge pending.`), the card is closed and says the same, and the
@@ -458,7 +462,7 @@ Two gestures answer the card, which the app calls (`brigade <projet> design`, [`
 
   As for the review's approval (`github-etat/fusion.ts`), an update from the base is told from new work by
   the send-back: a cook works on a delivery only after one.
-- **`send-back <owner>/<repo>#<PR> --comment "<what to change>"`** posts a send-back on the ticket with the
+- **`send-back <owner>/<repo>#<ticket> --comment "<what to change>"`** posts a send-back on the ticket with the
   comment as the change to make, removes `in-pass`, and closes the card. A cook takes the ticket up from its
   branch; its next delivery, judged green, comes back as **a new card with its new captures**. A card that a
   send-back of the pass overtakes (a red CI after an update) is closed at that send-back: it leaves the
@@ -516,14 +520,14 @@ A sensitive design delivery on a project where a human validates designs waits o
 an update from the base, answers for both, and the pass merges without a `review before merge` card (#3332).
 
 Two answers, `brigade <projet> sensitive` ([`exploitation.md`](exploitation.md)), act like the design
-gestures:
+gestures, the delivery named by its ticket's number the same way (#3718):
 
-- **`merge <owner>/<repo>#<PR>`** merges the head the card carries, then closes the card; when the branch
+- **`merge <owner>/<repo>#<ticket>`** merges the head the card carries, then closes the card; when the branch
   was updated from its base since the card, the answer is kept on the ticket (`Merge accepted by the chef
   on card #<card> — merge pending.`) and the pass merges once the head is green, as for `validate`. When the
   PR conflicts with the base, the answer is recorded the same way (#3426); a send-back to a cook for the
   conflict ends it, and the next delivery comes back as a new card.
-- **`send-back <owner>/<repo>#<PR> --note "<note>"`** posts a send-back on the ticket with the note, which
+- **`send-back <owner>/<repo>#<ticket> --note "<note>"`** posts a send-back on the ticket with the note, which
   the cook reads with the ticket, removes `in-pass`, and closes the card; a cook takes the ticket up again.
   An empty note is refused.
 

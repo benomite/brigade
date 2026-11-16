@@ -15,7 +15,7 @@ import { MARQUE_DE_RENVOI } from "../../src/qualite-github.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier } from "../../src/reglages-projet/reglages.ts";
 import { principal } from "../../src/validation-design/commande.ts";
 import { corpsDeCeQuiEstFait, SANS_RESUME } from "../../src/validation-design/brief.ts";
-import { designsValidesParUnHumain, estUneLivraisonDesign, SORTE_DE_CARTE, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
+import { designsValidesParUnHumain, estUneLivraisonDesign, livraisonSansObjet, SORTE_DE_CARTE, TITRE_DE_CARTE } from "../../src/validation-design/validation-design.ts";
 import { demandeDuCorps } from "../../src/validation-sur-ticket/validation-sur-ticket.ts";
 import { ecrirePng, lirePng, type Image } from "../../src/validation-design/png.ts";
 import type { ChoixDeDesign } from "../../src/validation-design/choix-de-design.ts";
@@ -271,7 +271,7 @@ test("validate after the branch was updated from its base: nothing merged at onc
   faux.ciEnCours.add(PR);
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
-  assert.deepEqual(fin.lignes, [`faux/depot#${PR} validated: your validation is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}) validated: your validation is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
   assert.equal(faux.pr(PR).merged, false);
   // La carte n'attend plus rien : elle quitte TODO, le ticket reste ouvert.
   assert.deepEqual(ouvertes(faux), []);
@@ -279,7 +279,7 @@ test("validate after the branch was updated from its base: nothing merged at onc
   // Le ticket dit la validation gardée et le merge en attente, et ce qui suit.
   const [gardee, ...autres] = validees(faux);
   assert.deepEqual(autres, []);
-  assert.ok(gardee?.body.startsWith(`<!-- brigade:validation-design-validee carte=${carte.number} pr=${PR} sha=${sha} -->\nValidated by the chef on card #${carte.number} — merge pending. The branch of PR #1040 was updated since the card (\`${sha.slice(0, 7)}\` → \`${neuve.slice(0, 7)}\`)`), gardee?.body ?? "no validation on the ticket");
+  assert.ok(gardee?.body.startsWith(`<!-- brigade:validation-design-validee carte=${carte.number} pr=${PR} sha=${sha} -->\nValidated by the chef on card #${carte.number} — merge pending. The branch of the delivery of #40 (PR 1040) was updated since the card (\`${sha.slice(0, 7)}\` → \`${neuve.slice(0, 7)}\`)`), gardee?.body ?? "no validation on the ticket");
   // La CI encore en cours : rien de mergé, aucune carte neuve.
   await tours(s, 3);
   assert.equal(faux.mergee(TICKET), undefined);
@@ -373,7 +373,7 @@ test("validate after a send-back of the pass merges nothing, even on the card's 
   assert.equal(faux.pr(PR).sha, sha);
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 1);
-  assert.match(fin.lignes.join("\n"), /the delivery of PR #1040 went back to a cook since card #\d+: nothing merged, card #\d+ closed/);
+  assert.match(fin.lignes.join("\n"), /the delivery of #40 \(PR 1040\) went back to a cook since card #\d+: nothing merged, card #\d+ closed/);
   assert.equal(faux.mergee(TICKET), undefined);
   assert.equal(faux.pr(PR).merged, false);
   assert.deepEqual(ouvertes(faux), []);
@@ -451,7 +451,37 @@ test("validate with the card's PR number merges the delivery and closes the card
   // Plus de carte : valider une seconde fois est refusé, sans rien merger.
   const encore = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(encore.code, 1);
-  assert.match(encore.lignes.join("\n"), /no open “Validate its screen” card holds PR #1040/);
+  assert.match(encore.lignes.join("\n"), /no open “Validate its screen” card answers to 1040: it is neither an open ticket nor the pull request of a held delivery/);
+});
+
+test("validate with the ticket's number merges that ticket's pull request, and the answer names it ticket first (#3718)", async () => {
+  const { faux } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  const fin = await design(faux, "validate", `faux/depot#${TICKET}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #40 (PR 1040) validated: merged, card #${carte.number} closed — ticket #40 is served`]);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.deepEqual(ouvertes(faux), []);
+});
+
+test("send-back with the ticket's number sends that ticket's delivery back to a cook, and the answer names it ticket first (#3718)", async () => {
+  const { faux, sha } = await retenue();
+  const fin = await design(faux, "send-back", `faux/depot#${TICKET}`, "--comment", "Make the take button stand out.");
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #40 (PR 1040) sent back: #40 goes back to a cook with your comment, card #40 closed — its next delivery comes back as a new card`]);
+  assert.ok(renvois(faux)[0]?.body.startsWith(`<!-- brigade:renvoi n=1 sha=${sha} -->\n`));
+  assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("validate on a ticket with no pull request is refused naming the ticket, and merges nothing (#3718)", async () => {
+  const { faux } = await retenue();
+  faux.feu(77);
+  const fin = await design(faux, "validate", "faux/depot#77");
+  assert.equal(fin.code, 1);
+  assert.deepEqual(fin.lignes, ["brigade : ticket #77 has no pull request: there is no delivery to answer, nothing was done"]);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
 });
 
 test("validate refused by GitHub keeps the card open and says why", async () => {
@@ -459,7 +489,7 @@ test("validate refused by GitHub keeps the card open and says why", async () => 
   faux.pr(PR).enRetard = true;
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 1);
-  assert.match(fin.lignes.join("\n"), /GitHub refused to merge PR #1040 — HTTP 405 — Head branch is out of date; card #\d+ stays open/);
+  assert.match(fin.lignes.join("\n"), /GitHub refused to merge the delivery of #40 \(PR 1040\) — HTTP 405 — Head branch is out of date; card #\d+ stays open/);
   assert.equal(faux.mergee(TICKET), undefined);
   assert.equal(ouvertes(faux).length, 1);
 });
@@ -480,7 +510,7 @@ test("validate a card whose PR conflicts with the base: no “nothing was done�
   const { faux, carte, sha } = await enConflit();
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
-  assert.deepEqual(fin.lignes, [`faux/depot#${PR} validated: your validation is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}) validated: your validation is recorded, card #${carte.number} closed — it conflicts with the base: the kitchen first updates it on the base, then merges it`]);
   assert.equal(faux.pr(PR).merged, false);
   // La carte n'est plus dans TODO : le ticket, sans `chef-todo`, reste ouvert.
   assert.deepEqual(ouvertes(faux), []);
@@ -491,7 +521,7 @@ test("validate a card whose PR conflicts with the base: no “nothing was done�
   assert.deepEqual(autres, []);
   assert.equal(
     gardee?.body,
-    `<!-- brigade:validation-design-validee carte=${carte.number} pr=${PR} sha=${sha} -->\nValidated by the chef on card #${carte.number} — merge pending. PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it once its checks are green, without a new card. If the update changes the screen, or cannot be done without changing it, a new card asks the chef again, with the new captures.`,
+    `<!-- brigade:validation-design-validee carte=${carte.number} pr=${PR} sha=${sha} -->\nValidated by the chef on card #${carte.number} — merge pending. The delivery of #${TICKET} (PR ${PR}) conflicts with the base: the kitchen first updates it on the base, then merges it once its checks are green, without a new card. If the update changes the screen, or cannot be done without changing it, a new card asks the chef again, with the new captures.`,
   );
 });
 
@@ -505,7 +535,7 @@ test("a PR GitHub refuses to merge because it fell into conflict after it was re
     return { fait: false, motif: "HTTP 405 — Pull Request is not mergeable" };
   };
   await principal({ args: ["validate", `faux/depot#${PR}`], env: {}, dire: (ligne) => lignes.push(ligne), redire: (ligne) => lignes.push(ligne) }, () => ({ ...client, merger }));
-  assert.deepEqual(lignes, [`faux/depot#${PR} validated: your validation is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.deepEqual(lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}) validated: your validation is recorded, card #${carte.number} closed — it conflicts with the base: the kitchen first updates it on the base, then merges it`]);
   assert.equal(validees(faux).length, 1);
   assert.deepEqual(ouvertes(faux), []);
 });
@@ -557,10 +587,10 @@ test("validated in conflict, the update on the base changes the screen: nothing 
   const tete = faux.pr(PR).sha;
   assert.notEqual(tete, sha);
   assert.deepEqual(carteDuCorps(seconde.corps), { pr: PR, ticket: TICKET, sha: tete });
-  const pourquoi = `The update of PR #${PR} on the base changed its screen since the chef validated it (asked on #${TICKET}): \`app/src/vue/rail.js\` changed (\`${sha.slice(0, 7)}\` → \`${tete.slice(0, 7)}\`). The chef is asked again, on the new captures.`;
+  const pourquoi = `The update of the delivery of #${TICKET} (PR ${PR}) on the base changed its screen since the chef validated it (asked on #${TICKET}): \`app/src/vue/rail.js\` changed (\`${sha.slice(0, 7)}\` → \`${tete.slice(0, 7)}\`). The chef is asked again, on the new captures.`;
   assert.ok(seconde.corps.includes(pourquoi), seconde.corps);
   assert.ok(seconde.corps.includes(`![rail — après](https://github.com/faux/depot/blob/${tete}/docs/captures/40/rail-apres.png?raw=true)`), seconde.corps);
-  assert.match(carteEnCours([...seconde.labels], faux.commentaires.get(seconde.number) ?? [])?.texte ?? "", new RegExp(`The update of PR #${PR} on the base changed its screen`));
+  assert.match(carteEnCours([...seconde.labels], faux.commentaires.get(seconde.number) ?? [])?.texte ?? "", new RegExp(`The update of the delivery of #${TICKET} \\(PR ${PR}\\) on the base changed its screen`));
   // La validation d'avant ne tient plus : la PR attend le chef, tour après tour.
   await tours(s, 3);
   assert.equal(faux.mergee(TICKET), undefined);
@@ -580,7 +610,7 @@ test("validated in conflict, the conflict cannot be resolved without changing th
   assert.notEqual(seconde.corps, carte.corps);
   const tete = faux.pr(PR).sha;
   assert.deepEqual(carteDuCorps(seconde.corps), { pr: PR, ticket: TICKET, sha: tete });
-  assert.ok(seconde.corps.includes(`PR #${PR} could not be updated on the base without changing its screen since the chef validated it (asked on #${TICKET}): \`app/src/vue/rail.js\`, \`docs/captures/40/rail-apres.png\` changed`), seconde.corps);
+  assert.ok(seconde.corps.includes(`The delivery of #${TICKET} (PR ${PR}) could not be updated on the base without changing its screen since the chef validated it (asked on #${TICKET}): \`app/src/vue/rail.js\`, \`docs/captures/40/rail-apres.png\` changed`), seconde.corps);
   assert.ok(seconde.corps.includes(`![rail — après](https://github.com/faux/depot/blob/${tete}/docs/captures/40/rail-apres.png?raw=true)`), seconde.corps);
   assert.equal(faux.mergee(TICKET), undefined);
 });
@@ -735,6 +765,28 @@ test("send back on a delivery merged anyway opens a follow-up ticket with the ch
   assert.equal(renvois(faux).length, 0);
   const suivi = issuesAPart(faux).find((t) => t.number !== carte.number);
   assert.ok(suivi?.corps.includes("The take button is still lost."), suivi?.corps ?? "no follow-up ticket");
+});
+
+test("the follow-up ticket of a delivery merged anyway, and the design send-back posted on the ticket, name the delivery ticket first (#3718)", async () => {
+  const { faux } = await retenue();
+  const renvoyee = await design(faux, "send-back", `faux/depot#${TICKET}`, "--comment", "The take button is lost.");
+  assert.equal(renvoyee.code, 0, renvoyee.lignes.join("\n"));
+  const [renvoi] = renvois(faux);
+  assert.match(renvoi?.body ?? "", /\nThe chef sent the design of the delivery of #40 \(PR 1040\) back to a cook — the chef asks for changes to the screen:/);
+
+  const autre = await retenue();
+  autre.faux.pr(PR).state = "closed";
+  autre.faux.pr(PR).merged = true;
+  const fin = await design(autre.faux, "send-back", `faux/depot#${TICKET}`, "--comment", "The take button is still lost.");
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  const [suivi] = issuesAPart(autre.faux);
+  assert.ok(suivi?.corps.startsWith("The delivery of #40 (PR 1040) was merged before the chef validated it."), suivi?.corps ?? "no follow-up ticket");
+});
+
+test("a card left without an object says the delivery ticket first: merged or closed (#3718)", async () => {
+  const lue = (pr: { number: number; merged: boolean; state: string }) => ({ issue: async () => ({ state: "open" }), prDeBranche: async () => pr }) as unknown as Parameters<typeof livraisonSansObjet>[0];
+  assert.equal(await livraisonSansObjet(lue({ number: PR, merged: true, state: "closed" }), TICKET, PR, brancheDuTicket), "the delivery of #40 (PR 1040) is merged");
+  assert.equal(await livraisonSansObjet(lue({ number: PR, merged: false, state: "closed" }), TICKET, PR, brancheDuTicket), "the delivery of #40 (PR 1040) is closed");
 });
 
 test("setting off: a green design delivery is merged by the pass as before, no card", async () => {
