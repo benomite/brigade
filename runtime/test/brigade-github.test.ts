@@ -50,6 +50,25 @@ test("two stations claim the same ticket at once: the earliest claim cooks it, t
   assert.equal(faux.prs.length, 1);
 });
 
+// benomite/secondes#50 à #52 (#3713) : des tickets lancés attendaient leur prise toute une nuit, sans cook qui cuise. La
+// station dit lesquels attendent, au dernier tour : c'est ce qui garde le Mac éveillé (`veille-machine/`).
+test("the station names the fired tickets that wait for a claim at its last turn, and a ticket claimed waits no more (#3713)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1);
+  faux.feu(2);
+  const a = faux.station("A", { places: 1 });
+  assert.deepEqual(a.enAttente?.(), []);
+  await a.tour();
+  assert.deepEqual(a.enCuisine(), [1]);
+  assert.deepEqual(a.enAttente?.(), [2]);
+  await a.calme();
+  // Le cook de #1 a fini : #2 attend encore, jusqu'au tour qui le prend.
+  assert.deepEqual(a.enAttente?.(), [2]);
+  await a.tour();
+  assert.deepEqual(a.enAttente?.(), []);
+  await a.calme();
+});
+
 test("a ticket whose dependency is open is held back, and claimed once the dependency closes", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, ["model:sonnet", "effort:medium"]);

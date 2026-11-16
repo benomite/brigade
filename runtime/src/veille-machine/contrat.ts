@@ -1,9 +1,11 @@
-// Garder le Mac éveillé tant qu'un cook cuit (#3642, épique #3641) : ce que la station et l'app se partagent, deux
-// fichiers sous le répertoire de la station (`BRIGADE_STATION_DIR`), à côté de ses autres réglages de cet ordinateur.
+// Garder le Mac éveillé tant qu'un cook cuit (#3642, épique #3641), ou qu'un ticket servi attend sa prise (#3713) : ce
+// que la station et l'app se partagent, deux fichiers sous le répertoire de la station (`BRIGADE_STATION_DIR`), à côté
+// de ses autres réglages de cet ordinateur.
 //
 // - **Le réglage**, `veille-machine.json` : `{ "garderEveille": false }`. Écrit par l'icône de fond de l'app (le menu de
 //   la station, « Keep this computer awake while cooking »), relu par la station chaque seconde (`veille.ts`). Absent, il
-//   est allumé : c'est le défaut que le ticket fixe. Illisible, il se dit, et rien ne l'écrase.
+//   est allumé : c'est le défaut que le ticket fixe. Illisible, il se dit, et rien ne l'écrase. Un seul réglage pour les
+//   deux cas qui tiennent l'assertion : un cook qui cuit, et un ticket servi qui attend sa prise (#3713).
 // - **L'état**, `veille-machine-etat.json` : `{ "tenue": true, "caffeinate": <pid>, "station": <pid> }` tant que la
 //   station tient l'assertion, `{ "tenue": false }` sinon. Écrit par la station seule, d'un coup (fichier temporaire, puis
 //   renommé). Lu par l'app : la ligne du menu et de la carte de la station ne se montre que si les deux process vivent —

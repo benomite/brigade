@@ -6,6 +6,10 @@
 //
 // Chaque seconde, elle recompte ses cooks et relit le réglage : un cook qui finit, ou le réglage éteint depuis le menu,
 // relâche l'assertion dans la seconde. Hors d'un Mac, rien ne se lance et rien ne s'écrit.
+//
+// Elle la tient aussi tant qu'un ticket qu'elle sert attend sa prise — ouvert, lancé, pris par personne —, sous le même
+// réglage (#3713) : la nuit, des tickets attendaient sans cook qui cuise, rien ne tenait le Mac, et une station qui ne
+// tourne plus ne prend rien jusqu'au réveil. Le compte vient du dernier tour de chaque projet servi sur GitHub.
 import { spawn, type ChildProcess } from "../sans-invite.ts";
 import { ecrireEtat, lireReglage } from "./contrat.ts";
 
@@ -17,6 +21,8 @@ type OptionsDeLaVeille = {
   plateforme: NodeJS.Platform;
   // Combien de cooks cuisent sur la station, à l'instant.
   cooks: () => number;
+  // Combien de tickets qu'elle sert attendent une prise, au dernier tour lu (#3713).
+  attentes?: () => number;
   dire: (ligne: string) => void;
   // Le process que `caffeinate` suit : la station.
   pid?: number;
@@ -77,13 +83,13 @@ export function tenirLaVeille(options: OptionsDeLaVeille): VeilleDeLaStation {
       // Arrêté par autre chose que la station : repris au regard suivant, s'il le faut encore.
       enfant = undefined;
       ecrire({ tenue: false });
-      dire(`brigade : station — caffeinate s'est arrêté (${signal ?? `code ${code}`}) : repris au regard suivant si un cook cuit encore`);
+      dire(`brigade : station — caffeinate s'est arrêté (${signal ?? `code ${code}`}) : repris au regard suivant si un cook cuit ou qu'un ticket attend sa prise encore`);
     });
     if (lance.pid === undefined) return;
     enfant = lance;
     ditDuLancement = "";
     ecrire({ tenue: true, caffeinate: lance.pid, station: pid });
-    dire(`brigade : station — elle garde cet ordinateur éveillé tant qu'un cook cuit (caffeinate, pid ${lance.pid})`);
+    dire(`brigade : station — elle garde cet ordinateur éveillé tant qu'un cook cuit ou qu'un ticket attend sa prise (caffeinate, pid ${lance.pid})`);
   };
 
   const regarder = () => {
@@ -97,8 +103,9 @@ export function tenirLaVeille(options: OptionsDeLaVeille): VeilleDeLaStation {
       ditDuReglage = "";
     }
     const cooks = options.cooks();
+    const attentes = options.attentes?.() ?? 0;
     if (!garder) return relacher("le réglage est éteint");
-    if (cooks === 0) return relacher("plus aucun cook ne cuit");
+    if (cooks === 0 && attentes === 0) return relacher("plus aucun cook ne cuit et aucun ticket n'attend sa prise");
     if (enfant === undefined) prendre();
   };
 

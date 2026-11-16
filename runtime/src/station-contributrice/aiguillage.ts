@@ -34,6 +34,7 @@ export function stationSelonLesDroits(options: OptionsDeLAiguillage): StationGit
       await choisie.tour();
     },
     enCuisine: () => choisie?.enCuisine() ?? [],
+    enAttente: () => choisie?.enAttente?.() ?? [],
     calme: async () => choisie?.calme(),
     relu: async () => choisie?.relu(),
     quitter: async () => (choisie ?? options.ecrivaine).quitter?.(),
