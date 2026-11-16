@@ -112,7 +112,7 @@ import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 import { agirSurLaReponse } from "./reponse-validation/reponse-validation.ts";
 import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 import { ecrireLesTests } from "./tests-acceptation/ecriture.ts";
-import { estLeCommitDesTests, etapeDuRail } from "./tests-acceptation/etape.ts";
+import { estLeCommitDesTests, LABEL_TESTS_ECRITS } from "./tests-acceptation/etape.ts";
 import { consigneDesTestsGeles, lireLesFiches } from "./tests-acceptation/fiche.ts";
 import { porteDesTests, type PorteDesTests } from "./tests-acceptation/porte.ts";
 
@@ -2699,7 +2699,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Ses tests d'acceptation, gelés en premier commit de sa branche (#3725) :
     // une autre station a pu les pousser, le clone la reçoit de l'origine. Sans
     // eux sur la branche, aucun cook ne part.
-    const gele = etapeDuRail(ticket.labels) !== "queued" && options.testsAcceptation !== undefined;
+    const gele = ticket.labels.includes(LABEL_TESTS_ECRITS) && options.testsAcceptation !== undefined;
     if (gele) {
       const propre = brancheDuTicket(ticket.number);
       try {
@@ -3269,11 +3269,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
               base,
               depot: depotGitHub,
             }),
-          { apres: () => station.presser?.(true), avertir },
+          { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) },
         );
-  const porteDesTestsDuDepot: PorteDesTests | undefined =
-    testsAcceptation === undefined ? undefined : { porte: (ticket) => (depot.connait(brancheDuTicket(ticket.number)) ? null : testsAcceptation.porte(ticket)), calme: testsAcceptation.calme };
-  const station = stationGitHub({ ...(porteDesTestsDuDepot === undefined ? {} : { testsAcceptation: porteDesTestsDuDepot }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

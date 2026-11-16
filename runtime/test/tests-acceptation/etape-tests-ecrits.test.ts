@@ -38,7 +38,9 @@ const MANAGER: Manager = (worktree) => {
 // La station d'un projet sur un vrai dépôt, où #TICKET est qualifié et sans
 // tests. Le cook commite `src/ecran.ts` et livre ; l'étape où il voit son
 // ticket, et ce que son worktree porte, sont notés.
-function station(t: TestContext, manager: Manager = MANAGER) {
+// `retenue` : la fin du lancement du manager attend qu'elle se résolve ;
+// `lance` est appelé quand il part.
+function station(t: TestContext, manager: Manager = MANAGER, retenue: Promise<void> = Promise.resolve(), lance: () => void = () => {}) {
   const lieux = depotGit(t);
   const worktrees = join(repertoireTemporaire(t), "worktrees");
   const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees, env: ENV_GIT });
@@ -51,6 +53,7 @@ function station(t: TestContext, manager: Manager = MANAGER) {
     if (entree?.startsWith(MARQUE_DE_LA_CONSIGNE)) {
       ecritures += 1;
       message = manager(cwd);
+      lance();
     } else if (!args.includes("--tools")) {
       cooks.push({ etape: etapeDuRail([...faux.ticket(TICKET).labels]), consigne: entree ?? "", premier: git(cwd, "rev-list", "--reverse", `origin/${BASE}..HEAD`).split("\n")[0] ?? "" });
       writeFileSync(join(cwd, "ecran.ts"), "export const ecran = 2;\n");
@@ -59,7 +62,8 @@ function station(t: TestContext, manager: Manager = MANAGER) {
       message = "Done.\n<livrable>\nThe second screen.\n</livrable>";
     }
     writeFileSync(flux, RENDU(message));
-    return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+    const fini = { code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null };
+    return { fin: entree?.startsWith(MARQUE_DE_LA_CONSIGNE) ? retenue.then(() => fini) : Promise.resolve(fini) };
   };
   const avertissements: string[] = [];
   const ouverte = stationDuDepot({
@@ -80,7 +84,7 @@ function station(t: TestContext, manager: Manager = MANAGER) {
   // Les commits de la branche sur l'origine, du premier au dernier.
   const commits = () => git(lieux.origine, "rev-list", "--reverse", `${BASE}..${BRANCHE}`).split("\n").filter(Boolean);
   const surLOrigine = () => git(lieux.origine, "branch", "--list", BRANCHE) !== "";
-  return { ...lieux, faux, tour, cooks, ecritures: () => ecritures, avertissements, commits, surLOrigine };
+  return { ...lieux, faux, ouverte, tour, cooks, ecritures: () => ecritures, avertissements, commits, surLOrigine };
 }
 
 test("the rail's steps: 'tests written' comes between 'queued' and 'taken'", () => {
@@ -154,4 +158,33 @@ test("records that cannot be read say so, never invented ones", () => {
   assert.equal(lireLesFiches([{ body: "hello", association: "OWNER" }]), null);
   const lues = lireLesFiches([{ body: "<!-- brigade:tests-acceptation -->\n<!-- brigade:fiches [not json -->", association: "OWNER" }]);
   assert.ok(lues !== null && "illisible" in lues);
+});
+
+test("a ticket without acceptance criteria has no test to freeze: no branch is pushed, and a cook takes it as before", async (t) => {
+  const { faux, tour, cooks, ecritures, surLOrigine } = station(t);
+  faux.ticket(TICKET).corps = "## Context\n\nThe dashboard's second screen.";
+  await tour();
+  await tour();
+  assert.equal(ecritures(), 0, "the manager is not run");
+  assert.equal(surLOrigine(), true, "the cook's delivery is pushed");
+  assert.equal(cooks.length, 1);
+  assert.equal(faux.ticket(TICKET).labels.has(LABEL_TESTS_ECRITS), false);
+});
+
+test("while the manager writes the tests, the ticket's new branch is in the clone, and still no cook takes it", async (t) => {
+  let liberer = () => {};
+  let lance = () => {};
+  const parti = new Promise<void>((resoudre) => (lance = resoudre));
+  const { faux, ouverte, cooks, ecritures } = station(t, MANAGER, new Promise((resoudre) => (liberer = resoudre)), () => lance());
+  await ouverte.tour();
+  await parti;
+  assert.equal(ecritures(), 1, "the manager is writing");
+  await ouverte.tour();
+  assert.equal(cooks.length, 0, "a turn during the writing does not take the ticket");
+  liberer();
+  await ouverte.calme();
+  assert.equal(faux.ticket(TICKET).labels.has(LABEL_TESTS_ECRITS), true);
+  await ouverte.tour();
+  await ouverte.calme();
+  assert.equal(cooks.length, 1);
 });

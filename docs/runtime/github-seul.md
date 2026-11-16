@@ -146,8 +146,9 @@ base, the stale-branch pruning).
   `mutationsTotal`, `survivingLines`, left empty for other tickets to fill) and sets `tests-written`. The cook then
   starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. A
   writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
-  the skip line says why. A ticket whose branch the clone already has was taken before the step existed and is taken
-  as is (`runtime/src/tests-acceptation/`).
+  the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
+  taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
+  and is taken as is (`runtime/src/tests-acceptation/`).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a

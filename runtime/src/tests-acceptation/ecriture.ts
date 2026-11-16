@@ -31,7 +31,8 @@ export type OutilsDeLEcriture = {
   depot: string;
 };
 
-export type Ecriture = { fiches: FicheDeCritere[] } | { echec: string };
+// `sansCriteres` : le ticket n'a aucun critère d'acceptation, il n'y a rien à geler.
+export type Ecriture = { fiches: FicheDeCritere[] } | { sansCriteres: true } | { echec: string };
 
 export function consigneDesTests(mission: { depot: string; ticket: number; titre: string; corps: string; criteres: readonly string[] }): string {
   const { depot, ticket, titre, corps, criteres } = mission;
@@ -85,7 +86,7 @@ export async function ecrireLesTests(ticket: number, outils: OutilsDeLEcriture):
   const issue = await outils.issue(ticket);
   if (issue === null) return { echec: "the issue no longer exists" };
   const criteres = criteresDuTicket(issue.body ?? "");
-  if (criteres.length === 0) return { echec: "the ticket has no acceptance criteria to write tests for" };
+  if (criteres.length === 0) return { sansCriteres: true };
   const { worktree, branche } = await outils.preparer();
   let poussee = false;
   try {
