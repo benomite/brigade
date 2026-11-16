@@ -91,7 +91,7 @@ test("six projets à une charge ordinaire : le total reste sous le budget de la 
   limite.fermer();
 });
 
-test("`status` dit, par projet, ses appels de l'heure contre sa part et s'il en est ralenti", (t) => {
+test("`status` dit, par projet, ses appels de l'heure contre sa part, et pour le seul projet retenu, l'heure où il reprend", (t) => {
   const repertoire = repertoireTemporaire(t);
   const station = repertoireTemporaire(t);
   ouvrirJournal(repertoire).fermer();
@@ -112,7 +112,7 @@ test("`status` dit, par projet, ses appels de l'heure contre sa part et s'il en 
   const lignes = photoDuProjet({ BRIGADE_STATE_DIR: repertoire, BRIGADE_STATION_DIR: station, BRIGADE_PROJECT: "secondes" }, { maintenant: new Date(h.instant) });
   const debut = lignes.findIndex((l) => l.startsWith("gh share"));
   assert.deepEqual(lignes.slice(debut, debut + 2), [
-    `gh share   brigade ${PART_D_UN_PROJET}/${PART_D_UN_PROJET} calls in the last hour — slowed by its share`,
+    `gh share   brigade ${PART_D_UN_PROJET}/${PART_D_UN_PROJET} calls in the last hour — held back for its GitHub share, resumes at 21:00 UTC`,
     `           secondes 12/${PART_D_UN_PROJET} calls in the last hour`,
   ]);
   assert.equal(lignes.some((l) => /station \d+\/\d+ calls in the last hour/.test(l)), false);

@@ -38,6 +38,8 @@ import { brancheDuProjet, reglagesAuDemarrage } from "../reglages-projet/en-vigu
 import { DECLARATION_SERVICES_LOCAUX, servicesDuDepot } from "../sandbox/services-locaux.ts";
 import { DECLARATION_BAC_A_SABLE } from "../bac-a-sable/declaration.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE } from "../reseau.ts";
+import { direLaRetenueDeLaPart } from "../budget-github/part-des-projets.ts";
+import { surLaPartAtteinte } from "../limite-github.ts";
 import { ETATS, lieuxDuProjet } from "../station/configuration.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { lireProjetsServis } from "./projets-servis.ts";
@@ -167,7 +169,8 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
   const ouvrirLeTour = options.ouvrirLeTour ?? tourDeLaBox(options);
   const dit = (ligne: string) => dire(`brigade : station ${station} — ${ligne}`);
   // Les projets servis, par dépôt en minuscules ; et ceux retirés dont des cooks sont encore en vol.
-  const ouverts = new Map<string, { depot: string; tour: TourDuProjet; dernier: string | null }>();
+  // `enCours` : le tour d'un projet que sa part GitHub retient, qui finit seul pendant que les autres tournent (#3705).
+  const ouverts = new Map<string, { depot: string; nom: string; tour: TourDuProjet; dernier: string | null; enCours: Promise<void> | null }>();
   const retires = new Set<TourDuProjet>();
   // Ce qui a été dit de chaque dépôt qui n'a pas pu être servi, et de la liste
   // (vide, illisible) : redit seulement quand cela change.
@@ -239,7 +242,7 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
     for (const [cle, { depot, nom }] of voulus) {
       if (ouverts.has(cle) || arrete) continue;
       try {
-        ouverts.set(cle, { depot, tour: await ouvrir(depot, nom), dernier: null });
+        ouverts.set(cle, { depot, nom, tour: await ouvrir(depot, nom), dernier: null, enCours: null });
         refus.delete(cle);
       } catch (erreur) {
         refuser(cle, `${depot} is not served this turn, it is tried again at the next — ${message(erreur)}`);
@@ -247,16 +250,41 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
     }
     for (const ouvert of [...ouverts.values()]) {
       if (arrete) return;
-      let ligne: string;
-      try {
-        await ouvert.tour.tour();
-        const cuits = ouvert.tour.enCuisine();
-        ligne = `GitHub-only turn on ${ouvert.depot}: ${cuits.length === 0 ? "no ticket cooking here" : `cooking ${cuits.map((numero) => `#${numero}`).join(", ")}`}`;
-      } catch (erreur) {
-        ligne = `GitHub-only turn on ${ouvert.depot} — ${message(erreur)}`;
+      // Son tour d'avant attend encore sa part : il finit seul, celui-ci ne part pas.
+      if (ouvert.enCours !== null) continue;
+      const direLaLigne = (ligne: string) => {
+        if (ligne !== ouvert.dernier) dit(ligne);
+        ouvert.dernier = ligne;
+      };
+      // Un appel du projet attend sa part dans la file : la station ne l'attend
+      // pas, elle passe aux projets suivants, qui gardent leurs appels (#3705).
+      // L'écoute est posée avant le tour : un appel retenu dès son départ se dit aussi.
+      let retirerLEcoute = () => {};
+      const retenu = new Promise<{ reprise: number }>((reveiller) => {
+        retirerLEcoute = surLaPartAtteinte((projet, reprise) => {
+          if (projet === ouvert.nom) reveiller({ reprise });
+        });
+      });
+      const tour = (async (): Promise<string> => {
+        try {
+          await ouvert.tour.tour();
+          const cuits = ouvert.tour.enCuisine();
+          return `GitHub-only turn on ${ouvert.depot}: ${cuits.length === 0 ? "no ticket cooking here" : `cooking ${cuits.map((numero) => `#${numero}`).join(", ")}`}`;
+        } catch (erreur) {
+          return `GitHub-only turn on ${ouvert.depot} — ${message(erreur)}`;
+        }
+      })();
+      const fin = await Promise.race([tour.then((ligne) => ({ ligne })), retenu]);
+      retirerLEcoute();
+      if ("ligne" in fin) {
+        direLaLigne(fin.ligne);
+        continue;
       }
-      if (ligne !== ouvert.dernier) dit(ligne);
-      ouvert.dernier = ligne;
+      direLaLigne(`GitHub-only turn on ${ouvert.depot} — ${direLaRetenueDeLaPart(fin.reprise)}`);
+      ouvert.enCours = tour.then((ligne) => {
+        ouvert.enCours = null;
+        direLaLigne(ligne);
+      });
     }
   };
 

@@ -877,6 +877,7 @@ function fileDe(limite: Limite): File {
       } catch (erreur) {
         if (erreur instanceof PartAtteinte) {
           parts.set(erreur.projet, erreur);
+          direLaPartAtteinte(erreur);
           retenir(entree, erreur);
           if (prochain === null || erreur.jusqua < prochain.jusqua) prochain = { jusqua: erreur.jusqua, par: entree };
           continue;
@@ -919,6 +920,25 @@ function fileDe(limite: Limite): File {
   };
   files.set(limite, file);
   return file;
+}
+
+// Qui veut savoir qu'un appel d'un projet attend sa part dans la file (#3705) :
+// la station de l'ordinateur, qui passe alors au projet suivant au lieu
+// d'attendre ce tour-là. Rend de quoi se retirer. Une écoute qui lève ne
+// retient pas la file.
+const ecouteursDeLaPart = new Set<(projet: string, jusqua: number) => void>();
+
+export function surLaPartAtteinte(ecouteur: (projet: string, jusqua: number) => void): () => void {
+  ecouteursDeLaPart.add(ecouteur);
+  return () => void ecouteursDeLaPart.delete(ecouteur);
+}
+
+function direLaPartAtteinte(erreur: PartAtteinte): void {
+  for (const ecouteur of [...ecouteursDeLaPart]) {
+    try {
+      ecouteur(erreur.projet, erreur.jusqua);
+    } catch {}
+  }
 }
 
 // Fait une requête à GitHub sous le compteur : prend son appel, comme
