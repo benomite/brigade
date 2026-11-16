@@ -11,6 +11,7 @@ Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new
 
 ### Changed
 
+- The `sensitive` and `design` gestures take the ticket's number (`sensitive merge <owner>/<repo>#3709`): they act on that ticket's pull request, the pull request's number is still accepted, and a ticket with no pull request is refused by name; what they say names the pull request ticket first, `the delivery of #3709 (PR 3710)`, as do the questions of their cards (#3718)
 - Roles name a pull request by its ticket first (`the delivery of #3709 (PR 3710)`, never `#3710` alone) and give the chef merge and review commands with the ticket number (#3717)
 - Above the rail: at most two lines, the Backlog band and one status line that shows only when something holds the kitchen. The `Cooks on …` bar, the `TODO (N)` filter, the figures line and the age line are gone; the station and its state are a tag beside the Stations tab; the backlog is folded by default; an issue the kitchen files about itself is the status line, never a need; the wait line names a known reason instead of `no reason is found` (#3523)
 - The `merge` grant is deleted: no `grant` command, no `grant` line in `status`, no Grants tab or grant alert in the app. A station merges a delivery once its verdict is approved and its CI is green; the stop (`hors-cuisine`) and the second judge are the brakes (#2924)

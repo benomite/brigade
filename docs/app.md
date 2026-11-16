@@ -1241,7 +1241,7 @@ Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 outlined in red, what it means on hover; a ticket without the label carries none. The pass does not merge its green
 delivery (#3223, `docs/runtime/pass.md`): since #3615, the ticket itself, labelled `chef-todo`, its marked comment of kind
 `review-before-merge` carrying the pull request (before, a `chef-todo` issue titled `review before merge`). In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
-in this order: the question (`#<ticket> is sensitive: review PR #<PR> before it is merged. …`); `Pull request #<PR>`, which
+in this order: the question (`#<ticket> is sensitive: review the delivery of #<ticket> (PR <PR>) before it is merged. …`); `Pull request #<PR>`, which
 opens the pull request in one click; then its two answers, each with its price on hover:
 
 | answer | what it plays | then |

@@ -271,7 +271,7 @@ test("validate after the branch was updated from its base: nothing merged at onc
   faux.ciEnCours.add(PR);
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
-  assert.deepEqual(fin.lignes, [`faux/depot#${PR} validated: your validation is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}) validated: your validation is kept, card #${carte.number} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green`]);
   assert.equal(faux.pr(PR).merged, false);
   // La carte n'attend plus rien : elle quitte TODO, le ticket reste ouvert.
   assert.deepEqual(ouvertes(faux), []);
@@ -373,7 +373,7 @@ test("validate after a send-back of the pass merges nothing, even on the card's 
   assert.equal(faux.pr(PR).sha, sha);
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 1);
-  assert.match(fin.lignes.join("\n"), /the delivery of PR #1040 went back to a cook since card #\d+: nothing merged, card #\d+ closed/);
+  assert.match(fin.lignes.join("\n"), /the delivery of #40 \(PR 1040\) went back to a cook since card #\d+: nothing merged, card #\d+ closed/);
   assert.equal(faux.mergee(TICKET), undefined);
   assert.equal(faux.pr(PR).merged, false);
   assert.deepEqual(ouvertes(faux), []);
@@ -451,7 +451,37 @@ test("validate with the card's PR number merges the delivery and closes the card
   // Plus de carte : valider une seconde fois est refusé, sans rien merger.
   const encore = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(encore.code, 1);
-  assert.match(encore.lignes.join("\n"), /no open “Validate its screen” card holds PR #1040/);
+  assert.match(encore.lignes.join("\n"), /no open “Validate its screen” card answers to 1040: it is neither an open ticket nor the pull request of a held delivery/);
+});
+
+test("validate with the ticket's number merges that ticket's pull request, and the answer names it ticket first (#3718)", async () => {
+  const { faux } = await retenue();
+  const [carte] = ouvertes(faux);
+  assert.ok(carte !== undefined);
+  const fin = await design(faux, "validate", `faux/depot#${TICKET}`);
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #40 (PR 1040) validated: merged, card #${carte.number} closed — ticket #40 is served`]);
+  assert.equal(faux.mergee(TICKET)?.number, PR);
+  assert.deepEqual(ouvertes(faux), []);
+});
+
+test("send-back with the ticket's number sends that ticket's delivery back to a cook, and the answer names it ticket first (#3718)", async () => {
+  const { faux, sha } = await retenue();
+  const fin = await design(faux, "send-back", `faux/depot#${TICKET}`, "--comment", "Make the take button stand out.");
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #40 (PR 1040) sent back: #40 goes back to a cook with your comment, card #40 closed — its next delivery comes back as a new card`]);
+  assert.ok(renvois(faux)[0]?.body.startsWith(`<!-- brigade:renvoi n=1 sha=${sha} -->\n`));
+  assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("validate on a ticket with no pull request is refused naming the ticket, and merges nothing (#3718)", async () => {
+  const { faux } = await retenue();
+  faux.feu(77);
+  const fin = await design(faux, "validate", "faux/depot#77");
+  assert.equal(fin.code, 1);
+  assert.deepEqual(fin.lignes, ["brigade : ticket #77 has no pull request: there is no delivery to answer, nothing was done"]);
+  assert.equal(faux.mergee(TICKET), undefined);
+  assert.equal(ouvertes(faux).length, 1);
 });
 
 test("validate refused by GitHub keeps the card open and says why", async () => {
@@ -459,7 +489,7 @@ test("validate refused by GitHub keeps the card open and says why", async () => 
   faux.pr(PR).enRetard = true;
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 1);
-  assert.match(fin.lignes.join("\n"), /GitHub refused to merge PR #1040 — HTTP 405 — Head branch is out of date; card #\d+ stays open/);
+  assert.match(fin.lignes.join("\n"), /GitHub refused to merge the delivery of #40 \(PR 1040\) — HTTP 405 — Head branch is out of date; card #\d+ stays open/);
   assert.equal(faux.mergee(TICKET), undefined);
   assert.equal(ouvertes(faux).length, 1);
 });
@@ -480,7 +510,7 @@ test("validate a card whose PR conflicts with the base: no “nothing was done�
   const { faux, carte, sha } = await enConflit();
   const fin = await design(faux, "validate", `faux/depot#${PR}`);
   assert.equal(fin.code, 0, fin.lignes.join("\n"));
-  assert.deepEqual(fin.lignes, [`faux/depot#${PR} validated: your validation is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}) validated: your validation is recorded, card #${carte.number} closed — it conflicts with the base: the kitchen first updates it on the base, then merges it`]);
   assert.equal(faux.pr(PR).merged, false);
   // La carte n'est plus dans TODO : le ticket, sans `chef-todo`, reste ouvert.
   assert.deepEqual(ouvertes(faux), []);
@@ -505,7 +535,7 @@ test("a PR GitHub refuses to merge because it fell into conflict after it was re
     return { fait: false, motif: "HTTP 405 — Pull Request is not mergeable" };
   };
   await principal({ args: ["validate", `faux/depot#${PR}`], env: {}, dire: (ligne) => lignes.push(ligne), redire: (ligne) => lignes.push(ligne) }, () => ({ ...client, merger }));
-  assert.deepEqual(lignes, [`faux/depot#${PR} validated: your validation is recorded, card #${carte.number} closed — PR #${PR} conflicts with the base: the kitchen first updates it on the base, then merges it`]);
+  assert.deepEqual(lignes, [`faux/depot: the delivery of #${TICKET} (PR ${PR}) validated: your validation is recorded, card #${carte.number} closed — it conflicts with the base: the kitchen first updates it on the base, then merges it`]);
   assert.equal(validees(faux).length, 1);
   assert.deepEqual(ouvertes(faux), []);
 });

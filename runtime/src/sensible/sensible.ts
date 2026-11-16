@@ -15,7 +15,7 @@
 //   merge la tête de la carte et ferme la carte ; `send-back` renvoie le
 //   ticket à un cook avec la note du chef, que le cook lit sur le ticket, et
 //   ferme la carte. Une note vide est refusée.
-import { DESIGN, mergerLaCarte, renvoyerLaCarte, tenirPourLeChef, type GitHubDeLaRetenue, type GitHubDesGestes, type LivraisonARetenir, type SorteDeRetenue } from "../validation-design/validation-design.ts";
+import { DESIGN, livraisonDe, mergerLaCarte, renvoyerLaCarte, tenirPourLeChef, type GitHubDeLaRetenue, type GitHubDesGestes, type LivraisonARetenir, type SorteDeRetenue } from "../validation-design/validation-design.ts";
 
 // Le label d'un ticket sensible.
 export const LABEL_SENSITIVE = "sensitive";
@@ -28,7 +28,7 @@ export const SENSIBLE: SorteDeRetenue = {
   mot: "sensitive-review",
   titre: TITRE_DE_CARTE,
   sorte: SORTE_DE_CARTE,
-  question: (ticket, pr) => `#${ticket} is sensitive: review PR #${pr} before it is merged. Merge it and the kitchen merges PR #${pr}; send it back with a note and a cook takes #${ticket} up again with your note.`,
+  question: (ticket, pr) => `#${ticket} is sensitive: review ${livraisonDe(ticket, pr)} before it is merged. Merge it and the kitchen merges it; send it back with a note and a cook takes #${ticket} up again with your note.`,
   pourquoi: `the delivery is green, and the ticket is \`${LABEL_SENSITIVE}\``,
   tenue: "held for the chef's review before merge",
   faite: "Merged on the chef's answer",
@@ -54,7 +54,7 @@ export async function retenirLeSensible(github: GitHubDeLaRetenue, livraison: Pi
   return tenirPourLeChef(SENSIBLE, github, livraison, undefined, [DESIGN]);
 }
 
-// Les deux réponses du chef sur la carte, nommée par sa PR.
-export const merger = (github: GitHubDesGestes, pr: number, brancheDuTicket: (ticket: number) => string) => mergerLaCarte(SENSIBLE, github, pr, brancheDuTicket);
-export const renvoyer = (github: GitHubDesGestes, pr: number, note: string, brancheDuTicket: (ticket: number) => string) => renvoyerLaCarte(SENSIBLE, github, pr, note, brancheDuTicket);
+// Les deux réponses du chef sur la carte, nommée par son ticket ou par sa PR (#3718).
+export const merger = (github: GitHubDesGestes, numero: number, brancheDuTicket: (ticket: number) => string) => mergerLaCarte(SENSIBLE, github, numero, brancheDuTicket);
+export const renvoyer = (github: GitHubDesGestes, numero: number, note: string, brancheDuTicket: (ticket: number) => string) => renvoyerLaCarte(SENSIBLE, github, numero, note, brancheDuTicket);
 

@@ -220,7 +220,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const appels: string[][] = [];
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux, appels) });
     assert.deepEqual(appels, [["validate", `${DEPOT}#${PR}`]]);
-    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: merged, card #58 closed — ticket #${TICKET} is served` });
+    assert.deepEqual(rendu, { fait: `${DEPOT}: the delivery of #${TICKET} (PR ${PR}) validated: merged, card #58 closed — ticket #${TICKET} is served` });
     assert.deepEqual(faux.merges, [[PR, SHA]]);
     assert.equal(faux.issues.get(TICKET)?.labels.has("chef-todo"), false);
     assert.deepEqual(await lue(faux.appeler), [], "la carte a quitté TODO");
@@ -256,8 +256,8 @@ describe("les deux gestes jouent la commande du runtime", () => {
     faux.pr.state = "closed";
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux) });
     assert.ok("refus" in rendu);
-    assert.match(rendu.refus, /^nothing was done: PR #60 is closed without being merged/);
-    assert.match(rendu.detail, /^brigade : PR #60 is closed without being merged/);
+    assert.match(rendu.refus, /^nothing was done: the delivery of #58 \(PR 60\) is closed without being merged/);
+    assert.match(rendu.detail, /^brigade : the delivery of #58 \(PR 60\) is closed without being merged/);
     assert.deepEqual(faux.merges, []);
     assert.equal((await lue(faux.appeler)).length, 1, "la carte reste dans TODO");
   });
@@ -267,7 +267,7 @@ describe("les deux gestes jouent la commande du runtime", () => {
     const [carte] = await lue(faux.appeler);
     faux.pr.sha = "b".repeat(40);
     const rendu = await jouerLaValidation({ depot: DEPOT, design: carte?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandeSur(faux) });
-    assert.deepEqual(rendu, { fait: `${DEPOT}#${PR} validated: your validation is kept, card #58 closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
+    assert.deepEqual(rendu, { fait: `${DEPOT}: the delivery of #${TICKET} (PR ${PR}) validated: your validation is kept, card #58 closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
     assert.deepEqual(faux.merges, []);
     assert.deepEqual(await lue(faux.appeler), [], "la carte a quitté TODO");
     assert.ok(faux.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=58 pr=${PR} sha=${SHA} -->\nValidated by the chef on card #58 — merge pending.`)));
