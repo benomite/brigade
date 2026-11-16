@@ -122,7 +122,8 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
   // les tickets qu'un cook de cette station cuisine en ce moment. `zonesTenues` :
   // ceux que la porte de prise a sautés à son dernier tour, leur zone tenue.
-  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, zonesTenues: ReadonlyMap<number, TenantDeZone> = new Map()): Promise<BilanDeLaGuerison<T>> {
+  // `sautes` : tous ceux qu'elle a sautés à ce tour-là, et la ligne qui dit pourquoi.
+  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, zonesTenues: ReadonlyMap<number, TenantDeZone> = new Map(), sautes: ReadonlyMap<number, string> = new Map()): Promise<BilanDeLaGuerison<T>> {
     const bilan: BilanDeLaGuerison<T> = { tickets: [], relances: [], boucles: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
@@ -267,6 +268,8 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
           creerIssue: (issue) => github.creerIssue(issue),
           // Les zones tenues des tickets sautés au dernier tour de la porte de prise.
           zonesTenues: async () => [...zonesTenues].map(([ticket, tenant]) => ({ ticket, tenant })),
+          // Ce que la porte de prise a dit, à son dernier tour, des tickets à prendre qu'elle a sautés.
+          sautes: async () => aPrendre.flatMap((t) => (sautes.has(t.number) ? [{ ticket: t.number, ligne: sautes.get(t.number)! }] : [])),
         },
         projetBrigade,
         ...(brigade === undefined || servi === undefined

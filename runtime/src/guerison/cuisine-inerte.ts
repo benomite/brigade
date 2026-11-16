@@ -5,6 +5,9 @@
 // la cause probable :
 // - `stale-claim`  : un ticket pris l'est depuis plus longtemps que le seuil, sans PR ;
 // - `held-zone`    : la zone d'un ticket est tenue, et la station sait par qui ;
+// - `skipped`      : la porte de prise a sauté chaque ticket à prendre, et dit
+//   pourquoi — une dépendance, une capacité, une fiche sans zone, la cuisine
+//   retenue (#3699) ;
 // - `empty-rail`   : aucune PR n'est en passe, le rail est vraiment vide ;
 // - `unknown`      : rien de ce qui précède ne l'explique.
 //
@@ -20,7 +23,10 @@
 // (#3098, #3620) ; sans la brigade, il ne se dépose nulle part. La brigade qui
 // se sert elle-même le garde chez elle, dans le dépôt du projet. Le 15 novembre
 // 2026, un `empty-rail` déposé sur secondes y a été pris par un cook qui n'y
-// pouvait rien.
+// pouvait rien. Ses trois tickets, la porte de prise les sautait et disait
+// pourquoi à la retenue ; l'alerte, qui ne lisait que les zones tenues, disait
+// « rail vide » et demandait de réparer une porte qui n'avait rien de cassé
+// (#3699). Elle nomme maintenant ce que la porte a dit.
 
 // Depuis combien de minutes sans fusion la cuisine est dite inerte.
 export const INERTIE_MINUTES = 90;
@@ -28,7 +34,7 @@ export const INERTIE_MINUTES = 90;
 // Le label du ticket de bug qu'ouvre l'inertie.
 export const LABEL_DU_BUG = "fix";
 
-export type Cause = "stale-claim" | "held-zone" | "empty-rail" | "unknown";
+export type Cause = "stale-claim" | "held-zone" | "skipped" | "empty-rail" | "unknown";
 
 // Ce qui tient la zone d'un ticket sauté : le ticket tenant (null sans numéro
 // dans sa branche), sa branche, la date de sa fermeture (YYYY-MM-DD) s'il est
@@ -57,6 +63,8 @@ export type GitHubDeLInertie = {
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   // Les tickets que la porte de prise a sautés pour une zone tenue, et ce qui la tient. Absent, aucune.
   zonesTenues?(): Promise<{ ticket: number; tenant: TenantDeZone }[]>;
+  // Les tickets à prendre que la porte de prise a sautés, et la ligne qui dit pourquoi. Absent, aucun.
+  sautes?(): Promise<{ ticket: number; ligne: string }[]>;
 };
 
 // Le dépôt de la brigade, où va le bug : son bug ouvert pour le projet servi,
@@ -85,6 +93,7 @@ export type Inertie =
 const DIT: Record<Cause, string> = {
   "stale-claim": "a claim is stale: a ticket has been taken for longer than the threshold with nothing merged",
   "held-zone": "a zone is held: the tickets below wait for what holds it",
+  skipped: "the claim gate skipped every cookable ticket, for the reasons below: what they name must move, not the dispatcher",
   "empty-rail": "the rail is empty of in-pass PRs",
   unknown: "no obvious cause: no claim is stale, and PRs are in pass",
 };
@@ -104,6 +113,10 @@ export async function causeProbable(contexte: ContexteDeLInertie): Promise<{ cau
   if (perimees.length > 0) return { cause: "stale-claim", detail: perimees.map((p) => `- #${p.number} taken since ${p.depuis}`).join("\n") };
   const tenues = (await github.zonesTenues?.()) ?? [];
   if (tenues.length > 0) return { cause: "held-zone", detail: tenues.map(({ ticket, tenant }) => `- #${ticket}: ${direLaZoneTenue(tenant)}`).join("\n") };
+  // Tous sautés, et chacun dit pourquoi : ce n'est pas un rail vide (#3699).
+  const sautes = (await github.sautes?.()) ?? [];
+  const cuisinables = await github.cuisinables();
+  if (cuisinables.length > 0 && cuisinables.every((t) => sautes.some((s) => s.ticket === t.number))) return { cause: "skipped", detail: sautes.map(({ ligne }) => `- ${ligne}`).join("\n") };
   const enPasse = await github.prsEnPasse();
   if (enPasse === 0) return { cause: "empty-rail", detail: "- no open PR is in pass" };
   return { cause: "unknown", detail: `- ${enPasse} PR(s) in pass, none merged` };

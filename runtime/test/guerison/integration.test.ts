@@ -11,6 +11,7 @@ import { DELAI_CLAIM_PERIME_MS } from "../../src/guerison/claim-perime.ts";
 import { INERTIE_MINUTES } from "../../src/guerison/cuisine-inerte.ts";
 import { estMisDeCote, HORS_CUISINE } from "../../src/github.ts";
 import type { GitHubDeLaBrigade } from "../../src/routage-temps-perdu.ts";
+import type { RetenueDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
 const MINUTE = 60_000;
@@ -21,7 +22,7 @@ const EPIQUE = 20;
 
 // Un projet : son faux GitHub, sa station, son horloge, ce qu'elle dit au
 // journal et les labels qu'elle pose. `casser` : un geste du client qui lève.
-function projet(depot: string, station: string, base: string, casser: Partial<GitHubDuTour> = {}, echoue = false, brigade?: GitHubDeLaBrigade) {
+function projet(depot: string, station: string, base: string, casser: Partial<GitHubDuTour> = {}, echoue = false, brigade?: GitHubDeLaBrigade, retenue: RetenueDuTour | null = null) {
   const faux = new FauxGitHub();
   let instant = Date.parse("2026-11-07T10:00:00Z");
   const avertis: string[] = [];
@@ -54,6 +55,7 @@ function projet(depot: string, station: string, base: string, casser: Partial<Gi
     juger: async () => ({ verdict: "approve", motif: "" }),
     jugerEnSecond: async () => ({ verdict: "approve", motif: "" }),
     avertir: (texte) => avertis.push(texte),
+    ...(retenue === null ? {} : { gardes: { retenue: async () => retenue, redire: async () => {}, quitter: async () => {} } }),
     maintenant: () => new Date(instant),
     ...(brigade === undefined ? {} : { depotServi: depot, githubDeLaBrigade: brigade }),
   });
@@ -232,7 +234,8 @@ test("a ticket that becomes cookable after a long empty rail files the inertia b
   await p.passer();
   assert.equal(deposees.length, 1, p.avertis.join("\n"));
   assert.equal(p.faux.creations.length, 0, "nothing on the served project");
-  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
+  // La porte l'a sauté, et dit pourquoi : ce n'est pas un rail vide (#3699).
+  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(skipped\) — bug #\d+ filed/.test(ligne)));
 });
 
 test("a kitchen with a fire ticket to take (a model label, nothing else) and nothing at work for 90 minutes files one inertia bug, once, without blocked-on-human", async () => {
@@ -250,7 +253,8 @@ test("a kitchen with a fire ticket to take (a model label, nothing else) and not
   assert.equal(deposees.length, 1, p.avertis.join("\n"));
   assert.equal(p.faux.creations.length, 0, "nothing on the served project");
   assert.ok(!deposees[0]?.labels.includes("blocked-on-human"));
-  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(empty-rail\) — bug #\d+ filed/.test(ligne)));
+  // La porte l'a sauté, et dit pourquoi : ce n'est pas un rail vide (#3699).
+  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(skipped\) — bug #\d+ filed/.test(ligne)));
 });
 
 // #2975 : la porte de prise saute un ticket que l'attente d'après un arrêt retient ;
@@ -321,4 +325,38 @@ test("an idle kitchen held by a zone files its alert on the brigade, naming the 
   assert.equal(deposees.length, 1, p.avertis.join("\n"));
   assert.match(deposees[0]?.corps ?? "", /#2912: zone held by #2907, through PR #\d+/);
   assert.doesNotMatch(`${deposees[0]?.titre}${deposees[0]?.corps}`, /empty-rail/);
+});
+
+// #3699 : sur secondes, #50, #51 et #52 étaient à prendre, rien en pass, et
+// l'alerte disait `empty-rail` — « réparez le dispatcher » — alors que la porte
+// de prise les sautait, et disait pourquoi. L'alerte nomme ce qu'elle a dit.
+test("an idle kitchen whose cookable tickets the claim gate all skips names the gate's reasons, not an empty rail (#3699)", async () => {
+  const { brigade, deposees } = brigadeEnMemoire();
+  const p = projet("benomite/secondes", "box/claude", "main", {}, false, brigade);
+  p.faux.feu(49, [...CALIBRE, HORS_CUISINE]);
+  for (const numero of [50, 51, 52]) p.faux.feu(numero, CALIBRE, "Depends on #49");
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  assert.deepEqual(p.faux.cuissons, []);
+  assert.equal(deposees.length, 1, p.avertis.join("\n"));
+  const { titre, corps } = deposees[0]!;
+  assert.match(titre, /3 cookable ticket\(s\) \(skipped\)/);
+  for (const numero of [50, 51, 52]) assert.match(corps, new RegExp(`^- #${numero} .*#49`, "m"));
+  assert.doesNotMatch(`${titre}${corps}`, /empty-rail/);
+});
+
+// #3699 : une cuisine que ses garde-fous retiennent (le quota, le disjoncteur,
+// le « stop ») ne prend rien, et son alerte nomme la retenue, pas un rail vide.
+test("an idle kitchen held by its guardrails names the hold in its alert, not an empty rail (#3699)", async () => {
+  const { brigade, deposees } = brigadeEnMemoire();
+  const p = projet("benomite/secondes", "box/claude", "main", {}, false, brigade, "quota");
+  p.faux.feu(50, CALIBRE);
+  await p.passer();
+  p.avancer(INERTIE_MINUTES * MINUTE);
+  await p.passer();
+  assert.deepEqual(p.faux.cuissons, []);
+  assert.equal(deposees.length, 1, p.avertis.join("\n"));
+  assert.match(deposees[0]!.corps, /`skipped`[\s\S]*- #50 .*the Max quota is spent/);
+  assert.doesNotMatch(deposees[0]!.corps, /empty-rail/);
 });
