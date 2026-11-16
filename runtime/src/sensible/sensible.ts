@@ -33,7 +33,7 @@ export const SENSIBLE: SorteDeRetenue = {
   tenue: "held for the chef's review before merge",
   faite: "Merged on the chef's answer",
   gardee: "Merge accepted by the chef",
-  renvoi: (pr, note) => `The chef sent the delivery of PR #${pr} back to a cook after reviewing it:\n\n${note}\n\nChange the delivery as the note asks, and deliver.`,
+  renvoi: (ticket, pr, note) => `The chef sent ${livraisonDe(ticket, pr)} back to a cook after reviewing it:\n\n${note}\n\nChange the delivery as the note asks, and deliver.`,
   sansNote: "the note says what to change: it cannot be empty",
   apresConflit: "If a cook has to resolve the conflict, a new card asks the chef again.",
   survitAuConflit: false,

@@ -210,6 +210,14 @@ test("answering `send back` with the ticket's number sends that ticket back to a
   assert.equal(faux.mergee(TICKET), undefined);
 });
 
+test("the send-back posted on the ticket names the delivery ticket first, not by its pull request alone (#3718)", async () => {
+  const { faux } = await retenu();
+  const fin = await sensitive(faux, "send-back", `faux/depot#${PR}`, "--note", "Keep the old flag readable.");
+  assert.equal(fin.code, 0, fin.lignes.join("\n"));
+  const [renvoi] = renvois(faux);
+  assert.match(renvoi?.body ?? "", /\nThe chef sent the delivery of #41 \(PR 1041\) back to a cook after reviewing it:\n\nKeep the old flag readable\./);
+});
+
 test("an answer on a ticket with no pull request is refused naming the ticket, and does nothing (#3718)", async () => {
   const { faux } = await retenu();
   faux.feu(77, [LABEL_SENSITIVE]);

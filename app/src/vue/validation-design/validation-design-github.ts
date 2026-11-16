@@ -162,7 +162,7 @@ export async function jouerLaValidation({ depot, design, geste, commande, env }:
   if ("refus" in lu || design === undefined) return "refus" in lu ? lu : { refus: INCONNUE, detail: "" };
   const cible = `${depot}#${design.pr}`;
   const args = lu.geste === "valider" ? ["validate", cible] : ["send-back", cible, "--comment", lu.commentaire];
-  return jouerLaCommande({ args, commande, env, parDefaut: lu.geste === "valider" ? `PR #${design.pr} validated` : `PR #${design.pr} sent back` });
+  return jouerLaCommande({ args, commande, env, parDefaut: `${livraisonDe(design.ticket, design.pr)} ${lu.geste === "valider" ? "validated" : "sent back"}` });
 }
 
 // Une commande du runtime que le process principal joue, avec ses arguments : ce qu'elle a dit en dernier — `parDefaut`, si
@@ -194,6 +194,8 @@ export const LABEL_IN_PASS = "in-pass";
 export const brancheDuTicket = (ticket: number) => `cook/${ticket}-github`;
 // Une PR nommée pour le chef, son ticket d'abord (runtime : `livraisonDe`, ticket 3718).
 const livraisonDe = (ticket: number, pr: number) => `the delivery of #${ticket} (PR ${pr})`;
+// La même, en tête de phrase (runtime : `capitale`).
+const capitale = (texte: string) => texte.charAt(0).toUpperCase() + texte.slice(1);
 const MARQUE_DE_RETENUE = /^<!-- brigade:validation-design-carte carte=([1-9][0-9]*) pr=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
 // La validation demandée sur le ticket même (ticket 3615, runtime/src/validation-sur-ticket/) : la carte est le ticket.
 const DEMANDE = /^<!-- brigade:todo kind=design-validation pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
@@ -348,14 +350,14 @@ async function validerLaCarte(github: GitHubDeLaValidation, carte: number, desig
     }
     if (lue.sha !== sha) {
       const de = `\`${sha.slice(0, 7)}\` → \`${lue.sha.slice(0, 7)}\``;
-      await github.commenter(ticket, `<!-- brigade:validation-design-validee carte=${carte} pr=${pr} sha=${sha} -->\nValidated by the chef on card #${carte} — merge pending. The branch of PR #${pr} was updated since the card (${de}), with no new delivery of a cook: the answer is kept, and the pass merges PR #${pr} once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`);
-      await fermerLaCarte(github, carte, `Validated by the chef: the answer is kept — merge pending. The branch of PR #${pr} was updated since this card (${de}) and is being checked again: the pass merges it once its head is green.`, ticket);
+      await github.commenter(ticket, `<!-- brigade:validation-design-validee carte=${carte} pr=${pr} sha=${sha} -->\nValidated by the chef on card #${carte} — merge pending. The branch of ${livraisonDe(ticket, pr)} was updated since the card (${de}), with no new delivery of a cook: the answer is kept, and the pass merges it once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`);
+      await fermerLaCarte(github, carte, `Validated by the chef: the answer is kept — merge pending. The branch of ${livraisonDe(ticket, pr)} was updated since this card (${de}) and is being checked again: the pass merges it once its head is green.`, ticket);
       return { ticket, enAttente: true };
     }
     const merge = await github.merger(pr, sha);
     if (!merge.fait) throw new Refus(`GitHub refused to merge ${livraisonDe(ticket, pr)} — ${merge.motif}; card #${carte} stays open`);
   }
-  await fermerLaCarte(github, carte, `Validated by the chef: PR #${pr} is merged.`, ticket);
+  await fermerLaCarte(github, carte, `Validated by the chef: ${livraisonDe(ticket, pr)} is merged.`, ticket);
   return { ticket, enAttente: false };
 }
 
@@ -366,13 +368,13 @@ async function renvoyerLaCarte(github: GitHubDeLaValidation, carte: number, desi
   await carteQuiTient(github, carte, design);
   const lue = await prDeLaCarte(github, design);
   if (lue.merged) {
-    const suivi = await github.creer(`Follow-up of #${ticket}: the chef asks for changes after PR #${pr} was merged`, `PR #${pr}, the delivery of #${ticket}, was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`);
-    await fermerLaCarte(github, carte, `PR #${pr} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`, ticket);
+    const suivi = await github.creer(`Follow-up of #${ticket}: the chef asks for changes after ${livraisonDe(ticket, pr)} was merged`, `${capitale(livraisonDe(ticket, pr))} was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`);
+    await fermerLaCarte(github, carte, `${capitale(livraisonDe(ticket, pr))} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`, ticket);
     return { ticket, suivi };
   }
   if (lue.state !== "open") throw new Refus(`${livraisonDe(ticket, pr)} is no longer open: there is nothing to send back`);
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
-  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\nThe chef sent the design of PR #${pr} back to a cook — the chef asks for changes to the screen:\n\n${aChanger}\n\nChange the screen as asked, take its before and after captures again, and deliver.`);
+  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${lue.sha} -->\nThe chef sent the design of ${livraisonDe(ticket, pr)} back to a cook — the chef asks for changes to the screen:\n\n${aChanger}\n\nChange the screen as asked, take its before and after captures again, and deliver.`);
   await github.delabelliser(ticket, LABEL_IN_PASS);
   await fermerLaCarte(github, carte, `Sent back to a cook by the chef: ${aChanger}`, ticket);
   return { ticket };

@@ -130,7 +130,7 @@ test("undo sur un ticket servi : une PR revert son merge, son ticket est en pass
   const [undoNo] = faux.creations;
   assert.ok(undoNo !== undefined, "un ticket porte le revert");
   const revert = faux.prs.find((pr) => pr.state === "open") ?? assert.fail("aucune PR de revert ouverte");
-  assert.deepEqual(dits, [`#${SERVI} undone: PR #${revert.number} goes through the pass as ticket #${undoNo}, and #${SERVI} is reopened`]);
+  assert.deepEqual(dits, [`#${SERVI} undone: the delivery of #${undoNo} (PR ${revert.number}) goes through the pass as ticket #${undoNo}, and #${SERVI} is reopened`]);
   // Le revert remet l'arbre de la base d'avant, fils du merge ; fusionné sur la tête de la base, dans la branche d'essai.
   assert.deepEqual(git.crees.map(({ arbre, parents }) => ({ arbre, parents })), [{ arbre: "arbre-d-avant", parents: [MERGE] }]);
   assert.match(git.crees[0]?.message ?? "", /^Revert "#21 — ticket 21"/);
@@ -146,7 +146,7 @@ test("undo sur un ticket servi : une PR revert son merge, son ticket est en pass
   assert.equal(faux.ticket(SERVI).state, "open");
   assert.ok(!faux.ticket(SERVI).labels.has("fire"), "rouvert hors du rail : il ne repart pas à un cook");
   const [commentaire] = commentairesDe(faux, SERVI);
-  assert.match(commentaire ?? "", /^Undone by @chef from its card: PR #\d+ reverts its merge \(PR #121\)/);
+  assert.match(commentaire ?? "", /^Undone by @chef from its card: The delivery of #\d+ \(PR \d+\) reverts the merge of the delivery of #21 \(PR 121\)/);
   assert.match(commentaire ?? "", new RegExp(`as #${undoNo}\\.`));
 
   // La pass la prend au tour suivant, la juge et la merge, comme toute livraison.
@@ -222,7 +222,7 @@ test("un ticket qui n'est pas servi ne s'annule pas : rien n'est écrit, et la r
   const surInconnu = client(inconnu, { pannes: { commitGit: async () => null } });
   const perdu = await undo(surInconnu.github);
   assert.equal(perdu.code, 1);
-  assert.match(perdu.redits[0] ?? "", /the merge of PR #121 \(aaaaaaa\) is not known to GitHub/);
+  assert.match(perdu.redits[0] ?? "", /the merge of the delivery of #21 \(PR 121\), commit aaaaaaa, is not known to GitHub/);
   assert.deepEqual(inconnu.creations, []);
 });
 

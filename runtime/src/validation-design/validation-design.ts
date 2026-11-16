@@ -100,13 +100,13 @@ export type SorteDeRetenue = {
   // Pourquoi la pass ne merge pas, sur le ticket, puis ce qu'elle en fait.
   pourquoi: string;
   tenue: string;
-  // Ce qui a mergé, sur la carte qui se ferme : « <faite>: PR #N is merged. »
+  // Ce qui a mergé, sur la carte qui se ferme : « <faite>: the delivery of #T (PR N) is merged. »
   faite: string;
   // La réponse du chef gardée quand la tête a bougé depuis la carte, avant le
   // merge que la pass fera : « <gardee> on card #C — merge pending. »
   gardee: string;
   // Le renvoi du chef sur le ticket, après son marqueur.
-  renvoi(pr: number, note: string): string;
+  renvoi(ticket: number, pr: number, note: string): string;
   // Le refus d'un renvoi sans note.
   sansNote: string;
   // La réponse du chef gardée sur une PR en conflit avec sa base : ce qui la
@@ -126,7 +126,7 @@ export const DESIGN: SorteDeRetenue = {
   tenue: "held for the chef's validation of its screen",
   faite: "Validated by the chef",
   gardee: "Validated by the chef",
-  renvoi: (pr, note) => `The chef sent the design of PR #${pr} back to a cook — the chef asks for changes to the screen:\n\n${note}\n\nChange the screen as asked, take its before and after captures again, and deliver.`,
+  renvoi: (ticket, pr, note) => `The chef sent the design of ${livraisonDe(ticket, pr)} back to a cook — the chef asks for changes to the screen:\n\n${note}\n\nChange the screen as asked, take its before and after captures again, and deliver.`,
   sansNote: "the comment says what to change: it cannot be empty",
   apresConflit: "If the update changes the screen, or cannot be done without changing it, a new card asks the chef again, with the new captures.",
   survitAuConflit: true,
@@ -261,7 +261,7 @@ async function estOuverte(github: Pick<GitHubDeLaRetenue, "issue">, carte: numbe
 // Où la carte attend le chef, pour les mots de la pass.
 const ouAttend = (carte: number, ticket: number) => (carte === ticket ? `asked on #${ticket}` : `card #${carte}`);
 
-const motDuRenvoi = (pr: number) => `Closed by the kitchen: the delivery of PR #${pr} went back to a cook since this card — there is nothing to answer on it. Its next delivery comes back as a new card.`;
+const motDuRenvoi = (ticket: number, pr: number) => `Closed by the kitchen: ${livraisonDe(ticket, pr)} went back to a cook since this card — there is nothing to answer on it. Its next delivery comes back as a new card.`;
 
 // La carte qui tient encore la PR, d'après le ticket : la dernière posée pour
 // elle, si aucun renvoi ne la suit et qu'elle est encore ouverte — sur sa tête
@@ -275,7 +275,7 @@ async function carteQuiTient(sorte: SorteDeRetenue, github: GitHubDeLaRetenue, c
   const { carte } = derniere;
   if (!(await estOuverte(github, carte, ticket))) return null;
   if (!derniere.renvoyee) return carte;
-  await fermerLaCarte(github, carte, motDuRenvoi(pr), ticket);
+  await fermerLaCarte(github, carte, motDuRenvoi(ticket, pr), ticket);
   return null;
 }
 
@@ -297,7 +297,7 @@ export async function carteEnAttenteDuChef(sorte: SorteDeRetenue, github: GitHub
 export async function fermerLaCarteDepassee(sorte: SorteDeRetenue, github: Pick<GitHubDeLaRetenue, "commentaires" | "issue" | "commenter" | "delabelliser" | "fermerIssue">, ticket: number): Promise<number | null> {
   const derniere = derniereRetenue(sorte, await github.commentaires(ticket), () => true);
   if (derniere === null || !derniere.renvoyee || !(await estOuverte(github, derniere.carte, ticket))) return null;
-  await fermerLaCarte(github, derniere.carte, motDuRenvoi(derniere.pr), ticket);
+  await fermerLaCarte(github, derniere.carte, motDuRenvoi(ticket, derniere.pr), ticket);
   return derniere.carte;
 }
 
@@ -313,8 +313,8 @@ export async function livraisonSansObjet(github: Partial<Pick<GitHub, "issue" | 
   if ((await github.issue(ticket))?.state === "closed") return `ticket #${ticket} is closed`;
   const lue = await github.prDeBranche(brancheDuTicket(ticket));
   if (lue === null || lue.number !== pr) return null;
-  if (lue.merged) return `PR #${pr} is merged`;
-  return lue.state === "closed" ? `PR #${pr} is closed` : null;
+  if (lue.merged) return `${livraisonDe(ticket, pr)} is merged`;
+  return lue.state === "closed" ? `${livraisonDe(ticket, pr)} is closed` : null;
 }
 
 // Ferme, sans attendre le chef, chaque carte ouverte de ces sortes qui n'a plus
@@ -399,7 +399,7 @@ export async function tenirPourLeChef(
     if (tient === null) continue;
     const change = repondue === sorte && ecran !== undefined && tient.sha !== pr.sha ? await ecran(tient.sha) : null;
     if (change === null) return null;
-    redemande = `${tient.conflit ? `PR #${pr.number} could not be updated on the base without changing its screen` : `The update of PR #${pr.number} on the base changed its screen`} since the chef validated it (${ouAttend(tient.carte ?? ticket.number, ticket.number)}): ${change}. The chef is asked again, on the new captures.`;
+    redemande = `${tient.conflit ? `${capitale(livraisonDe(ticket.number, pr.number))} could not be updated on the base without changing its screen` : `The update of ${livraisonDe(ticket.number, pr.number)} on the base changed its screen`} since the chef validated it (${ouAttend(tient.carte ?? ticket.number, ticket.number)}): ${change}. The chef is asked again, on the new captures.`;
   }
   const tenue = await carteQuiTient(sorte, github, commentaires, ticket.number, pr.number);
   if (tenue !== null) return `${sorte.tenue} (${ouAttend(tenue, ticket.number)})`;
@@ -509,6 +509,8 @@ export type GitHubDesGestes = Pick<GitHub, "ouvertes" | "commentaires" | "commen
 // Une PR nommée pour le chef : par son ticket d'abord (#3718) — le chef ne
 // manie que des numéros de ticket.
 export const livraisonDe = (ticket: number, pr: number) => `the delivery of #${ticket} (PR ${pr})`;
+// La même, en tête de phrase.
+export const capitale = (texte: string) => texte.charAt(0).toUpperCase() + texte.slice(1);
 
 // La carte ouverte de cette sorte que le chef nomme par `numero` — le numéro
 // du ticket, ou celui de sa PR, gardé comme alias (#3718) —, avec sa PR, son
@@ -557,14 +559,14 @@ async function prDeLaCarte(github: Pick<GitHub, "prDeBranche">, pr: number, tick
 
 // La réponse du chef gardée, et ce qui suit, sur le ticket et sur la carte :
 // les mêmes mots que la commande du runtime et le téléphone écrivent.
-const gardeeSurLeTicket = (gardee: string, carte: number, pr: number, sha: string, tete: string) =>
-  `${gardee} on card #${carte} — merge pending. The branch of PR #${pr} was updated since the card (\`${sha.slice(0, 7)}\` → \`${tete.slice(0, 7)}\`), with no new delivery of a cook: the answer is kept, and the pass merges PR #${pr} once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`;
-const gardeeSurLaCarte = (gardee: string, pr: number, sha: string, tete: string) =>
-  `${gardee}: the answer is kept — merge pending. The branch of PR #${pr} was updated since this card (\`${sha.slice(0, 7)}\` → \`${tete.slice(0, 7)}\`) and is being checked again: the pass merges it once its head is green.`;
+const gardeeSurLeTicket = (gardee: string, carte: number, ticket: number, pr: number, sha: string, tete: string) =>
+  `${gardee} on card #${carte} — merge pending. The branch of ${livraisonDe(ticket, pr)} was updated since the card (\`${sha.slice(0, 7)}\` → \`${tete.slice(0, 7)}\`), with no new delivery of a cook: the answer is kept, and the pass merges it once it judges its head green, without a new card. Only a cook changing the delivery (a send-back to the kitchen) asks the chef again.`;
+const gardeeSurLaCarte = (gardee: string, ticket: number, pr: number, sha: string, tete: string) =>
+  `${gardee}: the answer is kept — merge pending. The branch of ${livraisonDe(ticket, pr)} was updated since this card (\`${sha.slice(0, 7)}\` → \`${tete.slice(0, 7)}\`) and is being checked again: the pass merges it once its head is green.`;
 // La PR en conflit avec sa base (#3426) : la réponse est gardée de même.
-const enConflitSurLeTicket = (sorte: SorteDeRetenue, carte: number, pr: number) =>
-  `${sorte.gardee} on card #${carte} — merge pending. PR #${pr} conflicts with the base: the kitchen first updates it on the base, then merges it once its checks are green, without a new card. ${sorte.apresConflit}`;
-const enConflitSurLaCarte = (gardee: string, pr: number) => `${gardee}: the answer is recorded — merge pending. PR #${pr} conflicts with the base: the kitchen first updates it on the base, then merges it.`;
+const enConflitSurLeTicket = (sorte: SorteDeRetenue, carte: number, ticket: number, pr: number) =>
+  `${sorte.gardee} on card #${carte} — merge pending. ${capitale(livraisonDe(ticket, pr))} conflicts with the base: the kitchen first updates it on the base, then merges it once its checks are green, without a new card. ${sorte.apresConflit}`;
+const enConflitSurLaCarte = (gardee: string, ticket: number, pr: number) => `${gardee}: the answer is recorded — merge pending. ${capitale(livraisonDe(ticket, pr))} conflicts with the base: the kitchen first updates it on the base, then merges it.`;
 
 // Merger la carte : merge la tête que la pass a jugée verte et que la carte
 // porte, puis ferme la carte. Si la PR a une autre tête sans qu'un renvoi ait
@@ -590,14 +592,14 @@ export async function mergerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGest
       throw new GesteRefuse(`${pourquoi}: nothing merged, card #${carte} closed — its next delivery comes back as a new card`);
     }
     const garderEnConflit = async () => {
-      await github.commenter(ticket, `${marqueDeValidation(sorte, carte, pr, sha)}\n${enConflitSurLeTicket(sorte, carte, pr)}`);
-      await fermerLaCarte(github, carte, enConflitSurLaCarte(sorte.gardee, pr), ticket);
+      await github.commenter(ticket, `${marqueDeValidation(sorte, carte, pr, sha)}\n${enConflitSurLeTicket(sorte, carte, ticket, pr)}`);
+      await fermerLaCarte(github, carte, enConflitSurLaCarte(sorte.gardee, ticket, pr), ticket);
       return { carte, ticket, pr, enAttente: true, enConflit: true };
     };
     if (lue.enConflit === true) return garderEnConflit();
     if (lue.sha !== sha) {
-      await github.commenter(ticket, `${marqueDeValidation(sorte, carte, pr, sha)}\n${gardeeSurLeTicket(sorte.gardee, carte, pr, sha, lue.sha)}`);
-      await fermerLaCarte(github, carte, gardeeSurLaCarte(sorte.gardee, pr, sha, lue.sha), ticket);
+      await github.commenter(ticket, `${marqueDeValidation(sorte, carte, pr, sha)}\n${gardeeSurLeTicket(sorte.gardee, carte, ticket, pr, sha, lue.sha)}`);
+      await fermerLaCarte(github, carte, gardeeSurLaCarte(sorte.gardee, ticket, pr, sha, lue.sha), ticket);
       return { carte, ticket, pr, enAttente: true, enConflit: false };
     }
     const merge = await github.merger(pr, sha);
@@ -614,7 +616,7 @@ export async function mergerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGest
       throw new GesteRefuse(`GitHub refused to merge ${livraisonDe(ticket, pr)} — ${merge.motif}; card #${carte} stays open`);
     }
   }
-  await fermerLaCarte(github, carte, `${sorte.faite}: PR #${pr} is merged.`, ticket);
+  await fermerLaCarte(github, carte, `${sorte.faite}: ${livraisonDe(ticket, pr)} is merged.`, ticket);
   return { carte, ticket, pr, enAttente: false, enConflit: false };
 }
 
@@ -650,12 +652,12 @@ export async function renvoyerLaCarte(sorte: SorteDeRetenue, github: GitHubDesGe
   const lue = await prDeLaCarte(github, pr, ticket, brancheDuTicket);
   if (lue.merged) {
     // Mergée malgré tout : il n'y a plus de livraison à reprendre, le commentaire du chef ouvre un ticket de suite.
-    const suivi = await github.creerIssue({ titre: `Follow-up of #${ticket}: the chef asks for changes after PR #${pr} was merged`, corps: `PR #${pr}, the delivery of #${ticket}, was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`, labels: [] });
-    await fermerLaCarte(github, carte, `PR #${pr} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`, ticket);
+    const suivi = await github.creerIssue({ titre: `Follow-up of #${ticket}: the chef asks for changes after ${livraisonDe(ticket, pr)} was merged`, corps: `${capitale(livraisonDe(ticket, pr))} was merged before the chef validated it. The chef asks for these changes:\n\n${aChanger}`, labels: [] });
+    await fermerLaCarte(github, carte, `${capitale(livraisonDe(ticket, pr))} was already merged: the chef's comment is now #${suivi}.\n\n${aChanger}`, ticket);
     return { carte, ticket, pr, suivi };
   }
   if (lue.state !== "open") throw new GesteRefuse(`${livraisonDe(ticket, pr)} is no longer open: there is nothing to send back`);
-  await renvoyerAuCook(github, ticket, lue.sha, sorte.renvoi(pr, aChanger));
+  await renvoyerAuCook(github, ticket, lue.sha, sorte.renvoi(ticket, pr, aChanger));
   await fermerLaCarte(github, carte, `Sent back to a cook by the chef: ${aChanger}`, ticket);
   return { carte, ticket, pr };
 }
