@@ -203,7 +203,7 @@ test("through the station: added tests red on main and green on the branch, the 
   assert.equal(faux.mergee(11)?.mergeePar, "box");
   assert.deepEqual(jetes, ["rouge-sur-main-11", "rouge-sur-main-11"], "a leftover checkout is thrown away first, the new one after the replay");
   assert.ok(journal.includes("brigade : #11 sur box — Red on main, green on the branch: only the tests this delivery adds were replayed on `main`, not the suite — `adds two numbers` (`lib/somme.test.ts`) red on `main`, green on the branch"), journal.join("\n"));
-  assert.match(verdict, /verdict=approve[\s\S]*Looks right\.\n\nRed on main, green on the branch: 1 added test replayed alone on `main` — 1 red on `main` and green on the branch\.\n\nAcceptance criteria:\n- It adds two numbers — \*\*covered by a test red on `main` and green on the branch: `adds two numbers` \(`lib\/somme\.test\.ts`\)\*\*\n- The doc says so — \*\*judged by the review alone\*\*\n- It is fast — \*\*covered by nothing\*\*$/);
+  assert.match(verdict, /verdict=approve[\s\S]*Looks right\.\n\nRed on main, green on the branch: 1 added test replayed alone on `main` — 1 red on `main` and green on the branch\.\n\nAcceptance criteria:\n- It adds two numbers — \*\*covered by a test red on `main` and green on the branch: `adds two numbers` \(`lib\/somme\.test\.ts`\)\*\*\n- The doc says so — \*\*judged by the review alone\*\*\n- It is fast — \*\*covered by nothing\*\*\n\nMutation check: /);
 });
 
 test("through the station: an added test already green on main sends the delivery back to its cook, the reason naming it", async (t) => {
