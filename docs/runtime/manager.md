@@ -37,7 +37,8 @@ The skip line is the signal: rewrite the sentence, or close the awaited ticket, 
 
 **A wait held more than an hour goes to the manager, once (#3764).** A ticket on the rail held by a wait
 — its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket set
-aside — is counted from the first turn that saw it held. Past an hour, the station gives the wait to the
+aside — is counted from the first turn that saw it held; that count is kept in memory, so a restart of
+the station starts the hour over. Past an hour, the station gives the wait to the
 manager, read-only in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the
 manager lifts it, the issue says so in one line, and a cook takes the ticket at the next turn. A real one:
 it keeps it, and the issue says why. Only a product decision goes to the chef, as a question under
