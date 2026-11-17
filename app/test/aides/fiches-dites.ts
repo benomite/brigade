@@ -43,7 +43,7 @@ const dit = ({ author, at, body }: { author: string; at: string; body: string },
   auteur: author === "" ? "a deleted GitHub account" : author,
   at: instant(at),
   blocs: rendre(body),
-  ...(corps ? { corps: true as const } : {}),
+  ...(corps ? { corps: true as const, source: body } : {}),
 });
 
 // L'issue d'un ticket et ses commentaires, dits : le corps d'abord, puis du plus ancien au plus récent.

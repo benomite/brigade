@@ -9,8 +9,9 @@ import type { Projet } from "./config.ts";
 import type { Bloc } from "./markdown.ts";
 
 // Un message de l'issue, dit : qui l'a écrit, quand (l'heure de GitHub), et son texte rendu.
-// `corps` : c'est le corps de l'issue, le premier message — pas un commentaire.
-export type MessageDit = { auteur: string; at: string; blocs: Bloc[]; corps?: true };
+// `corps` : c'est le corps de l'issue, le premier message — pas un commentaire ; `source` : son markdown tel qu'écrit,
+// d'où la fiche tire son diagramme (vue/fiche-diagramme/, #3773).
+export type MessageDit = { auteur: string; at: string; blocs: Bloc[]; corps?: true; source?: string };
 // La discussion lue : le titre et l'état de l'issue, ses messages dans l'ordre, et les adresses
 // qu'un clic peut y ouvrir — ou pourquoi on n'en lit rien.
 export type Discussion = { titre: string; ouverte: boolean; messages: MessageDit[]; liens: string[] } | { sans: string };
