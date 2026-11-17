@@ -4,6 +4,7 @@
 // ce qui n'est pas une décision lisible devient un motif dit, jamais une
 // décision devinée.
 import { createHash } from "node:crypto";
+import { CONSIGNE_STE } from "./ste.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { lancementEnFlux, SOURCES_DE_REGLAGES } from "./claude.ts";
 import { uneQuestion } from "./carte-todo/forme.ts";
@@ -160,6 +161,7 @@ export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger;
     "- `attend` : quand la réponse n'est pas au chef de la donner mais à un tiers — le client, une autre équipe, une personne nommée (« Does AF want… », « Has the session with Avenir Focus taken place… ») —, qui elle attend, en quelques mots (« AF, the client ») : la carte proposera au chef de la mettre en attente de ce tiers. `null` quand c'est au chef de trancher.",
     "",
     "`motif`, `manque`, `question`, `reponses`, `pourquoi`, `attend` et `calibrage` sont postés sur l'issue, que le chef lit : en anglais ; `motif`, `manque` et `calibrage` en deux ou trois phrases, précises.",
+    CONSIGNE_STE,
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
