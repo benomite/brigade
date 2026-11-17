@@ -21,7 +21,7 @@ import { Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const STATION = { id: "gist-mac", nom: "mac/claude" };
-const TITRES = ["Identity", "Connections", "Folders and sandbox", "Capabilities", "Cooks"];
+const TITRES = ["Identity", "Connections", "Folders and sandbox", "Capabilities", "Cooks", "Engine"];
 
 type Contexte = { ici: boolean; lectureSeule: boolean; niveau(cle: string): Faux };
 
@@ -38,7 +38,7 @@ function temoins(recus: Map<string, Contexte>) {
 }
 
 describe("la coque de la page d'une station", () => {
-  test("celle de cet ordinateur pose les titres des sections dans l'ordre : identité, connexions, dossiers et bac à sable, capacités, cooks", async () => {
+  test("celle de cet ordinateur pose les titres des sections dans l'ordre : identité, connexions, dossiers et bac à sable, capacités, cooks, moteur", async () => {
     const page = (await poserPageDeStation(doc, { station: STATION, locale: "gist-mac" })) as Faux;
     assert.equal(page.dataset.ici, "true");
     assert.deepEqual(page.children.map((section) => section.children[0]?.textContent), TITRES);
@@ -68,7 +68,7 @@ describe("la coque de la page d'une station", () => {
       },
     })) as Faux;
     const corps = page.children.map((section) => section.children[1]);
-    assert.deepEqual(corps.map((ligne) => ligne?.className), ["indisponible", "indisponible", "", "indisponible", ""]);
+    assert.deepEqual(corps.map((ligne) => ligne?.className), ["indisponible", "indisponible", "", "indisponible", "", ""]);
     assert.equal(corps[0]?.children[0]?.textContent, INDISPONIBLE);
     assert.equal(corps[0]?.children[1]?.children[0]?.ariaLabel, "Unexpected token");
     assert.equal(corps[1]?.children[1]?.children[0]?.ariaLabel, "lecture ratée");
