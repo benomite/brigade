@@ -257,6 +257,12 @@ tests** — the added tests green on the branch — in a throwaway checkout of t
 (`mutations-<ticket>-<n>`) where the delivery's changed files are copied; a mutant is caught when one
 of them fails.
 
+The step runs only on a delivery whose branch has frozen acceptance tests (#3740): its first commit
+carries the trailer `Acceptance-Tests: frozen` (the tests step of the rail). A ticket with no testable
+criterion has none, and no mutant is made: the verdict says `Mutation check: not run — the ticket has no
+frozen acceptance test (no testable criterion), …`. A history that cannot be read does not hold the
+mutants back: they run, and the station warns.
+
 The mutants run **4 at a time**, under a **time budget of 2 minutes** for the whole step
 (`BUDGET_DES_MUTATIONS_MS`); when it runs out, the running mutants are stopped, and the line says how
 many were not run.

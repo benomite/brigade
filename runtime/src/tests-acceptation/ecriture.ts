@@ -7,7 +7,7 @@
 //
 // Rien n'est à moitié fait : un échec à une étape défait le worktree et la
 // branche locale, rien n'est poussé ni labellisé, et le ticket reste `queued`.
-import { corpsDesFiches, criteresDuTicket, ficheNeuve, type FicheDeCritere } from "./fiche.ts";
+import { corpsDesFiches, criteresDuTicket, ficheNeuve, ficheSansTest, type FicheDeCritere } from "./fiche.ts";
 import { LABEL_TESTS_ECRITS, sujetDuCommitDesTests, TRAILER } from "./etape.ts";
 
 const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:tests-acceptation-consigne -->";
@@ -32,7 +32,12 @@ export type OutilsDeLEcriture = {
 };
 
 // `sansCriteres` : le ticket n'a aucun critère d'acceptation, il n'y a rien à geler.
-export type Ecriture = { fiches: FicheDeCritere[] } | { sansCriteres: true } | { echec: string };
+// `sansTestable` : aucun de ses critères n'est testable (#3740), l'étape n'a pas
+// été lancée, et sa fiche dit les preuves dues.
+export type Ecriture = { fiches: FicheDeCritere[] } | { sansCriteres: true } | { sansTestable: FicheDeCritere[] } | { echec: string };
+
+// La classe d'un critère, que le manager a donnée à la qualification (#3740).
+export type ClasseDuCritere = { class: "testable" } | { class: "not-testable"; proof: string };
 
 export function consigneDesTests(mission: { depot: string; ticket: number; titre: string; corps: string; criteres: readonly string[] }): string {
   const { depot, ticket, titre, corps, criteres } = mission;
@@ -81,12 +86,16 @@ export function lireLesChemins(message: string, attendus: number): { chemins: st
 const egaux = (a: readonly string[], b: readonly string[]) => a.length === b.length && [...a].sort().every((x, i) => x === [...b].sort()[i]);
 
 // Écrit les tests du ticket, de la consigne au label. Rend les fiches des
-// critères, ou ce qui a manqué.
-export async function ecrireLesTests(ticket: number, outils: OutilsDeLEcriture): Promise<Ecriture> {
+// critères, ou ce qui a manqué. `classes`, une par critère : seuls les critères
+// `testable` reçoivent un test ; sans elles, tous en reçoivent un.
+export async function ecrireLesTests(ticket: number, outils: OutilsDeLEcriture, classes?: readonly ClasseDuCritere[]): Promise<Ecriture> {
   const issue = await outils.issue(ticket);
   if (issue === null) return { echec: "the issue no longer exists" };
-  const criteres = criteresDuTicket(issue.body ?? "");
-  if (criteres.length === 0) return { sansCriteres: true };
+  const tous = criteresDuTicket(issue.body ?? "");
+  if (tous.length === 0) return { sansCriteres: true };
+  if (classes !== undefined && classes.length !== tous.length) return { echec: `the ticket has ${tous.length} criteria, ${classes.length} were classed: its criteria changed while they were classed` };
+  const classeDe = (rang: number): ClasseDuCritere => classes?.[rang] ?? { class: "testable" };
+  const criteres = tous.filter((_, rang) => classeDe(rang).class === "testable");
   const { worktree, branche } = await outils.preparer();
   let poussee = false;
   try {
@@ -111,7 +120,11 @@ export async function ecrireLesTests(ticket: number, outils: OutilsDeLEcriture):
     if (compte.stdout.trim() !== "1" || !egaux(fichiers.stdout.split("\0").filter(Boolean), lu.chemins)) return { echec: "the commit of the tests is not the branch's only commit, or carries other files" };
     outils.pousser(branche);
     poussee = true;
-    const fiches = criteres.map((critere, rang) => ficheNeuve(critere, lu.chemins[rang] as string));
+    let teste = 0;
+    const fiches = tous.map((critere, rang) => {
+      const classe = classeDe(rang);
+      return classe.class === "testable" ? ficheNeuve(critere, lu.chemins[teste++] as string) : ficheSansTest(critere, classe.proof);
+    });
     await outils.commenter(ticket, corpsDesFiches(ticket, branche, fiches));
     await outils.labelliser(ticket, [LABEL_TESTS_ECRITS]);
     return { fiches };

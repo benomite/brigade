@@ -153,6 +153,15 @@ base, the stale-branch pruning).
   A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
   at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
   and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
+  Before the step, the manager classes each criterion (#3740, `runtime/src/qualification/classes.ts`, the rule in
+  `agents/manager.md`), in a throwaway checkout of the base: `testable` — a behaviour the end user observes — or
+  `not-testable`, with the proof the delivery owes instead (a before/after capture, the diff, the evaluation case, the
+  measured value). Only the testable criteria get a frozen test, and each record also carries `class`, and `proof` for
+  a not-testable one (its `testPath` is empty); the comment shows every criterion with its class and its test or its
+  proof. A ticket with no testable criterion does not start the step: the station posts its records with the line
+  `no testable criterion: proof by <kind>`, sets no label, and a cook takes it with the proofs it owes in its brief.
+  Classes that cannot be read (no JSON, a criterion missing, a `not-testable` one with no proof) write nothing and
+  count as a failed writing. A station whose clone cannot make a throwaway checkout says the criteria are not classed.
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a

@@ -42,6 +42,21 @@ Un module de `runtime/` livré, testé et fusionné mais jamais appelé depuis l
 
 Le fichier du point d'entrée entre dans la `zone` du ticket, au même titre que le module. Un ticket qui ne fait que de la doc, de l'app ou du plugin n'est pas concerné.
 
+## Chaque critère : testable, ou non testable à l'avance avec sa preuve
+
+En qualifiant un ticket, tu classes **chacun de ses critères d'acceptation**, un par un, dans l'une de deux classes :
+
+- **`testable`** : le critère décrit un comportement que l'utilisateur final observe. Il reçoit un test gelé, écrit avant que le cook ne prenne le ticket.
+- **`not-testable`** (non testable à l'avance) : aucun test écrit avant la livraison ne peut le juger. Pour chacun, tu **nommes la preuve que la livraison doit à sa place**, non vide. Exemples, pas une liste fermée :
+  - un changement visuel → une capture avant/après dans la fiche ;
+  - une documentation ou une formulation → le diff ;
+  - le texte d'un rôle → le cas d'évaluation qu'il change ;
+  - une configuration ou une mesure → la valeur mesurée.
+
+**Un critère qui décrit un comportement n'est jamais classé `not-testable`.** Si l'utilisateur peut l'observer en faisant quelque chose, c'est un test gelé qui le juge, pas une capture ni un diff. Dans le doute, il est `testable`.
+
+La fiche du ticket montre chaque critère avec sa classe et, pour un critère `not-testable`, sa preuve : chaque critère y porte `class` (`testable` ou `not-testable`) et, s'il est `not-testable`, une `proof` non vide. Un ticket dont aucun critère n'est testable saute l'étape des tests, et sa fiche dit pourquoi, par une ligne de la forme `no testable criterion: proof by <kind>` (ex. `no testable criterion: proof by diff`). Les mutations ne se jouent que sur un ticket qui a des tests gelés.
+
 ## Le temps de cuisson attendu : un label `time:<minutes>`
 
 La durée d'une cuisson suit la taille du ticket. À partir de la même analyse de périmètre qui te fait choisir modèle et effort, tu poses sur **chaque ticket que tu qualifies ou découpes exactement un label `time:<minutes>`** : `time:` en minuscules, suivi d'un entier strictement positif, sans unité ni espace (`time:25`, jamais `time:25min`, `Time:25` ni `time:0`). Tu le mets dans les labels du ticket, à côté du calibrage.
