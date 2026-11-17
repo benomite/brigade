@@ -119,7 +119,7 @@ import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 import { ecrireLesTests } from "./tests-acceptation/ecriture.ts";
 import { estLeCommitDesTests, LABEL_TESTS_ECRITS } from "./tests-acceptation/etape.ts";
 import { consigneDesTestsGeles, lireLesFiches } from "./tests-acceptation/fiche.ts";
-import { porteDesTests, type PorteDesTests } from "./tests-acceptation/porte.ts";
+import { EN_ECRITURE, porteDesTests, type PorteDesTests } from "./tests-acceptation/porte.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -2056,9 +2056,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // (`unknown`, ou la CI d'une seule livraison) quand seize tickets
     // attendaient leur prise depuis trente minutes, et l'attente d'une prise
     // sans rien qui dise laquelle de ces deux bornes la tenait (#3446).
+    // Les tickets dont le manager écrit les tests : chacun tient une place,
+    // comme un cook, sous les mêmes garde-fous (#3742).
+    const enEcriture = () => options.testsAcceptation?.enEcriture() ?? [];
     const direLesAttentes = async (restants: readonly TicketLu[], arret: string) => {
       for (const reste of restants) {
         if (enVol.has(reste.number)) continue;
+        if (enEcriture().includes(reste.number)) {
+          sauter(reste.number, direSaut(reste.number, EN_ECRITURE));
+          continue;
+        }
         const attendus = await defaireLesBoucles(github, reste.number, lus).catch(() => []);
         if (attendus.length > 0) sauter(reste.number, direAttenteDeTicket(reste.number, attendus), attendus);
         else sauter(reste.number, direSaut(reste.number, arret));
@@ -2067,8 +2074,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     for (const [rang, ticket] of libres.entries()) {
       if (baseManquante !== null) break;
       const limite = typeof places === "number" ? places : places();
-      if (enVol.size + aRendre.size >= limite) {
-        await direLesAttentes(libres.slice(rang), direPlacesPrises(limite, [...enVol.keys(), ...aRendre.keys()]));
+      const ecritures = enEcriture();
+      if (enVol.size + aRendre.size + ecritures.length >= limite) {
+        await direLesAttentes(libres.slice(rang), direPlacesPrises(limite, [...enVol.keys(), ...aRendre.keys(), ...ecritures]));
         break;
       }
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
@@ -2168,7 +2176,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         continue;
       }
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
-      const retenue = gardes === undefined ? null : await gardes.retenue(enVol.size);
+      const retenue = gardes === undefined ? null : await gardes.retenue(enVol.size + enEcriture().length);
       if (retenue !== null) {
         // L'arbitre donne les places à d'autres projets : la première qui
         // s'ouvre pour celui-ci presse un tour tout de suite. Sans elle, le
@@ -2198,7 +2206,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       chrono.prendre(ticket.number);
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
-    await gardes?.redire(enVol.size);
+    await gardes?.redire(enVol.size + enEcriture().length);
     await consignation;
   };
 
