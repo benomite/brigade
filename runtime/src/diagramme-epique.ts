@@ -4,7 +4,8 @@
 // ticket servi se dessine autrement qu'un ticket ouvert. Le bloc vit entre
 // deux marqueurs, comme la liste des tickets : le rafraîchir ne réécrit que lui.
 // Sans E/S.
-import { lignesHorsCode } from "./epique.ts";
+import { lignesHorsCode, type LigneDeListe } from "./epique.ts";
+import type { TicketPrevu } from "./events/manager.ts";
 
 export const DEBUT_DIAGRAMME = "<!-- brigade-diagram:start -->";
 export const FIN_DIAGRAMME = "<!-- brigade-diagram:end -->";
@@ -24,9 +25,9 @@ const STYLES: Record<string, string> = {
 // La classe d'un état : servi, en cuisson, abandonné, ou ouvert.
 function classe(state: string): string {
   const s = state.trim().toLowerCase();
-  if (s === "served" || s === "servi") return "served";
-  if (s === "cooking" || s === "en cuisson") return "cooking";
-  if (s === "dropped" || s === "abandonné") return "dropped";
+  if (s === "served") return "served";
+  if (s === "cooking") return "cooking";
+  if (s === "dropped") return "dropped";
   return "open";
 }
 
@@ -53,6 +54,37 @@ export function diagrammeDEpique(tickets: TicketDiagramme[], relations: Relation
   for (const c of classes) lignes.push(`  class ${tickets.filter((t) => classe(t.state) === c).map((t) => noeud(t.ticket)).join(",")} ${c}`);
   lignes.push("```");
   return lignes.join("\n");
+}
+
+// Les nœuds et les arêtes du diagramme d'une épique (#3770) : chaque ticket de
+// sa liste, avec la zone et la première phrase du contexte que le découpage
+// lui a donnés, et une arête de chaque ticket attendu vers celui qui l'attend.
+// `nes` : le numéro né de chaque rang du découpage. Un ticket que le chef a
+// ajouté n'a ni zone ni relation.
+export function entreeDuDiagramme(lignes: LigneDeListe[], prevus: TicketPrevu[], nes: { ticket: number; index: number | null }[]): { tickets: TicketDiagramme[]; relations: RelationDiagramme[] } {
+  const numeroDuRang = new Map(nes.flatMap((ne) => (ne.index === null ? [] : [[ne.index, ne.ticket] as const])));
+  const prevuDe = new Map(prevus.flatMap((prevu, i) => {
+    const numero = numeroDuRang.get(i + 1);
+    return numero === undefined ? [] : [[numero, prevu] as const];
+  }));
+  const tickets = lignes.map(({ ticket, title, state }) => {
+    const prevu = prevuDe.get(ticket);
+    return { ticket, title, state, zone: prevu?.zone ?? [], changes: enUnePhrase(prevu?.context ?? "") };
+  });
+  const relations = prevus.flatMap((prevu, i) => {
+    const to = numeroDuRang.get(i + 1);
+    return to === undefined ? [] : prevu.waitsFor.flatMap((rang) => {
+      const from = numeroDuRang.get(rang);
+      return from === undefined ? [] : [{ from, to, label: "then" }];
+    });
+  });
+  return { tickets, relations };
+}
+
+// La première phrase du contexte d'un ticket : ce qu'il change, en court.
+function enUnePhrase(contexte: string): string {
+  const phrase = contexte.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0] ?? "";
+  return phrase.length > 120 ? `${phrase.slice(0, 119)}…` : phrase;
 }
 
 // Où un bloc commence et finit dans le corps, entre ces deux marqueurs, ou
