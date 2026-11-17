@@ -21,8 +21,10 @@ function github(commentaires: string[] = []) {
   const ecrits = commentaires;
   const labels: string[] = [];
   let enPanne = false;
+  let lectures = 0;
   const client: GitHubDeLAttenteLongue = {
     commentaires: async () => {
+      lectures += 1;
       if (enPanne) throw new Error("GitHub is down");
       return ecrits.map((body) => ({ body }));
     },
@@ -34,7 +36,7 @@ function github(commentaires: string[] = []) {
       labels.push(...poses);
     },
   };
-  return { client, ecrits, labels, panne: (oui: boolean) => (enPanne = oui) };
+  return { client, ecrits, labels, panne: (oui: boolean) => (enPanne = oui), lectures: () => lectures };
 }
 
 function suivi(gh: ReturnType<typeof github>, revoir?: () => Promise<ReponseDeLaRevue>) {
@@ -103,6 +105,41 @@ test("once the chef has answered the product question and the ticket is back on 
   assert.match(gh.ecrits.at(-1) ?? "", /^<!-- brigade:attente-levee #10 -->/);
 });
 
+test("a mark of the wait with an outcome the station does not know is no review: the manager still reviews the wait at the hour", async () => {
+  const gh = github([`<!-- brigade:attente-longue ligne #${A} -->`, `Quoted: <!-- brigade:attente-longue #${A} -->`]);
+  const s = suivi(gh, async () => ({ revue: { issue: "garde", commentaire: "Kept: it is real." } }));
+  for (const minutes of [0, 61, 62]) await s.tour(minutes);
+  assert.deepEqual(s.revues, [61 * MIN]);
+  assert.match(gh.ecrits.at(-1) ?? "", /<!-- brigade:attente-longue garde #10 -->$/);
+});
+
+test("the same wait named in another order is the same wait: before the hour, the issue is read once", async () => {
+  const gh = github();
+  let maintenant = 0;
+  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: A_LA_MAIN, revoir: async () => ({ revue: { issue: "garde", commentaire: "Kept." } }), maintenant: () => maintenant, avertir: () => {} });
+  for (const [minutes, attendus] of [[0, [A, 30]], [1, [30, A]], [2, [A, 30]], [3, [30, A]]] as const) {
+    maintenant = minutes * MIN;
+    s.tour([B]);
+    s.tenu({ number: B, title: "B" }, attendus);
+    await s.calme();
+  }
+  assert.equal(gh.lectures(), 1);
+});
+
+test("the manager is told how long the ticket has waited", async () => {
+  const gh = github();
+  const attentes: number[] = [];
+  let maintenant = 1_000 * MIN;
+  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: A_LA_MAIN, revoir: async (_ticket, { depuisMs }) => (attentes.push(depuisMs), { revue: { issue: "garde", commentaire: "Kept." } }), maintenant: () => maintenant, avertir: () => {} });
+  for (const minutes of [0, 30, 75]) {
+    maintenant = (1_000 + minutes) * MIN;
+    s.tour([B]);
+    s.tenu({ number: B, title: "B" }, [A]);
+    await s.calme();
+  }
+  assert.deepEqual(attentes, [75 * MIN]);
+});
+
 test("an answer of the manager that does not read is no decision", () => {
   assert.deepEqual(lireRevue("I could not decide."), { illisible: "no JSON object in the answer" });
   assert.deepEqual(lireRevue('{"issue": "leve"}'), { illisible: "`leve` with no `commentaire`" });
@@ -138,4 +175,32 @@ test("through the station: a ticket whose sheet waits for a ticket set aside sta
   }
   assert.equal(consultations, 1);
   assert.ok(cooks >= 1, "the lifted wait no longer holds the ticket");
+});
+
+test("through the station: the manager reads the awaited ticket and how long the wait has held", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "attente-longue-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(A, ["fire", "model:opus"], "The new palette.");
+  faux.feu(B, ["fire", "model:opus", "effort:medium"], `## Context\n\nDepends on #${A}.`);
+  const consignes: string[] = [];
+  let maintenant = Date.parse("2026-11-17T10:00:00Z");
+  const debut = maintenant;
+  const lancer: Lancer = ({ args, flux }) => {
+    const consulte = args[args.indexOf("--tools") + 1] === "Read,Grep,Glob";
+    if (consulte) consignes.push(args[args.indexOf("-p") + 1] ?? "");
+    const message = consulte ? JSON.stringify({ issue: "garde", commentaire: "Kept: #20 builds on the palette." }) : "Done.\n<livrable>\nNothing.\n</livrable>";
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
+    return { fin: Promise.resolve({ code: consulte ? 0 : 1, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, github: fauxClient(faux), depot: depotNeuf(repertoire), manager: () => ({ model: "opus", effort: "high" }), flux: repertoire, lancer, avertir: () => {}, maintenant: () => new Date(maintenant) });
+  if ("refus" in station) throw new Error(station.refus);
+  for (const minutes of [0, 30, 121]) {
+    maintenant = debut + minutes * MIN;
+    await station.tour();
+    await station.calme();
+  }
+  assert.equal(consignes.length, 1);
+  assert.match(consignes[0] ?? "", /depuis plus de 2 h/);
+  assert.match(consignes[0] ?? "", /<attendu numero="10">\n#10 — .*\nLabels : fire, model:opus\n\nThe new palette\.\n<\/attendu>/);
 });

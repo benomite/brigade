@@ -32,8 +32,8 @@ that ticket was split (its body carries the list of its tickets), the wait goes 
 the split, and the skip line names them, as does the card's line in `status`. The phrases are read
 broadly: a sentence like "after #12" or "with the title of #5" that is not a dependency holds the ticket
 too, until that ticket is closed — and a ticket that is never served (left off the rail, or
-`blocked-on-human`) holds it until the manager reviews the wait, an hour later (below). The skip line is the signal: rewrite the sentence, or close the
-awaited ticket, to release it.
+`blocked-on-human`) holds it for good, unless the manager lifts the wait it reviews after an hour (below).
+The skip line is the signal: rewrite the sentence, or close the awaited ticket, to release it.
 
 **A wait held more than an hour goes to the manager, once (#3764).** A ticket on the rail held by a wait
 — its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket set
