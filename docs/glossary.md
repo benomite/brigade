@@ -45,6 +45,7 @@ Related terms built on « cuisine »:
 | `Attend les autres` | `Awaiting others` | The folded section under the columns, outside them: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071, #3458) |
 | `attend` (ligne de la fiche) | `awaiting` | The same word, same translation: a ticket that waits for another ticket, in its card (`attend : #12` → `awaiting: #12`) |
 | `en attente` | `queued` | A ticket on the rail not yet taken |
+| `tests écrits` | `tests written` | The rail step between `queued` and `taken`: the manager has committed one acceptance test per criterion as the first commit of the ticket's branch (label `tests-written`, #3725) |
 | `pris` / `en cuisine` / `Au travail` | `taken` / `Taken` | A cook holds the ticket (see §1) |
 | `en pass` / `Pass` | `in pass` / `Pass` | The ticket is being judged |
 | `servi` / `Livré` | `served` / `Served` | The ticket is merged and served |

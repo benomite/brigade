@@ -287,6 +287,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).
     "runtime/src/reglages-projet/ligne-roadmap.ts",
     "runtime/src/stations-github/stations.ts",
+    // L'étape `tests written` du rail, d'après les labels, sans E/S (ticket 3725).
+    "runtime/src/tests-acceptation/etape.ts",
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.
   assert.deepEqual(graphe("app/src/tableau/jeton-gh.ts"), ["app/src/tableau/jeton-gh.ts", "node:child_process"]);

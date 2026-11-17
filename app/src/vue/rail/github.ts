@@ -14,6 +14,7 @@ import { porteListe } from "../../../../runtime/src/epique.ts";
 import { feuPoseLe, lireLesNonPris } from "../../../../runtime/src/rail-bloque/lecture.ts";
 import { dependancesDuCorps, type TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
 import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
+import { etapeDuRail } from "../../../../runtime/src/tests-acceptation/etape.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
 import type { Cook } from "../../faits.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
@@ -30,6 +31,11 @@ import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pau
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
+// Le mot d'un ticket en file dont les tests d'acceptation sont écrits et gelés : l'étape `tests written` du rail, entre
+// `queued` et `taken` (ticket 3725, label `tests-written`).
+const MOT_TESTS_ECRITS = "tests écrits";
+// Les mots d'un ticket en file, que la cuisine n'a pas encore pris.
+const EN_FILE = new Set([MOT_EN_FILE, MOT_TESTS_ECRITS]);
 // Le mot d'un ticket mis de côté (faits.ts, `TONS_DE_TICKET`) : sa carte est dans TODO (ticket 2075).
 const MOT_MIS_DE_COTE = "86";
 // La colonne où reste un ticket mis de côté qui ne demande rien au chef (faits.ts, `COLONNES_DE_FAITS`) : celle du rail.
@@ -201,14 +207,14 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const deLaMiseDeCote = label === null ? undefined : await toutesLesPages(lire, `/repos/${depot}/issues/${numero}/comments`);
     const miseDeCote = label === null || deLaMiseDeCote === undefined ? undefined : miseDeCoteDe(depot, label, deLaMiseDeCote, numero);
     const dit = etatDuTicket(issueLue, base);
-    const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit === null ? MOT_EN_FILE : MOT_DE_L_ETAT[dit];
+    const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : etapeDuRail(labels) === "tests written" ? MOT_TESTS_ECRITS : MOT_EN_FILE;
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
     const prise = deLaPrise === undefined ? null : tenantDeLIssue(deLaPrise, liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)));
     // Son dernier renvoi à un cook (ticket 3302), des commentaires déjà lus : aucune lecture de plus.
     const renvoi = dernierRenvoi(deLaPrise ?? deLaMiseDeCote ?? []);
     // En file, l'instant où `fire` lui a été posé (ticket 3433) ; des événements qui ne se lisent pas ne le disent pas, et
     // la durée n'est pas dite — le rail reste lu.
-    const entreLe = etat !== MOT_EN_FILE ? undefined : await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`).then((brut) => (Array.isArray(brut) ? feuPoseLe(liste(brut)) : null), () => null);
+    const entreLe = !EN_FILE.has(etat) ? undefined : await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`).then((brut) => (Array.isArray(brut) ? feuPoseLe(liste(brut)) : null), () => null);
     tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(depend.length === 0 ? {} : { depend }), ...(entreLe === undefined ? {} : { entreLe }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }) });
   }
   // Les tickets qu'aucun manager n'a pris (ticket 3358) : la lecture du runtime, sur les issues déjà lues — leurs
@@ -229,6 +235,7 @@ function ligneDuTicket({ ticket, etat, priorite, titre, creeLe, pr, prise }: Tic
   const prio = priorite === null ? "-" : `prio:${priorite}`;
   const ecrire = (mot: string, detail: string) => `  #${ticket}  ${mot}  ${prio}  ${detail}  ${titre}`;
   if (etat === MOT_EN_FILE && creeLe !== "") return ecrire("queued", `since ${heureEn(creeLe)}`);
+  if (etat === MOT_TESTS_ECRITS && creeLe !== "") return ecrire("tests written", `since ${heureEn(creeLe)}`);
   if (etat === "pris" && prise !== null) return ecrire("taken", `by ${prise.station} since ${heureEn(prise.le)}`);
   if (etat === "en pass" && prise !== null && pr !== null && pr.le !== "") return ecrire("in pass", `since ${heureEn(pr.le)}, cooked by ${prise.station}`);
   return null;
@@ -243,7 +250,7 @@ function activiteDe({ ticket, etat, pr, prise }: TicketSurGithub): { activite?: 
 }
 
 // Les mots d'état comptés sur la ligne `rail` de `status`, dans son ordre et ses mots.
-const COMPTES: readonly (readonly [string, string])[] = [["pris", "taken"], ["en pass", "in pass"], ["base rouge", "base red"], ["WAITING", "WAITING"], ["en attente", "queued"], ["86", "set aside"]];
+const COMPTES: readonly (readonly [string, string])[] = [["pris", "taken"], ["en pass", "in pass"], ["base rouge", "base red"], ["WAITING", "WAITING"], ["tests écrits", "tests written"], ["en attente", "queued"], ["86", "set aside"]];
 
 // Ce que GitHub dit du cook d'un ticket pris ou en pass : sa station, depuis sa prise, ce que la cuisine en fait, sa PR.
 function cookDe(ticket: TicketSurGithub): ActiviteDuCook[] {
@@ -266,9 +273,10 @@ function cookDe(ticket: TicketSurGithub): ActiviteDuCook[] {
   }];
 }
 
-// Les tickets du rail dans les états que la file dit (ticket 3433) : en file, pris, en pass — la base rouge est en pass.
+// Les tickets du rail dans les états que la file dit (ticket 3433) : en file, pris, en pass — la base rouge est en pass, et
+// un ticket dont les tests sont écrits (ticket 3725) est encore en file : aucun cook ne l'a pris.
 // Un ticket mis de côté, ou en WAITING, n'en est pas.
-const ETATS_DE_LA_FILE: Record<string, TicketDuRail["etat"]> = { [MOT_EN_FILE]: "queued", pris: "taken", "en pass": "pass", "base rouge": "pass" };
+const ETATS_DE_LA_FILE: Record<string, TicketDuRail["etat"]> = { [MOT_EN_FILE]: "queued", [MOT_TESTS_ECRITS]: "queued", pris: "taken", "en pass": "pass", "base rouge": "pass" };
 export const ticketsDeLAttente = (tickets: readonly TicketSurGithub[]): TicketDuRail[] =>
   tickets.flatMap(({ ticket, etat, entreLe, depend }) => (ETATS_DE_LA_FILE[etat] === undefined ? [] : [{ ticket, etat: ETATS_DE_LA_FILE[etat], entreLe: entreLe ?? null, depend: depend ?? [] }]));
 

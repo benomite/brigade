@@ -1000,6 +1000,7 @@ export const TONS_DE_PROJET = new Map([
 ]);
 export const TONS_DE_TICKET = new Map([
   ["en attente", "gris"],
+  ["tests écrits", "gris"],
   ["BLOQUÉ", "rouge"],
   ["pris", "bleu"],
   ["en pass", "jaune"],
@@ -1067,7 +1068,7 @@ const ouvrable = (url: string) => URL.parse(url)?.protocol === "https:";
 // Les quatre colonnes que `faits` remplit, dans l'ordre de l'écran, et les mots
 // d'état que chacune prend. Tout autre mot — `86`, un mot inconnu — n'est d'aucune.
 const COLONNES_DE_FAITS = [
-  { nom: "On the rail", ton: "gris", etats: ["en attente", "BLOQUÉ"] },
+  { nom: "On the rail", ton: "gris", etats: ["en attente", "tests écrits", "BLOQUÉ"] },
   { nom: "Taken", ton: "bleu", etats: ["pris"] },
   { nom: "Pass", ton: "jaune", etats: ["en pass", "base rouge"] },
   { nom: "Served", ton: "vert", etats: ["servi"] },
@@ -1101,7 +1102,7 @@ const WAITING = { nom: "Waiting", ton: "orange", rang: 4 } as const;
 const PERSONNE_N_ATTEND = "no ticket waits for a third party";
 // Les mots d'état d'un ticket que le runtime laisse attendre un tiers : en attente sur le
 // rail, ou mis de côté — pas celui que la cuisine tient, en cuisine ou en pass, ni un servi.
-const POSABLES = ["en attente", "BLOQUÉ", "86"];
+const POSABLES = ["en attente", "tests écrits", "BLOQUÉ", "86"];
 // La ligne du bloc `attend` d'une question du manager avant découpage (runtime/src/attend.ts), dans ses deux langues.
 const QUESTION_D_EPIQUE = /manager's question before splitting the epic|question du manager avant de découper l'épique/;
 // Ce qui suit, sur une question répondue.
