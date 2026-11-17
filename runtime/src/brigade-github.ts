@@ -114,6 +114,10 @@ import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } 
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 import { agirSurLaReponse } from "./reponse-validation/reponse-validation.ts";
 import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
+import { ecrireLesTests } from "./tests-acceptation/ecriture.ts";
+import { estLeCommitDesTests, LABEL_TESTS_ECRITS } from "./tests-acceptation/etape.ts";
+import { consigneDesTestsGeles, lireLesFiches } from "./tests-acceptation/fiche.ts";
+import { porteDesTests, type PorteDesTests } from "./tests-acceptation/porte.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -400,6 +404,10 @@ export type OptionsDeStation = {
   // design que les critères du ticket n'ont pas tranché (#3609) ? Absent, la
   // pass ne merge pas une livraison design et le dit.
   jugerLeChoixDeDesign?: (ticket: { number: number; title: string; body: string }, fichiers: readonly string[], pr: { number: number; sha: string }) => Promise<ChoixDeDesign>;
+  // L'étape « tests written » du rail (#3725) : un ticket qui ne l'a pas
+  // passée n'est pas pris, et part à l'écriture de ses tests. Absente, la
+  // porte de prise ne la lit pas.
+  testsAcceptation?: PorteDesTests;
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -2168,6 +2176,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await direLesAttentes(libres.slice(rang), DIT_DES_RETENUES[retenue]);
         break;
       }
+      // Ses tests d'acceptation ne sont pas écrits : aucun cook ne le prend (#3725).
+      const sansTests = options.testsAcceptation?.porte(ticket) ?? null;
+      if (sansTests !== null) {
+        sauter(ticket.number, direSaut(ticket.number, sansTests));
+        continue;
+      }
       let pris: { prise: boolean };
       try {
         pris = await prise.prendre(ticket);
@@ -2198,6 +2212,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     },
     calme: async () => {
       while (enVol.size > 0 || enRelecture.size > 0 || externesEnCours.size > 0) await Promise.all([...enVol.values(), ...enRelecture.values(), ...externesEnCours.values()]);
+      await options.testsAcceptation?.calme();
     },
     quitter: async () => {
       await gardes?.quitter();
@@ -2443,7 +2458,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "recevoir">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -2458,6 +2473,10 @@ export type OptionsDuDepot = {
   // bloqué lui va avant tout \`blocked-on-human\` (#2894). Absent, la station n'a
   // pas de manager à consulter, et le dit sur l'issue.
   manager?: () => Calibrage;
+  // Le calibrage du manager qui écrit les tests d'acceptation d'un ticket, à
+  // l'étape « tests written » du rail (#3725). Présent, aucun cook ne prend un
+  // ticket avant ses tests. Absent, la porte de prise ne lit pas l'étape.
+  testsAcceptation?: () => Calibrage;
   // Le plafond de calibrage du projet (`reagir.ts`) : une recalibration du
   // manager après le dernier essai ne le passe pas (#3513). Absent, le défaut.
   plafond?: () => Plafond;
@@ -2686,15 +2705,31 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Ses critères admettent un constat écrit pour tout livrable (#2854).
     let constatAdmis: boolean;
     let brigade = false;
+    let commentairesDuTicket: { body: string; association: string }[] = [];
     try {
       const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
       if (lue === null) throw new Error("the issue no longer exists");
+      commentairesDuTicket = commentaires;
       joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
       constatAdmis = admetUnConstat(lue.body ?? "");
       brigade = livreSousBrigade(lue.body ?? "", commentaires.map(({ body }) => body));
     } catch (erreur) {
       const dit = `its ticket could not be read on GitHub: ${message(erreur)}`;
       return erreur instanceof LimiteGitHubAtteinte ? { subi: dit } : { echec: dit };
+    }
+    // Ses tests d'acceptation, gelés en premier commit de sa branche (#3725) :
+    // une autre station a pu les pousser, le clone la reçoit de l'origine. Sans
+    // eux sur la branche, aucun cook ne part.
+    const gele = ticket.labels.includes(LABEL_TESTS_ECRITS) && options.testsAcceptation !== undefined;
+    if (gele) {
+      const propre = brancheDuTicket(ticket.number);
+      try {
+        if (!depot.connait(propre) && !(await depot.recevoir?.(propre))) return { echec: `\`${propre}\` with its frozen acceptance tests is not on the origin` };
+      } catch (erreur) {
+        return { echec: `its branch with the frozen acceptance tests could not be fetched: ${message(erreur)}` };
+      }
+      if (depot.commits(propre) === 0) return { echec: `\`${propre}\` does not carry its frozen acceptance tests` };
+      joint += `\n\n${consigneDesTestsGeles(lireLesFiches(commentairesDuTicket))}`;
     }
     let lieu: { worktree: string; branche: string };
     // Le run d'un ticket est toujours le même : la branche d'un cook précédent
@@ -2762,7 +2797,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
     if (repriseDeGarde) joint += `\n\n${consigneDuRunPrecedent(branche, await commitsDuRunPrecedent(lancerGit, worktree, base))}`;
     else if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, or it declared itself blocked and the chef has answered on this issue. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
-    if (sansPR && !sauvee && avant !== null && depot.livree !== undefined) {
+    // Sa tête est le commit de ses tests gelés (#3725) : aucun cook n'y a encore écrit, ce n'est pas une livraison.
+    if (sansPR && !sauvee && avant !== null && depot.livree !== undefined && !estLeCommitDesTests(depot.sujet?.(branche))) {
       const livree = depot.livree(branche);
       // `livree` rend la branche locale quand l'origine n'a pas la sienne
       // (`reprendre` vient de relire l'origine) : elle n'est alors pas poussée,
@@ -3266,7 +3302,45 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
   };
   const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
-  const station = stationGitHub({ ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  // L'étape « tests written » (#3725) : le manager écrit les tests d'acceptation
+  // du ticket dans le worktree de sa branche neuve, comme un cook — il écrit,
+  // gardé dans son worktree —, et la station les commite en premier commit.
+  // Un ticket dont le clone a déjà la branche est parti avant l'étape : la
+  // station ne la refait pas sur la base, il se prend tel quel.
+  const calibrageDesTests = options.testsAcceptation;
+  const lancerGitDesTests = depot.lancerGit;
+  // Demandée sans git pour la commiter, l'étape ne garde pas la prise : la station le dit, plutôt que de prendre sans tests.
+  if (calibrageDesTests !== undefined && lancerGitDesTests === undefined) avertir("brigade : the `tests written` step is off: this station's clone cannot run git, so its tickets are taken without frozen acceptance tests");
+  const testsAcceptation =
+    calibrageDesTests === undefined || lancerGitDesTests === undefined
+      ? undefined
+      : porteDesTests(
+          (numero) =>
+            ecrireLesTests(numero, {
+              issue: (n) => options.github.issue(n),
+              commenter: (n, corps) => options.github.commenter(n, corps),
+              labelliser: (n, labels) => options.github.labelliser(n, labels),
+              preparer: () => depot.preparer(runDuTicket(numero)),
+              manager: async (texte, worktree) => {
+                const flux = join(options.flux, `tests-${numero}-github-${Date.now()}.flux.jsonl`);
+                const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrageDesTests()), worktree), { worktree, ticket: numero, depot: depotGitHub, branche: brancheDuTicket(numero) });
+                const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
+                const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(), flux, ticket: numero });
+                const fin = await lance.fin;
+                const lu = lireLeFlux(lance.flux ?? flux);
+                const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
+                if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
+                return lu.message === undefined || lu.message === null ? { illisible: "the manager's run left no answer" } : { message: lu.message };
+              },
+              git: lancerGitDesTests,
+              pousser: (branche) => depot.pousser(branche),
+              retirer: (worktree, branche) => depot.retirer(worktree, branche),
+              base,
+              depot: depotGitHub,
+            }),
+          { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) },
+        );
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {
