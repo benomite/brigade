@@ -82,7 +82,8 @@ import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/ga
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
-import { motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
+import { motifDuGel, testsGeles, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
+import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
@@ -117,7 +118,7 @@ import { agirSurLaReponse } from "./reponse-validation/reponse-validation.ts";
 import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 import { ecrireLesTests } from "./tests-acceptation/ecriture.ts";
 import { estLeCommitDesTests, LABEL_TESTS_ECRITS } from "./tests-acceptation/etape.ts";
-import { consigneDesTestsGeles, lireLesFiches } from "./tests-acceptation/fiche.ts";
+import { consigneDesPreuves, consigneDesTestsGeles, lireLesFiches } from "./tests-acceptation/fiche.ts";
 import { porteDesTests, type PorteDesTests } from "./tests-acceptation/porte.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
@@ -2478,6 +2479,11 @@ export type OptionsDuDepot = {
   // l'étape « tests written » du rail (#3725). Présent, aucun cook ne prend un
   // ticket avant ses tests. Absent, la porte de prise ne lit pas l'étape.
   testsAcceptation?: () => Calibrage;
+  // Le calibrage du manager qui classe les critères d'un ticket, testables ou
+  // non, avant l'écriture de ses tests (#3740) : seuls les testables reçoivent
+  // un test, et un ticket sans critère testable ne lance pas l'étape. Absent,
+  // chaque critère reçoit son test.
+  classesDesCriteres?: () => Calibrage;
   // Le plafond de calibrage du projet (`reagir.ts`) : une recalibration du
   // manager après le dernier essai ne le passe pas (#3513). Absent, le défaut.
   plafond?: () => Plafond;
@@ -2731,6 +2737,11 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       }
       if (depot.commits(propre) === 0) return { echec: `\`${propre}\` does not carry its frozen acceptance tests` };
       joint += `\n\n${consigneDesTestsGeles(lireLesFiches(commentairesDuTicket))}`;
+    } else if (options.classesDesCriteres !== undefined) {
+      // Sans test gelé, sa fiche dit les preuves que la livraison doit (#3740).
+      const lues = lireLesFiches(commentairesDuTicket);
+      const preuves = lues !== null && "fiches" in lues ? consigneDesPreuves(lues.fiches) : [];
+      if (preuves.length > 0) joint += `\n${preuves.join("\n")}`;
     }
     let lieu: { worktree: string; branche: string };
     // Le run d'un ticket est toujours le même : la branche d'un cook précédent
@@ -3135,16 +3146,28 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (gel !== null) return { verdict: "request-changes", motif: gel };
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
       // Les mutants se jouent après la preuve, contre ses tests gelés, et pendant la relecture.
+      // Sans test gelé — un ticket sans critère testable (#3740) —, aucun mutant ne se joue.
+      // Un historique illisible ne les retient pas : ils se jouent comme avant, et la pass le dit.
+      const avecTestsGeles = (() => {
+        if (depot.essayer === undefined) return true;
+        try {
+          return doitMuter(testsGeles(worktree, `origin/${base}`).length);
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be counted, the mutants run anyway: ${message(erreur)}`);
+          return true;
+        }
+      })();
+      if (!avecTestsGeles) avertir(`brigade : #${ticket.number} sur ${nom} — ${LIGNE_SANS_MUTATION}`);
       const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers);
-      const [prouvee, relue, mutee] = await Promise.allSettled([prouvant, relecture(worktree, run, texte, pr, criteres.length, ticket.number), prouvant.then((preuve) => muterLaLivraison(ticket, worktree, diff, preuve))]);
+      const [prouvee, relue, mutee] = await Promise.allSettled([prouvant, relecture(worktree, run, texte, pr, criteres.length, ticket.number), avecTestsGeles ? prouvant.then((preuve) => muterLaLivraison(ticket, worktree, diff, preuve)) : Promise.resolve(null)]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
-      const mutations: Mutations = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
+      const mutations: Mutations | null = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
       const verts = vertsSurLaBase(preuve);
-      const renvoi = [...motifDuRenvoi(verts, base), ...motifDesMutations(mutations)];
+      const renvoi = [...motifDuRenvoi(verts, base), ...(mutations === null ? [] : motifDesMutations(mutations))];
       // Un test ajouté déjà vert sur la base, ou une mutation qui survit, renvoie la livraison, que la relecture ait pu se lire ou non.
       if (relue.status === "rejected" && renvoi.length === 0) throw relue.reason;
       const lue = relue.status === "fulfilled" ? relue.value : null;
-      const resume = [resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base), "", resumeDesMutations(mutations, criteres.length, lue?.criteria ?? null, preuve)].join("\n");
+      const resume = [resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base), "", mutations === null ? LIGNE_SANS_MUTATION : resumeDesMutations(mutations, criteres.length, lue?.criteria ?? null, preuve)].join("\n");
       if (renvoi.length > 0) return { verdict: "request-changes", motif: [...renvoi, ...(lue === null ? [] : ["", lue.summary, ...constatsDe(lue)]), "", resume].join("\n") };
       return { verdict: lue!.verdict === "green" ? "approve" : "request-changes", motif: [lue!.summary, ...constatsDe(lue!), "", resume].join("\n") };
     } finally {
@@ -3343,35 +3366,67 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const lancerGitDesTests = depot.lancerGit;
   // Demandée sans git pour la commiter, l'étape ne garde pas la prise : la station le dit, plutôt que de prendre sans tests.
   if (calibrageDesTests !== undefined && lancerGitDesTests === undefined) avertir("brigade : the `tests written` step is off: this station's clone cannot run git, so its tickets are taken without frozen acceptance tests");
+  // Le manager lancé sur une consigne dans un worktree, gardé dans ce worktree.
+  const lancerLeManager = async (numero: number, prefixe: string, texte: string, worktree: string, calibrage: Calibrage): Promise<{ message: string } | { illisible: string }> => {
+    const flux = join(options.flux, `${prefixe}-${numero}-github-${Date.now()}.flux.jsonl`);
+    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree), { worktree, ticket: numero, depot: depotGitHub, branche: brancheDuTicket(numero) });
+    const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
+    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(), flux, ticket: numero });
+    const fin = await lance.fin;
+    const lu = lireLeFlux(lance.flux ?? flux);
+    const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
+    if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
+    return lu.message === undefined || lu.message === null ? { illisible: "the manager's run left no answer" } : { message: lu.message };
+  };
+  const ecrireLesTestsDu = (numero: number, classes?: Parameters<typeof ecrireLesTests>[2]) =>
+    ecrireLesTests(
+      numero,
+      {
+        issue: (n) => options.github.issue(n),
+        commenter: (n, corps) => options.github.commenter(n, corps),
+        labelliser: (n, labels) => options.github.labelliser(n, labels),
+        preparer: () => depot.preparer(runDuTicket(numero)),
+        manager: (texte, worktree) => lancerLeManager(numero, "tests", texte, worktree, calibrageDesTests!()),
+        git: lancerGitDesTests!,
+        pousser: (branche) => depot.pousser(branche),
+        retirer: (worktree, branche) => depot.retirer(worktree, branche),
+        base,
+        depot: depotGitHub,
+      },
+      classes,
+    );
+  // Le classement des critères (#3740) : le manager les lit dans un checkout
+  // jetable de la base, avant que l'étape ne prépare la branche du ticket.
+  const calibrageDesClasses = options.classesDesCriteres;
+  const { essayer: essayerDesClasses, jeter: jeterDesClasses } = depot;
+  if (calibrageDesClasses !== undefined && (essayerDesClasses === undefined || jeterDesClasses === undefined)) avertir("brigade : the criteria are not classed: this station's clone cannot make a throwaway checkout, so every criterion gets its frozen test");
+  const ecrireOuClasser =
+    calibrageDesClasses === undefined || essayerDesClasses === undefined || jeterDesClasses === undefined
+      ? (numero: number) => ecrireLesTestsDu(numero)
+      : (numero: number) =>
+          classerPuisEcrire(
+            numero,
+            {
+              issue: (n) => options.github.issue(n),
+              commentaires: (n) => options.github.commentaires(n),
+              commenter: (n, corps) => options.github.commenter(n, corps),
+              classer: async (n, consigne) => {
+                const nomDuCheckout = `classes-${n}`;
+                jeterDesClasses(nomDuCheckout);
+                try {
+                  return await lancerLeManager(n, "classes", consigne, await essayerDesClasses(nomDuCheckout), calibrageDesClasses());
+                } finally {
+                  jeterDesClasses(nomDuCheckout);
+                }
+              },
+              depot: depotGitHub,
+            },
+            (classes) => ecrireLesTestsDu(numero, classes),
+          );
   const testsAcceptation =
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
-      : porteDesTests(
-          (numero) =>
-            ecrireLesTests(numero, {
-              issue: (n) => options.github.issue(n),
-              commenter: (n, corps) => options.github.commenter(n, corps),
-              labelliser: (n, labels) => options.github.labelliser(n, labels),
-              preparer: () => depot.preparer(runDuTicket(numero)),
-              manager: async (texte, worktree) => {
-                const flux = join(options.flux, `tests-${numero}-github-${Date.now()}.flux.jsonl`);
-                const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrageDesTests()), worktree), { worktree, ticket: numero, depot: depotGitHub, branche: brancheDuTicket(numero) });
-                const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
-                const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(), flux, ticket: numero });
-                const fin = await lance.fin;
-                const lu = lireLeFlux(lance.flux ?? flux);
-                const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
-                if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
-                return lu.message === undefined || lu.message === null ? { illisible: "the manager's run left no answer" } : { message: lu.message };
-              },
-              git: lancerGitDesTests,
-              pousser: (branche) => depot.pousser(branche),
-              retirer: (worktree, branche) => depot.retirer(worktree, branche),
-              base,
-              depot: depotGitHub,
-            }),
-          { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) },
-        );
+      : porteDesTests(ecrireOuClasser, { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) });
   const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   const quitter = station.quitter;

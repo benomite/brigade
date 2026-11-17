@@ -203,6 +203,8 @@ try {
               manager: () => decisions.manager(),
               // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
               testsAcceptation: () => decisions.manager(),
+              // Il classe d'abord chaque critère, testable ou non, avec la preuve due (#3740).
+              classesDesCriteres: () => decisions.manager(),
               // Une recalibration du manager après le dernier essai reste sous ce plafond (#3513).
               plafond: () => manager.plafond,
               flux: join(repertoireEtat, "github-seul"),

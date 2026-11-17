@@ -41,7 +41,8 @@ export function porteDesTests(ecrire: (ticket: number) => Promise<Ecriture>, opt
             options.avertir(`brigade : #${ticket.number} — its acceptance tests could not be written (${fois}/${ESSAIS_MAX}): ${fait.echec}`);
           } else {
             echecs.delete(ticket.number);
-            if ("sansCriteres" in fait) sansCriteres.add(ticket.number);
+            // Sans critère testable (#3740), pas plus de tests à geler.
+            if ("sansCriteres" in fait || "sansTestable" in fait) sansCriteres.add(ticket.number);
           }
         })
         .finally(() => {

@@ -54,6 +54,14 @@ export function violationsDuGel(worktree: string, base: string): ViolationDuGel[
   return violations;
 }
 
+// Les fichiers des tests gelés de la livraison : ceux du premier commit de la
+// branche s'il porte le trailer, aucun sinon (#3740). Lève si l'historique ne
+// se lit pas.
+export function testsGeles(worktree: string, base: string): string[] {
+  const [premier] = commitsDeLaLivraison(worktree, base);
+  return premier === undefined || !premier.gele ? [] : fichiersDe(worktree, premier.commit);
+}
+
 // Le motif du renvoi, ou null si le gel est tenu.
 export function motifDuGel(violations: readonly ViolationDuGel[]): string | null {
   if (violations.length === 0) return null;

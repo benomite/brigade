@@ -137,7 +137,7 @@ test("each criterion has its record, its testPath filled in, readable from the t
   assert.ok(lues !== null && "fiches" in lues, JSON.stringify(lues));
   assert.deepEqual(
     lues.fiches,
-    CRITERES.map((criterion, rang) => ({ criterion, testPath: CHEMINS[rang], redOnMain: null, greenOnBranch: null, mutationsCaught: null, mutationsTotal: null, survivingLines: [] })),
+    CRITERES.map((criterion, rang) => ({ criterion, class: "testable", testPath: CHEMINS[rang], redOnMain: null, greenOnBranch: null, mutationsCaught: null, mutationsTotal: null, survivingLines: [] })),
   );
 });
 
