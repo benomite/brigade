@@ -29,7 +29,7 @@ export type AgentDeStation = { role: string; ticket: number | null; titre: strin
 // sait d'elle, quand son runtime le dit : ce qu'elle fournit, si elle la voit, sa dernière demande. `agents` : ce
 // qu'elle fait tourner à côté de ses cooks (#1971) — vide quand rien ne tourne.
 // `ordinaires` : la station prend aussi les tickets ordinaires, comme `facts` le dit (l'onglet Stations le montre, #2488).
-export type LigneDeStation = { station: string; distante: boolean; ordinaires?: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; fournit?: string[]; presente?: boolean; vueLe?: string | null; retenue?: string };
+export type LigneDeStation = { station: string; distante: boolean; ordinaires?: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; fournit?: string[]; presente?: boolean; vueLe?: string | null; retenue?: string; engine?: unknown };
 // `alerte` : ce qui demande un geste au chef du côté des cooks, en une ligne — nulle quand rien ne le demande.
 // `surGithub` : un projet sur GitHub seul, dont les stations se disent de GitHub (vue/onglet-stations/stations-github.js, #2358) —
 // `illisible`, pourquoi leurs signes de vie ne se lisent pas.
@@ -55,6 +55,7 @@ function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string, a
     ...(station.presente === undefined ? {} : { presente: station.presente }),
     ...(station.vueLe === undefined ? {} : { vueLe: station.vueLe }),
     ...(station.retenue === undefined ? {} : { retenue: station.retenue }),
+    ...(station.engine === undefined ? {} : { engine: station.engine }),
   };
   const etat = station.cuisson;
   if (etat === undefined) return { ...base, etat: PAS_DIT, dit: "", survol: PAS_DIT_SURVOL };

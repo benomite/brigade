@@ -133,6 +133,7 @@ import { ligneDAlerte, plafondLu } from "./stations-de-cuisson.js";
 import { deplacementSuivi, estUnOrdinateur, hautDe, nomDePrise, servantesDe, UNE_MINUTE_MS } from "./stations-tab/etat.js";
 import { choixDuDeplacement } from "./stations-tab/choix.js";
 import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET, QUI_D_AUTRE } from "./stations-tab/stations-tab.js";
+import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
@@ -4719,6 +4720,7 @@ function ongletDesStations(projet) {
       quiCuit: ajout !== undefined,
       ...(tenu !== undefined && "tableau" in tenu && tenu.tableau.quotaGithub !== undefined ? { quota: tenu.tableau.quotaGithub } : {}),
       ...(veilleVue === undefined ? {} : { veille: veilleVue }),
+      ...(stationLocaleLue.projet === projet.nom && stationLocaleLue.moteur !== undefined ? { moteurIci: stationLocaleLue.moteur } : {}),
     },
     {
       choisirQuiCuit: () => ajout?.gestes.ouvrir(),
@@ -4889,7 +4891,7 @@ function catalogueDe(projet) {
 // restent posées tant que ce qu'elles montrent ne change pas — le chef peut être en train d'écrire combien de cooks à la
 // fois : une relecture ne le lui ôte pas.
 const RELECTURE_DE_LA_STATION_LOCALE_MS = 30_000;
-/** @typedef {Omit<import("./projet/stations/StationLocale.js").EtatDeLaStationLocale, "poste" | "projet" | "station"> & { projet: string, a: number }} LuDeLaStationLocale */
+/** @typedef {Omit<import("./projet/stations/StationLocale.js").EtatDeLaStationLocale, "poste" | "projet" | "station"> & { projet: string, a: number, moteur?: string }} LuDeLaStationLocale */
 /** @type {LuDeLaStationLocale} */
 let stationLocaleLue = { projet: "", a: 0 };
 /** @type {any[] | undefined} */
@@ -4918,6 +4920,14 @@ function lireLaStationLocale(projet) {
   void Promise.resolve(brigade.dossiersDeLaStation?.(nom) ?? { refus: "its folders could not be read", detail: "this app does not read them" }).then(
     (rendu) => (lu.dossiers = rendu),
     (erreur) => (lu.dossiers = { refus: "its folders could not be read", detail: rateDit(erreur) }),
+  ).then(() => reposerLaStationLocale(lu));
+  // Le moteur choisi dans ses réglages (moteur/, ticket 3746) — l'abonnement, sans choix gardé : sa carte le dit. Illisible,
+  // la carte n'en dit rien ; la page de la station dit pourquoi.
+  void Promise.resolve(brigade.lireReglagesDeLaStation?.()).then(
+    (lus) => {
+      if (lus !== undefined && !("refus" in lus)) lu.moteur = lus.engine ?? MOTEUR_PAR_DEFAUT;
+    },
+    () => undefined,
   ).then(() => reposerLaStationLocale(lu));
   void lireLesOrdinairesLocaux(lu);
 }

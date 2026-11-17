@@ -29,6 +29,7 @@ export const ETIQUETTES: readonly Etiquette[] = [
   { name: "epic", color: "3E4B9E", description: "Groups other tickets: it is split, never cooked itself" },
   { name: "served-elsewhere", color: "6E7781", description: "This box does not serve the ticket: another box serves it" },
   { name: "set-aside:failures", color: "6E7781", description: "Set aside by its failure count: its cooks failed too often, no other box serves it" },
+  { name: "tests-written", color: "0E8A16", description: "Its acceptance tests are written and frozen: a cook can take it" },
   { name: "taken", color: "0052CC", description: "A cook holds the ticket" },
   { name: "in-pass", color: "0052CC", description: "The delivery of the ticket is being judged" },
   { name: "waiting", color: "C5DEF5", description: "Waits for another ticket to be served" },

@@ -19,10 +19,10 @@ import { dirname, join, relative } from "node:path";
 export const TECH = "tech";
 
 // Un fichier de test que le lanceur de Node sait jouer.
-const FICHIER_DE_TEST = /\.test\.[cm]?[jt]s$/;
+export const FICHIER_DE_TEST = /\.test\.[cm]?[jt]s$/;
 // Ce qui sert les tests sans en être un : une aide, une doublure sous un dossier
 // de tests. La branche les apporte avec ses tests sur le checkout de la base.
-const SOUS_LES_TESTS = /(^|\/)(test|tests|__tests__)\//;
+export const SOUS_LES_TESTS = /(^|\/)(test|tests|__tests__)\//;
 // Un cas : `test("…")`, `it("…")`, et leurs `.only` / `.skip` / `.todo`.
 const CAS = /\b(?:test|it)(?:\.(?:only|skip|todo))?\s*\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
 // Une ligne de résultat du reporteur TAP de Node, à toute profondeur.
@@ -88,7 +88,7 @@ export function resultatsTap(lignes: readonly string[]): Map<string, boolean> {
 export type Passage = { code: number | null; lignes: string[] };
 // Un cas absent de la sortie — le fichier n'a pas pu se charger, un import que
 // la base n'a pas — n'a pas passé.
-const passe = (unite: Unite, passage: Passage) => (unite.nom === null ? passage.code === 0 : resultatsTap(passage.lignes).get(unite.nom) === true);
+export const passe = (unite: Unite, passage: Passage) => (unite.nom === null ? passage.code === 0 : resultatsTap(passage.lignes).get(unite.nom) === true);
 
 const echapper = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

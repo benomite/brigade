@@ -80,6 +80,7 @@ const LIBELLES: Record<IdDeFiche, string> = {
 // nomme pas — 86, WAITING, un mot inconnu — n'ajoute rien.
 const EN_PLUS: Readonly<Record<string, readonly IdDeFiche[]>> = {
   "en attente": ["retirer", "waiting"],
+  "tests écrits": ["retirer", "waiting"],
   BLOQUÉ: ["retirer", "waiting"],
   pris: [],
   "en pass": [],

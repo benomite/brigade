@@ -43,6 +43,8 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     announcedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
     quotaUntil: null,
     quotaReason: null,
+    fallbackEngine: null,
+    fallbackQuotaUntil: null,
     disconnectedAt: null,
     disconnectedReason: null,
     saturatedAt: null,

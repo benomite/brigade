@@ -478,7 +478,9 @@ Events (* = no ticket):
 - `station.announced`*, `station.withdrawn`*: a declared station introduces itself (engine, provides,
   cap, `cores`, `remote`, `ordinary`), or is no longer declared. `stations.undeclared`*: none declared,
   no cook leaves. `station.capped`*: `maxCooks` (`0` no limit, `null` for `cooks auto`).
-  `station.86`*: quota exhausted until `until`. `station.disconnected`: the Max connection expired.
+  `station.86`*: quota exhausted until `until` — of its fallback engine when `engine` names it.
+  `station.fallback`*: its fallback engine (`engine`, `null` for none), written at start when it
+  changes (#3745). `station.disconnected`: the Max connection expired.
   `station.unstartable`: a cook ended with 0 turns and 0 tokens (`run`, `reason`), the station takes
   no more tickets until it restarts or a cook launched since produces a turn.
 - `station.saturated`*, `station.relieved`*: the machine cannot cope (`resource`: `cpu`, `memory`,

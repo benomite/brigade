@@ -1,6 +1,6 @@
 // @ts-check
 // La page d'une station (ticket 2641, épique 2497) : la coque qui pose ses sections, dans cet ordre — son identité, ses
-// connexions, ses dossiers et son bac à sable, ses capacités, ses cooks —, chacune sous son titre. vue.js la monte sur
+// connexions, ses dossiers et son bac à sable, ses capacités, ses cooks, son moteur —, chacune sous son titre. vue.js la monte sur
 // la page d'une station, à son ouverture. Chaque section est un module de `sections/`, nommé dans SECTIONS, qui exporte
 // `poserSection(doc, contexte)` et rend un élément (ou sa promesse). Une section n'est chargée que lorsque son fichier
 // est déclaré dans LIVREES : tant qu'il ne l'est pas, la coque pose son titre et une ligne qui dit qu'elle n'est pas
@@ -37,11 +37,15 @@ export const SECTIONS = /** @type {const} */ ([
   { fichier: "dossiers-et-bac-a-sable", titre: "Folders and sandbox" },
   { fichier: "capacites", titre: "Capabilities" },
   { fichier: "cooks", titre: "Cooks" },
+  { fichier: "moteur", titre: "Engine" },
 ]);
 
 // Les sections dont le fichier est livré sous `sections/` : le ticket qui livre une section y ajoute son nom.
 /** @type {ReadonlySet<string>} */
-export const LIVREES = new Set(["dossiers-et-bac-a-sable", "connexions"]);
+export const LIVREES = new Set(["dossiers-et-bac-a-sable", "connexions", "moteur"]);
+// Une section livrée hors de `sections/` : son module, par son nom (le moteur, ticket 3746, sous `moteur/`).
+/** @type {Readonly<Record<string, string>>} */
+const AILLEURS = { moteur: "../../moteur/SectionDuMoteur.js" };
 
 export const PAS_ENCORE = "not shown yet";
 export const INDISPONIBLE = NON_ATTEINT("this section");
@@ -53,7 +57,7 @@ export function estCetOrdinateur(station, locale) {
 }
 
 /** @type {Charger} */
-const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(`./sections/${fichier}.js`) : undefined);
+const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(AILLEURS[fichier] ?? `./sections/${fichier}.js`) : undefined);
 
 // La page entière : un élément par section, dans l'ordre de SECTIONS, posé quand toutes sont rendues.
 /** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: Port, connexions?: import("./sections/connexions.js").Connexions }} ouverte */

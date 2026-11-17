@@ -231,7 +231,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
         ici === undefined
           ? { refus: "the project declares no station on this machine" }
           : (() => {
-              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, avertir: dire });
+              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, avertir: dire, env });
               const ecrivaine = stationDuDepot({
                 nom: ici.nom,
                 places,
@@ -251,6 +251,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 reviewer: reviewer.calibrage,
                 // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
                 manager: () => decisions.manager(),
+                // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
+                testsAcceptation: () => decisions.manager(),
                 flux: join(repertoireEtat, "github-seul"),
                 // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
                 gardes,
