@@ -48,7 +48,8 @@ const ETAPES_D_UN_CHECK = /(^|, )(?:[^,(]|\([^)]*\))*?\(failed steps?: ([^)]*)\)
 // Les checks (ou leurs étapes) qu'une raison nomme, séparés par des virgules hors de leurs parenthèses.
 const checksDuNom = (texte: string) => (texte.match(/(?:[^,(]|\([^)]*\)?)+/g) ?? []).map((nom) => nom.trim()).filter((nom) => nom !== "");
 // Un nom d'étape ou de check qui joint plusieurs gates : `Lint + Format + Typecheck + Tests`.
-const UN_NOM_COMBINE = /\S \+ \S/;
+// Un `+` dans ses propres parenthèses — `tests (a + b)` — ne le fait pas combiné.
+const estCombine = (nom: string) => /\S \+ \S/.test(nom.replace(/\([^)]*\)?/g, ""));
 
 // Ce que la qualité lit d'une issue : son corps, ses labels et ses commentaires.
 export type IssueLue = { corps: string; labels: readonly string[]; commentaires: readonly { body: string; association: string }[] };
@@ -68,7 +69,7 @@ export function causeDuRenvoi(corps: string): Cause {
     // parallèle)` — ne dit pas lequel est rouge : son mot « Typecheck » n'en
     // fait pas un échec des types (#3806). Seuls les noms d'un seul gate disent la cause.
     const checks = checksDuNom(raison.split(":").slice(1).join(":").replace(ETAPES_D_UN_CHECK, "$1$2"))
-      .filter((nom) => !UN_NOM_COMBINE.test(nom))
+      .filter((nom) => !estCombine(nom))
       .join(", ");
     if (/types?/i.test(checks)) return "gates-types";
     if (/\bapp\b/i.test(checks)) return "gates-app";

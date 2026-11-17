@@ -532,7 +532,13 @@ is read, but it is itself `Lint + Format + Typecheck + Test (en parallèle)`, on
 once, and its word "Typecheck" read "type check" whichever gate was red. Since #3806 a check or step name that joins
 several gates with ` + ` names none of them: `causeDuRenvoi` reads the cause from the single-gate names alone, and a
 send-back that names only a joined step is "other". It is still counted; a step that is only `Typecheck` stays
-"type check". Which gate was red in those steps is in mirrorlab's CI logs, which the cook of #3806 could not read.
+"type check". A `+` inside a name's own parentheses (`tests (a + b)`) does not make it joined; a joined name such as
+`Typecheck + Lint` is "other" even when only its type check was red. Which gate was red in those steps is in
+mirrorlab's CI logs, which the cook of #3806 could not read. The cause of the send-backs themselves is what the
+cook taken again on a red CI was given: the failure annotations of the red check, and such a step writes none but
+GitHub's `Process completed with exit code 1.`. It pushed again without knowing which gate was red: 11 red CIs on
+#787, 5 on #797. Since #3806 a red check whose annotations name no file is given to that cook with the end of its
+job's log too ([github-seul.md](github-seul.md), "What a red CI says, handed to the cook").
 #3157, measured on BOBL-tech/espace, names "other" as the first send-back reason: five of its nine send-backs
 (#830, #845, #846, #886, #879) read `the CI is red on …: brigade/gates`. espace runs no CI on its PRs, and a
 station plays its gates on the PR head and posts their verdict as the commit status `brigade/gates` (#2456). That
