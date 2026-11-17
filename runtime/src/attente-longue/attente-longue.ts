@@ -198,8 +198,9 @@ export function suiviDesAttentesLongues(options: { github: GitHubDeLAttenteLongu
       avertir(`brigade : #${ticket.number} on ${station} — the manager's review of its wait on ${liste(attendus)} gave no decision: ${reponse.illisible}`);
       await github.commenter(ticket.number, corpsSansRevue({ ...contexte, pourquoi: reponse.illisible }));
     } else if (reponse.revue.issue === "produit") {
-      await github.commenter(ticket.number, corpsDeLaQuestion({ ...contexte, question: reponse.revue.question }));
+      // Le label d'abord : une question déjà écrite sans lui serait reposée au tour suivant.
       await github.labelliser(ticket.number, [label]);
+      await github.commenter(ticket.number, corpsDeLaQuestion({ ...contexte, question: reponse.revue.question }));
     } else if (reponse.revue.issue === "leve") {
       await github.commenter(ticket.number, corpsDeLaLevee({ ticket: ticket.number, attendus, commentaire: reponse.revue.commentaire }));
     } else {
