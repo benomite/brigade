@@ -22,8 +22,11 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 // Les checks Windows (jobs de runtime-windows et app-windows : « windows tests
 // (n/8) », « windows app tests ») sont informatifs (#2087) : rouges sur main, ils
 // ne retiennent rien, et la station ne les relance pas (#2323) — une relance de
-// plus n'ajouterait qu'un run en échec, et un mail au chef.
-export const estInformatif = (check: CheckDeLaBase) => /^windows\b/i.test(check.name ?? "");
+// plus n'ajouterait qu'un run en échec, et un mail au chef. Rien qu'eux : le job
+// `windows` de publier-app, qui construit l'installeur de la release, n'en est
+// pas un — pris pour l'un d'eux, son échec d'un run sur 3089298 n'a jamais été
+// relancé, et a ouvert une réparation de `main` (#3796).
+export const estInformatif = (check: CheckDeLaBase) => /^windows (app )?tests\b/i.test(check.name ?? "");
 // Le run de GitHub Actions d'un check rouge, ou undefined.
 export const runRouge = (check: CheckDeLaBase) => (check.outcome === "red" && !estInformatif(check) ? jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run : undefined);
 
