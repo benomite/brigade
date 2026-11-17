@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { ecrireSecret } from "../../src/droits.ts";
 import { priseDeLaStation, stationDuDepot, type StationGitHub } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import type { GitHub } from "../../src/github.ts";
@@ -183,8 +184,7 @@ async function sortieDe(faire: () => Promise<void>): Promise<string> {
 
 function secretsAvecLaCle(t: TestContext): string {
   const fichier = join(repertoireTemporaire(t), "station.env");
-  writeFileSync(fichier, `OTHER_SECRET=some-other-value\nANTHROPIC_API_KEY=${CLE}\n`);
-  chmodSync(fichier, 0o600);
+  ecrireSecret(fichier, `OTHER_SECRET=some-other-value\nANTHROPIC_API_KEY=${CLE}\n`);
   return fichier;
 }
 
@@ -255,8 +255,7 @@ test("an unknown engine, or claude-api-key without a key in the station's secret
   const sansFichier = laStation(t, { BRIGADE_ENGINE: "claude-api-key" }, { claude }).station;
   assert.ok("refus" in sansFichier && /BRIGADE_SECRETS_FILE is not set/.test(sansFichier.refus), JSON.stringify(sansFichier));
   const fichier = join(bin, "station.env");
-  writeFileSync(fichier, `OTHER_SECRET=${CLE}\n`);
-  chmodSync(fichier, 0o600);
+  ecrireSecret(fichier, `OTHER_SECRET=${CLE}\n`);
   const sansCle = laStation(t, { BRIGADE_ENGINE: "claude-api-key", BRIGADE_SECRETS_FILE: fichier }, { claude }).station;
   assert.ok("refus" in sansCle && /no `ANTHROPIC_API_KEY` line/.test(sansCle.refus) && !sansCle.refus.includes(CLE), JSON.stringify(sansCle));
 });
