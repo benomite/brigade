@@ -55,4 +55,6 @@ test("le rail de l'app : chaque carte retenue dit son attente et sa source, aucu
 test("la carte n'ouvre que le ticket attendu, pas ceux de la phrase citée", () => {
   const ligne = "waits for #1912 — read from the body: 'Builds on #1908'; waits for #4 — read from the card";
   assert.deepEqual(ligneEnAttente("en attente", undefined, ligne), { ligne, liens: [1912, 4] });
+  const citee = "waits for #1912 — read from the body: 'It waits for #9 — and builds on #1908'";
+  assert.deepEqual(ligneEnAttente("en attente", undefined, citee), { ligne: citee, liens: [1912] });
 });

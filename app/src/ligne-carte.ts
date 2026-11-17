@@ -53,8 +53,9 @@ export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: st
 // raison : elle ne remplace pas celle d'un retenu.
 export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: string): LigneDeCarte {
   // Derrière un ticket, les liens sont les tickets attendus — `waits for #N` —, jamais un numéro de la phrase du corps citée
-  // (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763).
-  const attendus = retient === undefined ? [...(derriere ?? "").matchAll(/waits for (#\d+)/g)].map(([, n]) => n as string) : [];
+  // (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763) : une attente ouvre la ligne
+  // ou suit `; `, et dit sa source.
+  const attendus = retient === undefined ? [...(derriere ?? "").matchAll(/(?:^|; )waits for (#\d+) — read from /g)].map(([, n]) => n as string) : [];
   const numeros = [...new Set(attendus.length > 0 ? attendus : ((retient ?? derriere)?.match(/#\d+/g) ?? []))];
   const phrase = retient === undefined && derriere !== undefined ? derriere : numeros.length > 0 ? `Waiting for ${numeros.join(", ")}` : retient;
   const liens = numeros.length > 0 ? { liens: numeros.map((numero) => Number(numero.slice(1))) } : {};

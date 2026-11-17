@@ -3714,9 +3714,10 @@ section. With the section laid, `right now` is not repeated under it.
   `does not leave: zone held by #14 (app/src)` or `does not leave: machine saturated` — `rail[].raison`
   in `facts` (#1346); a runtime from before this field says nothing more.
   **A queued card held back for other tickets says `after #12, #15`** (#3510): the numbers of `rail[].attend` in `facts`, a
-  list the rail scheduling writes (#3502) and the app only reads; an empty or missing `attend` adds nothing to the card. These numbers are not sourced, unlike the GitHub rail's card below (#3763), which reads every
-  source the claim gate applies — the body, the card, a cook's stop — and says each with where it was read. On the
-  journal's rail, the only wait applied is the card's `awaiting` line, and `npm --prefix runtime run rail` says it as
+  list the rail scheduling writes (#3502) and the app only reads; an empty or missing `attend` adds nothing to the card.
+  These numbers are not sourced, unlike the GitHub rail's card below (#3763), which reads every source the claim gate
+  applies — the body, the card, a cook's stop — and says each with where it was read. On the journal's rail, the only
+  wait applied is the card's `awaiting` line, and `npm --prefix runtime run rail` says it as
   `waits for #N — read from the card`.
 - **A ticket set aside (`86`) is never out of a column.** The runtime gives, in `rail[].attente`
   of `facts`, its reason in plain words ("awaiting: project setup impossible") and the column where it waits;
@@ -3920,7 +3921,8 @@ section. With the section laid, `right now` is not repeated under it.
   sentence that says it builds on #N), `waits for #N — read from the card` (the `awaiting` line of its card), or
   `waits for #N — read from a cook's stop` (the mark the station writes when a cook stops on an unmerged ticket); a wait
   the kitchen lifted is not shown. When its comments cannot be read, the card says `its card and its cooks' stops could
-  not be read on GitHub`, never that nothing holds it. The card that starts next and a card without dependency have none, and "Will not start: …" or a blocking
+  not be read on GitHub`, never that nothing holds it. The card that starts next and a card without dependency have
+  none, and "Will not start: …" or a blocking
   reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
   (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
   publish a station's cook cap, so this reading never raises that reason.

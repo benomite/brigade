@@ -2,13 +2,17 @@
 // `brigade <project> status`, la ligne `waits for #N — read from …`, jamais une carte libre ; un ticket que rien ne retient
 // n'en a aucune. La phrase au-dessus de la file compte les attentes de la fiche et des arrêts :
 // une file dont chaque ticket est retenu, par quelque source que ce soit, attend un autre ticket. Le rail de l'app dit la
-// même ligne : app/test/attente-du-rail/jamais-awaiting-none-retenu.test.ts.
+// même ligne : app/test/attente-du-rail/jamais-awaiting-none-retenu.test.ts. `npm run rail` (montrer-rail.ts), le rail du
+// journal, dit l'attente de la fiche, la seule qu'il applique, avec sa source, et garde `awaiting: nothing` d'un ticket libre.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lignesDeLAttente } from "../../src/attente-du-rail/status.ts";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/carte-attente/carte-attente.ts";
 import { MARQUEUR } from "../../src/fiche.ts";
-import { DEPOT } from "../outils.ts";
+import { ouvrirJournal } from "../../src/journal.ts";
+import { principal as montrerRail } from "../../src/montrer-rail.ts";
+import { ouvrirRail } from "../aides/rail-du-journal.ts";
+import { appeler, DEPOT, horloge, repertoireTemporaire } from "../outils.ts";
 
 const MAINTENANT = Date.parse("2026-11-17T10:00:00.000Z");
 const issue = (number: number, labels: string[], body = "") => ({ number, title: `Ticket ${number}`, html_url: `https://github.com/${DEPOT}/issues/${number}`, body, created_at: "2026-11-17T09:00:00Z", labels: labels.map((name) => ({ name })) });
@@ -75,4 +79,34 @@ test("status : une file dont chaque ticket est retenu, par sa fiche ou l'arrêt 
   const lignes = await status(unLibre);
   assert.match(lignes[0] ?? "", /^queue wait A cook takes the ticket within minutes/);
   assert.deepEqual(lignes.slice(1), ["  #5  waits for #6 — read from the card"]);
+});
+
+// Le rail du journal : #5 retenu par sa fiche sur #4, tenu par un cook, le dit avec sa source ; #6, libre, et #4, pris,
+// gardent `awaiting: nothing`.
+test("npm run rail : la fiche d'un ticket retenu dit son attente et sa source ; un ticket libre dit `awaiting: nothing`", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 });
+  const arriver = (ticket: number, waitsFor: number[]) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor, zone: [], problems: [] } },
+    });
+  arriver(4, []);
+  arriver(5, [4]);
+  arriver(6, []);
+  rail.prendre("box/claude");
+
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 0);
+  const lignes = commande.sortie().trimEnd().split("\n");
+  const ficheDe = (ticket: number) => lignes[lignes.findIndex((ligne) => ligne.startsWith(`#${ticket} `)) + 1] ?? "";
+  assert.equal(ficheDe(5), "     card — waits for #4 — read from the card · zone: none");
+  assert.equal(ficheDe(6), "     card — awaiting: nothing · zone: none");
+  assert.equal(ficheDe(4), "     card — awaiting: nothing · zone: none");
 });
