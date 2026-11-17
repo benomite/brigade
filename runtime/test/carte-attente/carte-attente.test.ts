@@ -27,8 +27,9 @@ test("une attente que la cuisine a levée ne se dit plus, de quelque source qu'e
   assert.deepEqual(attentes, [{ ticket: 7, source: "arret" }]);
 });
 
+// Ni le ticket lui-même ni l'épique, quand sa liste la nomme, ne s'y attendent, comme à la porte de prise (`attendusDuCorps`).
 test("une épique attendue l'est dans les tickets de son découpage, avec la phrase qui la nomme", () => {
-  const { attentes } = attentesDuTicket({ ticket: 50, corps: "Restyle the screen with the identity of #49.", commentaires: [], decoupage: (n) => (n === 49 ? [53, 50] : []) });
+  const { attentes } = attentesDuTicket({ ticket: 50, corps: "Restyle the screen with the identity of #49.", commentaires: [], decoupage: (n) => (n === 49 ? [49, 53, 50] : []) });
   assert.deepEqual(attentes, [{ ticket: 53, source: "corps", phrase: "Restyle the screen with the identity of #49." }]);
 });
 
