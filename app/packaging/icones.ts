@@ -22,11 +22,12 @@ const png = (svg: string, taille: number): Buffer => Buffer.from(new Resvg(svg, 
 
 // Le glyphe seul (blanc), tel que l'icône le porte.
 const glyphe = icone.match(/<g transform="translate\(-3\.5 0\)">.*?<\/g>(?=<\/g>)/)![0];
-const degrade = icone.match(/<defs>.*<\/defs>/)![0];
+// Le fond du cuivre poli (dégradé, tache, strie, liseré) : même dessin, le carré arrondi devient un disque.
 // Avant-plan adaptatif d'Android : 108 dp, le glyphe centré dans la zone sûre (66 dp).
 const avantPlan = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><g transform="translate(54 54) translate(-32 -32)">${glyphe}</g></svg>`;
 // Icône ronde : le fond de l'icône en disque, le glyphe à la même échelle.
-const ronde = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${degrade}<circle cx="32" cy="32" r="32" fill="url(#p)"/><g transform="translate(5.5 6.4) scale(.8)">${glyphe}</g></svg>`;
+const fondRond = icone.split('<g transform="translate(5.5')[0].replace(/^<svg[^>]*>/, "").replace(/rx="([\d.]+)"/g, (_, r) => `rx="${Number(r) + 17}"`);
+const ronde = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${fondRond}<g transform="translate(5.5 6.4) scale(.8)">${glyphe}</g></svg>`;
 
 // --- Mac : un .icns, des PNG rangés par type. La grille d'icônes d'Apple pose le corps (824 px sur 1024)
 // dans le canevas, avec une marge transparente : plein cadre, l'icône paraît plus grosse que ses voisines
