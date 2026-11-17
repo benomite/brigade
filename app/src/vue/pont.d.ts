@@ -387,9 +387,9 @@ export type Pont = {
   // Le projet d'essai du premier lancement (ticket 3227, runtime/src/essai-projet/) : ce qui en est noté, son ticket servi
   // et la durée depuis le premier lancement ; le créer — un dépôt privé et un seul ticket prêt à cuire — ; supprimer le
   // dépôt noté, et lui seul ; la permission `delete_repo` que `gh` fait accorder, sa fin par `surPermissionDeSuppression`.
-  projetDEssai?(): Promise<import("../../../runtime/src/essai-projet/projet-d-essai.ts").VuDeLEssai>;
-  creerLeProjetDEssai?(): Promise<import("../../../runtime/src/essai-projet/projet-d-essai.ts").Cree>;
-  supprimerLeProjetDEssai?(depot: string): Promise<import("../../../runtime/src/essai-projet/projet-d-essai.ts").Suppression>;
+  projetDEssai?(): Promise<import("../../../runtime/src/demo/projet-de-demo.ts").VuDeLEssai>;
+  creerLeProjetDEssai?(): Promise<import("../../../runtime/src/demo/projet-de-demo.ts").Cree>;
+  supprimerLeProjetDEssai?(depot: string): Promise<import("../../../runtime/src/demo/projet-de-demo.ts").Suppression>;
   demanderLaPermissionDeSuppression?(): Promise<DebutDeConnexion>;
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.ts) : listées — chacune
   // disponible ou non, avec les projets qu'elle sert —, une connexion à GitHub qui manque, ou pourquoi elles ne se

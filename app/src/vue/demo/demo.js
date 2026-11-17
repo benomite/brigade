@@ -1,71 +1,103 @@
 // @ts-check
-// Essayer Brigade sur un projet d'essai, dès le premier lancement (ticket 3227, runtime/src/essai-projet/). Sur l'écran du
-// premier lancement, à côté de « open this project », « try on a sample project » : un clic crée un petit dépôt privé
-// sur le compte GitHub du chef, avec un seul ticket prêt à cuire ; puis les gestes qui existent déjà le mènent jusqu'au
-// rail, sans commande ni fichier — la mise en place (`runRepoSetup`), la station de cet ordinateur qui le sert
-// (`servirUnProjet`), l'ouverture de son espace (`ouvrirDUneStation`). Un encart, par-dessus l'écran, dit où il en est :
-// son dépôt et son ticket, « Your first ticket was served in N minutes. » une fois la PR mergée, et « delete the sample
-// repository », qui ne vise que le dépôt noté. Sans la permission de suppression, `gh` la fait accorder — le code à
-// taper, comme la connexion — puis la suppression repart d'elle-même. Ce module ne touche pas `document`.
+// Essayer Brigade sur un projet de démo, dès le premier lancement (ticket 3734, runtime/src/demo/ ; né projet d'essai,
+// ticket 3227). Sur l'écran du premier lancement, à côté de « open this project », « try on a demo project »
+// (ajout-projet/ajout-ou-demo.js) : un clic crée un petit dépôt privé sur le compte GitHub du chef, avec trois tickets
+// prêts à cuire ; puis les gestes qui existent déjà le mènent jusqu'au rail, sans commande ni fichier — la mise en place
+// (`runRepoSetup`), la station de cet ordinateur qui le sert (`servirUnProjet`), l'ouverture de son espace
+// (`ouvrirDUneStation`), où le chef voit un cook prendre un de ses tickets. Un encart, par-dessus tout écran, dit où il en
+// est : son dépôt et ses tickets, « Your first ticket was served in N minutes. » une fois une PR mergée, « add my own
+// project », qui ouvre « Add a project » (le parcours du nouveau venu, ticket 1908), et « delete demo project ». Celui-ci
+// demande une confirmation qui nomme le dépôt ; confirmé, il ne vise que le dépôt noté, puis retire le projet de l'app et
+// de la station de cet ordinateur. Sans la permission de suppression, `gh` la fait accorder — le code à taper, comme la
+// connexion — puis la suppression repart d'elle-même. Ce module ne touche pas `document`.
 
 import { boutonAction } from "../briques.js";
 import { phrase } from "../onboarding/parcours.js";
 import { gestes, ROUVRIR_LA_PAGE, tapeLeCode } from "../parcours-projet/connexion.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
-import { CET_ORDINATEUR, NON_ATTEINT, REESSAYER } from "../lexique.js";
+import { AJOUTER_UN_PROJET, ANNULER, CET_ORDINATEUR, NON_ATTEINT, OUI, REESSAYER } from "../lexique.js";
 import { manqueDit } from "../ajout-projet/installation-du-depot.js";
 
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
-/** @typedef {import("../../../../runtime/src/essai-projet/projet-d-essai.ts").VuDeLEssai} Vu */
+/** @typedef {import("../../../../runtime/src/demo/projet-de-demo.ts").VuDeLEssai} Vu */
 /** @typedef {import("../../connexion-github.ts").DebutDeConnexion} DebutDeConnexion */
 /** @typedef {import("../../connexion-github.ts").FinDeConnexion} FinDeConnexion */
 /** @typedef {"creation" | "preparation" | "service" | "ouverture"} Etape */
 
-export const ESSAYER = "try on a sample project";
-export const ESSAYER_SURVOL = "Creates a small private repository on your GitHub account, with one ticket ready to cook.";
+export const ESSAYER = "try on a demo project";
+export const ESSAYER_SURVOL = "Creates a small private repository on your GitHub account, with three tickets ready to cook. None of your repositories is touched.";
 /** @type {Record<Etape, string>} */
 export const ETAPES = {
-  creation: "Creating your sample repository on GitHub…",
+  creation: "Creating your demo repository on GitHub…",
   preparation: "Setting it up for Brigade…",
   service: `Asking ${CET_ORDINATEUR}'s station to cook it…`,
   ouverture: "Opening it…",
 };
-export const TITRE = "Your sample project";
-export const OUVRIR_LE_TICKET = "open its ticket";
-/** @param {number | undefined} ticket */
-export const SUR_LE_RAIL = (ticket) => `Its ticket${ticket === undefined ? "" : ` #${ticket}`} is on the rail: a cook takes it, then the pass merges it.`;
+export const TITRE = "Your demo project";
+export const OUVRIR_LES_TICKETS = "open its tickets";
+// Ses tickets, nommés : « #1, #2 and #3 ».
+/** @param {readonly number[]} tickets */
+const nommes = (tickets) => {
+  const dits = tickets.map((ticket) => `#${ticket}`);
+  return dits.length < 2 ? dits.join("") : `${dits.slice(0, -1).join(", ")} and ${dits.at(-1)}`;
+};
+/** @param {readonly number[]} tickets */
+export const SUR_LE_RAIL = (tickets) =>
+  tickets.length > 1 ? `Its tickets ${nommes(tickets)} are on the rail: a cook takes one, then the pass merges it.` : `Its ticket${tickets.length === 0 ? "" : ` ${nommes(tickets)}`} is on the rail: a cook takes it, then the pass merges it.`;
 export const SERVICE_ILLISIBLE = "Whether it is served cannot be read right now.";
-export const SUPPRIMER = "delete the sample repository";
+export const AJOUTER_LE_MIEN = "add my own project";
+export const AJOUTER_LE_MIEN_SURVOL = `Opens ${AJOUTER_UN_PROJET}, to pick one of your repositories.`;
+export const SUPPRIMER = "delete demo project";
 /** @param {string} depot */
-export const SUPPRIMER_SURVOL = (depot) => `Deletes ${depot} from GitHub. This cannot be undone.`;
+export const SUPPRIMER_SURVOL = (depot) => `Deletes ${depot} from GitHub and removes the demo project from the app. This cannot be undone.`;
 /** @param {string} depot */
-export const SUPPRIME = (depot) => `The sample repository ${depot} was deleted.`;
+export const CONFIRMER = (depot) => `Delete the repository ${depot} from GitHub, and remove the demo project from the app? This cannot be undone.`;
+/** @param {string} depot */
+export const OUI_SUPPRIMER = (depot) => OUI(`delete ${depot}`);
+export { ANNULER };
+/** @param {string} depot */
+export const SUPPRIME = (depot) => `The demo repository ${depot} was deleted.`;
+export const RESTE_DANS_L_APP = "The demo project is still in the app.";
 export const PERMISSION = "GitHub needs your permission to delete repositories.";
-export const SANS_STATION = `${NON_ATTEINT(`${CET_ORDINATEUR}'s station`)} The sample project is not cooked here.`;
+export const SANS_STATION = `${NON_ATTEINT(`${CET_ORDINATEUR}'s station`)} The demo project is not cooked here.`;
 export const SANS_REPONSE = "The app gave no answer.";
 
-// Ce que la vue tient de l'essai. `vu` : ce que le runtime en a noté et lu — absent, pas encore lu. `etape` : la création
-// en route. `echec` : ce qui l'a arrêtée. `suppression` : en route, le code de la permission à taper, ou son refus.
-// `supprimeIci` : supprimé pendant ce lancement — le dire une fois ; au lancement suivant, l'encart ne se montre plus.
+// Ce que la vue tient de la démo. `vu` : ce que le runtime en a noté et lu — absent, pas encore lu. `etape` : la création
+// en route. `echec` : ce qui l'a arrêtée. `confirmation` : « delete demo project » cliqué, la question qui nomme le dépôt
+// posée. `suppression` : en route, le code de la permission à taper, ou son refus. `supprimeIci` : supprimé pendant ce
+// lancement — le dire une fois ; au lancement suivant, l'encart ne se montre plus. `retrait` : le dépôt supprimé, le
+// projet n'a pas pu quitter l'app ou la station de cet ordinateur, et pourquoi.
 /**
  * @typedef {{
  *   vu?: Vu,
  *   etape?: Etape,
  *   echec?: { raison: string, detail?: string },
+ *   confirmation?: true,
  *   suppression?: { enCours?: true, code?: string, page?: string, refus?: string, detail?: string },
  *   supprimeIci?: true,
+ *   retrait?: { refus: string },
  * }} EtatDeLEssai
  */
-/** @typedef {{ essayer: () => void, supprimer: () => void, ouvrirLaPage: (url: string) => void }} GestesDeLEssai */
+/**
+ * @typedef {{
+ *   essayer: () => void,
+ *   demanderLaSuppression: () => void,
+ *   annulerLaSuppression: () => void,
+ *   supprimer: () => void,
+ *   ouvrirLaPage: (url: string) => void,
+ *   ajouterLeMien: () => void,
+ * }} GestesDeLEssai
+ */
 
 /**
  * @typedef {{
  *   projetDEssai?(): Promise<Vu>,
- *   creerLeProjetDEssai?(): Promise<import("../../../../runtime/src/essai-projet/projet-d-essai.ts").Cree>,
- *   supprimerLeProjetDEssai?(depot: string): Promise<import("../../../../runtime/src/essai-projet/projet-d-essai.ts").Suppression>,
+ *   creerLeProjetDEssai?(): Promise<import("../../../../runtime/src/demo/projet-de-demo.ts").Cree>,
+ *   supprimerLeProjetDEssai?(depot: string): Promise<import("../../../../runtime/src/demo/projet-de-demo.ts").Suppression>,
  *   demanderLaPermissionDeSuppression?(): Promise<DebutDeConnexion>,
  *   runRepoSetup(depot: string): Promise<import("../ajout-projet/installation-du-depot.js").EtatDuDepot>,
  *   servirUnProjet?(depot: string, servi: boolean): Promise<import("../projets-servis/projets-servis.js").LectureDesProjetsServis | undefined>,
+ *   retirerDeLApp?(projet: string): Promise<{ avis: unknown } | { refus: string }>,
  * }} PontDeLEssai
  */
 
@@ -76,9 +108,9 @@ const dit = (/** @type {unknown} */ erreur) => (erreur instanceof Error ? erreur
 export const nomDuProjet = (depot) => (depot.split("/")[1] ?? depot).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
 
 /**
- * @param {{ pont: PontDeLEssai, rendre: () => void, ouvrir: (projet: string, depot: string, base: string) => Promise<void> }} options
+ * @param {{ pont: PontDeLEssai, rendre: () => void, ouvrir: (projet: string, depot: string, base: string) => Promise<void>, dansLApp?: (projet: string) => boolean }} options
  */
-export function tenirLeProjetDEssai({ pont, rendre, ouvrir }) {
+export function tenirLeProjetDEssai({ pont, rendre, ouvrir, dansLApp = () => false }) {
   /** @type {EtatDeLEssai} */
   const etat = {};
   /** @param {string} raison @param {string} [detail] */
@@ -131,9 +163,37 @@ export function tenirLeProjetDEssai({ pont, rendre, ouvrir }) {
     await lire();
   }
 
-  // Le dépôt noté, et lui seul : c'est son nom qui part, le runtime refuse tout autre.
+  // « delete demo project » : la question qui nomme le dépôt, rien ne part encore ; « Cancel » la retire.
+  function demanderLaSuppression() {
+    const projet = etat.vu?.sample;
+    if (projet === undefined || projet.deletedAt !== undefined || etat.suppression?.enCours) return;
+    etat.confirmation = true;
+    rendre();
+  }
+  function annulerLaSuppression() {
+    delete etat.confirmation;
+    rendre();
+  }
+
+  // Le dépôt supprimé, le projet quitte la station de cet ordinateur, puis l'app s'il y est. Ce qui ne part pas se dit.
+  /** @param {string} depot */
+  async function retirer(depot) {
+    const nom = nomDuProjet(depot);
+    try {
+      const servi = await pont.servirUnProjet?.(depot, false);
+      if (servi !== undefined && "refus" in servi) return void (etat.retrait = { refus: servi.refus });
+      if (!dansLApp(nom) || pont.retirerDeLApp === undefined) return;
+      const rendu = await pont.retirerDeLApp(nom);
+      if ("refus" in rendu) etat.retrait = { refus: rendu.refus };
+    } catch (erreur) {
+      etat.retrait = { refus: dit(erreur) };
+    }
+  }
+
+  // Confirmé : le dépôt noté, et lui seul — c'est son nom qui part, le runtime refuse tout autre.
   async function supprimer() {
     const projet = etat.vu?.sample;
+    delete etat.confirmation;
     if (projet === undefined || projet.deletedAt !== undefined || etat.suppression?.enCours || pont.supprimerLeProjetDEssai === undefined) return;
     etat.suppression = { enCours: true };
     rendre();
@@ -143,6 +203,7 @@ export function tenirLeProjetDEssai({ pont, rendre, ouvrir }) {
         delete etat.suppression;
         etat.vu = { ...(etat.vu ?? {}), sample: fait.supprime };
         etat.supprimeIci = true;
+        await retirer(projet.repository);
       } else if ("refus" in fait) etat.suppression = { refus: fait.refus };
       else {
         const debut = (await pont.demanderLaPermissionDeSuppression?.()) ?? { refus: SANS_REPONSE };
@@ -176,7 +237,7 @@ export function tenirLeProjetDEssai({ pont, rendre, ouvrir }) {
     return projet?.ticket !== undefined && projet.servedAt === undefined && projet.deletedAt === undefined;
   };
 
-  return { etat, lire, essayer, supprimer, apresLaPermission, aSuivre };
+  return { etat, lire, essayer, demanderLaSuppression, annulerLaSuppression, supprimer, apresLaPermission, aSuivre };
 }
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -196,7 +257,15 @@ export function boutonDuProjetDEssai(doc, etat, geste) {
   return groupe;
 }
 
-// L'encart : rien tant qu'il n'y a ni essai ni création en route ; un dépôt supprimé à un lancement précédent non plus.
+// « add my own project » : le parcours d'ajout qui existe (« Add a project », ticket 1908), jamais un second.
+/** @param {Fabrique} doc @param {Pick<GestesDeLEssai, "ajouterLeMien">} geste @param {boolean} recommande */
+function boutonDuMien(doc, geste, recommande) {
+  const groupe = boutonAction(doc, AJOUTER_LE_MIEN, geste.ajouterLeMien, { recommande });
+  groupe.children[0].title = AJOUTER_LE_MIEN_SURVOL;
+  return groupe;
+}
+
+// L'encart : rien tant qu'il n'y a ni démo ni création en route ; un dépôt supprimé à un lancement précédent non plus.
 /** @param {Fabrique} doc @param {EtatDeLEssai} etat @param {GestesDeLEssai} geste @returns {any[]} */
 export function poserLeProjetDEssai(doc, etat, geste) {
   const projet = etat.vu?.sample;
@@ -226,6 +295,8 @@ export function poserLeProjetDEssai(doc, etat, geste) {
   if (projet === undefined) return [encart];
   if (projet.deletedAt !== undefined) {
     encart.append(cree(doc, "p", SUPPRIME(projet.repository)));
+    if (etat.retrait !== undefined) encart.append(ligneErreur(doc, RESTE_DANS_L_APP, etat.retrait.refus, { classe: "refus" }));
+    encart.append(gestes(doc, [boutonDuMien(doc, geste, true)]));
     return [encart];
   }
   if (etat.vu?.served !== undefined) {
@@ -233,7 +304,7 @@ export function poserLeProjetDEssai(doc, etat, geste) {
     servi.className = "service-d-essai";
     encart.append(servi);
   } else {
-    encart.append(cree(doc, "p", SUR_LE_RAIL(projet.ticket)));
+    encart.append(cree(doc, "p", SUR_LE_RAIL(projet.tickets ?? (projet.ticket === undefined ? [] : [projet.ticket]))));
     if (etat.vu?.lecture !== undefined) encart.append(ligneErreur(doc, SERVICE_ILLISIBLE, etat.vu.lecture));
   }
   const { suppression } = etat;
@@ -242,10 +313,19 @@ export function poserLeProjetDEssai(doc, etat, geste) {
     encart.append(cree(doc, "p", PERMISSION), cree(doc, "p", tapeLeCode(suppression.code)));
     if (page !== undefined) encart.append(gestes(doc, [boutonAction(doc, ROUVRIR_LA_PAGE, () => geste.ouvrirLaPage(page))]));
   } else if (suppression?.refus !== undefined) encart.append(ligneErreur(doc, phrase(doc, "span", suppression.refus), suppression.detail, { classe: "refus" }));
-  const ticket = projet.ticketUrl;
-  const supprimer = boutonAction(doc, SUPPRIMER, geste.supprimer, { sorte: "danger" });
+  // La question qui nomme le dépôt, à la place des gestes : « Yes, delete owner/repo », ou « Cancel ».
+  if (etat.confirmation) {
+    const question = cree(doc, "p", CONFIRMER(projet.repository));
+    question.className = "confirmation-d-essai";
+    question.role = "alert";
+    encart.append(question, gestes(doc, [boutonAction(doc, OUI_SUPPRIMER(projet.repository), geste.supprimer, { sorte: "danger" }), boutonAction(doc, ANNULER, geste.annulerLaSuppression, { sorte: "discret" })]));
+    return [encart];
+  }
+  const tickets = `${projet.url}/issues`;
+  const supprimer = boutonAction(doc, SUPPRIMER, geste.demanderLaSuppression, { sorte: "danger" });
+  supprimer.className = "action supprimer-la-demo";
   supprimer.children[0].title = SUPPRIMER_SURVOL(projet.repository);
   supprimer.children[0].disabled = suppression?.enCours === true || suppression?.code !== undefined;
-  encart.append(gestes(doc, [...(ticket === undefined ? [] : [boutonAction(doc, OUVRIR_LE_TICKET, () => geste.ouvrirLaPage(ticket), { recommande: etat.vu?.served === undefined })]), supprimer]));
+  encart.append(gestes(doc, [boutonAction(doc, OUVRIR_LES_TICKETS, () => geste.ouvrirLaPage(tickets), { recommande: etat.vu?.served === undefined }), boutonDuMien(doc, geste, etat.vu?.served !== undefined), supprimer]));
   return [encart];
 }

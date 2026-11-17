@@ -1473,11 +1473,12 @@ ipcMain.handle("telephoneConnecte", async (): Promise<{ connecte: boolean } | { 
     return { illisible: erreur instanceof Error ? erreur.message : String(erreur) };
   }
 });
-// Le projet d'essai du premier lancement (#3227, runtime/src/essai-projet/) : l'instant du premier lancement, noté
-// une fois ; le dépôt privé créé sur le compte du `gh` de cet ordinateur avec un seul ticket prêt à cuire ; son service lu
+// Le projet de démo du premier lancement (#3734, né projet d'essai, #3227, runtime/src/demo/) : l'instant du premier
+// lancement, noté une fois ; le dépôt privé créé sur le compte du `gh` de cet ordinateur avec trois tickets prêts à
+// cuire ; son service lu
 // sur GitHub ; sa suppression — du seul dépôt noté —, et la permission `delete_repo` que `gh` fait accorder quand elle
 // manque, comme la connexion (connexion-github.ts). Tout ce qui en est gardé est à côté du fichier des projets.
-const projetDEssai = () => duRuntime<typeof import("../../runtime/src/essai-projet/projet-d-essai.ts")>("essai-projet", "projet-d-essai.ts");
+const projetDEssai = () => duRuntime<typeof import("../../runtime/src/demo/projet-de-demo.ts")>("demo", "projet-de-demo.ts");
 const ghDeLEssai = async () => (await duRuntime<typeof import("../../runtime/src/proteger-branche.ts")>("proteger-branche.ts")).clientGh(ghIci, process.env);
 const dossierDeLEssai = dirname(cheminConfiguration());
 void projetDEssai().then(
@@ -1487,10 +1488,10 @@ void projetDEssai().then(
   },
   (erreur: unknown) => console.error(`brigade: the first launch is not recorded — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
 );
-// Ses pages — le dépôt, son ticket, sa PR — s'ouvrent depuis l'écran.
+// Ses pages — le dépôt, ses tickets, sa PR — s'ouvrent depuis l'écran.
 const retenirLEssai = <T extends object>(rendu: T): T => {
   const projet = "sample" in rendu ? (rendu.sample as { url: string; ticketUrl?: string; pullRequest?: string } | undefined) : undefined;
-  for (const page of [projet?.url, projet?.ticketUrl, projet?.pullRequest]) if (page) pagesDuPremier.add(page);
+  for (const page of [projet?.url, projet?.url === undefined ? undefined : `${projet.url}/issues`, projet?.ticketUrl, projet?.pullRequest]) if (page) pagesDuPremier.add(page);
   return rendu;
 };
 ipcMain.handle("projetDEssai", async () => retenirLEssai(await (await projetDEssai()).suivreLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai)));
