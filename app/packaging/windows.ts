@@ -428,7 +428,16 @@ function poserLesDependances(): void {
   console.log("brigade: installing the app's dependencies (app/package-lock.json)…");
   // Sous Windows, `npm` est un `npm.cmd` : seul un shell le lance, et il lui faut la commande entière.
   const ci = ["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"];
-  const fait = process.platform === "win32" ? spawnSync(ci.join(" "), { cwd: APP, stdio: "inherit", shell: true }) : spawnSync(ci[0] ?? "npm", ci.slice(1), { cwd: APP, stdio: "inherit" });
+  // Un `npm ci` qui tombe sur un réseau coupé (ECONNRESET, #3795) se rejoue : trois essais. Une
+  // commande qui ne se lance pas, elle, n'est pas rejouée.
+  const ESSAIS = 3;
+  let fait;
+  for (let essai = 1; essai <= ESSAIS; essai++) {
+    fait = process.platform === "win32" ? spawnSync(ci.join(" "), { cwd: APP, stdio: "inherit", shell: true }) : spawnSync(ci[0] ?? "npm", ci.slice(1), { cwd: APP, stdio: "inherit" });
+    if (fait.error !== undefined || fait.status === 0) break;
+    if (essai < ESSAIS) console.log(`brigade: npm ci exited with ${fait.status ?? fait.signal ?? "?"}, trying again (${essai + 1}/${ESSAIS})…`);
+  }
+  if (fait === undefined) return;
   if (fait.error !== undefined) echouer(`installing the app's dependencies: npm could not be run (${fait.error.message})`);
   if (fait.status !== 0) echouer(`installing the app's dependencies: npm ci exited with ${fait.status ?? fait.signal ?? "?"}`);
 }
