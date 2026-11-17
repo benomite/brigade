@@ -61,8 +61,8 @@ export function origineDeLAttente(corps: string, commentaires: readonly string[]
 const marque = (issue: Revue["issue"] | "sans-revue", attendus: readonly number[]) => `${MARQUE_D_ATTENTE_LONGUE} ${issue} ${liste(attendus)} -->`;
 
 // Les lignes que l'issue porte à l'heure, une par issue de la revue.
-function corpsDeLaLevee({ ticket, attendus, origine, commentaire }: { ticket: number; attendus: readonly number[]; origine: string; commentaire: string }): string {
-  return [`${MARQUE_D_ATTENTE_LEVEE} ${liste(attendus)} -->`, marque("leve", attendus), `The manager lifted the wait of #${ticket} on ${liste(attendus)} (${origine}) after more than an hour: ${surUneLigne(commentaire)}`].join("\n");
+function corpsDeLaLevee({ ticket, attendus, commentaire }: { ticket: number; attendus: readonly number[]; commentaire: string }): string {
+  return [`${MARQUE_D_ATTENTE_LEVEE} ${liste(attendus)} -->`, marque("leve", attendus), `The manager lifted the wait of #${ticket} on ${liste(attendus)} after more than an hour: ${surUneLigne(commentaire)}`].join("\n");
 }
 
 function corpsDeLaGarde({ ticket, attendus, origine, commentaire }: { ticket: number; attendus: readonly number[]; origine: string; commentaire: string }): string {
@@ -83,15 +83,12 @@ function corpsSansRevue({ station, ticket, attendus, origine, pourquoi }: { stat
 }
 
 // La dernière ligne de l'attente longue que l'issue porte pour ces tickets attendus, ou null.
+const MARQUE_LUE = /<!-- brigade:attente-longue (leve|garde|produit|sans-revue) ([^>]*)-->/;
 function derniereRevue(commentaires: readonly string[], attendus: readonly number[]): Revue["issue"] | "sans-revue" | null {
   for (const body of [...commentaires].reverse()) {
-    const debut = body.indexOf(MARQUE_D_ATTENTE_LONGUE);
-    if (debut < 0) continue;
-    const ligne = body.slice(debut + MARQUE_D_ATTENTE_LONGUE.length).split("-->")[0] ?? "";
-    const issue = /^\s*([a-z-]+)/.exec(ligne)?.[1];
-    const nommes = new Set([...ligne.matchAll(/#([1-9]\d*)\b/g)].map(([, n]) => Number(n)));
-    if (!attendus.every((n) => nommes.has(n))) continue;
-    if (issue === "leve" || issue === "garde" || issue === "produit" || issue === "sans-revue") return issue;
+    const [, issue, tickets] = MARQUE_LUE.exec(body) ?? [];
+    const nommes = new Set([...(tickets ?? "").matchAll(/#([1-9]\d*)\b/g)].map(([, n]) => Number(n)));
+    if (issue !== undefined && attendus.every((n) => nommes.has(n))) return issue as Revue["issue"] | "sans-revue";
   }
   return null;
 }
@@ -204,7 +201,7 @@ export function suiviDesAttentesLongues(options: { github: GitHubDeLAttenteLongu
       await github.commenter(ticket.number, corpsDeLaQuestion({ ...contexte, question: reponse.revue.question }));
       await github.labelliser(ticket.number, [label]);
     } else if (reponse.revue.issue === "leve") {
-      await github.commenter(ticket.number, corpsDeLaLevee({ ...contexte, commentaire: reponse.revue.commentaire }));
+      await github.commenter(ticket.number, corpsDeLaLevee({ ticket: ticket.number, attendus, commentaire: reponse.revue.commentaire }));
     } else {
       await github.commenter(ticket.number, corpsDeLaGarde({ ...contexte, commentaire: reponse.revue.commentaire }));
     }

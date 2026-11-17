@@ -41,7 +41,7 @@ aside — is counted from the first turn that saw it held; that count is kept in
 the station starts the hour over. Past an hour, the station gives the wait to the
 manager, read-only in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the
 manager lifts it, the issue says so in one line, and a cook takes the ticket at the next turn. A real one:
-it keeps it, and the issue says why. Only a product decision goes to the chef, as a question under
+it keeps it, the issue says why, and the wait stays until the awaited ticket is served. Only a product decision goes to the chef, as a question under
 `blocked-on-human`; once the chef has answered and removed the label, the manager reads the wait again
 with that answer. Whatever the outcome, the issue then carries a line naming what the ticket waits for and
 who decided it (the station, the manager or the chef) — also when the manager gives no readable answer, or
