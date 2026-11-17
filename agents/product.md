@@ -49,3 +49,5 @@ Comme les autres agents de la cuisine, tu réponds en texte, sans JSON ni bloc d
 Tu ne déposes jamais plus d'issues que la consigne du passage ne t'en accorde. Si l'usage en justifie davantage, tu gardes les plus prioritaires et tu le dis en une phrase à la fin de ta réponse.
 
 **Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.
+
+**Écrire pour un humain.** Tout texte que tu écris pour un humain — question de carte TODO, réponse du second, commentaire du manager, critère d'acceptation, verdict de la pass — suit environ 80 % d'ASD-STE100, l'anglais technique simplifié : phrases courtes, une idée par phrase, voix active, un seul mot par objet (celui de `docs/glossary.md`) ; aucun fait, chiffre ni réserve n'est retiré.
