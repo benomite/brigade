@@ -16,6 +16,7 @@
 //   répondue     `answered by <qui> · the manager's turn` (#503)
 //   m'attend     ce qu'on attend du chef, en une phrase (decision.ts)
 //   livrée       `served at HH:MM · <résumé>`
+import { ATTENTE_DITE } from "../../runtime/src/attente-du-rail/raison.ts";
 import { heureHM } from "./format.ts";
 import { refusEnClair } from "./refus.ts";
 import { jourDe } from "./vue/attente/saisie.ts";
@@ -55,7 +56,7 @@ export function ligneEnAttente(etat: string, retient: string | undefined, derrie
   // Derrière un ticket, les liens sont les tickets attendus — `waits for #N` —, jamais un numéro de la phrase du corps citée
   // (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763) : une attente ouvre la ligne
   // ou suit `; `, et dit sa source.
-  const attendus = retient === undefined ? [...(derriere ?? "").matchAll(/(?:^|; )waits for (#\d+) — read from /g)].map(([, n]) => n as string) : [];
+  const attendus = retient === undefined ? [...(derriere ?? "").matchAll(ATTENTE_DITE)].map(([, n]) => `#${n}`) : [];
   const numeros = [...new Set(attendus.length > 0 ? attendus : ((retient ?? derriere)?.match(/#\d+/g) ?? []))];
   const phrase = retient === undefined && derriere !== undefined ? derriere : numeros.length > 0 ? `Waiting for ${numeros.join(", ")}` : retient;
   const liens = numeros.length > 0 ? { liens: numeros.map((numero) => Number(numero.slice(1))) } : {};

@@ -83,6 +83,9 @@ const SOURCES: Record<SourceDAttente, string> = { corps: "the body", fiche: "the
 export function direLAttente({ ticket, source, phrase }: AttenteSourcee): string {
   return `waits for #${ticket} — read from ${SOURCES[source]}${source === "corps" && phrase ? `: '${phrase}'` : ""}`;
 }
+// Ce qui relit une attente dite par `direLAttente`, son ticket en groupe : la carte de l'app en tire ses liens
+// (app/src/ligne-carte.ts). Une attente ouvre la ligne ou suit `; ` : un `#N` de la phrase citée n'en est pas une.
+export const ATTENTE_DITE = /(?:^|; )waits for #(\d+) — read from /g;
 const COMMENTAIRES_ILLISIBLES = "its card and its cooks' stops could not be read on GitHub";
 
 // La ligne d'une carte en file qui ne partira pas la prochaine (#3763) : chaque attente qui la retient, et d'où elle est
