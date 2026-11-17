@@ -81,6 +81,7 @@ import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renv
 import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
+import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
 import { motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
@@ -3079,6 +3080,33 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return preuve;
   };
 
+  // Les mutations attrapées (#3727) : les lignes de code que la livraison
+  // change, mutées une à une dans des checkouts jetables de la base, contre
+  // ses tests gelés — en parallèle, sous un budget fixe.
+  const muterLaLivraison = async (ticket: TicketLu, worktree: string, diff: { fichiers: string[]; texte: string }, preuve: Preuve): Promise<Mutations> => {
+    const { essayer, jeter } = depot;
+    const mutations = await muter(preuve, {
+      fichiers: diff.fichiers,
+      diff: diff.texte,
+      branche: worktree,
+      checkout: async (rang) => {
+        if (essayer === undefined || jeter === undefined) throw new Error("this station's clone cannot make a throwaway checkout of the base");
+        const nomDuCheckout = `mutations-${ticket.number}-${rang}`;
+        jeter(nomDuCheckout);
+        return { worktree: await essayer(nomDuCheckout), jeter: () => jeter(nomDuCheckout) };
+      },
+      jouer: async (lieu, dossier, args, signal) => {
+        const { NODE_TEST_CONTEXT: _contexte, ...envDuRejeu } = sansJeton();
+        const { code, retenues } = await jouerOutil("bash", ["-c", 'cd -- "$1" && shift && exec "$@"', "mutant", dossier, process.execPath, ...args], { worktree: lieu, ticket: ticket.number, env: envDuRejeu, delaiMs: BUDGET_DES_MUTATIONS_MS, cloison, signal: AbortSignal.any([abandon.signal, signal]) }, RESULTAT_TAP);
+        return { code, lignes: retenues };
+      },
+      budgetMs: BUDGET_DES_MUTATIONS_MS,
+      enParallele: MUTANTS_EN_PARALLELE,
+    });
+    avertir(`brigade : #${ticket.number} sur ${nom} — ${ligneDesMutations(mutations)}`);
+    return mutations;
+  };
+
   const juger: Juger = async (ticket, pr) => {
     const branche = brancheDuTicket(ticket.number);
     const run = `review-${ticket.number}-github`;
@@ -3106,14 +3134,18 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       })();
       if (gel !== null) return { verdict: "request-changes", motif: gel };
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
-      const [prouvee, relue] = await Promise.allSettled([prouverLaLivraison(ticket, worktree, diff.fichiers), relecture(worktree, run, texte, pr, criteres.length, ticket.number)]);
+      // Les mutants se jouent après la preuve, contre ses tests gelés, et pendant la relecture.
+      const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers);
+      const [prouvee, relue, mutee] = await Promise.allSettled([prouvant, relecture(worktree, run, texte, pr, criteres.length, ticket.number), prouvant.then((preuve) => muterLaLivraison(ticket, worktree, diff, preuve))]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
+      const mutations: Mutations = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
       const verts = vertsSurLaBase(preuve);
-      // Un test ajouté déjà vert sur la base renvoie la livraison, que la relecture ait pu se lire ou non.
-      if (relue.status === "rejected" && verts.length === 0) throw relue.reason;
+      const renvoi = [...motifDuRenvoi(verts, base), ...motifDesMutations(mutations)];
+      // Un test ajouté déjà vert sur la base, ou une mutation qui survit, renvoie la livraison, que la relecture ait pu se lire ou non.
+      if (relue.status === "rejected" && renvoi.length === 0) throw relue.reason;
       const lue = relue.status === "fulfilled" ? relue.value : null;
-      const resume = resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base);
-      if (verts.length > 0) return { verdict: "request-changes", motif: [...motifDuRenvoi(verts, base), ...(lue === null ? [] : ["", lue.summary, ...constatsDe(lue)]), "", resume].join("\n") };
+      const resume = [resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base), "", resumeDesMutations(mutations, criteres.length, lue?.criteria ?? null, preuve)].join("\n");
+      if (renvoi.length > 0) return { verdict: "request-changes", motif: [...renvoi, ...(lue === null ? [] : ["", lue.summary, ...constatsDe(lue)]), "", resume].join("\n") };
       return { verdict: lue!.verdict === "green" ? "approve" : "request-changes", motif: [lue!.summary, ...constatsDe(lue!), "", resume].join("\n") };
     } finally {
       depot.retirer(worktree);
