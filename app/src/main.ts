@@ -33,6 +33,7 @@ import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
+import { pagesDeLaDemo } from "./vue/demo/pages.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -1491,7 +1492,7 @@ void projetDEssai().then(
 // Ses pages — le dépôt, ses tickets, sa PR — s'ouvrent depuis l'écran.
 const retenirLEssai = <T extends object>(rendu: T): T => {
   const projet = "sample" in rendu ? (rendu.sample as { url: string; ticketUrl?: string; pullRequest?: string } | undefined) : undefined;
-  for (const page of [projet?.url, projet?.url === undefined ? undefined : `${projet.url}/issues`, projet?.ticketUrl, projet?.pullRequest]) if (page) pagesDuPremier.add(page);
+  for (const page of pagesDeLaDemo(projet)) pagesDuPremier.add(page);
   return rendu;
 };
 ipcMain.handle("projetDEssai", async () => retenirLEssai(await (await projetDEssai()).suivreLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai)));

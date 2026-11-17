@@ -8103,7 +8103,7 @@ const essai = tenirLeProjetDEssai({
   pont: brigade,
   rendre: () => poserLEncartDEssai(),
   ouvrir: (projet, depot, base) => ouvrirDUneStation("", projet, depot, base),
-  dansLApp: (nom) => configuration.projets.some((projet) => projet.nom === nom),
+  projetsDeLApp: () => configuration.projets,
 });
 premier.essai = essai.etat;
 gestesDuPremier.essayer = () => void essai.essayer();

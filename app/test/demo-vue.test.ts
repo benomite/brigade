@@ -38,6 +38,8 @@ import {
   tenirLeProjetDEssai,
   TITRE,
 } from "../src/vue/demo/demo.js";
+import { pagesDeLaDemo } from "../src/vue/demo/pages.ts";
+import { ROUVRIR_LA_PAGE } from "../src/vue/parcours-projet/connexion.js";
 import { OUVRIR_CE_PROJET } from "../src/vue/premier-lancement.js";
 import { CLE_DE_LA_VISITE } from "../src/vue/visite/visite.js";
 import { Faux, FauxStockage, jouerLaVue, repos } from "./aides/fausse-vue.ts";
@@ -213,7 +215,7 @@ describe("supprimer la démo", () => {
 
   test("confirmé : le dépôt noté est supprimé, puis le projet quitte la station de cet ordinateur et l'app", async () => {
     const { pont, appels } = unPont();
-    const demo = tenirLeProjetDEssai({ pont, rendre: () => {}, ouvrir: async () => {}, dansLApp: (nom) => nom === "brigade-demo" });
+    const demo = tenirLeProjetDEssai({ pont, rendre: () => {}, ouvrir: async () => {}, projetsDeLApp: () => [{ nom: "brigade" }, { nom: "brigade-demo" }] });
     await demo.lire();
     demo.demanderLaSuppression();
     await demo.supprimer();
@@ -233,7 +235,7 @@ describe("supprimer la démo", () => {
     assert.deepEqual(absent.appels.slice(1), [["supprimerLeProjetDEssai", DEPOT], ["servirUnProjet", DEPOT, false]]);
 
     const refuse = unPont({ retrait: { refus: "Not removed — the projects file cannot be written" } });
-    const demo = tenirLeProjetDEssai({ pont: refuse.pont, rendre: () => {}, ouvrir: async () => {}, dansLApp: () => true });
+    const demo = tenirLeProjetDEssai({ pont: refuse.pont, rendre: () => {}, ouvrir: async () => {}, projetsDeLApp: () => [{ nom: "brigade-demo" }] });
     await demo.lire();
     await demo.supprimer();
     assert.deepEqual(demo.etat.retrait, { refus: "Not removed — the projects file cannot be written" });
@@ -242,7 +244,7 @@ describe("supprimer la démo", () => {
     assert.ok(textes(dit[0]).some((texte) => texte.includes(RESTE_DANS_L_APP)), textes(dit[0]).join(" | "));
 
     const station = unPont({ servi: { refus: "the station's list cannot be written" } });
-    const autre = tenirLeProjetDEssai({ pont: station.pont, rendre: () => {}, ouvrir: async () => {}, dansLApp: () => true });
+    const autre = tenirLeProjetDEssai({ pont: station.pont, rendre: () => {}, ouvrir: async () => {}, projetsDeLApp: () => [{ nom: "brigade-demo" }] });
     await autre.lire();
     await autre.supprimer();
     assert.deepEqual(autre.etat.retrait, { refus: "the station's list cannot be written" });
@@ -251,7 +253,7 @@ describe("supprimer la démo", () => {
 
   test("le runtime refuse la suppression : rien n'est retiré de l'app", async () => {
     const { pont, appels } = unPont({ suppressions: [{ refus: `Brigade only deletes the demo repository it created, ${DEPOT}.` }] });
-    const demo = tenirLeProjetDEssai({ pont, rendre: () => {}, ouvrir: async () => {}, dansLApp: () => true });
+    const demo = tenirLeProjetDEssai({ pont, rendre: () => {}, ouvrir: async () => {}, projetsDeLApp: () => [{ nom: "brigade-demo" }] });
     await demo.lire();
     await demo.supprimer();
     assert.deepEqual(appels.slice(1), [["supprimerLeProjetDEssai", DEPOT]]);
@@ -364,5 +366,89 @@ describe("la vue jouée", () => {
     await repos();
     assert.equal(vue.element("ajout").hidden, false, "l'écran « Add a project » est montré");
     assert.ok(vue.appels.some(({ geste }) => geste === "depotsDuChef"), "ses dépôts sont lus, comme depuis « + »");
+  });
+});
+
+// Chaque état à la lettre : le geste recommandé de l'encart, le détail d'un refus quand il en a un — et aucun quand il n'en
+// a pas —, la suppression qui ne part qu'une fois, le projet retiré de l'app à son nom seul, les pages qu'on peut ouvrir.
+const recommandes = (racines: Faux[]) => boutons(racines).filter(({ className }) => className === "recommande").map(({ textContent }) => textContent);
+
+describe("chaque état à la lettre", () => {
+  test("le geste recommandé : les tickets tant que rien n'est servi, « add my own project » une fois servi ou supprimé, « Try again » après un échec", () => {
+    assert.deepEqual(recommandes(poserLeProjetDEssai(doc, { vu: { sample: CREE } }, gestesMorts)), [OUVRIR_LES_TICKETS]);
+    assert.deepEqual(recommandes(poserLeProjetDEssai(doc, { vu: { sample: SERVI, served: PHRASE } }, gestesMorts)), [AJOUTER_LE_MIEN]);
+    assert.deepEqual(recommandes(poserLeProjetDEssai(doc, { vu: { sample: SUPPRIME_LE }, supprimeIci: true }, gestesMorts)), [AJOUTER_LE_MIEN]);
+    assert.deepEqual(recommandes(poserLeProjetDEssai(doc, { echec: { raison: SANS_STATION } }, gestesMorts)), ["Try again"]);
+  });
+
+  test("les tickets dits sur le rail : la liste notée, sinon le seul ticket d'un projet d'essai d'avant la démo", () => {
+    const { tickets: _, ...unSeul } = CREE;
+    assert.ok(textes(poserLeProjetDEssai(doc, { vu: { sample: unSeul } }, gestesMorts)[0]).includes(SUR_LE_RAIL([1])));
+    assert.notEqual(SUR_LE_RAIL([1]), SUR_LE_RAIL([]));
+  });
+
+  test("un arrêt dit son détail quand il en a un, et aucun quand il n'en a pas", async () => {
+    const station = tenirLeProjetDEssai({ pont: unPont({ servi: { refus: "the station's list cannot be written" } }).pont, rendre: () => {}, ouvrir: async () => {} });
+    await station.essayer();
+    assert.deepEqual(station.etat.echec, { raison: SANS_STATION, detail: "the station's list cannot be written" });
+    const github = tenirLeProjetDEssai({ pont: unPont({ cree: { refus: "GitHub refused." } }).pont, rendre: () => {}, ouvrir: async () => {} });
+    await github.essayer();
+    assert.deepEqual(github.etat.echec, { raison: "GitHub refused." });
+  });
+
+  test("la permission de supprimer : son refus garde son détail, ou n'en a aucun ; le code sans page n'offre pas de la rouvrir", async () => {
+    for (const permission of [{ refus: "GitHub sign-in failed.", detail: "gh exited with 1" }, { refus: "GitHub sign-in failed." }]) {
+      const demo = tenirLeProjetDEssai({ pont: unPont({ suppressions: [{ permission: "delete_repo" }], permission }).pont, rendre: () => {}, ouvrir: async () => {} });
+      await demo.lire();
+      await demo.supprimer();
+      assert.deepEqual(demo.etat.suppression, permission);
+    }
+    for (const fin of [{ refus: "GitHub sign-in was cancelled.", detail: "closed" }, { refus: "GitHub sign-in was cancelled." }]) {
+      const demo = tenirLeProjetDEssai({ pont: unPont({ suppressions: [{ permission: "delete_repo" }] }).pont, rendre: () => {}, ouvrir: async () => {} });
+      await demo.lire();
+      await demo.supprimer();
+      assert.ok(libelles(poserLeProjetDEssai(doc, demo.etat, gestesMorts)).includes(ROUVRIR_LA_PAGE));
+      await demo.apresLaPermission(fin);
+      assert.deepEqual(demo.etat.suppression, fin);
+    }
+    const sansPage = tenirLeProjetDEssai({ pont: unPont({ suppressions: [{ permission: "delete_repo" }], permission: { code: "ABCD-1234" } }).pont, rendre: () => {}, ouvrir: async () => {} });
+    await sansPage.lire();
+    await sansPage.supprimer();
+    assert.deepEqual(sansPage.etat.suppression, { code: "ABCD-1234", page: undefined });
+    assert.ok(!libelles(poserLeProjetDEssai(doc, sansPage.etat, gestesMorts)).includes(ROUVRIR_LA_PAGE));
+  });
+
+  test("une suppression en route ne part qu'une fois : un second clic, ou une nouvelle question, n'y fait rien", async () => {
+    // Chaque appel attend sa réponse ; toutes rendues à la fin, pour qu'un second appel ne reste jamais en suspens.
+    const finirs: Array<(fait: unknown) => void> = [];
+    const { pont, appels } = unPont();
+    pont.supprimerLeProjetDEssai = (depot: string) => (appels.push(["supprimerLeProjetDEssai", depot]), new Promise((fin) => void finirs.push(fin)) as never);
+    const eteints: unknown[] = [];
+    const demo = tenirLeProjetDEssai({ pont, rendre: () => {}, ouvrir: async () => {} });
+    await demo.lire();
+    const enRoute = demo.supprimer();
+    eteints.push(boutons(poserLeProjetDEssai(doc, demo.etat, gestesMorts)).find(({ textContent }) => textContent === SUPPRIMER)?.disabled);
+    const second = demo.supprimer();
+    demo.demanderLaSuppression();
+    assert.equal(demo.etat.confirmation, undefined);
+    for (const finir of finirs) finir({ supprime: SUPPRIME_LE });
+    await Promise.all([enRoute, second]);
+    assert.deepEqual(eteints, [true]);
+    assert.equal(appels.filter(([geste]) => geste === "supprimerLeProjetDEssai").length, 1);
+  });
+
+  test("le projet ne quitte l'app qu'à son nom : un autre projet du visiteur n'est jamais retiré", async () => {
+    const { pont, appels } = unPont();
+    const demo = tenirLeProjetDEssai({ pont, rendre: () => {}, ouvrir: async () => {}, projetsDeLApp: () => [{ nom: "brigade" }] });
+    await demo.lire();
+    await demo.supprimer();
+    assert.deepEqual(appels.slice(1), [["supprimerLeProjetDEssai", DEPOT], ["servirUnProjet", DEPOT, false]]);
+  });
+
+  test("les pages qu'on peut ouvrir depuis l'écran : le dépôt, ses tickets, le ticket et la PR qu'il a — aucune sans projet", () => {
+    assert.deepEqual(pagesDeLaDemo(undefined), []);
+    assert.deepEqual(pagesDeLaDemo({ url: CREE.url }), [CREE.url, `${CREE.url}/issues`]);
+    assert.deepEqual(pagesDeLaDemo(SERVI), [CREE.url, `${CREE.url}/issues`, CREE.ticketUrl, SERVI.pullRequest]);
+    assert.deepEqual(pagesDeLaDemo({ ...SERVI, pullRequest: "" }), [CREE.url, `${CREE.url}/issues`, CREE.ticketUrl]);
   });
 });

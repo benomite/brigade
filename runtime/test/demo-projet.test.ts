@@ -272,4 +272,26 @@ test("supprimer un dépôt que GitHub ne connaît plus : noté supprimé ; un 40
   assert.ok("enregistrement" in relu && relu.enregistrement.sample?.deletedAt !== undefined);
 });
 
+test("un projet noté sans son dépôt, son adresse, sa branche ou sa date de création n'est pas un projet de démo : il le dit", (t: TestContext) => {
+  const complet = { repository: DEPOT, url: `https://github.com/${DEPOT}`, base: "main", createdAt: CREATION.toISOString() };
+  for (const manque of ["repository", "url", "base", "createdAt"] as const) {
+    const dossier = repertoireTemporaire(t);
+    const { [manque]: _, ...sample } = complet;
+    writeFileSync(join(dossier, FICHIER), JSON.stringify({ sample }));
+    const lecture = lireLEnregistrement(dossier);
+    assert.ok("illisible" in lecture && lecture.illisible.includes("is not a demo project"), `${manque} : ${JSON.stringify(lecture)}`);
+  }
+});
+
+test("une PR fermée dont la date de merge ne se lit pas n'est pas un ticket servi", async (t: TestContext) => {
+  const dossier = repertoireTemporaire(t);
+  noterLePremierLancement(dossier, LANCEMENT);
+  await creerLeProjetDEssai(github().client, dossier, CREATION);
+  const { client } = github(({ chemin }) => (chemin.includes("/pulls?") ? { corps: [{ merged_at: "not a date", html_url: `https://github.com/${DEPOT}/pull/2` }] } : undefined));
+  const vu = await suivreLeProjetDEssai(client, dossier);
+  assert.equal(vu.served, undefined);
+  assert.equal(vu.sample?.servedAt, undefined);
+  assert.equal(lu(dossier).sample.servedAt, undefined);
+});
+
 test("demo-projet.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

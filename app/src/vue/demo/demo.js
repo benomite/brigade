@@ -108,9 +108,9 @@ const dit = (/** @type {unknown} */ erreur) => (erreur instanceof Error ? erreur
 export const nomDuProjet = (depot) => (depot.split("/")[1] ?? depot).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
 
 /**
- * @param {{ pont: PontDeLEssai, rendre: () => void, ouvrir: (projet: string, depot: string, base: string) => Promise<void>, dansLApp?: (projet: string) => boolean }} options
+ * @param {{ pont: PontDeLEssai, rendre: () => void, ouvrir: (projet: string, depot: string, base: string) => Promise<void>, projetsDeLApp?: () => ReadonlyArray<{ nom: string }> }} options
  */
-export function tenirLeProjetDEssai({ pont, rendre, ouvrir, dansLApp = () => false }) {
+export function tenirLeProjetDEssai({ pont, rendre, ouvrir, projetsDeLApp = () => [] }) {
   /** @type {EtatDeLEssai} */
   const etat = {};
   /** @param {string} raison @param {string} [detail] */
@@ -182,7 +182,7 @@ export function tenirLeProjetDEssai({ pont, rendre, ouvrir, dansLApp = () => fal
     try {
       const servi = await pont.servirUnProjet?.(depot, false);
       if (servi !== undefined && "refus" in servi) return void (etat.retrait = { refus: servi.refus });
-      if (!dansLApp(nom) || pont.retirerDeLApp === undefined) return;
+      if (!projetsDeLApp().some((projet) => projet.nom === nom) || pont.retirerDeLApp === undefined) return;
       const rendu = await pont.retirerDeLApp(nom);
       if ("refus" in rendu) etat.retrait = { refus: rendu.refus };
     } catch (erreur) {
