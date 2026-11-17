@@ -2215,9 +2215,9 @@ saved the key never comes back to the screen — the row says `•••••�
 replace it`). Each row has the `this computer` mark and applies as soon as it changes. The engine and the fallback are
 kept in `station-reglages.json` as `engine` and `fallbackEngine` (values `claude-subscription`, `claude-api-key`,
 `codex`); the key in its own file beside it, `station-cle-api`, readable only by the account (0600) — the read says only
-whether a key is kept. Like the folders, the station does not read them yet: this is the app's side of the setting. An unknown engine in the file reads as `“<value>” — an engine this app does not know`; an
-unreadable file says so in one line. On another station: "not available for this station". Screens:
-`docs/captures/3746/`.
+whether a key is kept. Like the folders, the station does not read them yet: this is the app's side of the setting.
+An unknown engine in the file reads as `“<value>” — an engine this app does not know`; an unreadable file says so in one
+line. On another station: "not available for this station". Screens: `docs/captures/3746/`.
 
 ```
 box      ●  online · 2 cooks running   ?
