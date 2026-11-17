@@ -301,8 +301,9 @@
   color: var(--bon-discret);
 }
 
-/* Essayer une livraison depuis sa carte (essai/essai.js, ticket 3215) : le bouton, où la version se trouve, ou la raison de l'échec et la fin de la sortie. */
-.bon .essai {
+/* Essayer une livraison depuis sa carte (essai/essai.js, ticket 3215) : le bouton, où la version se trouve, ou la raison de l'échec et la fin de la sortie.
+   Sa rangée n'est pas `.essai`, le point des essais de la cuisine plus haut (#1895). */
+.bon .essai-rangee {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

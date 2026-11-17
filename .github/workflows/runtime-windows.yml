@@ -70,8 +70,9 @@ jobs:
       - name: Garder les fins de ligne du dépôt
         run: git config --global core.autocrlf false
       # Sans docs/captures/ (#3680) : aucun test n'en lit une image, et leur extraction (166 Mo sur
-      # 3ecea8b) mangeait les 3 min que le garde de la part laisse au job — sur 20d5919, la part 8 est
-      # morte muette, deux fois. Un checkout clairsemé ne télécharge pas non plus leurs blobs.
+      # 3ecea8b, chaque livraison design en ajoute) grossit la part du job hors des 3 min que le garde de
+      # la part lui laisse. Sur 20d5919, la part 8 n'était pas morte muette : `Tests du runtime` y est
+      # sorti en 1, après un checkout de 12 s. Un checkout clairsemé ne télécharge pas non plus leurs blobs.
       - uses: actions/checkout@v4
         with:
           sparse-checkout-cone-mode: false
