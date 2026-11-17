@@ -40,6 +40,12 @@ function commitsDeLaLivraison(worktree: string, base: string) {
 // Les commits qui touchent un fichier gelé sans y avoir droit. Vide : aucun
 // commit gelé sur la branche (rien à garder), ou le gel est tenu. Lève si
 // l'historique ne se lit pas : l'appelant dit alors que le contrôle n'a pas eu lieu.
+// Les fichiers que le premier commit gelé de la livraison porte : vide s'il n'y en a pas.
+export function fichiersGeles(worktree: string, base: string): string[] {
+  const [premier] = commitsDeLaLivraison(worktree, base);
+  return premier === undefined || !premier.gele ? [] : fichiersDe(worktree, premier.commit);
+}
+
 export function violationsDuGel(worktree: string, base: string): ViolationDuGel[] {
   const [premier, ...suivants] = commitsDeLaLivraison(worktree, base);
   if (premier === undefined || !premier.gele) return [];
