@@ -64,6 +64,15 @@ export type TicketNonPris = { ticket: number; depuis: string };
 // `stations-github/stations.ts`, `SigneDeVie`).
 export type StationDuCompte = { name: string; lastSeen: string; stoppedAt: string | null; refreshMs: number; heldBy?: RetenueParGitHub | null; selection: readonly string[] | null };
 
+// Une station qui cuit ou juge un ticket du projet le sert, quoi que dise sa sélection : montée sur sa machine, aucune
+// app ne lui a écrit de sélection (#3797). Son nom est celui de la prise (`stations-github/stations.ts`, `stationDe`).
+export function avecLesStationsQuiCuisent<T extends { name: string; selection: readonly string[] | null }>(lues: readonly T[], depot: string, cuisinent: readonly string[]): T[] {
+  return lues.map((station) => {
+    const sert = station.selection?.some((choisi) => choisi.toLowerCase() === depot.toLowerCase()) === true;
+    return sert || !cuisinent.includes(stationDe(station.name)) ? station : { ...station, selection: [...(station.selection ?? []), depot] };
+  });
+}
+
 // Les stations du compte, ou pourquoi elles ne se lisent pas.
 export type StationsLues = { lues: readonly StationDuCompte[] } | { illisibles: string };
 
