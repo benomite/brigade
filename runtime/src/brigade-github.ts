@@ -2009,6 +2009,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
       return numero !== undefined && retenuesDuTour.has(Number(numero));
     };
+    // Un ticket mis de côté (échecs, hors cuisine) ne tient pas sa zone : personne ne le cuit tant qu'on ne l'a pas regardé (#3798).
+    // Remis sur le rail, il perd ce label et attend sa zone comme les autres.
+    const misDeCoteCeTour = (branche: string): boolean => {
+      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+      return numero !== undefined && lus.some((lu) => lu.number === Number(numero) && estMisDeCote(lu.labels));
+    };
     const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
@@ -2019,6 +2025,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       for (const ouverte of ouvertes) {
         if (ouverte.branche === propre || !ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier)))) continue;
         if (pourLeChefCeTour(ouverte.branche)) continue;
+        if (misDeCoteCeTour(ouverte.branche)) continue;
         if (await ticketFerme(ouverte.branche)) continue;
         pr = ouverte;
         break;
