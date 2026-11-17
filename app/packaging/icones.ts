@@ -26,7 +26,10 @@ const glyphe = icone.match(/<g transform="translate\(-3\.5 0\)">.*?<\/g>(?=<\/g>
 // Avant-plan adaptatif d'Android : 108 dp, le glyphe centré dans la zone sûre (66 dp).
 const avantPlan = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><g transform="translate(54 54) translate(-32 -32)">${glyphe}</g></svg>`;
 // Icône ronde : le fond de l'icône en disque, le glyphe à la même échelle.
-const fondRond = icone.split('<g transform="translate(5.5')[0].replace(/^<svg[^>]*>/, "").replace(/rx="([\d.]+)"/g, (_, r) => `rx="${Number(r) + 17}"`);
+// Tout ce qui précède le glyphe (`<g transform="translate(5.5…`) dans l'icône maître, rx relevés de 17 : disque.
+const avantGlyphe = icone.split('<g transform="translate(5.5');
+if (avantGlyphe.length < 2) throw new Error("brigade-icone.svg : le glyphe (translate(5.5…) est introuvable, l'icône ronde ne peut pas être dérivée");
+const fondRond = avantGlyphe[0].replace(/^<svg[^>]*>/, "").replace(/rx="([\d.]+)"/g, (_, r) => `rx="${Number(r) + 17}"`);
 const ronde = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${fondRond}<g transform="translate(5.5 6.4) scale(.8)">${glyphe}</g></svg>`;
 
 // --- Mac : un .icns, des PNG rangés par type. La grille d'icônes d'Apple pose le corps (824 px sur 1024)
