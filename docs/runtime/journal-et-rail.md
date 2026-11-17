@@ -125,8 +125,9 @@ npm --prefix runtime run rail
 
 One line per ticket, in service order; a queued ticket that does not leave says why (`awaiting #12,
 #13`, `zone held by #14 (path)`, see "File zones"; `BLOCKED` and the dropped ticket). The first line
-names the project's **common paths**. Under a ticket with a card, an indented line gives what it
-awaits, its zone, and what the runtime does not understand in it (`UNREADABLE CARD — clé inconnue
+names the project's **common paths**. Under a ticket with a card, an indented line gives each wait
+the kitchen applies to it, with where it was read (`waits for #12 — read from the card`, #3763; `awaiting:
+nothing` when nothing holds it), its zone, and what the runtime does not understand in it (`UNREADABLE CARD — clé inconnue
 « budget »`, French as the card reader writes it).
 
 ### Removing a ticket from the rail

@@ -64,11 +64,11 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
     `#14  queued  -  awaiting #12, #13 — since ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
-    "     card — awaiting: #12, #13 · zone: runtime/src/rail.ts, docs/",
+    "     card — waits for #12 — read from the card; waits for #13 — read from the card · zone: runtime/src/rail.ts, docs/",
     `#15  queued  -  since ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 15`,
     "     card — awaiting: nothing · zone: none",
     `#16  queued  -  awaiting #14 — since ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 16`,
-    "     card — awaiting: #14 · zone: none",
+    "     card — waits for #14 — read from the card · zone: none",
     "     UNREADABLE CARD — clé inconnue « budget » — connues : attend, zone",
     "     UNREADABLE CARD — zone: « /etc » n'est pas un chemin du dépôt",
     `#17  queued  -  since ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 17`,
@@ -110,11 +110,11 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, et l'attente que l
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
     `#12  queued  -  since ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 12`,
     `#14  queued  -  awaiting #12 — since ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 14`,
-    "     card — awaiting: #11, #12 · zone: none",
+    "     card — waits for #12 — read from the card · zone: none",
     `#15  queued  -  awaiting #12 — #13 was closed without being served: no longer awaited — since ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 15`,
-    "     card — awaiting: #11, #12, #13 · zone: none",
+    "     card — waits for #12 — read from the card · zone: none",
     `#16  queued  -  since ${JOUR_HORLOGE}T10:00:05.000Z  Ticket 16`,
-    "     card — awaiting: #11 · zone: none",
+    "     card — awaiting: nothing · zone: none",
   ]);
 });
 
