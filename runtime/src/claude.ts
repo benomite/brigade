@@ -19,7 +19,11 @@ import { CONSIGNE_DES_CHANGEMENTS } from "./validation-design/changements.ts";
 // station qui pousse. Garde-fou de bonne foi, pas une clôture — la clôture est
 // qu'il ne reçoit aucun jeton GitHub, et que la protection de branche du dépôt
 // ne laisse merger que l'identité de la pass (voir `identites.ts`).
-const INTERDITS = ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"];
+// `git merge` n'y est pas : sa consigne lui demande de fusionner la base dans
+// sa branche avant ses gates finales, et une fusion locale ne touche pas la
+// base, que seul un push changerait. Interdite, elle laissait le cook livrer en
+// conflit, et la livraison revenait à un cook entier (#3789).
+const INTERDITS = ["Bash(gh pr merge:*)", "Bash(git push:*)"];
 
 // Les variables par lesquelles `claude` facturerait la cuisine au jeton, hors
 // du forfait Max : le runtime refuse de démarrer si l'une existe.

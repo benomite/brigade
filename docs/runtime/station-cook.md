@@ -122,8 +122,10 @@ The rail does not change: worktree, branch, brief, push, PR, pass. The reviewer 
 
 ### The cook does not deliver, the station harvests
 
-The cook commits in its worktree. `git push`, `git merge` and `gh pr merge` are
-forbidden to it at launch (a good-faith safeguard: it runs in `bypassPermissions`). The real closure:
+The cook commits in its worktree. `git push` and `gh pr merge` are
+forbidden to it at launch (a good-faith safeguard: it runs in `bypassPermissions`). `git merge` is
+not: its instructions ask it to merge the base into its branch before its final gates, and a local
+merge never reaches the base; forbidden, it left the cook delivering in conflict with the base (#3789). The real closure:
 under one identity per role it gets **no GitHub token**, and branch protection lets only the pass's
 identity merge.
 
