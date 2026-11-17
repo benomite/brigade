@@ -181,7 +181,7 @@ try {
       ici === undefined
         ? { refus: "the project declares no station on this machine" }
         : (() => {
-            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils } });
+            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, env });
             const ecrivaine = stationDuDepot({
               nom: ici.nom,
               places,

@@ -17,7 +17,7 @@ const A = "2026-10-16T12:00:00.000Z";
 
 const station = (nom: string, champs: Partial<EtatStation> = {}): EtatStation => ({
   station: nom, engine: "claude", provides: ["code"], maxCooks: 0, cores: 8, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
-  quotaUntil: null, quotaReason: null, disconnectedAt: null, disconnectedReason: null,
+  quotaUntil: null, quotaReason: null, fallbackEngine: null, fallbackQuotaUntil: null, disconnectedAt: null, disconnectedReason: null,
   saturatedAt: null, saturatedResource: null, saturatedObserved: null, saturatedLimit: null, saturatedCauses: [],
   heldAt: null, heldReason: null, unarbitratedAt: null, unarbitratedReason: null,
   remote: false, seenAt: null, presentSince: null, ordinary: false, sandbox: null,
