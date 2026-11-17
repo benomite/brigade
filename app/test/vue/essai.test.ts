@@ -98,6 +98,15 @@ describe("« try it » sur la carte", () => {
     assert.doesNotMatch(carte(vue, 33).textContent, /try|JSON/i);
   });
 
+  test("la rangée de l'essai n'est pas un point des essais de la cuisine (#1895) : elle ne porte pas la classe « essai »", async () => {
+    const vue = await ouvrir(valable({ 33: { enCours: true }, 34: { echec: { raison: "boom", fin: "" } } }));
+    for (const ticket of [33, 34]) {
+      const classes = carte(vue, ticket).dessous("div").map(({ className }) => className);
+      assert.ok(classes.includes("essai-rangee"), `#${ticket} a sa rangée`);
+      assert.ok(!classes.includes("essai"), `#${ticket} : pas de rond de 8 px`);
+    }
+  });
+
   test("un clic sur « try it » demande l'essai de ce ticket", async () => {
     const vue = await ouvrir(valable());
     (carte(vue, 34).dessous("button").find(({ textContent }) => textContent === "try it") ?? assert.fail("pas de bouton")).click();
