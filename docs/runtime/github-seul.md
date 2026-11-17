@@ -148,7 +148,9 @@ base, the stale-branch pruning).
   writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
   the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
   taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
-  and is taken as is (`runtime/src/tests-acceptation/`).
+  and is taken as is (`runtime/src/tests-acceptation/`). The app's rail shows a ticket labelled `tests-written` and not
+  yet taken as `tests written`, in the On the rail column, and counts it apart from `queued` (`app/src/vue/rail/github.ts`).
+  A station asked for the step whose clone cannot run git says the step is off.
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a

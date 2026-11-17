@@ -188,3 +188,12 @@ test("while the manager writes the tests, the ticket's new branch is in the clon
   await ouverte.calme();
   assert.equal(cooks.length, 1);
 });
+
+test("a station whose clone cannot run git says the 'tests written' step is off, rather than taking tickets silently", (t) => {
+  const lieux = depotGit(t);
+  const { lancerGit: _sansGit, ...depot } = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
+  const avertissements: string[] = [];
+  const ouverte = stationDuDepot({ ...STATION_DU_DEPOT, base: BASE, github: fauxClient(new FauxGitHub()), depot, testsAcceptation: () => ({ model: "opus", effort: "medium" }), flux: repertoireTemporaire(t), avertir: (texte) => void avertissements.push(texte) });
+  assert.ok(!("refus" in ouverte));
+  assert.ok(avertissements.some((texte) => texte.includes("the `tests written` step is off")), avertissements.join("\n"));
+});

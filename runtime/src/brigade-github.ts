@@ -3309,6 +3309,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // station ne la refait pas sur la base, il se prend tel quel.
   const calibrageDesTests = options.testsAcceptation;
   const lancerGitDesTests = depot.lancerGit;
+  // Demandée sans git pour la commiter, l'étape ne garde pas la prise : la station le dit, plutôt que de prendre sans tests.
+  if (calibrageDesTests !== undefined && lancerGitDesTests === undefined) avertir("brigade : the `tests written` step is off: this station's clone cannot run git, so its tickets are taken without frozen acceptance tests");
   const testsAcceptation =
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
