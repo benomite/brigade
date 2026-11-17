@@ -14,7 +14,7 @@ import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
 import { demanderAvecRelance } from "./manager/decoupage-illisible.ts";
 import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, joindre, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, type Decoupe } from "./decouper.ts";
-import { avecDiagramme, diagrammeDEpique, entreeDuDiagramme } from "./diagramme-epique.ts";
+import { avecDiagramme, diagrammeDEpique, entreeDuDiagramme, type RelationDiagramme, type TicketDiagramme } from "./diagramme-epique.ts";
 import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
@@ -408,7 +408,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
         // demande : une ligne `- [ ] #<ticket>`, cochée quand il est servi (#3479).
         const liste = avecTaches(rendreListe(epic.number, lignes), lignes);
         // Et le diagramme de ses tickets, rafraîchi avec elle (#3770).
-        const { tickets, relations } = entreeDuDiagramme(lignes, connu?.tickets ?? [], ticketsDEpique(base, epic.number));
+        const { tickets, relations }: { tickets: TicketDiagramme[]; relations: RelationDiagramme[] } = entreeDuDiagramme(lignes, connu?.tickets ?? [], ticketsDEpique(base, epic.number));
         const diagramme = diagrammeDEpique(tickets, relations);
         const reecrit = (corps: string) => avecDiagramme(avecListe(corps, liste), diagramme);
         const bloc = `${liste}\n${diagramme}`;
