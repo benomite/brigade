@@ -658,6 +658,8 @@ function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
     ...(lu.fournit === undefined ? {} : { fournit: (Array.isArray(lu.fournit) ? lu.fournit : refuser(`${champ}.fournit`, "a list")).map((capacite: unknown, rang) => texte(capacite, `${champ}.fournit[${rang}]`)) }),
     ...(lu.presente === undefined ? {} : { presente: booleen(lu.presente, `${champ}.presente`) }),
     ...(lu.vueLe === undefined ? {} : { vueLe: ouRien(lu.vueLe, `${champ}.vueLe`, heure) }),
+    // Son moteur (#3746), passé tel quel : la vue le lit, et un état mal formé n'y dit rien sans rendre `facts` illisible.
+    ...(lu.engine === undefined ? {} : { engine: lu.engine }),
   };
 }
 

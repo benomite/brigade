@@ -187,7 +187,13 @@ export type FaitStation =
   // Écrit une fois par reprise, pas à chaque worktree préparé.
   | { type: "worktree.prepared"; payload: { station: string } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
-  | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
+  // `engine` : le moteur de repli de la station, quand c'est son quota à lui
+  // qui est épuisé (#3745) ; absent, c'est celui du moteur principal.
+  | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null; engine?: string } }
+  // Le moteur de repli de la station (`BRIGADE_FALLBACK_ENGINE` de sa ligne de
+  // projet), ou null si elle n'en a pas : ses cooks y partent tant que le quota
+  // du principal est épuisé (#3745). Écrit à son démarrage, quand il change.
+  | { type: "station.fallback"; payload: { station: string; engine: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le
   // « reprendre » du chef. `run` : le cook qui l'a révélé, s'il y en a un.
   | { type: "station.disconnected"; payload: { station: string; reason: string; run: string | null } }
