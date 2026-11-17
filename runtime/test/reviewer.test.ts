@@ -67,12 +67,13 @@ test("avec ses critères d'acceptation, le reviewer ne lit du ticket qu'eux et l
 
 test("seules les catégories nommées bloquent : la consigne les nomme, et tout le reste est un conseil (#3504)", () => {
   const consigne = consigneDeRelecture(MISSION);
-  for (const categorie of ["critere-non-tenu", "securite", "perte-de-donnees", "code-non-atteint"]) assert.match(consigne, new RegExp(`  - \`${categorie}\` — `), categorie);
+  for (const categorie of ["critere-non-tenu", "securite", "perte-de-donnees", "code-non-atteint", "diagramme-faux"]) assert.match(consigne, new RegExp(`  - \`${categorie}\` — `), categorie);
   assert.match(consigne, /"gravite": "bloquant", "categorie": "critere-non-tenu"/);
   assert.match(consigne, /Sans elle, ou hors de cette liste, il est posté sur la PR comme un conseil, et ne renvoie rien\./);
   assert.match(consigne, /`remarque` — tout le reste, même un bug ou un test qui ne teste rien qui ne casse aucun critère : un conseil, posté sur la PR/);
   // Sans diff, rien n'est exporté : pas de `code-non-atteint`.
   assert.doesNotMatch(consigneDeRelecture({ ...MISSION, diff: null }), /  - `code-non-atteint`/);
+  assert.doesNotMatch(consigneDeRelecture({ ...MISSION, diff: null }), /  - `diagramme-faux`/);
 });
 
 test("un constat bloquant hors des catégories nommées est lu comme un conseil : il ne rend pas la relecture rouge ; dans une catégorie, il la rend rouge et la nomme (#3504)", () => {
