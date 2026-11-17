@@ -449,8 +449,9 @@ describe("le monospace est une information, pas un style", () => {
 
 describe("rien de ce qui est au parking n'apparaît", () => {
   // Ce que l'ancienne maquette dessinait sans qu'on le construise ; les planches du 2026-11-08 (#2907)
-  // ne le dessinent plus. Les cook profiles et le carnet en sont sortis avec l'épique #1033, qui les construit.
-  const PARKING = /codex|openweight|preprod|mac\/chrome|chrome-connect|revue-humaine|accès-prod|depuis ton mac|toutes les brigades|expire dans|<progress|<meter|progressbar|jauge|\bcommis\b|thème clair|prefers-color-scheme|light-dark\(/i;
+  // ne le dessinent plus. Les cook profiles et le carnet en sont sortis avec l'épique #1033, qui les construit ; Codex, avec
+  // l'épique #3518 (#3746), qui en fait un moteur d'une station.
+  const PARKING = /openweight|preprod|mac\/chrome|chrome-connect|revue-humaine|accès-prod|depuis ton mac|toutes les brigades|expire dans|<progress|<meter|progressbar|jauge|\bcommis\b|thème clair|prefers-color-scheme|light-dark\(/i;
 
   test("ni dans les fichiers de la vue, ni dans ce qu'elle pose", async () => {
     for (const fichier of fichiers) assert.doesNotMatch(lire(fichier), PARKING, fichier);

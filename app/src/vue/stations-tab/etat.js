@@ -16,6 +16,7 @@
 import { dureeEnClair } from "../projet/delai.js";
 import { CET_ORDINATEUR } from "../lexique.js";
 import { RETENUE } from "../stations-du-compte.js";
+import { statutLu } from "../moteur/moteurs.js";
 
 /** @typedef {import("../../stations/stations.ts").StationVue} StationVue */
 /** @typedef {import("../../projets/projets.ts").DemenagementEnCours} DemenagementEnCours */
@@ -33,8 +34,8 @@ import { RETENUE } from "../stations-du-compte.js";
  * Une station qui sert le projet, telle que sa carte la montre : son état et ses mots (`dit`) ; `note` : ce qui la retient
  * encore — sa machine pleine, la limite de GitHub, son refus et sa raison. `cooks`, `agents` : ce qu'elle tient du projet à
  * l'instant. `prise` : le nom sous lequel sa cuisson la nomme (`<machine>/claude`), quand elle la nomme — celui de sa
- * déclaration et de son plafond.
- * @typedef {{ id: string, nom: string, prise?: string, ici: boolean, sorte: Sorte, etat: EtatDeStation, dit: string, note?: string, cooks: Cook[], agents: AgentDeStation[] }} Servante
+ * déclaration et de son plafond. `moteur` : l'état de son moteur, tel que sa ligne de cuisson le publie (ticket 3746).
+ * @typedef {{ id: string, nom: string, prise?: string, ici: boolean, sorte: Sorte, etat: EtatDeStation, dit: string, note?: string, cooks: Cook[], agents: AgentDeStation[], moteur?: import("../moteur/moteurs.js").Statut }} Servante
  */
 /**
  * Un déménagement en route : d'où, vers où, depuis quand (`depuis`, en ms), son étape, ce que la station en dit (`dit`), et
@@ -135,6 +136,7 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
     // (ticket 2443), jusqu'à quand — elle sert ses projets, son signe de vie attend la fin de la limite. Refusant le projet,
     // elle dit pourquoi.
     const note = refuse ? ligne.dit : horsLigne ? "" : ligne.retenue !== undefined ? RETENUE(ligne.retenue) : ligne.etat === "saturated" ? ligne.dit : "";
+    const moteur = statutLu(ligne.engine);
     servantes.push({
       id: appairee?.id ?? "",
       nom: appairee?.nom ?? ligne.station,
@@ -144,6 +146,7 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
       etat: refuse ? "refuse" : horsLigne ? "hors-ligne" : "en-ligne",
       dit: refuse ? REFUSANT : !horsLigne ? "online" : appairee?.etat === "hors-ligne" ? appairee.dit : horsLigneDe(ligne, lu),
       ...(note === "" ? {} : { note }),
+      ...(moteur === undefined ? {} : { moteur }),
       cooks: ligne.cooks,
       agents: ligne.agents,
     });

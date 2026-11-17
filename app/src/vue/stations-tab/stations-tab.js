@@ -24,6 +24,7 @@ import { poserLeQuota } from "../stations-quota/stations-quota.js";
 import { poserLesChoix } from "./choix.js";
 import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
 import { ligneDeVeille, veilleTenue } from "../veille-machine/veille-machine.js";
+import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
 
 /** @typedef {import("../composants/poele/poele.js").Fabrique} Fabrique */
 /** @typedef {import("./etat.js").Haut} Haut */
@@ -51,6 +52,8 @@ import { ligneDeVeille, veilleTenue } from "../veille-machine/veille-machine.js"
  *                 (stations-quota/, ticket 3483) ; absent, pas de quota affiché.
  *   `veille`      ce que la station de cet ordinateur écrit de sa veille (veille-machine/, ticket 3642) : sa carte dit qu'elle
  *                 garde l'ordinateur éveillé tant que c'est vrai.
+ *   `moteurIci`   le moteur que la station de cet ordinateur a choisi dans ses réglages (moteur/, ticket 3746) : sa carte le
+ *                 dit quand le runtime n'en publie rien.
  *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163) ; et,
  *                 quand une station le sert déjà, « Add a station » (ticket 3402).
  * @typedef {{
@@ -73,6 +76,7 @@ import { ligneDeVeille, veilleTenue } from "../veille-machine/veille-machine.js"
  *   quiCuit?: boolean,
  *   quota?: import("../stations-quota/stations-quota.js").QuotaGithub,
  *   veille?: import("../veille-machine/veille-machine.js").Veille,
+ *   moteurIci?: string,
  * }} VuDeLOnglet
  */
 /**
@@ -260,6 +264,8 @@ function carte(doc, vu, station, gestes) {
   const ceQuElleEst = cree(doc, "p", CE_QU_ELLE_EST(vu.poste)[station.sorte]);
   ceQuElleEst.className = "ce-qu-elle-est";
   racine.append(tete, ceQuElleEst);
+  // Son moteur, et quand ses cooks cuisent sur le secours, sur lequel et jusqu'à quand (moteur/, ticket 3746).
+  racine.append(...lignesDuMoteur(doc, { ...(station.moteur === undefined ? {} : { statut: station.moteur }), ...(station.ici && vu.moteurIci !== undefined ? { choisi: vu.moteurIci } : {}) }));
   if (station.ici && veilleTenue(vu.veille)) racine.append(ligneDeVeille(doc));
   // Ce qu'elle tient du projet : les tickets de ses cooks, ce qu'elle fait tourner d'autre ; rien, elle est au repos.
   const tient = station.cooks.length + station.agents.length > 0;

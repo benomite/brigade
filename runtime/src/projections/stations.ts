@@ -28,6 +28,10 @@ export type EtatStation = {
   // Non-null: the quota is exhausted until that time, the connection has expired.
   quotaUntil: string | null;
   quotaReason: string | null;
+  // Its fallback engine, or null if it has none, and until when that engine's
+  // own quota is exhausted (#3745).
+  fallbackEngine: string | null;
+  fallbackQuotaUntil: string | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
   // Non-null: the machine can take no more since that instant, and what it
@@ -210,6 +214,8 @@ export const stations = definirProjection<Ecoutes>({
       announced_at        TEXT NOT NULL,
       quota_until         TEXT,
       quota_reason        TEXT,
+      fallback_engine     TEXT,
+      fallback_quota_until TEXT,
       disconnected_at     TEXT,
       disconnected_reason TEXT,
       saturated_at        TEXT,
@@ -391,8 +397,17 @@ export const stations = definirProjection<Ecoutes>({
     "station.arbitrated": (base, { at, payload }) => {
       modifier(base, payload.station, at, "unarbitrated_at = NULL, unarbitrated_reason = NULL");
     },
+    // The quota of its fallback engine is that engine's own: the main one's stays as it was.
     "station.86": (base, { at, payload }) => {
+      if (texte(payload.engine) && base.lire<{ e: string | null }>("SELECT fallback_engine AS e FROM stations WHERE station = ?", String(payload.station))[0]?.e === payload.engine) {
+        modifier(base, payload.station, at, "fallback_quota_until = ?", texteOuRien(payload.until));
+        return;
+      }
       modifier(base, payload.station, at, "quota_until = ?, quota_reason = ?", texteOuRien(payload.until), texteOuRien(payload.reason));
+    },
+    // Another fallback engine starts with no exhausted quota.
+    "station.fallback": (base, { at, payload }) => {
+      modifier(base, payload.station, at, "fallback_engine = ?, fallback_quota_until = NULL", texteOuRien(payload.engine));
     },
     "station.disconnected": (base, { at, payload }) => {
       modifier(base, payload.station, at, "disconnected_at = ?, disconnected_reason = ?", at, texteOuRien(payload.reason));
@@ -588,6 +603,7 @@ export function etatStation(base: Base, station: string): EtatStation | null {
   const ligne = base.lire<LigneDeStation>(
     `SELECT station, engine, provides, max_cooks AS maxCooks, cores, cap, announced_at AS announcedAt,
             quota_until AS quotaUntil, quota_reason AS quotaReason,
+            fallback_engine AS fallbackEngine, fallback_quota_until AS fallbackQuotaUntil,
             disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
             saturated_at AS saturatedAt, saturated_resource AS saturatedResource,
             saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit, saturated_causes AS saturatedCauses,

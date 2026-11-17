@@ -30,6 +30,7 @@ import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
+import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
 import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
 
@@ -73,6 +74,8 @@ export type OptionsDesGardes = {
   machine?: { lire: () => Machine; seuils: Seuils };
   maintenant?: () => Date;
   avertir?: (message: string) => void;
+  // L'environnement de la station, où se lit son moteur de repli (#3745).
+  env?: Record<string, string | undefined>;
 };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -98,6 +101,24 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const noter = (fait: FaitStation) => journal.ajouter({ project: projet, ticket: null, author: "runtime", ...fait });
+
+  // Le moteur de chaque cook : le principal, ou le repli tant que le quota du
+  // principal est épuisé (#3745). Le repli et le quota de chacun se lisent au
+  // journal (`station.fallback`, `station.86`).
+  const moteurs = moteursDeLaStation(station, options.env ?? {});
+  if (moteurs.refus !== null) avertir(`brigade : ${moteurs.refus}`);
+  const { engine, fallbackEngine } = moteurs;
+  if ((etatStation(base, station)?.fallbackEngine ?? null) !== fallbackEngine) noter({ type: "station.fallback", payload: { station, engine: fallbackEngine } });
+  // Ce que la station a dit de son moteur : elle le redit quand il change.
+  let moteurDit = direLeStatut({ station, engine, fallbackEngine }, { engine, fallback: false, blocked: false, blockedUntil: null });
+  const surQuelMoteur = () => {
+    const etat = etatStation(base, station);
+    const statut = activeEngine({ station, engine, fallbackEngine, quotaUntil: etat?.quotaUntil ?? null, fallbackQuotaUntil: etat?.fallbackQuotaUntil ?? null }, maintenant());
+    const dit = direLeStatut({ station, engine, fallbackEngine }, statut);
+    if (dit !== moteurDit) avertir(`brigade : ${dit}`);
+    moteurDit = dit;
+    return statut;
+  };
 
   // Ce qui retient la station, tel que le journal le dit (`station.held`) :
   // écrit quand la raison change, pas à chaque prise.
@@ -189,8 +210,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     const etat = etatDesGardeFous(base);
     if (etat.stoppedAt !== null) return "stopped";
     if (etat.breakerOpenedAt !== null) return "breaker";
-    const quota = etatStation(base, station)?.quotaUntil ?? null;
-    if (quota !== null && quota > maintenant().toISOString()) return "quota";
+    if (surQuelMoteur().blocked) return "quota";
     if (machineAcourt(cooks)) return "machine";
     if (arbitre === null) return null;
     const reponse = await echanger(cooks, true);
@@ -199,12 +219,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   };
 
   // Un cook a buté sur le quota du compte : épuisé pour lui, il l'est pour
-  // tous. Une heure de retour déjà passée ne retiendrait rien.
-  const noterLeQuota = (lecture: ReturnType<typeof lireFlux>) => {
+  // tous ceux de son moteur. Une heure de retour déjà passée ne retiendrait rien.
+  const noterLeQuota = (lecture: ReturnType<typeof lireFlux>, moteur: string) => {
     const instant = maintenant();
     const annonce = lecture.quota?.retour ?? null;
     const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
-    noter({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: lecture.quota?.fenetre ?? null } });
+    noter({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: lecture.quota?.fenetre ?? null, ...(moteur === engine ? {} : { engine: moteur }) } });
   };
 
   const lancer: Lancer = ({ commande, args, entree, cwd, env, flux: demande, ticket }) => {
@@ -213,6 +233,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     const fluxDe = (essai: string) => join(repertoireEtat, "runs", `${essai}.jsonl`);
     const flux = fluxDe(run);
     const lu = (essai: string) => lireFlux(existsSync(fluxDe(essai)) ? readFileSync(fluxDe(essai), "utf8") : "");
+    // Choisi au lancement : un cook garde son moteur jusqu'à sa fin. Retenue, la
+    // station lance ce qu'on lui demande encore (une relecture) sur le principal.
+    const moteur = surQuelMoteur().engine ?? engine;
     try {
       const lance = garde.lancer({
         ticket: null,
@@ -223,11 +246,11 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
         args,
         ...(entree === undefined ? {} : { entree }),
         cwd,
-        env,
+        env: { ...env, [VARIABLE_DU_MOTEUR]: moteur },
         juger: (fin, essai) => {
           const lecture = lu(essai);
           const conclusion = verdict(lecture, fin.code);
-          if (conclusion === "86") noterLeQuota(lecture);
+          if (conclusion === "86") noterLeQuota(lecture, moteur);
           return jugerDuFlux(conclusion);
         },
       });
