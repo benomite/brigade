@@ -32,8 +32,20 @@ that ticket was split (its body carries the list of its tickets), the wait goes 
 the split, and the skip line names them, as does the card's line in `status`. The phrases are read
 broadly: a sentence like "after #12" or "with the title of #5" that is not a dependency holds the ticket
 too, until that ticket is closed — and a ticket that is never served (left off the rail, or
-`blocked-on-human`) holds it for good. The skip line is the signal: rewrite the sentence, or close the
+`blocked-on-human`) holds it until the manager reviews the wait, an hour later (below). The skip line is the signal: rewrite the sentence, or close the
 awaited ticket, to release it.
+
+**A wait held more than an hour goes to the manager, once (#3764).** A ticket on the rail held by a wait
+— its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket set
+aside — is counted from the first turn that saw it held. Past an hour, the station gives the wait to the
+manager, read-only in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the
+manager lifts it, the issue says so in one line, and a cook takes the ticket at the next turn. A real one:
+it keeps it, and the issue says why. Only a product decision goes to the chef, as a question under
+`blocked-on-human`; once the chef has answered and removed the label, the manager reads the wait again
+with that answer. Whatever the outcome, the issue then carries a line naming what the ticket waits for and
+who decided it (the station, the manager or the chef) — also when the manager gives no readable answer, or
+the station has no manager. That line carries a mark: the same wait does not go back to the manager, not
+even after a restart.
 
 **Count before you turn it on.** `manager -- backlog` says in one line, for example `12 open issues, of
 which 3 carry blocked-on-human — read just now on GitHub`, what turning on commits to. It is **a read**
