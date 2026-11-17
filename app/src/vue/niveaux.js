@@ -46,6 +46,8 @@ export const NIVEAUX = {
   // Ce que la station donne à chaque projet qu'elle sert (ticket 2645) : sa part de cooks.
   "station-part-de-cooks": "machine",
   github: "machine",
+  // Le moteur de ses cooks, son secours et sa clé d'API (ticket 3746, moteur/).
+  moteur: "machine",
   // Toi : les couleurs de chaque projet, le sigle de sa case dans la barre, et l'état de la cuisine dans la barre des
   // menus (ticket 3269). L'app n'a aucune autre préférence d'affichage (ni thème, ni densité, ni taille de police) : quand
   // elle en aura une, sa ligne se posera ici, « you », avec son étiquette.

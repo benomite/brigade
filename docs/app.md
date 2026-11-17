@@ -732,6 +732,12 @@ goes to has its card, `starting`, without gestures. Each card:
   on it`), and its state now: `online` (green), `offline for 3 h`, `stopped by you, for 12 min`, `not seen by the kitchen`,
   `refusing it`, `not signed in yet`, `starting`; beside it, what still holds it back (`its machine has no room`, `held by
   GitHub's limit until 14:37`, a refusal's reason);
+- its engine (#3746, `app/src/vue/moteur/MoteurDeLaCarte.js`): `engine: Claude subscription`, `engine: Claude API key` or
+  `engine: Codex` — the engine the runtime publishes for the station in `facts` (its `engine` field: `chosen`, `active`,
+  `onFallback`, `blockedUntil`), or, for this computer's station while the runtime says nothing, the engine its settings
+  keep (`Claude subscription` when none is kept). When its cooks run on the fallback engine, a yellow line says on which,
+  why and until when: `cooking on the API key: the subscription's cap is reached until Oct 13, 03:00 PM` (no date when
+  none is readable). Nothing read, no engine line;
 - what it holds for this project now: one line per cook (its ticket, its title) and per agent (the pass, the manager…), the
   pan at the end of each while it cooks (#2984) — or `idle`;
 - **`Move to another station`** and **`Stop cooking here`**. Move opens the station choice under the top line (below);
@@ -2180,7 +2186,7 @@ while the station's declaration is not read; a declared station's row has the nu
 load of 19.4 for at most 12`) and that lowering the cap makes the project run fewer cooks, the machine's load not dropping right away.
 "‹ All projects" takes you back to the home screen, like the **T** square.
 Under its faults, its sections (#2641, epic #2497), in this order, each under its heading: Identity, Connections,
-Folders and sandbox, Capabilities, Cooks. The shell is `app/src/vue/station/page/StationPage.js`; each section is a
+Folders and sandbox, Capabilities, Cooks, Engine. The shell is `app/src/vue/station/page/StationPage.js`; each section is a
 module of `app/src/vue/station/page/sections/` that exports `poserSection(doc, context)`, loaded once its file name is in
 `LIVREES` — until then its heading says `not shown yet`. A section that fails to load or to render says `this section is
 unavailable`, its detail on hover; the others render. The page knows whether it is this computer's station (the local
@@ -2201,6 +2207,17 @@ kept in `station-reglages.json` beside the app file (`app/src/reglages-de-la-sta
 read that file yet: it is the app's side of the setting (each setting's hover says so). The sandbox state is read from
 the projects' onboarding: off once a project cooked here continued without it. On another station the section shows
 "not available for this station" — the app reads nothing of a station it does not run. Screens: `docs/captures/2644/`.
+Engine (#3746, epic #3518, `app/src/vue/moteur/SectionDuMoteur.js`, loaded from `moteur/` by the shell): what the
+station's cooks run on — a list of exactly three engines, `Claude subscription` (the default), `Claude API key`, `Codex` —
+and the `fallback engine`: `none`, or one of the two others. Choosing as engine the current fallback clears the fallback
+in the same change. When the engine or the fallback is `Claude API key`, a `Claude API key` row has a masked field; once
+saved the key never comes back to the screen — the row says `•••••••• saved`, the field is empty (`paste a new key to
+replace it`). Each row has the `this computer` mark and applies as soon as it changes. The engine and the fallback are
+kept in `station-reglages.json` as `engine` and `fallbackEngine` (values `claude-subscription`, `claude-api-key`,
+`codex`); the key in its own file beside it, `station-cle-api`, readable only by the account (0600) — the read says only
+whether a key is kept. Like the folders, the station does not read them yet: this is the app's side of the setting.
+An unknown engine in the file reads as `“<value>” — an engine this app does not know`; an unreadable file says so in one
+line. On another station: "not available for this station". Screens: `docs/captures/3746/`.
 
 ```
 box      ●  online · 2 cooks running   ?

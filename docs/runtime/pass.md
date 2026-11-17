@@ -186,7 +186,8 @@ The product rule (#3504): **deterministic checks block, models advise.**
 **What blocks**:
 
 - **The gates** on the merge with the base, **the CI** of the judged commit (above), a conflict with
-  the base, and an added test already green on the base ("Red on main, green on the branch", below).
+  the base, an added test already green on the base ("Red on main, green on the branch", below), and
+  a mutation of a changed line the added tests let through ("Mutations caught", below).
 - **The review, only in a named category.** Each blocking finding names its category
   (`runtime/src/reviewer.ts`, `CATEGORIES_BLOQUANTES`), and the send-back's reason quotes it by name:
 
@@ -243,6 +244,32 @@ alone** (a visual criterion, a doc), or **covered by nothing**. The reviewer rec
 numbered, and says for each which added tests check it and whether it checked it itself by reading;
 only a test the replay proved covers a criterion. An answer that leaves a criterion out is
 unreadable, like any malformed review.
+
+### Mutations caught
+
+The added tests must also catch a change of the code the delivery changes (#3727,
+`runtime/src/passe-mutations/mutations.ts`). Once the replay above is done, and still while the
+reviewer reads, the pass **mutates only the lines the delivery adds or changes** in a JavaScript or
+TypeScript module (never a test, a test helper or the rest of the repository): one mutant per line, the
+first of `===`/`!==`, `==`/`!=`, `&&`/`||`, `<=`/`>=`, ` < `/` > `, `true`/`false`, ` + `/` - ` or a
+unary `!` found outside the line's strings and comments. Each mutant is played against **the frozen
+tests** — the added tests green on the branch — in a throwaway checkout of the base
+(`mutations-<ticket>-<n>`) where the delivery's changed files are copied; a mutant is caught when one
+of them fails.
+
+The mutants run **4 at a time**, under a **time budget of 2 minutes** for the whole step
+(`BUDGET_DES_MUTATIONS_MS`); when it runs out, the running mutants are stopped, and the line says how
+many were not run.
+
+| The mutation step says | What the pass does |
+|---|---|
+| `Mutation check: Y of Y mutations caught` | nothing held back: the review decides |
+| `Mutation check: X of Y mutations caught`, X < Y | **red**: the delivery goes back to its cook, the reason naming the file and line of each surviving mutation |
+| `0 of 0 mutations caught` — no line of code changed (a doc-only delivery) | nothing sent back |
+| mutants but no frozen test, no throwaway checkout, or the time budget ran out | said in the verdict; a mutant not run sends nothing back |
+
+The verdict on the PR ends with that line, then one line per acceptance criterion covered by a proved
+test, per test file: `Criterion <n>, <test file>: X of Y mutations caught`, with the surviving lines.
 
 ### The second judge
 

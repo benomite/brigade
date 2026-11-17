@@ -30,6 +30,9 @@ export type StationDesFaits = {
   vueLe?: string | null;
   // Sur GitHub seul : jusqu'à quand (ISO) la limite de GitHub la retient (#2443) — absent hors limite.
   retenue?: string;
+  // Son moteur (#3746) : le choisi, celui sur lequel elle cuit, si c'est le secours, jusqu'à quand le choisi est bloqué —
+  // tel que le runtime le publie, lu par la vue (vue/moteur/moteurs.js, `statutLu`) ; absent d'un runtime d'avant ce champ.
+  engine?: unknown;
 };
 
 // Ce poste en tête de phrase : « This Mac », « This PC ».

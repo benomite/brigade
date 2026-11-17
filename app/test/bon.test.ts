@@ -207,6 +207,8 @@ const station = (nom: string, remote: boolean): EtatStation => ({
   announcedAt: ilYA(600),
   quotaUntil: null,
   quotaReason: null,
+  fallbackEngine: null,
+  fallbackQuotaUntil: null,
   disconnectedAt: null,
   disconnectedReason: null,
   saturatedAt: null,

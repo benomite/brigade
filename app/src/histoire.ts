@@ -40,7 +40,7 @@ export type Situation = { libelle: string; lignes: string[] } | undefined;
 type Carte = { etat?: string; attendu?: boolean; attend: readonly string[]; dit: readonly { libelle: string; valeur: string }[]; question?: string };
 
 const AU_TRAVAIL = ["pris", "en pass"];
-const EN_ATTENTE = ["en attente", "BLOQUÉ", "WAITING", "86"];
+const EN_ATTENTE = ["en attente", "tests écrits", "BLOQUÉ", "WAITING", "86"];
 const CE_QUI_BLOQUE = ["blocked by", "set aside", "waiting for", "from", "since", "follow-up", "on arrival", "came back"];
 
 export function situation(carte: Carte): Situation {

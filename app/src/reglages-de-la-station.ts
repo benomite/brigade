@@ -2,13 +2,25 @@
 // épique 2497) : un fichier de cette machine, à côté du fichier de l'app, jamais dans un dépôt. Il ne garde que ce que le
 // chef a changé — un dossier, les hôtes qu'il ouvre en plus du socle et de ce que le dépôt déclare ; le reste se lit
 // là où la station le calcule. Le fichier est relu à chaque lecture : ce qui est écrit se montre au rechargement.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, posix, win32 } from "node:path";
+// Il garde aussi le moteur de ses cooks et son secours (#3746, épique 3518) — `engine` et `fallbackEngine`, aux valeurs
+// `claude-subscription`, `claude-api-key` et `codex` ; absents, l'abonnement et aucun. La clé d'API de Claude n'y est pas :
+// elle a son propre fichier à côté, lisible du seul compte (0600), et la lecture dit seulement si elle est gardée — la
+// clé ne repart jamais vers la vue.
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join, posix, win32 } from "node:path";
 
-export type Reglages = { clones: string; worktrees: string; bac: "on" | "off"; hotes: { hote: string; origine: string; ajoute: boolean }[] };
-export type Changement = { clones?: string; worktrees?: string; hotes?: string[] };
+const MOTEURS = ["claude-subscription", "claude-api-key", "codex"] as const;
+type Moteur = (typeof MOTEURS)[number];
+export type Reglages = { clones: string; worktrees: string; bac: "on" | "off"; hotes: { hote: string; origine: string; ajoute: boolean }[]; engine?: string; fallbackEngine: string | null; apiKey: boolean };
+export type Changement = { clones?: string; worktrees?: string; hotes?: string[]; engine?: string; fallbackEngine?: string | null; apiKey?: string };
 export type Refus = { refus: string; detail?: string };
-type Gardes = { clones?: string; worktrees?: string; hotes?: string[] };
+type Gardes = { clones?: string; worktrees?: string; hotes?: string[]; engine?: string; fallbackEngine?: string | null };
+
+// Le fichier de la clé d'API : à côté de celui des réglages.
+const fichierDeLaCle = (fichier: string) => join(dirname(fichier), "station-cle-api");
+const estUnMoteur = (valeur: unknown): valeur is Moteur => MOTEURS.includes(valeur as Moteur);
+// Une clé d'API : un seul mot, de caractères visibles.
+const CLE = /^[\x21-\x7e]{8,512}$/;
 
 export const SOCLE = [
   { hote: "anthropic.com", origine: "Anthropic — the model, through the Max connection" },
@@ -48,6 +60,10 @@ export function lireReglagesDeLaStation(fichier: string, calcules: { clone: stri
     worktrees: gardes.worktrees ?? calcules.worktrees,
     bac: sansBac ? "off" : "on",
     hotes: [...SOCLE.map((h) => ({ ...h, ajoute: false })), ...ajoutes.filter((h) => !SOCLE.some((s) => s.hote === h)).map((hote) => ({ hote, origine: OUVERT_PAR_LE_CHEF, ajoute: true }))],
+    // Le moteur tel qu'il est gardé — un moteur inconnu se montre tel quel, la vue le dit ; absent, rien n'est choisi.
+    ...(typeof gardes.engine === "string" ? { engine: gardes.engine } : {}),
+    fallbackEngine: typeof gardes.fallbackEngine === "string" ? gardes.fallbackEngine : null,
+    apiKey: existsSync(fichierDeLaCle(fichier)),
   };
 }
 
@@ -73,7 +89,25 @@ export function ecrireReglagesDeLaStation(fichier: string, changement: Changemen
     }
     gardes.hotes = propres;
   }
+  // Le moteur et son secours : l'un des trois ; le secours, aucun ou un autre que le moteur.
+  if (changement.engine !== undefined) {
+    if (!estUnMoteur(changement.engine)) return { refus: "nothing was changed: not an engine", detail: `“${String(changement.engine)}”: expected ${MOTEURS.join(", ")}` };
+    gardes.engine = changement.engine;
+  }
+  if (changement.fallbackEngine !== undefined) {
+    if (changement.fallbackEngine !== null && !estUnMoteur(changement.fallbackEngine)) return { refus: "nothing was changed: not an engine", detail: `“${String(changement.fallbackEngine)}”: expected none, or ${MOTEURS.join(", ")}` };
+    gardes.fallbackEngine = changement.fallbackEngine;
+  }
+  if (gardes.fallbackEngine != null && gardes.fallbackEngine === (gardes.engine ?? "claude-subscription")) return { refus: "nothing was changed: the fallback engine must be another engine" };
+  if (changement.apiKey !== undefined && (typeof changement.apiKey !== "string" || !CLE.test(changement.apiKey))) return { refus: "nothing was changed: not an API key", detail: "a key is one word of visible characters, with no space" };
   try {
+    if (changement.apiKey !== undefined) {
+      const cle = fichierDeLaCle(fichier);
+      mkdirSync(dirname(cle), { recursive: true });
+      writeFileSync(`${cle}.tmp`, changement.apiKey, { mode: 0o600 });
+      chmodSync(`${cle}.tmp`, 0o600);
+      renameSync(`${cle}.tmp`, cle);
+    }
     mkdirSync(dirname(fichier), { recursive: true });
     writeFileSync(`${fichier}.tmp`, JSON.stringify(gardes, null, 2));
     renameSync(`${fichier}.tmp`, fichier);
