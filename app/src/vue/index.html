@@ -39,6 +39,7 @@
     <link rel="stylesheet" href="carte-attente/carte-attente.css" />
     <link rel="stylesheet" href="carte-ticket/carte-ticket.css" />
     <link rel="stylesheet" href="fiche-tests/fiche-tests.css" />
+    <link rel="stylesheet" href="fiche-diagramme/fiche-diagramme.css" />
     <link rel="stylesheet" href="vue.css" />
     <link rel="stylesheet" href="settings-humans/humains.css" />
     <link rel="stylesheet" href="recurrents/recurrents.css" />
@@ -69,6 +70,8 @@
         }
       }
     </script>
+    <!-- Mermaid, qui rend le diagramme d'une fiche (ticket 3773) : un seul fichier, qui pose `globalThis.mermaid`. -->
+    <script defer src="../../node_modules/mermaid/dist/mermaid.min.js"></script>
     <script type="module" src="vue.js"></script>
   </head>
   <body>
