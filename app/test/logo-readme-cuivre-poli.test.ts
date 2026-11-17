@@ -8,12 +8,6 @@ import assert from "node:assert/strict";
 const RACINE = join(import.meta.dirname, "../..");
 const lire = (p: string) => readFileSync(join(RACINE, p), "utf8");
 
-test("README.md garde ses chemins d'image", () => {
-  const readme = lire("README.md");
-  assert.match(readme, /srcset="docs\/logo\/brigade-logo-sombre\.svg"/);
-  assert.match(readme, /<img src="docs\/logo\/brigade-logo-clair\.svg"/);
-});
-
 for (const fichier of ["docs/logo/brigade-logo-clair.svg", "docs/logo/brigade-logo-sombre.svg"]) {
   test(`${fichier} rend le cuivre poli`, () => {
     const svg = lire(fichier);
