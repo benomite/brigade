@@ -2985,6 +2985,12 @@ main > header,
 .chers-cout .avec-part .ticket-cher {
   grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 4.5em 6em;
 }
+.chers-cout .avec-prix .ticket-cher {
+  grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 5em 6em;
+}
+.chers-cout .avec-part.avec-prix .ticket-cher {
+  grid-template-columns: 8px 4.5em minmax(0, 1fr) auto 5em 4.5em 6em;
+}
 .chers-cout .ticket-cher:hover {
   border-color: var(--trait-fort);
 }
@@ -3001,7 +3007,7 @@ main > header,
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.chers-cout :is(.tokens, .part, .essais) {
+.chers-cout :is(.tokens, .prix, .part, .essais) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -4166,4 +4172,21 @@ main > header {
 }
 #rail .station-reglee .gestes button {
   white-space: nowrap;
+}
+
+/* Le moteur d'une livraison, en tête de ce que la file en dit sur sa fiche (livraison-moteur/). */
+.moteur-livraison {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2);
+  align-items: baseline;
+  margin: 0 0 var(--pas-2);
+  color: var(--discret);
+}
+.moteur-livraison strong {
+  color: var(--texte);
+  font-weight: 600;
+}
+.moteur-livraison .prix {
+  font-variant-numeric: tabular-nums;
 }

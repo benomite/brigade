@@ -13,6 +13,7 @@
 
 import { poserAlerte, seuilsDesProjets } from "./seuils.js";
 import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
+import { poserPrix } from "../livraison-moteur/affichage.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { debutDeSemaine, INDISPONIBLE, partDite, pondere, quotaLu } from "./part.js";
 
@@ -135,16 +136,22 @@ function cree(doc, balise, texte) {
 /** @param {Fabrique} doc @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures
  *  @param {(projet: string, ticket: number) => string | undefined} titres
  *  @param {(projet: string, ticket: number, bouton: any) => void} ouvrir
- *  @param {unknown} [quotaBrut] @param {Date} [maintenant] */
-export function poserChers(doc, projets, lectures, titres, ouvrir, quotaBrut, maintenant = new Date()) {
+ *  @param {unknown} [quotaBrut] @param {Date} [maintenant]
+ *  @param {(projet: string, ticket: number) => import("../livraison-moteur/affichage.js").MoteurDeLivraison | undefined} [moteurs] le moteur d'une livraison, et son prix s'il en a un */
+export function poserChers(doc, projets, lectures, titres, ouvrir, quotaBrut, maintenant = new Date(), moteurs = () => undefined) {
   const quota = quotaLu(quotaBrut);
   const bloc = cree(doc, "div");
   bloc.className = "chers-cout";
   const liste = cree(doc, "ol");
   // Avec un quota lisible, chaque ligne a une colonne de plus : sa part.
   liste.className = "chers";
-  if (partDite(quota, 0) !== null) liste.className = "chers avec-part";
   const chers = plusChers(projets, lectures, quota);
+  const prix = new Map(chers.map(({ projet, ticket }) => [`${projet.nom}#${ticket}`, poserPrix(doc, moteurs(projet.nom, ticket))]));
+  const avecPrix = [...prix.values()].some(({ textContent }) => textContent !== "");
+  liste.className = "chers";
+  if (partDite(quota, 0) !== null) liste.className = "chers avec-part";
+  if (avecPrix) liste.className = "chers avec-prix";
+  if (avecPrix && partDite(quota, 0) !== null) liste.className = "chers avec-part avec-prix";
   // La semaine se dit même sans ticket cher à lister ; sans quota, la ligne unique remplace toute part.
   const semaine = coutDeLaSemaine(projets, lectures, quota, maintenant);
   const partDeLaSemaine = partDite(quota, semaine.ponderes);
@@ -183,7 +190,7 @@ export function poserChers(doc, projets, lectures, titres, ouvrir, quotaBrut, ma
     ligne.className = "ticket-cher";
     if (depasse !== undefined && ticket === premier?.ticket && projet === premier.projet) ligne.className = "ticket-cher depasse";
     ligne.title = `open the sheet of #${ticket} · ${projet.nom}`;
-    ligne.append(teinte, numero, dit, cout, ...(part === undefined ? [] : [part]), essai);
+    ligne.append(teinte, numero, dit, cout, ...(part === undefined ? [] : [part]), ...(avecPrix ? [/** @type {any} */ (prix.get(`${projet.nom}#${ticket}`))] : []), essai);
     ligne.addEventListener("click", () => ouvrir(projet.nom, ticket, ligne));
     const item = cree(doc, "li");
     item.append(ligne);

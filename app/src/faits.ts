@@ -24,6 +24,7 @@ import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { apprentissageDe, apprentissageInforme, apprentissageLu, type Apprentissage, type ApprentissageLu } from "./apprentissage.ts";
+import { moteurLu, type MoteurDeLivraison } from "./vue/livraison-moteur/moteur.ts";
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { agentsDe, cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
@@ -311,7 +312,7 @@ export type Attendu = { ticket: number; titre: string; url: string | null; chef?
 // d'avant ce champ.
 // `captures` : pour un ticket d'interface, l'écran avant et après de sa livraison (captures.ts) —
 // absentes pour tout autre ticket, et d'un runtime d'avant ce champ.
-export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture?: Relecture | null; captures?: CapturesLues; illisible?: string };
+export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture?: Relecture | null; moteur?: MoteurDeLivraison; captures?: CapturesLues; illisible?: string };
 // Le résumé du reviewer et ses constats, dans ses mots (runtime/src/reviewer.ts).
 export type Constat = { gravite: string; fichier: string | null; constat: string };
 export type Relecture = { resume: string; constats: Constat[] };
@@ -489,7 +490,7 @@ export type Faits = {
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -602,6 +603,10 @@ const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
 const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
 const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "a time"));
+const moteurDe = (lu: Record<string, unknown>, champ: string): { moteur?: MoteurDeLivraison } => {
+  const moteur = moteurLu(lu.engine, lu.costUsd, champ, refuser);
+  return moteur === undefined ? {} : { moteur };
+};
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
 const textesLus = (valeur: unknown, champ: string): string[] => (Array.isArray(valeur) ? valeur.map((un, rang) => texte(un, `${champ}[${rang}]`)) : refuser(champ, "a list"));
 const numerosLus = (valeur: unknown, champ: string): number[] => (Array.isArray(valeur) ? valeur.map((un, rang) => entier(un, `${champ}[${rang}]`)) : refuser(champ, "a list"));
@@ -929,6 +934,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
                 station: ouRien(lu.station, `${lequel}.station`, texte),
                 pr: ouRien(lu.pr, `${lequel}.pr`, texte),
                 ...(lu.relecture === undefined ? {} : { relecture: ouRien(lu.relecture, `${lequel}.relecture`, comprendreRelecture) }),
+                ...moteurDe(lu, lequel),
                 ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
               }), ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, livre: heure(racine.lu, "lu"), station: null, pr: null, illisible }));
             }),
@@ -1387,7 +1393,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   // rail s'il n'en a pas ; quand il a été livré, à l'horloge de la box ; qui l'a
   // cuisiné ; sa PR mergée ; ce qui a été livré, dans les mots de la relecture.
   // Ce que la file n'en dit pas est écrit.
-  const livre = ({ ticket, titre, url, livre: quand, station, pr, relecture, captures, illisible }: Livre): Carte => {
+  const livre = ({ ticket, titre, url, livre: quand, station, pr, relecture, moteur, captures, illisible }: Livre): Carte => {
     const connu = connus.get(ticket);
     const adresse = url ?? connu?.url;
     const nomme = titre === "" ? connu?.titre : titre;
@@ -1401,6 +1407,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       attend: [],
       ...(pr === null ? {} : { pr: ouvrable(pr) }),
       livraison: livraison(relecture),
+      ...(moteur === undefined ? {} : { moteur }),
       ...(illisible === undefined ? { essayable: true as const } : {}),
       ...(captures === undefined ? {} : { captures: capturesDeCarte(captures) }),
       dit: [
