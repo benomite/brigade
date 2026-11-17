@@ -74,15 +74,15 @@ export function argumentsReviewer(texte: string, calibrage: Calibrage): string[]
 // octets — un caractère accentué en pèse deux —, au-delà duquel il est coupé,
 // et le dit. Leur somme tient sous `CONSIGNE_MAX` ; ce qui la dépasserait
 // malgré eux ne se lance pas.
-const CORPS_MAX = 16_000;
+export const CORPS_MAX = 16_000;
 const COMMENTAIRES_MAX = 12_000;
 const COMPTE_RENDU_MAX = 12_000;
-const FICHIERS_MAX = 8_000;
+export const FICHIERS_MAX = 8_000;
 export const DIFF_MAX = 40_000;
 export const CONSIGNE_MAX = 120_000;
-const octets = (texte: string) => Buffer.byteLength(texte);
+export const octets = (texte: string) => Buffer.byteLength(texte);
 // Coupé à l'octet, puis au dernier caractère entier.
-const couper = (texte: string, max: number) =>
+export const couper = (texte: string, max: number) =>
   octets(texte) <= max ? texte : `${Buffer.from(texte).subarray(0, max).toString().replace(/\uFFFD+$/, "")}\n[coupé]`;
 const liste = (fichiers: string[]) => fichiers.map((fichier) => `- ${fichier}`).join("\n");
 
