@@ -6,8 +6,9 @@
 //
 //   au travail   `<fait> <cible> · <durée>`           (« writing app/src/bon.ts · 12 min » ; qui ne fait que réfléchir : « in the kitchen »)
 //   en pass      la même, sinon « review in progress »
-//   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; ou, en file derrière un ticket, `after #N` /
-//                `waiting for #N to merge` (ticket 3433) ; sinon « ready, waits for a place in the kitchen »
+//   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; ou, en file derrière un ticket, chaque
+//                attente et sa source, `waits for #N — read from the body: '…'` (tickets 3433, 3763) ; sinon « ready, waits
+//                for a place in the kitchen »
 //   en tête      en tête de la file sans partir : `does not leave: <raison du runtime>` (ticket 1347)
 //   bloquée      ce qui la retient ; signal « blocked »
 //   mise de côté `Will not start: <raison en mots simples>.` (refus.ts) ; signal « set aside »

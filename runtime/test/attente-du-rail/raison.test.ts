@@ -184,9 +184,9 @@ describe("quand aucune ligne ne se montre", () => {
 describe("la ligne de chaque carte", () => {
   const pris: TicketDuRail = { ticket: 8, etat: "taken", entreLe: null, depend: [] };
 
-  test("« after #N » derrière un ticket en file, « waiting for #N to merge » derrière un ticket que la cuisine tient", () => {
+  test("derrière un ticket en file comme derrière un ticket que la cuisine tient : l'attente et sa source, le corps sans phrase quand seul `depend` est donné (#3763)", () => {
     const tickets = [file(4), file(5, undefined, [4]), file(6, undefined, [8]), pris];
-    assert.deepEqual(lignesDesCartes(tickets), { 5: "after #4", 6: "waiting for #8 to merge" });
+    assert.deepEqual(lignesDesCartes(tickets), { 5: "waits for #4 — read from the body", 6: "waits for #8 — read from the body" });
   });
 
   test("la carte qui part ensuite, une carte sans dépendance et un ticket hors du rail n'ont aucune ligne", () => {
@@ -194,9 +194,9 @@ describe("la ligne de chaque carte", () => {
     assert.deepEqual(lignesDesCartes(tickets), {});
   });
 
-  test("plusieurs dépendances : toutes nommées, la fusion attendue d'abord", () => {
-    assert.deepEqual(lignesDesCartes([file(4), file(5), file(6, undefined, [5, 4])]), { 6: "after #4, #5" });
-    assert.deepEqual(lignesDesCartes([file(4), pris, file(6, undefined, [4, 8])]), { 6: "waiting for #8 to merge" });
+  test("plusieurs dépendances : toutes nommées, chacune avec sa source", () => {
+    assert.deepEqual(lignesDesCartes([file(4), file(5), file(6, undefined, [5, 4])]), { 6: "waits for #5 — read from the body; waits for #4 — read from the body" });
+    assert.deepEqual(lignesDesCartes([file(4), pris, file(6, undefined, [4, 8])]), { 6: "waits for #4 — read from the body; waits for #8 — read from the body" });
   });
 
   test("les lignes de `status` : la phrase, puis une ligne par carte, dans l'ordre des tickets", () => {

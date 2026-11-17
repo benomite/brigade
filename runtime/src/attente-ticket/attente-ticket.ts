@@ -17,12 +17,13 @@
 import { dependancesDuCorps } from "../attente-du-rail/raison.ts";
 import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
 import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
+import { attendusDesCommentairesParSource, MARQUE_D_ATTENTE_DE_TICKET } from "../carte-attente/carte-attente.ts";
 import { ticketsDeLaListe } from "../epique.ts";
-import { fiche } from "../fiche.ts";
 import { direSaut } from "../retenue/retenue.ts";
 
-// La marque du commentaire qui met le ticket en attente, suivie des tickets attendus.
-export const MARQUE_D_ATTENTE_DE_TICKET = "<!-- brigade:attend-ticket";
+// La marque du commentaire qui met le ticket en attente, suivie des tickets
+// attendus : elle est lue avec la fiche, par source (carte-attente/, #3763).
+export { MARQUE_D_ATTENTE_DE_TICKET };
 
 // Ce qui, dans une phrase du cook, dit qu'un ticket nommé n'est pas encore là :
 // il en dépend, bâtit dessus, l'attend, ou ce ticket n'est pas mergé.
@@ -99,15 +100,10 @@ export function corpsDeLAttente({ station, attendus, question }: { station: stri
   ].join("\n");
 }
 
-// Les tickets que les commentaires d'un ticket lui font attendre : sa fiche
-// (`attend`) et les marques d'attente que la station y a écrites.
+// Les mêmes, toutes sources confondues.
 export function attendusDesCommentaires(corps: readonly string[]): number[] {
-  const attendus = new Set<number>(fiche([...corps])?.waitsFor ?? []);
-  for (const body of corps) {
-    if (!body.startsWith(MARQUE_D_ATTENTE_DE_TICKET)) continue;
-    for (const n of numeros(body.split("-->")[0] ?? "")) attendus.add(n);
-  }
-  return [...attendus];
+  const { fiche: deLaFiche, arret } = attendusDesCommentairesParSource(corps);
+  return [...new Set([...deLaFiche, ...arret])];
 }
 
 // Les tickets encore ouverts que `ticket` attend : ceux de son corps

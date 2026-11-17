@@ -3908,9 +3908,12 @@ section. With the section laid, `right now` is not repeated under it.
   five minutes on: "longer than usual"). The first three name the gesture that lifts them (**Start this computer's station** on this
   computer, `Start it on its computer.` on another one, **Add the project to a station** — a red `FAULT` line, with the
   button that opens the Stations tab for the latter); the others say
-  they resolve by themselves. A queued card that will not start next carries `after #N` (behind another queued ticket)
-  or `waiting for #N to merge` (behind a ticket a cook holds or the pass judges), read from the `Depends on #N` lines of
-  its issue; the card that starts next and a card without dependency have none, and "Will not start: …" or a blocking
+  they resolve by themselves. A queued card held by another ticket of the rail carries each wait the kitchen applies to
+  it, with where it was read (#3763): `waits for #N — read from the body: '<the sentence>'` (a `Depends on #N` line, or a
+  sentence that says it builds on #N), `waits for #N — read from the card` (the `awaiting` line of its card), or
+  `waits for #N — read from a cook's stop` (the mark the station writes when a cook stops on an unmerged ticket); a wait
+  the kitchen lifted is not shown. When its comments cannot be read, the card says `its card and its cooks' stops could
+  not be read on GitHub`, never that nothing holds it. The card that starts next and a card without dependency have none, and "Will not start: …" or a blocking
   reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
   (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
   publish a station's cook cap, so this reading never raises that reason.

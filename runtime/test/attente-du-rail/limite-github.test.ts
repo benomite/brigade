@@ -12,7 +12,7 @@ import { appeler, DEPOT, fauxGh, repertoireTemporaire } from "../outils.ts";
 const MAINTENANT = Date.parse("2026-11-12T10:00:00.000Z");
 const FEUX = `/repos/${DEPOT}/issues?state=open&labels=fire&sort=created&direction=asc&per_page=100&page=1`;
 const issue = (number: number) => ({ number, title: `#${number}`, body: "", created_at: "2026-11-12T09:00:00Z", labels: [{ name: "fire" }] });
-const lire = (numeros: number[]) => async (chemin: string) => (chemin === FEUX ? numeros.map(issue) : chemin.includes("/events?") ? [] : assert.fail(`not dictated: ${chemin}`));
+const lire = (numeros: number[]) => async (chemin: string) => (chemin === FEUX ? numeros.map(issue) : chemin.includes("/events?") || chemin.includes("/comments?") ? [] : assert.fail(`not dictated: ${chemin}`));
 // Une station muette depuis une heure : sans la limite, `status` la disait hors ligne.
 const muette = async () => ({ lues: [{ name: "box/claude", lastSeen: new Date(MAINTENANT - 3_600_000).toISOString(), stoppedAt: null, refreshMs: 120_000, selection: [DEPOT] }] });
 const limite = { backAt: "2026-11-12T10:42:00.000Z" };
