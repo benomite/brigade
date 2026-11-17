@@ -97,14 +97,11 @@ test("without --badge, setup neither touches the README nor records an offer", {
   assert.throws(() => surLaBranche(".claude/brigade/badge"));
 });
 
-test("the two badge images only use real colours", () => {
-  // The badge's copper is redone with the site (#3778 leaves site/ alone): until then it keeps the former mark's two stops.
+test("the two badge images only use real colours, those of the polished-copper mark (#3779)", () => {
   for (const nom of ["clair", "sombre"]) {
     const svg = readFileSync(join(RACINE, "site", `badge-cooked-by-brigade-${nom}.svg`), "utf8");
     for (const [, valeur] of svg.matchAll(/fill="([^"]*)"/g)) assert.match(`fill="${valeur}"`, SVG_VALIDE_FILL, `${nom}: fill="${valeur}"`);
-    const arrets = [...svg.matchAll(/stop-color="([^"]+)"/g)];
-    assert.ok(arrets.length >= 2, `${nom}: the copper gradient is gone`);
-    for (const [, couleur] of arrets) assert.match(couleur!, /^#[0-9a-f]{6}$/i, `${nom}: ${couleur}`);
+    for (const couleur of ["#ffd2b0", "#e8875a", "#b4532a", "#f0a072", "#c0602f", "#6e2a10"]) assert.ok(svg.includes(`stop-color="${couleur}"`), `${nom}: ${couleur}`);
   }
 });
 
