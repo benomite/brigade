@@ -11,6 +11,7 @@ import { capturesManquantes, type CapturesDEcran } from "./captures.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { lancementEnFlux, SOURCES_DE_REGLAGES } from "./claude.ts";
 import { FERMETURE, OUVERTURE } from "./livrable.ts";
+import { CONSIGNE_STE } from "./ste.ts";
 import type { Finding } from "./events/pass.ts";
 import type { Couverture } from "./pass/rouge-sur-main.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -266,6 +267,7 @@ const laReponse = (suppressions: boolean, regles = false) => [
   `Un constat \`bloquant\` nomme sa catégorie dans \`categorie\` : ${NOMS_DES_CATEGORIES}${regles ? " — sauf une violation de #830, que nomme sa `regle`" : ""}. Sans elle, ou hors de cette liste, il est posté sur la PR comme un conseil, et ne renvoie rien.`,
   "",
   "`verdict` vaut `rouge` s'il y a au moins un constat bloquant, `vert` sinon — `constats` peut être vide. `resume` et `constat` sont postés sur la PR, que le chef lit : en anglais, précis.",
+  CONSIGNE_STE,
 ];
 
 // Les critères d'acceptation du ticket (#3466) : la pass dit sur la PR, pour

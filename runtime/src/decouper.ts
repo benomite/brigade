@@ -5,6 +5,7 @@
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
 import { COOKS, EFFORTS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
 import { partDe } from "./besoin/besoin.ts";
+import { CONSIGNE_STE } from "./ste.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES_EN, FORME_DE_CAPACITE } from "./capacites.ts";
 import { DEBUT_DIAGRAMME, FIN_DIAGRAMME, sansBloc } from "./diagramme-epique.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
@@ -145,6 +146,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "```",
     "",
     "Le texte des tickets (titre, corps, fiche) est en anglais, avec les mots de docs/glossary.md ; la question que tu poses au chef aussi, le `motif` et l'`ordre` : tout est posté sur l'épique. Tout est précis, sans renvoyer à cette consigne.",
+    CONSIGNE_STE,
     "",
     "## Le plan du dépôt",
     "",
