@@ -459,32 +459,42 @@ hover, and is never marked seen. With no marker yet, the first recap covers the 
 `app/test/recap/` — `recap-github.test.ts` compares the recap's served and TODO items to the rail and TODO read from the
 same GitHub fixture. Captures: `docs/captures/3581/` (the home screen before, and with the recap of two projects).*
 
-### On first launch: try on a sample project (#3227, epic #3217)
+### On first launch: try on a demo project (#3734, epic #3732; born as the sample project of #3227)
 
-Next to `open this project`, the first-launch screen offers **`try on a sample project`**. One click creates a small
-**private** repository on the GitHub account of this computer's `gh` — `brigade-sample`, or `brigade-sample-2`… when
-the name is taken —, with a minimal project (a function, its test, and the bindings section of its `CLAUDE.md`) and
-**exactly one open ticket**, `Greet with an exclamation mark`, labelled like the second's first ticket
-(`product`, `prio:1`, `fire`). The app then takes it to the rail with its own gestures, with no command typed and no
+Next to `open this project`, the first-launch screen offers **`try on a demo project`**. One click creates a small
+**private** repository on the GitHub account of this computer's `gh` — `brigade-demo`, or `brigade-demo-2`… when the
+name is taken (the existing repository is never touched) —, with a minimal project (a function, its test, and the
+bindings section of its `CLAUDE.md`) and **three open tickets**, each touching its own files — `Greet with an
+exclamation mark`, `Say goodbye`, `Count the words of a sentence` —, labelled like the second's first ticket
+(`product`, `prio:1`, `fire`). The repository is recorded as soon as it exists, then each ticket as it is created: a
+creation that stopped halfway picks up the same repository and creates only the missing tickets. No other repository of
+the account is read or written. The app then takes it to the rail with its own gestures, with no command typed and no
 file edited: the repository's setup (`runRepoSetup`, as in Add a project), this computer's station serving it
-(`servirUnProjet`), and its space opened. Each step is said in a card at the bottom right of the window; a step that
-fails says why in one line, with `Try again`, which picks up the same repository.
+(`servirUnProjet`), and its space opened, where a cook takes one of its tickets. Each step is said in a card at the
+bottom right of the window; a step that fails says why in one line, with `Try again`, which picks up the same repository.
 
-The card stays over every screen while the sample exists: the repository's name, which opens its page on GitHub, its
-ticket on the rail and `open its ticket`. The app records **the time of its first launch** once, in
-`sample-project.json` next to the projects file (a second launch does not change it). GitHub is read again every
-minute until the pull request of the ticket's branch is merged; then the card says **`Your first ticket was served in
-N minutes.`**, the minutes between the first launch and the merge.
+The card stays over every screen while the demo exists: the repository's name, which opens its page on GitHub, its
+tickets on the rail and `open its tickets`. The app records **the time of its first launch** once, in
+`sample-project.json` next to the projects file (a second launch does not change it; the file keeps the name it had
+since #3227, so a sample repository recorded before stays the only one deletion reaches). GitHub is read again every
+minute until the pull request of one of the tickets' branches is merged; then the card says **`Your first ticket was
+served in N minutes.`**, the minutes between the first launch and the first merge.
 
-**`delete the sample repository`** deletes it in one click, and only it: the app sends the name it recorded, and the
-runtime refuses any other before calling GitHub. Without the `delete_repo` permission, nothing is deleted: `gh auth
-refresh` asks for it — the one-time code to type, as when connecting —, and once granted the deletion runs again by
-itself. Deleted, the card says so once and no longer offers deletion.
+**`add my own project`** opens Add a project — the newcomer's path (#1908), the same screen as `+`.
 
-*Code: `runtime/src/essai-projet/projet-d-essai.ts` (creation, record, served read, deletion),
-`app/src/vue/essai/projet-d-essai.js` (button, card, the flow from the button to the rail) and its wiring in
+**`delete demo project`** asks first, in the card, a question that names the repository — `Delete the repository
+owner/brigade-demo from GitHub, and remove the demo project from the app? This cannot be undone.` — with `Yes, delete
+owner/brigade-demo` and `Cancel`. Confirmed, it deletes the repository, and only it: the app sends the name it recorded,
+and the runtime refuses any other before calling GitHub. Then this computer's station stops serving it and the project
+leaves the app; what cannot be removed is said in one line. Without the `delete_repo` permission, nothing is deleted:
+`gh auth refresh` asks for it — the one-time code to type, as when connecting —, and once granted the deletion runs
+again by itself. Deleted, the card says so once, offers `add my own project`, and no longer offers deletion.
+
+*Code: `runtime/src/demo/projet-de-demo.ts` (creation, record, served read, deletion),
+`app/src/vue/demo/demo.js` (button, card, the flow from the button to the rail, the confirmed deletion),
+`app/src/vue/ajout-projet/ajout-ou-demo.js` (the button next to `open this project`) and its wiring in
 `app/src/main.ts`, `app/src/preload.cjs`, `app/src/vue/vue.js` and `app/src/vue/premier-lancement.js`. Tests:
-`runtime/test/essai-projet/`, `app/test/essai/`. Captures: `docs/captures/3227/`.*
+`runtime/test/demo-*.test.ts`, `app/test/demo-*.test.ts`. Captures: `docs/captures/3227/`, `docs/captures/3734/`.*
 
 ### Add a project: pick a repository, one click opens it (#3181)
 
