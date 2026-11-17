@@ -41,8 +41,15 @@ function commitsDeLaLivraison(worktree: string, base: string) {
 // branche s'il porte le trailer, aucun sinon (#3740, #3741). Lève si
 // l'historique ne se lit pas.
 export function fichiersGeles(worktree: string, base: string): string[] {
+  const gele = commitDesTestsGeles(worktree, base);
+  return gele === null ? [] : fichiersDe(worktree, gele);
+}
+
+// Le hash du commit des tests gelés : le premier commit de la branche s'il
+// porte le trailer, null sinon. Lève si l'historique ne se lit pas.
+export function commitDesTestsGeles(worktree: string, base: string): string | null {
   const [premier] = commitsDeLaLivraison(worktree, base);
-  return premier === undefined || !premier.gele ? [] : fichiersDe(worktree, premier.commit);
+  return premier?.gele === true ? premier.commit : null;
 }
 
 // Les commits qui touchent un fichier gelé sans y avoir droit. Vide : aucun
