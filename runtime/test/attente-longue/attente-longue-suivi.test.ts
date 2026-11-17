@@ -6,13 +6,15 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { HEURE_MS, lireRevue, suiviDesAttentesLongues, type GitHubDeLAttenteLongue, type ReponseDeLaRevue } from "../../src/attente-longue/attente-longue.ts";
+import { lireRevue, suiviDesAttentesLongues } from "../../src/attente-longue/attente-longue.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
 const A = 10;
 const B = 20;
 const MIN = 60_000;
+type GitHubDeLAttenteLongue = Parameters<typeof suiviDesAttentesLongues>[0]["github"];
+type ReponseDeLaRevue = ReturnType<typeof lireRevue>;
 
 // Un GitHub en mémoire pour #B, dont la lecture des commentaires peut échouer.
 function github(commentaires: string[] = []) {
@@ -106,7 +108,6 @@ test("an answer of the manager that does not read is no decision", () => {
   assert.deepEqual(lireRevue('{"issue": "leve"}'), { illisible: "`leve` with no `commentaire`" });
   assert.deepEqual(lireRevue('{"issue": "produit"}'), { illisible: "a product question with no `question`" });
   assert.match((lireRevue('{"issue": "design", "question": "?"}') as { illisible: string }).illisible, /unknown outcome/);
-  assert.ok(HEURE_MS === 60 * MIN);
 });
 
 test("through the station: a ticket whose sheet waits for a ticket set aside starts once the manager lifts that wait", async (t) => {

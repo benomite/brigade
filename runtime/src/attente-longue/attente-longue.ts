@@ -26,22 +26,18 @@ import { fiche } from "../fiche.ts";
 import { issueEnDonnee, objet, parmi, phrase, type IssueAJuger } from "../juger.ts";
 
 // Au-delà, une attente passe au manager.
-export const HEURE_MS = 60 * 60_000;
+const HEURE_MS = 60 * 60_000;
 // La marque de la ligne que la station écrit à l'heure, suivie de l'issue et des tickets attendus.
-export const MARQUE_D_ATTENTE_LONGUE = "<!-- brigade:attente-longue";
+const MARQUE_D_ATTENTE_LONGUE = "<!-- brigade:attente-longue";
 // La première ligne de la consigne : ce qui la distingue des autres lancements du manager.
-export const MARQUE_DE_LA_REVUE = "<!-- brigade:revue-attente-longue -->";
+const MARQUE_DE_LA_REVUE = "<!-- brigade:revue-attente-longue -->";
 
-export const ISSUES_DE_LA_REVUE = ["leve", "garde", "produit"] as const;
-export type Revue = { issue: "leve" | "garde"; commentaire: string } | { issue: "produit"; question: string };
-export type ReponseDeLaRevue = { revue: Revue } | { illisible: string };
+const ISSUES_DE_LA_REVUE = ["leve", "garde", "produit"] as const;
+type Revue = { issue: "leve" | "garde"; commentaire: string } | { issue: "produit"; question: string };
+type ReponseDeLaRevue = { revue: Revue } | { illisible: string };
 
 // Le manager, tel que la station le consulte sur une attente longue.
 export type RevoirLAttente = (ticket: { number: number; title: string }, attente: { attendus: readonly number[]; depuisMs: number }) => Promise<ReponseDeLaRevue>;
-
-// Qui a décidé l'attente de chaque ticket attendu : la station (déduite du corps,
-// ou posée à l'arrêt du cook) ou le manager (la ligne `attend` de sa fiche).
-export type Decideur = "station" | "manager" | "chef";
 
 const liste = (tickets: readonly number[]) => tickets.map((n) => `#${n}`).join(", ");
 const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
@@ -65,15 +61,15 @@ export function origineDeLAttente(corps: string, commentaires: readonly string[]
 const marque = (issue: Revue["issue"] | "sans-revue", attendus: readonly number[]) => `${MARQUE_D_ATTENTE_LONGUE} ${issue} ${liste(attendus)} -->`;
 
 // Les lignes que l'issue porte à l'heure, une par issue de la revue.
-export function corpsDeLaLevee({ ticket, attendus, origine, commentaire }: { ticket: number; attendus: readonly number[]; origine: string; commentaire: string }): string {
+function corpsDeLaLevee({ ticket, attendus, origine, commentaire }: { ticket: number; attendus: readonly number[]; origine: string; commentaire: string }): string {
   return [`${MARQUE_D_ATTENTE_LEVEE} ${liste(attendus)} -->`, marque("leve", attendus), `The manager lifted the wait of #${ticket} on ${liste(attendus)} (${origine}) after more than an hour: ${surUneLigne(commentaire)}`].join("\n");
 }
 
-export function corpsDeLaGarde({ ticket, attendus, origine, commentaire }: { ticket: number; attendus: readonly number[]; origine: string; commentaire: string }): string {
+function corpsDeLaGarde({ ticket, attendus, origine, commentaire }: { ticket: number; attendus: readonly number[]; origine: string; commentaire: string }): string {
   return [`**The manager keeps the wait.** #${ticket} has waited more than an hour for ${liste(attendus)} (${origine}); the manager reviewed it and keeps it: ${surUneLigne(commentaire)}`, "", `The ticket starts on its own once ${attendus.length === 1 ? "it is" : "they are all"} served.`, marque("garde", attendus)].join("\n");
 }
 
-export function corpsDeLaQuestion({ station, ticket, attendus, origine, question }: { station: string; ticket: number; attendus: readonly number[]; origine: string; question: string }): string {
+function corpsDeLaQuestion({ station, ticket, attendus, origine, question }: { station: string; ticket: number; attendus: readonly number[]; origine: string; question: string }): string {
   return [
     `**Question for the chef (product):** ${surUneLigne(question)}`,
     "",
@@ -82,12 +78,12 @@ export function corpsDeLaQuestion({ station, ticket, attendus, origine, question
   ].join("\n");
 }
 
-export function corpsSansRevue({ station, ticket, attendus, origine, pourquoi }: { station: string; ticket: number; attendus: readonly number[]; origine: string; pourquoi: string }): string {
+function corpsSansRevue({ station, ticket, attendus, origine, pourquoi }: { station: string; ticket: number; attendus: readonly number[]; origine: string; pourquoi: string }): string {
   return [`Station \`${station}\`: #${ticket} has waited more than an hour for ${liste(attendus)} (${origine}). The wait stays: the manager's review gave no decision (${surUneLigne(pourquoi)}). The ticket starts on its own once ${attendus.length === 1 ? "it is" : "they are all"} served.`, marque("sans-revue", attendus)].join("\n");
 }
 
 // La dernière ligne de l'attente longue que l'issue porte pour ces tickets attendus, ou null.
-export function derniereRevue(commentaires: readonly string[], attendus: readonly number[]): Revue["issue"] | "sans-revue" | null {
+function derniereRevue(commentaires: readonly string[], attendus: readonly number[]): Revue["issue"] | "sans-revue" | null {
   for (const body of [...commentaires].reverse()) {
     const debut = body.indexOf(MARQUE_D_ATTENTE_LONGUE);
     if (debut < 0) continue;
@@ -153,14 +149,14 @@ export function lireRevue(message: string | null): ReponseDeLaRevue {
 }
 
 // Ce que le suivi lit et écrit sur GitHub.
-export type GitHubDeLAttenteLongue = {
+type GitHubDeLAttenteLongue = {
   commentaires(numero: number): Promise<{ body: string }[]>;
   corpsDuTicket(numero: number): Promise<string>;
   commenter(numero: number, corps: string): Promise<unknown>;
   labelliser(numero: number, labels: string[]): Promise<unknown>;
 };
 
-export type SuiviDesAttentesLongues = {
+type SuiviDesAttentesLongues = {
   // Le début de la porte de prise d'un tour : les tickets libres qu'elle va voir.
   // Un ticket qui n'y est plus — pris, fermé, mis de côté — perd son compte.
   tour(libres: readonly number[]): void;
