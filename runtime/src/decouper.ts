@@ -7,6 +7,7 @@ import { COOKS, EFFORTS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheL
 import { partDe } from "./besoin/besoin.ts";
 import { CONSIGNE_STE } from "./ste.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES_EN, FORME_DE_CAPACITE } from "./capacites.ts";
+import { DEBUT_DIAGRAMME, FIN_DIAGRAMME, sansBloc } from "./diagramme-epique.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
@@ -161,7 +162,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     `Labels : ${issue.labels.length === 0 ? "aucun" : issue.labels.join(", ")}`,
     "",
     "<corps>",
-    couper(sansListe(issue.body), CORPS_MAX),
+    couper(ecritParLHumain(issue.body), CORPS_MAX),
     "</corps>",
     "",
     "<commentaires>",
@@ -398,8 +399,12 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
   ].join("\n");
 }
 
-// L'empreinte de ce que le découpage lit d'une épique : la liste que le
-// runtime écrit dans son corps n'y entre pas.
+// Le corps d'une épique sans ce que le runtime y écrit : la liste de ses
+// tickets et leur diagramme (#3770).
+const ecritParLHumain = (corps: string) => sansListe(sansBloc(corps, DEBUT_DIAGRAMME, FIN_DIAGRAMME));
+
+// L'empreinte de ce que le découpage lit d'une épique : la liste et le
+// diagramme que le runtime écrit dans son corps n'y entrent pas.
 export function empreinteDEpique(issue: IssueAJuger, commentaires: string[]): string {
-  return empreinte({ ...issue, body: sansListe(issue.body) }, commentaires);
+  return empreinte({ ...issue, body: ecritParLHumain(issue.body) }, commentaires);
 }
