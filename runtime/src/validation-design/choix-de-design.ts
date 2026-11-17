@@ -15,6 +15,7 @@
 //   décide rien : la pass le dit, ne merge pas, et réessaie.
 
 import { lireDelimitation } from "../livrable.ts";
+import { CORPS_MAX, couper, DIFF_MAX, FICHIERS_MAX, octets } from "../reviewer.ts";
 
 // Ce que la règle fixe lit du ticket : ses labels, son titre, son corps.
 export type TicketLu = { title: string; labels: readonly string[]; body: string };
@@ -45,6 +46,10 @@ export const FERMETURE_DU_CHOIX = "</choix-de-design>";
 
 // Ce que le modèle lit : le ticket, ses critères, ce que la livraison change à
 // l'écran. `diff` est le diff de la livraison, `fichiers` ses fichiers.
+// La consigne part en un seul argument de commande, que Linux borne à 128 Ko :
+// chaque morceau est coupé à son plafond, celui du reviewer, et le dit. Sans
+// plafond, un gros diff faisait échouer le lancement en `E2BIG`, et la pass
+// réessayait sans fin (#3785).
 export function consigneDuChoix({ ticket, fichiers, diff }: { ticket: { number: number; title: string; body: string }; fichiers: readonly string[]; diff: string }): string {
   return [
     `Tu juges si la livraison du ticket #${ticket.number} fait un choix de design que seul le chef peut faire. Tu ne relis pas le code : tu lis ce que l'utilisateur voit changer.`,
@@ -56,16 +61,17 @@ export function consigneDuChoix({ ticket, fichiers, diff }: { ticket: { number: 
     "",
     `## Ticket #${ticket.number} — ${ticket.title}`,
     "",
-    ticket.body,
+    couper(ticket.body, CORPS_MAX),
     "",
     "## Fichiers de la livraison",
     "",
-    ...fichiers.map((fichier) => `- ${fichier}`),
+    couper(fichiers.map((fichier) => `- ${fichier}`).join("\n"), FICHIERS_MAX),
     "",
     "## Diff de la livraison",
     "",
+    ...(octets(diff) > DIFF_MAX ? ["Le diff est trop long pour tenir ici : il est coupé. Lis dans le worktree ce qu'il ne montre pas.", ""] : []),
     "```diff",
-    diff,
+    couper(diff, DIFF_MAX),
     "```",
   ].join("\n");
 }
