@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { entreeDuDiagramme } from "../../src/diagramme-epique.ts";
 import type { TicketPrevu } from "../../src/events/manager.ts";
 
-const prevu = (title: string, context: string, zone: string[], waitsFor: number[] = []): TicketPrevu => ({ title, context, criteria: [], waitsFor, zone });
+const prevu = (title: string, context: string, zone: string[], waitsFor: number[] = []): TicketPrevu => ({ title, context, criteria: [], waitsFor, zone, model: "sonnet", effort: "low", calibration: "" });
 const ligne = (ticket: number, state = "open") => ({ ticket, title: `Ticket ${ticket}`, state, served: state === "served" });
 
 test("chaque ticket prend la zone et la première phrase du contexte de son rang, et chaque attente fait une arête", () => {
