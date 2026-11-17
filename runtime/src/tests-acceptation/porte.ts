@@ -3,6 +3,10 @@
 // ses tests — une seule à la fois par ticket —, et son saut le dit ; quand
 // elle finit, la station rejoue un tour, et le prend.
 //
+// Les écritures de plusieurs tickets partent ensemble, sans file ni verrou qui
+// leur soit propre : la station les compte dans ses places, comme ses cooks
+// (`enEcriture`, #3742), et l'étape n'attend jamais son tour.
+//
 // Un ticket sans critères d'acceptation n'a aucun test à geler : l'étape ne
 // s'applique pas à lui, et il se prend comme avant, une fois son corps lu.
 import { etapeDuRail } from "./etape.ts";
@@ -12,9 +16,15 @@ import type { Ecriture } from "./ecriture.ts";
 // chacune coûte un lancement du manager.
 export const ESSAIS_MAX = 3;
 
+// Le saut d'un ticket dont les tests s'écrivent.
+export const EN_ECRITURE = "its acceptance tests are being written by the manager";
+
 export type PorteDesTests = {
   // null : le ticket a passé l'étape, il se prend. Sinon, la ligne de son saut.
   porte(ticket: { number: number; labels: readonly string[] }): string | null;
+  // Les tickets dont les tests s'écrivent en ce moment : chacun tient une
+  // place de la station, comme un cook (#3742).
+  enEcriture(): number[];
   // Attend les écritures en cours.
   calme(): Promise<void>;
 };
@@ -28,7 +38,7 @@ export function porteDesTests(ecrire: (ticket: number) => Promise<Ecriture>, opt
   return {
     porte(ticket) {
       if (etapeDuRail(ticket.labels) !== "queued" || sansCriteres.has(ticket.number)) return null;
-      if (enCours.has(ticket.number)) return "its acceptance tests are being written by the manager";
+      if (enCours.has(ticket.number)) return EN_ECRITURE;
       if (options.dejaParti?.(ticket.number) === true) return null;
       const rate = echecs.get(ticket.number);
       if (rate !== undefined && rate.fois >= ESSAIS_MAX) return `its acceptance tests could not be written (${rate.fois} tries on this station, last: ${rate.motif})`;
@@ -50,8 +60,9 @@ export function porteDesTests(ecrire: (ticket: number) => Promise<Ecriture>, opt
           options.apres();
         });
       enCours.set(ticket.number, ecriture);
-      return "its acceptance tests are being written by the manager";
+      return EN_ECRITURE;
     },
+    enEcriture: () => [...enCours.keys()],
     calme: async () => {
       while (enCours.size > 0) await Promise.all([...enCours.values()]);
     },

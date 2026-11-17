@@ -150,7 +150,9 @@ base, the stale-branch pruning).
   taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
   and is taken as is (`runtime/src/tests-acceptation/`). The app's rail shows a ticket labelled `tests-written` and not
   yet taken as `tests written`, in the On the rail column, and counts it apart from `queued` (`app/src/vue/rail/github.ts`).
-  A station asked for the step whose clone cannot run git says the step is off.
+  A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
+  at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
+  and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
   Before the step, the manager classes each criterion (#3740, `runtime/src/qualification/classes.ts`, the rule in
   `agents/manager.md`), in a throwaway checkout of the base: `testable` — a behaviour the end user observes — or
   `not-testable`, with the proof the delivery owes instead (a before/after capture, the diff, the evaluation case, the
