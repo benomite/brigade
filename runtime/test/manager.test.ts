@@ -163,8 +163,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
     const juge = charge(faits(30)[0]);
     assert.deepEqual(
-      { ...juge, run: null, fingerprint: null },
-      { run: null, fingerprint: null, verdict: "fire", kind: "ticket", reason: "One deliverable, checked by a test.", missing: null, model: "haiku", effort: "low", calibration: "A fix whose test is already written." },
+      { ...juge, run: null, fingerprint: null, content: null },
+      { run: null, fingerprint: null, content: null, verdict: "fire", kind: "ticket", reason: "One deliverable, checked by a test.", missing: null, model: "haiku", effort: "low", calibration: "A fix whose test is already written." },
     );
     assert.match(String(juge?.run), /^juge-30-[0-9a-f]{8}$/);
     const lancement = journal.tout().find((e) => e.type === "cook.launched" && e.payload.run === juge?.run);
@@ -368,6 +368,21 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dits(30)[1] ?? "", /already asked the chef/);
     assert.doesNotMatch(dits(30)[1] ?? "", /Do you grant the deploy role write access to the backup bucket\?\n/);
     assert.deepEqual(gh.labellisations, [[30, ["decision"]]]);
+    assert.deepEqual(labels(30), []);
+    assert.equal(charge(faits(30).filter((e) => e.type === "manager.judged").at(-1))?.kind, "stalled");
+  });
+
+  test("une question que le chef a tranchée ne revient pas, même reformulée, tant que l'issue n'a pas changé (#3738)", async (t) => {
+    const { gh, labels, dits, jugements, faits, journal } = brigade(t, { manager: { jugement: "juge-decision", suite: ["juge-decision", "juge-decision-reformulee"] }, issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("decision"));
+
+    journal.ajouter({ project: "brigade", ticket: 30, author: "chef", type: "todo.answered", payload: { choice: 1, answer: "Keep it parked", then: "resume" } });
+    gh.repondre(30, "**The chef's answer** to the TODO card — choice 1 of 2:\n\n> Q\n\nKeep it parked");
+    gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusqua(() => jugements().length === 2 && dits(30).length === 2);
+
+    assert.match(dits(30)[1] ?? "", /the chef answered "Keep it parked"/);
+    assert.doesNotMatch(dits(30)[1] ?? "", /Should the deploy role/);
     assert.deepEqual(labels(30), []);
     assert.equal(charge(faits(30).filter((e) => e.type === "manager.judged").at(-1))?.kind, "stalled");
   });

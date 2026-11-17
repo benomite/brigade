@@ -36,6 +36,7 @@ import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTr
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
+import { ENTETE_REPONSE } from "./reponse-carte.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
 import { LABEL_WAITING } from "./attente.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
@@ -768,9 +769,26 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Une question au chef que le manager ne pose pas (#3536) : celle dont la réponse recommandée est de ne rien faire — il la
   // prend lui-même et le dit en une ligne —, et celle que l'issue a déjà reçue : la réponse du chef ne l'a pas fait avancer,
   // le manager dit ce qui manque, une fois, et la carte quitte TODO. Ni l'une ni l'autre ne pose de label : aucune carte.
-  const pasDeQuestionDeTrop = (numero: number, decision: Decision): Decision => {
+  const pasDeQuestionDeTrop = (numero: number, decision: Decision, contenu: string): Decision => {
     if (decision.verdict !== "refused" || !estAuChef(decision.kind)) return decision;
     const sansCarte = { question: null, answers: [], recommended: null, awaits: null };
+    // Une question que le chef a déjà tranchée (#3738) : l'issue n'a pas changé depuis sa réponse — même contenu que
+    // le jugement qui l'a posée, hors réponse du chef —, la question ne revient pas, quelle que soit sa formulation.
+    const evenements = journal.duTicket(numero);
+    const rangReponse = evenements.findLastIndex((evenement) => evenement.type === "todo.answered");
+    if (rangReponse >= 0) {
+      const reponse = evenements[rangReponse]!.payload as { answer?: unknown };
+      const posee = evenements.slice(0, rangReponse).findLast((evenement) => evenement.type === "manager.judged" && typeof (evenement.payload as { content?: unknown }).content === "string");
+      if (typeof reponse.answer === "string" && (posee?.payload as { content?: string } | undefined)?.content === contenu) {
+        return {
+          ...decision,
+          ...sansCarte,
+          kind: "stalled",
+          reason: `The manager already asked the chef this, and the chef answered "${reponse.answer}": the issue has not changed since, so it does not ask again and keeps the issue out of the kitchen until the chef or the second edits it.`,
+          missing: decision.missing ?? decision.reason,
+        };
+      }
+    }
     const { recommended, question } = decision;
     if (recommended && NE_RIEN_FAIRE.test(recommended.answer)) {
       return { ...decision, ...sansCarte, kind: "settled", reason: `${recommended.answer} — ${recommended.why}`, missing: null };
@@ -800,7 +818,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       },
     );
     if (!reponse) return false;
-    if ("valeur" in reponse) noter(issue.number, { type: "manager.judged", payload: { run: reponse.run, fingerprint: etat, ...pasDeQuestionDeTrop(issue.number, reponse.valeur) } });
+    // Ce que le jugement lit sans la réponse du chef à sa carte : ce qui dit si l'issue a changé depuis (#3738).
+    const contenu = empreinte(issue, corps.filter((texte) => !texte.startsWith(ENTETE_REPONSE) && !texte.includes("<!-- brigade:")));
+    if ("valeur" in reponse) noter(issue.number, { type: "manager.judged", payload: { run: reponse.run, fingerprint: etat, content: contenu, ...pasDeQuestionDeTrop(issue.number, reponse.valeur, contenu) } });
     else {
       noter(issue.number, { type: "manager.failed", payload: { run: reponse.run, fingerprint: etat, reason: reponse.illisible } });
       avertir(`brigade : jugement illisible sur l'issue #${issue.number} (${reponse.illisible}) — rien n'est posé`);
