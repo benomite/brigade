@@ -26,6 +26,7 @@ import { estSensible } from "../carte-sensible/label.ts";
 import { PR_DU_TICKET } from "../pr-du-ticket.js";
 import { dernierRenvoi, type Renvoi } from "./renvoi.ts";
 import { railBloqueDe, type NonPrisLus } from "../rail-bloque/rail-bloque.ts";
+import { avecLesStationsQuiCuisent } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
 import { attenteDuRailDe } from "../attente-du-rail/attente-du-rail.ts";
 import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pause-quota.ts";
 
@@ -292,7 +293,8 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
   // Une station en pause de quota GitHub (ticket 3482) est retenue par GitHub, pas tue : la pause du compte se dit à part.
-  const lus = "lus" in signes ? avecLaPause(signes.lus, Date.parse(luLe)) : null;
+  // Une station qui cuit ou juge un ticket du projet le sert, même sans sélection de l'app (#3797).
+  const lus = "lus" in signes ? avecLesStationsQuiCuisent(avecLaPause(signes.lus, Date.parse(luLe)), lu.depot, cooks.map(({ station }) => station)) : null;
   const stations = lus === null ? { illisibles: (signes as { illisible: string }).illisible } : { lues: lus };
   const pause = lus === null ? null : pauseDuCompte(lus, Date.parse(luLe));
   return {
