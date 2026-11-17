@@ -49,7 +49,7 @@ export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: st
 }
 
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.
-// Un retenu par des tickets se dit « after #a, #b » ; un texte sans numéro est relayé tel quel.
+// Un retenu par des tickets se dit « Waiting for #a, #b » ; un texte sans numéro est relayé tel quel.
 // `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), faute d'autre
 // raison : elle ne remplace pas celle d'un retenu.
 export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: string): LigneDeCarte {

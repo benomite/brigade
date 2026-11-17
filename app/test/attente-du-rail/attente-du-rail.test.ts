@@ -74,8 +74,8 @@ describe("la lecture du rail pose la phrase et les lignes des cartes dans `facts
     for (const brut of [null, [], { raison: "inconnue", phrase: "x", geste: null }, { raison: "normale", phrase: "", geste: null }, { raison: "normale", phrase: "x", geste: "autre" }, { raison: "normale", phrase: "x" }]) {
       assert.deepEqual(attenteDuRailLue(brut), {}, JSON.stringify(brut));
     }
-    for (const brut of [null, [], {}, { x: "after #4" }, { 5: "" }, { 5: 4 }]) assert.deepEqual(lignesDesCartesLues(brut), {}, JSON.stringify(brut));
-    assert.deepEqual(lignesDesCartesLues({ 5: "after #4" }), { lignesDesCartes: { 5: "after #4" } });
+    for (const brut of [null, [], {}, { x: "waits for #4 — read from the card" }, { 5: "" }, { 5: 4 }]) assert.deepEqual(lignesDesCartesLues(brut), {}, JSON.stringify(brut));
+    assert.deepEqual(lignesDesCartesLues({ 5: "waits for #4 — read from the card" }), { lignesDesCartes: { 5: "waits for #4 — read from the card" } });
   });
 });
 
@@ -99,8 +99,8 @@ describe("la ligne de chaque carte en file", () => {
   });
 
   test("ce qui retient déjà la carte, et ses messages (« Will not start », mise de côté), passent avant", () => {
-    assert.deepEqual(ligneEnAttente("en attente", "blocked by #9", "after #4"), { ligne: "Waiting for #9", liens: [9] });
-    assert.deepEqual(ligneEnAttente("en attente", undefined, "after #4"), { ligne: "after #4", liens: [4] });
+    assert.deepEqual(ligneEnAttente("en attente", "blocked by #9", "waits for #4 — read from the card"), { ligne: "Waiting for #9", liens: [9] });
+    assert.deepEqual(ligneEnAttente("en attente", undefined, "waits for #4 — read from the card"), { ligne: "waits for #4 — read from the card", liens: [4] });
     assert.deepEqual(ligneEnAttente("en attente", undefined, undefined), { ligne: PRET });
     const refusee = ticket(5, { etat: "86", depend: [4], miseDeCote: { label: "served-elsewhere", raison: "already done", liens: [], auChef: false, pr: null } });
     const faits = faitsDe(lecture([ticket(4), refusee], [station()]));
