@@ -97,12 +97,11 @@ test("without --badge, setup neither touches the README nor records an offer", {
   assert.throws(() => surLaBranche(".claude/brigade/badge"));
 });
 
-test("the two badge images only use real colours, those of the logo mark", () => {
-  const logo = readFileSync(join(RACINE, "docs", "logo", "brigade-icone.svg"), "utf8");
+test("the two badge images only use real colours, those of the polished-copper mark (#3779)", () => {
   for (const nom of ["clair", "sombre"]) {
     const svg = readFileSync(join(RACINE, "site", `badge-cooked-by-brigade-${nom}.svg`), "utf8");
     for (const [, valeur] of svg.matchAll(/fill="([^"]*)"/g)) assert.match(`fill="${valeur}"`, SVG_VALIDE_FILL, `${nom}: fill="${valeur}"`);
-    for (const [, couleur] of logo.matchAll(/stop-color="([^"]+)"/g)) assert.ok(svg.includes(`stop-color="${couleur}"`), `${nom}: ${couleur}`);
+    for (const couleur of ["#ffd2b0", "#e8875a", "#b4532a", "#f0a072", "#c0602f", "#6e2a10"]) assert.ok(svg.includes(`stop-color="${couleur}"`), `${nom}: ${couleur}`);
   }
 });
 
