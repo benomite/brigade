@@ -13,7 +13,7 @@ const RAIL: RailSurGithub = {
   lu: MAINTENANT,
   tickets: [
     ticket(12, "en attente", { entreLe: ENTREE }),
-    ticket(21, "en attente", { entreLe: ENTREE, depend: [12], attentes: [{ ticket: 12, source: "corps", phrase: "Builds on #12." }], commentairesLus: true }),
+    ticket(21, "en attente", { entreLe: ENTREE, depend: [12], attentes: [{ ticket: 12, source: "corps", phrase: "Builds on #12." }] }),
     ticket(22, "en attente", { entreLe: ENTREE }),
   ],
 };
