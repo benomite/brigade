@@ -28,7 +28,7 @@ export function poserLEssai(doc, vu, ticket, gestes) {
   if (!("declaration" in declaration)) return [];
   const essai = essais[ticket];
   const rangee = doc.createElement("div");
-  rangee.className = "essai";
+  rangee.className = "essai-rangee";
   if (essai !== undefined && "enCours" in essai) {
     const ou = doc.createElement("p");
     ou.className = "essai-ou";
