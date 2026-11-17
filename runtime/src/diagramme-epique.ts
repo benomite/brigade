@@ -4,7 +4,6 @@
 // ticket servi se dessine autrement qu'un ticket ouvert. Le bloc vit entre
 // deux marqueurs, comme la liste des tickets : le rafraîchir ne réécrit que lui.
 // Sans E/S.
-import type { TicketPrevu } from "./events/manager.ts";
 import { lignesHorsCode } from "./epique.ts";
 
 export const DEBUT_DIAGRAMME = "<!-- brigade-diagram:start -->";
@@ -56,51 +55,30 @@ export function diagrammeDEpique(tickets: TicketDiagramme[], relations: Relation
   return lignes.join("\n");
 }
 
-// La première phrase du contexte d'un ticket : ce qu'il change, en court.
-function enUnePhrase(contexte: string): string {
-  const phrase = contexte.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0] ?? "";
-  return phrase.length > 120 ? `${phrase.slice(0, 119)}…` : phrase;
-}
-
-// Les nœuds et les arêtes d'une épique : chaque ticket de sa liste, avec la
-// zone et la première phrase du contexte que le découpage lui a donnés, et une arête de chaque
-// ticket attendu vers celui qui l'attend. `nes` : le numéro né de chaque rang
-// du découpage. Un ticket que le chef a ajouté n'a ni zone ni relation.
-export function entreeDuDiagramme(
-  lignes: { ticket: number; title: string; state: string }[],
-  prevus: TicketPrevu[],
-  nes: { ticket: number; index: number | null }[],
-): { tickets: TicketDiagramme[]; relations: RelationDiagramme[] } {
-  const numeroDuRang = new Map(nes.flatMap((ne) => (ne.index === null ? [] : [[ne.index, ne.ticket] as const])));
-  const prevuDe = new Map(prevus.flatMap((prevu, i) => {
-    const numero = numeroDuRang.get(i + 1);
-    return numero === undefined ? [] : [[numero, prevu] as const];
-  }));
-  const tickets = lignes.map(({ ticket, title, state }): TicketDiagramme => {
-    const prevu = prevuDe.get(ticket);
-    return { ticket, title, state, zone: prevu?.zone ?? [], changes: enUnePhrase(prevu?.context ?? "") };
-  });
-  const relations = prevus.flatMap((prevu, i) => {
-    const to = numeroDuRang.get(i + 1);
-    return to === undefined ? [] : prevu.waitsFor.flatMap((rang) => {
-      const from = numeroDuRang.get(rang);
-      return from === undefined ? [] : [{ from, to, label: "then" }];
-    });
-  });
-  return { tickets, relations };
+// Où un bloc commence et finit dans le corps, entre ces deux marqueurs, ou
+// null. Un marqueur ne compte que seul sur sa ligne, hors bloc de code ; un
+// début sans fin ne possède que sa ligne.
+function bornes(corps: string, debut: string, fin: string): [number, number] | null {
+  const lignes = lignesHorsCode(corps);
+  const i = lignes.findIndex((ligne) => ligne.texte.trim() === debut);
+  const ouvre = lignes[i];
+  if (!ouvre) return null;
+  const ferme = lignes.slice(i + 1).find((ligne) => ligne.texte.trim() === fin) ?? ouvre;
+  return [ouvre.debut, ferme.fin];
 }
 
 // Le corps, son bloc de diagramme remplacé par celui-ci — ou ajouté une fois à
-// la fin s'il n'en portait pas. Un marqueur ne compte que seul sur sa ligne,
-// hors bloc de code ; un début sans fin ne possède que sa ligne.
+// la fin s'il n'en portait pas.
 export function avecDiagramme(corps: string, diagramme: string): string {
   const bloc = `${DEBUT_DIAGRAMME}\n${diagramme}\n${FIN_DIAGRAMME}`;
-  const lignes = lignesHorsCode(corps);
-  const debut = lignes.findIndex((ligne) => ligne.texte.trim() === DEBUT_DIAGRAMME);
-  const ouvre = lignes[debut];
-  if (ouvre) {
-    const ferme = lignes.slice(debut + 1).find((ligne) => ligne.texte.trim() === FIN_DIAGRAMME) ?? ouvre;
-    return `${corps.slice(0, ouvre.debut)}${bloc}${corps.slice(ferme.fin)}`;
-  }
+  const trouve = bornes(corps, DEBUT_DIAGRAMME, FIN_DIAGRAMME);
+  if (trouve) return `${corps.slice(0, trouve[0])}${bloc}${corps.slice(trouve[1])}`;
   return corps.trim() === "" ? bloc : `${corps.trimEnd()}\n\n${bloc}`;
+}
+
+// Le corps sans le bloc qu'ouvrent et ferment ces marqueurs : ce que l'humain
+// a écrit.
+export function sansBloc(corps: string, debut: string, fin: string): string {
+  const trouve = bornes(corps, debut, fin);
+  return trouve ? `${corps.slice(0, trouve[0]).trimEnd()}${corps.slice(trouve[1])}` : corps;
 }
