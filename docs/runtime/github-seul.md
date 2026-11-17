@@ -150,7 +150,9 @@ base, the stale-branch pruning).
   taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
   and is taken as is (`runtime/src/tests-acceptation/`). The app's rail shows a ticket labelled `tests-written` and not
   yet taken as `tests written`, in the On the rail column, and counts it apart from `queued` (`app/src/vue/rail/github.ts`).
-  A station asked for the step whose clone cannot run git says the step is off.
+  A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
+  at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
+  and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a
