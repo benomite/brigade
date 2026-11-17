@@ -13,7 +13,7 @@
 import type { ClasseDuCritere, Ecriture } from "../tests-acceptation/ecriture.ts";
 import { corpsDesFiches, criteresDuTicket, ficheSansTest, lireLesFiches } from "../tests-acceptation/fiche.ts";
 
-export const MARQUE_DU_CLASSEMENT = "<!-- brigade:classes-consigne -->";
+const MARQUE_DU_CLASSEMENT = "<!-- brigade:classes-consigne -->";
 
 export function consigneDesClasses(mission: { depot: string; ticket: number; titre: string; corps: string; criteres: readonly string[] }): string {
   const { depot, ticket, titre, corps, criteres } = mission;

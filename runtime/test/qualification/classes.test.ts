@@ -11,9 +11,9 @@ import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
-import { LIGNE_SANS_MUTATION, MARQUE_DU_CLASSEMENT } from "../../src/qualification/classes.ts";
+import { LIGNE_SANS_MUTATION } from "../../src/qualification/classes.ts";
 import { LABEL_TESTS_ECRITS } from "../../src/tests-acceptation/etape.ts";
-import { lireLesFiches, MARQUE_DES_FICHES } from "../../src/tests-acceptation/fiche.ts";
+import { lireLesFiches } from "../../src/tests-acceptation/fiche.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
 
@@ -24,7 +24,10 @@ const COMPORTEMENT = "Each line shown by `npm run rail` shows the age of its car
 const DOC = "`docs/rail.md` describes that display";
 const VISUEL = "The age is shown in grey";
 const corps = (criteres: string[]) => ["## Context", "", "The rail.", "", "## Acceptance criteria", "", ...criteres.map((critere) => `- ${critere}`)].join("\n");
+// Les premières lignes des consignes du manager, et le marqueur de la fiche.
+const MARQUE_DU_CLASSEMENT = "<!-- brigade:classes-consigne -->";
 const MARQUE_DES_TESTS = "<!-- brigade:tests-acceptation-consigne -->";
+const MARQUE_DES_FICHES = "<!-- brigade:tests-acceptation -->";
 const RENDU = (message: string) => `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`;
 const classes = (...liste: Array<[string, string]>) => JSON.stringify({ criteria: liste.map(([classe, proof], rang) => ({ id: rang + 1, class: classe, proof })) });
 
