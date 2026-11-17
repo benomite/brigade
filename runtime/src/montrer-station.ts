@@ -42,6 +42,7 @@ import { direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT, plafondDuProjet } from ".
 import { reglagesPourMontrer, variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
 import { FICHIER } from "./reglages-projet/reglages.ts";
 import { BUDGET_BASE_DUREE_PAR_DEFAUT, BUDGET_BASE_PROCESSEUR_PAR_DEFAUT, BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT } from "./cout-des-gates.ts";
+import { direLeQuotaDeLaCarte } from "./repli/moteur-actif.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
@@ -298,7 +299,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const { base } = journal;
     const etat = etatStation(base, station);
     if (!etat) return;
-    ligne("station", `${etat.station} — engine ${etat.engine}, provides: ${etat.provides.join(", ")}`);
+    ligne("station", `${etat.station} — engine ${etat.engine}${etat.fallbackEngine === null ? "" : `, fallback engine ${etat.fallbackEngine}`}, provides: ${etat.provides.join(", ")}`);
     ligne("simultaneous cooks", decrirePlafond(etat));
     const arretee = arreteeDepuis(base, station);
     ligne(
@@ -335,9 +336,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     );
     ligne(
       "quota",
-      etat.quotaUntil !== null && etat.quotaUntil > new Date().toISOString()
-        ? `86 — exhausted, back at ${etat.quotaUntil}; no ticket is taken until then`
-        : "available",
+      direLeQuotaDeLaCarte(etat),
     );
     ligne(
       "cook start",

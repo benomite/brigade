@@ -91,7 +91,10 @@ in this order:
   engine other than the one in its name) is not held: its next cooks run on the fallback engine,
   given to each cook in `BRIGADE_ENGINE`, while cooks already running go on; before each cook the
   return time is read again, and once it has passed the next cook is back on the main engine. The
-  station says which engine it cooks on each time that changes (`runtime/src/repli/`, #3745);
+  fallback engine's own exhausted quota is a `station.86` naming it (`engine`): with both out, nothing
+  is claimed before the first return. The station says which engine it cooks on each time that
+  changes, and its card (`station`) says it on its `quota` line, with the main engine's return time
+  (`runtime/src/repli/`, #3745);
 - **the arbiter** ([`cloison-et-arbitre.md`](cloison-et-arbitre.md)), last, for each ticket it is
   about to claim. Refused, it claims nothing this turn; unreachable, at most one cook at a time. At
   the end of every turn the project says its state again (cooks running, tickets waiting), and gives

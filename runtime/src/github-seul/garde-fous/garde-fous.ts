@@ -103,17 +103,18 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   const noter = (fait: FaitStation) => journal.ajouter({ project: projet, ticket: null, author: "runtime", ...fait });
 
   // Le moteur de chaque cook : le principal, ou le repli tant que le quota du
-  // principal est épuisé (#3745). Le quota du principal est celui du journal
-  // (`station.86`) ; celui du repli, ce que ses cooks ont dit depuis le démarrage.
+  // principal est épuisé (#3745). Le repli et le quota de chacun se lisent au
+  // journal (`station.fallback`, `station.86`).
   const moteurs = moteursDeLaStation(station, options.env ?? {});
   if (moteurs.refus !== null) avertir(`brigade : ${moteurs.refus}`);
   const { engine, fallbackEngine } = moteurs;
-  let repliJusqua: string | null = null;
+  if ((etatStation(base, station)?.fallbackEngine ?? null) !== fallbackEngine) noter({ type: "station.fallback", payload: { station, engine: fallbackEngine } });
   // Ce que la station a dit de son moteur : elle le redit quand il change.
-  let moteurDit = direLeStatut({ name: station, engine, fallbackEngine }, { engine, fallback: false, blocked: false, blockedUntil: null });
+  let moteurDit = direLeStatut({ station, engine, fallbackEngine }, { engine, fallback: false, blocked: false, blockedUntil: null });
   const surQuelMoteur = () => {
-    const statut = activeEngine({ name: station, engine, fallbackEngine, engineBlockedUntil: etatStation(base, station)?.quotaUntil ?? null, fallbackBlockedUntil: repliJusqua }, maintenant());
-    const dit = direLeStatut({ name: station, engine, fallbackEngine }, statut);
+    const etat = etatStation(base, station);
+    const statut = activeEngine({ station, engine, fallbackEngine, quotaUntil: etat?.quotaUntil ?? null, fallbackQuotaUntil: etat?.fallbackQuotaUntil ?? null }, maintenant());
+    const dit = direLeStatut({ station, engine, fallbackEngine }, statut);
     if (dit !== moteurDit) avertir(`brigade : ${dit}`);
     moteurDit = dit;
     return statut;
@@ -223,11 +224,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     const instant = maintenant();
     const annonce = lecture.quota?.retour ?? null;
     const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
-    if (moteur !== engine) {
-      repliJusqua = retour.toISOString();
-      return;
-    }
-    noter({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: lecture.quota?.fenetre ?? null } });
+    noter({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: lecture.quota?.fenetre ?? null, ...(moteur === engine ? {} : { engine: moteur }) } });
   };
 
   const lancer: Lancer = ({ commande, args, entree, cwd, env, flux: demande, ticket }) => {

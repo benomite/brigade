@@ -6,26 +6,24 @@
 // du principal est relue : passée, le cook suivant y revient, sans geste de
 // personne. Sans repli, la station reste retenue comme avant.
 //
+// Le repli et l'épuisement de chaque moteur se lisent au journal
+// (`station.fallback`, `station.86`) : la carte de la station (`station`)
+// dit sur quel moteur elle cuisine, et un redémarrage n'oublie rien.
+//
 // Le moteur principal est celui du nom de la station (`<machine>/<engine>`) ;
 // le repli se règle sur la ligne du projet de la station
 // (`BRIGADE_FALLBACK_ENGINE=<engine>`, `station/configuration.ts`). Le moteur
 // choisi est remis au cook dans `BRIGADE_ENGINE` : les moteurs eux-mêmes sont
 // l'affaire d'un autre ticket.
+import type { EtatStation } from "../projections/stations.ts";
 import { NOM_DE_STATION } from "../stations-declarees.ts";
 
 const VARIABLE_DU_REPLI = "BRIGADE_FALLBACK_ENGINE";
 export const VARIABLE_DU_MOTEUR = "BRIGADE_ENGINE";
 
 // Une station et ses moteurs, et jusqu'à quand chacun dit son quota épuisé
-// (ISO) : null, il ne l'a pas dit, ou on ne sait pas.
-export type StationEtMoteurs = {
-  name: string;
-  engine: string;
-  fallbackEngine: string | null;
-  // Le quota du principal, tel que le journal le tient (`quotaUntil`).
-  engineBlockedUntil: string | null;
-  fallbackBlockedUntil: string | null;
-};
+// (ISO) : null, il ne l'a pas dit. Les noms sont ceux de son état au journal.
+export type StationEtMoteurs = Pick<EtatStation, "station" | "engine" | "fallbackEngine" | "quotaUntil" | "fallbackQuotaUntil">;
 
 // Ce que la carte de la station montre : le moteur du prochain cook (null :
 // aucun, la station est retenue), s'il est le repli, et jusqu'à quand le
@@ -56,22 +54,31 @@ const tient = (jusqua: string | null, maintenant: Date) => jusqua !== null && ju
 
 // Le moteur du prochain cook de `station`, relu à `maintenant`.
 export function activeEngine(station: StationEtMoteurs, maintenant: Date = new Date()): StatutDuMoteur {
-  if (!tient(station.engineBlockedUntil, maintenant)) return { engine: station.engine, fallback: false, blocked: false, blockedUntil: null };
-  const blockedUntil = station.engineBlockedUntil;
+  if (!tient(station.quotaUntil, maintenant)) return { engine: station.engine, fallback: false, blocked: false, blockedUntil: null };
+  const blockedUntil = station.quotaUntil;
   if (station.fallbackEngine === null) return { engine: null, fallback: false, blocked: true, blockedUntil };
   // Le repli épuisé lui aussi : la station est retenue jusqu'au premier retour.
-  if (tient(station.fallbackBlockedUntil, maintenant)) {
-    const premier = [blockedUntil, station.fallbackBlockedUntil].sort()[0] ?? blockedUntil;
+  if (tient(station.fallbackQuotaUntil, maintenant)) {
+    const premier = [blockedUntil, station.fallbackQuotaUntil].sort()[0] ?? blockedUntil;
     return { engine: null, fallback: false, blocked: true, blockedUntil: premier };
   }
   return { engine: station.fallbackEngine, fallback: true, blocked: false, blockedUntil };
 }
 
-// Le statut tel que la carte de la station le dit.
-export function direLeStatut(station: Pick<StationEtMoteurs, "name" | "engine" | "fallbackEngine">, statut: StatutDuMoteur): string {
+// Le statut tel que la station le dit quand il change.
+export function direLeStatut(station: Pick<StationEtMoteurs, "station" | "engine" | "fallbackEngine">, statut: StatutDuMoteur): string {
   const jusqua = statut.blockedUntil === null ? "" : ` until ${statut.blockedUntil}`;
-  if (statut.blocked && station.fallbackEngine !== null) return `station ${station.name} cooks nothing: the quotas of ${station.engine} and of its fallback ${station.fallbackEngine} are reached${jusqua}`;
-  if (statut.blocked) return `station ${station.name} cooks nothing: the quota of ${station.engine} is reached${jusqua}, and the station has no fallback engine`;
-  if (statut.fallback) return `station ${station.name} cooks on ${statut.engine}: the quota of ${station.engine} is reached${jusqua}`;
-  return `station ${station.name} cooks on ${statut.engine}`;
+  if (statut.blocked && station.fallbackEngine !== null) return `station ${station.station} cooks nothing: the quotas of ${station.engine} and of its fallback ${station.fallbackEngine} are reached${jusqua}`;
+  if (statut.blocked) return `station ${station.station} cooks nothing: the quota of ${station.engine} is reached${jusqua}, and the station has no fallback engine`;
+  if (statut.fallback) return `station ${station.station} cooks on ${statut.engine}: the quota of ${station.engine} is reached${jusqua}`;
+  return `station ${station.station} cooks on ${statut.engine}`;
+}
+
+// La ligne « quota » de la carte de la station (`station`).
+export function direLeQuotaDeLaCarte(station: StationEtMoteurs, maintenant: Date = new Date()): string {
+  const statut = activeEngine(station, maintenant);
+  if (statut.fallback) return `86 — ${station.engine} exhausted, back at ${statut.blockedUntil}; cooking on the fallback engine ${statut.engine} until then, the running cooks go on`;
+  if (!statut.blocked) return "available";
+  if (station.fallbackEngine !== null) return `86 — ${station.engine} and its fallback ${station.fallbackEngine} exhausted, back at ${statut.blockedUntil}; no ticket is taken until then`;
+  return `86 — exhausted, back at ${statut.blockedUntil}; no ticket is taken until then, the station has no fallback engine`;
 }
