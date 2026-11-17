@@ -23,7 +23,13 @@ async function parLaStation(t: TestContext, moteur: (typeof MOTEURS)[number], co
     const reviewer = args.includes("--tools");
     const bloque = constats.some((c) => (c as { gravite: string }).gravite === "bloquant");
     const relecture = { verdict: bloque ? "rouge" : "vert", resume: "Read against the criteria.", constats, criteres: [{ critere: 1, tests: [], relecture: true }, { critere: 2, tests: [], relecture: true }] };
-    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: reviewer ? JSON.stringify(relecture) : `[${moteur}] I added the sum and wrote the doc.` })}\n`);
+    const compte = "I added the sum and wrote the doc.";
+    // Le cook rend son compte dans le format de son moteur ; la relecture est toujours celle de `claude`.
+    const cook = moteur === "codex"
+      ? [{ type: "thread.started", thread_id: "t" }, { type: "item.completed", item: { id: "item_0", type: "agent_message", text: compte } }, { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } }]
+      : [{ type: "result", is_error: false, result: `[${moteur}] ${compte}` }];
+    const lignes = reviewer ? [{ type: "result", is_error: false, result: JSON.stringify(relecture) }] : cook;
+    writeFileSync(flux, lignes.map((l) => JSON.stringify(l)).join("\n") + "\n");
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
   const station = stationDuDepot({
