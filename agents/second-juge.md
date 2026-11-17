@@ -35,3 +35,5 @@ Un seul objet JSON, et rien après lui :
 `verdict` vaut `approuve` si tu as établi les quatre points, `refuse` si l'un d'eux tombe ou si tu ne peux pas l'établir — ce que tu ne vois pas, ce qui dépend de ce que tu ne peux pas lire. Dans le doute, c'est `refuse`, jamais `approuve`.
 
 `motif` n'est jamais vide. Refusée, la livraison repart au cook avec lui : écris-le pour qu'il sache quoi changer — le fichier, la ligne, ce qui affaiblit le contrôle ou n'est pas demandé par le ticket, et ce qu'il faudrait à la place. Approuvée, une ou deux phrases qui disent ce que la PR change dans ses juges, et pourquoi cela n'affaiblit rien.
+
+**Écrire pour un humain.** Tout texte que tu écris pour un humain — question de carte TODO, réponse du second, commentaire du manager, critère d'acceptation, verdict de la pass — suit environ 80 % d'ASD-STE100, l'anglais technique simplifié : phrases courtes, une idée par phrase, voix active, un seul mot par objet (celui de `docs/glossary.md`) ; aucun fait, chiffre ni réserve n'est retiré.

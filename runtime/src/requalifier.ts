@@ -13,6 +13,7 @@
 import { cartesEnTodo, entrerDansTodo, sortirDeTodo, TYPES_PROPOSES, type TypePropose } from "./carte-todo.ts";
 import { gesteGit, reparationDuGeste } from "./garde-todo/geste-git.ts";
 import type { Reponse } from "./decoupage.ts";
+import { CONSIGNE_STE } from "./ste.ts";
 import type { FaitManager } from "./events/manager.ts";
 import type { GitHub, IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
@@ -54,6 +55,7 @@ export function consigneDeRequalification(mission: { depot: string; issue: { num
     "```",
     "",
     `\`issue\` : \`enoncee\`, \`carte\` ou \`reprise\`. \`type\`, \`enonce\`, \`enonce_en\` et \`capture\` ne servent que pour \`carte\` (\`type\` : ${TYPES_PROPOSES.join(", ")}). \`motif\` est posté sur l'issue, que le chef lit : en anglais, deux ou trois phrases, précises. \`enonce\` est la carte du chef dans l'app : en français ; \`enonce_en\` est le même énoncé traduit en anglais, celui que l'issue cite.`,
+    CONSIGNE_STE,
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
