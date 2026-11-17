@@ -472,6 +472,13 @@ FIN
 {"nature":"decision","motif":"It asks to grant an IAM right that breaks the read-only rule, and says the call is the chef's.","manque":"The chef's call on the IAM right.","question":"Do you grant the deploy role write access to the backup bucket?","reponses":["Grant it, read-only elsewhere","Refuse: backups stay read-only","Close it: out of scope"],"recommandee":"Refuse: backups stay read-only","pourquoi":"The read-only rule is what the backups rest on."}
 FIN
       ;;
+    # La même décision, reposée en d'autres mots (#3738).
+    juge-decision-reformulee)
+      assistant
+      resultat <<'FIN'
+{"nature":"decision","motif":"It asks to grant an IAM right that breaks the read-only rule, and says the call is the chef's.","manque":"The chef's call on the IAM right.","question":"Should the deploy role get write access to the backups, or stay read-only?"}
+FIN
+      ;;
     # Une question dont la réponse recommandée est de ne rien faire (#3536).
     juge-decision-parquee)
       assistant
