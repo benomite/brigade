@@ -26,6 +26,7 @@
 // technique compte alors pour un cook sans livraison — `ECHECS_MAX` et la règle
 // du même motif bornent la suite —, jamais pour le chef.
 import { issueEnDonnee, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
+import { CONSIGNE_STE } from "./ste.ts";
 
 // La première ligne de la consigne : ce qui la distingue d'un jugement, pour qui lit les lancements.
 export const MARQUE_DE_LA_CONSULTATION = "<!-- brigade:blocage-au-manager -->";
@@ -116,6 +117,7 @@ export function consigneDuBlocage(mission: { depot: string; issue: IssueAJuger; 
     'ou `{"issue": "produit", "question": "…?", "question_en": "…"}`, `{"issue": "design", "question": "…?", "question_en": "…"}`, `{"issue": "geste", "geste": "…", "question_en": "…"}`, `{"issue": "geste", "geste": "open the follow-up issues the cook asked for", "issues_a_ouvrir": [{"titre": "…", "corps": "…", "suit": "…", "labels": ["…"]}], "question_en": "…"}`.',
     "",
     "`reponse`, `decision`, `question` et `geste` sont écrits sur l'issue, que le cook et le chef lisent : en anglais. `question_en` est la question du cook, traduite fidèlement en anglais, sans rien y ajouter : c'est elle que l'issue cite.",
+    CONSIGNE_STE,
     "",
     ...issueEnDonnee(issue, commentaires),
   ].join("\n");
