@@ -166,6 +166,9 @@ export type FaitManager =
       payload: {
         run: string;
         fingerprint: string;
+        // The fingerprint of the issue without the chef's answers to its card (#3738): the same one after an answer
+        // means the issue did not change, and the answered question is not asked again.
+        content?: string;
         verdict: "fire" | "refused";
         kind: Nature;
         reason: string;
