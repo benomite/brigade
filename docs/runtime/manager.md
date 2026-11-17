@@ -36,17 +36,17 @@ too, until that ticket is closed — and a ticket that is never served (left off
 The skip line is the signal: rewrite the sentence, or close the awaited ticket, to release it.
 
 **A wait held more than an hour goes to the manager, once (#3764).** A ticket on the rail held by a wait
-— its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket set
-aside — is counted from the first turn that saw it held; that count is kept in memory, so a restart of
-the station starts the hour over. Past an hour, the station gives the wait to the
-manager, read-only in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the
-manager lifts it, the issue says so in one line, and a cook takes the ticket at the next turn. A real one:
-it keeps it, the issue says why, and the wait stays until the awaited ticket is served. Only a product decision goes to the chef, as a question under
-`blocked-on-human`; once the chef has answered and removed the label, the manager reads the wait again
-with that answer. Whatever the outcome, the issue then carries a line naming what the ticket waits for and
-who decided it (the station, the manager or the chef) — also when the manager gives no readable answer, or
-the station has no manager. That line carries a mark: the same wait does not go back to the manager, not
-even after a restart.
+— its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket
+set aside — is counted from the first turn that saw it held; that count is kept in memory, so a restart
+of the station starts the hour over. Past an hour, the station gives the wait to the manager, read-only
+in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the manager lifts it,
+the issue says so in one line, and a cook takes the ticket at the next turn. A real one: it keeps it,
+the issue says why, and the wait stays until the awaited ticket is served. Only a product decision goes
+to the chef, as a question under `blocked-on-human`; once the chef has answered and removed the label,
+the manager reads the wait again with that answer. Whatever the outcome, the issue then carries a line
+naming what the ticket waits for and who decided it (the station, the manager or the chef) — also when
+the manager gives no readable answer, or the station has no manager. That line carries a mark: the same
+wait does not go back to the manager, not even after a restart.
 
 **Count before you turn it on.** `manager -- backlog` says in one line, for example `12 open issues, of
 which 3 carry blocked-on-human — read just now on GitHub`, what turning on commits to. It is **a read**
