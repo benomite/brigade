@@ -32,6 +32,7 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { garderLeCook } from "./garde-cook/garde.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
+import { enFluxClaude } from "./passe-moteur/flux.ts";
 import { lireBlocage, lireDejaServi, lireLivrable } from "./livrable.ts";
 import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-servi.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
@@ -2566,7 +2567,7 @@ export function verdictDesGates(gates: Gates, delaiMs: number): VerdictDesGates 
   return { vert, resume, detail: [gates.outcome === "timeout" ? `They were stopped after ${Math.round(delaiMs / 1000)} s.` : `They exited with code ${gates.code ?? "none"}.`, ...(echecs.length === 0 ? [] : ["", ...echecs]), ...fin].join("\n") };
 }
 
-const lireLeFlux = (fichier: string) => lireFlux(existsSync(fichier) ? readFileSync(fichier, "utf8") : "");
+const lireLeFlux = (fichier: string) => lireFlux(enFluxClaude(existsSync(fichier) ? readFileSync(fichier, "utf8") : ""));
 
 // La station GitHub seul de ce runtime, ou pourquoi elle ne peut pas tourner.
 export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus: string } {
