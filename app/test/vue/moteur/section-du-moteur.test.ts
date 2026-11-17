@@ -7,6 +7,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { ouvertADAutres } from "../../../../runtime/src/droits.ts";
 import { ecrireReglagesDeLaStation, lireReglagesDeLaStation } from "../../../src/reglages-de-la-station.ts";
 import { poserPageDeStation } from "../../../src/vue/station/page/StationPage.js";
 import { Faux, repos } from "../../aides/fausse-vue.ts";
@@ -84,7 +85,9 @@ describe("la section « Engine » de la page d'une station (#3746)", () => {
     // Gardée à part, lisible du seul compte, hors du fichier des réglages.
     const fichierDeLaCle = join(reglages.dossier, "station-cle-api");
     assert.equal(readFileSync(fichierDeLaCle, "utf8"), CLE);
-    assert.equal(statSync(fichierDeLaCle).mode & 0o777, 0o600);
+    // Sous Windows, Node rend toujours 0o666 : c'est l'ACL du fichier qui dit qui le lit, relue par le runtime (#3680).
+    if (process.platform === "win32") assert.equal(ouvertADAutres(fichierDeLaCle, "la clé d'API"), null);
+    else assert.equal(statSync(fichierDeLaCle).mode & 0o777, 0o600);
     assert.doesNotMatch(readFileSync(reglages.fichier, "utf8"), /SECRET/);
     for (const vue of [section, await ouvrir(reglages)]) {
       const r = rangee(vue, "cle-api") ?? assert.fail("pas de rangée de la clé");

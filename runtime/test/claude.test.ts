@@ -23,7 +23,7 @@ test("un cook n'attend aucune permission, mais ni le merge ni le push ne lui son
 
   assert.equal(args[args.indexOf("--permission-mode") + 1], "bypassPermissions");
   const interdits = args.slice(args.indexOf("--disallowedTools") + 1);
-  assert.deepEqual(interdits, ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"]);
+  assert.deepEqual(interdits, ["Bash(gh pr merge:*)", "Bash(git push:*)"]);
 });
 
 test("un cook ne charge aucune source de réglages, aucune skill, aucun serveur MCP", () => {
@@ -35,7 +35,7 @@ test("un cook ne charge aucune source de réglages, aucune skill, aucun serveur 
   assert.ok(args.includes("--strict-mcp-config"));
   assert.ok(!args.includes("--mcp-config") && !args.includes("--plugin-dir") && !args.includes("--settings"));
   // Les interdits restent les derniers : `--disallowedTools` avale ce qui le suit.
-  assert.deepEqual(args.slice(args.indexOf("--disallowedTools") + 1), ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"]);
+  assert.deepEqual(args.slice(args.indexOf("--disallowedTools") + 1), ["Bash(gh pr merge:*)", "Bash(git push:*)"]);
 });
 
 test("le binaire reçoit ces arguments tels quels, la liste vide des sources comprise", { skip: posixOnly("runs test/aides/faux-claude.sh with the cook's arguments through execFileSync and checks it receives them verbatim, the empty --setting-sources included; Node on Windows cannot execute a shebang script directly (EFTYPE)") }, (t) => {
