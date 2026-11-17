@@ -84,7 +84,8 @@ import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/ga
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
-import { motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
+import { fichiersGeles, motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
+import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
@@ -3171,7 +3172,16 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
       const mutations: Mutations = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
       const verts = vertsSurLaBase(preuve);
-      const renvoi = [...motifDuRenvoi(verts, base), ...motifDesMutations(mutations)];
+      const lue0 = relue.status === "fulfilled" ? relue.value : null;
+      // Un critère testable sans test gelé, ou non testable sans sa preuve, renvoie la livraison (#3741).
+      const gelés = (() => {
+        try {
+          return fichiersGeles(worktree, `origin/${base}`);
+        } catch {
+          return [];
+        }
+      })();
+      const renvoi = [...motifDuRenvoi(verts, base), ...motifsDesCriteres(criteres.map(lireLeCritere), lue0?.criteria ?? null, preuve, gelés), ...motifDesMutations(mutations)];
       // Un test ajouté déjà vert sur la base, ou une mutation qui survit, renvoie la livraison, que la relecture ait pu se lire ou non.
       if (relue.status === "rejected" && renvoi.length === 0) throw relue.reason;
       const lue = relue.status === "fulfilled" ? relue.value : null;
