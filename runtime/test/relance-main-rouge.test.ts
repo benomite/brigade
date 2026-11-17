@@ -125,3 +125,13 @@ test("a red informational Windows check on main (#2087) is never re-run, while a
   assert.deepEqual(relances, [12]);
   assert.deepEqual(lectures, [12]);
 });
+
+test("the red `windows` job of publier-app, which builds the release's installer, is not an informational Windows check: it is re-run once (#3796)", async () => {
+  const { relances, relancer } = faux();
+  const lus = await relancer([
+    { name: "windows", outcome: "red", url: job(13, 1) },
+    { name: "windows tests (3/8)", outcome: "red", url: job(14, 1) },
+  ]);
+  assert.deepEqual(lus.map((c) => c.outcome), ["pending", "red"]);
+  assert.deepEqual(relances, [13]);
+});
