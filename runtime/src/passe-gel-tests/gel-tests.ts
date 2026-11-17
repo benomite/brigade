@@ -37,6 +37,14 @@ function commitsDeLaLivraison(worktree: string, base: string) {
     });
 }
 
+// Les fichiers des tests gelés de la livraison : ceux du premier commit de la
+// branche s'il porte le trailer, aucun sinon (#3740, #3741). Lève si
+// l'historique ne se lit pas.
+export function fichiersGeles(worktree: string, base: string): string[] {
+  const [premier] = commitsDeLaLivraison(worktree, base);
+  return premier === undefined || !premier.gele ? [] : fichiersDe(worktree, premier.commit);
+}
+
 // Les commits qui touchent un fichier gelé sans y avoir droit. Vide : aucun
 // commit gelé sur la branche (rien à garder), ou le gel est tenu. Lève si
 // l'historique ne se lit pas : l'appelant dit alors que le contrôle n'a pas eu lieu.
@@ -52,14 +60,6 @@ export function violationsDuGel(worktree: string, base: string): ViolationDuGel[
     violations.push({ commit: suivant.commit, fichiers: touches });
   }
   return violations;
-}
-
-// Les fichiers des tests gelés de la livraison : ceux du premier commit de la
-// branche s'il porte le trailer, aucun sinon (#3740). Lève si l'historique ne
-// se lit pas.
-export function testsGeles(worktree: string, base: string): string[] {
-  const [premier] = commitsDeLaLivraison(worktree, base);
-  return premier === undefined || !premier.gele ? [] : fichiersDe(worktree, premier.commit);
 }
 
 // Le motif du renvoi, ou null si le gel est tenu.

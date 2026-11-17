@@ -84,8 +84,9 @@ import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/ga
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
-import { motifDuGel, testsGeles, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
+import { fichiersGeles, motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
+import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
@@ -3179,22 +3180,26 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // Les mutants se jouent après la preuve, contre ses tests gelés, et pendant la relecture.
       // Sans test gelé — un ticket sans critère testable (#3740) —, aucun mutant ne se joue.
       // Un historique illisible ne les retient pas : ils se jouent comme avant, et la pass le dit.
-      const avecTestsGeles = (() => {
-        if (depot.essayer === undefined) return true;
+      // Les fichiers gelés servent aussi aux critères testables (#3741) ; illisibles, aucun n'y compte.
+      const gelés = (() => {
+        if (depot.essayer === undefined) return null;
         try {
-          return doitMuter(testsGeles(worktree, `origin/${base}`).length);
+          return fichiersGeles(worktree, `origin/${base}`);
         } catch (erreur) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be counted, the mutants run anyway: ${message(erreur)}`);
-          return true;
+          return null;
         }
       })();
+      const avecTestsGeles = gelés === null || doitMuter(gelés.length);
       if (!avecTestsGeles) avertir(`brigade : #${ticket.number} sur ${nom} — ${LIGNE_SANS_MUTATION}`);
       const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers);
       const [prouvee, relue, mutee] = await Promise.allSettled([prouvant, relecture(worktree, run, texte, pr, criteres.length, ticket.number), avecTestsGeles ? prouvant.then((preuve) => muterLaLivraison(ticket, worktree, diff, preuve)) : Promise.resolve(null)]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
       const mutations: Mutations | null = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
       const verts = vertsSurLaBase(preuve);
-      const renvoi = [...motifDuRenvoi(verts, base), ...(mutations === null ? [] : motifDesMutations(mutations))];
+      const lue0 = relue.status === "fulfilled" ? relue.value : null;
+      // Un critère testable sans test gelé, ou non testable sans sa preuve, renvoie la livraison (#3741).
+      const renvoi = [...motifDuRenvoi(verts, base), ...motifsDesCriteres(criteres.map(lireLeCritere), lue0?.criteria ?? null, preuve, gelés ?? []), ...(mutations === null ? [] : motifDesMutations(mutations))];
       // Un test ajouté déjà vert sur la base, ou une mutation qui survit, renvoie la livraison, que la relecture ait pu se lire ou non.
       if (relue.status === "rejected" && renvoi.length === 0) throw relue.reason;
       const lue = relue.status === "fulfilled" ? relue.value : null;

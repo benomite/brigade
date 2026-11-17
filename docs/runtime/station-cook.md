@@ -338,6 +338,22 @@ was still the first send-back reason after #3466 brought the rule to the pass (#
 tickets), and 4 of those 5 were this rule — #3528 twice, #3559, #3600 —, which the cook's instructions
 did not name: the cook played its test on its branch only.
 
+The same instruction tells the cook to list, before writing, every place each criterion applies to,
+and to serve it in each: a criterion that says "every", "all", "never" or "no" covers each message,
+screen, command and path that does what it names, searched across the whole repo (runtime, app, phone,
+docs), not only in the files the ticket cites; a criterion that says what the user sees is served
+where the user sees it (an app screen, the rail), even when the rest of the ticket is in the runtime;
+a criterion that asks to fix a cause is held by changing the behavior that produces it, never by one
+more measure, proof or hypothesis. The cook writes that list in its report, one place per line with the
+file that serves it, and a place the criterion covers that the diff leaves as it was is blocking.
+Blocking review was still the first send-back reason after #3694 (#3757: 8 over 20 merged tickets),
+and 5 of those 8 sent back a first delivery that served its criterion in part of the places it
+covers: the background host still left stopped (#3701), the chef-facing messages beyond the gestures
+(#3718), the phone's refusals (#3716), the app's rail for a step written in the runtime only (#3725),
+the fix of a cause the first commit had only measured (#3713). The other three were rules above: a
+dead export (#3713), an unverified install name in the README (#3733), a test already green on the
+base (#3748).
+
 ### When the model refuses
 
 `claude` exits with an error and its stream ends on `stop_reason: refusal`: neither an outage nor a
