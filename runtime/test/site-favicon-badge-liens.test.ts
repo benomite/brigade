@@ -14,7 +14,7 @@ test("every page's favicon link resolves to the new copper favicon", () => {
     const html = readFileSync(join(SITE, p), "utf8");
     const href = html.match(/<link rel="icon" href="([^"]+)"/)?.[1];
     assert.ok(href, `${p}: icon link`);
-    const file = join(SITE, dirname(p), href.split(/[?#]/)[0]);
+    const file = join(SITE, dirname(p), href!.split(/[?#]/)[0]!);
     assert.ok(existsSync(file), `${p}: ${href} exists`);
     assert.ok(copper(file), `${p}: ${href} is the new copper mark`);
   }
@@ -24,7 +24,8 @@ test("no page has a broken local image, and the badges keep their names and are 
   for (const p of pages) {
     const html = readFileSync(join(SITE, p), "utf8");
     for (const m of html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)) {
-      if (local(m[1])) assert.ok(existsSync(join(SITE, dirname(p), m[1].split(/[?#]/)[0])), `${p}: ${m[1]}`);
+      const src = m[1]!;
+      if (local(src)) assert.ok(existsSync(join(SITE, dirname(p), src.split(/[?#]/)[0]!)), `${p}: ${src}`);
     }
   }
   for (const f of ["badge-cooked-by-brigade-clair.svg", "badge-cooked-by-brigade-sombre.svg"]) {
