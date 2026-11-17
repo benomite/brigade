@@ -14,6 +14,7 @@ import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
 import { demanderAvecRelance } from "./manager/decoupage-illisible.ts";
 import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, joindre, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, type Decoupe } from "./decouper.ts";
+import { avecDiagramme, diagrammeDEpique, entreeDuDiagramme, type RelationDiagramme, type TicketDiagramme } from "./diagramme-epique.ts";
 import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
@@ -405,13 +406,18 @@ export function ouvrirDecoupage(atelier: Atelier) {
         if (lignes.length === 0) continue;
         // Le tableau, et la liste de tâches que le contrat d'un besoin découpé
         // demande : une ligne `- [ ] #<ticket>`, cochée quand il est servi (#3479).
-        const bloc = avecTaches(rendreListe(epic.number, lignes), lignes);
-        if (ecrits.get(epic.number) !== bloc && avecListe(epic.body, bloc) !== epic.body) {
+        const liste = avecTaches(rendreListe(epic.number, lignes), lignes);
+        // Et le diagramme de ses tickets, rafraîchi avec elle (#3770).
+        const { tickets, relations }: { tickets: TicketDiagramme[]; relations: RelationDiagramme[] } = entreeDuDiagramme(lignes, connu?.tickets ?? [], ticketsDEpique(base, epic.number));
+        const diagramme = diagrammeDEpique(tickets, relations);
+        const reecrit = (corps: string) => avecDiagramme(avecListe(corps, liste), diagramme);
+        const bloc = `${liste}\n${diagramme}`;
+        if (ecrits.get(epic.number) !== bloc && reecrit(epic.body) !== epic.body) {
           try {
             // Relu juste avant d'écrire : le chef a pu l'éditer. Une épique
             // disparue n'a plus de corps où écrire.
             const corps = (await github.issue(epic.number))?.body;
-            if (corps !== undefined && avecListe(corps, bloc) !== corps) await github.ecrireCorps(epic.number, avecListe(corps, bloc));
+            if (corps !== undefined && reecrit(corps) !== corps) await github.ecrireCorps(epic.number, reecrit(corps));
           } catch (erreur) {
             if (!arrete()) avertir(`brigade : liste des tickets non écrite dans l'épique #${epic.number} — ${message(erreur)}`);
             continue;

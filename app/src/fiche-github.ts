@@ -45,7 +45,7 @@ const AUTEUR = (brut: unknown) => {
 
 function message(brut: unknown, corps: boolean, creeA: unknown): MessageDit | undefined {
   if (!objet(brut) || !heure(creeA) || !texte(brut.body)) return undefined;
-  return { auteur: AUTEUR(brut), at: instant(creeA), blocs: rendre(brut.body), ...(corps ? { corps: true as const } : {}) };
+  return { auteur: AUTEUR(brut), at: instant(creeA), blocs: rendre(brut.body), ...(corps ? { corps: true as const, source: brut.body } : {}) };
 }
 
 // L'issue et ses commentaires, du plus ancien au plus récent, et les adresses qu'un clic peut y ouvrir.
