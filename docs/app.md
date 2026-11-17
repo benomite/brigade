@@ -3642,6 +3642,10 @@ section. With the section laid, `right now` is not repeated under it.
   sends it. Nothing goes to GitHub or to the box, whichever station serves the project; what is in the comment
   field is not part of it. A Second that is not running is launched first, and nothing is written into it — click
   again when it is ready.
+- **The sheet shows the issue's diagram** (#3773): the first ```` ```mermaid ```` block of the issue's body is rendered
+  as a diagram, under the sheet's buttons and above the folded issue (`app/src/vue/fiche-diagramme/`, with Mermaid from
+  the app's dependencies). A body with no such block shows nothing there. A block Mermaid cannot read is shown as its
+  source, in a code block, never as an error, and the sheet still opens.
 - **A served interface ticket shows its screenshots, without a click** (#842): for each screen
   changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
   `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,
