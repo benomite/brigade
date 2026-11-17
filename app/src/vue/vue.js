@@ -138,6 +138,7 @@ import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
 import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
+import { poserTestsDeFiche } from "./fiche-tests/fiche-tests.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
@@ -3349,7 +3350,7 @@ function suivreFiche(cartes, posees) {
   ouverte.retour = posees.get(fraiche) ?? ouverte.retour;
   ouverte.carte = fraiche;
   /** @param {import("../faits.ts").Carte} posee */
-  const dit = (posee) => JSON.stringify([posee.fiche, posee.attend.length > 0]);
+  const dit = (posee) => JSON.stringify([posee.fiche, posee.attend.length > 0, /** @type {{ tests?: unknown }} */ (posee).tests]);
   // Ce qui décide de ses gestes a changé — un geste vient d'agir, ou la cuisine l'a pris : ils sont relus.
   /** @param {import("../faits.ts").Carte} posee */
   const decide = (posee) => JSON.stringify([posee.etat, posee.ouvrable, posee.attendu, posee.decision, posee.pr]);
@@ -3464,7 +3465,7 @@ function poserFiche() {
   // faire, l'issue (repliée) — puis seulement ce que la cuisine en dit.
   // Les gestes de WAITING de sa carte, sur la fiche aussi (vue/attente/) : « waiting for… » sur une carte de TODO, « resume » et
   // « it arrived » sur une carte de WAITING.
-  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), ...(lignes.children.length > 0 ? [lignes] : []), ...poserGestesDAttente(projet, carte), ...poserDetailsDeFiche(projet, carte));
+  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), ...(lignes.children.length > 0 ? [lignes] : []), ...poserGestesDAttente(projet, carte), ...poserDetailsDeFiche(projet, carte), ...poserTestsDeFiche(document, /** @type {{ tests?: unknown }} */ (carte).tests));
   const suite = [...(cook === null ? [] : [cook]), ...poserHistoire(projet, ticket, carte, cook !== null)];
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
