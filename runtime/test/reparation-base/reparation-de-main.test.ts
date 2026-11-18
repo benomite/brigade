@@ -34,6 +34,7 @@ test("the failing test and its error are read from a TAP job log", async () => {
   const { titres, corps } = await ouvrirSur("2026-11-17T16:40:01.0000000Z not ok 3 - parses the clock\n  ---\n  error: 'expected 2 to equal 3'\n");
   assert.deepEqual(titres, ["Repair main: parses the clock"]);
   assert.ok(corps.includes("- Test: `parses the clock`\n- Error: `expected 2 to equal 3`"));
+  assert.ok(corps.indexOf("## Failing test") < corps.indexOf("## Acceptance criteria"));
 });
 
 test("the failing test is read from a spec job log, past the header of its summary", async () => {
@@ -73,6 +74,33 @@ test("a repair opened before #3815 and set aside no longer silences its red comm
   assert.equal(reparation, 900);
   assert.ok(faux.ticket(900).corps.includes("#3680"));
   assert.ok(faux.ticket(900).labels.has("repair-main"));
+});
+
+test("a repair set aside on the red commit it was opened for is opened again by the same station, naming it", async () => {
+  const faux = new FauxGitHub();
+  const ouvrir = reparationDeMain({ github: faux.pour("A"), base: "main" });
+  assert.equal((await ouvrir(ROUGE)).reparation, 900);
+  faux.ticket(900).labels.add("set-aside:failures");
+  assert.equal((await ouvrir(ROUGE)).reparation, 901);
+  assert.ok(faux.ticket(901).corps.includes("#900"));
+  assert.ok(faux.ticket(901).labels.has("repair-main"));
+});
+
+test("on a red base, a repair-main delivery is merged while another delivery whose check is red on the base stays held", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(5);
+  const a = faux.station("A", { places: 2, avertir: () => {} });
+  await a.tour();
+  await a.calme();
+  assert.equal(faux.prs[0]?.issue, 5);
+  faux.base = "red";
+  faux.feu(9, [...CALIBRE, "repair-main"], "Repair main: the failing test");
+  for (let i = 0; i < 4; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.mergee(9)?.mergeePar, "A");
+  assert.equal(faux.mergee(5), undefined);
 });
 
 test("on a green base, a repair a station's claim holds is left to finish, and one whose `taken` nobody holds is closed", async () => {

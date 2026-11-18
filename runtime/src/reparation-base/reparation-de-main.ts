@@ -65,8 +65,8 @@ function corpsDeLaReparationDeMain(corps: string, base: string, test: TestEnEche
       : ["## Set-aside repair", "", `This ticket restarts the repair of \`${base}\` from its latest red commit: ${misesDeCote.map((numero) => `#${numero}`).join(", ")} ${misesDeCote.length === 1 ? "was" : "were"} set aside. Read ${misesDeCote.length === 1 ? "its" : "their"} comments before starting.`, ""]),
   ];
   if (ajout.length === 0) return corps;
-  const criteres = corps.indexOf("## Acceptance criteria");
-  return criteres === -1 ? `${corps.trimEnd()}\n\n${ajout.join("\n")}` : `${corps.slice(0, criteres)}${ajout.join("\n")}\n${corps.slice(criteres)}`;
+  // `corpsDeLaReparation` tient toujours ses critères ; la fonction garde un `$` du journal tel quel.
+  return corps.replace("## Acceptance criteria", (criteres) => `${ajout.join("\n")}\n${criteres}`);
 }
 
 // Ce que la réparation de main lit de GitHub : l'ouverture, et le rail.
@@ -76,20 +76,18 @@ export type GitHubDeLaReparationDeMain = GitHubDeLaReparation & {
 
 export type OptionsDeLaReparationDeMain = { github: GitHubDeLaReparationDeMain; base: string; maintenant?: () => Date };
 
-export function reparationDeMain({ github, base, maintenant }: OptionsDeLaReparationDeMain) {
-  // Ce que le rail dit à l'appel en cours : la réparation vivante, et celles mises de côté.
-  let vivante: number | null = null;
+export function reparationDeMain(options: OptionsDeLaReparationDeMain) {
+  const { github, base } = options;
+  // Les réparations mises de côté que le rail dit à l'appel en cours, et les
+  // journaux des checks rouges que l'ouverture y a lus.
   let misesDeCote: number[] = [];
-  // Les journaux des checks rouges que l'ouverture a lus à cet appel.
   let journaux: string[] = [];
-  const enveloppe: GitHubDeLaReparation = {
-    teteDeLaBase: () => github.teteDeLaBase(),
+  const enveloppe: GitHubDeLaReparationDeMain = {
+    ...github,
     // Une réparation mise de côté ne fait plus taire son commit rouge, ni ne se
     // reprend pour le regrouper (#3614).
     issuesDepuis: async (instant) => (await github.issuesDepuis(instant)).filter((issue) => !misesDeCote.includes(issue.number)),
-    // La réparation vivante du rail est celle de ce rouge : rien ne se crée.
     creerIssue: async ({ corps, labels }) => {
-      if (vivante !== null) return vivante;
       const test = journaux.map(testEnEchec).find((lu) => lu !== null) ?? null;
       return github.creerIssue({
         titre: titreDeLaReparationDeMain(test?.nom ?? ([...corps.matchAll(/^- `(.+)`$/gm)][0]?.[1] ?? "checks")),
@@ -97,20 +95,13 @@ export function reparationDeMain({ github, base, maintenant }: OptionsDeLaRepara
         labels: [...labels, LABEL_REPARATION_DE_MAIN],
       });
     },
-    // Une réparation vivante adoptée ne se ferme pas comme un doublon.
-    fermerIssue: async (numero) => {
-      if (numero !== vivante) await github.fermerIssue(numero);
-    },
     journalDuCheck: async (check) => {
       const journal = (await github.journalDuCheck?.(check)) ?? null;
       if (journal !== null) journaux.push(journal);
       return journal;
     },
-    ...(github.rouvrirIssue === undefined ? {} : { rouvrirIssue: (numero: number) => (github.rouvrirIssue as (n: number) => Promise<void>)(numero) }),
-    ...(github.ecrireCorps === undefined ? {} : { ecrireCorps: (numero: number, corps: string) => (github.ecrireCorps as (n: number, c: string) => Promise<void>)(numero, corps) }),
-    ...(github.ecrireTitre === undefined ? {} : { ecrireTitre: (numero: number, titre: string) => (github.ecrireTitre as (n: number, t: string) => Promise<void>)(numero, titre) }),
   };
-  const nouvelle = () => ouvreReparation({ github: enveloppe, base, ...(maintenant === undefined ? {} : { maintenant }) });
+  const nouvelle = () => ouvreReparation({ ...options, github: enveloppe });
   let ouvrir = nouvelle();
 
   // Les checks de la base, tels que la relance les rend. Rouges, le rail est lu
@@ -126,7 +117,9 @@ export function reparationDeMain({ github, base, maintenant }: OptionsDeLaRepara
     }
     // Une réparation d'avant #3815 (`prio:0`) mise de côté ne fait pas plus taire le rouge.
     const reparations = rail.filter(({ state, labels }) => state === "open" && (estUneReparationDeMain(labels) || labels.includes(PRIO_REPARATION)));
-    vivante = reparations.find(({ labels }) => estUneReparationDeMain(labels) && !estMisDeCote(labels))?.number ?? null;
+    // La réparation vivante du rail est celle de ce rouge : rien ne s'ouvre.
+    const vivante = reparations.find(({ labels }) => estUneReparationDeMain(labels) && !estMisDeCote(labels));
+    if (vivante !== undefined) return { sha: null, reparation: vivante.number };
     misesDeCote = reparations.filter(({ labels }) => estMisDeCote(labels)).map(({ number }) => number);
     journaux = [];
     let ouverture = await ouvrir(checks);
