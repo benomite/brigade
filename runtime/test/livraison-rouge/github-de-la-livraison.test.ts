@@ -37,6 +37,8 @@ function client(graphql = true): GitHub & { requetes: Record<string, string | nu
               // #50 contient le commit (sa branche a fusionné la base), #42 l'a posé.
               return { repository: { object: { associatedPullRequests: { nodes: [{ number: 50, merged: false, mergeCommit: null }, { number: 42, merged: true, mergeCommit: { oid: variables.sha === MERGE ? MERGE : "e".repeat(40) } }] } } } };
             }
+            // #43 n'a ni branche de cook ni référence de fermeture : son ticket n'est que dans son corps.
+            if (variables.pr === 43) return { repository: { pullRequest: { headRefName: "fix-ci", body: "Closes #58", closingIssuesReferences: { nodes: [] } } } };
             if (variables.pr === 42) return { repository: { pullRequest: { headRefName: "cook/57-github", body: "Closes #57\n\nAlso fixes #60.", closingIssuesReferences: { nodes: [{ number: 57 }, { number: 61 }] } } } };
             return { repository: { pullRequest: null } };
           },
@@ -61,7 +63,8 @@ test("the delivery is the PR whose merge commit is the red commit, not a PR that
   assert.equal(await github.prDuCommit(MERGE), 42);
   assert.equal(await github.prDuCommit(TETE), null);
   assert.deepEqual(await github.ticketsLiesALaPR(42), [57, 61]);
-  await assert.rejects(github.ticketsLiesALaPR(43), /PR #43 is unreadable/);
+  assert.deepEqual(await github.ticketsLiesALaPR(43), [58]);
+  await assert.rejects(github.ticketsLiesALaPR(44), /PR #44 is unreadable/);
   assert.ok(lu.requetes.every((variables) => variables.owner === "o" && variables.repo === "r"));
   assert.deepEqual(await github.commentairesDe(57), ["de confiance"]);
 });
