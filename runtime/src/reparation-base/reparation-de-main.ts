@@ -78,8 +78,9 @@ export type OptionsDeLaReparationDeMain = { github: GitHubDeLaReparationDeMain; 
 
 export function reparationDeMain(options: OptionsDeLaReparationDeMain) {
   const { github, base } = options;
-  // Les réparations mises de côté que le rail dit à l'appel en cours, et les
-  // journaux des checks rouges que l'ouverture y a lus.
+  // Ce que le rail dit à l'appel en cours : la réparation vivante, et celles
+  // mises de côté ; et les journaux des checks rouges que l'ouverture y a lus.
+  let vivante: number | null = null;
   let misesDeCote: number[] = [];
   let journaux: string[] = [];
   const enveloppe: GitHubDeLaReparationDeMain = {
@@ -87,7 +88,11 @@ export function reparationDeMain(options: OptionsDeLaReparationDeMain) {
     // Une réparation mise de côté ne fait plus taire son commit rouge, ni ne se
     // reprend pour le regrouper (#3614).
     issuesDepuis: async (instant) => (await github.issuesDepuis(instant)).filter((issue) => !misesDeCote.includes(issue.number)),
+    // La réparation vivante du rail est celle de ce rouge : rien ne se crée, et
+    // un autre commit rouge s'y consigne (#3614). Elle ne porte pas la marque
+    // de ce rouge : l'ouverture ne la ferme jamais comme un doublon.
     creerIssue: async ({ corps, labels }) => {
+      if (vivante !== null) return vivante;
       const test = journaux.map(testEnEchec).find((lu) => lu !== null) ?? null;
       return github.creerIssue({
         titre: titreDeLaReparationDeMain(test?.nom ?? ([...corps.matchAll(/^- `(.+)`$/gm)][0]?.[1] ?? "checks")),
@@ -117,9 +122,7 @@ export function reparationDeMain(options: OptionsDeLaReparationDeMain) {
     }
     // Une réparation d'avant #3815 (`prio:0`) mise de côté ne fait pas plus taire le rouge.
     const reparations = rail.filter(({ state, labels }) => state === "open" && (estUneReparationDeMain(labels) || labels.includes(PRIO_REPARATION)));
-    // La réparation vivante du rail est celle de ce rouge : rien ne s'ouvre.
-    const vivante = reparations.find(({ labels }) => estUneReparationDeMain(labels) && !estMisDeCote(labels));
-    if (vivante !== undefined) return { sha: null, reparation: vivante.number };
+    vivante = reparations.find(({ labels }) => estUneReparationDeMain(labels) && !estMisDeCote(labels))?.number ?? null;
     misesDeCote = reparations.filter(({ labels }) => estMisDeCote(labels)).map(({ number }) => number);
     journaux = [];
     let ouverture = await ouvrir(checks);
