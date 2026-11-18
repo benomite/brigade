@@ -34,7 +34,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
 import { compteurDuProcess } from "./appels-par-identite.ts";
-import { BUDGET_DE_LA_STATION_PAR_HEURE, PART_D_UN_PROJET, PartAtteinte, PROJETS_DE_LA_STATION, partsDe, retenueDeLaPart, type PartDuProjet } from "./budget-github/part-des-projets.ts";
+import { BUDGET_DE_LA_STATION_PAR_HEURE, PartAtteinte, partsDe, retenueDeLaPart, type PartDuProjet } from "./budget-github/part-des-projets.ts";
 import { alerteAEmettre, categorieDe, categorieDeLaLecture, direLAlerte, instantaneDe, preparerLeRegistre, ticketDe, type AlerteDeBudget, type Categorie, type InstantaneDuBudget } from "./github/budget-appels.ts";
 
 export const FENETRE_MS = 60 * 60_000;
@@ -373,7 +373,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { debit: number; points: number } | { part: number; appels: number; projet: string } | { appel: number; alerte: AlerteDeBudget | null } => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { debit: number; points: number } | { part: number; appels: number; partDuProjet: number; projet: string } | { appel: number; alerte: AlerteDeBudget | null } => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
@@ -395,7 +395,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           // La part du projet dans le budget de la station : à sa part, il attend seul (#3683).
           const projet = etiquette?.projet ?? PROJET_DE_LA_STATION;
           const part = retenueDeLaPart((sql, ...params) => base.lire(sql, ...params), projet, instant);
-          if (part !== null) return { part: part.jusqua, appels: part.appels, projet };
+          if (part !== null) return { part: part.jusqua, appels: part.appels, partDuProjet: part.part, projet };
           // Le rythme des écritures du compte, tous projets ensemble : la
           // suivante part quand la plus ancienne de la fenêtre pleine en sort.
           if (etiquette?.ecriture === true) {
@@ -434,7 +434,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
       }
       if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()), refus.ecrites);
       if ("debit" in refus) throw new AppelEspace(refus.debit, Math.max(0, refus.debit - maintenant()), refus.points);
-      if ("part" in refus) throw new PartAtteinte(refus.projet, refus.part, Math.max(0, refus.part - maintenant()), refus.appels);
+      if ("part" in refus) throw new PartAtteinte(refus.projet, refus.part, Math.max(0, refus.part - maintenant()), refus.appels, refus.partDuProjet);
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
@@ -1005,7 +1005,7 @@ function commencerLaRetenue(erreur: EcritureEspacee | PartAtteinte): void {
   if (enAttente !== 1) return;
   direLaRetenueDansLeJournal?.(
     erreur instanceof PartAtteinte
-      ? `brigade : appels GitHub du projet ${erreur.projet} retenus par sa part — ${erreur.appels} sur ${PART_D_UN_PROJET} sur l'heure écoulée (le budget de la station, ${BUDGET_DE_LA_STATION_PAR_HEURE}, en ${PROJETS_DE_LA_STATION} parts), le suivant à ${heure(erreur.jusqua)}`
+      ? `brigade : appels GitHub du projet ${erreur.projet} retenus par sa part — ${erreur.appels} sur ${erreur.part} sur l'heure écoulée (le budget de la station, ${BUDGET_DE_LA_STATION_PAR_HEURE}, partagé entre les projets actifs de l'heure), le suivant à ${heure(erreur.jusqua)}`
       : erreur instanceof AppelEspace
       ? `brigade : appels GitHub espacés par le débit — ${erreur.points} points sur ${POINTS_PAR_MINUTE} sur la minute écoulée, le suivant à ${heure(erreur.jusqua)}`
       : `brigade : écritures GitHub retenues par le budget — ${erreur.ecrites} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${heure(erreur.jusqua)}`,
