@@ -23,7 +23,7 @@ export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
   repository(owner: $owner, name: $repo) {
     issues(first: 100, states: OPEN, labels: ["fire"], orderBy: { field: CREATED_AT, direction: ASC }) {
       pageInfo { hasNextPage }
-      nodes { number title body labels(first: 30) { nodes { name } } }
+      nodes { number title body labels(first: 30) { nodes { name } } comments(last: 100) { totalCount nodes { body authorAssociation createdAt author { login } } } }
     }
     pullRequests(first: 30, states: OPEN) {
       pageInfo { hasNextPage }
@@ -69,8 +69,14 @@ export type PRDeLInstantane = {
   // Plus de contextes que la requête n'en lit : la CI se relit en REST.
   ciIncomplete: boolean;
 };
+export type CommentaireDeLInstantane = { body: string; author: string; association: string; createdAt: string };
 export type Instantane = {
   tickets: TicketDeLInstantane[];
+  // Les commentaires de chaque ticket, du plus ancien au plus récent (#3834) ;
+  // un ticket dont la requête n'a pas lu tous les commentaires n'y est pas, et se lit en REST.
+  commentaires: Map<number, CommentaireDeLInstantane[]>;
+  // Le corps de chaque ticket lu, tel que la requête le rend.
+  corps: Map<number, string>;
   // Plus de tickets que la requête n'en lit : la liste se relit en REST.
   incomplet: boolean;
   prs: PRDeLInstantane[];
@@ -109,15 +115,26 @@ const tronque = (rollup: unknown): boolean => (rollup as Rollup)?.contexts?.page
 export function lireInstantane(data: unknown): Instantane {
   const depot = (data as { repository?: Record<string, unknown> } | null)?.repository;
   if (depot === undefined || depot === null) throw new Error("GraphQL : no repository in the answer");
-  const issues = depot.issues as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<{ number: number; title: string; body?: string | null; labels?: { nodes?: Array<{ name: string }> } }> };
+  const issues = depot.issues as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<{ number: number; title: string; body?: string | null; labels?: { nodes?: Array<{ name: string }> }; comments?: { totalCount?: number; nodes?: Array<{ body?: string | null; authorAssociation?: string; createdAt?: string; author?: { login?: string } | null }> } }> };
   const prs = depot.pullRequests as { pageInfo?: { hasNextPage?: boolean }; nodes?: Array<Record<string, unknown>> };
   const tickets = (issues.nodes ?? []).map((n) => {
     const ticket = { number: n.number, title: n.title, labels: (n.labels?.nodes ?? []).map((l) => l.name), state: "open" as const };
     return { ...ticket, ...(porteListe(n.body ?? "") ? { epique: true as const } : {}), ...lienDuCorps(n.number, n.body ?? ""), ...avecLAlerte({ ...ticket, body: n.body }) };
   });
+  // Un commentaire que la requête ne rend pas en entier, ou dont elle ne dit pas le compte, ne se devine pas.
+  const commentaires = new Map<number, CommentaireDeLInstantane[]>();
+  const corps = new Map<number, string>();
+  for (const n of issues.nodes ?? []) {
+    if (typeof n.body === "string") corps.set(n.number, n.body);
+    const lus = n.comments?.nodes;
+    if (lus === undefined || typeof n.comments?.totalCount !== "number" || lus.length < n.comments.totalCount) continue;
+    commentaires.set(n.number, lus.map((c) => ({ body: c.body ?? "", author: c.author?.login ?? "", association: c.authorAssociation ?? "NONE", createdAt: c.createdAt ?? "" })));
+  }
   const baseRollup = (depot.ref as { target?: { statusCheckRollup?: unknown } } | null)?.target?.statusCheckRollup ?? null;
   return {
     tickets,
+    commentaires,
+    corps,
     incomplet: issues.pageInfo?.hasNextPage === true,
     prs: (prs.nodes ?? [])
       .filter((p) => typeof p.headRefName === "string")

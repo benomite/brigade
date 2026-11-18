@@ -148,7 +148,7 @@ export function fermeReparationDeMain({ github, base }: { github: GitHubDeLaFerm
     for (const { number, labels, state } of tickets) {
       if (state !== "open" || fermees.includes(number) || !estUneReparationDeMain(labels)) continue;
       if (labels.includes(LABEL_IN_PASS)) continue;
-      if (labels.includes(LABEL_TAKEN) && (await lireTenant(number, github)) !== null) continue;
+      if (labels.includes(LABEL_TAKEN) && (await lireTenant(number, github, labels)) !== null) continue;
       // Une réparation qui vise la cause (#3614) ne se ferme qu'avec la cause corrigée.
       if (viseLaCause(await github.corpsDuTicket(number)) && !labels.includes(LABEL_CAUSE_CORRIGEE)) continue;
       await github.commenter(number, commentaireDeLaFermeture(base));
