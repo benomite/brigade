@@ -149,6 +149,23 @@ test("un projet seul prend le budget, cinq se réveillent : à eux tous ils rest
   limite.fermer();
 });
 
+// Ticket 3821 : la cuisine inscrit ses appels sous `brigade`, son client GitHub sous `benomite/brigade` — un seul projet.
+test("le nom court et le dépôt d'un projet comptent pour un seul projet actif, et ses appels s'additionnent", () => {
+  const h = horloge(DEBUT);
+  const limite = ouvrirLimite({ maintenant: h.maintenant, alerter: () => {} });
+  const appel = (projet: string) => {
+    h.instant += 200;
+    limite.prendre("cuisine", undefined, etiquetteDe([`repos/x/${projet}/issues`], { projet }));
+  };
+  for (const projet of ["mirrorlab", "BOBL-tech/mirrorlab", "brigade"]) appel(projet);
+  // Deux projets actifs : la part de chacun est la moitié du budget.
+  const moitie = Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / 2);
+  for (let i = 1; i < moitie; i++) appel(i % 2 === 0 ? "brigade" : "benomite/brigade");
+  assert.throws(() => limite.prendre("cuisine", undefined, lectureDe("brigade")), (erreur: unknown) => erreur instanceof PartAtteinte && erreur.part === moitie && erreur.appels === moitie);
+  limite.prendre("cuisine", undefined, lectureDe("mirrorlab"));
+  limite.fermer();
+});
+
 test("`status` dit, par projet, ses appels de l'heure contre sa part, et pour le seul projet retenu, l'heure où il reprend", (t) => {
   const repertoire = repertoireTemporaire(t);
   const station = repertoireTemporaire(t);
