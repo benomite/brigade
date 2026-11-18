@@ -140,13 +140,14 @@ function ligneDeLaMiseDeCote(miseDeCote: MiseDeCote): string {
 // Ce qui attend le chef dans `depot`, lu de GitHub. `appeler` : le `GET` de l'API — celui de l'app (sous condition, un 304
 // ne coûte rien) ou le `gh` du poste, pour le second. `maintenant` : l'heure de la lecture, jusqu'à laquelle les durées
 // du bloc se comptent.
-// `enWaiting` : lire aussi ce qu'attend chaque issue en WAITING — ce que le rail de l'app montre ; le second et les
-// notifications ne s'en servent pas, et ne paient pas sa lecture. `true` lit aussi la liste des issues au label `waiting`
-// (#3814) ; `"du-rail"` s'en tient aux issues en WAITING des listes déjà lues — un ticket que la cuisine met en WAITING
+// `enWaiting` : lire aussi ce qu'attend chaque issue en WAITING — ce que le rail de l'app montre, et les lignes de WAITING
+// du bloc (#3814) ; les notifications ne s'en servent pas, et ne paient pas sa lecture. `true` lit aussi la liste des
+// issues au label `waiting` : le second, qui lit la file une fois par session, y voit chaque ticket en WAITING et sa
+// relance. `"du-rail"` s'en tient aux issues en WAITING des listes déjà lues — un ticket que la cuisine met en WAITING
 // garde `fire` —, pour l'app, qui relit chaque projet toutes les trente secondes sous son budget GitHub (budget-github.ts).
 // `epiquesAvantLeRail` : les épiques sans `fire` que la lecture du rail a dites (`avantLeRail`) — sans elles, seules les épiques
 // au label `fire` posent leur question.
-export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true | "du-rail"; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[] }): Promise<AttenteLue> {
+export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: boolean | "du-rail"; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[] }): Promise<AttenteLue> {
   const { depot, appeler } = options;
   const lire = async (chemin: string): Promise<unknown> => {
     const reponse = await appeler(chemin).catch((erreur: unknown) => {
@@ -287,7 +288,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     let rate: string | undefined;
     const lignesEnWaiting: string[] = [];
     const enWaiting: EnWaiting[] = await Promise.all(
-      (options.enWaiting === undefined ? [] : attendent).map(async (issue) => {
+      (!options.enWaiting ? [] : attendent).map(async (issue) => {
         const { ticket, titre, url } = entree(issue);
         const lus = await commentaires(ticket).catch((erreur: unknown) => {
           rate ??= (erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";

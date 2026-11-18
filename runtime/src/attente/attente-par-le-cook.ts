@@ -22,7 +22,8 @@ const PAS_AVANT = /\b(too early|not before|not until|no earlier than|cannot be (
 const HORS_CUISINE = /\b(outside (?:of )?the kitchen|nothing in the kitchen can|no one in the kitchen can|no cook can|(?:waiting|waits) (?:for|on) (?:the )?(?:client|customer|vendor|supplier|partner|provider|third[- ]party))/i;
 // Le tiers qu'il nomme.
 const TIERS = /\b(?:the |our |a )?((?:[\w-]+ )?(?:client|customer|vendor|supplier|partner|provider|third[- ]party)(?:'s [\w-]+(?: [\w-]+)?(?: team)?)?)\b/i;
-const ATTEND = /\b(?:waiting|waits) (?:for|on) (.+?)[.;!?]*$/i;
+// Ce qu'il attend, jusqu'à la fin de sa proposition : « Waiting for the client's API key: nothing … » attend la clé.
+const ATTEND = /\b(?:waiting|waits) (?:for|on) (.+?)(?:\s*[:;,—–]|[.!?]*$)/i;
 const DATE = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
 
 const phrases = (texte: string) =>

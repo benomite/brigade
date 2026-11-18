@@ -1282,8 +1282,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // Il dit que le ticket ne se fait pas avant une date, ou qu'il attend un tiers hors de la cuisine : le ticket va en
         // WAITING, sans geste du chef, et ne tient plus sa zone ; il rentre seul sur le rail à sa relance (#3814).
         const attenteDite = lireAttenteDuCook(fait.bloque, new Date(instant()));
-        if (attenteDite !== null) {
-          await mettreEnAttenteParLaCuisine(github, issue, attenteDite, { station: nom, mots: fait.bloque });
+        // Le geste qui échoue laisse la question au manager, comme avant : rien n'est perdu.
+        const enWaiting =
+          attenteDite !== null &&
+          (await mettreEnAttenteParLaCuisine(github, issue, attenteDite, { station: nom, mots: fait.bloque }).then(
+            () => true,
+            (erreur: unknown) => (avertir(`brigade : #${issue} sur ${nom} — the cook said it cannot be done yet, but the ticket could not be put in WAITING: its question goes to the manager — ${message(erreur)}`), false),
+          ));
+        if (attenteDite !== null && enWaiting) {
           avertir(`brigade : #${issue} sur ${nom} — the cook said it cannot be done yet: the ticket goes to WAITING, awaiting ${attenteDite.who}, back on the rail on ${attenteDite.followUp.slice(0, 10)}`);
           chrono.rater(issue);
           chrono.oublier(issue);
@@ -1445,8 +1451,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const memeResultat = precedent !== undefined && memeRenvoi(precedent.body, raison, new Date(instant()));
     const attenteDite = memeResultat ? lireAttenteDuCook(raison, new Date(instant())) : null;
     if (attenteDite !== null) {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: handed back twice in a row with the same result — ${raison}\n\nNot relaunched a third time: this result says the ticket cannot be done yet, so it goes to WAITING, awaiting ${attenteDite.who}, and comes back on the rail on its own on its follow-up date (comment below).`);
+      // Le geste de WAITING d'abord : s'il échoue, aucun renvoi n'est écrit pour cette tête, et le tour suivant le refait.
       await mettreEnAttenteParLaCuisine(github, ticket.number, attenteDite, { station: nom, mots: raison });
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: handed back twice in a row with the same result — ${raison}\n\nNot relaunched a third time: this result says the ticket cannot be done yet, so it goes to WAITING, awaiting ${attenteDite.who}, and comes back on the rail on its own on its follow-up date (comment above).`);
       avertir(`brigade : #${ticket.number} sur ${nom} — handed back twice with the same result, which says it cannot be done yet: WAITING, back on the rail on ${attenteDite.followUp.slice(0, 10)}`);
       chrono.oublier(ticket.number);
     }
@@ -1458,7 +1465,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Ses renvois épuisés, le ticket va au manager, pas au chef (#3513).
     const epuise = attenteDite === null && (deja >= RENVOIS_MAX || memeResultat) && genre !== "conflict";
     const suite = epuise ? await apresLesEssais(ticket, [...renvois.map((c) => motifDe(c.body)), raison.split("\n")[0] ?? ""]) : null;
-    const pourquoi = memeResultat ? `handed back twice in a row with the same result — ${raison.split("\n")[0] ?? ""}` : `after ${deja} sends back`;
+    const pourquoi = memeResultat ? `handed back twice in a row with the same result — ${(raison.split("\n")[0] ?? "").replace(/[.\s]+$/, "")}` : `after ${deja} sends back`;
     if (attenteDite !== null) {
       // En WAITING : le commentaire et le label sont posés.
     } else if (suite !== null && "auChef" in suite) {

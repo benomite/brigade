@@ -67,6 +67,9 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   let enveloppe: GitHubDuTour | null = null;
   // Ce que chaque ticket en WAITING attend, une ligne chacun, lu au dernier tour.
   let enWaiting = new Map<number, string>();
+  // Les commentaires de chaque ticket en WAITING lus pour cette ligne, rendus une fois à la lecture suivante du même tour —
+  // celle du retour à la relance (attente/attente-par-le-cook.ts, `ramenerALaRelance`) : un seul appel par ticket et par tour.
+  let lusDuTour = new Map<number, Awaited<ReturnType<GitHubDuTour["commentaires"]>>>();
   // La tête de la PR de chaque ticket, et les checks lus sur chaque tête.
   const tetes = new Map<number, string>();
   // Les fichiers que change la PR ouverte de chaque ticket, lus avec les PR ouvertes du tour.
@@ -106,7 +109,14 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     },
     envelopper: (github) => (enveloppe = {
       ...github,
+      commentaires: async (numero) => {
+        const lus = lusDuTour.get(numero);
+        if (lus === undefined) return github.commentaires(numero);
+        lusDuTour.delete(numero);
+        return lus;
+      },
       fires: async () => {
+        lusDuTour = new Map();
         const tickets = await github.fires();
         noterTickets(tickets);
         // Des commentaires illisibles ne font pas tomber le tour : la ligne le dit, sans rien inventer.
@@ -115,7 +125,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
             .filter(({ labels }) => labels.includes(LABEL_WAITING))
             .map(async ({ number }) => {
               const dit = await github.commentaires(number).then(
-                (commentaires) => direAttenteGitHub(attenteDeLIssue(commentaires)),
+                (commentaires) => (lusDuTour.set(number, commentaires), direAttenteGitHub(attenteDeLIssue(commentaires))),
                 (erreur: unknown) => `carries \`${LABEL_WAITING}\`, but its comments could not be read to say what it waits for (${erreur instanceof Error ? erreur.message : String(erreur)})`,
               );
               return [number, `#${number} is in WAITING, ${dit}`] as const;

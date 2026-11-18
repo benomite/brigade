@@ -190,17 +190,20 @@ base, the stale-branch pruning).
     from …"), or on something a third party outside the kitchen has not given ("waiting for the client", "nothing in
     the kitchen can produce it"), puts the ticket in WAITING through the same gesture as `waiting set`: the `waiting`
     label and the `<!-- brigade:waiting … -->` comment, with what, from whom, and the follow-up taken from its words
-    (the date it says; without one, seven days). Any other question goes to the manager, as before;
+    (the date it says; without one, seven days). Any other question goes to the manager, as before, and so does this
+    one when GitHub refuses the WAITING gesture: the station says why;
   - a delivery the review hands back twice in a row with the same result is not relaunched a third time as it stands:
-    if that result says the ticket cannot be done yet, it goes to WAITING the same way; otherwise its sends back are
+    if that result says the ticket cannot be done yet, it goes to WAITING the same way — the gesture first, then the
+    send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
     spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
   - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
   - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
-    `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until he
-    lifts it;
+    `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
+    chef lifts it. The turn reads each WAITING ticket's comments once, for the hold line and this return;
   - the held-kitchen line names each ticket in WAITING, what it waits for and its follow-up, instead of `cause
     unknown`; the chef's TODO (the `awaiting` block) lists each ticket in WAITING with its follow-up date, without
-    counting it as a decision for the chef.
+    counting it as a decision for the chef. The second's queue also lists the `waiting` issues; the app, which reads
+    each project every thirty seconds, keeps to the WAITING tickets of the lists it already reads.
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
   gives its ticket back on the issue, and at its first turn a restarted station gives back the tickets it held with no
   cook (#2179). Its places are read again at each turn: the cap the chef sets live (`station -- cooks <N>`, `0` for no

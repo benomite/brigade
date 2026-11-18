@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
-import { lireAttenteDuCook, ramenerALaRelance } from "../../src/attente/attente-par-le-cook.ts";
+import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "../../src/attente/attente-par-le-cook.ts";
 import type { GitHubDuTour, TicketLu } from "../../src/brigade-github.ts";
 import { suivreLeTour } from "../../src/retenue/tour.ts";
 
@@ -69,4 +69,42 @@ test("the hold line of a WAITING ticket whose comments cannot be read says so, a
   await github.fires();
   const explications = suivi.vue().explications ?? [];
   assert.deepEqual(explications, ["#31 is in WAITING, carries `waiting`, but its comments could not be read to say what it waits for (HTTP 502)"]);
+});
+
+test("what the cook said is the sentence that says the date, and a third party's wait says what it waits for: no date, a week, and back on the rail on its own", () => {
+  assert.equal(lireAttenteDuCook("The sale page needs the live prices. They are published on 2026-11-25, not before.", MAINTENANT)?.what, "They are published on 2026-11-25, not before");
+  assert.deepEqual(lireAttenteDuCook("The checkout page is ready to build. Waiting for the client's production API key: nothing in the kitchen can produce it.", MAINTENANT), {
+    what: "Waiting for the client's production API key: nothing in the kitchen can produce it",
+    who: "the client's production API key",
+    followUp: "2026-11-25T09:00:00.000Z",
+    backOnFollowUp: true,
+  });
+});
+
+test("the WAITING the kitchen sets says the ticket goes back on the rail on its own and holds no zone; the chef's says neither", async () => {
+  const { github, gestes } = faux({});
+  const corps: string[] = [];
+  await mettreEnAttenteParLaCuisine({ ...github, commenter: async (_numero, texte) => void corps.push(texte) }, 9, { what: "Too early", who: "the calendar", followUp: "2026-11-25T00:00:00.000Z", backOnFollowUp: true }, { station: "box", mots: "Too early." });
+  assert.deepEqual(gestes, ["#9 +waiting"]);
+  assert.match(corps[0] ?? "", /it holds no file zone .*On its follow-up date it goes back on the rail on its own/);
+  assert.match(corps[0] ?? "", /Set by station `box`, from what the cook said:\n\n> Too early\./);
+  assert.doesNotMatch(corpsDeLAttente({ what: "the lawyer's answer", who: "the lawyer", followUp: "2026-11-25T00:00:00.000Z" }), /on its own|file zone/);
+});
+
+test("one turn reads the comments of a WAITING ticket once: the hold line and the follow-up return share that read", async () => {
+  const suivi = suivreLeTour(() => MAINTENANT);
+  const lectures: number[] = [];
+  const corps = corpsDeLAttente({ what: "the client's API", who: "the client", followUp: "2026-11-17T00:00:00.000Z", backOnFollowUp: true });
+  const { github: gestes } = faux({});
+  const github = suivi.envelopper({
+    ...gestes,
+    fires: async () => [{ number: 31, title: "Ticket 31", labels: ["fire", "waiting", "model:opus", "effort:medium"], state: "open" }],
+    commentaires: async (numero: number) => (lectures.push(numero), [{ body: corps, author: "brigade", association: "OWNER", createdAt: "2026-11-10T00:00:00Z" }]),
+  } as unknown as GitHubDuTour);
+  const fires = await github.fires();
+  const rentres = await ramenerALaRelance(github, fires, { station: "box", maintenant: MAINTENANT, avertir: () => {} });
+  assert.deepEqual(rentres, [31]);
+  assert.deepEqual(lectures, [31]);
+  await github.commentaires(31);
+  assert.deepEqual(lectures, [31, 31], "after this turn's shared read, a reading goes to GitHub again");
 });

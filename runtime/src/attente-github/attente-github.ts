@@ -133,7 +133,7 @@ export async function mettreEnAttenteGitHub(github: GitHubDeLAttente, cible: Cib
   const tenu = [LABEL_TAKEN, LABEL_IN_PASS].find((label) => issue.labels.includes(label));
   if (tenu !== undefined) throw new GesteRefuse(`${nommer(cible)} carries \`${tenu}\`: the kitchen holds it — set the wait once it leaves; nothing was written`);
   const attente = { what, who, followUp };
-  await poserLAttente(github, cible.numero, corpsDeLAttente(attente), nommer(cible), "run the command again");
+  await poserLAttente(github, cible.numero, corpsDeLAttente(attente), nommer(cible), "repeat the command");
   return attente;
 }
 
