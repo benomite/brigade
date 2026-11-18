@@ -34,6 +34,8 @@ test("two projects on one station: the one under its GitHub share takes its read
   const h = { instant: debut };
   const maintenant = () => h.instant;
   const limite = ouvrirLimite({ maintenant, alerter: () => {} });
+  // Six projets actifs dans l'heure : la part de brigade est PART_D_UN_PROJET (ticket 3821).
+  for (const autre of ["alpha", "beta", "gamma", "delta", "secondes"]) limite.prendre("cuisine", undefined, lectureDe(autre));
   for (let i = 0; i < PART_D_UN_PROJET; i++) {
     h.instant += 200;
     limite.prendre("cuisine", undefined, lectureDe("brigade"));

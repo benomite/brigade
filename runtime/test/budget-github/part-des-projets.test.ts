@@ -14,6 +14,14 @@ import { aArreter, repertoireTemporaire } from "../outils.ts";
 
 const DEBUT = Date.UTC(2026, 10, 15, 20, 0, 0);
 const lectureDe = (projet: string) => etiquetteDe([`repos/benomite/${projet}/issues`], { projet });
+// Six projets actifs dans l'heure : la part de chacun est PART_D_UN_PROJET (ticket 3821).
+const ACTIFS = ["alpha", "beta", "gamma", "delta", "secondes"];
+const reveiller = (limite: { prendre: (sorte: "cuisine", x: undefined, etiquette: ReturnType<typeof lectureDe>) => unknown }, h: { instant: number }) => {
+  for (const projet of ACTIFS) {
+    h.instant += 200;
+    limite.prendre("cuisine", undefined, lectureDe(projet));
+  }
+};
 
 // Une horloge que le test avance, et un réveil de la file qu'il déclenche.
 const horloge = (depart: number) => {
@@ -24,12 +32,13 @@ const horloge = (depart: number) => {
 test("deux projets sur le même compte : celui qui appelle bien au-dessus de sa part attend seul, l'autre garde ses appels", async () => {
   const h = horloge(DEBUT);
   const limite = ouvrirLimite({ maintenant: h.maintenant, alerter: () => {} });
+  reveiller(limite, h);
+  const premier = h.instant + 200;
   // Le gros projet fait sa part de l'heure, une lecture toutes les 200 ms (sous le débit de la minute).
   for (let i = 0; i < PART_D_UN_PROJET; i++) {
     h.instant += 200;
     limite.prendre("cuisine", undefined, lectureDe("brigade"));
   }
-  const premier = DEBUT + 200;
 
   // Son appel suivant attend dans la file, réveillé quand son plus ancien appel sort de l'heure.
   const reveils: Array<{ ms: number; sonner: () => void }> = [];
@@ -50,10 +59,8 @@ test("deux projets sur le même compte : celui qui appelle bien au-dessus de sa 
   assert.ok(reveils.length >= 1);
   assert.equal(reveils[0]?.ms, premier + FENETRE_MS - demande);
   const parts = limite.repartition().parProjet;
-  assert.deepEqual(parts, [
-    { nom: "brigade", appels: PART_D_UN_PROJET },
-    { nom: "secondes", appels: 50 },
-  ]);
+  assert.deepEqual(parts.find(({ nom }) => nom === "brigade"), { nom: "brigade", appels: PART_D_UN_PROJET });
+  assert.deepEqual(parts.find(({ nom }) => nom === "secondes"), { nom: "secondes", appels: 51 });
 
   // Son plus ancien appel sort de l'heure : il part.
   h.instant = premier + FENETRE_MS;
@@ -91,6 +98,25 @@ test("six projets à une charge ordinaire : le total reste sous le budget de la 
   limite.fermer();
 });
 
+// Ticket 3821 : brigade, retenu à 666 appels pendant que deux des six projets de la box n'appelaient pas.
+test("la part d'un projet est le budget divisé par les projets actifs de l'heure : un projet au repos ne garde pas la sienne", () => {
+  const h = horloge(DEBUT);
+  const limite = ouvrirLimite({ maintenant: h.maintenant, alerter: () => {} });
+  // Trois projets actifs : la part de chacun est un tiers du budget.
+  for (const projet of ["mirrorlab", "espace"]) limite.prendre("cuisine", undefined, lectureDe(projet));
+  const tiers = Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / 3);
+  for (let i = 0; i < tiers; i++) {
+    h.instant += 200;
+    // Bien au-delà d'un sixième, aucun appel ne lève.
+    limite.prendre("cuisine", undefined, lectureDe("brigade"));
+  }
+  assert.ok(tiers > PART_D_UN_PROJET);
+  assert.throws(() => limite.prendre("cuisine", undefined, lectureDe("brigade")), (erreur: unknown) => erreur instanceof PartAtteinte && erreur.part === tiers);
+  // Les deux autres appellent encore.
+  limite.prendre("cuisine", undefined, lectureDe("espace"));
+  limite.fermer();
+});
+
 test("`status` dit, par projet, ses appels de l'heure contre sa part, et pour le seul projet retenu, l'heure où il reprend", (t) => {
   const repertoire = repertoireTemporaire(t);
   const station = repertoireTemporaire(t);
@@ -98,6 +124,7 @@ test("`status` dit, par projet, ses appels de l'heure contre sa part, et pour le
   const h = horloge(DEBUT);
   const limite = limiteDeLaStation(station, { maintenant: h.maintenant, alerter: () => {} });
   aArreter(t, () => limite.fermer());
+  reveiller(limite, h);
   for (let i = 0; i < PART_D_UN_PROJET; i++) {
     h.instant += 200;
     limite.prendre("cuisine", undefined, lectureDe("brigade"));
@@ -113,7 +140,7 @@ test("`status` dit, par projet, ses appels de l'heure contre sa part, et pour le
   const debut = lignes.findIndex((l) => l.startsWith("gh share"));
   assert.deepEqual(lignes.slice(debut, debut + 2), [
     `gh share   brigade ${PART_D_UN_PROJET}/${PART_D_UN_PROJET} calls in the last hour — held back for its GitHub share, resumes at 21:00 UTC`,
-    `           secondes 12/${PART_D_UN_PROJET} calls in the last hour`,
+    `           secondes 13/${PART_D_UN_PROJET} calls in the last hour`,
   ]);
   assert.equal(lignes.some((l) => /station \d+\/\d+ calls in the last hour/.test(l)), false);
 });

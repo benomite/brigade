@@ -77,8 +77,11 @@ These calls are still counted under the kind `gesture` in `status`.
 A station serves several projects on the same account, and one project calling too much made GitHub stop
 all of them (#3683). The station gives itself a budget of **4,000 calls an hour**
 (`BUDGET_DE_LA_STATION_PAR_HEURE`: GitHub's 5,000 minus the reserve of the chef's gestures and a margin for
-the chef's Mac) and divides it between the **six projects** it serves (`PROJETS_DE_LA_STATION`): the
-**share of a project** is 666 calls over the last hour (`PART_D_UN_PROJET`). All three constants are in
+the chef's Mac) and divides it between the projects that **called GitHub in the last hour**, the calling
+project included (`partDeLHeure`, #3821): with three active projects, the **share of a project** is 1,333
+calls over the last hour; with six, 666 (`PART_D_UN_PROJET`). An idle project keeps no share: a fixed sixth
+held `brigade` at 666 calls, all spent reading its rail, while two projects of the box made none. A project
+that wakes up lowers the share of the others, which then wait for their new share. All of it is in
 `runtime/src/budget-github/part-des-projets.ts`.
 
 - A kitchen call of a project that has made its share in the last hour is not sent and not counted. It
@@ -86,8 +89,8 @@ the chef's Mac) and divides it between the **six projects** it serves (`PROJETS_
   of the same project wait behind it: the calls of the other projects go.
 - The station's own calls (heartbeat, gist channel: project `station`) and the chef's gestures are never
   held by a share. The gestures still count in their project's calls.
-- The log says it once: `appels GitHub du projet <project> retenus par sa part — N sur 666 sur l'heure
-  écoulée (le budget de la station, 4000, en 6 parts), le suivant à HH:MM`.
+- The log says it once: `appels GitHub du projet <project> retenus par sa part — N sur <share> sur l'heure
+  écoulée (le budget de la station, 4000, partagé entre les projets actifs de l'heure), le suivant à HH:MM`.
 
 ## When GitHub refuses: a pause on the account, by kind of call
 
@@ -144,7 +147,7 @@ first successful call of that account after it (an HTTP status below 400) remove
     `<limit>` is `primary limit (hourly quota)`, `secondary limit (writes per minute)` or `secondary limit
     (concurrent requests)`.
 - **`status`, `gh share` lines**: one per project that called GitHub in the last hour, the biggest first:
-  `<project> N/666 calls in the last hour`, followed by ` — held back for its GitHub share, resumes at HH:MM
+  `<project> N/<share> calls in the last hour`, followed by ` — held back for its GitHub share, resumes at HH:MM
   UTC` when the project has made its share. No line when the station has no counter, or when it cannot be read.
 - **The computer station's log**, from `runtime/src/station-ordinateur/servir.ts`: when a call of a project's
   turn waits for its share, the station does not wait for that turn. It says `GitHub-only turn on <repo> —
