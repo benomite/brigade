@@ -30,7 +30,7 @@ test("le logo maître porte le dégradé de cuivre poli, la tache de lumière et
   }
   // Diagonale : haut-gauche vers bas-droite.
   const degrade = /<linearGradient\b[^>]*>/i.exec(MAITRE)?.[0] ?? "";
-  const [x1, y1, x2, y2] = ["x1", "y1", "x2", "y2"].map((n) => parseFloat(new RegExp(`${n}\\s*=\\s*"([^"%]+)`).exec(degrade)?.[1] ?? "NaN"));
+  const [x1, y1, x2, y2] = ["x1", "y1", "x2", "y2"].map((n) => parseFloat(new RegExp(`${n}\\s*=\\s*"([^"%]+)`).exec(degrade)?.[1] ?? "NaN")) as [number, number, number, number];
   assert.ok(x2 > x1 && y2 > y1, "le dégradé doit descendre en diagonale, du haut-gauche au bas-droite");
   // Tache de lumière : un dégradé radial blanc qui s'efface.
   assert.match(MAITRE, /<radialGradient\b/i, "tache de lumière absente");
