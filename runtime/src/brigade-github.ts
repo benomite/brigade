@@ -25,7 +25,7 @@ import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { defaireLesBoucles } from "./boucle-attente/boucle-attente.ts";
 import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
-import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapables, stationsCapables } from "./routage-station/routage-station.ts";
+import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, LABEL_COOK_DESIGN, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
@@ -51,7 +51,7 @@ import { type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
 import { avantLeRail, estUneReparationDeMain, fermeReparationDeMain, reparationDeMain } from "./reparation-base/reparation-de-main.ts";
 import { carteBaseRouge, githubDeLaCarte } from "./carte-base-rouge/carte-base-rouge.ts";
 import { estUneReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
-import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
+import { lireInstantane, REQUETE, type Instantane, type PRDeLInstantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
@@ -180,6 +180,8 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // La PR qui livre le ticket, ou null. `version` change avec tout ce que
     // GitHub change à la PR.
     prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
+    // Sa PR ouverte, ou null : une PR mergée ou fermée n'y est pas lue (#3834).
+    prOuverteDuTicket?(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
     // Les checks du dernier commit de la branche d'intégration.
     checksDeLaBase(): Promise<CheckDeLaBase[]>;
     // De quoi nommer sur son ticket la livraison qui a rendu la base rouge
@@ -539,6 +541,8 @@ const relanceDe = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero:
   return Math.max(0, ...retraits.filter((r) => (MIS_DE_COTE as readonly string[]).includes(r.label)).map((r) => Date.parse(r.createdAt)).filter((t) => !Number.isNaN(t)));
 };
 const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number, commentaires: { body: string; createdAt: string }[], marque: string) => {
+  // Sans commentaire de cette marque, la date du relancement n'ôte rien : elle ne se lit pas (#3834).
+  if (!commentaires.some((c) => c.body.startsWith(marque))) return [];
   const relance = await relanceDe(github, numero);
   const reprise = commentaires.findLastIndex((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE));
   return commentaires.slice(reprise + 1).filter((c) => c.body.startsWith(marque) && !(Date.parse(c.createdAt) <= relance));
@@ -1109,7 +1113,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     let marquees = new Set<string>();
     try {
       const commentaires = await github.commentaires(issue);
-      marquees = incapables(commentaires, await Promise.resolve().then(() => github.retraitsDeLabels(issue)).catch(() => []));
+      marquees = await incapablesLus(commentaires, () => Promise.resolve().then(() => github.retraitsDeLabels(issue)));
     } catch (erreur) {
       avertir(`brigade : #${issue} sur ${nom} — the stations already unable to run its gates could not be read: ${message(erreur)}`);
     }
@@ -2170,7 +2174,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // que soient ses labels, et le merge suit quand la CI est verte (#2622).
       // Illisible, la PR ne se devine pas : le ticket ne part pas à un cook.
       try {
-        const sienne = await github.prDuTicket(ticket.number);
+        const sienne = await (github.prOuverteDuTicket ?? github.prDuTicket).call(github, ticket.number);
         // Sauf si la station l'a renvoyé sur cette tête même (CI rouge, conflit,
         // second juge) : l'approbation tient, mais la tête reste à reprendre.
         if (sienne !== null && sienne.state === "open" && !sienne.merged && approuvee(await github.commentaires(sienne.number)) && !(await github.commentaires(ticket.number)).some((c) => c.body.startsWith(MARQUE_DE_RENVOI) && c.body.includes(` sha=${sienne.sha} `))) {
@@ -2196,7 +2200,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // retraits illisibles gardent toutes les marques.
       const marquees = await github
         .commentaires(ticket.number)
-        .then(async (commentaires) => incapables(commentaires, await Promise.resolve().then(() => github.retraitsDeLabels(ticket.number)).catch(() => [])))
+        .then((commentaires) => incapablesLus(commentaires, () => Promise.resolve().then(() => github.retraitsDeLabels(ticket.number))))
         .catch(() => new Set<string>());
       if (marquees.has(nom)) {
         sauter(ticket.number, direSaut(ticket.number, direIncapacite(nom, stationsCapables(nom, options.stationsDuProjet?.() ?? [], marquees))));
@@ -2434,12 +2438,22 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
   const parGraphql = lireGraphql !== undefined && proprietaire && nomDuDepot ? lireGraphql.bind(github) : null;
   let instantane: Instantane | null = null;
   // Une PR externe n'est celle d'aucun ticket, même sous le nom de sa branche (#2933).
+  // Les commentaires que l'instantané a lus (#3834), tant qu'aucun n'a été écrit
+  // depuis sur le ticket : un ticket écrit par la station se relit en REST.
+  const commentairesLus = (numero: number) => instantane?.commentaires.get(numero);
+  const ecrits = new Set<number>();
+  const corpsEcrits = new Set<number>();
+  const corpsLu = (numero: number) => (!corpsEcrits.has(numero) ? instantane?.corps.get(numero) : undefined);
+  const commentairesDuTicket = async (numero: number) => (!ecrits.has(numero) ? commentairesLus(numero) : undefined) ?? (await github.commentaires(numero));
+  const prLue = (lue: PRDeLInstantane) => ({ number: lue.number, url: "", base, sha: lue.sha, state: "open" as const, merged: false, enRetard: lue.enRetard, ...(lue.enConflit ? { enConflit: true as const } : {}), mergeePar: null, version: lue.version });
   const prDeLInstantane = (issue: number) => instantane?.prs.find((pr) => !pr.externe && pr.branche === brancheDuTicket(issue));
   return {
     livraison: githubDeLaLivraison(github, base, depotGitHub),
     checksDeLaBase: async () => {
       if (parGraphql === null) return github.ci(base);
       try {
+        ecrits.clear();
+        corpsEcrits.clear();
         instantane = lireInstantane(await parGraphql(REQUETE, { owner: proprietaire as string, repo: nomDuDepot as string, base: `refs/heads/${base}` }));
         return instantane.baseIncomplete ? github.ci(base) : instantane.base;
       } catch (erreur) {
@@ -2458,13 +2472,19 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       sonde.confirmer();
       return derniers;
     },
-    dependancesOuvertes: async (numero) => attendusDuCorps(numero, (await github.issue(numero))?.body ?? "", (dependance) => github.issue(dependance)),
+    dependancesOuvertes: async (numero) => attendusDuCorps(numero, corpsLu(numero) ?? (await github.issue(numero))?.body ?? "", (dependance) => github.issue(dependance)),
     // Une PR ouverte se lit dans l'instantané ; une PR mergée ou fermée n'y est
     // pas, et se lit en REST — ce qui n'arrive qu'une fois par ticket.
     prDuTicket: async (issue) => {
       const lue = prDeLInstantane(issue);
       if (lue === undefined) return github.prDeBranche(brancheDuTicket(issue));
-      return { number: lue.number, url: "", base, sha: lue.sha, state: "open", merged: false, enRetard: lue.enRetard, ...(lue.enConflit ? { enConflit: true } : {}), mergeePar: null, version: lue.version };
+      return prLue(lue);
+    },
+    // Pour qui ne veut que la PR ouverte : l'instantané, complet, dit qu'il n'y en a pas, sans relire la branche en REST (#3834).
+    prOuverteDuTicket: async (issue) => {
+      const lue = prDeLInstantane(issue);
+      if (lue !== undefined) return prLue(lue);
+      return instantane !== null && !instantane.prsTronquees ? null : github.prDeBranche(brancheDuTicket(issue));
     },
     // Lue seulement quand la base est rouge : sans elle, le ticket de réparation
     // ne s'ouvre pas et le tour le dit.
@@ -2486,13 +2506,16 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       const lue = instantane?.prs.find((pr) => pr.sha === sha);
       return lue === undefined || lue.ciIncomplete ? github.ci(sha) : lue.ci;
     },
-    corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
-    ecrireCorps: (numero, corps) => github.ecrireCorps(numero, corps),
+    corpsDuTicket: async (issue) => corpsLu(issue) ?? (await github.issue(issue))?.body ?? "",
+    ecrireCorps: (numero, corps) => {
+      corpsEcrits.add(numero);
+      return github.ecrireCorps(numero, corps);
+    },
     issue: (numero) => github.issue(numero),
     depotDuTicket: async (issue) => {
       const lue = await github.issue(issue);
       if (lue === null) return null;
-      const [[fireAt = null] = [], commentaires] = await Promise.all([github.posesDeFire?.(issue), github.commentaires(issue)]);
+      const [[fireAt = null] = [], commentaires] = await Promise.all([github.posesDeFire?.(issue), commentairesDuTicket(issue)]);
       // Sa prise, que la station qui merge n'a pas vue si une autre l'a prise ou si elle a redémarré depuis (#2732),
       // et ce qui l'a suivie : les cooks rendus sans livraison, les renvois, les reprises (#2954).
       const depuis = fireAt ?? lue.createdAt;
@@ -2506,12 +2529,18 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       instantane !== null && !instantane.prsTronquees
         ? instantane.prs.filter((pr) => pr.externe).map(({ number, sha }) => ({ number, sha }))
         : (await prsOuvertes.call(github)).flatMap(({ number, sha, externe }) => (externe === true && sha !== undefined ? [{ number, sha }] : [])),
-    remplacerCommentaire: (numero, ancien, nouveau) => github.remplacerCommentaire(numero, ancien, nouveau),
+    remplacerCommentaire: (numero, ancien, nouveau) => {
+      ecrits.add(numero);
+      return github.remplacerCommentaire(numero, ancien, nouveau);
+    },
     ...(github.assigner === undefined ? {} : { assigner: github.assigner.bind(github) }),
     // GitHub rend les commentaires dans l'ordre où il les a reçus : leur rang
     // départage, comme leur id, deux commentaires de la même seconde.
-    commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
-    commenter: (numero, corps) => github.commenter(numero, corps),
+    commentaires: async (numero) => (await commentairesDuTicket(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
+    commenter: (numero, corps) => {
+      ecrits.add(numero);
+      return github.commenter(numero, corps);
+    },
     retraitsDeLabels: (numero) => retraitsDeLabels.call(github, numero),
     etatDuRun: (run) => github.etatDuRun(run),
     relancerLesEchecs: (run) => github.relancerLesEchecs(run),

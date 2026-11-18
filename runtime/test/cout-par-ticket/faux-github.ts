@@ -83,7 +83,7 @@ export class FauxGitHub {
     this.poster(numero, body);
   }
 
-  readonly transport: Transport = async (args) => {
+  readonly transport: (args: string[], options?: Parameters<Transport>[1]) => ReturnType<Transport> = async (args) => {
     // Rend la main avant de répondre, comme un vrai appel.
     await new Promise((suite) => setImmediate(suite));
     const { methode, chemin, champs, entetes } = lire(args);
