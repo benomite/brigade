@@ -25,6 +25,7 @@ test("while the kitchen is held on base-red, the chef's TODO is never empty of t
     },
     ecrireCorps: async (n: number, corps: string) => void (cartes.find((c) => c.number === n)!.body = corps),
     fermerIssue: async (n: number) => void (cartes.find((c) => c.number === n)!.state = "closed"),
+    rouvrirIssue: async (n: number) => void (cartes.find((c) => c.number === n)!.state = "open"),
   };
   const ouvertes = () => cartes.filter((c) => c.labels.includes("chef-todo") && c.state === "open");
   reparation("one");
