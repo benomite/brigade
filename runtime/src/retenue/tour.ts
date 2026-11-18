@@ -12,10 +12,15 @@
 // - Servi : un merge que ce tour a fait, ou un ticket en pass qui n'est plus
 //   parmi les tickets ouverts — une autre station l'a mergé.
 // - Depuis quand ils attendent : le premier tour qui a vu chacun d'eux attendre.
+// - En WAITING (#3814) : ce qu'attend chaque ticket au label `waiting` et sa
+//   relance, relus de son commentaire marqué (attente-github/attente-github.ts) —
+//   un appel par ticket en WAITING. La ligne de la retenue les dit à défaut
+//   d'autre cause, au lieu de « cause unknown ».
 // - Attendent leur CI (#2456) : ceux en pass dont la tête de PR, au dernier
 //   tour, n'avait aucun check, ou des checks qui tournaient, et aucun rouge.
 //
 // Rien n'est tenu d'un process à l'autre : à l'ouverture, le compte repart.
+import { attenteDeLIssue, direAttenteGitHub } from "../attente-github/attente-github.ts";
 import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
@@ -60,6 +65,8 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   let attentes = new Map<number, number[]>();
   let enCuisson = new Set<number>();
   let enveloppe: GitHubDuTour | null = null;
+  // Ce que chaque ticket en WAITING attend, une ligne chacun, lu au dernier tour.
+  let enWaiting = new Map<number, string>();
   // La tête de la PR de chaque ticket, et les checks lus sur chaque tête.
   const tetes = new Map<number, string>();
   // Les fichiers que change la PR ouverte de chaque ticket, lus avec les PR ouvertes du tour.
@@ -102,6 +109,19 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       fires: async () => {
         const tickets = await github.fires();
         noterTickets(tickets);
+        // Des commentaires illisibles ne font pas tomber le tour : la ligne le dit, sans rien inventer.
+        const lus = await Promise.all(
+          tickets
+            .filter(({ labels }) => labels.includes(LABEL_WAITING))
+            .map(async ({ number }) => {
+              const dit = await github.commentaires(number).then(
+                (commentaires) => direAttenteGitHub(attenteDeLIssue(commentaires)),
+                (erreur: unknown) => `carries \`${LABEL_WAITING}\`, but its comments could not be read to say what it waits for (${erreur instanceof Error ? erreur.message : String(erreur)})`,
+              );
+              return [number, `#${number} is in WAITING, ${dit}`] as const;
+            }),
+        );
+        enWaiting = new Map(lus);
         return tickets;
       },
       checksDeLaBase: async () => {
@@ -157,7 +177,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         })
         .sort((a, b) => a - b);
       const attenteCI = attendentLaCI.length === 0 ? null : { tickets: attendentLaCI, running: [...enCours].sort() };
-      const explications = [...sauts].filter(([ticket]) => attendent.has(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne);
+      const explications = [...[...sauts].filter(([ticket]) => attendent.has(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne), ...[...enWaiting].sort(([a], [b]) => a - b).map(([, ligne]) => ligne)];
       return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI, explications };
     },
   };

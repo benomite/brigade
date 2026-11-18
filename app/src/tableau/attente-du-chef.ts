@@ -17,12 +17,15 @@
 // Une issue au label `waiting` attend un tiers, pas le chef : elle n'est jamais une entrée, quoi qu'elle porte d'autre
 // (#3075) ; l'issue du tableau de la cuisine non plus.
 //
-// Ce qu'attend chaque issue au label `waiting` de ces listes est lu aussi (#3075) — sans liste de plus : le budget GitHub
-// de l'app (budget-github.ts) ne la paie pas. Son dernier commentaire d'entrée en WAITING (vue/attente/attente-github.ts,
+// Ce qu'attend chaque issue au label `waiting` de ces listes est lu aussi (#3075), et de la liste des issues au label
+// `waiting`, quand `enWaiting` le demande (#3814). Son dernier commentaire d'entrée en WAITING (vue/attente/attente-github.ts,
 // `tiersDesCommentaires`) dit ce que sa carte de WAITING montre, quoi, de qui, sa relance. Une issue qui n'est pas sur le
 // rail (sans `fire`, une carte `chef-todo`) y est posée, dans WAITING : mise en attente depuis TODO, elle quitte TODO et
 // se montre là. Cette lecture qui échoue ne fait pas tomber celle du chef : ses cartes de WAITING ne disent pas ce
 // qu'elles attendent, et le bloc dit pourquoi (`illisibles`).
+// Le bloc dit aussi chaque issue en WAITING dont l'attente se lit, une ligne chacune sous les entrées : ce qu'elle attend,
+// de qui, et sa relance (#3814) — sans être une entrée : elle ne demande rien au chef. Elle se lit de la marque que la station et `waiting set`
+// posent (runtime/src/attente-github/attente-github.ts, `corpsDeLAttente`), ou du commentaire que l'app écrit.
 //
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`, `decision`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
@@ -42,6 +45,9 @@ import { SORTE_DE_VALIDATION, validationDuCorps } from "../vue/validation-design
 
 const LABEL_FIRE = "fire";
 const LABEL_WAITING = "waiting";
+// Les auteurs dont le runtime croit une marque (runtime/src/alimenter.ts, `DE_CONFIANCE`).
+const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
+const MARQUE_WAITING = /^<!-- brigade:waiting (\{.*?\}) -->/;
 const PAR_PAGE = 100;
 const PAGES_AU_PLUS = 10;
 // Ce que le manager attend du chef quand il écarte une issue qui porte son label, mot pour mot comme la box l'écrit
@@ -72,7 +78,8 @@ export type AttenteDuChef = {
 // Une issue au label `waiting` : son ticket, et ce qu'elle attend d'un tiers — nul quand son commentaire ne se lit pas.
 export type EnWaiting = { ticket: number; titre: string; url: string; tiers: Tiers | null };
 // Ce que la lecture rend : les entrées et l'heure de la lecture — ou pourquoi rien ne se lit. `horsLigne` : GitHub n'a
-// pas été joint du tout. `enWaiting` : les issues au label `waiting`.
+// pas été joint du tout. `enWaiting` : les issues au label `waiting`. `illisibles` : les lignes du bloc qui ne sont pas des
+// entrées — ce qui ne se lit pas, et chaque issue en WAITING avec ce qu'elle attend (#3814).
 export type AttenteLue = { lue: true; lu: string; attentes: AttenteDuChef[]; illisibles: string[]; enWaiting: EnWaiting[] } | { lue: false; raison: string; horsLigne?: true };
 
 type Brut = Record<string, unknown>;
@@ -81,6 +88,35 @@ const liste = (valeur: unknown): Brut[] => (Array.isArray(valeur) ? valeur.flatM
 const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
 const date = (valeur: unknown): string | null => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
 const labelsDe = (issue: Brut): string[] => liste(issue.labels).flatMap(({ name }) => (typeof name === "string" ? [name] : []));
+
+// Ce qu'une issue en WAITING attend, d'après son dernier commentaire d'entrée en WAITING : la marque de la station ou de
+// `waiting set`, d'un auteur du dépôt, ou le commentaire de l'app. `rentre` : la cuisine l'y a mise, elle rentre seule sur
+// le rail à sa relance. Null sans aucun qui se lise : rien n'est inventé.
+function attenteDeLIssue(commentaires: readonly Brut[]): { quoi: string; qui: string; relance: string | null; rentre: boolean } | null {
+  for (const commentaire of [...commentaires].reverse()) {
+    const brut = DE_CONFIANCE.includes(texte(commentaire.author_association)) ? MARQUE_WAITING.exec(texte(commentaire.body))?.[1] : undefined;
+    if (brut !== undefined) {
+      try {
+        const { what, who, followUp, backOnFollowUp } = objet(JSON.parse(brut)) ?? {};
+        if (typeof what === "string" && typeof who === "string" && date(followUp) !== null) return { quoi: what, qui: who, relance: followUp as string, rentre: backOnFollowUp === true };
+      } catch {
+        // Une marque illisible ne dit rien : la précédente, s'il y en a une.
+      }
+      continue;
+    }
+    const tiers = tiersDesCommentaires([commentaire]);
+    if (tiers !== null) return { quoi: tiers.quoi, qui: tiers.qui, relance: tiers.relance, rentre: false };
+  }
+  return null;
+}
+
+// La ligne du bloc d'une issue en WAITING : ce qu'elle attend, de qui, sa relance — la date avec son année.
+const relanceDite = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+// Une issue en WAITING dont aucun commentaire ne dit l'attente n'a pas de ligne : rien à montrer, comme avant.
+function ligneEnWaiting(ticket: number, titre: string, attente: NonNullable<ReturnType<typeof attenteDeLIssue>>): string {
+  const relance = attente.relance === null ? "" : ` — ${attente.rentre ? "back on the rail on its own on" : "follow-up on"} ${relanceDite(new Date(attente.relance).toISOString())}`;
+  return `#${ticket}  WAITING  awaiting ${attente.qui}: “${attente.quoi}”${relance} — it does not await you${titre === "" ? "" : `  ${titre}`}`;
+}
 
 class Refus extends Error {}
 class HorsLigne extends Error {}
@@ -105,10 +141,12 @@ function ligneDeLaMiseDeCote(miseDeCote: MiseDeCote): string {
 // ne coûte rien) ou le `gh` du poste, pour le second. `maintenant` : l'heure de la lecture, jusqu'à laquelle les durées
 // du bloc se comptent.
 // `enWaiting` : lire aussi ce qu'attend chaque issue en WAITING — ce que le rail de l'app montre ; le second et les
-// notifications ne s'en servent pas, et ne paient pas sa lecture.
+// notifications ne s'en servent pas, et ne paient pas sa lecture. `true` lit aussi la liste des issues au label `waiting`
+// (#3814) ; `"du-rail"` s'en tient aux issues en WAITING des listes déjà lues — un ticket que la cuisine met en WAITING
+// garde `fire` —, pour l'app, qui relit chaque projet toutes les trente secondes sous son budget GitHub (budget-github.ts).
 // `epiquesAvantLeRail` : les épiques sans `fire` que la lecture du rail a dites (`avantLeRail`) — sans elles, seules les épiques
 // au label `fire` posent leur question.
-export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[] }): Promise<AttenteLue> {
+export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: true | "du-rail"; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[] }): Promise<AttenteLue> {
   const { depot, appeler } = options;
   const lire = async (chemin: string): Promise<unknown> => {
     const reponse = await appeler(chemin).catch((erreur: unknown) => {
@@ -234,19 +272,33 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     attentes.sort((a, b) => instant(a.depuis) - instant(b.depuis) || a.ticket - b.ticket);
     // Ce qu'attend chaque issue en WAITING : une lecture qui échoue le dit au bloc, et laisse ses cartes sans ce qu'elles
     // attendent — jamais l'attente du chef tombée avec elle.
-    const attendent = [...new Map(listes.flat().filter(enAttente).map((issue) => [issue.number as number, issue])).values()];
+    // Avec `enWaiting`, la liste des issues au label `waiting` aussi : une issue en WAITING que rien d'autre ne liste a sa
+    // ligne dans le bloc (#3814).
+    // Cette liste qui ne se lit pas ne fait pas tomber la lecture du chef : le bloc le dit, et s'en tient aux autres listes.
+    const auWaiting =
+      options.enWaiting === true
+        ? await issuesAuLabel(LABEL_WAITING).catch((erreur: unknown) => {
+            illisibles.push(`the \`${LABEL_WAITING}\` issues were not listed from GitHub: ${(erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]?.replace(/[.\s]+$/, "") ?? ""} — only those on the rail or in Todo say what they wait for, until the next reading`);
+            return [];
+          })
+        : [];
+    const attendent = [...new Map([...listes.flat(), ...auWaiting].filter(enAttente).map((issue) => [issue.number as number, issue])).values()].sort((a, b) => (a.number as number) - (b.number as number));
     // Une issue dont les commentaires ne se lisent pas garde sa carte, sans ce qu'elle attend ; le bloc dit pourquoi, une fois.
     let rate: string | undefined;
+    const lignesEnWaiting: string[] = [];
     const enWaiting: EnWaiting[] = await Promise.all(
       (options.enWaiting === undefined ? [] : attendent).map(async (issue) => {
         const { ticket, titre, url } = entree(issue);
-        const tiers = await commentaires(ticket).then(tiersDesCommentaires, (erreur: unknown) => {
+        const lus = await commentaires(ticket).catch((erreur: unknown) => {
           rate ??= (erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
           return null;
         });
-        return { ticket, titre, url, tiers };
+        const attente = lus === null ? null : attenteDeLIssue(lus);
+        if (attente !== null) lignesEnWaiting[attendent.indexOf(issue)] = ligneEnWaiting(ticket, titre, attente);
+        return { ticket, titre, url, tiers: lus === null ? null : tiersDesCommentaires(lus) };
       }),
     );
+    illisibles.push(...lignesEnWaiting.filter((ligne) => ligne !== undefined));
     if (rate !== undefined) illisibles.push(`what the \`${LABEL_WAITING}\` issues wait for was not read from GitHub: ${rate} — their WAITING cards do not say it until the next reading`);
     return { lue: true, lu, attentes, illisibles, enWaiting };
   } catch (erreur) {
@@ -313,7 +365,7 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres
 export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, partager?: (attentes: AttenteDuChef[]) => Promise<Partage<AttenteDuChef>>): Promise<LectureDuTableauDuDepot> {
   if (!lu.lu) return lu;
   const epiquesAvantLeRail = (lu.avantLeRail?.issues ?? []).filter(({ etat }) => etat === "epique").map(({ ticket, titre }) => ({ ticket, titre }));
-  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: true, epiquesAvantLeRail });
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: "du-rail", epiquesAvantLeRail });
   if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
   if (partager === undefined) return avecLAttenteDuChef(lu, attente);
   const { siennes, autres } = await partager(attente.attentes);
