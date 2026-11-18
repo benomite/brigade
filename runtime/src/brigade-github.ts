@@ -3173,10 +3173,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // Un test d'acceptation gelé modifié renvoie la livraison sans relecture (#3726).
       // Un historique illisible ne la renvoie pas : le contrôle n'a pas eu lieu, la pass le dit.
       // Un dépôt qui ne sait pas faire de checkout jetable n'est pas un clone git (une doublure) : rien à lire.
-      const gel = (() => {
+      // Le chef du projet amende un test gelé comme le manager (ticket 3835) : son
+      // login n'est lu que si un test gelé a bougé, et sans attendre plus de 10 s.
+      const gel = await (async () => {
         if (depot.essayer === undefined) return null;
         try {
-          return motifDuGel(violationsDuGel(worktree, `origin/${base}`));
+          const violations = violationsDuGel(worktree, `origin/${base}`);
+          if (violations.length === 0 || options.chef === undefined) return motifDuGel(violations);
+          const chef = await Promise.race([options.chef().catch(() => null), new Promise<null>((rendre) => setTimeout(() => rendre(null), 10_000).unref())]);
+          return motifDuGel(violationsDuGel(worktree, `origin/${base}`, chef?.trim() || null));
         } catch (erreur) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be checked: ${message(erreur)}`);
           return null;
