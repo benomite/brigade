@@ -10,7 +10,7 @@ import type { Geste, StationsLues } from "../../../../runtime/src/rail-bloque/ra
 
 // Ce que `facts` porte : `attenteDuRail`, la raison, sa phrase et son geste, absente quand rien n'attend ou qu'un cook tourne ;
 // `lignesDesCartes`, la ligne de chaque carte en file qui ne part pas la prochaine, absente sans aucune ; `attendusDesCartes`,
-// les tickets qu'attend chacune, ceux que sa carte ouvre (#3763), absents sans aucun.
+// les tickets qu'attend chacune, ceux que sa carte ouvre (ticket 3763), absents sans aucun.
 export type LignesDesCartes = Record<number, string>;
 export type AttendusDesCartes = Record<number, number[]>;
 
