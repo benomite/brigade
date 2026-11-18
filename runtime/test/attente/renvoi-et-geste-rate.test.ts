@@ -38,8 +38,11 @@ test("a cook that says it cannot be done yet, but whose WAITING comment GitHub r
   faux.feu(20, ["fire", "model:opus", "effort:medium"], "## Context\n\nThe dashboard's second screen.");
   const client = fauxClient(faux);
   const commenter = client.commenter.bind(client);
+  // Le manager consulté sur le blocage d'un cook tourne sous le run `blocage-<numéro>`.
+  const consultations: string[] = [];
   const lancer: Lancer = ({ args, flux }) => {
-    const consulte = args.some((arg) => arg.includes("consult"));
+    if (flux.includes("blocage-20")) consultations.push(flux);
+    const consulte = args.some((arg) => arg.includes("consult")) || flux.includes("blocage-");
     const message = consulte ? "Done.\n<livrable>\nNothing.\n</livrable>" : "I stopped.\n<livrable>\n<bloque>Too early: this cannot be done before 2026-11-25.</bloque>\n</livrable>";
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
@@ -60,4 +63,20 @@ test("a cook that says it cannot be done yet, but whose WAITING comment GitHub r
   await ouverte.calme();
   assert.equal(faux.ticket(20).labels.has(LABEL_WAITING), false);
   assert.ok(dits.some((ligne) => /#20 .*could not be put in WAITING: its question goes to the manager — .*HTTP 502/.test(ligne)), dits.join("\n"));
+  assert.equal(consultations.length, 1, "the manager is consulted on the cook's question");
+  assert.ok(!dits.some((ligne) => /#20 .*the ticket goes to WAITING/.test(ligne)), dits.join("\n"));
+});
+
+test("handed back twice with the same wait in other words, the same date: not relaunched a third time, it goes to WAITING", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(7);
+  const motifs = ["Too early: this can only be done from 2026-11-25.", "Still too early, the partner's API opens on 2026-11-25: it cannot be done before."];
+  let jugees = 0;
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: motifs[Math.min(jugees++, 1)] ?? "" }), avertir: () => {}, maintenant: () => new Date("2026-11-18T09:00:00Z") });
+  for (let tour = 0; tour < 12; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(faux.cuissons.filter(({ issue }) => issue === 7).length, 2);
+  assert.equal(faux.ticket(7).labels.has(LABEL_WAITING), true, [...faux.ticket(7).labels].join(", "));
 });
