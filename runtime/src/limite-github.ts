@@ -52,7 +52,7 @@ export type Usage = "cuisine" | "geste";
 
 // Sous cette part du quota, la box ralentit les appels de la cuisine des projets
 // les plus actifs (#3833) ; au-dessus, rien ne les retient.
-export const SEUIL_DU_RALENTISSEMENT = 0.2;
+const SEUIL_DU_RALENTISSEMENT = 0.2;
 // Une décision prise sur un quota lu il y a plus longtemps se confirme d'abord
 // auprès de `gh api rate_limit` — au plus une fois par pas, par compte.
 export const RAFRAICHIR_MS = 60_000;
@@ -61,13 +61,13 @@ export const RAFRAICHIR_MS = 60_000;
 // jusqu'à `reset`, lu à l'instant `vu` (en millisecondes).
 export type Quota = { restant: number; plafond: number; reset: number; vu: number };
 
-export const seuilDe = (plafond: number): number => Math.ceil(plafond * SEUIL_DU_RALENTISSEMENT);
+const seuilDe = (plafond: number): number => Math.ceil(plafond * SEUIL_DU_RALENTISSEMENT);
 
 // Le même projet s'inscrit sous deux noms au compteur : son nom court (`brigade`,
 // la cuisine) et son dépôt (`benomite/brigade`, le client GitHub). Ses appels se
 // comptent sous une seule clé, le nom du dépôt sans son propriétaire, en minuscules.
 const CLE = "lower(substr(projet, instr(projet, '/') + 1))";
-export const cleDuProjet = (projet: string): string => projet.slice(projet.indexOf("/") + 1).toLowerCase();
+const cleDuProjet = (projet: string): string => projet.slice(projet.indexOf("/") + 1).toLowerCase();
 
 // Un projet reste au classement un jour après son dernier appel, même quand ses
 // appels de l'heure sont tous rendus (304) ou sortis de la fenêtre : il y compte
@@ -76,7 +76,7 @@ const PROJET_CONNU_MS = 24 * FENETRE_MS;
 
 // Les projets connus, du plus actif au moins actif sur l'heure glissante (à
 // égalité, par nom), avec leurs appels. La station elle-même n'est pas un projet.
-export type ProjetClasse = { projet: string; appels: number };
+type ProjetClasse = { projet: string; appels: number };
 
 function projetsClasses(lire: Lire, instant: number): ProjetClasse[] {
   return lire<ProjetClasse>(
@@ -88,7 +88,7 @@ function projetsClasses(lire: Lire, instant: number): ProjetClasse[] {
 
 // Le délai que le quota impose à un appel de la cuisine d'un projet de la moitié
 // haute : 0 au seuil, jusqu'au reset de GitHub à zéro restant, linéaire entre les deux.
-export function delaiDuQuota(quota: Quota, instant: number): number {
+function delaiDuQuota(quota: Quota, instant: number): number {
   const seuil = seuilDe(quota.plafond);
   if (quota.restant >= seuil) return 0;
   return Math.round(((quota.reset - instant) * (seuil - Math.max(0, quota.restant))) / seuil);
@@ -616,7 +616,7 @@ export function budgetDeLaStation(racine: string | undefined, maintenant: number
 // reset, et les projets que ce quota ralentit. Lu sans rien écrire ni rien
 // créer : null sans compteur, sans quota dit, ou s'il ne se lit pas — `status`
 // n'en dit alors rien plutôt que d'inventer des zéros.
-export type QuotaDeLaStation = { restant: number; plafond: number; reset: number; ralentis: Array<ProjetClasse & { delai: number }> };
+type QuotaDeLaStation = { restant: number; plafond: number; reset: number; ralentis: Array<ProjetClasse & { delai: number }> };
 
 export function quotaDeLaStation(racine: string | undefined, maintenant: number): QuotaDeLaStation | null {
   if (!racine) return null;

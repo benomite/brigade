@@ -36,7 +36,6 @@ import {
   RAFRAICHIR_MS,
   REPERTOIRE_COMPTEUR,
   REQUETES_EN_VOL,
-  seuilDe,
   type Limite,
 } from "../src/limite-github.ts";
 import { aArreter, DEPOT, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
@@ -151,7 +150,6 @@ test("au-dessus du seuil du quota rien ne retient la cuisine ; dessous, le proje
   const horloge = uneHorloge();
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
-  assert.equal(seuilDe(5000), 1000);
 
   // Quel que soit le quota au seuil ou au-dessus, on s'arrête à 1 000 appels pour le dire.
   for (const restant of [4000, 2400, 1100, 1000]) {
