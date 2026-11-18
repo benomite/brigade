@@ -46,8 +46,9 @@ import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
-import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
-import { estUneReparation, ouvreReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
+import { type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
+import { avantLeRail, estUneReparationDeMain, fermeReparationDeMain, reparationDeMain } from "./reparation-base/reparation-de-main.ts";
+import { estUneReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -604,7 +605,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
-  const ouvrirLaReparation = ouvreReparation({ github, base });
+  const ouvrirLaReparation = reparationDeMain({ github, base });
   // Le parcours de chaque ticket, de sa prise à son merge, phase par phase
   // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
   // Illisible, le temps part de la prise, et la station le dit.
@@ -712,7 +713,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : the claim of ${[...ajouts.keys()].map((n) => `#${n}`).join(", ")} could not be recorded on ${nom} — ${message(erreur)}`);
     }
   };
-  const fermerLaReparation = fermeReparation({ github, base });
+  const fermerLaReparation = fermeReparationDeMain({ github, base });
   // Les gestes de guérison du projet (#2757), joués à chaque tour.
   // Une cause qui vit dans la station se dépose sur la brigade (#3098), comme le temps perdu.
   const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
@@ -1740,7 +1741,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // La seule exception est la réparation de la base elle-même : elle doit la
         // débloquer, et sa CI, sur sa tête, reste exigée par `fusionner`.
         const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
-        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
+        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparationDeMain(ticket.labels) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
         // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
         // de plusieurs minutes ne retient plus les merges, les autres relectures
         // ni les prises. Les merges, eux, passent un à un.
@@ -2055,9 +2056,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       return null;
     };
-    // Les plus prioritaires d'abord (`prio:0` avant `prio:1`…, sans `prio:` en
-    // dernier), puis les plus anciens (#2209).
-    libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
+    // La réparation de main avant tout (#3815), puis les plus prioritaires
+    // (`prio:0` avant `prio:1`…, sans `prio:` en dernier), puis les plus anciens (#2209).
+    libres.sort((x, y) => avantLeRail(x.labels) - avantLeRail(y.labels) || rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     attendentDuTour = new Set(libres.map(({ number }) => number));
     // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
     // qui attendent un ticket ouvert le disent encore, sans quoi la retenue ne
@@ -3173,10 +3174,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // Un test d'acceptation gelé modifié renvoie la livraison sans relecture (#3726).
       // Un historique illisible ne la renvoie pas : le contrôle n'a pas eu lieu, la pass le dit.
       // Un dépôt qui ne sait pas faire de checkout jetable n'est pas un clone git (une doublure) : rien à lire.
-      const gel = (() => {
+      // Le chef du projet amende un test gelé comme le manager (ticket 3835) : son
+      // login n'est lu que si un test gelé a bougé, et sans attendre plus de 10 s.
+      const gel = await (async () => {
         if (depot.essayer === undefined) return null;
         try {
-          return motifDuGel(violationsDuGel(worktree, `origin/${base}`));
+          const violations = violationsDuGel(worktree, `origin/${base}`);
+          if (violations.length === 0 || options.chef === undefined) return motifDuGel(violations);
+          const chef = await Promise.race([options.chef().catch(() => null), new Promise<null>((rendre) => setTimeout(() => rendre(null), 10_000).unref())]);
+          return motifDuGel(violationsDuGel(worktree, `origin/${base}`, chef?.trim() || null));
         } catch (erreur) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be checked: ${message(erreur)}`);
           return null;
