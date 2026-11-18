@@ -126,10 +126,19 @@ export function dureeCourte(ms: number): string {
 export const heureUtc = (iso: string) => `${new Date(iso).toISOString().slice(11, 16)} UTC`;
 const liste = (noms: readonly string[]) => (noms.length <= 1 ? (noms[0] ?? "") : `${noms.slice(0, -1).join(", ")} and ${noms.at(-1)}`);
 
+// Les stations qui servent le projet : celles dont la sélection le nomme, et
+// celles, disponibles, qui n'en publient aucune — montées sur leur machine,
+// elles servent ce que leur appairage demande, que le compte ne montre pas.
+// On ne sait pas ce qu'elles servent : on ne dit donc pas qu'aucune ne le sert
+// (ticket 3818). Arrêtée ou muette, une station sans sélection ne compte pas.
+export function servantesDe<S extends StationDuCompte>(lues: readonly S[], depot: string, maintenant: number): S[] {
+  return lues.filter((station) => (station.selection === null ? disponible(station, maintenant) : station.selection.some((choisi) => memeDepot(choisi, depot))));
+}
+
 // La cause, d'après les stations qui servent le projet.
 function causeDe(depot: string, stations: StationsLues, maintenant: number): { cause: Cause; stations: string[]; jusqua?: string } {
   if ("illisibles" in stations) return { cause: "inconnue", stations: [] };
-  const servantes = stations.lues.filter(({ selection }) => selection?.some((choisi) => memeDepot(choisi, depot)) === true);
+  const servantes = servantesDe(stations.lues, depot, maintenant);
   if (servantes.length === 0) return { cause: "aucune-station", stations: [] };
   const noms = (lesquelles: readonly StationDuCompte[]) => [...new Set(lesquelles.map(({ name }) => stationDe(name)))].sort();
   const retenues = servantes.flatMap((station) => {
