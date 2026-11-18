@@ -293,7 +293,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
   const nombre = (...mots: string[]) => ranges.filter(({ etat }) => mots.includes(etat)).length;
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
   // Une station en pause de quota GitHub (ticket 3482) est retenue par GitHub, pas tue : la pause du compte se dit à part.
-  // Une station qui cuit ou juge un ticket du projet le sert, même sans sélection de l'app (#3797).
+  // Une station qui cuit ou juge un ticket du projet le sert, même sans sélection de l'app (ticket 3797).
   const lus = "lus" in signes ? avecLesStationsQuiCuisent(avecLaPause(signes.lus, Date.parse(luLe)), lu.depot, cooks.map(({ station }) => station)) : null;
   const stations = lus === null ? { illisibles: (signes as { illisible: string }).illisible } : { lues: lus };
   const pause = lus === null ? null : pauseDuCompte(lus, Date.parse(luLe));
