@@ -33,7 +33,7 @@ test("a base-branch cause has its own issue and the PR is up to date, or the com
     `repos/${REPO}/issues?state=all&per_page=100&sort=created&direction=desc`,
   ).filter((i) => !i.pull_request && i.number > ISSUE && /types \(app\)|error TS/i.test(`${i.title}\n${i.body}`));
   assert.ok(issues.length > 0, "a new issue describes the base error with its output");
-  assert.match(issues[0].body, /error TS\d+/);
+  assert.match(issues[0]?.body ?? "", /error TS\d+/);
   const pr = JSON.parse(gh("api", `repos/${REPO}/pulls/${PR}`)) as { base: { ref: string }; head: { sha: string } };
   const cmp = JSON.parse(gh("api", `repos/${REPO}/compare/${pr.base.ref}...${pr.head.sha}`)) as { behind_by: number };
   assert.equal(cmp.behind_by, 0, "the PR branch is up to date with the base");
