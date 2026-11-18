@@ -264,6 +264,9 @@ export type GitHub = {
   // Un commit tel que l'API Git le garde : son arbre et ses parents, dans
   // leur ordre ; null si GitHub ne le connaît pas.
   commitGit?(sha: string): Promise<{ arbre: string; parents: string[] } | null>;
+  // L'instant du commit, tel que GitHub date son committer ; null si GitHub
+  // ne le connaît pas ou ne le date pas (#3816).
+  instantDuCommit?(sha: string): Promise<string | null>;
   // Crée un commit sur `arbre`, fils de `parents`, posé sur aucune branche ;
   // rend son sha.
   creerCommit?(commit: { message: string; arbre: string; parents: string[] }): Promise<string>;
@@ -510,7 +513,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "instantDuCommit" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -1113,6 +1116,13 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async rouvrirIssue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;
       exiger(await appeler(["-X", "PATCH", "-f", "state=open", chemin]), chemin);
+    },
+    async instantDuCommit(sha) {
+      const chemin = `repos/${depot}/git/commits/${encodeURIComponent(sha)}`;
+      const reponse = await lireSousCondition([chemin]);
+      if (reponse.statut === 404 || reponse.statut === 422) return null;
+      const { committer } = JSON.parse(exiger(reponse, chemin).corps) as { committer?: { date?: unknown } };
+      return typeof committer?.date === "string" && committer.date !== "" ? committer.date : null;
     },
     async commitGit(sha) {
       const chemin = `repos/${depot}/git/commits/${encodeURIComponent(sha)}`;

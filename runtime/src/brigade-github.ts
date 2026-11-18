@@ -47,6 +47,7 @@ import { jamaisParti } from "./projections/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
 import { fermeReparation, type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
+import { carteBaseRouge, githubDeLaCarte } from "./carte-base-rouge/carte-base-rouge.ts";
 import { estUneReparation, ouvreReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
 import { lireInstantane, REQUETE, type Instantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
@@ -214,6 +215,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // (#3617). Absents, la carte « Validate its screen » se pose sans elle.
     fichierBinaire?: GitHub["fichierBinaire"];
     publierFichiers?: GitHub["publierFichiers"];
+    // La date du commit rouge, que la carte de la base rouge dit (#3816).
+    // Absente, la carte dit qu'elle ne la sait pas.
+    instantDuCommit?: GitHub["instantDuCommit"];
   } & GitHubDeLaRelance;
 
 // La fermeture du ticket d'une branche `cook/<n>-…` : son numéro et sa date,
@@ -605,6 +609,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
   const ouvrirLaReparation = ouvreReparation({ github, base });
+  // La carte du chef quand les réparations d'un même rouge sont mises de côté (#3816).
+  const poserLaCarteDeLaBase = carteBaseRouge({ github: githubDeLaCarte(github, options.maintenant), base });
   // Le parcours de chaque ticket, de sa prise à son merge, phase par phase
   // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
   // Illisible, le temps part de la prise, et la station le dit.
@@ -1634,6 +1640,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Le rouge se consigne sur sa réparation (#3614) en parallèle du tour, sans
     // rien lui retenir : la réparation est déjà dispatchée. Un échec est dit, le tour suivant réessaie.
     const consignation = consigner?.().catch((echec) => avertir(`brigade : ${base} is red and its repair ticket is open, but the new red commit could not be recorded on it on ${nom} — ${message(echec)}; retried next turn`));
+    // Rouge malgré ses réparations mises de côté, la base a sa carte dans la TODO du chef ; verte, la carte se ferme (#3816).
+    await poserLaCarteDeLaBase(checksDeLaBase).catch((echec) => avertir(`brigade : the TODO card of ${base}'s red state could not be written on ${nom} — ${message(echec)}; retried next turn`));
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
     // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
@@ -2407,6 +2415,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
     creerIssue: (issue) => github.creerIssue(issue),
     fermerIssue: (numero) => github.fermerIssue(numero),
     ...(github.rouvrirIssue === undefined ? {} : { rouvrirIssue: github.rouvrirIssue.bind(github) }),
+    ...(github.instantDuCommit === undefined ? {} : { instantDuCommit: github.instantDuCommit.bind(github) }),
     ...(github.ecrireTitre === undefined ? {} : { ecrireTitre: github.ecrireTitre.bind(github) }),
     ...(github.fermerPR === undefined ? {} : { fermerPR: github.fermerPR.bind(github) }),
     journalDuCheck: (check) => github.journalDuCheck(check),
