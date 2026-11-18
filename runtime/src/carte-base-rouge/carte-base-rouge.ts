@@ -1,6 +1,6 @@
 // La carte du chef quand la cuisine ne sait pas rendre la base verte (#3816,
 // épique #3812) : les tickets de réparation d'un même rouge — titre
-// `Repair <base>:`, label `repair-main`, la marque du commit rouge dans leur
+// `Repair main:`, label `repair-main`, la marque du commit rouge dans leur
 // corps — échouent l'un après l'autre et la cuisine reste retenue sans que
 // personne ne le sache. À `SEUIL_DE_LA_CARTE` réparations mises de côté
 // (`set-aside:failures`) pour ce rouge, la station pose une carte de TODO pour
@@ -22,9 +22,8 @@ import { CHEF_TODO, marqueur } from "../github-seul/carte-todo/carte-todo.ts";
 import { etatDeLaBase } from "../github-etat/etats.ts";
 import { ECHECS_ATTEINTS, type Commentaire, type IssueDepuis } from "../github.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
+import { estUneReparationDeMain, PREFIXE_DE_LA_REPARATION } from "../reparation-base/reparation-de-main.ts";
 
-// Le label des tickets de réparation que ce module compte.
-const LABEL_REPARATION_MAIN = "repair-main";
 // Le nombre de réparations mises de côté pour un même rouge qui pose la carte.
 const SEUIL_DE_LA_CARTE = 3;
 // La sorte de la carte, telle que le commentaire de TODO l'écrit
@@ -174,7 +173,7 @@ export function carteBaseRouge({ github, base }: OptionsDeLaCarte) {
     if (etat !== "red") return { carte: null };
     const sha = await github.teteDeLaBase();
     const ecartees = (await github.reparations())
-      .filter((issue) => issue.title.startsWith(`Repair ${base}:`) && issue.labels.includes(LABEL_REPARATION_MAIN) && issue.labels.includes(ECHECS_ATTEINTS) && shaDeBaseRouge(issue.body) === sha)
+      .filter((issue) => issue.title.startsWith(PREFIXE_DE_LA_REPARATION) && estUneReparationDeMain(issue.labels) && issue.labels.includes(ECHECS_ATTEINTS) && shaDeBaseRouge(issue.body) === sha)
       .sort((x, y) => x.number - y.number);
     // Sous le seuil, rien ne s'écrit ; une carte ouverte pour un commit rouge
     // d'avant reste : la base n'est pas verte.
@@ -255,7 +254,7 @@ export function githubDeLaCarte(github: GitHubDuTourDeLaCarte, maintenant: () =>
     teteDeLaBase: () => github.teteDeLaBase(),
     instantDuCommit: async (sha) => (github.instantDuCommit === undefined ? null : github.instantDuCommit(sha)),
     journalDuCheck: async (check) => (github.journalDuCheck === undefined ? null : github.journalDuCheck(check)),
-    reparations: async () => (await lire()).filter((issue) => issue.labels.includes(LABEL_REPARATION_MAIN)),
+    reparations: async () => (await lire()).filter((issue) => estUneReparationDeMain(issue.labels)),
     motifDeLaMiseDeCote: async (numero) => motifDuCommentaire(await github.commentaires(numero)),
     cartes: async () => {
       const cartes = (await lire()).filter((issue) => lireLaMarque(issue.body) !== null);
