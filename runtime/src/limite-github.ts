@@ -7,9 +7,11 @@
 // (`appairage/canal.ts`) prennent un appel ici avant de lancer `gh`.
 //
 // Deux sortes d'appels. Ceux de la cuisine — sondages, pass, manager, signe de
-// vie — ne sont retenus qu'à la réserve des gestes (un dixième du quota) : au-dessus,
-// rien ne les retient ; à la réserve, ils attendent la fin de la fenêtre, puis
-// reprennent seuls. Ceux d'un geste du
+// vie — ne sont ralentis que par le quota réel (#3833) : à 20 % du plafond ou
+// au-dessus, rien ne les retient, aucun budget ni part propre à la station ;
+// dessous, les projets de la moitié haute du classement par appels de l'heure
+// attendent, d'autant plus que le quota baisse (rien au seuil, jusqu'au reset de
+// GitHub à zéro restant). Ceux d'un geste du
 // chef — retrait du rail, priorité, réponse à une carte, commentaire de
 // la pass — ne sont jamais retenus par la box : ils partent, et n'échouent que
 // si GitHub lui-même refuse.
@@ -34,7 +36,6 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
 import { compteurDuProcess } from "./appels-par-identite.ts";
-import { BUDGET_DE_LA_STATION_PAR_HEURE, PartAtteinte, partsDe, retenueDeLaPart, type PartDuProjet } from "./budget-github/part-des-projets.ts";
 import { alerteAEmettre, categorieDe, categorieDeLaLecture, direLAlerte, instantaneDe, preparerLeRegistre, ticketDe, type AlerteDeBudget, type Categorie, type InstantaneDuBudget } from "./github/budget-appels.ts";
 
 export const FENETRE_MS = 60 * 60_000;
@@ -49,8 +50,9 @@ export const COMPTE_DE_LA_MACHINE = "gh";
 // `geste` : un appel qu'un geste du chef émet, que la box ne retient jamais.
 export type Usage = "cuisine" | "geste";
 
-// La part du quota gardée pour les gestes du chef : la cuisine n'y touche pas.
-export const RESERVE_DES_GESTES = 0.1;
+// Sous cette part du quota, la box ralentit les appels de la cuisine des projets
+// les plus actifs (#3833) ; au-dessus, rien ne les retient.
+export const SEUIL_DU_RALENTISSEMENT = 0.2;
 // Une décision prise sur un quota lu il y a plus longtemps se confirme d'abord
 // auprès de `gh api rate_limit` — au plus une fois par pas, par compte.
 export const RAFRAICHIR_MS = 60_000;
@@ -59,7 +61,46 @@ export const RAFRAICHIR_MS = 60_000;
 // jusqu'à `reset`, lu à l'instant `vu` (en millisecondes).
 export type Quota = { restant: number; plafond: number; reset: number; vu: number };
 
-export const reserveDes = (plafond: number): number => Math.ceil(plafond * RESERVE_DES_GESTES);
+export const seuilDe = (plafond: number): number => Math.ceil(plafond * SEUIL_DU_RALENTISSEMENT);
+
+// Le même projet s'inscrit sous deux noms au compteur : son nom court (`brigade`,
+// la cuisine) et son dépôt (`benomite/brigade`, le client GitHub). Ses appels se
+// comptent sous une seule clé, le nom du dépôt sans son propriétaire, en minuscules.
+const CLE = "lower(substr(projet, instr(projet, '/') + 1))";
+export const cleDuProjet = (projet: string): string => projet.slice(projet.indexOf("/") + 1).toLowerCase();
+
+// Un projet reste au classement un jour après son dernier appel, même quand ses
+// appels de l'heure sont tous rendus (304) ou sortis de la fenêtre : il y compte
+// alors zéro, et le dernier du classement.
+const PROJET_CONNU_MS = 24 * FENETRE_MS;
+
+// Les projets connus, du plus actif au moins actif sur l'heure glissante (à
+// égalité, par nom), avec leurs appels. La station elle-même n'est pas un projet.
+export type ProjetClasse = { projet: string; appels: number };
+
+function projetsClasses(lire: Lire, instant: number): ProjetClasse[] {
+  return lire<ProjetClasse>(
+    `SELECT cle AS projet, (SELECT count(*) FROM appels WHERE ${CLE} = projets.cle AND instant > ?) AS appels FROM projets WHERE vu > ? ORDER BY appels DESC, projet ASC`,
+    instant - FENETRE_MS,
+    instant - PROJET_CONNU_MS,
+  );
+}
+
+// Le délai que le quota impose à un appel de la cuisine d'un projet de la moitié
+// haute : 0 au seuil, jusqu'au reset de GitHub à zéro restant, linéaire entre les deux.
+export function delaiDuQuota(quota: Quota, instant: number): number {
+  const seuil = seuilDe(quota.plafond);
+  if (quota.restant >= seuil) return 0;
+  return Math.round(((quota.reset - instant) * (seuil - Math.max(0, quota.restant))) / seuil);
+}
+
+// Les projets que ce quota ralentit à cet instant, avec leurs appels : la moitié
+// haute du classement, arrondie au-dessus, un projet au moins ; aucun au seuil ou au-dessus.
+function projetsRalentis(lire: Lire, quota: Quota, instant: number): ProjetClasse[] {
+  if (quota.restant >= seuilDe(quota.plafond)) return [];
+  const classes = projetsClasses(lire, instant);
+  return classes.slice(0, Math.ceil(classes.length / 2));
+}
 
 // GitHub a dit que sa limite est atteinte (429, ou 403 « rate limit », primaire
 // ou secondaire) : plus aucun appel de la cuisine de la sorte refusée ne part
@@ -80,20 +121,17 @@ export class LimiteGitHubAtteinte extends Error {
   }
 }
 
-// Un appel de la cuisine retenu par la box : le quota réel de GitHub est à la
-// réserve des gestes, et la cuisine attend la fin de la fenêtre. Il ne part pas,
-// et n'est pas compté ; il est réglé comme la limite de GitHub : rien d'autre ne
-// part avant `jusqua` pour qui l'attend. Mais GitHub n'a rien refusé.
+// Un appel de la cuisine ralenti par la box : le quota réel de GitHub est sous le
+// seuil, et le projet de l'appel est dans la moitié haute de l'heure. Il ne part
+// pas, et n'est pas compté ; il peut partir à `jusqua`. GitHub n'a rien refusé.
 export class CuisineRalentie extends LimiteGitHubAtteinte {
   readonly quota: Quota;
-  constructor(quota: Quota, jusqua: number, libreDansMs: number) {
-    super(
-      jusqua,
-      libreDansMs,
-      `quota GitHub bas : ${quota.restant} appels restants sur ${quota.plafond}, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre, dans ${Math.ceil(libreDansMs / 1000)} s`,
-    );
+  readonly projet: string;
+  constructor(quota: Quota, jusqua: number, libreDansMs: number, projet = PROJET_DE_LA_STATION) {
+    super(jusqua, libreDansMs, `quota GitHub bas : ${quota.restant} appels restants sur ${quota.plafond} — les appels du projet ${projet} sont ralentis, le suivant dans ${Math.ceil(libreDansMs / 1000)} s`);
     this.name = "CuisineRalentie";
     this.quota = quota;
+    this.projet = projet;
   }
 }
 
@@ -246,9 +284,10 @@ export type Limite = {
   // Compte un appel. Un appel de la cuisine (par défaut) lève
   // `LimiteGitHubAtteinte` sans le compter tant que GitHub a dit sa limite
   // atteinte, et `CuisineRalentie` quand le quota réel du compte (par défaut,
-  // celui de la machine) le retient. Un geste n'est jamais retenu. Rend
-  // l'appel compté, à `rendre` si GitHub ne le compte pas.
-  prendre(usage?: Usage, compte?: string, etiquette?: Etiquette): number;
+  // celui de la machine) ralentit son projet ; `sansRetard` : il a déjà attendu
+  // ce délai. Un geste n'est jamais retenu. Rend l'appel compté, à `rendre` si
+  // GitHub ne le compte pas.
+  prendre(usage?: Usage, compte?: string, etiquette?: Etiquette, sansRetard?: boolean): number;
   // GitHub a répondu 304 à une requête conditionnelle : il ne compte pas cet
   // appel dans son quota, et la box le sort du sien.
   rendre(appel: number): void;
@@ -335,7 +374,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   // aucune écriture n'attend le disque.
   if (options.fichier !== undefined) base.script("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   base.script(
-    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE INDEX IF NOT EXISTS appels_par_projet ON appels (lower(substr(projet, instr(projet, '/') + 1)), instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS refus (instant INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
+    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE INDEX IF NOT EXISTS appels_par_projet ON appels (lower(substr(projet, instr(projet, '/') + 1)), instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS refus (instant INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT); CREATE TABLE IF NOT EXISTS projets (cle TEXT PRIMARY KEY, vu INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
   // La sorte d'appel que retient une pause, et que nomme un refus (#3481) :
   // nulle dans un compteur d'avant, une pause de toutes les sortes.
@@ -367,18 +406,18 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
     return lu !== undefined && lu.reset > instant ? { restant: lu.restant, plafond: lu.plafond, reset: lu.reset, vu: lu.vu } : null;
   };
 
-  // Ce qui retient un appel de la cuisine, d'après le quota réel : la fin de la
-  // fenêtre s'il est à la réserve des gestes, sinon rien — il part.
-  const retenue = (quota: Quota): number | null => (quota.restant <= reserveDes(quota.plafond) ? quota.reset : null);
-
   return {
-    prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number; ecrites: number } | { debit: number; points: number } | { part: number; appels: number; partDuProjet: number; projet: string } | { appel: number; alerte: AlerteDeBudget | null } => {
+    prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette, sansRetard = false) {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number; projet: string } | { espacer: number; ecrites: number } | { debit: number; points: number } | { appel: number; alerte: AlerteDeBudget | null } => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
         const cout = etiquette?.ecriture === true ? POINTS_PAR_ECRITURE : POINTS_PAR_LECTURE;
         base.executer("DELETE FROM refus WHERE instant <= ?", instant - FENETRE_MS);
+        base.executer("DELETE FROM projets WHERE vu <= ?", instant - PROJET_CONNU_MS);
+        if (etiquette?.projet !== undefined && etiquette.projet !== PROJET_DE_LA_STATION) {
+          base.executer("INSERT INTO projets (cle, vu) VALUES (?, ?) ON CONFLICT (cle) DO UPDATE SET vu = excluded.vu", cleDuProjet(etiquette.projet), instant);
+        }
         if (usage === "cuisine") {
           // La limite de GitHub atteinte pour sa sorte d'appel : rien ne part,
           // et rien n'est compté. Les autres sortes partent (#3481).
@@ -389,13 +428,13 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
             noterLeRefus(instant, sorte);
             return { jusqua: pause.jusqua };
           }
-          const quota = quotaDe(compte, instant);
-          const jusqua = quota === null ? null : retenue(quota);
-          if (quota !== null && jusqua !== null) return { quota, jusqua };
-          // La part du projet dans le budget de la station : à sa part, il attend seul (#3683).
+          // Sous le seuil du quota réel, les projets de la moitié haute de l'heure attendent (#3833).
           const projet = etiquette?.projet ?? PROJET_DE_LA_STATION;
-          const part = retenueDeLaPart((sql, ...params) => base.lire(sql, ...params), projet, instant);
-          if (part !== null) return { part: part.jusqua, appels: part.appels, partDuProjet: part.part, projet };
+          const quota = sansRetard || projet === PROJET_DE_LA_STATION ? null : quotaDe(compte, instant);
+          if (quota !== null && projetsRalentis((sql, ...params) => base.lire(sql, ...params), quota, instant).some((c) => c.projet === cleDuProjet(projet))) {
+            const delai = delaiDuQuota(quota, instant);
+            if (delai > 0) return { quota, jusqua: instant + delai, projet };
+          }
           // Le rythme des écritures du compte, tous projets ensemble : la
           // suivante part quand la plus ancienne de la fenêtre pleine en sort.
           if (etiquette?.ecriture === true) {
@@ -434,9 +473,8 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
       }
       if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()), refus.ecrites);
       if ("debit" in refus) throw new AppelEspace(refus.debit, Math.max(0, refus.debit - maintenant()), refus.points);
-      if ("part" in refus) throw new PartAtteinte(refus.projet, refus.part, Math.max(0, refus.part - maintenant()), refus.appels, refus.partDuProjet);
       const libre = Math.max(0, refus.jusqua - maintenant());
-      if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
+      if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre, refus.projet);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
     },
     rendre(appel) {
@@ -490,7 +528,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
     aConfirmer(compte = COMPTE_DE_LA_MACHINE) {
       const instant = maintenant();
       const quota = quotaDe(compte, instant);
-      return quota !== null && quota.restant <= reserveDes(quota.plafond) && instant - quota.vu > RAFRAICHIR_MS;
+      return quota !== null && quota.restant < seuilDe(quota.plafond) && instant - quota.vu > RAFRAICHIR_MS;
     },
     appels() {
       const [compte] = base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE instant > ?", maintenant() - FENETRE_MS);
@@ -573,22 +611,40 @@ export function budgetDeLaStation(racine: string | undefined, maintenant: number
   }
 }
 
-// Les parts des projets de la station dont `racine` est le répertoire (#3683),
-// lues sans rien écrire ni rien créer : null sans compteur, ou s'il ne se lit
-// pas — `status` n'en dit alors rien plutôt que d'inventer des zéros.
-export function partsDeLaStation(racine: string | undefined, maintenant: number): PartDuProjet[] | null {
+// Ce que `status` dit du quota de la station dont `racine` est le répertoire
+// (#3833) : ce que GitHub a dit rester au compte de la machine, son prochain
+// reset, et les projets que ce quota ralentit. Lu sans rien écrire ni rien
+// créer : null sans compteur, sans quota dit, ou s'il ne se lit pas — `status`
+// n'en dit alors rien plutôt que d'inventer des zéros.
+export type QuotaDeLaStation = { restant: number; plafond: number; reset: number; ralentis: Array<ProjetClasse & { delai: number }> };
+
+export function quotaDeLaStation(racine: string | undefined, maintenant: number): QuotaDeLaStation | null {
   if (!racine) return null;
   const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
   if (!existsSync(fichier)) return null;
   let base: Base | undefined;
   try {
     base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
-    return partsDe((sql, ...params) => base!.lire(sql, ...params), maintenant);
+    const [lu] = base.lire<QuotaLu>("SELECT restant, plafond, reset, vu FROM quota WHERE compte = ? AND reset > ?", COMPTE_DE_LA_MACHINE, maintenant);
+    if (lu === undefined) return null;
+    const delai = delaiDuQuota(lu, maintenant);
+    return { restant: lu.restant, plafond: lu.plafond, reset: lu.reset, ralentis: projetsRalentis((sql, ...params) => base!.lire(sql, ...params), lu, maintenant).map((c) => ({ ...c, delai })) };
   } catch {
     return null;
   } finally {
     base?.fermer();
   }
+}
+
+// Les lignes de `status` sur le quota : ce que GitHub en dit, et les projets ralentis ou qu'aucun ne l'est.
+export function direLeQuota(q: QuotaDeLaStation): string[] {
+  const reset = new Date(q.reset).toISOString().slice(11, 16);
+  return [
+    `${q.restant} of ${q.plafond} calls left, next reset at ${reset} UTC`,
+    q.ralentis.length === 0
+      ? "no project slowed"
+      : `slowed: ${q.ralentis.map((p) => `${p.projet} (${p.appels} calls in the last hour, each call waits ${Math.ceil(p.delai / 60_000)} min)`).join(", ")}`,
+  ];
 }
 
 // Les lignes de `status` : le total de l'heure, puis le projet et la lecture qui en ont fait le plus.
@@ -806,6 +862,9 @@ type EnAttente = {
   echouer: (erreur: unknown) => void;
   // Vrai dès que le rythme la retient, elle ou une écriture du même compte arrivée avant elle : le journal le dit (#2226).
   retenue: boolean;
+  // L'instant avant lequel le quota réel la ralentit (#3833) ; null tant qu'elle
+  // n'a pas été ralentie, 0 quand son délai est écoulé.
+  libreA: number | null;
 };
 
 // La file des appels de la cuisine, une par compteur — donc une pour la station
@@ -845,7 +904,7 @@ function fileDe(limite: Limite): File {
       });
   };
 
-  const retenir = (entree: EnAttente, espacee: EcritureEspacee | PartAtteinte) => {
+  const retenir = (entree: EnAttente, espacee: EcritureEspacee | CuisineRalentie) => {
     if (entree.retenue) return;
     entree.retenue = true;
     commencerLaRetenue(espacee);
@@ -861,25 +920,32 @@ function fileDe(limite: Limite): File {
     const retenus = new Map<string, EcritureEspacee>();
     // Les comptes dont un appel attend le débit : tous les suivants restent derrière lui (#2443).
     const tenus = new Map<string, AppelEspace>();
-    // Les projets dont un appel attend sa part : leurs suivants restent derrière lui, les autres projets partent (#3683).
-    const parts = new Map<string, PartAtteinte>();
     let prochain: { jusqua: number; par: EnAttente } | null = null;
     for (const entree of [...attente]) {
       if (enVol >= REQUETES_EN_VOL) break;
-      const devant = tenus.get(entree.compte) ?? (entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined) ?? parts.get(entree.etiquette?.projet ?? PROJET_DE_LA_STATION);
+      const devant = tenus.get(entree.compte) ?? (entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined) ;
       if (devant !== undefined) {
         retenir(entree, devant);
         continue;
       }
+      // Un appel ralenti par le quota réel attend son délai seul : les autres appels, même de son projet, partent ou ont le leur (#3833).
+      if (entree.libreA !== null && entree.libreA > entree.maintenant()) continue;
       let appel: number;
       try {
-        appel = limite.prendre(entree.usage, entree.compte, entree.etiquette);
+        appel = limite.prendre(entree.usage, entree.compte, entree.etiquette, entree.libreA !== null);
       } catch (erreur) {
-        if (erreur instanceof PartAtteinte) {
-          parts.set(erreur.projet, erreur);
-          direLaPartAtteinte(erreur);
+        if (erreur instanceof CuisineRalentie) {
+          entree.libreA = erreur.jusqua;
+          direLeProjetRalenti(erreur);
           retenir(entree, erreur);
-          if (prochain === null || erreur.jusqua < prochain.jusqua) prochain = { jusqua: erreur.jusqua, par: entree };
+          // Son propre réveil : le délai de chaque appel se tient seul, sans dépendre de celui du rythme.
+          void entree
+            .attendre(Math.max(50, erreur.jusqua - entree.maintenant()))
+            .catch(() => {})
+            .then(() => {
+              entree.libreA = 0;
+              pomper();
+            });
           continue;
         }
         if (erreur instanceof EcritureEspacee) {
@@ -909,7 +975,7 @@ function fileDe(limite: Limite): File {
         return Promise.resolve(appel);
       }
       return new Promise<number>((partir, echouer) => {
-        attente.push({ usage, compte, etiquette, maintenant, attendre, partir, echouer, retenue: false });
+        attente.push({ usage, compte, etiquette, maintenant, attendre, partir, echouer, retenue: false, libreA: null });
         pomper();
       });
     },
@@ -922,19 +988,19 @@ function fileDe(limite: Limite): File {
   return file;
 }
 
-// Qui veut savoir qu'un appel d'un projet attend sa part dans la file (#3705) :
-// la station de l'ordinateur, qui passe alors au projet suivant au lieu
-// d'attendre ce tour-là. Rend de quoi se retirer. Une écoute qui lève ne
-// retient pas la file.
-const ecouteursDeLaPart = new Set<(projet: string, jusqua: number) => void>();
+// Qui veut savoir qu'un appel d'un projet est ralenti par le quota réel dans la
+// file (#3705, #3833) : la station de l'ordinateur, qui passe alors au projet
+// suivant au lieu d'attendre ce tour-là. Rend de quoi se retirer. Une écoute qui
+// lève ne retient pas la file.
+const ecouteursDuRalentissement = new Set<(projet: string, jusqua: number) => void>();
 
-export function surLaPartAtteinte(ecouteur: (projet: string, jusqua: number) => void): () => void {
-  ecouteursDeLaPart.add(ecouteur);
-  return () => void ecouteursDeLaPart.delete(ecouteur);
+export function surLeProjetRalenti(ecouteur: (projet: string, jusqua: number) => void): () => void {
+  ecouteursDuRalentissement.add(ecouteur);
+  return () => void ecouteursDuRalentissement.delete(ecouteur);
 }
 
-function direLaPartAtteinte(erreur: PartAtteinte): void {
-  for (const ecouteur of [...ecouteursDeLaPart]) {
+function direLeProjetRalenti(erreur: CuisineRalentie): void {
+  for (const ecouteur of [...ecouteursDuRalentissement]) {
     try {
       ecouteur(erreur.projet, erreur.jusqua);
     } catch {}
@@ -1000,12 +1066,12 @@ export function journaliserLaRetenue(dire: (ligne: string) => void): void {
   direLaRetenueDansLeJournal = dire;
 }
 
-function commencerLaRetenue(erreur: EcritureEspacee | PartAtteinte): void {
+function commencerLaRetenue(erreur: EcritureEspacee | CuisineRalentie): void {
   enAttente += 1;
   if (enAttente !== 1) return;
   direLaRetenueDansLeJournal?.(
-    erreur instanceof PartAtteinte
-      ? `brigade : appels GitHub du projet ${erreur.projet} retenus par sa part — ${erreur.appels} sur ${erreur.part} sur l'heure écoulée (le budget de la station, ${BUDGET_DE_LA_STATION_PAR_HEURE}, partagé entre les projets actifs de l'heure), le suivant à ${heure(erreur.jusqua)}`
+    erreur instanceof CuisineRalentie
+      ? `brigade : appels GitHub du projet ${erreur.projet} ralentis par le quota — ${erreur.quota.restant} restants sur ${erreur.quota.plafond}, le suivant à ${heure(erreur.jusqua)}`
       : erreur instanceof AppelEspace
       ? `brigade : appels GitHub espacés par le débit — ${erreur.points} points sur ${POINTS_PAR_MINUTE} sur la minute écoulée, le suivant à ${heure(erreur.jusqua)}`
       : `brigade : écritures GitHub retenues par le budget — ${erreur.ecrites} sur ${ECRITURES_PAR_HEURE} sur l'heure écoulée, la suivante à ${heure(erreur.jusqua)}`,
@@ -1243,26 +1309,6 @@ export function dernierRefusDeLaStation(racine: string | undefined, maintenant: 
   }
 }
 
-// Le quota que la box garde pour les gestes, tel que la station dont `racine` est
-// le répertoire l'a retenu : l'instant où la fenêtre de GitHub s'achève et où la
-// cuisine reprend (en millisecondes), ou null si aucun compte n'est à la réserve.
-// Lu sans rien écrire ni rien créer, comme `pauseDeLaStation`.
-export function retenueDeLaStation(racine: string | undefined, maintenant: number): number | null {
-  if (!racine) return null;
-  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
-  if (!existsSync(fichier)) return null;
-  let base: Base | undefined;
-  try {
-    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
-    const [retenue] = base.lire<{ reset: number | null }>("SELECT max(reset) AS reset FROM quota WHERE reset > ? AND restant <= (plafond + 9) / 10", maintenant);
-    return retenue?.reset ?? null;
-  } catch {
-    return null;
-  } finally {
-    base?.fermer();
-  }
-}
-
 // L'heure de ce process, en HH:MM.
 const heure = (instant: number): string => {
   const d = new Date(instant);
@@ -1273,10 +1319,4 @@ const heure = (instant: number): string => {
 export function direLaLimite(jusqua: number): string {
   const d = new Date(jusqua);
   return `GitHub is rate-limiting calls, back around ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-// La ligne de la retenue de la box, qui n'est pas un refus de GitHub.
-export function direLaRetenue(jusqua: number): string {
-  const d = new Date(jusqua);
-  return `the box holds its own calls to keep the reserve for your gestures, back around ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }

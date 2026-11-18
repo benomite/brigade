@@ -5,7 +5,7 @@ sharing means, the two kinds of limit GitHub sets, what the kitchen holds and wh
 how a pause resolves, what the chef sees, and the fields the station publishes. It describes the code
 as it is today, and says where the chef's view is not built yet.
 
-*Code: `runtime/src/limite-github.ts` (the counter, the reserve, the pace, the pauses),
+*Code: `runtime/src/limite-github.ts` (the counter, the slowdown on the real quota, the pace, the pauses),
 `runtime/src/github-limite.ts` (the kind of limit GitHub named, the entry on the account),
 `runtime/src/appels-github/quota-github.ts` (the `quotaGithub` field), `runtime/src/etat.ts` and
 `runtime/src/status.ts` (`status`), `runtime/src/enregistrement-station/enregistrer.ts` (the heartbeat),
@@ -41,17 +41,26 @@ The consumption grows with the number of projects; the pace does not get divided
   stays with the chef's app and gestures. A request over that budget waits.
 - *concurrency*: the box keeps at most four requests in flight (`REQUETES_EN_VOL`).
 
-## The kitchen is held at the reserve, and the chef's gestures are never held
+## The kitchen is slowed only on GitHub's real remaining quota, and the chef's gestures are never held
 
-A tenth of the quota is the **reserve of the chef's gestures** (`RESERVE_DES_GESTES`, 500 of 5,000).
+The station has no budget of its own and no share per project: the only reference is what GitHub says is
+left (#3833). Below 20% of the limit (`SEUIL_DU_RALENTISSEMENT`, 1,000 of 5,000), the box slows the busiest
+projects.
 
-- **Kitchen calls**: polls, the pass, the manager, the heartbeat. They are held only at the reserve.
-  Above it, nothing holds them. At the reserve, the kitchen waits for the end of the window, then resumes
-  by itself. A held call is not sent and not counted. The log says it once: `quota GitHub bas : N appels
-  restants sur 5000, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre`.
+- **Kitchen calls**: polls, the pass, the manager. At 1,000 remaining or more, nothing holds them: no call of
+  any project waits. Below 1,000, the box ranks the projects by the calls each made in the last 60 minutes
+  (a call answered 304 is given back and does not count; a project stays in the ranking for a day after its
+  last call, at zero) and only the top half (rounded up, at least one project) has its calls delayed. The
+  delay grows linearly with the drop of the quota: 0 seconds at 1,000 remaining, the time left until
+  GitHub's reset at 0 remaining (`delaiDuQuota`). A delayed call is not sent and not counted; it waits in
+  the queue for its own delay, then goes without waiting again. Only that call waits: the other calls of its
+  project are judged on their own. The log says it once: `appels GitHub du projet <project> ralentis par le
+  quota — N restants sur 5000, le suivant à HH:MM`.
+- **The station's own calls** (heartbeat, gist channel: project `station`) are not part of the ranking and
+  are never slowed.
 - **The chef's gestures** (removing a ticket from the rail, merging, choosing, answering a card, the
-  pass's comments) are never queued or held by the box. They are sent and counted, and may spend the
-  reserve. They fail only if GitHub itself refuses.
+  pass's comments) are never queued or held by the box, whatever the remaining quota, down to 0. They are
+  sent and counted. They fail only if GitHub itself refuses.
 
 ### What a gesture costs (#3682)
 
@@ -71,28 +80,6 @@ empty every time. Two bounds keep the gestures off the kitchen's budget (`runtim
   call more is refused without leaving.
 
 These calls are still counted under the kind `gesture` in `status`.
-
-## Each project has its share of the station's budget
-
-A station serves several projects on the same account, and one project calling too much made GitHub stop
-all of them (#3683). The station gives itself a budget of **4,000 calls an hour**
-(`BUDGET_DE_LA_STATION_PAR_HEURE`: GitHub's 5,000 minus the reserve of the chef's gestures and a margin for
-the chef's Mac) and divides it between the projects that **called GitHub in the last hour**, the calling
-project included (`partDeLHeure`, #3821): with three active projects, the **share of a project** is 1,333
-calls over the last hour; with six, 666. An idle project keeps no share: a fixed sixth
-held `brigade` at 666 calls, all spent reading its rail, while two projects of the box made none. A project
-that wakes up lowers the share of the others, which then wait for their new share. A project's calls are counted under one key, its repository name without its owner (`cleDuProjet`): the kitchen labels them `brigade`, its GitHub client `benomite/brigade`, and counted apart they made each project count twice among the active ones. Whatever the shares, a
-kitchen call is also held when the projects together have made the 4,000 calls of the last hour: the sum
-never passes the budget. All of it is in
-`runtime/src/budget-github/part-des-projets.ts`.
-
-- A kitchen call of a project that has made its share in the last hour is not sent and not counted. It
-  waits in the queue until its oldest call of the hour leaves the window, then goes. Only the later calls
-  of the same project wait behind it: the calls of the other projects go.
-- The station's own calls (heartbeat, gist channel: project `station`) and the chef's gestures are never
-  held by a share. The gestures still count in their project's calls.
-- The log says it once: `appels GitHub du projet <project> retenus par sa part — N sur <share> sur l'heure
-  écoulée (le budget de la station, 4000, partagé entre les projets actifs de l'heure), le suivant à HH:MM`.
 
 ## When GitHub refuses: a pause on the account, by kind of call
 
@@ -121,8 +108,8 @@ used is the one of the resource the refused call spent.
 
 ## The heartbeat never stops the kitchen
 
-The station's heartbeat is a write of its record to the gist. It is a kitchen call: at the reserve it is
-held like the others, and it waits for the end of the window.
+The station's heartbeat is a write of its record to the gist. It is a call of the station itself (project `station`): the low quota does not slow it, only a
+refusal by GitHub holds it.
 
 A refusal of the heartbeat stops nothing else. A pause of the gist's kind holds only the gist writes, and
 the kitchen goes on (`runtime/src/enregistrement-station/enregistrer.ts`). The only pause that holds the
@@ -136,7 +123,7 @@ outside the pause, a few times at most.
 
 ## A quota pause resolves by itself
 
-Nothing needs to be done. At the reserve, the kitchen resumes at the end of the window. After a refusal,
+Nothing needs to be done. After a refusal,
 the entry naming the limit on the account stays until its return time (`backAt`) has passed, and the
 first successful call of that account after it (an HTTP status below 400) removes it
 (`runtime/src/github-limite.ts`, `runtime/src/github.ts`).
@@ -144,17 +131,17 @@ first successful call of that account after it (an HTTP status below 400) remove
 ## What the chef sees
 
 - **`status`, `github` line**, from `runtime/src/etat.ts`:
-  - at the reserve: `the box holds its own calls to keep the reserve for your gestures, back around HH:MM`;
   - when GitHub refused: `GitHub is rate-limiting calls: <limit>, since HH:MM, back around HH:MM`, where
     `<limit>` is `primary limit (hourly quota)`, `secondary limit (writes per minute)` or `secondary limit
     (concurrent requests)`.
-- **`status`, `gh share` lines**: one per project that called GitHub in the last hour, the biggest first:
-  `<project> N/<share> calls in the last hour`, followed by ` — held back for its GitHub share, resumes at HH:MM
-  UTC` when the project has made its share. No line when the station has no counter, or when it cannot be read.
+- **`status`, `gh quota` lines**: what GitHub says is left and when it resets (`N of 5000 calls left, next
+  reset at HH:MM UTC`), then the projects now slowed (`slowed: <project> (N calls in the last hour, each call
+  waits M min), …`) or `no project slowed`. No line when the station has no counter, has no quota said, or
+  cannot be read.
 - **The computer station's log**, from `runtime/src/station-ordinateur/servir.ts`: when a call of a project's
-  turn waits for its share, the station does not wait for that turn. It says `GitHub-only turn on <repo> —
-  held back for its GitHub share, resumes at HH:MM UTC` and goes on with its other projects. The held turn
-  ends on its own once the share lets it go, and the project gets new turns again after that (#3705).
+  turn is slowed by the quota, the station does not wait for that turn. It says `GitHub-only turn on <repo> —
+  slowed by the low GitHub quota, resumes at HH:MM UTC` and goes on with its other projects. The slowed turn
+  ends on its own once the delay is over, and the project gets new turns again after that (#3705).
 - **The app's alert band**, in the chef's local time (`app/src/alertes.ts`): `GitHub is rate-limiting
   calls, back around HH:MM`. Each project of the account says it, since each receives the same entry.
 - **The app's own pause** (`app/src/budget-github.ts`): the app reads GitHub with the chef's token. When

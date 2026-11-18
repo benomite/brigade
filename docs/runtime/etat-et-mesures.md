@@ -77,7 +77,7 @@ party or another ticket —, the runtime writes `kitchen.held` to the log and th
 `  kitchen  for 42 min  HELD: nothing served while 2 tickets wait (#12, #13) — cause: … — to lift: …`. The 30 minutes
 count from the latest of: the last service, the kitchen's opening (runtime start, project switched back on), and the
 moment the waiting tickets started to wait. The cause is the first that holds of: the breaker (`to lift:` its `Resume`
-button), the GitHub limit or the box's reserve for your gestures, the GitHub write budget (both say `nothing to do: it
+button), the GitHub limit, the GitHub write budget (both say `nothing to do: it
 lifts on its own around HH:MM`; the limit stays the cause **while the station's counter still records refused calls**
 in the last five minutes, even once the `backAt` GitHub announced has passed: `calls still refused at HH:MM, whatever
 the HH:MM announced`, #2429), the red base with its failing checks named (`to lift: fix the base by hand…`), on the

@@ -7,8 +7,7 @@
 // La cause d'une retenue, telle que le diagnostic l'a lue. `base-red` :
 // `checks`, ce qui échoue sur la base, nommé par ses checks ou ses gates ;
 // `sha`, son commit quand il est connu. `github-limit` : `limit`, la sorte de
-// limite (`primary`, `secondary-writes`…, `reserve` pour la réserve des gestes
-// que la box garde) ; `backAt`, la reprise. `write-pacer` : `writes`, les
+// limite (`primary`, `secondary-writes`…) ; `backAt`, la reprise. `write-pacer` : `writes`, les
 // écritures de l'heure ; `nextAt`, la prochaine. `breaker` : `since`, son
 // ouverture. `ci-wait` (#2456) : des livraisons en pass attendent un check sur
 // la tête de leur PR — `tickets`, lesquelles ; `running`, les checks qui y

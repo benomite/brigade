@@ -103,23 +103,22 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   `x-ratelimit-limit`, until `x-ratelimit-reset`, REST resource `core`) and the counter keeps it. A
   decision on a low quota read more than a minute ago is first confirmed with `gh api rate_limit`, which
   GitHub does not count, at most once a minute.
-- **The kitchen is held only at the gestures' reserve.** Polls, pass, manager, heartbeat: above the
-  **reserve of the chef's gestures** (a tenth of the quota, 500 of 5,000) nothing holds them. At the
-  reserve the kitchen waits for the end of the window, then resumes by itself. A held call does not leave
-  and is not counted; the caller treats it as a wait, said once in the log (`quota GitHub bas : N appels
-  restants sur 5000, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre, dans N
-  s`). `status` says it on its `github` line (`the box holds its own calls to keep the reserve for your
-  gestures, back around HH:MM`); "GitHub is rate-limiting calls" is kept for when GitHub itself refused.
+- **The kitchen is slowed only below a fifth of the quota (#3833).** Polls, pass, manager, heartbeat: at
+  1,000 remaining of 5,000 or more nothing holds them. Below, the top half of the projects by calls in the
+  last hour wait, longer as the quota drops (0 at 1,000, until GitHub's reset at 0). A delayed call does
+  not leave and is not counted, and is said once in the log (`appels GitHub du projet <project> ralentis par
+  le quota`). `status` says the quota and the slowed projects on its `gh quota` lines; "GitHub is
+  rate-limiting calls" is kept for when GitHub itself refused.
 - **The chef's gestures are never held by the box.** `rail` (remove, merge, choose, answer),
-  `pass <ticket> issue|comment` and `manager` fail only if GitHub refuses. They are counted, and
-  spend the reserve.
+  `pass <ticket> issue|comment` and `manager` fail only if GitHub refuses. They are counted, even at 0
+  remaining.
 - **Shared, not split.** The counter is a SQLite database,
   `<BRIGADE_STATION_DIR>/appels-github/compteur.db`, held together by the station and its projects: they
   read the same quota and keep the same pace, a transaction deciding between two processes taking the
   last call. The quota is kept per account: the machine's `gh`, and each role identity (its App has its
   own). A process outside any station (dev workstation, test) counts alone, in memory. The pace is not
   divided among projects; what grows with projects is the consumption.
-- **Tuning**: no environment variable; the reserve (`RESERVE_DES_GESTES`) is a constant of
+- **Tuning**: no environment variable; the threshold (`SEUIL_DU_RALENTISSEMENT`) is a constant of
   `runtime/src/limite-github.ts`.
 - **The hourly line**: the log writes `brigade : N appels GitHub sur l'heure écoulée` (all processes),
   plus `— GitHub en dit R restants sur 5000` when GitHub has said its quota.
