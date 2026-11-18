@@ -15,7 +15,7 @@ tag=app-v1.2.4
 
 or just `changed=false`.
 
-**The rule.** The app changed when at least one changed file is under `app/` and not under `app/test/`. `runtime/`, `docs/`, `evals/`, `scripts/` and `app/test/` alone do not count.
+**The rule.** The app changed when at least one changed file is under `app/` and not under `app/test/`, or under `runtime/src/`: the app bundles the runtime code it imports, so a runtime fix of what the app shows must ship in a new app (#3828). The rest of `runtime/`, `docs/`, `evals/`, `scripts/` and `app/test/` alone do not count.
 
 **The version.** The patch number of the highest `app-v<major>.<minor>.<patch>` tag, plus one. The format and the comparison are the app's own update check (`app/src/mise-a-jour/flux.ts`, imported by the script and its tests). With no such tag, the starting version is `1.0.0` (`VERSION_DE_DEPART`). Minor and major bumps are made by pushing the tag by hand.
 
