@@ -22,19 +22,17 @@ import { FENETRE_MS, PROJET_DE_LA_STATION } from "../limite-github.ts";
 // chef (un dixième, `RESERVE_DES_GESTES`) et une marge pour son Mac, qui
 // partage le compte de la machine.
 export const BUDGET_DE_LA_STATION_PAR_HEURE = 4000;
-// Six projets actifs : la part de chacun, celle qu'un projet avait toujours avant le ticket 3821.
-export const PROJETS_DE_LA_STATION = 6;
-export const PART_D_UN_PROJET = Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / PROJETS_DE_LA_STATION);
-
 type Lire = <T>(sql: string, ...params: Array<string | number>) => T[];
+
+// La part de chacun de `actifs` projets : le budget divisé.
+const partDe = (actifs: number): number => Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / Math.max(1, actifs));
 
 // La part d'un projet à cet instant : les appels qu'il fait sur l'heure glissante
 // avant d'attendre — le budget divisé par les projets qui y ont appelé, `projet`
 // compté même s'il n'a pas encore appelé.
 export function partDeLHeure(lire: Lire, projet: string, instant: number): number {
   const actifs = lire<{ projet: string }>("SELECT DISTINCT projet FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ?", PROJET_DE_LA_STATION, instant - FENETRE_MS).map(({ projet: nom }) => nom);
-  const nombre = actifs.includes(projet) ? actifs.length : actifs.length + 1;
-  return Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / nombre);
+  return partDe(actifs.includes(projet) ? actifs.length : actifs.length + 1);
 }
 
 // L'appel d'un projet qui a fait sa part de l'heure : il ne part pas, n'est pas
@@ -58,16 +56,29 @@ export class PartAtteinte extends Error {
 }
 
 // À lire dans la transaction de `prendre`, avant d'inscrire un appel de la
-// cuisine de `projet` : null s'il part, sinon l'instant où sa part le laisse
-// partir — quand assez de ses appels de l'heure en sont sortis — et ses appels.
+// cuisine de `projet` : null s'il part, sinon l'instant où il peut partir et ses
+// appels. Il attend à sa part, et aussi quand les projets ensemble ont fait le
+// budget de la station : une part qui grandit quand d'autres se couchent ne
+// laisse pas la somme passer le budget (ticket 3821).
 export function retenueDeLaPart(lire: Lire, projet: string, instant: number, part = partDeLHeure(lire, projet, instant)): { jusqua: number; appels: number; part: number } | null {
   if (projet === PROJET_DE_LA_STATION) return null;
   const depuis = instant - FENETRE_MS;
+  const tous = lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ?", PROJET_DE_LA_STATION, depuis)[0]?.n ?? 0;
   // Le compte seul, sur l'index : presque toujours, le projet est sous sa part.
-  if (lire("SELECT 1 FROM appels WHERE projet = ? AND instant > ? LIMIT 1 OFFSET ?", projet, depuis, part - 1).length === 0) return null;
+  const aSaPart = lire("SELECT 1 FROM appels WHERE projet = ? AND instant > ? LIMIT 1 OFFSET ?", projet, depuis, part - 1).length > 0;
+  if (!aSaPart && tous < BUDGET_DE_LA_STATION_PAR_HEURE) return null;
   const appels = lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE projet = ? AND instant > ?", projet, depuis)[0]?.n ?? 0;
-  const [sortant] = lire<{ instant: number }>("SELECT instant FROM appels WHERE projet = ? AND instant > ? ORDER BY instant ASC LIMIT 1 OFFSET ?", projet, depuis, appels - part);
-  return { jusqua: (sortant?.instant ?? instant) + FENETRE_MS, appels, part };
+  let jusqua = instant;
+  if (aSaPart) {
+    const [sortant] = lire<{ instant: number }>("SELECT instant FROM appels WHERE projet = ? AND instant > ? ORDER BY instant ASC LIMIT 1 OFFSET ?", projet, depuis, appels - part);
+    jusqua = Math.max(jusqua, (sortant?.instant ?? instant) + FENETRE_MS);
+  }
+  if (tous >= BUDGET_DE_LA_STATION_PAR_HEURE) {
+    // Le budget de la station est fait : le prochain appel part quand assez d'appels de tous en sortent.
+    const [sortant] = lire<{ instant: number }>("SELECT instant FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ? ORDER BY instant ASC LIMIT 1 OFFSET ?", PROJET_DE_LA_STATION, depuis, tous - BUDGET_DE_LA_STATION_PAR_HEURE);
+    jusqua = Math.max(jusqua, (sortant?.instant ?? instant) + FENETRE_MS);
+  }
+  return { jusqua, appels, part };
 }
 
 // Un projet, ses appels de l'heure glissante, et, s'il attend sa part,
@@ -80,8 +91,8 @@ export function partsDe(lire: Lire, instant: number): PartDuProjet[] {
     PROJET_DE_LA_STATION,
     instant - FENETRE_MS,
   );
-  const part = Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / Math.max(1, lus.length));
-  return lus.map(({ projet, appels }) => ({ projet, appels, part, reprise: appels >= part ? (retenueDeLaPart(lire, projet, instant, part)?.jusqua ?? null) : null }));
+  const part = partDe(lus.length);
+  return lus.map(({ projet, appels }) => ({ projet, appels, part, reprise: retenueDeLaPart(lire, projet, instant, part)?.jusqua ?? null }));
 }
 
 // Ce qui se dit d'un projet que sa part retient : retenu, et l'heure (UTC) où il reprend (#3705).

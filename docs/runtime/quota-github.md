@@ -79,9 +79,11 @@ all of them (#3683). The station gives itself a budget of **4,000 calls an hour*
 (`BUDGET_DE_LA_STATION_PAR_HEURE`: GitHub's 5,000 minus the reserve of the chef's gestures and a margin for
 the chef's Mac) and divides it between the projects that **called GitHub in the last hour**, the calling
 project included (`partDeLHeure`, #3821): with three active projects, the **share of a project** is 1,333
-calls over the last hour; with six, 666 (`PART_D_UN_PROJET`). An idle project keeps no share: a fixed sixth
+calls over the last hour; with six, 666. An idle project keeps no share: a fixed sixth
 held `brigade` at 666 calls, all spent reading its rail, while two projects of the box made none. A project
-that wakes up lowers the share of the others, which then wait for their new share. All of it is in
+that wakes up lowers the share of the others, which then wait for their new share. Whatever the shares, a
+kitchen call is also held when the projects together have made the 4,000 calls of the last hour: the sum
+never passes the budget. All of it is in
 `runtime/src/budget-github/part-des-projets.ts`.
 
 - A kitchen call of a project that has made its share in the last hour is not sent and not counted. It

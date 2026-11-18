@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { PART_D_UN_PROJET } from "../../src/budget-github/part-des-projets.ts";
+import { BUDGET_DE_LA_STATION_PAR_HEURE } from "../../src/budget-github/part-des-projets.ts";
 import { etiquetteDe, ouvrirLimite, prendreUnAppel } from "../../src/limite-github.ts";
 import { lieuxDuProjet } from "../../src/station/configuration.ts";
 import { ajouterProjetServi } from "../../src/station-ordinateur/projets-servis.ts";
@@ -18,6 +18,8 @@ import { ouvrirLeService, type ProjetAServir } from "../../src/station-ordinateu
 import { ENV_GIT, jusqua, repertoireTemporaire } from "../outils.ts";
 
 const STATION = "mac/claude";
+// Six projets actifs : la part de chacun est un sixième du budget (ticket 3821).
+const PART_D_UN_PROJET = Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / 6);
 const lectureDe = (projet: string) => etiquetteDe([`repos/benomite/${projet}/issues`], { projet });
 
 test("two projects on one station: the one under its GitHub share takes its ready ticket, the one over it alone is held until its share allows it, then resumes", async (t) => {

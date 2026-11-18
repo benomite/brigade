@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { BUDGET_DE_LA_STATION_PAR_HEURE, PART_D_UN_PROJET, PartAtteinte, PROJETS_DE_LA_STATION } from "../../src/budget-github/part-des-projets.ts";
+import { BUDGET_DE_LA_STATION_PAR_HEURE, PartAtteinte } from "../../src/budget-github/part-des-projets.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { etiquetteDe, FENETRE_MS, limiteDeLaStation, ouvrirLimite, partsDeLaStation, prendreUnAppel, REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { photoDuProjet } from "../../src/status.ts";
@@ -14,7 +14,9 @@ import { aArreter, repertoireTemporaire } from "../outils.ts";
 
 const DEBUT = Date.UTC(2026, 10, 15, 20, 0, 0);
 const lectureDe = (projet: string) => etiquetteDe([`repos/benomite/${projet}/issues`], { projet });
-// Six projets actifs dans l'heure : la part de chacun est PART_D_UN_PROJET (ticket 3821).
+// Six projets actifs dans l'heure : la part de chacun est un sixième du budget (ticket 3821).
+const PROJETS_DE_LA_STATION = 6;
+const PART_D_UN_PROJET = Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / PROJETS_DE_LA_STATION);
 const ACTIFS = ["alpha", "beta", "gamma", "delta", "secondes"];
 const reveiller = (limite: { prendre: (sorte: "cuisine", x: undefined, etiquette: ReturnType<typeof lectureDe>) => unknown }, h: { instant: number }) => {
   for (const projet of ACTIFS) {
@@ -114,6 +116,36 @@ test("la part d'un projet est le budget divisé par les projets actifs de l'heur
   assert.throws(() => limite.prendre("cuisine", undefined, lectureDe("brigade")), (erreur: unknown) => erreur instanceof PartAtteinte && erreur.part === tiers);
   // Les deux autres appellent encore.
   limite.prendre("cuisine", undefined, lectureDe("espace"));
+  limite.fermer();
+});
+
+// Ticket 3821, critère 2 : une part qui grandit quand les autres dorment ne laisse pas la somme passer le budget.
+test("un projet seul prend le budget, cinq se réveillent : à eux tous ils restent sous le budget de la station", () => {
+  const h = horloge(DEBUT);
+  const limite = ouvrirLimite({ maintenant: h.maintenant, alerter: () => {} });
+  // Seul, brigade a pour part tout le budget (au plus 4000 lectures, une toutes les 200 ms).
+  const avant = Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / 2);
+  for (let i = 0; i < avant; i++) {
+    h.instant += 200;
+    limite.prendre("cuisine", undefined, lectureDe("brigade"));
+  }
+  // Cinq projets se réveillent : chacun appelle jusqu'à ce qu'on le retienne.
+  let parties = avant;
+  for (const projet of ACTIFS) {
+    for (let i = 0; i < BUDGET_DE_LA_STATION_PAR_HEURE; i++) {
+      h.instant += 200;
+      try {
+        limite.prendre("cuisine", undefined, lectureDe(projet));
+        parties++;
+      } catch (erreur) {
+        assert.ok(erreur instanceof PartAtteinte);
+        break;
+      }
+    }
+  }
+  assert.equal(parties, BUDGET_DE_LA_STATION_PAR_HEURE);
+  const total = limite.repartition().parProjet.reduce((somme, { appels }) => somme + appels, 0);
+  assert.ok(total <= BUDGET_DE_LA_STATION_PAR_HEURE);
   limite.fermer();
 });
 
