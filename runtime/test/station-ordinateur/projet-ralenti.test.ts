@@ -75,6 +75,8 @@ test("two projects on one station: the busiest one, slowed by the low GitHub quo
   for (const sonner of reveils.splice(0)) sonner();
   await jusqua(() => prises.includes("brigade #3700"), 1500);
   assert.equal(tours("benomite/brigade").at(-1), `brigade : station ${STATION} — GitHub-only turn on benomite/brigade: no ticket cooking here`);
+  // Le tour de brigade n'est fini qu'une fois sa ligne au journal : le suivant ne le trouve plus en cours.
+  await jusqua(() => tours("benomite/brigade").length >= 2, 1500);
   await service.tourner();
   assert.deepEqual(prises, ["secondes #50", "secondes #50", "brigade #3700", "brigade #3700", "secondes #50"]);
   assert.equal(dits.filter((ligne) => ligne.includes("slowed by")).length, 1);
