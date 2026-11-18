@@ -31,6 +31,9 @@ test("une attente que la cuisine a levée ne se dit plus, de quelque source qu'e
 test("une épique attendue l'est dans les tickets de son découpage, avec la phrase qui la nomme", () => {
   const { attentes } = attentesDuTicket({ ticket: 50, corps: "Restyle the screen with the identity of #49.", commentaires: [], decoupage: (n) => (n === 49 ? [49, 53, 50] : []) });
   assert.deepEqual(attentes, [{ ticket: 53, source: "corps", phrase: "Restyle the screen with the identity of #49." }]);
+  // Une épique dont la liste ne nomme qu'elle et le ticket : c'est elle qu'il attend.
+  const seule = attentesDuTicket({ ticket: 50, corps: "Restyle the screen with the identity of #49.", commentaires: [], decoupage: (n) => (n === 49 ? [49, 50] : []) });
+  assert.deepEqual(seule.attentes, [{ ticket: 49, source: "corps", phrase: "Restyle the screen with the identity of #49." }]);
 });
 
 test("une phrase longue est coupée, une ligne de code n'en est pas une", () => {

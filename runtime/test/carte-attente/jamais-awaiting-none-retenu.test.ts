@@ -82,7 +82,7 @@ test("status : une file dont chaque ticket est retenu, par sa fiche ou l'arrêt 
 });
 
 // Le rail du journal : #5 retenu par sa fiche sur #4, tenu par un cook, le dit avec sa source ; #6, libre, et #4, pris,
-// gardent `awaiting: nothing`.
+// gardent `awaiting: nothing`, comme #7, mis de côté : la cuisine ne lui applique pas l'attente de sa fiche.
 test("npm run rail : la fiche d'un ticket retenu dit son attente et sa source ; un ticket libre dit `awaiting: nothing`", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
@@ -99,7 +99,9 @@ test("npm run rail : la fiche d'un ticket retenu dit son attente et sa source ; 
   arriver(4, []);
   arriver(5, [4]);
   arriver(6, []);
+  arriver(7, [4]);
   rail.prendre("box/claude");
+  journal.ajouter({ project: "brigade", ticket: 7, author: "github", type: "ticket.86", payload: { reason: "set aside", until: null } });
 
   const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
@@ -109,4 +111,5 @@ test("npm run rail : la fiche d'un ticket retenu dit son attente et sa source ; 
   assert.equal(ficheDe(5), "     card — waits for #4 — read from the card · zone: none");
   assert.equal(ficheDe(6), "     card — awaiting: nothing · zone: none");
   assert.equal(ficheDe(4), "     card — awaiting: nothing · zone: none");
+  assert.equal(ficheDe(7), "     card — awaiting: nothing · zone: none");
 });
