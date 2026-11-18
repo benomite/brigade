@@ -81,7 +81,7 @@ export function appelParGh(gh: string, delaiMs: number = DELAI_MS): AppelGitHub 
 export async function lireLaFile(appeler: AppelGitHub, depot: string, maintenant: () => Date = () => new Date(), stations?: () => Promise<StationsLues>): Promise<Lecture> {
   const instant = maintenant();
   const [lue, railBloque] = await Promise.all([
-    lireCeQuiAttendLeChef({ depot, appeler, maintenant: () => instant }),
+    lireCeQuiAttendLeChef({ depot, appeler, maintenant: () => instant, enWaiting: true }),
     stations === undefined ? undefined : lireLeRailBloque({ depot, appeler, stations, maintenant: instant.getTime() }),
   ]);
   if (!lue.lue) return { lue: false, raison: lue.raison, ...(lue.horsLigne === undefined ? {} : { horsLigne: true as const }) };
