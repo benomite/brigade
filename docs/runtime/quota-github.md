@@ -81,7 +81,7 @@ the chef's Mac) and divides it between the projects that **called GitHub in the 
 project included (`partDeLHeure`, #3821): with three active projects, the **share of a project** is 1,333
 calls over the last hour; with six, 666. An idle project keeps no share: a fixed sixth
 held `brigade` at 666 calls, all spent reading its rail, while two projects of the box made none. A project
-that wakes up lowers the share of the others, which then wait for their new share. Whatever the shares, a
+that wakes up lowers the share of the others, which then wait for their new share. A project's calls are counted under one key, its repository name without its owner (`cleDuProjet`): the kitchen labels them `brigade`, its GitHub client `benomite/brigade`, and counted apart they made each project count twice among the active ones. Whatever the shares, a
 kitchen call is also held when the projects together have made the 4,000 calls of the last hour: the sum
 never passes the budget. All of it is in
 `runtime/src/budget-github/part-des-projets.ts`.
