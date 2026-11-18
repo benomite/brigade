@@ -33,11 +33,11 @@ export const avantLeRail = (labels: readonly string[]): number => (estUneReparat
 
 // Le test en échec qu'un journal nomme, le premier, et la première erreur qui
 // le suit : `not ok N - <nom>` (TAP) ou `✖ <nom> (12ms)` (le rapport `spec`).
-export type TestEnEchec = { nom: string; erreur: string | null };
+type TestEnEchec = { nom: string; erreur: string | null };
 const NOT_OK = /^\s*not ok \d+ - (.+?)\s*(?:#.*)?$/;
 const CROIX = /^\s*✖ (.+?)(?: \(\d+(?:\.\d+)?m?s\))?\s*$/;
 const ERREUR = /\b\w*Error\b|^\s*error:/;
-export function testEnEchec(journal: string): TestEnEchec | null {
+function testEnEchec(journal: string): TestEnEchec | null {
   const lignes = sortieDErreur(journal, Number.POSITIVE_INFINITY).split("\n");
   for (const [rang, ligne] of lignes.entries()) {
     const nom = (NOT_OK.exec(ligne) ?? CROIX.exec(ligne))?.[1]?.trim();
@@ -50,14 +50,14 @@ export function testEnEchec(journal: string): TestEnEchec | null {
 }
 
 const TITRE_MAX = 200;
-export const titreDeLaReparationDeMain = (nom: string): string => {
+const titreDeLaReparationDeMain = (nom: string): string => {
   const titre = `${PREFIXE_DE_LA_REPARATION} ${nom}`;
   return titre.length > TITRE_MAX ? `${titre.slice(0, TITRE_MAX - 1)}…` : titre;
 };
 
 // Le corps de l'ouverture (`corpsDeLaReparation`), avec le test en échec et les
 // réparations mises de côté qu'elle reprend, avant ses critères d'acceptation.
-export function corpsDeLaReparationDeMain(corps: string, base: string, test: TestEnEchec | null, misesDeCote: readonly number[]): string {
+function corpsDeLaReparationDeMain(corps: string, base: string, test: TestEnEchec | null, misesDeCote: readonly number[]): string {
   const ajout = [
     ...(test === null ? [] : ["## Failing test", "", `- Test: \`${test.nom}\``, `- Error: ${test.erreur === null ? "_not found in the job log_" : `\`${test.erreur}\``}`, ""]),
     ...(misesDeCote.length === 0

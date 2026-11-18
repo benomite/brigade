@@ -6,22 +6,18 @@ import { test } from "node:test";
 import { marqueDeBaseRouge } from "../../src/base-rouge/ouvre-reparation.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
-import { fermeReparationDeMain, reparationDeMain, testEnEchec } from "../../src/reparation-base/reparation-de-main.ts";
+import { fermeReparationDeMain, reparationDeMain } from "../../src/reparation-base/reparation-de-main.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 const ROUGE = [{ name: "tests", outcome: "red" as const }];
 const VERTE = [{ name: "tests", outcome: "green" as const }];
 
-test("the failing test and its error are read from a TAP or a spec job log, and a log that names none gives none", () => {
-  assert.deepEqual(testEnEchec("2026-11-17T16:40:01.0000000Z not ok 3 - parses the clock\n  ---\n  error: 'expected 2 to equal 3'\n"), { nom: "parses the clock", erreur: "expected 2 to equal 3" });
-  assert.deepEqual(testEnEchec("✖ failing tests:\n\n✖ keeps the rail (12.5ms)\n  AssertionError [ERR_ASSERTION]: 0 !== 1\n"), { nom: "keeps the rail", erreur: "AssertionError [ERR_ASSERTION]: 0 !== 1" });
-  assert.equal(testEnEchec("npm ERR! missing script: test\n##[error]Process completed with exit code 1."), null);
-});
-
-test("with no failing test in the job log, the repair is named after the red check", async () => {
+// Une station sur un faux GitHub dont le journal du check rouge est `journal` :
+// rend le titre et le corps de la réparation ouverte.
+const ouvrirSur = async (journal: string) => {
   const faux = new FauxGitHub();
   const github = faux.pour("A");
-  github.journalDuCheck = async () => "npm ERR! missing script: test";
+  github.journalDuCheck = async () => journal;
   const titres: string[] = [];
   const creer = github.creerIssue;
   github.creerIssue = async (issue) => {
@@ -30,8 +26,26 @@ test("with no failing test in the job log, the repair is named after the red che
   };
   const { reparation } = await reparationDeMain({ github, base: "main" })(ROUGE);
   assert.equal(reparation, 900);
-  assert.deepEqual(titres, ["Repair main: tests"]);
   assert.ok(faux.ticket(900).labels.has("repair-main"));
+  return { titres, corps: faux.ticket(900).corps };
+};
+
+test("the failing test and its error are read from a TAP job log", async () => {
+  const { titres, corps } = await ouvrirSur("2026-11-17T16:40:01.0000000Z not ok 3 - parses the clock\n  ---\n  error: 'expected 2 to equal 3'\n");
+  assert.deepEqual(titres, ["Repair main: parses the clock"]);
+  assert.ok(corps.includes("- Test: `parses the clock`\n- Error: `expected 2 to equal 3`"));
+});
+
+test("the failing test is read from a spec job log, past the header of its summary", async () => {
+  const { titres, corps } = await ouvrirSur("✖ failing tests:\n\n✖ keeps the rail (12.5ms)\n  AssertionError [ERR_ASSERTION]: 0 !== 1\n");
+  assert.deepEqual(titres, ["Repair main: keeps the rail"]);
+  assert.ok(corps.includes("- Error: `AssertionError [ERR_ASSERTION]: 0 !== 1`"));
+});
+
+test("with no failing test in the job log, the repair is named after the red check", async () => {
+  const { titres, corps } = await ouvrirSur("npm ERR! missing script: test\n##[error]Process completed with exit code 1.");
+  assert.deepEqual(titres, ["Repair main: tests"]);
+  assert.ok(!corps.includes("## Failing test"));
 });
 
 test("an unreadable rail opens nothing and says why, and the next call opens the repair", async () => {
