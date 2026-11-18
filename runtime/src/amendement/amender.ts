@@ -15,6 +15,7 @@ import { relative, resolve, sep } from "node:path";
 import { poserALaMain } from "../blocages-sans-question.ts";
 import type { GitHubDuTour } from "../brigade-github.ts";
 import type { IssueAJuger } from "../juger.ts";
+import { commitDesTestsGeles } from "../passe-gel-tests/gel-tests.ts";
 import { consigneDuClassement, corpsDeLApplication, corpsDeLaCarte, corpsDeLaProposition, lireLeClassement, PIED, type Classement, type Proposition } from "./proposition.ts";
 
 // L'auteur du commit d'amendement : le manager, jamais le cook.
@@ -105,10 +106,18 @@ export function amenderParLeManager(deps: {
 }
 
 // Les commits de la branche, depuis la base, qui touchent le test gelé et que
-// le manager n'a pas faits : son auteur et son pied, les deux.
+// le manager n'a pas faits : son auteur et son pied, les deux. Le commit des
+// tests gelés, le premier de la branche, est celui de l'étape des tests
+// (#3725), pas du cook : il n'en est pas (#3764).
 async function commitsDuCookSur(git: LancerGit, worktree: string, base: string, fichier: string, ticket: number): Promise<{ commits: string[] } | { refus: string }> {
   const lu = await git(["log", "--format=%H%x1f%ae%x1f%B%x1e", `origin/${base}..HEAD`, "--", fichier], worktree);
   if (lu.code !== 0) return { refus: `the branch's commits on the frozen test could not be read: ${lu.stderr.trim() || `code ${lu.code}`}` };
+  let gele: string | null;
+  try {
+    gele = commitDesTestsGeles(worktree, `origin/${base}`);
+  } catch (erreur) {
+    return { refus: `the branch's frozen acceptance commit could not be read: ${message(erreur)}` };
+  }
   const commits = lu.stdout
     .split("\x1e")
     .map((bloc) => bloc.trim())
@@ -116,7 +125,7 @@ async function commitsDuCookSur(git: LancerGit, worktree: string, base: string, 
     .flatMap((bloc) => {
       const [sha = "", auteur = "", corps = ""] = bloc.split("\x1f");
       const duManager = auteur === COURRIEL_DU_MANAGER && corps.split("\n").some((ligne) => ligne.trim() === PIED(ticket));
-      return duManager ? [] : [sha];
+      return duManager || sha === gele ? [] : [sha];
     });
   return { commits };
 }
