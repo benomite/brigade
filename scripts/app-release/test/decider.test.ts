@@ -12,8 +12,13 @@ test("a file under app/ outside app/test/ changes the app", () => {
   assert.equal(touchLApp(["app/package.json"]), true);
 });
 
-test("runtime, docs, evals, scripts and app/test do not change the app", () => {
-  assert.equal(touchLApp(["runtime/src/a.ts", "docs/app.md", "evals/x.md", "scripts/app-release/decider.ts", "app/test/vue/a.test.ts"]), false);
+// #3828 : the app bundles runtime/src — the rail's FAULT fix of #3818 never reached the installed app.
+test("a file under runtime/src/ changes the app: the app bundles the runtime code it shows", () => {
+  assert.equal(touchLApp(["runtime/src/attente-du-rail/raison.ts"]), true);
+});
+
+test("runtime tests, docs, evals, scripts and app/test do not change the app", () => {
+  assert.equal(touchLApp(["runtime/test/a.test.ts", "runtime/package.json", "docs/app.md", "evals/x.md", "scripts/app-release/decider.ts", "app/test/vue/a.test.ts"]), false);
   assert.equal(touchLApp([]), false);
   assert.equal(touchLApp(["application/x.ts", "app-notes.md"]), false);
 });
