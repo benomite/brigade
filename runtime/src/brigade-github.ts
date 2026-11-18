@@ -73,7 +73,7 @@ import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts";
-import { nommeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
+import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
 import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
@@ -179,6 +179,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
     // Les checks du dernier commit de la branche d'intégration.
     checksDeLaBase(): Promise<CheckDeLaBase[]>;
+    // De quoi nommer sur son ticket la livraison qui a rendu la base rouge
+    // (#3817). Absent ou null, rien n'est nommé.
+    livraison?: GitHubDeLaLivraison | null;
     // Le corps de l'issue, où le ticket dit sa zone.
     corpsDuTicket(issue: number): Promise<string>;
     // Remplace le corps de l'issue : la preuve d'un ticket de mesure (#2841) et
@@ -415,9 +418,6 @@ export type OptionsDeStation = {
   // passée n'est pas pris, et part à l'écriture de ses tests. Absente, la
   // porte de prise ne la lit pas.
   testsAcceptation?: PorteDesTests;
-  // Nomme sur son ticket la livraison qui a rendu la base rouge (#3817) : joué
-  // à chaque tour sur les checks de la base, hors du tour. Absent, rien n'est nommé.
-  nommerLaLivraison?: (checks: CheckDeLaBase[]) => Promise<void>;
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -590,6 +590,8 @@ const arretSubi = (conclusion: string, fin: { code: number | null; signal: strin
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  // Nomme à chaque tour, sur son ticket, la livraison qui a rendu la base rouge (#3817).
+  const nommerLaLivraison = github.livraison ? nommeLaLivraison({ github: github.livraison, base, avertir }) : undefined;
   // Le chef que la demande de validation posée sur le ticket mentionne (#3615) :
   // sans chef résolu, elle ne mentionne personne, et la station le dit une fois.
   const chefsNonMentionnes = new Set<string>();
@@ -1638,7 +1640,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     // Le rouge se consigne sur sa réparation (#3614) en parallèle du tour, sans
     // rien lui retenir : la réparation est déjà dispatchée. Un échec est dit, le tour suivant réessaie.
-    void options.nommerLaLivraison?.(checksDeLaBase);
+    void nommerLaLivraison?.(checksDeLaBase);
     const consignation = consigner?.().catch((echec) => avertir(`brigade : ${base} is red and its repair ticket is open, but the new red commit could not be recorded on it on ${nom} — ${message(echec)}; retried next turn`));
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
@@ -2374,6 +2376,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
   // Une PR externe n'est celle d'aucun ticket, même sous le nom de sa branche (#2933).
   const prDeLInstantane = (issue: number) => instantane?.prs.find((pr) => !pr.externe && pr.branche === brancheDuTicket(issue));
   return {
+    livraison: githubDeLaLivraison(github, base, depotGitHub),
     checksDeLaBase: async () => {
       if (parGraphql === null) return github.ci(base);
       try {
@@ -2622,7 +2625,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const github = (options.observer ?? ((client: GitHubDuTour) => client))(
     clientDuTour(options.github, base, options.graphql === false ? undefined : depotGitHub),
   );
-  const livraison = githubDeLaLivraison(options.github, base, options.graphql === false ? undefined : depotGitHub);
   // Coupe les gates en vol quand la station s'arrête : elles n'ont alors rien dit.
   const abandon = new AbortController();
 
@@ -3477,7 +3479,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
       : porteDesTests(ecrireOuClasser, { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) });
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }), ...(livraison === null ? {} : { nommerLaLivraison: nommeLaLivraison({ github: livraison, base, avertir }) }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

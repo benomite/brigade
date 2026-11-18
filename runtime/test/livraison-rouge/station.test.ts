@@ -40,6 +40,8 @@ function stationRouge(t: TestContext, { pannes = 0 } = {}) {
   const avertis: string[] = [];
   const station = stationDuDepot({ ...STATION_DU_DEPOT, github, depot: depotNeuf(repertoire), flux: repertoire, avertir: (texte) => void avertis.push(texte) });
   if ("refus" in station) throw new Error(station.refus);
+  // Arrêtée même quand le test échoue : une station laissée vivante retient le process.
+  t.after(() => station.quitter?.());
   const nommes = () => (faux.commentaires.get(57) ?? []).filter((c) => c.body.includes("brigade:livraison-rouge"));
   return { faux, station, avertis, nommes };
 }
@@ -49,7 +51,7 @@ test("a station's turn on a red base names the merged PR, its merge commit and t
   for (let i = 0; i < 3; i += 1) {
     await station.tour();
     await station.calme();
-    await jusqua(() => nommes().length > 0);
+    await jusqua(() => nommes().length > 0, 2_000);
   }
   assert.equal(nommes().length, 1);
   const [nomme] = nommes();
@@ -64,13 +66,13 @@ test("a GitHub read that fails while naming the delivery is said once, stops not
   const dits = () => avertis.filter((texte) => texte.includes("could not be named"));
   await station.tour();
   await station.calme();
-  await jusqua(() => dits().length > 0);
+  await jusqua(() => dits().length > 0, 2_000);
   await station.tour();
   await station.calme();
   assert.equal(nommes().length, 0);
   assert.deepEqual(dits(), ["brigade : main is red, but the delivery that turned it red could not be named on its ticket — gh api graphql : HTTP 502; retried next turn"]);
   await station.tour();
   await station.calme();
-  await jusqua(() => nommes().length > 0);
+  await jusqua(() => nommes().length > 0, 2_000);
   assert.equal(nommes().length, 1);
 });
