@@ -527,6 +527,13 @@ Since #3028 the station names the failed steps of each red job in the send-back,
 `(failed step: Format)` is "other", `(failed step: Typecheck)` "type check". The three send-backs counted keep their
 cause. The same fix turned the `app` pattern of `causeDuRenvoi` back into a word match: since #2707 it held two
 backspace characters where `\b` was meant, so no red-CI send-back was ever classed "red gates: app tests".
+#3806, measured on BOBL-tech/mirrorlab, names "red gates: type check" again, for 34 send-backs whose failed step is
+`Lint + Format + Typecheck + Test (en parallèle)`: one step that runs the four gates at once, whose word "Typecheck"
+read "type check" whichever gate was red. Since #3806 a check or step name that joins several gates with ` + ` (outside
+its own parentheses) names none of them: a send-back that names only such a step is "other", still counted; a step
+that is only `Typecheck` stays "type check". The cause of those send-backs was the brief of the cook taken again: such
+a step writes no annotation but `Process completed with exit code 1.`, and the cook pushed again blindly; it now gets
+the end of the job's log ([github-seul.md](github-seul.md), "What a red CI says, handed to the cook").
 #3157, measured on BOBL-tech/espace, names "other" as the first send-back reason: five of its nine send-backs
 (#830, #845, #846, #886, #879) read `the CI is red on …: brigade/gates`. espace runs no CI on its PRs, and a
 station plays its gates on the PR head and posts their verdict as the commit status `brigade/gates` (#2456). That
