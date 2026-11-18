@@ -16,7 +16,6 @@
 //   répondue     `answered by <qui> · the manager's turn` (#503)
 //   m'attend     ce qu'on attend du chef, en une phrase (decision.ts)
 //   livrée       `served at HH:MM · <résumé>`
-import { ATTENTE_DITE } from "../../runtime/src/attente-du-rail/raison.ts";
 import { heureHM } from "./format.ts";
 import { refusEnClair } from "./refus.ts";
 import { jourDe } from "./vue/attente/saisie.ts";
@@ -50,16 +49,13 @@ export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: st
 
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.
 // Un retenu par des tickets se dit « Waiting for #a, #b » ; un texte sans numéro est relayé tel quel.
-// `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), faute d'autre
-// raison : elle ne remplace pas celle d'un retenu.
-export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: string): LigneDeCarte {
-  // Derrière un ticket, les liens sont les tickets attendus — `waits for #N` —, jamais un numéro de la phrase du corps citée
-  // (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763) : une attente ouvre la ligne
-  // ou suit `; `, et dit sa source.
-  const attendus = retient === undefined ? [...(derriere ?? "").matchAll(ATTENTE_DITE)].map(([, n]) => `#${n}`) : [];
-  const numeros = [...new Set(attendus.length > 0 ? attendus : ((retient ?? derriere)?.match(/#\d+/g) ?? []))];
-  const phrase = retient === undefined && derriere !== undefined ? derriere : numeros.length > 0 ? `Waiting for ${numeros.join(", ")}` : retient;
-  const liens = numeros.length > 0 ? { liens: numeros.map((numero) => Number(numero.slice(1))) } : {};
+// `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), et les tickets
+// qu'elle attend, faute d'autre raison : elle ne remplace pas celle d'un retenu. Ses liens sont ces tickets, jamais un numéro
+// de la phrase du corps qu'elle cite (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763).
+export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: { ligne: string; attendus: readonly number[] }): LigneDeCarte {
+  const numeros = retient === undefined && derriere !== undefined ? [...new Set(derriere.attendus)] : [...new Set((retient?.match(/#\d+/g) ?? []).map((numero) => Number(numero.slice(1))))];
+  const phrase = retient === undefined && derriere !== undefined ? derriere.ligne : numeros.length > 0 ? `Waiting for ${numeros.map((n) => `#${n}`).join(", ")}` : retient;
+  const liens = numeros.length > 0 ? { liens: numeros } : {};
   if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOQUEE, signal: BLOQUEE, ...liens, ...(phrase === undefined ? { repere: true as const } : {}) };
   return { ligne: phrase ?? PRET, ...liens };
 }

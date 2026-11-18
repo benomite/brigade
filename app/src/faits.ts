@@ -13,7 +13,7 @@
 // Ce sont les deux seules choses lues hors de la forme.
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
-import { attenteDuRailLue, lignesDesCartesLues, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
+import { attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
@@ -272,6 +272,12 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
 };
 const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
 
+// La ligne d'une carte en file qui ne part pas la prochaine, et les tickets qu'elle attend (#3763) : ses liens.
+const derriereDe = (faits: Faits, ticket: number): { ligne: string; attendus: readonly number[] } | undefined => {
+  const ligne = faits.lignesDesCartes?.[ticket];
+  return ligne === undefined ? undefined : { ligne, attendus: faits.attendusDesCartes?.[ticket] ?? [] };
+};
+
 // Ce qui met de côté un ticket d'un projet GitHub seul (tableau/mise-de-cote-github.ts, #2075) : son label, la ligne qui dit
 // pourquoi — nulle sans commentaire qui la porte —, et ses `#N` ouvrables, en https. Rien s'il n'a pas cette forme.
 function miseDeCoteLue(brut: unknown): MiseDeCote | undefined {
@@ -381,9 +387,11 @@ export type Faits = {
   // ils ne se lisent pas ; absent quand rien n'est bloqué.
   railBloque?: RailBloqueLu;
   // Pourquoi la file du rail ne part pas (vue/attente-du-rail/, #3433) : la raison, sa phrase, son geste ; absent quand rien
-  // n'attend, ou qu'un cook tourne. `lignesDesCartes` : la ligne de chaque carte en file qui ne part pas la prochaine.
+  // n'attend, ou qu'un cook tourne. `lignesDesCartes` : la ligne de chaque carte en file qui ne part pas la prochaine ;
+  // `attendusDesCartes` : les tickets qu'elle attend, que sa carte ouvre (#3763).
   attenteDuRail?: AttenteDuRail;
   lignesDesCartes?: LignesDesCartes;
+  attendusDesCartes?: AttendusDesCartes;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseDuCompte;
@@ -837,6 +845,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...railBloqueLu(racine.railBloque),
       ...attenteDuRailLue(racine.attenteDuRail),
       ...lignesDesCartesLues(racine.lignesDesCartes),
+      ...attendusDesCartesLus(racine.attendusDesCartes),
       ...pauseQuotaLue(racine.pauseQuota),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
@@ -1265,7 +1274,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
               ? { ligne: "served", repere: true }
               : connu?.raison != null && EN_FILE.includes(connu.etat)
                 ? ligneDeTete(connu.etat, connu.raison)
-                : ligneEnAttente(connu?.etat ?? "", retient, faits.lignesDesCartes?.[ticket]);
+                : ligneEnAttente(connu?.etat ?? "", retient, derriereDe(faits, ticket));
     // Sur le rail, en attente : sa priorité se lit sur la carte — celle que sa ligne de `status` écrit, ou celle que
     // l'app vient d'écrire sur son issue, tant que le tableau montre encore l'ancienne.
     const enFile = dit === undefined && connu !== undefined && EN_FILE.includes(connu.etat);

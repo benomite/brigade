@@ -99,8 +99,9 @@ describe("la ligne de chaque carte en file", () => {
   });
 
   test("ce qui retient déjà la carte, et ses messages (« Will not start », mise de côté), passent avant", () => {
-    assert.deepEqual(ligneEnAttente("en attente", "blocked by #9", "waits for #4 — read from the card"), { ligne: "Waiting for #9", liens: [9] });
-    assert.deepEqual(ligneEnAttente("en attente", undefined, "waits for #4 — read from the card"), { ligne: "waits for #4 — read from the card", liens: [4] });
+    const derriere = { ligne: "waits for #4 — read from the card", attendus: [4] };
+    assert.deepEqual(ligneEnAttente("en attente", "blocked by #9", derriere), { ligne: "Waiting for #9", liens: [9] });
+    assert.deepEqual(ligneEnAttente("en attente", undefined, derriere), { ligne: "waits for #4 — read from the card", liens: [4] });
     assert.deepEqual(ligneEnAttente("en attente", undefined, undefined), { ligne: PRET });
     const refusee = ticket(5, { etat: "86", depend: [4], miseDeCote: { label: "served-elsewhere", raison: "already done", liens: [], auChef: false, pr: null } });
     const faits = faitsDe(lecture([ticket(4), refusee], [station()]));

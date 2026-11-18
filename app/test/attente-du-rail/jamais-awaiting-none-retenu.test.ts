@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../../runtime/src/carte-attente/carte-attente.ts";
 import { MARQUEUR } from "../../../runtime/src/fiche.ts";
-import { ligneEnAttente } from "../../src/ligne-carte.ts";
+import { comprendre, rail, type Faits } from "../../src/faits.ts";
+import { PRET } from "../../src/ligne-carte.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 
@@ -14,6 +15,12 @@ const DEPOT = "chef/cantine";
 const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
 const issue = (number: number, labels: string[], body = "") => ({ number, title: `Ticket ${number}`, html_url: `https://github.com/${DEPOT}/issues/${number}`, body, created_at: "2026-11-17T09:00:00Z", labels: labels.map((name) => ({ name })) });
 const commentaire = (body: string) => ({ id: 1, author_association: "OWNER", created_at: "2026-11-17T09:30:00Z", body });
+// La ligne et les liens de la carte d'un ticket sur le rail que l'app dessine.
+const carte = (faits: Faits, numero: number) => {
+  const dessine = rail(faits);
+  const sienne = [...dessine.colonnes.flatMap(({ cartes }) => cartes), ...dessine.hors].find((une) => une.ticket === numero) ?? assert.fail(`pas de carte #${numero}`);
+  return { ligne: sienne.ligne, ...(sienne.liens === undefined ? {} : { liens: sienne.liens }) };
+};
 const EPIQUE = "Split.\n\n<!-- brigade:tickets -->\n| #10 | A | open |\n| #11 | B | open |\n| #12 | C | open |\n<!-- /brigade:tickets -->";
 
 // #4 tenu par un cook ; #5 l'attend par son corps, #6 par sa fiche, #7 par l'arrêt d'un cook ; #8 libre ; #9 aux
@@ -44,17 +51,22 @@ const CARTES: Record<number, string> = {
 test("le rail de l'app : chaque carte retenue dit son attente et sa source, aucune ligne sur une carte libre, et ses liens sont les tickets attendus", async () => {
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date("2026-11-17T10:00:00Z") });
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
-  const lignes = lu.faits.lignesDesCartes ?? {};
-  assert.deepEqual(lignes, CARTES);
-  for (const [n, liens] of [[5, [4]], [6, [4]], [7, [4]], [12, [10, 11]]] as const) {
-    assert.deepEqual(ligneEnAttente("en attente", undefined, lignes[n]), { ligne: CARTES[n], liens });
-  }
+  const faits = comprendre(JSON.stringify(lu.faits)) as Faits;
+  assert.deepEqual(faits.lignesDesCartes, CARTES);
+  assert.deepEqual(faits.attendusDesCartes, { 5: [4], 6: [4], 7: [4], 12: [10, 11] });
+  for (const [n, liens] of [[5, [4]], [6, [4]], [7, [4]], [12, [10, 11]]] as const) assert.deepEqual(carte(faits, n), { ligne: CARTES[n], liens }, `#${n}`);
+  assert.deepEqual(carte(faits, 9), { ligne: CARTES[9] });
+  assert.deepEqual(carte(faits, 8), { ligne: PRET });
 });
 
-// Les liens d'une carte en file sont les tickets qu'elle attend, jamais un numéro de la phrase du corps qu'elle cite.
-test("la carte n'ouvre que le ticket attendu, pas ceux de la phrase citée", () => {
-  const ligne = "waits for #1912 — read from the body: 'Builds on #1908'; waits for #4 — read from the card";
-  assert.deepEqual(ligneEnAttente("en attente", undefined, ligne), { ligne, liens: [1912, 4] });
-  const citee = "waits for #1912 — read from the body: 'It waits for #9 — and builds on #1908'";
-  assert.deepEqual(ligneEnAttente("en attente", undefined, citee), { ligne: citee, liens: [1912] });
+// Les liens d'une carte en file sont les tickets qu'elle attend, jamais un numéro de la phrase du corps qu'elle cite, même
+// quand cette phrase dit elle-même `waits for #13 — read from …` : #13, hors du rail, ne la retient pas.
+test("la carte n'ouvre que le ticket attendu, pas ceux de la phrase citée", async () => {
+  const phrase = "Builds on #4; waits for #13 — read from the spec.";
+  const sien: AppelGitHub = async (chemin, ...reste) =>
+    chemin.includes("/issues?") ? ok([issue(4, ["fire", "taken"]), issue(5, ["fire"], phrase)]) : appeler(chemin, ...reste);
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: sien, maintenant: () => new Date("2026-11-17T10:00:00Z") });
+  assert.ok(lu.lu, lu.lu ? "" : lu.raison);
+  const faits = comprendre(JSON.stringify(lu.faits)) as Faits;
+  assert.deepEqual(carte(faits, 5), { ligne: `waits for #4 — read from the body: '${phrase}'`, liens: [4] });
 });

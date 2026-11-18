@@ -82,9 +82,6 @@ const SOURCES: Record<SourceDAttente, string> = { corps: "the body", fiche: "the
 export function direLAttente({ ticket, source, phrase }: AttenteSourcee): string {
   return `waits for #${ticket} — read from ${SOURCES[source]}${source === "corps" && phrase ? `: '${phrase}'` : ""}`;
 }
-// Ce qui relit une attente dite par `direLAttente`, son ticket en groupe : la carte de l'app en tire ses liens
-// (app/src/ligne-carte.ts). Une attente ouvre la ligne ou suit `; ` : un `#N` de la phrase citée n'en est pas une.
-export const ATTENTE_DITE = /(?:^|; )waits for #(\d+) — read from /g;
 const COMMENTAIRES_ILLISIBLES = "its card and its cooks' stops could not be read on GitHub";
 
 // La ligne d'une carte en file qui ne partira pas la prochaine (#3763) : chaque attente qui la retient, et d'où elle est
@@ -93,12 +90,17 @@ const COMMENTAIRES_ILLISIBLES = "its card and its cooks' stops could not be read
 // `attentes`, celles de `depend` sont celles du corps, sans leur phrase. Aucune ligne sans attente ouverte : c'est la
 // carte qui part ensuite, ou une carte libre.
 export function ligneDeLaCarte(carte: TicketDuRail, tickets: readonly TicketDuRail[]): string | null {
-  if (carte.etat !== "queued") return null;
+  const dites = [...new Set(attentesDites(carte, tickets).map(direLAttente))];
+  if (carte.etat === "queued" && carte.commentairesLus === false) dites.push(COMMENTAIRES_ILLISIBLES);
+  return dites.length === 0 ? null : dites.join("; ");
+}
+
+// Les attentes que la ligne d'une carte en file dit : celles qui la retiennent sur le rail.
+function attentesDites(carte: TicketDuRail, tickets: readonly TicketDuRail[]): AttenteSourcee[] {
+  if (carte.etat !== "queued") return [];
   const retenue = retenus(carte, tickets);
   const lues = carte.attentes ?? carte.depend.map((ticket): AttenteSourcee => ({ ticket, source: "corps" }));
-  const dites = [...new Set(lues.filter(({ ticket }) => retenue.has(ticket)).map(direLAttente))];
-  if (carte.commentairesLus === false) dites.push(COMMENTAIRES_ILLISIBLES);
-  return dites.length === 0 ? null : dites.join("; ");
+  return lues.filter(({ ticket }) => retenue.has(ticket));
 }
 
 // Les lignes des cartes en file, par ticket.
@@ -109,6 +111,17 @@ export function lignesDesCartes(tickets: readonly TicketDuRail[]): Record<number
     if (ligne !== null) lignes[carte.ticket] = ligne;
   }
   return lignes;
+}
+
+// Les tickets qu'attend chaque carte dont la ligne dit une attente, par ticket (#3763) : ceux de ses attentes, jamais un
+// numéro relu de la phrase du corps qu'elle cite. La carte de l'app en tire ses liens (app/src/ligne-carte.ts).
+export function attendusDesCartes(tickets: readonly TicketDuRail[]): Record<number, number[]> {
+  const attendus: Record<number, number[]> = {};
+  for (const carte of tickets) {
+    const siens = [...new Set(attentesDites(carte, tickets).map(({ ticket }) => ticket))];
+    if (siens.length > 0) attendus[carte.ticket] = siens;
+  }
+  return attendus;
 }
 
 // Pourquoi la file ne part pas, ou null : rien en file, ou un cook qui tourne.
