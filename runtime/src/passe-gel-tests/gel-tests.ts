@@ -1,7 +1,7 @@
 // Les tests d'acceptation gelés (#3724) : le premier commit de la branche, qui
 // porte le trailer `Acceptance-Tests: frozen`. Aucun commit suivant de la
 // livraison ne les modifie, ne les renomme ni ne les retire — sauf un commit du
-// manager portant `Amendment: #<issue>` (le ticket d'amendement). Le contrôle
+// manager, ou du chef du projet (ticket 3835), portant `Amendment: #<issue>`. Le contrôle
 // lit l'historique du worktree de la livraison, sans cook ni modèle.
 import { execFileSync } from "../sans-invite.ts";
 
@@ -55,7 +55,9 @@ export function commitDesTestsGeles(worktree: string, base: string): string | nu
 // Les commits qui touchent un fichier gelé sans y avoir droit. Vide : aucun
 // commit gelé sur la branche (rien à garder), ou le gel est tenu. Lève si
 // l'historique ne se lit pas : l'appelant dit alors que le contrôle n'a pas eu lieu.
-export function violationsDuGel(worktree: string, base: string): ViolationDuGel[] {
+// `chef` : le login du chef du projet (`chef` de ses réglages), dont un commit
+// d'amendement vaut celui du manager — son nom git est son login.
+export function violationsDuGel(worktree: string, base: string, chef: string | null = null): ViolationDuGel[] {
   const [premier, ...suivants] = commitsDeLaLivraison(worktree, base);
   if (premier === undefined || !premier.gele) return [];
   const gelés = new Set(fichiersDe(worktree, premier.commit));
@@ -63,7 +65,8 @@ export function violationsDuGel(worktree: string, base: string): ViolationDuGel[
   for (const suivant of suivants) {
     const touches = fichiersDe(worktree, suivant.commit).filter((fichier) => gelés.has(fichier));
     if (touches.length === 0) continue;
-    if (AUTEUR_MANAGER.test(suivant.auteur) && suivant.amendement.some((valeur) => AMENDEMENT.test(valeur))) continue;
+    const autorise = AUTEUR_MANAGER.test(suivant.auteur) || (chef !== null && chef !== "" && suivant.auteur.toLowerCase() === chef.toLowerCase());
+    if (autorise && suivant.amendement.some((valeur) => AMENDEMENT.test(valeur))) continue;
     violations.push({ commit: suivant.commit, fichiers: touches });
   }
   return violations;
@@ -73,5 +76,5 @@ export function violationsDuGel(worktree: string, base: string): ViolationDuGel[
 export function motifDuGel(violations: readonly ViolationDuGel[]): string | null {
   if (violations.length === 0) return null;
   const fichiers = [...new Set(violations.flatMap((violation) => violation.fichiers))];
-  return [`${RAISON_GEL}.`, "", "A commit after the frozen acceptance tests (trailer `Acceptance-Tests: frozen`) changed, renamed or removed:", ...fichiers.map((fichier) => `- \`${fichier}\``), "", "Restore them: only a commit of the manager carrying `Amendment: #<issue>` may change a frozen test."].join("\n");
+  return [`${RAISON_GEL}.`, "", "A commit after the frozen acceptance tests (trailer `Acceptance-Tests: frozen`) changed, renamed or removed:", ...fichiers.map((fichier) => `- \`${fichier}\``), "", "Restore them: only a commit of the manager or of the project's chef carrying `Amendment: #<issue>` may change a frozen test."].join("\n");
 }
