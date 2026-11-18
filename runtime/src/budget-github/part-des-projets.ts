@@ -24,6 +24,14 @@ import { FENETRE_MS, PROJET_DE_LA_STATION } from "../limite-github.ts";
 export const BUDGET_DE_LA_STATION_PAR_HEURE = 4000;
 type Lire = <T>(sql: string, ...params: Array<string | number>) => T[];
 
+// Le même projet s'inscrit sous deux noms au compteur : son nom court (`brigade`,
+// la cuisine) et son dépôt (`benomite/brigade`, le client GitHub). Ses appels se
+// comptent sous une seule clé, le nom du dépôt sans son propriétaire, en
+// minuscules : sinon chaque projet compte deux fois parmi les actifs, et la part
+// de tous en est divisée par deux (ticket 3821).
+const CLE = "lower(substr(projet, instr(projet, '/') + 1))";
+export const cleDuProjet = (projet: string): string => projet.slice(projet.indexOf("/") + 1).toLowerCase();
+
 // La part de chacun de `actifs` projets : le budget divisé.
 const partDe = (actifs: number): number => Math.floor(BUDGET_DE_LA_STATION_PAR_HEURE / Math.max(1, actifs));
 
@@ -31,8 +39,8 @@ const partDe = (actifs: number): number => Math.floor(BUDGET_DE_LA_STATION_PAR_H
 // avant d'attendre — le budget divisé par les projets qui y ont appelé, `projet`
 // compté même s'il n'a pas encore appelé.
 export function partDeLHeure(lire: Lire, projet: string, instant: number): number {
-  const actifs = lire<{ projet: string }>("SELECT DISTINCT projet FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ?", PROJET_DE_LA_STATION, instant - FENETRE_MS).map(({ projet: nom }) => nom);
-  return partDe(actifs.includes(projet) ? actifs.length : actifs.length + 1);
+  const actifs = lire<{ cle: string }>(`SELECT DISTINCT ${CLE} AS cle FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ?`, PROJET_DE_LA_STATION, instant - FENETRE_MS).map(({ cle }) => cle);
+  return partDe(actifs.includes(cleDuProjet(projet)) ? actifs.length : actifs.length + 1);
 }
 
 // L'appel d'un projet qui a fait sa part de l'heure : il ne part pas, n'est pas
@@ -65,12 +73,12 @@ export function retenueDeLaPart(lire: Lire, projet: string, instant: number, par
   const depuis = instant - FENETRE_MS;
   const tous = lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ?", PROJET_DE_LA_STATION, depuis)[0]?.n ?? 0;
   // Le compte seul, sur l'index : presque toujours, le projet est sous sa part.
-  const aSaPart = lire("SELECT 1 FROM appels WHERE projet = ? AND instant > ? LIMIT 1 OFFSET ?", projet, depuis, part - 1).length > 0;
+  const aSaPart = lire(`SELECT 1 FROM appels WHERE ${CLE} = ? AND instant > ? LIMIT 1 OFFSET ?`, cleDuProjet(projet), depuis, part - 1).length > 0;
   if (!aSaPart && tous < BUDGET_DE_LA_STATION_PAR_HEURE) return null;
-  const appels = lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE projet = ? AND instant > ?", projet, depuis)[0]?.n ?? 0;
+  const appels = lire<{ n: number }>(`SELECT count(*) AS n FROM appels WHERE ${CLE} = ? AND instant > ?`, cleDuProjet(projet), depuis)[0]?.n ?? 0;
   let jusqua = instant;
   if (aSaPart) {
-    const [sortant] = lire<{ instant: number }>("SELECT instant FROM appels WHERE projet = ? AND instant > ? ORDER BY instant ASC LIMIT 1 OFFSET ?", projet, depuis, appels - part);
+    const [sortant] = lire<{ instant: number }>(`SELECT instant FROM appels WHERE ${CLE} = ? AND instant > ? ORDER BY instant ASC LIMIT 1 OFFSET ?`, cleDuProjet(projet), depuis, appels - part);
     jusqua = Math.max(jusqua, (sortant?.instant ?? instant) + FENETRE_MS);
   }
   if (tous >= BUDGET_DE_LA_STATION_PAR_HEURE) {
@@ -87,7 +95,7 @@ export type PartDuProjet = { projet: string; appels: number; part: number; repri
 
 export function partsDe(lire: Lire, instant: number): PartDuProjet[] {
   const lus = lire<{ projet: string; appels: number }>(
-    "SELECT projet, count(*) AS appels FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ? GROUP BY projet ORDER BY appels DESC, projet ASC",
+    `SELECT ${CLE} AS projet, count(*) AS appels FROM appels WHERE projet IS NOT NULL AND projet <> ? AND instant > ? GROUP BY ${CLE} ORDER BY appels DESC, projet ASC`,
     PROJET_DE_LA_STATION,
     instant - FENETRE_MS,
   );
