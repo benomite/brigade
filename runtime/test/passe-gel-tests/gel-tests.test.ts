@@ -77,3 +77,18 @@ test("un amendement du manager passe, le même changement d'un cook est refusé"
   valider(sansTrailer, "amend", "manager");
   assert.match(verdict(sansTrailer) ?? "", /test\/a\.test\.ts/);
 });
+
+// Ticket 3835 : sur mirrorlab, le chef a corrigé lui-même un test gelé illisible, et la pass refusait chaque livraison.
+test("un amendement du chef du projet passe, comme celui du manager ; un autre auteur reste refusé", (t) => {
+  const chef = branche(t);
+  writeFileSync(join(chef, "test", "a.test.ts"), "amendé\n");
+  valider(chef, "amend", "benomite", "Amendment: #803");
+  assert.equal(motifDuGel(violationsDuGel(chef, "origin/main", "benomite")), null);
+  assert.match(motifDuGel(violationsDuGel(chef, "origin/main", null)) ?? "", /test\/a\.test\.ts/);
+  assert.match(motifDuGel(violationsDuGel(chef, "origin/main", "quelqu-un")) ?? "", /test\/a\.test\.ts/);
+
+  const sansTrailer = branche(t);
+  writeFileSync(join(sansTrailer, "test", "a.test.ts"), "amendé\n");
+  valider(sansTrailer, "amend", "benomite");
+  assert.match(motifDuGel(violationsDuGel(sansTrailer, "origin/main", "benomite")) ?? "", /test\/a\.test\.ts/);
+});
