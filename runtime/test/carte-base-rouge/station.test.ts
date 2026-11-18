@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { marqueDeBaseRouge } from "../../src/base-rouge/ouvre-reparation.ts";
 import { stationGitHub } from "../../src/brigade-github.ts";
-import { carteBaseRouge, githubDeLaCarte, type GitHubDuTourDeLaCarte } from "../../src/carte-base-rouge/carte-base-rouge.ts";
+import { carteBaseRouge, githubDeLaCarte } from "../../src/carte-base-rouge/carte-base-rouge.ts";
 import { FauxGitHub } from "../faux-github.ts";
 
 const miseDeCote = (n: number, motif: string) =>
@@ -47,7 +47,7 @@ function client() {
   type Lue = { number: number; title: string; body: string; labels: string[]; state: "open" | "closed"; association: string };
   const issues: Lue[] = [];
   const commentaires = new Map<number, { body: string; association: string }[]>();
-  const github: GitHubDuTourDeLaCarte = {
+  const github: Parameters<typeof githubDeLaCarte>[0] = {
     teteDeLaBase: async () => "a".repeat(40),
     journalDuCheck: async () => {
       throw new Error("HTTP 410");

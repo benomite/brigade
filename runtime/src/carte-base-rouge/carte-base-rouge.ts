@@ -32,10 +32,10 @@ const SEUIL_DE_LA_CARTE = 3;
 const SORTE_DE_LA_CARTE = "blocked";
 
 // Une issue telle que le module la lit : une réparation ou la carte.
-export type IssueDeLaCarte = { number: number; title: string; body: string; labels: string[]; state: "open" | "closed" };
+type IssueDeLaCarte = { number: number; title: string; body: string; labels: string[]; state: "open" | "closed" };
 
 // Ce que la carte lit et écrit de GitHub.
-export type GitHubDeLaCarte = {
+type GitHubDeLaCarte = {
   // Le dernier commit de la branche d'intégration.
   teteDeLaBase(): Promise<string>;
   // L'instant du commit, tel que GitHub le date, ou null s'il ne le dit pas.
@@ -111,7 +111,7 @@ function corpsDeLaCarte({ base, sha, depuis, echecs, essais }: { base: string; s
   ].join("\n");
 }
 
-export type OptionsDeLaCarte = {
+type OptionsDeLaCarte = {
   github: GitHubDeLaCarte;
   base: string;
   // L'horloge du tour, comme pour l'ouverture de la réparation : la règle n'en
@@ -119,7 +119,7 @@ export type OptionsDeLaCarte = {
   maintenant?: () => Date;
 };
 
-export type TourDeLaCarte = { carte: number | null };
+type TourDeLaCarte = { carte: number | null };
 
 export function carteBaseRouge({ github, base }: OptionsDeLaCarte) {
   // Cache, pas état : vrai dès qu'un tour rouge a lu ou posé la carte, faux une
@@ -206,7 +206,7 @@ export function carteBaseRouge({ github, base }: OptionsDeLaCarte) {
 const FENETRE_JOURS = 90;
 
 type IssueLue = Pick<IssueDepuis, "number" | "body" | "association"> & Partial<Pick<IssueDepuis, "title" | "state" | "labels">>;
-export type GitHubDuTourDeLaCarte = {
+type GitHubDuTourDeLaCarte = {
   teteDeLaBase(): Promise<string>;
   instantDuCommit?(sha: string): Promise<string | null>;
   journalDuCheck?(check: Check): Promise<string | null>;
