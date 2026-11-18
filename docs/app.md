@@ -3725,10 +3725,7 @@ section. With the section laid, `right now` is not repeated under it.
   in `facts` (#1346); a runtime from before this field says nothing more.
   **A queued card held back for other tickets says `after #12, #15`** (#3510): the numbers of `rail[].attend` in `facts`, a
   list the rail scheduling writes (#3502) and the app only reads; an empty or missing `attend` adds nothing to the card.
-  These numbers are not sourced, unlike the GitHub rail's card below (#3763), which reads every source the claim gate
-  applies — the body, the card, a cook's stop — and says each with where it was read. On the journal's rail, the only
-  wait applied is the card's `awaiting` line, and `npm --prefix runtime run rail` says it as
-  `waits for #N — read from the card`.
+  These numbers do not say where each wait was read; the GitHub rail's card below does (#3763).
 - **A ticket set aside (`86`) is never out of a column.** The runtime gives, in `rail[].attente`
   of `facts`, its reason in plain words ("awaiting: project setup impossible") and the column where it waits;
   the app files it there — failing a column it knows, in **On the rail** — and its card
