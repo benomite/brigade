@@ -18,11 +18,20 @@ const diagnostic = (stations: StationsLues, nonPris = HUIT) => diagnostiquer({ d
 
 describe("le diagnostic", () => {
   test("aucune station ne sert le projet : la cause le dit, et le geste est de l'ajouter à une station", () => {
-    for (const stations of [avec(), avec(station("box", { selection: ["benomite/autre"] })), avec(station("box", { selection: null }))]) {
+    for (const stations of [avec(), avec(station("box", { selection: ["benomite/autre"] })), avec(station("box", { selection: null, lastSeen: "2026-11-11T12:00:00.000Z", stoppedAt: "2026-11-11T12:01:00.000Z" }))]) {
       const bloque = diagnostic(stations);
       assert.equal(bloque?.cause, "aucune-station");
       assert.equal(bloque?.geste, "ajouter-a-une-station");
       assert.equal(bloque?.phrase, "8 tickets on the rail, no manager has taken them for 14 h: no station serves this project. Add the project to a station.");
+    }
+  });
+
+  // Ticket 3818 : parade-box, montée sur sa machine, ne publie aucune sélection — elle sert ce que son appairage demande.
+  test("une station disponible sans sélection n'est jamais lue comme « aucune station »", () => {
+    for (const stations of [avec(station("box", { selection: null })), avec(station("mac", { selection: ["benomite/autre"] }), station("box", { selection: null }))]) {
+      const bloque = diagnostic(stations);
+      assert.notEqual(bloque?.cause, "aucune-station");
+      assert.doesNotMatch(bloque?.phrase ?? "", /no station serves/i);
     }
   });
 
