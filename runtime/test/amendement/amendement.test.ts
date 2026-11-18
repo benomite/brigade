@@ -73,25 +73,33 @@ function depotDeLaStation(t: TestContext): { origine: string; depot: OptionsDuDe
   return { origine, depot };
 }
 
-type Options = { manager?: string; proposition?: string; leCookTouche?: boolean };
+// `gele` : la branche part du commit des tests gelés, qui touche le test, comme
+// l'écrit l'étape des tests (#3725) avant le cook.
+type Options = { manager?: string; proposition?: string; leCookTouche?: boolean; gele?: boolean };
 
 // Une station dont le cook du ticket finit sur une proposition d'amendement,
 // et dont le manager la classe par `manager`.
-async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false }: Options = {}) {
+async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false, gele = false }: Options = {}) {
   const repertoire = repertoireTemporaire(t);
   const { origine, depot } = depotDeLaStation(t);
   const faux = new FauxGitHub();
   faux.feu(TICKET, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- the export button is labelled 'Exprot'");
   const briefs: string[] = [];
   const classements: string[] = [];
+  const parLeCook: string[] = [];
   const lancer: Lancer = ({ args, flux, entree, cwd }) => {
     const classe = args.some((arg) => arg.startsWith(MARQUE_DU_CLASSEMENT));
     if (classe) classements.push(args[args.indexOf("-p") + 1] ?? "");
     else {
       briefs.push(entree ?? "");
+      if (gele) {
+        writeFileSync(join(cwd, GELE), `${TEST_GELE}// frozen for #41\n`);
+        execFileSync("git", ["commit", "--quiet", "-am", "test(#41): frozen acceptance tests", "-m", "Acceptance-Tests: frozen"], { cwd, env: ENV_GIT });
+      }
       if (leCookTouche) {
         writeFileSync(join(cwd, GELE), TEST_GELE.replace("Exprot", "Export"));
         execFileSync("git", ["commit", "--quiet", "-am", "fix the typo of the criterion"], { cwd, env: ENV_GIT });
+        parLeCook.push(execFileSync("git", ["rev-parse", "HEAD"], { cwd, env: ENV_GIT, encoding: "utf8" }).trim());
       }
     }
     const message = classe ? manager : `The criterion is wrong.\n<livrable>\nI propose an amendment.\n<amendement>\n${proposition}\n</amendement>\n</livrable>`;
@@ -108,6 +116,7 @@ async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITI
     ticket: faux.ticket(TICKET),
     briefs,
     classements,
+    parLeCook,
     commentaires,
     testGele: () => surLaBranche("show", `${BRANCHE}:${GELE}`) ?? git(origine, "show", `main:${GELE}`),
     // Les commits de la branche livrée qui touchent le test gelé : auteur, puis message.
@@ -170,6 +179,28 @@ test("a cook cannot apply an amendment itself: its own commit on the frozen test
   assert.equal(classements.length, 0);
   assert.equal(ticket.labels.has(A_LA_MAIN), false);
   assert.match(commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "", /the cook's own commit [0-9a-f]{7} changes the frozen test `test\/acceptance\/41\.test\.ts`: a cook never changes it, only the manager amends it/);
+  assert.equal(commitsSurLeTest().filter((commit) => commit.startsWith(AUTEUR_DU_MANAGER)).length, 0);
+});
+
+// Le commit des tests gelés, premier de la branche, n'est pas du cook (#3764) :
+// il touche le test qu'il gèle, et l'amendement passe quand même ; un commit du
+// cook après lui reste refusé, et seul lui est nommé.
+test("the frozen acceptance commit that opens the branch is not the cook's: the small amendment is applied in the manager's commit", async (t) => {
+  const { ticket, classements, commentaires, testGele, commitsSurLeTest } = await amende(t, { gele: true });
+  assert.equal(commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)), undefined);
+  assert.equal(classements.length, 1);
+  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.match(testGele(), /\/Export\//);
+  assert.equal(commitsSurLeTest().filter((commit) => commit.startsWith(AUTEUR_DU_MANAGER)).length, 1);
+});
+
+test("a cook's commit on the frozen test after the frozen acceptance commit is refused, and only that commit is named", async (t) => {
+  const { ticket, classements, parLeCook, commentaires, commitsSurLeTest } = await amende(t, { gele: true, leCookTouche: true });
+  assert.equal(classements.length, 0);
+  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(parLeCook.length, 1);
+  const echec = commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
+  assert.ok(echec.includes(`the cook's own commit ${(parLeCook[0] ?? "").slice(0, 7)} changes the frozen test \`test/acceptance/41.test.ts\``), echec);
   assert.equal(commitsSurLeTest().filter((commit) => commit.startsWith(AUTEUR_DU_MANAGER)).length, 0);
 });
 

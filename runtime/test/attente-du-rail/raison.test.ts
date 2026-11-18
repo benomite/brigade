@@ -15,13 +15,19 @@ const attente = (tickets: TicketDuRail[], stations: StationDuCompte[] | null, pl
 
 describe("la raison pour laquelle la file ne part pas", () => {
   test("1 : aucune station ne sert le projet — la phrase nomme le geste", () => {
-    assert.deepEqual(attente([file(4)], [station({ selection: ["chef/autre"] }), station({ name: "mac", selection: null })]), {
+    assert.deepEqual(attente([file(4)], [station({ selection: ["chef/autre"] }), station({ name: "mac", selection: null, stoppedAt: iso(T0 - 10_000) })]), {
       raison: "aucune-station",
       phrase: "No station serves this project, so no cook can start. Add the project to a station.",
       geste: "ajouter-a-une-station",
       stations: [],
     });
     assert.deepEqual(attente([file(4)], [])?.raison, "aucune-station");
+  });
+
+  // Ticket 3818 : une station disponible qui ne publie aucune sélection sert peut-être le projet — on ne dit pas qu'aucune ne le sert.
+  test("1 : une station disponible sans sélection n'est jamais lue comme « aucune station »", () => {
+    assert.notEqual(attente([file(4)], [station({ selection: null })])?.raison, "aucune-station");
+    assert.notEqual(attente([file(4)], [station({ selection: ["chef/autre"] }), station({ name: "parade-box", selection: null })])?.raison, "aucune-station");
   });
 
   test("2 : sa station est arrêtée", () => {

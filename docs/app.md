@@ -3919,7 +3919,9 @@ section. With the section laid, `right now` is not repeated under it.
   checked`, never as a calm rail.
 - **The rail says why its queued tickets do not start** (#3433, `app/src/vue/attente-du-rail/`, one sentence per reason in
   `runtime/src/attente-du-rail/raison.ts`). With at least one queued ticket and no cook running, the head of the rail,
-  under the stuck-rail line, shows one sentence: the first of these reasons that holds — no station serves the project;
+  under the stuck-rail line, shows one sentence: the first of these reasons that holds — no station serves the project
+  (never said while an available station publishes no selection: set up on its own machine, it serves what its pairing
+  asks, which the account does not show — `servantesDe`, #3818; the stuck-rail cause reads the same rule);
   its station is stopped; its station is offline or out of quota; the station waits for the GitHub quota; the cook cap
   is reached; a delivery is in the pass; every queued ticket waits for another ticket; else a normal wait, which says a
   cook takes the ticket within minutes and how long the oldest queued ticket has waited since `fire` was put on it (from

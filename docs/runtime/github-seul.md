@@ -221,6 +221,11 @@ base, the stale-branch pruning).
   by the API where a job's log is not readable from the box — and adds them to the brief, under "What the CI says is
   red", check by check (`runtime/src/github-seul/ci-rouge/`). A check with no annotation is named with its address.
   Bounded: 12 checks read, 3,000 characters per message, 24,000 in all; the rest only named.
+  A check whose annotations name no file — a step that runs lint, format, type check and tests at once writes only
+  `Process completed with exit code 1.` — is also given with the end of its job's log, read by the API
+  (`journalDuCheck`), cut as a repair of main cuts it (`sortieDErreur`): without it the cook did not know which gate
+  was red and pushed again blindly (#3806: 11 red CIs on BOBL-tech/mirrorlab#787). An unreadable log leaves the
+  check said by its annotations alone (`runtime/src/brief-renvoi.ts`).
   The send-back comment names each red check with the failed steps of its GitHub Actions job, read by the API
   (`etapesEnEchec`, `runtime/src/github.ts`, #3028): `Lint + Format + Typecheck + Tests (failed step: Format)`.
   A job that runs several steps does not say by its name which one is red. A check that is not a job, or whose
