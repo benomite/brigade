@@ -48,6 +48,7 @@ export type GitHubDuProjet = GitHubDeLaGuerison &
   Pick<GitHub, "fermerIssue"> & {
     retraitsDeLabels(numero: number): Promise<RetraitDeLabel[]>;
     prsOuvertes?(): Promise<PROuverte[]>;
+    prOuverteDuTicket?: GitHubDeLaGuerison["prDuTicket"];
     issue?: GitHub["issue"];
     issuesDepuis?: (instant: string) => Promise<(Pick<IssueOuverte, "number" | "body"> & Partial<Pick<IssueOuverte, "labels" | "state">>)[]>;
   };
@@ -159,7 +160,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       const vivants = new Set(enCuisine);
       for (const ticket of pris) {
         if (vivants.has(ticket.number)) continue;
-        const tient = await lireTenant(ticket.number, github);
+        const tient = await lireTenant(ticket.number, github, ticket.labels);
         if (tient !== null && tient.station !== station) vivants.add(ticket.number);
       }
       const fait = await claim.passer(pris, vivants);
@@ -189,7 +190,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
         // rouge) : la remettre en pass déferait ce renvoi.
         prDeBranche: async (branche) => {
           const numero = parBranche.get(branche);
-          const pr = numero === undefined ? null : await github.prDuTicket(numero);
+          const pr = numero === undefined ? null : await (github.prOuverteDuTicket ?? github.prDuTicket).call(github, numero);
           if (numero === undefined || pr === null) return null;
           if (dernierVerdict(await github.commentaires(pr.number))?.sha !== pr.sha) return null;
           if ((await github.commentaires(numero)).some((c) => c.body.startsWith(MARQUE_DE_RENVOI) && c.body.includes(` sha=${pr.sha}`))) return null;

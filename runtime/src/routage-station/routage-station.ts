@@ -51,6 +51,13 @@ export function incapables(commentaires: readonly { body: string; association: s
   return marquees;
 }
 
+// Les mêmes, sans lire les retraits quand aucun commentaire ne porte de marque :
+// ils ne datent que les marques (#3834). Des retraits illisibles gardent toutes les marques.
+export async function incapablesLus(commentaires: readonly { body: string; association: string; createdAt: string }[], lireLesRetraits: () => Promise<readonly { label: string; createdAt: string }[]>): Promise<Set<string>> {
+  if (!commentaires.some((c) => LIRE_LA_MARQUE.test(c.body))) return new Set();
+  return incapables(commentaires, await lireLesRetraits().catch(() => []));
+}
+
 // Où va le ticket : les autres stations du projet qu'aucune marque n'écarte.
 // Aucune : il reste retenu sur cette station.
 export function stationsCapables(station: string, stationsDuProjet: readonly string[], marquees: ReadonlySet<string>): string[] {

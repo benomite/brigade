@@ -125,10 +125,24 @@ export function faitsDePrise(commentaires: readonly Omit<CommentaireDePrise, "id
     .sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
 }
 
+// Les retraits de labels ne se lisent (une requête par ticket) que s'ils peuvent
+// changer la réponse (#3834) : sans prise lisible dans les commentaires, personne
+// ne tient le ticket, quoi qu'ils disent. Et un ticket qui porte, à cet instant,
+// `fire` et `taken` — `labels`, lus avec le rail — est tenu par la prise que ses
+// commentaires disent : une prise ne se repose jamais sans reposer `taken`.
+// `retraits` est null quand ils n'ont pas été lus.
+async function lireLesFaits(numero: number, github: GitHubDeLaPrise, labels?: readonly string[]): Promise<{ tenant: Tenant | null; retraits: RetraitDeLabel[] | null }> {
+  const commentaires = await github.commentaires(numero);
+  const parLesCommentaires = tenant(commentaires, []);
+  if (parLesCommentaires === null) return { tenant: null, retraits: null };
+  if (labels?.includes(PRIS) && labels.includes(LABEL)) return { tenant: parLesCommentaires, retraits: null };
+  const retraits = await github.retraitsDeLabels(numero);
+  return { tenant: tenant(commentaires, retraits), retraits };
+}
+
 // Qui tient le ticket, lu sur l'issue.
-export async function lireTenant(numero: number, github: GitHubDeLaPrise): Promise<Tenant | null> {
-  const [commentaires, retraits] = await Promise.all([github.commentaires(numero), github.retraitsDeLabels(numero)]);
-  return tenant(commentaires, retraits);
+export async function lireTenant(numero: number, github: GitHubDeLaPrise, labels?: readonly string[]): Promise<Tenant | null> {
+  return (await lireLesFaits(numero, github, labels)).tenant;
 }
 
 // Prend le ticket pour la station : si personne ne le tient, poste sa prise,
@@ -136,10 +150,12 @@ export async function lireTenant(numero: number, github: GitHubDeLaPrise): Promi
 // n'écrit rien ; par elle, n'écrit que `taken` s'il manque.
 export async function prendre(issue: Pick<Issue, "number" | "labels">, { github, station }: Contexte): Promise<Resultat> {
   if (!NOM_DE_STATION.test(station)) throw new Error(`station name not usable in a claim comment: ${JSON.stringify(station)}`);
-  let tient = await lireTenant(issue.number, github);
+  const faits = await lireLesFaits(issue.number, github);
+  let tient = faits.tenant;
   if (tient === null) {
     await github.commenter(issue.number, corpsDePrise(station));
-    tient = await lireTenant(issue.number, github);
+    // Les retraits de labels ne se relisent pas (#3834) : la lecture d'avant les a datés si une prise les rendait utiles, et sinon aucun ne peut défaire celle-ci.
+    tient = tenant(await github.commentaires(issue.number), faits.retraits ?? []);
   }
   const prise = tient?.station === station;
   if (prise && !issue.labels.includes(PRIS)) await github.labelliser(issue.number, [PRIS]);
@@ -149,7 +165,7 @@ export async function prendre(issue: Pick<Issue, "number" | "labels">, { github,
 // Lâche le ticket que la station tient : un commentaire de lâcher, puis le
 // retrait de `taken`. Rend faux, sans rien écrire, si elle ne le tient pas.
 export async function lacher(issue: Pick<Issue, "number" | "labels">, { github, station }: Contexte): Promise<boolean> {
-  const tient = await lireTenant(issue.number, github);
+  const tient = await lireTenant(issue.number, github, issue.labels);
   if (tient?.station !== station) return false;
   await github.commenter(issue.number, corpsDeLacher(station));
   if (issue.labels.includes(PRIS)) await github.delabelliser(issue.number, PRIS);
@@ -163,7 +179,7 @@ export async function lacher(issue: Pick<Issue, "number" | "labels">, { github, 
 // (GitHub répond 404) n'est pas une erreur.
 export async function purger(issue: Pick<Issue, "number" | "labels">, { github }: Pick<Contexte, "github">): Promise<boolean> {
   if (!issue.labels.includes(PRIS)) return false;
-  if ((await lireTenant(issue.number, github)) !== null) return false;
+  if ((await lireTenant(issue.number, github, issue.labels)) !== null) return false;
   try {
     await github.delabelliser(issue.number, PRIS);
   } catch (erreur) {
