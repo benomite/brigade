@@ -18,7 +18,7 @@
 import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { lignesHorsCode } from "../epique.ts";
 import { stationDe } from "../stations-github/stations.ts";
-import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
+import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
 
 export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github" | "plafond" | "pass" | "autre-ticket" | "normale";
 
@@ -35,7 +35,6 @@ export type LimiteDite = { backAt: string };
 const hhmmUtc = (iso: string) => new Date(iso).toISOString().slice(11, 16);
 const phraseDeLaLimite = ({ backAt }: LimiteDite) => `GitHub is rate-limiting the station, so no cook can start before about ${hhmmUtc(backAt)} UTC. It resolves by itself.`;
 
-const memeDepot = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 // Les phrases : une par raison, fixes. Les trois premières nomment leur geste ; les suivantes disent qu'elles passent seules.
 // Celles d'une station le nomment (#3472) : un FAULT dit de quelle station il parle.
@@ -104,7 +103,7 @@ export function expliquerLAttente(options: { depot: string; tickets: readonly Ti
   if ("illisibles" in options.stations) {
     if (options.limite != null) return dit("quota-github", [], phraseDeLaLimite(options.limite));
   } else {
-    const servantes = options.stations.lues.filter(({ selection }) => selection?.some((choisi) => memeDepot(choisi, depot)) === true);
+    const servantes = servantesDe(options.stations.lues, depot, maintenant);
     if (servantes.length === 0) return dit("aucune-station");
     const arretee = ({ stoppedAt, lastSeen }: (typeof servantes)[number]) => stoppedAt !== null && Date.parse(stoppedAt) >= Date.parse(lastSeen);
     const actives = servantes.filter((station) => !arretee(station));
