@@ -74,6 +74,8 @@ import { avecListe, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
+import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts";
+import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
 import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
@@ -179,6 +181,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     prDuTicket(issue: number): Promise<(PRAFusionner & Pick<PR, "version">) | null>;
     // Les checks du dernier commit de la branche d'intégration.
     checksDeLaBase(): Promise<CheckDeLaBase[]>;
+    // De quoi nommer sur son ticket la livraison qui a rendu la base rouge
+    // (#3817). Absent ou null, rien n'est nommé.
+    livraison?: GitHubDeLaLivraison | null;
     // Le corps de l'issue, où le ticket dit sa zone.
     corpsDuTicket(issue: number): Promise<string>;
     // Remplace le corps de l'issue : la preuve d'un ticket de mesure (#2841) et
@@ -590,6 +595,8 @@ const arretSubi = (conclusion: string, fin: { code: number | null; signal: strin
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  // Nomme à chaque tour, sur son ticket, la livraison qui a rendu la base rouge (#3817).
+  const nommerLaLivraison = github.livraison ? nommeLaLivraison({ github: github.livraison, base, avertir }) : undefined;
   // Le chef que la demande de validation posée sur le ticket mentionne (#3615) :
   // sans chef résolu, elle ne mentionne personne, et la station le dit une fois.
   const chefsNonMentionnes = new Set<string>();
@@ -1640,6 +1647,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
     // Le rouge se consigne sur sa réparation (#3614) en parallèle du tour, sans
     // rien lui retenir : la réparation est déjà dispatchée. Un échec est dit, le tour suivant réessaie.
+    void nommerLaLivraison?.(checksDeLaBase);
     const consignation = consigner?.().catch((echec) => avertir(`brigade : ${base} is red and its repair ticket is open, but the new red commit could not be recorded on it on ${nom} — ${message(echec)}; retried next turn`));
     // Rouge malgré ses réparations mises de côté, la base a sa carte dans la TODO du chef ; verte, la carte se ferme (#3816).
     await poserLaCarteDeLaBase(checksDeLaBase).catch((echec) => avertir(`brigade : the TODO card of ${base}'s red state could not be written on ${nom} — ${message(echec)}; retried next turn`));
@@ -2377,6 +2385,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
   // Une PR externe n'est celle d'aucun ticket, même sous le nom de sa branche (#2933).
   const prDeLInstantane = (issue: number) => instantane?.prs.find((pr) => !pr.externe && pr.branche === brancheDuTicket(issue));
   return {
+    livraison: githubDeLaLivraison(github, base, depotGitHub),
     checksDeLaBase: async () => {
       if (parGraphql === null) return github.ci(base);
       try {
