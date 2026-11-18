@@ -20,6 +20,9 @@ on:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
+  checks: read
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -123,6 +126,8 @@ jobs:
           PART: ${{ matrix.part }}
           OF: ${{ matrix.of }}
           EVENEMENT: ${{ github.event_name }}
+          # Les tests d'acceptation lisent GitHub avec `gh` (#3831).
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           regle="tout"
