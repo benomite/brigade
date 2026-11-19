@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lignesDeLAttente } from "../../src/attente-du-rail/status.ts";
-import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/carte-attente/carte-attente.ts";
+import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUEUR } from "../../src/fiche.ts";
 import { DEPOT } from "../outils.ts";
 

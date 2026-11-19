@@ -4,7 +4,7 @@
 // ne retient n'en a aucune. Une attente sur une épique découpée se dit dans les tickets de son découpage, jamais le sien.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MARQUE_D_ATTENTE_DE_TICKET } from "../../../runtime/src/carte-attente/carte-attente.ts";
+import { MARQUE_D_ATTENTE_DE_TICKET } from "../../../runtime/src/attente-ticket/attente-ticket.ts";
 import { MARQUEUR } from "../../../runtime/src/fiche.ts";
 import { comprendre, rail, type Faits } from "../../src/faits.ts";
 import { PRET } from "../../src/ligne-carte.ts";
