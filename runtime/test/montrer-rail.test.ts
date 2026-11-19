@@ -338,3 +338,26 @@ describe("remove", () => {
     assert.deepEqual(gh.appels(), []);
   });
 });
+
+// #3810 : la fiche du rail du journal ne dit que les attentes appliquées d'une carte en file, toutes, chacune avec sa source.
+test("la fiche d'une carte en file dit toutes ses attentes, séparées par « ; » ; une carte hors file n'en dit aucune", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
+  const arriver = (ticket: number, waitsFor: number[]) =>
+    journal.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor, zone: [], problems: [] } } });
+  arriver(12, []);
+  arriver(13, []);
+  arriver(14, [12, 13]);
+  arriver(15, [12, 13]);
+  rail.quatreVingtSix(15, { motif: "quota", retour: new Date(`${JOUR_HORLOGE}T15:00:00.000Z`) });
+
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 0);
+  const lignes = commande.sortie().trimEnd().split("\n");
+  const fiche = (ticket: number) => lignes[lignes.findIndex((l) => l.startsWith(`#${ticket} `)) + 1];
+  assert.equal(fiche(14), "     card — waits for #12 — read from the card; waits for #13 — read from the card · zone: none");
+  assert.equal(fiche(15), "     card — awaiting: nothing · zone: none");
+});
