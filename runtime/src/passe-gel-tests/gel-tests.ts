@@ -2,17 +2,28 @@
 // porte le trailer `Acceptance-Tests: frozen`. Aucun commit suivant de la
 // livraison ne les modifie, ne les renomme ni ne les retire — sauf un commit du
 // manager, ou du chef du projet (ticket 3835), portant `Amendment: #<issue>`. Le contrôle
-// lit l'historique du worktree de la livraison, sans cook ni modèle.
+// lit l'historique du worktree de la livraison, sans cook ni modèle. Un commit
+// qui touche un test gelé puis le rend, à la tête, tel que l'a laissé le
+// dernier commit qui en avait le droit, ne le modifie pas (#3847).
 import { execFileSync } from "../sans-invite.ts";
 
 // Le motif de renvoi que la fiche du ticket énonce.
 const RAISON_GEL = "a frozen acceptance test was modified";
 
+// L'identité sous laquelle la station écrit le commit d'amendement du manager
+// (`amendement/amender.ts`). Le gel la reconnaît à son courriel : avant #3847,
+// il ne lisait que le nom git `manager`, et refusait chaque amendement réel,
+// signé `brigade manager`.
+export const COURRIEL_DU_MANAGER = "manager@brigade.localhost";
+export const AUTEUR_DU_MANAGER = `brigade manager <${COURRIEL_DU_MANAGER}>`;
+
 // L'auteur d'un commit du manager : son nom git, avec ou sans le `[bot]` d'une App GitHub.
 const AUTEUR_MANAGER = /^manager(\[bot\])?$/i;
 const AMENDEMENT = /^#\d+$/;
 
-export type ViolationDuGel = { commit: string; fichiers: string[] };
+// `retablir` : pour chaque fichier, le commit dont la tête doit le rendre tel
+// quel — celui des tests gelés, ou le dernier amendement autorisé (#3847).
+export type ViolationDuGel = { commit: string; fichiers: string[]; retablir: Record<string, string> };
 
 const SEP_COMMIT = "\x01";
 const SEP_CHAMP = "\x00";
@@ -23,17 +34,17 @@ const fichiersDe = (worktree: string, commit: string) => git(worktree, "diff-tre
 
 // Les commits que la livraison ajoute à la base, du plus ancien au plus récent,
 // sans les fusions (la base fusionnée dans la branche n'est pas du cook).
-// Un commit : son hash, son auteur, et les valeurs de ses deux trailers.
+// Un commit : son hash, son auteur (nom et courriel), et les valeurs de ses deux trailers.
 function commitsDeLaLivraison(worktree: string, base: string) {
-  const format = ["%H", "%an", "%(trailers:key=Acceptance-Tests,valueonly,unfold,separator=%x2C)", "%(trailers:key=Amendment,valueonly,unfold,separator=%x2C)"].join("%x00");
+  const format = ["%H", "%an", "%ae", "%(trailers:key=Acceptance-Tests,valueonly,unfold,separator=%x2C)", "%(trailers:key=Amendment,valueonly,unfold,separator=%x2C)"].join("%x00");
   const sortie = git(worktree, "log", "--reverse", "--topo-order", "--no-merges", `--format=${format}%x01`, `${base}..HEAD`);
   return sortie
     .split(SEP_COMMIT)
     .map((bloc) => bloc.replace(/^\n/, ""))
     .filter((bloc) => bloc !== "")
     .map((bloc) => {
-      const [commit = "", auteur = "", gel = "", amendement = ""] = bloc.split(SEP_CHAMP).map((champ) => champ.trim());
-      return { commit, auteur, gele: gel.split(",").some((valeur) => valeur.trim() === "frozen"), amendement: amendement.split(",").map((valeur) => valeur.trim()).filter(Boolean) };
+      const [commit = "", auteur = "", courriel = "", gel = "", amendement = ""] = bloc.split(SEP_CHAMP).map((champ) => champ.trim());
+      return { commit, auteur, courriel, gele: gel.split(",").some((valeur) => valeur.trim() === "frozen"), amendement: amendement.split(",").map((valeur) => valeur.trim()).filter(Boolean) };
     });
 }
 
@@ -61,20 +72,54 @@ export function violationsDuGel(worktree: string, base: string, chef: string | n
   const [premier, ...suivants] = commitsDeLaLivraison(worktree, base);
   if (premier === undefined || !premier.gele) return [];
   const gelés = new Set(fichiersDe(worktree, premier.commit));
-  const violations: ViolationDuGel[] = [];
+  const autorise = (suivant: (typeof suivants)[number]) =>
+    (AUTEUR_MANAGER.test(suivant.auteur) || suivant.courriel.toLowerCase() === COURRIEL_DU_MANAGER || (chef !== null && chef !== "" && suivant.auteur.toLowerCase() === chef.toLowerCase())) &&
+    suivant.amendement.some((valeur) => AMENDEMENT.test(valeur));
+  // Pour chaque test gelé : le dernier commit qui avait le droit de l'écrire, et
+  // les commits sans ce droit qui l'ont touché depuis.
+  const droit = new Map([...gelés].map((fichier) => [fichier, premier.commit]));
+  const fautifs = new Map<string, string[]>();
   for (const suivant of suivants) {
     const touches = fichiersDe(worktree, suivant.commit).filter((fichier) => gelés.has(fichier));
-    if (touches.length === 0) continue;
-    const autorise = AUTEUR_MANAGER.test(suivant.auteur) || (chef !== null && chef !== "" && suivant.auteur.toLowerCase() === chef.toLowerCase());
-    if (autorise && suivant.amendement.some((valeur) => AMENDEMENT.test(valeur))) continue;
-    violations.push({ commit: suivant.commit, fichiers: touches });
+    for (const fichier of touches) {
+      if (autorise(suivant)) {
+        droit.set(fichier, suivant.commit);
+        fautifs.delete(fichier);
+      } else fautifs.set(fichier, [...(fautifs.get(fichier) ?? []), suivant.commit]);
+    }
   }
-  return violations;
+  // Un test que la tête rend tel que l'a laissé son dernier commit autorisé est tenu.
+  const parCommit = new Map<string, string[]>();
+  for (const [fichier, commits] of fautifs) {
+    if (objetA(worktree, "HEAD", fichier) === objetA(worktree, droit.get(fichier) ?? premier.commit, fichier)) continue;
+    for (const commit of commits) parCommit.set(commit, [...(parCommit.get(commit) ?? []), fichier]);
+  }
+  return suivants
+    .filter((suivant) => parCommit.has(suivant.commit))
+    .map((suivant) => {
+      const fichiers = parCommit.get(suivant.commit) ?? [];
+      return { commit: suivant.commit, fichiers, retablir: Object.fromEntries(fichiers.map((fichier) => [fichier, droit.get(fichier) ?? premier.commit])) };
+    });
+}
+
+// L'objet git d'un fichier à un commit, null s'il n'y est pas. Lève si l'arbre ne se lit pas.
+function objetA(worktree: string, commit: string, fichier: string): string | null {
+  const ligne = git(worktree, "ls-tree", "-z", commit, "--", fichier).split("\0")[0] ?? "";
+  return ligne === "" ? null : (ligne.split("\t")[0] ?? "").split(" ")[2] ?? null;
 }
 
 // Le motif du renvoi, ou null si le gel est tenu.
 export function motifDuGel(violations: readonly ViolationDuGel[]): string | null {
   if (violations.length === 0) return null;
-  const fichiers = [...new Set(violations.flatMap((violation) => violation.fichiers))];
-  return [`${RAISON_GEL}.`, "", "A commit after the frozen acceptance tests (trailer `Acceptance-Tests: frozen`) changed, renamed or removed:", ...fichiers.map((fichier) => `- \`${fichier}\``), "", "Restore them: only a commit of the manager or of the project's chef carrying `Amendment: #<issue>` may change a frozen test."].join("\n");
+  const retablir = new Map(violations.flatMap((violation) => violation.fichiers.map((fichier) => [fichier, violation.retablir[fichier]] as const)));
+  const ligne = (fichier: string, commit: string | undefined) =>
+    commit === undefined ? `- \`${fichier}\`` : `- \`${fichier}\` — restore it as \`${commit.slice(0, 7)}\` left it: \`git checkout ${commit.slice(0, 7)} -- ${fichier}\``;
+  return [
+    `${RAISON_GEL}.`,
+    "",
+    "A commit after the frozen acceptance tests (trailer `Acceptance-Tests: frozen`) changed, renamed or removed:",
+    ...[...retablir].map(([fichier, commit]) => ligne(fichier, commit)),
+    "",
+    "Restore each one as its last authorized commit left it — the frozen tests' commit, or the manager's or chef's latest amendment, which stays: only a commit of the manager or of the project's chef carrying `Amendment: #<issue>` may change a frozen test.",
+  ].join("\n");
 }
