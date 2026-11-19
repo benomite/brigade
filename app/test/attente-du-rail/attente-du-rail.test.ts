@@ -173,14 +173,12 @@ describe("le `status` que l'app tire de sa lecture", () => {
 
 describe("la lecture du rail sur GitHub", () => {
   const FEUX = `/repos/${DEPOT}/issues?state=open&labels=fire&sort=created&direction=asc&per_page=100&page=1`;
-  // `etatDe9` : l'état de #9, hors du rail, que #4 attend : ouvert, il le retient, comme à la porte de prise (#3763).
-  const lire = (evenements: { status: number; data: unknown }, etatDe9 = "open"): { appeler: AppelGitHub; chemins: string[] } => {
+  const lire = (evenements: { status: number; data: unknown }): { appeler: AppelGitHub; chemins: string[] } => {
     const chemins: string[] = [];
     const appeler: AppelGitHub = async (chemin) => {
       chemins.push(chemin);
       if (chemin === FEUX) return { status: 200, data: [{ number: 4, title: "T4", html_url: "u", body: "Depends on #9", created_at: "2026-11-12T08:00:00Z", labels: [{ name: "fire" }] }] };
       if (chemin.includes("/events")) return evenements;
-      if (chemin.endsWith(`/repos/${DEPOT}/issues/9`)) return { status: 200, data: { state: etatDe9, body: "" } };
       return { status: 200, data: [] };
     };
     return { appeler, chemins };
@@ -193,7 +191,7 @@ describe("la lecture du rail sur GitHub", () => {
   });
 
   test("des événements qui ne se lisent pas : le rail reste lu, sans l'instant — la durée n'est pas dite", async () => {
-    const { appeler } = lire({ status: 502, data: null }, "closed");
+    const { appeler } = lire({ status: 502, data: null });
     const lu = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant: () => new Date(LU) });
     assert.equal(lu.tickets[0]?.entreLe, null);
     const faits = faitsDe(avecLeRail(VIDE, lu, { lus: [station()] }));
