@@ -27,11 +27,11 @@ if (process.argv.includes(ARGUMENT_FOND)) {
   // Une autre app tourne déjà : le verrou d'Electron lui passe la main, et elle ramène sa fenêtre. Sans autre app, celle-ci
   // montre la sienne, que le verrou d'Electron lui soit rendu ou non (#3864) — l'icône de fond ne le tient plus.
   // Dans l'app installée seulement : les essais depuis le dépôt ne gardent pas de place.
-  let passeLaMain = false;
-  if (installee) {
+  const uneAutreAppTourne = (): boolean => {
     const autreApp = prendreLaPlace(join(app.getPath("userData"), "app.pid"));
-    passeLaMain = !app.requestSingleInstanceLock() && autreApp !== undefined;
-  }
+    return !app.requestSingleInstanceLock() && autreApp !== undefined;
+  };
+  const passeLaMain = installee && uneAutreAppTourne();
   if (passeLaMain) {
     app.exit(0);
   } else {
