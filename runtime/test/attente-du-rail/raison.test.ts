@@ -217,18 +217,11 @@ describe("`Depends on #N`", () => {
     assert.deepEqual(dependancesDuCorps("Texte\nDepends on #12\n- Depends on #3, #4 and #5"), [12, 3, 4, 5]);
     assert.deepEqual(dependancesDuCorps("Rien ici, mais #7 est cité."), []);
   });
-  test("lit aussi la dépendance dite en toutes lettres (#3622)", () => {
-    assert.deepEqual(dependancesDuCorps("Restyle the home screen with the identity of #49."), [49]);
-    assert.deepEqual(dependancesDuCorps("Start once #12 is done."), [12]);
-    assert.deepEqual(dependancesDuCorps("After #12 and #13, wire it."), [12, 13]);
-    assert.deepEqual(dependancesDuCorps("This builds on #3 & #4, on top of #5."), [3, 4, 5]);
-    assert.deepEqual(dependancesDuCorps("Restyler l'écran avec l’identité de #49, une fois #12 fait, après #13."), [49, 12, 13]);
-    assert.deepEqual(dependancesDuCorps("Depends on #7\nand after #8"), [7, 8]);
-  });
-
-  test("ne lit ni un numéro cité sans tournure, ni entre backticks, ni dans un bloc de code, ni d'un autre dépôt", () => {
-    assert.deepEqual(dependancesDuCorps("Taken in parallel with #53, see #5, related to #10 (#2968), after #12."), [12]);
-    assert.deepEqual(dependancesDuCorps("The phrase `after #4` is an example.\n```\nonce #6 is done\n```\nOnce #7 is done."), [7]);
-    assert.deepEqual(dependancesDuCorps("Ported after secondes#49, after #50."), [50]);
+  test("ne lit jamais une prose, une citation ni une décision collée (#3865)", () => {
+    assert.deepEqual(dependancesDuCorps("Restyle the home screen with the identity of #49.\nStart once #12 is done. After #13, wire it."), []);
+    assert.deepEqual(dependancesDuCorps("This builds on #3 & #4, on top of #5. Requires #6, waits for #7."), []);
+    assert.deepEqual(dependancesDuCorps("Restyler l'écran avec l’identité de #49, une fois #12 fait, après #13."), []);
+    assert.deepEqual(dependancesDuCorps("> Once #7 is done, we ship.\n> Depends on #8\n`Depends on #9`"), []);
+    assert.deepEqual(dependancesDuCorps("Depends on #7\nand after #8"), [7]);
   });
 });

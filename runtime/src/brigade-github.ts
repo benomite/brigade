@@ -172,8 +172,7 @@ export type GitHubDuTour = GitHubDeLaFusion &
     depotDuTicket?(numero: number): Promise<DepotDuTicket | null>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
-    // Les issues dont le ticket dépend (`Depends on #N` dans son corps, ou dit
-    // en toutes lettres, #3622) et qui sont encore ouvertes — celles d'un
+    // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui sont encore ouvertes — celles d'un
     // ticket découpé, ses tickets ouverts (`attendusDuCorps`) : tant qu'il y en
     // a, le ticket n'est pas à prendre.
     dependancesOuvertes(issue: number): Promise<number[]>;

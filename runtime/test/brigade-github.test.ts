@@ -94,7 +94,7 @@ test("the secondes day of 2026-11-15 replayed: three screens restyled \"with the
   const faux = new FauxGitHub();
   faux.feu(49, ["model:opus"], avecListe("The app's identity: notebook look, French, Young Serif.", rendreListe(49, [{ ticket: 53, title: "The app's identity", state: "open", served: false }])));
   faux.feu(53, CALIBRE, "Epic: #49\n\nThe app's identity: notebook look, French, Young Serif.");
-  for (const ecran of [50, 51, 52]) faux.feu(ecran, CALIBRE, `Restyle the screen with the identity of #49.`);
+  for (const ecran of [50, 51, 52]) faux.feu(ecran, CALIBRE, `Restyle the screen.\nDepends on #49`);
   const a = faux.station("A", { places: 5 });
   await a.tour();
   await a.calme();

@@ -43,23 +43,23 @@ const TROIS_SOURCES: Rail = {
   issues: [
     issue(3, ["fire"], EPIQUE),
     issue(4, ["fire", "taken"]),
-    issue(5, ["fire"], "Builds on #4."),
+    issue(5, ["fire"], "Depends on #4"),
     issue(6, ["fire"], "Restyle the screen."),
     issue(7, ["fire"], "Restyle the screen."),
     issue(8, ["fire"], "Independent work."),
     issue(9, ["fire"], "Independent work."),
     issue(10, ["fire", "taken"]),
     issue(11, ["fire"]),
-    issue(12, ["fire"], "Builds on #3."),
+    issue(12, ["fire"], "Depends on #3"),
   ],
   commentaires: { 6: [fiche(4)], 7: [arret(4)], 9: null },
 };
 const CARTES: Record<number, string> = {
-  5: "waits for #4 — read from the body: 'Builds on #4.'",
+  5: "waits for #4 — read from the body: 'Depends on #4'",
   6: "waits for #4 — read from the card",
   7: "waits for #4 — read from a cook's stop",
   9: "its card and its cooks' stops could not be read on GitHub",
-  12: "waits for #10 — read from the body: 'Builds on #3.'; waits for #11 — read from the body: 'Builds on #3.'",
+  12: "waits for #10 — read from the body: 'Depends on #3'; waits for #11 — read from the body: 'Depends on #3'",
 };
 
 test("status : chaque ticket retenu dit son attente et d'où elle est lue ; un ticket libre n'a pas de ligne", async () => {

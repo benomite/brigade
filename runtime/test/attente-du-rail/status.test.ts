@@ -30,9 +30,9 @@ describe("les lignes de l'attente de la file", () => {
 
   test("un ticket qui dit en toutes lettres bâtir sur une épique découpée : sa ligne nomme le ticket du découpage, pas l'épique (#3622)", async () => {
     const epique = issue(49, ["fire"], `The app's identity.\n${DEBUT}\n- [ ] #53\n${FIN}`);
-    const feux = [epique, issue(53, ["fire", "taken"]), issue(50, ["fire"], "Restyle the screen with the identity of #49.")];
+    const feux = [epique, issue(53, ["fire", "taken"]), issue(50, ["fire"], "Restyle the screen.\nDepends on #49")];
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: feux }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT });
-    assert.deepEqual(lignes, ["  #50  waits for #53 — read from the body: 'Restyle the screen with the identity of #49.'"]);
+    assert.deepEqual(lignes, ["  #50  waits for #53 — read from the body: 'Depends on #49'"]);
   });
 
   test("une station en ligne : l'attente normale, depuis l'instant où `fire` a été posé", async () => {
