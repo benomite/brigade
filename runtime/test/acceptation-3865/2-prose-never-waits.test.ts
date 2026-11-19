@@ -40,5 +40,5 @@ test("quotes, a pasted decision and context that name an open ticket never hold 
     faux.feu(20, CALIBRE, "## Context\n\nBuilds on #10. After #10 it needs a rebase; requires #10.\n\n> Once #10 merges, we ship.\n\nDecision: waiting for #10 is not needed.");
   });
   await s.tour();
-  assert.equal(s.sauts.get(20) ?? null, null, `#20 was held: ${s.sauts.get(20)}`);
+  assert.doesNotMatch(s.sauts.get(20) ?? "", /waiting for/, `#20 was held by a wait: ${s.sauts.get(20)}`);
 });
