@@ -89,6 +89,7 @@ import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
 import { fichiersGeles, motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
+import { casGelesFaux, corpsDeLaCorrection, corrigerLesTestsGeles, MARQUE_MISE_DE_COTE_GELE } from "./passe-gel-tests/test-gele-faux.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
@@ -317,7 +318,10 @@ export const secoupent = (a: string, b: string): boolean => {
 // de la fusionner dans sa branche (#3001).
 export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { amendement: Proposition | { illisible: string } } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
-export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
+// `ecarte` : le ticket ne peut pas continuer — ses tests gelés faux retirés, rien
+// ne prouverait plus un critère (#3799) —, et pourquoi, en une ligne : il est mis
+// de côté une fois, sans renvoi au cook.
+export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement & { ecarte?: string }>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
 // la relecture d'accord : un autre lancement, qui reçoit les fichiers de ses
 // juges qu'elle change.
@@ -1815,18 +1819,29 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         let mergee = false;
         // Retenue pour la validation de son écran (#3184) : pas un refus de GitHub.
         let retenue = false;
+        // Le ticket ne peut pas continuer (#3799) : pourquoi, en une ligne.
+        let ecarte: string | undefined;
         try {
           const rendu = await relire(pr, {
             github,
             station: nom,
             juger: async (lue) => {
               chrono.marquer(ticket.number, "revue");
-              const jugement = await juger(ticket, lue);
+              const { ecarte: pourquoi, ...jugement } = await juger(ticket, lue);
+              ecarte = pourquoi;
               chrono.marquer(ticket.number, "ci");
               bouge = true;
               return jugement;
             },
           });
+          // Mis de côté une fois, la raison en une ligne : ni renvoyé à un cook, ni relancé.
+          if (ecarte !== undefined) {
+            await github.commenter(ticket.number, `${MARQUE_MISE_DE_COTE_GELE}\nStation \`${nom}\`: set aside (\`${ECHECS_ATTEINTS}\`) — its wrong frozen acceptance tests cannot be dropped without leaving a criterion with nothing to prove it, so no cook is relaunched on it.\n\nReason: ${ecarte}.\n\nNot served elsewhere, nobody serves it. A human decides; remove the label to try again.`);
+            await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
+            await github.delabelliser(ticket.number, LABEL_IN_PASS);
+            chrono.oublier(ticket.number);
+            return;
+          }
           // Approuvée, une livraison qui touche à ce qui la juge passe devant
           // le second juge ; refusée par lui, elle repart à un cook avec ses
           // raisons, comme une relecture qui demande des changements (#2555).
@@ -3294,9 +3309,42 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       })();
       const avecTestsGeles = gelés === null || doitMuter(gelés.length);
       if (!avecTestsGeles) avertir(`brigade : #${ticket.number} sur ${nom} — ${LIGNE_SANS_MUTATION}`);
-      const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers);
-      const [prouvee, relue, mutee] = await Promise.allSettled([prouvant, relecture(worktree, run, texte, pr, criteres.length, ticket.number), avecTestsGeles ? prouvant.then((preuve) => muterLaLivraison(ticket, worktree, diff, preuve)) : Promise.resolve(null)]);
-      const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value : { injouable: message(prouvee.reason) };
+      // Un cas gelé déjà vert sur la base est faux (#3799) : le cook n'y peut rien, et
+      // le lui renvoyer fait boucler le ticket. La station le retire au nom du tests
+      // cook, le dit sur l'issue, et rejuge la livraison sans lui ; si rien ne prouve
+      // plus le critère de son fichier, le ticket est mis de côté une fois.
+      const corrigerLesFaux = async (preuve: Preuve): Promise<{ preuve: Preuve; diff: typeof diff; ecarte?: string }> => {
+        const faux = casGelesFaux(vertsSurLaBase(preuve), gelés ?? []);
+        const { lancerGit } = depot;
+        if (faux.length === 0 || lancerGit === undefined) return { preuve, diff };
+        const correction = await corrigerLesTestsGeles(faux, { worktree, ticket: ticket.number, base, git: lancerGit });
+        if ("echec" in correction) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the wrong frozen acceptance test could not be corrected, the delivery is judged as it is: ${correction.echec}`);
+          return { preuve, diff };
+        }
+        if ("ecarte" in correction) return { preuve, diff, ecarte: correction.ecarte };
+        try {
+          depot.pousser(branche);
+        } catch (erreur) {
+          await lancerGit(["reset", "--quiet", "--hard", "HEAD~1"], worktree);
+          avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test could not be pushed, the delivery is judged as it is: ${message(erreur)}`);
+          return { preuve, diff };
+        }
+        await options.github
+          .commenter(ticket.number, corpsDeLaCorrection({ station: nom, ticket: ticket.number, branche, sha: correction.sha, retires: correction.retires, base }))
+          .catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test (\`${correction.sha.slice(0, 7)}\`) could not be said on the issue: ${message(erreur)}`));
+        const corrige = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
+        return { preuve: await prouverLaLivraison(ticket, worktree, corrige.fichiers), diff: corrige };
+      };
+      const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers).then(corrigerLesFaux);
+      const [prouvee, relue, mutee] = await Promise.allSettled([
+        prouvant,
+        relecture(worktree, run, texte, pr, criteres.length, ticket.number),
+        avecTestsGeles ? prouvant.then((prouve) => (prouve.ecarte === undefined ? muterLaLivraison(ticket, worktree, prouve.diff, prouve.preuve) : null)) : Promise.resolve(null),
+      ]);
+      const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value.preuve : { injouable: message(prouvee.reason) };
+      const ecarte = prouvee.status === "fulfilled" ? prouvee.value.ecarte : undefined;
+      if (ecarte !== undefined) return { verdict: "request-changes", motif: `Set aside: ${ecarte}.`, ecarte };
       const mutations: Mutations | null = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
       const verts = vertsSurLaBase(preuve);
       const lue0 = relue.status === "fulfilled" ? relue.value : null;

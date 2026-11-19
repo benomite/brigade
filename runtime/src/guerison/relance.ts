@@ -27,6 +27,7 @@ import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "..
 import type { Check } from "../events/pass.ts";
 import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, LABEL, type PR } from "../github.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
+import { MARQUE_MISE_DE_COTE_GELE } from "../passe-gel-tests/test-gele-faux.ts";
 
 // Combien de fois la cuisine relance un ticket pour la même raison.
 export const RELANCES_MAX = 2;
@@ -133,6 +134,12 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
   if (!estMisDeCote(ticket.labels)) return { fait: "rien", pourquoi: "not set aside" };
   if (ticket.labels.includes(CHEF_TODO)) return { fait: "rien", pourquoi: "a card awaits the chef: a product or design decision" };
   if (ticket.labels.includes(LABEL_WAITING)) return { fait: "rien", pourquoi: "it waits for something on purpose (`waiting`)" };
+  // Mis de côté parce que ses tests gelés faux, retirés, ne laisseraient rien pour prouver un critère (#3799) :
+  // aucun cook n'y peut rien, et le relancer referait la boucle que cette mise de côté arrête.
+  const derniere = deLaCuisine(await github.commentaires(ticket.number))
+    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_RELANCE.test(c.body) && !MARQUE_DE_BOUCLE.test(c.body))
+    .at(-1);
+  if (derniere?.body.startsWith(MARQUE_MISE_DE_COTE_GELE)) return { fait: "rien", pourquoi: "its wrong frozen acceptance tests leave a criterion with nothing to prove it: a human decides" };
   const diagnostic = await diagnostiquer(ticket, contexte);
   if (diagnostic === null) return { fait: "rien", pourquoi: "no reason a cook can fix: a human decides" };
   const { cause, consigne } = diagnostic;

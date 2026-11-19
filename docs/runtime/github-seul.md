@@ -149,7 +149,10 @@ base, the stale-branch pruning).
   frozen commit, or the latest commit carrying `Amendment: #<issue>` by the manager (its git name `manager`, or the
   address `manager@brigade.localhost` the station's amendment commits under) or by the project's chef. A commit that
   changed a frozen test and a later one that put it back leave it held, and the send-back names, for each test, the
-  commit to restore it from (#3847, `runtime/src/passe-gel-tests/gel-tests.ts`). A
+  commit to restore it from (#3847, `runtime/src/passe-gel-tests/gel-tests.ts`). A frozen case that already passes
+  on the base is not sent back to the cook, who may not touch it: the station drops it in the tests cook's name, by
+  such a manager commit, says it on the issue, and judges the delivery again — or sets the ticket aside once, the
+  reason in one line, when nothing would be left to prove a criterion (#3799, `docs/runtime/pass.md`). A
   writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
   the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
   taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed

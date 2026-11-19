@@ -243,8 +243,28 @@ what it did on each side.
 | every added test red on the base, green on the branch | nothing held back: the review decides |
 | an added test **green on the base**, marked as a guard (`// brigade:guard`) | nothing held back: accepted, and the verdict's line counts it as marked as guarding a behavior the base already has |
 | an added test **green on the base**, not marked | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
+| a case of the **frozen acceptance tests** green on the base, not marked | **not sent back to the cook**, who may not touch it (#3799): see below |
 | an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
 | the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
+
+**A wrong frozen acceptance test** (#3799, `runtime/src/passe-gel-tests/test-gele-faux.ts`). A case of the frozen
+acceptance tests (the branch's first commit, trailer `Acceptance-Tests: frozen`) that already passes on the base
+proves nothing, and the cook may not edit it: sending the delivery back made the ticket loop (#3778, relaunched three
+times in eight minutes). The frozen tests are the tests cook's, so the station corrects them in its name, with no
+gesture from the chef:
+
+- **The wrong case is dropped**, and the file's other cases are kept: a commit by the manager
+  (`brigade manager <manager@brigade.localhost>`) carrying `Amendment: #<issue>`, which the freeze accepts, pushed on
+  the ticket's branch. The issue gets a comment naming each dropped test and its file, why it was wrong (it already
+  passes on the base) and what was done. The pass replays the added tests on the corrected branch and judges the
+  delivery as it now stands: the cook is not sent back for that test.
+- **The ticket cannot go on** when dropping the wrong cases would leave a frozen file with no case — everything it
+  checks already passes on the base — or when the file's cases cannot be read one by one: nothing would prove its
+  criterion. It is **set aside once** (`set-aside:failures`), not sent back to a cook; the station's comment on the
+  issue gives the reason in one line, naming each test, and the healing relaunch (`guerison/relance.ts`) does not put
+  it back on the rail. A human decides; removing the label tries again.
+- A correction that cannot be made (the file cannot be read, a case cannot be cut out, the commit or the push fails)
+  is said in the station's log, and the delivery is judged as before.
 
 **The verdict on the PR** — the comment the pass already posts — ends with that line, then **one line
 per acceptance criterion** of the ticket (the bullets of its `Acceptance criteria` section), each
