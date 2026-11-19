@@ -21,7 +21,7 @@ import type { SigneDeVie } from "../../../../runtime/src/stations-github/station
 import type { Cook } from "../../faits.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
 import type { ActiviteDuCook, TableauLu } from "../../tableau/lecture.ts";
-import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, SANS_RAISON, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
+import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, miseDeCoteLe, SANS_RAISON, SET_ASIDE_FAILURES, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
 import { etatDeLaBaseGithub, MOT_DE_L_ETAT, ticketDeLaPR } from "../../tableau/rail-github.ts";
 import { prisesDeLIssue, stationsDeGithub, tenantDeLIssue, type Prise } from "../cooks/prises.ts";
 import { estSensible } from "../carte-sensible/label.ts";
@@ -63,7 +63,7 @@ export type PrDuTicket = { numero: number; url: string; le: string };
 // ses commentaires ne se lisent pas (ticket 3763). `reparationDeMain` : l'issue porte `repair-main`, la réparation d'une main
 // rouge (ticket 3815). `prises` : combien de fois un cook l'a pris, depuis la première prise — lues de la première page de ses
 // commentaires, `auMoins` quand elle est pleine ; absent sans prise lue (ticket 3823).
-export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
+export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; miseDeCoteLe?: string; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
 export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
 // `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, runtime/src/rail-bloque/), ou pourquoi ils ne se
@@ -216,6 +216,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const label = labelDeMiseDeCote(labels);
     const deLaMiseDeCote = label === null ? undefined : await toutesLesPages(lire, `/repos/${depot}/issues/${numero}/comments`);
     const miseDeCote = label === null || deLaMiseDeCote === undefined ? undefined : miseDeCoteDe(depot, label, deLaMiseDeCote, numero);
+    const misDeCoteLe = label === null || deLaMiseDeCote === undefined ? null : miseDeCoteLe(label, deLaMiseDeCote);
     const dit = etatDuTicket(issueLue, base);
     const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : etapeDuRail(labels) === "tests written" ? MOT_TESTS_ECRITS : MOT_EN_FILE;
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
@@ -233,7 +234,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const { attentes, commentairesLus } = attentesDuTicket({ ticket: numero, corps, commentaires, decoupage });
     const depend = [...new Set(attentes.map(({ ticket }) => ticket))];
     const sourcees = !EN_FILE.has(etat) ? {} : { attentes, commentairesLus };
-    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(depend.length === 0 ? {} : { depend }), ...sourcees, ...(entreLe === undefined ? {} : { entreLe }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }), ...(reparationDeMain ? { reparationDeMain: true as const } : {}), ...(prises[0] === undefined ? {} : { prises: { fois: prises.length, depuis: prises[0], ...((deLaPrise?.length ?? 0) >= PAR_PAGE ? { auMoins: true as const } : {}) } }) });
+    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(depend.length === 0 ? {} : { depend }), ...sourcees, ...(entreLe === undefined ? {} : { entreLe }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(misDeCoteLe === null || label !== SET_ASIDE_FAILURES ? {} : { miseDeCoteLe: misDeCoteLe }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }), ...(reparationDeMain ? { reparationDeMain: true as const } : {}), ...(prises[0] === undefined ? {} : { prises: { fois: prises.length, depuis: prises[0], ...((deLaPrise?.length ?? 0) >= PAR_PAGE ? { auMoins: true as const } : {}) } }) });
   }
   // Les tickets qu'aucun manager n'a pris (ticket 3358) : la lecture du runtime, sur les issues déjà lues — leurs
   // commentaires et leurs événements se relisent sous condition. Ce qui ne se lit pas est dit, et le rail reste lu.
@@ -326,6 +327,7 @@ function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: r
     baseRouge: baseRougeDuRail(tickets),
     relances: tickets.flatMap(({ ticket, prises }) => (prises === undefined ? [] : [{ ticket, ...prises }])),
     dernierServiLe: plusRecent(servis.map(({ livre }) => livre)),
+    misDeCoteParEchecs: tickets.flatMap(({ ticket, miseDeCote, miseDeCoteLe: le }) => (le === undefined || miseDeCote === undefined ? [] : [{ ticket, depuis: le, raison: miseDeCote.raison }])),
   });
   return alertes.length === 0 ? {} : { alertesDuRail: alertes };
 }

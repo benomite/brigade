@@ -15,6 +15,7 @@
 //   aucun-cook         celles qui peuvent le servir sont arrêtées ou hors ligne ;
 //   base-rouge         la branche d'intégration est rouge, et une réparation la tient ou un geste la lève ;
 //   relance-en-boucle  un ticket a été pris `SEUIL_DE_BOUCLE` fois ou plus ;
+//   tout-mis-de-cote   les seuls tickets `fire` sont mis de côté par leurs échecs (`set-aside:failures`, #3875) : aucun ne part ;
 //   cuisine-muette     rien servi depuis `MUETTE_MS` alors qu'un ticket est prêt : une ligne, qui nomme la cause connue
 //                      — une des quatre ci-dessus, ou la raison de l'attente de la file (`expliquerLAttente`) —, jamais
 //                      « cause inconnue » seule.
@@ -30,8 +31,8 @@ const MUETTE_MS = 30 * 60_000;
 // Un ticket pris dix fois tourne en boucle : un ticket ordinaire est pris une fois, et renvoyé deux fois au plus.
 const SEUIL_DE_BOUCLE = 10;
 
-export type SorteDAlerte = "aucune-station" | "aucun-cook" | "base-rouge" | "relance-en-boucle" | "cuisine-muette";
-export type CauseConnue = Exclude<SorteDAlerte, "cuisine-muette">;
+export type SorteDAlerte = "aucune-station" | "aucun-cook" | "base-rouge" | "relance-en-boucle" | "tout-mis-de-cote" | "cuisine-muette";
+export type CauseConnue = Exclude<SorteDAlerte, "cuisine-muette" | "tout-mis-de-cote">;
 
 // Le fait que le chef vérifie : depuis quand, et quel ticket ou quel check.
 type FaitVerifiable = { depuis: string; ticket?: number; check?: string };
@@ -42,6 +43,8 @@ export type AlerteDuRail = { sorte: SorteDAlerte; phrase: string; fait: FaitVeri
 // lève quand on le connaît.
 export type BaseRougeLue = { depuis: string; check: string; ticket: number | null; reparation?: number | null; geste?: string | null };
 // Un ticket et ses prises : combien de fois, depuis la première. `auMoins` : la lecture s'est arrêtée avant la dernière.
+// Un ticket mis de côté par ses échecs : depuis quand, et la raison que la station a écrite (nulle sans commentaire).
+type MisDeCoteLu = { ticket: number; depuis: string; raison: string | null };
 type RelanceLue = { ticket: number; fois: number; depuis: string; auMoins?: boolean };
 
 export type EntreeDesAlertes = {
@@ -59,6 +62,7 @@ export type EntreeDesAlertes = {
   relances: readonly RelanceLue[];
   // Le dernier ticket servi, ou null quand aucun ne l'a été dans la fenêtre lue.
   dernierServiLe: string | null;
+  misDeCoteParEchecs?: readonly MisDeCoteLu[];
 };
 
 const date = (iso: string | null | undefined): number => (typeof iso === "string" ? Date.parse(iso) : Number.NaN);
@@ -143,6 +147,23 @@ function alerteDesRelances(e: EntreeDesAlertes): AlerteDuRail | null {
   };
 }
 
+// Les seuls tickets du rail sont mis de côté par leurs échecs : aucune station ne les prend, et la file n'attend pas un tour.
+// Le geste est celui qui les remet sur le rail : retirer le label. Le ticket le plus ancien mis de côté est nommé.
+function alerteDuTicketMisDeCote(e: EntreeDesAlertes): AlerteDuRail | null {
+  if (e.tickets.length > 0) return null;
+  const mis = (e.misDeCoteParEchecs ?? []).filter(({ depuis }) => !Number.isNaN(date(depuis))).sort((a, b) => date(a.depuis) - date(b.depuis) || a.ticket - b.ticket)[0];
+  if (mis === undefined) return null;
+  const geste = `Remove \`set-aside:failures\` from #${mis.ticket} to put it back on the rail.`;
+  const raison = mis.raison === null ? "" : `: ${mis.raison.replace(/[.\s]+$/, "")}`;
+  return {
+    sorte: "tout-mis-de-cote",
+    phrase: `Nothing is served: #${mis.ticket} is set aside by its failures ${depuisQuand(mis.depuis, e.maintenant)}${raison}. ${geste}`,
+    fait: { depuis: mis.depuis, ticket: mis.ticket },
+    geste,
+    geree: null,
+  };
+}
+
 // Ce qu'une cause dit dans la ligne de la cuisine muette, en peu de mots : sa phrase entière est celle de son alerte.
 const MOTIFS: Record<CauseConnue, (alerte: AlerteDuRail) => string> = {
   "aucune-station": () => "No station serves this project.",
@@ -186,5 +207,5 @@ export function alertesDuRail(entree: EntreeDesAlertes): AlerteDuRail[] {
     alerte !== null && !Number.isNaN(date(alerte.fait.depuis)) && (alerte.fait.ticket !== undefined || (alerte.fait.check ?? "") !== "") && Boolean(alerte.geste || alerte.geree);
   const causes = [alerteDesStations(entree), alerteDeLaBase(entree), alerteDesRelances(entree)].filter((alerte): alerte is AlerteDuRail => alerte !== null);
   const muette = alerteDeLaCuisineMuette(entree, causes);
-  return [muette, ...causes].filter(montrable);
+  return [muette, ...causes, alerteDuTicketMisDeCote(entree)].filter(montrable);
 }
