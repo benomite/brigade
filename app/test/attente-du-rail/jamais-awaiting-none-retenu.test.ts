@@ -32,7 +32,7 @@ const COMMENTAIRES: Record<number, unknown[]> = {
 };
 const appeler: AppelGitHub = async (chemin) => {
   if (chemin.includes("/issues?")) {
-    return ok([issue(3, ["fire"], EPIQUE), issue(4, ["fire", "taken"]), issue(5, ["fire"], "Builds on #4."), issue(6, ["fire"]), issue(7, ["fire"]), issue(8, ["fire"]), issue(9, ["fire"]), issue(10, ["fire", "taken"]), issue(11, ["fire"]), issue(12, ["fire"], "Builds on #3.")]);
+    return ok([issue(3, ["fire"], EPIQUE), issue(4, ["fire", "taken"]), issue(5, ["fire"], "Depends on #4."), issue(6, ["fire"]), issue(7, ["fire"]), issue(8, ["fire"]), issue(9, ["fire"]), issue(10, ["fire", "taken"]), issue(11, ["fire"]), issue(12, ["fire"], "Depends on #3.")]);
   }
   if (chemin.includes("/pulls?")) return ok([]);
   if (chemin.includes("/issues/9/comments")) return { status: 502, data: {} };
@@ -42,11 +42,11 @@ const appeler: AppelGitHub = async (chemin) => {
   return { status: 404, data: {} };
 };
 const CARTES: Record<number, string> = {
-  5: "waits for #4 — read from the body: 'Builds on #4.'",
+  5: "waits for #4 — read from the body: 'Depends on #4.'",
   6: "waits for #4 — read from the card",
   7: "waits for #4 — read from a cook's stop",
   9: "its card and its cooks' stops could not be read on GitHub",
-  12: "waits for #10 — read from the body: 'Builds on #3.'; waits for #11 — read from the body: 'Builds on #3.'",
+  12: "waits for #10 — read from the body: 'Depends on #3.'; waits for #11 — read from the body: 'Depends on #3.'",
 };
 
 test("le rail de l'app : chaque carte retenue dit son attente et sa source, aucune ligne sur une carte libre, et ses liens sont les tickets attendus", async () => {
@@ -63,7 +63,7 @@ test("le rail de l'app : chaque carte retenue dit son attente et sa source, aucu
 // Les liens d'une carte en file sont les tickets qu'elle attend, jamais un numéro de la phrase du corps qu'elle cite, même
 // quand cette phrase dit elle-même `waits for #13 — read from …` : #13, hors du rail, ne la retient pas.
 test("la carte n'ouvre que le ticket attendu, pas ceux de la phrase citée", async () => {
-  const phrase = "Builds on #4; waits for #13 — read from the spec.";
+  const phrase = "Depends on #4; waits for #13 — read from the spec.";
   const sien: AppelGitHub = async (chemin, ...reste) =>
     chemin.includes("/issues?") ? ok([issue(4, ["fire", "taken"]), issue(5, ["fire"], phrase)]) : appeler(chemin, ...reste);
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: sien, maintenant: () => new Date("2026-11-17T10:00:00Z") });
@@ -93,7 +93,7 @@ test("les faits du rail : la carte retenue porte sa ligne et ses attendus, une f
 test("le rail de l'app : chaque source dit son attente d'un ticket du rail, une attente hors du rail ne se dit pas et ne se lit pas", async () => {
   const lues: string[] = [];
   const sien: AppelGitHub = async (chemin, ...reste) => {
-    if (chemin.includes("/issues?")) return ok([issue(4, ["fire", "taken"]), issue(5, ["fire"], "Builds on #4."), issue(6, ["fire"]), issue(7, ["fire"], "Builds on #1912."), issue(8, ["fire"]), issue(9, ["fire"], "Depends on #9\nDepends on #4")]);
+    if (chemin.includes("/issues?")) return ok([issue(4, ["fire", "taken"]), issue(5, ["fire"], "Depends on #4."), issue(6, ["fire"]), issue(7, ["fire"], "Depends on #1912."), issue(8, ["fire"]), issue(9, ["fire"], "Depends on #9\nDepends on #4")]);
     const comm = /\/issues\/(\d+)\/comments/.exec(chemin);
     if (comm !== null) return ok({ 6: [commentaire([MARQUEUR, "- awaiting: #1912", "- zone: app/"].join("\n"))], 8: [commentaire(`${MARQUE_D_ATTENTE_DE_TICKET} #4 -->\nThe cook stopped.`)] }[Number(comm[1])] ?? []);
     if (/\/issues\/\d+$/.test(chemin)) lues.push(chemin);
@@ -102,7 +102,7 @@ test("le rail de l'app : chaque source dit son attente d'un ticket du rail, une 
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: sien, maintenant: () => new Date("2026-11-17T10:00:00Z") });
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
   const faits = comprendre(JSON.stringify(lu.faits)) as Faits;
-  assert.deepEqual(carte(faits, 5), { ligne: "waits for #4 — read from the body: 'Builds on #4.'", liens: [4] });
+  assert.deepEqual(carte(faits, 5), { ligne: "waits for #4 — read from the body: 'Depends on #4.'", liens: [4] });
   assert.deepEqual(carte(faits, 6), { ligne: PRET });
   assert.deepEqual(carte(faits, 7), { ligne: PRET });
   assert.deepEqual(carte(faits, 8), { ligne: "waits for #4 — read from a cook's stop", liens: [4] });

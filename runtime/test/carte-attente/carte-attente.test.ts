@@ -12,14 +12,14 @@ const fiche = (attend: string) => [MARQUEUR, `- awaiting: ${attend}`, "- zone: r
 const arret = (attendus: string) => `${MARQUE_D_ATTENTE_DE_TICKET} ${attendus} -->\nThe cook stopped.`;
 
 test("les trois sources, chacune avec la sienne ; la phrase du corps, sans sa puce", () => {
-  const { attentes, commentairesLus } = attentesDuTicket({ ticket: 5, corps: "Context.\n- Builds on #4, after the identity.", commentaires: [fiche("#6"), arret("#7")] });
+  const { attentes, commentairesLus } = attentesDuTicket({ ticket: 5, corps: "Context.\n- Depends on #4, after the identity.", commentaires: [fiche("#6"), arret("#7")] });
   assert.deepEqual(attentes, [
-    { ticket: 4, source: "corps", phrase: "Builds on #4, after the identity." },
+    { ticket: 4, source: "corps", phrase: "Depends on #4, after the identity." },
     { ticket: 6, source: "fiche" },
     { ticket: 7, source: "arret" },
   ]);
   assert.equal(commentairesLus, true);
-  assert.deepEqual(attentes.map(direLAttente), ["waits for #4 — read from the body: 'Builds on #4, after the identity.'", "waits for #6 — read from the card", "waits for #7 — read from a cook's stop"]);
+  assert.deepEqual(attentes.map(direLAttente), ["waits for #4 — read from the body: 'Depends on #4, after the identity.'", "waits for #6 — read from the card", "waits for #7 — read from a cook's stop"]);
 });
 
 test("une attente que la cuisine a levée ne se dit plus, de quelque source qu'elle vienne", () => {
@@ -30,19 +30,19 @@ test("une attente que la cuisine a levée ne se dit plus, de quelque source qu'e
 
 // Ni le ticket lui-même ni l'épique, quand sa liste la nomme, ne s'y attendent, comme à la porte de prise (`attendusDuCorps`).
 test("une épique attendue l'est dans les tickets de son découpage, avec la phrase qui la nomme", () => {
-  const { attentes } = attentesDuTicket({ ticket: 50, corps: "Restyle the screen with the identity of #49.", commentaires: [], decoupage: (n) => (n === 49 ? [49, 53, 50] : []) });
-  assert.deepEqual(attentes, [{ ticket: 53, source: "corps", phrase: "Restyle the screen with the identity of #49." }]);
+  const { attentes } = attentesDuTicket({ ticket: 50, corps: "Restyle the screen.\nDepends on #49", commentaires: [], decoupage: (n) => (n === 49 ? [49, 53, 50] : []) });
+  assert.deepEqual(attentes, [{ ticket: 53, source: "corps", phrase: "Depends on #49" }]);
   // Une épique dont la liste ne nomme qu'elle et le ticket : c'est elle qu'il attend.
-  const seule = attentesDuTicket({ ticket: 50, corps: "Restyle the screen with the identity of #49.", commentaires: [], decoupage: (n) => (n === 49 ? [49, 50] : []) });
-  assert.deepEqual(seule.attentes, [{ ticket: 49, source: "corps", phrase: "Restyle the screen with the identity of #49." }]);
+  const seule = attentesDuTicket({ ticket: 50, corps: "Restyle the screen.\nDepends on #49", commentaires: [], decoupage: (n) => (n === 49 ? [49, 50] : []) });
+  assert.deepEqual(seule.attentes, [{ ticket: 49, source: "corps", phrase: "Depends on #49" }]);
 });
 
 test("une phrase longue est coupée, une ligne de code n'en est pas une", () => {
-  const longue = `This screen builds on #4 ${"and keeps going ".repeat(10)}`;
-  const [lue] = attentesDuTicket({ ticket: 5, corps: `${longue}\n\`\`\`\nafter #9\n\`\`\``, commentaires: [] }).attentes;
+  const longue = `Depends on #4 ${"and keeps going ".repeat(10)}`;
+  const [lue] = attentesDuTicket({ ticket: 5, corps: `${longue}\n\`\`\`\nDepends on #9\n\`\`\``, commentaires: [] }).attentes;
   assert.equal(lue?.phrase?.length, 80);
   assert.ok(lue?.phrase?.endsWith("…"));
-  assert.equal(attentesDuTicket({ ticket: 5, corps: "```\nafter #9\n```", commentaires: [] }).attentes.length, 0);
+  assert.equal(attentesDuTicket({ ticket: 5, corps: "```\nDepends on #9\n```", commentaires: [] }).attentes.length, 0);
 });
 
 test("des commentaires illisibles : la carte le dit, avec ou sans attente du corps — jamais libre en silence", () => {
@@ -50,8 +50,8 @@ test("des commentaires illisibles : la carte le dit, avec ou sans attente du cor
   assert.equal(lus.commentairesLus, false);
   const carte: TicketDuRail = { ticket: 5, etat: "queued", entreLe: null, depend: [], ...lus };
   assert.equal(ligneDeLaCarte(carte, [carte]), "its card and its cooks' stops could not be read on GitHub");
-  const derriere: TicketDuRail = { ticket: 6, etat: "queued", entreLe: null, depend: [5], ...attentesDuTicket({ ticket: 6, corps: "After #5.", commentaires: null }) };
-  assert.equal(ligneDeLaCarte(derriere, [carte, derriere]), "waits for #5 — read from the body: 'After #5.'; its card and its cooks' stops could not be read on GitHub");
+  const derriere: TicketDuRail = { ticket: 6, etat: "queued", entreLe: null, depend: [5], ...attentesDuTicket({ ticket: 6, corps: "Depends on #5", commentaires: null }) };
+  assert.equal(ligneDeLaCarte(derriere, [carte, derriere]), "waits for #5 — read from the body: 'Depends on #5'; its card and its cooks' stops could not be read on GitHub");
 });
 
 test("la marque d'arrêt que la carte lit est celle que la porte de prise écrit", () => {
