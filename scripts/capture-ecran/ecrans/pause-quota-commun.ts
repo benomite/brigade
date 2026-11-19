@@ -21,7 +21,7 @@ const RAIL: RailSurGithub = {
 };
 
 // La lecture d'un projet sur GitHub seul avant son rail (app/src/tableau/lecture.ts, `vide`).
-const VIDE: TableauLu = {
+export const VIDE: TableauLu = {
   lu: true,
   depot: "chef/parade",
   luLe: MAINTENANT,

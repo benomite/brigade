@@ -1,24 +1,13 @@
 // Le rail de « parade » sur GitHub seul, tenu depuis 26 h sans rien servir (#3823) : les rejeux de #3812 et de #3813. La vue
 // reçoit ce que l'app en tire (app/src/vue/rail/github.ts, `avecLeRail`), rien écrit à la main.
-import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
 import { avecLeRail, type RailSurGithub } from "../../../app/src/vue/rail/github.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { renduDeParade, signe } from "./github-seul-commun.ts";
+import { VIDE } from "./pause-quota-commun.ts";
 
 // Il y a 26 h : le 2026-11-17, main rouge a tenu la cuisine 26 h (#3812), et #824 de mirrorlab a été relancé 1 198 fois en 26 h (#3813).
 export const IL_Y_A_26_H = new Date(Date.parse(MAINTENANT) - 26 * 3_600_000).toISOString();
-const VIDE: TableauLu = {
-  lu: true,
-  depot: "chef/parade",
-  luLe: MAINTENANT,
-  cuisine: { rubriques: [] },
-  faits: { etat: "ouverte", lu: MAINTENANT, dernierTick: null, dernierEvenement: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: [] },
-  file: [],
-  bilans: [],
-  lignesDuRail: [],
-  activites: [],
-};
 
 export const ecranDuRail = (dit: string, rail: RailSurGithub): Ecran => ({
   dit,

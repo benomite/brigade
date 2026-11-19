@@ -8,6 +8,7 @@ import { comprendre, tableau, type Faits } from "../../src/faits.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { alertesDuRailLues } from "../../src/vue/attente-du-rail/attente-du-rail.ts";
+import { prisesDeLIssue } from "../../src/vue/cooks/prises.ts";
 import { ligneDesAlertesDuRail } from "../../src/vue/attente-du-rail/ligne-des-alertes.js";
 import { avecLeRail, lireLeRailSurGithub, type RailSurGithub, type TicketSurGithub } from "../../src/vue/rail/github.ts";
 import { Faux } from "../aides/fausse-vue.ts";
@@ -55,6 +56,13 @@ describe("la lecture du rail tire les alertes de ce qu'elle sait, et `facts` les
     const livre = (il: number) => ticket(3, { etat: "en pass", pr: { numero: 40, url: "", le: iso(T0 - il) }, entreLe: undefined });
     assert.deepEqual(sortes(faitsDe([ticket(4), livre(120_000)], [])).filter((sorte) => sorte === "aucune-station"), []);
     assert.deepEqual(sortes(faitsDe([ticket(4), livre(600_000)], [])).filter((sorte) => sorte === "aucune-station"), ["aucune-station"]);
+  });
+
+  test("deux PR de cooks, il y a 2 et 10 min : la plus récente date le dernier cook, quel que soit le ticket qui la porte", () => {
+    const livre = (numero: number, il: number) => ticket(numero, { etat: "en pass", pr: { numero: numero + 40, url: "", le: iso(T0 - il) }, entreLe: undefined });
+    for (const livres of [[livre(3, 120_000), livre(5, 600_000)], [livre(3, 600_000), livre(5, 120_000)]]) {
+      assert.deepEqual(sortes(faitsDe([ticket(4), ...livres], [])).filter((sorte) => sorte === "aucune-station"), []);
+    }
   });
 
   test("rejeu de #3812 : la réparation de main sur le rail depuis 26 h — la base rouge, son check, et la cuisine qui la répare", () => {
@@ -110,6 +118,30 @@ describe("la lecture du rail sur GitHub : les prises de chaque ticket, et sa ré
     const [sept] = lu.tickets;
     assert.equal(sept?.reparationDeMain, true);
     assert.deepEqual(sept?.prises, { fois: 12, depuis: IL_Y_A_26_H });
+  });
+
+  test("chaque ticket lu tel quel : les prises sur celui qui en a, rien de plus sur celui qui n'en a pas", async () => {
+    const IL_Y_A_25_H = iso(Date.parse(IL_Y_A_26_H) + 3_600_000);
+    const appeler: AppelGitHub = async (chemin) => {
+      const ok = (data: unknown) => ({ status: 200, data });
+      if (chemin.includes("/issues?")) return ok([{ number: 7, title: "Repair main: runtime tests", html_url: "", created_at: IL_Y_A_26_H, labels: [{ name: "fire" }, { name: "taken" }, { name: "repair-main" }], body: "" }, { number: 8, title: "Autre", html_url: "", created_at: IL_Y_A_26_H, labels: [{ name: "fire" }], body: "" }]);
+      if (chemin.includes("/pulls?")) return ok([]);
+      if (chemin.includes("/issues/7/comments")) return ok([prise(2, IL_Y_A_25_H), prise(1, IL_Y_A_26_H)]);
+      if (/\/issues\/\d+\/(comments|events)/.test(chemin)) return ok([]);
+      return { status: 404, data: {} };
+    };
+    const lu = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant: () => new Date(LU) });
+    assert.deepEqual(lu.tickets, [
+      { ticket: 7, titre: "Repair main: runtime tests", url: "", etat: "pris", priorite: null, creeLe: IL_Y_A_26_H, pr: null, prise: { station: "parade-box/claude", le: IL_Y_A_26_H }, reparationDeMain: true, prises: { fois: 2, depuis: IL_Y_A_26_H } },
+      { ticket: 8, titre: "Autre", url: "", etat: "en attente", priorite: null, creeLe: IL_Y_A_26_H, pr: null, prise: null, attentes: [], commentairesLus: true, entreLe: null },
+    ]);
+  });
+
+  test("les prises d'un ticket, de la plus ancienne à la plus récente, dans quelque ordre que GitHub les rende", () => {
+    const instants = [IL_Y_A_26_H, iso(T0 - 3_600_000), LU];
+    const commentaires = instants.map((le, n) => prise(n + 1, le));
+    assert.deepEqual(prisesDeLIssue(commentaires), instants);
+    assert.deepEqual(prisesDeLIssue([...commentaires].reverse()), instants);
   });
 
   test("une première page de commentaires pleine : le compte est un minimum", async () => {
