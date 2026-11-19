@@ -9,7 +9,7 @@ import { execFileSync } from "../sans-invite.ts";
 const RAISON_GEL = "a frozen acceptance test was modified";
 
 // L'auteur d'un commit du manager : son nom git, avec ou sans le `[bot]` d'une App GitHub.
-const AUTEUR_MANAGER = /^manager(\[bot\])?$/i;
+const AUTEUR_MANAGER = /^(brigade )?manager(\[bot\])?$/i;
 const AMENDEMENT = /^#\d+$/;
 
 export type ViolationDuGel = { commit: string; fichiers: string[] };
