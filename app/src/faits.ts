@@ -19,7 +19,7 @@ import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lieuDe, lignesDuRail, motDEtat, porter, priorite, type Porte } from "./bon.ts";
 import { sEssaie } from "./essai.ts";
-import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllisible, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRefusee, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
+import { ligneAuTravail, ligneBaseRouge, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllisible, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRefusee, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
@@ -1259,6 +1259,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
         ? ligneQuiMAttend(donne?.chef === undefined ? attenduDe(donne?.decision, ticket, donne?.carte?.question).phrase : phraseDuChef(donne.chef.sorte))
         : connu?.attente != null
           ? ligneMiseDeCote(connu.attente.raison)
+          : connu?.etat === "base rouge"
+            ? ligneBaseRouge(connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
           : connu !== undefined && A_L_OUVRAGE.includes(connu.etat)
             ? ligneAuTravail(connu.etat as "pris" | "en pass", connu.activite, connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
             : connu?.etat === "servi"
