@@ -15,12 +15,8 @@ import { relative, resolve, sep } from "node:path";
 import { poserALaMain } from "../blocages-sans-question.ts";
 import type { GitHubDuTour } from "../brigade-github.ts";
 import type { IssueAJuger } from "../juger.ts";
-import { commitDesTestsGeles } from "../passe-gel-tests/gel-tests.ts";
+import { AUTEUR_DU_MANAGER, COURRIEL_DU_MANAGER, commitDesTestsGeles } from "../passe-gel-tests/gel-tests.ts";
 import { consigneDuClassement, corpsDeLApplication, corpsDeLaCarte, corpsDeLaProposition, lireLeClassement, PIED, type Classement, type Proposition } from "./proposition.ts";
-
-// L'auteur du commit d'amendement : le manager, jamais le cook.
-const AUTEUR_DU_MANAGER = "brigade manager <manager@brigade.localhost>";
-const COURRIEL_DU_MANAGER = "manager@brigade.localhost";
 
 type LancerGit = (args: string[], worktree: string) => Promise<{ code: number; stdout: string; stderr: string }>;
 

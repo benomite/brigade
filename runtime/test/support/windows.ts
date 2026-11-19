@@ -30,11 +30,24 @@ export function part(tous: string[], demande: string): string[] {
   return tous.filter((_, rang) => rang % n === i - 1);
 }
 
+// Le préchargement de `npm test` : le garde de runtime/test-hang-guard/, que chaque fichier reçoit
+// à la place de `node:test`. Sans lui, un test d'acceptation gelé qui lit GitHub par `gh` ne se
+// saute pas là où `gh` n'est pas connecté — le runner Windows — et la part est rouge (#3847).
+export const PRECHARGE = ["--import", "./test-hang-guard/charger.ts"];
+
+// La limite d'un test sous Windows, en ms : la même que `--test-timeout` plus bas, que le garde reprend au lieu
+// de ses 30 s, faites pour un poste Linux trois à quatre fois plus rapide.
+export const PAR_TEST_MS = "300000";
+
 // L'environnement de la suite, comme `npm test` le pose : les outils de git d'abord dans le PATH.
 // Sous Windows la variable s'écrit `Path` : on garde sa casse, pour n'en poser qu'une.
 export function environnement(env: NodeJS.ProcessEnv, gitCore: string | undefined): NodeJS.ProcessEnv {
   const cle = Object.keys(env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
-  const pose: NodeJS.ProcessEnv = { ...env, NODE_COMPILE_CACHE: env.NODE_COMPILE_CACHE ?? join(tmpdir(), "brigade-runtime-compile-cache") };
+  const pose: NodeJS.ProcessEnv = {
+    ...env,
+    NODE_COMPILE_CACHE: env.NODE_COMPILE_CACHE ?? join(tmpdir(), "brigade-runtime-compile-cache"),
+    BRIGADE_TEST_TIMEOUT_MS: env.BRIGADE_TEST_TIMEOUT_MS ?? PAR_TEST_MS,
+  };
   if (gitCore) pose[cle] = `${gitCore}${delimiter}${env[cle] ?? ""}`;
   return pose;
 }
@@ -131,7 +144,7 @@ if (import.meta.main) {
   const poste = () => etatDuPoste({ workspace: RACINE_TESTS, temp: tmpdir() });
   const suivi = join(rapport, "en-cours.txt");
   const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? GARDE_MS);
-  const enfant = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=300000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
+  const enfant = spawn(process.execPath, [...PRECHARGE, "--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=300000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
     env: { ...environnement(process.env, gitCore), BRIGADE_SUIVI_DES_TESTS: suivi },

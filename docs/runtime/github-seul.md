@@ -144,7 +144,12 @@ base, the stale-branch pruning).
   `Acceptance-Tests: frozen`, pushes the branch, posts on the issue one record per criterion
   (`<!-- brigade:tests-acceptation -->`: `criterion`, `testPath`, then `redOnMain`, `greenOnBranch`, `mutationsCaught`,
   `mutationsTotal`, `survivingLines`, left empty for other tickets to fill) and sets `tests-written`. The cook then
-  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. A
+  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. The
+  pass sends back a delivery whose head no longer carries a frozen test as its last authorized commit left it: the
+  frozen commit, or the latest commit carrying `Amendment: #<issue>` by the manager (its git name `manager`, or the
+  address `manager@brigade.localhost` the station's amendment commits under) or by the project's chef. A commit that
+  changed a frozen test and a later one that put it back leave it held, and the send-back names, for each test, the
+  commit to restore it from (#3847, `runtime/src/passe-gel-tests/gel-tests.ts`). A
   writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
   the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
   taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
