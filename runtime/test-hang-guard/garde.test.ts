@@ -2,10 +2,12 @@
 // for more keeps it. The limit is shortened by BRIGADE_TEST_TIMEOUT_MS; its default is 30 s.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { ENV_ENFANT } from "../test/outils.ts";
+import { posixOnly } from "../test/support/plateforme.ts";
 
 const ICI = import.meta.dirname;
 const { scripts } = JSON.parse(readFileSync(join(ICI, "../package.json"), "utf8")) as { scripts: { test: string } };
@@ -32,4 +34,31 @@ test("a hanging test fails at the limit, naming file, title and what it still he
 test("the suite's command preloads the guard, and the default limit is 30 s", () => {
   assert.match(scripts.test, /--import \.\/test-hang-guard\/charger\.ts/);
   assert.match(readFileSync(join(ICI, "garde.ts"), "utf8"), /const DEFAUT_MS = 30_000;/);
+});
+
+// #3847: a frozen acceptance test that reads a live PR through `gh` skips where `gh` is logged out
+// (the CI, a bare clone), and runs where it is logged in (the station's pass).
+test("a frozen acceptance test that calls gh skips when gh is logged out, and runs when it is logged in", { skip: posixOnly("a fake gh shell script") }, () => {
+  const racine = mkdtempSync(join(tmpdir(), "garde-gh-"));
+  const dossier = join(racine, "test/acceptation-1");
+  mkdirSync(dossier, { recursive: true });
+  const fichier = join(dossier, "lit-une-pr.test.ts");
+  writeFileSync(fichier, ['import { execFileSync } from "node:child_process";', 'import test from "node:test";', 'test("reads the PR", () => { execFileSync("gh", ["pr", "view", "1"]); throw new Error("ran"); });', ""].join("\n"));
+  const jouer = (connecte: boolean) => {
+    const bin = mkdtempSync(join(tmpdir(), "garde-gh-bin-"));
+    writeFileSync(join(bin, "gh"), `#!/bin/sh\nexit ${connecte ? 0 : 1}\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    const r = spawnSync(process.execPath, ["--import", join(ICI, "charger.ts"), "--test", "--test-force-exit", fichier], {
+      encoding: "utf8",
+      env: { ...ENV_ENFANT, PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin` },
+    });
+    return { status: r.status, sortie: r.stdout + r.stderr };
+  };
+  const deconnecte = jouer(false);
+  assert.equal(deconnecte.status, 0, deconnecte.sortie);
+  assert.match(deconnecte.sortie, /﹣ reads the PR .*# gh is missing or logged out/);
+  const connecte = jouer(true);
+  assert.equal(connecte.status, 1, connecte.sortie);
+  assert.match(connecte.sortie, /✖ reads the PR/);
+  assert.match(connecte.sortie, /Error: ran/);
 });
