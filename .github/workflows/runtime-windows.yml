@@ -52,9 +52,6 @@ on:
 
 permissions:
   contents: read
-  issues: read
-  pull-requests: read
-  checks: read
 
 jobs:
   tests:
@@ -92,7 +89,4 @@ jobs:
         run: mkdir -p /tmp
       - name: Tests du runtime
         working-directory: runtime
-        env:
-          # Les tests d'acceptation lisent GitHub avec `gh` (#3831).
-          GH_TOKEN: ${{ github.token }}
         run: node test/support/windows.ts --part ${{ matrix.part }}/8
