@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { etiquetteDe, ouvrirLimite, prendreUnAppel } from "../src/limite-github.ts";
+const LIMITE_HORAIRE = 5000;
 
 test("at low quota a read of a bottom-half project goes ahead, the same read of a top-half project waits the linear delay", async (t) => {
   const h = { instant: Date.UTC(2026, 10, 18, 10, 0, 0) };
@@ -17,7 +18,7 @@ test("at low quota a read of a bottom-half project goes ahead, the same read of 
     }
   }
   const reste = 40 * 60_000;
-  limite.noter("gh", { restant: 500, plafond: 5000, reset: h.instant + reste });
+  limite.noter("gh", { restant: 500, plafond: LIMITE_HORAIRE, reset: h.instant + reste });
 
   const attentes: number[] = [];
   const attendre = (ms: number) => {
