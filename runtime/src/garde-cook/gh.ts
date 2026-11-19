@@ -108,7 +108,7 @@ export function jugerGh(args: string[], env: Record<string, string | undefined>,
   if (commande === "workflow" && sousCommande === "run") {
     const refs = [...(lu.options.get("--ref") ?? []), ...(lu.options.get("-r") ?? [])];
     if (refs.length > 0 && refs.every((ref) => ref === ticket.branche)) return null;
-    return refus(`\`gh workflow run\` ne s'ouvre à un cook que sur sa branche, dans son dépôt : \`gh workflow run <workflow> --ref ${ticket.branche}\` (avec -f pour les entrées)${refs.length === 0 ? ", et --ref est requis" : ` — pas --ref ${refs.find((ref) => ref !== ticket.branche)}`}.`);
+    return refus(`\`gh workflow run\` ne s'ouvre à un cook que sur sa branche, dans son dépôt : \`gh workflow run <workflow> --ref ${ticket.branche}\` (avec -f pour les entrées)${refs.length === 0 ? ", et --ref est requis" : ", et --ref n'y est que sa branche"}.`);
   }
   const ecrit = `\`gh ${commande}${sousCommande === undefined ? "" : ` ${sousCommande}`}\``;
   if (sousCommande !== undefined && (SUPPRESSIONS[commande] ?? []).includes(sousCommande)) return refus(`${ecrit} supprime ou merge : ni l'un ni l'autre n'est au cook — seule la pass merge, et rien ne se supprime.`);
