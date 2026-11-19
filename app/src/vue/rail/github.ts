@@ -13,7 +13,7 @@
 import { porteListe, ticketsDeLaListe } from "../../../../runtime/src/epique.ts";
 import { feuPoseLe, lireLesNonPris } from "../../../../runtime/src/rail-bloque/lecture.ts";
 import type { AttenteSourcee, TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
-import { attentesDuTicket, attentesOuvertesDuTicket, lecteurDesAttendus } from "../../../../runtime/src/carte-attente/carte-attente.ts";
+import { attentesDuTicket } from "../../../../runtime/src/carte-attente/carte-attente.ts";
 import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
 import { etapeDuRail } from "../../../../runtime/src/tests-acceptation/etape.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
@@ -207,8 +207,6 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   // Un ticket attendu découpé est attendu dans les tickets de son découpage, comme `status` le dit (runtime, attente-du-rail/status.ts).
   const decoupages = new Map(issues.flatMap((issue) => (typeof issue.number === "number" && porteListe(texte(issue.body)) ? [[issue.number, ticketsDeLaListe(texte(issue.body))] as const] : [])));
   const decoupage = (n: number) => decoupages.get(n) ?? [];
-  // Ce qu'un ticket en file attend se lit comme la porte de prise le lit : ouvert, sur le rail ou non, une fois par lecture.
-  const attendu = lecteurDesAttendus(depot, lire, new Map(issues.flatMap((issue) => (issue.pull_request === undefined && typeof issue.number === "number" ? [[issue.number, texte(issue.body)] as const] : []))));
   for (const { numero, titre, url, creeLe, labels, corps } of duRail) {
     const pr = livrees.get(numero) ?? null;
     const issueLue: IssueLue = { state: "open", labels, pr: pr === null ? null : { state: "open", merged: false } };
@@ -225,9 +223,9 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     // la durée n'est pas dite — le rail reste lu.
     const entreLe = !EN_FILE.has(etat) ? undefined : await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`).then((brut) => (Array.isArray(brut) ? feuPoseLe(liste(brut)) : null), () => null);
     // En file, ses attentes et d'où chacune est lue (ticket 3763) : son corps, et sa fiche et les arrêts de ses cooks, de ses
-    // commentaires — illisibles, sa carte le dit, et le rail reste lu —, sur un ticket ouvert, sur le rail ou non.
+    // commentaires — illisibles, sa carte le dit, et le rail reste lu.
     const commentaires = !EN_FILE.has(etat) ? [] : await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`).then((brut) => (Array.isArray(brut) ? liste(brut).flatMap(({ body }) => (typeof body === "string" ? [body] : [])) : null), () => null);
-    const { attentes, commentairesLus } = EN_FILE.has(etat) ? await attentesOuvertesDuTicket({ ticket: numero, corps, commentaires, lire: attendu }) : attentesDuTicket({ ticket: numero, corps, commentaires, decoupage });
+    const { attentes, commentairesLus } = attentesDuTicket({ ticket: numero, corps, commentaires, decoupage });
     const depend = [...new Set(attentes.map(({ ticket }) => ticket))];
     const sourcees = !EN_FILE.has(etat) ? {} : { attentes, commentairesLus };
     tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(depend.length === 0 ? {} : { depend }), ...sourcees, ...(entreLe === undefined ? {} : { entreLe }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }) });

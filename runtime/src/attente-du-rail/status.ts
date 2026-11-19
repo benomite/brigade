@@ -15,7 +15,7 @@ import { clientGh } from "../proteger-branche.ts";
 import { feuPoseLe, lesFeux, type Lire } from "../rail-bloque/lecture.ts";
 import { LABELS_D_ECART, type StationsLues } from "../rail-bloque/rail-bloque.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
-import { attentesDuTicket, attentesOuvertesDuTicket, lecteurDesAttendus } from "../carte-attente/carte-attente.ts";
+import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
 import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail } from "./raison.ts";
 
 const LABEL_DU_TABLEAU = "kitchen-board";
@@ -30,13 +30,11 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // Un ticket attendu découpé — une épique du rail, que la file saute — est attendu dans les tickets de son découpage, comme
 // la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme. Un ticket en file porte aussi
 // ses attentes avec leur source (#3763) : son corps, sa fiche et les arrêts de ses cooks, lus de ses commentaires, sur un
-// ticket ouvert, sur le rail ou non.
+// ticket du rail : un ticket hors du rail ne se dit pas.
 export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<TicketDuRail[]> {
   const { depot, lire } = options;
   const tickets: TicketDuRail[] = [];
   const feux = await lesFeux(depot, lire);
-  // Ce qu'un ticket en file attend se lit comme la porte de prise le lit : ouvert, sur le rail ou non, une fois par lecture.
-  const attendu = lecteurDesAttendus(depot, lire, new Map(feux.flatMap((issue) => (typeof issue.number === "number" ? [[issue.number, texte(issue.body)] as const] : []))));
   const decoupages = new Map(feux.flatMap((issue) => (typeof issue.number === "number" && porteListe(texte(issue.body)) ? [[issue.number, ticketsDeLaListe(texte(issue.body))] as const] : [])));
   for (const issue of feux) {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
@@ -54,7 +52,7 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
       // dit qu'ils ne se sont pas lus.
       const brutes = await lire(`/repos/${depot}/issues/${issue.number}/comments?per_page=${PAR_PAGE}`).catch(() => null);
       const commentaires = Array.isArray(brutes) ? brutes.flatMap((un: unknown) => (typeof objet(un)?.body === "string" ? [objet(un)?.body as string] : [])) : null;
-      const { attentes, commentairesLus } = await attentesOuvertesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires, lire: attendu });
+      const { attentes, commentairesLus } = attentesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires, decoupage });
       tickets.push({ ticket: issue.number, etat: "queued", entreLe: poses, depend: [...new Set(attentes.map(({ ticket }) => ticket))], attentes, commentairesLus });
     }
   }

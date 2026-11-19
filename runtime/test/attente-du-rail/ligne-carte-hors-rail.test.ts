@@ -3,10 +3,10 @@
 // Ce fichier VERROUILLE VOLONTAIREMENT le choix actuel de `ligneDeLaCarte` (raison.ts) : sans `attentes` lues, une carte
 // dont le corps dit `Depends on #1912`, avec #1912 ouvert mais hors du rail (sans `fire`), n'a aucune ligne d'attente —
 // `retenus` exclut #1912 — et sa carte retombe sur « prête, attend une place en cuisine ». La porte de prise
-// (`attendusOuverts`, attente-ticket.ts) est plus large : elle retient sur tout ticket ouvert, sur le rail ou non. Ce test
-// vaut pour les appelants qui ne passent pas `attentes` : en production, `lignesDeLAttente` (status.ts) et la lecture du
-// rail de l'app les passent par `attentesOuvertesDuTicket`, et y disent une attente sur un ticket ouvert hors du rail. Ce
-// test ne dit pas que c'est le bon choix, il dit que le changer est une décision du chef, pas un effet de bord.
+// (`attendusOuverts`, attente-ticket.ts) est plus large : elle retient sur tout ticket ouvert, sur le rail ou non. La carte
+// de `brigade <project> status` et celle du rail de l'app passent par la même `ligneDeLaCarte`, avec leurs `attentes` : ce
+// verrou tient pour elles aussi. Ce test ne dit pas que c'est le bon choix, il dit que le changer est une décision du chef,
+// pas un effet de bord.
 //
 // Le cas « rien ne retient » ci-dessous est une garde de non-régression : un ticket que rien ne retient n'a pas de ligne
 // d'attente, et cela existe déjà sur `main`. Il est donc vert sur `main` par construction (décision du chef sur #3810),

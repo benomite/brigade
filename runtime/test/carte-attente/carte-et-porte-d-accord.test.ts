@@ -4,12 +4,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { attendusDuCorps } from "../../src/attente-ticket/attente-ticket.ts";
-import { attentesOuvertesDuTicket } from "../../src/carte-attente/carte-attente.ts";
+import { attentesDuTicket } from "../../src/carte-attente/carte-attente.ts";
 
 test("un corps qui nomme son ticket et un autre : la carte et la porte attendent l'autre, jamais le ticket", async () => {
   const corps = "Restyle the screen.\nDepends on #20\nDepends on #12";
   const lire = async () => ({ state: "open", body: "" });
-  const { attentes } = await attentesOuvertesDuTicket({ ticket: 20, corps, commentaires: [], lire });
+  const { attentes } = attentesDuTicket({ ticket: 20, corps, commentaires: [] });
   assert.deepEqual(attentes.map(({ ticket, source }) => ({ ticket, source })), [{ ticket: 12, source: "corps" }]);
   assert.deepEqual(await attendusDuCorps(20, corps, lire), attentes.map(({ ticket }) => ticket));
 });

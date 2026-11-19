@@ -70,14 +70,13 @@ function phraseNormale(depuis: string | null, maintenant: number): string {
     : `Normal wait: a cook takes the ticket within minutes (the oldest has waited ${duree}). It resolves by itself.`;
 }
 
-// Les tickets dont un ticket en file attend l'avancée. Ses `attentes` lues, ce sont les leurs : l'appelant n'y garde que
-// celles dont le ticket attendu est ouvert, sur le rail ou non, comme la porte de prise (`attentesOuvertesDuTicket`,
-// #3763). Sans elles, ceux de `depend` qui sont sur le rail — en file, qu'un cook tient ou que la pass juge — : un ticket
-// hors du rail n'est pas lu, et rien n'est dit de lui.
+// Les tickets dont un ticket en file attend l'avancée : ses attentes lues (`attentes`) ou, sans elles, ceux de `depend`,
+// quand ils sont sur le rail — en file, qu'un cook tient ou que la pass juge. Un ticket hors du rail n'est pas lu, et rien
+// n'est dit de lui : le choix du chef sur #3810, verrouillé par ligne-carte-hors-rail.test.ts.
 function retenus(carte: TicketDuRail, tickets: readonly TicketDuRail[]): Set<number> {
-  if (carte.attentes !== undefined) return new Set(carte.attentes.map(({ ticket }) => ticket).filter((n) => n !== carte.ticket));
   const sur = new Set(tickets.map(({ ticket }) => ticket));
-  return new Set(carte.depend.filter((n) => n !== carte.ticket && sur.has(n)));
+  const lues = carte.attentes?.map(({ ticket }) => ticket) ?? carte.depend;
+  return new Set(lues.filter((n) => n !== carte.ticket && sur.has(n)));
 }
 
 // Une attente et sa source, en anglais : « waits for #N — read from the body: '<phrase>' », « … — read from the card »,
