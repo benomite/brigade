@@ -223,6 +223,16 @@ base, the stale-branch pruning).
   station announces itself in the log (`station.announced`, with its declaration and its cores), so `status` and
   `station` say its cap and where it comes from. Until #3446 the places were fixed at start and the chef's cap was
   written but read by nothing ([diagnosis](claim-wait-2026-11-13.md)).
+- **A `taken` ticket with no cook and no wait returns to the rail** (#3883, `runtime/src/reprise-attente/`). A timed
+  wait lives on the issue, not in a station's memory: its date is the `until=` of the `brigade:attente` comment, read
+  again at every turn, so a restart neither loses a wait nor its date passing. At each turn, a station looks at every
+  `taken` ticket with no cook on it here. No cook runs on it on any station when this station holds it, when a wait
+  follows the holding claim (the cook of that claim stopped), or when the claim is older than a cook can live
+  (`COOK_LE_PLUS_LONG_MS`, 6 hours). Seen so, with no live wait, for more than 5 minutes (`ORPHELIN_APRES_MS`), the
+  ticket loses `taken`: the station releases the claim in the name of the station that held it, with a comment that
+  says the ticket was taken with no cook on any station and no wait, and that it returns to the rail. From that turn
+  it no longer holds its zone. On 2026-11-19, #3764 kept `taken` on a timed wait for over two hours across two
+  restarts of its station, and the claim gate skipped #3761 and #3786 as "zone held by #3764".
 - **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
   disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
   the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
