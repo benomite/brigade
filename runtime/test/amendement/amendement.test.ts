@@ -222,6 +222,21 @@ test("a cook's commit on the frozen test, restored since by the cook, no longer 
   assert.ok(dernier?.startsWith(AUTEUR_DU_MANAGER), "the last commit on the frozen test is the manager's amendment");
 });
 
+// Seule la tête rendue telle que l'a laissée le dernier commit autorisé lève le
+// refus : rétabli, le test passe au manager ; laissé changé, avec ou sans le
+// commit des tests gelés, il reste refusé, et seul le commit du cook est nommé.
+test("the head decides whether a cook's commit on the frozen test still refuses the proposal: restored, it goes to the manager; left changed, it is refused naming only the cook's commit", async (t) => {
+  const retabli = await amende(t, { gele: true, leCookTouche: true, leCookRetablit: true });
+  assert.equal(retabli.commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)), undefined);
+  assert.equal(retabli.classements.length, 1);
+  for (const gele of [true, false]) {
+    const { classements, parLeCook, commentaires } = await amende(t, { gele, leCookTouche: true });
+    assert.equal(classements.length, 0, `gele: ${gele}`);
+    const echec = commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
+    assert.ok(echec.includes(`the cook's own commit ${(parLeCook[0] ?? "").slice(0, 7)} changes the frozen test`), echec);
+  }
+});
+
 // Ce qui ne se lit pas n'applique rien et ne va à aucun chef : un échec du ticket, dit.
 const ILLISIBLES: Array<[string, Options, RegExp]> = [
   ["a proposal with a missing field", { proposition: "test: test/acceptance/41.test.ts\nold: Exprot\nwhy: a typo" }, /the cook's amendment proposal has no `new:`/],
