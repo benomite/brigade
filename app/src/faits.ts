@@ -13,7 +13,8 @@
 // Ce sont les deux seules choses lues hors de la forme.
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
-import { attenteDuRailLue, lignesDesCartesLues, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
+import { alertesDuRailLues, attenteDuRailLue, lignesDesCartesLues, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
+import type { AlerteDuRail } from "../../runtime/src/attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
@@ -384,6 +385,9 @@ export type Faits = {
   // n'attend, ou qu'un cook tourne. `lignesDesCartes` : la ligne de chaque carte en file qui ne part pas la prochaine.
   attenteDuRail?: AttenteDuRail;
   lignesDesCartes?: LignesDesCartes;
+  // Les alertes du haut du rail (vue/attente-du-rail/, #3823) : chacune vraie, datée, avec son geste ou ce que la cuisine en
+  // fait ; absentes sans aucune.
+  alertesDuRail?: AlerteDuRail[];
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseDuCompte;
@@ -537,6 +541,8 @@ export type Tableau = {
   railBloque?: RailBloqueLu;
   // Pourquoi la file ne part pas (vue/attente-du-rail/, #3433) : la ligne sous lui. Absent quand rien n'attend, ou qu'un cook tourne.
   attenteDuRail?: AttenteDuRail;
+  // Les alertes du haut du rail (vue/attente-du-rail/, #3823) : la première est la ligne en tête du rail. Absentes sans aucune.
+  alertesDuRail?: AlerteDuRail[];
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
   pauseQuota?: PauseDuCompte;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
@@ -837,6 +843,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...railBloqueLu(racine.railBloque),
       ...attenteDuRailLue(racine.attenteDuRail),
       ...lignesDesCartesLues(racine.lignesDesCartes),
+      ...alertesDuRailLues(racine.alertesDuRail),
       ...pauseQuotaLue(racine.pauseQuota),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
@@ -1530,6 +1537,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.quotaGithub === undefined ? {} : { quotaGithub: faits.quotaGithub }),
     ...(faits.railBloque === undefined ? {} : { railBloque: faits.railBloque }),
     ...(faits.attenteDuRail === undefined ? {} : { attenteDuRail: faits.attenteDuRail }),
+    ...(faits.alertesDuRail === undefined ? {} : { alertesDuRail: faits.alertesDuRail }),
     ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),

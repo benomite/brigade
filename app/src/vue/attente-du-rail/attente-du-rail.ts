@@ -7,6 +7,7 @@
 //     `brigade <project> status` écrit.
 import { expliquerLAttente, lignesDesCartes, type AttenteDuRail, type Raison, type TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
 import type { Geste, StationsLues } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { AlerteDuRail, CauseConnue, SorteDAlerte } from "../../../../runtime/src/attente-du-rail/alertes.ts";
 
 // Ce que `facts` porte : `attenteDuRail`, la raison, sa phrase et son geste, absente quand rien n'attend ou qu'un cook tourne ;
 // `lignesDesCartes`, la ligne de chaque carte en file qui ne part pas la prochaine, absente sans aucune.
@@ -42,4 +43,35 @@ export function lignesDesCartesLues(valeur: unknown): { lignesDesCartes?: Lignes
     lignes[Number(ticket)] = ligne;
   }
   return Object.keys(lignes).length === 0 ? {} : { lignesDesCartes: lignes };
+}
+
+const SORTES: readonly SorteDAlerte[] = ["aucune-station", "aucun-cook", "base-rouge", "relance-en-boucle", "cuisine-muette"];
+const texteOuNul = (valeur: unknown): string | null | undefined => (valeur === null ? null : typeof valeur === "string" && valeur !== "" ? valeur : undefined);
+
+// `alertesDuRail`, de la racine de `facts` (ticket 3823, runtime/src/attente-du-rail/alertes.ts) : les alertes du haut du rail.
+// Une alerte mal formée — sans fait daté, sans ticket ni check, ou sans geste ni prise en charge — n'est pas lue : la vue ne
+// montre que ce que le runtime a jugé montrable.
+export function alertesDuRailLues(valeur: unknown): { alertesDuRail?: AlerteDuRail[] } {
+  if (!Array.isArray(valeur)) return {};
+  const lues = valeur.flatMap((brute: unknown): AlerteDuRail[] => {
+    if (typeof brute !== "object" || brute === null || Array.isArray(brute)) return [];
+    const { sorte, phrase, fait, geste, geree, bouton, cause } = brute as Record<string, unknown>;
+    if (!SORTES.includes(sorte as SorteDAlerte) || typeof phrase !== "string" || phrase === "" || typeof fait !== "object" || fait === null) return [];
+    const { depuis, ticket, check } = fait as Record<string, unknown>;
+    if (typeof depuis !== "string" || Number.isNaN(Date.parse(depuis))) return [];
+    const numero = typeof ticket === "number" && Number.isInteger(ticket) && ticket > 0 ? ticket : undefined;
+    const quel = typeof check === "string" && check !== "" ? check : undefined;
+    const lesGestes = { geste: texteOuNul(geste), geree: texteOuNul(geree) };
+    if ((numero === undefined && quel === undefined) || lesGestes.geste === undefined || lesGestes.geree === undefined || (lesGestes.geste === null && lesGestes.geree === null)) return [];
+    return [{
+      sorte: sorte as SorteDAlerte,
+      phrase,
+      fait: { depuis, ...(numero === undefined ? {} : { ticket: numero }), ...(quel === undefined ? {} : { check: quel }) },
+      geste: lesGestes.geste,
+      geree: lesGestes.geree,
+      ...(GESTES.includes(bouton as Geste) ? { bouton: bouton as Geste } : {}),
+      ...(SORTES.includes(cause as SorteDAlerte) && cause !== "cuisine-muette" ? { cause: cause as CauseConnue } : {}),
+    }];
+  });
+  return lues.length === 0 ? {} : { alertesDuRail: lues };
 }

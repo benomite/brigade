@@ -106,6 +106,7 @@ import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-d
 import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
 import { ligneDeLAttente } from "./attente-du-rail/ligne-de-l-attente.js";
+import { ligneDesAlertesDuRail } from "./attente-du-rail/ligne-des-alertes.js";
 import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
@@ -5251,6 +5252,10 @@ function poserLeRail(projet) {
   // l'attente de la file — sauf une panne que la pause n'explique pas, qui garde sa ligne et son geste.
   const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now(), projet.redemarre !== undefined);
   const attente = ditDuRail.railBloque === undefined ? ditDuRail.attenteDuRail : undefined;
+  // Les alertes du haut du rail (ticket 3823) : vraies et actionnables, jugées par le runtime. Une station qui redémarre pour
+  // une mise à jour n'est pas une panne (ticket 3637). Elles disent seules les pannes des stations : la phrase de l'attente
+  // qui porte un geste ne se montre plus, elle ne sait ni l'en-tête ni le dernier cook.
+  const alertesDuRail = (tenu.tableau.alertesDuRail ?? []).filter(({ sorte, cause }) => projet.redemarre === undefined || (sorte !== "aucun-cook" && cause !== "aucun-cook"));
   const statut =
     [
       ligneDuDisjoncteur,
@@ -5260,8 +5265,9 @@ function poserLeRail(projet) {
       panneDuRail(projet, tenu.tableau),
       teteDuRail(projet),
       horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a),
+      ligneDesAlertesDuRail(document, alertesDuRail, gestesDuRail),
       // Pourquoi la file ne part pas (ticket 3433) : jamais « no reason is found » devant une raison que la vue connaît.
-      ligneDeLAttente(document, attente === undefined ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail),
+      ligneDeLAttente(document, attente === undefined || attente.geste !== null ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail),
     ].find((lignes) => lignes.length > 0) ?? [];
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.

@@ -275,6 +275,7 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
+    "runtime/src/attente-du-rail/alertes.ts",
     "runtime/src/attente-du-rail/raison.ts",
     "runtime/src/enregistrement-station/contrat.ts",
     // La liste des tickets d'une épique, sans E/S : une épique n'est pas sur le rail (#2618).
