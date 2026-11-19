@@ -191,9 +191,9 @@ test("a ticket that says in plain words it builds on a split ticket waits for th
 describe("what a body makes a ticket wait for (#3622, #3865)", () => {
   const lecteur = (issues: Record<number, { state: string; body?: string }>) => async (numero: number) => issues[numero] ?? null;
 
-  test("an open ticket named on a `Depends on` line is awaited, a closed or missing one is not", async () => {
-    const lire = lecteur({ 12: { state: "open" }, 13: { state: "closed" } });
-    assert.deepEqual(await attendusDuCorps(20, "Do it later.\nDepends on #12, #13 and #14.", lire), [12]);
+  test("only an open ticket named on a `Depends on` line is awaited, never one the prose names; a closed or missing one is not", async () => {
+    const lire = lecteur({ 12: { state: "open" }, 13: { state: "closed" }, 15: { state: "open" }, 16: { state: "open" } });
+    assert.deepEqual(await attendusDuCorps(20, "Do it once #15 is done, after #16.\nDepends on #12, #13 and #14.", lire), [12]);
     assert.deepEqual(await attendusDuCorps(20, "Depends on #12", lire), [12]);
   });
 
