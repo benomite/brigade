@@ -2216,12 +2216,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (gardes !== undefined && (await gardes.retenue(enVol.size + enEcriture().length)) !== null) return;
       porte.porte(ticket);
     };
+    // Les places prises par des cooks ou le pass plein retiennent la prise,
+    // pas l'écriture des tests (#3887) : les tickets qu'ils laissent écrivent
+    // les leurs, dans l'ordre du rail, une écriture au plus par place. Sinon,
+    // chaque prise attendait une place, puis encore l'écriture de ses tests.
+    const ecrireLesSuivants = async (restants: readonly TicketLu[], limite: number) => {
+      for (const reste of restants) {
+        if (enEcriture().length >= limite) break;
+        await ecrireEnAttendant(reste);
+      }
+    };
     for (const [rang, ticket] of libres.entries()) {
       if (baseManquante !== null) break;
       const limite = typeof places === "number" ? places : places();
       const ecritures = enEcriture();
       if (enVol.size + aRendre.size + ecritures.length >= limite) {
         await direLesAttentes(libres.slice(rang), direPlacesPrises(limite, [...enVol.keys(), ...aRendre.keys(), ...ecritures]));
+        await ecrireLesSuivants(libres.slice(rang), limite);
         break;
       }
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
@@ -2229,14 +2240,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const exclues = new Set([...renvoyes, ...retenuesDuTour]);
       if (enPass(tickets, exclues) >= PASS_MAX) {
         await direLesAttentes(libres.slice(rang), direPassPlein(tickets.filter((t) => t.labels.includes(LABEL_IN_PASS) && !exclues.has(t.number)).map(({ number }) => number)));
-        // Le pass plein retient la prise, pas l'écriture des tests (#3887) :
-        // les places libres écrivent ceux des tickets qu'il laisse, comme
-        // pendant une retenue par un ticket (#3872). Sinon, chaque prise après
-        // la descente du pass attendait encore l'écriture de ses tests.
-        for (const reste of libres.slice(rang)) {
-          if (enVol.size + aRendre.size + enEcriture().length >= limite) break;
-          await ecrireEnAttendant(reste);
-        }
+        await ecrireLesSuivants(libres.slice(rang), limite);
         break;
       }
       if (enVol.has(ticket.number)) continue;

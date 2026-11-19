@@ -59,7 +59,7 @@ test("a ticket whose zone is held by a ticket in flight has its acceptance tests
   await ouverte.calme();
 });
 
-test("a full pass leaves the station's free places writing the acceptance tests of the tickets it holds, one per free place (#3887)", async (t) => {
+test("a full pass leaves the station writing the acceptance tests of the tickets it holds, one writing per place (#3887)", async (t) => {
   const lieux = depotGit(t);
   const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
   const faux = new FauxGitHub();
