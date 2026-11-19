@@ -76,11 +76,12 @@ function depotDeLaStation(t: TestContext): { origine: string; depot: OptionsDuDe
 // `gele` : la branche part du commit des tests gelés, qui touche le test, comme
 // l'écrit l'étape des tests (#3725) avant le cook.
 // `leCookRetablit` : après l'avoir touché, le cook rend le test tel qu'il était, dans un second commit.
-type Options = { manager?: string; proposition?: string; leCookTouche?: boolean; leCookRetablit?: boolean; gele?: boolean };
+// `leCookSupprime` : le cook retire le test gelé de la branche.
+type Options = { manager?: string; proposition?: string; leCookTouche?: boolean; leCookRetablit?: boolean; leCookSupprime?: boolean; gele?: boolean };
 
 // Une station dont le cook du ticket finit sur une proposition d'amendement,
 // et dont le manager la classe par `manager`.
-async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false, leCookRetablit = false, gele = false }: Options = {}) {
+async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false, leCookRetablit = false, leCookSupprime = false, gele = false }: Options = {}) {
   const repertoire = repertoireTemporaire(t);
   const { origine, depot } = depotDeLaStation(t);
   const faux = new FauxGitHub();
@@ -105,6 +106,11 @@ async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITI
           execFileSync("git", ["checkout", "HEAD~1", "--", GELE], { cwd, env: ENV_GIT });
           execFileSync("git", ["commit", "--quiet", "-am", "restore the frozen test"], { cwd, env: ENV_GIT });
         }
+      }
+      if (leCookSupprime) {
+        execFileSync("git", ["rm", "--quiet", GELE], { cwd, env: ENV_GIT });
+        execFileSync("git", ["commit", "--quiet", "-m", "drop the frozen test"], { cwd, env: ENV_GIT });
+        parLeCook.push(execFileSync("git", ["rev-parse", "HEAD"], { cwd, env: ENV_GIT, encoding: "utf8" }).trim());
       }
     }
     const message = classe ? manager : `The criterion is wrong.\n<livrable>\nI propose an amendment.\n<amendement>\n${proposition}\n</amendement>\n</livrable>`;
@@ -224,14 +230,21 @@ test("a cook's commit on the frozen test, restored since by the cook, no longer 
 
 // Seule la tête rendue telle que l'a laissée le dernier commit autorisé lève le
 // refus : rétabli, le test passe au manager ; laissé changé, avec ou sans le
-// commit des tests gelés, il reste refusé, et seul le commit du cook est nommé.
-test("the head decides whether a cook's commit on the frozen test still refuses the proposal: restored, it goes to the manager; left changed, it is refused naming only the cook's commit", async (t) => {
+// commit des tests gelés, ou retiré de la tête, il reste refusé, et seul le
+// commit du cook est nommé.
+test("the head decides whether a cook's commit on the frozen test still refuses the proposal: restored, it goes to the manager; left changed or deleted, it is refused naming only the cook's commit", async (t) => {
   const retabli = await amende(t, { gele: true, leCookTouche: true, leCookRetablit: true });
   assert.equal(retabli.commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)), undefined);
   assert.equal(retabli.classements.length, 1);
-  for (const gele of [true, false]) {
-    const { classements, parLeCook, commentaires } = await amende(t, { gele, leCookTouche: true });
-    assert.equal(classements.length, 0, `gele: ${gele}`);
+  const refuses: Array<[string, Options]> = [
+    ["changed after the frozen commit", { gele: true, leCookTouche: true }],
+    ["changed with no frozen commit", { leCookTouche: true }],
+    ["deleted on the head", { gele: true, leCookSupprime: true }],
+  ];
+  for (const [cas, options] of refuses) {
+    const { classements, parLeCook, commentaires } = await amende(t, options);
+    assert.equal(classements.length, 0, cas);
+    assert.equal(parLeCook.length, 1, cas);
     const echec = commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
     assert.ok(echec.includes(`the cook's own commit ${(parLeCook[0] ?? "").slice(0, 7)} changes the frozen test`), echec);
   }
