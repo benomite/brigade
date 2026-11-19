@@ -655,6 +655,7 @@ function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
     prendOrdinaires: booleen(lu.prendOrdinaires, `${champ}.prendOrdinaires`),
     // Ce que la station fait du projet (#1183) : absent d'un runtime d'avant ce champ.
     ...(lu.cuisson === undefined ? {} : { cuisson: texte(lu.cuisson, `${champ}.cuisson`) }),
+    ...(lu.lacks === undefined ? {} : { lacks: texte(lu.lacks, `${champ}.lacks`) }),
     ...(lu.arreteeDepuis === undefined ? {} : { arreteeDepuis: ouRien(lu.arreteeDepuis, `${champ}.arreteeDepuis`, heure) }),
     ...(lu.refus === undefined
       ? {}

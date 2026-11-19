@@ -14,6 +14,7 @@ import { limiteDuCompteDeLaStation } from "./github-limite.ts";
 import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
 import { refusDuProjet } from "./mise-a-jour/en-service.ts";
 import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
+import { lacuneDeLaStation } from "./routage-station/lacune.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { apprentissageDuProjet } from "./apprentissage/projet.ts";
@@ -60,7 +61,7 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     // Le refus de la station de cette machine, lu dans ce qu'elle dit d'elle-même :
     // les stations d'ici du projet sont alors `refused`.
     const refus = refusDuProjet(env.BRIGADE_STATION_DIR, env.BRIGADE_PROJECT);
-    const forme = faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), refus, appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
+    const forme = faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), refus, appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), (station) => lacuneDeLaStation(env.BRIGADE_STATION_DIR, env.BRIGADE_PROJECT, station));
     // Ce que les cooks ont appris : absent quand le projet n'a ni leçon ni profil, ou quand son
     // carnet ou une définition est illisible — un fichier du dépôt ne fait pas taire les faits.
     const projet = env.BRIGADE_PROJECT;

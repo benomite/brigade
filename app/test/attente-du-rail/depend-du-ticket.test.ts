@@ -13,7 +13,7 @@ const EPIQUE = "Split.\n\n<!-- brigade:tickets -->\n| #10 | A | open |\n| #11 | 
 
 test("depend : les tickets attendus d'un ticket en file et d'un ticket tenu, aucune clé sur un ticket libre", async () => {
   const appeler: AppelGitHub = async (chemin) => {
-    if (chemin.includes("/issues?")) return ok([issue(3, ["fire"], EPIQUE), issue(4, ["fire", "taken"]), issue(5, ["fire"], "Builds on #4."), issue(8, ["fire"]), issue(9, ["fire", "taken"], "Builds on #3."), issue(10, ["fire"]), issue(11, ["fire"])]);
+    if (chemin.includes("/issues?")) return ok([issue(3, ["fire"], EPIQUE), issue(4, ["fire", "taken"]), issue(5, ["fire"], "Depends on #4."), issue(8, ["fire"]), issue(9, ["fire", "taken"], "Depends on #3."), issue(10, ["fire"]), issue(11, ["fire"])]);
     if (chemin.includes("/pulls?")) return ok([]);
     if (/\/issues\/\d+\/(comments|events)/.test(chemin)) return ok([]);
     return { status: 404, data: {} };

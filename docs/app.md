@@ -3105,7 +3105,7 @@ or the app's `inscrite-par-l-app` mark there on Windows), the installed app
 hands the icon to a process of its own binary started with `--tray-fond`, which stays when the app closes. The app
 registers it at login on each opening — a launchd agent `~/Library/LaunchAgents/brigade.tray-fond.plist` on a Mac, the
 `brigade-tray` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows — and no longer puts its own
-icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front.
+icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front. The icon process does not hold Electron's single-instance lock, which belongs to the app alone: it keeps a pid file in its own data folder, so an app opened while the icon runs shows its window instead of handing off to a process that has none (#3864).
 
 - **The line** is the same (`3 cooking · 1 for you`, the disc on Windows), read every 15 s from the `facts` of each
   project the station serves, through the station's own gesture, as the app reads them. It adds `· paused` or

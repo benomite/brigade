@@ -970,6 +970,8 @@ export type Faits = {
     ensemble?: boolean;
     bacASable: { disponible: boolean; raison: string | null; version: string | null; depuis: string } | null;
     prendOrdinaires: boolean;
+    // Ce que la station n'a pas pu cuire, en une ligne (#3870) ; absent, rien ne lui manque.
+    lacks?: string;
     cuisson: Cuisson;
     arreteeDepuis: string | null;
     refus: Refus | null;
@@ -1061,7 +1063,7 @@ export type CarteVue = Omit<CarteDuTicket, "captures"> & { captures: CapturesVue
 // le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
 // n'est pas sur le rail. `refusDeLaMachine` : pourquoi la station de cette
 // machine refuse le projet — ses stations d'ici sont alors `refused` —, ou null.
-export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null, refusDeLaMachine: Refus | null = null, appels: Repartition | null = null): Faits {
+export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null, refusDeLaMachine: Refus | null = null, appels: Repartition | null = null, lacune: (station: string) => string | null = () => null): Faits {
   const adresse = (ticket: number) =>
     etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.url ?? (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
   const attendus = new Set<number>();
@@ -1154,6 +1156,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       bacASable: station.sandbox && { disponible: station.sandbox.available, raison: station.sandbox.reason, version: station.sandbox.version, depuis: station.sandbox.at },
       prendOrdinaires: prendLesOrdinaires({ distante: station.remote, ordinaires: station.ordinary }, station.sandbox),
       cuisson: cuisson(station),
+      ...(station.remote || lacune(station.station) === null ? {} : { lacks: lacune(station.station) as string }),
       arreteeDepuis: etat.arretees.get(station.station) ?? null,
       refus: station.remote ? null : refusDeLaMachine,
       cooks: etat.auxFourneaux.flatMap(({ station: sienne, ticket }) =>
