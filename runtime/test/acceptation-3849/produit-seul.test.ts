@@ -34,12 +34,15 @@ function jouer(racine: string, fichier: string): Map<string, boolean> {
 
 const FICHIER = "runtime/test/attente-longue/attente-longue-produit.test.ts";
 
-// Une fois les tests gelés, seul un commit portant `Amendment: #3764` peut changer le fichier.
+// Une fois les tests gelés, la tête de la branche doit porter le fichier tel que l'a laissé son dernier commit portant `Acceptance-Tests: frozen` ou `Amendment: #3764` (la version de main si aucun n'y a touché).
 function modificationsSansAmendement(fichier: string): string[] {
   const journal = git(DEPOT, "log", "--format=%h%x09%(trailers:key=Acceptance-Tests,valueonly,separator=%x2C)%x09%(trailers:key=Amendment,valueonly,separator=%x2C)", `${BASE}..${BRANCHE}`, "--", fichier);
-  return journal.split("\n").filter(Boolean).map((l) => l.split("\t") as [string, string, string])
-    .filter(([, gele, amendement]) => !gele.includes("frozen") && !amendement.includes("#3764"))
-    .map(([sha]) => sha);
+  const autorise = journal.split("\n").filter(Boolean).map((l) => l.split("\t") as [string, string, string])
+    .find(([, gele, amendement]) => gele.includes("frozen") || amendement.includes("#3764"));
+  const blob = (rev: string): string => {
+    try { return git(DEPOT, "rev-parse", `${rev}:${fichier}`).trim(); } catch { return "absent"; }
+  };
+  return blob(BRANCHE) === blob(autorise ? autorise[0] : BASE) ? [] : [BRANCHE];
 }
 
 test("attente-longue-produit.test.ts passes on its own on the branch, and each of its tests fails on main", () => {
