@@ -36,6 +36,16 @@ test("neither the body of the previous case nor the file's header marks a case: 
   ]);
 });
 
+test("a marker on the case's own line, before it, marks that case only; a marker after it does not; a name marked once stays marked", () => {
+  const branche: Record<string, string> = {
+    "t/ligne.test.ts": 'test("a", f);\n/* brigade:guard */ test("b", f);\ntest("c", f); // brigade:guard\ntest("d", f);\n// brigade:guard\ntest("e", f);\ntest("e", g);',
+  };
+  const ajoutes = testsAjoutes(Object.keys(branche), { base: () => null, branche: (f) => branche[f] ?? null });
+  assert.deepEqual(ajoutes.fichiers.map(({ unites }) => unites), [
+    [{ fichier: "t/ligne.test.ts", nom: "a" }, { fichier: "t/ligne.test.ts", nom: "b", garde: true }, { fichier: "t/ligne.test.ts", nom: "c" }, { fichier: "t/ligne.test.ts", nom: "d" }, { fichier: "t/ligne.test.ts", nom: "e", garde: true }],
+  ]);
+});
+
 test("a guard green on main is accepted and said in the pass's line and log; an unmarked one is still sent back", () => {
   const preuve: Preuve = { rejeux: [{ fichier: "a.test.ts", nom: "kept", garde: true, main: true, branche: true }, { fichier: "a.test.ts", nom: "green", main: true, branche: true }, { fichier: "a.test.ts", nom: "green too", main: true, branche: true }] };
   assert.deepEqual(vertsSurLaBase(preuve).map(({ nom }) => nom), ["green", "green too"]);
