@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { violationsDuGel } from "../../src/passe-gel-tests/gel-tests.ts";
-import { corrigerLesTestsGeles, sansLeCas } from "../../src/passe-gel-tests/test-gele-faux.ts";
+import { corrigerLesTestsGeles } from "../../src/passe-gel-tests/gele-faux.ts";
 import { ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
 
 const ENTETE = 'import { test } from "node:test";\n';
@@ -40,11 +40,19 @@ function branche(t: TestContext, gele: string): string {
 
 const rejeu = (nom: string | null) => ({ fichier: "test/a.test.ts", nom, main: true, branche: true });
 
-test("a wrong case is cut out of its frozen file, whole and alone, parentheses in its strings and comments included", () => {
-  assert.equal(sansLeCas(ENTETE + BON + FAUX, "somme is a function"), ENTETE + BON);
-  assert.equal(sansLeCas(ENTETE + FAUX + BON, "somme is a function"), ENTETE + BON);
-  assert.equal(sansLeCas(ENTETE + BON, "somme is a function"), null, "a case the file does not hold is not cut");
-  assert.equal(sansLeCas(`${ENTETE}test("somme is a function", () => {\n`, "somme is a function"), null, "a call that never closes is not cut");
+test("a wrong case is cut out of its frozen file, whole and alone, parentheses in its strings and comments included", async (t) => {
+  for (const [gele, reste] of [
+    [ENTETE + BON + FAUX, ENTETE + BON],
+    [ENTETE + FAUX + BON, ENTETE + BON],
+  ] as const) {
+    const dossier = branche(t, gele);
+    const correction = await corrigerLesTestsGeles([rejeu("somme is a function")], { worktree: dossier, ticket: 41, base: "main", git: lancerGit });
+    assert.ok("retires" in correction, JSON.stringify(correction));
+    assert.equal(readFileSync(join(dossier, "test", "a.test.ts"), "utf8"), reste);
+  }
+  const ouvert = branche(t, `${ENTETE + BON}test("somme is a function", () => {\n`);
+  const correction = await corrigerLesTestsGeles([rejeu("somme is a function")], { worktree: ouvert, ticket: 41, base: "main", git: lancerGit });
+  assert.ok("echec" in correction, "a call that never closes is not cut");
 });
 
 test("the wrong case is dropped by a commit of the manager carrying the amendment trailer, which holds the freeze", async (t) => {

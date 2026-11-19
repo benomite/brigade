@@ -89,7 +89,7 @@ import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
 import { fichiersGeles, motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
-import { casGelesFaux, corpsDeLaCorrection, corrigerLesTestsGeles, MARQUE_MISE_DE_COTE_GELE } from "./passe-gel-tests/test-gele-faux.ts";
+import { casGelesFaux, corpsDeLaCorrection, corrigerLesTestsGeles, MARQUE_MISE_DE_COTE_GELE } from "./passe-gel-tests/gele-faux.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";

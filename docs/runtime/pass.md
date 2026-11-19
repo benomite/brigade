@@ -247,7 +247,7 @@ what it did on each side.
 | an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
 | the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
 
-**A wrong frozen acceptance test** (#3799, `runtime/src/passe-gel-tests/test-gele-faux.ts`). A case of the frozen
+**A wrong frozen acceptance test** (#3799, `runtime/src/passe-gel-tests/gele-faux.ts`). A case of the frozen
 acceptance tests (the branch's first commit, trailer `Acceptance-Tests: frozen`) that already passes on the base
 proves nothing, and the cook may not edit it: sending the delivery back made the ticket loop (#3778, relaunched three
 times in eight minutes). The frozen tests are the tests cook's, so the station corrects them in its name, with no

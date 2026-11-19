@@ -55,7 +55,7 @@ function finDeLAppel(source: string, debut: number): number | null {
 // Le source sans le cas `nom` : de son début de ligne à la fin de son appel,
 // son `;` et sa fin de ligne. Null si le cas ne s'y trouve pas, ou si son
 // appel ne se lit pas jusqu'au bout.
-export function sansLeCas(source: string, nom: string): string | null {
+function sansLeCas(source: string, nom: string): string | null {
   for (const trouve of source.matchAll(CAS)) {
     const brut = trouve[2];
     if (brut === undefined || brut.replace(/\\(.)/g, "$1") !== nom) continue;
@@ -84,7 +84,7 @@ export type Correction =
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 // La raison, en une ligne, d'un ticket qui ne peut pas continuer.
-export const raisonDeLEcart = ([premier, ...autres]: readonly Rejeu[], fichier: string, base: string) =>
+const raisonDeLEcart = ([premier, ...autres]: readonly Rejeu[], fichier: string, base: string) =>
   `the frozen acceptance test ${premier === undefined ? `\`${fichier}\`` : nomDuTest(premier)} already passes on \`${base}\`${autres.map((rejeu) => `, and so does ${nomDuTest(rejeu)}`).join("")}: dropping ${autres.length === 0 ? "it" : "them"} would leave \`${fichier}\` with no case to prove its criterion`;
 
 // Retire les cas faux de leurs fichiers gelés, dans le worktree de la branche,

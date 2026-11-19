@@ -27,7 +27,7 @@ import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "..
 import type { Check } from "../events/pass.ts";
 import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, LABEL, type PR } from "../github.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
-import { MARQUE_MISE_DE_COTE_GELE } from "../passe-gel-tests/test-gele-faux.ts";
+import { MARQUE_MISE_DE_COTE_GELE } from "../passe-gel-tests/gele-faux.ts";
 
 // Combien de fois la cuisine relance un ticket pour la même raison.
 export const RELANCES_MAX = 2;
