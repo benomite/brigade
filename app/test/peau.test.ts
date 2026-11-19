@@ -123,19 +123,20 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
 describe("la palette est celle de la maquette", () => {
   // Les six planches du 2026-11-08 (#2907) font foi : docs/maquettes/app/README.md.
   const maquette = readdirSync(MAQUETTES).filter((f) => f.endsWith(".dc.html")).map((planche) => readFileSync(join(MAQUETTES, planche), "utf8").toLowerCase()).join("\n");
-  // Un jeton de l'ancienne maquette que les planches n'ont pas repris : #2909 réaligne les jetons sur elles.
-  const AVANT_2909 = new Set(["--attend-trait-doux"]);
+  // Les jetons que les planches n'écrivent pas : un jeton de l'ancienne maquette qu'elles n'ont pas repris (#2909), et l'accent hors projet, un blanc cassé que la maquette ne dessine pas (#3780).
+  const HORS_MAQUETTE = new Set(["--attend-trait-doux", "--accent"]);
 
   test("chaque couleur de jetons.css est une couleur que la maquette écrit — aucune n'est inventée", () => {
-    for (const [nom, valeur] of couleurs) if (!AVANT_2909.has(nom)) assert.ok(new RegExp(`${valeur}\\b`).test(maquette), `${nom}: ${valeur} n'est dans aucune planche de la maquette`);
+    for (const [nom, valeur] of couleurs) if (!HORS_MAQUETTE.has(nom)) assert.ok(new RegExp(`${valeur}\\b`).test(maquette), `${nom}: ${valeur} n'est dans aucune planche de la maquette`);
   });
 
   test("les rôles sont les siens : le fond, la barre, la carte, le trait, le texte, l'accent, les quatre états", () => {
     // Relus dans les planches, là où elles les posent.
+    // L'accent hors projet (#3780) est un blanc cassé que la maquette n'écrit pas : l'orange y était celui des projets.
     assert.match(maquette, /body\{margin:0;background:#121418\}/);
     assert.match(maquette, /color: #ece9e3; font-family: archivo, system-ui, sans-serif/);
     assert.match(maquette, /background: #f3efe6; color: #1b1c1e; border-radius: 4px;/);
-    const roles = { "--fond": "#121418", "--carte": "#1a1d22", "--trait": "#2e333b", "--barre": "#0e1013", "--trait-doux": "#23272d", "--texte": "#ece9e3", "--vert": "#6cc28a", "--jaune": "#e9c46a", "--rouge": "#ee6b5b", "--accent": "#f2994a", "--bleu": "#7fb2f0", "--bon": "#f3efe6", "--bon-encre": "#1b1c1e" };
+    const roles = { "--fond": "#121418", "--carte": "#1a1d22", "--trait": "#2e333b", "--barre": "#0e1013", "--trait-doux": "#23272d", "--texte": "#ece9e3", "--vert": "#6cc28a", "--jaune": "#e9c46a", "--rouge": "#ee6b5b", "--accent": "#ece6dc", "--bleu": "#7fb2f0", "--bon": "#f3efe6", "--bon-encre": "#1b1c1e" };
     for (const [nom, valeur] of Object.entries(roles)) assert.equal(jetons.get(nom), valeur, nom);
     assert.equal(jetons.get("--rayon-carte"), "10px");
     assert.equal(jetons.get("--rayon-bon"), "4px");
