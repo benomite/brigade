@@ -47,7 +47,7 @@ test("two projects on one station: the busiest one, slowed by the low GitHub quo
   const prises: string[] = [];
   const ouvrirLeTour = (projet: ProjetAServir) => ({
     tour: async () => {
-      await prendreUnAppel(limite, { gh: "gh", etiquette: lectureDe(projet.nom), maintenant, attendre });
+      await prendreUnAppel(limite, { gh: "gh-absent", etiquette: lectureDe(projet.nom), maintenant, attendre });
       prises.push(`${projet.nom} #${prets[projet.nom]}`);
     },
     enCuisine: () => [],
