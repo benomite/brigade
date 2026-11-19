@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 
+import { ENV_ENFANT } from "../outils.ts";
+import { posixOnly } from "./plateforme.ts";
 import { compterLesImages, environnement, etatDuPoste, fichiersDeTest, GARDE_MS, laissesEntre, PAR_TEST_MS, part, PRECHARGE } from "./windows.ts";
 
 // Le workflow qui joue les parts sous Windows, tel que le dépôt le porte.
@@ -76,12 +79,31 @@ test("the part says the free space of its disks and whether the temp dir is stil
 });
 
 // #3847 : un test d'acceptation gelé qui lit une PR par `gh` se saute là où `gh` n'est pas connecté —
-// le runner Windows en est un — par le garde que `npm test` précharge. La part le précharge de même, et
-// donne au garde la limite de `--test-timeout` plutôt que ses 30 s.
-test("a part preloads the guard npm test preloads, with the per-test limit of its runner", () => {
+// le runner Windows en est un — par le garde que `npm test` précharge. La part le précharge de même :
+// joué avec son préchargement, un tel fichier se saute au lieu de rougir la part. Le garde y reçoit la
+// limite de `--test-timeout` plutôt que ses 30 s.
+test("a part's preload skips a frozen acceptance test that reads GitHub where gh is logged out", { skip: posixOnly("a fake gh shell script") }, () => {
   const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../package.json"), "utf8")) as { scripts: { test: string } };
   assert.ok(scripts.test.includes(PRECHARGE.join(" ")), `npm test does not preload ${PRECHARGE.join(" ")}`);
-  assert.ok(readFileSync(join(import.meta.dirname, "windows.ts"), "utf8").includes(`"--test-timeout=${PAR_TEST_MS}"`), "the guard's limit is not the part's --test-timeout");
+  const racine = mkdtempSync(join(tmpdir(), "part-gh-"));
+  try {
+    mkdirSync(join(racine, "test/acceptation-1"), { recursive: true });
+    const fichier = join(racine, "test/acceptation-1/lit-une-pr.test.ts");
+    writeFileSync(fichier, ['import { execFileSync } from "node:child_process";', 'import { test } from "node:test";', 'test("reads the PR", () => { execFileSync("gh", ["pr", "view", "1"]); });', ""].join("\n"));
+    mkdirSync(join(racine, "bin"));
+    writeFileSync(join(racine, "bin/gh"), "#!/bin/sh\nexit 1\n");
+    chmodSync(join(racine, "bin/gh"), 0o755);
+    const r = spawnSync(process.execPath, [...PRECHARGE, "--test", "--test-force-exit", fichier], {
+      cwd: join(import.meta.dirname, "../.."),
+      encoding: "utf8",
+      env: { ...environnement({ ...ENV_ENFANT }, undefined), PATH: `${join(racine, "bin")}:${dirname(process.execPath)}:/usr/bin:/bin` },
+    });
+    const sortie = r.stdout + r.stderr;
+    assert.equal(r.status, 0, sortie);
+    assert.match(sortie, /﹣ reads the PR \(.*# gh is missing or logged out/);
+  } finally {
+    rmSync(racine, { recursive: true, force: true });
+  }
   assert.equal(environnement({}, undefined).BRIGADE_TEST_TIMEOUT_MS, PAR_TEST_MS);
   assert.equal(environnement({ BRIGADE_TEST_TIMEOUT_MS: "1000" }, undefined).BRIGADE_TEST_TIMEOUT_MS, "1000");
 });
