@@ -8,6 +8,8 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { identiteDeLaStation } from "../appairage/presence.ts";
+import { machineDe } from "../projets/preparer.ts";
+import type { StationDeclaree } from "../stations-declarees.ts";
 
 export const FICHIER_NOM = "nom-de-la-station.json";
 
@@ -68,6 +70,15 @@ export function nomDeLaStation(racine: string, env: Record<string, string | unde
 // de retenu —, celui de la machine, comme avant.
 export const nomDeclare = (env: Record<string, string | undefined>): string =>
   env.BRIGADE_STATION_NOM || (env.BRIGADE_STATION_DIR ? lireNomRetenu(env.BRIGADE_STATION_DIR) : null) || identiteDeLaStation(env).nom;
+
+// Les stations de ce projet qui tournent sur cette machine, sous le nom que la station a retenu (`parade-box/claude`) :
+// la décision du projet peut encore écrire celui d'avant son renommage (`box/claude`), et la machine se montrait alors
+// deux fois — dans l'enregistrement et dans les réclamations (#3868). Une station distante garde son nom ; sans nom
+// retenu, rien ne change.
+export function sousLeNomRetenu(stations: readonly StationDeclaree[], env: Record<string, string | undefined>): StationDeclaree[] {
+  const retenu = env.BRIGADE_STATION_NOM || (env.BRIGADE_STATION_DIR ? lireNomRetenu(env.BRIGADE_STATION_DIR) : null);
+  return stations.map((declaree) => (!retenu || declaree.distante ? declaree : { ...declaree, nom: `${machineDe(retenu)}/${declaree.moteur}` }));
+}
 
 // Renomme la station : le nouveau nom remplace le retenu, et c'est lui qu'elle
 // déclare à son prochain démarrage. Rend l'ancien (ou rien, s'il n'y en avait

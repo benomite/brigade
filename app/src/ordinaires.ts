@@ -20,6 +20,8 @@ export type StationDesFaits = {
   bacASable: { disponible: boolean; raison: string | null; version: string | null; depuis: string } | null;
   prendOrdinaires: boolean;
   cuisson?: string;
+  // Ce que la station n'a pas pu cuire, en une ligne (#3870) ; absent, rien ne lui manque.
+  lacks?: string;
   arreteeDepuis?: string | null;
   refus?: { code: string; message: string; action: string } | null;
   cooks?: { ticket: number; titre: string; station: string }[];

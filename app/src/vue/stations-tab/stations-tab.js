@@ -266,6 +266,12 @@ function carte(doc, vu, station, gestes) {
   racine.append(tete, ceQuElleEst);
   // Son moteur, et quand ses cooks cuisent sur le secours, sur lequel et jusqu'à quand (moteur/, ticket 3746).
   racine.append(...lignesDuMoteur(doc, { ...(station.moteur === undefined ? {} : { statut: station.moteur }), ...(station.ici && vu.moteurIci !== undefined ? { choisi: vu.moteurIci } : {}) }));
+  // Ce qu'elle n'a pas pu cuire — les dépendances qui ne s'installent pas — se dit en une ligne : le chef sait quoi réparer ou décocher.
+  if (station.lacks !== undefined) {
+    const manque = cree(doc, "p", `Could not run a ticket: ${station.lacks}`);
+    manque.className = "manque";
+    racine.append(manque);
+  }
   if (station.ici && veilleTenue(vu.veille)) racine.append(ligneDeVeille(doc));
   // Ce qu'elle tient du projet : les tickets de ses cooks, ce qu'elle fait tourner d'autre ; rien, elle est au repos.
   const tient = station.cooks.length + station.agents.length > 0;

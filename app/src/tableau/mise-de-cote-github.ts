@@ -25,7 +25,10 @@ import { direLaPrParSonTicket, PR_DU_TICKET } from "../vue/pr-du-ticket.js";
 export const SERVED_ELSEWHERE = "served-elsewhere";
 export const BLOCKED_ON_HUMAN = "blocked-on-human";
 // Dans l'ordre où la carte les nomme quand l'issue porte les deux.
-export const LABELS_DE_MISE_DE_COTE = [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN] as const;
+// Ceux de la station (runtime/src/github.ts, `MIS_DE_COTE`) : `set-aside:failures` (#3875) et `out-of-kitchen` mettent aussi de côté.
+export const SET_ASIDE_FAILURES = "set-aside:failures";
+export const OUT_OF_KITCHEN = "out-of-kitchen";
+export const LABELS_DE_MISE_DE_COTE = [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN, SET_ASIDE_FAILURES, OUT_OF_KITCHEN] as const;
 // L'issue du tableau de la cuisine : jamais une carte, ni sur le rail ni dans TODO.
 export const LABEL_DU_TABLEAU_DE_LA_CUISINE = "kitchen-board";
 // La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi : un label posé à la main. Ici, et non dans faits.ts,

@@ -97,7 +97,7 @@ export function jugerGh(args: string[], env: Record<string, string | undefined>,
   // Le dépôt visé : `-R`, `GH_REPO`, une URL en argument — pas celle qu'un
   // texte cite. Aucun autre que celui du ticket.
   const autres = [...lu.depots, ...(env.GH_REPO ? [env.GH_REPO] : []), ...lu.positionnels.flatMap((mot) => depotDeLUrl(mot) ?? [])].filter((depot) => !memeDepot(depot.replace(/^(?:https?:\/\/)?github\.com\//i, ""), ticket.depot));
-  if (autres.length > 0) return refus(`\`gh\` vise ${autres[0]}, un autre dépôt que celui de ton ticket (${ticket.depot}) : un cook n'agit que sur son dépôt.`);
+  if (autres.length > 0) return refus(`\`gh\` vise ${autres[0]}, un autre dépôt que celui de ton ticket (${ticket.depot}) : un cook n'agit que sur son dépôt${commande === "workflow" && sousCommande === "run" ? ` : \`gh workflow run <workflow> --ref ${ticket.branche}\`` : ""}.`);
   if (commande === undefined || LOCALES.includes(commande)) return null;
   if (commande === "api") return jugerApi(lu.positionnels.slice(1), lu.options, ticket);
   if (commande === "repo" && sousCommande === "view") {
@@ -105,6 +105,11 @@ export function jugerGh(args: string[], env: Record<string, string | undefined>,
     return vise === undefined || memeDepot(vise, ticket.depot) ? null : refus(`\`gh repo view ${vise}\` vise un autre dépôt que celui de ton ticket (${ticket.depot}).`);
   }
   if (sousCommande !== undefined && (LECTURES[commande] ?? []).includes(sousCommande)) return null;
+  if (commande === "workflow" && sousCommande === "run") {
+    const refs = [...(lu.options.get("--ref") ?? []), ...(lu.options.get("-r") ?? [])];
+    if (refs.length > 0 && refs.every((ref) => ref === ticket.branche)) return null;
+    return refus(`\`gh workflow run\` ne s'ouvre à un cook que sur sa branche, dans son dépôt : \`gh workflow run <workflow> --ref ${ticket.branche}\` (avec -f pour les entrées)${refs.length === 0 ? ", et --ref est requis" : ", et --ref n'y est que sa branche"}.`);
+  }
   const ecrit = `\`gh ${commande}${sousCommande === undefined ? "" : ` ${sousCommande}`}\``;
   if (sousCommande !== undefined && (SUPPRESSIONS[commande] ?? []).includes(sousCommande)) return refus(`${ecrit} supprime ou merge : ni l'un ni l'autre n'est au cook — seule la pass merge, et rien ne se supprime.`);
   if (sousCommande === undefined || !(ECRITURES_DU_TICKET[commande] ?? []).includes(sousCommande)) {

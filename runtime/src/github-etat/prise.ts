@@ -60,6 +60,11 @@ export type Contexte = { github: GitHubDeLaPrise; station: string };
 export const corpsDePrise = (station: string) => `<!-- brigade:prise station=${station} -->\nTaken by station \`${station}\`.`;
 export const corpsDeLacher = (station: string) => `<!-- brigade:lache station=${station} -->\nReleased by station \`${station}\`.`;
 
+// Les stations dont une prise est postée sur ces commentaires, lâchée ou non : celles que GitHub dit servir le projet.
+export function stationsDesPrises(commentaires: readonly Pick<CommentaireDePrise, "body" | "association">[]): string[] {
+  return commentaires.flatMap((c) => (DE_CONFIANCE.includes(c.association) ? [MARQUE_DE_PRISE.exec(c.body)?.[1] ?? []].flat() : []));
+}
+
 type Fait = { instant: number; rang: number; genre: "prise"; station: string; commentaire: number; createdAt: string } | { instant: number; rang: number; genre: "lacher" };
 
 // Qui tient le ticket, d'après ce que l'issue porte, dans quelque ordre qu'on
