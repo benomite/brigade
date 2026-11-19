@@ -1,5 +1,6 @@
 // Le rail de « parade » dont les tickets en file ne partent pas encore (#3433) : trois tickets `fire` entrés dans la file il y a
-// deux minutes, aucun cook ne tourne, la box en ligne. En tête du rail, la phrase de l'attente normale ; sur #21, « after #12 ».
+// deux minutes, aucun cook ne tourne, la box en ligne. En tête du rail, la phrase de l'attente normale ; sur #21, son attente
+// de #12 et d'où elle est lue — la phrase de son corps (#3763).
 // La vue reçoit ce que l'app en tire (app/src/vue/rail/github.ts, `avecLeRail`), rien écrit à la main.
 import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
 import { avecLeRail, type RailSurGithub } from "../../../app/src/vue/rail/github.ts";
@@ -12,7 +13,7 @@ const RAIL: RailSurGithub = {
   lu: MAINTENANT,
   tickets: [
     ticket(12, "en attente", { entreLe: ENTREE }),
-    ticket(21, "en attente", { entreLe: ENTREE, depend: [12] }),
+    ticket(21, "en attente", { entreLe: ENTREE, depend: [12], attentes: [{ ticket: 12, source: "corps", phrase: "Builds on #12." }] }),
     ticket(22, "en attente", { entreLe: ENTREE }),
   ],
 };
@@ -29,7 +30,7 @@ const VIDE: TableauLu = {
 };
 
 export const ecran: Ecran = {
-  dit: "Le rail de « parade », trois tickets en file depuis deux minutes et aucun cook : la phrase de l'attente normale en tête, « after #12 » sur #21 (#3433)",
+  dit: "Le rail de « parade », trois tickets en file depuis deux minutes et aucun cook : la phrase de l'attente normale en tête, « waits for #12 — read from the body: 'Builds on #12.' » sur #21 (#3433, #3763)",
   largeur: 1440,
   hauteur: 640,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],
