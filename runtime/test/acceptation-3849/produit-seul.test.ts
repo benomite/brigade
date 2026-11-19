@@ -45,7 +45,12 @@ function modificationsSansAmendement(fichier: string): string[] {
   return blob(BRANCHE) === blob(autorise ? autorise[0] : BASE) ? [] : [BRANCHE];
 }
 
-test("attente-longue-produit.test.ts passes on its own on the branch, and each of its tests fails on main", () => {
+// La CI ne récupère pas la branche de #3764, et elle disparaît une fois #3764 fusionnée : sans elle, le test est sauté ; tant qu'elle existe, il reste actif.
+function brancheAbsente(): boolean {
+  try { git(DEPOT, "rev-parse", "--verify", BRANCHE); return false; } catch { return true; }
+}
+
+test("attente-longue-produit.test.ts passes on its own on the branch, and each of its tests fails on main", { skip: brancheAbsente() }, () => {
   const tmp = mkdtempSync(join(tmpdir(), "acc-3849-"));
   const branche = join(tmp, "branche");
   const base = join(tmp, "base");
