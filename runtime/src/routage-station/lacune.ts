@@ -9,7 +9,7 @@ import { join } from "node:path";
 const fichier = (racine: string, projet: string) => join(racine, "lacunes", `${projet.replace(/[^A-Za-z0-9._-]/g, "_")}.json`);
 
 // Écrit la ligne, ou l'efface si elle est nulle. Lève si le fichier ne s'écrit pas.
-export function noterLaLacune(racine: string, projet: string, station: string, ligne: string | null): void {
+function noterLaLacune(racine: string, projet: string, station: string, ligne: string | null): void {
   const chemin = fichier(racine, projet);
   if (ligne === null) {
     rmSync(chemin, { force: true });

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { faits, lireEtat } from "../../src/etat.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { repertoireTemporaire } from "../outils.ts";
-import { ecrireLaLacune, lacuneDeLaStation, noterLaLacune } from "../../src/routage-station/lacune.ts";
+import { ecrireLaLacune, lacuneDeLaStation } from "../../src/routage-station/lacune.ts";
 import { direLaLacune } from "../../src/routage-station/routage-station.ts";
 
 test("the install of the dependencies is said in clear, any other lack by the cook's first line", () => {
@@ -19,10 +19,10 @@ test("a lack is written, read for its own station only, and cleared", () => {
   const racine = mkdtempSync(join(tmpdir(), "lacune-"));
   try {
     assert.equal(lacuneDeLaStation(racine, "brigade", "mac/claude"), null);
-    noterLaLacune(racine, "brigade", "mac/claude", "dependencies cannot be installed");
+    ecrireLaLacune(racine, "brigade", "mac/claude", "dependencies cannot be installed", (texte) => assert.fail(texte));
     assert.equal(lacuneDeLaStation(racine, "brigade", "mac/claude"), "dependencies cannot be installed");
     assert.equal(lacuneDeLaStation(racine, "brigade", "autre/claude"), null);
-    noterLaLacune(racine, "brigade", "mac/claude", null);
+    ecrireLaLacune(racine, "brigade", "mac/claude", null, (texte) => assert.fail(texte));
     assert.equal(lacuneDeLaStation(racine, "brigade", "mac/claude"), null);
   } finally {
     rmSync(racine, { recursive: true, force: true });
@@ -43,9 +43,9 @@ test("an unreadable file says nothing: the card invents no lack", () => {
 test("clearing a lack that was never written is no error, and a second lack replaces the first", () => {
   const racine = mkdtempSync(join(tmpdir(), "lacune-"));
   try {
-    noterLaLacune(racine, "brigade", "mac/claude", null);
-    noterLaLacune(racine, "brigade", "mac/claude", "dependencies cannot be installed");
-    noterLaLacune(racine, "brigade", "mac/claude", "postgres is not running");
+    ecrireLaLacune(racine, "brigade", "mac/claude", null, (texte) => assert.fail(texte));
+    ecrireLaLacune(racine, "brigade", "mac/claude", "dependencies cannot be installed", (texte) => assert.fail(texte));
+    ecrireLaLacune(racine, "brigade", "mac/claude", "postgres is not running", (texte) => assert.fail(texte));
     assert.equal(lacuneDeLaStation(racine, "brigade", "mac/claude"), "postgres is not running");
   } finally {
     rmSync(racine, { recursive: true, force: true });
