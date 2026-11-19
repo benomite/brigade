@@ -56,16 +56,17 @@ test("the kitchen writes the lack for its station's card, and says when it canno
   const racine = mkdtempSync(join(tmpdir(), "lacune-"));
   try {
     const dit: string[] = [];
-    ecrireLaLacune(racine, "brigade", "mac/claude", "dependencies cannot be installed", (texte) => dit.push(texte));
+    const noter = (texte: string) => void dit.push(texte);
+    ecrireLaLacune(racine, "brigade", "mac/claude", "dependencies cannot be installed", noter);
     assert.equal(lacuneDeLaStation(racine, "brigade", "mac/claude"), "dependencies cannot be installed");
-    ecrireLaLacune(racine, "brigade", "mac/claude", null, (texte) => dit.push(texte));
+    ecrireLaLacune(racine, "brigade", "mac/claude", null, noter);
     assert.equal(lacuneDeLaStation(racine, "brigade", "mac/claude"), null);
-    ecrireLaLacune(racine, "brigade", undefined, "x", (texte) => dit.push(texte));
-    ecrireLaLacune(undefined, "brigade", "mac/claude", "x", (texte) => dit.push(texte));
+    ecrireLaLacune(racine, "brigade", undefined, "x", noter);
+    ecrireLaLacune(undefined, "brigade", "mac/claude", "x", noter);
     assert.deepEqual(dit, [], "without a station here or a directory, nothing is written, nothing is said");
     assert.equal(lacuneDeLaStation(racine, "brigade", "mac/claude"), null);
     writeFileSync(join(racine, "fichier"), "a file where the directory should be");
-    ecrireLaLacune(join(racine, "fichier"), "brigade", "mac/claude", "x", (texte) => dit.push(texte));
+    ecrireLaLacune(join(racine, "fichier"), "brigade", "mac/claude", "x", noter);
     assert.equal(dit.length, 1);
     assert.match(dit[0] ?? "", /^brigade : mac\/claude — what the station lacked could not be written for its card: /);
   } finally {
