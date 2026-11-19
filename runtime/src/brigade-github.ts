@@ -92,7 +92,7 @@ import { fichiersGeles, motifDuGel, violationsDuGel } from "./passe-gel-tests/ge
 import { casGelesFaux, casQuiNeTypentPas, controleDesTypes, corpsDeLaCorrection, corrigerLesTestsGeles, ERREUR_TSC, MARQUE_MISE_DE_COTE_GELE, type Faux } from "./passe-gel-tests/gele-faux.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
-import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
+import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve, type Rejeu } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
@@ -3374,14 +3374,16 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           depot.pousser(branche);
         } catch (erreur) {
           await lancerGit(["reset", "--quiet", "--hard", "HEAD~1"], worktree);
-          avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test could not be pushed, the delivery is judged as it is: ${message(erreur)}`);
+          avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test could not be pushed, its commit is undone here and the delivery is judged as it is; if the push partly reached the remote, the branch there differs from this clone's until the next push forces it: ${message(erreur)}`);
           return { preuve, diff };
         }
         await options.github
           .commenter(ticket.number, corpsDeLaCorrection({ station: nom, ticket: ticket.number, branche, sha: correction.sha, retires: faux }))
           .catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test (\`${correction.sha.slice(0, 7)}\`) could not be said on the issue: ${message(erreur)}`));
+        // Les cas retirés sortent de la preuve ; les autres ont été rejoués tels que la branche corrigée les porte.
         const corrige = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
-        return { preuve: await prouverLaLivraison(ticket, worktree, corrige.fichiers), diff: corrige };
+        const retire = (rejeu: Rejeu) => faux.some((f) => f.fichier === rejeu.fichier && f.nom === rejeu.nom);
+        return { preuve: "rejeux" in preuve ? { rejeux: preuve.rejeux.filter((rejeu) => !retire(rejeu)) } : preuve, diff: corrige };
       };
       const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers).then(corrigerLesFaux);
       const [prouvee, relue, mutee] = await Promise.allSettled([
