@@ -90,3 +90,14 @@ describe("la cuisine muette sans cause connue", () => {
     assert.equal(alerte?.geree, "Station a-box/claude is online and takes it at the next turn.");
   });
 });
+
+describe("tout mis de côté : le ticket le plus ancien est nommé, à date égale le plus petit numéro", () => {
+  test("deux tickets mis de côté au même instant : le numéro le plus petit", () => {
+    const depuis = iso(T0 - 3_600_000);
+    const mis = [{ ticket: 9, depuis, raison: "guard" }, { ticket: 5, depuis, raison: "guard" }];
+    const [alerte] = deSorte("tout-mis-de-cote", entree({ tickets: [], misDeCoteParEchecs: mis }));
+    assert.equal(alerte?.fait.ticket, 5);
+    const [autre] = deSorte("tout-mis-de-cote", entree({ tickets: [], misDeCoteParEchecs: [...mis].reverse() }));
+    assert.equal(autre?.fait.ticket, 5);
+  });
+});
