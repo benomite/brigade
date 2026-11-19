@@ -125,6 +125,12 @@
   font-size: var(--taille-corps);
   color: var(--texte);
 }
+/* Ce que la station n'a pas pu cuire (ticket 3870). */
+.carte-de-station .manque {
+  margin: 0;
+  font-size: var(--taille-corps);
+  color: var(--texte);
+}
 .carte-de-station .cooks {
   display: flex;
   flex-direction: column;

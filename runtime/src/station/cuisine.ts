@@ -52,6 +52,7 @@ import { brancherReponseParCommentaire } from "../reponse-par-commentaire/repons
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherRetenue } from "../retenue/brancher.ts";
 import { suivreLeTour } from "../retenue/tour.ts";
+import { ecrireLaLacune } from "../routage-station/lacune.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
 import type { TicketPublie } from "../appairage/rail-publie.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
@@ -263,6 +264,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 sauter: suiviDuTour.sauter,
                 // Un ticket dont les gates ne se jouent pas ici va à une autre station du projet (#3057).
                 stationsDuProjet: () => stations.map((declaree) => declaree.nom),
+                // Ce qu'elle n'a pas pu se dit sur sa carte de l'onglet Stations (#3870).
+                lacune: (ligne) => ecrireLaLacune(envProjet.BRIGADE_STATION_DIR, projet, ici?.nom, ligne, dire),
                 // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
                 clone: station.clone,
                 repertoireEtat,
