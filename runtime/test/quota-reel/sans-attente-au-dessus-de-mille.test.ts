@@ -43,7 +43,7 @@ for (const restant of [1000, 5000]) {
   });
 }
 
-test("a project far over the old 4000-an-hour station budget still goes at 5000 remaining", async () => {
+test("a project with many calls in the last hour still goes at 5000 remaining", async () => {
   const h = horloge();
   const limite = ouvrirLimite({ maintenant: h.maintenant, alerter: () => {} });
   faireDesAppels(limite, h, { brigade: 4100 }, 800);
