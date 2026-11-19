@@ -7,6 +7,8 @@
 //     test("…", { timeout: 300_000 }, async (t) => { … })     // grep: `timeout: ` in test/
 //
 // `BRIGADE_TEST_TIMEOUT_MS` changes the default (the guard's own tests use it).
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import * as reel from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +19,23 @@ const limiteParDefaut = (): number => {
 };
 
 const ICI = fileURLToPath(import.meta.url);
+
+// A ticket's frozen acceptance tests (`test/acceptation-<n>/`, #3725) may read a live PR through
+// `gh`. Where `gh` is missing or logged out (the CI, a bare clone) they cannot answer: the tests of
+// such a file skip there, saying why, instead of turning the base suite red. Where `gh` is logged
+// in — the station, whose pass judges them — they run (#3847). A file it cannot read runs as is.
+function sansGh(fichier: string | undefined): string | null {
+  if (fichier === undefined || !/[\\/]test[\\/]acceptation-\d+[\\/]/.test(fichier)) return null;
+  let source: string;
+  try {
+    source = readFileSync(fichier, "utf8");
+  } catch {
+    return null;
+  }
+  if (!source.includes('"gh"')) return null;
+  return spawnSync("gh", ["auth", "token"], { stdio: "ignore" }).status === 0 ? null : "gh is missing or logged out: this frozen acceptance test reads GitHub through it";
+}
+const SANS_GH = sansGh(process.argv[1]);
 
 // The first frame of the stack that is neither this file nor the runner: where the test is written.
 function oEstEcrit(): string {
@@ -63,12 +82,14 @@ function entoure<F extends (...args: any[]) => unknown>(titre: string, ecrit: st
 }
 
 // Reads `(name, options, fn)`, `(name, fn)`, `(fn)`, `(options, fn)`.
-function enveloppe<F extends (...args: any[]) => unknown>(original: F): F {
+// `estUnTest`: a test (not a hook), which skips in a frozen acceptance file that `gh` cannot serve.
+function enveloppe<F extends (...args: any[]) => unknown>(original: F, estUnTest = false): F {
   const garde = function (this: unknown, ...args: any[]) {
     const i = args.findIndex((a) => typeof a === "function");
     if (i === -1) return original.apply(this, args);
     const titre = typeof args[0] === "string" ? args[0] : (args[0]?.name ?? args[i].name ?? "(anonymous)");
     const options = args.find((a, j) => j < i && a !== null && typeof a === "object") as { timeout?: unknown } | undefined;
+    if (estUnTest && SANS_GH !== null) return original.call(this, titre, { ...options, skip: SANS_GH }, args[i]);
     const limite = typeof options?.timeout === "number" && options.timeout > 0 && options.timeout !== Infinity ? options.timeout : limiteParDefaut();
     const suite = args.slice();
     suite[i] = entoure(titre, oEstEcrit(), args[i], limite);
@@ -78,8 +99,8 @@ function enveloppe<F extends (...args: any[]) => unknown>(original: F): F {
   return garde;
 }
 
-export const test = enveloppe(reel.test);
-export const it = enveloppe(reel.it);
+export const test = enveloppe(reel.test, true);
+export const it = enveloppe(reel.it, true);
 // `describe` only holds tests, which are guarded one by one; its hooks are guarded here.
 export const before = enveloppe(reel.before);
 export const after = enveloppe(reel.after);
@@ -91,7 +112,7 @@ export const mock = reel.mock;
 export const run = reel.run;
 for (const k of ["skip", "todo", "only"] as const) {
   const original = (reel.test as unknown as Record<string, (...a: any[]) => unknown>)[k];
-  if (typeof original === "function") (test as unknown as Record<string, unknown>)[k] = enveloppe(original);
+  if (typeof original === "function") (test as unknown as Record<string, unknown>)[k] = enveloppe(original, true);
 }
 (test as unknown as Record<string, unknown>).describe = reel.describe;
 (test as unknown as Record<string, unknown>).it = it;

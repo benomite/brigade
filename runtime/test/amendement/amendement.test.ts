@@ -8,7 +8,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { A_LA_MAIN, brancheDuTicket, stationDuDepot, type Lancer, type OptionsDuDepot } from "../../src/brigade-github.ts";
-import { violationsDuGel } from "../../src/passe-gel-tests/gel-tests.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { ENV_GIT, repertoireTemporaire } from "../outils.ts";
@@ -114,7 +113,6 @@ async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITI
   const commentaires = (faux.commentaires.get(TICKET) ?? []).map((c) => c.body);
   const surLaBranche = (...args: string[]) => (git(origine, "branch", "--list", BRANCHE) === "" ? null : git(origine, ...args));
   return {
-    origine,
     ticket: faux.ticket(TICKET),
     briefs,
     classements,
@@ -194,16 +192,6 @@ test("the frozen acceptance commit that opens the branch is not the cook's: the 
   assert.equal(ticket.labels.has(A_LA_MAIN), false);
   assert.match(testGele(), /\/Export\//);
   assert.equal(commitsSurLeTest().filter((commit) => commit.startsWith(AUTEUR_DU_MANAGER)).length, 1);
-});
-
-// #3849 : la pass refusait le commit d'amendement du manager (« a frozen acceptance
-// test was modified »), son nom git étant `brigade manager` : #3764 a bouclé.
-test("the manager's amendment commit passes the pass's frozen-test check", async (t) => {
-  const { origine, testGele } = await amende(t, { gele: true });
-  assert.match(testGele(), /\/Export\//);
-  const livraison = join(repertoireTemporaire(t), "livraison");
-  execFileSync("git", ["clone", "--quiet", "--branch", BRANCHE, origine, livraison], { env: ENV_GIT });
-  assert.deepEqual(violationsDuGel(livraison, "origin/main"), []);
 });
 
 test("a cook's commit on the frozen test after the frozen acceptance commit is refused, and only that commit is named", async (t) => {

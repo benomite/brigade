@@ -15,12 +15,8 @@ import { relative, resolve, sep } from "node:path";
 import { poserALaMain } from "../blocages-sans-question.ts";
 import type { GitHubDuTour } from "../brigade-github.ts";
 import type { IssueAJuger } from "../juger.ts";
-import { COURRIEL_DU_MANAGER, commitDesTestsGeles } from "../passe-gel-tests/gel-tests.ts";
+import { AUTEUR_DU_MANAGER, COURRIEL_DU_MANAGER, commitDesTestsGeles } from "../passe-gel-tests/gel-tests.ts";
 import { consigneDuClassement, corpsDeLApplication, corpsDeLaCarte, corpsDeLaProposition, lireLeClassement, PIED, type Classement, type Proposition } from "./proposition.ts";
-
-// L'auteur du commit d'amendement : le manager, jamais le cook. Son adresse est
-// celle que le contrôle du gel de la pass reconnaît (#3849).
-const AUTEUR_DU_MANAGER = `brigade manager <${COURRIEL_DU_MANAGER}>`;
 
 type LancerGit = (args: string[], worktree: string) => Promise<{ code: number; stdout: string; stderr: string }>;
 
