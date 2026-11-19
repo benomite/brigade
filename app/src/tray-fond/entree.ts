@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { app, BrowserWindow } from "electron";
 import { estInstallee } from "../emplacements.ts";
 import { ARGUMENT_FOND } from "../station-fond/inscription.ts";
+import { prendreLaPlace } from "./instance.ts";
 import { ARGUMENT, executer, inscrireLeFond, stationDeFondInstallee } from "./systeme.ts";
 
 if (process.argv.includes(ARGUMENT_FOND)) {
@@ -23,7 +24,11 @@ if (process.argv.includes(ARGUMENT_FOND)) {
   await import("./processus.ts");
 } else {
   const installee = estInstallee({ ressources: process.resourcesPath, src: join(import.meta.dirname, "..") });
-  if (installee && !app.requestSingleInstanceLock()) {
+  // Une autre app tourne déjà : le verrou d'Electron lui passe la main, et elle ramène sa fenêtre. Sans autre app, celle-ci
+  // montre la sienne, que le verrou d'Electron lui soit rendu ou non (#3864) — l'icône de fond ne le tient plus.
+  const autreApp = installee ? prendreLaPlace(join(app.getPath("userData"), "app.pid")) : undefined;
+  const verrou = installee ? app.requestSingleInstanceLock() : true;
+  if (autreApp !== undefined && !verrou) {
     app.exit(0);
   } else {
     app.on("second-instance", () => {
