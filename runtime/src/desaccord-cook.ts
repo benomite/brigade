@@ -9,7 +9,8 @@
 // sous un marqueur qui dit la tête qu'elle concerne.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { dernierVerdict } from "./github-etat/fusion.ts";
-import { REGLE as REGLE_ROUGE_SUR_MAIN } from "./pass/rouge-sur-main.ts";
+import { OUVERTURE_BLOCAGE, FERMETURE_BLOCAGE } from "./livrable.ts";
+import { MARQUE_DE_GARDE, REGLE as REGLE_ROUGE_SUR_MAIN } from "./pass/rouge-sur-main.ts";
 
 export const BALISE_DE_REPONSE = "reponse-pr";
 const MARQUE_DE_REPONSE = /^<!-- brigade:reponse-cook sha=([0-9a-f]+) -->/;
@@ -21,7 +22,11 @@ type CommentaireLu = { body: string; association: string; createdAt: string };
 // des tests ajoutés (#3694) : #3632, renvoyé sur un test déjà vert sur la base,
 // a commenté ce test comme une garde d'un comportement que la base avait, et
 // sa tête est revenue sur le même motif jusqu'à 06f7aac, qui l'a retiré : la
-// relecture juge une réponse, mais le rejeu ne lit aucune réponse.
+// relecture juge une réponse, mais le rejeu ne lit aucune réponse. Il lit le
+// marqueur de garde (#3852) : #3763 et #3810 ont bouclé des heures sur un test
+// qui gardait un comportement « comme avant », puis sont allés deux fois au
+// chef. Le refus ne boucle plus : la seconde fois, le cook marque le test, ou
+// met le ticket de côté une fois, la raison en une ligne.
 export function consigneDuDesaccord(pr: number): string {
   const [ouvre, ferme] = [`<${BALISE_DE_REPONSE}>`, `</${BALISE_DE_REPONSE}>`];
   return [
@@ -31,7 +36,9 @@ export function consigneDuDesaccord(pr: number): string {
     "",
     "If you then add nothing to the branch, your delivery goes back to the pass as it is, and the pass judges your reply: it accepts it, or sends the delivery back with its reasoning. A stop that adds nothing without such a reply counts as a failed cook.",
     "",
-    `A "${REGLE_ROUGE_SUR_MAIN}" remark is not the review's: the pass replays each test your delivery adds alone on the base, judges no reply, and sends the same head back for as long as the test passes there. A reply, or a comment in the test saying it guards a behavior the base already has, does not lift it. Make the named test fail without your change, or remove it from your delivery.`,
+    `A "${REGLE_ROUGE_SUR_MAIN}" remark is not the review's: the pass replays each test your delivery adds alone on the base, judges no reply, and sends the same head back for as long as the test passes there. A reply, or a free comment in the test, is not read. Make the named test fail without your change, or remove it from your delivery — unless it guards a behavior the base already has and the ticket's criteria say so ("as before", "unchanged"): then mark it as a guard, a \`// ${MARQUE_DE_GARDE}\` comment on the line above its case, and the pass accepts it green on the base.`,
+    "",
+    `This remark never loops. If it names, a second time, a test your delivery already tried to fix, do not try a third way: mark the test \`// ${MARQUE_DE_GARDE}\` if the ticket's criteria say "as before" / "unchanged"; otherwise set the ticket aside, once, with the reason in one line between ${OUVERTURE_BLOCAGE} and ${FERMETURE_BLOCAGE}. Do not propose an amendment of the criterion for it.`,
   ].join("\n");
 }
 

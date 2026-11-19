@@ -9,6 +9,7 @@
 // branche locale, rien n'est poussé ni labellisé, et le ticket reste `queued`.
 import { corpsDesFiches, criteresDuTicket, ficheNeuve, ficheSansTest, type FicheDeCritere } from "./fiche.ts";
 import { LABEL_TESTS_ECRITS, sujetDuCommitDesTests, TRAILER } from "./etape.ts";
+import { MARQUE_DE_GARDE } from "../pass/rouge-sur-main.ts";
 
 const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:tests-acceptation-consigne -->";
 
@@ -47,7 +48,7 @@ export function consigneDesTests(mission: { depot: string; ticket: number; titre
     "",
     "Tu es dans un worktree de la branche du ticket, partie de la branche d'intégration. Lis le `CLAUDE.md` du dépôt et ses tests voisins pour en suivre les conventions (dossier, nommage, framework).",
     "",
-    `Écris exactement ${criteres.length} test${criteres.length === 1 ? "" : "s"} d'acceptation, un fichier par critère ci-dessous, dans l'ordre. Chaque test vérifie son critère tel qu'il est écrit, et doit échouer tant que le ticket n'est pas fait. N'écris, ne modifie ni ne supprime aucun autre fichier. Ne commite rien : la station commite tes fichiers, et eux seuls.`,
+    `Écris exactement ${criteres.length} test${criteres.length === 1 ? "" : "s"} d'acceptation, un fichier par critère ci-dessous, dans l'ordre. Chaque test vérifie son critère tel qu'il est écrit, et doit échouer tant que le ticket n'est pas fait. Sauf le test d'un critère qui garde un comportement que la base a déjà — il dit « as before », « unchanged », « comme avant » : celui-là passe déjà sur la base, et c'est voulu ; marque-le d'un commentaire \`// ${MARQUE_DE_GARDE}\` sur la ligne au-dessus de son cas, et la pass l'accepte vert sur la base. N'écris, ne modifie ni ne supprime aucun autre fichier. Ne commite rien : la station commite tes fichiers, et eux seuls.`,
     "",
     "## Le ticket",
     "",
