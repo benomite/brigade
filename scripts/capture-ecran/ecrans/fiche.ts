@@ -18,14 +18,32 @@ const PASS: HistoireBrute = {
   cost: { attempts: 1, tokens: 48210, durationMs: 722000, incomplete: false },
 };
 
-const ISSUE = {
+// L'issue de #14, son corps donné : `fiche-diagramme.ts` y met un bloc ```mermaid.
+const issueDe = (corps: string) => ({
   found: true,
   issue: {
     title: "Le journal en ajout seul",
     state: "open",
-    body: { author: "chef", at: "2026-10-12T17:20:00.000Z", body: "Le journal ne doit jamais être réécrit : **ajout seul**.\n\n- un événement ne se modifie pas\n- un oubli se corrige par un nouvel événement" },
+    body: { author: "chef", at: "2026-10-12T17:20:00.000Z", body: corps },
     comments: [{ author: "brigade-manager", at: "2026-10-13T09:40:00.000Z", body: "Calibré `opus` / `high` : touche au cœur du runtime." }],
   },
+});
+
+// Ce que la fiche de #14 demande au pont, le corps de son issue donné.
+export const donneesDeLaFiche = (corps: string): Ecran["donnees"] => () => {
+  const carte = carteDe(RENDUS.parade!, "parade", 14);
+  return {
+    maintenant: MAINTENANT,
+    reponses: {
+      demarrage: demarrage(configuration(PROJETS)),
+      espace: [SECOND],
+      situation: situationDe(carte),
+      gestesDeFiche: gestesDeCarte(carte),
+      lireHistoire: histoireDe(PASS),
+      lireDiscussion: discussionDe(issueDe(corps)),
+    },
+    envois: cuisine(RENDUS),
+  };
 };
 
 export const ecran: Ecran = {
@@ -34,19 +52,5 @@ export const ecran: Ecran = {
   hauteur: 900,
   // La case de parade, puis la carte de la deuxième colonne (Taken) : #14.
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#rail .colonne:nth-child(2) li.bon" }],
-  donnees: () => {
-    const carte = carteDe(RENDUS.parade!, "parade", 14);
-    return {
-      maintenant: MAINTENANT,
-      reponses: {
-        demarrage: demarrage(configuration(PROJETS)),
-        espace: [SECOND],
-        situation: situationDe(carte),
-        gestesDeFiche: gestesDeCarte(carte),
-        lireHistoire: histoireDe(PASS),
-        lireDiscussion: discussionDe(ISSUE),
-      },
-      envois: cuisine(RENDUS),
-    };
-  },
+  donnees: donneesDeLaFiche("Le journal ne doit jamais être réécrit : **ajout seul**.\n\n- un événement ne se modifie pas\n- un oubli se corrige par un nouvel événement"),
 };

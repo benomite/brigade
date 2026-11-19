@@ -24,19 +24,13 @@ kitchen and is merged when green. Before switching on, set `blocked-on-human` on
 an issue that carries it is never judged, **an epic that carries it is never split**. It sets no
 dependencies between issues you wrote (unless you write `attend` in a card), but does between the
 tickets of an epic it splits.
-The kitchen still holds a ticket whose body says it builds on another one — a `Depends on #N` line, or
-in plain words on one line: "with the identity of #49", "once #12 is done", "after #12", "builds on
-#12", "on top of #12", "requires #12", and their French forms (#3622) — until that ticket is closed;
-a `#N` between backticks, in a code block or from another repository (`other#N`) does not count. When
+The kitchen holds a ticket only for a `Depends on #N` line of its body, written by the manager or the chef (#3865), until that ticket is closed;
+prose that mentions a ticket (a quote, a pasted decision, "builds on #N", "once #N") never holds it. When
 that ticket was split (its body carries the list of its tickets), the wait goes to the open tickets of
-the split, and the skip line names them, as does the card's line in `status`. The phrases are read
-broadly: a sentence like "after #12" or "with the title of #5" that is not a dependency holds the ticket
-too, until that ticket is closed — and a ticket that is never served (left off the rail, or
-`blocked-on-human`) holds it for good, unless the manager lifts the wait it reviews after an hour (below).
-The skip line is the signal: rewrite the sentence, or close the awaited ticket, to release it.
+the split, and the skip line names them, as does the card's line in `status`. A ticket that is never served (left off the rail, or `blocked-on-human`) holds it for good, unless the manager lifts the wait it reviews after an hour (below). The skip line is the signal: fix the `Depends on` line, or close the awaited ticket, to release it.
 
 **A wait held more than an hour goes to the manager, once (#3764).** A ticket on the rail held by a wait
-— its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket
+— a `Depends on` line of its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket
 set aside — is counted from the first turn that saw it held; that count is kept in memory, so a restart
 of the station starts the hour over. Past an hour, the station gives the wait to the manager, read-only
 in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the manager lifts it,

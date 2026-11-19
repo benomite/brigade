@@ -15,8 +15,8 @@
 //
 // Aucune ligne quand rien n'attend ou qu'un cook tourne. Ce que le rail ne dit pas de la station (le plafond, que
 // GitHub ne publie pas) est donné par l'appelant ; l'inconnu ne fait jamais une raison.
-import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { lignesHorsCode } from "../epique.ts";
+import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { stationDe } from "../stations-github/stations.ts";
 import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
 
@@ -25,7 +25,16 @@ export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github
 // Un ticket du rail, dans l'état que sa carte dit : en file, pris (un cook tourne) ou en pass.
 // `entreLe` : l'instant où il est entré dans la file (`fire` posé), nul quand GitHub ne le dit pas.
 // `depend` : les tickets dont son corps dit dépendre (`Depends on #N`, ou en toutes lettres : `dependancesDuCorps`).
-export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; entreLe: string | null; depend: readonly number[] };
+// `attentes` (#3763) : celles que la porte de prise applique, chacune avec sa source — le corps (et la phrase d'où elle est
+// lue), la fiche, ou l'arrêt d'un cook —, sur un ticket ouvert, sur le rail ou non ; absente quand l'appelant ne les a pas
+// lues : la carte dit alors l'attente sans sa source, comme avant.
+// `commentairesLus` : faux quand les commentaires du ticket — sa fiche, les arrêts de ses cooks — ne se lisent pas.
+export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; entreLe: string | null; depend: readonly number[]; attentes?: readonly AttenteSourcee[]; commentairesLus?: boolean };
+
+// Une attente que la cuisine applique, et d'où elle la lit (#3763) : le 2026-11-17, #3734 a été retenu cinq heures par une
+// phrase de son corps que seul le journal de la station disait, sa carte disant `awaiting: none`.
+export type SourceDAttente = "corps" | "fiche" | "arret";
+export type AttenteSourcee = { ticket: number; source: SourceDAttente; phrase?: string };
 
 // `stations` : les stations du projet que la raison nomme (la phrase les nomme aussi) ; vide quand elle n'en nomme aucune.
 export type AttenteDuRail = { raison: Raison; phrase: string; geste: Geste | null; stations: string[] };
@@ -61,24 +70,40 @@ function phraseNormale(depuis: string | null, maintenant: number): string {
     : `Normal wait: a cook takes the ticket within minutes (the oldest has waited ${duree}). It resolves by itself.`;
 }
 
-// Les tickets dont un ticket en file attend l'avancée, parmi ceux du rail : ceux qui sont aussi en file (`apres`), et ceux
-// qu'un cook tient ou que la pass juge (`fusion`). Un ticket hors du rail n'est pas lu : rien n'est dit de lui.
-function attentes(carte: TicketDuRail, tickets: readonly TicketDuRail[]): { apres: number[]; fusion: number[] } {
-  const sur = new Map(tickets.map((ticket) => [ticket.ticket, ticket]));
-  const attendus = [...new Set(carte.depend)].filter((n) => n !== carte.ticket && sur.has(n)).sort((a, b) => a - b);
-  return { apres: attendus.filter((n) => sur.get(n)?.etat === "queued"), fusion: attendus.filter((n) => sur.get(n)?.etat !== "queued") };
+// Les tickets dont un ticket en file attend l'avancée : ses attentes lues (`attentes`) ou, sans elles, ceux de `depend`,
+// quand ils sont sur le rail — en file, qu'un cook tient ou que la pass juge. Un ticket hors du rail n'est pas lu, et rien
+// n'est dit de lui : le choix du chef sur #3810, verrouillé par ligne-carte-hors-rail.test.ts.
+function retenus(carte: TicketDuRail, tickets: readonly TicketDuRail[]): Set<number> {
+  const sur = new Set(tickets.map(({ ticket }) => ticket));
+  const lues = carte.attentes?.map(({ ticket }) => ticket) ?? carte.depend;
+  return new Set(lues.filter((n) => n !== carte.ticket && sur.has(n)));
 }
 
-const liste = (numeros: readonly number[]) => numeros.map((n) => `#${n}`).join(", ");
+// Une attente et sa source, en anglais : « waits for #N — read from the body: '<phrase>' », « … — read from the card »,
+// « … — read from a cook's stop ».
+const SOURCES: Record<SourceDAttente, string> = { corps: "the body", fiche: "the card", arret: "a cook's stop" };
+export function direLAttente({ ticket, source, phrase }: AttenteSourcee): string {
+  return `waits for #${ticket} — read from ${SOURCES[source]}${source === "corps" && phrase ? `: '${phrase}'` : ""}`;
+}
+const COMMENTAIRES_ILLISIBLES = "its card and its cooks' stops could not be read on GitHub";
 
-// La ligne d'une carte en file qui ne partira pas la prochaine : « waiting for #N to merge » quand un ticket que la cuisine
-// tient l'en retient, « after #N » quand elle est derrière des tickets eux aussi en file. Aucune sans dépendance ouverte :
-// c'est la carte qui part ensuite, ou une carte libre.
+// La ligne d'une carte en file qui ne partira pas la prochaine (#3763) : chaque attente qui la retient, et d'où elle est
+// lue — « waits for #N — read from the body: '<phrase>' », « … read from the card », « … read from a cook's stop » —, et,
+// ses commentaires illisibles, qu'ils ne se sont pas lus : jamais une carte dite libre faute de les avoir lus. Sans
+// `attentes`, celles de `depend` sont celles du corps, sans leur phrase. Aucune ligne sans attente ouverte : c'est la
+// carte qui part ensuite, ou une carte libre.
 export function ligneDeLaCarte(carte: TicketDuRail, tickets: readonly TicketDuRail[]): string | null {
-  if (carte.etat !== "queued") return null;
-  const { apres, fusion } = attentes(carte, tickets);
-  if (fusion.length > 0) return `waiting for ${liste(fusion)} to merge`;
-  return apres.length > 0 ? `after ${liste(apres)}` : null;
+  const dites = [...new Set(attentesDites(carte, tickets).map(direLAttente))];
+  if (carte.etat === "queued" && carte.commentairesLus === false) dites.push(COMMENTAIRES_ILLISIBLES);
+  return dites.length === 0 ? null : dites.join("; ");
+}
+
+// Les attentes que la ligne d'une carte en file dit : celles qui la retiennent.
+function attentesDites(carte: TicketDuRail, tickets: readonly TicketDuRail[]): AttenteSourcee[] {
+  if (carte.etat !== "queued") return [];
+  const retenue = retenus(carte, tickets);
+  const lues = carte.attentes ?? carte.depend.map((ticket): AttenteSourcee => ({ ticket, source: "corps" }));
+  return lues.filter(({ ticket }) => retenue.has(ticket));
 }
 
 // Les lignes des cartes en file, par ticket.
@@ -89,6 +114,17 @@ export function lignesDesCartes(tickets: readonly TicketDuRail[]): Record<number
     if (ligne !== null) lignes[carte.ticket] = ligne;
   }
   return lignes;
+}
+
+// Les tickets qu'attend chaque carte dont la ligne dit une attente, par ticket (#3763) : ceux de ses attentes, jamais un
+// numéro relu de la phrase du corps qu'elle cite. La carte de l'app en tire ses liens (app/src/ligne-carte.ts).
+export function attendusDesCartes(tickets: readonly TicketDuRail[]): Record<number, number[]> {
+  const attendus: Record<number, number[]> = {};
+  for (const carte of tickets) {
+    const siens = [...new Set(attentesDites(carte, tickets).map(({ ticket }) => ticket))];
+    if (siens.length > 0) attendus[carte.ticket] = siens;
+  }
+  return attendus;
 }
 
 // Pourquoi la file ne part pas, ou null : rien en file, ou un cook qui tourne.
@@ -117,7 +153,7 @@ export function expliquerLAttente(options: { depot: string; tickets: readonly Ti
   }
   if (options.plafondAtteint) return dit("plafond");
   if (tickets.some(({ etat }) => etat === "pass")) return dit("pass");
-  if (enFile.every((carte) => ligneDeLaCarte(carte, tickets) !== null)) return dit("autre-ticket");
+  if (enFile.every((carte) => retenus(carte, tickets).size > 0)) return dit("autre-ticket");
   const plusAncien = enFile.map(({ entreLe }) => entreLe).filter((le): le is string => le !== null && !Number.isNaN(Date.parse(le))).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
   return { raison: "normale", phrase: phraseNormale(plusAncien, maintenant), geste: null, stations: [] };
 }
@@ -131,40 +167,33 @@ export function lignesDeStatus(phrase: string | null, cartes: Readonly<Record<nu
   return phrase === null ? siennes : [`${"queue wait".padEnd(11)}${phrase}`, ...siennes];
 }
 
-// Les tournures par lesquelles un corps dit, en toutes lettres, bâtir sur un autre ticket (#3622) : le 2026-11-15, sur
-// secondes, trois écrans restylés « with the identity of #49 » sont partis en même temps que l'identité, et leur cook
-// s'est arrêté. Chacune est suivie d'un ou plusieurs `#N` (séparés par une virgule, `and`, `&` ou `et`), sur la même
-// ligne : « once #12 is done », « after #12 », « builds on #12 », « on top of #12 », « requires #12 », et leurs formes
-// françaises (« une fois #12 fait », « après #12 », « avec l'identité de #49 »). Un `#N` cité entre backticks ou
-// dans un bloc de code n'en est pas un, ni `autre-depot#N`.
-const TOURNURES = [
-  String.raw`(?:builds?|built|building)[ \t]+(?:up)?on(?:[ \t]+top[ \t]+of)?`,
-  String.raw`on[ \t]+top[ \t]+of`,
-  "once",
-  "after",
-  String.raw`with[ \t]+the[ \t]+(?:[\p{L}-]+[ \t]+){1,3}of`,
-  String.raw`(?:requires?|needs?|depends?[ \t]+on|waits?[ \t]+(?:for|on)|blocked[ \t]+(?:by|on))`,
-  String.raw`une[ \t]+fois(?:[ \t]+que)?`,
-  "après",
-  String.raw`avec[ \t]+(?:l['’]|la[ \t]+|le[ \t]+|les[ \t]+)(?:[\p{L}-]+[ \t]+){0,2}[\p{L}-]+[ \t]+d(?:e|u|es)`,
-  String.raw`(?:repose|s['’]appuie|bâtit|construit)[ \t]+sur`,
-  String.raw`d[ée]pend[ \t]+de`,
-];
-const NUMEROS = String.raw`#[1-9]\d*(?:[ \t]*(?:,|and|&|et)?[ \t]*#[1-9]\d*)*`;
-const EN_TOUTES_LETTRES = new RegExp(String.raw`(?<![\p{L}\d_])(?:${TOURNURES.join("|")})[ \t]+(${NUMEROS})(?![\p{L}\d_])`, "giu");
-
-// Les issues dont un corps dit dépendre : les numéros d'une ligne `Depends on #N` (un ou plusieurs, séparés par une
-// virgule, `and` ou `&`), puis ceux qu'une phrase dit attendre en toutes lettres (`TOURNURES`). Celle de la porte de
-// prise (`brigade-github.ts`) comme celle du rail.
-export function dependancesDuCorps(corps: string): number[] {
-  const numeros = new Set<number>();
-  for (const [, liste = ""] of corps.matchAll(/^[ \t>*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) {
-    for (const [, numero] of liste.matchAll(/#(\d+)/g)) numeros.add(Number(numero));
-  }
-  for (const { texte } of lignesHorsCode(corps)) {
-    for (const [, liste = ""] of texte.replace(/`[^`]*`/g, "").matchAll(EN_TOUTES_LETTRES)) {
-      for (const [, numero] of liste.matchAll(/#(\d+)/g)) numeros.add(Number(numero));
+// Les issues dont un corps dit dépendre, chacune avec la phrase d'où elle est lue (#3763) : les numéros d'une ligne
+// `Depends on #N` (un ou plusieurs, séparés par une virgule, `and` ou `&`), et rien d'autre (#3865) : une prose, une
+// citation (`>`) ou une décision collée qui nomme un ticket ne le fait jamais attendre. La phrase est sa ligne, sans
+// puce, coupée à `PHRASE_MAX` caractères.
+const PHRASE_MAX = 80;
+const phraseDe = (ligne: string) => {
+  const nette = ligne.replace(/^[ \t>*-]+/, "").trim();
+  return nette.length > PHRASE_MAX ? `${nette.slice(0, PHRASE_MAX - 1)}…` : nette;
+};
+export function attentesDuCorps(corps: string): { ticket: number; phrase: string }[] {
+  const lues: { ticket: number; phrase: string }[] = [];
+  const vus = new Set<number>();
+  const lire = (liste: string, ligne: string) => {
+    for (const [, numero] of liste.matchAll(/#(\d+)/g)) {
+      if (vus.has(Number(numero))) continue;
+      vus.add(Number(numero));
+      lues.push({ ticket: Number(numero), phrase: phraseDe(ligne) });
     }
+  };
+  for (const { texte: ligne } of lignesHorsCode(corps)) {
+    for (const [, liste = ""] of ligne.matchAll(/^[ \t*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) lire(liste, ligne);
   }
-  return [...numeros];
+  return lues;
+}
+
+// Les issues dont un corps dit dépendre (`attentesDuCorps`), sans leur phrase. Celle de la porte de prise
+// (`brigade-github.ts`) comme celle du rail.
+export function dependancesDuCorps(corps: string): number[] {
+  return attentesDuCorps(corps).map(({ ticket }) => ticket);
 }

@@ -144,7 +144,15 @@ base, the stale-branch pruning).
   `Acceptance-Tests: frozen`, pushes the branch, posts on the issue one record per criterion
   (`<!-- brigade:tests-acceptation -->`: `criterion`, `testPath`, then `redOnMain`, `greenOnBranch`, `mutationsCaught`,
   `mutationsTotal`, `survivingLines`, left empty for other tickets to fill) and sets `tests-written`. The cook then
-  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. A
+  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. The
+  pass sends back a delivery whose head no longer carries a frozen test as its last authorized commit left it: the
+  frozen commit, or the latest commit carrying `Amendment: #<issue>` by the manager (its git name `manager`, or the
+  address `manager@brigade.localhost` the station's amendment commits under) or by the project's chef. A commit that
+  changed a frozen test and a later one that put it back leave it held, and the send-back names, for each test, the
+  commit to restore it from (#3847, `runtime/src/passe-gel-tests/gel-tests.ts`). A frozen case that already passes
+  on the base, or does not type-check, is not sent back to the cook, who may not touch it: the station drops it in the tests cook's name, by
+  such a manager commit, says it on the issue, and judges the delivery again — or sets the ticket aside once, the
+  reason in one line, when nothing would be left to prove a criterion (#3799, `docs/runtime/pass.md`). A
   writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
   the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
   taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
@@ -226,10 +234,13 @@ base, the stale-branch pruning).
   failure: the delivery goes back to the pass as is, which judges the head again with the reply in its brief, and
   accepts it or sends the head back with its reasoning. That send-back counts among the `RENVOIS_MAX`, so a
   disagreement cannot loop (#2592). The brief also says that a "Red on main, green on the branch" remark is the
-  pass's replay, not the review's: no reply lifts it, nor a comment in the test calling it a guard of a behavior the
-  base already has — only a test that fails without the change, or no such test (#3694: #3632's cook kept such a test
+  pass's replay, not the review's: no reply lifts it, nor a free comment in the test calling it a guard of a behavior
+  the base already has — only a test that fails without the change, no such test (#3694: #3632's cook kept such a test
   with a guard comment, its next cooks added nothing with no failed cook counted, and its head came back on that same
-  remark until 06f7aac removed the test).
+  remark until 06f7aac removed the test), or, when the ticket's criteria say the behavior stays "as before" /
+  "unchanged", the test marked `// brigade:guard`, which the pass accepts green on the base (#3852). The remark never
+  loops: the second time it names a test, the cook marks it so, or sets the ticket aside once with the reason in one
+  line between `<bloque>` tags.
 - **A delivery cut before its PR.** A branch the station pushed but that never had a PR (the station stopped between
   the push and the PR, or GitHub refused the PR) goes to the pass as it is, with no cook: its PR opens and it takes
   `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a
