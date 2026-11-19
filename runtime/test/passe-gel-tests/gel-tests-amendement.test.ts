@@ -52,8 +52,34 @@ function commitDe(dossier: string, auteur: string, contenu: string) {
   execFileSync("git", ["commit", "-q", "-m", "touch", "-m", "Amendment: #41"], { cwd: dossier, env, stdio: "pipe" });
 }
 
-
 test("le garde du gel accepte le commit que signe le vrai code d amendement", async (t) => {
   const dossier = await brancheAmendee(t);
+  assert.deepEqual(violationsDuGel(dossier, "origin/main"), []);
+});
+
+test("le garde du gel accepte toujours les auteurs manager et manager[bot], avec l amendement", async (t) => {
+  const dossier = await brancheAmendee(t);
+  commitDe(dossier, "manager", "label: un\n");
+  commitDe(dossier, "manager[bot]", "label: deux\n");
+  assert.deepEqual(violationsDuGel(dossier, "origin/main"), []);
+});
+
+for (const auteur of ["someone else", "evil manager"]) {
+  test(`le garde du gel refuse l auteur ${auteur}, et seulement lui`, async (t) => {
+    const dossier = await brancheAmendee(t);
+    commitDe(dossier, auteur, "label: Autre\n");
+    const autre = git(dossier, "rev-parse", "HEAD");
+    const violations = violationsDuGel(dossier, "origin/main");
+    assert.deepEqual(violations.map(({ commit, fichiers }) => ({ commit, fichiers })), [{ commit: autre, fichiers: [GELE] }]);
+  });
+}
+
+test("le garde du gel accepte le nom d auteur que signe le vrai code d amendement, sans l appui du courriel", async (t) => {
+  const dossier = await brancheAmendee(t);
+  const auteur = git(dossier, "log", "-1", "--format=%an");
+  const env = { ...ENV_GIT, GIT_AUTHOR_NAME: auteur, GIT_COMMITTER_NAME: auteur, GIT_AUTHOR_EMAIL: "autre@example.test", GIT_COMMITTER_EMAIL: "autre@example.test" };
+  writeFileSync(join(dossier, GELE), "label: Exporter\n");
+  git(dossier, "add", "-A");
+  execFileSync("git", ["commit", "-q", "-m", "touch", "-m", "Amendment: #41"], { cwd: dossier, env, stdio: "pipe" });
   assert.deepEqual(violationsDuGel(dossier, "origin/main"), []);
 });
