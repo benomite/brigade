@@ -340,6 +340,18 @@ was still the first send-back reason after #3466 brought the rule to the pass (#
 tickets), and 4 of those 5 were this rule — #3528 twice, #3559, #3600 —, which the cook's instructions
 did not name: the cook played its test on its branch only.
 
+The same instruction tells the cook that the pass then mutates, one by one, the lines of code its diff
+adds or changes ("Mutations caught", [`pass.md`](pass.md)) — each by the first of `===`/`!==`,
+`==`/`!=`, `&&`/`||`, `<=`/`>`, `>=`/`<`, ` < `/` >= `, ` > `/` <= `, `true`/`false`, ` + `/` - ` or a
+removed unary `!` it finds outside the line's strings and comments — and replays the tests the
+delivery adds against each mutant: a mutation that survives sends the delivery back naming its line,
+whatever the review says. Before committing, the cook does it itself: on each line of code its diff
+adds or changes that carries one of these mutations, it applies it by hand, plays its added tests and
+the frozen tests, sees one of them fail, and puts the line back. A surviving mutation calls for a test
+case that tells the line from its mutant, or for removing a line nothing asks for. Blocking review was
+still the first send-back reason after the mutations came to the pass (#3880: 33 over 20 merged
+tickets), and 24 of those 33 were a surviving mutation, which the cook's instructions did not name.
+
 The same instruction tells the cook to list, before writing, every place each criterion applies to,
 and to serve it in each: a criterion that says "every", "all", "never" or "no" covers each message,
 screen, command and path that does what it names, searched across the whole repo (runtime, app, phone,
