@@ -176,15 +176,11 @@ export async function corrigerLesTestsGeles(faux: readonly Faux[], outils: { wor
     return { echec: `the frozen test could not be written: ${message(erreur)}` };
   }
   const sujet = `test(#${outils.ticket}): drop the wrong frozen ${faux.length === 1 ? "case" : "cases"}`;
-  for (const args of [
-    ["add", "--", ...ecrits.keys()],
-    ["commit", "--quiet", "--no-verify", `--author=${AUTEUR_DU_MANAGER}`, "-m", sujet, "-m", faux.map(({ nom, fichier, pourquoi }) => `- ${nom} (${fichier}): ${pourquoi}`).join("\n"), "-m", PIED(outils.ticket)],
-  ]) {
-    const fait = await outils.git(args, outils.worktree);
-    if (fait.code !== 0) {
-      await outils.git(["reset", "--quiet", "--hard", "HEAD"], outils.worktree);
-      return { echec: `the correction could not be committed (git ${args[0]}): ${fait.stderr.trim() || `code ${fait.code}`}` };
-    }
+  // Le commit prend les fichiers écrits par leurs chemins : aucun `git add` à part.
+  const fait = await outils.git(["commit", "--quiet", "--no-verify", `--author=${AUTEUR_DU_MANAGER}`, "-m", sujet, "-m", faux.map(({ nom, fichier, pourquoi }) => `- ${nom} (${fichier}): ${pourquoi}`).join("\n"), "-m", PIED(outils.ticket), "--", ...ecrits.keys()], outils.worktree);
+  if (fait.code !== 0) {
+    await outils.git(["reset", "--quiet", "--hard", "HEAD"], outils.worktree);
+    return { echec: `the correction could not be committed: ${fait.stderr.trim() || `code ${fait.code}`}` };
   }
   const tete = await outils.git(["rev-parse", "HEAD"], outils.worktree);
   if (tete.code !== 0 || tete.stdout.trim() === "") return { echec: `the correction's commit could not be read: ${tete.stderr.trim()}` };

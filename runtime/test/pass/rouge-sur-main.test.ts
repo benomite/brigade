@@ -82,8 +82,8 @@ test("all the added tests red on main and green on the branch: accepted, and the
   assert.deepEqual(vertsSurLaBase(preuve), []);
   // Un fichier neuf se joue seul, sans motif de nom ; rien d'autre n'est joué.
   assert.deepEqual(joues, [
-    ["--test", "--test-reporter=tap", "--test-force-exit", "lib/somme.test.ts"],
-    ["--test", "--test-reporter=tap", "--test-force-exit", "lib/somme.test.ts"],
+    ["--test", "--test-isolation=none", "--test-reporter=tap", "--test-force-exit", "lib/somme.test.ts"],
+    ["--test", "--test-isolation=none", "--test-reporter=tap", "--test-force-exit", "lib/somme.test.ts"],
   ]);
   assert.equal(jetes.length, 1, "the throwaway checkout of the base is thrown away");
   assert.equal(journalDeLaPreuve(preuve, "main"), "Red on main, green on the branch: only the tests this delivery adds were replayed on `main`, not the suite — `adds two numbers` (`lib/somme.test.ts`) red on `main`, green on the branch");

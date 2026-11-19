@@ -231,7 +231,8 @@ test file that existed, the cases (`test("…")`, `it("…")`) the base does not
 **Only they are replayed, never the suite.** While the reviewer reads, the pass makes a throwaway
 checkout of the base (`rouge-sur-main-<ticket>`), copies into it the branch's changed test files and
 the files under its test folders (`test/`, `tests/`, `__tests__/`), and plays each added test file on
-both sides: `node --test --test-reporter=tap <file>` from the folder of its nearest `package.json`, a
+both sides: `node --test --test-isolation=none --test-reporter=tap <file>` from the folder of its nearest
+`package.json` — the file runs in the runner's own process, one Node started instead of two (#3799) —, a
 case added to an existing file selected by its name (`--test-name-pattern`). No setup, install or
 build; under the cloison, with no GitHub token and no project secret; at most 5 minutes per file and
 side. The checkout is thrown away afterwards and nothing is committed: the rule adds no file to the

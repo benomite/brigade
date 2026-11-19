@@ -3355,41 +3355,41 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         avertir(`brigade : #${ticket.number} sur ${nom} — the types of the frozen acceptance tests could not be checked: ${message(erreur)}`);
         return [];
       });
-      const corrigerLesFaux = async (preuve: Preuve): Promise<{ preuve: Preuve; diff: typeof diff; ecarte?: string }> => {
+      const corrigerLesFaux = async (preuve: Preuve): Promise<{ preuve: Preuve; ecarte?: string }> => {
         const tous = [...casGelesFaux(vertsSurLaBase(preuve), gelés ?? [], base), ...(await typant)];
         const faux = tous.filter((f, rang) => tous.findIndex((autre) => autre.fichier === f.fichier && autre.nom === f.nom) === rang);
-        if (faux.length === 0) return { preuve, diff };
+        if (faux.length === 0) return { preuve };
         const { lancerGit } = depot;
         if (lancerGit === undefined) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the wrong frozen acceptance tests cannot be corrected, this station's clone runs no git in its worktrees: the delivery is judged as it is`);
-          return { preuve, diff };
+          return { preuve };
         }
         const correction = await corrigerLesTestsGeles(faux, { worktree, ticket: ticket.number, git: lancerGit });
         if ("echec" in correction) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the wrong frozen acceptance test could not be corrected, the delivery is judged as it is: ${correction.echec}`);
-          return { preuve, diff };
+          return { preuve };
         }
-        if ("ecarte" in correction) return { preuve, diff, ecarte: correction.ecarte };
+        if ("ecarte" in correction) return { preuve, ecarte: correction.ecarte };
         try {
           depot.pousser(branche);
         } catch (erreur) {
           await lancerGit(["reset", "--quiet", "--hard", "HEAD~1"], worktree);
           avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test could not be pushed, its commit is undone here and the delivery is judged as it is; if the push partly reached the remote, the branch there differs from this clone's until the next push forces it: ${message(erreur)}`);
-          return { preuve, diff };
+          return { preuve };
         }
         await options.github
           .commenter(ticket.number, corpsDeLaCorrection({ station: nom, ticket: ticket.number, branche, sha: correction.sha, retires: faux }))
           .catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test (\`${correction.sha.slice(0, 7)}\`) could not be said on the issue: ${message(erreur)}`));
         // Les cas retirés sortent de la preuve ; les autres ont été rejoués tels que la branche corrigée les porte.
-        const corrige = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
+        // Le diff reste celui de la livraison : la correction ne touche qu'un test, et aucun mutant ne naît d'un test.
         const retire = (rejeu: Rejeu) => faux.some((f) => f.fichier === rejeu.fichier && f.nom === rejeu.nom);
-        return { preuve: "rejeux" in preuve ? { rejeux: preuve.rejeux.filter((rejeu) => !retire(rejeu)) } : preuve, diff: corrige };
+        return { preuve: "rejeux" in preuve ? { rejeux: preuve.rejeux.filter((rejeu) => !retire(rejeu)) } : preuve };
       };
       const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers).then(corrigerLesFaux);
       const [prouvee, relue, mutee] = await Promise.allSettled([
         prouvant,
         relecture(worktree, run, texte, pr, criteres.length, ticket.number),
-        avecTestsGeles ? prouvant.then((prouve) => (prouve.ecarte === undefined ? muterLaLivraison(ticket, worktree, prouve.diff, prouve.preuve) : null)) : Promise.resolve(null),
+        avecTestsGeles ? prouvant.then((prouve) => (prouve.ecarte === undefined ? muterLaLivraison(ticket, worktree, diff, prouve.preuve) : null)) : Promise.resolve(null),
       ]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value.preuve : { injouable: message(prouvee.reason) };
       const ecarte = prouvee.status === "fulfilled" ? prouvee.value.ecarte : undefined;

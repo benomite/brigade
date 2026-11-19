@@ -66,6 +66,7 @@ test("the wrong case is dropped by a commit of the manager carrying the amendmen
   assert.ok("sha" in correction, JSON.stringify(correction));
   assert.equal(readFileSync(join(dossier, "test", "a.test.ts"), "utf8"), ENTETE + BON);
   assert.match(git(dossier, "log", "-1", "--format=%ae%n%B"), /^manager@brigade\.localhost\n[\s\S]*Amendment: #41/);
+  assert.equal(git(dossier, "log", "-1", "--format=%s"), "test(#41): drop the wrong frozen case", "one case dropped is said in the singular");
   assert.deepEqual(violationsDuGel(dossier, "origin/main"), []);
 });
 
