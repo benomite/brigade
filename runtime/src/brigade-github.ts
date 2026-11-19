@@ -25,6 +25,8 @@ import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { defaireLesBoucles } from "./boucle-attente/boucle-attente.ts";
 import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
+import { consigneDeLAttenteLongue, lireRevue, origineDeLAttente, suiviDesAttentesLongues, type RevoirLAttente } from "./attente-longue/attente-longue.ts";
+import { leveesDesCommentaires } from "./boucle-attente/levee.ts";
 import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, LABEL_COOK_DESIGN, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
@@ -401,6 +403,10 @@ export type OptionsDeStation = {
   // produit ou de design. Absent, le ticket est mis de côté pour le chef, et
   // le commentaire le dit.
   reprendre?: ReprendreLeTicket;
+  // Le manager, à qui va un ticket du rail tenu plus d'une heure par une
+  // attente (#3764) : il la lève, la garde, ou pose au chef une question de
+  // produit. Absent, l'issue dit seulement ce que le ticket attend et qui l'a décidé.
+  revoirLAttente?: RevoirLAttente;
   // Le service des PR externes (#2933) : leur relecture et leurs gates, sans
   // les secrets du projet, et ses humains, à qui va leur carte. Absent, la
   // station ne les sert pas.
@@ -913,6 +919,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   const instant = () => (options.maintenant?.() ?? new Date()).getTime();
+  // Les tickets du rail tenus par une attente : passé une heure, le manager la revoit, une fois (#3764).
+  const attentesLongues = suiviDesAttentesLongues({ github, station: nom, label: A_LA_MAIN, ...(options.revoirLAttente === undefined ? {} : { revoir: options.revoirLAttente }), maintenant: instant, avertir });
   // Le terme de la dernière attente du ticket n'est pas passé. Illisibles, ses commentaires ne le retiennent pas.
   // Rend ce terme (ms), ou null quand le ticket n'attend pas.
   const enAttente = async (ticket: TicketLu): Promise<number | null> => {
@@ -2157,7 +2165,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // (`served-elsewhere`, `blocked-on-human`), avec la ligne de raison de son départ.
     const attenduMisDeCote = async (ticket: TicketLu): Promise<{ attendu: number; raison: string } | null> => {
       const commentaires = await github.commentaires(ticket.number);
+      // Une attente levée — boucle défaite, ou manager après une heure (#3764) — ne retient plus.
+      const levees = leveesDesCommentaires(commentaires.map(({ body }) => body));
       for (const attendu of fiche(commentaires.map(({ body }) => body))?.waitsFor ?? []) {
+        if (levees.has(attendu)) continue;
         const lu = lus.find(({ number }) => number === attendu);
         const label = [...MIS_DE_COTE, A_LA_MAIN].find((candidat) => lu?.labels.includes(candidat));
         if (label === undefined) continue;
@@ -2172,6 +2183,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // (`prio:0` avant `prio:1`…, sans `prio:` en dernier), puis les plus anciens (#2209).
     libres.sort((x, y) => avantLeRail(x.labels) - avantLeRail(y.labels) || rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     attendentDuTour = new Set(libres.map(({ number }) => number));
+    attentesLongues.tour(libres.map(({ number }) => number));
     // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
     // qui attendent un ticket ouvert le disent encore, sans quoi la retenue ne
     // sait plus pourquoi ils n'avancent pas (#3647). Les autres disent l'arrêt
@@ -2187,6 +2199,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (enVol.has(reste.number)) continue;
         // Un ticket retenu dont les tests s'écrivent dit d'abord ce qui le retient (#3872).
         const attendus = await defaireLesBoucles(github, reste.number, lus).catch(() => []);
+        attentesLongues.tenu(reste, attendus);
         if (attendus.length > 0) sauter(reste.number, direAttenteDeTicket(reste.number, attendus), attendus);
         else if (enEcriture().includes(reste.number)) sauter(reste.number, direSaut(reste.number, EN_ECRITURE));
         else sauter(reste.number, direSaut(reste.number, arret));
@@ -2266,6 +2279,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Sans lecture de GitHub, la remise du ticket au cook dira pourquoi il ne part pas.
       const misDeCote = await attenduMisDeCote(ticket).catch(() => null);
       if (misDeCote !== null) {
+        attentesLongues.tenu(ticket, [misDeCote.attendu]);
         sauter(ticket.number, direAttenteSurMisDeCote(ticket.number, misDeCote.attendu, misDeCote.raison));
         await ecrireEnAttendant(ticket);
         continue;
@@ -2274,6 +2288,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // (#2968) — le retient, et son saut le nomme ; sans lecture de GitHub, il attend aussi.
       try {
         const attendus = await defaireLesBoucles(github, ticket.number, lus);
+        attentesLongues.tenu(ticket, attendus);
         if (attendus.length > 0) {
           sauter(ticket.number, direAttenteDeTicket(ticket.number, attendus), attendus);
           await ecrireEnAttendant(ticket);
@@ -2358,6 +2373,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     calme: async () => {
       while (enVol.size > 0 || enRelecture.size > 0 || externesEnCours.size > 0) await Promise.all([...enVol.values(), ...enRelecture.values(), ...externesEnCours.values()]);
       await options.testsAcceptation?.calme();
+      await attentesLongues.calme();
     },
     quitter: async () => {
       await gardes?.quitter();
@@ -3587,6 +3603,33 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           }
         };
 
+  // Le manager consulté sur une attente tenue plus d'une heure (#3764) : dans
+  // un worktree de la base, en lecture, avec le ticket et ceux qu'il attend.
+  const revoirLAttente: RevoirLAttente | undefined =
+    calibrageDuManager === undefined
+      ? undefined
+      : async (ticket, { attendus, depuisMs }) => {
+          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+          if (lue === null) return { illisible: "the issue no longer exists" };
+          const attendusLus = (await Promise.all(attendus.map((n) => options.github.issue(n).catch(() => null)))).flatMap((attendu, rang) => (attendu === null ? [] : [{ number: attendus[rang] as number, title: attendu.title, body: attendu.body ?? "", labels: attendu.labels }]));
+          const run = `attente-longue-${ticket.number}-github`;
+          const lieu = await depot.preparer(run);
+          try {
+            const corps = commentaires.map(({ body }) => body);
+            const texte = consigneDeLAttenteLongue({ depot: depotGitHub, issue: { number: ticket.number, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: corps.slice(-DERNIERS_COMMENTAIRES), attendus, attendusLus, origine: origineDeLAttente(lue.body ?? "", corps, attendus), heures: Math.floor(depuisMs / 3_600_000) });
+            const flux = join(options.flux, `${run}-${Date.now()}.flux.jsonl`);
+            const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
+            const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux, ticket: ticket.number });
+            const fin = await lance.fin;
+            const lu = lireLeFlux(lance.flux ?? flux);
+            const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
+            if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
+            return lireRevue(lu.message ?? null);
+          } finally {
+            depot.retirer(lieu.worktree, lieu.branche ?? undefined);
+          }
+        };
+
   // Le second juge (#2555) : un lancement à part de la relecture, dans son
   // propre worktree et sous son propre flux, qui ne lit ni la relecture ni son
   // verdict — le modèle le plus fort, un effort haut, la consigne du plugin de
@@ -3710,7 +3753,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
       : porteDesTests(ecrireOuClasser, { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) });
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   station.lacune = options.lacune;
   const quitter = station.quitter;
