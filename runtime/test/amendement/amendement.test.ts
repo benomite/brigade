@@ -75,11 +75,12 @@ function depotDeLaStation(t: TestContext): { origine: string; depot: OptionsDuDe
 
 // `gele` : la branche part du commit des tests gelés, qui touche le test, comme
 // l'écrit l'étape des tests (#3725) avant le cook.
-type Options = { manager?: string; proposition?: string; leCookTouche?: boolean; gele?: boolean };
+// `leCookRetablit` : après l'avoir touché, le cook rend le test tel qu'il était, dans un second commit.
+type Options = { manager?: string; proposition?: string; leCookTouche?: boolean; leCookRetablit?: boolean; gele?: boolean };
 
 // Une station dont le cook du ticket finit sur une proposition d'amendement,
 // et dont le manager la classe par `manager`.
-async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false, gele = false }: Options = {}) {
+async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false, leCookRetablit = false, gele = false }: Options = {}) {
   const repertoire = repertoireTemporaire(t);
   const { origine, depot } = depotDeLaStation(t);
   const faux = new FauxGitHub();
@@ -100,6 +101,10 @@ async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITI
         writeFileSync(join(cwd, GELE), TEST_GELE.replace("Exprot", "Export"));
         execFileSync("git", ["commit", "--quiet", "-am", "fix the typo of the criterion"], { cwd, env: ENV_GIT });
         parLeCook.push(execFileSync("git", ["rev-parse", "HEAD"], { cwd, env: ENV_GIT, encoding: "utf8" }).trim());
+        if (leCookRetablit) {
+          execFileSync("git", ["checkout", "HEAD~1", "--", GELE], { cwd, env: ENV_GIT });
+          execFileSync("git", ["commit", "--quiet", "-am", "restore the frozen test"], { cwd, env: ENV_GIT });
+        }
       }
     }
     const message = classe ? manager : `The criterion is wrong.\n<livrable>\nI propose an amendment.\n<amendement>\n${proposition}\n</amendement>\n</livrable>`;
@@ -202,6 +207,19 @@ test("a cook's commit on the frozen test after the frozen acceptance commit is r
   const echec = commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
   assert.ok(echec.includes(`the cook's own commit ${(parLeCook[0] ?? "").slice(0, 7)} changes the frozen test \`test/acceptance/41.test.ts\``), echec);
   assert.equal(commitsSurLeTest().filter((commit) => commit.startsWith(AUTEUR_DU_MANAGER)).length, 0);
+});
+
+// Un cook a touché le test gelé, puis l'a rendu tel que le gel l'a laissé : il
+// ne le change plus, et l'amendement passe par le manager. Avant #3849, ces deux
+// commits refusaient pour toujours toute proposition (#3764, la PR #3766).
+test("a cook's commit on the frozen test, restored since by the cook, no longer refuses the proposal: the small amendment is applied in the manager's commit", async (t) => {
+  const { ticket, classements, commentaires, testGele, commitsSurLeTest } = await amende(t, { gele: true, leCookTouche: true, leCookRetablit: true });
+  assert.equal(commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)), undefined);
+  assert.equal(classements.length, 1);
+  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.match(testGele(), /\/Export\/[\s\S]*\/\/ frozen for #41/);
+  const [dernier] = commitsSurLeTest();
+  assert.ok(dernier?.startsWith(AUTEUR_DU_MANAGER), "the last commit on the frozen test is the manager's amendment");
 });
 
 // Ce qui ne se lit pas n'applique rien et ne va à aucun chef : un échec du ticket, dit.
