@@ -409,8 +409,6 @@ export type OptionsDeStation = {
   // dont les gates ne se jouent pas ici va à une autre. Absentes, aucune
   // autre : il reste retenu sur cette station.
   stationsDuProjet?: () => readonly string[];
-  // Ce que la station n'a pas pu pour un ticket, en une ligne, que sa carte de l'onglet Stations dit (#3870) ; nul : elle le peut de nouveau.
-  lacune?: (ligne: string | null) => void;
   // Un humain valide les designs du projet (#3184, `humanValidatesDesigns`),
   // relu à chaque merge : une livraison design verte attend sa carte au lieu
   // d'être mergée (`validation-design/`). Absent, non.
@@ -464,6 +462,8 @@ export type StationGitHub = {
   // est sauvé sur leur branche, commité et poussé, pour que le cook suivant en
   // reparte (#2586). Rend les tickets sauvés.
   sauver?(): Promise<number[]>;
+  // Ce que la station n'a pas pu pour un ticket, en une ligne, que sa carte de l'onglet Stations dit (#3870) ; nul : elle le peut de nouveau.
+  lacune?: (ligne: string | null) => void;
   // Posé par la boucle : le pass a bougé (#2333). Les `TOURS_PRESSES` tours
   // suivants viennent à `ATTENTE_PRESSEE_MS` au plus l'un de l'autre, le premier
   // tout de suite si `maintenant` (une livraison à relire).
@@ -1148,7 +1148,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     const vers = stationsCapables(nom, await stationsDuProjet(), marquees);
     await github.commenter(issue, corpsDeLIncapacite({ station: nom, vers, question }));
-    options.lacune?.(direLaLacune(question));
+    station.lacune?.(direLaLacune(question));
     return vers;
   };
 
@@ -1163,7 +1163,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (fait.testsMs !== undefined) chrono.tests(issue, fait.testsMs);
       if ("branche" in fait) {
         // Elle a cuit un ticket jusqu'à sa livraison : plus rien ne lui manque.
-        options.lacune?.(null);
+        station.lacune?.(null);
         chrono.marquer(issue, "attentePasse");
         // Un renvoi pousse sur la branche d'une PR encore ouverte : elle porte
         // déjà la livraison, il n'en faut pas une seconde.
@@ -3710,10 +3710,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
       : porteDesTests(ecrireOuClasser, { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) });
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }),
-    ...(options.lacune === undefined ? {} : { lacune: options.lacune }),
-    redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
+  station.lacune = options.lacune;
   const quitter = station.quitter;
   station.quitter = async () => {
     abandon.abort();
