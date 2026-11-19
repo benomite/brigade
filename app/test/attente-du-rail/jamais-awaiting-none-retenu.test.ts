@@ -10,6 +10,7 @@ import { comprendre, rail, type Faits } from "../../src/faits.ts";
 import { PRET } from "../../src/ligne-carte.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
+import { attenteDuRailDe } from "../../src/vue/attente-du-rail/attente-du-rail.ts";
 
 const DEPOT = "chef/cantine";
 const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
@@ -69,4 +70,18 @@ test("la carte n'ouvre que le ticket attendu, pas ceux de la phrase citée", asy
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
   const faits = comprendre(JSON.stringify(lu.faits)) as Faits;
   assert.deepEqual(carte(faits, 5), { ligne: `waits for #4 — read from the body: '${phrase}'`, liens: [4] });
+});
+
+// Ce que la lecture du rail pose dans `facts` : derrière un cook qui tourne, la carte retenue par sa fiche, sa ligne et ses
+// attendus, et aucune `attenteDuRail` ; une file libre sans station, la raison seule, sans ligne ni attendu de carte.
+test("les faits du rail : la carte retenue porte sa ligne et ses attendus, une file libre n'en porte aucun", () => {
+  const maintenant = Date.parse("2026-11-17T10:00:00Z");
+  const retenue = attenteDuRailDe(DEPOT, [
+    { ticket: 4, etat: "taken", entreLe: null, depend: [] },
+    { ticket: 6, etat: "queued", entreLe: null, depend: [4], attentes: [{ ticket: 4, source: "fiche" }], commentairesLus: true },
+  ], { lues: [] }, maintenant);
+  assert.deepEqual(retenue, { lignesDesCartes: { 6: "waits for #4 — read from the card" }, attendusDesCartes: { 6: [4] } });
+  const libre = attenteDuRailDe(DEPOT, [{ ticket: 8, etat: "queued", entreLe: null, depend: [], attentes: [], commentairesLus: true }], { lues: [] }, maintenant);
+  assert.deepEqual(Object.keys(libre), ["attenteDuRail"]);
+  assert.equal(libre.attenteDuRail?.raison, "aucune-station");
 });

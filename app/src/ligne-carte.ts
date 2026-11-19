@@ -6,6 +6,7 @@
 //
 //   au travail   `<fait> <cible> · <durée>`           (« writing app/src/bon.ts · 12 min » ; qui ne fait que réfléchir : « in the kitchen »)
 //   en pass      la même, sinon « review in progress »
+//   base rouge   `waits for main to be green · <durée>`
 //   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; ou, en file derrière un ticket, chaque
 //                attente et sa source, `waits for #N — read from the body: '…'` (tickets 3433, 3763) ; sinon « ready, waits
 //                for a place in the kitchen »
@@ -46,6 +47,10 @@ export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: st
   if (activite.faitEn === SEULEMENT_REFLECHIT) return { ligne: TRAVAIL_SANS_DETAIL };
   return { ligne: `${activite.cible === null ? activite.faitEn : `${activite.faitEn} ${activite.cible}`} · ${duree}` };
 }
+
+// En pass, tenu par une base rouge : il attend que main soit verte, depuis que sa PR est ouverte (comme `in pass`) ; sans
+// date, la ligne le dit sans durée.
+export const ligneBaseRouge = (duree: string): LigneDeCarte => ({ ligne: `waits for main to be green${duree === "" ? "" : ` · ${duree}`}`, ...(duree === "" ? { repere: true as const } : {}) });
 
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.
 // Un retenu par des tickets se dit « Waiting for #a, #b » ; un texte sans numéro est relayé tel quel.
