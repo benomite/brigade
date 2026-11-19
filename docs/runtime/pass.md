@@ -212,14 +212,12 @@ A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pas
 branch** without the delivery's change, and **passes on the delivery's branch**. A test that already
 passes on the base proves nothing.
 
-**A guard is the exception** (#3852). A test written to guard a behavior the base already has — a criterion that
-says "as before" / "unchanged" — passes on the base on purpose. It is marked with a `// brigade:guard` comment
-written before its case (the marker marks the case declared right after it; in a file whose cases do not read, the
-whole file): by the tests cook when it writes the acceptance tests, or by the cook. The pass accepts it green on the
-base without asking anything. An added test green on the base without the marker is still sent back. The send-back
-never loops: the returned cook's brief says that the second time the remark names a test, it marks the test if the
-ticket's criteria say "as before" / "unchanged", or sets the ticket aside once, with the reason in one line between
-`<bloque>` tags.
+**A guard is the exception** (#3852). A test guarding a behavior the base already has — a criterion that says "as
+before" / "unchanged" — is marked `// brigade:guard` on its line or the comment lines right above its case (in a file
+whose cases do not read, anywhere), by the tests cook or the cook. The pass accepts it green on the base, and a guard
+green on both sides covers its criterion as a proving test does. An unmarked test green on the base is still sent
+back, and the send-back says that the second time it names a test, the cook marks it or sets the ticket aside once,
+with the reason in one line between `<bloque>` tags.
 
 **It applies to every delivery whose ticket does not carry `tech`.** A `tech` ticket (a refactor or a
 clean-up with no change of behaviour) is exempt: nothing is replayed, and the pass says so in one line,
