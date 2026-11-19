@@ -96,7 +96,10 @@ const sansCarte = (s: ReturnType<typeof station>) => {
   assert.deepEqual(s.consultations, [], "the question never reaches the manager, who could put a card");
 };
 
-test("a cook starts on a branch that contains the current origin tip, when the origin's base has moved ahead of the station's clone", async (t) => {
+// Un cook qui livre, lancé quand la base de l'origine a avancé sans que le
+// clone de la station l'ait vu (`avant` prépare d'abord le clone) : son
+// worktree porte la nouvelle tête de l'origine. Rend la station et cette tête.
+async function unCookSurLaTeteDeLOrigine(t: TestContext, avant?: (depot: { origine: string; clone: string }) => void) {
   let tete = "";
   const vus: boolean[] = [];
   const s = station(
@@ -106,32 +109,23 @@ test("a cook starts on a branch that contains the current origin tip, when the o
       commiter(worktree, "livraison.txt");
       return "Done.\n<livrable>\nDelivered.\n</livrable>";
     },
-    ({ origine, clone }) => {
-      tete = avancerLOrigine(origine, "nouveau.txt", "merged on the base\n");
-      assert.equal(porte(clone, tete), false, "the clone's base is behind the origin");
+    (lieux) => {
+      avant?.(lieux);
+      tete = avancerLOrigine(lieux.origine, "nouveau.txt", "merged on the base\n");
+      assert.equal(porte(lieux.clone, tete), false, "the clone's base is behind the origin");
     },
   );
   await s.tour();
   assert.deepEqual(vus, [true]);
+  return { s, tete };
+}
+
+test("a cook starts on a branch that contains the current origin tip, when the origin's base has moved ahead of the station's clone", async (t) => {
+  await unCookSurLaTeteDeLOrigine(t);
 });
 
 test("a cook resuming a branch cut from an older base starts with the current origin tip merged into it", async (t) => {
-  let tete = "";
-  const vus: boolean[] = [];
-  const s = station(
-    t,
-    (_rang, worktree) => {
-      vus.push(porte(worktree, tete));
-      commiter(worktree, "livraison.txt");
-      return "Done.\n<livrable>\nDelivered.\n</livrable>";
-    },
-    ({ origine, clone }) => {
-      git(clone, "branch", BRANCHE, BASE);
-      tete = avancerLOrigine(origine, "nouveau.txt", "merged on the base\n");
-    },
-  );
-  await s.tour();
-  assert.deepEqual(vus, [true]);
+  const { s, tete } = await unCookSurLaTeteDeLOrigine(t, ({ clone }) => git(clone, "branch", BRANCHE, BASE));
   git(s.clone, "merge-base", "--is-ancestor", tete, BRANCHE);
 });
 
