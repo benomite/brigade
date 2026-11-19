@@ -2,9 +2,9 @@
 // ne la retient pas (#3833) ; un refus dont la reprise dite est passée la tient encore.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { limiteDeLaStation } from "../../src/limite-github.ts";
-import { signauxDeLaStation } from "../../src/retenue/brancher.ts";
-import { repertoireTemporaire } from "../outils.ts";
+import { limiteDeLaStation } from "../src/limite-github.ts";
+import { signauxDeLaStation } from "../src/retenue/brancher.ts";
+import { repertoireTemporaire } from "./outils.ts";
 
 const T = (hhmm: string) => Date.parse(`2026-11-05T${hhmm}:00.000Z`);
 

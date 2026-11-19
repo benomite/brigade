@@ -790,7 +790,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/quota-reel/gestes-jamais-ralentis.test.ts", garde: "plafond: 5000" },
   { file: "test/quota-reel/moitie-haute-ralentie.test.ts", garde: "plafond: 5000" },
   { file: "test/quota-reel/sans-attente-au-dessus-de-mille.test.ts", garde: "plafond: 5000" },
-  { file: "test/quota-reel/signaux-de-la-retenue.test.ts", garde: "plafond: 5000" },
+  { file: "test/retenue-signaux-quota.test.ts", garde: "plafond: 5000" },
   { file: "test/quota-reel/status.test.ts", garde: "plafond: 5000" },
   { file: "test/quota-reel/trois-cent-quatre-hors-du-quota.test.ts", garde: "plafond: 5000" },
   { file: "test/station-ordinateur/projet-ralenti.test.ts", garde: "plafond: 5000" },
