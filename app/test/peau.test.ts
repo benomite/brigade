@@ -124,10 +124,10 @@ describe("la palette est celle de la maquette", () => {
   // Les six planches du 2026-11-08 (#2907) font foi : docs/maquettes/app/README.md.
   const maquette = readdirSync(MAQUETTES).filter((f) => f.endsWith(".dc.html")).map((planche) => readFileSync(join(MAQUETTES, planche), "utf8").toLowerCase()).join("\n");
   // Les jetons que les planches n'écrivent pas : un jeton de l'ancienne maquette qu'elles n'ont pas repris (#2909), et l'accent hors projet, un blanc cassé que la maquette ne dessine pas (#3780).
-  const AVANT_2909 = new Set(["--attend-trait-doux", "--accent"]);
+  const HORS_MAQUETTE = new Set(["--attend-trait-doux", "--accent"]);
 
   test("chaque couleur de jetons.css est une couleur que la maquette écrit — aucune n'est inventée", () => {
-    for (const [nom, valeur] of couleurs) if (!AVANT_2909.has(nom)) assert.ok(new RegExp(`${valeur}\\b`).test(maquette), `${nom}: ${valeur} n'est dans aucune planche de la maquette`);
+    for (const [nom, valeur] of couleurs) if (!HORS_MAQUETTE.has(nom)) assert.ok(new RegExp(`${valeur}\\b`).test(maquette), `${nom}: ${valeur} n'est dans aucune planche de la maquette`);
   });
 
   test("les rôles sont les siens : le fond, la barre, la carte, le trait, le texte, l'accent, les quatre états", () => {
