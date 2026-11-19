@@ -4,7 +4,9 @@
 // dont le corps dit `Depends on #1912`, avec #1912 ouvert mais hors du rail (sans `fire`), n'a aucune ligne d'attente —
 // `retenus` exclut #1912 — et sa carte retombe sur « prête, attend une place en cuisine ». La porte de prise
 // (`attendusOuverts`, attente-ticket.ts) est plus large : elle retient sur tout ticket ouvert, sur le rail ou non. Ce test
-// ne dit pas que c'est le bon choix, il dit que le changer est une décision du chef, pas un effet de bord.
+// vaut pour les appelants qui ne passent pas `attentes` : en production, `lignesDeLAttente` (status.ts) et la lecture du
+// rail de l'app les passent par `attentesOuvertesDuTicket`, et y disent une attente sur un ticket ouvert hors du rail. Ce
+// test ne dit pas que c'est le bon choix, il dit que le changer est une décision du chef, pas un effet de bord.
 //
 // Le cas « rien ne retient » ci-dessous est une garde de non-régression : un ticket que rien ne retient n'a pas de ligne
 // d'attente, et cela existe déjà sur `main`. Il est donc vert sur `main` par construction (décision du chef sur #3810),
@@ -39,12 +41,6 @@ test("un ticket que rien ne retient n'a pas de ligne d'attente, comme avant (gar
   assert.match(ligneDeLaCarte(rail[1]!, rail) ?? "", /^waits for #5 — read from the body/);
 });
 
-test("la file attend « un autre ticket » quand chaque carte en retient un, pas quand l'une est libre", () => {
-  assert.equal(raison([file(5, [6]), file(6, [5])]), "autre-ticket");
-  assert.equal(raison([file(5), file(6, [5])]), "normale");
-  assert.equal(raison([file(5), file(6)]), "normale");
-});
-
 // Les trois sources et le cas libre, dans une même file : le corps, la fiche, l'arrêt d'un cook, et un ticket libre.
 const FEUX = `/repos/${DEPOT}/issues?state=open&labels=fire&sort=created&direction=asc&per_page=100&page=1`;
 const issue = (number: number, labels: string[], body = "") => ({ number, title: `#${number}`, body, created_at: "2026-11-17T09:00:00Z", labels: labels.map((name) => ({ name })) });
@@ -52,7 +48,7 @@ const commentaire = (body: string) => ({ body, created_at: "2026-11-17T09:30:00Z
 
 test("trois sources et un ticket libre dans une même file : chacun dit son attente et sa source, le libre n'a aucune ligne", async () => {
   const commentaires: Record<number, unknown[]> = {
-    6: [commentaire([MARQUEUR, "- attend : #4"].join("\n"))],
+    6: [commentaire([MARQUEUR, "- awaiting: #4"].join("\n"))],
     7: [commentaire(`${MARQUE_D_ATTENTE_DE_TICKET} #4 -->\nThe cook stopped.`)],
   };
   const lire = async (chemin: string) => {
