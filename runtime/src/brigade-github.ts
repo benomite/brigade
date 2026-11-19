@@ -2185,14 +2185,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const direLesAttentes = async (restants: readonly TicketLu[], arret: string) => {
       for (const reste of restants) {
         if (enVol.has(reste.number)) continue;
-        if (enEcriture().includes(reste.number)) {
-          sauter(reste.number, direSaut(reste.number, EN_ECRITURE));
-          continue;
-        }
+        // Un ticket retenu dont les tests s'écrivent dit d'abord ce qui le retient (#3872).
         const attendus = await defaireLesBoucles(github, reste.number, lus).catch(() => []);
         if (attendus.length > 0) sauter(reste.number, direAttenteDeTicket(reste.number, attendus), attendus);
+        else if (enEcriture().includes(reste.number)) sauter(reste.number, direSaut(reste.number, EN_ECRITURE));
         else sauter(reste.number, direSaut(reste.number, arret));
       }
+    };
+    // Un ticket retenu par un autre ticket écrit ses tests d'acceptation
+    // pendant la retenue, et non après elle (#3872) : sa prise cumulait la
+    // retenue et l'écriture — l'attente de prise, la plus lourde des pertes
+    // de temps. L'écriture tient une place et passe les garde-fous de la
+    // cuisine, comme à la porte ; son saut reste celui de la retenue.
+    const ecrireEnAttendant = async (ticket: TicketLu) => {
+      const porte = options.testsAcceptation;
+      if (porte === undefined || !porte.aEcrire(ticket)) return;
+      if (gardes !== undefined && (await gardes.retenue(enVol.size + enEcriture().length)) !== null) return;
+      porte.porte(ticket);
     };
     for (const [rang, ticket] of libres.entries()) {
       if (baseManquante !== null) break;
@@ -2258,6 +2267,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const misDeCote = await attenduMisDeCote(ticket).catch(() => null);
       if (misDeCote !== null) {
         sauter(ticket.number, direAttenteSurMisDeCote(ticket.number, misDeCote.attendu, misDeCote.raison));
+        await ecrireEnAttendant(ticket);
         continue;
       }
       // Un ticket ouvert qu'il attend — son corps, sa fiche, l'arrêt de son cook
@@ -2266,6 +2276,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const attendus = await defaireLesBoucles(github, ticket.number, lus);
         if (attendus.length > 0) {
           sauter(ticket.number, direAttenteDeTicket(ticket.number, attendus), attendus);
+          await ecrireEnAttendant(ticket);
           continue;
         }
       } catch (erreur) {
@@ -2296,6 +2307,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const pr = ouvertes?.find((ouverte) => ouverte.branche === tenant)?.number;
         tenusDuTour.set(ticket.number, { ticket: numeroDuTenant === undefined ? null : Number(numeroDuTenant), branche: tenant, fermeLe: fermeture?.date ?? null, pr: pr ?? null });
         sauter(ticket.number, direSaut(ticket.number, tenuePar.attente !== null ? direAttenteDeZone(tenuePar.attente) : `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
+        await ecrireEnAttendant(ticket);
         continue;
       }
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
