@@ -123,7 +123,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
 describe("la palette est celle de la maquette", () => {
   // Les six planches du 2026-11-08 (#2907) font foi : docs/maquettes/app/README.md.
   const maquette = readdirSync(MAQUETTES).filter((f) => f.endsWith(".dc.html")).map((planche) => readFileSync(join(MAQUETTES, planche), "utf8").toLowerCase()).join("\n");
-  // Un jeton de l'ancienne maquette que les planches n'ont pas repris : #2909 réaligne les jetons sur elles.
+  // Les jetons que les planches n'écrivent pas : un jeton de l'ancienne maquette qu'elles n'ont pas repris (#2909), et l'accent hors projet, un blanc cassé que la maquette ne dessine pas (#3780).
   const AVANT_2909 = new Set(["--attend-trait-doux", "--accent"]);
 
   test("chaque couleur de jetons.css est une couleur que la maquette écrit — aucune n'est inventée", () => {
