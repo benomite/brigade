@@ -26,9 +26,13 @@ if (process.argv.includes(ARGUMENT_FOND)) {
   const installee = estInstallee({ ressources: process.resourcesPath, src: join(import.meta.dirname, "..") });
   // Une autre app tourne déjà : le verrou d'Electron lui passe la main, et elle ramène sa fenêtre. Sans autre app, celle-ci
   // montre la sienne, que le verrou d'Electron lui soit rendu ou non (#3864) — l'icône de fond ne le tient plus.
-  const autreApp = installee ? prendreLaPlace(join(app.getPath("userData"), "app.pid")) : undefined;
-  const verrou = installee ? app.requestSingleInstanceLock() : true;
-  if (autreApp !== undefined && !verrou) {
+  // Dans l'app installée seulement : les essais depuis le dépôt ne gardent pas de place.
+  let passeLaMain = false;
+  if (installee) {
+    const autreApp = prendreLaPlace(join(app.getPath("userData"), "app.pid"));
+    passeLaMain = !app.requestSingleInstanceLock() && autreApp !== undefined;
+  }
+  if (passeLaMain) {
     app.exit(0);
   } else {
     app.on("second-instance", () => {
