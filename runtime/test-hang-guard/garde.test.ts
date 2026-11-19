@@ -37,13 +37,26 @@ test("the suite's command preloads the guard, and the default limit is 30 s", ()
 });
 
 // #3847: a frozen acceptance test that reads a live PR through `gh` skips where `gh` is logged out
-// (the CI, a bare clone), and runs where it is logged in (the station's pass).
+// (the CI, a bare clone), and runs where it is logged in (the station's pass). Every way of declaring
+// a test skips — `test`, `it`, `test.todo` —, and a hook is not a test: it still runs.
 test("a frozen acceptance test that calls gh skips when gh is logged out, and runs when it is logged in", { skip: posixOnly("a fake gh shell script") }, () => {
   const racine = mkdtempSync(join(tmpdir(), "garde-gh-"));
   const dossier = join(racine, "test/acceptation-1");
   mkdirSync(dossier, { recursive: true });
   const fichier = join(dossier, "lit-une-pr.test.ts");
-  writeFileSync(fichier, ['import { execFileSync } from "node:child_process";', 'import test from "node:test";', 'test("reads the PR", () => { execFileSync("gh", ["pr", "view", "1"]); throw new Error("ran"); });', ""].join("\n"));
+  const lit = (quoi: string) => `() => { execFileSync("gh", ["pr", "view", "1"]); throw new Error("ran ${quoi}"); }`;
+  writeFileSync(
+    fichier,
+    [
+      'import { execFileSync } from "node:child_process";',
+      'import test, { before, it } from "node:test";',
+      'before(() => { console.log("hook ran"); });',
+      `test("reads the PR", ${lit("test")});`,
+      `it("reads the PR with it", ${lit("it")});`,
+      `test.todo("reads the PR later", ${lit("todo")});`,
+      "",
+    ].join("\n"),
+  );
   const jouer = (connecte: boolean) => {
     const bin = mkdtempSync(join(tmpdir(), "garde-gh-bin-"));
     writeFileSync(join(bin, "gh"), `#!/bin/sh\nexit ${connecte ? 0 : 1}\n`);
@@ -56,9 +69,13 @@ test("a frozen acceptance test that calls gh skips when gh is logged out, and ru
   };
   const deconnecte = jouer(false);
   assert.equal(deconnecte.status, 0, deconnecte.sortie);
-  assert.match(deconnecte.sortie, /﹣ reads the PR .*# gh is missing or logged out/);
+  for (const titre of ["reads the PR", "reads the PR with it", "reads the PR later"]) assert.match(deconnecte.sortie, new RegExp(`﹣ ${titre} \\(.*# gh is missing or logged out`));
+  assert.match(deconnecte.sortie, /hook ran/);
+  assert.doesNotMatch(deconnecte.sortie, /Error: ran/);
   const connecte = jouer(true);
   assert.equal(connecte.status, 1, connecte.sortie);
-  assert.match(connecte.sortie, /✖ reads the PR/);
-  assert.match(connecte.sortie, /Error: ran/);
+  assert.match(connecte.sortie, /✖ reads the PR \(/);
+  assert.match(connecte.sortie, /✖ reads the PR with it/);
+  assert.match(connecte.sortie, /Error: ran todo/);
+  assert.match(connecte.sortie, /hook ran/);
 });

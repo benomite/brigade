@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { compterLesImages, etatDuPoste, fichiersDeTest, GARDE_MS, laissesEntre, part } from "./windows.ts";
+import { compterLesImages, environnement, etatDuPoste, fichiersDeTest, GARDE_MS, laissesEntre, PAR_TEST_MS, part, PRECHARGE } from "./windows.ts";
 
 // Le workflow qui joue les parts sous Windows, tel que le dépôt le porte.
 const WORKFLOW = readFileSync(join(import.meta.dirname, "../../../.github/workflows/runtime-windows.yml"), "utf8");
@@ -73,4 +73,15 @@ test("the part says the free space of its disks and whether the temp dir is stil
   assert.match(etatDuPoste({ workspace: import.meta.dirname }, temporaire), /^workspace \d+\.\d GB free, temp dir writable$/);
   const absent = join(temporaire, "absent");
   assert.match(etatDuPoste({ workspace: absent }, absent), /^workspace unreadable \(.*ENOENT.*\), temp dir not writable \(.*ENOENT.*\)$/);
+});
+
+// #3847 : un test d'acceptation gelé qui lit une PR par `gh` se saute là où `gh` n'est pas connecté —
+// le runner Windows en est un — par le garde que `npm test` précharge. La part le précharge de même, et
+// donne au garde la limite de `--test-timeout` plutôt que ses 30 s.
+test("a part preloads the guard npm test preloads, with the per-test limit of its runner", () => {
+  const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../package.json"), "utf8")) as { scripts: { test: string } };
+  assert.ok(scripts.test.includes(PRECHARGE.join(" ")), `npm test does not preload ${PRECHARGE.join(" ")}`);
+  assert.ok(readFileSync(join(import.meta.dirname, "windows.ts"), "utf8").includes(`"--test-timeout=${PAR_TEST_MS}"`), "the guard's limit is not the part's --test-timeout");
+  assert.equal(environnement({}, undefined).BRIGADE_TEST_TIMEOUT_MS, PAR_TEST_MS);
+  assert.equal(environnement({ BRIGADE_TEST_TIMEOUT_MS: "1000" }, undefined).BRIGADE_TEST_TIMEOUT_MS, "1000");
 });
