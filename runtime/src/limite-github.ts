@@ -923,7 +923,7 @@ function fileDe(limite: Limite): File {
     let prochain: { jusqua: number; par: EnAttente } | null = null;
     for (const entree of [...attente]) {
       if (enVol >= REQUETES_EN_VOL) break;
-      const devant = tenus.get(entree.compte) ?? (entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined) ;
+      const devant = tenus.get(entree.compte) ?? (entree.etiquette?.ecriture === true ? retenus.get(entree.compte) : undefined);
       if (devant !== undefined) {
         retenir(entree, devant);
         continue;
