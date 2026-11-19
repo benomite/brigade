@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { direLAttente, ligneDeLaCarte, type TicketDuRail } from "../../src/attente-du-rail/raison.ts";
 import { MARQUE_D_ATTENTE_LEVEE } from "../../src/boucle-attente/levee.ts";
 import { attentesDuTicket, MARQUE_D_ATTENTE_DE_TICKET } from "../../src/carte-attente/carte-attente.ts";
+import { MARQUE_D_ATTENTE_DE_TICKET as MARQUE_DE_LA_PORTE } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUEUR } from "../../src/fiche.ts";
 
 const fiche = (attend: string) => [MARQUEUR, `- awaiting: ${attend}`, "- zone: runtime/"].join("\n");
@@ -51,4 +52,8 @@ test("des commentaires illisibles : la carte le dit, avec ou sans attente du cor
   assert.equal(ligneDeLaCarte(carte, [carte]), "its card and its cooks' stops could not be read on GitHub");
   const derriere: TicketDuRail = { ticket: 6, etat: "queued", entreLe: null, depend: [5], ...attentesDuTicket({ ticket: 6, corps: "After #5.", commentaires: null }) };
   assert.equal(ligneDeLaCarte(derriere, [carte, derriere]), "waits for #5 — read from the body: 'After #5.'; its card and its cooks' stops could not be read on GitHub");
+});
+
+test("la marque d'arrêt que la carte lit est celle que la porte de prise écrit", () => {
+  assert.equal(MARQUE_D_ATTENTE_DE_TICKET, MARQUE_DE_LA_PORTE);
 });

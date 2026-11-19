@@ -8,11 +8,11 @@ import { attentesDuCorps, type AttenteSourcee } from "../attente-du-rail/raison.
 import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
 import { ticketsDeLaListe } from "../epique.ts";
 import { fiche } from "../fiche.ts";
-import { MARQUE_D_ATTENTE_DE_TICKET } from "../attente-ticket/attente-ticket.ts";
 
-// La marque du commentaire d'attente d'un cook (attente-ticket.ts, `corpsDeLAttente`) : une seule définition, celle de la
-// porte de prise.
-export { MARQUE_D_ATTENTE_DE_TICKET };
+// La marque du commentaire d'attente d'un cook, la même que celle de la porte de prise (attente-ticket.ts,
+// `corpsDeLAttente`) : redite ici, car attente-ticket.ts tire la base et les E/S que la lecture du rail ne charge pas
+// (app/test/tableau/lecture.test.ts) ; un test garde les deux égales.
+export const MARQUE_D_ATTENTE_DE_TICKET = "<!-- brigade:attend-ticket";
 
 // Les tickets que les commentaires d'un ticket lui font attendre, par source : sa fiche (`attend`), et les marques
 // d'attente que la station y a écrites à l'arrêt d'un cook. La porte de prise les lit toutes sources confondues
