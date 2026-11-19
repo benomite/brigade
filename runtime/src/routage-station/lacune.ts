@@ -21,6 +21,16 @@ export function noterLaLacune(racine: string, projet: string, station: string, l
   renameSync(neuf, chemin);
 }
 
+// Ce que la station écrit pour sa carte : sans répertoire de station ou sans station d'ici, rien ; un fichier qui ne s'écrit pas se dit, il ne fait pas tomber le tour.
+export function ecrireLaLacune(racine: string | undefined, projet: string, station: string | undefined, ligne: string | null, dire: (texte: string) => void): void {
+  if (racine === undefined || station === undefined) return;
+  try {
+    noterLaLacune(racine, projet, station, ligne);
+  } catch (erreur) {
+    dire(`brigade : ${station} — what the station lacked could not be written for its card: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  }
+}
+
 // La ligne que `station` a dite, ou null : rien d'écrit, ou un fichier qui ne se lit pas.
 export function lacuneDeLaStation(racine: string | undefined, projet: string | undefined, station: string): string | null {
   if (racine === undefined || projet === undefined) return null;
