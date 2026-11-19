@@ -7,8 +7,9 @@
 //   au travail   `<fait> <cible> · <durée>`           (« writing app/src/bon.ts · 12 min » ; qui ne fait que réfléchir : « in the kitchen »)
 //   en pass      la même, sinon « review in progress »
 //   base rouge   `waits for main to be green · <durée>`
-//   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; ou, en file derrière un ticket, `after #N` /
-//                `waiting for #N to merge` (ticket 3433) ; sinon « ready, waits for a place in the kitchen »
+//   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; ou, en file derrière un ticket, chaque
+//                attente et sa source, `waits for #N — read from the body: '…'` (tickets 3433, 3763) ; sinon « ready, waits
+//                for a place in the kitchen »
 //   en tête      en tête de la file sans partir : `does not leave: <raison du runtime>` (ticket 1347)
 //   bloquée      ce qui la retient ; signal « blocked »
 //   mise de côté `Will not start: <raison en mots simples>.` (refus.ts) ; signal « set aside »
@@ -52,13 +53,14 @@ export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: st
 export const ligneBaseRouge = (duree: string): LigneDeCarte => ({ ligne: `waits for main to be green${duree === "" ? "" : ` · ${duree}`}`, ...(duree === "" ? { repere: true as const } : {}) });
 
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.
-// Un retenu par des tickets se dit « after #a, #b » ; un texte sans numéro est relayé tel quel.
-// `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), faute d'autre
-// raison : elle ne remplace pas celle d'un retenu.
-export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: string): LigneDeCarte {
-  const numeros = [...new Set((retient ?? derriere)?.match(/#\d+/g) ?? [])];
-  const phrase = retient === undefined && derriere !== undefined ? derriere : numeros.length > 0 ? `Waiting for ${numeros.join(", ")}` : retient;
-  const liens = numeros.length > 0 ? { liens: numeros.map((numero) => Number(numero.slice(1))) } : {};
+// Un retenu par des tickets se dit « Waiting for #a, #b » ; un texte sans numéro est relayé tel quel.
+// `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), et les tickets
+// qu'elle attend, faute d'autre raison : elle ne remplace pas celle d'un retenu. Ses liens sont ces tickets, jamais un numéro
+// de la phrase du corps qu'elle cite (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763).
+export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: { ligne: string; attendus: readonly number[] }): LigneDeCarte {
+  const numeros = retient === undefined && derriere !== undefined ? [...new Set(derriere.attendus)] : [...new Set((retient?.match(/#\d+/g) ?? []).map((numero) => Number(numero.slice(1))))];
+  const phrase = retient === undefined && derriere !== undefined ? derriere.ligne : numeros.length > 0 ? `Waiting for ${numeros.map((n) => `#${n}`).join(", ")}` : retient;
+  const liens = numeros.length > 0 ? { liens: numeros } : {};
   if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOQUEE, signal: BLOQUEE, ...liens, ...(phrase === undefined ? { repere: true as const } : {}) };
   return { ligne: phrase ?? PRET, ...liens };
 }
