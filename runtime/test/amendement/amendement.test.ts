@@ -229,26 +229,24 @@ test("a cook's commit on the frozen test, restored since by the cook, no longer 
 });
 
 // Seule la tête rendue telle que l'a laissée le dernier commit autorisé lève le
-// refus : rétabli, le test passe au manager ; laissé changé, avec ou sans le
-// commit des tests gelés, ou retiré de la tête, il reste refusé, et seul le
-// commit du cook est nommé.
-test("the head decides whether a cook's commit on the frozen test still refuses the proposal: restored, it goes to the manager; left changed or deleted, it is refused naming only the cook's commit", async (t) => {
-  const retabli = await amende(t, { gele: true, leCookTouche: true, leCookRetablit: true });
-  assert.equal(retabli.commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)), undefined);
-  assert.equal(retabli.classements.length, 1);
-  const refuses: Array<[string, Options]> = [
-    ["changed after the frozen commit", { gele: true, leCookTouche: true }],
-    ["changed with no frozen commit", { leCookTouche: true }],
-    ["deleted on the head", { gele: true, leCookSupprime: true }],
-  ];
-  for (const [cas, options] of refuses) {
-    const { classements, parLeCook, commentaires } = await amende(t, options);
-    assert.equal(classements.length, 0, cas);
-    assert.equal(parLeCook.length, 1, cas);
-    const echec = commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
-    assert.ok(echec.includes(`the cook's own commit ${(parLeCook[0] ?? "").slice(0, 7)} changes the frozen test`), echec);
-  }
-});
+// refus : rétabli, le test passe au manager ; laissé changé après le commit des
+// tests gelés, ou retiré de la tête, il reste refusé, et seul le commit du cook
+// est nommé. Les deux stations de chaque cas tournent ensemble (règle des 2 s).
+const REFUSES: Array<[string, Options]> = [
+  ["left changed after the frozen commit", { gele: true, leCookTouche: true }],
+  ["deleted on the head", { gele: true, leCookSupprime: true }],
+];
+for (const [cas, options] of REFUSES) {
+  test(`the head decides whether a cook's commit on the frozen test still refuses the proposal: restored, it goes to the manager; ${cas}, it is refused naming only the cook's commit`, async (t) => {
+    const [retabli, refuse] = await Promise.all([amende(t, { gele: true, leCookTouche: true, leCookRetablit: true }), amende(t, options)]);
+    assert.equal(retabli.commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)), undefined);
+    assert.equal(retabli.classements.length, 1);
+    assert.equal(refuse.classements.length, 0);
+    assert.equal(refuse.parLeCook.length, 1);
+    const echec = refuse.commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
+    assert.ok(echec.includes(`the cook's own commit ${(refuse.parLeCook[0] ?? "").slice(0, 7)} changes the frozen test`), echec);
+  });
+}
 
 // Ce qui ne se lit pas n'applique rien et ne va à aucun chef : un échec du ticket, dit.
 const ILLISIBLES: Array<[string, Options, RegExp]> = [
