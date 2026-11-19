@@ -69,6 +69,7 @@ import { qualitesDesTemps } from "../qualite-github.ts";
 import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
 import { configStation } from "../station.ts";
+import { sousLeNomRetenu } from "./nom.ts";
 import { direStations } from "../stations-declarees.ts";
 import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 
@@ -144,7 +145,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   for (const nom of decisionsDansLEnvironnement(envProjet)) dire(direDecisionIgnoree(nom, projet));
   const decide = environnementDecide(envProjet, decisionsAuDemarrage(repertoireEtat), duDepot.reglages);
   const rail = configRail(decide);
-  const station = configStation(decide);
+  const lue = configStation(decide);
+  // Une seule machine, un seul nom (#3868) : la cuisine de cette machine prend et réclame sous le nom de la station.
+  const station = { ...lue, stations: sousLeNomRetenu(lue.stations, envProjet) };
   if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`, "clone-missing");
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   const { stations } = station;
