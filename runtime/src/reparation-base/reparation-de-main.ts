@@ -15,16 +15,15 @@
 // - Verte, une réparation `repair-main` qu'aucun cook ne tient se ferme ; celle
 //   qu'un cook ou la pass tient finit.
 // Le tour la place avant tout autre ticket, et la base rouge ne retient pas son merge.
-import { LABEL_IN_PASS, LABEL_TAKEN, etatDeLaBase } from "../github-etat/etats.ts";
+import { LABEL_IN_PASS, LABEL_REPARATION_DE_MAIN, LABEL_TAKEN, PREFIXE_DE_LA_REPARATION, etatDeLaBase } from "../github-etat/etats.ts";
 import { estMisDeCote, type Issue } from "../github.ts";
 import { lireTenant, type GitHubDeLaPrise } from "../github-etat/prise.ts";
 import { PRIO_REPARATION } from "../reparation.ts";
 import { commentaireDeLaFermeture, fermeReparation, type GitHubDeLaFermeture, type TicketDeLaFermeture } from "../base-rouge/ferme-reparation.ts";
 import { LABEL_CAUSE_CORRIGEE, ouvreReparation, sortieDErreur, viseLaCause, type CheckDeLaBase, type GitHubDeLaReparation, type OuvertureDeLaReparation } from "../base-rouge/ouvre-reparation.ts";
 
-// La convention partagée avec les autres tickets de #3812.
-export const LABEL_REPARATION_DE_MAIN = "repair-main";
-export const PREFIXE_DE_LA_REPARATION = "Repair main:";
+// La convention partagée avec les autres tickets de #3812 (`github-etat/etats.ts`, que l'app lit aussi).
+export { LABEL_REPARATION_DE_MAIN, PREFIXE_DE_LA_REPARATION };
 
 export const estUneReparationDeMain = (labels: readonly string[]): boolean => labels.includes(LABEL_REPARATION_DE_MAIN);
 
