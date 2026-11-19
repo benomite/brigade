@@ -8,10 +8,11 @@ import { attentesDuCorps, type AttenteSourcee } from "../attente-du-rail/raison.
 import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
 import { ticketsDeLaListe } from "../epique.ts";
 import { fiche } from "../fiche.ts";
+import { MARQUE_D_ATTENTE_DE_TICKET } from "../attente-ticket/attente-ticket.ts";
 
-// La marque du commentaire que la station écrit sur l'issue quand le cook du ticket s'arrête sur un ticket ouvert dont
-// il dépend (attente-ticket.ts, `corpsDeLAttente`), suivie des tickets attendus.
-export const MARQUE_D_ATTENTE_DE_TICKET = "<!-- brigade:attend-ticket";
+// La marque du commentaire d'attente d'un cook (attente-ticket.ts, `corpsDeLAttente`) : une seule définition, celle de la
+// porte de prise.
+export { MARQUE_D_ATTENTE_DE_TICKET };
 
 // Les tickets que les commentaires d'un ticket lui font attendre, par source : sa fiche (`attend`), et les marques
 // d'attente que la station y a écrites à l'arrêt d'un cook. La porte de prise les lit toutes sources confondues
@@ -43,8 +44,8 @@ export function attentesDuTicket(options: { ticket: number; corps: string; comme
 // Une issue telle que GitHub la rend : son état et son corps ; nulle, elle n'existe plus.
 export type IssueDeLAttendu = { state: string; body?: string } | null;
 
-// Les tickets que la porte de prise attend quand le corps de `ticket` attend `attendu` (`attendusDuCorps`,
-// attente-ticket.ts) : aucun s'il est fermé ou disparu ; découpé — son corps porte la liste des tickets du découpage —,
+// Les tickets que la porte de prise attend quand le corps de `ticket` attend `attendu`, comme `attendusDuCorps`
+// (attente-ticket.ts, que `carte-et-porte-d-accord.test.ts` garde d'accord avec lui) : aucun s'il est fermé ou disparu ; découpé — son corps porte la liste des tickets du découpage —,
 // ses tickets encore ouverts, `ticket` excepté ; sinon lui. Une lecture qui échoue lève.
 export async function attendusDeLAttendu(ticket: number, attendu: number, lire: (numero: number) => Promise<IssueDeLAttendu>): Promise<number[]> {
   const lue = await lire(attendu);
