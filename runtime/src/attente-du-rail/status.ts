@@ -15,7 +15,8 @@ import { clientGh } from "../proteger-branche.ts";
 import { feuPoseLe, lesFeux, type Lire } from "../rail-bloque/lecture.ts";
 import { LABELS_D_ECART, type StationsLues } from "../rail-bloque/rail-bloque.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
-import { dependancesDuCorps, expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail } from "./raison.ts";
+import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
+import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail } from "./raison.ts";
 
 const LABEL_DU_TABLEAU = "kitchen-board";
 const PAR_PAGE = 100;
@@ -27,7 +28,9 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // Les tickets du rail, d'après les issues `fire` ouvertes. L'entrée dans la file d'un ticket en file se lit de ses événements :
 // `fire` posé ; ils ne se lisent pas, il n'en dit rien (nul) — la durée n'est alors pas dite, jamais inventée.
 // Un ticket attendu découpé — une épique du rail, que la file saute — est attendu dans les tickets de son découpage, comme
-// la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme.
+// la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme. Un ticket en file porte aussi
+// ses attentes avec leur source (#3763) : son corps, sa fiche et les arrêts de ses cooks, lus de ses commentaires, sur un
+// ticket du rail : un ticket hors du rail ne se dit pas.
 export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<TicketDuRail[]> {
   const { depot, lire } = options;
   const tickets: TicketDuRail[] = [];
@@ -37,16 +40,20 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
     if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
     const labels = (Array.isArray(issue.labels) ? issue.labels : []).flatMap((label) => (typeof objet(label)?.name === "string" ? [objet(label)?.name as string] : []));
     if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_WAITING)) continue;
-    const depend = dependancesDuCorps(texte(issue.body)).flatMap((n) => {
-      const decoupage = decoupages.get(n)?.filter((m) => m !== n && m !== issue.number) ?? [];
-      return decoupage.length > 0 ? decoupage : [n];
-    });
+    const decoupage = (n: number) => decoupages.get(n) ?? [];
+    const duCorps = attentesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires: [], decoupage }).attentes;
+    const depend = [...new Set(duCorps.map(({ ticket }) => ticket))];
     if (labels.includes(LABEL_TAKEN)) tickets.push({ ticket: issue.number, etat: "taken", entreLe: null, depend });
     else if (labels.includes(LABEL_IN_PASS)) tickets.push({ ticket: issue.number, etat: "pass", entreLe: null, depend });
     else if (!labels.some((label) => LABELS_D_ECART.includes(label))) {
       const evenements = await lire(`/repos/${depot}/issues/${issue.number}/events?per_page=${PAR_PAGE}`).catch(() => null);
       const poses = Array.isArray(evenements) ? feuPoseLe(evenements.flatMap((un: unknown) => { const o = objet(un); return o === null ? [] : [o]; })) : null;
-      tickets.push({ ticket: issue.number, etat: "queued", entreLe: poses, depend });
+      // Sa fiche et les arrêts de ses cooks (#3763) : des commentaires qui ne se lisent pas ne le disent pas libre, sa carte
+      // dit qu'ils ne se sont pas lus.
+      const brutes = await lire(`/repos/${depot}/issues/${issue.number}/comments?per_page=${PAR_PAGE}`).catch(() => null);
+      const commentaires = Array.isArray(brutes) ? brutes.flatMap((un: unknown) => (typeof objet(un)?.body === "string" ? [objet(un)?.body as string] : [])) : null;
+      const { attentes, commentairesLus } = attentesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires, decoupage });
+      tickets.push({ ticket: issue.number, etat: "queued", entreLe: poses, depend: [...new Set(attentes.map(({ ticket }) => ticket))], attentes, commentairesLus });
     }
   }
   return tickets;
