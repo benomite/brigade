@@ -2229,6 +2229,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const exclues = new Set([...renvoyes, ...retenuesDuTour]);
       if (enPass(tickets, exclues) >= PASS_MAX) {
         await direLesAttentes(libres.slice(rang), direPassPlein(tickets.filter((t) => t.labels.includes(LABEL_IN_PASS) && !exclues.has(t.number)).map(({ number }) => number)));
+        // Le pass plein retient la prise, pas l'écriture des tests (#3887) :
+        // les places libres écrivent ceux des tickets qu'il laisse, comme
+        // pendant une retenue par un ticket (#3872). Sinon, chaque prise après
+        // la descente du pass attendait encore l'écriture de ses tests.
+        for (const reste of libres.slice(rang)) {
+          if (enVol.size + aRendre.size + enEcriture().length >= limite) break;
+          await ecrireEnAttendant(reste);
+        }
         break;
       }
       if (enVol.has(ticket.number)) continue;

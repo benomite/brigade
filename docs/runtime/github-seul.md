@@ -165,6 +165,10 @@ base, the stale-branch pruning).
   A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
   at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
   and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
+  A ticket held by another one (an open ticket it depends on, one set aside, its zone held) has its tests written
+  during that hold (#3872), and so do the tickets a full pass leaves, while the station has free places (#3887): the
+  claim, once the hold or the pass lifts, no longer waits for the writing after it. Their skip line still names what
+  holds them.
   Before the step, the manager classes each criterion (#3740, `runtime/src/qualification/classes.ts`, the rule in
   `agents/manager.md`), in a throwaway checkout of the base: `testable` — a behaviour the end user observes — or
   `not-testable`, with the proof the delivery owes instead (a before/after capture, the diff, the evaluation case, the
