@@ -333,7 +333,8 @@ worktree of the repo shares), it copies its test files and their helpers, sees t
 throws the checkout away (`git worktree remove --force`), and sees the test pass on its branch; it
 rewrites a test that passes on both sides, or removes it from its delivery: a test guarding a behavior
 the base already has does not belong there, even commented as such, and no reply on the PR lifts that
-send-back (#3694: 13 of the 16 blocking reviews over 20 merged tickets were this rule, ten of them
+send-back — unless the ticket's criteria say that behavior stays "as before" / "unchanged": the test is then
+marked `// brigade:guard` on the line above its case, and the pass accepts it green on the base (#3852) (#3694: 13 of the 16 blocking reviews over 20 merged tickets were this rule, ten of them
 #3632's, whose cook kept such a test with a guard comment, and whose next cooks added nothing until
 06f7aac removed it). Blocking review
 was still the first send-back reason after #3466 brought the rule to the pass (#3628: 5 over 20 merged
