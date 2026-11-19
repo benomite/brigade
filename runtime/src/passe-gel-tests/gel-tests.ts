@@ -8,8 +8,11 @@ import { execFileSync } from "../sans-invite.ts";
 // Le motif de renvoi que la fiche du ticket énonce.
 const RAISON_GEL = "a frozen acceptance test was modified";
 
-// L'auteur d'un commit du manager : son nom git, avec ou sans le `[bot]` d'une App GitHub.
+// L'auteur d'un commit du manager : son nom git, avec ou sans le `[bot]` d'une App GitHub,
+// ou l'adresse sous laquelle `amenderParLeManager` commite l'amendement — son nom
+// y est `brigade manager`, que le nom seul ne reconnaissait pas (#3849).
 const AUTEUR_MANAGER = /^manager(\[bot\])?$/i;
+export const COURRIEL_DU_MANAGER = "manager@brigade.localhost";
 const AMENDEMENT = /^#\d+$/;
 
 export type ViolationDuGel = { commit: string; fichiers: string[] };
@@ -23,17 +26,17 @@ const fichiersDe = (worktree: string, commit: string) => git(worktree, "diff-tre
 
 // Les commits que la livraison ajoute à la base, du plus ancien au plus récent,
 // sans les fusions (la base fusionnée dans la branche n'est pas du cook).
-// Un commit : son hash, son auteur, et les valeurs de ses deux trailers.
+// Un commit : son hash, son auteur (nom et adresse), et les valeurs de ses deux trailers.
 function commitsDeLaLivraison(worktree: string, base: string) {
-  const format = ["%H", "%an", "%(trailers:key=Acceptance-Tests,valueonly,unfold,separator=%x2C)", "%(trailers:key=Amendment,valueonly,unfold,separator=%x2C)"].join("%x00");
+  const format = ["%H", "%an", "%ae", "%(trailers:key=Acceptance-Tests,valueonly,unfold,separator=%x2C)", "%(trailers:key=Amendment,valueonly,unfold,separator=%x2C)"].join("%x00");
   const sortie = git(worktree, "log", "--reverse", "--topo-order", "--no-merges", `--format=${format}%x01`, `${base}..HEAD`);
   return sortie
     .split(SEP_COMMIT)
     .map((bloc) => bloc.replace(/^\n/, ""))
     .filter((bloc) => bloc !== "")
     .map((bloc) => {
-      const [commit = "", auteur = "", gel = "", amendement = ""] = bloc.split(SEP_CHAMP).map((champ) => champ.trim());
-      return { commit, auteur, gele: gel.split(",").some((valeur) => valeur.trim() === "frozen"), amendement: amendement.split(",").map((valeur) => valeur.trim()).filter(Boolean) };
+      const [commit = "", auteur = "", courriel = "", gel = "", amendement = ""] = bloc.split(SEP_CHAMP).map((champ) => champ.trim());
+      return { commit, auteur, courriel, gele: gel.split(",").some((valeur) => valeur.trim() === "frozen"), amendement: amendement.split(",").map((valeur) => valeur.trim()).filter(Boolean) };
     });
 }
 
@@ -65,7 +68,7 @@ export function violationsDuGel(worktree: string, base: string, chef: string | n
   for (const suivant of suivants) {
     const touches = fichiersDe(worktree, suivant.commit).filter((fichier) => gelés.has(fichier));
     if (touches.length === 0) continue;
-    const autorise = AUTEUR_MANAGER.test(suivant.auteur) || (chef !== null && chef !== "" && suivant.auteur.toLowerCase() === chef.toLowerCase());
+    const autorise = AUTEUR_MANAGER.test(suivant.auteur) || suivant.courriel.toLowerCase() === COURRIEL_DU_MANAGER || (chef !== null && chef !== "" && suivant.auteur.toLowerCase() === chef.toLowerCase());
     if (autorise && suivant.amendement.some((valeur) => AMENDEMENT.test(valeur))) continue;
     violations.push({ commit: suivant.commit, fichiers: touches });
   }
