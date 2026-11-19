@@ -104,7 +104,8 @@ export function amenderParLeManager(deps: {
 // Les commits de la branche, depuis la base, qui touchent le test gelé et que
 // le manager n'a pas faits : son auteur et son pied, les deux. Le commit des
 // tests gelés, le premier de la branche, est celui de l'étape des tests
-// (#3725), pas du cook : il n'en est pas (#3764).
+// (#3725), pas du cook : il n'en est pas (#3764). Aucun, si la tête rend le
+// test tel que l'a laissé son dernier commit autorisé.
 async function commitsDuCookSur(git: LancerGit, worktree: string, base: string, fichier: string, ticket: number): Promise<{ commits: string[] } | { refus: string }> {
   const lu = await git(["log", "--format=%H%x1f%ae%x1f%B%x1e", `origin/${base}..HEAD`, "--", fichier], worktree);
   if (lu.code !== 0) return { refus: `the branch's commits on the frozen test could not be read: ${lu.stderr.trim() || `code ${lu.code}`}` };
@@ -114,16 +115,29 @@ async function commitsDuCookSur(git: LancerGit, worktree: string, base: string, 
   } catch (erreur) {
     return { refus: `the branch's frozen acceptance commit could not be read: ${message(erreur)}` };
   }
-  const commits = lu.stdout
+  const lus = lu.stdout
     .split("\x1e")
     .map((bloc) => bloc.trim())
     .filter(Boolean)
-    .flatMap((bloc) => {
+    .map((bloc) => {
       const [sha = "", auteur = "", corps = ""] = bloc.split("\x1f");
       const duManager = auteur === COURRIEL_DU_MANAGER && corps.split("\n").some((ligne) => ligne.trim() === PIED(ticket));
-      return duManager || sha === gele ? [] : [sha];
+      return { sha, autorise: duManager || sha === gele };
     });
-  return { commits };
+  const commits = lus.filter((commit) => !commit.autorise).map((commit) => commit.sha);
+  if (commits.length === 0) return { commits };
+  // Un test que la tête rend tel que l'a laissé son dernier commit autorisé —
+  // le manager, le commit des tests gelés, ou la base — n'est plus changé par le
+  // cook, comme le gel le juge (#3847) : sans quoi un ticket dont un cook a un
+  // jour touché le test gelé ne pourrait plus jamais être amendé, même le test
+  // rétabli (#3849, la PR #3766 de #3764).
+  const droit = lus.find((commit) => commit.autorise)?.sha ?? `origin/${base}`;
+  const objet = async (commit: string) => {
+    const lu = await git(["rev-parse", "--verify", "--quiet", `${commit}:${fichier}`], worktree);
+    return lu.code === 0 ? lu.stdout.trim() : null;
+  };
+  const [tete, autorise] = await Promise.all([objet("HEAD"), objet(droit)]);
+  return tete !== null && tete === autorise ? { commits: [] } : { commits };
 }
 
 // Ce que la station fait de la proposition du cook : elle la poste sur

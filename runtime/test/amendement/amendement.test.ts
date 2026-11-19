@@ -75,11 +75,13 @@ function depotDeLaStation(t: TestContext): { origine: string; depot: OptionsDuDe
 
 // `gele` : la branche part du commit des tests gelés, qui touche le test, comme
 // l'écrit l'étape des tests (#3725) avant le cook.
-type Options = { manager?: string; proposition?: string; leCookTouche?: boolean; gele?: boolean };
+// `leCookRetablit` : après l'avoir touché, le cook rend le test tel qu'il était, dans un second commit.
+// `leCookSupprime` : le cook retire le test gelé de la branche.
+type Options = { manager?: string; proposition?: string; leCookTouche?: boolean; leCookRetablit?: boolean; leCookSupprime?: boolean; gele?: boolean };
 
 // Une station dont le cook du ticket finit sur une proposition d'amendement,
 // et dont le manager la classe par `manager`.
-async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false, gele = false }: Options = {}) {
+async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITION, leCookTouche = false, leCookRetablit = false, leCookSupprime = false, gele = false }: Options = {}) {
   const repertoire = repertoireTemporaire(t);
   const { origine, depot } = depotDeLaStation(t);
   const faux = new FauxGitHub();
@@ -99,6 +101,15 @@ async function amende(t: TestContext, { manager = PETIT, proposition = PROPOSITI
       if (leCookTouche) {
         writeFileSync(join(cwd, GELE), TEST_GELE.replace("Exprot", "Export"));
         execFileSync("git", ["commit", "--quiet", "-am", "fix the typo of the criterion"], { cwd, env: ENV_GIT });
+        parLeCook.push(execFileSync("git", ["rev-parse", "HEAD"], { cwd, env: ENV_GIT, encoding: "utf8" }).trim());
+        if (leCookRetablit) {
+          execFileSync("git", ["checkout", "HEAD~1", "--", GELE], { cwd, env: ENV_GIT });
+          execFileSync("git", ["commit", "--quiet", "-am", "restore the frozen test"], { cwd, env: ENV_GIT });
+        }
+      }
+      if (leCookSupprime) {
+        execFileSync("git", ["rm", "--quiet", GELE], { cwd, env: ENV_GIT });
+        execFileSync("git", ["commit", "--quiet", "-m", "drop the frozen test"], { cwd, env: ENV_GIT });
         parLeCook.push(execFileSync("git", ["rev-parse", "HEAD"], { cwd, env: ENV_GIT, encoding: "utf8" }).trim());
       }
     }
@@ -202,6 +213,34 @@ test("a cook's commit on the frozen test after the frozen acceptance commit is r
   const echec = commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
   assert.ok(echec.includes(`the cook's own commit ${(parLeCook[0] ?? "").slice(0, 7)} changes the frozen test \`test/acceptance/41.test.ts\``), echec);
   assert.equal(commitsSurLeTest().filter((commit) => commit.startsWith(AUTEUR_DU_MANAGER)).length, 0);
+});
+
+// Seule la tête rendue telle que l'a laissée le dernier commit autorisé lève le
+// refus (#3849) : rétabli, le test passe au manager ; laissé changé après le
+// commit des tests gelés, ou retiré de la tête, il reste refusé, et seul le
+// commit du cook est nommé. Chaque cas joue les deux stations ensemble (règle
+// des 2 s), sous un nom écrit en toutes lettres, que la pass rejoue.
+async function laTeteDecide(t: TestContext, options: Options) {
+  const [retabli, refuse] = await Promise.all([amende(t, { gele: true, leCookTouche: true, leCookRetablit: true }), amende(t, options)]);
+  assert.equal(retabli.commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)), undefined);
+  assert.equal(retabli.classements.length, 1);
+  assert.equal(retabli.ticket.labels.has(A_LA_MAIN), false);
+  assert.match(retabli.testGele(), /\/Export\/[\s\S]*\/\/ frozen for #41/);
+  assert.ok(retabli.commitsSurLeTest()[0]?.startsWith(AUTEUR_DU_MANAGER), "the last commit on the frozen test is the manager's amendment");
+  assert.equal(refuse.classements.length, 0, "the manager is not asked");
+  assert.equal(refuse.ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(refuse.parLeCook.length, 1);
+  const echec = refuse.commentaires.find((corps) => corps.startsWith(MARQUE_D_ECHEC)) ?? "";
+  assert.ok(echec.includes(`the cook's own commit ${(refuse.parLeCook[0] ?? "").slice(0, 7)} changes the frozen test \`test/acceptance/41.test.ts\``), echec);
+  assert.equal(refuse.commitsSurLeTest().filter((commit) => commit.startsWith(AUTEUR_DU_MANAGER)).length, 0, "nothing is applied");
+}
+
+test("a frozen test the cook restored goes to the manager, but one whose head differs from the frozen commit's version is refused naming only the cook's commit", async (t) => {
+  await laTeteDecide(t, { gele: true, leCookTouche: true });
+});
+
+test("a frozen test the cook restored goes to the manager, but one the cook deleted from the head is refused naming only the cook's commit", async (t) => {
+  await laTeteDecide(t, { gele: true, leCookSupprime: true });
 });
 
 // Ce qui ne se lit pas n'applique rien et ne va à aucun chef : un échec du ticket, dit.
