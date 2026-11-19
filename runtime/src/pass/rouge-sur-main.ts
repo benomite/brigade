@@ -27,7 +27,7 @@ export const FICHIER_DE_TEST = /\.test\.[cm]?[jt]s$/;
 // de tests. La branche les apporte avec ses tests sur le checkout de la base.
 export const SOUS_LES_TESTS = /(^|\/)(test|tests|__tests__)\//;
 // Un cas : `test("…")`, `it("…")`, et leurs `.only` / `.skip` / `.todo`.
-const CAS = /\b(?:test|it)(?:\.(?:only|skip|todo))?\s*\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
+export const CAS = /\b(?:test|it)(?:\.(?:only|skip|todo))?\s*\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
 // Une ligne de résultat du reporteur TAP de Node, à toute profondeur.
 const LIGNE_TAP = /^\s*(not )?ok \d+ - (.*?)(\s+# (?:SKIP|TODO)\b.*)?$/;
 export const RESULTAT_TAP = /^\s*(?:not )?ok \d+ - /;
@@ -133,10 +133,11 @@ export const passe = (unite: Unite, passage: Passage) => (unite.nom === null ? p
 const echapper = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Les arguments de `node` qui jouent, dans `dossier`, les seules unités du
-// fichier : tout le fichier s'il est neuf, ses cas neufs sinon.
+// fichier : tout le fichier s'il est neuf, ses cas neufs sinon. Le fichier se joue dans le process du
+// lanceur (`--test-isolation=none`) : un seul fichier par rejeu, et un Node lancé au lieu de deux (#3799).
 export function argumentsDuRejeu(dossier: string, { fichier, neuf, unites }: Ajoutes["fichiers"][number]): string[] {
   const motifs = neuf ? [] : unites.map(({ nom }) => `--test-name-pattern=^${echapper(nom ?? "")}$`);
-  return ["--test", "--test-reporter=tap", "--test-force-exit", ...motifs, relative(dossier, fichier).split("\\").join("/")];
+  return ["--test", "--test-isolation=none", "--test-reporter=tap", "--test-force-exit", ...motifs, relative(dossier, fichier).split("\\").join("/")];
 }
 
 // Le dossier d'où se joue un fichier de test : celui du `package.json` le plus
