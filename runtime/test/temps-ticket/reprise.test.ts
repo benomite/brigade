@@ -45,7 +45,7 @@ const prise = (createdAt: string): Commentaire => ({ body: corpsDePrise(STATION)
 const lacher = (createdAt: string): Commentaire => ({ body: corpsDeLacher(STATION), association: "OWNER", createdAt });
 
 describe("what the station did not see of a ticket is read on its issue at the merge (#2954)", () => {
-  test("a cook killed by its station's restart, then claimed again, is a failed cook and a claim wait, not a send-back", async () => {
+  test("a cook killed by its station's restart, then claimed again, is a failed cook, not a claim wait nor a send-back (#3891)", async () => {
     // calculus-workspace#694 : pris à 20:03:32, le cook meurt avec sa station, rendu à 20:10,
     // repris à 20:34:30 par la station relancée, qui n'a vu que la reprise.
     const depot = await depotLu("2026-11-08T20:03:25Z", "2026-11-08T20:03:27Z", [
@@ -67,12 +67,11 @@ describe("what the station did not see of a ticket is read on its issue at the m
     );
     // Mesurée, pas rejetée : l'attente de la reprise n'est pas celle d'avant la première prise.
     assert.ok(temps !== null);
-    assert.deepEqual(temps.perdu, { attente: 2 + 5 + 1470, ratees: 388, renvois: 0 });
+    assert.deepEqual(temps.perdu, { attente: 2 + 5, ratees: 388 + 1470, renvois: 0 });
     assert.deepEqual(temps.phases, [
       { nom: "qualification wait", minutes: 0 },
       { nom: "claim wait", minutes: 0.1 },
-      { nom: "failed cook", minutes: 6.5 },
-      { nom: "claim wait", minutes: 24.5 },
+      { nom: "failed cook", minutes: 31 },
       { nom: "cooking", minutes: 2.5 },
       { nom: "pass wait", minutes: 0.5 },
       { nom: "CI", minutes: 0.6 },
@@ -93,7 +92,7 @@ describe("what the station did not see of a ticket is read on its issue at the m
       depot,
     );
     assert.ok(temps !== null);
-    assert.deepEqual(temps.perdu, { attente: 2 + 14 + 1770, ratees: 344, renvois: 0 });
+    assert.deepEqual(temps.perdu, { attente: 2 + 14, ratees: 344 + 1770, renvois: 0 });
     assert.equal(temps.cuisson, 180);
   });
 

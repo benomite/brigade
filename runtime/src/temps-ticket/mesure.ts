@@ -109,9 +109,9 @@ function marquesDuDepot(depot: DepotDuTicket | undefined): Marque[] {
       if (fait.quoi === "prise") {
         // Une prise sur une cuisson que rien n'a rendue : le cook d'avant est
         // mort sans lâcher le ticket — sa station tuée net —, un cook raté.
-        rater(marques, iso);
+        rater(marques);
         marquer("cuisson", iso);
-      } else if (fait.quoi === "rendu") rater(marques, iso);
+      } else if (fait.quoi === "rendu") rater(marques);
       // Un renvoi ne suit qu'un cook.
       else if (marques.length > avant.length) marquer("renvoi", iso);
     }
@@ -363,13 +363,15 @@ export type Chronometre = {
   oublier(ticket: number): void;
 };
 
-// Un cook sans livraison : sa dernière cuisson devient un cook raté, suivi de l'attente d'une prise.
+// Un cook sans livraison : sa dernière cuisson devient un cook raté, qui court
+// jusqu'à la marque suivante — la reprise. Le temps d'après un cook raté n'est
+// pas de l'attente d'une prise : il reste perdu, sous les cooks ratés (#3891 :
+// 1157 et 1067 min d'attente de BOBL-tech/mirrorlab#729 et #745).
 // Rien hors d'une cuisson : un ticket déjà livré n'attend pas de prise.
-export function rater(marques: Marque[], at: string): void {
+export function rater(marques: Marque[]): void {
   const derniere = marques.at(-1);
   if (derniere?.etape !== "cuisson") return;
   derniere.etape = "cuissonRatee";
-  marques.push({ etape: "attentePrise", at });
 }
 
 export function chronometre(maintenant: () => Date = () => new Date()): Chronometre {
@@ -385,7 +387,7 @@ export function chronometre(maintenant: () => Date = () => new Date()): Chronome
     marquer,
     rater: (ticket) => {
       const ouvert = parcours.get(ticket);
-      if (ouvert !== undefined) rater(ouvert.marques, maintenant().toISOString());
+      if (ouvert !== undefined) rater(ouvert.marques);
     },
     tests: (ticket, ms) => {
       const ouvert = parcours.get(ticket);

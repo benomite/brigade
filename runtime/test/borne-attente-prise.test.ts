@@ -52,7 +52,7 @@ describe("borne de l'attente d'une prise", () => {
 
   // #2954 : la station voit son cook rendu sans livraison, puis le reprend. L'attente de la reprise
   // n'est pas entre l'ouverture et la première prise : comptée dans la borne, elle rejetait la mesure.
-  test("the claim wait after a cook given back is not held against the bound: the measure is kept", () => {
+  test("the time after a cook given back is a failed cook, not a claim wait: the measure is kept (#3891)", () => {
     let maintenant = T0 + 2 * MIN * 1000;
     const c = chronometre(() => new Date(maintenant));
     c.prendre(822);
@@ -62,8 +62,8 @@ describe("borne de l'attente d'une prise", () => {
     c.prendre(822);
     maintenant = T0 + 8 * MIN * 1000;
     const temps = c.servir(822, { deposeAt: a(0), priseAt: a(2 * MIN) });
-    assert.equal(temps?.attentePrise, 5 * MIN);
-    assert.equal(temps?.cuissonsRatees, MIN);
+    assert.equal(temps?.attentePrise, 2 * MIN);
+    assert.equal(temps?.cuissonsRatees, 4 * MIN);
     // La borne tient toujours l'attente d'avant la première prise.
     assert.equal(accepterLaMesure(mesure(5 * MIN, a(2 * MIN)), 3 * MIN)?.attentePrise, 5 * MIN);
     assert.equal(accepterLaMesure(mesure(5 * MIN, a(2 * MIN)), 2 * MIN), null);

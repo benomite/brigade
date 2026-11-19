@@ -21,8 +21,7 @@ const hm = (h: number, m: number) => new Date(JOUR + (h * 60 + m) * 60_000).toIS
 const PHASES_DU_TICKET = [
   { nom: "qualification wait", minutes: 2 },
   { nom: "claim wait", minutes: 3 },
-  { nom: "failed cook", minutes: 10 },
-  { nom: "claim wait", minutes: 5 },
+  { nom: "failed cook", minutes: 15 },
   { nom: "cooking", minutes: 8 },
   { nom: "pass wait", minutes: 3 },
   { nom: "CI", minutes: 3 },
@@ -73,11 +72,11 @@ describe("a ticket's time runs from its filing to its merge", () => {
     assert.equal(temps.depuis, hm(10, 0));
     assert.equal((Date.parse(temps.mergedAt) - Date.parse(temps.depuis ?? "")) / 60_000, 35);
     assert.deepEqual(temps.phases, PHASES_DU_TICKET);
-    assert.equal(temps.cuissonsRatees, 600);
-    assert.equal(temps.attentePrise, 480);
+    assert.equal(temps.cuissonsRatees, 900);
+    assert.equal(temps.attentePrise, 180);
     assert.equal(medianeDesRecents([temps]), 35 * 60);
     // Perdu : tout sauf le cook qui a livré, sa pass, sa CI et son merge — 20 des 35 min.
-    assert.deepEqual(temps.perdu, { attente: 600, ratees: 600, renvois: 0 });
+    assert.deepEqual(temps.perdu, { attente: 300, ratees: 900, renvois: 0 });
     assert.equal(medianePerdueDesRecents([temps]), 20 * 60);
   });
 
@@ -169,7 +168,7 @@ describe("a ticket's time runs from its filing to its merge", () => {
   test("the same ticket replayed from its GitHub history gives the same 35 min and phases, the merge request inside the CI", () => {
     const [temps] = rejouer([DU_TICKET]);
     assert.equal(temps?.depuis, hm(10, 0));
-    assert.deepEqual(temps?.phases, [...PHASES_DU_TICKET.slice(0, 6), { nom: "CI", minutes: 4 }]);
+    assert.deepEqual(temps?.phases, [...PHASES_DU_TICKET.slice(0, 5), { nom: "CI", minutes: 4 }]);
   });
 
   test("filed long before it was put on the rail, its time runs from fire, with no qualification wait", () => {
@@ -232,11 +231,11 @@ describe("temps-tickets.json and the lost-time alert read this time", () => {
       p75Min: 35,
       perduMedianMin: 20,
       lostTimeMaxMin: 2,
-      phaseLaPlusLongue: { nom: "failed cooks", medianMin: 10, partPct: 29 },
+      phaseLaPlusLongue: { nom: "failed cooks", medianMin: 15, partPct: 43 },
       // Ses 10 min d'attente avant la prise sont 2 min du manager et 8 d'une prise (#3422).
-      perteLaPlusLourde: { nom: "failed cooks", medianMin: 10, partPct: 50 },
+      perteLaPlusLourde: { nom: "failed cooks", medianMin: 15, partPct: 75 },
     });
-    assert.equal(lu.tickets[0]?.phases.length, 7);
+    assert.equal(lu.tickets[0]?.phases.length, 6);
     assert.equal(lesTempsDesTickets(depot).enregistrements.length, 1);
   });
 
@@ -267,10 +266,10 @@ describe("temps-tickets.json and the lost-time alert read this time", () => {
     assert.ok(correction !== null);
     assert.equal(correction.titre, "Tickets lose too much time: median 20 min lost over the threshold of 2 min — failed cooks weighs most");
     assert.match(correction.corps, /These tickets lost 60 min of their 105 min\./);
-    assert.match(correction.corps, /\*\*failed cooks\*\*: 30 min of these tickets' lost time \(50%\), a median of 10 min per ticket, in 3 of the 3 tickets/);
+    assert.match(correction.corps, /\*\*failed cooks\*\*: 45 min of these tickets' lost time \(75%\), a median of 15 min per ticket, in 3 of the 3 tickets/);
     assert.match(correction.corps, /^- waiting for the manager's judgement: 6 min \(10%\), median 2 min per ticket, in 3 tickets$/m);
-    assert.match(correction.corps, /^- waiting for a claim: 24 min \(40%\), median 8 min per ticket, in 3 tickets$/m);
-    assert.match(correction.corps, /^- #42: 10 min of failed cooks — 20 min lost of 35 min$/m);
+    assert.match(correction.corps, /^- waiting for a claim: 9 min \(15%\), median 3 min per ticket, in 3 tickets$/m);
+    assert.match(correction.corps, /^- #42: 15 min of failed cooks — 20 min lost of 35 min$/m);
   });
 });
 
@@ -287,34 +286,34 @@ describe("brigade's 40 tickets closed on 2026-11-06 and 07, replayed from their 
     for (const absent of [2484, 2498, 2514, 2553, 2582, 2583, 2616]) assert.ok(!rejoues.some((t) => t.ticket === absent), `#${absent}`);
   });
 
-  test("median 14 min, p75 47 min, and the slowest phase is the wait before the claim, not cooking", () => {
+  test("median 14 min, p75 47 min, and the slowest phase is the failed cooks, not cooking", () => {
     const resume = resumer(rejoues, 10);
     assert.equal(resume.n, 40);
     assert.equal(resume.medianMin, 14);
     assert.equal(resume.p75Min, 47);
     assert.ok(["claim wait", "failed cooks"].includes(resume.phaseLaPlusLongue.nom), resume.phaseLaPlusLongue.nom);
-    assert.deepEqual(resume.phaseLaPlusLongue, { nom: "claim wait", medianMin: 5, partPct: 54 });
+    assert.deepEqual(resume.phaseLaPlusLongue, { nom: "failed cooks", medianMin: 0, partPct: 55 });
   });
 
   // #2670 : le temps perdu de ces tickets, contre le seuil de 2 min.
-  test("their median lost time is over 2 min, and most of it is waiting before the claim", () => {
+  test("their median lost time is over 2 min, and most of it is failed cooks", () => {
     const resume = resumer(rejoues, 2);
     assert.ok(resume.perduMedianMin > 2, String(resume.perduMedianMin));
     assert.equal(resume.perduMedianMin, 7.7);
-    assert.deepEqual(resume.perteLaPlusLourde, { nom: "waiting for a claim", medianMin: 4.8, partPct: 57 });
+    assert.deepEqual(resume.perteLaPlusLourde, { nom: "failed cooks", medianMin: 0, partPct: 58 });
     // Le cook qui a livré et sa pass ne sont jamais perdus : chaque ticket perd moins que tout son temps.
     for (const t of rejoues) assert.ok(tempsPerdu(t) < (Date.parse(t.mergedAt) - Date.parse(t.depuis ?? t.claimedAt)) / 1000, `#${t.ticket}`);
   });
 
-  test("the correction ticket they open names waiting before the claim, with its figures and the tickets concerned", () => {
+  test("the correction ticket they open names the failed cooks, with its figures and the tickets concerned", () => {
     const correction = ticketDeCorrection(rejoues, 2);
     assert.ok(correction !== null);
     const [, perte] = /— (.+) weighs most$/.exec(correction.titre) ?? [];
     assert.ok(["waiting for a claim", "failed cooks"].includes(perte ?? ""), correction.titre);
-    assert.equal(correction.titre, "Tickets lose too much time: median 7.7 min lost over the threshold of 2 min — waiting for a claim weighs most");
-    assert.match(correction.corps, /\*\*waiting for a claim\*\*: 3328 min of these tickets' lost time \(57%\), a median of 4\.8 min per ticket, in 40 of the 40 tickets\./);
-    assert.match(correction.corps, /^- failed cooks: 633 min \(11%\), median 0 min per ticket, in 10 tickets$/m);
-    assert.match(correction.corps, /## Tickets concerned\n\n- #2479: 1217 min of waiting for a claim — 1235 min lost of 1238 min\n/);
-    assert.match(correction.corps, /^- and 30 more$/m);
+    assert.equal(correction.titre, "Tickets lose too much time: median 7.7 min lost over the threshold of 2 min — failed cooks weighs most");
+    assert.match(correction.corps, /\*\*failed cooks\*\*: 3386 min of these tickets' lost time \(58%\), a median of 0 min per ticket, in 10 of the 40 tickets\./);
+    assert.match(correction.corps, /^- waiting for a claim: 574 min \(10%\), median 2\.4 min per ticket, in 40 tickets$/m);
+    assert.match(correction.corps, /## Tickets concerned\n\n- #2479: 1175 min of failed cooks — 1235 min lost of 1238 min\n/);
+    assert.match(correction.corps, /^- #2640: 4\.3 min of failed cooks — 16 min lost of 19 min$/m);
   });
 });

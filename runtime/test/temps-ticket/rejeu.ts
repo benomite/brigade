@@ -49,7 +49,7 @@ export function parcoursDeLHistorique(h: Historique): { parcours: Parcours; depo
   };
   for (const { at, quoi } of faits) {
     if (quoi === "prise") marquer("cuisson", at);
-    else if (quoi === "rendu") rater(marques, at);
+    else if (quoi === "rendu") rater(marques);
     else if (quoi === "passe") marquer("attentePasse", at);
     else if (quoi === "approuve") marquer("ci", at);
     else if (quoi === "renvoi") marquer("renvoi", at);
