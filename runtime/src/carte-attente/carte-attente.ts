@@ -6,6 +6,7 @@
 // (app/src/vue/rail/github.ts) les lisent ici, et `ligneDeLaCarte` (attente-du-rail/raison.ts) les dit.
 import { attentesDuCorps, type AttenteSourcee } from "../attente-du-rail/raison.ts";
 import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
+import { ticketsDeLaListe } from "../epique.ts";
 import { fiche } from "../fiche.ts";
 
 // La marque du commentaire que la station écrit sur l'issue quand le cook du ticket s'arrête sur un ticket ouvert dont
@@ -37,4 +38,64 @@ export function attentesDuTicket(options: { ticket: number; corps: string; comme
   const { fiche, arret } = attendusDesCommentairesParSource(commentaires ?? []);
   const attentes = [...duCorps, ...fiche.map((n) => ({ ticket: n, source: "fiche" as const })), ...arret.map((n) => ({ ticket: n, source: "arret" as const }))];
   return { attentes: attentes.filter(({ ticket: n }) => n !== ticket && !levees.has(n)), commentairesLus: commentaires !== null };
+}
+
+// Une issue telle que GitHub la rend : son état et son corps ; nulle, elle n'existe plus.
+export type IssueDeLAttendu = { state: string; body?: string } | null;
+
+// Les tickets que la porte de prise attend quand le corps de `ticket` attend `attendu` (`attendusDuCorps`,
+// attente-ticket.ts) : aucun s'il est fermé ou disparu ; découpé — son corps porte la liste des tickets du découpage —,
+// ses tickets encore ouverts, `ticket` excepté ; sinon lui. Une lecture qui échoue lève.
+export async function attendusDeLAttendu(ticket: number, attendu: number, lire: (numero: number) => Promise<IssueDeLAttendu>): Promise<number[]> {
+  const lue = await lire(attendu);
+  if (lue?.state !== "open") return [];
+  const decoupage = ticketsDeLaListe(lue.body ?? "").filter((n) => n !== attendu);
+  if (decoupage.length === 0) return [attendu];
+  const autres = decoupage.filter((n) => n !== ticket);
+  const etats = await Promise.all(autres.map(async (n) => (await lire(n))?.state));
+  return autres.filter((_, rang) => etats[rang] === "open");
+}
+
+// Les attentes que la porte de prise applique à un ticket en file, chacune avec sa source : celles de `attentesDuTicket`
+// dont le ticket attendu est ouvert, sur le rail ou non — le 2026-11-18, un ticket retenu par un ticket ouvert hors du rail
+// gardait une carte libre. `lire` rend l'issue d'un ticket attendu ; une lecture qui échoue garde l'attente, comme la porte
+// de prise garde le ticket quand elle ne lit pas ce qu'il attend.
+export async function attentesOuvertesDuTicket(options: { ticket: number; corps: string; commentaires: readonly string[] | null; lire: (numero: number) => Promise<IssueDeLAttendu> }): Promise<{ attentes: AttenteSourcee[]; commentairesLus: boolean }> {
+  const { ticket, corps, commentaires, lire } = options;
+  const { attentes, commentairesLus } = attentesDuTicket({ ticket, corps, commentaires });
+  const levees = leveesDesCommentaires(commentaires ?? []);
+  const ouvertes = await Promise.all(
+    attentes.map(async (attente): Promise<AttenteSourcee[]> => {
+      if (attente.source !== "corps") return (await lire(attente.ticket).then((lue) => lue?.state === "open", () => true)) ? [attente] : [];
+      const attendus = await attendusDeLAttendu(ticket, attente.ticket, lire).catch(() => [attente.ticket]);
+      return attendus.filter((n) => n !== ticket && !levees.has(n)).map((n) => ({ ...attente, ticket: n }));
+    }),
+  );
+  return { attentes: ouvertes.flat(), commentairesLus };
+}
+
+// Le lecteur des tickets attendus d'une lecture du rail : un ticket du rail est ouvert, de son corps déjà lu, sans
+// lecture de plus ; un autre se lit une fois par lecture du rail (`/repos/<depot>/issues/<n>`), et un 404 dit qu'il
+// n'existe plus. `lire` lève sur toute autre réponse que 200, `GitHub answered HTTP <statut>`.
+export function lecteurDesAttendus(depot: string, lire: (chemin: string) => Promise<unknown>, duRail: ReadonlyMap<number, string>): (numero: number) => Promise<IssueDeLAttendu> {
+  const lues = new Map<number, Promise<IssueDeLAttendu>>();
+  return (numero) => {
+    const corps = duRail.get(numero);
+    if (corps !== undefined) return Promise.resolve({ state: "open", body: corps });
+    const deja = lues.get(numero);
+    if (deja !== undefined) return deja;
+    const lue = lire(`/repos/${depot}/issues/${numero}`).then(
+      (brut) => {
+        const issue = typeof brut === "object" && brut !== null ? (brut as { state?: unknown; body?: unknown }) : {};
+        if (typeof issue.state !== "string") throw new Error(`GitHub gave no state for #${numero}`);
+        return { state: issue.state, body: typeof issue.body === "string" ? issue.body : "" };
+      },
+      (erreur: unknown) => {
+        if (erreur instanceof Error && /\bHTTP 404\b/.test(erreur.message)) return null;
+        throw erreur;
+      },
+    );
+    lues.set(numero, lue);
+    return lue;
+  };
 }

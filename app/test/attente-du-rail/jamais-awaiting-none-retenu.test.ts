@@ -85,3 +85,27 @@ test("les faits du rail : la carte retenue porte sa ligne et ses attendus, une f
   assert.deepEqual(Object.keys(libre), ["attenteDuRail"]);
   assert.equal(libre.attenteDuRail?.raison, "aucune-station");
 });
+
+// La porte de prise retient un ticket en file sur tout ticket ouvert qu'il attend, sur le rail ou non : sa carte le dit et
+// l'ouvre. #1912, ouvert hors du rail, retient #5 par son corps et #6 par sa fiche ; #20, fermé, ne retient pas #7 ; #30,
+// illisible, retient #8 par l'arrêt d'un cook, comme à la porte de prise. Chaque ticket hors du rail se lit une fois.
+test("le rail de l'app : une attente sur un ticket ouvert hors du rail se dit sur la carte, une attente sur un ticket fermé non", async () => {
+  const lues: string[] = [];
+  const hors: AppelGitHub = async (chemin, ...reste) => {
+    if (chemin.includes("/issues?")) return ok([issue(5, ["fire"], "Builds on #1912."), issue(6, ["fire"]), issue(7, ["fire"], "Builds on #20."), issue(8, ["fire"])]);
+    const sien = /\/issues\/(\d+)\/comments/.exec(chemin);
+    if (sien !== null) return ok({ 6: [commentaire([MARQUEUR, "- awaiting: #1912", "- zone: app/"].join("\n"))], 8: [commentaire(`${MARQUE_D_ATTENTE_DE_TICKET} #30 -->\nThe cook stopped.`)] }[Number(sien[1])] ?? []);
+    const seule = /\/issues\/(\d+)$/.exec(chemin);
+    if (seule === null) return appeler(chemin, ...reste);
+    lues.push(chemin);
+    return { 1912: ok({ state: "open", body: "" }), 20: ok({ state: "closed", body: "" }), 30: { status: 502, data: {} } }[Number(seule[1])] ?? { status: 404, data: {} };
+  };
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: hors, maintenant: () => new Date("2026-11-17T10:00:00Z") });
+  assert.ok(lu.lu, lu.lu ? "" : lu.raison);
+  const faits = comprendre(JSON.stringify(lu.faits)) as Faits;
+  assert.deepEqual(carte(faits, 5), { ligne: "waits for #1912 — read from the body: 'Builds on #1912.'", liens: [1912] });
+  assert.deepEqual(carte(faits, 6), { ligne: "waits for #1912 — read from the card", liens: [1912] });
+  assert.deepEqual(carte(faits, 7), { ligne: PRET });
+  assert.deepEqual(carte(faits, 8), { ligne: "waits for #30 — read from a cook's stop", liens: [30] });
+  assert.equal(lues.filter((chemin) => chemin.endsWith("/1912")).length, 1);
+});

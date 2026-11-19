@@ -25,8 +25,9 @@ export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github
 // Un ticket du rail, dans l'état que sa carte dit : en file, pris (un cook tourne) ou en pass.
 // `entreLe` : l'instant où il est entré dans la file (`fire` posé), nul quand GitHub ne le dit pas.
 // `depend` : les tickets dont son corps dit dépendre (`Depends on #N`, ou en toutes lettres : `dependancesDuCorps`).
-// `attentes` (#3763) : les mêmes, chacune avec sa source — le corps (et la phrase d'où elle est lue), la fiche, ou l'arrêt
-// d'un cook —, absente quand l'appelant ne les a pas lues : la carte dit alors l'attente sans sa source, comme avant.
+// `attentes` (#3763) : celles que la porte de prise applique, chacune avec sa source — le corps (et la phrase d'où elle est
+// lue), la fiche, ou l'arrêt d'un cook —, sur un ticket ouvert, sur le rail ou non ; absente quand l'appelant ne les a pas
+// lues : la carte dit alors l'attente sans sa source, comme avant.
 // `commentairesLus` : faux quand les commentaires du ticket — sa fiche, les arrêts de ses cooks — ne se lisent pas.
 export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; entreLe: string | null; depend: readonly number[]; attentes?: readonly AttenteSourcee[]; commentairesLus?: boolean };
 
@@ -69,9 +70,12 @@ function phraseNormale(depuis: string | null, maintenant: number): string {
     : `Normal wait: a cook takes the ticket within minutes (the oldest has waited ${duree}). It resolves by itself.`;
 }
 
-// Les tickets dont un ticket en file attend l'avancée, parmi ceux du rail — en file, qu'un cook tient ou que la pass juge.
-// Un ticket hors du rail n'est pas lu : rien n'est dit de lui.
+// Les tickets dont un ticket en file attend l'avancée. Ses `attentes` lues, ce sont les leurs : l'appelant n'y garde que
+// celles dont le ticket attendu est ouvert, sur le rail ou non, comme la porte de prise (`attentesOuvertesDuTicket`,
+// #3763). Sans elles, ceux de `depend` qui sont sur le rail — en file, qu'un cook tient ou que la pass juge — : un ticket
+// hors du rail n'est pas lu, et rien n'est dit de lui.
 function retenus(carte: TicketDuRail, tickets: readonly TicketDuRail[]): Set<number> {
+  if (carte.attentes !== undefined) return new Set(carte.attentes.map(({ ticket }) => ticket).filter((n) => n !== carte.ticket));
   const sur = new Set(tickets.map(({ ticket }) => ticket));
   return new Set(carte.depend.filter((n) => n !== carte.ticket && sur.has(n)));
 }
@@ -95,7 +99,7 @@ export function ligneDeLaCarte(carte: TicketDuRail, tickets: readonly TicketDuRa
   return dites.length === 0 ? null : dites.join("; ");
 }
 
-// Les attentes que la ligne d'une carte en file dit : celles qui la retiennent sur le rail.
+// Les attentes que la ligne d'une carte en file dit : celles qui la retiennent.
 function attentesDites(carte: TicketDuRail, tickets: readonly TicketDuRail[]): AttenteSourcee[] {
   if (carte.etat !== "queued") return [];
   const retenue = retenus(carte, tickets);

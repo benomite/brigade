@@ -17,8 +17,7 @@
 import { dependancesDuCorps } from "../attente-du-rail/raison.ts";
 import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
 import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
-import { attendusDesCommentairesParSource, MARQUE_D_ATTENTE_DE_TICKET } from "../carte-attente/carte-attente.ts";
-import { ticketsDeLaListe } from "../epique.ts";
+import { attendusDeLAttendu, attendusDesCommentairesParSource, MARQUE_D_ATTENTE_DE_TICKET } from "../carte-attente/carte-attente.ts";
 import { direSaut } from "../retenue/retenue.ts";
 
 // La marque du commentaire qui met le ticket en attente, suivie des tickets
@@ -39,18 +38,7 @@ const numeros = (texte: string) => [...texte.matchAll(/#([1-9]\d*)\b/g)].map(([,
 // garde le ticket en attente, comme une dépendance illisible.
 export async function attendusDuCorps(ticket: number, corps: string, lire: (numero: number) => Promise<{ state: string; body?: string } | null>): Promise<number[]> {
   const attendus = new Set<number>();
-  for (const dependance of dependancesDuCorps(corps).filter((n) => n !== ticket)) {
-    const lue = await lire(dependance);
-    if (lue?.state !== "open") continue;
-    const decoupage = ticketsDeLaListe(lue.body ?? "").filter((n) => n !== dependance);
-    if (decoupage.length === 0) {
-      attendus.add(dependance);
-      continue;
-    }
-    const autres = decoupage.filter((n) => n !== ticket);
-    const etats = await Promise.all(autres.map(async (n) => (await lire(n))?.state));
-    for (const [rang, n] of autres.entries()) if (etats[rang] === "open") attendus.add(n);
-  }
+  for (const dependance of dependancesDuCorps(corps).filter((n) => n !== ticket)) for (const n of await attendusDeLAttendu(ticket, dependance, lire)) attendus.add(n);
   return [...attendus].sort((a, b) => a - b);
 }
 
