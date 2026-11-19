@@ -8,9 +8,8 @@
 // verrou tient pour elles aussi. Ce test ne dit pas que c'est le bon choix, il dit que le changer est une décision du chef,
 // pas un effet de bord.
 //
-// Le cas « rien ne retient » ci-dessous est une garde de non-régression : un ticket que rien ne retient n'a pas de ligne
-// d'attente, et cela existe déjà sur `main`. Il est donc vert sur `main` par construction (décision du chef sur #3810),
-// pas une preuve du changement de #3763.
+// Un ticket que rien ne retient n'a pas de ligne d'attente : cela existe déjà sur `main`, c'est une garde de non-régression
+// (décision du chef sur #3810), tenue dans le premier test, rouge sur `main` pour la ligne du ticket retenu.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { expliquerLAttente, ligneDeLaCarte, type TicketDuRail } from "../../src/attente-du-rail/raison.ts";
@@ -25,7 +24,7 @@ const file = (ticket: number, depend: number[] = []): TicketDuRail => ({ ticket,
 const enLigne = { lues: [{ name: "box", lastSeen: iso(T0 - 30_000), stoppedAt: null, refreshMs: 120_000, selection: [DEPOT] }] };
 const raison = (tickets: TicketDuRail[]) => expliquerLAttente({ depot: DEPOT, tickets, stations: enLigne, plafondAtteint: false, maintenant: T0 })?.raison;
 
-test("un ticket retenu par un ticket ouvert hors du rail n'a pas de ligne d'attente : le choix actuel", () => {
+test("un ticket retenu par un ticket ouvert hors du rail n'a pas de ligne d'attente : le choix actuel ; un ticket libre n'en a pas non plus", () => {
   // #1912 est ouvert, mais il n'est pas sur le rail : `retenus` l'exclut.
   const rail = [file(5, [1912]), file(6)];
   assert.equal(ligneDeLaCarte(rail[0]!, rail), null);
@@ -33,12 +32,10 @@ test("un ticket retenu par un ticket ouvert hors du rail n'a pas de ligne d'atte
   // Sur le rail, la même dépendance se dit.
   const avec1912 = [file(5, [1912]), file(1912)];
   assert.match(ligneDeLaCarte(avec1912[0]!, avec1912) ?? "", /waits for #1912 — read from the body/);
-});
-
-test("un ticket que rien ne retient n'a pas de ligne d'attente, comme avant (garde, verte sur main par construction)", () => {
-  const rail = [file(5), file(6, [5])];
-  assert.equal(ligneDeLaCarte(rail[0]!, rail), null);
-  assert.match(ligneDeLaCarte(rail[1]!, rail) ?? "", /^waits for #5 — read from the body/);
+  // Un ticket que rien ne retient n'a pas de ligne ; celui qu'il retient dit son attente.
+  const libre = [file(5), file(6, [5])];
+  assert.equal(ligneDeLaCarte(libre[0]!, libre), null);
+  assert.match(ligneDeLaCarte(libre[1]!, libre) ?? "", /^waits for #5 — read from the body/);
 });
 
 // Les trois sources et le cas libre, dans une même file : le corps, la fiche, l'arrêt d'un cook, et un ticket libre.
