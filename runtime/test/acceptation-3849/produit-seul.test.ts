@@ -36,7 +36,7 @@ const FICHIER = "runtime/test/attente-longue/attente-longue-produit.test.ts";
 
 // Une fois les tests gelés, la tête de la branche doit porter le fichier tel que l'a laissé son dernier commit portant `Acceptance-Tests: frozen` ou `Amendment: #3764` (la version de main si aucun n'y a touché).
 function modificationsSansAmendement(fichier: string): string[] {
-  const journal = git(DEPOT, "log", "--format=%h%x09%(trailers:key=Acceptance-Tests,valueonly,separator=%x2C)%x09%(trailers:key=Amendment,valueonly,separator=%x2C)", `${BASE}..${BRANCHE}`, "--", fichier);
+  const journal = git(DEPOT, "log", "--full-history", "--format=%h%x09%(trailers:key=Acceptance-Tests,valueonly,separator=%x2C)%x09%(trailers:key=Amendment,valueonly,separator=%x2C)", `${BASE}..${BRANCHE}`, "--", fichier);
   const autorise = journal.split("\n").filter(Boolean).map((l) => l.split("\t") as [string, string, string])
     .find(([, gele, amendement]) => gele.includes("frozen") || amendement.includes("#3764"));
   const blob = (rev: string): string => {

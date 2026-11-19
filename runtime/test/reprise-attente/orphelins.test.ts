@@ -149,3 +149,24 @@ test("taken already gone when it is removed (404) is a release; any other refusa
   instant = T0 + 6 * MIN;
   await assert.rejects(refuse.voir({ number: 20 }), /HTTP 403/);
 });
+
+test("a ticket with a live wait, or that another station took recently, is not released and its 5 minutes do not run", async () => {
+  let instant = T0;
+  const poses: string[] = [];
+  const priseRecente = { id: 1, body: corpsDePrise("box"), association: "OWNER", createdAt: new Date(T0).toISOString() };
+  const lus = new Map([
+    [20, [priseRecente]],
+    [21, [{ ...priseRecente, createdAt: "2026-11-02T00:00:01Z" }, { id: 2, body: attente("box", T0 + 60 * MIN), association: "OWNER", createdAt: "2026-11-02T00:00:02Z" }]],
+  ]);
+  const veille = veilleDesOrphelins({
+    github: { commentaires: async (numero) => lus.get(numero) ?? [], commenter: async (numero) => void poses.push(`comment #${numero}`), delabelliser: async (numero) => void poses.push(`untake #${numero}`) },
+    station: "mac",
+    maintenant: () => instant,
+  });
+  for (const minute of [0, 6, 12]) {
+    instant = T0 + minute * MIN;
+    assert.equal(await veille.voir({ number: 20 }), false, `#20 at ${minute} min`);
+    assert.equal(await veille.voir({ number: 21 }), false, `#21 at ${minute} min`);
+  }
+  assert.deepEqual(poses, []);
+});

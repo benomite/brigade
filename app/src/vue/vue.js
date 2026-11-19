@@ -2848,6 +2848,8 @@ function coinceDit({ dit }) {
   return bail !== undefined && /^(?:STUCK: |COINC[EÉ] : )/.test(bail) ? bail.replace(/, (?:lease|bail) .*$/, "") : undefined;
 }
 
+const SANS_COOK = "Taken, no cook running";
+
 // Une carte du rail : son numéro, son état, son titre, puis une phrase en mots simples qui dit ce
 // qui se passe et, au plus, une ligne de signal (ligne-carte.ts) ; un petit repère quand la file ne
 // dit pas tout. Ce que la file dit du ticket en plus est dans sa fiche (`poserDetailsDeFiche`). Dans
@@ -2898,7 +2900,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // Tuée deux fois par le même garde-fou : la carte le dit, sous sa tête, tant que la box le dit (ticket 3650).
   if (carte.garde !== undefined) tete.after(poserGardeRepetee(document, carte.garde));
   // Un agent y travaille en ce moment : la poêle grésille au bout de sa tête (ticket 2984).
-  if (cuit) tete.append(poele(document));
+  if (cuit && carte.sansCook !== true) tete.append(poele(document));
   // Une carte que plus aucun cook ne prendra dit en haut pourquoi, en mots simples (ticket 3147) ; ce que la station en a écrit
   // est derrière « details ». Ses trois gestes sont au pied de la carte.
   if (carte.refus === undefined) refusDeCartes.delete(`${projet.nom}#${ticket}`);
@@ -2951,6 +2953,13 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     const phrase = liens === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, liens);
     phrase.className = "ligne-carte";
     bon.append(phrase);
+  }
+  // Prise, sans aucun cook qui la cuise ni attente vivante : la carte le dit (ticket 3884).
+  if (carte.sansCook === true) {
+    const sans = bloc("p", SANS_COOK);
+    sans.className = "signal";
+    sans.dataset.sansCook = "";
+    bon.append(sans);
   }
   // Un cook coincé le dit sur sa carte, faute d'un autre signal (ticket 1456) : sur Cooks, ce qui est coincé et depuis
   // quand se lit en tête, sans ouvrir la fiche.

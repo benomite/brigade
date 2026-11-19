@@ -68,7 +68,7 @@ export function veilleDesOrphelins({ github, station, maintenant }: { github: Pi
   const depuis = new Map<number, number>();
   return {
     async voir(ticket) {
-      const instant = maintenant(); 
+      const instant = maintenant();
       const tient = tenantSansCook(await github.commentaires(ticket.number), { station, instant });
       if (tient === null) {
         depuis.delete(ticket.number);
