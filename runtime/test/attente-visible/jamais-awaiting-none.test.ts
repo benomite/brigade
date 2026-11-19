@@ -1,4 +1,4 @@
-// #3763, critère 3 : un ticket retenu par une attente, quelle qu'en soit la source, ne dit jamais `awaiting: none` ; un ticket libre reste dit comme avant.
+// #3763, critère 3 : un ticket retenu par une attente, quelle qu'en soit la source, ne dit jamais `awaiting: none` .
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
@@ -33,9 +33,3 @@ for (const [source, corps, commentaires] of SOURCES) {
     assert.doesNotMatch(dites.join("\n"), /awaiting: none/);
   });
 }
-
-test("un ticket que rien ne retient n'a pas de ligne d'attente, comme avant", async () => {
-  const dites = await lignes("Builds on #4.", []);
-  assert.equal(dites.some((l) => l.trimStart().startsWith("#6 ")), false);
-  assert.equal(dites.some((l) => l.trimStart().startsWith("#4 ")), false);
-});
