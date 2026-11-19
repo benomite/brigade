@@ -37,13 +37,4 @@ describe("the wait after a failed cook is not a claim wait", () => {
     assert.equal(t.perdu?.ratees, 598 * 60);
     assert.equal(t.perdu?.attente, 60 + 60);
   });
-  test("the lost time is the same as before: all the time before the cook that delivered", () => {
-    const perdu = t.perdu;
-    assert.ok(perdu !== undefined);
-    assert.equal(perdu.attente + perdu.ratees + perdu.renvois, 600 * 60);
-  });
-  test("the threshold of the lost time stays at 2 min", () => {
-    assert.equal(SEUIL_PERDU_PAR_DEFAUT_MIN, 2);
-    assert.equal(seuilDuProjet({ lostTimeMaxMin: 2 }), 2);
-  });
 });

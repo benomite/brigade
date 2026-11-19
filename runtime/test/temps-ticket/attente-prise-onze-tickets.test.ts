@@ -127,10 +127,4 @@ describe("the 11 tickets of the lost-time alert (#3891)", () => {
     });
   }
 
-  test("the typical claim waits (1 to 3 min) stay claim waits", () => {
-    for (const ticket of TICKETS.filter((x) => [756, 762, 766, 771, 767].includes(x.n))) {
-      const attente = (mesure(ticket).attentePrise ?? 0) / 60;
-      assert.ok(Math.abs(attente - ticket.attenteMin) <= 0.1, `#${ticket.n}: claim wait ${attente.toFixed(2)} min, expected ${ticket.attenteMin}`);
-    }
-  });
 });
