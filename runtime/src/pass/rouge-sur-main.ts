@@ -198,7 +198,7 @@ export const prouves = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve
 // Verts sur la base sans être marqués comme gardes : ils ne prouvent rien, et renvoient la livraison.
 export const vertsSurLaBase = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.main && rejeu.garde !== true) : []);
 // Verts sur la base et marqués comme gardes : acceptés, sans rien demander (#3852).
-export const gardesVertes = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.main && rejeu.garde === true) : []);
+const gardesVertes = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.main && rejeu.garde === true) : []);
 
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n === 1 ? "" : "s"}`;
 export const REGLE = "Red on main, green on the branch";

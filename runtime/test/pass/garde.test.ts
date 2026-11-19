@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CONSIGNE_DE_RELECTURE } from "../../src/claude.ts";
-import { gardesVertes, journalDeLaPreuve, ligneDeLaPreuve, motifDuRenvoi, testsAjoutes, vertsSurLaBase, type Preuve } from "../../src/pass/rouge-sur-main.ts";
+import { journalDeLaPreuve, ligneDeLaPreuve, motifDuRenvoi, testsAjoutes, vertsSurLaBase, type Preuve } from "../../src/pass/rouge-sur-main.ts";
 import { consigneDesTests } from "../../src/tests-acceptation/ecriture.ts";
 
 test("the marker marks only the case declared right after it, in a new file as in a file that existed", () => {
@@ -24,7 +24,6 @@ test("the marker marks only the case declared right after it, in a new file as i
 
 test("a guard green on main is accepted and said in the pass's line and log; an unmarked one is still sent back", () => {
   const preuve: Preuve = { rejeux: [{ fichier: "a.test.ts", nom: "kept", garde: true, main: true, branche: true }, { fichier: "a.test.ts", nom: "green", main: true, branche: true }] };
-  assert.deepEqual(gardesVertes(preuve).map(({ nom }) => nom), ["kept"]);
   assert.deepEqual(vertsSurLaBase(preuve).map(({ nom }) => nom), ["green"]);
   assert.equal(ligneDeLaPreuve(preuve, "main"), "Red on main, green on the branch: 2 added tests replayed alone on `main` — 0 red on `main` and green on the branch, 1 already green on `main`, 1 marked as guarding a behavior `main` already has (accepted green on `main`).");
   assert.match(journalDeLaPreuve(preuve, "main") ?? "", /`kept` \(`a\.test\.ts`\) green on `main`, green on the branch \(marked as a guard\); `green`/);
