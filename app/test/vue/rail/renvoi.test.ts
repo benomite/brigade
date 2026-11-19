@@ -66,7 +66,8 @@ describe("la lecture du rail le porte, avec la PR du ticket", () => {
     const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant });
     assert.deepEqual(rail.tickets.map(({ ticket, renvoi }) => [ticket, renvoi]), [[5, { n: 1, raison: RAISON }], [7, undefined]]);
     assert.equal(appels.filter((chemin) => chemin.includes("/issues/5/comments")).length, 1);
-    assert.equal(appels.some((chemin) => chemin.includes("/issues/7/comments")), false);
+    // En attente, ses commentaires se lisent une fois, pour ses attentes (ticket 3763) : jamais pour un renvoi.
+    assert.equal(appels.filter((chemin) => chemin.includes("/issues/7/comments")).length, 1);
     const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant });
     assert.ok(lu.lu);
     const entrees = lu.faits.rail as { ticket: number; pr?: unknown; renvoi?: unknown }[];

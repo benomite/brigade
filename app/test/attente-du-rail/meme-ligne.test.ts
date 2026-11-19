@@ -99,11 +99,11 @@ describe("la même phrase dans `status` et dans le rail", { skip: SANS_POSIX }, 
     const gh = ghDe(repertoire, monde(instant));
     const station_ = DE_L_ATTENTE(await statusDeLaStation(t, gh));
     const app = await lectureDeLApp(gh, instant);
-    const attendue = ["queue wait Station box/claude is stopped, so no cook can start. Start it on its computer.", "  #5  after #4"];
+    const attendue = ["queue wait Station box/claude is stopped, so no cook can start. Start it on its computer.", "  #5  waits for #4 — read from the body: 'Depends on #4'"];
     assert.deepEqual(station_, attendue);
     assert.deepEqual(DE_L_ATTENTE(app.status), attendue);
     assert.equal(`queue wait ${app.attente?.phrase}`, attendue[0]);
-    assert.deepEqual(app.cartes, { 5: "after #4" });
+    assert.deepEqual(app.cartes, { 5: "waits for #4 — read from the body: 'Depends on #4'" });
   });
 
   test("leur station en ligne : l'attente normale, la même durée partout", async (t) => {

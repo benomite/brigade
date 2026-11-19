@@ -113,9 +113,9 @@ test("le rail se lit sur GitHub : ses tickets dans l'ordre du service, leur éta
   // La base se lit, un ticket étant en pass ; les prises, des seuls tickets tenus.
   assert.ok(chemins.includes(`/repos/${DEPOT}`) && chemins.some((chemin) => chemin.includes("/commits/main/check-runs")));
   assert.ok(chemins.some((chemin) => chemin.startsWith(`/repos/${DEPOT}/issues/2/comments`)) && chemins.some((chemin) => chemin.startsWith(`/repos/${DEPOT}/issues/3/events`)));
-  // Un ticket en attente n'a personne qui le tienne : ses commentaires ne se lisent pas. Ses événements, si : ils disent depuis
-  // quand `fire` lui a été posé (ticket 3433).
-  assert.ok(!chemins.some((chemin) => /\/issues\/1\/comments/.test(chemin)), "un ticket en attente n'a personne qui le tienne");
+  // Un ticket en attente n'a personne qui le tienne : ses commentaires ne se lisent qu'une fois, pour sa fiche et les arrêts de
+  // ses cooks (ticket 3763). Ses événements disent depuis quand `fire` lui a été posé (ticket 3433).
+  assert.equal(chemins.filter((chemin) => /\/issues\/1\/comments/.test(chemin)).length, 1, "les commentaires d'un ticket en attente se lisent une fois, pour ses attentes");
   assert.ok(chemins.some((chemin) => chemin.startsWith(`/repos/${DEPOT}/issues/1/events`)), "l'entrée dans la file d'un ticket en attente se lit de ses événements");
 });
 
@@ -276,9 +276,15 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
     "runtime/src/attente-du-rail/raison.ts",
+    // Les attentes d'un ticket en file et leur source — son corps, sa fiche, l'arrêt d'un cook —, sans E/S (ticket 3763).
+    "runtime/src/boucle-attente/levee.ts",
+    "runtime/src/capacites.ts",
+    "runtime/src/carte-attente/carte-attente.ts",
     "runtime/src/enregistrement-station/contrat.ts",
     // La liste des tickets d'une épique, sans E/S : une épique n'est pas sur le rail (#2618).
     "runtime/src/epique.ts",
+    "runtime/src/events/rail.ts",
+    "runtime/src/fiche.ts",
     "runtime/src/github-etat/etats.ts",
     "runtime/src/rail-bloque/lecture.ts",
     "runtime/src/rail-bloque/rail-bloque.ts",
@@ -289,6 +295,7 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/stations-github/stations.ts",
     // L'étape `tests written` du rail, d'après les labels, sans E/S (ticket 3725).
     "runtime/src/tests-acceptation/etape.ts",
+    "runtime/src/zones.ts",
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.
   assert.deepEqual(graphe("app/src/tableau/jeton-gh.ts"), ["app/src/tableau/jeton-gh.ts", "node:child_process"]);
