@@ -6,7 +6,9 @@
 # en créant un fichier qui n'existe pas encore (`set -C`), ce qui est atomique.
 # Rien que des commandes du shell avant de céder la place : sous Windows, chaque
 # process lancé coûte assez pour qu'une relance qui doit parler reste muette
-# au-delà du plafond d'inactivité du test (#3705, CI windows).
+# au-delà du plafond d'inactivité du test (#3705, CI windows). La doublure de
+# `claude` est lue dans ce shell-ci, pas lancée : un second bash qui démarre
+# coûtait encore assez pour que la relance du cook de #44 cale (#3860).
 set -u
 for ((rang = 1; rang <= ${PENDU_FOIS:-1}; rang++)); do
   set -C
@@ -17,4 +19,4 @@ for ((rang = 1; rang <= ${PENDU_FOIS:-1}; rang++)); do
   fi
   set +C
 done
-exec "${BASH_SOURCE[0]%/*}/../aides/faux-claude.sh" "$@"
+. "${BASH_SOURCE[0]%/*}/../aides/faux-claude.sh" "$@"
