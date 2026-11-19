@@ -94,6 +94,14 @@ function pointsBloquants(motif: string): string[] {
   return puces.length > 0 ? puces : motif.trim() === "" ? ["see the review on the PR"] : [motif.trim()];
 }
 
+// Le dernier commentaire de la station sur le ticket, hors de ceux de la guérison
+// (ses relances, ses boucles signalées) : ce qui l'a mis de côté.
+async function dernierDeLaStation(ticket: TicketDeCote, { github }: ContexteDeLaGuerison) {
+  return deLaCuisine(await github.commentaires(ticket.number))
+    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_RELANCE.test(c.body) && !MARQUE_DE_BOUCLE.test(c.body))
+    .at(-1);
+}
+
 // Pourquoi le ticket est de côté, s'il s'agit d'une raison qu'un cook répare :
 // d'abord l'état de sa PR (conflit, check rouge, relecture), puis le dernier
 // commentaire de la station (un cook arrêté). Null sinon.
@@ -117,9 +125,7 @@ export async function diagnostiquer(ticket: TicketDeCote, contexte: ContexteDeLa
       return { cause: "review", consigne: `The review of PR #${pr.number} on \`${pr.sha.slice(0, 7)}\` has blocking points; fix each of them:\n${points.map((point) => `- ${point}`).join("\n")}` };
     }
   }
-  const dernier = deLaCuisine(await github.commentaires(ticket.number))
-    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_RELANCE.test(c.body) && !MARQUE_DE_BOUCLE.test(c.body))
-    .at(-1);
+  const dernier = await dernierDeLaStation(ticket, contexte);
   if (dernier?.body.startsWith(MARQUE_D_ECHEC)) {
     const motif = / — ([^\n]*)/.exec(dernier.body)?.[1] ?? "no reason given";
     return { cause: "cook-stopped", consigne: `The last cook stopped without a delivery — ${motif}. Pick the ticket up again and deliver it.` };
@@ -136,10 +142,7 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
   if (ticket.labels.includes(LABEL_WAITING)) return { fait: "rien", pourquoi: "it waits for something on purpose (`waiting`)" };
   // Mis de côté parce que ses tests gelés faux, retirés, ne laisseraient rien pour prouver un critère (#3799) :
   // aucun cook n'y peut rien, et le relancer referait la boucle que cette mise de côté arrête.
-  const derniere = deLaCuisine(await github.commentaires(ticket.number))
-    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_RELANCE.test(c.body) && !MARQUE_DE_BOUCLE.test(c.body))
-    .at(-1);
-  if (derniere?.body.startsWith(MARQUE_MISE_DE_COTE_GELE)) return { fait: "rien", pourquoi: "its wrong frozen acceptance tests leave a criterion with nothing to prove it: a human decides" };
+  if ((await dernierDeLaStation(ticket, contexte))?.body.startsWith(MARQUE_MISE_DE_COTE_GELE)) return { fait: "rien", pourquoi: "its wrong frozen acceptance tests leave a criterion with nothing to prove it: a human decides" };
   const diagnostic = await diagnostiquer(ticket, contexte);
   if (diagnostic === null) return { fait: "rien", pourquoi: "no reason a cook can fix: a human decides" };
   const { cause, consigne } = diagnostic;

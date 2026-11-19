@@ -89,7 +89,7 @@ import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
 import { fichiersGeles, motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
-import { casGelesFaux, corpsDeLaCorrection, corrigerLesTestsGeles, MARQUE_MISE_DE_COTE_GELE } from "./passe-gel-tests/gele-faux.ts";
+import { casGelesFaux, casQuiNeTypentPas, controleDesTypes, corpsDeLaCorrection, corrigerLesTestsGeles, ERREUR_TSC, MARQUE_MISE_DE_COTE_GELE, type Faux } from "./passe-gel-tests/gele-faux.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
 import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
@@ -3262,6 +3262,43 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return mutations;
   };
 
+  // Les cas gelés que le contrôle de types du projet refuse (#3799) : le `tsc`
+  // du projet, joué sur le worktree de la relecture, pour chaque `tsconfig.json`
+  // qui couvre un fichier gelé. Sans `tsc` installé, le setup du projet passe
+  // d'abord, comme pour un cook ; sans `tsc` après lui, ou un `tsc` qui ne dit
+  // rien de lisible, le contrôle n'a pas lieu, et le journal le dit.
+  const typesDesGeles = async (ticket: TicketLu, worktree: string, geles: readonly string[]): Promise<Faux[]> => {
+    const lieux = () => {
+      const controles = new Map<string, string | null>();
+      for (const fichier of geles) {
+        const lu = controleDesTypes(worktree, fichier);
+        if (lu !== null) controles.set(lu.dossier, lu.tsc);
+      }
+      return controles;
+    };
+    let controles = lieux();
+    if ([...controles.values()].includes(null) && options.setup !== undefined) {
+      const setup = await jouerSetup({ worktree, ticket: ticket.number, env: sansJeton(), delaiMs: options.setup.delaiMs, interdites: interditesAuSetup, cloison, signal: abandon.signal });
+      if (!setup.pret) avertir(`brigade : #${ticket.number} sur ${nom} — \`${SCRIPT_SETUP}\` failed on the review's worktree (${setup.depasse ? "stopped" : `exit code ${setup.code ?? "none"}`})`);
+      controles = lieux();
+    }
+    const faux: Faux[] = [];
+    for (const [dossier, tsc] of controles) {
+      const dit = `the types of the frozen acceptance tests under \`${dossier}\` are not checked`;
+      if (tsc === null) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — ${dit}: no TypeScript compiler is installed there`);
+        continue;
+      }
+      const { code, depasse, retenues, fin } = await jouerOutil(tsc, ["--noEmit", "--pretty", "false", "-p", join(worktree, dossier)], { worktree, ticket: ticket.number, env: sansJeton(), delaiMs: REJEU_MAX_MS, cloison, signal: abandon.signal }, ERREUR_TSC);
+      if (depasse || (code !== 0 && retenues.length === 0)) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — ${dit}: \`tsc\` ${depasse ? "was stopped" : `exited with code ${code ?? "none"}`} — ${fin.split("\n").at(-1) ?? ""}`);
+        continue;
+      }
+      faux.push(...casQuiNeTypentPas(retenues, worktree, geles));
+    }
+    return faux;
+  };
+
   const juger: Juger = async (ticket, pr) => {
     const branche = brancheDuTicket(ticket.number);
     const run = `review-${ticket.number}-github`;
@@ -3309,15 +3346,25 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       })();
       const avecTestsGeles = gelés === null || doitMuter(gelés.length);
       if (!avecTestsGeles) avertir(`brigade : #${ticket.number} sur ${nom} — ${LIGNE_SANS_MUTATION}`);
-      // Un cas gelé déjà vert sur la base est faux (#3799) : le cook n'y peut rien, et
-      // le lui renvoyer fait boucler le ticket. La station le retire au nom du tests
-      // cook, le dit sur l'issue, et rejuge la livraison sans lui ; si rien ne prouve
-      // plus le critère de son fichier, le ticket est mis de côté une fois.
+      // Un cas gelé déjà vert sur la base, ou que le contrôle de types refuse, est
+      // faux (#3799) : le cook n'y peut rien, et le lui renvoyer fait boucler le
+      // ticket. La station le retire au nom du tests cook, le dit sur l'issue, et
+      // rejuge la livraison sans lui ; si rien ne prouve plus le critère de son
+      // fichier, le ticket est mis de côté une fois.
+      const typant = typesDesGeles(ticket, worktree, gelés ?? []).catch((erreur: unknown) => {
+        avertir(`brigade : #${ticket.number} sur ${nom} — the types of the frozen acceptance tests could not be checked: ${message(erreur)}`);
+        return [];
+      });
       const corrigerLesFaux = async (preuve: Preuve): Promise<{ preuve: Preuve; diff: typeof diff; ecarte?: string }> => {
-        const faux = casGelesFaux(vertsSurLaBase(preuve), gelés ?? []);
+        const tous = [...casGelesFaux(vertsSurLaBase(preuve), gelés ?? [], base), ...(await typant)];
+        const faux = tous.filter((f, rang) => tous.findIndex((autre) => autre.fichier === f.fichier && autre.nom === f.nom) === rang);
+        if (faux.length === 0) return { preuve, diff };
         const { lancerGit } = depot;
-        if (faux.length === 0 || lancerGit === undefined) return { preuve, diff };
-        const correction = await corrigerLesTestsGeles(faux, { worktree, ticket: ticket.number, base, git: lancerGit });
+        if (lancerGit === undefined) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the wrong frozen acceptance tests cannot be corrected, this station's clone runs no git in its worktrees: the delivery is judged as it is`);
+          return { preuve, diff };
+        }
+        const correction = await corrigerLesTestsGeles(faux, { worktree, ticket: ticket.number, git: lancerGit });
         if ("echec" in correction) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the wrong frozen acceptance test could not be corrected, the delivery is judged as it is: ${correction.echec}`);
           return { preuve, diff };
@@ -3331,7 +3378,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           return { preuve, diff };
         }
         await options.github
-          .commenter(ticket.number, corpsDeLaCorrection({ station: nom, ticket: ticket.number, branche, sha: correction.sha, retires: correction.retires, base }))
+          .commenter(ticket.number, corpsDeLaCorrection({ station: nom, ticket: ticket.number, branche, sha: correction.sha, retires: faux }))
           .catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test (\`${correction.sha.slice(0, 7)}\`) could not be said on the issue: ${message(erreur)}`));
         const corrige = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
         return { preuve: await prouverLaLivraison(ticket, worktree, corrige.fichiers), diff: corrige };
