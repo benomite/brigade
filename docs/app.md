@@ -3725,6 +3725,7 @@ section. With the section laid, `right now` is not repeated under it.
   in `facts` (#1346); a runtime from before this field says nothing more.
   **A queued card held back for other tickets says `after #12, #15`** (#3510): the numbers of `rail[].attend` in `facts`, a
   list the rail scheduling writes (#3502) and the app only reads; an empty or missing `attend` adds nothing to the card.
+  These numbers do not say where each wait was read; the GitHub rail's card below does (#3763).
 - **A ticket set aside (`86`) is never out of a column.** The runtime gives, in `rail[].attente`
   of `facts`, its reason in plain words ("awaiting: project setup impossible") and the column where it waits;
   the app files it there — failing a column it knows, in **On the rail** — and its card
@@ -3924,12 +3925,29 @@ section. With the section laid, `right now` is not repeated under it.
   five minutes on: "longer than usual"). The first three name the gesture that lifts them (**Start this computer's station** on this
   computer, `Start it on its computer.` on another one, **Add the project to a station** — a red `FAULT` line, with the
   button that opens the Stations tab for the latter); the others say
-  they resolve by themselves. A queued card that will not start next carries `after #N` (behind another queued ticket)
-  or `waiting for #N to merge` (behind a ticket a cook holds or the pass judges), read from the `Depends on #N` lines of
-  its issue; the card that starts next and a card without dependency have none, and "Will not start: …" or a blocking
+  they resolve by themselves. A queued card held by another ticket on the rail carries each wait the kitchen
+  applies to it, with where it was read (#3763): `waits for #N — read from the body: '<the sentence>'` (a `Depends on #N` line, or a
+  sentence that says it builds on #N), `waits for #N — read from the card` (the `awaiting` line of its card), or
+  `waits for #N — read from a cook's stop` (the mark the station writes when a cook stops on an unmerged ticket); a wait
+  the kitchen lifted is not shown, nor a wait on an open ticket that is not on the rail (the card then reads as ready). When its comments cannot be read, the card says `its card and its cooks' stops could
+  not be read on GitHub`, never that nothing holds it. The card that starts next and a card without dependency have
+  none, and "Will not start: …" or a blocking
   reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
   (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
-  publish a station's cook cap, so this reading never raises that reason.
+  publish a station's cook cap, so this reading never raises that reason. In the app, the three station faults are said
+  by the rail alert line (#3823, below), never by this sentence: it knows neither the header nor the last cook.
+- **A rail alert is shown only when it is true and actionable** (#3823, `runtime/src/attente-du-rail/alertes.ts`, the line
+  in `app/src/vue/attente-du-rail/ligne-des-alertes.js`). The GitHub reading of the rail judges five kinds: no station
+  serves the project; its stations are stopped or offline, so no cook can start; the main branch is red (its live
+  `repair-main` ticket on the rail, #3815: since the issue opened, the check its title names); a ticket taken ten times
+  or more (counted from the take comments on the first page of its comments, said as "at least" when that page is
+  full); and nothing served for 30 minutes while a ticket is ready. Each alert carries a checkable fact — since when, and
+  which ticket or which check, on hover — and either the gesture that lifts it (a button when the app has one: **Add the
+  project to a station**, **Start this computer's station**) or what the kitchen already does about it (`The kitchen
+  repairs it on #N.`); an alert with neither, or without a fact, is not shown. No alert says that no cook can start while
+  a station of the header cooks the project, a cook runs, or a cook opened its PR less than 5 minutes ago. Nothing
+  served for 30 minutes is one red `FAULT` line that names a known cause — one of the four, or the reason of the queue
+  wait —, never "cause unknown" alone; it comes first, and the head of the rail shows only it.
 - **A GitHub quota pause is not a fault** (#3482, `app/src/vue/pause-quota/`). When the account's GitHub quota is spent,
   the stations keep running but cannot write their sign of life. Each station's state carries `quotaGithub`
   (`limite`: `core` or `ecriture`, `pauseJusqua`: when it resumes, or null); a running station in pause is held by
@@ -4057,7 +4075,7 @@ something holds the kitchen**. The columns start right under them.
 
 - **The status line** is the first of these causes, never two stacked: the breaker line with its `Resume` (#2140); an issue the
   kitchen filed about itself (`Kitchen held: its breaker is open`, `Kitchen idle: …`); the blocked rail (#3358); the idle-kitchen
-  fault (#1863); the project off, with its switch (#3454); a stale or offline reading; the wait of the queue (#3433).
+  fault (#1863); the project off, with its switch (#3454); a stale or offline reading; a rail alert (#3823); the wait of the queue (#3433).
 - **A kitchen-filed issue is never a need.** `Kitchen <project> held: its breaker is open` and `The kitchen is idle: …`
   (`app/src/amont.ts`, `alerteDeLaCuisine`) are left out of the Backlog — no tag, no row in the unfolded list, not counted —
   and their content is the status line. Since #3620 the station files them on `benomite/brigade`, never in the project's

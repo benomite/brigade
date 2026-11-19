@@ -34,7 +34,7 @@ const dit = (texte: string) => (texte.length <= 120 ? texte : `${texte.slice(0, 
 // Les motifs de renvoi, un par critère fautif, qui le nomme. `couvertures` : ce
 // que la relecture a dit de chaque critère, dans l'ordre ; `gelés` : les fichiers
 // du commit gelé. Un test couvre un critère s'il est gelé, rouge sur la base et
-// vert sur la branche (`etatDuCritere`).
+// vert sur la branche, ou marqué comme une garde verte des deux côtés (`etatDuCritere`).
 export function motifsDesCriteres(criteres: readonly Critere[], couvertures: readonly Couverture[] | null, preuve: Preuve, gelés: readonly string[]): string[] {
   const motifs: string[] = [];
   criteres.forEach((critere, rang) => {
