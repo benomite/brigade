@@ -356,6 +356,8 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
   const bas = faux.pour(station);
   const client: Partial<GitHub> = {
     tickets: async () => ({ inchange: false, issues: (await bas.fires()).map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
+    // Toutes les issues du faux, ouvertes ou fermées : la lecture des stations du projet (#3870) y cherche leurs prises.
+    issuesDepuis: async () => [...faux.tickets.values()].map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, body: t.corps, association: "OWNER", createdAt: "", updatedAt: "", url: "" })) as never,
     prDeBranche: async (branche) => {
       const pr = faux.prs.findLast((p) => p.branche === branche);
       return pr === undefined ? null : { number: pr.number, url: "", base: "main", sha: pr.sha, state: pr.state, merged: pr.merged, enRetard: pr.enRetard, mergeePar: pr.mergeePar, ...(pr.enConflit ? { enConflit: true } : {}) };

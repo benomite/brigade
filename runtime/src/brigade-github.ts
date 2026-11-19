@@ -25,7 +25,7 @@ import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
 import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { defaireLesBoucles } from "./boucle-attente/boucle-attente.ts";
 import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
-import { corpsDeLIncapacite, direIncapacite, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
+import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, LABEL_COOK_DESIGN, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
@@ -53,7 +53,7 @@ import { estUneReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaRe
 import { lireInstantane, REQUETE, type Instantane, type PRDeLInstantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { faitsDePrise, lacher, premierePrise, prendre, purger } from "./github-etat/prise.ts";
+import { faitsDePrise, lacher, premierePrise, prendre, purger, stationsDesPrises } from "./github-etat/prise.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
 import { avecChangements, lireChangements } from "./validation-design/changements.ts";
 import { cleDansLaLivraison, lancementDuCook, moteurDeLaStation, noterLaLivraison } from "./moteur/moteur.ts";
@@ -409,6 +409,8 @@ export type OptionsDeStation = {
   // dont les gates ne se jouent pas ici va à une autre. Absentes, aucune
   // autre : il reste retenu sur cette station.
   stationsDuProjet?: () => readonly string[];
+  // Ce que la station n'a pas pu pour un ticket, en une ligne, que sa carte de l'onglet Stations dit (#3870) ; nul : elle le peut de nouveau.
+  lacune?: (ligne: string | null) => void;
   // Un humain valide les designs du projet (#3184, `humanValidatesDesigns`),
   // relu à chaque merge : une livraison design verte attend sa carte au lieu
   // d'être mergée (`validation-design/`). Absent, non.
@@ -606,6 +608,10 @@ const arretSubi = (conclusion: string, fin: { code: number | null; signal: strin
   // SIGTERM : le signal, ou le code 143 quand un relais ou un shell l'a rendu en code de sortie (#3528).
   return fin.erreur === null && (fin.signal !== null || fin.code === 143);
 };
+
+// Ce que la lecture des stations du projet sur GitHub regarde : les issues qui ont bougé depuis deux jours, et pas plus de quarante.
+const FENETRE_DES_STATIONS_MS = 2 * 24 * 3600_000;
+const ISSUES_LUES_AU_PLUS = 40;
 
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
@@ -1102,6 +1108,32 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     return "retenue";
   };
 
+  // Les stations du projet : celles que la station déclare, et celles que GitHub
+  // montre — une prise postée sur une issue qui a bougé ces deux derniers jours (#3870). Une station
+  // ne déclare qu'elle-même, comme la box d'un Mac qui ne la déclare pas : sans
+  // GitHub, aucune autre ne serait vue, et le ticket resterait retenu ici. La
+  // lecture se garde dix minutes ; une lecture qui échoue ne retire rien aux
+  // stations déclarées.
+  let vuesSurGitHub: { a: number; noms: string[] } | null = null;
+  const stationsDuProjet = async (): Promise<string[]> => {
+    const declarees = [...(options.stationsDuProjet?.() ?? [])];
+    const maintenant = (options.maintenant?.() ?? new Date()).getTime();
+    if (vuesSurGitHub === null || maintenant - vuesSurGitHub.a > 10 * 60_000) {
+      try {
+        const noms = new Set<string>();
+        const recentes = (await github.issuesDepuis(new Date(maintenant - FENETRE_DES_STATIONS_MS).toISOString())).filter((lue) => lue.state !== "closed");
+        if (recentes.length > ISSUES_LUES_AU_PLUS) avertir(`brigade : ${nom} — ${recentes.length} issues moved in the last two days: only the ${ISSUES_LUES_AU_PLUS} most recent are read for the stations of the project`);
+        for (const lue of recentes.slice(-ISSUES_LUES_AU_PLUS)) for (const nomVu of stationsDesPrises(await github.commentaires(lue.number))) noms.add(nomVu);
+        vuesSurGitHub = { a: maintenant, noms: [...noms] };
+      } catch (erreur) {
+        if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+        avertir(`brigade : ${nom} — the stations of the project could not be read on GitHub: ${message(erreur)}`);
+        return [...new Set([...declarees, ...(vuesSurGitHub?.noms ?? [])])];
+      }
+    }
+    return [...new Set([...declarees, ...vuesSurGitHub.noms])];
+  };
+
   // Marque sur l'issue que cette station ne joue pas les gates du ticket, et
   // rend les stations du projet qui le peuvent encore (#3057). Des marques
   // illisibles n'en écartent aucune : la porte de chaque station relit les
@@ -1114,8 +1146,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     } catch (erreur) {
       avertir(`brigade : #${issue} sur ${nom} — the stations already unable to run its gates could not be read: ${message(erreur)}`);
     }
-    const vers = stationsCapables(nom, options.stationsDuProjet?.() ?? [], marquees);
+    const vers = stationsCapables(nom, await stationsDuProjet(), marquees);
     await github.commenter(issue, corpsDeLIncapacite({ station: nom, vers, question }));
+    options.lacune?.(direLaLacune(question));
     return vers;
   };
 
@@ -1129,6 +1162,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       let fait = await cuisiner(ticket, calibrage);
       if (fait.testsMs !== undefined) chrono.tests(issue, fait.testsMs);
       if ("branche" in fait) {
+        // Elle a cuit un ticket jusqu'à sa livraison : plus rien ne lui manque.
+        options.lacune?.(null);
         chrono.marquer(issue, "attentePasse");
         // Un renvoi pousse sur la branche d'une PR encore ouverte : elle porte
         // déjà la livraison, il n'en faut pas une seconde.
@@ -2209,7 +2244,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         .then((commentaires) => incapablesLus(commentaires, () => Promise.resolve().then(() => github.retraitsDeLabels(ticket.number))))
         .catch(() => new Set<string>());
       if (marquees.has(nom)) {
-        sauter(ticket.number, direSaut(ticket.number, direIncapacite(nom, stationsCapables(nom, options.stationsDuProjet?.() ?? [], marquees))));
+        sauter(ticket.number, direSaut(ticket.number, direIncapacite(nom, stationsCapables(nom, await stationsDuProjet(), marquees))));
         continue;
       }
       // Un ticket sans calibrage complet ne part pas, (#2213).
@@ -2642,6 +2677,8 @@ export type OptionsDuDepot = {
   // Les stations que le projet déclare (#3057), où va un ticket dont les gates
   // ne se jouent pas sur celle-ci.
   stationsDuProjet?: () => readonly string[];
+  // Ce que la station n'a pas pu pour un ticket, en une ligne, que sa carte de l'onglet Stations dit (#3870) ; nul : elle le peut de nouveau.
+  lacune?: (ligne: string | null) => void;
   // La configuration du projet, relue à chaque PR externe : son humain
   // `review` reçoit la carte « merge #N? » (#2933). Absente, elle va au chef.
   // Relue aussi à chaque merge : `humanValidatesDesigns` y retient une
@@ -3661,7 +3698,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
       : porteDesTests(ecrireOuClasser, { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) });
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), ...(options.lacune === undefined ? {} : { lacune: options.lacune }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   const quitter = station.quitter;
   station.quitter = async () => {

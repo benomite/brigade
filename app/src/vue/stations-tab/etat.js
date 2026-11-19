@@ -35,7 +35,7 @@ import { statutLu } from "../moteur/moteurs.js";
  * encore — sa machine pleine, la limite de GitHub, son refus et sa raison. `cooks`, `agents` : ce qu'elle tient du projet à
  * l'instant. `prise` : le nom sous lequel sa cuisson la nomme (`<machine>/claude`), quand elle la nomme — celui de sa
  * déclaration et de son plafond. `moteur` : l'état de son moteur, tel que sa ligne de cuisson le publie (ticket 3746).
- * @typedef {{ id: string, nom: string, prise?: string, ici: boolean, sorte: Sorte, etat: EtatDeStation, dit: string, note?: string, cooks: Cook[], agents: AgentDeStation[], moteur?: import("../moteur/moteurs.js").Statut }} Servante
+ * @typedef {{ id: string, nom: string, prise?: string, ici: boolean, sorte: Sorte, etat: EtatDeStation, dit: string, note?: string, lacks?: string, cooks: Cook[], agents: AgentDeStation[], moteur?: import("../moteur/moteurs.js").Statut }} Servante
  */
 /**
  * Un déménagement en route : d'où, vers où, depuis quand (`depuis`, en ms), son étape, ce que la station en dit (`dit`), et
@@ -147,6 +147,7 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
       dit: refuse ? REFUSANT : !horsLigne ? "online" : appairee?.etat === "hors-ligne" ? appairee.dit : horsLigneDe(ligne, lu),
       ...(note === "" ? {} : { note }),
       ...(moteur === undefined ? {} : { moteur }),
+      ...(ligne.lacks === undefined ? {} : { lacks: ligne.lacks }),
       cooks: ligne.cooks,
       agents: ligne.agents,
     });

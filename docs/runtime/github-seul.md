@@ -48,7 +48,11 @@ base, the stale-branch pruning).
   service (`gatesInjouables`, `runtime/src/routage-station/routage-station.ts`), the station posts
   `<!-- brigade:station-incapable station=<name> -->` on the issue with the cook's words and gives the ticket back,
   not counted among its tries, without the manager. A station never takes a ticket that marks it unable: its claim
-  gate skips it, and another station of the project (`stationsDuProjet`, the declared stations) takes it. When the
+  gate skips it, and another station of the project takes it: the stations the station declares, plus those GitHub shows
+  (a claim comment on an issue that moved in the last two days, read at most every ten minutes) — a Mac station declares
+  only itself, and the box that serves the same project is seen there (#3870). The station also writes, in one line, what
+  it lacked (`<BRIGADE_STATION_DIR>/lacunes/<project>.json`, until it delivers a ticket): `facts` carries it as `lacks`
+  and its card in the Stations tab says it. When the
   project has no other station that is not marked, the ticket stays on the rail, held on that station: the station's log
   and its skip line say the station is to be fixed — no `blocked-on-human`, no TODO card. The marks count since the
   ticket's last removal of `fire` or `served-elsewhere`: putting it back on the rail clears them. Seen on mirrorlab#674 (#3057).
