@@ -15,8 +15,8 @@
 //
 // Aucune ligne quand rien n'attend ou qu'un cook tourne. Ce que le rail ne dit pas de la station (le plafond, que
 // GitHub ne publie pas) est donné par l'appelant ; l'inconnu ne fait jamais une raison.
-import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { lignesHorsCode } from "../epique.ts";
+import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { stationDe } from "../stations-github/stations.ts";
 import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
 
@@ -167,31 +167,10 @@ export function lignesDeStatus(phrase: string | null, cartes: Readonly<Record<nu
   return phrase === null ? siennes : [`${"queue wait".padEnd(11)}${phrase}`, ...siennes];
 }
 
-// Les tournures par lesquelles un corps dit, en toutes lettres, bâtir sur un autre ticket (#3622) : le 2026-11-15, sur
-// secondes, trois écrans restylés « with the identity of #49 » sont partis en même temps que l'identité, et leur cook
-// s'est arrêté. Chacune est suivie d'un ou plusieurs `#N` (séparés par une virgule, `and`, `&` ou `et`), sur la même
-// ligne : « once #12 is done », « after #12 », « builds on #12 », « on top of #12 », « requires #12 », et leurs formes
-// françaises (« une fois #12 fait », « après #12 », « avec l'identité de #49 »). Un `#N` cité entre backticks ou
-// dans un bloc de code n'en est pas un, ni `autre-depot#N`.
-const TOURNURES = [
-  String.raw`(?:builds?|built|building)[ \t]+(?:up)?on(?:[ \t]+top[ \t]+of)?`,
-  String.raw`on[ \t]+top[ \t]+of`,
-  "once",
-  "after",
-  String.raw`with[ \t]+the[ \t]+(?:[\p{L}-]+[ \t]+){1,3}of`,
-  String.raw`(?:requires?|needs?|depends?[ \t]+on|waits?[ \t]+(?:for|on)|blocked[ \t]+(?:by|on))`,
-  String.raw`une[ \t]+fois(?:[ \t]+que)?`,
-  "après",
-  String.raw`avec[ \t]+(?:l['’]|la[ \t]+|le[ \t]+|les[ \t]+)(?:[\p{L}-]+[ \t]+){0,2}[\p{L}-]+[ \t]+d(?:e|u|es)`,
-  String.raw`(?:repose|s['’]appuie|bâtit|construit)[ \t]+sur`,
-  String.raw`d[ée]pend[ \t]+de`,
-];
-const NUMEROS = String.raw`#[1-9]\d*(?:[ \t]*(?:,|and|&|et)?[ \t]*#[1-9]\d*)*`;
-const EN_TOUTES_LETTRES = new RegExp(String.raw`(?<![\p{L}\d_])(?:${TOURNURES.join("|")})[ \t]+(${NUMEROS})(?![\p{L}\d_])`, "giu");
-
 // Les issues dont un corps dit dépendre, chacune avec la phrase d'où elle est lue (#3763) : les numéros d'une ligne
-// `Depends on #N` (un ou plusieurs, séparés par une virgule, `and` ou `&`), puis ceux qu'une phrase dit attendre en
-// toutes lettres (`TOURNURES`). La phrase est sa ligne, sans puce ni citation, coupée à `PHRASE_MAX` caractères.
+// `Depends on #N` (un ou plusieurs, séparés par une virgule, `and` ou `&`), et rien d'autre (#3865) : une prose, une
+// citation (`>`) ou une décision collée qui nomme un ticket ne le fait jamais attendre. La phrase est sa ligne, sans
+// puce, coupée à `PHRASE_MAX` caractères.
 const PHRASE_MAX = 80;
 const phraseDe = (ligne: string) => {
   const nette = ligne.replace(/^[ \t>*-]+/, "").trim();
@@ -207,11 +186,8 @@ export function attentesDuCorps(corps: string): { ticket: number; phrase: string
       lues.push({ ticket: Number(numero), phrase: phraseDe(ligne) });
     }
   };
-  for (const ligne of corps.split("\n")) {
-    for (const [, liste = ""] of ligne.matchAll(/^[ \t>*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) lire(liste, ligne);
-  }
-  for (const { texte } of lignesHorsCode(corps)) {
-    for (const [, liste = ""] of texte.replace(/`[^`]*`/g, "").matchAll(EN_TOUTES_LETTRES)) lire(liste, texte);
+  for (const { texte: ligne } of lignesHorsCode(corps)) {
+    for (const [, liste = ""] of ligne.matchAll(/^[ \t*-]*Depends on[ \t]+(#\d+(?:[ \t]*(?:,|and|&)?[ \t]*#\d+)*)/gim)) lire(liste, ligne);
   }
   return lues;
 }

@@ -20,7 +20,7 @@ async function lignes(corpsDe5: string, commentairesDe5: unknown[]): Promise<str
 }
 
 const SOURCES: Array<[string, string, unknown[]]> = [
-  ["le corps", "Builds on #4.", []],
+  ["le corps", "Depends on #4", []],
   ["la fiche", "Restyle the screen.", [commentaire([MARQUEUR, "- attend : #4"].join("\n"))]],
   ["l'arrêt d'un cook", "Restyle the screen.", [commentaire(`${MARQUE_D_ATTENTE_DE_TICKET} #4 -->\nThe cook stopped.`)]],
 ];

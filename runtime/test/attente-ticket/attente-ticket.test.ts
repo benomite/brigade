@@ -177,7 +177,7 @@ test("a ticket that says in plain words it builds on a split ticket waits for th
     avant: (faux) => {
       faux.feu(A, ["model:opus"], decoupee(A, [C]));
       faux.feu(C, OUVERT, "The app's identity: notebook look.");
-      faux.ticket(B).corps = `## Context\n\nRestyle the home screen with the identity of #${A}.`;
+      faux.ticket(B).corps = `## Context\n\nRestyle the home screen.\n\nDepends on #${A}`;
     },
   });
   assert.equal(await s.tour(), `#${B} is claimable but not claimed, the claim gate skipped it: waiting for #${C} — it starts on its own once it is served`);
@@ -188,29 +188,29 @@ test("a ticket that says in plain words it builds on a split ticket waits for th
   assert.ok(s.commentaires().every((corps) => !corps.startsWith(MARQUE_D_ATTENTE_DE_TICKET)), "no waiting mark: the body alone holds it");
 });
 
-describe("what a body makes a ticket wait for (#3622)", () => {
+describe("what a body makes a ticket wait for (#3622, #3865)", () => {
   const lecteur = (issues: Record<number, { state: string; body?: string }>) => async (numero: number) => issues[numero] ?? null;
 
-  test("an open ticket named in plain words is awaited, a closed or missing one is not", async () => {
+  test("an open ticket named on a `Depends on` line is awaited, a closed or missing one is not", async () => {
     const lire = lecteur({ 12: { state: "open" }, 13: { state: "closed" } });
-    assert.deepEqual(await attendusDuCorps(20, "Do it once #12 is done, after #13 and #14.", lire), [12]);
+    assert.deepEqual(await attendusDuCorps(20, "Do it later.\nDepends on #12, #13 and #14.", lire), [12]);
     assert.deepEqual(await attendusDuCorps(20, "Depends on #12", lire), [12]);
   });
 
   test("a split ticket is awaited in its open tickets; a split all closed holds nothing; an open epic with no ticket yet holds", async () => {
-    assert.deepEqual(await attendusDuCorps(20, "with the identity of #49", lecteur({ 49: { state: "open", body: decoupee(49, [53, 54, 55]) }, 53: { state: "open" }, 54: { state: "closed" }, 55: { state: "open" } })), [53, 55]);
-    assert.deepEqual(await attendusDuCorps(20, "with the identity of #49", lecteur({ 49: { state: "open", body: decoupee(49, [53]) }, 53: { state: "closed" } })), []);
-    assert.deepEqual(await attendusDuCorps(20, "with the identity of #49", lecteur({ 49: { state: "open", body: decoupee(49, []) } })), [49]);
+    assert.deepEqual(await attendusDuCorps(20, "Depends on #49", lecteur({ 49: { state: "open", body: decoupee(49, [53, 54, 55]) }, 53: { state: "open" }, 54: { state: "closed" }, 55: { state: "open" } })), [53, 55]);
+    assert.deepEqual(await attendusDuCorps(20, "Depends on #49", lecteur({ 49: { state: "open", body: decoupee(49, [53]) }, 53: { state: "closed" } })), []);
+    assert.deepEqual(await attendusDuCorps(20, "Depends on #49", lecteur({ 49: { state: "open", body: decoupee(49, []) } })), [49]);
   });
 
   test("a ticket of the split that names its own epic waits for its siblings, never for itself or the epic", async () => {
     const lire = lecteur({ 49: { state: "open", body: decoupee(49, [20, 53]) }, 20: { state: "open" }, 53: { state: "open" } });
-    assert.deepEqual(await attendusDuCorps(20, "builds on #49", lire), [53]);
-    assert.deepEqual(await attendusDuCorps(20, "builds on #49", lecteur({ 49: { state: "open", body: decoupee(49, [20]) }, 20: { state: "open" } })), []);
+    assert.deepEqual(await attendusDuCorps(20, "Depends on #49", lire), [53]);
+    assert.deepEqual(await attendusDuCorps(20, "Depends on #49", lecteur({ 49: { state: "open", body: decoupee(49, [20]) }, 20: { state: "open" } })), []);
   });
 
   test("a ticket the body names that cannot be read throws: the claim gate keeps it waiting", async () => {
-    await assert.rejects(attendusDuCorps(20, "after #12", async () => Promise.reject(new Error("HTTP 502"))), /HTTP 502/);
-    await assert.rejects(attendusDuCorps(20, "after #49", async (n) => (n === 49 ? { state: "open", body: decoupee(49, [53]) } : Promise.reject(new Error("HTTP 502")))), /HTTP 502/);
+    await assert.rejects(attendusDuCorps(20, "Depends on #12", async () => Promise.reject(new Error("HTTP 502"))), /HTTP 502/);
+    await assert.rejects(attendusDuCorps(20, "Depends on #49", async (n) => (n === 49 ? { state: "open", body: decoupee(49, [53]) } : Promise.reject(new Error("HTTP 502")))), /HTTP 502/);
   });
 });

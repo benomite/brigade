@@ -49,7 +49,7 @@ test("trois sources et un ticket libre dans une même file : chacun dit son atte
     7: [commentaire(`${MARQUE_D_ATTENTE_DE_TICKET} #4 -->\nThe cook stopped.`)],
   };
   const lire = async (chemin: string) => {
-    if (chemin === FEUX) return [issue(4, ["fire", "taken"]), issue(5, ["fire"], "Builds on #4."), issue(6, ["fire"], "Restyle."), issue(7, ["fire"], "Restyle."), issue(8, ["fire"], "Independent work."), issue(9, ["fire"], "Depends on #1912.")];
+    if (chemin === FEUX) return [issue(4, ["fire", "taken"]), issue(5, ["fire"], "Depends on #4"), issue(6, ["fire"], "Restyle."), issue(7, ["fire"], "Restyle."), issue(8, ["fire"], "Independent work."), issue(9, ["fire"], "Depends on #1912.")];
     const sien = /\/issues\/(\d+)\/comments/.exec(chemin);
     if (sien !== null) return commentaires[Number(sien[1])] ?? [];
     if (/\/issues\/1912(\/|$)/.test(chemin)) assert.fail(`off-rail waited ticket must not be read: ${chemin}`);
@@ -57,7 +57,7 @@ test("trois sources et un ticket libre dans une même file : chacun dit son atte
   };
   const dites = await lignesDeLAttente({ depot: DEPOT, lire, stations: async () => ({ lues: [] }), maintenant: Date.parse("2026-11-17T10:00:00.000Z") });
   const ligne = (n: number) => dites.find((l) => l.trimStart().startsWith(`#${n} `));
-  assert.match(ligne(5) ?? "", /waits for #4 — read from the body: 'Builds on #4\.'/);
+  assert.match(ligne(5) ?? "", /waits for #4 — read from the body: 'Depends on #4'/);
   assert.match(ligne(6) ?? "", /waits for #4 — read from the card/);
   assert.match(ligne(7) ?? "", /waits for #4 — read from a cook's stop/);
   assert.equal(ligne(8), undefined);

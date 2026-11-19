@@ -9,10 +9,10 @@ const issue = (number: number, labels: string[], body = "") => ({ number, title:
 
 test("la carte d'un ticket retenu par une phrase de son corps dit l'attente, son origine et la phrase", async () => {
   const lire = async (chemin: string) => {
-    if (chemin === FEUX) return [issue(4, ["fire", "taken"]), issue(5, ["fire"], "Restyle the screen.\nBuilds on #4.")];
+    if (chemin === FEUX) return [issue(4, ["fire", "taken"]), issue(5, ["fire"], "Restyle the screen.\nDepends on #4")];
     return chemin.includes("/events?") || chemin.includes("/comments") ? [] : assert.fail(`not dictated: ${chemin}`);
   };
   const lignes = await lignesDeLAttente({ depot: DEPOT, lire, stations: async () => ({ lues: [] }), maintenant: Date.parse("2026-11-17T10:00:00.000Z") });
   const ligne = lignes.find((l) => l.trimStart().startsWith("#5 ")) ?? "";
-  assert.match(ligne, /waits for #4 — read from the body: 'Builds on #4/);
+  assert.match(ligne, /waits for #4 — read from the body: 'Depends on #4/);
 });

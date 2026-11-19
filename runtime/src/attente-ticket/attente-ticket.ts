@@ -6,8 +6,7 @@
 // seulement « merge PR ». Rien n'y était à décider : il fallait attendre.
 //
 // Ce qu'un ticket attend se lit de trois sources, sur son issue : les lignes
-// `Depends on #N` de son corps et ce qu'il y dit attendre en toutes lettres —
-// « with the identity of #49 », « once #12 is done » (#3622) —, suivis dans
+// `Depends on #N` de son corps, et elles seules (#3865), suivies dans
 // les tickets d'un découpage (`attendusDuCorps`), la ligne `attend` de sa
 // fiche, et la marque que la station écrit quand son cook s'arrête sur un
 // ticket ouvert dont il dépend. Tant qu'un de ces tickets est ouvert, la porte
@@ -30,8 +29,7 @@ const DEPENDANCE = /depend|d[ée]pend|unmerged|not (?:yet )?merged|isn't merged|
 
 const numeros = (texte: string) => [...texte.matchAll(/#([1-9]\d*)\b/g)].map(([, n]) => Number(n));
 
-// Les tickets encore ouverts que le corps de `ticket` lui fait attendre : ceux de ses lignes `Depends on #N` et ceux
-// qu'il dit attendre en toutes lettres (#3622). Un ticket attendu découpé — son corps porte la liste des tickets du
+// Les tickets encore ouverts que le corps de `ticket` lui fait attendre : ceux de ses lignes `Depends on #N` (#3865). Un ticket attendu découpé — son corps porte la liste des tickets du
 // découpage — est attendu dans ses tickets encore ouverts, `ticket` excepté : l'épique reste ouverte jusqu'à son
 // dernier, mais c'est eux qui portent le travail, et la ligne du saut les nomme. Une liste toute fermée ne retient
 // plus rien ; une épique ouverte dont la liste est vide se garde attendue. Une lecture qui échoue lève : l'appelant
