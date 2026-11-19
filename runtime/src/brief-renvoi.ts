@@ -11,6 +11,13 @@
 // au-delà de `OCTETS_DU_RENVOI`, un check rouge n'est plus que nommé, avec son
 // adresse, et le diff n'est plus que la commande qui le montre. Les remarques
 // de la relecture passent toujours.
+//
+// Un check dont aucune annotation ne nomme de fichier — une étape qui joue le
+// lint, le format, les types et les tests d'un seul coup n'écrit que « Process
+// completed with exit code 1. » — est dit aussi par la fin de son journal de
+// job : sans elle, le cook ne savait pas lequel était rouge et repoussait à
+// l'aveugle, jusqu'à onze CI rouges sur un ticket (#3806).
+import { sortieDErreur } from "./base-rouge/ouvre-reparation.ts";
 import { dernierVerdict } from "./github-etat/fusion.ts";
 import type { Check } from "./events/pass.ts";
 import type { AnnotationDeCheck, Commentaire } from "./github.ts";
@@ -29,6 +36,7 @@ export type Renvoi = { relecture: string | null; rouges: CheckRouge[]; diff: str
 export type GitHubDuBrief = {
   commentaires(numero: number): Promise<Commentaire[]>;
   annotationsDuCheck?(check: Check): Promise<AnnotationDeCheck[]>;
+  journalDuCheck?(check: Check): Promise<string | null>;
 };
 
 // Une clôture de bloc plus longue que toute suite d'accents graves du texte.
@@ -54,7 +62,9 @@ function remarquesDeLaRelecture(commentaires: Commentaire[], sha: string): strin
 
 // Lit sur GitHub ce que la livraison renvoyée laisse au cook : la PR `pr`, ses
 // checks `rouges`, et le `diff` de sa branche. Des annotations illisibles ne
-// retiennent pas le cook : le check est dit sans elles.
+// retiennent pas le cook : le check est dit sans elles. Le journal n'est lu que
+// si aucune annotation ne nomme un fichier ; illisible ou absent, le check est
+// dit par ses annotations seules, comme avant.
 export async function lireLeRenvoi(github: GitHubDuBrief, pr: { number: number; sha: string }, rouges: Check[], diff: string): Promise<Renvoi> {
   const relecture = remarquesDeLaRelecture(await github.commentaires(pr.number), pr.sha);
   const lus: CheckRouge[] = [];
@@ -65,7 +75,18 @@ export async function lireLeRenvoi(github: GitHubDuBrief, pr: { number: number; 
     } catch {
       // Le check est dit sans elles.
     }
-    lus.push({ nom: check.name, url: check.url, sortie: annotations.map(annotationEnTexte).join("\n\n") });
+    const dites = annotations.map(annotationEnTexte);
+    if (annotations.every(({ chemin }) => chemin === null)) {
+      let journal: string | null = null;
+      try {
+        journal = (await github.journalDuCheck?.(check)) ?? null;
+      } catch {
+        // Le check est dit sans lui.
+      }
+      const fin = journal === null ? "" : sortieDErreur(journal);
+      if (fin !== "") dites.push(`The end of the job's log:\n${fin}`);
+    }
+    lus.push({ nom: check.name, url: check.url, sortie: dites.join("\n\n") });
   }
   return { relecture, rouges: lus, diff };
 }
@@ -104,7 +125,7 @@ export function briefDuRenvoi(renvoi: Renvoi | null, base: string): string {
       [
         "### What the CI says is red",
         "",
-        "Its failure annotations, check by check — the failing tests, with their errors, as the CI wrote them, in full. Start from these: there is no need to rebuild the CI's selection of tests to find what failed.",
+        "Its failure annotations, check by check — the failing tests, with their errors, as the CI wrote them, in full — and, for a check whose annotations name no file, the end of its job's log, where the red tool wrote its errors. Start from these: there is no need to rebuild the CI's selection of tests to find what failed.",
         "",
         blocs.join("\n\n"),
         ...(nommes.length > 0 ? ["", `${nommes.length} more red check${nommes.length === 1 ? "" : "s"}, too long for this brief: ${nommes.join(", ")}.`] : []),

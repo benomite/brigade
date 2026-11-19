@@ -13,11 +13,14 @@ import { comparerVersions, estUneVersion, ETIQUETTE } from "../../app/src/mise-a
 // The version published when no app-v tag exists yet.
 export const VERSION_DE_DEPART = "1.0.0";
 
-// The app changes when a file under app/ changes, except under app/test/.
+// The app changes when a file under app/ changes, except under app/test/, or a file under
+// runtime/src/: the app bundles the runtime code it imports (the rail's reasons, the board's
+// reading), on the desktop and on the phone. A runtime fix of what the app shows once reached
+// the station and never the installed app (#3828).
 export const touchLApp = (fichiers: string[]): boolean =>
   fichiers.some((fichier) => {
     const chemin = fichier.trim().replace(/^\.\//, "");
-    return chemin.startsWith("app/") && !chemin.startsWith("app/test/");
+    return (chemin.startsWith("app/") && !chemin.startsWith("app/test/")) || chemin.startsWith("runtime/src/");
   });
 
 // The next version: the patch of the highest existing `app-v<x.y.z>` tag plus one.

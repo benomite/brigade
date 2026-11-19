@@ -1,13 +1,14 @@
-// Le projet d'essai du premier lancement (#3227) : l'instant du premier lancement noté une fois, la
-// durée jusqu'au premier merge, le dépôt privé créé avec un seul ticket prêt à cuire, le service lu
-// sur GitHub, et la suppression qui n'atteint que le dépôt noté — GitHub doublé en mémoire.
+// Le projet de démo du premier lancement (#3734, né projet d'essai, #3227) : l'instant du premier
+// lancement noté une fois, la durée jusqu'au premier merge, le dépôt privé créé avec trois tickets
+// prêts à cuire, le service lu sur GitHub, et la suppression qui n'atteint que le dépôt noté — GitHub
+// doublé en mémoire.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancheDuTicket } from "../../src/brigade-github.ts";
-import { checkRepoSetup } from "../../src/depot-prepare/preparation.ts";
-import { ETIQUETTES } from "../../src/etiquettes.ts";
+import { brancheDuTicket } from "../src/brigade-github.ts";
+import { checkRepoSetup } from "../src/depot-prepare/preparation.ts";
+import { ETIQUETTES } from "../src/etiquettes.ts";
 import {
   creerLeProjetDEssai,
   dureeDuPremierService,
@@ -18,21 +19,23 @@ import {
   noterLePremierLancement,
   suivreLeProjetDEssai,
   supprimerLeProjetDEssai,
-  TICKET,
-} from "../../src/essai-projet/projet-d-essai.ts";
-import type { ClientGitHub, RequeteGitHub, ReponseGitHub } from "../../src/proteger-branche.ts";
-import { LABELS_DU_PREMIER_TICKET } from "../../src/second-init/premier-ticket.ts";
-import { repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+  TICKETS,
+} from "../src/demo/projet-de-demo.ts";
+import type { ClientGitHub, RequeteGitHub, ReponseGitHub } from "../src/proteger-branche.ts";
+import { LABELS_DU_PREMIER_TICKET } from "../src/second-init/premier-ticket.ts";
+import { repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const LANCEMENT = new Date("2026-11-11T10:00:00.000Z");
 const CREATION = new Date("2026-11-11T10:01:00.000Z");
-const DEPOT = "chef/brigade-sample";
+const DEPOT = "chef/brigade-demo";
 
 // Un GitHub où chaque requête est notée, et rendue par `repondre` — ou par celui d'un compte ordinaire, qui crée.
 function github(repondre: (requete: RequeteGitHub) => Partial<ReponseGitHub> | undefined = () => undefined) {
   const appels: RequeteGitHub[] = [];
+  // Les numéros des issues, par dépôt : 1, 2, 3…
+  const numeros = new Map<string, number>();
   const client: ClientGitHub = async (requete) => {
     appels.push(requete);
     const dicte = repondre(requete);
@@ -42,7 +45,14 @@ function github(repondre: (requete: RequeteGitHub) => Partial<ReponseGitHub> | u
       return { statut: 201, corps: { full_name: `chef/${name}`, html_url: `https://github.com/chef/${name}`, default_branch: "main" }, scopes: null };
     }
     if (requete.methode === "PUT") return { statut: 201, corps: {}, scopes: null };
-    if (requete.methode === "POST" && requete.chemin.endsWith("/issues")) return { statut: 201, corps: { number: 1, html_url: `https://github.com/${requete.chemin.slice("repos/".length, -"/issues".length)}/issues/1` }, scopes: null };
+    if (requete.methode === "POST" && requete.chemin.endsWith("/issues")) {
+      const depot = requete.chemin.slice("repos/".length, -"/issues".length);
+      const numero = (numeros.get(depot) ?? 0) + 1;
+      numeros.set(depot, numero);
+      return { statut: 201, corps: { number: numero, html_url: `https://github.com/${depot}/issues/${numero}` }, scopes: null };
+    }
+    // Les PR fermées d'une branche : aucune, tant qu'on n'en dicte pas.
+    if (requete.methode === "GET" && requete.chemin.includes("/pulls?")) return { statut: 200, corps: [], scopes: null };
     return { statut: 404, corps: { message: "Not Found" }, scopes: null };
   };
   return { client, appels };
@@ -83,21 +93,25 @@ test("la durée du premier service : les minutes entre le premier lancement et l
   assert.equal(messageDuService(1), "Your first ticket was served in 1 minute.");
 });
 
-test("créer le projet d'essai : un dépôt privé, le projet minimal sur sa branche, et exactement un ticket ouvert prêt à cuire", async (t: TestContext) => {
+test("créer le projet de démo : un dépôt privé, le projet minimal sur sa branche, et trois tickets ouverts prêts à cuire, chacun noté", async (t: TestContext) => {
   const dossier = repertoireTemporaire(t);
   noterLePremierLancement(dossier, LANCEMENT);
   const { client, appels } = github();
   const cree = await creerLeProjetDEssai(client, dossier, CREATION);
-  const attendu = { repository: DEPOT, url: `https://github.com/${DEPOT}`, base: "main", createdAt: CREATION.toISOString(), ticket: 1, ticketUrl: `https://github.com/${DEPOT}/issues/1` };
+  const attendu = { repository: DEPOT, url: `https://github.com/${DEPOT}`, base: "main", createdAt: CREATION.toISOString(), ticket: 1, ticketUrl: `https://github.com/${DEPOT}/issues/1`, tickets: [1, 2, 3] };
   assert.deepEqual(cree, { sample: attendu });
-  assert.deepEqual(appels[0], { methode: "POST", chemin: "user/repos", corps: { name: "brigade-sample", private: true, auto_init: true, description: "A sample project Brigade created to try a kitchen on." } });
+  assert.deepEqual(appels[0], { methode: "POST", chemin: "user/repos", corps: { name: "brigade-demo", private: true, auto_init: true, description: "A demo project Brigade created to try a kitchen on: 3 tickets ready to cook." } });
   assert.deepEqual(
-    appels.slice(1, -1).map(({ methode, chemin, corps }) => [methode, chemin, (corps as { branch: string }).branch]),
+    appels.slice(1, -TICKETS.length).map(({ methode, chemin, corps }) => [methode, chemin, (corps as { branch: string }).branch]),
     fichiersDuProjet("main").map(({ chemin }) => ["PUT", `repos/${DEPOT}/contents/${chemin}`, "main"]),
   );
   const issues = appels.filter(({ chemin }) => chemin.endsWith("/issues"));
-  assert.deepEqual(issues, [{ methode: "POST", chemin: `repos/${DEPOT}/issues`, corps: { ...TICKET, labels: [...LABELS_DU_PREMIER_TICKET] } }]);
-  assert.ok(LABELS_DU_PREMIER_TICKET.includes("fire" as never), "le ticket est sur le rail");
+  assert.ok(TICKETS.length >= 3);
+  assert.deepEqual(issues, TICKETS.map((ticket) => ({ methode: "POST", chemin: `repos/${DEPOT}/issues`, corps: { ...ticket, labels: [...LABELS_DU_PREMIER_TICKET] } })));
+  assert.equal(new Set(TICKETS.map(({ title }) => title)).size, TICKETS.length, "trois tickets différents");
+  assert.ok(LABELS_DU_PREMIER_TICKET.includes("fire" as never), "les tickets sont sur le rail");
+  // Rien d'autre que le dépôt créé : aucun autre dépôt du compte n'est ni lu ni écrit.
+  assert.deepEqual(appels.slice(1).filter(({ chemin }) => !chemin.startsWith(`repos/${DEPOT}/`)), []);
   // Noté : le premier lancement reste, le dépôt s'y ajoute.
   assert.deepEqual(lu(dossier), { firstLaunch: LANCEMENT.toISOString(), sample: attendu });
   // Recliqué : le même dépôt, sans rien recréer.
@@ -117,17 +131,60 @@ test("un nom déjà pris sur le compte : le suivant ; un ticket refusé : le dé
   const dossier = repertoireTemporaire(t);
   let ticketRefuse = true;
   const { client, appels } = github((requete) => {
-    if (requete.chemin === "user/repos" && (requete.corps as { name: string }).name === "brigade-sample") return { statut: 422, corps: { message: "name already exists on this account" } };
+    if (requete.chemin === "user/repos" && (requete.corps as { name: string }).name === "brigade-demo") return { statut: 422, corps: { message: "name already exists on this account" } };
     if (requete.chemin.endsWith("/issues") && ticketRefuse) return { statut: 410, corps: { message: "Issues are disabled for this repo" } };
     return undefined;
   });
   const rate = await creerLeProjetDEssai(client, dossier, CREATION);
-  assert.deepEqual(rate, { refus: "GitHub refused to create the ticket of chef/brigade-sample-2 (HTTP 410: Issues are disabled for this repo)." });
-  assert.equal(lu(dossier).sample.repository, "chef/brigade-sample-2", "noté dès qu'il existe : c'est lui que la suppression atteint");
+  assert.deepEqual(rate, { refus: "GitHub refused to create the tickets of chef/brigade-demo-2 (HTTP 410: Issues are disabled for this repo)." });
+  assert.equal(lu(dossier).sample.repository, "chef/brigade-demo-2", "noté dès qu'il existe : c'est lui que la suppression atteint");
   ticketRefuse = false;
   const reprise = await creerLeProjetDEssai(client, dossier, new Date());
-  assert.ok("sample" in reprise && reprise.sample.repository === "chef/brigade-sample-2" && reprise.sample.ticket === 1, JSON.stringify(reprise));
+  assert.ok("sample" in reprise && reprise.sample.repository === "chef/brigade-demo-2" && reprise.sample.ticket === 1, JSON.stringify(reprise));
   assert.equal(appels.filter(({ chemin }) => chemin === "user/repos").length, 2, "aucun troisième dépôt");
+});
+
+test("un des trois tickets refusé : ceux déjà créés restent notés, et le clic suivant crée seulement ceux qui manquent", async (t: TestContext) => {
+  const dossier = repertoireTemporaire(t);
+  let refuse = true;
+  let issues = 0;
+  const { client, appels } = github((requete) => {
+    if (requete.methode !== "POST" || !requete.chemin.endsWith("/issues")) return undefined;
+    issues++;
+    return issues === 2 && refuse ? { statut: 502, corps: { message: "Bad Gateway" } } : undefined;
+  });
+  const rate = await creerLeProjetDEssai(client, dossier, CREATION);
+  assert.deepEqual(rate, { refus: `GitHub refused to create the tickets of ${DEPOT} (HTTP 502: Bad Gateway).` });
+  assert.deepEqual(lu(dossier).sample.tickets, [1], "le premier ticket est noté dès sa création");
+  refuse = false;
+  const reprise = await creerLeProjetDEssai(client, dossier, new Date());
+  assert.ok("sample" in reprise && reprise.sample.tickets?.length === 3 && reprise.sample.ticket === 1, JSON.stringify(reprise));
+  const titres = appels.filter(({ chemin }) => chemin.endsWith("/issues")).map(({ corps }) => (corps as { title: string }).title);
+  assert.deepEqual(titres, [TICKETS[0]?.title, TICKETS[1]?.title, TICKETS[1]?.title, TICKETS[2]?.title], "le premier ticket n'est pas recréé");
+  assert.equal(appels.filter(({ chemin }) => chemin === "user/repos").length, 1, "aucun second dépôt");
+});
+
+test("un projet d'essai noté avant la démo, à un seul ticket : rendu tel quel, sans ticket ajouté", async (t: TestContext) => {
+  const dossier = repertoireTemporaire(t);
+  const ancien = { repository: "chef/brigade-sample", url: "https://github.com/chef/brigade-sample", base: "main", createdAt: CREATION.toISOString(), ticket: 1, ticketUrl: "https://github.com/chef/brigade-sample/issues/1" };
+  writeFileSync(join(dossier, FICHIER), JSON.stringify({ sample: ancien }));
+  const { client, appels } = github();
+  assert.deepEqual(await creerLeProjetDEssai(client, dossier, new Date()), { sample: ancien });
+  assert.deepEqual(appels, []);
+});
+
+test("le service de la démo : le premier ticket mergé, quel qu'il soit, chacune des branches de ses tickets lue", async (t: TestContext) => {
+  const dossier = repertoireTemporaire(t);
+  noterLePremierLancement(dossier, LANCEMENT);
+  await creerLeProjetDEssai(github().client, dossier, CREATION);
+  const pulls = (ticket: number) => `repos/${DEPOT}/pulls?head=chef:${brancheDuTicket(ticket)}&state=closed&per_page=10`;
+  const { client, appels } = github(({ chemin }) =>
+    chemin === pulls(3) ? { corps: [{ merged_at: "2026-11-11T10:05:00Z", html_url: `https://github.com/${DEPOT}/pull/4` }] } : chemin === pulls(2) ? { corps: [{ merged_at: "2026-11-11T10:09:00Z", html_url: `https://github.com/${DEPOT}/pull/5` }] } : undefined,
+  );
+  const vu = await suivreLeProjetDEssai(client, dossier);
+  assert.deepEqual(appels.map(({ chemin }) => chemin), [pulls(1), pulls(2), pulls(3)]);
+  assert.equal(vu.served, "Your first ticket was served in 5 minutes.");
+  assert.equal(vu.sample?.pullRequest, `https://github.com/${DEPOT}/pull/4`);
 });
 
 test("GitHub injoignable à la création : une phrase, et rien de noté", async (t: TestContext) => {
@@ -135,7 +192,7 @@ test("GitHub injoignable à la création : une phrase, et rien de noté", async 
   const client: ClientGitHub = async () => {
     throw new Error("`gh` est introuvable");
   };
-  assert.deepEqual(await creerLeProjetDEssai(client, dossier, CREATION), { refus: "GitHub could not be reached to create the sample repository (`gh` est introuvable)." });
+  assert.deepEqual(await creerLeProjetDEssai(client, dossier, CREATION), { refus: "GitHub could not be reached to create the demo repository (`gh` est introuvable)." });
   assert.equal(existsSync(join(dossier, FICHIER)), false);
 });
 
@@ -174,11 +231,11 @@ test("la suppression n'atteint que le dépôt noté : tout autre nom est refusé
   const dossier = repertoireTemporaire(t);
   const { client, appels } = github(({ methode }) => (methode === "DELETE" ? { statut: 204 } : undefined));
   // Rien de noté : rien à supprimer, pas même un dépôt qui porte le nom d'essai.
-  assert.deepEqual(await supprimerLeProjetDEssai(client, dossier, DEPOT, new Date()), { refus: "Brigade has no sample repository left to delete." });
+  assert.deepEqual(await supprimerLeProjetDEssai(client, dossier, DEPOT, new Date()), { refus: "Brigade has no demo repository left to delete." });
   await creerLeProjetDEssai(client, dossier, CREATION);
   appels.length = 0;
-  for (const autre of ["chef/brigade", "chef/brigade-sample-2", "CHEF/brigade-sample", `${DEPOT}/`, "", undefined, 7]) {
-    assert.deepEqual(await supprimerLeProjetDEssai(client, dossier, autre, new Date()), { refus: `Brigade only deletes the sample repository it created, ${DEPOT}.` }, String(autre));
+  for (const autre of ["chef/brigade", "chef/brigade-demo-2", "CHEF/brigade-demo", `${DEPOT}/`, "", undefined, 7]) {
+    assert.deepEqual(await supprimerLeProjetDEssai(client, dossier, autre, new Date()), { refus: `Brigade only deletes the demo repository it created, ${DEPOT}.` }, String(autre));
   }
   assert.deepEqual(appels, []);
   assert.equal(lu(dossier).sample.deletedAt, undefined);
@@ -195,7 +252,7 @@ test("supprimer sans la permission `delete_repo` : rien n'est supprimé ni noté
   assert.ok("supprime" in fait && fait.supprime.deletedAt === "2026-11-11T11:00:00.000Z", JSON.stringify(fait));
   assert.deepEqual(avecDroit.appels, [{ methode: "DELETE", chemin: `repos/${DEPOT}` }]);
   assert.equal(lu(dossier).sample.deletedAt, "2026-11-11T11:00:00.000Z");
-  assert.deepEqual(await supprimerLeProjetDEssai(avecDroit.client, dossier, DEPOT, new Date()), { refus: "Brigade has no sample repository left to delete." });
+  assert.deepEqual(await supprimerLeProjetDEssai(avecDroit.client, dossier, DEPOT, new Date()), { refus: "Brigade has no demo repository left to delete." });
   assert.equal(avecDroit.appels.length, 1);
   // Supprimé, le suivi ne relit plus GitHub.
   const lecture = github();
@@ -215,4 +272,26 @@ test("supprimer un dépôt que GitHub ne connaît plus : noté supprimé ; un 40
   assert.ok("enregistrement" in relu && relu.enregistrement.sample?.deletedAt !== undefined);
 });
 
-test("projet-d-essai.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+test("un projet noté sans son dépôt, son adresse, sa branche ou sa date de création n'est pas un projet de démo : il le dit", (t: TestContext) => {
+  const complet = { repository: DEPOT, url: `https://github.com/${DEPOT}`, base: "main", createdAt: CREATION.toISOString() };
+  for (const manque of ["repository", "url", "base", "createdAt"] as const) {
+    const dossier = repertoireTemporaire(t);
+    const { [manque]: _, ...sample } = complet;
+    writeFileSync(join(dossier, FICHIER), JSON.stringify({ sample }));
+    const lecture = lireLEnregistrement(dossier);
+    assert.ok("illisible" in lecture && lecture.illisible.includes("is not a demo project"), `${manque} : ${JSON.stringify(lecture)}`);
+  }
+});
+
+test("une PR fermée dont la date de merge ne se lit pas n'est pas un ticket servi", async (t: TestContext) => {
+  const dossier = repertoireTemporaire(t);
+  noterLePremierLancement(dossier, LANCEMENT);
+  await creerLeProjetDEssai(github().client, dossier, CREATION);
+  const { client } = github(({ chemin }) => (chemin.includes("/pulls?") ? { corps: [{ merged_at: "not a date", html_url: `https://github.com/${DEPOT}/pull/2` }] } : undefined));
+  const vu = await suivreLeProjetDEssai(client, dossier);
+  assert.equal(vu.served, undefined);
+  assert.equal(vu.sample?.servedAt, undefined);
+  assert.equal(lu(dossier).sample.servedAt, undefined);
+});
+
+test("demo-projet.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

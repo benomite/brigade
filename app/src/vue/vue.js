@@ -130,6 +130,7 @@ import { monterLesRecurrents, serviceDesRecurrents } from "./recurrents/recurren
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
+import { diagrammeTenu, rendreAvecMermaid } from "./fiche-diagramme/fiche-diagramme.js";
 import { ligneDAlerte, plafondLu } from "./stations-de-cuisson.js";
 import { deplacementSuivi, estUnOrdinateur, hautDe, nomDePrise, servantesDe, UNE_MINUTE_MS } from "./stations-tab/etat.js";
 import { choixDuDeplacement } from "./stations-tab/choix.js";
@@ -145,7 +146,7 @@ import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
-import { poserLeProjetDEssai, tenirLeProjetDEssai } from "./essai/projet-d-essai.js";
+import { poserLeProjetDEssai, tenirLeProjetDEssai } from "./demo/demo.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
@@ -1194,6 +1195,9 @@ const histoires = new Map();
 // table, la lecture est en route.
 /** @type {Map<string, import("../discussion.ts").Discussion>} */
 const discussions = new Map();
+// Le diagramme du corps de chaque issue lue, par `<projet>#<ticket>` (vue/fiche-diagramme/, ticket 3773) : rendu une fois par corps.
+/** @type {Map<string, import("./fiche-diagramme/fiche-diagramme.js").Tenu>} */
+const diagrammes = new Map();
 // Le commentaire que le chef écrit sur l'issue, par `<projet>#<ticket>` : une fiche reposée, ou
 // un envoi qui échoue, ne le perd pas. Il ne s'efface qu'une fois posté.
 /** @type {Map<string, string>} */
@@ -3485,7 +3489,15 @@ function poserFiche() {
       panneau.append(gestes);
     }
   }
-  panneau.append(poserGestesDeFiche(projet, carte), repliee(projet, ticket), ...suite);
+  panneau.append(poserGestesDeFiche(projet, carte), ...diagrammeDeFiche(projet, ticket), repliee(projet, ticket), ...suite);
+}
+
+// Le diagramme que le corps de l'issue porte, au-dessus d'elle, dépliée ou non ; rien tant qu'elle n'est pas lue.
+/** @param {Projet} projet @param {number} ticket */
+function diagrammeDeFiche(projet, ticket) {
+  const lue = discussions.get(`${projet.nom}#${ticket}`);
+  const corps = lue === undefined || "sans" in lue ? undefined : lue.messages.find((message) => message.corps === true)?.source;
+  return diagrammeTenu(document, diagrammes, `${projet.nom}#${ticket}`, corps, poserFiche, rendreAvecMermaid(document));
 }
 
 // L'issue et sa discussion, repliées d'un clic sous les gestes ; ouvertes, elles le restent quand la fiche est reposée.
@@ -8093,16 +8105,29 @@ const gestesDuPremier = {
 };
 // Le desktop porte le premier lancement ; un pont qui ne le porte pas s'ouvre sur l'écran « Add a project ».
 const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
-// Le projet d'essai (ticket 3227, essai/projet-d-essai.js) : « try on a sample project » sur le premier lancement le crée et
-// le mène jusqu'au rail par les gestes de l'app — sa mise en place, la station de cet ordinateur, l'ouverture de son
-// espace. Son encart, par-dessus tout écran, dit où il en est ; GitHub est relu chaque minute tant que son ticket attend
-// son merge.
+// Le projet de démo (ticket 3734, demo/demo.js ; né projet d'essai, ticket 3227) : « try on a demo project » sur le premier
+// lancement le crée et le mène jusqu'au rail par les gestes de l'app — sa mise en place, la station de cet ordinateur,
+// l'ouverture de son espace. Son encart, par-dessus tout écran, dit où il en est ; GitHub est relu chaque minute tant
+// qu'aucun de ses tickets n'est mergé. « add my own project » y ouvre « Add a project » ; « delete demo project », confirmé,
+// supprime son dépôt et retire le projet de l'app.
 const sectionEssai = element("projet-d-essai");
-const essai = tenirLeProjetDEssai({ pont: brigade, rendre: () => poserLEncartDEssai(), ouvrir: (projet, depot, base) => ouvrirDUneStation("", projet, depot, base) });
+const essai = tenirLeProjetDEssai({
+  pont: brigade,
+  rendre: () => poserLEncartDEssai(),
+  ouvrir: (projet, depot, base) => ouvrirDUneStation("", projet, depot, base),
+  projetsDeLApp: () => configuration.projets,
+});
 premier.essai = essai.etat;
 gestesDuPremier.essayer = () => void essai.essayer();
 function poserLEncartDEssai() {
-  const poses = poserLeProjetDEssai(document, essai.etat, { essayer: () => void essai.essayer(), supprimer: () => void essai.supprimer(), ouvrirLaPage: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url) });
+  const poses = poserLeProjetDEssai(document, essai.etat, {
+    essayer: () => void essai.essayer(),
+    demanderLaSuppression: () => essai.demanderLaSuppression(),
+    annulerLaSuppression: () => essai.annulerLaSuppression(),
+    supprimer: () => void essai.supprimer(),
+    ouvrirLaPage: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url),
+    ajouterLeMien: () => ouvrirAjout(),
+  });
   sectionEssai.replaceChildren(...poses);
   sectionEssai.hidden = poses.length === 0;
   poserLePremier();

@@ -4,10 +4,12 @@
 // là où la station le calcule. Le fichier est relu à chaque lecture : ce qui est écrit se montre au rechargement.
 // Il garde aussi le moteur de ses cooks et son secours (#3746, épique 3518) — `engine` et `fallbackEngine`, aux valeurs
 // `claude-subscription`, `claude-api-key` et `codex` ; absents, l'abonnement et aucun. La clé d'API de Claude n'y est pas :
-// elle a son propre fichier à côté, lisible du seul compte (0600), et la lecture dit seulement si elle est gardée — la
-// clé ne repart jamais vers la vue.
+// elle a son propre fichier à côté, lisible du seul compte (0600 ; sous Windows, qui rend toujours 0o666, son ACL réduite
+// au compte : runtime/src/droits.ts, #3680), et la lecture dit seulement si elle est gardée — la clé ne repart jamais vers
+// la vue.
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, posix, win32 } from "node:path";
+import { ecrireSecret } from "../../runtime/src/droits.ts";
 
 const MOTEURS = ["claude-subscription", "claude-api-key", "codex"] as const;
 type Moteur = (typeof MOTEURS)[number];
@@ -104,7 +106,7 @@ export function ecrireReglagesDeLaStation(fichier: string, changement: Changemen
     if (changement.apiKey !== undefined) {
       const cle = fichierDeLaCle(fichier);
       mkdirSync(dirname(cle), { recursive: true });
-      writeFileSync(`${cle}.tmp`, changement.apiKey, { mode: 0o600 });
+      ecrireSecret(`${cle}.tmp`, changement.apiKey);
       chmodSync(`${cle}.tmp`, 0o600);
       renameSync(`${cle}.tmp`, cle);
     }

@@ -197,6 +197,7 @@ The product rule (#3504): **deterministic checks block, models advise.**
   | `securite` | Security risk | a secret delivered, untrusted data run or believed, an access control or the partition bypassed |
   | `perte-de-donnees` | Data loss | a file, a state, a log or a history erased or overwritten without the ticket asking for it |
   | `code-non-atteint` | New code nothing reaches | new code nothing reaches in production: an export only its tests call (`CLAUDE.md`) |
+  | `diagramme-faux` | Diagram contradicts the code | a Mermaid diagram of the ticket or of the PR ("Before" / "After") that shows what the code does not do; the finding names the wrong node or edge. A ticket without a diagram is not checked on this point, and the reviewer never asks for one (#3772) |
 
 **What only advises**: every other review finding — a bug or an empty test that breaks no criterion, a
 taste, a naming, what the diff does that the ticket did not ask, what it should remove. A finding the

@@ -182,6 +182,28 @@ base, the stale-branch pruning).
   (#3647). These lines are what the held kitchen reads (`kitchen.held`, its `skips`); before #3677 these two stops
   said nothing, and a held kitchen with sixteen tickets waiting read `unknown`, or the CI of a single delivery
   ([diagnosis](claim-wait-2026-11-15.md)).
+- **A cook that says the ticket cannot be done yet puts it in WAITING** (#3814, `runtime/src/attente/`). On
+  BOBL-tech/mirrorlab, #824 could only be done from 2026-11-25: each cook said "Too early", the review asked for changes,
+  and the kitchen relaunched it about every 3 minutes for 26 h (1,198 runs) while its zone held #803; the second put it
+  in WAITING by hand. Now the station does it, with no chef gesture:
+  - a cook that stops blocked (`<bloque>`) on a date to come ("cannot be done before 2026-11-25", "too early", "only
+    from …"), or on something a third party outside the kitchen has not given ("waiting for the client", "nothing in
+    the kitchen can produce it"), puts the ticket in WAITING through the same gesture as `waiting set`: the `waiting`
+    label and the `<!-- brigade:waiting … -->` comment, with what, from whom, and the follow-up taken from its words
+    (the date it says; without one, seven days). Any other question goes to the manager, as before, and so does this
+    one when GitHub refuses the WAITING gesture: the station says why;
+  - a delivery the review hands back twice in a row with the same result is not relaunched a third time as it stands:
+    if that result says the ticket cannot be done yet, it goes to WAITING the same way — the gesture first, then the
+    send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
+    spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
+  - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
+  - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
+    `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
+    chef lifts it. The turn reads each WAITING ticket's comments once, for the hold line and this return;
+  - the held-kitchen line names each ticket in WAITING, what it waits for and its follow-up, instead of `cause
+    unknown`; the chef's TODO (the `awaiting` block) lists each ticket in WAITING with its follow-up date, without
+    counting it as a decision for the chef. The second's queue also lists the `waiting` issues; the app, which reads
+    each project every thirty seconds, keeps to the WAITING tickets of the lists it already reads.
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
   gives its ticket back on the issue, and at its first turn a restarted station gives back the tickets it held with no
   cook (#2179). Its places are read again at each turn: the cap the chef sets live (`station -- cooks <N>`, `0` for no
@@ -221,6 +243,11 @@ base, the stale-branch pruning).
   by the API where a job's log is not readable from the box — and adds them to the brief, under "What the CI says is
   red", check by check (`runtime/src/github-seul/ci-rouge/`). A check with no annotation is named with its address.
   Bounded: 12 checks read, 3,000 characters per message, 24,000 in all; the rest only named.
+  A check whose annotations name no file — a step that runs lint, format, type check and tests at once writes only
+  `Process completed with exit code 1.` — is also given with the end of its job's log, read by the API
+  (`journalDuCheck`), cut as a repair of main cuts it (`sortieDErreur`): without it the cook did not know which gate
+  was red and pushed again blindly (#3806: 11 red CIs on BOBL-tech/mirrorlab#787). An unreadable log leaves the
+  check said by its annotations alone (`runtime/src/brief-renvoi.ts`).
   The send-back comment names each red check with the failed steps of its GitHub Actions job, read by the API
   (`etapesEnEchec`, `runtime/src/github.ts`, #3028): `Lint + Format + Typecheck + Tests (failed step: Format)`.
   A job that runs several steps does not say by its name which one is red. A check that is not a job, or whose

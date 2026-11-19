@@ -41,6 +41,10 @@ jobs:
   # Une minute ne suffit plus (#3344) : le checkout extrayait les captures de docs/captures/ (152 Mo sur
   # b7a5957, chaque livraison design en ajoute), et sur b7a5957 le job est mort muet, sans un journal ;
   # il les laisse de côté depuis #3680.
+  # Les rouges de #3680 n'étaient pas des morts muettes (leurs pas, relus sur GitHub) : le checkout en
+  # 5 à 13 s, `Tests de l'app` sorti en 1 en deux minutes, son journal entier. Sur 20d5919, la suite
+  # cassait aussi sous Linux, et 59af979 est revenu au vert sans le checkout clairsemé ; de 8a1dd00 à
+  # 8bb7f98, un test de #3746 attendait le mode 0600 de la clé d'API, que Node rend 0o666 sous Windows.
   # Passé le plafond du pas, le job est rouge, et son journal dit lequel : `test:en-cours` joue la
   # même suite avec un reporter qui écrit chaque DEBUT de test (app/test/aides/reporter-en-cours.ts) ;
   # le dernier DEBUT sans FIN du journal est le test qui bloque.
@@ -56,9 +60,9 @@ jobs:
       - name: Garder les fins de ligne du dépôt
         run: git config --global core.autocrlf false
       # Sans docs/captures/ (#3680) : aucun test n'en lit une image, et leur extraction (166 Mo sur
-      # 3ecea8b, chaque livraison design en ajoute) mangeait la marge du job hors de ses pas plafonnés —
-      # sur 20d5919, il est mort muet, deux fois. Un checkout clairsemé ne télécharge pas non plus leurs
-      # blobs (`filter: blob:none` par défaut).
+      # 3ecea8b, chaque livraison design en ajoute) grossit à chaque livraison design la part du job hors
+      # de ses pas plafonnés. Un checkout clairsemé ne télécharge pas non plus leurs blobs
+      # (`filter: blob:none` par défaut).
       - uses: actions/checkout@v4
         with:
           sparse-checkout-cone-mode: false

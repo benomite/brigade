@@ -74,15 +74,15 @@ export function argumentsReviewer(texte: string, calibrage: Calibrage): string[]
 // octets — un caractère accentué en pèse deux —, au-delà duquel il est coupé,
 // et le dit. Leur somme tient sous `CONSIGNE_MAX` ; ce qui la dépasserait
 // malgré eux ne se lance pas.
-const CORPS_MAX = 16_000;
+export const CORPS_MAX = 16_000;
 const COMMENTAIRES_MAX = 12_000;
 const COMPTE_RENDU_MAX = 12_000;
-const FICHIERS_MAX = 8_000;
+export const FICHIERS_MAX = 8_000;
 export const DIFF_MAX = 40_000;
 export const CONSIGNE_MAX = 120_000;
-const octets = (texte: string) => Buffer.byteLength(texte);
+export const octets = (texte: string) => Buffer.byteLength(texte);
 // Coupé à l'octet, puis au dernier caractère entier.
-const couper = (texte: string, max: number) =>
+export const couper = (texte: string, max: number) =>
   octets(texte) <= max ? texte : `${Buffer.from(texte).subarray(0, max).toString().replace(/\uFFFD+$/, "")}\n[coupé]`;
 const liste = (fichiers: string[]) => fichiers.map((fichier) => `- ${fichier}`).join("\n");
 
@@ -99,6 +99,7 @@ export const CATEGORIES_BLOQUANTES = {
   securite: { libelle: "Security risk", dit: "un risque de sécurité : un secret livré, une donnée non fiable exécutée ou crue, un contrôle d'accès ou une cloison contournés" },
   "perte-de-donnees": { libelle: "Data loss", dit: "une perte de données : un fichier, un état, un journal ou un historique effacé ou écrasé sans que le ticket le demande" },
   "code-non-atteint": { libelle: "New code nothing reaches", dit: "du code neuf que rien n'atteint en production : un export que seuls ses tests appellent" },
+  "diagramme-faux": { libelle: "Diagram contradicts the code", dit: "un diagramme Mermaid du ticket ou de la PR qui dit ce que le code livré (ou, pour « Before », le code d'avant) ne fait pas : le constat nomme le nœud, l'arête ou l'état faux" },
 } as const;
 type Categorie = keyof typeof CATEGORIES_BLOQUANTES;
 const NOMS_DES_CATEGORIES = ou(Object.keys(CATEGORIES_BLOQUANTES).map((nom) => `\`${nom}\``));
@@ -171,6 +172,8 @@ export function consigneDeRelecture(mission: Relecture): string {
           "Tu es dans un worktree où la livraison est fusionnée avec la base telle qu'elle est aujourd'hui — ce qui sera sur la base une fois mergé —, en lecture seule : lis les fichiers autour du diff quand il ne suffit pas à juger. Les gates du projet y sont déjà vertes : ne refais pas leur travail.",
           "",
           "Si le diff ajoute du code exporté sous `runtime/`, vérifie qu'il est atteint depuis le point d'entrée que la boîte lance (`runtime/src/station/main.ts`, par `ouvrirStation` / `ouvrirCuisine`), et pas seulement importé par des tests. Remonte les appelants de chaque nouvel export (`Grep` sur son nom) jusqu'à `ouvrirStation` ou `ouvrirCuisine`, et cherche un test qui passe par ce point d'entrée. Un export neuf que seuls ses tests appellent — aucun appelant n'y remonte — est un constat `bloquant` de catégorie `code-non-atteint` : le module est mergé sans servir, et la panne ne se voit qu'en production.",
+          "",
+          "Si le ticket porte un bloc ```mermaid et que la PR a des blocs Mermaid « Before » et « After », compare le diagramme « After » au code livré — chaque nœud, chaque arête, chaque état doit correspondre à quelque chose que le diff fait vraiment — et le diagramme « Before » au code avant le changement. Un diagramme qui contredit le code (un appel que le diff ne fait pas, un nœud ou une arête sans code derrière) est un constat `bloquant` de catégorie `diagramme-faux`, et `constat` nomme le nœud ou l'arête faux. Un ticket sans diagramme n'est pas vérifié sur ce point : ne lui en demande jamais un, ni en constat ni en remarque.",
         ]
       : [
           "- Ce que le ticket demande et que le livrable ne donne pas.",
@@ -183,7 +186,7 @@ export function consigneDeRelecture(mission: Relecture): string {
     "## Bloquant, ou remarque",
     "",
     `- \`bloquant\` — ${diff ? "ce diff ne doit pas être mergé tel quel" : "ce livrable ne doit pas être servi tel quel"}, pour l'une de ces raisons seulement, que le constat nomme dans \`categorie\` :`,
-    ...Object.entries(CATEGORIES_BLOQUANTES).filter(([nom]) => diff || nom !== "code-non-atteint").map(([nom, { dit }]) => `  - \`${nom}\` — ${dit} ;`),
+    ...Object.entries(CATEGORIES_BLOQUANTES).filter(([nom]) => diff || (nom !== "code-non-atteint" && nom !== "diagramme-faux")).map(([nom, { dit }]) => `  - \`${nom}\` — ${dit} ;`),
     "  Un constat bloquant repart au cook, qui doit pouvoir le corriger sans te poser de question : dis où, quoi, et pourquoi.",
     "- `remarque` — tout le reste, même un bug ou un test qui ne teste rien qui ne casse aucun critère : un conseil, posté sur la PR, que le chef et le cook lisent. Une remarque ne retient rien.",
     ...(diff

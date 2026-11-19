@@ -1,4 +1,4 @@
-/* Le projet d'essai du premier lancement (ticket 3227, essai/projet-d-essai.js) : son encart, par-dessus l'écran, en bas à
+/* Le projet de démo du premier lancement (ticket 3734, demo/demo.js ; né projet d'essai, ticket 3227) : son encart, par-dessus l'écran, en bas à
    droite — la bulle de la visite tient le milieu. Mêmes jetons que la visite : une carte, un bord, une ombre. */
 #projet-d-essai {
   position: fixed;
@@ -35,7 +35,8 @@
   margin: 0;
   padding: 0;
 }
-.projet-d-essai .service-d-essai {
+.projet-d-essai .service-d-essai,
+.projet-d-essai .confirmation-d-essai {
   color: var(--texte);
   font-weight: 600;
 }

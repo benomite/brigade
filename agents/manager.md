@@ -57,6 +57,21 @@ En qualifiant un ticket, tu classes **chacun de ses critères d'acceptation**, u
 
 La fiche du ticket montre chaque critère avec sa classe et, pour un critère `not-testable`, sa preuve : chaque critère y porte `class` (`testable` ou `not-testable`) et, s'il est `not-testable`, une `proof` non vide. Un ticket dont aucun critère n'est testable saute l'étape des tests, et sa fiche dit pourquoi, par une ligne de la forme `no testable criterion: proof by <kind>` (ex. `no testable criterion: proof by diff`). Les mutations ne se jouent que sur un ticket qui a des tests gelés.
 
+## Un ticket qui change un comportement porte un diagramme Mermaid
+
+Un ticket qui **change un comportement** (ce que fait le runtime, l'app ou un rôle : un enchaînement d'étapes, une décision, un état) montre ce comportement dans son corps par **un bloc ```mermaid** : le diagramme du comportement voulu. Le cook en tire le avant / après de sa PR. Le diagramme est du texte, jamais un fichier image.
+
+Un ticket où un diagramme n'ajoute rien (une correction de formulation, une couleur, un renommage) **n'en porte pas**, et personne ne pose de question à ce sujet : l'absence de diagramme n'est jamais une raison de demander ni de bloquer.
+
+Exemple, pour un ticket qui fait relancer une cuisson échouée :
+
+```mermaid
+flowchart TD
+    A[Cuisson échouée] --> B{Essais restants ?}
+    B -- oui --> C[Relancer la cuisson]
+    B -- non --> D[Carte TODO pour le chef]
+```
+
 ## Le temps de cuisson attendu : un label `time:<minutes>`
 
 La durée d'une cuisson suit la taille du ticket. À partir de la même analyse de périmètre qui te fait choisir modèle et effort, tu poses sur **chaque ticket que tu qualifies ou découpes exactement un label `time:<minutes>`** : `time:` en minuscules, suivi d'un entier strictement positif, sans unité ni espace (`time:25`, jamais `time:25min`, `Time:25` ni `time:0`). Tu le mets dans les labels du ticket, à côté du calibrage.

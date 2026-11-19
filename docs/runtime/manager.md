@@ -303,8 +303,13 @@ with one of two stays a remark. The expected case is in `evals/relecture-capture
 between `<!-- brigade:tickets -->` and `<!-- /brigade:tickets -->`: a heading `## Tickets of the epic`,
 `**1/3 served.**`, a `# | Ticket | State` table, a note saying what is between the markers is
 rewritten, the rest is yours, and `Epic: #78` in a ticket's body makes it enter, then a task list, one
-`- [ ] #<ticket>` line per ticket, checked (`- [x]`) once that ticket is served (#3479). **It is the only place
-in the body it rewrites.** A marker counts only **alone on its line, outside a code block**. **The tally
+`- [ ] #<ticket>` line per ticket, checked (`- [x]`) once that ticket is served (#3479). **Next to it, a
+Mermaid diagram of the same tickets** (#3770), between `<!-- brigade-diagram:start -->` and
+`<!-- brigade-diagram:end -->`: one node per ticket with its title, its state, the first sentence of its
+split context and its zone, one edge `then` from each ticket to the one that awaits it, served tickets
+in green, dropped ones grey and dashed. It is rewritten with the list, so the split posts it and each
+served ticket refreshes it; the manager reads and fingerprints the epic without it, as without the list.
+**These two blocks are the only places in the body it rewrites.** A marker counts only **alone on its line, outside a code block**. **The tally
 is read from GitHub on every manager turn** (#2618), for every open issue whose body carries the block —
 split by the manager or by hand —: its tickets are the numbers that head a row of the table or an item
 of a hand-written list (`- #68`), the tickets the split created, and the trusted open issues that say
