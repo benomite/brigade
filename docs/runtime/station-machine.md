@@ -103,7 +103,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   `x-ratelimit-limit`, until `x-ratelimit-reset`, REST resource `core`) and the counter keeps it. A
   decision on a low quota read more than a minute ago is first confirmed with `gh api rate_limit`, which
   GitHub does not count, at most once a minute.
-- **The kitchen is slowed only below a fifth of the quota (#3833).** Polls, pass, manager, heartbeat: at
+- **The kitchen is slowed only below a fifth of the quota (#3833).** Polls, pass, manager (the heartbeat never): at
   1,000 remaining of 5,000 or more nothing holds them. Below, the top half of the projects by calls in the
   last hour wait, longer as the quota drops (0 at 1,000, until GitHub's reset at 0). A delayed call does
   not leave and is not counted, and is said once in the log (`appels GitHub du projet <project> ralentis par
