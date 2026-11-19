@@ -60,8 +60,9 @@
   --discret: #a3a7ae;
 
   /* L'accent : ce qui est choisi — l'entrée de la barre, l'onglet —, et ce qui a le clavier.
+     Hors d'un projet, un blanc cassé chaud et neutre : l'orange est une couleur de projet, il ne parle pas pour Brigade.
      L'espace d'un projet le remplace par l'accent de ce projet, tant qu'il est affiché. */
-  --accent: #f2994a;
+  --accent: #ece6dc;
   /* La couleur d'un projet, posée par la vue sur ce qu'elle teint : sa case dans la barre, une
      pastille de la palette. Les couleurs de projet ne s'écrivent pas ici : ce sont des données du
      fichier des projets, tirées dans la palette de couleurs.ts — et jamais une couleur d'état. */
