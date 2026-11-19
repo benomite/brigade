@@ -10,3 +10,15 @@
 #rail .attente-du-rail.panne-du-rail .action {
   flex: none;
 }
+/* La ligne d'alerte du rail (ticket 3823) : une panne (vue.css, `.panne-du-rail`) — sa phrase prend la place, ce que la
+   cuisine en fait à voix basse après elle, son geste à droite. */
+#rail .alerte-du-rail strong {
+  flex: 1;
+}
+#rail .alerte-du-rail .geree {
+  flex: none;
+  color: var(--discret);
+}
+#rail .alerte-du-rail .action {
+  flex: none;
+}

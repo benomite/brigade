@@ -48,6 +48,14 @@ export function tenantDeLIssue(commentaires: readonly Brut[], evenements: readon
   return tient;
 }
 
+// Les prises d'un ticket, de la plus ancienne à la plus récente : l'heure de chaque commentaire de prise de confiance. Chaque
+// relance d’un cook en pose une (ticket 3823) : le rail les compte pour dire un ticket relancé en boucle.
+export function prisesDeLIssue(commentaires: readonly Brut[]): string[] {
+  return commentaires
+    .flatMap(({ body, author_association: association, created_at: le }) => (typeof association === "string" && DE_CONFIANCE.includes(association) && typeof body === "string" && MARQUE_DE_PRISE.test(body) && typeof le === "string" && !Number.isNaN(Date.parse(le)) ? [le] : []))
+    .sort((a, b) => Date.parse(a) - Date.parse(b));
+}
+
 // Les stations du projet sur l'onglet Cooks (ticket 2358) : chacune telle que GitHub la dit — les tickets qu'elle tient, et
 // son dernier signe de vie dans son gist (runtime/src/stations-github/stations.ts) —, la box comme un ordinateur, par la
 // même règle. Aucune n'est distante d'une autre, ni principale : toutes prennent, cuisent, jugent et mergent. Son mot est

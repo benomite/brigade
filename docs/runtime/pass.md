@@ -212,6 +212,13 @@ A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pas
 branch** without the delivery's change, and **passes on the delivery's branch**. A test that already
 passes on the base proves nothing.
 
+**A guard is the exception** (#3852). A test guarding a behavior the base already has — a criterion that says "as
+before" / "unchanged" — is marked `// brigade:guard` on its line or the comment lines right above its case (in a file
+whose cases do not read, anywhere), by the tests cook or the cook. The pass accepts it green on the base, and a guard
+green on both sides covers its criterion as a proving test does. An unmarked test green on the base is still sent
+back, and the send-back says that the second time it names a test, the cook marks it or sets the ticket aside once,
+with the reason in one line between `<bloque>` tags.
+
 **It applies to every delivery whose ticket does not carry `tech`.** A `tech` ticket (a refactor or a
 clean-up with no change of behaviour) is exempt: nothing is replayed, and the pass says so in one line,
 in its log and in its verdict on the PR: « Red on main, green on the branch: not replayed — a `tech`
@@ -234,7 +241,8 @@ what it did on each side.
 | The replay says | What the pass does |
 |---|---|
 | every added test red on the base, green on the branch | nothing held back: the review decides |
-| an added test **green on the base** | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
+| an added test **green on the base**, marked as a guard (`// brigade:guard`) | nothing held back: accepted, and the verdict's line counts it as marked as guarding a behavior the base already has |
+| an added test **green on the base**, not marked | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
 | an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
 | the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
 
