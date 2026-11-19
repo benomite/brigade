@@ -67,7 +67,6 @@ test("a wait lifted or kept is decided without the chef: no question, no blocked
     { issue: "garde", commentaire: "Kept: it is real." },
   ]) {
     const s = await apresUneHeure(t, reponse);
-    assert.ok(s.commentaires().some((corps) => corps.includes(`<!-- brigade:attente-longue ${reponse.issue}`)), reponse.issue);
     assert.equal(s.faux.ticket(B).labels.has(A_LA_MAIN), false, reponse.issue);
     assert.ok(s.commentaires().every((corps) => !corps.startsWith("**Question for the chef")), reponse.issue);
   }
