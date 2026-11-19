@@ -97,7 +97,7 @@ export function jugerGh(args: string[], env: Record<string, string | undefined>,
   // Le dépôt visé : `-R`, `GH_REPO`, une URL en argument — pas celle qu'un
   // texte cite. Aucun autre que celui du ticket.
   const autres = [...lu.depots, ...(env.GH_REPO ? [env.GH_REPO] : []), ...lu.positionnels.flatMap((mot) => depotDeLUrl(mot) ?? [])].filter((depot) => !memeDepot(depot.replace(/^(?:https?:\/\/)?github\.com\//i, ""), ticket.depot));
-  if (autres.length > 0) return refus(`\`gh\` vise ${autres[0]}, un autre dépôt que celui de ton ticket (${ticket.depot}) : un cook n'agit que sur son dépôt.`);
+  if (autres.length > 0) return refus(`\`gh\` vise ${autres[0]}, un autre dépôt que celui de ton ticket (${ticket.depot}) : un cook n'agit que sur son dépôt${commande === "workflow" && sousCommande === "run" ? ` : \`gh workflow run <workflow> --ref ${ticket.branche}\`` : ""}.`);
   if (commande === undefined || LOCALES.includes(commande)) return null;
   if (commande === "api") return jugerApi(lu.positionnels.slice(1), lu.options, ticket);
   if (commande === "repo" && sousCommande === "view") {
