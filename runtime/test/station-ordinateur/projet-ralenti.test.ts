@@ -81,7 +81,10 @@ test("two projects on one station: the busiest one, slowed by the low GitHub quo
   // Le tour de brigade qui suit repart ou attend un nouveau délai selon le rang que l'appel déjà parti lui laisse : seul compte que secondes prenne son ticket.
   assert.deepEqual(prises.slice(0, 3), ["secondes #50", "secondes #50", "brigade #3700"]);
   assert.equal(prises.at(-1), "secondes #50");
-  assert.equal(dits.filter((ligne) => ligne.includes("slowed by")).length, 1);
+  // Seul brigade est ralenti : il peut l'être une seconde fois si le tour suivant le trouve encore dans la moitié haute.
+  const ralentis = dits.filter((ligne) => ligne.includes("slowed by"));
+  assert.ok(ralentis.length >= 1);
+  assert.ok(ralentis.every((ligne) => ligne.includes("GitHub-only turn on benomite/brigade")));
 
   await service.arreter();
   limite.fermer();
