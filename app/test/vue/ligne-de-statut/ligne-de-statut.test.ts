@@ -181,6 +181,7 @@ describe("le bandeau Backlog est replié par défaut, et ne reste pas ouvert d'u
 
 describe("le module pur de la ligne d'état", () => {
   const doc = { createElement: (balise: string) => new Faux(balise) };
+  // brigade:guard
   test("les alertes : la première (par ticket) ; aucune alerte, aucune ligne", () => {
     assert.deepEqual(ligneDesAlertes(doc, undefined), []);
     assert.deepEqual(ligneDesAlertes(doc, []), []);

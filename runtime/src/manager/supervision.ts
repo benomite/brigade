@@ -155,7 +155,11 @@ export function ouvrirSupervision(options: OptionsSupervision) {
     const lancesAvant = runsDuControle();
     const { tickets, gone } = causeDuDisjoncteur();
     const reponse = await demander({ numero: 0, prefixe: "controle", nom: "breaker check" }, CONSIGNE_DU_CONTROLE, () => ({ valeur: "ok" }), undefined, "ok");
-    if (reponse === null && runsDuControle() === lancesAvant && !arrete()) controle = { ouvertLe, jusqua: maintenant().getTime() + CONTROLE_SANS_RUN_MS };
+    if (reponse === null && runsDuControle() === lancesAvant && !arrete()) {
+      controle = { ouvertLe, jusqua: maintenant().getTime() + CONTROLE_SANS_RUN_MS };
+      // Le réveil suivant peut être à une minute (le tick) : le contrôle se rejoue de lui-même, sans attendre.
+      setTimeout(() => void passer(), CONTROLE_SANS_RUN_MS + 50).unref();
+    }
     if (reponse === null || "illisible" in reponse || arrete()) return;
     // Le contrôle a passé. Un disjoncteur que le run a refermé seul (un calage) l'est déjà ; sinon c'est ici.
     const etat = etatDesGardeFous(base);
@@ -243,9 +247,10 @@ export function ouvrirSupervision(options: OptionsSupervision) {
 
   // Une passe à la fois : un réveil qui arrive pendant l'une est repris au suivant.
   const passer = async () => {
-    if (enCours || arrete() || projetEteint(base)) return;
+    if (enCours || arrete()) return;
     enCours = true;
     try {
+      if (projetEteint(base)) return;
       await controlerLeDisjoncteur();
       await confierLesTicketsEcartes();
     } catch (erreur) {

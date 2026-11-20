@@ -15,7 +15,7 @@ import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
+import { type Faux, FauxEcran, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 
 const PARADE = "parade";
@@ -40,10 +40,10 @@ const REFERME = ["project    parade", "kitchen    open", "", "rail       1 queue
 const lecture = (commande: string, texte: string): Lecture => ({ projet: PARADE, demande: 1, a: A, sorties: [{ commande, texte }] });
 
 // La bande que le process principal dirait, `facts` et `status` lus.
-function bandeLue(status: string, etat: Faits["etat"] = "retenue"): Bande {
+function bandeLue(status: string, etat: Faits["etat"] = "retenue", lectureSeule = false): Bande {
   const bandes = tenirBandes({ etablir: 1, minimum: 0 });
   bandes.ouvrir([PARADE]);
-  bandes.faits(lecture("facts", JSON.stringify({ ...FAITS, etat })));
+  bandes.faits(lecture("facts", JSON.stringify({ ...FAITS, etat, ...(lectureSeule ? { lectureSeule: { depot: DEPOT } } : {}) })));
   bandes.status(mettreAPart(lecture("status", status)));
   return bandes.manager(lecture("manager", "manager               ALLUMÉ depuis le 2026-11-03T09:25:21.838Z (par chef) — il juge les issues ouvertes\n"));
 }
@@ -61,13 +61,13 @@ const demarrage = () => ({
 });
 
 // L'espace de « parade » ouvert, son rail lu, sa bande dite.
-async function ouvrir(status = OUVERT): Promise<Jouee> {
+async function ouvrir(status = OUVERT, etat: Faits["etat"] = "retenue", lectureSeule = false): Promise<Jouee> {
   const vue = await jouerLaVue({ demarrage, espace: () => [], geste: () => undefined });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
-  const recue = tenirFaits().recevoir(lecture("facts", JSON.stringify(FAITS)));
+  const recue = tenirFaits().recevoir(lecture("facts", JSON.stringify({ ...FAITS, ...(lectureSeule ? { lectureSeule: { depot: DEPOT } } : {}) })));
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
-  vue.dire("surAlertes", bandeLue(status));
+  vue.dire("surAlertes", bandeLue(status, etat, lectureSeule));
   await repos();
   return vue;
 }
@@ -112,5 +112,23 @@ describe("la ligne du disjoncteur, ligne d'état du rail, au-dessus des colonnes
     const bande = vue.element("alertes").children.find((pose) => pose.textContent.includes("breaker open")) ?? assert.fail("la bande ne dit pas le disjoncteur");
     assert.deepEqual(boutons(bande), []);
     assert.doesNotMatch(bande.textContent, /resume/i);
+  });
+
+  test("à la largeur d'un téléphone : la ligne est en tête de la liste des cartes, avec ce que la station en écrit sous son nom", async () => {
+    const vue = await jouerLaVue({ demarrage, espace: () => [], geste: () => undefined } as never, { ecran: new FauxEcran(true) });
+    const recue = tenirFaits().recevoir(lecture("facts", JSON.stringify(FAITS)));
+    vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
+    vue.dire("surAlertes", bandeLue(OUVERT));
+    await repos();
+    const posee = vue.element("cartes-du-chef").dessous("div").find(({ className }) => className === "ligne-disjoncteur") ?? assert.fail("pas de ligne du disjoncteur dans la liste");
+    assert.deepEqual(boutons(posee), []);
+    assert.equal(posee.dessous("p").find(({ className }) => className === "pourquoi")?.textContent, "breaker OPEN for 1 h 00 (3 failures in a row)");
+  });
+
+  test("le geste d'une autre ligne reste offert : « resume » de la cuisine arrêtée se presse sur un projet ordinaire, pas en lecture seule", async () => {
+    const ordinaire = await ouvrir(REFERME, "arrêtée");
+    assert.ok(boutons(ordinaire.element("alertes")).some(({ textContent }) => /resume/i.test(textContent)), "pas de bouton « resume » sur la ligne de la cuisine arrêtée");
+    const seule = await ouvrir(REFERME, "arrêtée", true);
+    assert.ok(!boutons(seule.element("alertes")).some(({ textContent }) => /resume/i.test(textContent)), "« resume » offert en lecture seule");
   });
 });

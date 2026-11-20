@@ -56,3 +56,13 @@ test("à la fermeture du disjoncteur, le ticket qualifié pendant l'ouverture es
   assert.equal(c.gh.lire(30)?.labels.includes("fire"), true);
   assert.equal(c.jugements().length, 1);
 });
+
+test("un contrôle du disjoncteur qui échoue se dit sans numéro d'issue ; un jugement qui échoue dit la sienne", async (t) => {
+  const controle = disjoncteurOuvert(t, 30);
+  await jusqua(() => controle.avertissements.some((ligne) => ligne.includes("breaker check non abouti")));
+  assert.equal(controle.avertissements.some((ligne) => /breaker check de l'issue/.test(ligne)), false);
+
+  const jugement = cuisine(t, { manager: { jugement: "echec" }, issues: [issue(31, [])] });
+  chef(jugement.repertoire, "manager.enabled");
+  await jusqua(() => jugement.avertissements.some((ligne) => /de l'issue #31 non abouti/.test(ligne)));
+});
