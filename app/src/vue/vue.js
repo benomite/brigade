@@ -5290,7 +5290,7 @@ function poserLeRail(projet) {
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
   poser(...statut, ...(bandeau === null ? [] : [bandeau]), grille, ...(duChef.length === 0 ? [] : [todo]), ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
   // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
-  rail.prepend(hoteDeLArret);
+  if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
   if (memeRail) rail.scrollTop = hautDuRail;
