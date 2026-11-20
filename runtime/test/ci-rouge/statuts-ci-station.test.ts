@@ -28,6 +28,8 @@ test("the turn sees a base repair ticket set aside by its failures — and only 
   const dicte = { tickets: [] as TicketLu[] };
   const suivi = suivreLeTour();
   const github = suivi.envelopper({ fires: async () => dicte.tickets, commentaires: async () => [] } as unknown as GitHubDuTour);
+  // Avant le premier tour, rien n'est vu de côté.
+  assert.equal(suivi.reparationMiseDeCote(), false);
   for (const [tickets, attendu] of [
     [[ticket(1, "prio:0")], false],
     [[ticket(1, ECHECS_ATTEINTS)], false],
@@ -36,7 +38,7 @@ test("the turn sees a base repair ticket set aside by its failures — and only 
   ] as const) {
     dicte.tickets = [...tickets];
     await github.fires();
-    assert.equal(suivi.vue().reparationMiseDeCote, attendu, tickets.map(({ labels }) => labels.join(",")).join(" "));
+    assert.equal(suivi.reparationMiseDeCote(), attendu, tickets.map(({ labels }) => labels.join(",")).join(" "));
   }
 });
 

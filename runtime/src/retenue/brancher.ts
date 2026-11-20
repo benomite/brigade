@@ -234,12 +234,11 @@ export function brancherRetenue<R extends Runtime>(runtime: R, options: OptionsR
     try {
       const instant = maintenant();
       // Un check Windows rouge sur la base a sa carte dans TODO, une seule ; vert, elle en sort (#2413).
-      const vue = options.tour?.vue() ?? null;
-      const checks = vue?.checks ?? null;
+      const checks = options.tour?.vue().checks ?? null;
       if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, options.branche ?? "main", checks);
       // La base rouge que la cuisine ne rend plus verte seule a sa carte dans TODO, une seule ; verte, elle en sort (#3953).
-      if (vue !== null && checks !== null) {
-        void evaluerMain({ statuts: statutsDesChecks(checks), journal: runtime.journal, projet: runtime.projet, branche: options.branche ?? "main", cuisinePeutReparer: async () => !vue.reparationMiseDeCote }).then(
+      if (checks !== null) {
+        void evaluerMain({ statuts: statutsDesChecks(checks), journal: runtime.journal, projet: runtime.projet, branche: options.branche ?? "main", cuisinePeutReparer: async () => !options.tour?.reparationMiseDeCote() }).then(
           ({ illisible }) => {
             if (illisible !== undefined) dire(`the red base was not evaluated for the chef — ${illisible}`);
           },

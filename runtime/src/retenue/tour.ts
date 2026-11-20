@@ -38,10 +38,8 @@ const AILLEURS = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING];
 // les noms des checks rouges de la base, nuls tant qu'aucun n'est lu.
 // `checks` : tous ceux de la base au dernier tour (nom et issue), nuls avant.
 // `attenteCI` : les tickets en pass dont la tête attend sa CI, et les checks
-// qui y tournent ; nulle si aucun. `reparationMiseDeCote` : un ticket de
-// réparation de la base (`prio:0`) est mis de côté — ses cooks ont échoué, la
-// cuisine ne rendra plus la base verte seule (statuts-ci/regles.ts, #3953).
-export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null; checks: CheckVu[] | null; attenteCI: { tickets: number[]; running: string[] } | null; reparationMiseDeCote: boolean };
+// qui y tournent ; nulle si aucun.
+export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null; checks: CheckVu[] | null; attenteCI: { tickets: number[]; running: string[] } | null };
 
 export type SuiviDuTour = {
   // Le client du tour, enveloppé.
@@ -53,6 +51,10 @@ export type SuiviDuTour = {
   // `attendus` : les tickets ouverts qu'il attend, quand c'est ce qui le retient (#3647).
   sauter(ticket: number, ligne: string, attendus?: readonly number[]): void;
   vue(): VueDuTour;
+  // Un ticket de réparation de la base (`prio:0`) est mis de côté au dernier
+  // tour — ses cooks ont échoué, la cuisine ne rendra plus la base verte seule
+  // (statuts-ci/regles.ts, #3953). Faux avant le premier tour.
+  reparationMiseDeCote(): boolean;
 };
 
 export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDuTour {
@@ -171,6 +173,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         return merge;
       },
     }),
+    reparationMiseDeCote: () => reparationMiseDeCote,
     vue: () => {
       // Un ticket qui n'attend que des tickets en cuisson n'attend pas la cuisine : le cook en cours le lèvera (#3647).
       for (const [ticket, attendus] of attentes) if (attendus.length > 0 && attendus.every((attendu) => enCuisson.has(attendu))) attendent.delete(ticket);
@@ -193,7 +196,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         .sort((a, b) => a - b);
       const attenteCI = attendentLaCI.length === 0 ? null : { tickets: attendentLaCI, running: [...enCours].sort() };
       const explications = [...[...sauts].filter(([ticket]) => attendent.has(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne), ...[...enWaiting].sort(([a], [b]) => a - b).map(([, ligne]) => ligne)];
-      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI, explications, reparationMiseDeCote };
+      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI, explications };
     },
   };
 }
