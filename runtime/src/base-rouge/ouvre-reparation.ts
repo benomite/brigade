@@ -42,6 +42,7 @@ export type GitHubDeLaReparation = {
   ecrireTitre?(numero: number, titre: string): Promise<void>;
   // Une réparation rouverte repart d'un état propre (#3928) : sans lui, elle garde ses labels d'étape.
   delabelliser?(numero: number, label: string): Promise<void>;
+  labelliser?(numero: number, labels: string[]): Promise<void>;
   // Le journal du job d'un check de GitHub Actions, ou null. Sans lui, le
   // ticket nomme ses checks sans leur sortie.
   journalDuCheck?(check: Check): Promise<string | null>;
@@ -302,8 +303,13 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
         try {
           if (github.rouvrirIssue === undefined) throw new Error("this GitHub client cannot reopen an issue");
           await github.rouvrirIssue(reprise.number);
-          // Ni `tests-written` ni mise de côté périmés : le retrait de la mise de côté remet aussi à zéro le compte des échecs.
-          for (const label of [LABEL_TESTS_ECRITS, ECHECS_ATTEINTS]) await github.delabelliser?.(reprise.number, label);
+          // Ni `tests-written` ni mise de côté périmés. Le compte des échecs repart du dernier retrait de `set-aside:failures`, que GitHub
+          // ne date que si le label y était : on le pose d'abord, pour que le retrait existe même sur un ticket qui n'était pas mis de côté.
+          await github.delabelliser?.(reprise.number, LABEL_TESTS_ECRITS);
+          if (github.delabelliser !== undefined) {
+            await github.labelliser?.(reprise.number, [ECHECS_ATTEINTS]);
+            await github.delabelliser(reprise.number, ECHECS_ATTEINTS);
+          }
         } catch (erreur) {
           if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
           reprise = undefined;
