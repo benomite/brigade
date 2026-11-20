@@ -9,8 +9,6 @@
 import { placesDeLaStation } from "../github-seul/places/places.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { brancherAlerteUrgence } from "../alerte-urgence.ts";
-import type { SuiviDuDisjoncteurServant } from "../file-chef/cause-arret.ts";
 import { brancherIssueDuDisjoncteur, clientDuDisjoncteur } from "../breaker-issue.ts";
 import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
@@ -50,8 +48,8 @@ import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
-import { brancherRetenue } from "../retenue/brancher.ts";
-import { suivreLeTour } from "../retenue/tour.ts";
+import { brancherSuperviseur, type ConsulterLeSuperviseur } from "../superviseur/brancher.ts";
+import { observerLeTour } from "../superviseur/observation.ts";
 import { ecrireLaLacune } from "../routage-station/lacune.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
 import type { TicketPublie } from "../appairage/rail-publie.ts";
@@ -224,8 +222,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const ici = stations.find((declaree) => !declaree.distante);
     // Ses places, relues à chaque tour : le plafond que le chef règle à chaud, sinon sa déclaration bornée par les cœurs (#3446).
     const places = ici === undefined ? 0 : placesDeLaStation(socle.journal, projet, ici, { avertir: dire });
-    // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
-    const suiviDuTour = suivreLeTour();
+    // Ce que voit le tour GitHub seul, pour le superviseur (#3914).
+    const observation = observerLeTour();
+    // Le manager du projet, tel que le tour du superviseur le consulte : la station le donne.
+    let consulterLeSuperviseur: ConsulterLeSuperviseur | null = null;
     // Le chef, résolu plus bas : la validation demandée sur un ticket le mentionne (#3615).
     let chefDuProjet: (() => Promise<string | null>) | null = null;
     const ouvert = brancherBrigadeGithub({
@@ -263,8 +263,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
                 gardes,
                 avertir: dire,
-                observer: suiviDuTour.envelopper,
-                sauter: suiviDuTour.sauter,
+                observer: observation.envelopper,
+                sauter: observation.sauter,
+                superviseur: (consulter) => (consulterLeSuperviseur = consulter),
                 // Un ticket dont les gates ne se jouent pas ici va à une autre station du projet (#3057).
                 stationsDuProjet: () => stations.map((declaree) => declaree.nom),
                 // Ce qu'elle n'a pas pu se dit sur sa carte de l'onglet Stations (#3870).
@@ -307,11 +308,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
     const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
-    // La retenue de la cuisine : rien de servi depuis 30 min alors que des
-    // tickets attendent, sa cause et son geste entrent une fois dans la file
-    // du chef, et en sortent quand la cuisine sert de nouveau.
-    const disjoncteurServant: SuiviDuDisjoncteurServant = { depuis: null };
-    const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { disjoncteurServant, station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH, dire });
+    // Le superviseur (#3914) : quand la cuisine ne bouge pas, un tour par projet, qui donne le dossier au manager
+    // et ne joue que ses six gestes.
+    const superviser = <R extends Runtime>(runtime: R) => brancherSuperviseur(runtime, { observation, consulter: () => consulterLeSuperviseur, depot: rail.depot, dire });
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
     // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
     const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));
@@ -321,12 +320,12 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       }, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
-    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherRapportHebdo(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat })), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);
+    const suivie = brancherMiseAJour(brancherRapportHebdo(superviser(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat }), envProjet.BRIGADE_MISE_A_JOUR_DIR ? envProjet.BRIGADE_MISE_A_JOUR_DIR : null, dire, options.intervalleRelaisMs);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
     // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts). L'issue se dépose
     // sur la brigade, jamais dans le dépôt du projet (#3620).
-    brancherIssueDuDisjoncteur(connectee, { client: clientDuDisjoncteur({ bin: rail.gh, projet }), servi: rail.depot, station: stations.find((declaree) => !declaree.distante)?.nom ?? null, avertir: dire, autre: disjoncteurServant });
+    brancherIssueDuDisjoncteur(connectee, { client: clientDuDisjoncteur({ bin: rail.gh, projet }), servi: rail.depot, station: ici?.nom ?? null, avertir: dire });
     ouverte = brancherRepriseParGitHub(connectee, { github: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }), projet: connectee.projet, avertir: dire });
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).

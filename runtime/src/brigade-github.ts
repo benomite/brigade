@@ -81,6 +81,7 @@ import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts
 import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
 import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
+import type { ConsulterLeSuperviseur } from "./superviseur/brancher.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -2714,9 +2715,12 @@ export type OptionsDuDepot = {
   // relectures.
   gardes?: GardesDuTour;
   avertir?: (message: string) => void;
-  // Ce qui regarde le tour par son client GitHub, sans rien y changer : la
-  // retenue de la cuisine (`retenue/tour.ts`).
+  // Ce qui regarde le tour par son client GitHub, sans rien y changer :
+  // l'observation du superviseur (`superviseur/observation.ts`, #3914).
   observer?: (github: GitHubDuTour) => GitHubDuTour;
+  // Reçoit le manager du projet, tel que le tour du superviseur le consulte
+  // (#3914). Absent, ou sans calibrage du manager, aucun tour ne part.
+  superviseur?: (consulter: ConsulterLeSuperviseur) => void;
   // Le clone du projet, où s'écrit le temps des tickets mergés (#2342).
   clone?: string;
   // Le répertoire d'état du projet (#2556).
@@ -3659,6 +3663,26 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             depot.retirer(lieu.worktree, lieu.branche ?? undefined);
           }
         };
+
+  // Le manager au tour du superviseur (#3914) : dans un worktree de la base,
+  // en lecture, avec le dossier que le superviseur lui donne.
+  if (calibrageDuManager !== undefined)
+    options.superviseur?.(async (texte) => {
+      const run = "superviseur-github";
+      const lieu = await depot.preparer(run);
+      try {
+        const flux = join(options.flux, `${run}-${Date.now()}.flux.jsonl`);
+        const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
+        const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+        const fin = await lance.fin;
+        const lu = lireLeFlux(lance.flux ?? flux);
+        const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
+        if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
+        return { message: lu.message ?? "" };
+      } finally {
+        depot.retirer(lieu.worktree, lieu.branche ?? undefined);
+      }
+    });
 
   // Le second juge (#2555) : un lancement à part de la relecture, dans son
   // propre worktree et sous son propre flux, qui ne lit ni la relecture ni son
