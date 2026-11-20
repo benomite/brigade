@@ -2237,10 +2237,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Un ticket plus prioritaire qui attend cette zone la garde, même retenu lui-même :
       // à la place libérée, c'est lui qui la prend, pas un ticket de rang plus bas (#3974).
-      // Un ticket qui attend un ticket mis de côté ne la garde pas : il ne partirait pas.
+      // Un ticket qui ne partirait pas ce tour (capacité ou calibrage qui manque, ticket attendu, arrêt subi) ne la garde pas.
       for (const autre of libres) {
         if (autre.number === ticket.number || rangDePriorite(autre) >= rangDePriorite(ticket) || enVolDuTour.some((vol) => vol.ticket === autre.number)) continue;
+        if (besoinsDuTicket(autre.labels).some((besoin) => !capacites.has(besoin)) || !complet(calibrageDesLabels(autre.labels))) continue;
         if ((await attenduMisDeCote(autre).catch(() => ({ attendu: autre.number, raison: "" }))) !== null) continue;
+        if ((await defaireLesBoucles(github, autre.number, lus).catch(() => [autre.number])).length > 0) continue;
+        if ((await enAttente(autre).catch(() => 0)) !== null) continue;
         enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
       }
       const attente = attenteDeZone(ticket.number, zone, enVolDuTour);
