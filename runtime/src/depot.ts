@@ -452,7 +452,10 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     }
   };
   const essais = join(worktrees, ESSAIS);
-  // Fusionne dans la branche locale ce que l'origine en porte (`suivie`). La
+  // Ce que l'origine porte de la branche, rapatrié à part : ni `connue` ni `suivie`
+  // (qui fondent le bail du push) n'y bougent tant que la fusion n'a pas réussi.
+  const rapatriee = (branche: string) => `refs/brigade/etranger/${branche}`;
+  // Fusionne dans la branche locale ce que l'origine en porte (`rapatriee`). La
   // fusion se joue là où la branche est sortie, ou dans un worktree jetable ;
   // un conflit la défait, la branche n'a pas bougé, et l'erreur nomme les fichiers.
   const fusionnerLEtranger = (branche: string): void => {
@@ -465,7 +468,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     const arbre = sortie ?? (jetable as string);
     if (jetable !== undefined) git("worktree", "add", "--quiet", jetable, branche);
     try {
-      execFileSync("git", [...IDENTITE, "-C", arbre, "merge", "--quiet", "--no-edit", "--no-verify", suivie(branche)], { ...reglages, stdio: ["ignore", "pipe", "pipe"] });
+      execFileSync("git", [...IDENTITE, "-C", arbre, "merge", "--quiet", "--no-edit", "--no-verify", rapatriee(branche)], { ...reglages, stdio: ["ignore", "pipe", "pipe"] });
     } catch (erreur) {
       let disputes: string[] = [];
       try {
@@ -857,9 +860,21 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           // Quelqu'un a écrit sur la branche pendant que le cook travaillait :
           // la station la rapatrie, la fusionne au travail local, et pousse de nouveau.
           const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : envGit), LC_ALL: "C" };
-          execFileSync("git", ["fetch", "--quiet", "origin", `+refs/heads/${branche}:${suivie(branche)}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
-          git("update-ref", connue(branche), suivie(branche));
-          fusionnerLEtranger(branche);
+          // Le fetch avance aussi, de lui-même, la branche de suivi : si la fusion
+          // échoue, elle revient où elle était, sinon le bail s'y fonderait.
+          const suivieAvant = commitDe(suivie(branche));
+          try {
+            execFileSync("git", ["fetch", "--quiet", "origin", `+refs/heads/${branche}:${rapatriee(branche)}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
+            fusionnerLEtranger(branche);
+            // La branche locale contient désormais ce commit : le bail peut s'y fonder.
+            git("update-ref", connue(branche), rapatriee(branche));
+          } catch (echec) {
+            if (suivieAvant === "") git("update-ref", "-d", suivie(branche));
+            else git("update-ref", suivie(branche), suivieAvant);
+            throw echec;
+          } finally {
+            git("update-ref", "-d", rapatriee(branche));
+          }
           essayer();
         }
       } catch (erreur) {

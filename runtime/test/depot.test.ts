@@ -355,6 +355,83 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     assert.deepEqual([existsSync(join(worktree, "correctif.txt")), existsSync(join(worktree, "du-chef.txt"))], [true, true]);
   });
 
+  test("après un conflit à la fusion, un second push reste refusé et le commit de l'origine y reste (#3893)", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree, "dispute.txt");
+    const duCook = depot.tete(branche);
+    const duChef = poserSurLOrigine(origine, branche, `refs/heads/${BASE}`, { "dispute.txt": "autre contenu\n" }, "le chef écrit dispute.txt");
+
+    assert.throws(() => depot.pousser(branche), /`cook\/15-abc`.*`dispute\.txt`/);
+    assert.throws(() => depot.pousser(branche), /`dispute\.txt`/);
+
+    assert.equal(git(origine, "rev-parse", branche), duChef);
+    assert.equal(depot.tete(branche), duCook);
+    assert.equal(git(worktree, "status", "--porcelain"), "");
+    assert.throws(() => git(worktree, "rev-parse", "--verify", "-q", "MERGE_HEAD"));
+    assert.equal(git(worktree, "for-each-ref", "refs/brigade/etranger"), "");
+    assert.equal(git(worktree, "for-each-ref", "refs/brigade/origine", "refs/remotes/origin/" + branche), "");
+  });
+
+  test("après un conflit, le bail qu'une poussée antérieure avait posé reste où il était (#3893)", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree, "dispute.txt");
+    depot.pousser(branche);
+    const poussee = depot.tete(branche);
+    git(worktree, "commit", "-q", "--amend", "-m", "réécrit");
+    const duChef = poserSurLOrigine(origine, branche, `refs/heads/${BASE}`, { "dispute.txt": "autre contenu\n" }, "le chef écrit dispute.txt");
+
+    assert.throws(() => depot.pousser(branche), /`dispute\.txt`/);
+    assert.notEqual(git(worktree, "for-each-ref", "--format=%(objectname)", "refs/remotes/origin/" + branche), duChef);
+
+    assert.equal(git(worktree, "rev-parse", "refs/brigade/origine/" + branche), poussee);
+  });
+
+  test("après une fusion réussie, le bail suit l'origine : la poussée suivante passe sans refus (#3893)", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    poserSurLOrigine(origine, branche, `refs/heads/${BASE}`, { "du-chef.txt": "du chef\n" });
+    depot.pousser(branche);
+    assert.equal(git(worktree, "rev-parse", "refs/brigade/origine/" + branche), depot.tete(branche));
+    assert.equal(git(worktree, "rev-parse", "refs/remotes/origin/" + branche), depot.tete(branche));
+
+    commiter(worktree, "suite.txt");
+    depot.pousser(branche);
+
+    assert.equal(git(origine, "rev-parse", branche), depot.tete(branche));
+  });
+
+  test("une branche qu'aucun worktree n'a sortie se fusionne dans un worktree jetable, qui ne reste pas (#3893)", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    await depot.ranger(worktree, branche);
+    const duChef = poserSurLOrigine(origine, branche, `refs/heads/${BASE}`, { "du-chef.txt": "du chef\n" });
+
+    depot.pousser(branche);
+
+    assert.equal(git(origine, "rev-parse", branche), depot.tete(branche));
+    assert.equal(git(origine, "merge-base", "--is-ancestor", duChef, branche), "");
+    assert.equal(git(origine, "ls-tree", "--name-only", branche).split("\n").includes("travail.txt"), true);
+    assert.equal(git(origine, "worktree", "list").split("\n").length, 1);
+  });
+
+  test("une fusion que git refuse sans conflit (worktree sale) échoue en nommant git merge, sans prétendre à un conflit (#3893)", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    poserSurLOrigine(origine, branche, `refs/heads/${BASE}`, { "du-chef.txt": "du chef\n" });
+    writeFileSync(join(worktree, "du-chef.txt"), "non commité\n");
+
+    assert.throws(
+      () => depot.pousser(branche),
+      (erreur) => erreur instanceof Error && /git merge/.test(erreur.message) && !/en conflit/.test(erreur.message),
+    );
+    assert.equal(readFileSync(join(worktree, "du-chef.txt"), "utf8"), "non commité\n");
+  });
+
   test("une branche que l'origine et le clone ont changée au même endroit ne se reprend pas : l'échec le dit, sans worktree ni rien d'écrasé", async (t) => {
     const { origine, worktrees, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
