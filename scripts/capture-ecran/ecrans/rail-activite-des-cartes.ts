@@ -7,7 +7,8 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 const PARADE = RENDUS.parade as Rendu;
 // Le rail figé de parade, dans son ordre : #14 pris, #21 et #22 en attente, #30 et #12 en pass.
 const [prise, enFile, libre, enPass] = PARADE.facts.rail as [Faits["rail"][number], Faits["rail"][number], Faits["rail"][number], Faits["rail"][number]];
-const fini = (depuis: string, jusqua: string) => ({ depuis, jusqua, arret: "idle", enCours: false });
+// Un essai : fini à `jusqua`, ou celui qui cuit encore quand `jusqua` est nul.
+const essai = (depuis: string, jusqua: string | null) => ({ depuis, jusqua, arret: jusqua === null ? null : "idle", enCours: jusqua === null });
 
 const FACTS = {
   ...PARADE.facts,
@@ -15,7 +16,7 @@ const FACTS = {
     {
       ...prise,
       depuis: "2026-10-13T09:20:00.000Z",
-      essais: [fini("2026-10-13T09:20:00.000Z", "2026-10-13T09:35:00.000Z"), fini("2026-10-13T09:36:00.000Z", "2026-10-13T09:50:00.000Z"), { depuis: "2026-10-13T09:51:00.000Z", jusqua: null, arret: null, enCours: true }],
+      essais: [essai("2026-10-13T09:20:00.000Z", "2026-10-13T09:35:00.000Z"), essai("2026-10-13T09:36:00.000Z", "2026-10-13T09:50:00.000Z"), essai("2026-10-13T09:51:00.000Z", null)],
       activite: { fait: "lance les tests", faitEn: "running the tests", cible: null, depuis: "2026-10-13T10:03:51.000Z" },
     },
     { ...prise, ticket: 15, titre: "La clé de cache du build", url: "https://github.com/chef/parade/issues/15", depuis: "2026-10-13T10:04:00.000Z", activite: null },
