@@ -36,7 +36,7 @@ import { DEPOT_BRIGADE, marqueDuProjet, type GitHubDeLaBrigade } from "../routag
 import { signalerInertie, type TenantDeZone } from "./cuisine-inerte.ts";
 import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";
-import { relancer, type GitHubDeLaGuerison } from "./relance.ts";
+import { disjoncteurs, relancer, type GitHubDeLaGuerison } from "./relance.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { ouvrirSignalement } from "../signalement-carte-sans-question.ts";
 
@@ -140,9 +140,11 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     };
 
     await tache("relance", async () => {
-      for (const ticket of tickets.filter((t) => estMisDeCote(t.labels))) {
+      const decotes = tickets.filter((t) => estMisDeCote(t.labels));
+      const coupes = await disjoncteurs(decotes, { github, station, base });
+      for (const ticket of decotes) {
         try {
-          const fait = await relancer(ticket, { github, station, base });
+          const fait = await relancer(ticket, { github, station, base, coupes });
           if (fait.fait === "relance") bilan.relances.push(ticket.number);
           if (fait.fait === "boucle") bilan.boucles.push(ticket.number);
         } catch (erreur) {

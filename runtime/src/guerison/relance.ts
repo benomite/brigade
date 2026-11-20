@@ -17,6 +17,13 @@
 // raison, la troisième n'a pas lieu, et un ticket de bug dit ce qui le fait
 // boucler — un seul, même appelé de nouveau, même d'une autre station.
 //
+// Une boucle ne s'ouvre pas une boucle (#3895) : un ticket que la cuisine a
+// ouvert pour une boucle et qui boucle à son tour s'arrête là, avec une ligne
+// pour le chef qui dit pourquoi — le pas de la CI en échec et sa ligne de journal.
+// Et quand le même pas échoue avec la même ligne sur les PR de deux tickets
+// différents, la cuisine ne relance plus aucun ticket pour cette raison : une
+// ligne au chef, jusqu'à ce que ce pas ne soit plus rouge sur ces PR.
+//
 // Rien n'est tenu ici : le compte des relances et le bug déjà ouvert se
 // relisent des commentaires de l'issue, à chaque appel. Aucune valeur n'est
 // propre à un projet : la base vient de la PR ou de l'appelant.
@@ -26,6 +33,7 @@ import { LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "../github-etat/fusion.ts";
 import type { Check } from "../events/pass.ts";
 import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, LABEL, type PR } from "../github.ts";
+import { sortieDErreur } from "../base-rouge/ouvre-reparation.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
 import { MARQUE_MISE_DE_COTE_GELE } from "../passe-gel-tests/gele-faux.ts";
 
@@ -41,6 +49,12 @@ const MARQUE_DE_RELANCE = /^<!-- brigade:relance cause=([a-z-]+) n=(\d+) -->/;
 const MARQUE_DE_BOUCLE = /^<!-- brigade:boucle cause=([a-z-]+) bug=(\d+) -->/;
 export const marqueDeRelance = (cause: Cause, n: number) => `<!-- brigade:relance cause=${cause} n=${n} -->`;
 export const marqueDeBoucle = (cause: Cause, bug: number) => `<!-- brigade:boucle cause=${cause} bug=${bug} -->`;
+export const marqueDArret = (cause: Cause) => `<!-- brigade:boucle-arretee cause=${cause} -->`;
+export const marqueDeCoupe = (prs: readonly number[]) => `<!-- brigade:coupe prs=${prs.join(",")} -->`;
+// Les commentaires de la guérison elle-même : ils ne disent pas pourquoi le ticket est de côté.
+const MARQUE_DE_GUERISON = /^<!-- brigade:(?:relance|boucle|boucle-arretee|coupe) /;
+// Le titre que porte le ticket qu'ouvre une boucle.
+const TITRE_DE_BOUCLE = /^#\d+ loops: set aside again after \d+ relaunches/;
 
 // Le ticket mis de côté, tel que la station le lit.
 export type TicketDeCote = { number: number; title: string; labels: readonly string[] };
@@ -55,7 +69,10 @@ export type GitHubDeLaGuerison = {
   // La PR qui livre le ticket, ou null.
   prDuTicket(issue: number): Promise<(PRAFusionner & Partial<Pick<PR, "base">>) | null>;
   // Les checks de la CI sur le commit `sha`.
-  ci(sha: string): Promise<Pick<Check, "outcome" | "name">[]>;
+  ci(sha: string): Promise<(Pick<Check, "outcome" | "name"> & Partial<Pick<Check, "conclusion" | "url">>)[]>;
+  // Les pas en échec d'un check et son journal, quand le client les lit.
+  etapesEnEchec?(check: { name: string; url?: string | null }): Promise<string[]>;
+  journalDuCheck?(check: Check): Promise<string | null>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
 };
 
@@ -65,15 +82,25 @@ export type ContexteDeLaGuerison = {
   station: string;
   // La branche d'intégration du projet, quand la PR ne la dit pas.
   base: string;
+  // Les raisons coupées pour ce tour (`disjoncteurs`), par `empreinte`.
+  coupes?: ReadonlyMap<string, Coupe>;
 };
 
 // La raison réparable d'une mise de côté, et ce que le cook doit en faire.
-export type Diagnostic = { cause: Cause; consigne: string };
+export type Diagnostic = { cause: Cause; consigne: string; echec?: EchecDeCi };
+
+// Le pas de la CI qui est rouge sur la PR, et sa ligne de journal : `ligne` est
+// null quand le journal ne se lit pas — elle n'est jamais inventée.
+export type EchecDeCi = { etape: string; ligne: string | null; pr: number };
+
+// Un même pas rouge, de la même ligne, sur les PR de deux tickets au moins.
+export type Coupe = { etape: string; ligne: string; prs: number[] };
 
 export type Guerison =
   | { fait: "relance"; cause: Cause; n: number }
   | { fait: "boucle"; cause: Cause; bug: number }
   | { fait: "deja-signale"; cause: Cause; bug: number }
+  | { fait: "arret"; cause: Cause }
   | { fait: "rien"; pourquoi: string };
 
 const DIT: Record<Cause, string> = {
@@ -98,8 +125,33 @@ function pointsBloquants(motif: string): string[] {
 // (ses relances, ses boucles signalées) : ce qui l'a mis de côté.
 async function dernierDeLaStation(ticket: TicketDeCote, { github }: ContexteDeLaGuerison) {
   return deLaCuisine(await github.commentaires(ticket.number))
-    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_RELANCE.test(c.body) && !MARQUE_DE_BOUCLE.test(c.body))
+    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_GUERISON.test(c.body))
     .at(-1);
+}
+
+const LIGNE_MAX = 160;
+export const empreinte = ({ etape, ligne }: { etape: string; ligne: string | null }) => (ligne === null ? null : `${etape}\n${ligne}`);
+const direLEchec = ({ etape, ligne }: EchecDeCi) => `step \`${etape}\`${ligne === null ? " (its log line could not be read)" : ` — \`${ligne}\``}`;
+
+// Le pas en échec du check rouge et la dernière ligne d'erreur de son journal.
+// Un pas ou un journal illisible se dit tel quel : le pas retombe sur le nom du check, la ligne reste vide.
+async function lireLEchec(github: GitHubDeLaGuerison, check: Awaited<ReturnType<GitHubDeLaGuerison["ci"]>>[number], pr: number): Promise<EchecDeCi> {
+  const rouge: Check = { name: check.name, outcome: "red", conclusion: check.conclusion ?? "failure", url: check.url ?? null };
+  let etape = check.name;
+  let ligne: string | null = null;
+  try {
+    etape = (await github.etapesEnEchec?.(rouge))?.[0] ?? check.name;
+  } catch {
+    // Le check se dit par son nom.
+  }
+  try {
+    const journal = await github.journalDuCheck?.(rouge);
+    const derniere = journal == null ? "" : (sortieDErreur(journal).split("\n").at(-1) ?? "").replace(/^##\[error\]/, "").trim();
+    ligne = derniere === "" ? null : derniere.slice(0, LIGNE_MAX);
+  } catch {
+    // La ligne reste vide.
+  }
+  return { etape, ligne, pr };
 }
 
 // Pourquoi le ticket est de côté, s'il s'agit d'une raison qu'un cook répare :
@@ -113,9 +165,11 @@ export async function diagnostiquer(ticket: TicketDeCote, contexte: ContexteDeLa
     if (pr.enConflit === true) {
       return { cause: "conflict", consigne: `PR #${pr.number} conflicts with \`${base}\`: rebase the branch on \`${base}\`, resolve the conflicts, and push.` };
     }
-    const rouges = (await github.ci(pr.sha)).filter((check) => check.outcome === "red").map((check) => check.name);
-    if (rouges.length > 0) {
-      return { cause: "red-check", consigne: `PR #${pr.number} has ${rouges.length === 1 ? "a red check" : "red checks"} on \`${pr.sha.slice(0, 7)}\`: make ${rouges.map((nom) => `\`${nom}\``).join(", ")} green.` };
+    const rougesLus = (await github.ci(pr.sha)).filter((check) => check.outcome === "red");
+    const rouges = rougesLus.map((check) => check.name);
+    if (rougesLus[0] !== undefined) {
+      const echec = await lireLEchec(github, rougesLus[0], pr.number);
+      return { cause: "red-check", echec, consigne: `PR #${pr.number} has ${rouges.length === 1 ? "a red check" : "red checks"} on \`${pr.sha.slice(0, 7)}\`: make ${rouges.map((nom) => `\`${nom}\``).join(", ")} green. Failing ${direLEchec(echec)}.` };
     }
     const commentairesDeLaPR = await github.commentaires(pr.number);
     const verdict = dernierVerdict(commentairesDeLaPR);
@@ -145,14 +199,30 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
   if ((await dernierDeLaStation(ticket, contexte))?.body.startsWith(MARQUE_MISE_DE_COTE_GELE)) return { fait: "rien", pourquoi: "its wrong frozen acceptance tests leave a criterion with nothing to prove it: a human decides" };
   const diagnostic = await diagnostiquer(ticket, contexte);
   if (diagnostic === null) return { fait: "rien", pourquoi: "no reason a cook can fix: a human decides" };
-  const { cause, consigne } = diagnostic;
+  const { cause, consigne, echec } = diagnostic;
   const commentaires = deLaCuisine(await github.commentaires(ticket.number));
+  const cle = echec === undefined ? null : empreinte(echec);
+  const coupe = cle === null ? undefined : contexte.coupes?.get(cle);
+  if (coupe !== undefined) {
+    const marque = marqueDeCoupe(coupe.prs);
+    if (!commentaires.some((c) => c.body.startsWith(marque))) {
+      await github.commenter(ticket.number, `${marque}\nStation \`${station}\`: not relaunched — step \`${coupe.etape}\` fails with \`${coupe.ligne}\` on the PRs of ${coupe.prs.length} tickets (${coupe.prs.map((n) => `#${n}`).join(", ")}): the kitchen relaunches no ticket for this reason until that step is green again.`);
+    }
+    return { fait: "rien", pourquoi: `step \`${coupe.etape}\` is red with the same log line on the PRs of several tickets: no relaunch until it is green` };
+  }
   const boucle = commentaires.map((c) => MARQUE_DE_BOUCLE.exec(c.body)).find((marque) => marque?.[1] === cause);
   if (boucle) return { fait: "deja-signale", cause, bug: Number(boucle[2]) };
   const relances = commentaires.filter((c) => MARQUE_DE_RELANCE.exec(c.body)?.[1] === cause);
+  if (relances.length >= RELANCES_MAX && TITRE_DE_BOUCLE.test(ticket.title)) {
+    // Un ticket de boucle qui boucle : un seul constat pour le chef, jamais un ticket de plus.
+    const marque = marqueDArret(cause);
+    if (commentaires.some((c) => c.body.startsWith(marque))) return { fait: "rien", pourquoi: "a loop ticket that loops in turn: already signalled to the chef" };
+    await github.commenter(ticket.number, `${marque}\nStation \`${station}\`: not relaunched, and no new loop ticket — #${ticket.number} was opened for a loop and loops in turn: ${DIT[cause]} again after ${relances.length} relaunches${echec === undefined ? "" : `, ${direLEchec(echec)}`}. A human decides.`);
+    return { fait: "arret", cause };
+  }
   if (relances.length >= RELANCES_MAX) {
     const bug = await github.creerIssue({
-      titre: `#${ticket.number} loops: set aside again after ${relances.length} relaunches for the same reason (${cause})`,
+      titre: `#${ticket.number} loops: set aside again after ${relances.length} relaunches for the same reason (${cause}${echec === undefined ? "" : `: ${direLEchec(echec).replaceAll("`", "")}`})`,
       corps: [
         `Ticket #${ticket.number} (${ticket.title}) was set aside (\`${ticket.labels.includes(ECHECS_ATTEINTS) ? ECHECS_ATTEINTS : HORS_CUISINE}\`) because ${DIT[cause]}. The kitchen relaunched it ${relances.length} times for this reason, and each cook brought it back to the same point: it is not relaunched a ${relances.length + 1}th time.`,
         "",
@@ -177,4 +247,23 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
   if (!ticket.labels.includes(LABEL)) await github.labelliser(ticket.number, [LABEL]);
   for (const label of [HORS_CUISINE, ECHECS_ATTEINTS]) if (ticket.labels.includes(label)) await github.delabelliser(ticket.number, label);
   return { fait: "relance", cause, n };
+}
+
+// Les raisons rouges que la cuisine ne relance plus : un même pas de la CI, de
+// la même ligne de journal, rouge sur les PR de deux tickets différents. Relu à
+// chaque tour sur les PR : il tombe dès que ce pas n'est plus rouge sur elles.
+export async function disjoncteurs(tickets: readonly TicketDeCote[], contexte: ContexteDeLaGuerison): Promise<Map<string, Coupe>> {
+  const groupes = new Map<string, { etape: string; ligne: string; prs: Map<number, number> }>();
+  for (const ticket of tickets) {
+    // Un ticket illisible ne compte pas ici : `relancer`, qui le relit, dit son échec.
+    const echec = (await diagnostiquer(ticket, contexte).catch(() => null))?.echec;
+    const cle = echec === undefined ? null : empreinte(echec);
+    if (echec === undefined || echec.ligne === null || cle === null) continue;
+    const groupe = groupes.get(cle) ?? { etape: echec.etape, ligne: echec.ligne, prs: new Map<number, number>() };
+    groupe.prs.set(ticket.number, echec.pr);
+    groupes.set(cle, groupe);
+  }
+  const coupes = new Map<string, Coupe>();
+  for (const [cle, { etape, ligne, prs }] of groupes) if (prs.size >= 2) coupes.set(cle, { etape, ligne, prs: [...prs.values()].sort((a, b) => a - b) });
+  return coupes;
 }
