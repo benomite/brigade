@@ -39,6 +39,8 @@ import { revueLue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
+import { arretCuisineLu } from "./vue/bandeau-arret/arret-du-rail.ts";
+import type { ArretDeLaCuisine } from "../../runtime/src/arret-cuisine/arret-cuisine.ts";
 import { quotaLu, type QuotaGithub } from "./vue/stations-quota/quota-lu.ts";
 import type { Repondue } from "./repondues.ts";
 import type { PrioriteMontree } from "./priorite.ts";
@@ -328,7 +330,9 @@ export type Relecture = { resume: string; constats: Constat[] };
 // ce qu'il vise — un fichier, une commande —, nul s'il ne vise rien ; l'heure où
 // elle s'y est mise, à l'horloge de la box.
 // `faitEn` : le même geste en anglais, celui de la carte ; absent d'un runtime d'avant ce champ.
-export type Activite = { fait: string; faitEn?: string; cible: string | null; depuis: string };
+// `etape` : en pass, l'étape où la pass en est (« CI running », « review », « waiting for main », « merging ») ; absente
+// sinon, et d'un runtime d'avant ce champ.
+export type Activite = { fait: string; faitEn?: string; cible: string | null; depuis: string; etape?: string };
 
 // Ce qu'un ticket mis de côté attend, comme le runtime le dit : `raison` en clair
 // (« attend : setup du projet impossible »), `colonne` : celle du rail où il est.
@@ -396,6 +400,9 @@ export type Faits = {
   // Les alertes du haut du rail (vue/attente-du-rail/, #3823) : chacune vraie, datée, avec son geste ou ce que la cuisine en
   // fait ; absentes sans aucune.
   alertesDuRail?: AlerteDuRail[];
+  // La cuisine arrêtée (vue/bandeau-arret/, #3924) : des tickets en file, aucune carte prise ni en pass — sa cause, depuis
+  // quand ; absente sinon.
+  arretCuisine?: ArretDeLaCuisine;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseDuCompte;
@@ -494,6 +501,7 @@ export type Faits = {
 // `age` : sur une carte de Taken ou de Pass, depuis combien de temps elle y est (cadence.ts) — absent pour une autre, et
 // d'un runtime qui ne dit pas l'entrée du ticket dans sa colonne.
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
+// `essai` : le rang de l'essai en cours d'un ticket pris plus d'une fois (#3923) — absent pour un premier essai.
 // `sensible` : son ticket porte le label `sensitive` (ticket 3224) — la carte le marque.
 // `etape` : sur une carte qui attend le chef, la colonne de son étape, où la vue la pose en rouge (#3458) — TODO n'est
 // pas une colonne. `relancePassee` : sur une carte de WAITING, sa relance est passée — elle revient au chef, et la vue la
@@ -502,7 +510,7 @@ export type Faits = {
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -551,6 +559,9 @@ export type Tableau = {
   attenteDuRail?: AttenteDuRail;
   // Les alertes du haut du rail (vue/attente-du-rail/, #3823) : la première est la ligne en tête du rail. Absentes sans aucune.
   alertesDuRail?: AlerteDuRail[];
+  // La cuisine arrêtée (vue/bandeau-arret/, #3924) : le bandeau en tête du rail. Absente quand une carte est prise ou en
+  // pass, ou que la file est vide.
+  arretCuisine?: ArretDeLaCuisine;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
   pauseQuota?: PauseDuCompte;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
@@ -686,7 +697,7 @@ function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
 // Ce que la cuisine fait d'un ticket : un geste, ce qu'il vise ou rien, une heure.
 function comprendreActivite(valeur: unknown, champ: string): Activite {
   const lu = objet(valeur, champ);
-  return { fait: texte(lu.fait, `${champ}.fait`), ...(lu.faitEn === undefined ? {} : { faitEn: texte(lu.faitEn, `${champ}.faitEn`) }), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
+  return { fait: texte(lu.fait, `${champ}.fait`), ...(lu.faitEn === undefined ? {} : { faitEn: texte(lu.faitEn, `${champ}.faitEn`) }), ...(lu.etape === undefined ? {} : { etape: texte(lu.etape, `${champ}.etape`) }), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
 }
 
 // Ce que le reviewer a dit d'une livraison servie : son résumé, ses constats dans son ordre.
@@ -854,6 +865,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...lignesDesCartesLues(racine.lignesDesCartes),
       ...attendusDesCartesLus(racine.attendusDesCartes),
       ...alertesDuRailLues(racine.alertesDuRail),
+      ...arretCuisineLu(racine.arretCuisine),
       ...pauseQuotaLue(racine.pauseQuota),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
@@ -1279,7 +1291,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
           : connu?.etat === "base rouge"
             ? ligneBaseRouge(connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
           : connu !== undefined && A_L_OUVRAGE.includes(connu.etat)
-            ? ligneAuTravail(connu.etat as "pris" | "en pass", connu.activite, connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
+            ? ligneAuTravail(connu.activite, connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
             : connu?.etat === "servi"
               ? { ligne: "served", repere: true }
               : connu?.raison != null && EN_FILE.includes(connu.etat)
@@ -1301,6 +1313,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ticket,
       ...ligne,
       ...(essais === undefined ? {} : { essais }),
+      ...(connu?.essais === undefined || connu.essais.length < 2 ? {} : { essai: connu.essais.length }),
       ...(connu?.gardeRepetee === undefined ? {} : { garde: ligneDeGarde(connu.gardeRepetee) }),
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
       ...(titre === undefined ? {} : { titre }),
@@ -1551,6 +1564,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.railBloque === undefined ? {} : { railBloque: faits.railBloque }),
     ...(faits.attenteDuRail === undefined ? {} : { attenteDuRail: faits.attenteDuRail }),
     ...(faits.alertesDuRail === undefined ? {} : { alertesDuRail: faits.alertesDuRail }),
+    ...(faits.arretCuisine === undefined ? {} : { arretCuisine: faits.arretCuisine }),
     ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
