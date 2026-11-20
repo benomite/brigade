@@ -93,7 +93,7 @@ for (const cause of ["failures", "stall"] as const) {
     try {
       const { tickets, gone } = CAUSES[cause];
       const duBreaker = () => commentaires().filter((c) => tickets.includes(c.ticket) && /breaker/i.test(c.corps));
-      await jusqua(() => duBreaker().length > 0, 10000);
+      await jusqua(() => duBreaker().length > 0, 2000);
       const [premier] = duBreaker();
       assert.match(premier?.corps ?? "", /closed/i);
       assert.match(premier?.corps ?? "", gone);
