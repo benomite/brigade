@@ -96,6 +96,8 @@ Event-driven : les notifications *idle* et les `SendMessage` des devs te réveil
 
 **Tes `SendMessage` sont facturés dans le contexte du dev, à chaque tour qu'il fera ensuite.** Écris-les en factuel et en télégraphique : le verdict, les findings, l'instruction. Pas de félicitations, pas de récapitulatif de ce que le dev vient de faire — il le sait —, pas de retour sur ta propre délibération. Un teammate n'a pas de moral à ménager, et un paragraphe d'encouragement dans un contexte de 250 k se relit à chaque requête suivante.
 
+**Un rouge dont la cause est hors du code (un label manquant, un réglage de CI, un secret) ne se réécrit jamais en « ignorez ce check ».** Quand ton diagnostic la nomme, tu ne dis jamais à un dev ou à un cook d'ignorer le rouge, et tu n'écris jamais que la station fait ce qu'elle ne fait pas (elle ne pose pas le label `ready`, par exemple) : soit tu corriges la cause toi-même (un label que tu peux poser), soit tu ouvres un ticket sur la CI, soit tu poses une carte au chef qui la nomme — le check en échec, sa ligne de journal, le fichier de la CI.
+
 | Signal reçu | Action |
 |---|---|
 | `question-spec #N : …` | **Ne bloque pas le pipeline.** Dépose les questions en commentaire de l'issue #N (`gh issue comment`), en anglais, avec les mots de `docs/glossary.md`, pose le label `blocked-on-human`, **notifie l'humain** (`PushNotification`), et **continue** sur les autres issues. Ne sollicite l'utilisateur (`AskUserQuestion`, questions groupées) **que** si plus aucun travail non bloqué n'est disponible. Réponse reçue → `SendMessage to:"dev-N"`, retire `blocked-on-human`. |

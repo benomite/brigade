@@ -69,7 +69,7 @@ export type GitHubDeLaGuerison = {
   // La PR qui livre le ticket, ou null.
   prDuTicket(issue: number): Promise<(PRAFusionner & Partial<Pick<PR, "base">>) | null>;
   // Les checks de la CI sur le commit `sha`.
-  ci(sha: string): Promise<(Pick<Check, "outcome" | "name"> & Partial<Pick<Check, "conclusion" | "url">>)[]>;
+  ci(sha: string): Promise<(Pick<Check, "outcome" | "name"> & Partial<Pick<Check, "conclusion" | "url">> & { ligne?: string | null })[]>;
   // Les pas en échec d'un check et son journal, quand le client les lit.
   etapesEnEchec?(check: { name: string; url?: string | null }): Promise<string[]>;
   journalDuCheck?(check: Check): Promise<string | null>;
@@ -91,7 +91,7 @@ export type Diagnostic = { cause: Cause; consigne: string; echec?: EchecDeCi };
 
 // Le pas de la CI qui est rouge sur la PR, et sa ligne de journal : `ligne` est
 // null quand le journal ne se lit pas — elle n'est jamais inventée.
-export type EchecDeCi = { etape: string; ligne: string | null; pr: number };
+export type EchecDeCi = { etape: string; ligne: string | null; pr: number; sha: string };
 
 // Un même pas rouge, de la même ligne, sur les PR de deux tickets au moins.
 export type Coupe = { etape: string; ligne: string; prs: number[] };
@@ -135,23 +135,24 @@ const direLEchec = ({ etape, ligne }: EchecDeCi) => `step \`${etape}\`${ligne ==
 
 // Le pas en échec du check rouge et la dernière ligne d'erreur de son journal.
 // Un pas ou un journal illisible se dit tel quel : le pas retombe sur le nom du check, la ligne reste vide.
-async function lireLEchec(github: GitHubDeLaGuerison, check: Awaited<ReturnType<GitHubDeLaGuerison["ci"]>>[number], pr: number): Promise<EchecDeCi> {
+async function lireLEchec(github: GitHubDeLaGuerison, check: Awaited<ReturnType<GitHubDeLaGuerison["ci"]>>[number], pr: number, sha: string): Promise<EchecDeCi> {
   const rouge: Check = { name: check.name, outcome: "red", conclusion: check.conclusion ?? "failure", url: check.url ?? null };
   let etape = check.name;
-  let ligne: string | null = null;
+  // Un check qui dit lui-même sa ligne de journal est cru tel quel ; sinon on lit le journal.
+  let ligne: string | null = check.ligne == null || check.ligne.trim() === "" ? null : check.ligne.trim().slice(0, LIGNE_MAX);
   try {
     etape = (await github.etapesEnEchec?.(rouge))?.[0] ?? check.name;
   } catch {
     // Le check se dit par son nom.
   }
   try {
-    const journal = await github.journalDuCheck?.(rouge);
+    const journal = ligne === null ? await github.journalDuCheck?.(rouge) : null;
     const derniere = journal == null ? "" : (sortieDErreur(journal).split("\n").at(-1) ?? "").replace(/^##\[error\]/, "").trim();
-    ligne = derniere === "" ? null : derniere.slice(0, LIGNE_MAX);
+    if (ligne === null) ligne = derniere === "" ? null : derniere.slice(0, LIGNE_MAX);
   } catch {
     // La ligne reste vide.
   }
-  return { etape, ligne, pr };
+  return { etape, ligne, pr, sha };
 }
 
 // Pourquoi le ticket est de côté, s'il s'agit d'une raison qu'un cook répare :
@@ -168,7 +169,7 @@ export async function diagnostiquer(ticket: TicketDeCote, contexte: ContexteDeLa
     const rougesLus = (await github.ci(pr.sha)).filter((check) => check.outcome === "red");
     const rouges = rougesLus.map((check) => check.name);
     if (rougesLus[0] !== undefined) {
-      const echec = await lireLEchec(github, rougesLus[0], pr.number);
+      const echec = await lireLEchec(github, rougesLus[0], pr.number, pr.sha);
       return { cause: "red-check", echec, consigne: `PR #${pr.number} has ${rouges.length === 1 ? "a red check" : "red checks"} on \`${pr.sha.slice(0, 7)}\`: make ${rouges.map((nom) => `\`${nom}\``).join(", ")} green. Failing ${direLEchec(echec)}.` };
     }
     const commentairesDeLaPR = await github.commentaires(pr.number);
@@ -202,7 +203,7 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
   const { cause, consigne, echec } = diagnostic;
   const commentaires = deLaCuisine(await github.commentaires(ticket.number));
   const cle = echec === undefined ? null : empreinte(echec);
-  const coupe = cle === null ? undefined : contexte.coupes?.get(cle);
+  const coupe = cle === null || echec === undefined ? undefined : (contexte.coupes?.get(cle) ?? (await coupeVue(ticket.number, echec, cle, github)));
   if (coupe !== undefined) {
     const marque = marqueDeCoupe(coupe.prs);
     if (!commentaires.some((c) => c.body.startsWith(marque))) {
@@ -266,4 +267,29 @@ export async function disjoncteurs(tickets: readonly TicketDeCote[], contexte: C
   const coupes = new Map<string, Coupe>();
   for (const [cle, { etape, ligne, prs }] of groupes) if (prs.size >= 2) coupes.set(cle, { etape, ligne, prs: [...prs.values()].sort((a, b) => a - b) });
   return coupes;
+}
+
+// Les PR rouges déjà vues par ce process, par empreinte : de quoi couper dès le
+// second ticket quand l'appelant ne liste pas tous les tickets de côté. Chaque
+// PR vue est relue sur la CI avant de compter : un pas redevenu vert la sort.
+const VUES = new Map<string, Map<number, { pr: number; sha: string }>>();
+export const oublierLesVues = () => VUES.clear();
+
+async function coupeVue(ticket: number, echec: EchecDeCi, cle: string, github: GitHubDeLaGuerison): Promise<Coupe | undefined> {
+  const vues = VUES.get(cle) ?? new Map<number, { pr: number; sha: string }>();
+  for (const [autre, { pr, sha }] of vues) {
+    if (autre === ticket) continue;
+    try {
+      const rouge = (await github.ci(sha)).find((check) => check.outcome === "red");
+      const relu = rouge === undefined ? null : await lireLEchec(github, rouge, pr, sha);
+      if (relu !== null && empreinte(relu) === cle) continue;
+    } catch {
+      // Une PR illisible ne compte pas.
+    }
+    vues.delete(autre);
+  }
+  vues.set(ticket, { pr: echec.pr, sha: echec.sha });
+  VUES.set(cle, vues);
+  if (vues.size < 2 || echec.ligne === null) return undefined;
+  return { etape: echec.etape, ligne: echec.ligne, prs: [...vues.values()].map((v) => v.pr).sort((a, b) => a - b) };
 }

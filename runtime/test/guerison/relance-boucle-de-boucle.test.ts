@@ -1,10 +1,10 @@
 // #3895 : un ticket de boucle ne s'ouvre pas une boucle, la boucle d'un check rouge
 // dit le pas et sa ligne de journal, et un même pas rouge sur deux tickets coupe la relance.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
 import type { CommentaireDeVerdict } from "../../src/github-etat/fusion.ts";
 import { HORS_CUISINE, LABEL } from "../../src/github.ts";
-import { disjoncteurs, marqueDeRelance, relancer, type ContexteDeLaGuerison, type TicketDeCote } from "../../src/guerison/relance.ts";
+import { disjoncteurs, marqueDeRelance, oublierLesVues, relancer, type ContexteDeLaGuerison, type TicketDeCote } from "../../src/guerison/relance.ts";
 
 const ETAPE = "Exiger le label ready";
 const LIGNE = "label ready absent : ajoutez le label ready";
@@ -43,6 +43,9 @@ function cuisine(journal: (pr: number) => string | null | Error = () => `2026-11
   });
   return { poster, creees, contexte, commentairesDu: (n: number) => (commentaires.get(n) ?? []).map(({ body }) => body) };
 }
+
+// Les PR rouges déjà vues sont tenues par le process : chaque cas repart de zéro.
+beforeEach(() => oublierLesVues());
 
 const ticket = (number: number, title = "Heal the rail"): TicketDeCote => ({ number, title, labels: [LABEL, HORS_CUISINE] });
 const deuxRelances = (c: ReturnType<typeof cuisine>, n: number) => [1, 2].forEach((i) => c.poster(n, `${marqueDeRelance("red-check", i)}\nRelaunched.`));
