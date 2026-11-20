@@ -130,7 +130,7 @@ export async function evaluerMain({ statuts, journal, projet, cuisinePeutReparer
   const ticket = ticketDuRougeDe(branche);
   const enTodo = cartesEnTodo(journal.base).some((carte) => carte.ticket === ticket);
   const rouges = derniers.filter(({ outcome }) => outcome === "red").map(({ check }) => check);
-  if (rouges.length !== 0) {
+  if (rouges.length === 0) {
     const pourquoi = `${branche} is green again`;
     if (enTodo) return { carte: sortirDeTodo(journal, projet, ticket, pourquoi, AUTEUR) ? "sortie" : "aucune" };
     if (accuseeTantQueRouge(journal, ticket)) journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "todo.left", payload: { why: pourquoi } });
