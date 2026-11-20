@@ -463,7 +463,6 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       ?.slice("worktree ".length);
     const jetable = sortie === undefined ? join(essais, `${basename(branche)}.fusion`) : undefined;
     const arbre = sortie ?? (jetable as string);
-    mkdirSync(essais, { recursive: true });
     if (jetable !== undefined) git("worktree", "add", "--quiet", jetable, branche);
     try {
       execFileSync("git", [...IDENTITE, "-C", arbre, "merge", "--quiet", "--no-edit", "--no-verify", suivie(branche)], { ...reglages, stdio: ["ignore", "pipe", "pipe"] });
