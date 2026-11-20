@@ -22,7 +22,7 @@ import type { Base } from "../base.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
 import type { SuiviDuDisjoncteurServant } from "../file-chef/cause-arret.ts";
 import type { Journal } from "../journal.ts";
-import { dernierRefusDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, pausesDeLaStation, retenueDeLaStation, type PausesDites } from "../limite-github.ts";
+import { dernierRefusDeLaStation, ecrituresRetenuesDeLaStation, pauseDeLaStation, pausesDeLaStation, type PausesDites } from "../limite-github.ts";
 import { etatDesGardeFous } from "../projections/guardrails.ts";
 import { etatDeLaBase, gatesDuRouge } from "../projections/pass.ts";
 import { lireRail } from "../projections/rail.ts";
@@ -119,14 +119,12 @@ export function pausesDeLaCause(dites: PausesDites): PausesDeLaCause {
 
 // Ce que le compteur des appels de la station dont `racine` est le répertoire
 // dit de ce qui retient la cuisine : la limite que GitHub a posée — son refus
-// constaté, ou sa pause —, à défaut la réserve des gestes que la box garde ; et
-// le budget des écritures. Lu sans rien écrire ni rien créer.
+// constaté, ou sa pause — ; et le budget des écritures. Lu sans rien écrire ni rien créer.
 export function signauxDeLaStation(racine: string | undefined, maintenant: Date): Pick<Signaux, "limiteGitHub" | "ecritures"> {
   const instant = maintenant.getTime();
   const iso = (ms: number) => new Date(ms).toISOString();
   const limite = limiteDuCompteDeLaStation(racine);
   const pause = pauseDeLaStation(racine, instant);
-  const reserve = retenueDeLaStation(racine, instant);
   const refus = dernierRefusDeLaStation(racine, instant, REFUS_RECENT_MS);
   const ecritures = ecrituresRetenuesDeLaStation(racine, instant);
   const limiteGitHub: Signaux["limiteGitHub"] =
@@ -134,16 +132,13 @@ export function signauxDeLaStation(racine: string | undefined, maintenant: Date)
       ? { limit: limite.limit, backAt: limite.backAt }
       : pause !== null
         ? { limit: null, backAt: iso(pause) }
-        : reserve !== null
-          ? { limit: "reserve", backAt: iso(reserve) }
-          : refus !== null
-            ? // La reprise dite est passée et GitHub refuse encore : la limite tient.
-              { limit: limite?.limit ?? null, backAt: limite?.backAt ?? iso(refus), refusedAt: iso(refus) }
-            : null;
+        : refus !== null
+          ? // La reprise dite est passée et GitHub refuse encore : la limite tient.
+            { limit: limite?.limit ?? null, backAt: limite?.backAt ?? iso(refus), refusedAt: iso(refus) }
+          : null;
   // Une limite qui tient se dit avec les pauses que le compteur garde : sans
-  // elles, la retenue disait `limit: null` et rien de plus (#3448). La réserve
-  // des gestes n'est pas une pause de GitHub.
-  const pauses = limiteGitHub === null || limiteGitHub.limit === "reserve" ? null : pausesDeLaStation(racine, instant);
+  // elles, la retenue disait `limit: null` et rien de plus (#3448).
+  const pauses = limiteGitHub === null ? null : pausesDeLaStation(racine, instant);
   return {
     limiteGitHub: limiteGitHub === null || pauses === null ? limiteGitHub : { ...limiteGitHub, pauses: pausesDeLaCause(pauses) },
     ecritures: ecritures === null ? null : { writes: ecritures.ecrites, nextAt: iso(ecritures.reprise) },
