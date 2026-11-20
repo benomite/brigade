@@ -104,4 +104,5 @@ for (const cause of ["failures", "stall"] as const) {
   });
 }
 
+// brigade:guard
 test("comment-a-la-fermeture.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

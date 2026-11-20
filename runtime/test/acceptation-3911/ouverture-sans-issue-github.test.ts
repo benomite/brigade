@@ -67,4 +67,5 @@ test("a breaker that opens files no GitHub issue: the station reads the open bre
   }
 });
 
+// brigade:guard
 test("ouverture-sans-issue-github.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

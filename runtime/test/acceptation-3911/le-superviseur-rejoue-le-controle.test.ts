@@ -99,4 +99,5 @@ for (const cause of ["failures", "stall"] as const) {
   });
 }
 
+// brigade:guard
 test("le-superviseur-rejoue-le-controle.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
