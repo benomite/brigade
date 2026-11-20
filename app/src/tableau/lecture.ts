@@ -29,7 +29,7 @@ export type LigneDuRail = { ticket: number; priorite: number | null; ligne: stri
 // d'attendre, et ce qui attend puis le geste du chef.
 export type LigneDeLaFile = { nom: string; ticket: number | null; titre: string | null; quoi: string; depuis: string; ligne: string };
 // L'objet de `facts`, tel que la vue du rail le lit (faits.ts, `comprendre`).
-export type FaitsPublies = { [champ: string]: unknown };
+export type FaitsPublies = { [champ: string]: any };
 // Ce que fait le cook d'un ticket (vue/activite-du-cook.js) : ce que GitHub en dit — la station qui le tient, depuis sa
 // prise, et sa PR. Ni ses gestes, ni ses tours, ni ses tokens : seul le journal de sa station les porte.
 export type EtapeDuCook = { fait: string; faitEn: string; cible: string | null; depuis: string };

@@ -40,5 +40,6 @@ test("the figures of the Served column stay and keep their values", async () => 
   const vu = dessine(lu);
   assert.equal(servis(vu).length, 2);
   assert.equal(vu.compteurs.find(({ libelle }) => libelle === "served 24 h")?.nombre, 2);
+  assert.ok(lu.lu);
   assert.equal(lu.faits.compteurs.livres24h, 2);
 });
