@@ -19,6 +19,7 @@
 // une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
 // GitHub mène de l'une à l'autre.
 
+import type { ZoneTenue } from "../vue/bandeau-arret/arret-du-rail.ts";
 import { carteDuCommentaire, formeDuChef, type CarteDuChef, type ChoixDuChef, type Recommandee } from "./todo-github.ts";
 import { direLaPrParSonTicket, PR_DU_TICKET } from "../vue/pr-du-ticket.js";
 
@@ -48,7 +49,8 @@ export type LienDeLigne = { numero: number; url: string };
 // `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`, ou celle
 // de la PR à merger, ou celle de la retenue sans PR (#3369), avec ses boutons.
 // `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
-export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
+// `zoneTenue` : la zone que sa fiche déclare et que sa PR ouverte tient, et depuis quand (vue/bandeau-arret/, ticket 3924).
+export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef; zoneTenue?: ZoneTenue };
 
 type Brut = Record<string, unknown>;
 
