@@ -3,13 +3,15 @@
 // la portée utilisateur : sans droit d'administrateur), une seule fois. Rejouée — c'est aussi la mise à
 // jour d'une station Windows —, elle réécrit la commande sans rien doubler. Ni Windows ni registre :
 // les étapes du script sont jouées par `pwsh`, son registre est une doublure qui note ce qui s'y
-// écrit — la commande entière est jouée par installer-station-windows.test.ts.
+// écrit — la commande entière est jouée par installer-station-windows.test.ts. Chaque `pwsh` se lance
+// avant les tests, dans leur `before` : le premier démarrage de pwsh sur un runner de CI prend à lui
+// seul plus que les 2 s d'un test (#2129), et les tests ne jugent que ce que ces lancements ont rendu.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import { repertoireTemporaire } from "../outils.ts";
+import { before, describe, test } from "node:test";
+import { repertoireDuFichier } from "../outils.ts";
 import { INSTALLER_PS1, PWSH, commandeWindows, rendu } from "./aides.ts";
 
 const cite = (valeur: string) => `'${valeur.replaceAll("'", "''")}'`;
@@ -32,8 +34,9 @@ const PRELUDE = [
 
 // Les fonctions d'installer-station.ps1, chargées telles qu'il les déclare, puis `PoserLaCommande`
 // jouée `fois` fois sur la base d'une station.
-function poser(t: TestContext, base: string, { fois = 1, pathDuCompte = "", illisible = false } = {}) {
-  const etat = repertoireTemporaire(t);
+type Pose = ReturnType<typeof rendu> & { ecrit: string[] };
+function poser(base: string, { fois = 1, pathDuCompte = "", illisible = false } = {}): Pose {
+  const etat = repertoireDuFichier("brigade-test-commande-windows-");
   const registre = join(etat, "registre");
   writeFileSync(registre, "");
   const script = [
@@ -48,18 +51,31 @@ function poser(t: TestContext, base: string, { fois = 1, pathDuCompte = "", illi
   return { ...r, ecrit: readFileSync(registre, "utf8").split("\n").filter(Boolean) };
 }
 
-function uneBase(t: TestContext): string {
-  const base = join(repertoireTemporaire(t), "brigade-station");
+function uneBase(): string {
+  const base = join(repertoireDuFichier("brigade-test-commande-windows-"), "brigade-station");
   mkdirSync(base);
   return base;
 }
 
 describe("sous Windows", { skip: PWSH === undefined && "pwsh is not installed here: the Windows installer is a PowerShell script" }, () => {
-  test("posée deux fois : un seul brigade.cmd, et son dossier une seule fois sur le PATH du compte, après ce qui y était, ses %VARIABLES% gardées", (t) => {
-    const base = uneBase(t);
-    const avant = "%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;C:\\outils";
+  const avant = "%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;C:\\outils";
+  const bases = { deuxFois: "", dejaLa: "", ancienne: "", illisible: "" };
+  let poses = {} as Record<keyof typeof bases, Pose>;
+  before(() => {
+    for (const nom of Object.keys(bases) as (keyof typeof bases)[]) bases[nom] = uneBase();
+    mkdirSync(join(bases.ancienne, "bin"));
+    writeFileSync(join(bases.ancienne, "bin/brigade.cmd"), "@echo ancienne\r\n");
+    poses = {
+      deuxFois: poser(bases.deuxFois, { fois: 2, pathDuCompte: avant }),
+      dejaLa: poser(bases.dejaLa, { pathDuCompte: `C:\\outils;${join("%LOCALAPPDATA%", "brigade-station", "bin")}` }),
+      ancienne: poser(bases.ancienne),
+      illisible: poser(bases.illisible, { illisible: true }),
+    };
+  });
 
-    const r = poser(t, base, { fois: 2, pathDuCompte: avant });
+  test("posée deux fois : un seul brigade.cmd, et son dossier une seule fois sur le PATH du compte, après ce qui y était, ses %VARIABLES% gardées", () => {
+    const base = bases.deuxFois;
+    const r = poses.deuxFois;
 
     assert.equal(r.code, 0, r.sortie + r.erreur);
     const bin = join(base, "bin");
@@ -79,10 +95,9 @@ describe("sous Windows", { skip: PWSH === undefined && "pwsh is not installed he
     assert.ok(cmd.endsWith("\r\nexit /b %code%"), cmd);
   });
 
-  test("déjà sur le PATH du compte, écrit par une variable : rien n'y est réécrit", (t) => {
-    const base = uneBase(t);
-
-    const r = poser(t, base, { pathDuCompte: `C:\\outils;${join("%LOCALAPPDATA%", "brigade-station", "bin")}` });
+  test("déjà sur le PATH du compte, écrit par une variable : rien n'y est réécrit", () => {
+    const base = bases.dejaLa;
+    const r = poses.dejaLa;
 
     assert.equal(r.code, 0, r.sortie + r.erreur);
     assert.deepEqual(r.ecrit, []);
@@ -90,22 +105,17 @@ describe("sous Windows", { skip: PWSH === undefined && "pwsh is not installed he
     assert.doesNotMatch(r.sortie, /PATH/);
   });
 
-  test("une commande d'avant, différente, est remplacée — et rien d'autre ne reste dans son dossier", (t) => {
-    const base = uneBase(t);
-    mkdirSync(join(base, "bin"));
-    writeFileSync(join(base, "bin/brigade.cmd"), "@echo ancienne\r\n");
-
-    const r = poser(t, base);
+  test("une commande d'avant, différente, est remplacée — et rien d'autre ne reste dans son dossier", () => {
+    const base = bases.ancienne;
+    const r = poses.ancienne;
 
     assert.equal(r.code, 0, r.sortie + r.erreur);
     assert.deepEqual(readdirSync(join(base, "bin")), ["brigade.cmd"]);
     assert.equal(readFileSync(join(base, "bin/brigade.cmd"), "utf8"), commandeWindows());
   });
 
-  test("le PATH du compte illisible : refusé en le disant, et rien n'y est écrit", (t) => {
-    const base = uneBase(t);
-
-    const r = poser(t, base, { illisible: true });
+  test("le PATH du compte illisible : refusé en le disant, et rien n'y est écrit", () => {
+    const r = poses.illisible;
 
     assert.equal(r.code, 1);
     assert.match(r.erreur, /brigade: installation refused -- the user PATH cannot be read \(HKCU\\Environment\): Requested registry access is not allowed\./);
