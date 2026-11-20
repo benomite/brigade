@@ -14,7 +14,9 @@ test("three reds of the same check refuse the next push and write one comment na
   const decision = await deciderDuPush({ statuts, ticket: 42, commenter: async (issue, corps) => void commentaires.push({ issue, corps }) });
   assert.equal(decision.pousser, false);
   assert.equal(commentaires.length, 1);
-  assert.equal(commentaires[0].issue, 42);
-  assert.match(commentaires[0].corps, /unit/);
-  for (const run of [301, 302, 303]) assert.match(commentaires[0].corps, new RegExp(String(run)));
+  const [premier] = commentaires;
+  assert.ok(premier);
+  assert.equal(premier.issue, 42);
+  assert.match(premier.corps, /unit/);
+  for (const run of [301, 302, 303]) assert.match(premier.corps, new RegExp(String(run)));
 });
