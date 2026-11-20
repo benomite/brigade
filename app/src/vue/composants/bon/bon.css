@@ -239,6 +239,14 @@
 .bon .essai[data-en-cours] {
   background: var(--bon-discret);
 }
+/* Le rang de l'essai en cours d'un ticket pris plus d'une fois (ticket 3923), à droite de ses points : « 3rd try ». */
+.bon .rang-essai {
+  margin-left: var(--pas-1);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  color: var(--bon-discret);
+  white-space: nowrap;
+}
 .bon[data-traine] {
   border-left: 4px solid var(--rouge);
 }

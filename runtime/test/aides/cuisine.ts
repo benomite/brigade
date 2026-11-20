@@ -379,6 +379,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
       return true;
     },
     connait: (nom) => vivants.has(nom) || rangees.has(nom),
+    surLOrigine: async () => true,
     commits: (nom) => {
       const { commits, recoltes } = branche(nom);
       return Math.max(commits, recoltes.length);

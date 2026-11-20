@@ -3586,8 +3586,8 @@ attention. Each sentence is written from the facts the queue already gives about
 
 | State of the card | Its sentence | Its signal |
 |---|---|---|
-| taken (`taken`) | what the cook is doing, and for how long: `writes the tests · 12 min` (`rail[].activite`); with no activity, `in the kitchen` and a `…` marker | — |
-| in pass | likewise: `review in progress · 1 min`; with no activity, `review in progress` and the marker | — |
+| taken (`taken`) | what the cook is doing, and how fresh that is: `running the tests · 20 s ago` (`rail[].activite`); with no known activity, `no activity yet` and a `…` marker. A ticket taken more than once shows the rank of its attempt next to its dots, `3rd try` (`rail[].essais`); a first attempt shows none (#3923) | — |
+| in pass | likewise, with the step of the pass when the runtime gives it (`activite.etape`): `CI running · 45 s ago`, `review · 12 s ago`, `waiting for main · 1 min ago`, `merging · 5 s ago`; otherwise what the pass does (`judged green, the pass decides · 1 min ago`); with no known activity, `no activity yet` and the marker | — |
 | queued | `Waiting for #14, #15` when `status` names the tickets that hold it, each number opening its issue (#3147); otherwise what holds it, as is; otherwise `ready, waits for a place in the kitchen` | — |
 | `BLOCKED` | likewise, or `blocked` and the marker | `blocked` |
 | set aside (`86`) | `Will not start: <reason in plain words>.` (`app/src/refus.ts`, from `attente.raison` or the station's comment); the word `86` is displayed as `set aside` | `set aside` |
