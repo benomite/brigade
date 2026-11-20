@@ -73,7 +73,7 @@ import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
 import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type PR } from "./github.ts";
-import { avecListe, rendreListe } from "./epique.ts";
+import { avecListe, porteDesTachesDeTickets, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
 import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
@@ -980,6 +980,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           lignes.push({ ticket: ne, title: sous.titre, state: "on the rail", served: false });
         }
         await github.ecrireCorps?.(numero, avecListe(corps, rendreListe(numero, lignes)));
+        // Sa livraison ouverte se ferme avec le découpage : épique, elle tiendrait la zone de ses propres sous-tickets (#3932).
+        // Un échec ici ne défait pas le découpage : il est dit,.
+        try {
+          const livraison = (await github.prsOuvertes()).find((ouverte) => ouverte.number !== undefined && ouverte.branche.startsWith(`cook/${numero}-`));
+          if (livraison?.number !== undefined && github.fermerPR !== undefined) {
+            await github.commenter(livraison.number, `Ticket #${numero} was split into ${nouveaux.map((n) => `#${n}`).join(", ")}: this delivery is closed, its sub-tickets carry the work.`);
+            await github.fermerPR(livraison.number);
+          }
+        } catch (erreur) {
+          avertir(`brigade : #${numero} sur ${nom} — split done, but its open delivery could not be closed: ${message(erreur)}`);
+        }
       }
     } catch (erreur) {
       avertir(`brigade : #${numero} sur ${nom} — the manager's rework (${reprise.choix}) could not be applied: ${message(erreur)}`);
@@ -2119,6 +2130,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
       return numero !== undefined && lus.some((lu) => lu.number === Number(numero) && (estMisDeCote(lu.labels) || lu.labels.includes(LABEL_WAITING)));
     };
+    // Une épique ne tient pas de zone : sa livraison ouverte ne doit pas bloquer ses propres sous-tickets (#3932).
+    // Un corps qui ne se lit pas ne l'en exempte pas : la zone reste tenue.
+    const estUneEpique = async (branche: string): Promise<boolean> => {
+      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+      if (numero === undefined) return false;
+      return porteDesTachesDeTickets(await github.corpsDuTicket(Number(numero)).catch(() => ""));
+    };
     const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
@@ -2131,6 +2149,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (pourLeChefCeTour(ouverte.branche)) continue;
         if (misDeCoteCeTour(ouverte.branche)) continue;
         if (await ticketFerme(ouverte.branche)) continue;
+        if (await estUneEpique(ouverte.branche)) continue;
         pr = ouverte;
         break;
       }
