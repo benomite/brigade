@@ -13,9 +13,6 @@
 import type { AppelGitHub, ReponseGitHub } from "./tableau/client.ts";
 import type { LectureDuTableauDuDepot, TableauLu, TableauNonLu } from "./tableau/lecture.ts";
 
-// Un projet ne se relit pas plus souvent. Une lecture fait une quinzaine de demandes ou plus — le rail, ce qui attend le
-// chef, les cartes assignées —, mais GitHub ne compte que ce qui a changé depuis la précédente.
-export const INTERVALLE_PAR_PROJET_MS = 60_000;
 // Sous cette part du budget, les lectures s'arrêtent : le reste est au chef.
 export const SEUIL_DU_BUDGET = 0.2;
 // La pause quand GitHub ne dit pas quand reprendre — ni `retry-after`, ni `x-ratelimit-reset` à venir : une minute,

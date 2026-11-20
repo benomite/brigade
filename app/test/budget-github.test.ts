@@ -5,7 +5,7 @@
 // simulée : aucun test n'attend l'horloge.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { INTERVALLE_PAR_PROJET_MS, lectureSousBudget, LecturesEnPause, PAUSE_SANS_HEURE_MS, refusPourDepassement, tenirLeBudgetGitHub, type BudgetGitHub } from "../src/budget-github.ts";
+import { lectureSousBudget, LecturesEnPause, PAUSE_SANS_HEURE_MS, refusPourDepassement, tenirLeBudgetGitHub, type BudgetGitHub } from "../src/budget-github.ts";
 import { avecCeQuiAttendLeChef } from "../src/tableau/attente-du-chef.ts";
 import { parFetch, type AppelGitHub, type LimiteGitHub, type ReponseGitHub } from "../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../src/tableau/lecture.ts";
@@ -90,7 +90,9 @@ function lectureDeLApp(horloge: { t: number }, appelerGitHub: AppelGitHub, budge
   return { budget, tableaux };
 }
 
-// Les veilles de l'app relisent chaque projet toutes les trente secondes (main.ts) : un tour de lecture, à cette heure.
+// Les veilles de l'app relisent chaque projet toutes les cinq secondes (main.ts) : un tour de lecture, à cette heure.
+// La simulation avance d'une minute par tour : une lecture fait une quinzaine de demandes, mais GitHub ne compte que ce qui a changé.
+const INTERVALLE_PAR_PROJET_MS = 60_000;
 async function unTour(tableaux: { lire(projet: (typeof PROJETS)[number]): Promise<LectureDuTableauDuDepot> }): Promise<LectureDuTableauDuDepot[]> {
   return Promise.all(PROJETS.map((projet) => tableaux.lire(projet)));
 }
@@ -109,8 +111,7 @@ for (let heure = 0; heure < 8; heure++) {
     const { horloge, github, budget, tableaux } = journee;
     const fin = DEBUT + (heure + 1) * HEURE;
     let plusHaut = 0;
-    // Les veilles relisent toutes les trente secondes, mais un tour par minute simule ce que les veilles demandent,
-    // en deux fois moins de temps ; les relectures d'un rail inchangé sont des 304, que GitHub ne compte pas.
+    // Les veilles relisent toutes les cinq secondes ; un tour par minute simule ce qu'elles demandent, en moins de temps ; les relectures d'un rail inchangé sont des 304, que GitHub ne compte pas.
     for (; horloge.t < fin; horloge.t += INTERVALLE_PAR_PROJET_MS) {
       // Un geste du chef toutes les dix minutes : la lecture suivante va à GitHub, sans reprendre la dernière (main.ts).
       if ((horloge.t - DEBUT) % (10 * MINUTE) === 0) tableaux.oublier();
