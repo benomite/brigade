@@ -43,3 +43,11 @@ The section title and the bold labels of the bindings below stay in French on pu
 - **A runtime or app test failing in the gates is read without replaying**: its name and error are in the gates output, and the whole suite output is kept in `.brigade-state/gates/` of the worktree (one week).
 - **An added role must be declared** in `commands` of `.claude-plugin/plugin.json`, or it never loads. The gates catch the omission.
 - **A plugin update does not change the running session**: roles are loaded at startup.
+
+## Self-supervision freeze (epic #3904)
+
+A **self-supervision ticket** is a ticket whose change makes the kitchen watch, repair, detect or file tickets about itself.
+
+While epic #3904 is open, no self-supervision ticket goes on the rail unless it deletes more lines than it adds. Measure it on the PR diff restricted to `runtime/src`: net lines = lines added minus lines deleted (`git diff --numstat origin/main...HEAD -- runtime/src`, summed). The ticket qualifies only if deleted is greater than added.
+
+The freeze ends when #3904 closes.
