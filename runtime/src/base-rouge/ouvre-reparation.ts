@@ -16,8 +16,9 @@
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { etatDeLaBase } from "../github-etat/etats.ts";
 import type { Check } from "../events/pass.ts";
-import type { IssueOuverte } from "../github.ts";
+import { ECHECS_ATTEINTS, type IssueOuverte } from "../github.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
+import { LABEL_TESTS_ECRITS } from "../tests-acceptation/etape.ts";
 import { LABELS_REPARATION, PRIO_REPARATION, shaDeReparation } from "../reparation.ts";
 
 export type CheckDeLaBase = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>;
@@ -39,6 +40,8 @@ export type GitHubDeLaReparation = {
   rouvrirIssue?(numero: number): Promise<void>;
   ecrireCorps?(numero: number, corps: string): Promise<void>;
   ecrireTitre?(numero: number, titre: string): Promise<void>;
+  // Une réparation rouverte repart d'un état propre (#3928) : sans lui, elle garde ses labels d'étape.
+  delabelliser?(numero: number, label: string): Promise<void>;
   // Le journal du job d'un check de GitHub Actions, ou null. Sans lui, le
   // ticket nomme ses checks sans leur sortie.
   journalDuCheck?(check: Check): Promise<string | null>;
@@ -299,6 +302,8 @@ export function ouvreReparation({ github, base, maintenant = () => new Date() }:
         try {
           if (github.rouvrirIssue === undefined) throw new Error("this GitHub client cannot reopen an issue");
           await github.rouvrirIssue(reprise.number);
+          // Ni `tests-written` ni mise de côté périmés : le retrait de la mise de côté remet aussi à zéro le compte des échecs.
+          for (const label of [LABEL_TESTS_ECRITS, ECHECS_ATTEINTS]) await github.delabelliser?.(reprise.number, label);
         } catch (erreur) {
           if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
           reprise = undefined;
