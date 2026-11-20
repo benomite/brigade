@@ -137,7 +137,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     // 1.1.0 : la même station, une autre version. Rouge, ce que la mise à
     // jour et la station ont dit nomme la cause : un passage sorti en 0 sans
     // rien installer ne dit rien d'autre que « 1.0.0 ».
-    const dit = () => `la mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
+    const dit = () => `l'issue du passage : ${JSON.stringify(lireEtatMiseAJour(machine.miseAJour)?.derniere ?? null)}\nla mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
     machine.publier("1.1.0", suivante);
     assert.equal(machine.declencher(), 0, dit());
     assert.equal(machine.installee(), "1.1.0", dit());
