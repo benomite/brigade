@@ -477,7 +477,7 @@ type AnnotationBrute = { path?: string; start_line?: number; annotation_level?: 
 type Statut = { context: string; state: string; target_url: string | null };
 // Un run de GitHub Actions et un de ses jobs, tels que l'API les rend (#3512).
 type RunBrut = { id?: number; head_sha?: string; created_at?: string; updated_at?: string; status?: string };
-type JobBrut = { created_at?: string; started_at?: string | null; completed_at?: string | null };
+type JobBrut = { name?: string; conclusion?: string | null; created_at?: string; started_at?: string | null; completed_at?: string | null };
 
 // Les conclusions d'un job qui ne sont pas un échec.
 export const CONCLUSIONS_VERTES = ["success", "neutral", "skipped"];
@@ -1057,11 +1057,12 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
         const jobs = (await lireLaListe(`repos/${depot}/actions/runs/${run.id}/jobs?filter=all&per_page=100`)).flatMap((page) => (JSON.parse(page.corps) as { jobs?: JobBrut[] }).jobs ?? []);
         const creeLe = run.created_at;
         lus.push({
+          id: run.id,
           tete: run.head_sha,
           creeLe,
           finiLe: run.status === "completed" ? (run.updated_at ?? null) : null,
           // Un job sans création dite part de celle de son run.
-          jobs: jobs.map((job) => ({ creeLe: job.created_at ?? creeLe, commenceLe: job.started_at ?? null, finiLe: job.completed_at ?? null })),
+          jobs: jobs.map((job) => ({ creeLe: job.created_at ?? creeLe, commenceLe: job.started_at ?? null, finiLe: job.completed_at ?? null, nom: job.name, conclusion: job.conclusion ?? null })),
         });
       }
       return lus;

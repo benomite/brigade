@@ -17,6 +17,7 @@
 // appels de la station (la limite de GitHub, le budget des écritures) — celui
 // d'aucune station sur le poste de dev : ces deux-là n'y sont pas lus.
 import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
+import { evaluerMain, statutsDesChecks } from "../statuts-ci/regles.ts";
 import { attentesDuChef } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
@@ -233,8 +234,18 @@ export function brancherRetenue<R extends Runtime>(runtime: R, options: OptionsR
     try {
       const instant = maintenant();
       // Un check Windows rouge sur la base a sa carte dans TODO, une seule ; vert, elle en sort (#2413).
-      const checks = options.tour?.vue().checks ?? null;
+      const vue = options.tour?.vue() ?? null;
+      const checks = vue?.checks ?? null;
       if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, options.branche ?? "main", checks);
+      // La base rouge que la cuisine ne rend plus verte seule a sa carte dans TODO, une seule ; verte, elle en sort (#3953).
+      if (vue !== null && checks !== null) {
+        void evaluerMain({ statuts: statutsDesChecks(checks), journal: runtime.journal, projet: runtime.projet, branche: options.branche ?? "main", cuisinePeutReparer: async () => !vue.reparationMiseDeCote }).then(
+          ({ illisible }) => {
+            if (illisible !== undefined) dire(`the red base was not evaluated for the chef — ${illisible}`);
+          },
+          (erreur: unknown) => dire(`the card of the red base was not written — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
+        );
+      }
       const { observation, signaux } = lireLaCuisine(runtime.journal.base, instant, options);
       // Les signaux ne se lisent que pour une retenue : le compteur de la
       // station n'est pas ouvert à chaque fait écrit au journal.

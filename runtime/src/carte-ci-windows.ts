@@ -25,7 +25,7 @@ export function ticketDuCheck(nom: string, branche: string): number {
 
 // Le chef a répondu à la carte alors que le check reste rouge : la carte est
 // sortie de TODO, et ne revient pas avant que le check ait repassé au vert.
-function accuseeTantQueRouge(journal: Journal, ticket: number): boolean {
+export function accuseeTantQueRouge(journal: Journal, ticket: number): boolean {
   const marques = journal.duTicket(ticket).filter((e) => e.type === "todo.entered" || e.type === "todo.answered" || (e.type === "todo.left" && !e.payload.why.startsWith("answered by the chef")));
   return marques.at(-1)?.type === "todo.answered";
 }

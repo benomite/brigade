@@ -51,7 +51,7 @@ test("le tour vu par la retenue : attendent les tickets en pass et ceux qu'une s
   const suivi = suivreLeTour(() => new Date(instant));
   const { dicte, client } = clientDicte();
   const github = suivi.envelopper(client);
-  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null, checks: null, attenteCI: null, explications: [] });
+  assert.deepEqual(suivi.vue(), { enAttente: [], attenteDepuis: null, dernierService: null, ouverture: A("00:00:00"), checksRouges: null, checks: null, attenteCI: null, explications: [], reparationMiseDeCote: false });
 
   instant = A("00:05:00");
   dicte.tickets = [

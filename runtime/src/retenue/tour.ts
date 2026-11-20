@@ -25,7 +25,8 @@ import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.t
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
-import { MIS_DE_COTE } from "../github.ts";
+import { estMisDeCote, MIS_DE_COTE } from "../github.ts";
+import { PRIO_REPARATION } from "../reparation.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import type { CheckVu } from "../carte-ci-windows.ts";
 import type { Observation } from "./retenue.ts";
@@ -37,8 +38,10 @@ const AILLEURS = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING];
 // les noms des checks rouges de la base, nuls tant qu'aucun n'est lu.
 // `checks` : tous ceux de la base au dernier tour (nom et issue), nuls avant.
 // `attenteCI` : les tickets en pass dont la tête attend sa CI, et les checks
-// qui y tournent ; nulle si aucun.
-export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null; checks: CheckVu[] | null; attenteCI: { tickets: number[]; running: string[] } | null };
+// qui y tournent ; nulle si aucun. `reparationMiseDeCote` : un ticket de
+// réparation de la base (`prio:0`) est mis de côté — ses cooks ont échoué, la
+// cuisine ne rendra plus la base verte seule (statuts-ci/regles.ts, #3953).
+export type VueDuTour = Omit<Observation, "eteinte"> & { checksRouges: string[] | null; checks: CheckVu[] | null; attenteCI: { tickets: number[]; running: string[] } | null; reparationMiseDeCote: boolean };
 
 export type SuiviDuTour = {
   // Le client du tour, enveloppé.
@@ -57,6 +60,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   let dernierService: string | null = null;
   let checksRouges: string[] | null = null;
   let checks: CheckVu[] | null = null;
+  let reparationMiseDeCote = false;
   // Les tickets qui attendent, et le tour qui a vu chacun commencer d'attendre.
   let attendent = new Map<number, string>();
   let enPass = new Set<number>();
@@ -119,6 +123,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         lusDuTour = new Map();
         const tickets = await github.fires();
         noterTickets(tickets);
+        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && estMisDeCote(labels));
         // Des commentaires illisibles ne font pas tomber le tour : la ligne le dit, sans rien inventer.
         const lus = await Promise.all(
           tickets
@@ -188,7 +193,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
         .sort((a, b) => a - b);
       const attenteCI = attendentLaCI.length === 0 ? null : { tickets: attendentLaCI, running: [...enCours].sort() };
       const explications = [...[...sauts].filter(([ticket]) => attendent.has(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne), ...[...enWaiting].sort(([a], [b]) => a - b).map(([, ligne]) => ligne)];
-      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI, explications };
+      return { enAttente: [...attendent.keys()].sort((a, b) => a - b), attenteDepuis: depuis, dernierService, ouverture, checksRouges, checks, attenteCI, explications, reparationMiseDeCote };
     },
   };
 }
