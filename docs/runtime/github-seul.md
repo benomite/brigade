@@ -298,6 +298,11 @@ base, the stale-branch pruning).
   "merge it by hand".
 - **A red base** holds a delivery's merge only if that delivery runs the same check: a workflow that runs only on the
   base, like the Windows tests, never freezes the pass (#2279).
+- **On a red base, the first gesture is a re-run of the failed jobs only** (`runtime/src/relance-main-rouge.ts`, #2323,
+  #3898), never of the whole workflow, and **once per commit**: a later red on the same commit — another run that
+  finishes red, or the re-run still red — is not re-run again. While the re-run is due or runs, no repair ticket is
+  opened and its checks hold merges like a red. Green after it, nothing is opened and the waiting deliveries merge;
+  still red, the repair ticket opens as before (`runtime/src/reparation-base/`), and only it merges.
 - **A project with no CI on its PRs** (espace since 2026-10-22, #2456) is judged by its own gates: when none of its
   workflows on the base (`.github/workflows/*.yml`, read by `runtime/src/declencheurs.ts`) runs on a PR that changes
   those files, an approved PR with no gates status on its head has `.claude/brigade/gates.sh` run on that head by a

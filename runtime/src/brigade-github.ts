@@ -76,7 +76,7 @@ import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Is
 import { avecListe, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
-import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
+import { relanceDeLaBase, retientLesMerges, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts";
 import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
 import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
@@ -1849,8 +1849,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // de check sur la PR : rouge, il ne la retient pas.
         // La seule exception est la réparation de la base elle-même : elle doit la
         // débloquer, et sa CI, sur sa tête, reste exigée par `fusionner`.
+        // Une relance des jobs de la base qui tourne retient comme un rouge (#3898) : la base n'est pas verte.
         const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
-        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparationDeMain(ticket.labels) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
+        if (checksDeLaBase.some((check) => retientLesMerges(check) && check.name !== undefined && siens.has(check.name)) && !estUneReparationDeMain(ticket.labels) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
         // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
         // de plusieurs minutes ne retient plus les merges, les autres relectures
         // ni les prises. Les merges, eux, passent un à un.

@@ -32,7 +32,7 @@ function faux(runs: Record<number, { tentative: number; termine: boolean }> = {}
   return { relances, lectures, avertis, refus, finir, relancer: relanceDeLaBase(github, (texte) => void avertis.push(texte), "A") };
 }
 
-test("a red job at its first attempt is re-run once, and reads as pending while the re-run runs: nothing is held", async () => {
+test("a red job at its first attempt is re-run once, and reads as pending while the re-run runs: no repair ticket opens", async () => {
   const { relances, avertis, relancer } = faux();
   const base = [
     { name: "tests (1/2)", outcome: "red" as const, url: job(7, 1) },
@@ -43,7 +43,7 @@ test("a red job at its first attempt is re-run once, and reads as pending while 
   // GitHub dit encore les jobs rouges au tour suivant : la relance tourne, rien ne retient.
   assert.deepEqual((await relancer(base)).map((c) => c.outcome), ["pending", "pending", "green"]);
   assert.deepEqual(relances, [7]);
-  assert.deepEqual(avertis, ["brigade : base red on A — the failed jobs of run 7 are re-run once before any merge is held"]);
+  assert.deepEqual(avertis, ["brigade : base red on A — the failed jobs of run 7 are re-run once before a repair ticket is opened; merges wait for the re-run"]);
 });
 
 test("a re-run that turns green holds nothing, and is not re-run", async () => {

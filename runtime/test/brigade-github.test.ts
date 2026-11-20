@@ -982,7 +982,7 @@ test("a red check that runs only on the base (Windows) holds nothing; a red chec
   assert.equal(faux.mergee(38), undefined);
 });
 
-test("a red base re-runs its failed jobs once: while they run, nothing is held, nothing is sent back, and green after them the pass merges (#2323)", async () => {
+test("a red base re-runs its failed jobs once: while they run, merges wait (#3898) and nothing is sent back, and green after them the pass merges (#2323)", async () => {
   const faux = new FauxGitHub();
   const avertis: string[] = [];
   faux.runDeLaBase = 501;
@@ -993,11 +993,11 @@ test("a red base re-runs its failed jobs once: while they run, nothing is held, 
     await a.tour();
     await a.calme();
   }
-  // La relance tourne encore : la livraison qui court `tests` s'est mergée, et
-  // la station n'a rien dit d'autre que la relance.
+  // La relance tourne encore : la livraison qui court `tests` attend (#3898),
+  // et la station n'a rien dit d'autre que la relance.
   assert.equal(faux.relanceEnCours, true);
-  assert.equal(faux.mergee(39)?.mergeePar, "A");
-  assert.deepEqual(avertis, ["brigade : base red on A — the failed jobs of run 501 are re-run once before any merge is held"]);
+  assert.equal(faux.mergee(39), undefined);
+  assert.deepEqual(avertis, ["brigade : base red on A — the failed jobs of run 501 are re-run once before a repair ticket is opened; merges wait for the re-run"]);
   assert.deepEqual(faux.commentaires.get(39)?.filter((c) => c.body.includes("sent back")) ?? [], []);
   faux.finirLaRelance("green");
   faux.feu(40);
@@ -1005,6 +1005,7 @@ test("a red base re-runs its failed jobs once: while they run, nothing is held, 
     await a.tour();
     await a.calme();
   }
+  assert.equal(faux.mergee(39)?.mergeePar, "A");
   assert.equal(faux.mergee(40)?.mergeePar, "A");
   assert.equal(faux.tentatives.get(501), 2);
   assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);

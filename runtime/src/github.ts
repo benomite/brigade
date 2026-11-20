@@ -232,8 +232,8 @@ export type GitHub = {
   // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
   relancerLesEchecs(run: number): Promise<void>;
   // La tentative en cours d'un run de GitHub Actions (1 tant qu'il n'a pas été
-  // relancé), et si elle est finie.
-  etatDuRun(run: number): Promise<{ tentative: number; termine: boolean }>;
+  // relancé), si elle est finie, et le commit qu'il juge, quand GitHub le dit.
+  etatDuRun(run: number): Promise<{ tentative: number; termine: boolean; commit?: string }>;
   // Les runs de GitHub Actions d'une branche et tous leurs jobs, tentatives
   // relancées comprises : leurs instants, que la mesure de la pass lit au
   // merge (#3512). Facultatif : seul le client réel le porte.
@@ -1043,8 +1043,8 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     },
     async etatDuRun(run) {
       const chemin = `repos/${depot}/actions/runs/${run}`;
-      const lu = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as { run_attempt?: number; status?: string };
-      return { tentative: lu.run_attempt ?? 1, termine: lu.status === "completed" };
+      const lu = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as { run_attempt?: number; status?: string; head_sha?: unknown };
+      return { tentative: lu.run_attempt ?? 1, termine: lu.status === "completed", ...(typeof lu.head_sha === "string" ? { commit: lu.head_sha } : {}) };
     },
     async ciDeLaBranche(branche) {
       const chemin = `repos/${depot}/actions/runs?branch=${encodeURIComponent(branche)}&per_page=100`;
