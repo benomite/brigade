@@ -2235,6 +2235,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         }
         enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
       }
+      // Un ticket plus prioritaire qui attend cette zone la garde, même retenu lui-même :
+      // à la place libérée, c'est lui qui la prend, pas un ticket de rang plus bas (#3974).
+      // Un ticket qui attend un ticket mis de côté ne la garde pas : il ne partirait pas.
+      for (const autre of libres) {
+        if (autre.number === ticket.number || rangDePriorite(autre) >= rangDePriorite(ticket) || enVolDuTour.some((vol) => vol.ticket === autre.number)) continue;
+        if ((await attenduMisDeCote(autre).catch(() => ({ attendu: autre.number, raison: "" }))) !== null) continue;
+        enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
+      }
       const attente = attenteDeZone(ticket.number, zone, enVolDuTour);
       return attente === null ? null : { branche: brancheDuTicket(attente.attend[0]!), attente };
     };
