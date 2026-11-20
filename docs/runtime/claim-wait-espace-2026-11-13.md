@@ -59,7 +59,7 @@ else `x-ratelimit-reset`, else the pause's end). So `limit: null` means one of t
 does not say which:
 
 - the pause was set by a call that writes no named limit: the gist channel (`runtime/src/appairage/canal.ts`)
-  and the breaker issue (`lancerGhApi`, `runtime/src/breaker-issue.ts`) call `constaterLimite` only;
+  (and, until #3911 removed it, the breaker issue) call `constaterLimite` only;
 - or the named limit had ended while the pause still held: `lireLaLimite` takes `x-ratelimit-reset`, the
   hourly reset of the primary quota that GitHub sends on every response, even for a secondary limit.
 

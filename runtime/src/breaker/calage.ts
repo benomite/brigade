@@ -6,8 +6,8 @@
 //
 // Only when stalls keep coming after `RELANCES_SUR_CALAGE` relaunches of the
 // same run does the breaker open, to escalate to the chef: its `breaker.opened`
-// says what keeps stalling — the kind of run and its last activity —, and the
-// breaker's GitHub issue repeats it (`breaker-issue.ts`). A breaker opened that
+// says what keeps stalling — the kind of run and its last activity —; the
+// station files no GitHub issue for it (#3911). A breaker opened that
 // way closes by itself as soon as a later run completes normally.
 import { direActiviteEn, type Activite } from "../activite.ts";
 import type { Base } from "../base.ts";
