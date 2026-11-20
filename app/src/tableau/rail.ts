@@ -19,7 +19,6 @@
 // reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer de commande.
 import { setTimeout as attendre } from "node:timers/promises";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, RubriqueDuTableau, TableauLu } from "./lecture.ts";
-import { lignesDeLaFile, type RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
 import { lignesDeStatus } from "../../../runtime/src/attente-du-rail/raison.ts";
 import type { AttenteDuRail } from "../../../runtime/src/attente-du-rail/raison.ts";
 import type { LignesDesCartes } from "../vue/attente-du-rail/attente-du-rail.ts";
@@ -67,9 +66,8 @@ const lignesDeRubrique = ({ titre, lignes }: RubriqueDuTableau): string[] =>
 // Le bloc `awaiting` de `status` (runtime/src/attend.ts, `decrireAttentes`) : sa tête, une ligne par attente — son nom,
 // depuis combien de temps, ce qui attend et le geste, son titre —, puis ce qui n'est pas une décision. Les durées se
 // comptent jusqu'à la lecture (`lu`). Ce qui attend le chef lu de GitHub (attente-du-chef.ts, #2460) passe par lui :
-// l'app et le second en lisent le même bloc. `railBloque` : le rail bloqué (#3358), sa ligne sous la tête — celle que
-// `brigade <project> status` écrit au même endroit (runtime/src/rail-bloque/status.ts).
-export function blocAwaiting({ file, bilans, lu, depot = "", railBloque }: { file: readonly LigneDeLaFile[]; bilans: readonly string[]; lu: string; depot?: string; railBloque?: RailBloqueLu }): string[] {
+// l'app et le second en lisent le même bloc.
+export function blocAwaiting({ file, bilans, lu }: { file: readonly LigneDeLaFile[]; bilans: readonly string[]; lu: string }): string[] {
   const depuis = (instant: string) => dureeEn(Date.parse(lu) - Date.parse(instant));
   const [premiere] = file;
   const tete =
@@ -80,7 +78,6 @@ export function blocAwaiting({ file, bilans, lu, depot = "", railBloque }: { fil
         : `${file.length} decisions await the chef — the oldest for ${depuis(premiere.depuis)}`;
   return [
     ligne(TETE_AWAITING, tete),
-    ...lignesDeLaFile(depot, railBloque),
     ...file.map(({ nom, depuis: instant, ligne: dit, titre }) => `  ${nom}  for ${depuis(instant)}  ${dit}${titre === null ? "" : `  ${titre}`}`),
     ...bilans.map((bilan) => `  ${bilan}`),
     FIN_AWAITING,
@@ -100,7 +97,7 @@ export function statusDuTableau(lu: Pick<TableauLu, "file" | "bilans" | "cuisine
   return [
     ...avant.flatMap(lignesDeRubrique),
     "",
-    ...blocAwaiting({ file: lu.file, bilans: lu.bilans, lu: lu.luLe, depot: lu.depot, railBloque: lu.faits?.railBloque as RailBloqueLu | undefined }),
+    ...blocAwaiting({ file: lu.file, bilans: lu.bilans, lu: lu.luLe }),
     // Pourquoi la file ne part pas (#3433), au-dessus d'elle : les lignes mêmes que `brigade <project> status` écrit.
     ...lignesDeStatus((lu.faits?.attenteDuRail as AttenteDuRail | undefined)?.phrase ?? null, (lu.faits?.lignesDesCartes as LignesDesCartes | undefined) ?? {}),
     ligne("rail", rail.lignes[0] ?? ""),

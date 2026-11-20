@@ -38,7 +38,7 @@ export function consigneDuDesaccord(pr: number): string {
     "",
     `A "${REGLE_ROUGE_SUR_MAIN}" remark is not the review's: the pass replays each test your delivery adds alone on the base, judges no reply, and sends the same head back for as long as the test passes there. A reply, or a free comment in the test, is not read. Make the named test fail without your change, or remove it from your delivery — unless it guards a behavior the base already has and the ticket's criteria say so ("as before", "unchanged"): then mark it as a guard, a \`// ${MARQUE_DE_GARDE}\` comment on the line above its case, and the pass accepts it green on the base.`,
     "",
-    `This remark never loops. If it names, a second time, a test your delivery already tried to fix, do not try a third way: mark the test \`// ${MARQUE_DE_GARDE}\` if the ticket's criteria say "as before" / "unchanged"; otherwise set the ticket aside, once, with the reason in one line between ${OUVERTURE_BLOCAGE} and ${FERMETURE_BLOCAGE}. Do not propose an amendment of the criterion for it.`,
+    `This remark never loops. If it names, a second time, a test your delivery already tried to fix, do not try a third way: mark the test \`// ${MARQUE_DE_GARDE}\` if the ticket's criteria say "as before" / "unchanged"; otherwise set the ticket aside, once, with the reason in one line between ${OUVERTURE_BLOCAGE} and ${FERMETURE_BLOCAGE}.`,
   ].join("\n");
 }
 

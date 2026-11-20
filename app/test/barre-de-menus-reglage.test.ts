@@ -171,3 +171,36 @@ describe("une question cliquée dans le menu", () => {
     assert.match(vue.element("fiche").textContent, /#7/);
   });
 });
+
+describe("un projet cliqué dans le menu", () => {
+  test("le process principal l'envoie par `ouvrirProjet`, que le pont donne à `surOuvrirProjet`", () => {
+    const principal = readFileSync(join(import.meta.dirname, "../src/main.ts"), "utf8");
+    assert.ok(principal.includes('dire("ouvrirProjet", entree.projet)'));
+    const pont = readFileSync(join(import.meta.dirname, "../src/preload.cjs"), "utf8");
+    assert.ok(pont.includes('surOuvrirProjet: (recevoir) => void ipcRenderer.on("ouvrirProjet", (_, projet) => recevoir(projet)),'));
+  });
+
+  test("la vue ouvre le projet ; un projet qui n'est plus dans le fichier, rien ne s'ouvre", async () => {
+    const vue = await jouerLaVue({
+      demarrage: () => ({
+        poste: { nom: "this Mac", mac: true },
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "brigade", dossier: "/tmp/brigade" }, { nom: "mirrorlab", dossier: "/tmp/mirrorlab" }] }, () => true),
+        palette: PALETTE,
+        exemple: EXEMPLE,
+        onglets: ONGLETS,
+        rubriques: RUBRIQUES,
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+        banniere: BANNIERE,
+        calibrage: { modeles: MODELES, efforts: EFFORTS },
+        code: undefined,
+      }),
+      espace: () => [],
+    });
+    vue.dire("surOuvrirProjet", "mirrorlab");
+    await repos();
+    assert.equal(vue.element("espace").textContent, "mirrorlab");
+    vue.dire("surOuvrirProjet", "parti");
+    await repos();
+    assert.equal(vue.element("espace").textContent, "mirrorlab");
+  });
+});

@@ -21,7 +21,7 @@ test("the `waiting` list refused by GitHub: the chef's reading still stands, the
   };
   const lecture = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler, maintenant: () => new Date(LU), enWaiting: true });
   assert.ok(lecture.lue, JSON.stringify(lecture));
-  const bloc = blocDuChef({ lu: LU, attentes: lecture.attentes, illisibles: lecture.illisibles, depot: DEPOT }).join("\n");
+  const bloc = blocDuChef({ lu: LU, attentes: lecture.attentes, illisibles: lecture.illisibles }).join("\n");
   assert.match(bloc, /the `waiting` issues were not listed from GitHub: GitHub answered HTTP 502/);
   assert.match(bloc, /#41 {2}WAITING {2}awaiting the client: “the client's production API key” — back on the rail on its own on 2026-11-25 00:00 UTC/);
   assert.match(bloc, /nothing awaits the chef/);

@@ -474,9 +474,9 @@ export type Pont = {
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :
   // vide, les quatre états ont été lus et vont bien.
   surAlertes(recevoir: (bande: Bande) => void): void;
-  // Le chef a cliqué la notification de l'urgence d'un projet (notification.ts) : la fenêtre est
-  // déjà au premier plan, le projet s'ouvre sur sa ligne d'urgence et son geste.
-  surUrgence(recevoir: (projet: string) => void): void;
+  // Le chef a cliqué un projet dans le menu de la barre des menus (barre-de-menus.ts) : la fenêtre est
+  // déjà au premier plan, le projet s'ouvre.
+  surOuvrirProjet(recevoir: (projet: string) => void): void;
   // Ce qui est avant le rail du projet affiché (amont.ts) : ses issues par état — le bandeau Backlog, ticket 3460 —, ou
   // pourquoi rien n'est compté — et ce qui se lit à la place du rail quand il est vide.
   surAmont(recevoir: (vu: VuAmont) => void): void;

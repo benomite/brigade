@@ -244,40 +244,19 @@ what it did on each side.
 | every added test red on the base, green on the branch | nothing held back: the review decides |
 | an added test **green on the base**, marked as a guard (`// brigade:guard`) | nothing held back: accepted, and the verdict's line counts it as marked as guarding a behavior the base already has |
 | an added test **green on the base**, not marked | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
-| a case of the **frozen acceptance tests** green on the base, not marked | **not sent back to the cook**, who may not touch it (#3799): see below |
 | an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
 | the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
 
-**A wrong frozen acceptance test** (#3799, `runtime/src/passe-gel-tests/gele-faux.ts`). A case of the frozen
-acceptance tests (the branch's first commit, trailer `Acceptance-Tests: frozen`) that already passes on the base
-proves nothing, a case that does not type-check cannot go green, and the cook may not edit either: sending the
-delivery back made the ticket loop (#3778, relaunched three times in eight minutes). The frozen tests are the tests
-cook's, so the station corrects them in its name, with no gesture from the chef:
-
-- **The type check** runs while the added tests are replayed: for each `tsconfig.json` nearest to a frozen
-  TypeScript file, the project's own `tsc` (`node_modules/.bin/tsc`, from that folder up to the worktree root) runs
-  with `--noEmit --pretty false` on the review's worktree. When no `tsc` is installed there, the project's
-  `worktree-setup.sh` runs first, as for a cook. An error in a frozen file makes the case it falls in wrong; an error
-  outside any case (an import, a helper) makes the whole file wrong. A check that cannot run (no `tsc` even after the
-  setup, a `tsc` stopped or failing with no error line) is said in the station's log, and nothing is dropped for it.
-
-- **The wrong case is dropped**, and the file's other cases are kept: a commit by the manager
-  (`brigade manager <manager@brigade.localhost>`) carrying `Amendment: #<issue>`, which the freeze accepts, pushed on
-  the ticket's branch. The issue gets a comment naming each dropped test and its file, why it was wrong (it already
-  passes on the base, or it does not type-check, with tsc's first error) and what was done. The pass judges the
-  delivery as it now stands: the dropped cases leave its replay, its mutants run against the corrected branch, and
-  the cook is not sent back for that test.
-- **The ticket cannot go on** when dropping the wrong cases would leave a frozen file with no case, when the file's
-  cases cannot be read one by one, or when its type error falls outside any case: nothing would prove its
-  criterion. It is **set aside once** (`set-aside:failures`), not sent back to a cook; the station's comment on the
-  issue gives the reason in one line, naming each test, and the healing relaunch (`guerison/relance.ts`) does not put
-  it back on the rail. A human decides; removing the label tries again.
-- A correction that cannot be made (the file cannot be read, a case cannot be cut out, the commit or the push fails,
-  the station's clone runs no git in its worktrees) is said in the station's log, and the delivery is judged as
-  before. A push that fails undoes the correction's commit in the review's worktree, and the log says the remote
-  branch may differ until the next push forces it.
-- A ticket set aside this way gets on its PR one `request-changes` verdict whose text is `Set aside: <reason>`,
-  nothing that sends it back to a cook.
+**A frozen acceptance test the delivery changes** (#3910, `runtime/src/passe-gel-tests/gel-tests.ts`). The frozen
+acceptance tests are the branch's first commit (trailer `Acceptance-Tests: frozen`), written by the manager before
+the cook. A delivery that changes, renames or removes one is not refused before the review: the pass compares each
+frozen file at the head with the frozen commit, and the reviewer's brief gets a section naming each changed test,
+with its diff since the freeze. The reviewer reports each one as a `blocking` finding of category
+`critere-non-tenu`, saying what the change takes from the criterion; a test changed then put back byte for byte is
+not changed. A history the pass cannot read is said in the station's log and in the brief, and the reviewer
+compares the files itself. A frozen case already green on the base is an added test like any other (the table
+above). There is no amendment and no automatic repair: a wrong criterion is a send-back reason, or a TODO card when
+it changes the product — the cook says it in `<bloque>`, the manager answers it or puts it to the chef.
 
 **The verdict on the PR** — the comment the pass already posts — ends with that line, then **one line
 per acceptance criterion** of the ticket (the bullets of its `Acceptance criteria` section), each

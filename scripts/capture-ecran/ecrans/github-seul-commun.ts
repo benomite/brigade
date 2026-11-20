@@ -26,7 +26,6 @@ const FIGE: Faits = {
   stations: [],
   attend: [],
   livres: [],
-  urgence: null,
   cuisineOisive: { depuis: "2026-10-13T08:12:40.000Z", cartes: [12, 14, 16, 21, 22, 30] },
 } as unknown as Faits;
 

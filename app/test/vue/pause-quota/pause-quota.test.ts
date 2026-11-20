@@ -26,7 +26,6 @@ import { signesDe } from "../../../src/vue/cooks/signes-de-vie.ts";
 import { ceQueLeRailDit, dansCombien, ligneDuProjetEnPause, MEME_RAISON, pauseDesProjets, PROJET_EN_PAUSE, REPRISE_INCONNUE, tenirLaPause } from "../../../src/vue/pause-quota/ligne-de-la-pause.js";
 import { avecLaPresenceLocale, avecLaStationLocale, pauseDuCompte, pauseQuotaLue, quotaGithubLu, signeDeLEnregistrement } from "../../../src/vue/pause-quota/pause-quota.ts";
 import { avecLeRail, type RailSurGithub, type SignesDeVie, type TicketSurGithub } from "../../../src/vue/rail/github.ts";
-import { ligneDuRailBloque } from "../../../src/vue/rail-bloque/ligne-du-rail-bloque.js";
 import { Faux, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";
@@ -56,15 +55,15 @@ const VIDE: TableauLu = {
   activites: [],
 };
 const ticket = (numero: number): TicketSurGithub => ({ ticket: numero, titre: `Ticket ${numero}`, url: `https://github.com/${DEPOT}/issues/${numero}`, etat: "en attente", priorite: null, creeLe: minutes(-60), pr: null, prise: null, entreLe: minutes(-20) });
-// Deux tickets en file depuis vingt minutes, qu'aucun manager n'a pris.
-const RAIL: RailSurGithub = { lu: LU, tickets: [ticket(4), ticket(5)], nonPris: [{ ticket: 4, depuis: minutes(-20) }, { ticket: 5, depuis: minutes(-20) }] };
+// Deux tickets en file depuis vingt minutes.
+const RAIL: RailSurGithub = { lu: LU, tickets: [ticket(4), ticket(5)] };
 const lecture = (signes: SignesDeVie) => avecLeRail(VIDE, RAIL, signes);
 const faitsDe = (lu: TableauLu) => comprendre(JSON.stringify(lu.faits)) as Faits;
-// Le texte que la tête du rail pose : rail bloqué, attente de la file, ligne de pause — comme vue.js.
+// Le texte que la tête du rail pose : attente de la file, ligne de pause — comme vue.js.
 function teteDuRail(faits: Faits, maintenant = A): string {
   const dit = ceQueLeRailDit(tableau(faits), maintenant);
   const gestes = { ouvrirStations: () => {} };
-  const lignes = [...ligneDuRailBloque(doc, dit.railBloque, gestes), ...ligneDeLAttente(doc, dit.railBloque === undefined ? dit.attenteDuRail : undefined, gestes), ...ligneDuProjetEnPause(doc, dit.enPause)] as unknown as Faux[];
+  const lignes = [...ligneDeLAttente(doc, dit.attenteDuRail, gestes), ...ligneDuProjetEnPause(doc, dit.enPause)] as unknown as Faux[];
   return lignes.map((ligne) => ligne.textContent).join("\n");
 }
 
@@ -97,7 +96,6 @@ describe("la pause du compte, de la lecture du rail", () => {
     assert.deepEqual(faits.pauseQuota, { limite: "core", jusqua: REPRISE });
     // La station est retenue par GitHub, pas tue : les raisons du runtime le disent déjà.
     assert.equal(faits.attenteDuRail?.raison, "quota-github");
-    assert.ok(faits.railBloque !== undefined && "cause" in faits.railBloque && faits.railBloque.cause === "sans-quota");
     const tete = teteDuRail(faits);
     assert.equal(tete, PROJET_EN_PAUSE);
     assert.doesNotMatch(tete, PANNE);
@@ -171,8 +169,7 @@ describe("la station que l'app voit tourner sur cet ordinateur", () => {
     for (const lus of [[arretee], [box()]]) {
       const sans = ceQueLeRailDit(tableauDe(lus), A);
       const avec = ceQueLeRailDit(tableauDe(lus), A, true);
-      assert.ok(sans.railBloque !== undefined || sans.attenteDuRail !== undefined, "sans redémarrage, la panne se lit");
-      assert.equal(avec.railBloque, undefined);
+      assert.ok(sans.attenteDuRail !== undefined, "sans redémarrage, la panne se lit");
       assert.equal(avec.attenteDuRail, undefined);
     }
   });
@@ -233,19 +230,13 @@ describe("la ligne de tête de l'app", () => {
 });
 
 describe("l'accueil", () => {
-  test("le projet en pause dit seulement la même raison, d'une pastille calme — pas son rail bloqué en rouge", () => {
+  test("le projet en pause dit seulement la même raison, d'une pastille calme", () => {
     const faits = faitsDe(lecture({ lus: [enPause()] }));
     const ligne = ligneDeProjet({ nom: "parade", servi: true }, { a: LU, faits }, undefined);
     assert.equal(ligne.ton, "bleu");
     assert.equal(ligne.dit, MEME_RAISON);
     assert.doesNotMatch(`${ligne.dit} ${ligne.survol}`, PANNE);
     assert.equal(etatDeLaLigne(ligne), "paused");
-  });
-
-  test("sans la pause, la même lecture reste un rail bloqué, en rouge", () => {
-    const ligne = ligneDeProjet({ nom: "parade", servi: true }, { a: LU, faits: faitsDe(lecture({ lus: [box()] })) }, undefined);
-    assert.equal(ligne.ton, "rouge");
-    assert.equal(etatDeLaLigne(ligne), "stuck");
   });
 });
 
@@ -296,7 +287,7 @@ describe("à l'écran", () => {
     const maintenant = Date.now();
     const lu: TableauLu = { ...VIDE, luLe: new Date(maintenant).toISOString(), faits: { ...VIDE.faits, lu: new Date(maintenant).toISOString() } };
     const station = { ...box({ lastSeen: new Date(maintenant - 15 * 60_000).toISOString() }), ...(pauseJusqua === undefined ? {} : { quotaGithub: quotaGithubLu(quota({ pauseJusqua })) ?? assert.fail("quota") }) };
-    const rail: RailSurGithub = { lu: lu.luLe, tickets: [{ ...ticket(4), entreLe: new Date(maintenant - 20 * 60_000).toISOString() }], nonPris: [{ ticket: 4, depuis: new Date(maintenant - 20 * 60_000).toISOString() }] };
+    const rail: RailSurGithub = { lu: lu.luLe, tickets: [{ ...ticket(4), entreLe: new Date(maintenant - 20 * 60_000).toISOString() }] };
     return JSON.stringify(avecLeRail(lu, rail, { lus: [station] }).faits);
   };
 

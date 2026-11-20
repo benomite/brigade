@@ -246,21 +246,21 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
 // ─── L'état « en attente de décision » ───────────────────────────────────────
 
 const COMMANDE_DE_LA_BOX = "do what #535 waits for, as the box writes it";
-const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: COMMANDE_DE_LA_BOX, bouton: "ask the second", appel: { demande: true }, prix: "none" };
+const DECISION: Alerte = { sujet: "cuisine", verifie: true, ton: "jaune", dit: "waiting for your merge of #535: 1 ticket held, the other tickets keep cooking", releve: "#535  livraison verte — à merger à la main", geste: COMMANDE_DE_LA_BOX, bouton: "ask the second", appel: { demande: true }, prix: "none" };
 const REPRENDRE: Alerte = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen: `brigade parade garde-fous -- resume`", bouton: "resume the kitchen", appel: { geste: "reprendre" }, prix: "cost: queued tickets start again at once, on your quota" };
-const EN_ATTENTE = [URGENTE, REPRENDRE];
+const EN_ATTENTE = [DECISION, REPRENDRE];
 
 async function bandeEnAttente(): Promise<Joue> {
   const vue = await ouvrir();
-  vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "urgence", dit: "x" } });
+  vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "alerte", dit: "x" } });
   return { vue, racine: vue.element("alertes") };
 }
 // L'accueil devant un projet où une décision attend : sa ligne, telle que accueil.ts la dit.
 const UNE_DECISION = "attend     1 décision attend le chef depuis 5 h 28\n  #535  depuis 5 h 28  merge à faire  Titre\nfin attend\n";
-const FAITS_EN_ATTENTE: Faits = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [], urgence: null };
+const FAITS_EN_ATTENTE: Faits = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [] };
 async function accueilEnAttente(): Promise<Joue> {
   const vue = await ouvrir({}, false);
-  vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "urgence", dit: "x" } });
+  vue.dire("surAlertes", { projet: "parade", alertes: EN_ATTENTE, signal: { etat: "alerte", dit: "x" } });
   const ligne = ligneDeProjet(PARADE_A_L_ACCUEIL, { a: A, faits: FAITS_EN_ATTENTE }, { texte: "cuisine    ouverte", attend: UNE_DECISION });
   const vu: Accueil = { ...tenirAccueil({ projets: () => [PARADE_A_L_ACCUEIL] }).vu(), projets: [ligne] };
   vue.dire("surAccueil", vu);
@@ -285,7 +285,7 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
   test("bande d'alertes : une ligne, un contrôle — la commande écrite nulle part, pas même derrière « detail », le prix dans la confirmation", async () => {
     const { racine } = await bandeEnAttente();
     for (const alerte of EN_ATTENTE) {
-      const ligne = () => racine.children.find((pose) => pose.dataset.sujet === alerte.sujet) ?? assert.fail(`pas de ligne « ${alerte.sujet} »`);
+      const ligne = () => racine.children.find((pose) => pose.dataset.sujet === alerte.sujet && pose.textContent.includes(alerte.dit)) ?? assert.fail(`pas de ligne « ${alerte.dit} »`);
       const [controle, ...autres] = boutons(ligne()).filter(({ className }) => className !== "detail");
       assert.ok(controle?.textContent.startsWith(alerte.bouton ?? "") === true && autres.length === 0, `« ${alerte.bouton} » n'est pas le seul contrôle de sa ligne`);
       assert.ok(!visible(ligne()).includes(alerte.geste), `${alerte.sujet} : le geste est écrit à plat`);

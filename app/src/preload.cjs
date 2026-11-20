@@ -208,7 +208,8 @@ const pont = {
   surFaits: (recevoir) => void ipcRenderer.on("faits", (_, recue) => recevoir(recue)),
   surGuide: (recevoir) => void ipcRenderer.on("guide", (_, guide) => recevoir(guide)),
   surAlertes: (recevoir) => void ipcRenderer.on("alertes", (_, bande) => recevoir(bande)),
-  surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
+  // Un projet cliqué dans le menu de la barre des menus (barre-de-menus.ts) : il s'ouvre.
+  surOuvrirProjet: (recevoir) => void ipcRenderer.on("ouvrirProjet", (_, projet) => recevoir(projet)),
   // Une question cliquée dans le menu de la barre des menus (barre-de-menus.ts) : sa carte s'ouvre.
   surOuvrirCarte: (recevoir) => void ipcRenderer.on("ouvrirCarte", (_, projet, ticket) => recevoir(projet, ticket)),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),

@@ -65,7 +65,6 @@ const faits = {
     { ticket: 9, titre: "Le relevé des mesures", url: issue(9), livre: "2026-11-13T10:03:58.000Z", station: "box/claude", pr: `https://github.com/${DEPOT}/pull/19`, relecture: null },
     { ticket: 7, titre: "Les accès sous plafond", url: issue(7), livre: "2026-11-13T07:12:40.000Z", station: "box/claude", pr: null, relecture: null },
   ],
-  urgence: null,
 } as unknown as Faits;
 const dessinable = (): Dessinable => tenirFaits(() => new Map()).recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
 

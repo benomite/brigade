@@ -20,7 +20,6 @@ const desFaits = (cooks: number, questions: number, plus: Partial<Faits> = {}): 
   cooks: Array.from({ length: cooks }, (_, i) => ({ ticket: i + 1, titre: `ticket ${i + 1}`, station: "mac/claude" })),
   attend: Array.from({ length: questions }, (_, i) => ({ ticket: 100 + i, titre: `question ${i}`, url: null })),
   livres: [],
-  urgence: null,
   ...plus,
 });
 const EN_SERVICE: EtatDeLaStation = { pause: false, arret: false };

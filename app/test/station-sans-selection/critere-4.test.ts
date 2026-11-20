@@ -2,7 +2,7 @@
 // projet — le rail ne dit jamais « No station serves this project ».
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { comprendre, type Faits } from "../../src/faits.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
@@ -25,23 +25,21 @@ const VIDE: TableauLu = {
 };
 const ticket = (numero: number, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: `Ticket ${numero}`, url: `https://github.com/${DEPOT}/issues/${numero}`, etat: "en attente", priorite: null, creeLe: POSE, pr: null, prise: null, entreLe: POSE, ...autres });
 const prise = { station: "parade-box/claude", le: "2026-11-17T13:00:00.000Z" };
-const NON_PRIS = [4, 5].map((n) => ({ ticket: n, depuis: POSE }));
 const AUCUNE = /no station serves/i;
 // Le rail d'un projet servi par parade-box : l'un des tickets cuit (ou est jugé), deux autres attendent depuis deux heures.
 const lu = (etat: "pris" | "en pass", stations: StationDuCompte[]) =>
-  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: stations });
+  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)] }, { lus: stations });
 const faitsDe = (tableauLu: TableauLu) => comprendre(JSON.stringify(tableauLu.faits)) as Faits;
 
 describe("#3797 critère 4", () => {
-  test("la file du second (`status`) et l'alerte du rail bloqué ne disent pas « no station » quand une station sert le projet", () => {
+  test("la file du second (`status`) et l'attente du rail ne disent pas « no station » quand une station sert le projet", () => {
     for (const etat of ["pris", "en pass"] as const) {
       const lue = lu(etat, [parade()]);
       assert.doesNotMatch(statusDuTableau(lue), /no station/i);
-      assert.doesNotMatch(JSON.stringify(lue.faits.railBloque ?? {}), /no station/i);
       assert.doesNotMatch(JSON.stringify(lue.faits.attenteDuRail ?? {}), /no station/i);
     }
     // Vraiment aucune station : la ligne reste.
-    const sans = avecLeRail(VIDE, { lu: LU, tickets: [ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: [] });
-    assert.match(statusDuTableau(sans), /no station serves this project/);
+    const sans = avecLeRail(VIDE, { lu: LU, tickets: [ticket(4), ticket(5)] }, { lus: [] });
+    assert.match(statusDuTableau(sans), /no station serves this project/i);
   });
 });

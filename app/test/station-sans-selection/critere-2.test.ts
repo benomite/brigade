@@ -2,7 +2,7 @@
 // projet — le rail ne dit jamais « No station serves this project ».
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { comprendre, type Faits } from "../../src/faits.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
@@ -25,23 +25,17 @@ const VIDE: TableauLu = {
 };
 const ticket = (numero: number, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: `Ticket ${numero}`, url: `https://github.com/${DEPOT}/issues/${numero}`, etat: "en attente", priorite: null, creeLe: POSE, pr: null, prise: null, entreLe: POSE, ...autres });
 const prise = { station: "parade-box/claude", le: "2026-11-17T13:00:00.000Z" };
-const NON_PRIS = [4, 5].map((n) => ({ ticket: n, depuis: POSE }));
 const AUCUNE = /no station serves/i;
 // Le rail d'un projet servi par parade-box : l'un des tickets cuit (ou est jugé), deux autres attendent depuis deux heures.
 const lu = (etat: "pris" | "en pass", stations: StationDuCompte[]) =>
-  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: stations });
+  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)] }, { lus: stations });
 const faitsDe = (tableauLu: TableauLu) => comprendre(JSON.stringify(tableauLu.faits)) as Faits;
 
 describe("#3797 critère 2", () => {
   test("une station montée sur sa machine, sans sélection de l'app, est dite servir le projet qu'elle cuit", () => {
     const faits = faitsDe(lu("pris", [parade()]));
-    const bloque = faits.railBloque;
-    // Soit rien n'est bloqué, soit la cause nomme parade-box comme celle qui sert le projet.
-    if (bloque !== undefined && "cause" in bloque) {
-      assert.notEqual(bloque.cause, "aucune-station");
-      assert.notEqual(bloque.cause, "inconnue");
-      assert.ok(bloque.stations.includes("parade-box/claude"), "the cause names parade-box as the station serving the project");
-    }
+    // L'attente de la file ne dit pas qu'aucune station ne sert le projet.
+    assert.notEqual(faits.attenteDuRail?.raison, "aucune-station");
     assert.ok((faits.cooks ?? []).some(({ station }) => station === "parade-box/claude"));
     assert.ok(JSON.stringify(faits.stations ?? {}).includes("parade-box"));
   });

@@ -1836,16 +1836,6 @@ main > header,
   color: var(--fond);
   background: var(--rouge);
 }
-/* L'urgence : toute la cuisine du projet attend le chef. Pas la rougeur d'une alerte : son signe
-   doublé, cerné du ton clair — elle se voit d'abord, même parmi des cases en alerte. */
-#projets .signal[data-etat="urgence"] {
-  min-width: 18px;
-  color: var(--fond);
-  background: var(--rouge);
-  box-shadow:
-    0 0 0 2px var(--barre),
-    0 0 0 4px var(--rouge-clair);
-}
 #projets .signal[data-etat="non-verifie"] {
   color: var(--texte);
   background: var(--barre);
@@ -1972,7 +1962,7 @@ main > header,
   color: var(--discret);
 }
 /* La tête du rail, la cuisine oisive avec des cartes dessus (#1863) : une panne — rouge, épaisse, sur le fond chaud de
-   ce qui attend le chef, marquée FAULT comme l'urgence l'est URGENT. Elle se voit avant les colonnes. */
+   ce qui attend le chef, marquée FAULT. Elle se voit avant les colonnes. */
 #rail .panne-du-rail {
   display: flex;
   align-items: center;
@@ -2848,28 +2838,6 @@ main > header,
 }
 #alertes .alerte + .alerte {
   border-top: 1px solid var(--trait-doux);
-}
-/* L'urgence, au-dessus de tout : plus épaisse, sur le fond de ce qui attend le chef, et marquée en tête. */
-#alertes .alerte[data-sujet="urgence"] {
-  border-left-width: 6px;
-  background: var(--attend);
-}
-#alertes .alerte[data-sujet="urgence"] strong {
-  color: var(--rouge-clair);
-}
-/* La ligne d'urgence ouverte par la notification : cernée, c'est elle que le chef vient trancher. */
-#alertes .alerte[data-choisie="oui"] {
-  outline: 2px solid var(--rouge);
-  outline-offset: -2px;
-}
-#alertes .urgent {
-  padding: 0 var(--pas-2);
-  font-size: var(--taille-meta);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--fond);
-  background: var(--rouge);
-  border-radius: 0;
 }
 #alertes .alerte[data-verifie="non"] {
   border-left-style: dotted;

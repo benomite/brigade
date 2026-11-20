@@ -1,5 +1,5 @@
 // Le haut de `status` est en anglais (#928) : `kitchen`, `connection`, `RED since …`, `ACTIVE` / `LAPSED`,
-// `BLOCKED`, `nothing cooks: …`. L'app lit ces lignes dans les deux langues, pour une box dont le
+// `BLOCKED`. L'app lit ces lignes dans les deux langues, pour une box dont le
 // runtime n'est pas encore à jour : chaque ligne anglaise dit la même chose que sa française.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";

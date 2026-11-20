@@ -21,7 +21,6 @@ const desFaits = (champs: Partial<Faits> = {}, compteurs: Partial<Faits["compteu
   cooks: [],
   attend: [],
   livres: [],
-  urgence: null,
   ...champs,
 });
 const cook = (ticket: number) => ({ ticket, titre: `ticket ${ticket}`, station: "box/claude" });

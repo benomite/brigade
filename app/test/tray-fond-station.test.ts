@@ -26,7 +26,6 @@ const faits = (cooks: number, questions: number, etat = "ouverte"): Faits => ({
   cooks: Array.from({ length: cooks }, (_, i) => ({ ticket: i + 1, titre: `ticket ${i + 1}`, station: "mac/claude" })),
   attend: Array.from({ length: questions }, (_, i) => ({ ticket: 100 + i, titre: `question ${i}`, url: null })),
   livres: [],
-  urgence: null,
   stations: [{ station: "mac/claude", distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking" }],
 });
 const ok = (sortie: string): Rendu => ({ lance: "$ node geste.ts", erreur: null, sortie, erreurs: "" });

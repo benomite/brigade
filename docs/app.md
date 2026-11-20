@@ -171,7 +171,7 @@ of kind `abandoned`, answered on its issue.
 `kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
 failed in a row, no cook goes any more`, what the station writes on hover — and its single button, `Resume`, recommended,
 its price on hover. The line says the project's state, `held: breaker open — …`, in the same words on Home (the project's
-state, in place of `stuck` and `no manager takes`), on Rail and on the phone (#3602). No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
+state), on Rail and on the phone (#3602). No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
 `/resume` on the project's open issue labeled `brigade:breaker-open` on `benomite/brigade` — the one whose body carries
 `<!-- brigade:projet=<owner>/<repo> -->` for this project, #3620 — (the station publishes it when the breaker opens,
 #2138, and its watcher closes the breaker when it reads the comment, #2139), with the GitHub sign-in of
@@ -1662,7 +1662,7 @@ a piece of information, a setting, an action — is in its space; what belongs t
 PROJECTS
 ● brigade     1 decision awaits you · #867 cooking                 ›
 ● espace      5 decisions await you, for 2 d                       ›
-● calculus    base red · #655 being repaired                       ›
+● calculus    base red                                             ›
 
 THIS COMPUTER'S STATION
 ```
@@ -3897,28 +3897,11 @@ section. With the section laid, `right now` is not repeated under it.
   cause is read (the alerts, what awaits you). It is gone at the first reading of `facts` that no longer carries it;
   without it — or from a runtime from before this field — the head of the rail is exactly what it was. A box that
   does not answer shows none: its last reading is no longer new.
-- **A stuck rail is a fault** (#3358, `app/src/vue/rail-bloque/`, diagnosis in `runtime/src/rail-bloque/`). When `fire`
-  tickets have gone untaken by any manager — no manager claim, no `model:` or `effort:` label, no manager comment —
-  for more than five minutes, the head of the rail opens with a red `FAULT` line: how many tickets, for how long, and
-  the cause read from the stations' signs of life — `8 tickets on the rail, no manager has taken them for 14 h: its
-  station box/claude is stopped.` The cause is one of: no station serves the project; its station is stopped, offline
-  or out of GitHub quota; the manager runs but takes nothing; or not known when the stations cannot be read. When a
-  gesture unblocks it from the app — **Add the project to a station** — it is the line's recommended button,
-  which opens the Stations tab; otherwise, and on a read-only project, there is no button. A stopped or offline station
-  on this computer has the button **Start this computer's station**, which starts it (`station start <station>`, the
-  tray's **Start the station** gesture) and says why when the station does not start; a station on another computer has
-  no button, because the app cannot start it from here: the sentence says `Start it on its computer.` While this computer's
-  station restarts for an update, the project says `restarting: update to <version>` (yellow) and shows neither
-  `FAULT` nor stuck-rail nor queue-wait alert for a stopped or offline station (#3637). On "All projects" the
-  project is **stuck**, in red (`8 tickets no manager takes, for 14 h`, the whole sentence on hover). The same sentence
-  is under the head of the `awaiting` block of the app's `status`, of the second's queue, and of
-  `brigade <project> status` on a GitHub-only station. Tickets whose comments cannot be read are said there as `not
-  checked`, never as a calm rail.
 - **The rail says why its queued tickets do not start** (#3433, `app/src/vue/attente-du-rail/`, one sentence per reason in
   `runtime/src/attente-du-rail/raison.ts`). With at least one queued ticket and no cook running, the head of the rail,
-  under the stuck-rail line, shows one sentence: the first of these reasons that holds — no station serves the project
+  shows one sentence: the first of these reasons that holds — no station serves the project
   (never said while an available station publishes no selection: set up on its own machine, it serves what its pairing
-  asks, which the account does not show — `servantesDe`, #3818; the stuck-rail cause reads the same rule);
+  asks, which the account does not show — `servantesDe`, #3818);
   its station is stopped; its station is offline or out of quota; the station waits for the GitHub quota; the cook cap
   is reached; a delivery is in the pass; every queued ticket waits for another ticket; else a normal wait, which says a
   cook takes the ticket within minutes and how long the oldest queued ticket has waited since `fire` was put on it (from
@@ -3934,20 +3917,13 @@ section. With the section laid, `right now` is not repeated under it.
   none, and "Will not start: …" or a blocking
   reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
   (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
-  publish a station's cook cap, so this reading never raises that reason. In the app, the three station faults are said
-  by the rail alert line (#3823, below), never by this sentence: it knows neither the header nor the last cook.
-- **A rail alert is shown only when it is true and actionable** (#3823, `runtime/src/attente-du-rail/alertes.ts`, the line
-  in `app/src/vue/attente-du-rail/ligne-des-alertes.js`). The GitHub reading of the rail judges five kinds: no station
-  serves the project; its stations are stopped or offline, so no cook can start; the main branch is red (its live
-  `repair-main` ticket on the rail, #3815: since the issue opened, the check its title names); a ticket taken ten times
-  or more (counted from the take comments on the first page of its comments, said as "at least" when that page is
-  full); and nothing served for 30 minutes while a ticket is ready. Each alert carries a checkable fact — since when, and
-  which ticket or which check, on hover — and either the gesture that lifts it (a button when the app has one: **Add the
-  project to a station**, **Start this computer's station**) or what the kitchen already does about it (`The kitchen
-  repairs it on #N.`); an alert with neither, or without a fact, is not shown. No alert says that no cook can start while
-  a station of the header cooks the project, a cook runs, or a cook opened its PR less than 5 minutes ago. Nothing
-  served for 30 minutes is one red `FAULT` line that names a known cause — one of the four, or the reason of the queue
-  wait —, never "cause unknown" alone; it comes first, and the head of the rail shows only it.
+  publish a station's cook cap, so this reading never raises that reason. A stopped or offline station on this computer
+  has the button **Start this computer's station**, which starts it (`station start <station>`, the tray's **Start the
+  station** gesture) and says why when the station does not start; a station on another computer has no button: the
+  sentence says `Start it on its computer.` While this computer's station restarts for an update, the project says
+  `restarting: update to <version>` (yellow) and shows no `FAULT` for a stopped or offline station (#3637). The stuck-rail
+  line (#3358) and the rail alerts (#3823) are gone: the supervisor (#3914, `docs/runtime/superviseur.md`) watches a
+  kitchen that does not move, and says what it did on the ticket it acted on.
 - **A GitHub quota pause is not a fault** (#3482, `app/src/vue/pause-quota/`). When the account's GitHub quota is spent,
   the stations keep running but cannot write their sign of life. Each station's state carries `quotaGithub`
   (`limite`: `core` or `ecriture`, `pauseJusqua`: when it resumes, or null); a running station in pause is held by
@@ -3957,7 +3933,7 @@ section. With the section laid, `right now` is not repeated under it.
   account`; with no resume time, `When it resumes is not known yet.`). The countdown moves every second, and the line
   goes by itself at the resume time or at the first reading that no longer carries the pause. Each project only says
   `Paused for the same reason: GitHub quota of the account.` at the head of its rail, and on "All projects" it is
-  **paused**, with a blue marker — no `FAULT`, no stuck rail, no `Start it on its computer.`. A project whose station is
+  **paused**, with a blue marker — no `FAULT`, no `Start it on its computer.`. A project whose station is
   really stopped, or that no station serves, keeps its `FAULT` line and its button. The station the app sees running
   on this computer is never said offline, even when its sign of life on GitHub is old. The phone reads each station's
   quota from the registration in its gist, the gist it already reads for the projects.
@@ -4074,8 +4050,8 @@ Above the columns of the Rail tab there are **at most two lines**: the Backlog b
 something holds the kitchen**. The columns start right under them.
 
 - **The status line** is the first of these causes, never two stacked: the breaker line with its `Resume` (#2140); an issue the
-  kitchen filed about itself (`Kitchen held: its breaker is open`, `Kitchen idle: …`); the blocked rail (#3358); the idle-kitchen
-  fault (#1863); the project off, with its switch (#3454); a stale or offline reading; a rail alert (#3823); the wait of the queue (#3433).
+  kitchen filed about itself (`Kitchen held: its breaker is open`, `Kitchen idle: …`); the idle-kitchen
+  fault (#1863); the project off, with its switch (#3454); a stale or offline reading; the wait of the queue (#3433).
 - **A kitchen-filed issue is never a need.** `Kitchen <project> held: its breaker is open` and `The kitchen is idle: …`
   (`app/src/amont.ts`, `alerteDeLaCuisine`) are left out of the Backlog — no tag, no row in the unfolded list, not counted —
   and their content is the status line. Since #3620 the station files them on `benomite/brigade`, never in the project's
@@ -4297,7 +4273,7 @@ What asks for your attention without awaiting you is where `status` puts it, and
 The app **never says "nothing awaits you" itself**: a calm screen is an `awaiting` block that says
 `nothing awaits the chef`, and a `status` with no `STUCK`.
 
-The head lines of `status` that the app reads (`kitchen`, `connection`, `setup`, `base`, and `nothing cooks:`) have been in English since #928; it also reads them in their French form (`cuisine`, `connexion`, `ROUGE`, `ACTIF`, `rien ne cuit :`…), for a box whose runtime is not up to date.
+The head lines of `status` that the app reads (`kitchen`, `connection`, `setup` and `base`) have been in English since #928; it also reads them in their French form (`cuisine`, `connexion`, `ROUGE`, `ACTIF`…), for a box whose runtime is not up to date.
 
 **Nothing to declare.** The app reads a project's `status` through the gesture of the station that cooks it on this
 computer: `brigade <nom> status` and, for the content tab displayed, `rail`, `station` or `log`

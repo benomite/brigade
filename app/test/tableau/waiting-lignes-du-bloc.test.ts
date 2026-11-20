@@ -58,7 +58,7 @@ test("the app's reading (`du-rail`) lists no `waiting` issues: a WAITING ticket 
   const { appeler, chemins } = github({ fire: [issue(52, "fire", "waiting")], waiting: [issue(41, "waiting")] });
   const lecture = await lireCeQuiAttendLeChef({ depot: DEPOT, appeler, maintenant: () => new Date(LU), enWaiting: "du-rail" });
   assert.ok(lecture.lue, JSON.stringify(lecture));
-  const bloc = blocDuChef({ lu: LU, attentes: lecture.attentes, illisibles: lecture.illisibles, depot: DEPOT }).join("\n");
+  const bloc = blocDuChef({ lu: LU, attentes: lecture.attentes, illisibles: lecture.illisibles }).join("\n");
   assert.match(bloc, /#52 {2}WAITING {2}awaiting the calendar/);
   assert.doesNotMatch(bloc, /#41/);
   assert.equal(chemins.some((chemin) => /labels=waiting/.test(chemin)), false, chemins.join("\n"));

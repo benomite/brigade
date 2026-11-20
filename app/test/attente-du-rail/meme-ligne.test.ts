@@ -10,7 +10,8 @@ import { describe, test, type TestContext } from "node:test";
 import { noterGitHubSeul } from "../../../runtime/src/github-seul-etat.ts";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
 import { principal as status } from "../../../runtime/src/status.ts";
-import { appelParGh, stationsParGh } from "../../src/second/file.ts";
+import { lireLesStationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import { appelParGh } from "../../src/second/file.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
 import { ghDuRepertoire, type Doublure } from "../aides/gh-du-repertoire.ts";
@@ -74,10 +75,9 @@ async function statusDeLaStation(t: TestContext, gh: string): Promise<string[]> 
 // Le `status` de l'app et le rail, au même instant.
 async function lectureDeLApp(gh: string, instant: number) {
   const appeler = appelParGh(gh, 2_000);
-  const stations = stationsParGh(gh, 2_000);
   const signes = async () => {
-    const lues = await stations();
-    return "lues" in lues ? { lus: lues.lues.map((station) => ({ ...station })) } : { illisible: lues.illisibles };
+    const lues = await lireLesStationsDuCompte({ gh, delaiMs: 2_000 });
+    return lues.state === "listed" ? { lus: lues.stations.map((station) => ({ ...station })) } : { illisible: lues.reason };
   };
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date(instant), signes });
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);

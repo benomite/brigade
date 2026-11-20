@@ -29,7 +29,6 @@ const desFaits = (champs: Partial<Faits> = {}, compteurs: Partial<Faits["compteu
   cooks: [],
   attend: [],
   livres: [],
-  urgence: null,
   ...champs,
 });
 const lus = (faits: Faits): FaitsLus => ({ a: A, faits });
@@ -38,7 +37,6 @@ const cook = (ticket: number, station = "parade-box") => ({ ticket, titre: `tick
 const UNE = "attend     1 décision attend le chef depuis 2 j\n  #867  depuis 2 j  merge à faire  Titre\nfin attend\n";
 const CINQ = "attend     5 décisions attendent le chef — la plus ancienne depuis 2 j\n  #1  depuis 2 j  merge\nfin attend\n";
 const BASE_ROUGE = [
-  "nothing cooks: base red since 3 h 05 ago, repair #655 in progress",
   "kitchen    held",
   "base       RED since 3 h 05 ago on abc1234 — the station takes no more tickets, the pass neither judges nor merges",
   "",
@@ -46,7 +44,6 @@ const BASE_ROUGE = [
 ].join("\n");
 // La même, comme la box l'écrivait avant #928 : l'app la lit toujours.
 const BASE_ROUGE_EN_FRANCAIS = [
-  "rien ne cuit : base rouge depuis 3 h 05, réparation #655 en cours",
   "cuisine    retenue",
   "base       ROUGE depuis 3 h 05 sur abc1234 — la station ne prend plus de ticket, la pass ne juge ni ne merge",
   "",
@@ -81,9 +78,9 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
     assert.equal(ligneDeProjet(PROJET, lus(desFaits({}, { attend: 5 })), undefined).dit, "5 decisions await you");
   });
 
-  test("bloqué : rouge — base rouge et sa réparation, cuisine arrêtée ou retenue, runtime éteint, box injoignable", () => {
+  test("bloqué : rouge — base rouge, cuisine arrêtée ou retenue, runtime éteint, box injoignable", () => {
     const rouge = ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE });
-    assert.deepEqual([rouge.ton, rouge.dit], ["rouge", "base red · #655 being repaired"]);
+    assert.deepEqual([rouge.ton, rouge.dit], ["rouge", "base red · #655 cooking"]);
     assert.deepEqual(ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655)] }, { auTravail: 1 })), { texte: BASE_ROUGE_EN_FRANCAIS }), rouge);
     for (const [etat, dit] of [["arrêtée", "kitchen stopped"], ["éteinte", "runtime stopped"], ["retenue", "kitchen held"]] as const) {
       const ligne = ligneDeProjet(PROJET, lus(desFaits({ etat })), undefined);
@@ -98,10 +95,7 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
 
   test("dans l'ordre : ce qui bloque, ce qui attend le chef, puis ce qui cuit", () => {
     const ligne = ligneDeProjet(PROJET, lus(desFaits({ etat: "retenue", cooks: [cook(655), cook(870)] }, { attend: 2 })), { texte: BASE_ROUGE, attend: CINQ.replace("5 décisions", "2 décisions") });
-    assert.deepEqual([ligne.ton, ligne.dit], ["rouge", "base red · #655 being repaired · 2 decisions await you, for 2 d · #870 cooking"]);
-    // Toute la cuisine attend le chef : la décision le dit.
-    const urgence = { decision: "#867", ticket: 867, cause: "merge", geste: "merger", url: null, depuis: A, retenus: [867], autres: [] };
-    assert.equal(ligneDeProjet(PROJET, lus(desFaits({ urgence }, { attend: 1 })), undefined).dit, "1 decision awaits you — nothing cooks until then");
+    assert.deepEqual([ligne.ton, ligne.dit], ["rouge", "base red · 2 decisions await you, for 2 d · #655 and #870 cooking"]);
   });
 
   test("rien de lu n'est dit sain : gris, sans station, pas encore lu, ou une lecture que l'app ne comprend pas", () => {

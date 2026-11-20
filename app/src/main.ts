@@ -5,7 +5,7 @@ import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuDeLApp } from "./aide-communaute.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, powerMonitor, shell, Tray, type MenuItemConstructorOptions } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
 import { ICONE_DE_LA_BARRE, pastillee } from "./tray-fond/icone.ts";
@@ -89,7 +89,6 @@ import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
 import { ecrireReglagesDeLaStation, lireReglagesDeLaStation as lireLesReglagesDeStation, type Changement } from "./reglages-de-la-station.ts";
 import { EFFORTS, MODELES, serviAilleurs, tenirProjets, type DefautsDeLaMachine, type DossiersDeLaStation, type VuDesProjets } from "./projets/projets.ts";
-import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
 import { roleDe } from "./poste/role.ts";
@@ -398,26 +397,6 @@ function ramener(): boolean {
   app.focus({ steal: true });
   return true;
 }
-// L'urgence d'un projet — toute sa cuisine attend le chef — se dit au système, une notification par
-// annonce du runtime, la fenêtre devant, derrière ou réduite (notification.ts). Son clic ramène la
-// fenêtre au premier plan, et la vue ouvre le projet sur sa ligne d'urgence et son geste. Ce que le
-// chef a cliqué est retenu à côté du fichier des projets : rouverte, l'app ne le lui redit pas.
-// Chaque notification est tenue jusqu'à la suivante du même projet : lâchée, elle perdrait son clic.
-const montrees = new Map<string, Notification>();
-const urgences = tenirNotifications({
-  memoire: memoireDansFichier(join(dirname(cheminConfiguration()), "urgences.json")),
-  montrer: ({ projet, titre, corps }, auClic) => {
-    if (!Notification.isSupported()) return void console.error(`brigade: ${projet} — ${corps} (this system shows no notification)`);
-    montrees.get(projet)?.close();
-    const notification = new Notification({ title: titre, body: corps, urgency: "critical" });
-    notification.on("click", auClic);
-    montrees.set(projet, notification);
-    notification.show();
-  },
-  ouvrir: (projet) => {
-    if (ramener()) dire("urgence", projet);
-  },
-});
 // L'état de la cuisine hors de la fenêtre (barre-de-menus.ts, #3269) : une icône dans la barre des menus du Mac — la ligne
 // « 3 cooking · 1 for you » à côté d'elle —, dans la zone de notification de Windows — le nombre de questions peint
 // dessus, la ligne au survol. Son menu liste les questions qui attendent ; une question cliquée ramène la fenêtre sur sa
@@ -435,7 +414,7 @@ function entreeDuMenu(entree: Entree): MenuItemConstructorOptions {
     case "carte":
       return { label: entree.libelle, click: () => void (ramener() && dire("ouvrirCarte", entree.projet, entree.ticket)) };
     case "projet":
-      return { label: entree.libelle, click: () => void (ramener() && dire("urgence", entree.projet)) };
+      return { label: entree.libelle, click: () => void (ramener() && dire("ouvrirProjet", entree.projet)) };
     case "app":
       return { label: entree.libelle, click: () => void ramener() };
   }
@@ -487,9 +466,6 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
     if (!("erreur" in lecture) && tableau !== undefined) dire("activites", activitesPubliees(lecture.projet, tableau));
     direLaBande(bandes.faits(lecture));
     direLAccueil(accueil.faits(lecture));
-    // Une annonce d'urgence que le runtime vient de faire se dit au système.
-    const lus = faits.dernier(lecture.projet);
-    if (lus !== undefined) urgences.recevoir(lecture.projet, lus.faits);
     poserLaBarreDeMenus();
   },
 });

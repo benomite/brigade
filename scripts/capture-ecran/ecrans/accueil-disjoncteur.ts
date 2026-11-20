@@ -1,5 +1,4 @@
-// « Tous les projets » avec « parade » dont le disjoncteur est ouvert (#3602) alors que son rail est aussi bloqué : sa ligne
-// dit « held: breaker open », jamais « no manager takes ». Chaque ligne est celle que l'app tire de leurs `facts`.
+// « Tous les projets » avec « parade » dont le disjoncteur est ouvert (#3602) : sa ligne dit « held: breaker open ». Chaque ligne est celle que l'app tire de leurs `facts`.
 import { ligneDeProjet, type Accueil } from "../../../app/src/accueil.ts";
 import { comprendre, type Faits } from "../../../app/src/faits.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
@@ -14,7 +13,7 @@ const ligne = (nom: string) => {
 };
 
 export const ecran: Ecran = {
-  dit: "« Tous les projets » : « parade » retenu par son disjoncteur, son rail aussi bloqué — « held: breaker open » ; « cantine » calme (#3602)",
+  dit: "« Tous les projets » : « parade » retenu par son disjoncteur — « held: breaker open » ; « cantine » calme (#3602)",
   largeur: 1280,
   hauteur: 700,
   etapes: [],

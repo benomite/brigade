@@ -2,7 +2,7 @@
 // projet — le rail ne dit jamais « No station serves this project ».
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { comprendre, type Faits } from "../../src/faits.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
@@ -25,18 +25,17 @@ const VIDE: TableauLu = {
 };
 const ticket = (numero: number, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: `Ticket ${numero}`, url: `https://github.com/${DEPOT}/issues/${numero}`, etat: "en attente", priorite: null, creeLe: POSE, pr: null, prise: null, entreLe: POSE, ...autres });
 const prise = { station: "parade-box/claude", le: "2026-11-17T13:00:00.000Z" };
-const NON_PRIS = [4, 5].map((n) => ({ ticket: n, depuis: POSE }));
 const AUCUNE = /no station serves/i;
 // Le rail d'un projet servi par parade-box : l'un des tickets cuit (ou est jugé), deux autres attendent depuis deux heures.
 const lu = (etat: "pris" | "en pass", stations: StationDuCompte[]) =>
-  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: stations });
+  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)] }, { lus: stations });
 const faitsDe = (tableauLu: TableauLu) => comprendre(JSON.stringify(tableauLu.faits)) as Faits;
 
 describe("#3797 critère 1", () => {
   test("une station disponible cuit ou juge un ticket du projet : le rail ne dit jamais qu'aucune station le sert", () => {
     for (const etat of ["pris", "en pass"] as const) {
       const faits = faitsDe(lu(etat, [parade()]));
-      assert.notEqual(faits.railBloque !== undefined && "cause" in faits.railBloque ? faits.railBloque.cause : null, "aucune-station");
+      assert.notEqual(faits.attenteDuRail?.raison, "aucune-station");
       assert.doesNotMatch(JSON.stringify(faits), AUCUNE);
     }
   });

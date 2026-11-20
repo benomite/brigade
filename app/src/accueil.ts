@@ -25,8 +25,7 @@ import type { VuDesProjets } from "./projets/projets.ts";
 import { plafondsDe, retenuesDe, type PlafondVu, type RetenueVue } from "./plafond.ts";
 import { raisonDe, type RaisonDeStation } from "./stations/raison.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
-import { bloqueDe, ditALAccueil } from "./vue/rail-bloque/rail-bloque.ts";
-import { enCours, MEME_RAISON, PANNES_HORS_PAUSE } from "./vue/pause-quota/ligne-de-la-pause.js";
+import { enCours, MEME_RAISON } from "./vue/pause-quota/ligne-de-la-pause.js";
 
 // Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris ; bleu, le calme de la
 // pause de quota GitHub du compte (vue/pause-quota/, #3482).
@@ -73,17 +72,10 @@ function causes(status: string): string[] {
   });
 }
 const baseRouge = (status: string | undefined) => status !== undefined && tetesDe(status).some(({ titre, valeur }) => titre === "base" && /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u.test(valeur));
-// Le ticket qui répare la base rouge, quand `status` le dit en tête (runtime/src/etat.ts, `RIEN_NE_CUIT`),
-// en anglais ou en français (#928).
-const reparation = (status: string | undefined): number | undefined => {
-  const [, anglais, francais] = /^(?:nothing cooks: base red since .*, repair #(\d+) in progress|rien ne cuit : base rouge depuis .*, réparation #(\d+) en cours)$/m.exec(status ?? "") ?? [];
-  const ticket = anglais ?? francais;
-  return ticket === undefined ? undefined : Number(ticket);
-};
 
 // Ce qui bloque le projet, le plus grave d'abord : rien ne le débloque sans le chef.
 function bloque(faits: Faits, status: string | undefined): string[] {
-  const rouge = baseRouge(status) ? [reparation(status) === undefined ? "base red" : `base red · #${reparation(status)} being repaired`] : [];
+  const rouge = baseRouge(status) ? ["base red"] : [];
   switch (faits.etat) {
     case "éteinte":
       return ["runtime stopped", ...rouge];
@@ -106,18 +98,17 @@ const depuis = (attend: string | undefined): string | undefined => {
   return duree === undefined ? undefined : enAnglais(duree.trim());
 };
 
-// Ce qui attend le chef : combien de décisions, depuis quand ; et, quand toute la cuisine les attend, que rien ne cuit d'ici là.
+// Ce qui attend le chef : combien de décisions, depuis quand.
 function attend(faits: Faits, status: StatusLu | undefined): string[] {
   const combien = faits.compteurs.attend;
   if (combien === 0) return [];
   const duree = depuis(status?.attend);
-  const dit = `${combien} decision${s(combien)} await${combien === 1 ? "s" : ""} you${duree === undefined ? "" : `, for ${duree}`}`;
-  return [faits.urgence == null ? dit : `${dit} — nothing cooks until then`];
+  return [`${combien} decision${s(combien)} await${combien === 1 ? "s" : ""} you${duree === undefined ? "" : `, for ${duree}`}`];
 }
 
-// Ce qui cuit : les tickets de ses cooks — la réparation de la base est déjà dite —, sinon ce qui est à la pass.
-function cuit(faits: Faits, repare: number | undefined): string[] {
-  const tickets = faits.cooks?.map(({ ticket }) => ticket).filter((ticket) => ticket !== repare);
+// Ce qui cuit : les tickets de ses cooks, sinon ce qui est à la pass.
+function cuit(faits: Faits): string[] {
+  const tickets = faits.cooks?.map(({ ticket }) => ticket);
   if (tickets === undefined) return faits.compteurs.auTravail > 0 ? [`${faits.compteurs.auTravail} at work`] : [];
   if (tickets.length > 2) return [`${tickets.length} cooks at work`];
   if (tickets.length > 0) return [`${tickets.map((ticket) => `#${ticket}`).join(" and ")} cooking`];
@@ -126,31 +117,27 @@ function cuit(faits: Faits, repare: number | undefined): string[] {
 
 export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined, status: StatusLu | undefined): LigneDeProjet {
   const { nom } = projet;
-  // Le rail bloqué (vue/rail-bloque/, #3358) : des tickets qu'aucun manager ne prend — aussi quand aucune station ne le
-  // sert, puisque c'est sa cause. Il bloque le projet, en tête de sa ligne ; sa phrase entière au survol.
   // Pendant la pause de quota GitHub du compte (vue/pause-quota/, #3482), le projet dit seulement qu'il est en pause pour la
-  // même raison, d'une pastille calme : son rail bloqué n'en est pas un — sauf une panne que la pause n'explique pas.
+  // même raison, d'une pastille calme.
   const enPause = lu !== undefined && "faits" in lu && enCours(lu.faits.pauseQuota, Date.parse(lu.faits.lu));
-  const bloqueLu = lu !== undefined && "faits" in lu ? bloqueDe(lu.faits.railBloque) : undefined;
-  const railBloque = enPause && bloqueLu !== undefined && !PANNES_HORS_PAUSE.includes(bloqueLu.cause) ? undefined : bloqueLu;
-  if (!projet.servi && railBloque === undefined) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
+  if (!projet.servi) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
   if (lu === undefined) return { nom, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's station every 30 s" };
   if ("injoignable" in lu) return { nom, ton: "rouge", dit: "station unreachable", survol: `its station did not answer at ${heure(lu.a)} — the app tries again every 30 s; open it to see why` };
   if ("illisible" in lu) return { nom, ton: "gris", dit: "not read: its station does not answer as the app expects", survol: `tried at ${heure(lu.a)} — open it to see what its station returned` };
   const { faits } = lu;
-  const bloquant = [...(railBloque === undefined ? [] : [ditALAccueil(railBloque, Date.parse(faits.lu))]), ...bloque(faits, status?.texte)];
+  const bloquant = bloque(faits, status?.texte);
   const attendu = attend(faits, status);
   // La dérive se lit dans les lignes `drift` de `status` : un mot sur la ligne, ce qu'elle dit au survol.
   // Elle ne change pas la pastille — rien n'attend le chef, rien ne bloque.
   const derive = status === undefined ? [] : deriveDe(status.texte);
   const enPauseSeule = enPause && bloquant.length === 0;
-  const parties = [...bloquant, ...(enPauseSeule ? [MEME_RAISON] : []), ...attendu, ...cuit(faits, reparation(status?.texte))];
+  const parties = [...bloquant, ...(enPauseSeule ? [MEME_RAISON] : []), ...attendu, ...cuit(faits)];
   const dit = parties.length === 0 ? "nothing cooking, nothing waits for you" : parties.join(" · ");
   return {
     nom,
     ton: bloquant.length > 0 ? "rouge" : attendu.length > 0 ? "jaune" : enPauseSeule ? "bleu" : "vert",
     dit: derive.length === 0 ? dit : `${dit} · drifting`,
-    survol: `read at ${heure(lu.a)} — ${railBloque === undefined ? "" : `${railBloque.phrase} — `}${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
+    survol: `read at ${heure(lu.a)} — ${derive.length === 0 ? "" : `reliability drifting: ${derive.join(" · ")} — `}open it to act`,
     ...(faits.compteurs.attend > 0 ? { attend: faits.compteurs.attend } : {}),
   };
 }

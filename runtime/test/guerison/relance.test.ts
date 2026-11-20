@@ -4,7 +4,6 @@ import { CHEF_TODO, corpsDeCarte } from "../../src/github-seul/carte-todo/carte-
 import { corpsDeVerdict, type CommentaireDeVerdict } from "../../src/github-etat/fusion.ts";
 import { HORS_CUISINE, LABEL } from "../../src/github.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
-import { MARQUE_MISE_DE_COTE_GELE } from "../../src/passe-gel-tests/gele-faux.ts";
 import { relancer, RELANCES_MAX, type ContexteDeLaGuerison } from "../../src/guerison/relance.ts";
 
 const TICKET = 40;
@@ -160,15 +159,4 @@ test("un ticket qui n'est pas de côté n'est pas touché", async () => {
   d.ouvrirPR({ enConflit: true });
   assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "not set aside" });
   assert.equal(d.commentairesDu().length, 0);
-});
-
-test("un ticket mis de côté par ses tests gelés faux n'est pas relancé, même quand une relance et le mot d'un humain suivent sa mise de côté, et même si sa PR est rouge", async () => {
-  const d = depot();
-  d.ouvrirPR();
-  d.checks.set(SHA, [{ name: "tests", outcome: "red" }]);
-  d.poster(TICKET, `${MARQUE_MISE_DE_COTE_GELE}\nStation \`box\`: set aside.\n\nReason: the frozen acceptance test \`a.test.ts\` already passes on \`main\`.`);
-  d.poster(TICKET, "<!-- brigade:relance cause=red-check n=1 -->\nRelaunched.");
-  d.poster(TICKET, "I will look at it.");
-  assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "its wrong frozen acceptance tests leave a criterion with nothing to prove it: a human decides" });
-  assert.ok(d.etiquettes.has(HORS_CUISINE));
 });

@@ -2,7 +2,7 @@
 // projet — le rail ne dit jamais « No station serves this project ».
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { comprendre, type Faits } from "../../src/faits.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
@@ -25,26 +25,23 @@ const VIDE: TableauLu = {
 };
 const ticket = (numero: number, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: `Ticket ${numero}`, url: `https://github.com/${DEPOT}/issues/${numero}`, etat: "en attente", priorite: null, creeLe: POSE, pr: null, prise: null, entreLe: POSE, ...autres });
 const prise = { station: "parade-box/claude", le: "2026-11-17T13:00:00.000Z" };
-const NON_PRIS = [4, 5].map((n) => ({ ticket: n, depuis: POSE }));
 const AUCUNE = /no station serves/i;
 // Le rail d'un projet servi par parade-box : l'un des tickets cuit (ou est jugé), deux autres attendent depuis deux heures.
 const lu = (etat: "pris" | "en pass", stations: StationDuCompte[]) =>
-  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: stations });
+  avecLeRail(VIDE, { lu: LU, tickets: [ticket(3, { etat, prise }), ticket(4), ticket(5)] }, { lus: stations });
 const faitsDe = (tableauLu: TableauLu) => comprendre(JSON.stringify(tableauLu.faits)) as Faits;
 
 describe("#3797 critère 3", () => {
   test("la faute et son geste ne se montrent que lorsqu'aucune station ne sert vraiment le projet", () => {
-    const sansCuisson = (stations: StationDuCompte[]) => faitsDe(avecLeRail(VIDE, { lu: LU, tickets: [ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: stations })).railBloque;
+    const sansCuisson = (stations: StationDuCompte[]) => faitsDe(avecLeRail(VIDE, { lu: LU, tickets: [ticket(4), ticket(5)] }, { lus: stations })).attenteDuRail;
     // Vraiment aucune : aucune station, une autre sélection, ou la station sans sélection hors ligne ou arrêtée qui ne cuit rien.
     for (const stations of [[], [parade({ selection: ["benomite/autre"] })], [parade({ lastSeen: "2026-11-17T09:00:00.000Z" })], [parade({ stoppedAt: "2026-11-17T14:21:40.000Z" })]]) {
-      const bloque = sansCuisson(stations);
-      assert.ok(bloque !== undefined && "cause" in bloque);
-      assert.equal(bloque.cause, "aucune-station");
-      assert.equal(bloque.geste, "ajouter-a-une-station");
-      assert.match(bloque.phrase, /no station serves this project\. Add the project to a station\.$/);
+      const attente = sansCuisson(stations);
+      assert.equal(attente?.raison, "aucune-station");
+      assert.equal(attente?.geste, "ajouter-a-une-station");
+      assert.match(attente?.phrase ?? "", /no station serves this project/i);
     }
     // Mais pas quand la même station cuit un ticket du projet.
-    const cuit = faitsDe(lu("pris", [parade()])).railBloque;
-    assert.ok(cuit === undefined || !("cause" in cuit) || cuit.cause !== "aucune-station");
+    assert.notEqual(faitsDe(lu("pris", [parade()])).attenteDuRail?.raison, "aucune-station");
   });
 });

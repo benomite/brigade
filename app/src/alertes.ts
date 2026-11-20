@@ -30,19 +30,16 @@
 // runtime — déclarer une station, `claude /login`, `systemctl` —, une demande en prose,
 // écrite dans le second sans Entrée (demande.ts) : l'app ne la fait jamais partir. Une
 // ligne « non vérifié » mène à l'onglet qui lit l'état que la file ne dit pas. Ce module ne lance rien.
-// Au-dessus de tout, une ligne à part : l'urgence — plus rien ne cuit, et c'est le chef que toute la
-// cuisine attend (« L'urgence », plus bas). Elle vient de `faits`, et la case du projet la dit aussi.
 import type { Montree } from "./attend.ts";
 import type { Echec, Lecture } from "./box.ts";
-import { COMMANDE as FAITS, comprendre, duree, estHorsLigne, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
+import { COMMANDE as FAITS, comprendre, duree, estHorsLigne, tick, titreDEchec, type Faits } from "./faits.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
 import { heureHM } from "./format.ts";
 import { ligneDeLaLimite } from "./vue/bandeau-limite-github.ts";
 import type { Controle, Montree as Verification } from "./service.ts";
 
-// `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
-// toute la cuisine attend le chef.
-export type Sujet = "urgence" | "github" | "manager" | "cuisine" | "station" | "box" | "renouvellement" | "verification" | "injoignable";
+// `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box.
+export type Sujet = "github" | "manager" | "cuisine" | "station" | "box" | "renouvellement" | "verification" | "injoignable";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts) ;
 // une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
@@ -60,10 +57,10 @@ export type Appel = { geste: string } | { demande: true } | { onglet: string } |
 // ligne n'a pas de geste à faire depuis l'app.
 export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; consignes?: string[]; releve?: string; geste: string; bouton?: string; appel?: Appel; prix: string; verification?: Verification };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
-// Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
+// Ce que la bande d'un projet dit de lui sur sa case de la barre : une
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
 // ont été lus, et vont bien.
-export type Signal = { etat: "urgence" | "alerte" | "non-verifie" | "injoignable"; dit: string };
+export type Signal = { etat: "alerte" | "non-verifie" | "injoignable"; dit: string };
 // L'état de l'interrupteur du projet, pour l'interrupteur de son espace (#906, #1406) : allumé ou
 // éteint, tel qu'il vient d'être lu — sans le délai d'affichage d'une ligne de la bande. Un seul pour
 // tout le projet : le manager le suit, et c'est sa ligne qui le dit (runtime/src/manager-cli.ts) —
@@ -150,69 +147,6 @@ function desEcrituresRetenues(status: string | Sans): Alerte[] {
       geste: "nothing to do: the writes resume by themselves at the time given",
       prix: AUCUN,
     }));
-}
-
-// --- L'urgence ----------------------------------------------------------------
-//
-// Plus rien ne cuit, et c'est le chef que toute la cuisine attend (runtime/src/urgence.ts) : pas une
-// panne parmi d'autres, la seule chose qui, faite, relance tout. Sa ligne passe au-dessus de toutes
-// les autres, marquée à part. Elle dit qui attend quoi — la décision qui retient le plus de tickets —,
-// depuis combien de temps tout est à l'arrêt — un âge entre deux heures de la box —, les tickets
-// retenus, et la ligne du bloc `attend` de chaque décision en cause, mot pour mot : ce qui attend,
-// puis le geste. Chacune garde aussi sa carte dans T'attend. Une décision qui ne retient qu'une partie
-// du rail n'est pas une urgence : la box n'en donne pas, rien ne se dit ici — et un runtime d'avant le
-// champ n'en dit rien non plus : ce qu'il ne donne pas, les autres lignes le disent déjà.
-
-// Ce que la cuisine attend du chef, d'après le mot de la cause (runtime/src/etat.ts,
-// `CAUSES_D_URGENCE`) et ce qui nomme la décision. Un mot que l'app n'a pas ici se dit tel quel.
-const ATTENDU: ReadonlyMap<string, (decision: string) => string> = new Map([
-  ["merge", (decision: string) => `your merge of ${decision}`],
-  ["remontée", (decision: string) => `your decision on ${decision}, escalated by the pass`],
-  ["PR fermée", (decision: string) => `your decision on ${decision}, whose PR was closed`],
-  ["connexion", (station: string) => `you to reconnect Max on ${station}`],
-  ["session", () => "you to reconnect the Max session"],
-  ["base rouge", () => "you to clear the red base"],
-  ["setup", () => "you to unblock the project setup"],
-]);
-const attendu = ({ decision, cause }: DecisionUrgente) => ATTENDU.get(cause)?.(decision) ?? `you on ${decision} (${cause})`;
-// Une décision en cause, comme le bloc `attend` l'écrit : ce qui la nomme, puis sa ligne.
-const enCause = ({ decision, geste }: DecisionUrgente) => `${decision}  ${geste}`;
-
-function deLUrgence(faits: Faits | Sans): Alerte[] {
-  if ("sans" in faits || faits.urgence == null) return [];
-  const urgence = faits.urgence;
-  const { retenus, autres } = urgence;
-  const aussi = autres.length === 0 ? "" : ` — also held by ${autres.map(({ decision }) => decision).join(", ")}`;
-  return [
-    {
-      sujet: "urgence",
-      verifie: true,
-      ton: "rouge",
-      dit: `the whole kitchen is waiting for ${attendu(urgence)} — at a standstill for ${duree(Date.parse(faits.lu) - Date.parse(urgence.depuis))}`,
-      pourquoi: `${retenus.length} ticket${s(retenus.length)} held, none can cook until you act: ${retenus.map((ticket) => `#${ticket}`).join(", ")}${aussi}`,
-      releve: [urgence, ...autres].map(enCause).join("\n"),
-      geste: `do what ${urgence.decision} waits for, as the station writes it`,
-      appel: DEMANDE,
-      prix: "none: nothing is cooking — once you act, the held tickets start again, on your quota",
-    },
-  ];
-}
-
-// Une décision du chef qui ne retient que ses tickets : la cuisine n'est pas à l'arrêt, et la ligne
-// ne le dit jamais — « toute la cuisine » n'est que dans l'urgence, quand rien ne peut cuire. Elle
-// nomme la décision et combien de tickets elle retient vraiment, ceux qui l'attendent.
-function desRetenues(faits: Faits | Sans): Alerte[] {
-  if ("sans" in faits || faits.urgence != null) return [];
-  return (faits.retenues ?? []).map((retenue) => ({
-    sujet: "cuisine",
-    verifie: true,
-    ton: "jaune",
-    dit: `waiting for ${attendu(retenue)}: ${retenue.retenus.length} ticket${s(retenue.retenus.length)} held, the other tickets keep cooking`,
-    pourquoi: `held by ${retenue.decision}: ${retenue.retenus.map((ticket) => `#${ticket}`).join(", ")}`,
-    releve: enCause(retenue),
-    geste: `do what ${retenue.decision} waits for, as the station writes it`,
-    prix: "none: the held tickets start again once you act, on your quota",
-  }));
 }
 
 // --- L'interrupteur GitHub seul refusé ----------------------------------------------
@@ -623,27 +557,24 @@ const avecBouton = (alerte: Alerte): Alerte => {
   return bouton === undefined ? alerte : { ...alerte, bouton };
 };
 
-// La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
+// La bande d'un projet, d'après ce qui en a été lu : le manager, la cuisine — et
 // son setup —, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle, limite }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...duRefusDeGitHubSeul(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...desEcrituresRetenues(status), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
+  return parGravite([...duRefusDeGitHubSeul(faits), ...deLaLimite(faits, limite), ...desEcrituresRetenues(status), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
-// La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
+// La plus grave d'abord : une alerte lue avant un état non vérifié,
 // le rouge avant le reste. Le tri est stable : à gravité égale, l'ordre de la bande (manager, cuisine) tient.
-const GRAVITE = (alerte: Alerte) => (alerte.sujet === "urgence" ? -1 : (alerte.verifie ? 0 : 10) + (alerte.ton === "rouge" ? 0 : alerte.ton === "jaune" ? 1 : 2));
+const GRAVITE = (alerte: Alerte) => (alerte.verifie ? 0 : 10) + (alerte.ton === "rouge" ? 0 : alerte.ton === "jaune" ? 1 : 2);
 const parGravite = (bande: Alerte[]): Alerte[] => bande.map((alerte, rang) => ({ alerte, rang })).sort((a, b) => GRAVITE(a.alerte) - GRAVITE(b.alerte) || a.rang - b.rang).map(({ alerte }) => alerte);
 
-// Le signal d'une bande, pour la case de son projet : l'urgence l'emporte sur tout, et se dit comme
-// telle — pas comme une alerte ordinaire ; puis une alerte vérifiée ; sinon un état non vérifié,
+// Le signal d'une bande, pour la case de son projet : une alerte vérifiée ; sinon un état non vérifié,
 // nommé comme tel — jamais lu comme sain. Même logique que la bande : rien n'y est recalculé.
 export function signalDe(bande: readonly Alerte[]): Signal | undefined {
   // La box ne répond pas : un mot, et ce qu'on en sait — le reste de la bande n'a pas pu être lu.
   const muette = bande.find(({ sujet }) => sujet === "injoignable");
   if (muette !== undefined) return { etat: "injoignable", dit: muette.dit };
   const vues = bande.filter(({ verifie }) => verifie);
-  const urgentes = vues.filter(({ sujet }) => sujet === "urgence");
-  if (urgentes.length > 0) return { etat: "urgence", dit: [...urgentes, ...vues.filter(({ sujet }) => sujet !== "urgence")].map(({ dit }) => dit).join(" ; ") };
   if (vues.length > 0) return { etat: "alerte", dit: vues.map(({ dit }) => dit).join(" ; ") };
   if (bande.length > 0) return { etat: "non-verifie", dit: bande.map(({ dit }) => dit).join(" ; ") };
   return undefined;
@@ -717,7 +648,6 @@ const EN_COURS = [FAITS_PAS_ENCORE, STATUS_PAS_ENCORE, MANAGER_PAS_DIT];
 type Source = "faits" | "status" | "manager" | "controle";
 // Quelles lectures disent chaque sujet : une réception ne compte que pour les alertes qu'elle a relues.
 const LECTURES_DE: Record<Sujet, readonly Source[]> = {
-  urgence: ["faits"],
   github: ["faits", "status"],
   manager: ["manager"],
   cuisine: ["faits", "status"],

@@ -1,7 +1,7 @@
 // Ce que les écrans de la pause de quota partagent (#3482) : le quota GitHub du compte est épuisé. La seule station de
 // « parade », box/claude, tourne, mais son dernier signe de vie a quinze minutes — elle ne peut plus l'écrire — et elle a
 // publié son état de quota (`quotaGithub`) : la limite `core`, reprise à 10:11 UTC, sept minutes après la lecture. Trois
-// tickets `fire` attendent en file depuis vingt minutes, deux qu'aucun manager n'a pris. La vue reçoit ce que l'app en
+// tickets `fire` attendent en file depuis vingt minutes. La vue reçoit ce que l'app en
 // tire (app/src/vue/rail/github.ts, `avecLeRail`), rien écrit à la main.
 import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
 import { avecLeRail, type RailSurGithub, type SignesDeVie } from "../../../app/src/vue/rail/github.ts";
@@ -14,10 +14,6 @@ export const REPRISE = new Date(Date.parse(MAINTENANT) + 7 * 60_000 - 12_000).to
 const RAIL: RailSurGithub = {
   lu: MAINTENANT,
   tickets: [ticket(12, "en attente", { entreLe: ENTREE }), ticket(21, "en attente", { entreLe: ENTREE, depend: [12] }), ticket(22, "en attente", { entreLe: ENTREE })],
-  nonPris: [
-    { ticket: 21, depuis: ENTREE },
-    { ticket: 22, depuis: ENTREE },
-  ],
 };
 
 // La lecture d'un projet sur GitHub seul avant son rail (app/src/tableau/lecture.ts, `vide`).

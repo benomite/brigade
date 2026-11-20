@@ -11,10 +11,8 @@
 // d'après ce que la forme dit de chaque ticket (`tiers`). Chaque carte porte ce que la file dit du ticket : sa station
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
 // Ce sont les deux seules choses lues hors de la forme.
-import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
-import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
-import type { AlerteDuRail } from "../../runtime/src/attente-du-rail/alertes.ts";
+import { attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
@@ -340,24 +338,6 @@ export type Attente = { raison: string; complete?: string; label?: string; colon
 // station y est aussi : le chef n'a posé aucune attente, donc `relance` est nulle et la carte n'a rien à reprendre.
 export type Tiers = { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string };
 
-// Une décision du chef qui retient toute la cuisine, comme le runtime la donne
-// (runtime/src/etat.ts, `DecisionUrgente`) : `decision`, ce qui la nomme en tête
-// de sa ligne du bloc `attend` (`#535`, une station, `base`, `setup`) ; `ticket`,
-// nul hors ticket ; `cause`, son mot ; `geste`, sa ligne du bloc — ce qui attend,
-// puis le geste du chef ; `url`, l'adresse de son issue, nulle sans elle.
-export type DecisionUrgente = { decision: string; ticket: number | null; cause: string; geste: string; url: string | null };
-// L'urgence : plus rien ne cuit, et c'est le chef que toute la cuisine attend.
-// `depuis` : le début de l'arrêt total, à l'horloge de la box ; `retenus` : les
-// tickets à l'arrêt ; `autres` : les autres décisions qui en retiennent aussi ;
-// `alerte` : celle que le runtime a émise pour cette urgence, nulle tant qu'il ne
-// l'a pas annoncée, absente d'un runtime d'avant ce champ.
-export type Urgence = DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[]; alerte?: AlerteUrgence | null };
-// Une décision du chef qui retient des tickets, et eux seuls : `retenus`, ceux qui l'attendent. Les
-// autres tickets cuisent (runtime/src/etat.ts, `Faits.retenues`).
-export type Retenue = DecisionUrgente & { retenus: number[] };
-// L'alerte d'urgence émise (runtime/src/etat.ts, `AlerteExposee`) : sa ligne, sa
-// première émission, la dernière, rappel compris, et le nombre de rappels.
-export type AlerteUrgence = { libelle: string; emiseLe: string; derniereLe: string; rappels: number };
 // La cuisine oisive (runtime/src/cuisine-oisive.ts, `CuisineOisive`) : `depuis`, le dernier repère d'où l'oisiveté se
 // compte, à l'horloge de la box ; `cartes`, les tickets qui devraient cuire, dans l'ordre du rail.
 export type CuisineOisive = { depuis: string; cartes: number[] };
@@ -366,10 +346,8 @@ export type CuisineOisive = { depuis: string; cartes: number[] };
 export type AppelsGithub = { total: number; topProject: { name: string; calls: number } | null; topKind: { name: string; calls: number } | null };
 
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
-// `cooks`, `attend`, `livres`, `urgence` : absents, c'est un runtime d'avant ce
-// champ — les seuls que la forme laisse manquer. `urgence` nulle : la
-// cuisine n'attend pas le chef tout entière — une décision qui ne retient qu'une partie
-// du rail n'en est pas une.
+// `cooks`, `attend`, `livres` : absents, c'est un runtime d'avant ce
+// champ — les seuls que la forme laisse manquer.
 export type Faits = {
   etat: string;
   lu: string;
@@ -384,18 +362,12 @@ export type Faits = {
   githubSeulRefuse?: { reason: string; since: string };
   // Le dépôt du projet, quand le compte GitHub de l'app ne peut pas y écrire (tableau/lecture.ts, `lectureSeule`, #3163) ; absent sinon, et quand GitHub ne l'a pas dit.
   lectureSeule?: { depot: string };
-  // Le rail bloqué (vue/rail-bloque/, #3358) : des tickets `fire` qu'aucun manager n'a pris au-delà du délai, ou pourquoi
-  // ils ne se lisent pas ; absent quand rien n'est bloqué.
-  railBloque?: RailBloqueLu;
   // Pourquoi la file du rail ne part pas (vue/attente-du-rail/, #3433) : la raison, sa phrase, son geste ; absent quand rien
   // n'attend, ou qu'un cook tourne. `lignesDesCartes` : la ligne de chaque carte en file qui ne part pas la prochaine ;
   // `attendusDesCartes` : les tickets qu'elle attend, que sa carte ouvre (#3763).
   attenteDuRail?: AttenteDuRail;
   lignesDesCartes?: LignesDesCartes;
   attendusDesCartes?: AttendusDesCartes;
-  // Les alertes du haut du rail (vue/attente-du-rail/, #3823) : chacune vraie, datée, avec son geste ou ce que la cuisine en
-  // fait ; absentes sans aucune.
-  alertesDuRail?: AlerteDuRail[];
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseDuCompte;
@@ -428,10 +400,6 @@ export type Faits = {
   // — TODO le replie sous « Awaiting others ». Absent quand rien n'attend un autre humain, et des `facts` d'une station.
   attendAutres?: AttenduDAutrui[];
   livres?: Livre[];
-  urgence?: Urgence | null;
-  // Les décisions du chef qui retiennent des tickets sans arrêter la cuisine : absent, c'est un
-  // runtime d'avant ce champ.
-  retenues?: Retenue[];
   // La cuisine oisive, des cartes sur le rail (runtime/src/cuisine-oisive.ts, #1862) : la ligne `fault` de `status`.
   // Nulle quand la panne ne tient pas ; absent d'un runtime d'avant ce champ.
   cuisineOisive?: CuisineOisive | null;
@@ -538,19 +506,12 @@ export type Tableau = {
   compteurs: { libelle: string; nombre: number }[];
   cooks: { enCours: Cook[]; vide: string };
   evenement: string;
-  // La ligne « nothing cooks: base red since …, repair #N in progress » (« rien ne cuit : base rouge depuis …, réparation #N en cours » avant #928) que `status` écrit
-  // en tête, mot pour mot — absente quand `status` n'est pas lu ou ne la porte pas.
-  rienNeCuit?: string;
   // La panne d'une cuisine oisive, des cartes sur le rail (#1863) : la tête du rail la pose en rouge — `dit`, sa
   // ligne ; `survol`, ce qu'elle sait de plus. Absente quand `facts` ne la porte pas.
   panne?: Panne;
   rail: Rail;
-  // Le rail bloqué (vue/rail-bloque/, #3358) : la ligne en tête du rail. Absent quand rien n'est bloqué.
-  railBloque?: RailBloqueLu;
   // Pourquoi la file ne part pas (vue/attente-du-rail/, #3433) : la ligne sous lui. Absent quand rien n'attend, ou qu'un cook tourne.
   attenteDuRail?: AttenteDuRail;
-  // Les alertes du haut du rail (vue/attente-du-rail/, #3823) : la première est la ligne en tête du rail. Absentes sans aucune.
-  alertesDuRail?: AlerteDuRail[];
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
   pauseQuota?: PauseDuCompte;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
@@ -702,53 +663,11 @@ function comprendreRelecture(valeur: unknown, champ: string): Relecture {
   };
 }
 
-function comprendreDecision(valeur: unknown, champ: string): DecisionUrgente {
-  const lu = objet(valeur, champ);
-  return {
-    decision: texte(lu.decision, `${champ}.decision`),
-    ticket: ouRien(lu.ticket, `${champ}.ticket`, entier),
-    cause: texte(lu.cause, `${champ}.cause`),
-    geste: texte(lu.geste, `${champ}.geste`),
-    url: ouRien(lu.url, `${champ}.url`, texte),
-  };
-}
-
-// L'urgence : la décision qui retient le plus de tickets, depuis quand tout est à l'arrêt,
-// les tickets retenus, les autres décisions.
-function comprendreUrgence(valeur: unknown, champ: string): Urgence {
-  const lu = objet(valeur, champ);
-  const liste = (brut: unknown, nom: string): unknown[] => (Array.isArray(brut) ? brut : refuser(nom, "a list"));
-  return {
-    ...comprendreDecision(lu, champ),
-    depuis: heure(lu.depuis, `${champ}.depuis`),
-    retenus: liste(lu.retenus, `${champ}.retenus`).map((ticket, rang) => entier(ticket, `${champ}.retenus[${rang}]`)),
-    autres: liste(lu.autres, `${champ}.autres`).map((autre, rang) => comprendreDecision(autre, `${champ}.autres[${rang}]`)),
-    ...(lu.alerte === undefined ? {} : { alerte: ouRien(lu.alerte, `${champ}.alerte`, comprendreAlerteUrgence) }),
-  };
-}
-
-function comprendreRetenue(valeur: unknown, champ: string): Retenue {
-  const lu = objet(valeur, champ);
-  const retenus = Array.isArray(lu.retenus) ? lu.retenus : refuser(`${champ}.retenus`, "a list");
-  return { ...comprendreDecision(lu, champ), retenus: retenus.map((ticket: unknown, rang: number) => entier(ticket, `${champ}.retenus[${rang}]`)) };
-}
-
 // La cuisine oisive : depuis quand, et les cartes qui devraient cuire.
 function comprendreCuisineOisive(valeur: unknown, champ: string): CuisineOisive {
   const lu = objet(valeur, champ);
   const cartes = Array.isArray(lu.cartes) ? lu.cartes : refuser(`${champ}.cartes`, "a list");
   return { depuis: heure(lu.depuis, `${champ}.depuis`), cartes: cartes.map((ticket: unknown, rang: number) => entier(ticket, `${champ}.cartes[${rang}]`)) };
-}
-
-// L'alerte émise pour l'urgence : sa ligne, ses deux heures, ses rappels.
-function comprendreAlerteUrgence(valeur: unknown, champ: string): AlerteUrgence {
-  const lu = objet(valeur, champ);
-  return {
-    libelle: texte(lu.libelle, `${champ}.libelle`),
-    emiseLe: heure(lu.emiseLe, `${champ}.emiseLe`),
-    derniereLe: heure(lu.derniereLe, `${champ}.derniereLe`),
-    rappels: entier(lu.rappels, `${champ}.rappels`),
-  };
 }
 
 // Les captures d'une livraison d'interface : si elle les porte toutes, et chaque écran avec
@@ -823,7 +742,7 @@ export const entreeDe = (faits: Pick<Faits, "attend" | "attendAutres"> | undefin
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
-// `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
+// `cooks`, `attend`, `livres`, `cuisineOisive` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
 // et qui manquent alors ici aussi — et `apprentissage`, absent quand le projet n'a ni leçon ni profil, `github` quand GitHub ne limite pas le compte,
 // et `attendAutres` quand rien n'attend un autre humain.
@@ -849,11 +768,9 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...quotaLu(racine.quotaGithub),
       ...refusGitHubSeulLu(racine.githubSeul),
       ...lectureSeuleLue(racine.lectureSeule),
-      ...railBloqueLu(racine.railBloque),
       ...attenteDuRailLue(racine.attenteDuRail),
       ...lignesDesCartesLues(racine.lignesDesCartes),
       ...attendusDesCartesLus(racine.attendusDesCartes),
-      ...alertesDuRailLues(racine.alertesDuRail),
       ...pauseQuotaLue(racine.pauseQuota),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
@@ -956,9 +873,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               }), ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, livre: heure(racine.lu, "lu"), station: null, pr: null, illisible }));
             }),
           }),
-      ...(racine.urgence === undefined ? {} : { urgence: ouRien(racine.urgence, "urgence", comprendreUrgence) }),
       ...(racine.cuisineOisive === undefined ? {} : { cuisineOisive: ouRien(racine.cuisineOisive, "cuisineOisive", comprendreCuisineOisive) }),
-      ...(racine.retenues === undefined ? {} : { retenues: (Array.isArray(racine.retenues) ? racine.retenues : refuser("retenues", "a list")).map((r: unknown, rang: number) => comprendreRetenue(r, `retenues[${rang}]`)) }),
       ...(racine.stations === undefined
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
@@ -1487,14 +1402,6 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   };
 }
 
-// La ligne de `status` qui dit que rien ne cuit (runtime/src/etat.ts, `RIEN_NE_CUIT`) : lue
-// telle quelle, en anglais ou en français (#928), une seule ligne, hors du bloc `attend` qu'elle
-// ne rejoint jamais.
-function rienNeCuit(status?: StatusLu): { rienNeCuit?: string } {
-  const ligne = status?.texte.split("\n").find((candidate) => candidate.startsWith("nothing cooks: ") || candidate.startsWith("rien ne cuit : "));
-  return ligne === undefined ? {} : { rienNeCuit: ligne };
-}
-
 // La cuisine oisive, des cartes sur le rail (#1863) : depuis combien de temps, et combien de cartes — la durée se
 // compte entre deux heures de la box, le dernier repère et la lecture.
 export function panneDe({ cuisineOisive, lu }: Faits): { panne?: Panne } {
@@ -1542,15 +1449,12 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ],
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
-    ...rienNeCuit(status),
     ...panneDe(faits),
     rail: rail(faits, attend, status, repondues, ecrites),
     auTravail: ticketsAuTravail(faits),
     ...(faits.lectureSeule === undefined ? {} : { lectureSeule: faits.lectureSeule }),
     ...(faits.quotaGithub === undefined ? {} : { quotaGithub: faits.quotaGithub }),
-    ...(faits.railBloque === undefined ? {} : { railBloque: faits.railBloque }),
     ...(faits.attenteDuRail === undefined ? {} : { attenteDuRail: faits.attenteDuRail }),
-    ...(faits.alertesDuRail === undefined ? {} : { alertesDuRail: faits.alertesDuRail }),
     ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),

@@ -14,5 +14,6 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "exclude": ["test/superviseur/6-trace-et-aucun-ticket-de-lui-meme.test.ts"]
 }

@@ -26,10 +26,6 @@ import type { Issue, PR } from "../github.ts";
 export const LABEL_TAKEN = "taken";
 export const LABEL_IN_PASS = "in-pass";
 export const LABEL_WAITING = "waiting";
-// Les tickets de réparation de main que la pass ouvrait avant le superviseur (#3815, retirés par #3914) : leur label, et
-// le début de leur titre, que suit le test en échec. L'app les lit encore sur ceux qui restent ouverts.
-export const LABEL_REPARATION_DE_MAIN = "repair-main";
-export const PREFIXE_DE_LA_REPARATION = "Repair main:";
 
 export type EtatDuTicket = "taken" | "pass" | "waiting" | "base-red";
 

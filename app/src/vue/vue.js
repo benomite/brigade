@@ -104,9 +104,7 @@ import { garderLeClavier } from "./garder-le-clavier.js";
 import { AILLEURS, poserLaCarte as poserLaCarteDuChef, poserLaCarteAPart, poserLaListe as poserLaListeDesCartes, poserLEnvoi } from "./cartes-du-chef/cartes-du-chef.js";
 import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-design/detail-de-validation.js";
 import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
-import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
 import { ligneDeLAttente } from "./attente-du-rail/ligne-de-l-attente.js";
-import { ligneDesAlertesDuRail } from "./attente-du-rail/ligne-des-alertes.js";
 import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
@@ -1126,12 +1124,6 @@ const etatsDuManager = new Map();
 const detailsDeplies = new Set();
 /** @type {Map<string, HTMLElement>} */
 const signalees = new Map();
-// Le projet dont le chef a cliqué la notification d'urgence (notification.ts) : sa ligne d'urgence
-// reste marquée choisie tant qu'il reste sur lui. `gesteDeLUrgence` : le bouton de cette ligne, tel
-// que la bande l'a posé en dernier — c'est lui qui prend le clavier au clic.
-let urgenceChoisie = "";
-/** @type {HTMLElement | undefined} */
-let gesteDeLUrgence;
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
@@ -2800,9 +2792,8 @@ function marquerPastille(nom) {
   entree.ariaLabel = entree.title;
 }
 
-// Le signal d'un projet sur sa case : l'urgence — toute sa cuisine attend le chef —, une alerte, ou
-// « non vérifié » — jamais rien de plus sain que ce que la bande a dit. L'urgence n'est pas une
-// alerte de plus : elle a son signe et sa marque. Le projet affiché n'en porte pas : sa bande est sous ses yeux.
+// Le signal d'un projet sur sa case : une alerte, ou
+// « non vérifié » — jamais rien de plus sain que ce que la bande a dit. Le projet affiché n'en porte pas : sa bande est sous ses yeux.
 // Cliquer le signal ouvre l'espace du projet : sa bande y est en tête, chaque alerte avec son geste
 // et son prix, la plus grave d'abord (alertes.ts) — rien à chercher, un clic de plus lance le geste.
 /** @param {string} nom */
@@ -2819,13 +2810,11 @@ function marquerSignal(nom) {
   const marque = pose ?? document.createElement("span");
   marque.className = "signal";
   marque.dataset.etat = signal.etat;
-  marque.textContent = signal.etat === "urgence" ? "!!" : signal.etat === "alerte" ? "!" : signal.etat === "injoignable" ? "×" : "?";
+  marque.textContent = signal.etat === "alerte" ? "!" : signal.etat === "injoignable" ? "×" : "?";
   marque.title =
     signal.etat === "injoignable"
       ? `${nom}: unreachable — ${signal.dit}. Click to open ${nom}: its last reading is kept, with the gesture to try again`
-      : signal.etat === "urgence"
-          ? `${nom}: ${signal.dit} — urgent: the whole kitchen is waiting for you, nothing cooks until you act. Click to open ${nom}, with what it waits for and since when`
-        : signal.etat === "alerte"
+      : signal.etat === "alerte"
           ? `${nom}: ${signal.dit} — alert: something needs doing. Click to open ${nom}, with the alert, its action and its price`
           : `${nom}: ${signal.dit} — not verified: the app could not read this state, it is not a failure. Click to open ${nom}, with what could not be read`;
   marque.ariaLabel = marque.title;
@@ -4704,8 +4693,6 @@ function ongletDesStations(projet) {
     // Un déménagement parti se lit sur la ligne du haut ; refusé, sa raison se dit ici.
     ...(demenagementDitPour.projet === projet.nom && demenagementDitPour.refus ? [{ texte: demenagementDitPour.dit, refus: true, detail: demenagementDitPour.detail }] : refusParElle === "" ? [] : [{ texte: refusParElle, refus: true, detail: "" }]),
     ...(ajout !== undefined && !etatDeLAjout.ouvert && etatDeLAjout.fait !== undefined ? [{ texte: FAIT_DIT(etatDeLAjout, projet.nom), refus: false, detail: "" }] : []),
-    // La ligne que `status` écrit en tête quand la base rouge est en réparation : elle dit pourquoi rien ne cuit.
-    ...(tenu !== undefined && "tableau" in tenu && tenu.tableau.rienNeCuit !== undefined ? [{ texte: tenu.tableau.rienNeCuit, refus: false, detail: "" }] : []),
   ];
 
   const ouverts = detailsOuverts.get(projet.nom) ?? new Set();
@@ -5257,26 +5244,20 @@ function poserLeRail(projet) {
   const vuAmont = amonts.get(projet.nom);
   const alertes = vuAmont !== undefined && "groupes" in vuAmont ? vuAmont.alertes : undefined;
   const retenues = retenuesConnues({ misDeCote: vuAmont !== undefined && "groupes" in vuAmont ? (vuAmont.groupes.find(({ etat }) => etat === "mise-de-cote")?.issues.map(({ ticket }) => ticket) ?? []) : [], arretee: tenu.tableau.arretee });
-  // Pendant la pause de quota GitHub du compte (ticket 3482), le rail dit seulement qu'il l'attend : ni le rail bloqué, ni
-  // l'attente de la file — sauf une panne que la pause n'explique pas, qui garde sa ligne et son geste.
+  // Pendant la pause de quota GitHub du compte (ticket 3482), le rail dit seulement qu'il l'attend, pas l'attente de la file —
+  // sauf une panne que la pause n'explique pas, qui garde sa ligne et son geste.
   const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now(), projet.redemarre !== undefined);
-  const attente = ditDuRail.railBloque === undefined ? ditDuRail.attenteDuRail : undefined;
-  // Les alertes du haut du rail (ticket 3823) : vraies et actionnables, jugées par le runtime. Une station qui redémarre pour
-  // une mise à jour n'est pas une panne (ticket 3637). Elles disent seules les pannes des stations : la phrase de l'attente
-  // qui porte un geste ne se montre plus, elle ne sait ni l'en-tête ni le dernier cook.
-  const alertesDuRail = (tenu.tableau.alertesDuRail ?? []).filter(({ sorte, cause }) => projet.redemarre === undefined || (sorte !== "aucun-cook" && cause !== "aucun-cook"));
+  const attente = ditDuRail.attenteDuRail;
   const statut =
     [
       ligneDuDisjoncteur,
       ligneDesAlertes(document, alertes),
-      ligneDuRailBloque(document, ditDuRail.railBloque, gestesDuRail),
       ligneDuProjetEnPause(document, ditDuRail.enPause),
       panneDuRail(projet, tenu.tableau),
       teteDuRail(projet),
       horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a),
-      ligneDesAlertesDuRail(document, alertesDuRail, gestesDuRail),
       // Pourquoi la file ne part pas (ticket 3433) : jamais « no reason is found » devant une raison que la vue connaît.
-      ligneDeLAttente(document, attente === undefined || attente.geste !== null ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail),
+      ligneDeLAttente(document, attente === undefined ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail),
     ].find((lignes) => lignes.length > 0) ?? [];
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
@@ -7645,8 +7626,7 @@ async function mettreAJour(clone) {
 // qui ne va pas, ce que la box en a écrit, mot pour mot, puis le geste et son prix. Le geste y est
 // collé, sous sa forme : un geste du socle, direct ou confirmé — sa confirmation s'ouvre sous la
 // ligne ; une demande au second, quand il faut lire, juger ou agir hors de l'app ; l'onglet qui lit
-// l'état que la file ne dit pas. Une ligne « non vérifié » dit un état que la box ne dit pas. L'urgence,
-// toujours la première, porte sa marque en tête : ce n'est pas une ligne comme les autres. Vide,
+// l'état que la file ne dit pas. Une ligne « non vérifié » dit un état que la box ne dit pas. Vide,
 // la bande est cachée : elle ne prend aucune place. Un projet sans box n'en a pas — rien n'en est
 // lu, et l'espace le dit.
 /** @param {Projet} projet */
@@ -7656,7 +7636,6 @@ function poserAlertes(projet) {
   // l'interrupteur ne sait pas, la ligne dit pourquoi.
   // La ligne du disjoncteur non plus quand TODO la porte, sur Rail : elle y a son bouton (ticket 2140).
   const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && (("geste" in appel && appel.geste === "projet-allumer") || ("reprise" in appel && disjoncteursEnTodo.has(projet.nom)))));
-  gesteDeLUrgence = undefined;
   const avis = avisDuDepot(projet, "page");
   // En lecture seule, sa ligne vient en tête du projet (ticket 3163) : elle dit pourquoi aucun geste n'est offert.
   const depot = lectureSeuleDe(projet);
@@ -7665,11 +7644,10 @@ function poserAlertes(projet) {
   bande.replaceChildren(...seule, ...(avis === undefined ? [] : [avis]), ...alertes.map((alerte) => poserAlerte(projet, alerte)));
 }
 
-// L'endroit d'une ligne de la bande : son sujet, et ce qu'elle dit — l'urgence par son seul sujet,
-// sa phrase change à chaque lecture (« at a standstill for 5 h 00 »). Ce qui y est ouvert — sa
+// L'endroit d'une ligne de la bande : son sujet, et ce qu'elle dit. Ce qui y est ouvert — sa
 // confirmation, son détail — ne se referme pas sous les yeux du chef.
 /** @param {Alerte} alerte */
-const endroitDeLAlerte = ({ sujet, dit }) => (sujet === "urgence" ? "alerte:urgence" : `alerte:${sujet}:${dit}`);
+const endroitDeLAlerte = ({ sujet, dit }) => `alerte:${sujet}:${dit}`;
 
 // Une ligne de la bande (ticket 907) : une seule ligne — ce qui ne va pas — et un seul contrôle, le
 // geste qui le lève. Son prix n'est pas posé à côté : le clic ouvre la confirmation, qui le dit. Ce
@@ -7683,13 +7661,10 @@ function poserAlerte(projet, alerte) {
   ligne.dataset.sujet = sujet;
   ligne.dataset.ton = ton;
   if (!verifie) ligne.dataset.verifie = "non";
-  if (sujet === "urgence" && urgenceChoisie === projet.nom) ligne.dataset.choisie = "oui";
   const endroit = endroitDeLAlerte(alerte);
   const tete = document.createElement("p");
   tete.className = "ligne";
-  const marque = sujet === "urgence" ? bloc("span", "URGENT") : undefined;
-  if (marque !== undefined) marque.className = "urgent";
-  tete.append(pastille(dit, ton), ...(marque === undefined ? [] : [marque]), bloc("strong", dit));
+  tete.append(pastille(dit, ton), bloc("strong", dit));
 
   // Le détail : ce que la ligne sait de plus, à plat une fois déplié — le pourquoi, et le brut de la box,
   // entier. Pas le geste : le seul geste montré est le contrôle de la ligne, un bouton — jamais une
@@ -7777,7 +7752,6 @@ function poserControle(projet, alerte, endroit) {
     pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
   }
   const [premier] = pose;
-  if (sujet === "urgence" && premier !== undefined) gesteDeLUrgence = premier;
   return pose;
 }
 
@@ -8913,7 +8887,6 @@ async function ouvrir(projet) {
   enregistreesARelire = true;
   stationOuverte = undefined;
   pageDeLApp = undefined;
-  if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
   nonEcrit = nonEcritSecond = "";
   gesteRate = undefined;
   // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
@@ -9029,19 +9002,15 @@ brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
     poserRail(courant);
   }
 });
-// Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
-// s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne
-// d'urgence, en tête de la bande, est marquée choisie : son geste prend le clavier, prêt à trancher.
-brigade.surUrgence(async (nom) => {
+// Le chef a cliqué un projet dans le menu de la barre des menus (barre-de-menus.ts) : la fenêtre est
+// déjà devant. Le projet s'ouvre — s'il ne l'est pas déjà —, et la fiche d'un ticket ouverte par-dessus se referme.
+brigade.surOuvrirProjet(async (nom) => {
   const projet = configuration.projets.find((candidat) => candidat.nom === nom);
   if (projet === undefined) return;
-  urgenceChoisie = nom;
   if (courant?.nom !== nom) await ouvrir(projet);
   // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait.
   if (courant?.nom !== nom) return;
   if (ouverte !== undefined) fermerFiche();
-  poserAlertes(courant);
-  gesteDeLUrgence?.focus();
 });
 // L'installation d'un projet a été relue : les stations que sa box déclare se reposent, si c'est le projet affiché.
 brigade.surGuide(retenirDeclarees);
