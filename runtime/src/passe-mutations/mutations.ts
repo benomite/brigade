@@ -21,6 +21,8 @@ import { argumentsDuRejeu, dossierDuTest, etatDuCritere, FICHIER_DE_TEST, passe,
 export const BUDGET_DES_MUTATIONS_MS = 2 * 60_000;
 // Combien de mutants se jouent à la fois, chacun dans son checkout.
 export const MUTANTS_EN_PARALLELE = 4;
+// Combien de fois, au plus, la station rend à son cook les mutations qui survivent avant sa PR (#3976).
+export const RELANCES_DES_MUTATIONS = 3;
 
 // Le code qui se mute : un module JavaScript ou TypeScript, hors des tests et
 // de leurs aides, hors des déclarations de types.
