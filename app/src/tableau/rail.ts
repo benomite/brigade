@@ -18,7 +18,7 @@
 // lire. Ses lectures passent par `tenirLecturesDuTableau`, qui ne demande à GitHub qu'une lecture à la fois par projet,
 // reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer de commande.
 import { setTimeout as attendre } from "node:timers/promises";
-import { FRAICHEUR_MAX_D_UNE_LECTURE_MS } from "../vue/servi/fraicheur.ts";
+import { FRAICHEUR_MAX_D_UNE_LECTURE_MS, INTERVALLE_DE_LA_VEILLE_MS } from "../vue/servi/fraicheur.ts";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, RubriqueDuTableau, TableauLu } from "./lecture.ts";
 import { lignesDeLaFile, type RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
 import { lignesDeStatus } from "../../../runtime/src/attente-du-rail/raison.ts";
@@ -181,7 +181,10 @@ export function tenirLecturesDuTableau<P extends { nom: string }>(options: { lir
 // puis à chaque intervalle. `lisible` : un projet dont la vue lit le rail (absent : tous).
 export function ouvrirVeilleDuTableau<P extends { nom: string }>(options: {
   lire: (projet: P) => Promise<LectureDuTableauDuDepot>;
-  intervalleMs: number;
+  // Absent, la veille du rail de l'app : `INTERVALLE_DE_LA_VEILLE_MS`.
+  intervalleMs?: number;
+  // L'attente entre deux lectures : celle de Node, sauf aux tests, qui lisent l'intervalle demandé sans l'attendre.
+  attendre?: typeof attendre;
   lisible?: (projet: P) => boolean;
   surLecture(lecture: LectureDuRail): void;
 }) {
@@ -195,7 +198,7 @@ export function ouvrirVeilleDuTableau<P extends { nom: string }>(options: {
         if (signal.aborted) return;
         options.surLecture(lectureDuTableau(lu, projet.nom, demande, commandes));
       }
-      await attendre(options.intervalleMs, undefined, { signal }).catch(() => {});
+      await (options.attendre ?? attendre)(options.intervalleMs ?? INTERVALLE_DE_LA_VEILLE_MS, undefined, { signal }).catch(() => {});
       if (signal.aborted) return;
     }
   }

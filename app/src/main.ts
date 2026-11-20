@@ -51,7 +51,7 @@ import type { SignesDeVie } from "./vue/rail/github.ts";
 import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
-import { FRAICHEUR_MAX_D_UNE_LECTURE_MS, INTERVALLE_DE_LA_VEILLE_MS } from "./vue/servi/fraicheur.ts";
+import { FRAICHEUR_MAX_D_UNE_LECTURE_MS } from "./vue/servi/fraicheur.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
@@ -314,7 +314,6 @@ const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheur
 const passage = new Map<string, Promise<unknown>>();
 const veille = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
-  intervalleMs: INTERVALLE_DE_LA_VEILLE_MS,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
     // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa
