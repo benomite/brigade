@@ -169,6 +169,7 @@ export function ouvrirSupervision(options: OptionsSupervision) {
       journal.ajouter({ project: projet, ticket: null, author: "runtime", ...fait });
     }
     controle = null;
+    if (tickets.length === 0) avertir(`brigade : superviseur — disjoncteur fermé, cause disparue : ${gone} (aucun ticket à commenter)`);
     for (const ticket of tickets) {
       try {
         await github.commenter(ticket, `${MARQUE_DU_SUPERVISEUR}\n**Supervisor — the breaker is closed.** Cause gone: ${gone}. The kitchen launches cooks again.`);

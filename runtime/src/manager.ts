@@ -548,7 +548,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           MARQUEUR_MANAGER,
           `**Manager — set aside by its failure count (\`${ECHECS_ATTEINTS}\`).**${connue.fired ? " `fire` is set on it, and the label wins: the ticket does not enter the rail, no cook starts." : " It does not enter the rail."} Its cooks stopped without a delivery too many times in a row; no other box serves it.`,
           "",
-          `The reason is in the station's last comment. Remove \`${ECHECS_ATTEINTS}\` to try the ticket again.`,
+          `The reason is in the station's last comment. The supervisor takes the ticket and acts with its own gestures; no timer puts it back on the rail, and the chef does not need to act.`,
         ].join("\n")
       : connue.reason === ("served-elsewhere" satisfies Ecart)
       ? parLaStation

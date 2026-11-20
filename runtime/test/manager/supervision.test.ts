@@ -301,3 +301,13 @@ test("a GitHub read that fails is said and does not stop the supervisor", async 
   assert.match(s.avertissements[0] ?? "", /le superviseur a buté — HTTP 502/);
   assert.deepEqual(s.sujets, []);
 });
+
+test("a breaker closed with no ticket to tell says so in a warning instead of staying silent", async (t) => {
+  const s = superviseur(t, { labels: [], reponses: [ok()] });
+  s.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
+  await s.supervision.passer();
+  assert.equal(s.ouvert(), false);
+  assert.deepEqual(s.ecritures, []);
+  assert.equal(s.avertissements.length, 1);
+  assert.match(s.avertissements[0]!, /disjoncteur fermé, cause disparue : cooks failed in a row .*aucun ticket à commenter/);
+});
