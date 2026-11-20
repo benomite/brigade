@@ -48,7 +48,7 @@ function poser(base: string, { fois = 1, pathDuCompte = "", illisible = false } 
   const env: NodeJS.ProcessEnv = { ...process.env, HOME: etat, BRIGADE_REGISTRE: registre, BRIGADE_PATH_DU_COMPTE: pathDuCompte, POWERSHELL_TELEMETRY_OPTOUT: "1", POWERSHELL_UPDATECHECK: "Off", DOTNET_CLI_TELEMETRY_OPTOUT: "1", LOCALAPPDATA: join(base, "..") };
   if (illisible) env.BRIGADE_REGISTRE_ILLISIBLE = "1";
   const r = rendu(spawnSync(PWSH as string, ["-NoProfile", "-NonInteractive", "-NoLogo", "-Command", script], { encoding: "utf8", env }));
-  return { ...r, ecrit: readFileSync(registre, "utf8").split("\n").filter(Boolean) };
+  return { ...r, ecrit: readFileSync(registre, "utf8").split(/\r?\n/).filter(Boolean) };
 }
 
 function uneBase(): string {
