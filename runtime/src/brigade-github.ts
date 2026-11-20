@@ -3220,7 +3220,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // pas, la livraison part comme le dernier cook fini l'a laissée.
     const livre = conclusion === "done" && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null && depot.commits(branche) > 0 && (avant === null || depot.tete?.(branche) !== avant);
     let survivantes = livre ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
-    for (let relance = 1; survivantes.length > 0 && relance <= RELANCES_DES_MUTATIONS; relance += 1) {
+    for (let relance = 1; relance <= RELANCES_DES_MUTATIONS; relance += 1) {
+      if (survivantes.length === 0) break;
       avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before its PR: ${survivantes.length} surviving, its cook gets them back`);
       const fini = { lance, fin, flux };
       flux = join(options.flux, `${run}-mutations-${relance}.flux.jsonl`);
