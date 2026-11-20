@@ -54,7 +54,7 @@ export type Observation = {
 
 // Ce qui peut retenir la cuisine, lu à l'instant : chacun nul quand il ne
 // retient rien. `disjoncteur` : son ouverture. `limiteGitHub` : la limite que
-// GitHub a posée, ou la réserve des gestes que la box garde, et sa reprise.
+// GitHub a posée, et sa reprise.
 // `ecritures` : le budget des écritures qui les retient, et la prochaine.
 // `baseRouge` : ce qui échoue sur la base. `attenteCI` : les livraisons en
 // pass dont la tête n'a pas de CI conclue, et les checks qui y tournent —
@@ -156,7 +156,6 @@ const NOMS_DE_LIMITE: Record<string, string> = {
   primary: "primary limit, hourly quota",
   "secondary-writes": "secondary limit, writes per minute",
   "secondary-concurrency": "secondary limit, concurrent requests",
-  reserve: "the box keeps the reserve for your gestures",
 };
 
 const TICKETS_NOMMES = 5;
