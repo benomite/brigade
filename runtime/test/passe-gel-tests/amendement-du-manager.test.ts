@@ -13,7 +13,7 @@ import { AUTEUR_DU_MANAGER, motifDuGel, violationsDuGel } from "../../src/passe-
 import { ENV_GIT, git } from "../outils.ts";
 
 const COOK = "brigade (cook) <cook@example.invalid>";
-const GELE = "a project far over the old 4000-an-hour station budget\n";
+const GELE = "a project far over the old limit\n";
 const AMENDE = "a project with many calls in the last hour\n";
 
 function branche(t: TestContext): string {

@@ -43,9 +43,8 @@ The consumption grows with the number of projects; the pace does not get divided
 
 ## The kitchen is slowed only on GitHub's real remaining quota, and the chef's gestures are never held
 
-The station has no budget of its own and no share per project: the only reference is what GitHub says is
-left (#3833). Below 20% of the limit (`SEUIL_DU_RALENTISSEMENT`, 1,000 of 5,000), the box slows the busiest
-projects.
+The only reference is what GitHub says is left to the account (#3833). Below 20% of the limit
+(`SEUIL_DU_RALENTISSEMENT`, 1,000 of 5,000), the box slows the busiest projects.
 
 - **Kitchen calls**: polls, the pass, the manager. At 1,000 remaining or more, nothing holds them: no call of
   any project waits. Below 1,000, the box ranks the projects by the calls each made in the last 60 minutes
