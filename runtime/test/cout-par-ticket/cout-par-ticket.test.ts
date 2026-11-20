@@ -178,8 +178,9 @@ test("waiting tickets left an hour on a fake clock cost no counted GitHub call: 
   faux.feu(5, [...CALIBRE, "waiting"]);
   // Il attend son calibrage.
   faux.feu(6, ["fire"]);
-  // Une autre station le cuisine.
+  // Une autre station le cuisine : sa prise date d'à l'instant, un cook peut tourner dessous (#3883).
   faux.feu(7, [...CALIBRE, "taken"]);
+  faux.horloge = Date.now();
   faux.commenterCommeLeDepot(7, corpsDePrise("mac/claude"));
   // Sa zone est tenue par une PR ouverte d'un autre ticket.
   faux.feu(8, CALIBRE, "ticket 8", "## Zone\n\n- `runtime/src`\n");
