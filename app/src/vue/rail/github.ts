@@ -43,9 +43,9 @@ const EN_FILE = new Set([MOT_EN_FILE, MOT_TESTS_ECRITS]);
 const MOT_MIS_DE_COTE = "86";
 // La colonne où reste un ticket mis de côté qui ne demande rien au chef (faits.ts, `COLONNES_DE_FAITS`) : celle du rail.
 const COLONNE_DE_LA_MISE_DE_COTE = "On the rail";
-// Les mots dont un ticket a une station qui le tient.
 // La marque que la livraison porte dans le corps de sa PR : la station qui l'a cuisinée.
 const STATION_DE_LA_PR = /Cooked by station `([A-Za-z0-9._/-]+)`/;
+// Les mots dont un ticket a une station qui le tient.
 const TENUS = new Set(["pris", "en pass", "base rouge"]);
 
 type Brut = Record<string, unknown>;
@@ -222,13 +222,9 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const dit = etatDuTicket(issueLue, base);
     const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : etapeDuRail(labels) === "tests written" ? MOT_TESTS_ECRITS : MOT_EN_FILE;
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
-    // En pass, `taken` est retiré et la prise ne se lit plus : la station est d'abord celle que la PR de la livraison dit ;
-    // sans marque, ce que la prise dit encore, jamais une station devinée. Pris, le label dit que le ticket est tenu : un
-    // retrait `unlabeled taken` déjà lu dont le label est encore là (la lecture tombe dans la seconde du passage en pass)
-    // ne lui ôte pas sa station.
-    const deLaPr = etat === "pris" || pr?.station == null || pr.le === "" ? null : { station: pr.station, le: pr.le };
-    const lue = deLaPrise === undefined || deLaPr !== null ? null : tenantDeLIssue(deLaPrise, liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)));
-    const prise = deLaPr ?? lue ?? (etat === "pris" && deLaPrise !== undefined ? tenantDeLIssue(deLaPrise, []) : null);
+    // Pris, le label dit que le ticket est tenu : un retrait `unlabeled taken` déjà lu dont le label est encore là (la lecture
+    // tombe dans la seconde du passage en pass) ne lui ôte pas sa station, et ses événements ne se lisent pas.
+    const prise = deLaPrise === undefined ? null : tenantDeLIssue(deLaPrise, etat === "pris" ? [] : liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)));
     // Son dernier renvoi à un cook (ticket 3302), des commentaires déjà lus : aucune lecture de plus.
     const renvoi = dernierRenvoi(deLaPrise ?? deLaMiseDeCote ?? []);
     // Ses prises (ticket 3823), des mêmes commentaires : un ticket relancé en boucle se compte sans lecture de plus.
@@ -253,6 +249,9 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
 // Une heure comme `status` l'écrit dans ses lignes : `2026-11-04 02:58 UTC` (bon.ts, `HEURE_EN`).
 const heureEn = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
+// La station d'un ticket : en pass ou base rouge, celle que la PR de sa livraison dit, sinon ce que sa prise dit encore.
+const stationDuTicket = ({ etat, pr, prise }: Pick<TicketSurGithub, "etat" | "pr" | "prise">): string | null => (etat === "en pass" || etat === "base rouge" ? pr?.station : null) ?? prise?.station ?? null;
+
 // La ligne `status` d'un ticket (`  #<ticket>  <état>  <priorité>  <détail>  <titre>`), dans la forme que les bons du
 // rail découpent (bon.ts, `FORMES`) : qui le tient et depuis sa prise, qui l'a cuisiné et depuis sa PR, et, en attente,
 // depuis l'ouverture de son issue — GitHub ne date pas son entrée sur le rail sans lire son historique. Aucune
@@ -264,7 +263,8 @@ function ligneDuTicket({ ticket, etat, priorite, titre, creeLe, pr, prise }: Tic
   if (etat === MOT_EN_FILE && creeLe !== "") return ecrire("queued", `since ${heureEn(creeLe)}`);
   if (etat === MOT_TESTS_ECRITS && creeLe !== "") return ecrire("tests written", `since ${heureEn(creeLe)}`);
   if (etat === "pris" && prise !== null) return ecrire("taken", `by ${prise.station} since ${heureEn(prise.le)}`);
-  if (etat === "en pass" && prise !== null && pr !== null && pr.le !== "") return ecrire("in pass", `since ${heureEn(pr.le)}, cooked by ${prise.station}`);
+  const station = stationDuTicket({ etat, pr, prise });
+  if (etat === "en pass" && station !== null && pr !== null && pr.le !== "") return ecrire("in pass", `since ${heureEn(pr.le)}, cooked by ${station}`);
   return null;
 }
 
@@ -377,7 +377,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
         etat: ticket.etat,
         titre: ticket.titre,
         url: ticket.url,
-        ...(ticket.prise === null ? {} : { station: ticket.prise.station }),
+        ...(stationDuTicket(ticket) === null ? {} : { station: stationDuTicket(ticket) }),
         // Depuis quand il est dans sa colonne : sa prise s'il est pris, sa PR s'il est en pass.
         ...(ticket.etat === "pris" && ticket.prise !== null ? { depuis: ticket.prise.le } : {}),
         ...((ticket.etat === "en pass" || ticket.etat === "base rouge") && ticket.pr !== null && ticket.pr.le !== "" ? { depuis: ticket.pr.le } : {}),
