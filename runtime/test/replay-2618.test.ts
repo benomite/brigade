@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { DEBUT, FIN } from "../src/epique.ts";
-import { suivreLeTour } from "../src/retenue/tour.ts";
+import { observerLeTour } from "../src/superviseur/observation.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "./faux-github.ts";
 import { jusqua } from "./outils.ts";
@@ -76,7 +76,7 @@ test("#2618 on 2026-11-06 17:40: nine split epics whose sub-tickets are all clos
   assert.match(dit2553, /It closes anyway/);
 });
 
-test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the held-kitchen line no longer counts them", async (t) => {
+test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the supervisor's queue does not count them", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "replay-2618-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -85,7 +85,7 @@ test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the held-ki
   faux.feu(2600, LABELS, "Depends on #2601");
   faux.feu(2601, ["model:opus"], "an open issue");
   const lancer: Lancer = () => assert.fail("no cook leaves");
-  const suivi = suivreLeTour(() => MAINTENANT);
+  const suivi = observerLeTour(() => MAINTENANT);
   const station = stationDuDepot({
     ...STATION_DU_DEPOT,
     nom: "box/claude",
@@ -105,5 +105,5 @@ test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the held-ki
 
   assert.equal(faux.prisesDe("box/claude"), 0);
   assert.deepEqual(faux.pris(), []);
-  assert.deepEqual(suivi.vue().enAttente, [2600]);
+  assert.deepEqual(suivi.file().map(({ ticket }) => ticket), [2600]);
 });

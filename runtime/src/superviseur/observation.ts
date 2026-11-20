@@ -23,14 +23,12 @@ import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.
 import { stationsDesPrises } from "../github-etat/prise.ts";
 import { MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
-import type { Observation } from "./declenchement.ts";
+import { estInformatif, type Observation } from "./declenchement.ts";
 import type { TicketDeLaFile } from "./dossier.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
 const AILLEURS: readonly string[] = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING];
 
-// Les checks Windows sont informatifs (#2087) : rouges sur main, ils ne retiennent rien.
-export const estInformatif = (nom: string | undefined) => /^windows (app )?tests\b/i.test(nom ?? "");
 
 export type ObservationDuTour = {
   envelopper(github: GitHubDuTour): GitHubDuTour;
@@ -83,7 +81,7 @@ export function observerLeTour(maintenant: () => Date = () => new Date()): Obser
         },
         checksDeLaBase: async () => {
           const lus = await github.checksDeLaBase();
-          checksRouges = lus.filter(({ outcome, name }) => outcome === "red" && !estInformatif(name)).map(({ name }) => name ?? "unnamed check");
+          checksRouges = lus.filter((check) => check.outcome === "red" && !estInformatif(check)).map(({ name }) => name ?? "unnamed check");
           baseRougeDepuis = checksRouges.length === 0 ? null : (baseRougeDepuis ?? maintenant().toISOString());
           return lus;
         },

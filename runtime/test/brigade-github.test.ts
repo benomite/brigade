@@ -19,9 +19,7 @@ import { CONTEXTE_DES_GATES, GATES_PERIMEES_MS, type LieuDesGates, type VerdictD
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { LimiteGitHubAtteinte, limiteDeLaStation } from "../src/limite-github.ts";
-import { lireLaCuisine } from "../src/retenue/brancher.ts";
-import { direCause, diagnostiquer } from "../src/retenue/retenue.ts";
-import { suivreLeTour } from "../src/retenue/tour.ts";
+import { observerLeTour } from "../src/superviseur/observation.ts";
 import { lireLaConsigne } from "../src/second-juge.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "./faux-github.ts";
 import { avecListe, rendreListe } from "../src/epique.ts";
@@ -533,20 +531,21 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 30 && !(faux.creations.length > 0 && faux.ticket(31).labels.has("set-aside:failures")); i += 1) {
+  const lesRenvois = () => (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  for (let i = 0; i < 30 && !(lesRenvois().length === 9 && faux.ticket(31).labels.has("set-aside:failures")); i += 1) {
     await a.tour();
     await a.calme();
   }
   assert.equal(faux.mergee(31), undefined);
-  const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  const renvois = lesRenvois();
   // Mise de côté, la guérison la relance deux fois pour son check rouge
-  // (#2757) : chaque relance repart pour deux renvois, puis un bug dit la boucle.
+  // (#2757) : chaque relance repart pour deux renvois, puis le ticket reste de côté — aucun ticket ne dit la boucle (#3914).
   assert.equal(renvois.length, 9);
   assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
   assert.match(renvois[2]?.body ?? "", /Set aside by its failure count/);
   assert.ok(faux.ticket(31).labels.has("set-aside:failures"));
   assert.equal((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:relance cause=red-check")).length, 2);
-  assert.equal(faux.creations.length, 1);
+  assert.equal(faux.creations.length, 0);
   // Recuisiné huit fois, sous la même PR : aucune seconde PR.
   assert.equal(faux.cuissons.filter((c) => c.issue === 31).length, 9);
   assert.equal(faux.prs.filter((p) => p.issue === 31).length, 1);
@@ -982,68 +981,6 @@ test("a red check that runs only on the base (Windows) holds nothing; a red chec
   assert.equal(faux.mergee(38), undefined);
 });
 
-test("a red base re-runs its failed jobs once: while they run, nothing is held, nothing is sent back, and green after them the pass merges (#2323)", async () => {
-  const faux = new FauxGitHub();
-  const avertis: string[] = [];
-  faux.runDeLaBase = 501;
-  faux.base = "red";
-  faux.feu(39);
-  const a = faux.station("A", { avertir: (texte) => void avertis.push(texte) });
-  for (let i = 0; i < 4; i += 1) {
-    await a.tour();
-    await a.calme();
-  }
-  // La relance tourne encore : la livraison qui court `tests` s'est mergée, et
-  // la station n'a rien dit d'autre que la relance.
-  assert.equal(faux.relanceEnCours, true);
-  assert.equal(faux.mergee(39)?.mergeePar, "A");
-  assert.deepEqual(avertis, ["brigade : base red on A — the failed jobs of run 501 are re-run once before any merge is held"]);
-  assert.deepEqual(faux.commentaires.get(39)?.filter((c) => c.body.includes("sent back")) ?? [], []);
-  faux.finirLaRelance("green");
-  faux.feu(40);
-  for (let i = 0; i < 4; i += 1) {
-    await a.tour();
-    await a.calme();
-  }
-  assert.equal(faux.mergee(40)?.mergeePar, "A");
-  assert.equal(faux.tentatives.get(501), 2);
-  assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
-});
-
-test("a base still red after its re-run holds as before, and neither another station nor a restarted one re-runs it again (#2323)", async () => {
-  const faux = new FauxGitHub();
-  const avertis: string[] = [];
-  const avertir = (texte: string) => void avertis.push(texte);
-  faux.runDeLaBase = 502;
-  faux.base = "red";
-  const a = faux.station("A", { avertir });
-  await a.tour();
-  await a.calme();
-  assert.equal(faux.relanceEnCours, true);
-  // Tant que la relance tourne, aucun ticket de réparation (#2339).
-  assert.equal(faux.creations.length, 0);
-  faux.finirLaRelance("red");
-  faux.feu(41);
-  // B, et A redémarrée, ne savent pas que A l'a relancée : GitHub le leur dit.
-  const b = faux.station("B", { avertir });
-  const relancee = faux.station("A", { avertir });
-  for (let i = 0; i < 4; i += 1) {
-    for (const station of [a, b, relancee]) {
-      await station.tour();
-      await station.calme();
-    }
-  }
-  assert.equal(faux.mergee(41), undefined);
-  assert.equal(faux.tentatives.get(502), 2);
-  assert.equal(faux.appels.filter((appel) => appel.quoi === "relancerLesEchecs").length, 1);
-  assert.equal(avertis.filter((texte) => texte.includes("re-run")).length, 1);
-  // Rouge après sa relance : un seul ticket de réparation, quelle que soit la
-  // station, et c'est lui que la base rouge laisse merger (#2339).
-  assert.deepEqual(faux.creations, [900]);
-  assert.ok(faux.ticket(900).corps.includes(`brigade:base-rouge sha=${faux.teteDeLaBase}`));
-  assert.equal(faux.mergee(900)?.mergeePar, "A");
-});
-
 test("a review runs off the turn: while one delivery's review runs, the turn reviews and merges another one (#2329)", async () => {
   const faux = new FauxGitHub();
   faux.feu(51);
@@ -1272,8 +1209,6 @@ test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base
   assert.equal(faux.mergee(10)?.mergeePar, "A");
 });
 
-const reparations = (faux: FauxGitHub) => [...faux.tickets.values()].filter((t) => t.state === "open" && t.corps.includes("brigade:base-rouge"));
-
 test("a red main: no PR is merged, and the next turns merge nothing either (#2214)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10);
@@ -1287,75 +1222,28 @@ test("a red main: no PR is merged, and the next turns merge nothing either (#221
   assert.equal(faux.prs.filter((pr) => pr.merged && pr.issue === 10).length, 0);
 });
 
-test("a red commit gets exactly one repair issue, however many turns and stations see it (#2214)", async () => {
-  const faux = new FauxGitHub();
-  faux.base = "red";
-  faux.corpsEcrivables = true;
-  const a = faux.station("A", { places: 0, avertir: () => {} });
-  const b = faux.station("B", { places: 0, avertir: () => {} });
-  for (let i = 0; i < 3; i++) await Promise.all([a.tour(), b.tour()]);
-  const [reparation, ...autres] = reparations(faux);
-  assert.deepEqual(autres, []);
-  assert.ok(faux.creations.length <= 2);
-  assert.ok(reparation?.corps.includes(`brigade:base-rouge sha=${faux.teteDeLaBase}`));
-  assert.ok(reparation?.labels.has("prio:0") && reparation.labels.has("fire"));
-  // Les deux stations ont créé la leur au même instant : la plus récente s'est fermée.
-  assert.equal(reparation?.number, 900);
-  // Un autre commit rouge sur le même check, dans la fenêtre : la même réparation, avec une occurrence de plus (#3614).
-  faux.teteDeLaBase = "c".repeat(40);
-  await a.tour();
-  assert.equal(reparations(faux).length, 1);
-  assert.ok(reparations(faux)[0]?.corps.includes("`ccccccc`"));
-});
-
-test("a repair issue that GitHub refused to create is retried on the next turn, and the merges stay stopped (#2214)", async () => {
-  const faux = new FauxGitHub();
-  faux.feu(10);
-  const dits: string[] = [];
-  const a = faux.station("A", { places: 1, avertir: (texte) => dits.push(texte) });
-  await a.tour();
-  await a.calme();
-  faux.base = "red";
-  const github = faux.pour("A");
-  const creer = github.creerIssue;
-  let refus = true;
-  github.creerIssue = async (issue) => {
-    if (refus) throw new Error("rate limited");
-    return creer(issue);
-  };
-  const station = stationGitHub({ nom: "A", places: 1, base: "main", github, prise: faux.prise(github, "A"), cuisiner: async () => assert.fail("no cook"), juger: async () => assert.fail("no review"), avertir: (texte) => dits.push(texte) });
-  await station.tour();
-  assert.equal(faux.creations.length, 0);
-  assert.ok(dits.some((texte) => texte.includes("rate limited")));
-  refus = false;
-  await station.tour();
-  assert.equal(faux.creations.length, 1);
-  assert.equal(faux.mergee(10), undefined);
-});
-
-test("merges resume once main is green again, and the repair itself is merged on the red main (#2214)", async () => {
+test("merges resume once main is green again, and the supervisor's fix ticket for the red check is merged on the red main (#2214, #3914)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10);
   const a = faux.station("A", { places: 2, avertir: () => {} });
   await a.tour();
   await a.calme();
   faux.base = "red";
-  // Le tour ouvre la réparation et la prend ; son cook la livre.
+  // Le correctif que le superviseur a ouvert pour le check rouge ; le tour le prend, son cook le livre.
+  faux.feu(77, CALIBRE, "<!-- brigade:cause ci:tests -->\nFix the red `tests` check of main.");
   await a.tour();
   await a.calme();
-  const [reparation] = reparations(faux);
-  assert.ok(reparation);
   assert.equal(faux.mergee(10), undefined);
   // La réparation est livrée, mise à jour, puis mergée malgré la base rouge ; #10 attend.
   await a.tour();
   await a.tour();
-  assert.equal(faux.mergee(reparation.number)?.mergeePar, "A");
+  assert.equal(faux.mergee(77)?.mergeePar, "A");
   assert.equal(faux.mergee(10), undefined);
   faux.base = "green";
   await a.tour();
   await a.tour();
   assert.equal(faux.mergee(10)?.mergeePar, "A");
-  assert.equal(faux.creations.length, 1);
+  assert.equal(faux.creations.length, 0, "the tour files no repair ticket of its own");
 });
 
 test("a runtime that cannot serve the project says why, and cooks nothing for it", async () => {
@@ -2414,24 +2302,14 @@ test("a taken label nobody holds — a release whose removal failed, left by ano
   assert.equal(faux.prisesDe("B"), 1);
 });
 
-// #2429 : la nuit du 5 novembre 2026. La limite de GitHub dit une reprise que
-// les refus dépassent ; puis, le tour GitHub seul rendu à lui-même, #2187
-// attend #2186 mis de côté et #2383, prenable, n'est pas pris. Chaque ligne se
-// lit comme la retenue la lit, par `lireLaCuisine` sur le tour enveloppé.
-test("the held-kitchen line replays 2026-11-05: the limit past its announced end, a set-aside dependency, a claim-gate skip (#2429)", async (t) => {
-  const racine = repertoireTemporaire(t);
-  const journal = ouvrirJournal(repertoireTemporaire(t));
-  t.after(() => journal.fermer());
-  const T = (hhmm: string) => Date.parse(`2026-11-05T${hhmm}:00.000Z`);
-  let instant = T("09:04");
-  const limite = limiteDeLaStation(racine, { maintenant: () => instant });
-  t.after(() => limite.fermer());
+// #2429 : la nuit du 5 novembre 2026, #2187 attendait #2186 mis de côté et
+// #2383, prenable, n'était pas pris. Ce que la porte de prise dit de chacun
+// est la ligne de la file que le dossier du superviseur montre (#3914).
+test("the supervisor's queue says why the claim gate skipped each claimable ticket: a set-aside dependency, a held zone (#2429)", async () => {
   const faux = new FauxGitHub();
-  const suivi = suivreLeTour(() => new Date(instant));
+  const suivi = observerLeTour();
   const github = suivi.envelopper(faux.pour("A"));
   const station = stationGitHub({ nom: "A", places: 1, base: "main", github, prise: faux.prise(github, "A"), cuisiner: async () => assert.fail("no cook"), juger: async () => assert.fail("no review"), avertir: (texte) => assert.fail(texte), sauter: suivi.sauter });
-  const ligne = () => direCause(diagnostiquer(lireLaCuisine(journal.base, new Date(instant), { station: racine, tour: suivi }).signaux()).cause);
-
   // Rien n'est pris : #2186 est mis de côté, #2187 l'attend, #2383 est prenable mais sa zone est tenue.
   faux.feu(2186, [...CALIBRE, "served-elsewhere"]);
   faux.poster(2186, "A", "<!-- brigade:renvoi n=2 sha=abc -->\nStation `A`: still not mergeable after 2 sends back — conflicts with main\n\nTaken off the kitchen (`served-elsewhere`): a human decides.");
@@ -2442,29 +2320,13 @@ test("the held-kitchen line replays 2026-11-05: the limit past its announced end
   await station.tour();
   await station.calme();
   assert.deepEqual(faux.cuissons, []);
-
-  // 09:07 : la limite, reprise dite 09:19.
-  limite.suspendre(T("09:19"));
-  assert.throws(() => limite.prendre(), LimiteGitHubAtteinte);
-  instant = T("09:07");
-  assert.match(ligne(), /^cause: GitHub is rate-limiting calls \(limit reached\), back around /);
-  // 09:21 : la reprise dite est passée, GitHub refuse encore.
-  instant = T("09:20");
-  limite.suspendre(T("09:21"));
-  instant = T("09:22");
-  assert.match(ligne(), /^cause: GitHub is rate-limiting calls \(limit reached\), calls still refused at /);
-  // Les refus cessent : la limite ne tient plus, le tour GitHub seul dit ce qui retient.
-  instant = T("10:30");
-  await station.tour();
-  await station.calme();
-  assert.equal(ligne(), "cause: #2187 waits on #2186, set aside: Station `A`: still not mergeable after 2 sends back — conflicts with main; #2383 is claimable but not claimed, the claim gate skipped it: zone held by #2390");
-  // Sans ce que la porte a dit, la cause reste inconnue.
-  faux.prs.length = 0;
-  faux.tickets.delete(2187);
-  faux.ticket(2383).corps = "";
-  faux.ticket(2383).labels.add("taken");
-  await station.tour();
-  assert.match(ligne(), /^cause unknown/);
+  assert.deepEqual(
+    suivi.file().map(({ ticket, ligne }) => [ticket, ligne]),
+    [
+      [2187, "#2187 waits on #2186, set aside: Station `A`: still not mergeable after 2 sends back — conflicts with main"],
+      [2383, "#2383 is claimable but not claimed, the claim gate skipped it: zone held by #2390"],
+    ],
+  );
 });
 
 test("a station whose base branch is missing on the remote gives the ticket back uncounted, claims no other, says it once; another station delivers it (#2876)", async (t) => {

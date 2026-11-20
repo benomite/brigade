@@ -115,7 +115,7 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
     if (texte === "") return refuse("an answer in your own words says something: it is empty");
   }
 
-  // La carte d'un check de la base (carte-ci-windows.ts) n'a ni issue ni place
+  // La carte d'un check Windows de la base, posée avant le superviseur (#3914), n'a ni issue ni place
   // sur le rail : la réponse est notée, la carte sort, rien d'autre ne bouge.
   if (ticket < 0) {
     base.transaction(() => {

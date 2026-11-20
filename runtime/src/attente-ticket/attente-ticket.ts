@@ -18,7 +18,11 @@ import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
 import { leveesDesCommentaires } from "../boucle-attente/levee.ts";
 import { ticketsDeLaListe } from "../epique.ts";
 import { fiche } from "../fiche.ts";
-import { direSaut } from "../retenue/retenue.ts";
+
+// Ce que la porte de prise dit d'un ticket prenable qu'elle n'a pas pris, et d'un ticket qui en attend un mis de côté :
+// la file que le dossier du superviseur montre (#3914).
+export const direSaut = (ticket: number, pourquoi: string): string => `#${ticket} is claimable but not claimed, the claim gate skipped it: ${pourquoi}`;
+export const direAttenteSurMisDeCote = (ticket: number, attendu: number, raison: string): string => `#${ticket} waits on #${attendu}, set aside: ${raison}`;
 
 // La marque du commentaire qui met le ticket en attente, suivie des tickets attendus.
 export const MARQUE_D_ATTENTE_DE_TICKET = "<!-- brigade:attend-ticket";

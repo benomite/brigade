@@ -44,6 +44,8 @@ export type Gates = {
 
 // Un job de CI, ou un statut de commit.
 export type Check = { name: string; outcome: "green" | "red" | "pending"; conclusion: string; url: string | null };
+// Un check de la base tel que le tour le lit : son issue, son nom et son adresse quand GitHub les dit.
+export type CheckDeLaBase = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>;
 
 // Ce que la CI du commit a dit. `none` : le commit n'a aucun check — ni vert ni
 // rouge, le verdict repose alors sur les seules gates. `skipped` : non lue — les

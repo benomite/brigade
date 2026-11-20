@@ -1,6 +1,5 @@
 // La livraison qui a rendu la base rouge, nommée sur son ticket (#3817, épique
-// #3812). Une base rouge ouvre sa réparation (`base-rouge/`), mais le ticket
-// dont la livraison l'a cassée n'en disait rien. Quand la base est rouge après
+// #3812). Le ticket dont la livraison a cassé la base n'en disait rien. Quand la base est rouge après
 // sa relance, ce module retrouve le commit où ses checks rouges ont échoué la
 // première fois, la PR mergée qui l'a posé, et le ticket de cette PR ; il y
 // poste un commentaire qui nomme la PR, le commit de merge, chaque check rouge
@@ -14,8 +13,8 @@
 //
 // L'appel vient du tour (`brigade-github.ts`), sur les checks que la relance
 // rend ; le client vient de `github-de-la-livraison.ts`.
-import type { CheckDeLaBase } from "../base-rouge/ouvre-reparation.ts";
-import { estInformatif } from "../relance-main-rouge.ts";
+import type { CheckDeLaBase } from "../events/pass.ts";
+import { estInformatif } from "../superviseur/declenchement.ts";
 
 // Le commit rouge et les checks rouges qu'il porte.
 export type PremierRouge = { sha: string; rouges: CheckDeLaBase[] };

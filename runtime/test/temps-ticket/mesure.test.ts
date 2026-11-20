@@ -3,11 +3,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { corpsDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { chronometre, completerLesTemps, enregistrerTemps, FICHIER_DES_TEMPS, mesurer, type Etape, type Marque } from "../../src/temps-ticket/mesure.ts";
 import { enregistrementsDuTexte, type EnregistrementTemps } from "../../src/temps-ticket/synthese.ts";
+
+// Le corps d'une réparation de la base d'avant le superviseur (#3914) : la marque de son commit rouge, et ses checks.
+const corpsDeLaReparation = (_base: string, sha: string, echecs: { nom: string; url?: string | null; sortie?: string | null }[]) => [`<!-- brigade:base-rouge sha=${sha} -->`, "", "## What fails", "", ...echecs.map(({ nom }) => `- \`${nom}\``), ""].join("\n");
 
 const T0 = Date.UTC(2026, 10, 5, 8);
 const a = (secondes: number) => new Date(T0 + secondes * 1000).toISOString();

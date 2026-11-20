@@ -30,6 +30,12 @@ export type Declenchement =
   | { cause: "prises-sans-livraison"; ticket: number }
   | { cause: "rien-livre" };
 
+// Les checks Windows (jobs de runtime-windows et app-windows : « windows tests
+// (n/8) », « windows app tests ») sont informatifs (#2087) : rouges sur main, ils
+// ne déclenchent rien. Rien qu'eux : le job `windows` de publier-app, qui
+// construit l'installeur de la release, n'en est pas un (#3796).
+export const estInformatif = (check: { name?: string }) => /^windows (app )?tests\b/i.test(check.name ?? "");
+
 const depuis = (iso: string, maintenant: Date) => maintenant.getTime() - Date.parse(iso);
 
 // La cause qui déclenche le superviseur, ou null. Une base rouge passe avant

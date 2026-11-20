@@ -5,7 +5,7 @@ import { corpsDeVerdict, type CommentaireDeVerdict } from "../../src/github-etat
 import { HORS_CUISINE, LABEL } from "../../src/github.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { MARQUE_MISE_DE_COTE_GELE } from "../../src/passe-gel-tests/gele-faux.ts";
-import { LABEL_DU_BUG, relancer, RELANCES_MAX, type ContexteDeLaGuerison } from "../../src/guerison/relance.ts";
+import { relancer, RELANCES_MAX, type ContexteDeLaGuerison } from "../../src/guerison/relance.ts";
 
 const TICKET = 40;
 const PR = 41;
@@ -18,7 +18,6 @@ function depot(labels: string[] = [LABEL, HORS_CUISINE]) {
   const etiquettes = new Set(labels);
   const commentaires = new Map<number, CommentaireDeVerdict[]>();
   const checks = new Map<string, { name: string; outcome: "red" | "green" | "pending" }[]>();
-  const creees: { numero: number; titre: string; corps: string; labels: string[] }[] = [];
   let pr: { number: number; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; enConflit?: boolean; base?: string } | null = null;
   let horloge = Date.parse("2026-11-07T10:00:00Z");
   let id = 0;
@@ -37,17 +36,11 @@ function depot(labels: string[] = [LABEL, HORS_CUISINE]) {
       delabelliser: async (numero, label) => void (numero === TICKET && etiquettes.delete(label)),
       prDuTicket: async () => pr,
       ci: async (sha) => checks.get(sha) ?? [],
-      creerIssue: async (issue) => {
-        const numero = 100 + creees.length;
-        creees.push({ numero, ...issue });
-        return numero;
-      },
     },
   });
   const ticket = () => ({ number: TICKET, title: "Heal the rail", labels: [...etiquettes] });
   return {
     etiquettes,
-    creees,
     poster,
     checks,
     ouvrirPR: (etat: Partial<NonNullable<typeof pr>> = {}) => void (pr = { number: PR, sha: SHA, state: "open", merged: false, enRetard: false, ...etat }),
@@ -117,25 +110,19 @@ test("un cook qui s'est arrêté : le ticket repart, et le commentaire dit pourq
   assert.match(d.commentairesDu().at(-1) ?? "", /token ceiling reached/);
 });
 
-test("après deux relances pour la même raison, la troisième n'a pas lieu, et un seul ticket de bug dit ce qui fait boucler", async () => {
+test("après deux relances pour la même raison, la troisième n'a pas lieu, et aucun ticket ne dit la boucle : le superviseur décide (#3914)", async () => {
   const d = depot();
   d.ouvrirPR({ enConflit: true });
   for (let n = 1; n <= RELANCES_MAX; n++) {
     assert.deepEqual(await d.relancer(), { fait: "relance", cause: "conflict", n });
     d.remettreDeCote();
   }
-  const boucle = await d.relancer();
-  assert.deepEqual(boucle, { fait: "boucle", cause: "conflict", bug: 100 });
+  const avant = d.commentairesDu().length;
+  assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: `relaunched ${RELANCES_MAX} times for this reason: the supervisor decides` });
   assert.ok(d.etiquettes.has(HORS_CUISINE), "the third relaunch is not performed");
-  assert.equal(d.creees.length, 1);
-  const [bug] = d.creees;
-  assert.match(bug?.titre ?? "", /#40 loops/);
-  assert.match(bug?.corps ?? "", /## What makes it loop/);
-  assert.match(bug?.corps ?? "", /conflicts with the base/);
-  assert.deepEqual(bug?.labels, [LABEL_DU_BUG]);
-  // Rappelée, d'une station neuve : aucun second bug, aucune relance.
-  assert.deepEqual(await d.relancer(), { fait: "deja-signale", cause: "conflict", bug: 100 });
-  assert.equal(d.creees.length, 1);
+  assert.equal(d.commentairesDu().length, avant, "no comment says a loop ticket");
+  // Rappelée, d'une station neuve : toujours aucune relance.
+  assert.deepEqual((await d.relancer()).fait, "rien");
   assert.ok(d.etiquettes.has(HORS_CUISINE));
 });
 
@@ -149,7 +136,6 @@ test("les relances se comptent par raison : deux pour un conflit n'empêchent pa
   d.ouvrirPR();
   d.checks.set(SHA, [{ name: "types", outcome: "red" }]);
   assert.deepEqual(await d.relancer(), { fait: "relance", cause: "red-check", n: 1 });
-  assert.equal(d.creees.length, 0);
 });
 
 test("un ticket mis de côté pour une raison produit ou de design n'est pas relancé, même si sa PR est rouge", async () => {
@@ -159,7 +145,6 @@ test("un ticket mis de côté pour une raison produit ou de design n'est pas rel
   assert.equal((await d.relancer()).fait, "rien");
   assert.ok(d.etiquettes.has(HORS_CUISINE));
   assert.equal(d.commentairesDu().length, 1);
-  assert.equal(d.creees.length, 0);
 });
 
 test("une mise de côté dont la raison n'est pas réparable par un cook n'est pas relancée : un humain décide", async () => {

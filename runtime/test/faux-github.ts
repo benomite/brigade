@@ -174,10 +174,6 @@ export class FauxGitHub {
         const url = this.runDeLaBase === null ? {} : { url: `https://github.com/faux/depot/actions/runs/${this.runDeLaBase}/job/1` };
         return [{ name: "tests", outcome: this.relanceEnCours ? ("pending" as const) : this.base, ...url }, ...this.checksDeLaBaseSeule];
       },
-      teteDeLaBase: async () => {
-        await noter("teteDeLaBase");
-        return this.teteDeLaBase;
-      },
       issuesDepuis: async () => {
         await noter("issuesDepuis");
         return [...this.tickets.values()].map((t) => ({ number: t.number, body: t.corps, association: "OWNER" }));
@@ -374,7 +370,6 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     },
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
-    teteDeLaBase: async () => faux.teteDeLaBase,
     prsOuvertes: async () => faux.prs.filter((p) => p.state === "open").map((p) => ({ number: p.number, branche: p.branche, fichiers: [...p.fichiers] })),
     fermerPR: async (numero) => {
       faux.pr(numero).state = "closed";

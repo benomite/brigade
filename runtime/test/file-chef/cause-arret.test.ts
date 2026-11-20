@@ -1,16 +1,9 @@
 // Le disjoncteur de la station qui sert le projet (#3658) : « the kitchen is
 // resumed » ne se dit que de l'issue de cette station, quand son disjoncteur est
-// fermé ; et la file du chef dit le disjoncteur ouvert de l'autre, depuis quand,
-// au lieu d'une cause inconnue.
+// fermé.
 import assert from "node:assert/strict";
-import { test, type TestContext } from "node:test";
-import { corpsDeLIssue, disjoncteurDuJournal, LABEL_DU_DISJONCTEUR, marque, publieurDuDisjoncteur, publierLeDisjoncteur, type ClientDuDisjoncteur, type Disjoncteur } from "../../src/breaker-issue.ts";
-import { decrireEtat, lireEtat } from "../../src/etat.ts";
-import type { SuiviDuDisjoncteurServant } from "../../src/file-chef/cause-arret.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
-import { brancherRetenue } from "../../src/retenue/brancher.ts";
-import type { CauseReveil, Runtime } from "../../src/runtime.ts";
-import { repertoireTemporaire } from "../outils.ts";
+import { test } from "node:test";
+import { corpsDeLIssue, LABEL_DU_DISJONCTEUR, marque, publierLeDisjoncteur, type ClientDuDisjoncteur, type Disjoncteur } from "../../src/breaker-issue.ts";
 
 const PROJET = "brigade";
 const BOX = "box/claude";
@@ -69,61 +62,4 @@ test("le disjoncteur de la station qui sert le projet est fermé : le commentair
   assert.doesNotMatch(ancienne.corps, /brigade:breaker-station/);
   await publierLeDisjoncteur(ancienne.client, PROJET, FERME, { station: MAC });
   assert.equal(ancienne.gestes.length, 2);
-});
-
-// Une cuisine dont le test tient l'horloge : un ticket qui attend depuis minuit, la retenue branchée.
-function cuisine(t: TestContext, autre: SuiviDuDisjoncteurServant) {
-  let instant = A("00:00:00");
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
-  t.after(() => journal.fermer());
-  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "mac", node: "26.0.0" } });
-  journal.ajouter({
-    project: PROJET,
-    ticket: 12,
-    author: "github",
-    type: "ticket.arrived",
-    payload: { title: "Ticket 12", priority: null, createdAt: "2026-11-01T00:00:12Z", url: "https://exemple.test/12", card: { waitsFor: [], zone: ["zone-12"], problems: [] } },
-  });
-  const ecouteurs: Array<(cause: CauseReveil) => void> = [];
-  const runtime: Runtime = { projet: PROJET, journal, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}), arreter: () => {} };
-  brancherRetenue(runtime, { disjoncteurServant: autre, maintenant: () => new Date(instant), dire: () => {} });
-  const passer = (hhmmss: string) => {
-    instant = A(hhmmss);
-    for (const ecouter of ecouteurs) ecouter("tick");
-  };
-  const file = () => decrireEtat(lireEtat(journal, new Date(instant)), new Date(instant)).filter((ligne) => /^ {2}kitchen {2}for /.test(ligne));
-  return { journal, passer, file };
-}
-
-test("le disjoncteur de la station qui sert le projet est ouvert : la file du chef dit qu'il est ouvert et depuis quand, jamais « cause unknown »", async (t) => {
-  const github = githubAvecUneIssueDe(BOX);
-  const autre: SuiviDuDisjoncteurServant = { depuis: null };
-  const c = cuisine(t, autre);
-  // Le publieur d'ici, au disjoncteur fermé, lit l'issue de la box.
-  assert.equal(disjoncteurDuJournal(c.journal.base).ouvert, false);
-  const publieur = publieurDuDisjoncteur(c.journal.base, PROJET, { client: github.client, station: MAC, autre });
-  await publieur.passer("tick");
-  assert.equal(autre.depuis, OUVERTURE);
-
-  c.passer("01:00:00");
-  const [ligne, ...autres] = c.file();
-  assert.equal(autres.length, 0);
-  assert.match(ligne ?? "", new RegExp(`cause: the breaker is open since ${new Date(OUVERTURE).getHours().toString().padStart(2, "0")}:${new Date(OUVERTURE).getMinutes().toString().padStart(2, "0")}, no cook leaves`));
-  assert.doesNotMatch(ligne ?? "", /cause unknown/);
-  assert.deepEqual(github.gestes, []);
-});
-
-test("l'autre disjoncteur refermé : au tick suivant la file ne le dit plus", async (t) => {
-  const github = githubAvecUneIssueDe(BOX);
-  const autre: SuiviDuDisjoncteurServant = { depuis: null };
-  const c = cuisine(t, autre);
-  const publieur = publieurDuDisjoncteur(c.journal.base, PROJET, { client: github.client, station: MAC, autre });
-  await publieur.passer("tick");
-  assert.equal(autre.depuis, OUVERTURE);
-  // La box reprend et ferme son issue.
-  await github.client.fermer(3644);
-  await publieur.passer("tick");
-  assert.equal(autre.depuis, null);
-  c.passer("01:00:00");
-  assert.match(c.file()[0] ?? "", /cause unknown/);
 });

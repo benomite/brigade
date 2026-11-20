@@ -1,30 +1,24 @@
 // Les issues que la station ouvre pour ses propres besoins (#3620, épique
-// #3619) : l'alerte d'une cuisine inerte (`../guerison/cuisine-inerte.ts`) et
-// l'issue du disjoncteur (`../breaker-issue.ts`). Elles disent comment la
-// cuisine elle-même tourne, pas le code du projet servi : elles se déposent sur
-// la brigade, jamais dans le dépôt du projet, et n'y sont jamais des tickets —
-// le manager ne les juge pas, la station ne les donne à aucun cook. Le 15
-// novembre 2026, secondes#45 (une cuisine inerte, `empty-rail`) a été jugée
-// `fire` et prise par un cook dans le dépôt d'une app Android, où le code de la
-// cuisine n'est pas ; secondes#46, l'issue du disjoncteur, a été jugée de même.
+// #3619) : l'issue du disjoncteur (`../breaker-issue.ts`). Elle dit comment la
+// cuisine elle-même tourne, pas le code du projet servi : elle se dépose sur la
+// brigade, jamais dans le dépôt du projet, et n'est jamais un ticket — le
+// manager ne la juge pas, la station ne la donne à aucun cook. Le 15 novembre
+// 2026, secondes#46, l'issue du disjoncteur, a été jugée `fire`.
 //
-// Elles se reconnaissent à leur marque durable, en commentaire HTML que GitHub
-// n'affiche pas, que la station écrit en tête de leur corps :
-// - `<!-- brigade:cuisine-inerte -->` (`MARQUE_D_INERTIE`) pour l'inertie ;
-// - `<!-- brigade:breaker-open project=<projet> -->` (`marqueDuDisjoncteur`), et le label
-//   `brigade:breaker-open`, pour le disjoncteur.
-// Celles qu'un humain aurait recopiées sans leur corps se reconnaissent aussi à
-// leur titre, celui que la station leur donne.
+// Elle se reconnaît à sa marque durable, en commentaire HTML que GitHub
+// n'affiche pas, que la station écrit en tête de son corps —
+// `<!-- brigade:breaker-open project=<projet> -->` (`marqueDuDisjoncteur`) —, et
+// au label `brigade:breaker-open`. Recopiée par un humain sans son corps, elle se
+// reconnaît aussi à son titre, celui que la station lui donne. Elle dit la
+// cuisine retenue, et se ferme quand elle reprend.
 //
-// Sur la brigade elle-même, l'alerte d'inertie reste un ticket : le code de la
-// cuisine y vit, et ses cooks le réparent (#3098). L'issue du disjoncteur n'est
-// un ticket nulle part : elle dit la cuisine retenue, et se ferme quand elle reprend.
+// Le superviseur (#3914) n'ouvre aucune alerte de la cuisine : il agit, et dit
+// ce qu'il a fait sur le ticket où il a agi.
 //
 // Ce module ne lit rien et n'importe que des feuilles : la lecture des tickets
 // (`../github.ts`) s'en sert.
-import { MARQUE_D_INERTIE } from "../guerison/cuisine-inerte.ts";
 
-export type AlerteDeLaCuisine = "inertie" | "disjoncteur";
+export type AlerteDeLaCuisine = "disjoncteur";
 
 // Le dépôt de la brigade : là où vit le code de la cuisine, et où ses alertes se déposent.
 export const DEPOT_BRIGADE = "benomite/brigade";
@@ -36,15 +30,13 @@ export const marqueDuProjet = (servi: string) => `<!-- brigade:projet=${servi} -
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
 export const marqueDuDisjoncteur = (projet: string) => `<!-- ${LABEL_DU_DISJONCTEUR} project=${projet} -->`;
 
-// Les titres que la station leur donne (`signalerInertie`, `titreDeLIssue`).
-const TITRE_D_INERTIE = /^The kitchen is idle: no merge for \d+ minutes with \d+ cookable ticket\(s\)/;
+// Le titre que la station lui donne (`titreDeLIssue`).
 const TITRE_DU_DISJONCTEUR = /^Kitchen \S+ held: its breaker is open$/;
 
 // L'alerte de la cuisine que l'issue est, ou null si elle n'en est pas une.
 export function alerteDeLaCuisine(issue: { title: string; labels: readonly string[]; body?: string | null }): AlerteDeLaCuisine | null {
   const corps = issue.body ?? "";
   if (issue.labels.includes(LABEL_DU_DISJONCTEUR) || corps.includes(`<!-- ${LABEL_DU_DISJONCTEUR} project=`) || TITRE_DU_DISJONCTEUR.test(issue.title.trim())) return "disjoncteur";
-  if (corps.includes(MARQUE_D_INERTIE) || TITRE_D_INERTIE.test(issue.title.trim())) return "inertie";
   return null;
 }
 
@@ -54,9 +46,8 @@ export const avecLAlerte = (issue: { title: string; labels: readonly string[]; b
   return alerte === null ? {} : { alerte };
 };
 
-// Vrai si l'alerte n'est pas un ticket du dépôt `depot` (`<owner>/<repo>`) où
-// elle est : celle du disjoncteur partout, celle de l'inertie hors de la
-// brigade. Un dépôt inconnu est celui d'un projet.
-export function horsDesTickets(alerte: AlerteDeLaCuisine | null | undefined, depot: string | null | undefined): boolean {
-  return alerte === "disjoncteur" || (alerte === "inertie" && depot?.toLowerCase() !== DEPOT_BRIGADE);
+// Vrai si l'alerte n'est pas un ticket du dépôt `_depot` (`<owner>/<repo>`) où
+// elle est : celle du disjoncteur ne l'est d'aucun.
+export function horsDesTickets(alerte: AlerteDeLaCuisine | null | undefined, _depot: string | null | undefined): boolean {
+  return alerte === "disjoncteur";
 }

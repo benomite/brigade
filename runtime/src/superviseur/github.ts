@@ -9,7 +9,8 @@ import { jobDuCheck, LABEL, MIS_DE_COTE, type GitHub } from "../github.ts";
 import { poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { EtapeEnEchec } from "./dossier.ts";
 import type { GitHubDuSuperviseur } from "./gestes.ts";
-import { estInformatif } from "./observation.ts";
+import { sortieDErreur } from "./journal-du-job.ts";
+import { estInformatif } from "./declenchement.ts";
 
 // Ce que le superviseur demande au client du tour, et rien de plus.
 export type ClientDuSuperviseur = Pick<GitHub, "issue" | "commenter" | "labelliser" | "delabelliser" | "creerIssue" | "fermerIssue" | "relancerLesEchecs" | "etatDuRun"> &
@@ -23,6 +24,8 @@ export type ClientDuSuperviseur = Pick<GitHub, "issue" | "commenter" | "labellis
 // La marque cachée de la cause d'un correctif, en tête de son corps.
 const MARQUE_DE_CAUSE = /^<!-- brigade:cause (\S+) -->/m;
 export const marqueDeCause = (cause: string) => `<!-- brigade:cause ${cause} -->`;
+// Le correctif d'un check rouge de la base : ce que la base rouge ne retient pas.
+export const estUnCorrectifDeLaCi = (corps: string): boolean => MARQUE_DE_CAUSE.exec(corps)?.[1]?.startsWith("ci:") === true;
 
 // Le label d'un correctif : le manager le juge comme tout ticket neuf.
 export const LABEL_DU_CORRECTIF = "fix";
@@ -32,8 +35,6 @@ const MOIS_MS = 30 * 24 * 3_600_000;
 // La relance attendue : un sondage toutes les 30 s, 40 min au plus.
 export const SONDAGE_DE_LA_RELANCE_MS = 30_000;
 export const RELANCE_MAX_MS = 40 * 60_000;
-// Les lignes de log d'une étape en échec que le dossier garde.
-export const LIGNES_DE_LOG = 80;
 // Les lignes d'historique d'un ticket que le dossier garde.
 export const LIGNES_D_HISTORIQUE = 30;
 
@@ -46,7 +47,7 @@ export type OptionsDuGitHub = {
   attendre?: (ms: number) => Promise<void>;
 };
 
-const rougesDe = (checks: Awaited<ReturnType<ClientDuSuperviseur["checksDeLaBase"]>>) => checks.filter(({ outcome, name }) => outcome === "red" && !estInformatif(name));
+const rougesDe = (checks: Awaited<ReturnType<ClientDuSuperviseur["checksDeLaBase"]>>) => checks.filter((check) => check.outcome === "red" && !estInformatif(check));
 const runDe = (check: { name?: string; url?: string | null }) => jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run;
 
 export function githubDuSuperviseur({ client, depot, maintenant = () => new Date(), attendre = (ms) => new Promise((fin) => setTimeout(fin, ms)) }: OptionsDuGitHub): GitHubDuSuperviseur {
@@ -109,15 +110,15 @@ export function githubDuSuperviseur({ client, depot, maintenant = () => new Date
   };
 }
 
-// L'étape en échec du premier check rouge de la base, et la fin de son journal
-// — ce que `gh run view --log-failed` en montre. Nulle quand rien n'y est rouge.
-export async function etapeEnEchec(client: ClientDuSuperviseur, lignes = LIGNES_DE_LOG): Promise<EtapeEnEchec | null> {
+// L'étape en échec du premier check rouge de la base, et la fin utile de son
+// journal (`journal-du-job.ts`). Nulle quand rien n'y est rouge.
+export async function etapeEnEchec(client: ClientDuSuperviseur): Promise<EtapeEnEchec | null> {
   const [rouge] = rougesDe(await client.checksDeLaBase());
   if (rouge === undefined) return null;
   const nom = rouge.name ?? "unnamed check";
   const etapes = (await client.etapesEnEchec?.({ name: nom, url: rouge.url ?? null })) ?? [];
   const journal = (await client.journalDuCheck?.({ name: nom, outcome: "red", conclusion: "failure", url: rouge.url ?? null })) ?? null;
-  return { etape: `${nom}${etapes.length === 0 ? "" : ` › ${etapes.join(", ")}`}`, lignes: journal === null ? ["(the log of this job could not be read)"] : journal.trimEnd().split("\n").slice(-lignes) };
+  return { etape: `${nom}${etapes.length === 0 ? "" : ` › ${etapes.join(", ")}`}`, lignes: journal === null ? ["(the log of this job could not be read)"] : sortieDErreur(journal).split("\n") };
 }
 
 // L'historique d'un ticket : ses commentaires, du plus ancien au plus récent,

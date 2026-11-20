@@ -5,7 +5,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { corpsDeLaReparation } from "../src/base-rouge/ouvre-reparation.ts";
 import { lireEtat } from "../src/etat.ts";
 import { SANS_SEUIL } from "../src/mesures.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -15,6 +14,9 @@ import { PRIO_REPARATION } from "../src/reparation.ts";
 import { derivePremierCoup } from "../src/renvois.ts";
 import { direLesReparations } from "../src/status-reparations.ts";
 import { aArreter, repertoireTemporaire } from "./outils.ts";
+
+// Le corps d'une réparation de la base d'avant le superviseur (#3914) : la marque de son commit rouge, et ses checks.
+const corpsDeLaReparation = (_base: string, sha: string, echecs: { nom: string; url?: string | null; sortie?: string | null }[]) => [`<!-- brigade:base-rouge sha=${sha} -->`, "", "## What fails", "", ...echecs.map(({ nom }) => `- \`${nom}\``), ""].join("\n");
 
 const station = (body: string) => ({ body, association: "MEMBER" });
 const renvoi = (n: number, raison: string) => station(`<!-- brigade:renvoi n=${n} sha=${"a".repeat(40)} -->\nStation \`box/claude\`: sent back to a cook (${n}/2) — ${raison}`);

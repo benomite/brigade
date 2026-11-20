@@ -17,7 +17,7 @@
 // completed with exit code 1. » — est dit aussi par la fin de son journal de
 // job : sans elle, le cook ne savait pas lequel était rouge et repoussait à
 // l'aveugle, jusqu'à onze CI rouges sur un ticket (#3806).
-import { sortieDErreur } from "./base-rouge/ouvre-reparation.ts";
+import { sortieDErreur } from "./superviseur/journal-du-job.ts";
 import { dernierVerdict } from "./github-etat/fusion.ts";
 import type { Check } from "./events/pass.ts";
 import type { AnnotationDeCheck, Commentaire } from "./github.ts";

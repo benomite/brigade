@@ -56,7 +56,6 @@ class FauxGitHub {
       corpsDuTicket: async () => "",
       prsOuvertes: async () => this.prs.map((branche) => ({ branche, fichiers: [] })),
       checksDeLaBase: async () => [{ outcome: "green" }],
-      teteDeLaBase: async () => "0".repeat(40),
       issuesDepuis: async () => [],
       creerIssue: async () => 0,
       fermerIssue: async () => {},

@@ -10,10 +10,16 @@
 //
 // Des fonctions pures : rien n'est lu ni écrit ici.
 import { DE_CONFIANCE } from "./alimenter.ts";
-import { estUneReparation } from "./base-rouge/ouvre-reparation.ts";
 import { CAUSES, compterCauses, type Cause, type CausesDesRatages } from "./causes-des-ratages.ts";
 import type { QualiteDuTicket } from "./mesure-qualite.ts";
 import type { Essai, Parcours } from "./renvois.ts";
+import { PRIO_REPARATION, shaDeReparation } from "./reparation.ts";
+
+// Une réparation de la base d'avant le superviseur (#3914), telle que la mesure la reconnaît (#2696) : sa priorité, et
+// la marque du commit rouge dans son corps — `brigade:base-rouge`, ou celle que l'ancien chemin posait.
+const MARQUE_DE_BASE_ROUGE = /^\s*<!--\s*brigade:base-rouge sha=([0-9A-Za-z._-]+)\s*-->\s*$/m;
+export const shaDeBaseRouge = (corps: string): string | null => MARQUE_DE_BASE_ROUGE.exec(corps)?.[1] ?? shaDeReparation(corps);
+export const estUneReparation = (corps: string, labels: string[]): boolean => labels.includes(PRIO_REPARATION) && shaDeBaseRouge(corps) !== null;
 
 // Les marques des commentaires de la station (`brigade-github.ts`), qui les écrit avec ces constantes.
 export const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";

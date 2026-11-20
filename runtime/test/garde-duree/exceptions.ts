@@ -762,7 +762,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/tests-touches.test.ts", test: "une commande ajoutée touche les tests qui lisent les scripts, et eux seuls" },
   { file: "test/tests-touches.test.ts", test: "une commande ajoutée touche le test qui lance un code du produit lisant les scripts" },
   { file: "test/tests-touches.test.ts", test: "un package.json ajouté, tout se joue — même s'il ne porte que des scripts" },
-  { file: "test/urgence.test.ts", test: "une livraison à merger à la main qui tient toutes les zones : l'urgence porte la cause, la décision, son geste et le début de l'arrêt total — et `status` le dit en première ligne" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "la première fois : le runtime publié, son node vérifié, le lanceur écrit et démarré, puis les deux connexions" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "ce qui démarre à l'ouverture de session lance la station sous le compte, avec tout ce qu'il lui faut — rien n'est à écrire à la main" },
   { file: "test/deploy/installer-station-windows.test.ts", test: "rejouée sur une version plus récente : la station est arrêtée, son runtime remplacé, et elle est relancée sur lui" },

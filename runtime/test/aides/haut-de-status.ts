@@ -155,4 +155,10 @@ export const depuis2037 = <F extends { rail: object[] }>(avant: F, courant: { ra
 
 // Ce que #1971 ajoute à la forme : ce que la cuisine fait tourner hors des cooks de ticket (`agents`), en dernier — ceux
 // que l'état d'exemple fait tourner, qu'il dit lui-même.
+// Ce que #3914 retire de la forme : l'urgence et les décisions qui retenaient des tickets, que le superviseur remplace.
+export const depuis3914 = <F extends object>(avant: F): Omit<F, "urgence" | "retenues"> => {
+  const { urgence: _urgence, retenues: _retenues, ...reste } = avant as F & { urgence?: unknown; retenues?: unknown };
+  return reste;
+};
+
 export const depuis1971 = <F extends object>(avant: F, agents: Array<{ role: string; station: string | null; ticket: number | null; fait: string; depuis: string }> = []): F & { agents: typeof agents } => ({ ...avant, agents });
