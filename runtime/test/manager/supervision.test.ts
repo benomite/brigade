@@ -4,9 +4,15 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { etatDesGardeFous } from "../../src/projections/guardrails.ts";
-import { CONTROLE_TOUS_LES_MS, DOSSIER_ESSAIS_MAX, DOSSIER_TOUS_LES_MS, GESTES, MARQUE_DU_SUPERVISEUR, ouvrirSupervision } from "../../src/manager/supervision.ts";
+import { ouvrirSupervision } from "../../src/manager/supervision.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
+// Les gestes de l'étape 4 de la spec que ce ticket sait appliquer, et le rythme du superviseur : 10 minutes, trois essais.
+const GESTES = ["rail", "waiting", "close", "todo"];
+const CONTROLE_TOUS_LES_MS = 10 * 60_000;
+const DOSSIER_TOUS_LES_MS = 10 * 60_000;
+const DOSSIER_ESSAIS_MAX = 3;
+const MARQUE_DU_SUPERVISEUR = "<!-- brigade:superviseur -->";
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 type Reponse = { run: string; valeur: unknown } | { run: string; illisible: string } | null;

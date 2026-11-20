@@ -26,18 +26,18 @@ import type { Reponse } from "../decoupage.ts";
 // appliquer, et aucun autre. `rail` : remettre le ticket sur le rail, avec une note ; `waiting` : le mettre de côté en
 // WAITING pour un tiers nommé ; `close` : fermer un doublon ou une alerte périmée ; `todo` : poser une carte de TODO, pour
 // une question de produit ou de design seulement.
-export const GESTES = ["rail", "waiting", "close", "todo"] as const;
-export type Geste = (typeof GESTES)[number];
+const GESTES = ["rail", "waiting", "close", "todo"] as const;
+type Geste = (typeof GESTES)[number];
 
 // Un contrôle de disjoncteur rejoué au plus toutes les 10 minutes.
-export const CONTROLE_TOUS_LES_MS = 10 * 60_000;
+const CONTROLE_TOUS_LES_MS = 10 * 60_000;
 // Un dossier redonné après 10 minutes quand la réponse ne s'applique pas, trois fois au plus.
-export const DOSSIER_TOUS_LES_MS = 10 * 60_000;
-export const DOSSIER_ESSAIS_MAX = 3;
+const DOSSIER_TOUS_LES_MS = 10 * 60_000;
+const DOSSIER_ESSAIS_MAX = 3;
 // Les tickets du rail se relisent au plus toutes les minutes.
 const LECTURE_TOUTES_LES_MS = 60_000;
 
-export const MARQUE_DU_SUPERVISEUR = "<!-- brigade:superviseur -->";
+const MARQUE_DU_SUPERVISEUR = "<!-- brigade:superviseur -->";
 
 type Demander = <T>(
   sujet: { numero: number; prefixe: string; nom: string },
