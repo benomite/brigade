@@ -17,6 +17,7 @@ import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { corpsDePriseDuManager } from "../../src/github-etat/prise-du-manager.ts";
 import { ECHECS_ATTEINTS, HORS_CUISINE, type GitHub } from "../../src/github.ts";
 import { corpsDeLaQuestion, corpsDeLaReprise, questionEnSuspens } from "../../src/manager/question-sans-manager.ts";
+import { corpsDeLIncapacite } from "../../src/routage-station/routage-station.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
@@ -134,7 +135,7 @@ test("when no station of the project runs a manager, the ticket is given back to
   const mac = station(t, faux, MAC, { manager: false, cook: () => bloque(), horloge });
   await mac.tour();
   const [posee] = du(faux, MARQUE_DE_LA_QUESTION);
-  assert.match(posee ?? "", /No station of the project runs a manager: the ticket is given back to the rail\./);
+  assert.match(posee ?? "", /No other station of the project that can take this ticket runs a manager: the ticket is given back to the rail\./);
   assert.ok(posee?.includes(`> ${QUESTION}`), posee ?? "");
   const ticket = faux.ticket(N);
   assert.equal(ticket.labels.has("fire"), true, "on the rail");
@@ -193,6 +194,51 @@ test("a real cook failure on a station with no manager still counts, and still s
   assert.match(derniere, /Set aside by its failure count/);
   assert.match(derniere, /No manager runs on this station to rework it\./);
   assert.equal(commentaires(faux).some((corps) => corps.includes(VIEUX_MOTIF)), false);
+});
+
+test("a station that runs a manager but cannot run the ticket's gates never takes it: the question does not wait for it, the ticket is given back to the rail", async (t) => {
+  const faux = new FauxGitHub();
+  projetAvecLaBox(faux);
+  faux.poster(N, BOX, corpsDeLIncapacite({ station: BOX, vers: [MAC], question: "The gates cannot run here: docker is missing on this machine." }));
+  const horloge = { a: DEBUT };
+  const mac = station(t, faux, MAC, { manager: false, cook: () => bloque(), horloge });
+  await mac.tour();
+  assert.match(du(faux, MARQUE_DE_LA_QUESTION)[0] ?? "", /No other station of the project that can take this ticket runs a manager/);
+  assert.equal(du(faux, MARQUE_D_ATTENTE).length, 1, commentaires(faux).join("\n---\n"));
+  assert.equal(faux.ticket(N).labels.has(LABEL_TAKEN), false);
+  // Après l'attente, le Mac le reprend : la question n'attend pas la box, qui ne le prendrait jamais.
+  horloge.a += ATTENTE_MS + 60_000;
+  assert.equal(await mac.tour(), null);
+  assert.equal(mac.cooks(), 2);
+  assert.equal(du(faux, MARQUE_D_ECHEC).length, 0);
+});
+
+test("the issue's comments cannot be read when the question is posted: no station is ruled out, the question waits for the manager on another station", async (t) => {
+  const faux = new FauxGitHub();
+  projetAvecLaBox(faux);
+  // La lecture des commentaires du ticket échoue une fois, juste après le cook.
+  const panne = { a: false };
+  const mac = station(t, faux, MAC, {
+    manager: false,
+    cook: () => {
+      panne.a = true;
+      return bloque();
+    },
+    github: (client) => ({
+      ...client,
+      commentaires: async (numero: number) => {
+        if (numero === N && panne.a) {
+          panne.a = false;
+          throw new Error("HTTP 502");
+        }
+        return client.commentaires(numero);
+      },
+    }),
+  });
+  await mac.tour();
+  assert.match(du(faux, MARQUE_DE_LA_QUESTION)[0] ?? "", /A manager of the project runs on `parade-box\/claude`/, commentaires(faux).join("\n---\n"));
+  assert.equal(du(faux, MARQUE_D_ATTENTE).length, 0);
+  assert.equal(du(faux, MARQUE_D_ECHEC).length, 0);
 });
 
 test("the stations of the project cannot be read on GitHub: the question is posted, the ticket is given back to the rail, and the issue says why", async (t) => {

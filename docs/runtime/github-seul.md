@@ -86,7 +86,8 @@ base, the stale-branch pruning).
   the stations of the project below. While another station of the project runs one, the station with no manager does not
   take the ticket back: that station takes it, and gives the question to its manager before any cook
   (`<!-- brigade:question-reprise station=<name> -->`); the answer is written on the issue, where the next cook reads it.
-  When no station of the project runs a manager, or they cannot be read, the ticket is given back to the rail and waits
+  A station that the issue marks as unable to run the ticket's gates never takes it, so the question does not wait for
+  its manager. When no other station of the project that can take the ticket runs a manager, or they cannot be read, the ticket is given back to the rail and waits
   (`brigade:attente`), then a cook resumes it. A missing manager is never a failed cook and never sets a ticket aside:
   on BOBL-tech/mirrorlab#842, two such stops set the ticket aside for 21 h, when another station's manager could answer.
 - **A blocked question the evidence answers goes back to a cook, not to the chef.** When the blocked ticket is a

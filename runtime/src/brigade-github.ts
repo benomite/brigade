@@ -1155,10 +1155,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   // Les autres stations du projet qui font tourner un manager, telles que GitHub
-  // les montre (#3938) ; null quand elles ne se sont jamais lues.
-  const stationsAvecManager = async (): Promise<string[] | null> => {
+  // les montre (#3938) ; null quand elles ne se sont jamais lues. Une station que
+  // l'issue marque incapable de jouer les gates du ticket ne le prend jamais :
+  // son manager n'y répondrait pas, la question ne l'attend pas.
+  const stationsAvecManager = async (marquees: ReadonlySet<string>): Promise<string[] | null> => {
     await stationsDuProjet();
-    return vuesSurGitHub === null ? null : vuesSurGitHub.managers.filter((autre) => autre !== nom);
+    return vuesSurGitHub === null ? null : stationsCapables(nom, vuesSurGitHub.managers, marquees);
   };
 
   // Sans manager sur la station, la question du cook est postée sur l'issue pour
@@ -1166,7 +1168,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // d'essai ni le mettre de côté (#3938). Si aucune station du projet ne fait
   // tourner de manager, le ticket est rendu au rail, et attend avant d'être repris.
   const poserLaQuestionAilleurs = async (issue: number, question: string): Promise<"liberee"> => {
-    const managers = await stationsAvecManager();
+    // Des marques illisibles n'écartent aucune station : la porte relit les siennes.
+    const marquees = await github
+      .commentaires(issue)
+      .then((lus) => incapablesLus(lus, () => Promise.resolve().then(() => github.retraitsDeLabels(issue))))
+      .catch(() => new Set<string>());
+    const managers = await stationsAvecManager(marquees);
     await github.commenter(issue, corpsDeLaQuestion({ station: nom, question, managers }));
     if (managers !== null && managers.length > 0) {
       avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked and this station has no manager: its question is posted on the issue for the manager on ${managers.join(", ")}, the ticket is given back`);
@@ -2352,7 +2359,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       questionsAReprendre.delete(ticket.number);
       if (enSuspens !== null && options.consulter !== undefined) questionsAReprendre.set(ticket.number, enSuspens);
       if (enSuspens !== null && options.consulter === undefined) {
-        const managers = await stationsAvecManager();
+        const managers = await stationsAvecManager(marquees);
         if (managers !== null && managers.length > 0) {
           sauter(ticket.number, direSaut(ticket.number, `its cook's question awaits the manager on ${managers.join(", ")}: this station has none`));
           continue;

@@ -33,7 +33,7 @@ export function corpsDeLaQuestion({ station, question, managers }: { station: st
     managers === null
       ? "The stations of the project that run a manager could not be read on GitHub: the ticket is given back to the rail."
       : managers.length === 0
-        ? "No station of the project runs a manager: the ticket is given back to the rail."
+        ? "No other station of the project that can take this ticket runs a manager: the ticket is given back to the rail."
         : `A manager of the project runs on ${managers.map((m) => `\`${m}\``).join(", ")}: that station takes the ticket, answers the question here, and its cook reads the answer. Station \`${station}\` does not take the ticket back until then.`;
   const citee = question.trim().split("\n").map((ligne) => `> ${ligne}`.trimEnd()).join("\n");
   return `${MARQUE_DE_LA_QUESTION} station=${station} -->\nStation \`${station}\` has no manager: its cook stopped, blocked, and its question is posted here for a manager of the project on another station. ${suite} This stop is not a failed cook, and never sets the ticket aside.\n\nThe cook's question:\n\n${citee}`;
