@@ -56,7 +56,7 @@ import { estUneReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaRe
 import { lireInstantane, REQUETE, type Instantane, type PRDeLInstantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { faitsDePrise, lacher, premierePrise, prendre, purger, stationsDesPrises } from "./github-etat/prise.ts";
+import { tenant as tenantDeLaPrise, faitsDePrise, lacher, premierePrise, prendre, purger, stationsDesPrises } from "./github-etat/prise.ts";
 import { stationsDuManager } from "./github-etat/prise-du-manager.ts";
 import { corpsDeLaQuestion, corpsDeLaReprise, questionEnSuspens, type QuestionEnSuspens } from "./manager/question-sans-manager.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
@@ -929,6 +929,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // qu'il devient : le même blocage technique ne boucle pas.
   // Les cartes de station que ce processus a posées : une par prérequis.
   const cartesDeLaStation = new Map<string, number>();
+  // Sa livraison ouverte, devenue caduque (réécrit, découpé), se ferme dans le même geste que lui : ouverte, elle tiendrait encore sa zone.
+  // Un échec ici ne défait pas le geste : il est dit.
+  const fermerLaLivraisonObsolete = async (numero: number, raison: string, geste: string): Promise<void> => {
+    try {
+      const livraison = (await github.prsOuvertes()).find((ouverte) => ouverte.number !== undefined && ouverte.branche.startsWith(`cook/${numero}-`));
+      if (livraison?.number !== undefined && github.fermerPR !== undefined) {
+        await github.commenter(livraison.number, `Ticket #${numero} ${raison}`);
+        await github.fermerPR(livraison.number);
+      }
+    } catch (erreur) {
+      avertir(`brigade : #${numero} sur ${nom} — ${geste} done, but its open delivery could not be closed: ${message(erreur)}`);
+    }
+  };
+
   // Après le dernier essai raté d'un ticket — `ECHECS_MAX` cooks sans
   // livraison, deux au même motif, ou ses renvois épuisés —, il va au manager,
   // pas au chef (#3513) : la station applique ici la reprise qu'il choisit —
@@ -937,7 +951,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // (les essais se recomptent d'après lui) ; ou ce que le chef lit quand le
   // ticket va à lui : déjà repris une fois, sans manager, ou une reprise qui ne
   // se lit ou ne s'applique pas — dite, jamais devinée.
-  const apresLesEssais = async (ticket: TicketLu, motifs: string[]): Promise<{ auChef: string } | { commentaire: string; question: boolean }> => {
+  const apresLesEssais = async (ticket: TicketLu, motifs: string[], { livraisonGardee = false }: { livraisonGardee?: boolean } = {}): Promise<{ auChef: string } | { commentaire: string; question: boolean }> => {
     const numero = ticket.number;
     let corps: string;
     let commentaires: { body: string; createdAt: string }[];
@@ -970,7 +984,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (reprise.choix === "reecrire" || reprise.choix === "decouper") {
         if (github.ecrireCorps === undefined) return { auChef: `The manager chose to ${reprise.choix === "reecrire" ? "rewrite" : "split"} it, but this station cannot write the ticket's body.` };
       }
-      if (reprise.choix === "reecrire") await github.ecrireCorps?.(numero, corpsReecrit(corps, reprise.corps));
+      if (reprise.choix === "reecrire") {
+        await github.ecrireCorps?.(numero, corpsReecrit(corps, reprise.corps));
+        // Réécrit, le ticket repart de son nouveau corps : sa livraison ouverte est caduque et ne tient plus sa zone (#3966).
+        // Sauf après les renvois de la pass : le cook reprend sous la même PR, qui reste sa livraison en pass.
+        if (!livraisonGardee) await fermerLaLivraisonObsolete(numero, "was rewritten by the manager: this delivery is obsolete and is closed, the ticket restarts from its new body.", "rewrite");
+      }
       if (reprise.choix === "recalibrer") {
         for (const label of ticket.labels.filter((l) => l.startsWith("model:") || l.startsWith("effort:"))) await github.delabelliser(numero, label);
         await github.labelliser(numero, [`model:${reprise.calibrage.model}`, `effort:${reprise.calibrage.effort}`]);
@@ -987,16 +1006,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         }
         await github.ecrireCorps?.(numero, avecListe(corps, rendreListe(numero, lignes)));
         // Sa livraison ouverte se ferme avec le découpage : épique, elle tiendrait la zone de ses propres sous-tickets (#3932).
-        // Un échec ici ne défait pas le découpage : il est dit,.
-        try {
-          const livraison = (await github.prsOuvertes()).find((ouverte) => ouverte.number !== undefined && ouverte.branche.startsWith(`cook/${numero}-`));
-          if (livraison?.number !== undefined && github.fermerPR !== undefined) {
-            await github.commenter(livraison.number, `Ticket #${numero} was split into ${nouveaux.map((n) => `#${n}`).join(", ")}: this delivery is closed, its sub-tickets carry the work.`);
-            await github.fermerPR(livraison.number);
-          }
-        } catch (erreur) {
-          avertir(`brigade : #${numero} sur ${nom} — split done, but its open delivery could not be closed: ${message(erreur)}`);
-        }
+        await fermerLaLivraisonObsolete(numero, `was split into ${nouveaux.map((n) => `#${n}`).join(", ")}: this delivery is closed, its sub-tickets carry the work.`, "split");
       }
     } catch (erreur) {
       avertir(`brigade : #${numero} sur ${nom} — the manager's rework (${reprise.choix}) could not be applied: ${message(erreur)}`);
@@ -1566,7 +1576,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     // Ses renvois épuisés, le ticket va au manager, pas au chef (#3513).
     const epuise = attenteDite === null && (deja >= RENVOIS_MAX || memeResultat) && genre !== "conflict";
-    const suite = epuise ? await apresLesEssais(ticket, [...renvois.map((c) => motifDe(c.body)), raison.split("\n")[0] ?? ""]) : null;
+    const suite = epuise ? await apresLesEssais(ticket, [...renvois.map((c) => motifDe(c.body)), raison.split("\n")[0] ?? ""], { livraisonGardee: true }) : null;
     const pourquoi = memeResultat ? `handed back twice in a row with the same result — ${(raison.split("\n")[0] ?? "").replace(/[.\s]+$/, "")}` : `after ${deja} sends back`;
     if (attenteDite !== null) {
       // En WAITING : le commentaire et le label sont posés.
@@ -2208,6 +2218,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || autre.labels.includes(LABEL_IN_PASS) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
         if (retenuesDuTour.has(autre.number)) continue;
+        // Un ticket qu'aucun cook ne cuit ici, qui n'est pas en pass et que nulle station ne tient — `taken` sans prise lisible — est en file : il ne tient aucune zone (#3966).
+        // Une prise qui ne se lit pas le tient encore : dans le doute, la zone reste tenue.
+        if (!autre.labels.includes(LABEL_IN_PASS) && !enVol.has(autre.number) && !prisCeTour.has(autre.number)) {
+          const prise = await github.commentaires(autre.number).then((commentaires) => tenantDeLaPrise(commentaires, []) !== null).catch(() => true);
+          if (!prise) continue;
+        }
         enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
       }
       const attente = attenteDeZone(ticket.number, zone, enVolDuTour);
