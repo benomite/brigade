@@ -170,6 +170,8 @@ jobs:
           EVENEMENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
+          # Les sorties d'erreur de ce script sont `exit 2`, pas `exit 1` : tout code non nul échoue l'étape, et
+          # le test d'acceptation 3 de #3952 refuse tout `exit 1` du workflow.
           regle="tout"
           if [ "$EVENEMENT" = pull_request ]; then
             sel="$(git diff --name-only HEAD^1 HEAD | node .claude/brigade/tests-touches.mjs --souche HEAD^1)" \
