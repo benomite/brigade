@@ -3,18 +3,20 @@
 // phase où la pass en est. Rien n'est lu ailleurs que dans les projections, et
 // rien n'en sort que la nature du geste et ce qu'il vise.
 import { nommer } from "./activite.ts";
+import { avecEtape, type EtapeDePass } from "./activite/etape-de-pass.ts";
 import type { Base } from "./base.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN, GATES_COUPEES } from "./events/pass.ts";
 import { dernierRunNomme, derniersCooks, type DernierCook } from "./projections/guardrails.ts";
 import type { PassDeTicket } from "./projections/pass.ts";
-import { lirePass } from "./projections/pass.ts";
+import { etatDeLaBase, lirePass } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { debutDeRelecture } from "./reviewer.ts";
 
 // `fait` : le geste, en mots du chef. `cible` : le fichier ou la commande qu'il
 // vise, s'il en vise un. `faitEn` : le même geste, en anglais — celui que la carte
-// de l'app affiche. `depuis` : l'heure où la cuisine s'y est mise.
-export type ActiviteDeTicket = { fait: string; faitEn: string; cible: string | null; depuis: string };
+// de l'app affiche. `depuis` : l'heure où la cuisine s'y est mise. `etape` : en pass seulement, l'étape où la pass en est
+// (activite/etape-de-pass.ts) ; absente quand son activité n'en est aucune.
+export type ActiviteDeTicket = { fait: string; faitEn: string; cible: string | null; depuis: string; etape?: EtapeDePass };
 
 // Ce que la pass fait d'une livraison, phase par phase. Une phase absente d'ici
 // n'est pas une activité de la pass : le ticket n'y est plus, ou pas encore.
@@ -93,10 +95,14 @@ function aLaPass(base: Base, pass: PassDeTicket | undefined, derniere: Relecture
 export function activitesDuRail(base: Base, rail: TicketRail[]): Map<number, ActiviteDeTicket | null> {
   const cooks = derniersCooks(base);
   const passes = new Map(lirePass(base).map((pass) => [pass.ticket, pass]));
+  const etatBase = etatDeLaBase(base);
   return new Map(
     rail.flatMap((ticket): [number, ActiviteDeTicket | null][] => {
       if (ticket.state === "taken") return [[ticket.ticket, auTravail(ticket, cooks.get(ticket.ticket))]];
-      if (ticket.state === "pass") return [[ticket.ticket, aLaPass(base, passes.get(ticket.ticket), dernierRunNomme(base, debutDeRelecture(ticket.ticket)))]];
+      if (ticket.state === "pass") {
+        const pass = passes.get(ticket.ticket);
+        return [[ticket.ticket, avecEtape(aLaPass(base, pass, dernierRunNomme(base, debutDeRelecture(ticket.ticket))), pass, etatBase)]];
+      }
       return [];
     }),
   );

@@ -21,7 +21,7 @@ import type { SigneDeVie } from "../../../../runtime/src/stations-github/station
 import type { Cook } from "../../faits.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
 import type { ActiviteDuCook, TableauLu } from "../../tableau/lecture.ts";
-import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, SANS_RAISON, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
+import { labelDeMiseDeCote, LABEL_DU_TABLEAU_DE_LA_CUISINE, miseDeCoteDe, miseDeCoteLe, SANS_RAISON, SET_ASIDE_FAILURES, type MiseDeCote } from "../../tableau/mise-de-cote-github.ts";
 import { etatDeLaBaseGithub, MOT_DE_L_ETAT, ticketDeLaPR } from "../../tableau/rail-github.ts";
 import { prisesDeLIssue, stationsDeGithub, tenantDeLIssue, type Prise } from "../cooks/prises.ts";
 import { estSensible } from "../carte-sensible/label.ts";
@@ -31,6 +31,7 @@ import { railBloqueDe, type NonPrisLus } from "../rail-bloque/rail-bloque.ts";
 import { avecLesStationsQuiCuisent, type StationsLues } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
 import { attenteDuRailDe } from "../attente-du-rail/attente-du-rail.ts";
 import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pause-quota.ts";
+import { arretDuRail, zoneTenueDe } from "../bandeau-arret/arret-du-rail.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
@@ -43,6 +44,8 @@ const EN_FILE = new Set([MOT_EN_FILE, MOT_TESTS_ECRITS]);
 const MOT_MIS_DE_COTE = "86";
 // La colonne où reste un ticket mis de côté qui ne demande rien au chef (faits.ts, `COLONNES_DE_FAITS`) : celle du rail.
 const COLONNE_DE_LA_MISE_DE_COTE = "On the rail";
+// La marque que la livraison porte dans le corps de sa PR : la station qui l'a cuisinée.
+const STATION_DE_LA_PR = /Cooked by station `([A-Za-z0-9._/-]+)`/;
 // Les mots dont un ticket a une station qui le tient.
 const TENUS = new Set(["pris", "en pass", "base rouge"]);
 
@@ -52,7 +55,7 @@ const liste = (valeur: unknown): Brut[] => (Array.isArray(valeur) ? valeur.flatM
 const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
 
 // La PR qui livre un ticket, telle que la carte la dit.
-export type PrDuTicket = { numero: number; url: string; le: string };
+export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
 // `sensible` : l'issue porte le label `sensitive` (ticket 3224). `renvoi` : le dernier renvoi de sa livraison à un cook, et
@@ -63,7 +66,7 @@ export type PrDuTicket = { numero: number; url: string; le: string };
 // ses commentaires ne se lisent pas (ticket 3763). `reparationDeMain` : l'issue porte `repair-main`, la réparation d'une main
 // rouge (ticket 3815). `prises` : combien de fois un cook l'a pris, depuis la première prise — lues de la première page de ses
 // commentaires, `auMoins` quand elle est pleine ; absent sans prise lue (ticket 3823).
-export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
+export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; miseDeCoteLe?: string; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
 export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
 // `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, runtime/src/rail-bloque/), ou pourquoi ils ne se
@@ -148,7 +151,7 @@ async function lireLesServisParPages(lire: (chemin: string) => Promise<unknown>,
         titre: texte(pr.title).replace(/^#\d+\s*[—-]\s*/, ""),
         url: `https://github.com/${depot}/issues/${ticket}`,
         livre: mergeLe,
-        station: /Cooked by station `([A-Za-z0-9._/-]+)`/.exec(texte(pr.body))?.[1] ?? null,
+        station: STATION_DE_LA_PR.exec(texte(pr.body))?.[1] ?? null,
         pr: texte(pr.html_url),
       });
     }
@@ -190,7 +193,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   const livrees = new Map<number, PrDuTicket>();
   for (const pr of prs) {
     const ticket = ticketDeLaPR(texte(objet(pr.head)?.ref), texte(pr.body));
-    if (ticket !== null && !livrees.has(ticket) && typeof pr.number === "number") livrees.set(ticket, { numero: pr.number, url: texte(pr.html_url), le: texte(pr.created_at) });
+    if (ticket !== null && !livrees.has(ticket) && typeof pr.number === "number") livrees.set(ticket, { numero: pr.number, url: texte(pr.html_url), le: texte(pr.created_at), station: STATION_DE_LA_PR.exec(texte(pr.body))?.[1] ?? null });
   }
   const duRail = issues.flatMap((issue) => {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") return [];
@@ -216,10 +219,15 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const label = labelDeMiseDeCote(labels);
     const deLaMiseDeCote = label === null ? undefined : await toutesLesPages(lire, `/repos/${depot}/issues/${numero}/comments`);
     const miseDeCote = label === null || deLaMiseDeCote === undefined ? undefined : miseDeCoteDe(depot, label, deLaMiseDeCote, numero);
+    const misDeCoteLe = label === null || deLaMiseDeCote === undefined ? null : miseDeCoteLe(label, deLaMiseDeCote);
+    // Gelé, la zone que sa PR ouverte tient (ticket 3924), des commentaires déjà lus : aucune lecture de plus.
+    if (miseDeCote) miseDeCote.zoneTenue = zoneTenueDe(deLaMiseDeCote ?? [], pr, misDeCoteLe);
     const dit = etatDuTicket(issueLue, base);
     const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : etapeDuRail(labels) === "tests written" ? MOT_TESTS_ECRITS : MOT_EN_FILE;
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
-    const prise = deLaPrise === undefined ? null : tenantDeLIssue(deLaPrise, liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)));
+    // Pris, le label dit que le ticket est tenu : un retrait `unlabeled taken` déjà lu dont le label est encore là (la lecture
+    // tombe dans la seconde du passage en pass) ne lui ôte pas sa station, et ses événements ne se lisent pas.
+    const prise = deLaPrise === undefined ? null : tenantDeLIssue(deLaPrise, etat === "pris" ? [] : liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)));
     // Son dernier renvoi à un cook (ticket 3302), des commentaires déjà lus : aucune lecture de plus.
     const renvoi = dernierRenvoi(deLaPrise ?? deLaMiseDeCote ?? []);
     // Ses prises (ticket 3823), des mêmes commentaires : un ticket relancé en boucle se compte sans lecture de plus.
@@ -233,7 +241,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const { attentes, commentairesLus } = attentesDuTicket({ ticket: numero, corps, commentaires, decoupage });
     const depend = [...new Set(attentes.map(({ ticket }) => ticket))];
     const sourcees = !EN_FILE.has(etat) ? {} : { attentes, commentairesLus };
-    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(depend.length === 0 ? {} : { depend }), ...sourcees, ...(entreLe === undefined ? {} : { entreLe }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }), ...(reparationDeMain ? { reparationDeMain: true as const } : {}), ...(prises[0] === undefined ? {} : { prises: { fois: prises.length, depuis: prises[0], ...((deLaPrise?.length ?? 0) >= PAR_PAGE ? { auMoins: true as const } : {}) } }) });
+    tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(depend.length === 0 ? {} : { depend }), ...sourcees, ...(entreLe === undefined ? {} : { entreLe }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(misDeCoteLe === null || label !== SET_ASIDE_FAILURES ? {} : { miseDeCoteLe: misDeCoteLe }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }), ...(reparationDeMain ? { reparationDeMain: true as const } : {}), ...(prises[0] === undefined ? {} : { prises: { fois: prises.length, depuis: prises[0], ...((deLaPrise?.length ?? 0) >= PAR_PAGE ? { auMoins: true as const } : {}) } }) });
   }
   // Les tickets qu'aucun manager n'a pris (ticket 3358) : la lecture du runtime, sur les issues déjà lues — leurs
   // commentaires et leurs événements se relisent sous condition. Ce qui ne se lit pas est dit, et le rail reste lu.
@@ -243,6 +251,9 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
 
 // Une heure comme `status` l'écrit dans ses lignes : `2026-11-04 02:58 UTC` (bon.ts, `HEURE_EN`).
 const heureEn = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
+// La station d'un ticket : en pass ou base rouge, celle que la PR de sa livraison dit, sinon ce que sa prise dit encore.
+const stationDuTicket = ({ etat, pr, prise }: Pick<TicketSurGithub, "etat" | "pr" | "prise">): string | null => (etat === "en pass" || etat === "base rouge" ? pr?.station : null) ?? prise?.station ?? null;
 
 // La ligne `status` d'un ticket (`  #<ticket>  <état>  <priorité>  <détail>  <titre>`), dans la forme que les bons du
 // rail découpent (bon.ts, `FORMES`) : qui le tient et depuis sa prise, qui l'a cuisiné et depuis sa PR, et, en attente,
@@ -255,7 +266,8 @@ function ligneDuTicket({ ticket, etat, priorite, titre, creeLe, pr, prise }: Tic
   if (etat === MOT_EN_FILE && creeLe !== "") return ecrire("queued", `since ${heureEn(creeLe)}`);
   if (etat === MOT_TESTS_ECRITS && creeLe !== "") return ecrire("tests written", `since ${heureEn(creeLe)}`);
   if (etat === "pris" && prise !== null) return ecrire("taken", `by ${prise.station} since ${heureEn(prise.le)}`);
-  if (etat === "en pass" && prise !== null && pr !== null && pr.le !== "") return ecrire("in pass", `since ${heureEn(pr.le)}, cooked by ${prise.station}`);
+  const station = stationDuTicket({ etat, pr, prise });
+  if (etat === "en pass" && station !== null && pr !== null && pr.le !== "") return ecrire("in pass", `since ${heureEn(pr.le)}, cooked by ${station}`);
   return null;
 }
 
@@ -326,6 +338,7 @@ function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: r
     baseRouge: baseRougeDuRail(tickets),
     relances: tickets.flatMap(({ ticket, prises }) => (prises === undefined ? [] : [{ ticket, ...prises }])),
     dernierServiLe: plusRecent(servis.map(({ livre }) => livre)),
+    misDeCoteParEchecs: tickets.flatMap(({ ticket, miseDeCote, miseDeCoteLe: le }) => (le === undefined || miseDeCote === undefined ? [] : [{ ticket, depuis: le, raison: miseDeCote.raison }])),
   });
   return alertes.length === 0 ? {} : { alertesDuRail: alertes };
 }
@@ -367,7 +380,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
         etat: ticket.etat,
         titre: ticket.titre,
         url: ticket.url,
-        ...(ticket.prise === null ? {} : { station: ticket.prise.station }),
+        ...(stationDuTicket(ticket) === null ? {} : { station: stationDuTicket(ticket) }),
         // Depuis quand il est dans sa colonne : sa prise s'il est pris, sa PR s'il est en pass.
         ...(ticket.etat === "pris" && ticket.prise !== null ? { depuis: ticket.prise.le } : {}),
         ...((ticket.etat === "en pass" || ticket.etat === "base rouge") && ticket.pr !== null && ticket.pr.le !== "" ? { depuis: ticket.pr.le } : {}),
@@ -387,6 +400,8 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
       // Les alertes du haut du rail (ticket 3823) : vraies — jamais contre l'en-tête —, datées, et chacune avec son geste ou
       // ce que la cuisine en fait.
       ...alertesDe(lu.depot, ranges, servis, cooks.map(({ station }) => station), stations, Date.parse(luLe)),
+      // La cuisine arrêtée (ticket 3924) : des tickets en file, aucune carte prise ni en pass — sa cause, et depuis quand.
+      ...arretDuRail(ticketsDeLAttente(ranges), ranges, servis, baseRougeDuRail(ranges)),
       // La pause de quota GitHub du compte (ticket 3482) : la tête de l'app la dit, chaque projet dit qu'il l'attend.
       ...(pause === null ? {} : { pauseQuota: pause }),
       agents: [],

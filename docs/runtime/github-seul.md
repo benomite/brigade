@@ -148,15 +148,11 @@ base, the stale-branch pruning).
   `Acceptance-Tests: frozen`, pushes the branch, posts on the issue one record per criterion
   (`<!-- brigade:tests-acceptation -->`: `criterion`, `testPath`, then `redOnMain`, `greenOnBranch`, `mutationsCaught`,
   `mutationsTotal`, `survivingLines`, left empty for other tickets to fill) and sets `tests-written`. The cook then
-  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. The
-  pass sends back a delivery whose head no longer carries a frozen test as its last authorized commit left it: the
-  frozen commit, or the latest commit carrying `Amendment: #<issue>` by the manager (its git name `manager`, or the
-  address `manager@brigade.localhost` the station's amendment commits under) or by the project's chef. A commit that
-  changed a frozen test and a later one that put it back leave it held, and the send-back names, for each test, the
-  commit to restore it from (#3847, `runtime/src/passe-gel-tests/gel-tests.ts`). A frozen case that already passes
-  on the base, or does not type-check, is not sent back to the cook, who may not touch it: the station drops it in the tests cook's name, by
-  such a manager commit, says it on the issue, and judges the delivery again — or sets the ticket aside once, the
-  reason in one line, when nothing would be left to prove a criterion (#3799, `docs/runtime/pass.md`). A
+  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. A
+  delivery that changes a frozen test is not refused before the review: the reviewer's brief names each frozen test
+  the head no longer carries as the frozen commit left it, with its diff since the freeze, and the reviewer judges it
+  as a blocking finding (#3910, `runtime/src/passe-gel-tests/gel-tests.ts`, `docs/runtime/pass.md`). There is no
+  amendment: a wrong criterion is a send-back reason, or a TODO card when it changes the product. A
   writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
   the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
   taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
@@ -165,6 +161,10 @@ base, the stale-branch pruning).
   A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
   at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
   and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
+  A ticket held by another one (an open ticket it depends on, one set aside, its zone held) has its tests written
+  during that hold (#3872), and so do the tickets that wait for a place taken by a cook, or that a full pass leaves —
+  in rail order, at most one writing per place, under the same guards (#3887): the claim, once the hold, the place or
+  the pass frees, no longer waits for the writing after it. Their skip line still names what holds them.
   Before the step, the manager classes each criterion (#3740, `runtime/src/qualification/classes.ts`, the rule in
   `agents/manager.md`), in a throwaway checkout of the base: `testable` — a behaviour the end user observes — or
   `not-testable`, with the proof the delivery owes instead (a before/after capture, the diff, the evaluation case, the
@@ -223,6 +223,16 @@ base, the stale-branch pruning).
   station announces itself in the log (`station.announced`, with its declaration and its cores), so `status` and
   `station` say its cap and where it comes from. Until #3446 the places were fixed at start and the chef's cap was
   written but read by nothing ([diagnosis](claim-wait-2026-11-13.md)).
+- **A `taken` ticket with no cook and no wait returns to the rail** (#3883, `runtime/src/reprise-attente/`). A timed
+  wait lives on the issue, not in a station's memory: its date is the `until=` of the `brigade:attente` comment, read
+  again at every turn, so a restart neither loses a wait nor its date passing. At each turn, a station looks at every
+  `taken` ticket with no cook on it here. No cook runs on it on any station when this station holds it, when a wait
+  follows the holding claim (the cook of that claim stopped), or when the claim is older than a cook can live
+  (`COOK_LE_PLUS_LONG_MS`, 6 hours). Seen so, with no live wait, for more than 5 minutes (`ORPHELIN_APRES_MS`), the
+  ticket loses `taken`: the station releases the claim in the name of the station that held it, with a comment that
+  says the ticket was taken with no cook on any station and no wait, and that it returns to the rail. From that turn
+  it no longer holds its zone. On 2026-11-19, #3764 kept `taken` on a timed wait for over two hours across two
+  restarts of its station, and the claim gate skipped #3761 and #3786 as "zone held by #3764".
 - **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
   disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
   the cores' default is one cook per core past the two kept, not two cores per cook (#3560).

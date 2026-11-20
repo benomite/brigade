@@ -59,7 +59,7 @@ export function attendusDesCartesLus(valeur: unknown): { attendusDesCartes?: Att
   return Object.keys(attendus).length === 0 ? {} : { attendusDesCartes: attendus };
 }
 
-const SORTES: readonly SorteDAlerte[] = ["aucune-station", "aucun-cook", "base-rouge", "relance-en-boucle", "cuisine-muette"];
+const SORTES: readonly SorteDAlerte[] = ["aucune-station", "aucun-cook", "base-rouge", "relance-en-boucle", "tout-mis-de-cote", "cuisine-muette"];
 const texteOuNul = (valeur: unknown): string | null | undefined => (valeur === null ? null : typeof valeur === "string" && valeur !== "" ? valeur : undefined);
 
 // `alertesDuRail`, de la racine de `facts` (ticket 3823, runtime/src/attente-du-rail/alertes.ts) : les alertes du haut du rail.
@@ -84,7 +84,7 @@ export function alertesDuRailLues(valeur: unknown): { alertesDuRail?: AlerteDuRa
       geste: lesGestes.geste,
       geree: lesGestes.geree,
       ...(GESTES.includes(bouton as Geste) ? { bouton: bouton as Geste } : {}),
-      ...(SORTES.includes(cause as SorteDAlerte) && cause !== "cuisine-muette" ? { cause: cause as CauseConnue } : {}),
+      ...(SORTES.includes(cause as SorteDAlerte) && cause !== "cuisine-muette" && cause !== "tout-mis-de-cote" ? { cause: cause as CauseConnue } : {}),
     }];
   });
   return lues.length === 0 ? {} : { alertesDuRail: lues };

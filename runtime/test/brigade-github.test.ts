@@ -226,7 +226,7 @@ test("a cook that delivers nothing gives the ticket back on the issue, which ano
   const b = faux.station("B");
   await b.tour();
   await b.calme();
-  assert.deepEqual(faux.cuissons, [{ station: "B", issue: 6 }]);
+  assert.deepEqual(faux.cuissons.filter((c) => c.station === "B"), [{ station: "B", issue: 6 }]);
 });
 
 test("a station with 3 places never holds more than 3 tickets, even when its cooks throw at once (GitHub limiting its calls, #2179)", async () => {

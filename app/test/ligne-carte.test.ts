@@ -6,7 +6,8 @@ import { describe, test } from "node:test";
 import { rail, type Carte, type Faits } from "../src/faits.ts";
 import { heureHM } from "../src/format.ts";
 import { jourDe } from "../src/vue/attente/saisie.ts";
-import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, PASS_SANS_DETAIL, PRET, TRAVAIL_SANS_DETAIL } from "../src/ligne-carte.ts";
+import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, PRET } from "../src/ligne-carte.ts";
+import { PAS_ENCORE_D_ACTIVITE } from "../src/vue/carte/activite.ts";
 
 const LU = "2026-10-12T10:04:11.000Z";
 const url = (n: number) => `https://github.com/benomite/brigade/issues/${n}`;
@@ -35,22 +36,22 @@ const phrase = ({ ligne, signal, repere }: Carte) => ({ ligne, ...(signal === un
 
 describe("la phrase de chaque état d'une carte (#622)", () => {
   test("au travail : ce que le cook fait, et depuis combien de temps", () => {
-    assert.deepEqual(phrase(de(FAITS, 1)), { ligne: "writing the tests · 12 min" });
-    assert.deepEqual(ligneAuTravail("pris", { faitEn: "reading", cible: "runtime/src/etat.ts" }, "3 min"), { ligne: "reading runtime/src/etat.ts · 3 min" });
-    assert.deepEqual(ligneAuTravail("pris", { faitEn: "writing", cible: "app/src/bon.ts" }, "2 s"), { ligne: "writing app/src/bon.ts · 2 s" });
-    assert.deepEqual(ligneAuTravail("pris", { faitEn: "running a command", cible: null }, "5 s"), { ligne: "running a command · 5 s" });
-    // Un cook qui ne fait que réfléchir : « in the kitchen », sans durée, jamais « thinking · N s ».
-    assert.deepEqual(ligneAuTravail("pris", { faitEn: "thinking", cible: null }, "2 s"), { ligne: TRAVAIL_SANS_DETAIL });
+    assert.deepEqual(phrase(de(FAITS, 1)), { ligne: "writing the tests · 12 min ago" });
+    assert.deepEqual(ligneAuTravail({ faitEn: "reading", cible: "runtime/src/etat.ts" }, "3 min"), { ligne: "reading runtime/src/etat.ts · 3 min ago" });
+    assert.deepEqual(ligneAuTravail({ faitEn: "writing", cible: "app/src/bon.ts" }, "2 s"), { ligne: "writing app/src/bon.ts · 2 s ago" });
+    assert.deepEqual(ligneAuTravail({ faitEn: "running a command", cible: null }, "5 s"), { ligne: "running a command · 5 s ago" });
+    // Un cook qui réfléchit le dit lui aussi, avec son âge (ticket 3923) : la carte dit ce que fait son cook.
+    assert.deepEqual(ligneAuTravail({ faitEn: "thinking", cible: null }, "2 s"), { ligne: "thinking · 2 s ago" });
     // Un runtime d'avant `faitEn` : le français ne passe pas sur la carte.
-    assert.deepEqual(ligneAuTravail("pris", { cible: null }, "2 s"), { ligne: TRAVAIL_SANS_DETAIL, repere: true });
-    // La box ne sait pas ce qu'on en fait : deux mots, et le repère.
-    assert.deepEqual(ligneAuTravail("pris", null, ""), { ligne: TRAVAIL_SANS_DETAIL, repere: true });
-    assert.deepEqual(ligneAuTravail("pris", undefined, ""), { ligne: TRAVAIL_SANS_DETAIL, repere: true });
+    assert.deepEqual(ligneAuTravail({ cible: null }, "2 s"), { ligne: PAS_ENCORE_D_ACTIVITE, repere: true });
+    // La box ne sait pas ce qu'on en fait : trois mots neutres, et le repère.
+    assert.deepEqual(ligneAuTravail(null, ""), { ligne: PAS_ENCORE_D_ACTIVITE, repere: true });
+    assert.deepEqual(ligneAuTravail(undefined, ""), { ligne: PAS_ENCORE_D_ACTIVITE, repere: true });
   });
 
-  test("en pass : la relecture, et depuis quand ; sans activité, « review in progress »", () => {
-    assert.deepEqual(phrase(de(FAITS, 3)), { ligne: "review in progress · 1 min" });
-    assert.deepEqual(ligneAuTravail("en pass", null, ""), { ligne: PASS_SANS_DETAIL, repere: true });
+  test("en pass : ce que fait la pass, et depuis quand ; sans activité, « no activity yet »", () => {
+    assert.deepEqual(phrase(de(FAITS, 3)), { ligne: "review in progress · 1 min ago" });
+    assert.deepEqual(ligneAuTravail(null, ""), { ligne: PAS_ENCORE_D_ACTIVITE, repere: true });
   });
 
   test("en attente : après les tickets qui la retiennent, ou prête à prendre une place — jamais « non communiqué »", () => {

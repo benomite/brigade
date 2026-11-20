@@ -107,6 +107,7 @@ import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDA
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
 import { ligneDeLAttente } from "./attente-du-rail/ligne-de-l-attente.js";
 import { ligneDesAlertesDuRail } from "./attente-du-rail/ligne-des-alertes.js";
+import { monterLeBandeau } from "./bandeau-arret/bandeau-arret.js";
 import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
@@ -140,6 +141,7 @@ import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
+import { poserRangDEssai } from "./carte/essai.js";
 import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
 import { poserTestsDeFiche } from "./fiche-tests/fiche-tests.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
@@ -448,6 +450,10 @@ const declarees = new Map();
 // « report to brigade », sous chaque panne que l'app montre (ticket 1977) : une issue préremplie, ouverte dans le navigateur.
 // Sur le téléphone, rien ne l'ouvrirait : le bouton n'y est pas.
 const signalement = tenirLeSignalement({ doc: document, pont: brigade, actif: () => telephoneVu === undefined });
+// Le bandeau de la cuisine arrêtée (ticket 3924), en tête du rail : monté une fois, chaque lecture du rail le pose ou le retire.
+const hoteDeLArret = document.createElement("div");
+hoteDeLArret.className = "hote-bandeau-arret";
+const bandeauDArret = monterLeBandeau(document, hoteDeLArret);
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const ajout = element("ajout");
@@ -2848,6 +2854,8 @@ function coinceDit({ dit }) {
   return bail !== undefined && /^(?:STUCK: |COINC[EÉ] : )/.test(bail) ? bail.replace(/, (?:lease|bail) .*$/, "") : undefined;
 }
 
+const SANS_COOK = "Taken, no cook running";
+
 // Une carte du rail : son numéro, son état, son titre, puis une phrase en mots simples qui dit ce
 // qui se passe et, au plus, une ligne de signal (ligne-carte.ts) ; un petit repère quand la file ne
 // dit pas tout. Ce que la file dit du ticket en plus est dans sa fiche (`poserDetailsDeFiche`). Dans
@@ -2895,10 +2903,12 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (ticket 1895).
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
+  // Prise plus d'une fois : le rang de son essai en clair, « 3rd try », à côté de ses points (ticket 3923).
+  if (carte.essai !== undefined) tete.append(poserRangDEssai(document, carte.essai));
   // Tuée deux fois par le même garde-fou : la carte le dit, sous sa tête, tant que la box le dit (ticket 3650).
   if (carte.garde !== undefined) tete.after(poserGardeRepetee(document, carte.garde));
   // Un agent y travaille en ce moment : la poêle grésille au bout de sa tête (ticket 2984).
-  if (cuit) tete.append(poele(document));
+  if (cuit && carte.sansCook !== true) tete.append(poele(document));
   // Une carte que plus aucun cook ne prendra dit en haut pourquoi, en mots simples (ticket 3147) ; ce que la station en a écrit
   // est derrière « details ». Ses trois gestes sont au pied de la carte.
   if (carte.refus === undefined) refusDeCartes.delete(`${projet.nom}#${ticket}`);
@@ -2951,6 +2961,13 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     const phrase = liens === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, liens);
     phrase.className = "ligne-carte";
     bon.append(phrase);
+  }
+  // Prise, sans aucun cook qui la cuise ni attente vivante : la carte le dit (ticket 3884).
+  if (carte.sansCook === true) {
+    const sans = bloc("p", SANS_COOK);
+    sans.className = "signal";
+    sans.dataset.sansCook = "";
+    bon.append(sans);
   }
   // Un cook coincé le dit sur sa carte, faute d'un autre signal (ticket 1456) : sur Cooks, ce qui est coincé et depuis
   // quand se lit en tête, sans ouvrir la fiche.
@@ -5269,11 +5286,14 @@ function poserLeRail(projet) {
       // Pourquoi la file ne part pas (ticket 3433) : jamais « no reason is found » devant une raison que la vue connaît.
       ligneDeLAttente(document, attente === undefined || attente.geste !== null ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail),
     ].find((lignes) => lignes.length > 0) ?? [];
+  bandeauDArret.maj(tenu.tableau.arretCuisine);
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
   poser(...statut, ...(bandeau === null ? [] : [bandeau]), grille, ...(duChef.length === 0 ? [] : [todo]), ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+  // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
+  if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
   if (memeRail) rail.scrollTop = hautDuRail;

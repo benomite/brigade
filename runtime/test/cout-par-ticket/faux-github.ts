@@ -28,7 +28,8 @@ export class FauxGitHub {
   protection = false;
   // Les têtes dont la CI est verte ; les autres tournent encore.
   private vertes = new Set<string>();
-  private horloge = Date.UTC(2026, 10, 3);
+  // L'instant du dernier commentaire ou événement : le suivant vient une seconde après.
+  horloge = Date.UTC(2026, 10, 3);
   private suivant = 1;
 
   readonly depot: string;
