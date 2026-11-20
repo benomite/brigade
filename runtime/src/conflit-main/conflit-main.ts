@@ -79,9 +79,11 @@ export async function suiteDuConflitBloque(
   };
   if (demandeUnGesteGit(question)) return renvoyer("its question is a git gesture");
   if (natureDeLArret(question) === "bac-a-sable") return renvoyer("its question is a sandbox limit, nothing for the chef");
+  // Sans manager sur la station, sa question lui revient avec le conflit : ce n'est pas la raison d'un échec (#3938).
+  if (consulter === undefined) return renvoyer("its question goes back to its own cook with the conflict");
   let lu: ReponseDuManager;
   try {
-    lu = consulter === undefined ? { illisible: "this station has no manager to consult" } : await consulter(question);
+    lu = await consulter(question);
   } catch (erreur) {
     lu = { illisible: message(erreur) };
   }
