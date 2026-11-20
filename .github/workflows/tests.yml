@@ -59,6 +59,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+      # Sur un run de la cuisine, `continue-on-error` rend `success` aux jobs `tests` et `types` même rouges :
+      # ce verdict n'y voit pas leur échec, que portent leurs propres statuts de commit.
       - name: Verdict de tests et de types
         run: |
           echo "tests : ${{ needs.tests.result }}, types : ${{ needs.types.result }}"
