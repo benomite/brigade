@@ -14,7 +14,7 @@ export const BASE_ROUGE_MS = 10 * 60_000;
 // Ce que le tour a vu de la cuisine. `dernierMerge` : le dernier merge vu,
 // à défaut `ouverture`, quand la cuisine a commencé de regarder — nul des deux,
 // rien ne se compte. `prises` : combien de fois chaque ticket ouvert a été pris
-// sans être servi. `baseRougeDepuis` : depuis quand la base est rouge, nul si
+// sans être servi, dans l'ordre du rail. `baseRougeDepuis` : depuis quand la base est rouge, nul si
 // elle ne l'est pas ; `checksRouges`, ses checks rouges.
 export type Observation = {
   dernierMerge: string | null;
@@ -39,15 +39,15 @@ export const estInformatif = (check: { name?: string }) => /^windows (app )?test
 const depuis = (iso: string, maintenant: Date) => maintenant.getTime() - Date.parse(iso);
 
 // La cause qui déclenche le superviseur, ou null. Une base rouge passe avant
-// tout : elle retient chaque livraison ; puis le ticket qui boucle, puis le
-// rail qui ne bouge pas.
+// tout : elle retient chaque livraison ; puis le premier ticket du rail qui
+// boucle, puis le rail qui ne bouge pas.
 export function declencher(observation: Observation, maintenant: Date): Declenchement | null {
   const { baseRougeDepuis } = observation;
   if (baseRougeDepuis !== null && depuis(baseRougeDepuis, maintenant) >= BASE_ROUGE_MS) {
     const check = observation.checksRouges?.[0];
     return check === undefined ? { cause: "base-rouge" } : { cause: "base-rouge", check };
   }
-  const boucle = [...observation.prises].filter(({ prises }) => prises >= PRISES_MAX).sort((a, b) => b.prises - a.prises || a.ticket - b.ticket)[0];
+  const boucle = observation.prises.find(({ prises }) => prises >= PRISES_MAX);
   if (boucle !== undefined) return { cause: "prises-sans-livraison", ticket: boucle.ticket };
   const repere = observation.dernierMerge ?? observation.ouverture ?? null;
   if (observation.ticketCuisinable && repere !== null && depuis(repere, maintenant) >= RIEN_LIVRE_MS) return { cause: "rien-livre" };

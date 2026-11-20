@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { canalGitHub } from "../../src/appairage/canal.ts";
 import { join } from "node:path";
 import { Base } from "../../src/base.ts";
-import { constaterLimite, dernierRefusDeLaStation, etiquetteDe, journaliserLaPause, LimiteGitHubAtteinte, limiteDeLaStation, ouvrirLimite, pauseDeLaStation, pausesDeLaStation, prendreUnAppel, REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
+import { constaterLimite, etiquetteDe, journaliserLaPause, LimiteGitHubAtteinte, limiteDeLaStation, ouvrirLimite, pauseDeLaStation, prendreUnAppel, REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { FauxGitHub } from "../cout-par-ticket/faux-github.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 import { CALIBRE, DEPOT, unGhDeGist, uneStation } from "./aides.ts";
@@ -35,10 +35,8 @@ test("a 403 on gist writes holds gist calls only: issue, PR and check calls stil
   for (const [chemin, ...methode] of [[`repos/${DEPOT}/issues`], [`repos/${DEPOT}/issues/42/comments`, "-X", "POST"], [`repos/${DEPOT}/pulls`], [`repos/${DEPOT}/commits/abc/check-runs`]] as const) {
     assert.equal(typeof (await prendreUnAppel(limite, options(chemin, ...methode))), "number", chemin);
   }
-  // La cuisine n'est pas retenue : `status` et la retenue ne voient ni pause ni refus.
+  // La cuisine n'est pas retenue : `status` ne voit aucune pause.
   assert.equal(pauseDeLaStation(racine, Date.now()), null);
-  assert.equal(dernierRefusDeLaStation(racine, Date.now(), 60 * 60_000), null);
-  assert.equal(pausesDeLaStation(racine, Date.now()), null);
 
   // Et un cook part : la station GitHub seul prend le ticket et le lance.
   const faux = new FauxGitHub(DEPOT);
@@ -97,7 +95,7 @@ test("a counter written before #3481, without the kind columns, keeps its pause 
   let instant = Date.parse("2026-11-13T16:50:00Z");
   // Le compteur tel qu'une station d'avant l'a laissé : ses tables sans la sorte d'appel.
   const base = new Base(join(racine, REPERTOIRE_COMPTEUR, "compteur.db"));
-  base.script("DROP TABLE pause; DROP TABLE refus; DROP TABLE pauses; CREATE TABLE pause (jusqua INTEGER NOT NULL); CREATE TABLE refus (instant INTEGER NOT NULL); CREATE TABLE pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT);");
+  base.script("DROP TABLE pause; DROP TABLE pauses; CREATE TABLE pause (jusqua INTEGER NOT NULL); CREATE TABLE pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT);");
   base.executer("INSERT INTO pause (jusqua) VALUES (?)", instant + 60_000);
   base.fermer();
   const limite = limiteDeLaStation(racine, { maintenant: () => instant });

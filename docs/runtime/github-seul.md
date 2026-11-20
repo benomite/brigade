@@ -117,22 +117,13 @@ base, the stale-branch pruning).
   ticket's `RENVOIS_MAX`. A green, pending or check-less CI, a free ticket, or another branch is left alone; open
   PRs are read only when a held ticket exists. A CI or head that cannot be read sends nothing back and is warned.
   Seen on #2908, whose red CI ended as a "merge it" request to the chef (#2970).
-- **Kitchen alerts go to Brigade, never to the project's repository** (#3620). The idle-kitchen bug — no merge for 90
-  minutes with a cookable ticket, whatever its cause, `empty-rail` included — is filed on `benomite/brigade` with the
-  project's `<!-- brigade:projet=<owner>/<repo> -->` mark, one per project while it is open
-  (`runtime/src/guerison/cuisine-inerte.ts`); with no Brigade client it is filed nowhere, and the turn says so once.
-  `benomite/brigade` serving itself keeps it in its own repository, where its cooks can fix the kitchen. An issue the
-  station opened about the kitchen itself — its `<!-- brigade:cuisine-inerte -->` or `<!-- brigade:breaker-open … -->`
-  mark, the `brigade:breaker-open` label, or the title the station gives it — is never a ticket of a project, even
-  fired and calibrated: the turn leaves it out before anything reads its tickets, so no cook takes it
-  (`runtime/src/alerte-cuisine/alerte-cuisine.ts`). Seen on benomite/secondes #45 (`empty-rail`), taken by a cook in an
-  Android app's repository, and #46, the breaker issue.
-- **The idle-kitchen alert names what the claim gate said** (#3699). Every line the claim gate gives for a cookable
-  ticket it skips — a ticket it waits for, a missing capability, a card with no zone, the wait after a stop — is kept
-  for the next turn's healing, and so is the guardrail that holds the kitchen (the chef's stop, the breaker, the
-  quota, the machine, the arbiter), now given for each ticket left behind. When the gate skipped every cookable
-  ticket, the alert's cause is `skipped` and it lists those lines; `empty-rail` is left for a cookable ticket the gate
-  neither took nor skipped. Seen on benomite/secondes #50, #51 and #52, filed as `empty-rail` on #3699.
+- **The breaker issue is never a ticket** (#3620). An issue the station opened about the kitchen itself — its
+  `<!-- brigade:breaker-open … -->` mark, the `brigade:breaker-open` label, or the title the station gives it — is never
+  a ticket of a project, even fired and calibrated: the turn leaves it out before anything reads its tickets, so no
+  cook takes it (`runtime/src/alerte-cuisine/alerte-cuisine.ts`). Seen on benomite/secondes #46, the breaker issue.
+- **When the kitchen does not move, the supervisor acts** (#3914, [superviseur.md](superviseur.md)). No idle-kitchen
+  alert, loop ticket or repair-main ticket is filed any more: one run per project gives the manager a dossier, and plays
+  only its six gestures.
 - **A TODO card that asks no question is filed as a defect on benomite/brigade.** At each turn's healing, a ticket of
   the turn (`fire`) that carries `chef-todo` with no marked comment `<!-- brigade:todo kind=… -->` from the repository,
   or one whose text is empty, is reported with no action from the chef: a `fix` issue on `benomite/brigade` names the
@@ -195,9 +186,8 @@ base, the stale-branch pruning).
 - **A full stop says so.** When the places or the pass are full, the claim gate stops; each claimable ticket it leaves
   says which bound holds it, and by which tickets — `the station's 6 places are all taken (#3643, #3649, …)`, `the
   pass holds 5 deliveries, its most is 5 (#3601, …)` — unless it waits for an open ticket, which it names instead
-  (#3647). These lines are what the held kitchen reads (`kitchen.held`, its `skips`); before #3677 these two stops
-  said nothing, and a held kitchen with sixteen tickets waiting read `unknown`, or the CI of a single delivery
-  ([diagnosis](claim-wait-2026-11-15.md)).
+  (#3647). These lines are the queue the supervisor's dossier shows ([superviseur.md](superviseur.md)); before #3677
+  these two stops said nothing ([diagnosis](claim-wait-2026-11-15.md)).
 - **A cook that says the ticket cannot be done yet puts it in WAITING** (#3814, `runtime/src/attente/`). On
   BOBL-tech/mirrorlab, #824 could only be done from 2026-11-25: each cook said "Too early", the review asked for changes,
   and the kitchen relaunched it about every 3 minutes for 26 h (1,198 runs) while its zone held #803; the second put it

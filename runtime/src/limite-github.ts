@@ -335,13 +335,12 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   // aucune écriture n'attend le disque.
   if (options.fichier !== undefined) base.script("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   base.script(
-    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE INDEX IF NOT EXISTS appels_par_projet ON appels (lower(substr(projet, instr(projet, '/') + 1)), instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS refus (instant INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
+    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE INDEX IF NOT EXISTS appels_par_projet ON appels (lower(substr(projet, instr(projet, '/') + 1)), instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS pauses (depuis INTEGER NOT NULL, jusqua INTEGER NOT NULL, statut INTEGER, ressource TEXT, retry_after TEXT); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
   // La sorte d'appel que retient une pause, et que nomme un refus (#3481) :
   // nulle dans un compteur d'avant, une pause de toutes les sortes.
   for (const [table, colonnes] of [
     ["pause", ["lecture TEXT"]],
-    ["refus", ["lecture TEXT"]],
     ["pauses", ["lecture TEXT", "limite TEXT", "fin_dite INTEGER"]],
   ] as const) {
     const deja = base.lire<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
@@ -350,10 +349,6 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   // Les points de la cuisine sur la minute (#2443), par compte : à part des appels, qu'un 304 quitte.
   const points = new Map<string, PointsDuCompte>();
   const pointsDe = (compte: string): PointsDuCompte => points.get(compte) ?? points.set(compte, { pris: [], total: 0 }).get(compte)!;
-
-  // Un refus par minute et par sorte suffit : la retenue ne lit que le plus récent (#2429).
-  const noterLeRefus = (instant: number, lecture: string | null) =>
-    base.executer("INSERT INTO refus (instant, lecture) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM refus WHERE instant > ? AND lecture IS ?)", instant, lecture, instant - 60_000, lecture);
 
   // Un compteur écrit avant la répartition n'a pas ces deux colonnes.
   const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
@@ -378,15 +373,12 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
         const cout = etiquette?.ecriture === true ? POINTS_PAR_ECRITURE : POINTS_PAR_LECTURE;
-        base.executer("DELETE FROM refus WHERE instant <= ?", instant - FENETRE_MS);
         if (usage === "cuisine") {
           // La limite de GitHub atteinte pour sa sorte d'appel : rien ne part,
           // et rien n'est compté. Les autres sortes partent (#3481).
           const sorte = etiquette?.lecture ?? "other";
           const [pause] = base.lire<{ jusqua: number | null }>(`SELECT max(jusqua) AS jusqua FROM pause WHERE ${POUR_LA_SORTE}`, sorte);
           if (pause?.jusqua != null && pause.jusqua > instant) {
-            // Le refus se garde : la retenue le lit quand la reprise dite est passée (#2429).
-            noterLeRefus(instant, sorte);
             return { jusqua: pause.jusqua };
           }
           const quota = quotaDe(compte, instant);
@@ -464,7 +456,6 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           );
         }
         // Une pause plus longue de la même sorte, déjà posée par un autre process, reste.
-        noterLeRefus(instant, sorte);
         base.executer("DELETE FROM pause WHERE lecture IS ? AND (jusqua <= ? OR jusqua <= ?)", sorte, instant, jusqua);
         base.executer("INSERT INTO pause (jusqua, lecture) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM pause WHERE lecture IS ?)", jusqua, sorte, sorte);
       });
@@ -1165,77 +1156,6 @@ export function pauseDeLaStation(racine: string | undefined, maintenant: number)
     // Une pause du seul gist ne retient pas la cuisine (#3481).
     const [pause] = base.lire<{ jusqua: number | null }>(`SELECT max(jusqua) AS jusqua FROM pause WHERE ${DE_LA_CUISINE}`);
     return pause?.jusqua != null && pause.jusqua > maintenant ? pause.jusqua : null;
-  } catch {
-    return null;
-  } finally {
-    base?.fermer();
-  }
-}
-
-// Les pauses de GitHub sur l'heure écoulée, telles que le compteur de la
-// station dont `racine` est le répertoire les a gardées (#3448) : leur nombre,
-// les minutes où GitHub a refusé un appel (une par minute au plus), la
-// dernière pause et son refus, et les derniers appels comptés avant elle —
-// leur projet, leur sorte, et s'ils écrivaient. C'est ce qu'il manquait au
-// ticket #3448 pour nommer la cause d'une retenue `github-limit` sans lire la
-// box. Lu sans rien écrire ni rien créer : null s'il n'y a pas de compteur,
-// qu'il ne se lit pas, ou qu'aucune pause n'y est gardée sur l'heure.
-export type PausesDites = {
-  pauses: number;
-  minutesRefusees: number;
-  // `statut` nul : la pause a été posée sans réponse de refus.
-  derniere: { depuis: number; jusqua: number; statut: number | null; ressource: string | null; retryAfter: string | null };
-  appelsAvant: Array<{ projet: string; lecture: string; ecriture: boolean }>;
-};
-// Combien des derniers appels avant la pause se gardent.
-export const APPELS_AVANT_LA_PAUSE = 5;
-
-export function pausesDeLaStation(racine: string | undefined, maintenant: number): PausesDites | null {
-  if (!racine) return null;
-  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
-  if (!existsSync(fichier)) return null;
-  let base: Base | undefined;
-  try {
-    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
-    const depuis = maintenant - FENETRE_MS;
-    // Un compteur d'avant #3448 n'a pas la table : la lecture lève, et rien n'est dit.
-    const pauses = base.lire<{ depuis: number; jusqua: number; statut: number | null; ressource: string | null; retry_after: string | null }>(
-      `SELECT depuis, jusqua, statut, ressource, retry_after FROM pauses WHERE jusqua > ? AND depuis <= ? AND ${DE_LA_CUISINE} ORDER BY depuis DESC`,
-      depuis,
-      maintenant,
-    );
-    const [derniere] = pauses;
-    if (derniere === undefined) return null;
-    const [refus] = base.lire<{ n: number }>(`SELECT count(*) AS n FROM refus WHERE instant > ? AND instant <= ? AND ${DE_LA_CUISINE}`, depuis, maintenant);
-    const appelsAvant = base
-      .lire<{ projet: string | null; lecture: string | null; ecriture: number }>("SELECT projet, lecture, ecriture FROM appels WHERE instant <= ? ORDER BY instant DESC, rowid DESC LIMIT ?", derniere.depuis, APPELS_AVANT_LA_PAUSE)
-      .map(({ projet, lecture, ecriture }) => ({ projet: projet ?? PROJET_DE_LA_STATION, lecture: lecture ?? "other", ecriture: ecriture === 1 }));
-    return {
-      pauses: pauses.length,
-      minutesRefusees: refus?.n ?? 0,
-      derniere: { depuis: derniere.depuis, jusqua: derniere.jusqua, statut: derniere.statut, ressource: derniere.ressource, retryAfter: derniere.retry_after },
-      appelsAvant,
-    };
-  } catch {
-    return null;
-  } finally {
-    base?.fermer();
-  }
-}
-
-// Le dernier appel que GitHub a refusé pour sa limite, dans les `depuisMs`
-// avant `maintenant` (en millisecondes), ou null : la reprise que GitHub a dite
-// peut passer sans que les refus cessent, et la retenue de la cuisine ne doit
-// pas alors perdre sa cause (#2429). Lu sans rien écrire ni rien créer.
-export function dernierRefusDeLaStation(racine: string | undefined, maintenant: number, depuisMs: number): number | null {
-  if (!racine) return null;
-  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
-  if (!existsSync(fichier)) return null;
-  let base: Base | undefined;
-  try {
-    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
-    const [refus] = base.lire<{ instant: number | null }>(`SELECT max(instant) AS instant FROM refus WHERE instant > ? AND instant <= ? AND ${DE_LA_CUISINE}`, maintenant - depuisMs, maintenant);
-    return refus?.instant ?? null;
   } catch {
     return null;
   } finally {

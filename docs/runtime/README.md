@@ -24,6 +24,7 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`quota-github.md`](quota-github.md) | The GitHub quota of an account, shared by its stations: the two limits, the pause, the fields published |
 | [`station-navigateur.md`](station-navigateur.md) | Looking at an interface delivery |
 | [`manager.md`](manager.md) | The manager and the tickets of the epic |
+| [`superviseur.md`](superviseur.md) | The supervisor: when the kitchen does not move, one run per project, the manager's dossier, its six gestures |
 | [`pass.md`](pass.md) | The pass: review, decision, merge |
 | [`conflits-avec-main.md`](conflits-avec-main.md) | Who resolves a conflict with main: the cook of the ticket, the chef only for a product choice |
 | [`pass-merge.md`](pass-merge.md) | The merge, seeing the pass |

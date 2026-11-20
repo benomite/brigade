@@ -370,6 +370,7 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     },
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
+    teteDeLaBase: async () => faux.teteDeLaBase,
     prsOuvertes: async () => faux.prs.filter((p) => p.state === "open").map((p) => ({ number: p.number, branche: p.branche, fichiers: [...p.fichiers] })),
     fermerPR: async (numero) => {
       faux.pr(numero).state = "closed";

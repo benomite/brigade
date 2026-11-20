@@ -148,8 +148,7 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   the interval (#3448, [diagnosis](claim-wait-espace-2026-11-13.md)): claimable tickets no longer wait
   up to 2 more minutes once the pause is over. The counter keeps each pause that starts, with its
   refusal (status, `x-ratelimit-resource`, `retry-after`), in its `pauses` table, with its kind, for an
-  hour after its end; a held kitchen reads it (`etat-et-mesures.md`); the manager, the GitHub-only turn
-  and the stale-branch cleanup say nothing of it. The resumption is automatic. During a pause of the
+  hour after its end; the manager, the GitHub-only turn and the stale-branch cleanup say nothing of it. The resumption is automatic. During a pause of the
   gist the station does not write its state on GitHub — except its registration
   (`runtime/src/enregistrement-station/`, #2443), written outside the pause with `heldBy` (the limit,
   since, until), so the app shows it `held by GitHub's limit until HH:MM` and keeps its projects

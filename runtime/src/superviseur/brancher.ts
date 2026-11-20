@@ -65,7 +65,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     const reponse = await consulter(consigneDuSuperviseur({ depot, declenchement, dossier }));
     const lue = "illisible" in reponse ? reponse : lireReponse(reponse.message);
     const bilan = await tourDuSuperviseur({
-      github: githubDuSuperviseur({ client, depot, maintenant, ...(options.attendre === undefined ? {} : { attendre: options.attendre }) }),
+      github: githubDuSuperviseur({ client, depot, maintenant, attendre: options.attendre }),
       declenchement,
       vu: "illisible" in lue ? `${vu}. The manager's answer could not be read (${lue.illisible}): no gesture of its own.` : `${vu}. ${lue.vu}`,
       actions: "illisible" in lue ? [] : lue.gestes,

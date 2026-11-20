@@ -1,7 +1,7 @@
 // Pourquoi la file du rail ne part pas, dans `brigade <project> status` (#3433) : la phrase de `expliquerLAttente`, au-dessus
 // de la file, puis la ligne de chaque carte — les mêmes que le rail de l'app écrit (vue/rail/github.ts).
 //
-// Comme le rail bloqué (#3358), seule une station GitHub seul la cherche : le rail y est sur GitHub. Le rail se lit de
+// Seule une station GitHub seul la cherche : le rail y est sur GitHub. Le rail se lit de
 // ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni `waiting`, ni mise de côté), pris, ou en pass — un
 // `in-pass` est compté en pass sans relire sa PR. Une lecture qui échoue le dit sur la même ligne : jamais une file dite
 // calme faute de l'avoir lue.
@@ -12,8 +12,8 @@ import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-c
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { lireGitHubSeul } from "../github-seul-etat.ts";
 import { clientGh } from "../proteger-branche.ts";
-import { feuPoseLe, lesFeux, type Lire } from "../rail-bloque/lecture.ts";
-import { LABELS_D_ECART, type StationsLues } from "../rail-bloque/rail-bloque.ts";
+import { feuPoseLe, lesFeux, type Lire } from "./lecture.ts";
+import { LABELS_D_ECART, type StationsLues } from "./stations.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
 import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
 import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail } from "./raison.ts";
@@ -98,8 +98,7 @@ export function plafondAtteintDeLaStation(base: Base): boolean {
   return plafonnees.length > 0 && plafonnees.every(({ station, plafond }) => cooksEnCoursDeStation(base, station).length >= plafond);
 }
 
-// Ce que `status` ajoute : rien hors d'une station GitHub seul (le rail n'est lu sur GitHub que là, comme le rail bloqué de
-// #3358), ou sans dépôt nommé.
+// Ce que `status` ajoute : rien hors d'une station GitHub seul (le rail n'est lu sur GitHub que là), ou sans dépôt nommé.
 export async function attenteDuRailDuStatus(env: Record<string, string | undefined>, maintenant: Date, base: Base): Promise<string[]> {
   return (await attenteEtRailDuStatus(env, maintenant, base)).lignes;
 }

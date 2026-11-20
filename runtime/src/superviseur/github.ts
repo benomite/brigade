@@ -43,8 +43,8 @@ export type OptionsDuGitHub = {
   // Le dépôt servi, que nomme une mise en WAITING.
   depot: string;
   maintenant?: () => Date;
-  // Attend `ms` millisecondes : le sondage de la relance. Par défaut, un minuteur.
-  attendre?: (ms: number) => Promise<void>;
+  // Attend `ms` millisecondes : le sondage de la relance. Absent, un minuteur.
+  attendre?: ((ms: number) => Promise<void>) | undefined;
 };
 
 const rougesDe = (checks: Awaited<ReturnType<ClientDuSuperviseur["checksDeLaBase"]>>) => checks.filter((check) => check.outcome === "red" && !estInformatif(check));
