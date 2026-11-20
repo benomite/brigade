@@ -175,7 +175,7 @@ describe("une question cliquée dans le menu", () => {
 describe("un projet cliqué dans le menu", () => {
   test("le process principal l'envoie par `ouvrirProjet`, que le pont donne à `surOuvrirProjet`", () => {
     const principal = readFileSync(join(import.meta.dirname, "../src/main.ts"), "utf8");
-    assert.ok(principal.includes('dire("ouvrirProjet", entree.projet)'));
+    assert.ok(principal.includes('click: () => void (ramener() && dire("ouvrirProjet", entree.projet))'));
     const pont = readFileSync(join(import.meta.dirname, "../src/preload.cjs"), "utf8");
     assert.ok(pont.includes('surOuvrirProjet: (recevoir) => void ipcRenderer.on("ouvrirProjet", (_, projet) => recevoir(projet)),'));
   });

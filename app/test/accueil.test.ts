@@ -36,7 +36,9 @@ const cook = (ticket: number, station = "parade-box") => ({ ticket, titre: `tick
 // Le bloc `attend` tel que `status` l'écrit (runtime/src/attend.ts, `decrireAttentes`).
 const UNE = "attend     1 décision attend le chef depuis 2 j\n  #867  depuis 2 j  merge à faire  Titre\nfin attend\n";
 const CINQ = "attend     5 décisions attendent le chef — la plus ancienne depuis 2 j\n  #1  depuis 2 j  merge\nfin attend\n";
+// Sa première ligne, la réparation que la base rouge ouvrait d'elle-même avant le superviseur (#3914), n'est plus lue.
 const BASE_ROUGE = [
+  "nothing cooks: base red since 3 h 05 ago, repair #655 in progress",
   "kitchen    held",
   "base       RED since 3 h 05 ago on abc1234 — the station takes no more tickets, the pass neither judges nor merges",
   "",
@@ -44,6 +46,7 @@ const BASE_ROUGE = [
 ].join("\n");
 // La même, comme la box l'écrivait avant #928 : l'app la lit toujours.
 const BASE_ROUGE_EN_FRANCAIS = [
+  "rien ne cuit : base rouge depuis 3 h 05, réparation #655 en cours",
   "cuisine    retenue",
   "base       ROUGE depuis 3 h 05 sur abc1234 — la station ne prend plus de ticket, la pass ne juge ni ne merge",
   "",

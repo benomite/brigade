@@ -72,7 +72,8 @@ test("l'état d'une ligne de l'accueil : retenu, attend le chef, cuit, au repos"
 });
 
 describe("un projet dont le disjoncteur est ouvert (#3602)", () => {
-  const BLOQUE = "Max connection down";
+  // La ligne que le rail bloqué écrivait : ce n'est plus qu'un texte, ni un état ni une cause que la ligne retire.
+  const BLOQUE = "8 tickets no manager takes, for 14 h";
   const dit = (...parties: string[]) => ({ ton: "rouge", dit: parties.join(" · ") });
   const ligneDe = (ligne: { ton: string; dit: string }) => {
     const [premiere] = lignesDeProjets(doc, [{ nom: "parade", etat: etatDeLaLigne(ligne), stations: [], maintenant: maintenantDeLaLigne(ligne) }], gestes());
@@ -86,6 +87,7 @@ describe("un projet dont le disjoncteur est ouvert (#3602)", () => {
       assert.deepEqual(rendue.children.map(texte).filter((t) => t !== "").slice(0, 2), ["parade", "held: breaker open"]);
       assert.match(rendue.ariaLabel ?? "", /^parade — held: breaker open — /);
     }
+    assert.equal(maintenantDeLaLigne(dit(BLOQUE, "breaker open")), BLOQUE);
     assert.equal(ETATS.breaker.ton, "rouge");
   });
 

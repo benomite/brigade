@@ -162,11 +162,29 @@ test("a gesture that throws does not stop the others, and its error is logged", 
   assert.ok(p.poses.some(([numero, label]) => numero === PRETE && label === "in-pass"));
 });
 
+// La brigade, où la cuisine inerte déposait son alerte avant le superviseur (#3620) : ce qu'on y dépose.
+function brigadeEnMemoire() {
+  const deposees: { titre: string; corps: string }[] = [];
+  const brigade = {
+    issuesDepuis: async () => deposees.map((d, rang) => ({ number: 800 + rang, body: d.corps, association: "OWNER", state: "open" })),
+    creerIssue: async (issue: { titre: string; corps: string }) => {
+      deposees.push(issue);
+      return 800 + deposees.length - 1;
+    },
+    fermerIssue: async () => {},
+  } as unknown as GitHubDeLaBrigade;
+  return { brigade, deposees };
+}
+
 // #2975 : la porte de prise saute un ticket que l'attente d'après un arrêt retient,
-// tant que le terme n'est pas passé.
-test("a ticket held by the wait after a stop is not cooked until the wait is over (#2975)", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
+// tant que le terme n'est pas passé. #2913 demande une capacité qu'aucune station
+// n'a : rien ne travaille pendant 90 min, et aucune alerte n'est déposée — ni sur le
+// projet, ni sur la brigade : c'est au superviseur d'en juger (#3914).
+test("a ticket held by the wait after a stop is not cooked until the wait is over, and no idle-kitchen alert is filed meanwhile (#2975, #3914)", async () => {
+  const { brigade, deposees } = brigadeEnMemoire();
+  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
   p.faux.feu(2912, CALIBRE);
+  p.faux.feu(2913, [...CALIBRE, "needs:gpu"]);
   const terme = Date.parse("2026-11-07T10:00:00Z") + 120 * MINUTE;
   await p.faux.pour("mac/claude").commenter(2912, `<!-- brigade:attente until=${terme} court -->\nStation \`mac/claude\`: stopped.`);
   await p.passer();
@@ -174,6 +192,7 @@ test("a ticket held by the wait after a stop is not cooked until the wait is ove
   await p.passer();
   await p.passer();
   assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+  assert.deepEqual(deposees, [], p.avertis.join("\n"));
   assert.deepEqual(p.faux.cuissons, []);
   // Le terme passé, la porte le prend : il n'est plus retenu.
   p.avancer(31 * MINUTE);
@@ -183,17 +202,22 @@ test("a ticket held by the wait after a stop is not cooked until the wait is ove
 
 // #2977 : #2912, prenable, est sauté par la porte de prise — « zone held by
 // #2907 » — tant que la PR de #2907, chez le chef, reste ouverte hors de la pass.
-test("a ticket whose zone is held by an open PR set aside for the chef is cooked once that PR merges (#2977)", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
+// Avec #2913, que rien ne cuit, la cuisine ne travaille pas 90 min : aucune alerte
+// de cuisine inerte n'est déposée sur la brigade (#3098 avant le superviseur, #3914).
+test("a ticket whose zone is held by an open PR set aside for the chef is cooked once that PR merges, and no idle-kitchen alert is filed meanwhile (#2977, #3914)", async () => {
+  const { brigade, deposees } = brigadeEnMemoire();
+  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
   const zone = "## Context\n\nwhatever\n\n## Zone\n\n- `docs/maquettes/app/`\n\n## Acceptance\n\n- done\n";
   p.faux.feu(2907, [...CALIBRE, "blocked-on-human"], zone);
   const tenante = p.faux.prOuverte(["docs/maquettes/app/Main.dc.html"], brancheDuTicket(2907));
   p.faux.feu(2912, CALIBRE, zone);
+  p.faux.feu(2913, [...CALIBRE, "needs:gpu"]);
   await p.passer();
   p.avancer(90 * MINUTE);
   await p.passer();
   await p.passer();
   assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
+  assert.deepEqual(deposees, [], p.avertis.join("\n"));
   assert.deepEqual(p.faux.cuissons, []);
   // La PR qui tenait la zone mergée, la porte prend le ticket.
   tenante.state = "closed";

@@ -144,6 +144,21 @@ describe("la file lue sur GitHub seul, sans tableau de la cuisine ni autre machi
     assert.match(contexte, /do not run it again\. Read at 2026-11-05T12:00:00\.000Z, on acme\/brigade\./);
   });
 
+  test("la file lit les issues en WAITING, plus les stations du compte : aucun rail bloqué sous la tête du bloc (#3914)", async () => {
+    const chemins: string[] = [];
+    let stationsLues = 0;
+    const stations = async () => (stationsLues++, { lues: [] });
+    // #2, sur le rail, qu'aucun manager n'a pris : le rail bloqué l'aurait dit. Un appelant d'avant passerait encore les
+    // stations du compte : elles ne sont plus lues.
+    const deux = { number: 2, title: "Ticket 2", html_url: `https://github.com/${DEPOT}/issues/2`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }] };
+    const appeler: AppelGitHub = async (chemin) => (chemins.push(chemin), chemin.includes("labels=fire") ? { status: 200, data: [...FIRE, deux] } : github(chemin));
+    const lue = await Reflect.apply(lireLaFile, undefined, [appeler, DEPOT, () => new Date(LU), stations]);
+    assert.equal(stationsLues, 0);
+    assert.ok(lue.lue, JSON.stringify(lue));
+    assert.equal(lue.texte, `${BLOC}\n`);
+    assert.ok(chemins.some((chemin) => /[?&]labels=waiting\b/.test(chemin)), "the `waiting` issues are listed");
+  });
+
   test("rien n'attend le chef : le bloc le dit, bords compris", async () => {
     const lue = await lireLaFile(async (chemin) => ({ status: 200, data: chemin.includes("labels=fire") ? [FIRE[0]] : [] }), DEPOT, () => new Date(LU));
     assert.ok(lue.lue);

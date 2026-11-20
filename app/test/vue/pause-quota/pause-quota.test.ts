@@ -237,6 +237,11 @@ describe("l'accueil", () => {
     assert.equal(ligne.dit, MEME_RAISON);
     assert.doesNotMatch(`${ligne.dit} ${ligne.survol}`, PANNE);
     assert.equal(etatDeLaLigne(ligne), "paused");
+    // Sans la pause, la même lecture — avec les tickets qu'aucun manager n'a pris, que la lecture d'avant portait — n'est plus
+    // un rail bloqué en rouge (#3914) : la station hors ligne se dit dans le rail.
+    const nonPris = [4, 5].map((ticket) => ({ ticket, depuis: minutes(-20) }));
+    const sans = ligneDeProjet({ nom: "parade", servi: true }, { a: LU, faits: faitsDe(avecLeRail(VIDE, { ...RAIL, nonPris } as RailSurGithub, { lus: [box()] })) }, undefined);
+    assert.deepEqual([sans.ton, etatDeLaLigne(sans)], ["vert", "idle"]);
   });
 });
 

@@ -19,6 +19,10 @@ const SECONDES = "benomite/secondes";
 const MAINTENANT = new Date("2026-11-15T17:00:00Z");
 const ilYA = (minutes: number) => new Date(MAINTENANT.getTime() - minutes * 60_000).toISOString();
 const TITRE_46 = titreDeLIssue("secondes");
+// L'issue que le détecteur de cuisine inerte ouvrait avant le superviseur (#3914), secondes#45 : son titre et sa marque ne
+// font plus une alerte de la cuisine.
+const TITRE_45 = "The kitchen is idle: no merge for 90 minutes with 1 cookable ticket(s) (empty-rail)";
+const CORPS_45 = "<!-- brigade:cuisine-inerte -->\nNo PR has been merged since 2026-11-15T15:25:00.000Z, for at least 90 minutes, while 1 ticket(s) are cookable: #44.";
 
 describe("a kitchen alert is filed on Brigade, never in the project's repository", () => {
   test("a breaker alert for secondes: every call goes to benomite/brigade, none to the project's repository", { skip: process.platform === "win32" && "le faux `gh` est un script bash" }, async (t) => {
@@ -57,7 +61,9 @@ describe("a kitchen alert is filed on Brigade, never in the project's repository
 });
 
 describe("an issue the station opened for its own needs is never a ticket of the project", { concurrency: 4 }, () => {
-  test("its durable mark, or its known title, makes it a kitchen alert", () => {
+  test("its durable mark, or its known title, makes it a kitchen alert — the breaker's only, no more the idle kitchen's", () => {
+    assert.equal(alerteDeLaCuisine({ title: "anything", labels: [], body: CORPS_45 }), null);
+    assert.equal(alerteDeLaCuisine({ title: TITRE_45, labels: [], body: "" }), null);
     assert.equal(alerteDeLaCuisine({ title: "anything", labels: [], body: `${marqueDuDisjoncteur("secondes")}\nThe breaker…` }), "disjoncteur");
     assert.equal(alerteDeLaCuisine({ title: TITRE_46, labels: [], body: "" }), "disjoncteur");
     assert.equal(alerteDeLaCuisine({ title: "anything", labels: [LABEL_DU_DISJONCTEUR] }), "disjoncteur");
@@ -77,30 +83,34 @@ describe("an issue the station opened for its own needs is never a ticket of the
     assert.deepEqual(tickets.map((ticket) => [ticket.number, ticket.alerte ?? null]), [[46, "disjoncteur"], [44, null]]);
   });
 
-  test("the manager's triage: the breaker issue is set aside, never judged nor fired; the ordinary issue is judged and fired as before", async (t) => {
+  test("the manager's triage: the breaker issue is set aside, never judged nor fired; an old idle-kitchen issue is judged and fired like the ordinary one", async (t) => {
     const c = cuisine(t, {
       manager: {},
-      issues: [issue(44, [], { title: "Add the lap screen" }), issue(46, [LABEL_DU_DISJONCTEUR], { title: TITRE_46 })],
+      issues: [issue(44, [], { title: "Add the lap screen" }), issue(45, [], { title: TITRE_45 }), issue(46, [LABEL_DU_DISJONCTEUR], { title: TITRE_46 })],
     });
     c.gh.decrire(44, { body: "The lap screen shows each lap of the timer." });
+    c.gh.decrire(45, { body: CORPS_45 });
     c.gh.decrire(46, { body: corpsDeLIssue("secondes", { ouvert: true, depuis: ilYA(5), ticket: 44, code: 1, erreur: null, echecs: [], seuil: 3 }) });
     chef(c.repertoire, "manager.enabled");
 
-    await jusqua(() => c.gh.lire(44)?.labels.includes("effort:low") === true && issueDuManager(c.journal.base, 46) !== null);
+    await jusqua(() => c.gh.lire(44)?.labels.includes("effort:low") === true && c.gh.lire(45)?.labels.includes("effort:low") === true && issueDuManager(c.journal.base, 46) !== null);
 
     assert.deepEqual(c.gh.lire(44)?.labels, ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(c.gh.lire(45)?.labels, ["fire", "model:haiku", "effort:low"]);
     for (const numero of [46]) {
       assert.deepEqual([issueDuManager(c.journal.base, numero)?.decision, issueDuManager(c.journal.base, numero)?.reason], ["aside", "kitchen-alert"]);
       assert.equal(c.journal.duTicket(numero).some((fait) => fait.type === "manager.judged"), false);
     }
-    assert.deepEqual(c.gh.labellisations, [[44, ["fire", "model:haiku", "effort:low"]]]);
-    // Un seul jugement : celui de l'issue du projet.
-    assert.equal(c.lancements().filter((lancement) => lancement.args.includes("--tools")).length, 1);
+    assert.deepEqual(c.gh.labellisations.sort(([a], [b]) => a - b), [[44, ["fire", "model:haiku", "effort:low"]], [45, ["fire", "model:haiku", "effort:low"]]]);
+    // Deux jugements : l'issue du projet, et celle de l'ancien détecteur — l'issue du disjoncteur n'en a aucun.
+    assert.equal(c.lancements().filter((lancement) => lancement.args.includes("--tools")).length, 2);
   });
 
-  test("replaying 2026-11-15 on secondes: the breaker issue already fired and calibrated is handed to no cook; only the issue about secondes is cooked", async () => {
+  test("replaying 2026-11-15 on secondes: the breaker issue already fired and calibrated is handed to no cook; the old idle-kitchen issue is cooked like the issue about secondes", async () => {
     const faux = new FauxGitHub();
     faux.feu(44, CALIBRE, "The lap screen shows each lap of the timer.");
+    faux.feu(45, CALIBRE, CORPS_45);
+    faux.ticket(45).title = TITRE_45;
     faux.feu(46, CALIBRE, "the body copied without its mark");
     faux.ticket(46).title = TITRE_46;
     const station = faux.station("box/claude", { places: 3, avertir: () => {} });
@@ -108,7 +118,7 @@ describe("an issue the station opened for its own needs is never a ticket of the
     await station.tour();
     await station.calme();
 
-    assert.deepEqual(faux.cuissons.map(({ issue }) => issue), [44]);
-    assert.deepEqual(faux.pris().filter((numero) => numero !== 44), []);
+    assert.deepEqual(faux.cuissons.map(({ issue }) => issue).sort(), [44, 45]);
+    assert.deepEqual(faux.pris().filter((numero) => numero !== 44 && numero !== 45), []);
   });
 });
