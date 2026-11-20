@@ -148,12 +148,12 @@ function alerteDesRelances(e: EntreeDesAlertes): AlerteDuRail | null {
 }
 
 // Les seuls tickets du rail sont mis de côté par leurs échecs : aucune station ne les prend, et la file n'attend pas un tour.
-// Le geste est celui qui les remet sur le rail : retirer le label. Le ticket le plus ancien mis de côté est nommé.
+// Le geste est celui du superviseur, qui a le ticket : aucune minuterie ne le remet sur le rail. Le ticket le plus ancien mis de côté est nommé.
 function alerteDuTicketMisDeCote(e: EntreeDesAlertes): AlerteDuRail | null {
   if (e.tickets.length > 0) return null;
   const mis = (e.misDeCoteParEchecs ?? []).filter(({ depuis }) => !Number.isNaN(date(depuis))).sort((a, b) => date(a.depuis) - date(b.depuis) || a.ticket - b.ticket)[0];
   if (mis === undefined) return null;
-  const geste = `Remove \`set-aside:failures\` from #${mis.ticket} to put it back on the rail.`;
+  const geste = `The supervisor has #${mis.ticket} and acts on it with its own gestures; nothing puts it back on the rail by a timer.`;
   const raison = mis.raison === null ? "" : `: ${mis.raison.replace(/[.\s]+$/, "")}`;
   return {
     sorte: "tout-mis-de-cote",
