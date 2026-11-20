@@ -31,6 +31,7 @@ import { railBloqueDe, type NonPrisLus } from "../rail-bloque/rail-bloque.ts";
 import { avecLesStationsQuiCuisent, type StationsLues } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
 import { attenteDuRailDe } from "../attente-du-rail/attente-du-rail.ts";
 import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pause-quota.ts";
+import { arretDuRail, zoneTenueDe } from "../bandeau-arret/arret-du-rail.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
@@ -219,6 +220,8 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const deLaMiseDeCote = label === null ? undefined : await toutesLesPages(lire, `/repos/${depot}/issues/${numero}/comments`);
     const miseDeCote = label === null || deLaMiseDeCote === undefined ? undefined : miseDeCoteDe(depot, label, deLaMiseDeCote, numero);
     const misDeCoteLe = label === null || deLaMiseDeCote === undefined ? null : miseDeCoteLe(label, deLaMiseDeCote);
+    // Gelé, la zone que sa PR ouverte tient (ticket 3924), des commentaires déjà lus : aucune lecture de plus.
+    if (miseDeCote) miseDeCote.zoneTenue = zoneTenueDe(deLaMiseDeCote ?? [], pr, misDeCoteLe);
     const dit = etatDuTicket(issueLue, base);
     const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : etapeDuRail(labels) === "tests written" ? MOT_TESTS_ECRITS : MOT_EN_FILE;
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
@@ -397,6 +400,8 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
       // Les alertes du haut du rail (ticket 3823) : vraies — jamais contre l'en-tête —, datées, et chacune avec son geste ou
       // ce que la cuisine en fait.
       ...alertesDe(lu.depot, ranges, servis, cooks.map(({ station }) => station), stations, Date.parse(luLe)),
+      // La cuisine arrêtée (ticket 3924) : des tickets en file, aucune carte prise ni en pass — sa cause, et depuis quand.
+      ...arretDuRail(ticketsDeLAttente(ranges), ranges, servis, baseRougeDuRail(ranges)),
       // La pause de quota GitHub du compte (ticket 3482) : la tête de l'app la dit, chaque projet dit qu'il l'attend.
       ...(pause === null ? {} : { pauseQuota: pause }),
       agents: [],
