@@ -266,7 +266,7 @@ describe("les faits que l'app dessine", () => {
                   attendu: false,
                   attend: [],
                   // Ce que la forme dit de lui : ce que son cook fait, sa station. Le reste est écrit comme manquant.
-                  ligne: "reading runtime/src/etat.ts · 3 min",
+                  ligne: "reading runtime/src/etat.ts · 3 min ago",
                   dit: [
                     { libelle: "right now", valeur: "reading runtime/src/etat.ts, for 3 min" },
                     { libelle: "taken by", valeur: "box/claude", exact: true },

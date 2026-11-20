@@ -67,6 +67,8 @@ export type Depot = {
   // Vrai si le clone a encore cette branche. Il peut ne plus l'avoir : une
   // restauration repart d'un clone neuf.
   connait(branche: string): boolean;
+  // Vrai si l'origine porte cette branche à cet instant. Elle ne touche pas au clone.
+  surLOrigine(branche: string): Promise<boolean>;
   // Le nombre de commits que la branche porte en plus de la base.
   commits(branche: string): number;
   // Pousse la branche du cook sur l'origine. Bloquant : c'est de son succès
@@ -803,6 +805,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         return true;
       }),
     connait: (branche) => git("branch", "--list", branche) !== "",
+    surLOrigine: async (branche) => (await gitAvec(await reseau(), "ls-remote", "--heads", "origin", `refs/heads/${branche}`)).trim() !== "",
     commits(branche) {
       return Number(git("rev-list", "--count", `origin/${base}..${branche}`));
     },
