@@ -91,7 +91,15 @@ for (const [plateforme, poser] of Object.entries(ENTREES)) {
   });
 }
 
-describe("sous Linux, l'aide sans le paquet", { skip: posixOnly("runs the extensionless bash command of the Linux package") }, () => {
+describe("sous Linux, la commande du paquet", { skip: posixOnly("runs the extensionless bash command of the Linux package") }, () => {
+  // brigade:guard
+  test("après l'installation du paquet, `brigade <project> status` marche comme avant", () => {
+    const r = linux().lancer(["calculus", "status", "--suivre"]);
+
+    assert.equal(r.code, 0, r.erreur);
+    assert.deepEqual(JSON.parse(r.sortie).args, ["--suivre"]);
+  });
+
   test("sans le `node` du paquet, `brigade --help` le dit, avec son code et ce qui le remet", () => {
     const { dossier, lancer } = linux();
     rmSync(join(dossier, "node/bin/node"));
