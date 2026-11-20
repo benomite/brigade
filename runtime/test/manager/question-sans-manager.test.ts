@@ -113,7 +113,7 @@ test("on a station with no manager, the cook's question is posted on the issue, 
   // La box le prend, passe la question à son manager avant tout cook : sa réponse s'écrit sur l'issue.
   await box.tour();
   assert.deepEqual(box.consultations.length, 1);
-  assert.ok(box.consultations[0]?.includes(`<question>\n${QUESTION}\n</question>`), box.consultations[0]);
+  assert.ok(box.consultations[0]?.includes(`<question>\n${QUESTION}\n</question>`), box.consultations[0] ?? "");
   assert.equal(box.cooks(), 0, "the manager answers before any cook of the box");
   assert.equal(du(faux, MARQUE_DE_LA_REPRISE).length, 1);
   const [reponse] = du(faux, MARQUE_DE_REPONSE);
@@ -122,7 +122,7 @@ test("on a station with no manager, the cook's question is posted on the issue, 
   // La question n'attend plus : le Mac reprend le ticket, et son cook lit la réponse.
   await mac.tour();
   assert.equal(mac.cooks(), 2);
-  assert.ok(mac.consignes[1]?.includes(REPONSE), mac.consignes[1]);
+  assert.ok(mac.consignes[1]?.includes(REPONSE), mac.consignes[1] ?? "");
   assert.equal(du(faux, MARQUE_D_ECHEC).length, 0);
   assert.equal(commentaires(faux).some((corps) => corps.includes(VIEUX_MOTIF)), false);
 });
@@ -135,7 +135,7 @@ test("when no station of the project runs a manager, the ticket is given back to
   await mac.tour();
   const [posee] = du(faux, MARQUE_DE_LA_QUESTION);
   assert.match(posee ?? "", /No station of the project runs a manager: the ticket is given back to the rail\./);
-  assert.ok(posee?.includes(`> ${QUESTION}`), posee);
+  assert.ok(posee?.includes(`> ${QUESTION}`), posee ?? "");
   const ticket = faux.ticket(N);
   assert.equal(ticket.labels.has("fire"), true, "on the rail");
   assert.equal(ticket.labels.has(LABEL_TAKEN), false);
