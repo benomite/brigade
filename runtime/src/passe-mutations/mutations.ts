@@ -307,3 +307,15 @@ export function resumeDesMutations(mutations: Mutations, criteres: number, couve
     ...enregistrements.map(({ criterion, testPath, mutationsCaught, mutationsTotal, survivingLines }) => `- Criterion ${criterion}, \`${testPath}\`: ${mutationsCaught} of ${mutationsTotal} mutations caught${survivingLines.length === 0 ? "" : ` (surviving: ${survivingLines.map((ligne) => `\`${ligne}\``).join(", ")})`}`),
   ].join("\n");
 }
+
+// Ce que la station rend au cook dont une mutation survit, avant la PR de sa
+// livraison (#3970) : le motif même que la pass écrirait, ligne à ligne.
+export function consigneDesMutations(motif: readonly string[]): string {
+  return [
+    "## Mutations your tests let through",
+    "",
+    `Your delivery is committed on this branch. Before its PR, the station ran the pass's ${REGLE_DES_MUTATIONS.toLowerCase()} on it, and these mutations of lines you changed survived: the pass would send the delivery back for each. Add or sharpen a test that fails on each of them — or remove a line nothing asks for —, run it on the mutant by hand, commit, and end with your report as before.`,
+    "",
+    ...motif,
+  ].join("\n");
+}

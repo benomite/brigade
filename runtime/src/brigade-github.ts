@@ -92,12 +92,12 @@ import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renv
 import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
-import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
+import { BUDGET_DES_MUTATIONS_MS, consigneDesMutations, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
 import { demandesDuManagerDans } from "./passe-gel-tests/demande-du-manager.ts";
 import { fichiersGeles, testsGelesTouches } from "./passe-gel-tests/gel-tests.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
-import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
+import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, TECH, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
@@ -3180,7 +3180,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (setup.pret) envDuCook = setup.env;
       else avertir(`brigade : #${ticket.number} sur ${nom} — \`${SCRIPT_SETUP}\` failed (${setup.depasse ? `stopped after ${Math.round(options.setup.delaiMs / 1000)} s` : `exit code ${setup.code ?? "none"}`}): the cook starts in its worktree as is`);
     }
-    const flux = join(options.flux, `${run}.flux.jsonl`);
+    let flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
@@ -3191,9 +3191,27 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { subi: surLeMoteur.refus };
     }
     const lancement = envelopper(cloison, { commande: surLeMoteur.commande, args: surLeMoteur.args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
-    const fin = await lance.fin;
-    const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
+    let lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
+    let fin = await lance.fin;
+    let conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
+    // Une livraison dont une mutation survit revient à son cook avant sa PR
+    // (#3970), une fois : le cook relancé dans son worktree reçoit les lignes
+    // nommées. S'il ne finit pas, la livraison part comme le premier l'a laissée.
+    const livre = conclusion === "done" && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null && depot.commits(branche) > 0 && (avant === null || depot.tete?.(branche) !== avant);
+    const survivantes = livre ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
+    if (survivantes.length > 0) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before its PR: ${survivantes.length} surviving, its cook gets them back`);
+      const premier = { lance, fin, flux };
+      flux = join(options.flux, `${run}-mutations.flux.jsonl`);
+      lance = lancer({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
+      fin = await lance.fin;
+      conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
+      if (conclusion !== "done") {
+        avertir(`brigade : #${ticket.number} sur ${nom} — the cook relaunched on its surviving mutations did not finish (${conclusion}): the delivery goes on as it was`);
+        ({ lance, fin, flux } = premier);
+        conclusion = "done";
+      }
+    }
     if (conclusion !== "done") {
       // Tué par la garde d'inactivité, le cook laisse son travail sur sa
       // branche pour le run suivant (#3649). Sans rien laissé, ou s'il ne se
@@ -3428,6 +3446,36 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return mutations;
   };
 
+  // Les fichiers de test gelés de la branche du worktree, null s'ils ne se lisent pas.
+  const lireLesGeles = (ticket: TicketLu, worktree: string): string[] | null => {
+    try {
+      return fichiersGeles(worktree, `origin/${base}`);
+    } catch (erreur) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be counted, the mutants run anyway: ${message(erreur)}`);
+      return null;
+    }
+  };
+
+  // Les mutations qui survivent à la livraison d'un cook, vues avant sa PR
+  // (#3970) : la même vérification que la pass, jouée dans son worktree dès
+  // qu'il a fini. Une ligne qui survit lui revient tout de suite, au lieu d'un
+  // renvoi après la pass, une claim plus tard. Rien de joué — pas de checkout
+  // jetable, pas de test gelé, une panne — ne retient la livraison : la pass
+  // la vérifie de toute façon. Un ticket `tech` n'a aucun test prouvé contre
+  // qui jouer un mutant : rien ne s'y joue.
+  const survivantesAvantLaPR = async (ticket: TicketLu, worktree: string, branche: string): Promise<string[]> => {
+    if (depot.essayer === undefined || ticket.labels.includes(TECH)) return [];
+    const gelés = lireLesGeles(ticket, worktree);
+    if (gelés !== null && !doitMuter(gelés.length)) return [];
+    try {
+      const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
+      return motifDesMutations(await muterLaLivraison(ticket, worktree, diff, await prouverLaLivraison(ticket, worktree, diff.fichiers)));
+    } catch (erreur) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before the PR could not run, the pass runs it: ${message(erreur)}`);
+      return [];
+    }
+  };
+
   const juger: Juger = async (ticket, pr) => {
     const branche = brancheDuTicket(ticket.number);
     const run = `review-${ticket.number}-github`;
@@ -3463,12 +3511,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // Les fichiers gelés servent aussi aux critères testables (#3741) ; illisibles, aucun n'y compte.
       const gelés = (() => {
         if (depot.essayer === undefined) return null;
-        try {
-          return fichiersGeles(worktree, `origin/${base}`);
-        } catch (erreur) {
-          avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be counted, the mutants run anyway: ${message(erreur)}`);
-          return null;
-        }
+        return lireLesGeles(ticket, worktree);
       })();
       const avecTestsGeles = gelés === null || doitMuter(gelés.length);
       if (!avecTestsGeles) avertir(`brigade : #${ticket.number} sur ${nom} — ${LIGNE_SANS_MUTATION}`);
