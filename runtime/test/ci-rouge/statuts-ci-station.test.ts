@@ -81,7 +81,8 @@ test("the station's hold: a red base whose repair is still alive makes no card; 
 });
 
 // Une station dont le cook livre un commit, et dont la branche du ticket a déjà ces runs de CI.
-async function livrer(t: TestContext, runs: RunDeCi[] | Error | null) {
+// `reprise` faux : la branche est neuve, jamais poussée.
+async function livrer(t: TestContext, runs: RunDeCi[] | Error | null, reprise = true) {
   const repertoire = mkdtempSync(join(tmpdir(), "statuts-ci-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -111,7 +112,8 @@ async function livrer(t: TestContext, runs: RunDeCi[] | Error | null) {
     depotGitHub: "faux/depot",
     github: client,
     depot: {
-      connait: () => false,
+      // La branche du ticket a déjà été poussée : ses runs se lisent.
+      connait: () => reprise,
       preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
       reprendre: async (run) => join(repertoire, run),
       retirer: () => {},
@@ -167,6 +169,10 @@ test("a cook's delivery whose last three runs are not red on one check is pushed
   assert.equal(deux.commentaires.filter((corps) => corps.startsWith(MARQUE_DES_ROUGES)).length, 0);
   assert.equal(deux.faux.ticket(42).labels.has(ECHECS_ATTEINTS), false);
   assert.ok(!deux.avertis.some((ligne) => ligne.includes("could not be read")), deux.avertis.join("\n"));
+  // Une branche neuve n'a jamais été poussée : aucun run ne se lit, et elle part.
+  const neuve = await livrer(t, [runRouge(303, "2026-11-20T12:00:00Z"), runRouge(302, "2026-11-20T11:00:00Z"), runRouge(301, "2026-11-20T10:00:00Z")], false);
+  assert.deepEqual(neuve.lues, []);
+  assert.deepEqual(neuve.pousses, ["cook/42-github"]);
   const sans = await livrer(t, null);
   assert.deepEqual(sans.pousses, ["cook/42-github"]);
   // Des runs illisibles ne retiennent pas la livraison : elle part, et la station le dit.

@@ -3270,9 +3270,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { echec: motifArretCook("the cook added nothing since its last delivery", arretDuCook()), fini: true };
     }
     // Trois runs rouges de suite sur le même check : pas de quatrième (#3953).
-    // Comptés depuis le dernier relancement du ticket.
+    // Comptés depuis le dernier relancement du ticket. Une branche neuve n'a
+    // jamais été poussée : elle n'a aucun run, et rien ne se lit.
     const lireLesRuns = options.github.ciDeLaBranche?.bind(options.github);
-    if (lireLesRuns !== undefined) {
+    if (reprise && lireLesRuns !== undefined) {
       const statuts = statutsDesRuns(lireLesRuns, brancheDuTicket, await relanceDe({ retraitsDeLabels: async (numero) => (await options.github.retraitsDeLabels?.(numero)) ?? [] }, ticket.number));
       const decision = await deciderDuPush({ statuts, ticket: ticket.number, commenter: (issue, corps) => options.github.commenter(issue, corps) });
       if (decision.pousser && decision.illisible !== undefined) avertir(`brigade : #${ticket.number} sur ${nom} — the CI runs of \`${branche}\` could not be read, the push goes ahead: ${decision.illisible}`);
