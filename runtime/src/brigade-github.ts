@@ -536,8 +536,8 @@ export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], 
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
 // dernier retrait de `served-elsewhere`, que GitHub date pour toutes les stations
-// (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
-// livraison. Des retraits illisibles ne remettent rien à zéro. La reprise du
+// (#2430). Relancer un ticket remet à zéro ses cooks sans livraison — pas ses
+// renvois, comptés par ticket (#3961). Des retraits illisibles ne remettent rien à zéro. La reprise du
 // manager après le dernier essai (#3513) les remet à zéro aussi : seuls
 // comptent les commentaires d'après le sien.
 const relanceDe = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number): Promise<number> => {
@@ -1530,8 +1530,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1, genre: "conflict" | "red CI" | "review" = "review", resynchroniser?: () => Promise<boolean>) => {
     const lus = await github.commentaires(ticket.number);
     const tous = lus.filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
-    // Compté depuis le dernier retrait de `served-elsewhere` (#2430), ou la reprise du manager (#3513).
-    const tousRenvois = await depuisLeRelancement(github, ticket.number, lus, MARQUE_DE_RENVOI);
+    // Compté par ticket, relancements compris (#3961) : #3955 est reparti à 1/2
+    // après chaque relance et a bouclé. Seule la reprise du manager (#3513),
+    // à la limite, le remet à zéro.
+    const tousRenvois = lus.slice(lus.findLastIndex((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE)) + 1).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     const enConflit = tousRenvois.filter((c) => c.body.includes(MARQUE_DE_CONFLIT));
     const renvois = genre === "conflict" ? enConflit : tousRenvois.filter((c) => !c.body.includes(MARQUE_DE_CONFLIT));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
