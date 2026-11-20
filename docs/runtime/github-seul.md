@@ -77,8 +77,18 @@ base, the stale-branch pruning).
   with both answers, and its decision is appended to the ticket's body once (`<!-- brigade:decision-du-manager -->`);
   a block on a ticket that already carries it, or a decision the station cannot write, counts as a cook without a
   delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
-  unreadable, the station has none — sends nothing to the chef: the ticket waits (`brigade:attente … manager`), then
+  unreadable — sends nothing to the chef: the ticket waits (`brigade:attente … manager`), then
   is retried; the third such wait since the ticket was last relaunched counts as a cook without a delivery. Seen on #2875 (#2894).
+- **A station with no manager posts the cook's question for a manager on another station** (#3938,
+  `runtime/src/manager/question-sans-manager.ts`). It posts the question on the issue
+  (`<!-- brigade:question-au-manager station=<name> -->`) and gives the ticket back. A station runs a manager when GitHub
+  shows its claim of the manager's work (`brigade:manager-prise`) on an issue that moved in the last two days, read like
+  the stations of the project below. While another station of the project runs one, the station with no manager does not
+  take the ticket back: that station takes it, and gives the question to its manager before any cook
+  (`<!-- brigade:question-reprise station=<name> -->`); the answer is written on the issue, where the next cook reads it.
+  When no station of the project runs a manager, or they cannot be read, the ticket is given back to the rail and waits
+  (`brigade:attente`), then a cook resumes it. A missing manager is never a failed cook and never sets a ticket aside:
+  on BOBL-tech/mirrorlab#842, two such stops set the ticket aside for 21 h, when another station's manager could answer.
 - **A blocked question the evidence answers goes back to a cook, not to the chef.** When the blocked ticket is a
   quality ticket that counts tickets (`brigade:qualite-comptes`) and the question asks for what that evidence holds —
   which tickets, their send-backs or cooks without a delivery, their reasons, their timestamps — the station appends
