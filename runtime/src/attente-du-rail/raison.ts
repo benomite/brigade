@@ -9,6 +9,8 @@
 //   1 aucune station ne sert le projet            2 ses stations sont arrêtées     3 ses stations sont hors ligne
 //   4 elles attendent le quota de GitHub          5 le plafond de cooks est atteint
 //   6 une livraison attend la pass                7 chaque ticket en file en attend un autre
+//   7' chaque ticket en file attend un ticket en WAITING (#3761) : il part quand un tiers l'aura servi ;
+//      seul sur le rail depuis plus d'`UNE_HEURE_MS`, la phrase le nomme, et le ticket qu'il attend
 //   8 attente normale (un cook le prend dans les minutes), ou plus longue que d'ordinaire après `DELAI_MS`.
 // Les raisons 1 à 3 ne se lèvent pas seules : leur phrase nomme le geste qui les lève (`MOTS_DU_GESTE`). Les raisons 4 à 8
 // se résolvent seules, et le disent.
@@ -20,7 +22,7 @@ import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts"
 import { stationDe } from "../stations-github/stations.ts";
 import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
 
-export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github" | "plafond" | "pass" | "autre-ticket" | "normale";
+export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github" | "plafond" | "pass" | "autre-ticket" | "waiting" | "normale";
 
 // Un ticket du rail, dans l'état que sa carte dit : en file, pris (un cook tourne) ou en pass.
 // `entreLe` : l'instant où il est entré dans la file (`fire` posé), nul quand GitHub ne le dit pas.
@@ -30,6 +32,11 @@ export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github
 // lues : la carte dit alors l'attente sans sa source, comme avant.
 // `commentairesLus` : faux quand les commentaires du ticket — sa fiche, les arrêts de ses cooks — ne se lisent pas.
 export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; entreLe: string | null; depend: readonly number[]; attentes?: readonly AttenteSourcee[]; commentairesLus?: boolean };
+
+// Un ticket `fire` en WAITING (#3761) : la cuisine ne le prend pas, il attend un tiers — `qui`, nul quand son attente ne
+// se lit pas. Il n'est pas sur le rail, mais un ticket en file qui l'attend le dit : le 2026-11-17, #3734 a attendu cinq
+// heures #1912, en WAITING sur un collaborateur depuis dix jours, et le rail le disait au repos.
+export type TicketEnWaiting = { ticket: number; qui: string | null };
 
 // Une attente que la cuisine applique, et d'où elle la lit (#3763) : le 2026-11-17, #3734 a été retenu cinq heures par une
 // phrase de son corps que seul le journal de la station disait, sa carte disant `awaiting: none`.
@@ -57,7 +64,11 @@ const PHRASES: Record<Exclude<Raison, "normale">, (stations: readonly string[]) 
   plafond: () => "The station has reached its cook cap: a cook starts as soon as a place frees up. It resolves by itself.",
   pass: () => "The pass is judging a delivery: the queue starts once it is done. It resolves by itself.",
   "autre-ticket": () => "Every queued ticket waits for another ticket: they start once it merges. It resolves by itself.",
+  waiting: () => "Every queued ticket waits for a ticket in WAITING on a third party: it starts once that ticket is served.",
 };
+
+// Seul sur le rail et retenu depuis plus d'une heure, le ticket se nomme, avec ce qu'il attend (#3761).
+export const UNE_HEURE_MS = 60 * 60_000;
 const GESTES: Partial<Record<Raison, Geste>> = { "aucune-station": "ajouter-a-une-station", arretee: "demarrer-la-station", "hors-ligne": "demarrer-la-station" };
 
 // Attente normale, ou plus longue que d'ordinaire à partir de `DELAI_MS` ; sans l'instant d'entrée, la durée n'est pas dite.
@@ -73,17 +84,21 @@ function phraseNormale(depuis: string | null, maintenant: number): string {
 // Les tickets dont un ticket en file attend l'avancée : ses attentes lues (`attentes`) ou, sans elles, ceux de `depend`,
 // quand ils sont sur le rail — en file, qu'un cook tient ou que la pass juge. Un ticket hors du rail n'est pas lu, et rien
 // n'est dit de lui : le choix du chef sur #3810, verrouillé par ligne-carte-hors-rail.test.ts.
-function retenus(carte: TicketDuRail, tickets: readonly TicketDuRail[]): Set<number> {
-  const sur = new Set(tickets.map(({ ticket }) => ticket));
+// Un ticket en WAITING (`waiting`) en est aussi : il retient la carte, et sa ligne le dit (#3761).
+function retenus(carte: TicketDuRail, tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): Set<number> {
+  const sur = new Set([...tickets, ...waiting].map(({ ticket }) => ticket));
   const lues = carte.attentes?.map(({ ticket }) => ticket) ?? carte.depend;
   return new Set(lues.filter((n) => n !== carte.ticket && sur.has(n)));
 }
 
 // Une attente et sa source, en anglais : « waits for #N — read from the body: '<phrase>' », « … — read from the card »,
-// « … — read from a cook's stop ».
+// « … — read from a cook's stop ». Sur un ticket en WAITING (#3761) : « waits for `#N`, WAITING on <qui> — … ».
 const SOURCES: Record<SourceDAttente, string> = { corps: "the body", fiche: "the card", arret: "a cook's stop" };
-export function direLAttente({ ticket, source, phrase }: AttenteSourcee): string {
-  return `waits for #${ticket} — read from ${SOURCES[source]}${source === "corps" && phrase ? `: '${phrase}'` : ""}`;
+export const direLAttente = (attente: AttenteSourcee): string => direLAttenteParmi(attente, []);
+function direLAttenteParmi({ ticket, source, phrase }: AttenteSourcee, waiting: readonly TicketEnWaiting[]): string {
+  const enWaiting = waiting.find((sien) => sien.ticket === ticket);
+  const attendu = enWaiting === undefined ? `#${ticket}` : `\`#${ticket}\`, WAITING on ${enWaiting.qui ?? "a third party"}`;
+  return `waits for ${attendu} — read from ${SOURCES[source]}${source === "corps" && phrase ? `: '${phrase}'` : ""}`;
 }
 const COMMENTAIRES_ILLISIBLES = "its card and its cooks' stops could not be read on GitHub";
 
@@ -92,25 +107,25 @@ const COMMENTAIRES_ILLISIBLES = "its card and its cooks' stops could not be read
 // ses commentaires illisibles, qu'ils ne se sont pas lus : jamais une carte dite libre faute de les avoir lus. Sans
 // `attentes`, celles de `depend` sont celles du corps, sans leur phrase. Aucune ligne sans attente ouverte : c'est la
 // carte qui part ensuite, ou une carte libre.
-export function ligneDeLaCarte(carte: TicketDuRail, tickets: readonly TicketDuRail[]): string | null {
-  const dites = [...new Set(attentesDites(carte, tickets).map(direLAttente))];
+export function ligneDeLaCarte(carte: TicketDuRail, tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): string | null {
+  const dites = [...new Set(attentesDites(carte, tickets, waiting).map((attente) => direLAttenteParmi(attente, waiting)))];
   if (carte.etat === "queued" && carte.commentairesLus === false) dites.push(COMMENTAIRES_ILLISIBLES);
   return dites.length === 0 ? null : dites.join("; ");
 }
 
 // Les attentes que la ligne d'une carte en file dit : celles qui la retiennent.
-function attentesDites(carte: TicketDuRail, tickets: readonly TicketDuRail[]): AttenteSourcee[] {
+function attentesDites(carte: TicketDuRail, tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): AttenteSourcee[] {
   if (carte.etat !== "queued") return [];
-  const retenue = retenus(carte, tickets);
+  const retenue = retenus(carte, tickets, waiting);
   const lues = carte.attentes ?? carte.depend.map((ticket): AttenteSourcee => ({ ticket, source: "corps" }));
   return lues.filter(({ ticket }) => retenue.has(ticket));
 }
 
-// Les lignes des cartes en file, par ticket.
-export function lignesDesCartes(tickets: readonly TicketDuRail[]): Record<number, string> {
+// Les lignes des cartes en file, par ticket ; `waiting` : les tickets en WAITING qu'elles peuvent attendre (#3761).
+export function lignesDesCartes(tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): Record<number, string> {
   const lignes: Record<number, string> = {};
   for (const carte of tickets) {
-    const ligne = ligneDeLaCarte(carte, tickets);
+    const ligne = ligneDeLaCarte(carte, tickets, waiting);
     if (ligne !== null) lignes[carte.ticket] = ligne;
   }
   return lignes;
@@ -118,10 +133,10 @@ export function lignesDesCartes(tickets: readonly TicketDuRail[]): Record<number
 
 // Les tickets qu'attend chaque carte dont la ligne dit une attente, par ticket (#3763) : ceux de ses attentes, jamais un
 // numéro relu de la phrase du corps qu'elle cite. La carte de l'app en tire ses liens (app/src/ligne-carte.ts).
-export function attendusDesCartes(tickets: readonly TicketDuRail[]): Record<number, number[]> {
+export function attendusDesCartes(tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): Record<number, number[]> {
   const attendus: Record<number, number[]> = {};
   for (const carte of tickets) {
-    const siens = [...new Set(attentesDites(carte, tickets).map(({ ticket }) => ticket))];
+    const siens = [...new Set(attentesDites(carte, tickets, waiting).map(({ ticket }) => ticket))];
     if (siens.length > 0) attendus[carte.ticket] = siens;
   }
   return attendus;
@@ -129,7 +144,8 @@ export function attendusDesCartes(tickets: readonly TicketDuRail[]): Record<numb
 
 // Pourquoi la file ne part pas, ou null : rien en file, ou un cook qui tourne.
 // `plafondAtteint` : la station a pris tous ses cooks ; GitHub ne le publie pas, l'appelant le dit quand il le sait.
-export function expliquerLAttente(options: { depot: string; tickets: readonly TicketDuRail[]; stations: StationsLues; plafondAtteint: boolean; maintenant: number; limite?: LimiteDite | null }): AttenteDuRail | null {
+// `waiting` : les tickets `fire` en WAITING (#3761), absents quand l'appelant ne les a pas lus.
+export function expliquerLAttente(options: { depot: string; tickets: readonly TicketDuRail[]; stations: StationsLues; plafondAtteint: boolean; maintenant: number; limite?: LimiteDite | null; waiting?: readonly TicketEnWaiting[] }): AttenteDuRail | null {
   const { depot, tickets, maintenant } = options;
   const enFile = tickets.filter(({ etat }) => etat === "queued");
   if (enFile.length === 0 || tickets.some(({ etat }) => etat === "taken")) return null;
@@ -153,9 +169,24 @@ export function expliquerLAttente(options: { depot: string; tickets: readonly Ti
   }
   if (options.plafondAtteint) return dit("plafond");
   if (tickets.some(({ etat }) => etat === "pass")) return dit("pass");
-  if (enFile.every((carte) => retenus(carte, tickets).size > 0)) return dit("autre-ticket");
+  const waiting = options.waiting ?? [];
+  if (enFile.every((carte) => retenus(carte, tickets, waiting).size > 0)) {
+    const enWaiting = new Set(waiting.map(({ ticket }) => ticket));
+    if (!enFile.every((carte) => [...retenus(carte, tickets, waiting)].some((n) => enWaiting.has(n)))) return dit("autre-ticket");
+    return dit("waiting", [], phraseDuSeul(tickets, waiting, maintenant));
+  }
   const plusAncien = enFile.map(({ entreLe }) => entreLe).filter((le): le is string => le !== null && !Number.isNaN(Date.parse(le))).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
   return { raison: "normale", phrase: phraseNormale(plusAncien, maintenant), geste: null, stations: [] };
+}
+
+// Le seul ticket du rail, retenu par un ticket en WAITING depuis plus d'`UNE_HEURE_MS` (#3761) : la phrase le nomme, et
+// ce qu'il attend — la ligne de sa carte. Sous l'heure, ou sans l'instant de son entrée, la phrase commune.
+function phraseDuSeul(tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[], maintenant: number): string | undefined {
+  const [seul] = tickets;
+  if (seul === undefined || tickets.length !== 1 || seul.entreLe === null) return undefined;
+  const ms = maintenant - Date.parse(seul.entreLe);
+  if (!(ms > UNE_HEURE_MS)) return undefined;
+  return `#${seul.ticket} has not been able to leave for ${dureeCourte(ms)}: it ${ligneDeLaCarte(seul, tickets, waiting)}.`;
 }
 
 // Les lignes que `status` écrit, la même chose que l'app dit : la phrase, au-dessus de la file, puis la ligne de chaque carte.

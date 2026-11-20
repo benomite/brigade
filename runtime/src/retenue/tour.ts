@@ -63,6 +63,10 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   let sauts = new Map<number, string>();
   // Les tickets que la porte de prise a vus attendre un ticket ouvert (#3647), et les tickets en cuisson ou en pass.
   let attentes = new Map<number, number[]>();
+  // Les tickets que la porte de prise a sautés depuis la dernière lecture des tickets (#3761) : à la lecture suivante, leurs
+  // sauts et leurs attentes restent dits jusqu'à ce que la porte repasse — entre les deux, la retenue lue dit encore leur
+  // cause, jamais « unknown » ; ceux qu'elle n'a pas sautés tombent.
+  let sautesDuTour = new Set<number>();
   let enCuisson = new Set<number>();
   let enveloppe: GitHubDuTour | null = null;
   // Ce que chaque ticket en WAITING attend, une ligne chacun, lu au dernier tour.
@@ -82,8 +86,9 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
 
   const noterTickets = (tickets: TicketLu[]) => {
     const instant = maintenant().toISOString();
-    sauts = new Map();
-    attentes = new Map();
+    sauts = new Map([...sauts].filter(([ticket]) => sautesDuTour.has(ticket)));
+    attentes = new Map([...attentes].filter(([ticket]) => sautesDuTour.has(ticket)));
+    sautesDuTour = new Set();
     enCuisson = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_TAKEN) || labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
     const ouverts = new Set(tickets.map(({ number }) => number));
     if ([...enPass].some((ticket) => !ouverts.has(ticket))) dernierService = instant;
@@ -105,6 +110,9 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     client: () => enveloppe,
     sauter: (ticket, ligne, attendus) => {
       sauts.set(ticket, ligne);
+      sautesDuTour.add(ticket);
+      // Repassée, la porte remplace aussi l'attente du tour d'avant.
+      attentes.delete(ticket);
       if (attendus !== undefined) attentes.set(ticket, [...attendus]);
     },
     envelopper: (github) => (enveloppe = {

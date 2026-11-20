@@ -279,6 +279,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/arret-cuisine/arret-cuisine.ts",
     "runtime/src/attente-du-rail/alertes.ts",
     "runtime/src/attente-du-rail/raison.ts",
+    // Qui un ticket en WAITING attend, relu de sa marque, sans E/S : la carte qui l'attend le nomme (ticket 3761).
+    "runtime/src/attente-github/marque.ts",
     // Les attentes d'un ticket en file et leur source — son corps, sa fiche, l'arrêt d'un cook —, sans E/S (ticket 3763).
     "runtime/src/boucle-attente/levee.ts",
     "runtime/src/capacites.ts",

@@ -5,7 +5,7 @@
 //   - chaque carte en file qui ne part pas la prochaine, sa ligne (faits.ts, `ligneEnAttente`) ;
 //   - la file du second (tableau/rail.ts), au-dessus de la ligne `rail` de `status` — les lignes mêmes que
 //     `brigade <project> status` écrit.
-import { attendusDesCartes, expliquerLAttente, lignesDesCartes, type AttenteDuRail, type Raison, type TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
+import { attendusDesCartes, expliquerLAttente, lignesDesCartes, type AttenteDuRail, type Raison, type TicketDuRail, type TicketEnWaiting } from "../../../../runtime/src/attente-du-rail/raison.ts";
 import type { Geste, StationsLues } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
 import type { AlerteDuRail, CauseConnue, SorteDAlerte } from "../../../../runtime/src/attente-du-rail/alertes.ts";
 
@@ -15,15 +15,16 @@ import type { AlerteDuRail, CauseConnue, SorteDAlerte } from "../../../../runtim
 export type LignesDesCartes = Record<number, string>;
 export type AttendusDesCartes = Record<number, number[]>;
 
-const RAISONS: readonly Raison[] = ["aucune-station", "arretee", "hors-ligne", "quota-github", "plafond", "pass", "autre-ticket", "normale"];
+const RAISONS: readonly Raison[] = ["aucune-station", "arretee", "hors-ligne", "quota-github", "plafond", "pass", "autre-ticket", "waiting", "normale"];
 const GESTES: readonly Geste[] = ["demarrer-la-station", "ajouter-a-une-station"];
 
 // GitHub ne publie pas le plafond de cooks de la station : le rail de l'app ne peut pas dire la raison 5 (la file se lit sur GitHub),
 // seul `brigade <project> status`, qui tourne sur la station, la dit. L'app ne la devine jamais.
-export function attenteDuRailDe(depot: string, tickets: readonly TicketDuRail[], stations: StationsLues, maintenant: number): { attenteDuRail?: AttenteDuRail; lignesDesCartes?: LignesDesCartes; attendusDesCartes?: AttendusDesCartes } {
-  const attente = expliquerLAttente({ depot, tickets, stations, plafondAtteint: false, maintenant });
-  const cartes = lignesDesCartes(tickets);
-  const attendus = attendusDesCartes(tickets);
+// `waiting` : les tickets en WAITING, qu'une carte en file peut attendre (ticket 3761).
+export function attenteDuRailDe(depot: string, tickets: readonly TicketDuRail[], stations: StationsLues, maintenant: number, waiting: readonly TicketEnWaiting[] = []): { attenteDuRail?: AttenteDuRail; lignesDesCartes?: LignesDesCartes; attendusDesCartes?: AttendusDesCartes } {
+  const attente = expliquerLAttente({ depot, tickets, stations, plafondAtteint: false, maintenant, waiting });
+  const cartes = lignesDesCartes(tickets, waiting);
+  const attendus = attendusDesCartes(tickets, waiting);
   return { ...(attente === null ? {} : { attenteDuRail: attente }), ...(Object.keys(cartes).length === 0 ? {} : { lignesDesCartes: cartes }), ...(Object.keys(attendus).length === 0 ? {} : { attendusDesCartes: attendus }) };
 }
 
