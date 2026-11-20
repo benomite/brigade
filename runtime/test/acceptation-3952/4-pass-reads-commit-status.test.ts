@@ -29,6 +29,7 @@ test("the workflow posts the statuses the pass reads", () => {
   assert.match(WORKFLOW, /statuses: write/);
 });
 
+// brigade:guard
 test("a failing status with a green run sends the delivery back; a success status lets it through", async () => {
   const rouge = github("failure");
   assert.deepEqual(await fusionner(PR, rouge.client), { issue: "ci-rouge" });
