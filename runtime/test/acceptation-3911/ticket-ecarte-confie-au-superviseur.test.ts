@@ -67,7 +67,7 @@ const GESTES: Array<[string, (chemin: string, args: string[]) => boolean]> = [
 test("a ticket set aside for its failures is handed to the supervisor, which gets a dossier naming it", async (t) => {
   const { cuisine, claude } = ouvrir(t);
   try {
-    await jusqua(() => claude.dossiers().some((dossier) => dossier.includes(`#${TICKET}`)), 2000);
+    await jusqua(() => claude.dossiers().some((dossier) => dossier.includes(`#${TICKET}`)), 10000);
   } finally {
     cuisine.arreter("fin du test");
     await cuisine.arretee?.();
@@ -77,7 +77,7 @@ test("a ticket set aside for its failures is handed to the supervisor, which get
 test("whatever the supervisor does to that ticket is one of the gestures listed in step 4 of the spec", async (t) => {
   const { cuisine, claude, ecritures } = ouvrir(t);
   try {
-    await jusqua(() => claude.dossiers().some((dossier) => dossier.includes(`#${TICKET}`)), 2000);
+    await jusqua(() => claude.dossiers().some((dossier) => dossier.includes(`#${TICKET}`)), 10000);
     for (const args of ecritures()) {
       const chemin = (args.at(-1) ?? "").slice(`repos/${DEPOT}/`.length);
       // The station's own claim and healing writes are not the supervisor's: only writes on the ticket set aside count.

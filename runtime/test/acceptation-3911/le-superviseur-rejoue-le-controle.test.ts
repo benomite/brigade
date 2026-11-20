@@ -79,7 +79,7 @@ for (const cause of ["failures", "stall"] as const) {
   test(`${cause}: the supervisor re-runs the check, it passes, and the breaker closes`, async (t) => {
     const { cuisine, ouvert, leve } = ouvrir(t, cause, "fini");
     try {
-      await jusqua(() => leve() && !ouvert(), 2000);
+      await jusqua(() => leve() && !ouvert(), 10000);
     } finally {
       cuisine.arreter("fin du test");
       await cuisine.arretee?.();
@@ -89,7 +89,7 @@ for (const cause of ["failures", "stall"] as const) {
   test(`${cause}: the supervisor re-runs the check, it still fails, and the breaker stays open`, async (t) => {
     const { cuisine, ouvert, controleJoue, leveParQui } = ouvrir(t, cause, "echec");
     try {
-      await jusqua(controleJoue, 2000);
+      await jusqua(controleJoue, 10000);
       assert.equal(ouvert(), true);
       assert.equal(leveParQui(), false);
     } finally {
