@@ -308,6 +308,15 @@ many were not run.
 The verdict on the PR ends with that line, then one line per acceptance criterion covered by a proved
 test, per test file: `Criterion <n>, <test file>: X of Y mutations caught`, with the surviving lines.
 
+**Before the PR, too** (#3970): a surviving mutation was the heaviest loss of time of the kitchen's
+tickets, each send-back costing a pass, a claim and a new cook. So the station runs the same check
+(same replay, same mutants, same budget, same rule on frozen tests) in the cook's worktree as soon as a
+cook ends with a delivery — commits added, no blocking question. When a mutation survives, the station
+relaunches that cook once in its worktree, its brief followed by `## Mutations your tests let through`
+and the reason lines the pass would write, each naming its file and line. Then the delivery goes on to
+its PR and the pass as before, which runs the check again. A relaunched cook that does not finish leaves
+the delivery as the first cook left it; a check that cannot run holds nothing back (the station warns).
+
 ### The second judge
 
 A green delivery that touches **its judges** (`.claude/brigade/` or `.github/workflows/`) is stopped
