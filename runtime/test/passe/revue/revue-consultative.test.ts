@@ -23,9 +23,9 @@ async function parLaStation(t: TestContext, constats: unknown[]) {
   const faux = new FauxGitHub();
   faux.feu(11, ["fire", "model:opus", "effort:high", "tech"], CORPS);
   const consignes: string[] = [];
-  const lancer: Lancer = ({ args, flux }) => {
+  const lancer: Lancer = ({ args, flux, entree }) => {
     const reviewer = args.includes("--tools");
-    if (reviewer) consignes.push(args[args.indexOf("-p") + 1] ?? "");
+    if (reviewer) consignes.push(entree ?? "");
     const relecture = { verdict: constats.some((c) => (c as { gravite: string }).gravite === "bloquant") ? "rouge" : "vert", resume: "Read against the criteria.", constats, criteres: [{ critere: 1, tests: [], relecture: true }, { critere: 2, tests: [], relecture: true }] };
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: reviewer ? JSON.stringify(relecture) : COMPTE_RENDU })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
