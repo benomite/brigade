@@ -10,6 +10,7 @@ import { avecCeQuiAttendLeChef } from "../src/tableau/attente-du-chef.ts";
 import { parFetch, type AppelGitHub, type LimiteGitHub, type ReponseGitHub } from "../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../src/tableau/lecture.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "../src/tableau/rail-github.ts";
+import { FRAICHEUR_MAX_D_UNE_LECTURE_MS } from "../src/vue/servi/fraicheur.ts";
 import { tenirLecturesDuTableau } from "../src/tableau/rail.ts";
 import { partageDesCartesAssignees } from "../src/vue/cartes-assignees/cartes-assignees.ts";
 
@@ -108,8 +109,8 @@ for (let heure = 0; heure < 8; heure++) {
     const { horloge, github, budget, tableaux } = journee;
     const fin = DEBUT + (heure + 1) * HEURE;
     let plusHaut = 0;
-    // Les veilles relisent toutes les trente secondes, mais un projet relu depuis moins d'une minute reprend sa lecture
-    // sans rien demander : un tour par minute fait les mêmes demandes, en deux fois moins de temps.
+    // Les veilles relisent toutes les trente secondes, mais un tour par minute simule ce que les veilles demandent,
+    // en deux fois moins de temps ; les relectures d'un rail inchangé sont des 304, que GitHub ne compte pas.
     for (; horloge.t < fin; horloge.t += INTERVALLE_PAR_PROJET_MS) {
       // Un geste du chef toutes les dix minutes : la lecture suivante va à GitHub, sans reprendre la dernière (main.ts).
       if ((horloge.t - DEBUT) % (10 * MINUTE) === 0) tableaux.oublier();
@@ -130,19 +131,19 @@ for (let heure = 0; heure < 8; heure++) {
   });
 }
 
-test("a project is not read again within a minute, unless a gesture forgets the reading", async () => {
+test("a project is not read again within a reading's freshness (5 s, #3925), unless a gesture forgets the reading", async () => {
   const horloge = { t: DEBUT };
   const github = fauxGitHub(horloge);
   const { tableaux } = lectureDeLApp(horloge, github.appeler);
   await unTour(tableaux);
   const premiere = github.demandes.length;
   assert.ok(premiere > 0);
-  horloge.t += INTERVALLE_PAR_PROJET_MS - 1;
+  horloge.t += FRAICHEUR_MAX_D_UNE_LECTURE_MS - 1;
   await unTour(tableaux);
-  assert.equal(github.demandes.length, premiere, "nothing is sent within the minute");
+  assert.equal(github.demandes.length, premiere, "nothing is sent within the freshness");
   horloge.t += 1;
   await unTour(tableaux);
-  assert.ok(github.demandes.length > premiere, "the minute past, every project is read again");
+  assert.ok(github.demandes.length > premiere, "the freshness past, every project is read again");
 });
 
 test("a 304 is not downloaded again: the kept answer is reused, and the stored ETag goes with the next request", async () => {

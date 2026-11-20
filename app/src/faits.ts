@@ -1433,7 +1433,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(illisible === undefined ? { essayable: true as const } : {}),
       ...(captures === undefined ? {} : { captures: capturesDeCarte(captures) }),
       dit: [
-        { libelle: "served", valeur: avant(quand, faits.lu) },
+        pr === null ? { libelle: "served", valeur: avant(quand, faits.lu) } : { libelle: "merged", valeur: `${duree(Date.parse(faits.lu) - Date.parse(quand))} ago` },
         ...(station === null ? [] : [{ libelle: "cooked by", valeur: station, exact: true as const }]),
         ...(pr === null ? [{ libelle: "PR", valeur: SANS_PR }] : []),
       ],

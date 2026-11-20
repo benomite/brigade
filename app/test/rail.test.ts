@@ -827,7 +827,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
     assert.equal(ligneDe(bonDe(vue, 216)), `served at ${heureHM("2026-10-13T10:03:58.000Z")}`);
     assert.equal(ligneDe(bonDe(vue, 188)), `served at ${heureHM("2026-10-12T16:30:05.000Z")}`);
     assert.deepEqual(portes(bonDe(vue, 216)), []);
-    assert.deepEqual(portes(detailsDe(vue, 216) ?? assert.fail("pas de détail")), [["served", "13 s before the reading"], ["cooked by", "box/claude"]]);
+    assert.deepEqual(portes(detailsDe(vue, 216) ?? assert.fail("pas de détail")), [["merged", "13 s ago"], ["cooked by", "box/claude"]]);
     assert.deepEqual(portes(detailsDe(vue, 188) ?? assert.fail("pas de détail")), [["served", "17 h 34 before the reading"], ["cooked by", "box/claude"], ["PR", "none — served without a merge"]]);
     fermer(vue);
     // #31, servi encore sur le rail mais pas dans les livrés : il n'est pas dans Livré.

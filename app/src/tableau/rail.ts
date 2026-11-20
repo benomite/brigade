@@ -18,6 +18,7 @@
 // lire. Ses lectures passent par `tenirLecturesDuTableau`, qui ne demande à GitHub qu'une lecture à la fois par projet,
 // reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer de commande.
 import { setTimeout as attendre } from "node:timers/promises";
+import { FRAICHEUR_MAX_D_UNE_LECTURE_MS } from "../vue/servi/fraicheur.ts";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, RubriqueDuTableau, TableauLu } from "./lecture.ts";
 import { lignesDeLaFile, type RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
 import { lignesDeStatus } from "../../../runtime/src/attente-du-rail/raison.ts";
@@ -150,12 +151,13 @@ export function lectureDuTableau(lu: LectureDuTableauDuDepot, projet: string, de
 // lecture réussie de chaque projet est gardée : c'est elle que visent les gestes du rail (gestes-github.ts).
 export function tenirLecturesDuTableau<P extends { nom: string }>(options: { lire: (projet: P) => Promise<LectureDuTableauDuDepot>; fraicheurMs: number; maintenant?: () => number }) {
   const maintenant = options.maintenant ?? Date.now;
+  const fraicheurMs = Math.min(options.fraicheurMs, FRAICHEUR_MAX_D_UNE_LECTURE_MS);
   const lues = new Map<string, { a: number; lecture: Promise<LectureDuTableauDuDepot> }>();
   const reussies = new Map<string, TableauLu>();
   return {
     lire(projet: P): Promise<LectureDuTableauDuDepot> {
       const tenue = lues.get(projet.nom);
-      if (tenue !== undefined && maintenant() - tenue.a < options.fraicheurMs) return tenue.lecture;
+      if (tenue !== undefined && maintenant() - tenue.a < fraicheurMs) return tenue.lecture;
       const lecture = options.lire(projet).then((lu) => {
         if (lu.lu) reussies.set(projet.nom, lu);
         return lu;

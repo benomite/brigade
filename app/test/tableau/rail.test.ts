@@ -274,16 +274,16 @@ test("les lectures du rail : une seule à la fois par projet, reprise tant qu'el
       const appeler: AppelGitHub = appels === 3 ? async () => ({ status: 503, data: { message: "Unavailable" } }) : github();
       return lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date(LU_PAR_L_APP.getTime() + appels) });
     },
-    fraicheurMs: 15_000,
+    fraicheurMs: 15_000, // plafonnée à 5 s (#3925)
     maintenant: () => instant,
   });
   assert.equal(tableaux.dernier("brigade"), undefined);
   await Promise.all([tableaux.lire(PROJET), tableaux.lire(PROJET)]);
   assert.equal(appels, 1);
-  instant = 14_999;
+  instant = 4_999;
   await tableaux.lire(PROJET);
   assert.equal(appels, 1);
-  instant = 15_000;
+  instant = 5_000;
   await tableaux.lire(PROJET);
   assert.equal(appels, 2);
   const deuxieme = new Date(LU_PAR_L_APP.getTime() + 2).toISOString();
