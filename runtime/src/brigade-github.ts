@@ -48,6 +48,7 @@ import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "./github-etat/etats.ts";
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
+import { termeDeLAttente, veilleDesOrphelins } from "./reprise-attente/orphelins.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
 import { type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
 import { avantLeRail, estUneReparationDeMain, fermeReparationDeMain, reparationDeMain } from "./reparation-base/reparation-de-main.ts";
@@ -581,12 +582,8 @@ export const TOURS_POUR_TRAVAILLER = 3;
 export const ATTENTE_MS = 30 * 60_000;
 export const ATTENTE_MAX_MS = 6 * 60 * 60_000;
 
-/** Le terme (ms) de la dernière attente d'après un arrêt, s'il n'est pas passé ; sinon null. La porte de prise et la cuisine inerte le lisent d'ici (#2975). */
-export function termeDeLAttente(commentaires: readonly { body: string }[], instant: number): number | null {
-  const derniere = commentaires.filter((c) => c.body.startsWith(MARQUE_D_ATTENTE)).pop();
-  const terme = Number(/until=(\d+)/.exec(derniere?.body ?? "")?.[1]);
-  return Number.isFinite(terme) && terme > instant ? terme : null;
-}
+// Le terme de la dernière attente d'après un arrêt : la porte de prise, la cuisine inerte (#2975) et la veille des tickets orphelins (#3883) le lisent.
+export { termeDeLAttente };
 
 // Les dernières lignes que `claude` a écrites : sa sortie d'erreur, sinon son
 // dernier message.
@@ -919,6 +916,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   const instant = () => (options.maintenant?.() ?? new Date()).getTime();
+  // Les tickets `taken` sans cook sur aucune station ni attente vivante : rendus au rail après 5 min (#3883).
+  const orphelins = veilleDesOrphelins({ github, station: nom, maintenant: instant });
   // Les tickets du rail tenus par une attente : passé une heure, le manager la revoit, une fois (#3764).
   const attentesLongues = suiviDesAttentesLongues({ github, station: nom, label: A_LA_MAIN, ...(options.revoirLAttente === undefined ? {} : { revoir: options.revoirLAttente }), maintenant: instant, avertir });
   // Le terme de la dernière attente du ticket n'est pas passé. Illisibles, ses commentaires ne le retiennent pas.
@@ -1781,6 +1780,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     ouvertsDuTour = new Set(tickets.map(({ number }) => number));
     ticketsDuTour = tickets;
     const libres: TicketLu[] = [];
+    // Les tickets `taken` sans cook ici que la veille des orphelins a regardés à ce tour (#3883).
+    const vusSansCookIci = new Set<number>();
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
     let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = await fermerLesPRDesTicketsFermes(new Set(lus.map(({ number }) => number))).catch((echec) => {
       avertir(`brigade : the open PRs of closed tickets could not be listed on ${nom} — ${message(echec)}`);
@@ -2016,14 +2017,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // lâcher a échoué, ici ou sur une autre station — perd son label : le
       // ticket redevient libre au tour suivant. Un ticket en pass, en vol ici
       // ou déjà à rendre n'est pas un orphelin.
+      let purge = false;
       if (ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number) && !aRendre.has(ticket.number)) {
         try {
-          await prise.purger?.(ticket);
+          purge = (await prise.purger?.(ticket)) === true;
         } catch (erreur) {
           avertir(`brigade : purge du \`taken\` de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }
       }
+      // Tenu, sans cook sur aucune station ni attente vivante depuis plus de
+      // 5 min : il perd `taken` et rentre sur le rail (#3883). Un ticket à
+      // rendre est regardé dès le premier tour : rendu par sa station, il sort
+      // de la veille ; tenu par une autre, son temps sans cook court déjà.
+      // Illisible, il garde `taken` ce tour-ci, et le tour suivant le relit.
+      if (ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number) && !purge) {
+        vusSansCookIci.add(ticket.number);
+        try {
+          // Rendu, il ne tient plus sa zone dès ce tour : la porte de prise lit ses labels sans `taken`.
+          if (await orphelins.voir(ticket)) ticket.labels = ticket.labels.filter((label) => label !== LABEL_TAKEN);
+        } catch (erreur) {
+          if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+          avertir(`brigade : #${ticket.number} on ${nom} — a taken ticket with no cook here could not be checked for an orphan claim: ${message(erreur)}`);
+        }
+      }
     }
+    orphelins.finirLeTour(vusSansCookIci);
     premierTour = false;
     // Les PR externes (#2933) : jamais mergées, servies hors du tour.
     try {
@@ -2216,12 +2234,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (gardes !== undefined && (await gardes.retenue(enVol.size + enEcriture().length)) !== null) return;
       porte.porte(ticket);
     };
+    // Les places prises par des cooks ou le pass plein retiennent la prise,
+    // pas l'écriture des tests (#3887) : les tickets qu'ils laissent écrivent
+    // les leurs, dans l'ordre du rail, une écriture au plus par place. Sinon,
+    // chaque prise attendait une place, puis encore l'écriture de ses tests.
+    const ecrireLesSuivants = async (restants: readonly TicketLu[], limite: number) => {
+      for (const reste of restants) {
+        if (enEcriture().length >= limite) break;
+        await ecrireEnAttendant(reste);
+      }
+    };
     for (const [rang, ticket] of libres.entries()) {
       if (baseManquante !== null) break;
       const limite = typeof places === "number" ? places : places();
       const ecritures = enEcriture();
       if (enVol.size + aRendre.size + ecritures.length >= limite) {
         await direLesAttentes(libres.slice(rang), direPlacesPrises(limite, [...enVol.keys(), ...aRendre.keys(), ...ecritures]));
+        await ecrireLesSuivants(libres.slice(rang), limite);
         break;
       }
       // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
@@ -2229,6 +2258,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const exclues = new Set([...renvoyes, ...retenuesDuTour]);
       if (enPass(tickets, exclues) >= PASS_MAX) {
         await direLesAttentes(libres.slice(rang), direPassPlein(tickets.filter((t) => t.labels.includes(LABEL_IN_PASS) && !exclues.has(t.number)).map(({ number }) => number)));
+        await ecrireLesSuivants(libres.slice(rang), limite);
         break;
       }
       if (enVol.has(ticket.number)) continue;

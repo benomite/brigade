@@ -12,7 +12,9 @@
 //
 // Un ticket retenu par un autre — un ticket ouvert qu'il attend, un ticket mis
 // de côté, sa zone tenue — part aussi à l'écriture, pendant la retenue (#3872) :
-// sa prise, à la levée, ne l'attend plus après elle.
+// sa prise, à la levée, ne l'attend plus après elle. De même quand ses places
+// sont prises par des cooks ou que le pass est plein, une écriture au plus par
+// place (#3887).
 import { etapeDuRail } from "./etape.ts";
 import type { Ecriture } from "./ecriture.ts";
 
