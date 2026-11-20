@@ -31,6 +31,8 @@ type Geste = (typeof GESTES)[number];
 
 // Un contrôle de disjoncteur rejoué au plus toutes les 10 minutes.
 const CONTROLE_TOUS_LES_MS = 10 * 60_000;
+// Un contrôle qui n'a lancé aucun run (lancement refusé, arrêt) n'a rien dit : il se rejoue au réveil suivant, après 5 secondes.
+const CONTROLE_SANS_RUN_MS = 5_000;
 // Un dossier redonné après 10 minutes quand la réponse ne s'applique pas, trois fois au plus.
 const DOSSIER_TOUS_LES_MS = 10 * 60_000;
 const DOSSIER_ESSAIS_MAX = 3;
@@ -120,7 +122,7 @@ export function ouvrirSupervision(options: OptionsSupervision) {
   const { base, journal, projet, github, demander, maintenant, avertir, arrete } = options;
 
   // Le contrôle du disjoncteur : l'ouverture qu'il a rejouée, et quand.
-  let controle: { ouvertLe: string; a: number } | null = null;
+  let controle: { ouvertLe: string; jusqua: number } | null = null;
   // Les dossiers : par ticket, combien de fois confié sans geste, et quand.
   const confies = new Map<number, { essais: number; a: number }>();
   let lueA = Number.NEGATIVE_INFINITY;
@@ -139,16 +141,21 @@ export function ouvrirSupervision(options: OptionsSupervision) {
     return { tickets: ticket === null ? [] : [ticket], gone: `a run kept stalling (${direLeCalage(calage)}) — a new run ended well` };
   };
 
+  // Les runs de contrôle que le journal a vu partir.
+  const runsDuControle = () => journal.tout().filter((fait) => fait.type === "cook.launched" && String((fait.payload as { run?: unknown }).run).startsWith("controle-")).length;
+
   const controlerLeDisjoncteur = async () => {
     const ouvertLe = etatDesGardeFous(base).breakerOpenedAt;
     if (ouvertLe === null) {
       controle = null;
       return;
     }
-    if (controle !== null && controle.ouvertLe === ouvertLe && maintenant().getTime() - controle.a < CONTROLE_TOUS_LES_MS) return;
-    controle = { ouvertLe, a: maintenant().getTime() };
+    if (controle !== null && controle.ouvertLe === ouvertLe && maintenant().getTime() < controle.jusqua) return;
+    controle = { ouvertLe, jusqua: maintenant().getTime() + CONTROLE_TOUS_LES_MS };
+    const lancesAvant = runsDuControle();
     const { tickets, gone } = causeDuDisjoncteur();
     const reponse = await demander({ numero: 0, prefixe: "controle", nom: "breaker check" }, CONSIGNE_DU_CONTROLE, () => ({ valeur: "ok" }), undefined, "ok");
+    if (reponse === null && runsDuControle() === lancesAvant && !arrete()) controle = { ouvertLe, jusqua: maintenant().getTime() + CONTROLE_SANS_RUN_MS };
     if (reponse === null || "illisible" in reponse || arrete()) return;
     // Le contrôle a passé. Un disjoncteur que le run a refermé seul (un calage) l'est déjà ; sinon c'est ici.
     const etat = etatDesGardeFous(base);

@@ -17,7 +17,7 @@ const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 type Reponse = { run: string; valeur: unknown } | { run: string; illisible: string } | null;
 
-function superviseur(t: TestContext, { labels = ["fire", "set-aside:failures"], reponses, lectureEnPanne = false }: { labels?: string[]; reponses: Array<Reponse | ((lire: (message: string | null) => unknown) => Reponse | Promise<Reponse>)>; lectureEnPanne?: boolean }) {
+function superviseur(t: TestContext, { labels = ["fire", "set-aside:failures"], reponses, lectureEnPanne = false, sansRun = false }: { labels?: string[]; reponses: Array<Reponse | ((lire: (message: string | null) => unknown) => Reponse | Promise<Reponse>)>; lectureEnPanne?: boolean; sansRun?: boolean }) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "guard.configured", payload: { limits: LIMITES, breakerThreshold: 3 } });
   const portes = [...labels];
@@ -55,6 +55,8 @@ function superviseur(t: TestContext, { labels = ["fire", "set-aside:failures"], 
   };
   const demander = async (sujet: { numero: number; prefixe: string }, consigne: string, lire: (message: string | null) => unknown, _env?: unknown, ok?: string) => {
     sujets.push(sujet.prefixe);
+    // Un contrôle part comme un run, sauf quand le lancement est refusé.
+    if (sujet.prefixe === "controle" && !sansRun) journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "cook.launched", payload: { run: `controle-0-${suite}`, limits: LIMITES, stream: "runs/controle.jsonl" } });
     consignes.push(consigne);
     succes.push(ok);
     const prochaine = reponses[Math.min(suite, reponses.length - 1)];
@@ -89,6 +91,20 @@ test("a breaker whose check still fails stays open, and the check is rerun only 
   assert.equal(s.ouvert(), true);
   assert.deepEqual(s.ecritures, []);
   s.avancer(CONTROLE_TOUS_LES_MS - 1);
+  await s.supervision.passer();
+  assert.equal(s.sujets.length, 1);
+  s.avancer(1);
+  await s.supervision.passer();
+  assert.equal(s.sujets.length, 2);
+  assert.equal(s.ouvert(), true);
+});
+
+test("a check that launched no run is replayed after a few seconds, not after the delay of a failed check", async (t) => {
+  const s = superviseur(t, { labels: [], reponses: [null], sansRun: true });
+  s.ouvrirLeDisjoncteur();
+  await s.supervision.passer();
+  assert.equal(s.sujets.length, 1);
+  s.avancer(4_999);
   await s.supervision.passer();
   assert.equal(s.sujets.length, 1);
   s.avancer(1);
