@@ -23,6 +23,15 @@ test("a run that ended green with a failing status is rerun whole; a red run rer
   assert.deepEqual(gh.appels().slice(2), [["api", "-i", `repos/${DEPOT}/actions/runs/124`], ["api", "-i", "-X", "POST", `repos/${DEPOT}/actions/runs/124/rerun-failed-jobs`]]);
 });
 
+test("a run with no conclusion yet reruns only its failed jobs, as before", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/actions/runs/126`, { corps: { conclusion: null } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/126/rerun-failed-jobs`, { statut: 201, corps: {} });
+
+  await github.relancerLesEchecs(126);
+  assert.deepEqual(gh.appels(), [["api", "-i", `repos/${DEPOT}/actions/runs/126`], ["api", "-i", "-X", "POST", `repos/${DEPOT}/actions/runs/126/rerun-failed-jobs`]]);
+});
+
 test("a run that cannot be read is not rerun: the refusal is raised", async (t) => {
   const { gh, github } = sonde(t);
   gh.repondre(`repos/${DEPOT}/actions/runs/125`, { statut: 404, corps: { message: "Not Found" } });

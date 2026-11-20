@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { jobDuCheck, ouvrirGitHub } from "../src/github.ts";
 import { JETON_MASQUE, retenirJeton } from "../src/identifiants.ts";
+import { corpsDeVerdict, fusionner, type GitHubDeLaFusion } from "../src/github-etat/fusion.ts";
 import { CHEMIN_TICKETS, DEPOT, fauxGh, issueGitHub } from "./outils.ts";
 
 function sonde(t: TestContext) {
@@ -281,6 +282,37 @@ test("la CI d'un commit : ses jobs et ses statuts, chacun vert, rouge ou en cour
     { name: "deploy", outcome: "pending", conclusion: "pending", url: null },
     { name: "audit", outcome: "red", conclusion: "error", url: "https://ci/6" },
   ]);
+});
+
+// #3952 : un run de la cuisine finit vert, sa vraie issue en statut de commit. La pass lit ce statut par `ci` : un statut
+// en échec sous un run vert renvoie la livraison, un statut success la laisse passer. `ci` le lisait déjà (critère 4).
+// brigade:guard
+test("un statut en échec sous un run vert rend la CI rouge et renvoie la livraison ; un statut success la laisse passer (#3952)", async (t) => {
+  const { gh, github } = sonde(t);
+  const sha = (lettre: string) => lettre.repeat(40);
+  for (const [lettre, etat] of [["b", "failure"], ["c", "success"]] as const) {
+    gh.repondre(`repos/${DEPOT}/commits/${sha(lettre)}/check-runs?per_page=100`, { corps: { check_runs: [{ name: "tests runtime (1/16)", status: "completed", conclusion: "success", html_url: "https://ci/job" }] } });
+    gh.repondre(`repos/${DEPOT}/commits/${sha(lettre)}/status?per_page=100`, { corps: { state: etat, statuses: [{ context: "tests runtime (1/16)", state: etat, target_url: "https://ci/job" }] } });
+  }
+  const fusion = (lettre: string) => {
+    const merges: number[] = [];
+    const client: GitHubDeLaFusion = {
+      commentaires: async () => [{ id: 1, body: corpsDeVerdict("A", sha(lettre), { verdict: "approve", motif: "" }), association: "OWNER", createdAt: "2026-01-01T00:00:00Z" }],
+      commenter: async () => {},
+      mettreAJour: async () => {},
+      merger: async (numero) => (merges.push(numero), { fait: true }),
+      ci: (cible) => github.ci(cible),
+    };
+    return { merges, issue: fusionner({ number: 7, sha: sha(lettre), state: "open", merged: false, enRetard: false, enConflit: false }, client) };
+  };
+
+  assert.deepEqual((await github.ci(sha("b"))).map((check) => check.outcome), ["green", "red"]);
+  const rouge = fusion("b");
+  assert.deepEqual(await rouge.issue, { issue: "ci-rouge" });
+  assert.deepEqual(rouge.merges, []);
+  const vert = fusion("c");
+  assert.deepEqual(await vert.issue, { issue: "mergee" });
+  assert.deepEqual(vert.merges, [7]);
 });
 
 test("un commit sans aucun check rend une CI vide, et une CI illisible lève", async (t) => {
