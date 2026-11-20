@@ -92,7 +92,7 @@ import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renv
 import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
-import { BUDGET_DES_MUTATIONS_MS, consigneDesMutations, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
+import { BUDGET_DES_MUTATIONS_MS, consigneDesMutations, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, RELANCES_DES_MUTATIONS, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
 import { demandesDuManagerDans } from "./passe-gel-tests/demande-du-manager.ts";
 import { fichiersGeles, testsGelesTouches } from "./passe-gel-tests/gel-tests.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
@@ -3215,22 +3215,26 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let fin = await lance.fin;
     let conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     // Une livraison dont une mutation survit revient à son cook avant sa PR
-    // (#3970), une fois : le cook relancé dans son worktree reçoit les lignes
-    // nommées. S'il ne finit pas, la livraison part comme le premier l'a laissée.
+    // (#3970), tant qu'une survit et au plus RELANCES_DES_MUTATIONS fois : la
+    // livraison du cook relancé est revérifiée à son tour (#3976). S'il ne finit
+    // pas, la livraison part comme le dernier cook fini l'a laissée.
     const livre = conclusion === "done" && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null && depot.commits(branche) > 0 && (avant === null || depot.tete?.(branche) !== avant);
-    const survivantes = livre ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
-    if (survivantes.length > 0) {
+    let survivantes = livre ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
+    for (let relance = 1; relance <= RELANCES_DES_MUTATIONS; relance += 1) {
+      if (survivantes.length === 0) break;
       avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before its PR: ${survivantes.length} surviving, its cook gets them back`);
-      const premier = { lance, fin, flux };
-      flux = join(options.flux, `${run}-mutations.flux.jsonl`);
+      const fini = { lance, fin, flux };
+      flux = join(options.flux, `${run}-mutations-${relance}.flux.jsonl`);
       lance = lancer({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
       fin = await lance.fin;
       conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
       if (conclusion !== "done") {
         avertir(`brigade : #${ticket.number} sur ${nom} — the cook relaunched on its surviving mutations did not finish (${conclusion}): the delivery goes on as it was`);
-        ({ lance, fin, flux } = premier);
+        ({ lance, fin, flux } = fini);
         conclusion = "done";
+        break;
       }
+      survivantes = relance < RELANCES_DES_MUTATIONS && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
     }
     if (conclusion !== "done") {
       // Tué par la garde d'inactivité, le cook laisse son travail sur sa
