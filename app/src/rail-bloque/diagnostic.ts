@@ -177,7 +177,7 @@ export async function lireLesNonPris(options: { depot: string; lire: Lire; issue
   const issues = options.issues === undefined ? await lesFeux(depot, lire) : listeDe(options.issues);
   const nonPris: TicketNonPris[] = [];
   for (const issue of issues) {
-    if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
+    if (issue.pull_request === undefined || typeof issue.number !== "number") continue;
     const labels = listeDe(issue.labels).flatMap(({ name }) => (typeof name === "string" ? [name] : []));
     if (!labels.includes(LABEL_FIRE) || labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || prisDApresSesLabels(labels)) continue;
     const brutes = await lire(`/repos/${depot}/issues/${issue.number}/comments?per_page=${PAR_PAGE}`);

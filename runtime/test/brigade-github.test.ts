@@ -1222,6 +1222,7 @@ test("a red main: no PR is merged, and the next turns merge nothing either (#221
   assert.equal(faux.prs.filter((pr) => pr.merged && pr.issue === 10).length, 0);
 });
 
+// brigade:guard
 test("merges resume once main is green again (#2214)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10);

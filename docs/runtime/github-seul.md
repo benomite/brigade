@@ -128,22 +128,15 @@ base, the stale-branch pruning).
   ticket's `RENVOIS_MAX`. A green, pending or check-less CI, a free ticket, or another branch is left alone; open
   PRs are read only when a held ticket exists. A CI or head that cannot be read sends nothing back and is warned.
   Seen on #2908, whose red CI ended as a "merge it" request to the chef (#2970).
-- **Kitchen alerts go to Brigade, never to the project's repository** (#3620). The idle-kitchen bug — no merge for 90
-  minutes with a cookable ticket, whatever its cause, `empty-rail` included — is filed on `benomite/brigade` with the
-  project's `<!-- brigade:projet=<owner>/<repo> -->` mark, one per project while it is open
-  (`runtime/src/guerison/cuisine-inerte.ts`); with no Brigade client it is filed nowhere, and the turn says so once.
-  `benomite/brigade` serving itself keeps it in its own repository, where its cooks can fix the kitchen. An issue the
-  station opened about the kitchen itself — its `<!-- brigade:cuisine-inerte -->` or `<!-- brigade:breaker-open … -->`
-  mark, the `brigade:breaker-open` label, or the title the station gives it — is never a ticket of a project, even
-  fired and calibrated: the turn leaves it out before anything reads its tickets, so no cook takes it
-  (`runtime/src/alerte-cuisine/alerte-cuisine.ts`). Seen on benomite/secondes #45 (`empty-rail`), taken by a cook in an
-  Android app's repository, and #46, the breaker issue.
-- **The idle-kitchen alert names what the claim gate said** (#3699). Every line the claim gate gives for a cookable
-  ticket it skips — a ticket it waits for, a missing capability, a card with no zone, the wait after a stop — is kept
-  for the next turn's healing, and so is the guardrail that holds the kitchen (the chef's stop, the breaker, the
-  quota, the machine, the arbiter), now given for each ticket left behind. When the gate skipped every cookable
-  ticket, the alert's cause is `skipped` and it lists those lines; `empty-rail` is left for a cookable ticket the gate
-  neither took nor skipped. Seen on benomite/secondes #50, #51 and #52, filed as `empty-rail` on #3699.
+- **The breaker issue is never a ticket of a project** (#3620). The only issue a station opens about the kitchen
+  itself is the breaker issue: its `<!-- brigade:breaker-open … -->` mark, the `brigade:breaker-open` label, or the
+  title the station gives it. Even fired and calibrated, it is never judged nor cooked: the turn leaves it out before
+  anything reads its tickets, so no cook takes it (`runtime/src/issue-de-la-cuisine.ts`). Seen on benomite/secondes
+  #46. The idle-kitchen bug the turn filed on `benomite/brigade` is gone (#3945): a kitchen where nothing merges wakes
+  the [supervisor](#the-supervisor).
+- **The supervisor reads what the claim gate said** (#3699). Every line the claim gate gives for a cookable ticket it
+  skips — a ticket it waits for, a missing capability, a card with no zone, the wait after a stop — is kept by the
+  turn, and its dossier carries them ([the supervisor](#the-supervisor)).
 - **A TODO card that asks no question is filed as a defect on benomite/brigade.** At each turn's healing, a ticket of
   the turn (`fire`) that carries `chef-todo` with no marked comment `<!-- brigade:todo kind=… -->` from the repository,
   or one whose text is empty, is reported with no action from the chef: a `fix` issue on `benomite/brigade` names the
@@ -202,8 +195,7 @@ base, the stale-branch pruning).
 - **A full stop says so.** When the places or the pass are full, the claim gate stops; each claimable ticket it leaves
   says which bound holds it, and by which tickets — `the station's 6 places are all taken (#3643, #3649, …)`, `the
   pass holds 5 deliveries, its most is 5 (#3601, …)` — unless it waits for an open ticket, which it names instead
-  (#3647). These lines are what the held kitchen reads (`kitchen.held`, its `skips`); before #3677 these two stops
-  said nothing, and a held kitchen with sixteen tickets waiting read `unknown`, or the CI of a single delivery
+  (#3647). These lines are what the supervisor's dossier carries; before #3677 these two stops said nothing
   ([diagnosis](claim-wait-2026-11-15.md)).
 - **A cook that says the ticket cannot be done yet puts it in WAITING** (#3814, `runtime/src/attente/`). On
   BOBL-tech/mirrorlab, #824 could only be done from 2026-11-25: each cook said "Too early", the review asked for changes,
@@ -222,9 +214,8 @@ base, the stale-branch pruning).
   - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
   - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
     `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
-    chef lifts it. The turn reads each WAITING ticket's comments once, for the hold line and this return;
-  - the held-kitchen line names each ticket in WAITING, what it waits for and its follow-up, instead of `cause
-    unknown`; the chef's TODO (the `awaiting` block) lists each ticket in WAITING with its follow-up date, without
+    chef lifts it. The turn reads each WAITING ticket's comments once, for this return;
+  - the chef's TODO (the `awaiting` block) lists each ticket in WAITING with its follow-up date, without
     counting it as a decision for the chef. The second's queue also lists the `waiting` issues; the app, which reads
     each project every thirty seconds, keeps to the WAITING tickets of the lists it already reads.
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
@@ -288,7 +279,8 @@ base, the stale-branch pruning).
   Bounded: 12 checks read, 3,000 characters per message, 24,000 in all; the rest only named.
   A check whose annotations name no file — a step that runs lint, format, type check and tests at once writes only
   `Process completed with exit code 1.` — is also given with the end of its job's log, read by the API
-  (`journalDuCheck`), cut as a repair of main cuts it (`sortieDErreur`): without it the cook did not know which gate
+  (`journalDuCheck`), cut as the supervisor's dossier cuts it (`sortieDErreur`,
+  `runtime/src/checks-de-la-branche.ts`): without it the cook did not know which gate
   was red and pushed again blindly (#3806: 11 red CIs on BOBL-tech/mirrorlab#787). An unreadable log leaves the
   check said by its annotations alone (`runtime/src/brief-renvoi.ts`).
   The send-back comment names each red check with the failed steps of its GitHub Actions job, read by the API
@@ -358,8 +350,7 @@ base, the stale-branch pruning).
   wins, the others leave the issue alone until it is said done or expires (#2568,
   [manager](manager.md#several-stations-on-one-project)).
 - **An epic is never a ticket** (#2618). An issue whose body carries `<!-- brigade:tickets -->` keeps `fire` and its
-  `prio:`, but the turn neither claims it nor counts it among its tickets, so the held-kitchen diagnosis never sees it
-  waiting; the manager rewrites its tally from GitHub on every turn and closes it once all its tickets are closed
+  `prio:`, but the turn neither claims it nor counts it among its tickets; the manager rewrites its tally from GitHub on every turn and closes it once all its tickets are closed
   ([manager](manager.md)).
 - **The chef's TODO** is facts on GitHub only: an issue labelled `chef-todo` with its marked comment
   (`github-seul/carte-todo/`), a PR awaiting the chef. The app reads them from GitHub; no runtime writes a board.
@@ -396,6 +387,40 @@ base, the stale-branch pruning).
   to the first `review` one: the issue is assigned to them on GitHub and the mention names them instead of the chef. A
   card no role answers is assigned to the chef. Without `humans`, nothing changes: the chef is mentioned, no one is
   assigned (`runtime/src/aiguillage-humains/`).
+
+## The supervisor
+
+When the kitchen does not move, the project's manager is woken to look and act (#3945,
+[spec](../superpowers/specs/2026-11-20-kitchen-spinning.md), section B). It replaces the held kitchen, the
+emergency, the stuck-rail line, the idle-kitchen bug, the loop tickets and the automatic repair-main tickets, all
+deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, `main.ts` and `station/cuisine.ts`.
+
+- **What wakes it.** On each wake of the runtime it reads what the GitHub-only turn observed (`superviseur/tour.ts`
+  wraps the turn's GitHub client): the last merge, the cookable tickets and since when, the takes without delivery
+  read from the station's `<!-- brigade:echec n=… -->` comments, `main` red since when. It fires
+  (`superviseur/declencheur.ts`) when nothing merged for 30 min while a ticket is cookable, when a ticket was taken 3
+  times without delivering, or when `main` has been red for 10 min. One run per project at a time; the same cause
+  starts no new run before 30 min (`REVEIL_REPRIS_MS`).
+- **What it does not supervise.** A kitchen stopped by the chef (`stop`) or switched off. Without a manager
+  calibration — no manager given by the station — nothing is launched.
+- **The run.** The project's manager is launched, read-only, in a worktree of the base, with the supervisor's brief
+  and its dossier: the queue, the tail of the log, the failing CI step and its log lines, the history of the ticket
+  at fault, and what the claim gate said of the cookable tickets it skipped. It answers one JSON object. Only six
+  gestures are played (`superviseur/gestes.ts`): rerun the failed CI jobs; back on the rail with a note; WAITING for a
+  named third party; close a duplicate; file ONE `fix` ticket for a new cause, after checking that no open ticket
+  carries the same cause mark; a TODO card, only for a product or design question. The run writes one comment on the
+  ticket it acted on. A run that fails is said in the station's service log
+  (`supervisor on <project>: its run failed — …`).
+- **A red base.** A `fix` for a red check of the base requires the check's failed jobs to have been re-run first
+  (the rerun gesture) and to be still red. It carries `fire`, `prio:0`, `model:opus`, `effort:medium`, `fix` and the
+  mark `<!-- brigade:supervisor-cause check:<check name> -->`. That mark with `prio:0` makes it a repair
+  (`estUneReparation`, `runtime/src/reparation.ts`): the only delivery judged and merged on a red base, and what the
+  quality figures count as a repair. The GitHub-only turn itself no longer re-runs the base's red jobs nor opens or
+  closes a repair ticket; a red base still holds merges as before.
+- **A looping ticket.** After `RELANCES_MAX` (2) relaunches for the same reason, a set-aside ticket is not relaunched
+  again and stays set aside (`runtime/src/guerison/relance.ts`); nothing is filed about it.
+- **The Windows CI card of the base** (#2413, `carte-ci-windows.ts`) is kept, read by the supervisor's wiring from the
+  same turn.
 
 ## Running Brigade on an open-source project
 

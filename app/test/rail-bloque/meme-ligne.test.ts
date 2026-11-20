@@ -94,7 +94,7 @@ const SOUS_LA_TETE = (lignes: readonly string[]) => {
 };
 
 describe("la même ligne dans `status` et dans la file du second", { skip: SANS_POSIX }, () => {
-  test("huit tickets qu'aucun manager n'a pris, leur station arrêtée : la file du second, le status de l'app et le rail disent la même phrase", async (t) => {
+  test("huit tickets qu'aucun manager n'a pris, leur station arrêtée : status, la file du second, le status de l'app et le rail disent la même phrase", async (t) => {
     const repertoire = dossier(t);
     const instant = Date.now();
     station(repertoire, instant, true);

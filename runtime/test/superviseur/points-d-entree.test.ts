@@ -40,9 +40,10 @@ const luLaBase = (gh: FauxGh) => gh.appels().some((appel) => appel.at(-1) === `r
 const superviseurLance = (temoin: string) => lancementsDuFauxClaude(temoin).filter(({ args, entree }) => [...args, entree].join("\n").includes(CONSIGNE));
 
 // Attend un fait sans lire l'heure : le `Date` de la cuisine est figé par le test, et `jusqua` le lit.
-// Un fait qui ne vient pas laisse le test au garde du lanceur.
+// Au plus quatre mille regards, cinq millisecondes l'un de l'autre.
 async function attendre(condition: () => boolean): Promise<void> {
-  while (!condition()) await new Promise((fin) => setTimeout(fin, 5));
+  for (let regard = 0; regard < 4000 && !condition(); regard++) await new Promise((fin) => setTimeout(fin, 5));
+  assert.ok(condition(), "condition jamais remplie");
 }
 
 test("the station's kitchen reaches the supervisor: main red for 10 min launches the project's manager on the supervisor's brief", async (t) => {
