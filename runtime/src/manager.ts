@@ -1192,12 +1192,13 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Le superviseur du projet : le disjoncteur et les tickets mis de côté (`manager/supervision.ts`). Il ne dépend pas de
   // l'interrupteur du manager : le chef ne referme plus le disjoncteur, et aucune minuterie ne remet un ticket sur le rail.
   const supervision = ouvrirSupervision({ base, journal, projet, github, demander, maintenant, avertir, arrete: () => arrete });
+  // Le contrôle du disjoncteur part avant le tour du manager : sur une machine lente, ses lectures GitHub ne le retardent pas.
   const desabonner = runtime.surReveil(() => {
-    reveiller();
     void supervision.passer();
+    reveiller();
   });
-  reveiller();
   void supervision.passer();
+  reveiller();
 
   return {
     ...runtime,

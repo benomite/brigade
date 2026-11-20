@@ -28,7 +28,7 @@ test("le disjoncteur ouvert, un ticket mis sur le rail est jugé et qualifié pa
   assert.equal(c.jugements().length, 1);
   assert.equal(c.journal.tout().some((e) => e.type === "manager.judged" && e.ticket === 30), true);
   // Le contrôle du superviseur échoue ici : il le dit, une fois, comme un contrôle et non comme une issue.
-  assert.ok(c.avertissements.includes("brigade : breaker check non abouti (code de sortie 1) — il sera retenté"), c.avertissements.join("\n"));
+  await jusqua(() => c.avertissements.includes("brigade : breaker check non abouti (code de sortie 1) — il sera retenté"));
   const tout = JSON.stringify([c.avertissements.filter((ligne) => !ligne.includes("breaker check")), c.journal.tout().filter((e) => e.type.startsWith("manager."))]);
   assert.doesNotMatch(tout, /disjoncteur|breaker/i);
 });
