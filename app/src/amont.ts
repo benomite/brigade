@@ -122,7 +122,7 @@ export function comprendre(sortie: string): Amont | { informe: string } {
 }
 
 // Une issue que la cuisine ouvre sur elle-même : le disjoncteur ouvert (runtime/src/breaker-issue.ts, `titreDeLIssue`) ou la
-// cuisine oisive (runtime/src/guerison/cuisine-inerte.ts). Ce n'est pas un besoin : son contenu devient la ligne d'état du rail.
+// cuisine oisive, une issue que la station ouvrait avant le superviseur (#3914) et qui peut rester ouverte. Ce n'est pas un besoin : son contenu devient la ligne d'état du rail.
 export function alerteDeLaCuisine({ ticket, titre }: Pick<Donnee, "ticket" | "titre">): AlerteDeLaCuisine | undefined {
   if (/^Kitchen \S+ held: its breaker is open$/.test(titre)) return { ticket, titre, genre: "disjoncteur", dit: "Kitchen held: its breaker is open" };
   if (/^The kitchen is idle\b/.test(titre)) return { ticket, titre, genre: "inerte", dit: titre.replace(/^The kitchen is idle/, "Kitchen idle") };

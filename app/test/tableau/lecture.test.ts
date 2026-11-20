@@ -23,8 +23,7 @@ const issue = (number: number, labels: string[], extra: object = {}) => ({
 });
 const prise = (id: number, station: string, le: string) => ({ id, body: `<!-- brigade:prise station=${station} -->\nTaken by station \`${station}\`.`, author_association: "OWNER", created_at: le });
 
-// Le rail : #1 en attente (prio:2), calibré par le manager — rien ne le bloque (le rail bloqué, #3358 :
-// test/rail-bloque/) —, #2 pris par box/claude (prio:1), #3 en pass par la PR #40, cuisiné par mac/claude — et une PR que
+// Le rail : #1 en attente (prio:2), calibré par le manager — rien ne le bloque —, #2 pris par box/claude (prio:1), #3 en pass par la PR #40, cuisiné par mac/claude — et une PR que
 // l'API des issues rend comme une issue.
 const AU_FEU = [issue(1, ["fire", "prio:2", "model:sonnet", "effort:medium"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })];
 // Les issues ouvertes : le rail, et ce qui est avant lui — une de chaque état, une PR.
@@ -270,13 +269,13 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/pause-quota/pause-quota.ts",
     // Une PR dite par son ticket, sans import (ticket 3716).
     "app/src/vue/pr-du-ticket.js",
-    // Le rail bloqué : les tickets qu'aucun manager n'a pris, et le diagnostic, sans E/S (ticket 3358).
-    "app/src/vue/rail-bloque/rail-bloque.ts",
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
-    "runtime/src/attente-du-rail/alertes.ts",
+    // La file du rail et les stations du compte, lues par un `lire` reçu, sans E/S : venues du rail bloqué que le superviseur a remplacé (ticket 3914).
+    "runtime/src/attente-du-rail/lecture.ts",
     "runtime/src/attente-du-rail/raison.ts",
+    "runtime/src/attente-du-rail/stations.ts",
     // Les attentes d'un ticket en file et leur source — son corps, sa fiche, l'arrêt d'un cook —, sans E/S (ticket 3763).
     "runtime/src/boucle-attente/levee.ts",
     "runtime/src/capacites.ts",
@@ -287,8 +286,6 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/events/rail.ts",
     "runtime/src/fiche.ts",
     "runtime/src/github-etat/etats.ts",
-    "runtime/src/rail-bloque/lecture.ts",
-    "runtime/src/rail-bloque/rail-bloque.ts",
     // Le ticket qu'une PR sert, sans E/S : la règle que le récapitulatif du runtime lit sur les mêmes PR (ticket 3581).
     "runtime/src/recap/servis.ts",
     // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).

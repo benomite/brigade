@@ -105,7 +105,7 @@ const bandeau = (vue: Jouee): Faux => enfants(vue).find(({ className }) => class
 const titre = (vue: Jouee): Faux => bandeau(vue).dessous("button").find(({ className }) => className === "backlog-band-titre") ?? assert.fail("pas de titre");
 const statut = (vue: Jouee): Faux | undefined => enfants(vue).find(({ className }) => className.split(" ").includes("statut-du-rail") || className.split(" ").includes("attente-du-rail"));
 
-// Les issues que la cuisine a ouvertes sur elle-même (runtime/src/breaker-issue.ts, runtime/src/guerison/cuisine-inerte.ts), et #21, mise de côté.
+// Les issues que la cuisine a ouvertes sur elle-même (runtime/src/breaker-issue.ts ; la cuisine oisive, d'avant le superviseur, #3914), et #21, mise de côté.
 const DISJONCTEUR = ouverte(34, ["bug"], "Kitchen parade held: its breaker is open");
 const INERTE = ouverte(35, ["bug"], "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)");
 const LONGUE = "The wait is longer than usual: the oldest queued ticket has waited 3 d and no reason is found. It resolves by itself.";
