@@ -6,7 +6,7 @@
 import { objet, phrase } from "../juger.ts";
 import { direDeclenchement, type Declenchement } from "./declenchement.ts";
 import type { Dossier } from "./dossier.ts";
-import { GESTES, type Geste } from "./gestes.ts";
+import { GESTES } from "./gestes.ts";
 
 export const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:superviseur -->";
 
@@ -50,10 +50,10 @@ export function consigneDuSuperviseur({ depot, declenchement, dossier }: { depot
   ].join("\n");
 }
 
-export type ReponseDuSuperviseur = { vu: string; gestes: Geste[] } | { illisible: string };
+export type ReponseDuSuperviseur = { vu: string; gestes: unknown[] } | { illisible: string };
 
 // La réponse du manager : ce qu'il a vu, et ses gestes tels qu'il les écrit —
-// la porte des gestes juge chacun.
+// la porte des gestes (`lireGeste`) lit et juge chacun.
 export function lireReponse(message: string | null): ReponseDuSuperviseur {
   if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
@@ -61,5 +61,5 @@ export function lireReponse(message: string | null): ReponseDuSuperviseur {
   const vu = phrase(lu.vu);
   if (vu === null) return { illisible: "no `vu`: what the manager saw" };
   if (!Array.isArray(lu.gestes)) return { illisible: "no `gestes` list" };
-  return { vu, gestes: lu.gestes as Geste[] };
+  return { vu, gestes: lu.gestes };
 }

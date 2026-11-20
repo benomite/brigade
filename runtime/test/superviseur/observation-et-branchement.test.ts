@@ -140,8 +140,8 @@ test("a ticket taken three times starts one run: the manager reads the dossier w
   await c.fini(1);
   assert.equal(c.consignes.length, 1);
   assert.match(c.consignes[0] ?? "", /## The history of #2\n\n- 2026-11-20T10:00:00Z Taken by station `box`\./);
-  assert.deepEqual(c.ecrits, ["comment #2: Put back on the rail by the supervisor.", "+fire #2", "-served-elsewhere #2", "comment #2: **Supervisor run** — #2 was taken 3 times without delivering."]);
-  assert.deepEqual(c.dites, ["supervisor on shop: #2 was taken 3 times without delivering — #2 put back on the rail: lint fixed upstream, traced on #2"]);
+  assert.deepEqual(c.ecrits, ["+fire #2", "-served-elsewhere #2", "comment #2: **Supervisor run** — #2 was taken 3 times without delivering."]);
+  assert.deepEqual(c.dites, ["supervisor on shop: #2 was taken 3 times without delivering — #2 put back on the rail. Note for the next cook: lint fixed upstream, traced on #2"]);
 });
 
 test("a second trigger during a run starts nothing; the same trigger starts again only after its interval", async (t) => {
@@ -163,7 +163,7 @@ test("a second trigger during a run starts nothing; the same trigger starts agai
   c.reveiller();
   await c.fini(2);
   assert.equal(c.consignes.length, 2);
-  assert.deepEqual(c.dites, ["supervisor on shop: nothing merged for 30 min while a ticket is cookable — #2 put back on the rail: lint fixed upstream, traced on #2", "supervisor on shop: nothing merged for 30 min while a ticket is cookable — #2 put back on the rail: lint fixed upstream, traced on #2"]);
+  assert.deepEqual(c.dites, ["supervisor on shop: nothing merged for 30 min while a ticket is cookable — #2 put back on the rail. Note for the next cook: lint fixed upstream, traced on #2", "supervisor on shop: nothing merged for 30 min while a ticket is cookable — #2 put back on the rail. Note for the next cook: lint fixed upstream, traced on #2"]);
 });
 
 test("a kitchen that does not move for less than its thresholds starts nothing", async (t) => {

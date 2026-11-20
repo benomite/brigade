@@ -65,12 +65,12 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     const reponse = await consulter(consigneDuSuperviseur({ depot, declenchement, dossier }));
     const lue = "illisible" in reponse ? reponse : lireReponse(reponse.message);
     const bilan = await tourDuSuperviseur({
-      github: githubDuSuperviseur({ client, depot, maintenant, attendre: options.attendre }),
+      github: githubDuSuperviseur({ client, maintenant, attendre: options.attendre }),
       declenchement,
       vu: "illisible" in lue ? `${vu}. The manager's answer could not be read (${lue.illisible}): no gesture of its own.` : `${vu}. ${lue.vu}`,
       actions: "illisible" in lue ? [] : lue.gestes,
     });
-    dire(`supervisor on ${runtime.projet}: ${vu} — ${bilan.fait.length === 0 ? "no gesture" : bilan.fait.join("; ")}${bilan.ticket === null ? "" : `, traced on #${bilan.ticket}`}${bilan.echecDeLaTrace === undefined ? "" : ` (the trace was not written: ${bilan.echecDeLaTrace})`}`);
+    dire(`supervisor on ${runtime.projet}: ${vu} — ${bilan.fait.length === 0 ? "no gesture" : bilan.fait.join("; ")}${bilan.tickets.length === 0 ? "" : `, traced on ${bilan.tickets.map((ticket) => `#${ticket}`).join(", ")}`}${bilan.echecDeLaTrace === undefined ? "" : ` (the trace was not written: ${bilan.echecDeLaTrace})`}`);
     options.surTour?.({ ...bilan, declenchement });
   };
 

@@ -72,7 +72,7 @@ function client(options: { checks?: { name?: string; outcome: "red" | "green" | 
 
 test("the rerun relaunches each red run once, waits for its new attempt to finish, and reads the base again", async () => {
   const f = client({ checks: [{ name: "unit", outcome: "red", url: RUN(41) }, { name: "lint", outcome: "red", url: RUN(41, 2) }, { name: "windows tests (1/8)", outcome: "red", url: RUN(42) }, { name: "types", outcome: "green", url: RUN(43) }], etats: [{ tentative: 1, termine: true }, { tentative: 2, termine: false }, { tentative: 2, termine: true }], vertApres: true });
-  const github = githubDuSuperviseur({ client: f.c, depot: "acme/shop", maintenant: f.maintenant, attendre: f.attendre });
+  const github = githubDuSuperviseur({ client: f.c, maintenant: f.maintenant, attendre: f.attendre });
   const avant = f.maintenant().getTime();
   assert.equal(await github.relancerLesJobs(), "vert");
   assert.deepEqual(f.ecrits, ["rerun 41"], "one rerun per red run, none for the informative Windows job");
@@ -82,10 +82,10 @@ test("the rerun relaunches each red run once, waits for its new attempt to finis
 
 test("a rerun still red says so; a red check that is no GitHub Actions job is not rerun and stays red", async () => {
   const rouge = client({ checks: [{ name: "unit", outcome: "red", url: RUN(41) }] });
-  assert.equal(await githubDuSuperviseur({ client: rouge.c, depot: "acme/shop", maintenant: rouge.maintenant, attendre: rouge.attendre }).relancerLesJobs(), "rouge");
+  assert.equal(await githubDuSuperviseur({ client: rouge.c, maintenant: rouge.maintenant, attendre: rouge.attendre }).relancerLesJobs(), "rouge");
   assert.deepEqual(rouge.ecrits, ["rerun 41"]);
   const sansRun = client({ checks: [{ name: "buildkite", outcome: "red" }] });
-  assert.equal(await githubDuSuperviseur({ client: sansRun.c, depot: "acme/shop", maintenant: sansRun.maintenant, attendre: sansRun.attendre }).relancerLesJobs(), "rouge");
+  assert.equal(await githubDuSuperviseur({ client: sansRun.c, maintenant: sansRun.maintenant, attendre: sansRun.attendre }).relancerLesJobs(), "rouge");
   assert.deepEqual(sansRun.ecrits, []);
 });
 
@@ -93,7 +93,7 @@ test("a run still going when the rerun is asked is not rerun: its end is the ver
   const f = client({ checks: [{ name: "unit", outcome: "red", url: RUN(41) }], vertApres: true });
   let lectures = 0;
   const c: ClientDuSuperviseur = { ...f.c, etatDuRun: async () => (lectures++ === 0 ? { tentative: 1, termine: false } : { tentative: 1, termine: true }) };
-  const github = githubDuSuperviseur({ client: c, depot: "acme/shop", maintenant: f.maintenant, attendre: f.attendre });
+  const github = githubDuSuperviseur({ client: c, maintenant: f.maintenant, attendre: f.attendre });
   await github.relancerLesJobs();
   assert.deepEqual(f.ecrits, [], "GitHub would refuse it");
   assert.equal(lectures, 2, "the end of its first attempt is enough");
@@ -102,38 +102,64 @@ test("a run still going when the rerun is asked is not rerun: its end is the ver
 test("the rerun waits at most its cap, then reads the base as it is", async () => {
   const f = client({ checks: [{ name: "unit", outcome: "red", url: RUN(41) }], etats: Array.from({ length: 200 }, () => ({ tentative: 2, termine: false })) });
   const avant = f.maintenant().getTime();
-  assert.equal(await githubDuSuperviseur({ client: f.c, depot: "acme/shop", maintenant: f.maintenant, attendre: f.attendre }).relancerLesJobs(), "rouge");
+  assert.equal(await githubDuSuperviseur({ client: f.c, maintenant: f.maintenant, attendre: f.attendre }).relancerLesJobs(), "rouge");
   assert.equal(f.maintenant().getTime() - avant, RELANCE_MAX_MS);
   assert.equal(f.sondages(), RELANCE_MAX_MS / SONDAGE_DE_LA_RELANCE_MS);
 });
 
-test("putting a ticket back on the rail leaves its note, puts `fire` back and lifts what held it aside", async () => {
+test("putting a ticket back on the rail puts `fire` back and lifts what held it aside, and writes no comment of its own", async () => {
   const f = client({ issue: { labels: ["served-elsewhere", "waiting", "model:opus"] } });
-  await githubDuSuperviseur({ client: f.c, depot: "acme/shop" }).remettreSurLeRail(12, "lint is fixed upstream");
-  assert.deepEqual(f.ecrits, ["comment #12: <!-- brigade:superviseur-remis -->\nPut back on the rail by the supervisor.\n\n**Note for the next cook:** lint is fixed upstream", "+fire #12", "-served-elsewhere #12", "-waiting #12"]);
+  await githubDuSuperviseur({ client: f.c }).remettreSurLeRail(12, "lint is fixed upstream");
+  assert.deepEqual(f.ecrits, ["+fire #12", "-served-elsewhere #12", "-waiting #12"]);
   const deja = client({ issue: { labels: ["fire"] } });
-  await githubDuSuperviseur({ client: deja.c, depot: "acme/shop" }).remettreSurLeRail(12, "again");
-  assert.equal(deja.ecrits.length, 1, "`fire` is not posed twice");
-  await assert.rejects(githubDuSuperviseur({ client: client({ issue: null }).c, depot: "acme/shop" }).remettreSurLeRail(12, "n"), /#12 does not exist/);
+  await githubDuSuperviseur({ client: deja.c }).remettreSurLeRail(12, "again");
+  assert.deepEqual(deja.ecrits, [], "`fire` is not posed twice");
+  await assert.rejects(githubDuSuperviseur({ client: client({ issue: null }).c }).remettreSurLeRail(12, "n"), /#12 does not exist/);
 });
 
-test("setting a ticket aside names its third party, and its follow-up a week later", async () => {
+test("setting a ticket aside poses `waiting`; its mark, naming its third party and its follow-up a week later, heads the run's trace", async () => {
   const f = client();
-  await githubDuSuperviseur({ client: f.c, depot: "acme/shop", maintenant: () => new Date("2026-11-20T12:00:00.000Z") }).mettreEnAttente(12, "the bank");
-  assert.equal(f.ecrits[0], "+waiting #12");
-  assert.match(f.ecrits[1] ?? "", /"who":"the bank"/);
-  assert.match(f.ecrits[1] ?? "", /"followUp":"2026-11-27T12:00:00.000Z"/);
+  const github = githubDuSuperviseur({ client: f.c, maintenant: () => new Date("2026-11-20T12:00:00.000Z") });
+  await github.mettreEnAttente(12, "the bank");
+  assert.deepEqual(f.ecrits, ["+waiting #12"]);
+  await github.commenter(12, "the trace");
+  assert.equal(f.ecrits.length, 2);
+  assert.match(f.ecrits[1] ?? "", /^comment #12: <!-- brigade:waiting \{[^\n]*"who":"the bank"[^\n]*"followUp":"2026-11-27T12:00:00.000Z"/);
+  assert.ok(f.ecrits[1]?.endsWith("\n\nthe trace"));
+  await github.commenter(12, "a later trace");
+  assert.equal(f.ecrits[2], "comment #12: a later trace", "the mark heads one comment only");
 });
 
-test("closing a duplicate says which ticket it duplicates", async () => {
+test("a trace GitHub refuses lifts the `waiting` the run had posed: the ticket does not wait without saying for what", async () => {
   const f = client();
-  await githubDuSuperviseur({ client: f.c, depot: "acme/shop" }).fermer(3, 4);
-  assert.deepEqual(f.ecrits, ["comment #3: Closed by the supervisor as a duplicate of #4.", "close #3"]);
+  const c: ClientDuSuperviseur = { ...f.c, commenter: async () => Promise.reject(new Error("HTTP 403")) };
+  const github = githubDuSuperviseur({ client: c });
+  await github.mettreEnAttente(12, "the bank");
+  await assert.rejects(github.commenter(12, "the trace"), /HTTP 403; the label the run had set on #12 was removed/);
+  assert.deepEqual(f.ecrits, ["+waiting #12", "-waiting #12"]);
+  const casse: ClientDuSuperviseur = { ...c, delabelliser: async () => Promise.reject(new Error("HTTP 502")) };
+  const autre = githubDuSuperviseur({ client: casse });
+  await autre.mettreEnAttente(12, "the bank");
+  await assert.rejects(autre.commenter(12, "the trace"), /could not be removed: remove it by hand/);
+  await assert.rejects(githubDuSuperviseur({ client: c }).commenter(12, "bare"), /^Error: HTTP 403$/, "a trace with no mark fails as GitHub said");
+});
+
+test("a ticket gets one card or one wait in a run, never both: one mark heads a comment", async () => {
+  const github = githubDuSuperviseur({ client: client().c });
+  await github.mettreEnAttente(12, "the bank");
+  await assert.rejects(github.poserCarte({ nature: "produit", question: "Which?", ticket: 12 }), /#12 already gets a TODO card or a wait in this run/);
+  await assert.rejects(github.mettreEnAttente(12, "the bank"), /already gets/);
+});
+
+test("closing a duplicate closes it, and writes no comment of its own", async () => {
+  const f = client();
+  await githubDuSuperviseur({ client: f.c }).fermer(3, 4);
+  assert.deepEqual(f.ecrits, ["close #3"]);
 });
 
 test("a fix ticket carries its cause; the open tickets of the last month are read for theirs", async () => {
   const f = client({ issues: [{ number: 1, state: "open", body: `${marqueDeCause("ci:unit")}\nwhy` }, { number: 2, state: "closed", body: marqueDeCause("ci:lint") }, { number: 3, state: "open", body: "no cause" }, { number: 4, state: "open", body: null }] });
-  const github = githubDuSuperviseur({ client: f.c, depot: "acme/shop", maintenant: () => new Date("2026-11-20T12:00:00.000Z") });
+  const github = githubDuSuperviseur({ client: f.c, maintenant: () => new Date("2026-11-20T12:00:00.000Z") });
   assert.deepEqual(await github.ticketsOuverts(), [{ numero: 1, cause: "ci:unit" }]);
   assert.deepEqual(f.instants, ["2026-10-21T12:00:00.000Z"]);
   assert.equal(await github.ouvrirCorrectif({ titre: "Repair main: unit", corps: "the stack", cause: "ci:unit" }), 501);
@@ -146,19 +172,49 @@ test("a fix ticket carries its cause; the open tickets of the last month are rea
 test("a CI check whose name has spaces is read back whole: its open fix ticket is the duplicate of the next one", async () => {
   const cause = "ci:tests runtime (14/16)";
   const f = client({ issues: [{ number: 7, state: "open", body: `${marqueDeCause(cause)}\nthe stack` }] });
-  const github = githubDuSuperviseur({ client: f.c, depot: "acme/shop", maintenant: () => new Date("2026-11-20T12:00:00.000Z") });
+  const github = githubDuSuperviseur({ client: f.c, maintenant: () => new Date("2026-11-20T12:00:00.000Z") });
   assert.deepEqual(await github.ticketsOuverts(), [{ numero: 7, cause }]);
   assert.equal(estUnCorrectifDeLaCi(`${marqueDeCause(cause)}\nthe stack`), true);
 });
 
-test("a TODO card is a product or a design question on the ticket it names; with none, it is not posted", async () => {
+test("a TODO card is a product or a design question on the ticket it names, at the head of the run's trace; with none, it is not posted", async () => {
   const f = client({ issue: { labels: ["fire"] } });
-  const github = githubDuSuperviseur({ client: f.c, depot: "acme/shop" });
+  const github = githubDuSuperviseur({ client: f.c });
   await github.poserCarte({ nature: "produit", question: "Which price?", ticket: 8 });
   await github.poserCarte({ nature: "design", question: "Which layout?\nA or B", ticket: 9 });
-  assert.deepEqual(f.ecrits.slice(0, 2), ["+chef-todo #8", "comment #8: <!-- brigade:todo kind=product-question -->\nThe kitchen has a product question on #8:\n\n> Which price?\n\nAnswer on this issue, and the kitchen goes on with your answer."]);
-  assert.match(f.ecrits[3] ?? "", /The kitchen has a design question on #9:\n\n> Which layout\?\n> A or B/);
+  assert.deepEqual(f.ecrits, ["+chef-todo #8", "+chef-todo #9"], "the label only: the card is said by the trace");
+  await github.commenter(8, "the trace");
+  await github.commenter(9, "the trace");
+  assert.equal(f.ecrits[2], "comment #8: <!-- brigade:todo kind=product-question -->\nThe kitchen has a product question on #8:\n\n> Which price?\n\nAnswer on this issue, and the kitchen goes on with your answer.\n\nthe trace");
+  assert.match(f.ecrits[3] ?? "", /^comment #9: <!-- brigade:todo kind=product-question -->\nThe kitchen has a design question on #9:\n\n> Which layout\?\n> A or B/);
   await assert.rejects(github.poserCarte({ nature: "produit", question: "Which?" }), /a TODO card goes on a ticket/);
+  await assert.rejects(githubDuSuperviseur({ client: client({ issue: null }).c }).poserCarte({ nature: "produit", question: "Which?", ticket: 8 }), /#8 does not exist/);
+});
+
+test("a card already waiting for the chef is not posed again; a trace refused lifts only the `chef-todo` the run posed", async () => {
+  const tient = client({ issue: { labels: ["chef-todo"] } });
+  const c: ClientDuSuperviseur = { ...tient.c, commentaires: async () => [{ body: "<!-- brigade:todo kind=product-question -->\nOld question", association: "OWNER", createdAt: "" }] };
+  const github = githubDuSuperviseur({ client: c });
+  await github.poserCarte({ nature: "produit", question: "Which?", ticket: 8 });
+  await github.commenter(8, "the trace");
+  assert.deepEqual(tient.ecrits, ["comment #8: the trace"]);
+  const bloque = client({ issue: { labels: ["chef-todo"] } });
+  const surUneCarteBloquee = githubDuSuperviseur({ client: { ...bloque.c, commentaires: async () => [{ body: "<!-- brigade:todo kind=blocked -->\nThe cook is blocked", association: "OWNER", createdAt: "" }] } });
+  await surUneCarteBloquee.poserCarte({ nature: "produit", question: "Which?", ticket: 8 });
+  await surUneCarteBloquee.commenter(8, "the trace");
+  assert.equal(bloque.ecrits.length, 1, "a card of another kind is replaced, its label kept");
+  assert.match(bloque.ecrits[0] ?? "", /^comment #8: <!-- brigade:todo kind=product-question -->\nThe kitchen has a product question on #8:[\s\S]*\n\nthe trace$/);
+  const autre = client({ issue: { labels: ["chef-todo"] } });
+  const refuse: ClientDuSuperviseur = { ...autre.c, commenter: async () => Promise.reject(new Error("HTTP 403")) };
+  const surUneAutreCarte = githubDuSuperviseur({ client: refuse });
+  await surUneAutreCarte.poserCarte({ nature: "design", question: "Which?", ticket: 8 });
+  await assert.rejects(surUneAutreCarte.commenter(8, "the trace"), /HTTP 403/);
+  assert.deepEqual(autre.ecrits, [], "the label was already there: it stays");
+  const neuf = client({ issue: { labels: [] } });
+  const sansLabel = githubDuSuperviseur({ client: { ...neuf.c, commenter: async () => Promise.reject(new Error("HTTP 403")) } });
+  await sansLabel.poserCarte({ nature: "design", question: "Which?", ticket: 8 });
+  await assert.rejects(sansLabel.commenter(8, "the trace"), /HTTP 403/);
+  assert.deepEqual(neuf.ecrits, ["+chef-todo #8", "-chef-todo #8"]);
 });
 
 test("the dossier's CI step: the failing step of the first red check and its log lines; none when main is green", async () => {

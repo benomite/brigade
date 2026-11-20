@@ -98,35 +98,37 @@ test("each gesture done says what it did, in one line", async () => {
   assert.deepEqual(await dit([{ geste: "mettre-en-attente", ticket: 2, tiers: "the bank" }]), ["#2 set aside in WAITING for the bank"]);
   assert.deepEqual(await dit([{ geste: "fermer-un-doublon", ticket: 3, doublonDe: 4 }]), ["#3 closed as a duplicate of #4"]);
   assert.deepEqual(await dit([{ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "c", cause: { genre: "ci", check: "unit" } }]), ["fix ticket #300 filed: Fix it"]);
-  assert.deepEqual(await dit([{ geste: "poser-une-carte-todo", nature: "produit", question: "Which?" }]), ["TODO card posted (produit question): Which?"]);
+  assert.deepEqual(await dit([{ geste: "poser-une-carte-todo", nature: "produit", question: "Which?" }]), ["TODO card posted on #12 (produit question): Which?"], "a card that names no ticket goes on the ticket at fault");
   assert.deepEqual(await dit([{ geste: "poser-une-carte-todo", nature: "design", question: "Which?", ticket: 8 }]), ["TODO card posted on #8 (design question): Which?"]);
-  assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "n" }]), ["#1 put back on the rail: n"]);
-  assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "" }]), ["refused remettre-sur-le-rail: putting a ticket back on the rail needs the ticket and a note"]);
+  assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "n" }]), ["#1 put back on the rail. Note for the next cook: n"]);
+  assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "" }]), ["refused: putting a ticket back on the rail needs the ticket and a note"]);
   assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "n" }], { casse: "remettreSurLeRail" }), ["remettre-sur-le-rail failed: HTTP 502 on remettreSurLeRail"]);
 });
 
-test("the trace goes on the first ticket a gesture acted on — not on one a refused gesture named", async () => {
+test("the trace goes on each ticket a gesture acted on — not on one a refused gesture named", async () => {
   const github = faux();
   const bilan = await tourDuSuperviseur({
     github,
     declenchement: { cause: "prises-sans-livraison", ticket: 12 },
     vu: "taken 3 times",
-    actions: [{ geste: "remettre-sur-le-rail", ticket: 7, note: "" }, { geste: "mettre-en-attente", ticket: 5, tiers: "the client" }],
+    actions: [{ geste: "remettre-sur-le-rail", ticket: 7, note: "" }, { geste: "mettre-en-attente", ticket: 5, tiers: "the client" }, { geste: "fermer-un-doublon", ticket: 6, doublonDe: 4 }],
   });
-  assert.equal(bilan.ticket, 5);
-  const [trace] = github.appels.filter(({ nom }) => nom === "commenter");
-  assert.equal(trace?.args[0], 5);
+  assert.deepEqual(bilan.tickets, [5, 6]);
+  const traces = github.appels.filter(({ nom }) => nom === "commenter");
+  assert.deepEqual(traces.map(({ args }) => args[0]), [5, 6], "one trace on each ticket acted on, the same");
+  assert.equal(traces[0]?.args[1], traces[1]?.args[1]);
+  const [trace] = traces;
   assert.ok(String(trace?.args[1]).startsWith(`<!-- brigade:superviseur -->\n**Supervisor run** — #12 was taken 3 times without delivering.`));
-  assert.match(String(trace?.args[1]), /- refused remettre-sur-le-rail: putting a ticket back on the rail needs the ticket and a note\n- #5 set aside in WAITING for the client/);
+  assert.match(String(trace?.args[1]), /- refused: putting a ticket back on the rail needs the ticket and a note\n- #5 set aside in WAITING for the client/);
 });
 
 test("a run on a ticket at fault that decides nothing still writes its trace there; a run on no ticket writes none", async () => {
   const surLeTicket = faux();
   const bilan = await tourDuSuperviseur({ github: surLeTicket, declenchement: { cause: "prises-sans-livraison", ticket: 12 }, vu: "taken 3 times", actions: [] });
-  assert.equal(bilan.ticket, 12);
+  assert.deepEqual(bilan.tickets, [12]);
   assert.match(String(surLeTicket.appels.find(({ nom }) => nom === "commenter")?.args[1]), /\*\*What it did:\*\*\n\n- nothing: no gesture was needed$/);
   const surRien = faux();
-  assert.deepEqual(await tourDuSuperviseur({ github: surRien, declenchement: { cause: "rien-livre" }, vu: "nothing merged", actions: [] }), { ticket: null, fait: [], trace: null });
+  assert.deepEqual(await tourDuSuperviseur({ github: surRien, declenchement: { cause: "rien-livre" }, vu: "nothing merged", actions: [] }), { tickets: [], fait: [], trace: null });
   assert.deepEqual(surRien.appels, []);
 });
 
@@ -138,7 +140,7 @@ test("on a red main, the trace of the run goes on the fix ticket it filed", asyn
     vu: "main red on unit",
     actions: [{ geste: "relancer-les-jobs" }, { geste: "ouvrir-un-correctif", titre: "Repair main: unit", corps: "the stack", cause: { genre: "ci", check: "unit" } }],
   });
-  assert.equal(bilan.ticket, 300);
+  assert.deepEqual(bilan.tickets, [300]);
   assert.deepEqual(bilan.fait, ["failed jobs of main rerun: still red after the rerun", "fix ticket #300 filed: Repair main: unit"]);
   assert.equal(github.appels.filter(({ nom }) => nom === "relancerLesJobs").length, 1, "the rerun is the run's own, once");
   assert.equal(github.appels.find(({ nom }) => nom === "commenter")?.args[0], 300);
@@ -146,7 +148,7 @@ test("on a red main, the trace of the run goes on the fix ticket it filed", asyn
 
 test("a trace GitHub refuses is said in the run's outcome", async () => {
   const bilan = await tourDuSuperviseur({ github: faux({ commenterCasse: true }), declenchement: { cause: "prises-sans-livraison", ticket: 12 }, vu: "taken", actions: [] });
-  assert.equal(bilan.echecDeLaTrace, "HTTP 403");
+  assert.equal(bilan.echecDeLaTrace, "#12: HTTP 403");
 });
 
 test("the manager's answer is read for what it saw and its gestures; an answer without them does no gesture in its place", () => {

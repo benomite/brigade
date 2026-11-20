@@ -1,12 +1,20 @@
 // Le GitHub du superviseur (#3914) : ses six gestes, et les lectures du
 // dossier du manager, sur le client du tour. Rien qui ne soit l'un des six
 // gestes ne s'écrit ici.
+//
+// Un geste change un état — un label, une fermeture, une issue neuve — et
+// n'écrit aucun commentaire : le seul commentaire d'un tour sur un ticket est
+// sa trace (`commenter`). Une carte TODO et une attente sont pourtant des
+// commentaires que l'app relit par leur marque, en tête : leur geste pose son
+// label et laisse sa marque en attente, que la trace porte en tête. Une trace
+// qui ne part pas retire le label que le geste avait posé : l'issue n'attend
+// pas sans dire quoi.
 import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
-import { corpsDeLAttente, poserLAttente } from "../attente-github/attente-github.ts";
+import { corpsDeLAttente } from "../attente-github/attente-github.ts";
 import { LABEL_WAITING } from "../github-etat/etats.ts";
 import type { Check } from "../events/pass.ts";
 import { jobDuCheck, LABEL, MIS_DE_COTE, type GitHub } from "../github.ts";
-import { poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
+import { carteEnCours, CHEF_TODO, corpsDeCarte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { EtapeEnEchec } from "./dossier.ts";
 import type { GitHubDuSuperviseur } from "./gestes.ts";
 import { sortieDErreur } from "./journal-du-job.ts";
@@ -36,8 +44,6 @@ export const LIGNES_D_HISTORIQUE = 30;
 
 export type OptionsDuGitHub = {
   client: ClientDuSuperviseur;
-  // Le dépôt servi, que nomme une mise en WAITING.
-  depot: string;
   maintenant?: () => Date;
   // Attend `ms` millisecondes : le sondage de la relance. Absent, un minuteur.
   attendre?: ((ms: number) => Promise<void>) | undefined;
@@ -46,7 +52,15 @@ export type OptionsDuGitHub = {
 const rougesDe = (checks: Awaited<ReturnType<ClientDuSuperviseur["checksDeLaBase"]>>) => checks.filter((check) => check.outcome === "red" && !estInformatif(check));
 const runDe = (check: { name?: string; url?: string | null }) => jobDuCheck({ name: check.name ?? "", outcome: "red", conclusion: "failure", url: check.url ?? null })?.run;
 
-export function githubDuSuperviseur({ client, depot, maintenant = () => new Date(), attendre = (ms) => new Promise((fin) => setTimeout(fin, ms)) }: OptionsDuGitHub): GitHubDuSuperviseur {
+export function githubDuSuperviseur({ client, maintenant = () => new Date(), attendre = (ms) => new Promise((fin) => setTimeout(fin, ms)) }: OptionsDuGitHub): GitHubDuSuperviseur {
+  // La marque qu'une carte ou une attente laisse pour la trace de son ticket,
+  // et ce qui défait son label si la trace ne part pas.
+  const enTete = new Map<number, { tete: string; defaire: () => Promise<void> }>();
+  // Une seule marque en tête d'un commentaire : un ticket ne reçoit, en un
+  // tour, qu'une carte ou qu'une attente.
+  const unSeulEnTete = (ticket: number) => {
+    if (enTete.has(ticket)) throw new Error(`#${ticket} already gets a TODO card or a wait in this run`);
+  };
   return {
     // Les jobs en échec de chaque run rouge relancés, puis attendus jusqu'à leur
     // fin : la base relue dit le verdict. Sans run à relancer — un check qui
@@ -72,19 +86,21 @@ export function githubDuSuperviseur({ client, depot, maintenant = () => new Date
       }
       return rougesDe(await client.checksDeLaBase()).length === 0 ? "vert" : "rouge";
     },
-    async remettreSurLeRail(ticket, note) {
+    // La note du prochain cook est dans la trace, que son brief lit.
+    async remettreSurLeRail(ticket) {
       const issue = await client.issue(ticket);
       if (issue === null) throw new Error(`#${ticket} does not exist`);
-      await client.commenter(ticket, `<!-- brigade:superviseur-remis -->\nPut back on the rail by the supervisor.\n\n**Note for the next cook:** ${note}`);
       if (!issue.labels.includes(LABEL)) await client.labelliser(ticket, [LABEL]);
       for (const label of [...MIS_DE_COTE, LABEL_WAITING]) if (issue.labels.includes(label)) await client.delabelliser(ticket, label);
     },
     async mettreEnAttente(ticket, tiers) {
+      unSeulEnTete(ticket);
       const followUp = new Date(maintenant().getTime() + RELANCE_PAR_DEFAUT_MS).toISOString();
-      await poserLAttente(client, ticket, corpsDeLAttente({ what: `what ${tiers} must give or do, named in the supervisor's comment`, who: tiers, followUp }), `#${ticket} of ${depot}`, "the next supervisor run decides again");
+      await client.labelliser(ticket, [LABEL_WAITING]);
+      enTete.set(ticket, { tete: corpsDeLAttente({ what: `what ${tiers} must give or do, named in the supervisor's run below`, who: tiers, followUp }), defaire: () => client.delabelliser(ticket, LABEL_WAITING) });
     },
-    async fermer(ticket, doublonDe) {
-      await client.commenter(ticket, `Closed by the supervisor as a duplicate of #${doublonDe}.`);
+    // Fermé d'abord : la trace dit ce qui est fait, sur l'issue fermée.
+    async fermer(ticket) {
       await client.fermerIssue(ticket);
     },
     async ticketsOuverts() {
@@ -97,12 +113,37 @@ export function githubDuSuperviseur({ client, depot, maintenant = () => new Date
     async ouvrirCorrectif({ titre, corps, cause }) {
       return client.creerIssue({ titre, corps: `${marqueDeCause(cause)}\n${corps}`, labels: [LABEL_DU_CORRECTIF] });
     },
+    // La même sorte de carte qui attend déjà le chef n'est pas reposée : la
+    // trace dit la question.
     async poserCarte({ nature, question, ticket }) {
-      if (ticket === undefined) throw new Error("a TODO card goes on a ticket, and none was named");
-      const carte: Carte = { sorte: "product-question", texte: `The kitchen has a ${nature === "produit" ? "product" : "design"} question on #${ticket}:\n\n> ${question.split("\n").join("\n> ")}\n\nAnswer on this issue, and the kitchen goes on with your answer.` };
-      await poserCarte(ticket, carte, { ...client, commentaires: async (numero) => (await client.commentaires(numero)).map((commentaire) => ({ ...commentaire, author: "" })) });
+      if (ticket === undefined) throw new Error("a TODO card goes on a ticket, and none was named nor is at fault");
+      unSeulEnTete(ticket);
+      const issue = await client.issue(ticket);
+      if (issue === null) throw new Error(`#${ticket} does not exist`);
+      const tient = issue.labels.includes(CHEF_TODO);
+      if (tient && carteEnCours(issue.labels, await client.commentaires(ticket))?.sorte === "product-question") return;
+      if (!tient) await client.labelliser(ticket, [CHEF_TODO]);
+      const texte = `The kitchen has a ${nature === "produit" ? "product" : "design"} question on #${ticket}:\n\n> ${question.split("\n").join("\n> ")}\n\nAnswer on this issue, and the kitchen goes on with your answer.`;
+      enTete.set(ticket, { tete: corpsDeCarte({ sorte: "product-question", texte }), defaire: async () => (tient ? undefined : client.delabelliser(ticket, CHEF_TODO)) });
     },
-    commenter: (ticket, texte) => client.commenter(ticket, texte),
+    // La trace du tour, seul commentaire sur le ticket : la marque qu'un geste
+    // y a laissée en tête.
+    async commenter(ticket, texte) {
+      const enAttente = enTete.get(ticket);
+      enTete.delete(ticket);
+      try {
+        await client.commenter(ticket, enAttente === undefined ? texte : `${enAttente.tete}\n\n${texte}`);
+      } catch (erreur) {
+        const raison = erreur instanceof Error ? erreur.message : String(erreur);
+        if (enAttente === undefined) throw erreur;
+        try {
+          await enAttente.defaire();
+        } catch {
+          throw new Error(`${raison}; the label the run had set on #${ticket} could not be removed: remove it by hand`);
+        }
+        throw new Error(`${raison}; the label the run had set on #${ticket} was removed`);
+      }
+    },
   };
 }
 

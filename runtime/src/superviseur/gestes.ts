@@ -55,7 +55,13 @@ export const cleDeCause = (cause: CauseDuCorrectif): string => (cause.genre === 
 const entier = (valeur: unknown): valeur is number => Number.isInteger(valeur) && (valeur as number) > 0;
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.trim() !== "";
 
-// Pourquoi l'action est refusée, ou null si elle est l'un des six gestes, bien formé.
+// L'action lue telle que le manager l'écrit : l'un des six gestes, bien formé,
+// ou la raison de son refus. C'est la seule lecture de sa forme.
+export function lireGeste(action: unknown): Geste | { refus: string } {
+  const refus = refusDe(action);
+  return refus === null ? (action as Geste) : { refus };
+}
+
 function refusDe(action: unknown): string | null {
   const a = (typeof action === "object" && action !== null ? action : {}) as Record<string, unknown>;
   if (!GESTES.includes(a.geste as NomDeGeste)) return `${JSON.stringify(a.geste ?? null)} is not one of the supervisor's six gestures (${GESTES.join(", ")})`;
@@ -80,9 +86,9 @@ function refusDe(action: unknown): string | null {
 
 // Joue le geste s'il est permis : fait, refusé, ou en échec. `deposees` : les
 // causes des correctifs déjà ouverts à ce tour — une cause n'en ouvre qu'un.
-export async function executer(github: GitHubDuSuperviseur, action: Geste, deposees: Set<string> = new Set()): Promise<Reponse> {
-  const refus = refusDe(action);
-  if (refus !== null) return { fait: false, refus };
+export async function executer(github: GitHubDuSuperviseur, lue: unknown, deposees: Set<string> = new Set()): Promise<Reponse> {
+  const action = lireGeste(lue);
+  if ("refus" in action) return { fait: false, refus: action.refus };
   try {
     switch (action.geste) {
       case "relancer-les-jobs":
