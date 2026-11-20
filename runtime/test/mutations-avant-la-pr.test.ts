@@ -1,11 +1,13 @@
-// #3970 : une livraison dont une mutation survit revient à son cook avant sa PR, une seule fois, et
-// part ensuite à sa relecture — que le cook relancé ait fini ou non.
+// #3970 : une livraison dont une mutation survit revient à son cook avant sa PR, revérifiée à chaque
+// relance (#3976) et au plus RELANCES_DES_MUTATIONS fois, et part ensuite à sa relecture — que le cook
+// relancé ait fini ou non.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { RELANCES_DES_MUTATIONS } from "../src/passe-mutations/mutations.ts";
 import { FauxGitHub, fauxClient, STATION_DU_DEPOT } from "./faux-github.ts";
 
 const BOGUE = "export const somme = (a: number, b: number) => a - b;\n";
@@ -91,12 +93,12 @@ function cuisine(t: TestContext, relance: { erreur: boolean }) {
   return { lancements, avertissements, jusquALaRelecture };
 }
 
-test("a cook given back its surviving mutations is given them once: its next delivery goes to its review even if one still survives", async (t) => {
+test("a cook given back its surviving mutations is given them a bounded number of times: its last delivery goes to its review even if one still survives", async (t) => {
   const { lancements, jusquALaRelecture } = cuisine(t, { erreur: false });
   await jusquALaRelecture();
   const cooks = lancements.filter((l) => !l.relecteur);
-  assert.equal(cooks.length, 2, "one cook, then one relaunch on its surviving mutations, and no more");
-  assert.match(cooks[1]!.consigne, /## Mutations your tests let through[\s\S]*`lib\/calcul\.ts:2` \(`>` → `<=`\)/);
+  assert.equal(cooks.length, 1 + RELANCES_DES_MUTATIONS, "one cook, then its relaunches on its surviving mutations, and no more");
+  for (const cook of cooks.slice(1)) assert.match(cook.consigne, /## Mutations your tests let through[\s\S]*`lib\/calcul\.ts:2` \(`>` → `<=`\)/);
   assert.doesNotMatch(cooks[0]!.consigne, /Mutations your tests let through/);
   assert.ok(lancements.some((l) => l.relecteur), "the delivery goes on to its review, where the pass judges it");
 });
