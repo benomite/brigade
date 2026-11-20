@@ -3,8 +3,15 @@
 // son verdict, sans un minuteur réel.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { estUnCorrectifDeLaCi, etapeEnEchec, githubDuSuperviseur, historique, marqueDeCause, RELANCE_MAX_MS, SONDAGE_DE_LA_RELANCE_MS, type ClientDuSuperviseur } from "../../src/superviseur/github.ts";
-import { LIGNES_MAX, sortieDErreur } from "../../src/superviseur/journal-du-job.ts";
+import { estUnCorrectifDeLaCi, etapeEnEchec, githubDuSuperviseur, historique, type ClientDuSuperviseur } from "../../src/superviseur/github.ts";
+import { sortieDErreur } from "../../src/superviseur/journal-du-job.ts";
+
+// Les mesures du superviseur, telles que ces tests les attendent : 80 lignes de log au plus, un sondage de la CI
+// relancée toutes les 30 s, pendant 40 min au plus ; et la marque de la cause que porte un correctif.
+const LIGNES_MAX = 80;
+const SONDAGE_DE_LA_RELANCE_MS = 30_000;
+const RELANCE_MAX_MS = 40 * 60_000;
+const marqueDeCause = (cause: string) => `<!-- brigade:cause ${cause} -->`;
 
 test("the useful end of a job log: no colours nor timestamps nor groups, cut after its last error, its blank edges trimmed", () => {
   const journal = ["2026-11-20T10:00:00.1234567Z ##[group]Run npm test", "", "\x1b[31mnot ok 3 - parser\x1b[0m", "##[endgroup]", "##[error]Process completed with exit code 1.", "Post job cleanup.", ""].join("\n");

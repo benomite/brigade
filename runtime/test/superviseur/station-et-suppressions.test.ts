@@ -9,14 +9,15 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { alerteDeLaCuisine, horsDesTickets } from "../../src/alerte-cuisine/alerte-cuisine.ts";
 import { LABEL_DU_DISJONCTEUR, publieurDuDisjoncteur, type ClientDuDisjoncteur } from "../../src/breaker-issue.ts";
-import { reparationDeLaBase, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { estUneReparation, shaDeBaseRouge } from "../../src/qualite-github.ts";
 import type { ConsulterLeSuperviseur } from "../../src/superviseur/brancher.ts";
-import { marqueDeCause } from "../../src/superviseur/github.ts";
 import { CALIBRE, depotNeuf, FauxGitHub, fauxClient, STATION_DU_DEPOT } from "../faux-github.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
+// La marque de la cause qu'un correctif du superviseur porte (`superviseur/github.ts`).
+const marqueDeCause = (cause: string) => `<!-- brigade:cause ${cause} -->`;
 const MANAGER = { model: "opus", effort: "medium" } as const;
 const fin = (code: number, arret: { reason: "tokens"; limit: number; observed: number } | null = null) => Promise.resolve({ code, signal: null, turns: 1, tokens: 1, durationMs: 1, arret, erreur: null });
 
@@ -62,12 +63,13 @@ test("without a manager's calibration, the station gives the supervisor none", (
   assert.equal(station(t, () => assert.fail("nothing runs"), false)(), null);
 });
 
-test("on a red main, the supervisor's fix ticket for the red check is merged, an older repair too, and any other delivery waits", async () => {
+test("on a red main, the supervisor's fix ticket for the red check is merged, an older repair too, and any other delivery waits, a fix for a code cause included", async () => {
   const faux = new FauxGitHub();
   faux.feu(10);
   faux.feu(20, CALIBRE, `${marqueDeCause("ci:tests")}\nFix the red \`tests\` check of main.`);
   faux.feu(30, [...CALIBRE, "prio:0"], "<!-- brigade:base-rouge sha=abc1234 -->\n## What fails\n\n- `tests`\n");
-  const a = faux.station("A", { places: 3, avertir: () => {} });
+  faux.feu(40, CALIBRE, `${marqueDeCause("code:parser")}\nwhy`);
+  const a = faux.station("A", { places: 4, avertir: () => {} });
   await a.tour();
   await a.calme();
   faux.base = "red";
@@ -78,7 +80,7 @@ test("on a red main, the supervisor's fix ticket for the red check is merged, an
   assert.equal(faux.mergee(20)?.mergeePar, "A");
   assert.equal(faux.mergee(30)?.mergeePar, "A");
   assert.equal(faux.mergee(10), undefined);
-  assert.equal(reparationDeLaBase(`${marqueDeCause("code:parser")}\nwhy`, ["fire"]), false, "a code cause is no repair of the base");
+  assert.equal(faux.mergee(40), undefined, "a code cause is no repair of the base");
 });
 
 test("no ticket jumps the rail on its own: an old `repair-main` label takes its turn by priority and age", async () => {

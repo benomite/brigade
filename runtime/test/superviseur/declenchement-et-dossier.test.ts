@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { declencher, direDeclenchement, estInformatif, type Observation } from "../../src/superviseur/declenchement.ts";
-import { composerDossier, type LecturesDuDossier } from "../../src/superviseur/dossier.ts";
+import { composerDossier } from "../../src/superviseur/dossier.ts";
 
 const MAINTENANT = new Date("2026-11-20T12:00:00.000Z");
 const ilYa = (minutes: number) => new Date(MAINTENANT.getTime() - minutes * 60_000).toISOString();
@@ -38,7 +38,7 @@ test("only the Windows test jobs are informative", () => {
   assert.equal(estInformatif({}), false);
 });
 
-const LECTURES: LecturesDuDossier = {
+const LECTURES: Parameters<typeof composerDossier>[0]["lectures"] = {
   file: async () => [{ ticket: 41, titre: "Forty-one", ligne: "#41 is claimable but not claimed, the claim gate skipped it: zone held by #40" }, { ticket: 43, titre: "Forty-three" }],
   queueDuJournal: async () => [],
   etapeEnEchec: async () => null,

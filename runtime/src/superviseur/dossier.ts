@@ -7,7 +7,7 @@
 export type TicketDeLaFile = { ticket: number; titre: string; ligne?: string };
 export type EtapeEnEchec = { etape: string; lignes: string[] };
 
-export type LecturesDuDossier = {
+type LecturesDuDossier = {
   file(): Promise<TicketDeLaFile[]>;
   queueDuJournal(lignes: number): Promise<string[]>;
   // L'étape de CI en échec sur la base et ses lignes de log, nulle quand rien n'y échoue.

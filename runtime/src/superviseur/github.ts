@@ -23,7 +23,7 @@ export type ClientDuSuperviseur = Pick<GitHub, "issue" | "commenter" | "labellis
 
 // La marque cachée de la cause d'un correctif, en tête de son corps.
 const MARQUE_DE_CAUSE = /^<!-- brigade:cause (\S+) -->/m;
-export const marqueDeCause = (cause: string) => `<!-- brigade:cause ${cause} -->`;
+const marqueDeCause = (cause: string) => `<!-- brigade:cause ${cause} -->`;
 // Le correctif d'un check rouge de la base : ce que la base rouge ne retient pas.
 export const estUnCorrectifDeLaCi = (corps: string): boolean => MARQUE_DE_CAUSE.exec(corps)?.[1]?.startsWith("ci:") === true;
 
@@ -33,8 +33,8 @@ export const LABEL_DU_CORRECTIF = "fix";
 // Combien de temps un correctif se cherche parmi les tickets ouverts.
 const MOIS_MS = 30 * 24 * 3_600_000;
 // La relance attendue : un sondage toutes les 30 s, 40 min au plus.
-export const SONDAGE_DE_LA_RELANCE_MS = 30_000;
-export const RELANCE_MAX_MS = 40 * 60_000;
+const SONDAGE_DE_LA_RELANCE_MS = 30_000;
+const RELANCE_MAX_MS = 40 * 60_000;
 // Les lignes d'historique d'un ticket que le dossier garde.
 export const LIGNES_D_HISTORIQUE = 30;
 

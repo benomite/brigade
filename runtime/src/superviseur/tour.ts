@@ -9,18 +9,32 @@
 // même cause fait taire. Le tour n'ouvre jamais de ticket de lui-même : seul le
 // geste « correctif » que le manager choisit en ouvre un.
 import { direDeclenchement, type Declenchement } from "./declenchement.ts";
-import { jouer, type Geste, type GitHubDuSuperviseur, type Joue } from "./gestes.ts";
+import { executer, type Geste, type GitHubDuSuperviseur, type Reponse } from "./gestes.ts";
 
-export const MARQUE_DU_SUPERVISEUR = "<!-- brigade:superviseur -->";
+const MARQUE_DU_SUPERVISEUR = "<!-- brigade:superviseur -->";
 
 // Ce que le tour a fait : le ticket qui porte sa trace (nul s'il n'a agi sur
 // aucun), une ligne par geste, et la trace qui n'a pas pu s'écrire.
 export type Bilan = { ticket: number | null; fait: string[]; trace: string | null; echecDeLaTrace?: string };
 
+// Un geste joué par la porte des six (`executer`), et ce que GitHub en a rendu :
+// ce que la CI dit après la relance, le numéro du correctif ouvert.
+type Joue = Reponse & { apresRelance?: "vert" | "rouge"; correctif?: number };
+async function jouer(github: GitHubDuSuperviseur, action: Geste, deposees?: Set<string>): Promise<Joue> {
+  const rendu: { apresRelance?: "vert" | "rouge"; correctif?: number } = {};
+  const lu: GitHubDuSuperviseur = {
+    ...github,
+    relancerLesJobs: async () => (rendu.apresRelance = await github.relancerLesJobs()),
+    ouvrirCorrectif: async (correctif) => (rendu.correctif = await github.ouvrirCorrectif(correctif)),
+  };
+  const reponse = await executer(lu, action, deposees);
+  return reponse.fait ? { ...reponse, ...rendu } : reponse;
+}
+
 const nomDuGeste = (action: Geste): string => String((action as { geste?: unknown }).geste ?? "an unnamed action");
 
 // Ce que le geste a fait, en une ligne.
-export function direGeste(action: Geste, joue: Joue): string {
+function direGeste(action: Geste, joue: Joue): string {
   if (!joue.fait) return "refus" in joue ? `refused ${nomDuGeste(action)}: ${joue.refus}` : `${nomDuGeste(action)} failed: ${joue.echec}`;
   switch (action.geste) {
     case "relancer-les-jobs":

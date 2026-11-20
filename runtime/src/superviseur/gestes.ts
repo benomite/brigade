@@ -56,7 +56,7 @@ const entier = (valeur: unknown): valeur is number => Number.isInteger(valeur) &
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.trim() !== "";
 
 // Pourquoi l'action est refusée, ou null si elle est l'un des six gestes, bien formé.
-export function refusDe(action: unknown): string | null {
+function refusDe(action: unknown): string | null {
   const a = (typeof action === "object" && action !== null ? action : {}) as Record<string, unknown>;
   if (!GESTES.includes(a.geste as NomDeGeste)) return `${JSON.stringify(a.geste ?? null)} is not one of the supervisor's six gestures (${GESTES.join(", ")})`;
   if (a.geste === "remettre-sur-le-rail") return entier(a.ticket) && texte(a.note) ? null : "putting a ticket back on the rail needs the ticket and a note";
@@ -78,21 +78,16 @@ export function refusDe(action: unknown): string | null {
   return null;
 }
 
-const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
-
-// Ce qu'un geste joué a donné : le numéro du correctif ouvert, ce que la CI
-// dit après la relance.
-export type Joue = { fait: true; correctif?: number; apresRelance?: "vert" | "rouge" } | { fait: false; refus: string } | { fait: false; echec: string };
-
-// Joue le geste s'il est permis. `deposees` : les causes des correctifs déjà
-// ouverts à ce tour — une cause n'en ouvre qu'un.
-export async function jouer(github: GitHubDuSuperviseur, action: Geste, deposees: Set<string> = new Set()): Promise<Joue> {
+// Joue le geste s'il est permis : fait, refusé, ou en échec. `deposees` : les
+// causes des correctifs déjà ouverts à ce tour — une cause n'en ouvre qu'un.
+export async function executer(github: GitHubDuSuperviseur, action: Geste, deposees: Set<string> = new Set()): Promise<Reponse> {
   const refus = refusDe(action);
   if (refus !== null) return { fait: false, refus };
   try {
     switch (action.geste) {
       case "relancer-les-jobs":
-        return { fait: true, apresRelance: await github.relancerLesJobs() };
+        await github.relancerLesJobs();
+        break;
       case "remettre-sur-le-rail":
         await github.remettreSurLeRail(action.ticket, action.note.trim());
         break;
@@ -108,20 +103,15 @@ export async function jouer(github: GitHubDuSuperviseur, action: Geste, deposees
         const ouvert = (await github.ticketsOuverts()).find(({ cause }) => cause === cle);
         if (ouvert !== undefined) return { fait: false, refus: `#${ouvert.numero} is open with the same cause \`${cle}\`` };
         deposees.add(cle);
-        return { fait: true, correctif: await github.ouvrirCorrectif({ titre: action.titre.trim(), corps: action.corps, cause: cle }) };
+        await github.ouvrirCorrectif({ titre: action.titre.trim(), corps: action.corps, cause: cle });
+        break;
       }
       case "poser-une-carte-todo":
         await github.poserCarte({ nature: action.nature, question: action.question.trim(), ...(action.ticket === undefined ? {} : { ticket: action.ticket }) });
         break;
     }
   } catch (erreur) {
-    return { fait: false, echec: message(erreur) };
+    return { fait: false, echec: erreur instanceof Error ? erreur.message : String(erreur) };
   }
   return { fait: true };
-}
-
-// Le geste joué, sans ce qu'il a donné : fait, refusé, ou en échec.
-export async function executer(github: GitHubDuSuperviseur, action: Geste, deposees?: Set<string>): Promise<Reponse> {
-  const joue = await jouer(github, action, deposees);
-  return joue.fait ? { fait: true } : joue;
 }

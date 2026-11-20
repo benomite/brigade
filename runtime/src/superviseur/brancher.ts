@@ -19,7 +19,7 @@ import type { ObservationDuTour } from "./observation.ts";
 import { tourDuSuperviseur, type Bilan } from "./tour.ts";
 import { superviseurDuProjet } from "./un-seul.ts";
 
-export const REDECLENCHEMENT_MS = 30 * 60_000;
+const REDECLENCHEMENT_MS = 30 * 60_000;
 
 // Le manager lancé sur la consigne du tour : sa réponse, ou pourquoi il n'y en a pas.
 export type ConsulterLeSuperviseur = (consigne: string) => Promise<{ message: string } | { illisible: string }>;
@@ -38,10 +38,10 @@ export type OptionsDuSuperviseur = {
 };
 
 // Le chef a arrêté la cuisine, ou éteint le projet : rien n'est supervisé.
-export const arreteeParLeChef = (base: Base): boolean => etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false;
+const arreteeParLeChef = (base: Base): boolean => etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false;
 
 // Les dernières lignes du journal du projet, de la plus ancienne à la plus récente.
-export function queueDuJournal(base: Base, lignes: number): string[] {
+function queueDuJournal(base: Base, lignes: number): string[] {
   return base
     .lire<{ at: string; type: string; ticket: number | null; payload: string }>(`SELECT at, type, ticket, payload FROM events ORDER BY seq DESC LIMIT ${Math.max(1, Math.floor(lignes))}`)
     .reverse()

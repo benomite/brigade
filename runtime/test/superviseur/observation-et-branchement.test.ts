@@ -6,7 +6,7 @@ import { test, type TestContext } from "node:test";
 import type { GitHubDuTour, TicketLu } from "../../src/brigade-github.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { arreteeParLeChef, brancherSuperviseur, queueDuJournal, REDECLENCHEMENT_MS, type ConsulterLeSuperviseur } from "../../src/superviseur/brancher.ts";
+import { brancherSuperviseur, type ConsulterLeSuperviseur } from "../../src/superviseur/brancher.ts";
 import { observerLeTour } from "../../src/superviseur/observation.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
@@ -159,7 +159,7 @@ test("a second trigger during a run starts nothing; the same trigger starts agai
   c.reveiller();
   await new Promise((fin) => setImmediate(fin));
   assert.equal(c.consignes.length, 1, "the same fact, just handled, does not start a new run");
-  c.f.avancer(REDECLENCHEMENT_MS / 60_000);
+  c.f.avancer(30);
   c.reveiller();
   await c.fini(2);
   assert.equal(c.consignes.length, 2);
@@ -182,7 +182,6 @@ test("a kitchen the chef stopped, or switched off, is not supervised", async (t)
   await c.f.client.fires();
   c.f.avancer(31);
   c.journal.ajouter({ project: "shop", ticket: null, author: "chef", type: "kitchen.stopped", payload: {} });
-  assert.equal(arreteeParLeChef(c.journal.base), true);
   c.reveiller();
   await new Promise((fin) => setImmediate(fin));
   assert.deepEqual(c.consignes, []);
@@ -238,12 +237,14 @@ test("without the tour's client, or without a manager, no run starts", async (t)
   }
 });
 
-test("the tail of the journal: its last facts, oldest first, each with its ticket when it has one", (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date("2026-11-20T12:00:00.000Z") });
-  t.after(() => journal.fermer());
-  journal.ajouter({ project: "shop", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
-  journal.ajouter({ project: "shop", ticket: 7, author: "chef", type: "todo.left", payload: { why: "answered" } } as never);
-  journal.ajouter({ project: "shop", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 30_000 } });
-  assert.deepEqual(queueDuJournal(journal.base, 2), ['2026-11-20T12:00:00.000Z todo.left #7 {"why":"answered"}', '2026-11-20T12:00:00.000Z runtime.ticked {"intervalMs":30000}']);
-  assert.equal(arreteeParLeChef(journal.base), false);
+test("the manager reads the tail of the journal: its last facts, oldest first, each with its ticket when it has one", async (t) => {
+  const c = cuisine(t);
+  c.f.etat.tickets = [ticket(2)];
+  await c.f.client.fires();
+  c.journal.ajouter({ project: "shop", ticket: 7, author: "chef", type: "todo.left", payload: { why: "answered" } } as never);
+  c.journal.ajouter({ project: "shop", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 30_000 } });
+  c.f.avancer(31);
+  c.reveiller();
+  await c.fini(1);
+  assert.match(c.consignes[0] ?? "", /\S+ todo\.left #7 \{"why":"answered"\}\n\S+ runtime\.ticked \{"intervalMs":30000\}\n/);
 });

@@ -1,7 +1,7 @@
 // La fin utile du journal d'un job de GitHub Actions, telle que `gh run view
 // --log-failed` la montre : ce que le dossier du superviseur donne au manager
 // (#3914) et ce que le renvoi d'une livraison rouge cite à son cook (#3806).
-export const LIGNES_MAX = 80;
+const LIGNES_MAX = 80;
 export const SORTIE_MAX = 6_000;
 
 const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;

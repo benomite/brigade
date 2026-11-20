@@ -508,7 +508,7 @@ export const ECHECS_MAX = 3;
 
 // Une réparation de la base, que sa base rouge ne retient pas : le correctif que le superviseur a ouvert pour un check
 // rouge (#3914), ou une réparation d'avant lui, à sa marque et à sa priorité.
-export const reparationDeLaBase = (corps: string, labels: string[]): boolean => estUnCorrectifDeLaCi(corps) || estUneReparation(corps, labels);
+const reparationDeLaBase = (corps: string, labels: string[]): boolean => estUnCorrectifDeLaCi(corps) || estUneReparation(corps, labels);
 
 // Au plus ce nombre de tickets récents reçoivent leur qualité à chaque merge (#2707).
 export const RATTRAPAGE_PAR_MERGE = 10;

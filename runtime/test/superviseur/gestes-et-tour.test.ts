@@ -3,9 +3,9 @@
 // a agi — et nulle part quand il n'a agi sur aucun.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { executer, jouer, refusDe, type Geste, type GitHubDuSuperviseur } from "../../src/superviseur/gestes.ts";
+import { executer, type Geste, type GitHubDuSuperviseur } from "../../src/superviseur/gestes.ts";
 import { lireReponse, consigneDuSuperviseur } from "../../src/superviseur/manager.ts";
-import { direGeste, MARQUE_DU_SUPERVISEUR, tourDuSuperviseur } from "../../src/superviseur/tour.ts";
+import { tourDuSuperviseur } from "../../src/superviseur/tour.ts";
 import { composerDossier } from "../../src/superviseur/dossier.ts";
 
 type Faux = GitHubDuSuperviseur & { appels: { nom: string; args: unknown[] }[] };
@@ -33,20 +33,34 @@ function faux(options: { apresRelance?: "vert" | "rouge"; casse?: string; commen
   };
 }
 
-test("a gesture with a ticket that is not a positive whole number, or a fix ticket without a body, is refused", () => {
-  for (const ticket of [2.5, 0, -3, "7"]) assert.notEqual(refusDe({ geste: "remettre-sur-le-rail", ticket, note: "n" }), null, String(ticket));
-  assert.equal(refusDe({ geste: "remettre-sur-le-rail", ticket: 7, note: "n" }), null);
-  assert.notEqual(refusDe({ geste: "remettre-sur-le-rail", ticket: 7, note: "  " }), null);
-  assert.notEqual(refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "", cause: { genre: "ci", check: "unit" } }), null);
-  assert.notEqual(refusDe({ geste: "ouvrir-un-correctif", titre: "", corps: "why", cause: { genre: "ci", check: "unit" } }), null);
-  assert.notEqual(refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "why", cause: { genre: "ci" } }), null);
-  assert.notEqual(refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "why", cause: { genre: "code", identite: "" } }), null);
-  assert.notEqual(refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "why" }), null);
-  assert.notEqual(refusDe({ geste: "fermer-un-doublon", ticket: 3, doublonDe: 3 }), null, "a ticket is not a duplicate of itself");
-  assert.notEqual(refusDe({ geste: "poser-une-carte-todo", nature: "produit", question: "Which?", ticket: 1.5 }), null);
-  assert.equal(refusDe({ geste: "poser-une-carte-todo", nature: "design", question: "Which?", ticket: 8 }), null);
-  assert.notEqual(refusDe("rerun everything"), null);
-  assert.notEqual(refusDe(null), null);
+// Pourquoi la porte refuse l'action, sans rien toucher sur GitHub ; null si elle la joue.
+async function refusDe(action: unknown): Promise<string | null> {
+  const github = faux();
+  const reponse = await executer(github, action as Geste);
+  if (!("refus" in reponse)) return null;
+  assert.deepEqual(github.appels, [], JSON.stringify(action));
+  return reponse.refus;
+}
+
+test("a gesture with a ticket that is not a positive whole number, or a fix ticket without a body, is refused", async () => {
+  for (const ticket of [2.5, 0, -3, "7"]) assert.notEqual(await refusDe({ geste: "remettre-sur-le-rail", ticket, note: "n" }), null, String(ticket));
+  assert.equal(await refusDe({ geste: "remettre-sur-le-rail", ticket: 7, note: "n" }), null);
+  assert.notEqual(await refusDe({ geste: "remettre-sur-le-rail", ticket: 7, note: "  " }), null);
+  assert.notEqual(await refusDe({ geste: "mettre-en-attente", ticket: 7, tiers: " " }), null);
+  assert.equal(await refusDe({ geste: "mettre-en-attente", ticket: 7, tiers: "the bank" }), null);
+  assert.notEqual(await refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "", cause: { genre: "ci", check: "unit" } }), null);
+  assert.notEqual(await refusDe({ geste: "ouvrir-un-correctif", titre: "", corps: "why", cause: { genre: "ci", check: "unit" } }), null);
+  assert.notEqual(await refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "why", cause: { genre: "ci" } }), null);
+  assert.notEqual(await refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "why", cause: { genre: "code", identite: "" } }), null);
+  assert.equal(await refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "why", cause: { genre: "code", identite: "parser" } }), null);
+  assert.notEqual(await refusDe({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "why" }), null);
+  assert.notEqual(await refusDe({ geste: "fermer-un-doublon", ticket: 3, doublonDe: 3 }), null, "a ticket is not a duplicate of itself");
+  assert.equal(await refusDe({ geste: "fermer-un-doublon", ticket: 3, doublonDe: 4 }), null);
+  assert.notEqual(await refusDe({ geste: "poser-une-carte-todo", nature: "produit", question: "Which?", ticket: 1.5 }), null);
+  assert.notEqual(await refusDe({ geste: "poser-une-carte-todo", nature: "produit", question: " " }), null);
+  assert.equal(await refusDe({ geste: "poser-une-carte-todo", nature: "design", question: "Which?", ticket: 8 }), null);
+  assert.notEqual(await refusDe("rerun everything"), null);
+  assert.notEqual(await refusDe(null), null);
 });
 
 test("a gesture GitHub refuses is said as a failure, not as done", async () => {
@@ -59,8 +73,8 @@ test("a cause files one fix ticket per run, however many times the manager asks 
   const github = faux();
   const deposees = new Set<string>();
   const correctif: Geste = { geste: "ouvrir-un-correctif", titre: "Fix the parser", corps: "cause", cause: { genre: "code", identite: "parser" } };
-  assert.deepEqual(await jouer(github, correctif, deposees), { fait: true, correctif: 300 });
-  const second = await jouer(github, correctif, deposees);
+  assert.deepEqual(await executer(github, correctif, deposees), { fait: true });
+  const second = await executer(github, correctif, deposees);
   assert.equal(second.fait, false);
   assert.ok("refus" in second && /already filed in this run/.test(second.refus));
   assert.deepEqual(github.appels.filter(({ nom }) => nom === "ouvrirCorrectif").map(({ args }) => args[0]), [{ titre: "Fix the parser", corps: "cause", cause: "code:parser" }]);
@@ -73,16 +87,22 @@ test("a TODO card goes on the ticket it names, and names none when the manager g
   assert.deepEqual(github.appels.map(({ args }) => args[0]), [{ nature: "produit", question: "Which price?" }, { nature: "design", question: "Which layout?", ticket: 8 }]);
 });
 
-test("each gesture done says what it did, in one line", () => {
-  assert.equal(direGeste({ geste: "relancer-les-jobs" }, { fait: true, apresRelance: "vert" }), "failed jobs of main rerun: green after the rerun");
-  assert.equal(direGeste({ geste: "relancer-les-jobs" }, { fait: true, apresRelance: "rouge" }), "failed jobs of main rerun: still red after the rerun");
-  assert.equal(direGeste({ geste: "mettre-en-attente", ticket: 2, tiers: "the bank" }, { fait: true }), "#2 set aside in WAITING for the bank");
-  assert.equal(direGeste({ geste: "fermer-un-doublon", ticket: 3, doublonDe: 4 }, { fait: true }), "#3 closed as a duplicate of #4");
-  assert.equal(direGeste({ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "c", cause: { genre: "ci", check: "unit" } }, { fait: true, correctif: 300 }), "fix ticket #300 filed: Fix it");
-  assert.equal(direGeste({ geste: "poser-une-carte-todo", nature: "produit", question: "Which?" }, { fait: true }), "TODO card posted (produit question): Which?");
-  assert.equal(direGeste({ geste: "poser-une-carte-todo", nature: "design", question: "Which?", ticket: 8 }, { fait: true }), "TODO card posted on #8 (design question): Which?");
-  assert.equal(direGeste({ geste: "remettre-sur-le-rail", ticket: 1, note: "n" }, { fait: false, refus: "no" }), "refused remettre-sur-le-rail: no");
-  assert.equal(direGeste({ geste: "remettre-sur-le-rail", ticket: 1, note: "n" }, { fait: false, echec: "HTTP 502" }), "remettre-sur-le-rail failed: HTTP 502");
+// Ce que le tour dit de chaque geste, une ligne par geste, sur un ticket pris trois fois.
+async function dit(actions: Geste[], options: Parameters<typeof faux>[0] = {}): Promise<string[]> {
+  return (await tourDuSuperviseur({ github: faux(options), declenchement: { cause: "prises-sans-livraison", ticket: 12 }, vu: "taken 3 times", actions })).fait;
+}
+
+test("each gesture done says what it did, in one line", async () => {
+  assert.deepEqual(await dit([{ geste: "relancer-les-jobs" }], { apresRelance: "vert" }), ["failed jobs of main rerun: green after the rerun"]);
+  assert.deepEqual(await dit([{ geste: "relancer-les-jobs" }], { apresRelance: "rouge" }), ["failed jobs of main rerun: still red after the rerun"]);
+  assert.deepEqual(await dit([{ geste: "mettre-en-attente", ticket: 2, tiers: "the bank" }]), ["#2 set aside in WAITING for the bank"]);
+  assert.deepEqual(await dit([{ geste: "fermer-un-doublon", ticket: 3, doublonDe: 4 }]), ["#3 closed as a duplicate of #4"]);
+  assert.deepEqual(await dit([{ geste: "ouvrir-un-correctif", titre: "Fix it", corps: "c", cause: { genre: "ci", check: "unit" } }]), ["fix ticket #300 filed: Fix it"]);
+  assert.deepEqual(await dit([{ geste: "poser-une-carte-todo", nature: "produit", question: "Which?" }]), ["TODO card posted (produit question): Which?"]);
+  assert.deepEqual(await dit([{ geste: "poser-une-carte-todo", nature: "design", question: "Which?", ticket: 8 }]), ["TODO card posted on #8 (design question): Which?"]);
+  assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "n" }]), ["#1 put back on the rail: n"]);
+  assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "" }]), ["refused remettre-sur-le-rail: putting a ticket back on the rail needs the ticket and a note"]);
+  assert.deepEqual(await dit([{ geste: "remettre-sur-le-rail", ticket: 1, note: "n" }], { casse: "remettreSurLeRail" }), ["remettre-sur-le-rail failed: HTTP 502 on remettreSurLeRail"]);
 });
 
 test("the trace goes on the first ticket a gesture acted on — not on one a refused gesture named", async () => {
@@ -96,7 +116,7 @@ test("the trace goes on the first ticket a gesture acted on — not on one a ref
   assert.equal(bilan.ticket, 5);
   const [trace] = github.appels.filter(({ nom }) => nom === "commenter");
   assert.equal(trace?.args[0], 5);
-  assert.ok(String(trace?.args[1]).startsWith(`${MARQUE_DU_SUPERVISEUR}\n**Supervisor run** — #12 was taken 3 times without delivering.`));
+  assert.ok(String(trace?.args[1]).startsWith(`<!-- brigade:superviseur -->\n**Supervisor run** — #12 was taken 3 times without delivering.`));
   assert.match(String(trace?.args[1]), /- refused remettre-sur-le-rail: putting a ticket back on the rail needs the ticket and a note\n- #5 set aside in WAITING for the client/);
 });
 

@@ -6,7 +6,7 @@
 import { objet, phrase } from "../juger.ts";
 import { direDeclenchement, type Declenchement } from "./declenchement.ts";
 import type { Dossier } from "./dossier.ts";
-import type { Geste } from "./gestes.ts";
+import { GESTES, type Geste } from "./gestes.ts";
 
 export const MARQUE_DE_LA_CONSIGNE = "<!-- brigade:superviseur -->";
 
@@ -25,6 +25,8 @@ export function consigneDuSuperviseur({ depot, declenchement, dossier }: { depot
     '- `{"geste": "fermer-un-doublon", "ticket": N, "doublonDe": M}` — fermer un doublon, ou une alerte périmée, au profit du ticket M.',
     '- `{"geste": "ouvrir-un-correctif", "titre": "…", "corps": "…", "cause": {"genre": "ci", "check": "…"}}` ou `"cause": {"genre": "code", "identite": "…"}` — ouvrir UN ticket `fix` pour une cause neuve. La station refuse une cause qu\'un ticket ouvert porte déjà, et tout ticket à propos d\'un ticket.',
     '- `{"geste": "poser-une-carte-todo", "nature": "produit" | "design", "ticket": N, "question": "…"}` — seulement pour une question de produit ou de design que seul le chef tranche.',
+    "",
+    `Tout autre \`geste\` que ${GESTES.map((nom) => `\`${nom}\``).join(", ")} est refusé et ne touche à rien.`,
     "",
     "Jamais de geste technique demandé au chef : une relance, un merge, un rebase, une lecture de log sont à la cuisine. Dans le doute, décide.",
     "",
