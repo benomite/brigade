@@ -287,8 +287,8 @@ const compteConnecte = tenirLeLogin(async () => {
   const { echecDeGh } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
   return lireLeCompteGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env, echecDeGh });
 });
-// Ces lectures restent loin du budget horaire du jeton du chef (budget-github.ts, #3007) : un projet ne se relit pas plus
-// d'une fois par minute, et toutes s'arrêtent, chaque projet gardant son dernier rail, quand GitHub dit le budget
+// Ces lectures restent loin du budget horaire du jeton du chef (budget-github.ts, #3007) : les relectures d'un rail inchangé sont des 304 que GitHub ne compte pas,
+// et toutes s'arrêtent, chaque projet gardant son dernier rail, quand GitHub dit le budget
 // presque épuisé ou refuse pour dépassement — jusqu'à l'heure où il se remplit.
 const budgetGitHub = tenirLeBudgetGitHub();
 const appelerSousBudget = budgetGitHub.appeler(appelerGitHub);
