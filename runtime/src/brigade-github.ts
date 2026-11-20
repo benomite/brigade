@@ -422,6 +422,10 @@ export type OptionsDeStation = {
   // passée n'est pas pris, et part à l'écriture de ses tests. Absente, la
   // porte de prise ne la lit pas.
   testsAcceptation?: PorteDesTests;
+  // Vrai si la branche des tests gelés d'un ticket `tests-written` a disparu de
+  // l'origine (#3928) : le label est périmé, la station le retire et ses tests
+  // s'écrivent de nouveau, avant qu'aucun cook ne le prenne. Absente, le label est cru.
+  testsPerdus?: (numero: number) => Promise<boolean>;
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -2163,6 +2167,19 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Les plus prioritaires (`prio:0` avant `prio:1`…, sans `prio:` en dernier), puis les plus anciens (#2209) : aucun
     // ticket ne passe devant le rail de lui-même (#3914).
     libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
+    // Un `tests-written` dont la branche a disparu de l'origine repart de l'étape
+    // « queued » : aucun cook ne le prend, aucun échec de cook n'est compté (#3928).
+    for (const [rang, ticket] of libres.entries()) {
+      if (options.testsPerdus === undefined || options.testsAcceptation === undefined || !ticket.labels.includes(LABEL_TESTS_ECRITS)) continue;
+      try {
+        if (!(await options.testsPerdus(ticket.number))) continue;
+        await github.delabelliser(ticket.number, LABEL_TESTS_ECRITS);
+        libres[rang] = { ...ticket, labels: ticket.labels.filter((label) => label !== LABEL_TESTS_ECRITS) };
+      } catch (erreur) {
+        if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+        avertir(`brigade : #${ticket.number} — could not check the branch of its frozen acceptance tests: ${message(erreur)}`);
+      }
+    }
     attendentDuTour = new Set(libres.map(({ number }) => number));
     attentesLongues.tour(libres.map(({ number }) => number));
     // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
@@ -2624,7 +2641,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "ajouts" | "recevoir">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "surLOrigine" | "elaguer" | "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "ajouts" | "recevoir">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -3640,7 +3657,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
       : porteDesTests(ecrireOuClasser, { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) });
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const testsPerdus = async (numero: number): Promise<boolean> => {
+    const branche = brancheDuTicket(numero);
+    if (depot.surLOrigine === undefined || (await depot.surLOrigine(branche))) return false;
+    // Le clone peut garder la branche née sans commit d'une réception manquée : elle ferait croire le ticket parti. `elaguer` ne retire que ce que l'origine porte déjà.
+    await depot.elaguer?.(branche);
+    return true;
+  };
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   station.lacune = options.lacune;
   const quitter = station.quitter;

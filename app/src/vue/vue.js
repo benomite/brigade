@@ -139,6 +139,7 @@ import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
+import { poserRangDEssai } from "./carte/essai.js";
 import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
 import { poserTestsDeFiche } from "./fiche-tests/fiche-tests.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
@@ -2891,6 +2892,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (ticket 1895).
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
+  // Prise plus d'une fois : le rang de son essai en clair, « 3rd try », à côté de ses points (ticket 3923).
+  if (carte.essai !== undefined) tete.append(poserRangDEssai(document, carte.essai));
   // Tuée deux fois par le même garde-fou : la carte le dit, sous sa tête, tant que la box le dit (ticket 3650).
   if (carte.garde !== undefined) tete.after(poserGardeRepetee(document, carte.garde));
   // Un agent y travaille en ce moment : la poêle grésille au bout de sa tête (ticket 2984).

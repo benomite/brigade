@@ -704,17 +704,17 @@ test("la carte d'un ticket en pass dit où en est la pass : gates, relecture, ju
   assert.deepEqual(activite(), { fait: "attend la pass", faitEn: "waiting for the pass", cible: null, depuis: `${JOUR_HORLOGE}T10:00:04.000Z` });
 
   noter({ type: "pass.started", payload: { run: "14-a", pr: "https://exemple.test/pr/1", number: 1, sha: "abc" } }, 14); // 10:00:06
-  assert.deepEqual(activite(), { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z` });
+  assert.deepEqual(activite(), { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z`, etape: "CI running" });
 
   lancer("review-14-x", "reviewer", null); // 10:00:07
-  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
+  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
   // La relecture d'un autre ticket n'est pas la sienne.
   lancer("review-140-y", "reviewer", null);
-  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
+  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
 
   noter({ type: "cook.exited", payload: { run: "review-14-x", outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }); // 10:00:09
   noter({ type: "pass.reviewed", payload: { run: "14-a", sha: "abc", review: "review-14-x", outcome: "green", summary: null, findings: [], reason: null, truncated: false } }, 14);
-  assert.deepEqual(activite(), { fait: "jugement en cours", faitEn: "judging", cible: null, depuis: `${JOUR_HORLOGE}T10:00:09.000Z` });
+  assert.deepEqual(activite(), { fait: "jugement en cours", faitEn: "judging", cible: null, depuis: `${JOUR_HORLOGE}T10:00:09.000Z`, etape: "CI running" });
 
   const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
   noter(
