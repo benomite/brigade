@@ -257,20 +257,17 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
   base: { sorte: "chef-gesture", pourquoi: "the base is red and the kitchen's own repair failed: nothing else leaves a red base, only a hand can repair it" },
   setup: { sorte: "chef-gesture", pourquoi: "the project's setup is blocked: the door's hosts and the box's installation are the chef's to declare" },
   aside: { sorte: "chef-gesture", pourquoi: "a cause of the box repeats on every ticket (its disk, its GitHub access, its secrets): the box is the chef's" },
-  disjoncteur: { sorte: "chef-gesture", pourquoi: "the breaker stops every cook after failures in a row: by design, only the chef resumes" },
+  disjoncteur: { sorte: "chef-gesture", pourquoi: "the breaker stops every cook after failures in a row: the supervisor re-runs the check that tripped it and closes it by itself, so it is shown here and asks the chef for nothing" },
   pause: { sorte: "chef-gesture", pourquoi: "the code rename asks the chef's yes before pausing the kitchen" },
   renommage: { sorte: "chef-gesture", pourquoi: "the paused code rename failed: the chef reads it and lifts the pause" },
   retenue: { sorte: "chef-gesture", pourquoi: "nothing served for 30 minutes while tickets wait: the chef reads why, and makes the gesture that lifts it when there is one" },
 };
-
-export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
 
 // Le bloc `awaiting` ne cite jamais une commande de la box : chaque geste y est
 // dit par le bouton de l'app qui le fait, ou, quand l'app n'en a pas encore,
 // par « no app button for it yet » — sans en inventer un. Les gestes de ce
 // fichier restent ceux des messages écrits pour la box (journald, issues,
 // réponses de commandes).
-const BOUTON_RESUME = "the `Resume` button on the breaker line of TODO";
 const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
 export const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `Kitchen` line of the project's Settings";
 // Un réglage du projet gardé dans son dépôt se change sur sa ligne de Settings : changée, elle ouvre sa PR (#2920).
@@ -397,7 +394,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const ecartee = miseDeCoteBloquee(base);
   const aside: Attente[] = ecartee === null ? [] : [{ ticket: null, title: null, since: ecartee.since, quoi: "aside", aside: { reason: ecartee.reason, base: ecartee.base, ticket: ecartee.ticket, station: ecartee.station } }];
 
-  // Ouvert, le disjoncteur retient toute la cuisine ; il en sort au « resume ».
+  // Ouvert, le disjoncteur retient toute la cuisine ; le superviseur en rejoue le contrôle et le referme seul.
   const garde = etatDesGardeFous(base);
   const disjoncteur: Attente[] =
     garde.breakerOpenedAt === null ? [] : [{ ticket: null, title: null, since: garde.breakerOpenedAt, quoi: "disjoncteur", echecs: echecsDuDisjoncteur(base), seuil: garde.breakerThreshold }];
@@ -539,7 +536,7 @@ const echecsDAffileeEn = ({ echecs, seuil }: Extract<Attente, { quoi: "disjoncte
   echecs.length === 0 ? "failures in a row" : `${echecs.length} failure${echecs.length > 1 ? "s" : ""} in a row${seuil === null ? "" : ` (threshold ${seuil})`}`;
 function direDisjoncteurEn(attente: Extract<Attente, { quoi: "disjoncteur" }>, echecsDessous = false): string {
   const cause = echecsDessous || attente.echecs.length === 0 ? echecsDAffileeEn(attente) : `${echecsDAffileeEn(attente)} — ${attente.echecs.map(direEchecEn).join("; ")}`;
-  return `breaker open: ${cause} — no cook leaves any more — to do: look at what fails, then press ${BOUTON_RESUME}`;
+  return `breaker open: ${cause} — no cook leaves any more — nothing to do: the supervisor re-runs the check that tripped it and closes it by itself`;
 }
 
 // Ce que le bloc pose sous l'entrée, plus en retrait (#3601) : une ligne par
@@ -581,7 +578,7 @@ function direRefusDeLaFermetureEn(retenue: Refus): string {
     case "stopped":
       return `the kitchen has been stopped by the chef since ${retenue.detail} — ${BOUTON_REPRENDRE_LA_CUISINE} first`;
     case "breaker":
-      return `the breaker has been open since ${retenue.detail} — ${BOUTON_RESUME} first`;
+      return `the breaker has been open since ${retenue.detail} — the supervisor closes it by itself, then the closing pass starts`;
     default:
       return direRefusDeFermetureEn(retenue);
   }
@@ -829,7 +826,7 @@ function direMiseDeCoteBloquee({ aside }: Extract<Attente, { quoi: "aside" }>): 
 function direDisjoncteur({ echecs, seuil }: Extract<Attente, { quoi: "disjoncteur" }>): string {
   const lignes = echecs.map(({ ticket, code, turns, tokens }) => `${ticket === null ? "sans ticket" : `#${ticket}`} : sortie ${code ?? "sans code"}, ${turns ?? "?"} tours, ${tokens ?? "?"} tokens`);
   const cause = lignes.length === 0 ? "échecs d'affilée" : `${lignes.length} échec${lignes.length > 1 ? "s" : ""} d'affilée${seuil === null ? "" : ` (seuil ${seuil})`} — ${lignes.join(" ; ")}`;
-  return `disjoncteur ouvert : ${cause} — plus aucun cook ne part — à faire : \`${REFERMER_LE_DISJONCTEUR}\` après avoir regardé ce qui échoue`;
+  return `disjoncteur ouvert : ${cause} — plus aucun cook ne part — rien à faire : le superviseur rejoue le contrôle qui l'a ouvert et le referme seul`;
 }
 
 // Le setup du projet bloqué : la cause, en clair, puis le geste. Un hôte que la

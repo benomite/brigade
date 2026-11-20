@@ -15,7 +15,8 @@ function disjoncteurOuvert(t: TestContext, numero: number) {
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "breaker.opened", payload: { failures: 3, threshold: 3 } });
   journal.fermer();
   chef(c.repertoire, "manager.enabled");
-  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools"));
+  // Le contrôle que rejoue le superviseur (#3911) échoue ici (`FAUX_CLAUDE_CONTROLE`) : le disjoncteur reste ouvert, et il n'est pas un jugement.
+  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools") && !lancement.args.some((arg) => arg.includes("health check of the kitchen")));
   const cuire = (ticket: number) => c.runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" } });
   return { ...c, jugements, cuire };
 }
@@ -26,7 +27,9 @@ test("le disjoncteur ouvert, un ticket mis sur le rail est jugé et qualifié pa
   assert.notEqual(etatDesGardeFous(c.journal.base).breakerOpenedAt, null);
   assert.equal(c.jugements().length, 1);
   assert.equal(c.journal.tout().some((e) => e.type === "manager.judged" && e.ticket === 30), true);
-  const tout = JSON.stringify([c.avertissements, c.journal.tout().filter((e) => e.type.startsWith("manager."))]);
+  // Le contrôle du superviseur échoue ici : il le dit, une fois, comme un contrôle et non comme une issue.
+  assert.ok(c.avertissements.includes("brigade : breaker check non abouti (code de sortie 1) — il sera retenté"), c.avertissements.join("\n"));
+  const tout = JSON.stringify([c.avertissements.filter((ligne) => !ligne.includes("breaker check")), c.journal.tout().filter((e) => e.type.startsWith("manager."))]);
   assert.doesNotMatch(tout, /disjoncteur|breaker/i);
 });
 

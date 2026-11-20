@@ -9,7 +9,7 @@
 // says what keeps stalling — the kind of run and its last activity —, and the
 // breaker's GitHub issue repeats it (`breaker-issue.ts`). A breaker opened that
 // way closes by itself as soon as a later run completes normally.
-import { direActiviteEn, type Activite, type Geste } from "../activite.ts";
+import { direActiviteEn, type Activite } from "../activite.ts";
 import type { Base } from "../base.ts";
 import type { Fin } from "../superviseur.ts";
 
@@ -28,7 +28,8 @@ export type Calage = {
   kind: string;
   turns: number;
   tokens: number;
-  activity: { doing: Geste; target: string | null } | null;
+  // `doing` is read back from the journal as written: a `Geste` when the station wrote it.
+  activity: { doing: string; target: string | null } | null;
   retries: number;
 };
 
@@ -56,7 +57,7 @@ export function direLeCalage(calage: Calage): string {
       ? "never started (0 turns, 0 tokens)"
       : calage.activity === null
         ? `went silent after ${calage.turns} turns`
-        : `hung on \`${direActiviteEn(calage.activity)}\`, a command that never returned`;
+        : `hung on \`${direActiviteEn(calage.activity as Pick<Activite, "doing" | "target">)}\`, a command that never returned`;
   return `a ${calage.kind} run (\`${calage.run}\`) ${quoi}, still after ${calage.retries} relaunch${calage.retries === 1 ? "" : "es"}`;
 }
 

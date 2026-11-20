@@ -88,7 +88,7 @@ export type Retenue = Diagnostic & { since: string; tickets: number[] };
 
 // Les gestes, dits comme le bloc `awaiting` les dit : par le bouton de l'app,
 // ou « no app button for it yet ».
-export const GESTE_DU_DISJONCTEUR = "look at what fails, then press the `Resume` button on the breaker line of TODO";
+export const GESTE_DU_DISJONCTEUR = "the supervisor re-runs the check that tripped the breaker and closes it by itself — nothing to do";
 // Aucun check n'a démarré sur la tête : la CI du projet ne se lance pas sur ses
 // PR, ou ses gates n'ont aucune station pour les jouer (#2456).
 export const GESTE_DE_LA_CI = "check that the project's CI runs on its PRs; with no CI on its PRs, a station runs its gates (`.claude/brigade/gates.sh`) on the PR head — the station's service log says why it did not: no app button for it yet";

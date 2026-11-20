@@ -19,11 +19,9 @@ test("handed back twice with the same plain reason, no date: not relaunched a th
     await a.tour();
     await a.calme();
   }
-  // La station le met de côté avec sa raison ; la relance de la guérison (guerison/relance.ts, #2750), qui le rend à un
-  // cook avec les points à réparer et ses propres plafonds, est un autre chemin : seuls les cooks d'avant comptent.
+  // La station le met de côté avec sa raison, et rien ne le remet sur le rail (#3911) : seuls les cooks d'avant comptent.
   const corps = (faux.commentaires.get(7) ?? []).map((c) => c.body);
-  const relance = corps.findIndex((texte) => texte.startsWith("<!-- brigade:relance"));
-  const avant = relance === -1 ? corps : corps.slice(0, relance);
+  const avant = corps;
   assert.equal(avant.filter((texte) => texte.startsWith("<!-- brigade:prise")).length, 2, corps.join("\n---\n"));
   assert.equal(faux.ticket(7).labels.has(LABEL_WAITING), false, "no wait outside the kitchen: not WAITING");
   const ecarte = avant.find((texte) => texte.includes("Set aside by its failure count"));

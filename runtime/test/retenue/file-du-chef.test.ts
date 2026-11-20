@@ -138,10 +138,10 @@ test("la base rouge au journal : la ligne nomme ce qui y échoue et le geste ; u
   const tenues = c.faits("kitchen.held");
   assert.equal(tenues.length, 2);
   assert.deepEqual([tenues[1].cause.kind, tenues[1].since, tenues[1].change], ["breaker", A("00:00:00"), true]);
-  assert.match(tenues[1].gesture, /`Resume` button on the breaker line of TODO/);
+  assert.match(tenues[1].gesture, /the supervisor re-runs the check that tripped the breaker/);
   const lignes = c.lignesDeRetenue();
   assert.equal(lignes.length, 1);
-  assert.match(lignes[0] ?? "", /cause: the breaker is open since \d\d:\d\d, no cook leaves — to lift: look at what fails/);
+  assert.match(lignes[0] ?? "", /cause: the breaker is open since \d\d:\d\d, no cook leaves — to lift: the supervisor re-runs the check that tripped the breaker/);
   assert.deepEqual(c.transitions.map(({ type }) => type), ["started", "changed"]);
 });
 

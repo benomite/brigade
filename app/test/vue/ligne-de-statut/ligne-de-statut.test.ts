@@ -105,8 +105,7 @@ const bandeau = (vue: Jouee): Faux => enfants(vue).find(({ className }) => class
 const titre = (vue: Jouee): Faux => bandeau(vue).dessous("button").find(({ className }) => className === "backlog-band-titre") ?? assert.fail("pas de titre");
 const statut = (vue: Jouee): Faux | undefined => enfants(vue).find(({ className }) => className.split(" ").includes("statut-du-rail") || className.split(" ").includes("attente-du-rail"));
 
-// Les issues que la cuisine a ouvertes sur elle-même (runtime/src/breaker-issue.ts, runtime/src/guerison/cuisine-inerte.ts), et #21, mise de côté.
-const DISJONCTEUR = ouverte(34, ["bug"], "Kitchen parade held: its breaker is open");
+// Les issues que la cuisine a ouvertes sur elle-même (runtime/src/guerison/cuisine-inerte.ts), et #21, mise de côté.
 const INERTE = ouverte(35, ["bug"], "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)");
 const LONGUE = "The wait is longer than usual: the oldest queued ticket has waited 3 d and no reason is found. It resolves by itself.";
 const FAITS_EN_ATTENTE = { ...FAITS, attenteDuRail: { raison: "normale", phrase: LONGUE, geste: null } };
@@ -116,18 +115,18 @@ describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoi
   test("une alerte de la cuisine sort du backlog : ni étiquette, ni ligne dans la liste dépliée, ni compte — son contenu est la ligne d'état", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
-    vue.dire("surAmont", tenirAmont().recevoir(await amontDe([...ISSUES, DISJONCTEUR, INERTE])));
+    vue.dire("surAmont", tenirAmont().recevoir(await amontDe([...ISSUES, INERTE])));
 
     const tags = bandeau(vue).dessous("button").filter(({ className }) => className === "backlog-tag").map(({ dataset }) => Number(dataset.ticket));
-    assert.equal(tags.some((ticket) => ticket === 34 || ticket === 35), false);
+    assert.equal(tags.some((ticket) => ticket === 35), false);
     assert.equal(titre(vue).textContent, "Backlog" + "8" + "1 awaits you");
     titre(vue).click();
     await repos();
-    assert.equal(bandeau(vue).dessous("button").some(({ dataset }) => dataset.ticket === "34" || dataset.ticket === "35"), false);
-    assert.doesNotMatch(bandeau(vue).textContent, /breaker is open|kitchen is idle/i);
+    assert.equal(bandeau(vue).dessous("button").some(({ dataset }) => dataset.ticket === "35"), false);
+    assert.doesNotMatch(bandeau(vue).textContent, /kitchen is idle/i);
 
-    // La ligne d'état : la panne d'abord, le disjoncteur — et une seule.
-    assert.equal(statut(vue)?.textContent, "Kitchen held: its breaker is open");
+    // La ligne d'état : celle de la cuisine oisive — et une seule.
+    assert.match(statut(vue)?.textContent ?? "", /^Kitchen idle: no merge for 60 minutes/);
     assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["statut-du-rail", "backlog-band"]);
   });
 
@@ -156,15 +155,6 @@ describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoi
     assert.doesNotMatch(vue.element("rail").textContent, /no reason is found/);
     assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className.split(" ")[0]), ["attente-du-rail", "backlog-band"]);
   });
-
-  test("le disjoncteur ouvert prime sur l'attente : une seule ligne, qui n'est pas « no reason is found »", async () => {
-    const vue = await ouvrir();
-    recevoirFaits(vue, faitsAvec(FAITS_EN_ATTENTE));
-    vue.dire("surAmont", tenirAmont().recevoir(await amontDe([...ISSUES, DISJONCTEUR])));
-    assert.equal(statut(vue)?.textContent, "Kitchen held: its breaker is open");
-    assert.equal(avantLesColonnes(vue).length, 2);
-    assert.doesNotMatch(vue.element("rail").textContent, /no reason is found/);
-  });
 });
 
 describe("le bandeau Backlog est replié par défaut, et ne reste pas ouvert d'une visite à l'autre", () => {
@@ -191,15 +181,15 @@ describe("le bandeau Backlog est replié par défaut, et ne reste pas ouvert d'u
 
 describe("le module pur de la ligne d'état", () => {
   const doc = { createElement: (balise: string) => new Faux(balise) };
-  test("les alertes : la première, le disjoncteur avant l'oisive ; aucune alerte, aucune ligne", () => {
+  test("les alertes : la première (par ticket) ; aucune alerte, aucune ligne", () => {
     assert.deepEqual(ligneDesAlertes(doc, undefined), []);
     assert.deepEqual(ligneDesAlertes(doc, []), []);
     const [ligne] = ligneDesAlertes(doc, [
+      { ticket: 36, titre: "The kitchen is idle: y", genre: "inerte", dit: "Kitchen idle: y" },
       { ticket: 35, titre: "The kitchen is idle: x", genre: "inerte", dit: "Kitchen idle: x" },
-      { ticket: 34, titre: "Kitchen p held: its breaker is open", genre: "disjoncteur", dit: "Kitchen held: its breaker is open" },
     ]);
-    assert.equal(ligne?.textContent, "Kitchen held: its breaker is open");
-    assert.equal(ligne?.title, "Kitchen p held: its breaker is open — filed by the kitchen on issue #34");
+    assert.equal(ligne?.textContent, "Kitchen idle: x");
+    assert.equal(ligne?.title, "The kitchen is idle: x — filed by the kitchen on issue #35");
   });
   test("les raisons connues : le ticket de côté, la cuisine arrêtée ; la phrase du runtime ne change que pour « normale »", () => {
     assert.deepEqual(retenuesConnues({ misDeCote: [], arretee: false }), []);

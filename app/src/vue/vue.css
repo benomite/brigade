@@ -1998,8 +1998,7 @@ main > header,
   border-radius: 0;
 }
 /* La ligne du disjoncteur, à côté de l'entrée TODO, hors des colonnes (tickets 2140, 3458) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
-   de ce qui attend le chef —, ce qui ne va pas en une phrase, ce que la station en écrit au survol, puis son seul
-   bouton, « Resume », le recommandé. Ce qui part, ce qui a été demandé ou pourquoi rien, à voix basse à côté. Elle est la même en tête de la liste « Awaiting you » du téléphone (ticket 3371). */
+   de ce qui attend le chef —, ce qui ne va pas en une phrase, ce que la station en écrit au survol. Une information, sans bouton (ticket 3911). Elle est la même en tête de la liste « Awaiting you » du téléphone (ticket 3371). */
 #rail .ligne-disjoncteur,
 #cartes-du-chef .ligne-disjoncteur {
   display: flex;
@@ -2029,29 +2028,6 @@ main > header,
   margin: 0;
   font-size: var(--taille-corps);
   color: var(--texte-doux);
-}
-#rail .ligne-disjoncteur .controle,
-#cartes-du-chef .ligne-disjoncteur .controle {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#rail .ligne-disjoncteur .en-route,
-#cartes-du-chef .ligne-disjoncteur .en-route {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-#rail .ligne-disjoncteur .reprise-demandee,
-#cartes-du-chef .ligne-disjoncteur .reprise-demandee {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  font-size: var(--taille-corps);
-}
-#rail .ligne-disjoncteur .reprise-demandee,
-#cartes-du-chef .ligne-disjoncteur .reprise-demandee {
-  color: var(--vert);
 }
 /* La tête du rail, le manager éteint (#906) : une barre hachurée, à l'arrêt, sur toute la largeur — rien
    de neuf n'entre —, sa pastille grise et sa ligne courte. Elle se voit sans se lire. */

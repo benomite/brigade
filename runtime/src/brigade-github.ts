@@ -106,7 +106,6 @@ import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, r
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
 import { commitsDuRunPrecedent, consigneDuRunPrecedent, estUneRepriseDeGarde, gardeLeTravail, marquerLeTravail } from "./cuisson/reprise/reprise.ts";
-import { reconcilierLesArretsExternes } from "./arrets-externes.ts";
 import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
 import { attentesDeLaDecision, noterLesAttentes } from "./attente-des-tickets.ts";
@@ -1726,8 +1725,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   // Les cartes `blocked-on-human` que le dégel a déjà relues (#3476).
   const cartesExaminees = new Set<number>();
-  // La réconciliation des arrêts externes d'avant #3528 se joue une fois par démarrage.
-  let arretsExternesReconcilies = false;
   const tour = async () => {
     renvoyes.clear();
     retenuesDuTour.clear();
@@ -1750,12 +1747,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // projet, même lancée et calibrée : aucun cook ne la prend, rien du tour ne la
     // lit (#3620). Sur la brigade, l'alerte d'inertie en reste un (#3098).
     const fires = (await github.fires()).filter((ticket) => !horsDesTickets(ticket.alerte, options.depotServi));
-    // Une fois, au premier tour, avant la guérison : les tickets que des cooks tués du dehors ont fait mettre de côté reviennent sur le rail (#3528).
-    if (!arretsExternesReconcilies) {
-      const { rendus, complete } = await reconcilierLesArretsExternes(fires, { github, station: nom, echecs: async (numero) => (await depuisLeRelancement(github, numero, await github.commentaires(numero), MARQUE_D_ECHEC)).map(({ body }) => ({ body })), avertir });
-      arretsExternesReconcilies = complete;
-      for (const ticket of fires) if (rendus.includes(ticket.number)) ticket.labels = ticket.labels.filter((label) => !MIS_DE_COTE.includes(label as (typeof MIS_DE_COTE)[number]));
-    }
     // Un ticket que la cuisine a mis en WAITING rentre seul sur le rail à sa relance (#3814) : ce tour le lit encore en
     // WAITING, le suivant le prend. Un geste qui échoue est dit ; le tour suivant réessaie.
     await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));

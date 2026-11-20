@@ -37,7 +37,7 @@ test("une retenue qui commence envoie un message, avec la cause et le geste", (t
   passer(retenue, attend);
   assert.deepEqual(envoyes, [direRetenueEn(retenue)]);
   assert.match(String(envoyes[0]), /the breaker is open/);
-  assert.match(String(envoyes[0]), /press the `Resume` button/);
+  assert.match(String(envoyes[0]), /the supervisor re-runs the check that tripped the breaker/);
 });
 
 test("la même retenue vue à de nombreuses passes n'envoie pas de second message", (t) => {

@@ -128,7 +128,7 @@ describe("la cuisine retenue (#3601)", () => {
     const { noter, a, statuer } = stationGitHubSeul(t, SIX);
     ouvrirLeDisjoncteur(noter, a);
     a(9.2);
-    noter({ type: "kitchen.held", payload: { since: ilYA(9.3).toISOString(), tickets: SIX, cause: { kind: "breaker", since: ilYA(9.3).toISOString() }, gesture: "look at what fails, then press the `Resume` button on the breaker line of TODO", change: false } });
+    noter({ type: "kitchen.held", payload: { since: ilYA(9.3).toISOString(), tickets: SIX, cause: { kind: "breaker", since: ilYA(9.3).toISOString() }, gesture: "the supervisor re-runs the check that tripped the breaker and closes it by itself — nothing to do", change: false } });
     // Le redémarrage de 17:04 : la retenue levée, faute de ticket vu, le disjoncteur toujours ouvert.
     a(0.05);
     noter({ type: "kitchen.hold-lifted", payload: { since: ilYA(9.3).toISOString(), reason: "nothing-waits" } });
@@ -138,25 +138,25 @@ describe("la cuisine retenue (#3601)", () => {
     assert.doesNotMatch(sortie, /nothing awaits the chef/);
     const entree = awaiting.findIndex((ligne) => ligne.startsWith("  breaker  for "));
     assert.ok(entree !== -1, awaiting.join("\n"));
-    assert.match(awaiting[entree] ?? "", /breaker open: 3 failures in a row \(threshold 3\) — no cook leaves any more — to do: look at what fails, then press the `Resume` button on the breaker line of TODO$/);
+    assert.match(awaiting[entree] ?? "", /breaker open: 3 failures in a row \(threshold 3\) — no cook leaves any more — nothing to do: the supervisor re-runs the check that tripped it and closes it by itself$/);
     assert.deepEqual(awaiting.slice(entree + 1, entree + 4), ["    #37: exit 1, 4 turns, 1000 tokens", "    #38: exit 1, 5 turns, 2000 tokens", "    #39: exit 1, 6 turns, 3000 tokens"]);
 
     const rail = ligneDuRail(sortie);
-    assert.match(rail, /^ {2}STUCK RAIL {2}6 tickets on the rail, none taken for 1 h: the kitchen is held, cause breaker — its breaker has been open since \d\d:\d\d UTC, after 3 failures in a row, no cook leaves\. To lift it: look at what fails, then press the `Resume` button on the breaker line of TODO\.$/);
+    assert.match(rail, /^ {2}STUCK RAIL {2}6 tickets on the rail, none taken for 1 h: the kitchen is held, cause breaker — its breaker has been open since \d\d:\d\d UTC, after 3 failures in a row, no cook leaves\. To lift it: the supervisor re-runs the check that tripped the breaker and closes it by itself — nothing to do\.$/);
     assert.doesNotMatch(rail, /manager/);
     // Ni la file ni la ligne ne conseillent d'arrêter puis de rouvrir la cuisine : le seul geste est celui qui lève le disjoncteur.
     // La ligne du rail bloqué est dans le bloc, sous sa tête.
     assert.equal(awaiting[1], rail);
     const lu = awaiting.join("\n");
     assert.doesNotMatch(lu, /\bstop\b|reopen|re-open|restart|resume the kitchen/i);
-    assert.deepEqual(lu.match(/to (do|lift it): [^.\n]*/gi), ["To lift it: look at what fails, then press the `Resume` button on the breaker line of TODO", "to do: look at what fails, then press the `Resume` button on the breaker line of TODO"]);
+    assert.deepEqual(lu.match(/to (do|lift it): [^.\n]*/gi), ["To lift it: the supervisor re-runs the check that tripped the breaker and closes it by itself — nothing to do", "to do: the supervisor re-runs the check that tripped it and closes it by itself"]);
   });
 
   test("cause `breaker` : la ligne du rail bloqué nomme le disjoncteur que le `kitchen.held` du journal tient, et non le manager", async (t) => {
     const { noter, a, statuer } = stationGitHubSeul(t, SIX);
     a(2);
-    noter({ type: "kitchen.held", payload: { since: ilYA(2).toISOString(), tickets: SIX, cause: { kind: "breaker", since: ilYA(2).toISOString(), station: "box/claude" }, gesture: "look at what fails, then press the `Resume` button on the breaker line of TODO", change: false } });
-    assert.match(ligneDuRail(await statuer()), /^ {2}STUCK RAIL {2}6 tickets on the rail, none taken for 1 h: the kitchen is held, cause breaker — the breaker of station box\/claude has been open since \d\d:\d\d UTC, no cook leaves\. To lift it: look at what fails, then press the `Resume` button on the breaker line of TODO\.$/);
+    noter({ type: "kitchen.held", payload: { since: ilYA(2).toISOString(), tickets: SIX, cause: { kind: "breaker", since: ilYA(2).toISOString(), station: "box/claude" }, gesture: "the supervisor re-runs the check that tripped the breaker and closes it by itself — nothing to do", change: false } });
+    assert.match(ligneDuRail(await statuer()), /^ {2}STUCK RAIL {2}6 tickets on the rail, none taken for 1 h: the kitchen is held, cause breaker — the breaker of station box\/claude has been open since \d\d:\d\d UTC, no cook leaves\. To lift it: the supervisor re-runs the check that tripped the breaker and closes it by itself — nothing to do\.$/);
   });
 
   test("cause `stop` : la ligne du rail bloqué nomme le « stop » du chef, et le geste qui reprend la cuisine", async (t) => {

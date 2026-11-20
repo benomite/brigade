@@ -57,7 +57,6 @@ import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts
 import { jouerLeRefus } from "./gestes-refus.ts";
 import { jouerLIdee } from "./gestes-idee.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
-import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
 import { gestesDeCarte } from "./gestes-fiche.ts";
@@ -1790,15 +1789,6 @@ ipcMain.handle("compter", (_, nom: unknown) => {
   const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => compter({ delaiMs: 30_000 }, servi));
   passage.set(servi.nom, rendu);
   return rendu;
-});
-// « Resume », sur la ligne du disjoncteur de TODO (#2140) : `/resume` posté sur l'issue `brigade:breaker-open` du projet,
-// sur la brigade (#3620), par le jeton du `gh` de ce poste — sans box jointe. La station le lit à sa veille suivante et referme le
-// disjoncteur (#2139) ; la ligne part avec la lecture qui ne le dit plus ouvert.
-const clientDuDisjoncteur = clientDuDisjoncteurGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
-ipcMain.handle("reprendreLeDisjoncteur", async (_, nom: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return undefined;
-  return reprendreLeDisjoncteur(await depotDuProjet(vise), clientDuDisjoncteur);
 });
 // La réponse du chef à une carte de TODO (carte-todo.ts) : la carte du chef lue de GitHub (#2434) — sa réponse est postée
 // sur son issue et son geste joué par l'app même, par le jeton du `gh` de ce poste (tableau-gestes/reponse-github.ts) —, ni

@@ -69,7 +69,7 @@ test("cause : le disjoncteur ouvert, et le bouton qui le referme", () => {
   const retenue = detecterRetenue(OBSERVATION, signaux({ disjoncteur: A("02:00:00") }), MAINTENANT);
   assert.deepEqual(retenue?.cause, { kind: "breaker", since: A("02:00:00") });
   assert.equal(retenue?.gesture, GESTE_DU_DISJONCTEUR);
-  assert.match(direRetenueEn(retenue!), /cause: the breaker is open since \d\d:\d\d, no cook leaves — to lift: look at what fails, then press the `Resume` button on the breaker line of TODO$/);
+  assert.match(direRetenueEn(retenue!), /cause: the breaker is open since \d\d:\d\d, no cook leaves — to lift: the supervisor re-runs the check that tripped the breaker and closes it by itself — nothing to do$/);
 });
 
 test("cause inconnue : rien de ce que le runtime lit ne l'explique, et la ligne le dit, sans geste", () => {

@@ -533,22 +533,21 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 30 && !(faux.creations.length > 0 && faux.ticket(31).labels.has("set-aside:failures")); i += 1) {
+  for (let i = 0; i < 30 && !faux.ticket(31).labels.has("set-aside:failures"); i += 1) {
     await a.tour();
     await a.calme();
   }
   assert.equal(faux.mergee(31), undefined);
   const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
-  // Mise de côté, la guérison la relance deux fois pour son check rouge
-  // (#2757) : chaque relance repart pour deux renvois, puis un bug dit la boucle.
-  assert.equal(renvois.length, 9);
+  // Mise de côté après deux renvois, aucune minuterie ne la relance (#3911) : elle attend le superviseur.
+  assert.equal(renvois.length, 3);
   assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
   assert.match(renvois[2]?.body ?? "", /Set aside by its failure count/);
   assert.ok(faux.ticket(31).labels.has("set-aside:failures"));
-  assert.equal((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:relance cause=red-check")).length, 2);
-  assert.equal(faux.creations.length, 1);
-  // Recuisiné huit fois, sous la même PR : aucune seconde PR.
-  assert.equal(faux.cuissons.filter((c) => c.issue === 31).length, 9);
+  assert.equal((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:relance")).length, 0);
+  assert.equal(faux.creations.length, 0);
+  // Recuisiné deux fois, sous la même PR : aucune seconde PR.
+  assert.equal(faux.cuissons.filter((c) => c.issue === 31).length, 3);
   assert.equal(faux.prs.filter((p) => p.issue === 31).length, 1);
 });
 
@@ -1937,27 +1936,6 @@ test("a cook that ends with exit code 143 (SIGTERM) is not a failed cook: the ti
   assert.ok(!faux.ticket(78).labels.has("taken"));
   assert.ok(!faux.ticket(78).labels.has("served-elsewhere"));
   assert.ok(!faux.ticket(78).labels.has("set-aside:failures"));
-});
-
-const echec143 = (n: number) => `<!-- brigade:echec n=${n} -->\nStation \`A\`: the cook stopped without a delivery — claude ended in error (exit code 143; claude wrote nothing)`;
-const MIS_DE_COTE_PAR_LES_ECHECS = "\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides.";
-
-// secondes#21 : « Will not start: 2 cooks in a row stopped without delivering anything », tués en 143.
-test("a ticket set aside by cooks that were killed from outside is put back on the rail at the first turn, with no /resume (#3528)", async () => {
-  const faux = new FauxGitHub();
-  faux.feu(21, [...CALIBRE, "served-elsewhere"]);
-  faux.poster(21, "A", echec143(1));
-  faux.poster(21, "A", echec143(2) + MIS_DE_COTE_PAR_LES_ECHECS);
-  const a = faux.station("A", { cuisiner: async () => ({ echec: "the cook committed nothing" }), avertir: () => {} });
-  await a.tour();
-  await a.calme();
-  assert.ok(!faux.ticket(21).labels.has("served-elsewhere"));
-  assert.ok(faux.ticket(21).labels.has("fire"));
-  const corps = (faux.commentaires.get(21) ?? []).map((c) => c.body);
-  assert.ok(corps.some((c) => c.includes("brigade:reconciliation-externe") && /killed from outside/.test(c)));
-  assert.ok(!corps.some((c) => /\/resume/.test(c)));
-  // Les deux arrêts externes ne comptent plus : les échecs lus restent à trois, aucun nouvel échec n'est inscrit.
-  assert.equal(echecsDe(faux, 21), 3);
 });
 
 // #2543, 2026-11-06 : la station, relancée par sa mise à jour toutes les 35 à 45 min, tuait ses

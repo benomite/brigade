@@ -270,8 +270,8 @@ cook's, so the station corrects them in its name, with no gesture from the chef:
 - **The ticket cannot go on** when dropping the wrong cases would leave a frozen file with no case, when the file's
   cases cannot be read one by one, or when its type error falls outside any case: nothing would prove its
   criterion. It is **set aside once** (`set-aside:failures`), not sent back to a cook; the station's comment on the
-  issue gives the reason in one line, naming each test, and the healing relaunch (`guerison/relance.ts`) does not put
-  it back on the rail. A human decides; removing the label tries again.
+  issue gives the reason in one line, naming each test, and no timer puts it
+  back on the rail. The supervisor acts on it, or a human decides; removing the label tries again.
 - A correction that cannot be made (the file cannot be read, a case cannot be cut out, the commit or the push fails,
   the station's clone runs no git in its worktrees) is said in the station's log, and the delivery is judged as
   before. A push that fails undoes the correction's commit in the review's worktree, and the log says the remote

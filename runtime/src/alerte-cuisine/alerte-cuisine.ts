@@ -1,6 +1,7 @@
 // Les issues que la station ouvre pour ses propres besoins (#3620, épique
 // #3619) : l'alerte d'une cuisine inerte (`../guerison/cuisine-inerte.ts`) et
-// l'issue du disjoncteur (`../breaker-issue.ts`). Elles disent comment la
+// l'issue du disjoncteur, que la station ne dépose plus (#3911) mais dont les
+// issues déjà ouvertes se reconnaissent encore. Elles disent comment la
 // cuisine elle-même tourne, pas le code du projet servi : elles se déposent sur
 // la brigade, jamais dans le dépôt du projet, et n'y sont jamais des tickets —
 // le manager ne les juge pas, la station ne les donne à aucun cook. Le 15
@@ -11,7 +12,7 @@
 // Elles se reconnaissent à leur marque durable, en commentaire HTML que GitHub
 // n'affiche pas, que la station écrit en tête de leur corps :
 // - `<!-- brigade:cuisine-inerte -->` (`MARQUE_D_INERTIE`) pour l'inertie ;
-// - `<!-- brigade:breaker-open project=<projet> -->` (`marqueDuDisjoncteur`), et le label
+// - `<!-- brigade:breaker-open project=<projet> -->`, et le label
 //   `brigade:breaker-open`, pour le disjoncteur.
 // Celles qu'un humain aurait recopiées sans leur corps se reconnaissent aussi à
 // leur titre, celui que la station leur donne.
@@ -32,11 +33,10 @@ export const DEPOT_BRIGADE = "benomite/brigade";
 // La marque cachée qui nomme le projet servi (`<owner>/<repo>`) dans ce que la station dépose sur la brigade.
 export const marqueDuProjet = (servi: string) => `<!-- brigade:projet=${servi} -->`;
 
-// Le label de l'issue du disjoncteur ; sa marque est `<!-- brigade:breaker-open project=<projet> -->`.
+// Le label de l'issue du disjoncteur, que la station déposait avant #3911 ; sa marque est `<!-- brigade:breaker-open project=<projet> -->`.
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";
-export const marqueDuDisjoncteur = (projet: string) => `<!-- ${LABEL_DU_DISJONCTEUR} project=${projet} -->`;
 
-// Les titres que la station leur donne (`signalerInertie`, `titreDeLIssue`).
+// Les titres que la station leur donne (`signalerInertie`, et celui qu'avait l'issue du disjoncteur).
 const TITRE_D_INERTIE = /^The kitchen is idle: no merge for \d+ minutes with \d+ cookable ticket\(s\)/;
 const TITRE_DU_DISJONCTEUR = /^Kitchen \S+ held: its breaker is open$/;
 

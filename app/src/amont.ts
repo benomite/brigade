@@ -51,7 +51,7 @@ export type Groupe = { etat: string; nom: string; issues: Issue[] };
 // `nonPublie` : la lecture de GitHub, fraîche, ne porte pas ce qui est avant le rail — rien n'est dit ni compté,
 // pas même « pas lu ».
 // `alertes` : les issues que la cuisine a ouvertes sur elle-même (`alerteDeLaCuisine`) — jamais des besoins, jamais comptées.
-export type AlerteDeLaCuisine = { ticket: number; titre: string; genre: "disjoncteur" | "inerte"; dit: string };
+export type AlerteDeLaCuisine = { ticket: number; titre: string; genre: "inerte"; dit: string };
 export type Vu = { projet: string; demande: number; a: string; vide: string } & ({ compte: number; lu: string; groupes: Groupe[]; survol: string; alertes?: AlerteDeLaCuisine[] } | { sans: string } | { nonPublie: true });
 
 class Informe extends Error {}
@@ -121,10 +121,8 @@ export function comprendre(sortie: string): Amont | { informe: string } {
   }
 }
 
-// Une issue que la cuisine ouvre sur elle-même : le disjoncteur ouvert (runtime/src/breaker-issue.ts, `titreDeLIssue`) ou la
-// cuisine oisive (runtime/src/guerison/cuisine-inerte.ts). Ce n'est pas un besoin : son contenu devient la ligne d'état du rail.
+// Une issue que la cuisine ouvre sur elle-même : la cuisine oisive (runtime/src/guerison/cuisine-inerte.ts). Ce n'est pas un besoin : son contenu devient la ligne d'état du rail.
 export function alerteDeLaCuisine({ ticket, titre }: Pick<Donnee, "ticket" | "titre">): AlerteDeLaCuisine | undefined {
-  if (/^Kitchen \S+ held: its breaker is open$/.test(titre)) return { ticket, titre, genre: "disjoncteur", dit: "Kitchen held: its breaker is open" };
   if (/^The kitchen is idle\b/.test(titre)) return { ticket, titre, genre: "inerte", dit: titre.replace(/^The kitchen is idle/, "Kitchen idle") };
   return undefined;
 }

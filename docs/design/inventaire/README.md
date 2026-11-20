@@ -56,8 +56,6 @@ PR #2459 (#2061) removed the app's reading of the Kitchen board, the issue in wh
 | `todo-carte-pas-jouee` | same as `todo-carte-envoyee` | #2459 (#2061) |
 | `todo-carte-repondue` | same as `todo-carte-envoyee` | #2459 (#2061) |
 | `todo-disjoncteur` | the `breaker OPEN` kitchen line of the Kitchen board's `status` | #2459 (#2061) |
-| `todo-disjoncteur-reprise` | same as `todo-disjoncteur` | #2459 (#2061) |
-| `todo-disjoncteur-echec` | same as `todo-disjoncteur` | #2459 (#2061) |
 | `worktree-en-echec` | the `worktree-failed` events of the old cook path, which nothing writes any more | #2459 (#2061) |
 | `todo-cartes` | TODO cards read from the Kitchen board's `facts` (`attend[].carte`, with before/after captures): TODO is now read from GitHub | #2470 (#2460) |
 | `todo-cartes-forme` | same as `todo-cartes` (cards without a question) | #2470 (#2460) |
