@@ -18,9 +18,9 @@
 // du manager (`github-etat/prise-du-manager.ts`) sur une issue récente.
 import { DE_CONFIANCE } from "../alimenter.ts";
 
-export const MARQUE_DE_LA_QUESTION = "<!-- brigade:question-au-manager";
+const MARQUE_DE_LA_QUESTION = "<!-- brigade:question-au-manager";
 const LIRE_LA_QUESTION = /^<!-- brigade:question-au-manager station=([A-Za-z0-9._/-]+) -->/;
-export const MARQUE_DE_LA_REPRISE = "<!-- brigade:question-reprise";
+const MARQUE_DE_LA_REPRISE = "<!-- brigade:question-reprise";
 const LIRE_LA_REPRISE = /^<!-- brigade:question-reprise station=([A-Za-z0-9._/-]+) -->/;
 
 export type QuestionEnSuspens = { station: string; question: string };

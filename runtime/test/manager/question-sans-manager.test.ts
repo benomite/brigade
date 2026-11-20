@@ -16,10 +16,13 @@ import { MARQUE_DU_CONFLIT_MAIN } from "../../src/conflit-main/renvoi.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { corpsDePriseDuManager } from "../../src/github-etat/prise-du-manager.ts";
 import { ECHECS_ATTEINTS, HORS_CUISINE, type GitHub } from "../../src/github.ts";
-import { corpsDeLaQuestion, corpsDeLaReprise, MARQUE_DE_LA_QUESTION, MARQUE_DE_LA_REPRISE, questionEnSuspens } from "../../src/manager/question-sans-manager.ts";
+import { corpsDeLaQuestion, corpsDeLaReprise, questionEnSuspens } from "../../src/manager/question-sans-manager.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
+// Les marques que la station écrit sur l'issue.
+const MARQUE_DE_LA_QUESTION = "<!-- brigade:question-au-manager";
+const MARQUE_DE_LA_REPRISE = "<!-- brigade:question-reprise";
 const N = 842;
 const CALIBRE = ["fire", "model:opus", "effort:medium", "prio:0"];
 const MAC = "macbook-air-de-benoit/claude";
