@@ -127,7 +127,7 @@ export class LimiteGitHubAtteinte extends Error {
 export class CuisineRalentie extends LimiteGitHubAtteinte {
   readonly quota: Quota;
   readonly projet: string;
-  constructor(quota: Quota, jusqua: number, libreDansMs: number, projet = PROJET_DE_LA_STATION) {
+  constructor(quota: Quota, jusqua: number, libreDansMs: number, projet: string) {
     super(jusqua, libreDansMs, `quota GitHub bas : ${quota.restant} appels restants sur ${quota.plafond} — les appels du projet ${projet} sont ralentis, le suivant dans ${Math.ceil(libreDansMs / 1000)} s`);
     this.name = "CuisineRalentie";
     this.quota = quota;

@@ -53,7 +53,7 @@ test("a ticket whose zone is held by a ticket in flight has its acceptance tests
   await ouverte.tour();
   feu(2);
   await ouverte.tour();
-  await jusqua(() => faux.ticket(2).labels.has(LABEL_TESTS_ECRITS), 10000);
+  await jusqua(() => faux.ticket(2).labels.has(LABEL_TESTS_ECRITS), 1500);
   assert.match(sauts.get(2) ?? "", /zone held by #1\b/, "it is still held by #1 when its tests are written");
   liberer();
   await ouverte.calme();
@@ -97,7 +97,7 @@ test("a full pass leaves the station writing the acceptance tests of the tickets
   assert.deepEqual(ecritures, [50], "the one free place writes #50's tests, and #51 waits for a place");
   assert.match(sauts.get(50) ?? "", /the pass holds 5 deliveries/, "its skip line still names the full pass");
   liberer();
-  await jusqua(() => faux.ticket(50).labels.has(LABEL_TESTS_ECRITS), 10000);
+  await jusqua(() => faux.ticket(50).labels.has(LABEL_TESTS_ECRITS), 1500);
   assert.deepEqual(faux.pris(), [], "nothing is claimed while the pass is full");
   await ouverte.calme();
 });
