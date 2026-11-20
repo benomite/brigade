@@ -82,6 +82,23 @@ test("the station's hold: a red base whose repair is still alive makes no card; 
   assert.deepEqual(r.dits, []);
 });
 
+// Aucun ticket de réparation encore : la cuisine n'a pas essayé, elle en ouvrira
+// un (base-rouge/) — la base rouge reste à elle, le chef n'a pas de carte. Elle
+// n'y va qu'une fois ce ticket mis de côté.
+test("the station's hold: a red base with no repair ticket at all is still the kitchen's, and makes no card", async (t) => {
+  const r = retenue(t);
+  const cartes = () => cartesEnTodo(r.journal.base).map(({ ticket }) => ticket);
+  r.dicte.checks = [{ name: "unit", outcome: "red" }];
+  r.dicte.tickets = [ticket(71, HORS_CUISINE), ticket(72, ECHECS_ATTEINTS)];
+  await r.tourner();
+  await r.tourner();
+  assert.deepEqual(cartes(), []);
+  r.dicte.tickets = [ticket(70, "prio:0", ECHECS_ATTEINTS)];
+  await r.tourner();
+  await jusqua(() => cartes().length === 1);
+  assert.deepEqual(r.dits, []);
+});
+
 // Une station dont le cook livre un commit, et dont la branche du ticket a déjà ces runs de CI.
 // `reprise` faux : la branche est neuve, jamais poussée.
 async function livrer(t: TestContext, runs: RunDeCi[] | Error | null, reprise = true) {
