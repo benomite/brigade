@@ -7,16 +7,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type GitHubDuTour, type Lancer, type TicketLu } from "../../src/brigade-github.ts";
+import { ticketDuCheck } from "../../src/carte-ci-windows.ts";
 import { cartesEnTodo } from "../../src/carte-todo.ts";
 import { ECHECS_ATTEINTS, HORS_CUISINE, type GitHub } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherRetenue } from "../../src/retenue/brancher.ts";
 import { suivreLeTour } from "../../src/retenue/tour.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
-import { MARQUE_DES_ROUGES, ticketDuRougeDe } from "../../src/statuts-ci/regles.ts";
 import type { RunDeCi } from "../../src/temps-ticket/ci-github.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
 import { aArreter, jusqua, repertoireTemporaire } from "../outils.ts";
+
+// Le commentaire de la règle B, et la clé de la carte d'un rouge de la base.
+const MARQUE_DES_ROUGES = "<!-- brigade:rouges-de-suite";
+const ticketDuRougeDe = (branche: string) => ticketDuCheck("red main", branche);
 
 const ticket = (number: number, ...labels: string[]): TicketLu => ({ number, title: `Ticket ${number}`, labels: ["fire", "model:opus", "effort:high", ...labels], state: "open" });
 

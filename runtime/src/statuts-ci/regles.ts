@@ -28,19 +28,19 @@ import type { RunDeCi } from "../temps-ticket/ci-github.ts";
 // Un résultat d'un check : son nom, son issue, le run qui l'a rendu (nul s'il
 // n'est pas connu) et la tête qu'il a jugée — les résultats d'une même tête,
 // ou à défaut d'un même run, font un seul run de la règle B.
-export type ResultatDeCheck = { check: string; outcome: "red" | "green"; run: number | null; tete?: string };
+type ResultatDeCheck = { check: string; outcome: "red" | "green"; run: number | null; tete?: string };
 
 // Les résultats d'une cible — `main`, ou `ticket:<n>` —, du plus récent au plus
 // ancien. Aucun : la cible n'a encore rien de conclu.
-export type StatutsCi = { resultats(cible: string): Promise<ResultatDeCheck[]> };
+type StatutsCi = { resultats(cible: string): Promise<ResultatDeCheck[]> };
 
-export const CIBLE_MAIN = "main";
-export const cibleDuTicket = (ticket: number): string => `ticket:${ticket}`;
+const CIBLE_MAIN = "main";
+const cibleDuTicket = (ticket: number): string => `ticket:${ticket}`;
 
 // Combien de runs rouges de suite sur le même check arrêtent les pushs d'un ticket.
 export const ROUGES_DE_SUITE = 3;
 
-export const MARQUE_DES_ROUGES = "<!-- brigade:rouges-de-suite";
+const MARQUE_DES_ROUGES = "<!-- brigade:rouges-de-suite";
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -57,7 +57,7 @@ function parRun(resultats: readonly ResultatDeCheck[]): ResultatDeCheck[][] {
 // Les trois derniers runs, rouges sur un même check : ce check et ces runs, du
 // plus récent au plus ancien. Nul sinon — moins de trois runs, un vert parmi
 // eux, ou aucun check rouge dans les trois.
-export function rougesDeSuite(resultats: readonly ResultatDeCheck[]): { check: string; runs: (number | null)[] } | null {
+function rougesDeSuite(resultats: readonly ResultatDeCheck[]): { check: string; runs: (number | null)[] } | null {
   const derniers = parRun(resultats).slice(0, ROUGES_DE_SUITE);
   if (derniers.length < ROUGES_DE_SUITE) return null;
   const rouges = derniers.map((run) => run.filter(({ outcome }) => outcome === "red"));
@@ -68,14 +68,14 @@ export function rougesDeSuite(resultats: readonly ResultatDeCheck[]): { check: s
 
 const direLesRuns = (runs: readonly (number | null)[]) => runs.map((run) => (run === null ? "an unnamed run" : `run ${run}`)).join(", ");
 
-export const commentaireDesRouges = ({ check, runs }: { check: string; runs: readonly (number | null)[] }): string =>
+const commentaireDesRouges = ({ check, runs }: { check: string; runs: readonly (number | null)[] }): string =>
   `${MARQUE_DES_ROUGES} check=${check} -->\nThe CI of this ticket is red on \`${check}\` for the third time in a row (${direLesRuns(runs)}). The runtime does not push it again, so no fourth run of this failure starts: the ticket is set aside (\`${ECHECS_ATTEINTS}\`). Remove the label to try again; the count restarts from there.`;
 
 // Ce que la règle B décide avant un push. `pousser` faux : le check et les
 // runs qui l'arrêtent, et `nonDit` si le commentaire n'a pas pu s'écrire.
 // `illisible` : les statuts ne se lisaient pas — le push part, la règle ne
 // décide rien sans eux.
-export type DecisionDuPush = { pousser: true; illisible?: string } | { pousser: false; check: string; runs: (number | null)[]; nonDit?: string };
+type DecisionDuPush = { pousser: true; illisible?: string } | { pousser: false; check: string; runs: (number | null)[]; nonDit?: string };
 
 export async function deciderDuPush({ statuts, ticket, commenter }: { statuts: StatutsCi; ticket: number; commenter: (issue: number, corps: string) => Promise<void> }): Promise<DecisionDuPush> {
   let resultats: ResultatDeCheck[];
@@ -95,15 +95,15 @@ export async function deciderDuPush({ statuts, ticket, commenter }: { statuts: S
 }
 
 // La clé de la carte d'un `main` rouge : une par branche d'intégration.
-export const ticketDuRougeDe = (branche: string): number => ticketDuCheck("red main", branche);
+const ticketDuRougeDe = (branche: string): number => ticketDuCheck("red main", branche);
 
 const AUTEUR = "runtime";
 
 // Ce que la règle A a fait d'une évaluation. `illisible` : les statuts, ou ce
 // que la cuisine peut encore, ne se lisaient pas — rien n'a bougé.
-export type EvaluationDeMain = { carte: "entree" | "sortie" | "aucune"; illisible?: string };
+type EvaluationDeMain = { carte: "entree" | "sortie" | "aucune"; illisible?: string };
 
-export type EntreeDeMain = {
+type EntreeDeMain = {
   statuts: StatutsCi;
   journal: Journal;
   projet: string;

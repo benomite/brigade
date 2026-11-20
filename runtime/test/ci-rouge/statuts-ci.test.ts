@@ -8,9 +8,21 @@ import { test } from "node:test";
 import { cartesEnTodo, cartesRetenues, brancherLeTriage } from "../../src/carte-todo.ts";
 import { ECHECS_ATTEINTS } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { commentaireDesRouges, deciderDuPush, evaluerMain, MARQUE_DES_ROUGES, rougesDeSuite, statutsDesChecks, statutsDesRuns, ticketDuRougeDe, type ResultatDeCheck, type StatutsCi } from "../../src/statuts-ci/regles.ts";
+import { ticketDuCheck } from "../../src/carte-ci-windows.ts";
+import { deciderDuPush, evaluerMain, statutsDesChecks, statutsDesRuns } from "../../src/statuts-ci/regles.ts";
 import type { RunDeCi } from "../../src/temps-ticket/ci-github.ts";
 import { aArreter, repertoireTemporaire } from "../outils.ts";
+
+// L'interface des statuts, telle que les règles la lisent.
+type ResultatDeCheck = { check: string; outcome: "red" | "green"; run: number | null; tete?: string };
+type StatutsCi = { resultats(cible: string): Promise<ResultatDeCheck[]> };
+// La carte d'un rouge de la base a la clé d'un check Windows rouge, nommé « red main ».
+const ticketDuRougeDe = (branche: string) => ticketDuCheck("red main", branche);
+// Le check sur lequel la règle B arrête un ticket, ou null si elle le laisse pousser.
+async function arret(resultats: ResultatDeCheck[]) {
+  const decision = await deciderDuPush({ statuts: { resultats: async () => resultats }, ticket: 9, commenter: async () => {} });
+  return decision.pousser ? null : { check: decision.check, runs: decision.runs };
+}
 
 const rouge = (check: string, run: number, tete?: string): ResultatDeCheck => ({ check, outcome: "red", run, ...(tete === undefined ? {} : { tete }) });
 const vert = (check: string, run: number, tete?: string): ResultatDeCheck => ({ check, outcome: "green", run, ...(tete === undefined ? {} : { tete }) });
@@ -23,18 +35,23 @@ test("two reds of the same check are not three: the push goes ahead, nothing is 
   assert.deepEqual(ecrits, []);
 });
 
-test("the results of one head are one run: three heads red on unit stop the push, whatever else their other checks say", () => {
+test("the results of one head are one run: three heads red on unit stop the push, whatever else their other checks say", async () => {
   const resultats = [rouge("unit", 31, "c"), vert("lint", 32, "c"), rouge("unit", 21, "b"), rouge("lint", 22, "b"), vert("lint", 12, "a"), rouge("unit", 11, "a")];
-  assert.deepEqual(rougesDeSuite(resultats), { check: "unit", runs: [31, 21, 11] });
+  assert.deepEqual(await arret(resultats), { check: "unit", runs: [31, 21, 11] });
   // La tête la plus récente, verte sur tous ses checks : rien ne s'arrête.
-  assert.equal(rougesDeSuite([vert("unit", 41, "d"), ...resultats]), null);
+  assert.equal(await arret([vert("unit", 41, "d"), ...resultats]), null);
   // Trois têtes rouges, chacune sur un autre check : rien ne s'arrête.
-  assert.equal(rougesDeSuite([rouge("unit", 3, "c"), rouge("lint", 2, "b"), rouge("types", 1, "a")]), null);
+  assert.equal(await arret([rouge("unit", 3, "c"), rouge("lint", 2, "b"), rouge("types", 1, "a")]), null);
 });
 
-test("the comment names the check, the three runs and the set-aside label; an unnamed run is said so", () => {
-  const corps = commentaireDesRouges({ check: "unit", runs: [303, null, 301] });
-  assert.ok(corps.startsWith(`${MARQUE_DES_ROUGES} check=unit -->`));
+test("the comment names the check, the three runs and the set-aside label; an unnamed run is said so", async () => {
+  const ecrits: Array<[number, string]> = [];
+  const resultats: ResultatDeCheck[] = [{ check: "unit", outcome: "red", run: 303 }, { check: "unit", outcome: "red", run: null, tete: "b" }, { check: "unit", outcome: "red", run: 301 }];
+  await deciderDuPush({ statuts: { resultats: async () => resultats }, ticket: 8, commenter: async (issue, corps) => void ecrits.push([issue, corps]) });
+  assert.equal(ecrits.length, 1);
+  const [issue, corps] = ecrits[0] ?? assert.fail("one comment");
+  assert.equal(issue, 8);
+  assert.ok(corps.startsWith("<!-- brigade:rouges-de-suite check=unit -->"));
   assert.match(corps, /red on `unit` for the third time in a row \(run 303, an unnamed run, run 301\)/);
   assert.match(corps, /no fourth run/);
   assert.ok(corps.includes(`\`${ECHECS_ATTEINTS}\``));
@@ -105,9 +122,12 @@ test("the runs of a ticket's branch since its relaunch are its statuses, newest 
     { id: 1, tete: "a", creeLe: "2026-11-20T10:00:00Z", finiLe: null, jobs: [job("unit", "failure")] },
     { id: 3, tete: "c", creeLe: "2026-11-20T12:00:00Z", finiLe: null, jobs: [job("unit", "timed_out"), job("lint", "skipped"), job("types", "cancelled"), job("e2e", null), job(undefined, "failure")] },
     { tete: "b", creeLe: "2026-11-20T11:00:00Z", finiLe: null, jobs: [job("unit", "success")] },
+    // Le plus récent, rendu le dernier par la lecture : il passe en tête.
+    { id: 4, tete: "d", creeLe: "2026-11-20T13:00:00Z", finiLe: null, jobs: [job("unit", "failure")] },
   ];
   const statuts = statutsDesRuns(async (branche) => (lus.push(branche), runs), (n) => `cook/${n}-github`, Date.parse("2026-11-20T10:00:00Z"));
   assert.deepEqual(await statuts.resultats("ticket:42"), [
+    { check: "unit", outcome: "red", run: 4, tete: "d" },
     { check: "unit", outcome: "red", run: 3, tete: "c" },
     { check: "lint", outcome: "green", run: 3, tete: "c" },
     { check: "unit", outcome: "green", run: null, tete: "b" },
