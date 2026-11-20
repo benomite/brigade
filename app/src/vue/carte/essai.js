@@ -7,7 +7,7 @@
 
 // « 1st », « 2nd », « 3rd », « 4th »… « 11th », « 12th », « 13th », « 21st ».
 /** @param {number} n */
-export function ordinal(n) {
+function ordinal(n) {
   const dizaine = n % 100;
   const suffixe = dizaine >= 11 && dizaine <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
   return `${n}${suffixe}`;

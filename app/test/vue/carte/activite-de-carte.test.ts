@@ -12,7 +12,7 @@ import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { direActivite } from "../../../src/vue/carte/activite.ts";
-import { ordinal, poserRangDEssai } from "../../../src/vue/carte/essai.js";
+import { poserRangDEssai } from "../../../src/vue/carte/essai.js";
 import { carteDuTicket, jouerLaVue, repos, type Jouee } from "../../aides/fausse-vue.ts";
 
 test("the step of the pass, when the runtime gives one, is said instead of what the pass does, without its target", () => {
@@ -25,9 +25,12 @@ test("the step of the pass, when the runtime gives one, is said instead of what 
 });
 
 test("the rank of a try reads as an English ordinal", () => {
-  assert.deepEqual([1, 2, 3, 4, 10, 11, 12, 13, 21, 22, 23, 101, 111, 112].map(ordinal), ["1st", "2nd", "3rd", "4th", "10th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th", "112th"]);
   const doc = { createElement: () => ({ className: "", textContent: "" }) } as never;
   assert.deepEqual(poserRangDEssai(doc, 3), { className: "rang-essai", textContent: "3rd try" });
+  assert.deepEqual(
+    [2, 4, 10, 11, 12, 13, 21, 22, 23, 101, 111, 112].map((n) => poserRangDEssai(doc, n).textContent),
+    ["2nd try", "4th try", "10th try", "11th try", "12th try", "13th try", "21st try", "22nd try", "23rd try", "101st try", "111th try", "112th try"],
+  );
 });
 
 const LU = "2026-11-19T12:04:30.000Z";
