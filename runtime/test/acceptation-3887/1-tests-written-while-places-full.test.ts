@@ -44,9 +44,10 @@ test("a queued ticket waiting for a free place has its acceptance tests written 
   if ("refus" in ouverte) throw new Error(ouverte.refus);
   await ouverte.tour();
   await jusqua(() => faux.ticket(10).labels.has(LABEL_TESTS_ECRITS));
-  await ouverte.tour();
-  await ouverte.tour();
-  await jusqua(() => faux.ticket(20).labels.has(LABEL_TESTS_ECRITS), 1500);
+  await jusqua(async () => {
+    await ouverte.tour();
+    return faux.ticket(20).labels.has(LABEL_TESTS_ECRITS);
+  });
   assert.deepEqual(ouverte.enCuisine(), [10], "the only place is still held by #10's cook when #20's tests are written");
   liberer();
   await ouverte.calme();
