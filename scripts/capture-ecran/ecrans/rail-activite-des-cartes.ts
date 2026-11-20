@@ -24,7 +24,7 @@ const FACTS = {
     libre,
     { ...enPass, depuis: "2026-10-13T10:00:12.000Z", activite: { fait: "jugement en cours", faitEn: "judging", cible: null, depuis: "2026-10-13T10:03:26.000Z", etape: "CI running" } },
   ],
-  cooks: [...PARADE.facts.cooks, { ticket: 15, titre: "La clé de cache du build", station: "box/claude" }],
+  cooks: [...(PARADE.facts.cooks ?? []), { ticket: 15, titre: "La clé de cache du build", station: "box/claude" }],
   attend: [],
 } as Faits;
 
