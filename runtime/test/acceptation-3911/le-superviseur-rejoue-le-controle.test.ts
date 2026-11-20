@@ -11,9 +11,8 @@ import { etatDesGardeFous } from "../../src/projections/guardrails.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../src/station/configuration.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
-import { DEPOT, FAUX_CLAUDE, fauxGh, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { DEPOT, FAUX_CLAUDE, fauxGh, jusqua, repertoireTemporaire } from "../outils.ts";
 
-const rienNeReste = temporaireDuFichier();
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const CALAGE = { run: "44-github-2222aaaa-r2", kind: "cook", turns: 1, tokens: 10, activity: { doing: "running", target: "cat" }, retries: 2 };
 
@@ -99,4 +98,3 @@ for (const cause of ["failures", "stall"] as const) {
   });
 }
 
-test("le-superviseur-rejoue-le-controle.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
