@@ -53,7 +53,7 @@ test("a ticket whose zone is held by a ticket in flight has its acceptance tests
   await ouverte.tour();
   feu(2);
   await ouverte.tour();
-  await jusqua(() => faux.ticket(2).labels.has(LABEL_TESTS_ECRITS), 1500);
+  await jusqua(() => faux.ticket(2).labels.has(LABEL_TESTS_ECRITS));
   assert.match(sauts.get(2) ?? "", /zone held by #1\b/, "it is still held by #1 when its tests are written");
   liberer();
   await ouverte.calme();
@@ -93,11 +93,11 @@ test("a full pass leaves the station writing the acceptance tests of the tickets
   const ouverte = stationDuDepot({ ...STATION_DU_DEPOT, places: 1, base: BASE, github: fauxClient(faux), depot, testsAcceptation: () => ({ model: "opus", effort: "medium" }), flux: repertoireTemporaire(t), lancer, sauter: (ticket, ligne) => void sauts.set(ticket, ligne) });
   if ("refus" in ouverte) throw new Error(ouverte.refus);
   await ouverte.tour();
-  await jusqua(() => ecritures.includes(50), 1500);
+  await jusqua(() => ecritures.includes(50));
   assert.deepEqual(ecritures, [50], "the one free place writes #50's tests, and #51 waits for a place");
   assert.match(sauts.get(50) ?? "", /the pass holds 5 deliveries/, "its skip line still names the full pass");
   liberer();
-  await jusqua(() => faux.ticket(50).labels.has(LABEL_TESTS_ECRITS), 1500);
+  await jusqua(() => faux.ticket(50).labels.has(LABEL_TESTS_ECRITS));
   assert.deepEqual(faux.pris(), [], "nothing is claimed while the pass is full");
   await ouverte.calme();
 });
