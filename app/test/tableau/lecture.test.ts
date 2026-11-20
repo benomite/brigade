@@ -262,6 +262,7 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/attente-du-rail/attente-du-rail.ts",
     // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
     "app/src/vue/backlog/avancement-github.ts",
+    "app/src/vue/bandeau-arret/arret-du-rail.ts",
     // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
     "app/src/vue/carte-sensible/label.ts",
     "app/src/vue/cooks/prises.ts",
@@ -272,6 +273,7 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
+    "runtime/src/arret-cuisine/arret-cuisine.ts",
     // La file du rail et les stations du compte, lues par un `lire` reçu, sans E/S : venues du rail bloqué que le superviseur a remplacé (ticket 3914).
     "runtime/src/attente-du-rail/lecture.ts",
     "runtime/src/attente-du-rail/raison.ts",
@@ -291,6 +293,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).
     "runtime/src/reglages-projet/ligne-roadmap.ts",
     "runtime/src/stations-github/stations.ts",
+    // La marque d'un correctif du superviseur, sans import : main est rouge tant que celui d'un check rouge est sur le rail (ticket 3914).
+    "runtime/src/superviseur/correctif.ts",
     // L'étape `tests written` du rail, d'après les labels, sans E/S (ticket 3725).
     "runtime/src/tests-acceptation/etape.ts",
     "runtime/src/zones.ts",

@@ -11,6 +11,7 @@ import type { EtapeEnEchec } from "./dossier.ts";
 import type { GitHubDuSuperviseur } from "./gestes.ts";
 import { sortieDErreur } from "./journal-du-job.ts";
 import { estInformatif } from "./declenchement.ts";
+import { MARQUE_DE_CAUSE, marqueDeCause } from "./correctif.ts";
 
 // Ce que le superviseur demande au client du tour, et rien de plus.
 export type ClientDuSuperviseur = Pick<GitHub, "issue" | "commenter" | "labelliser" | "delabelliser" | "creerIssue" | "fermerIssue" | "relancerLesEchecs" | "etatDuRun"> &
@@ -21,11 +22,6 @@ export type ClientDuSuperviseur = Pick<GitHub, "issue" | "commenter" | "labellis
     checksDeLaBase(): Promise<(Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>)[]>;
   };
 
-// La marque cachée de la cause d'un correctif, en tête de son corps.
-const MARQUE_DE_CAUSE = /^<!-- brigade:cause (\S+) -->/m;
-const marqueDeCause = (cause: string) => `<!-- brigade:cause ${cause} -->`;
-// Le correctif d'un check rouge de la base : ce que la base rouge ne retient pas.
-export const estUnCorrectifDeLaCi = (corps: string): boolean => MARQUE_DE_CAUSE.exec(corps)?.[1]?.startsWith("ci:") === true;
 
 // Le label d'un correctif : le manager le juge comme tout ticket neuf.
 export const LABEL_DU_CORRECTIF = "fix";

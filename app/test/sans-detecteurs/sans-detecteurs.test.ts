@@ -61,6 +61,28 @@ describe("la lecture du rail sur GitHub", () => {
   });
 });
 
+describe("la cuisine arrêtée, main rouge", () => {
+  const DEPOT = "chef/parade";
+  const issue = (number: number, labels: string[], created_at: string, body = "") => ({ number, title: `Ticket ${number}`, body, html_url: `https://github.com/${DEPOT}/issues/${number}`, created_at, labels: [{ name: "fire" }, ...labels.map((name) => ({ name }))] });
+  const lire = async (issues: unknown[]) => {
+    const appeler: AppelGitHub = async (chemin) => (chemin.includes("/issues?") ? { status: 200, data: issues } : { status: 200, data: [] });
+    const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant: () => new Date("2026-11-20T12:00:00Z") });
+    assert.ok(rail.lu);
+    const lu: TableauLu = { lu: true, depot: DEPOT, luLe: "2026-11-20T12:00:00.000Z", cuisine: { rubriques: [] }, faits: { etat: "ouverte", lu: "2026-11-20T12:00:00.000Z", dernierTick: null, dernierEvenement: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: [] }, file: [], bilans: [], lignesDuRail: [], activites: [] };
+    return { rail, arret: avecLeRail(lu, rail, { lus: [] }).faits.arretCuisine as { cause: { kind: string }; since: string } | undefined };
+  };
+
+  test("main red is the supervisor's fix ticket for a red check, on the rail — the oldest one; an old `repair-main` label or a fix for the code says nothing", async () => {
+    const correctif = (cause: string) => `<!-- brigade:cause ${cause} -->\nThe check stays red after a rerun.`;
+    const { rail, arret } = await lire([issue(21, [], "2026-11-20T06:00:00Z"), issue(13, ["fix"], "2026-11-20T08:15:00Z", correctif("ci:tests runtime (14/16)")), issue(12, ["fix"], "2026-11-20T07:45:00Z", correctif("ci:gates"))]);
+    assert.deepEqual(rail.tickets.filter(({ correctifDeLaCi }) => correctifDeLaCi === true).map(({ ticket }) => ticket).sort(), [12, 13]);
+    assert.deepEqual(arret, { cause: { kind: "main-red" }, since: "2026-11-20T07:45:00Z" });
+    const avant = await lire([issue(21, [], "2026-11-20T06:00:00Z"), issue(12, ["repair-main"], "2026-11-20T07:45:00Z"), issue(14, ["fix"], "2026-11-20T07:50:00Z", correctif("code:parser"))]);
+    assert.equal(avant.rail.tickets.some(({ correctifDeLaCi }) => correctifDeLaCi !== undefined), false);
+    assert.equal(avant.arret?.cause.kind, "unknown");
+  });
+});
+
 describe("ce que le rail dit, pause ou non", () => {
   const ARRETEE = { raison: "arretee" };
   const ORDINAIRE = { raison: "normale" };

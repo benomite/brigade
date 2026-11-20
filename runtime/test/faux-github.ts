@@ -309,8 +309,8 @@ export class FauxGitHub {
       github,
       prise: this.prise(github, nom),
       cuisiner: async (ticket) => {
-        if (options.cuisiner) return options.cuisiner(ticket.number);
         this.cuissons.push({ station: nom, issue: ticket.number });
+        if (options.cuisiner) return options.cuisiner(ticket.number);
         // Un renvoi : le cook pousse sur la branche de la PR ouverte, sa tête change.
         const ouverte = this.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
         if (ouverte !== undefined) Object.assign(ouverte, { sha: this.sha(), enConflit: false });

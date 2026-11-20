@@ -3,7 +3,8 @@
 // son verdict, sans un minuteur réel.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { estUnCorrectifDeLaCi, etapeEnEchec, githubDuSuperviseur, historique, type ClientDuSuperviseur } from "../../src/superviseur/github.ts";
+import { estUnCorrectifDeLaCi } from "../../src/superviseur/correctif.ts";
+import { etapeEnEchec, githubDuSuperviseur, historique, type ClientDuSuperviseur } from "../../src/superviseur/github.ts";
 import { sortieDErreur } from "../../src/superviseur/journal-du-job.ts";
 
 // Les mesures du superviseur, telles que ces tests les attendent : 80 lignes de log au plus, un sondage de la CI
@@ -140,6 +141,14 @@ test("a fix ticket carries its cause; the open tickets of the last month are rea
   assert.equal(estUnCorrectifDeLaCi(`${marqueDeCause("ci:unit")}\nwhy`), true);
   assert.equal(estUnCorrectifDeLaCi(`${marqueDeCause("code:parser")}\nwhy`), false);
   assert.equal(estUnCorrectifDeLaCi("no cause"), false);
+});
+
+test("a CI check whose name has spaces is read back whole: its open fix ticket is the duplicate of the next one", async () => {
+  const cause = "ci:tests runtime (14/16)";
+  const f = client({ issues: [{ number: 7, state: "open", body: `${marqueDeCause(cause)}\nthe stack` }] });
+  const github = githubDuSuperviseur({ client: f.c, depot: "acme/shop", maintenant: () => new Date("2026-11-20T12:00:00.000Z") });
+  assert.deepEqual(await github.ticketsOuverts(), [{ numero: 7, cause }]);
+  assert.equal(estUnCorrectifDeLaCi(`${marqueDeCause(cause)}\nthe stack`), true);
 });
 
 test("a TODO card is a product or a design question on the ticket it names; with none, it is not posted", async () => {

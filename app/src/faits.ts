@@ -37,6 +37,8 @@ import { revueLue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
 import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
+import { arretCuisineLu } from "./vue/bandeau-arret/arret-du-rail.ts";
+import type { ArretDeLaCuisine } from "../../runtime/src/arret-cuisine/arret-cuisine.ts";
 import { quotaLu, type QuotaGithub } from "./vue/stations-quota/quota-lu.ts";
 import type { Repondue } from "./repondues.ts";
 import type { PrioriteMontree } from "./priorite.ts";
@@ -368,6 +370,9 @@ export type Faits = {
   attenteDuRail?: AttenteDuRail;
   lignesDesCartes?: LignesDesCartes;
   attendusDesCartes?: AttendusDesCartes;
+  // La cuisine arrêtée (vue/bandeau-arret/, #3924) : des tickets en file, aucune carte prise ni en pass — sa cause, depuis
+  // quand ; absente sinon.
+  arretCuisine?: ArretDeLaCuisine;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseDuCompte;
@@ -512,6 +517,9 @@ export type Tableau = {
   rail: Rail;
   // Pourquoi la file ne part pas (vue/attente-du-rail/, #3433) : la ligne sous lui. Absent quand rien n'attend, ou qu'un cook tourne.
   attenteDuRail?: AttenteDuRail;
+  // La cuisine arrêtée (vue/bandeau-arret/, #3924) : le bandeau en tête du rail. Absente quand une carte est prise ou en
+  // pass, ou que la file est vide.
+  arretCuisine?: ArretDeLaCuisine;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
   pauseQuota?: PauseDuCompte;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
@@ -771,6 +779,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...attenteDuRailLue(racine.attenteDuRail),
       ...lignesDesCartesLues(racine.lignesDesCartes),
       ...attendusDesCartesLus(racine.attendusDesCartes),
+      ...arretCuisineLu(racine.arretCuisine),
       ...pauseQuotaLue(racine.pauseQuota),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
@@ -1455,6 +1464,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.lectureSeule === undefined ? {} : { lectureSeule: faits.lectureSeule }),
     ...(faits.quotaGithub === undefined ? {} : { quotaGithub: faits.quotaGithub }),
     ...(faits.attenteDuRail === undefined ? {} : { attenteDuRail: faits.attenteDuRail }),
+    ...(faits.arretCuisine === undefined ? {} : { arretCuisine: faits.arretCuisine }),
     ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
