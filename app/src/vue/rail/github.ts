@@ -44,6 +44,8 @@ const MOT_MIS_DE_COTE = "86";
 // La colonne où reste un ticket mis de côté qui ne demande rien au chef (faits.ts, `COLONNES_DE_FAITS`) : celle du rail.
 const COLONNE_DE_LA_MISE_DE_COTE = "On the rail";
 // Les mots dont un ticket a une station qui le tient.
+// La marque que la livraison porte dans le corps de sa PR : la station qui l'a cuisinée.
+const STATION_DE_LA_PR = /Cooked by station `([A-Za-z0-9._/-]+)`/;
 const TENUS = new Set(["pris", "en pass", "base rouge"]);
 
 type Brut = Record<string, unknown>;
@@ -52,7 +54,7 @@ const liste = (valeur: unknown): Brut[] => (Array.isArray(valeur) ? valeur.flatM
 const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
 
 // La PR qui livre un ticket, telle que la carte la dit.
-export type PrDuTicket = { numero: number; url: string; le: string };
+export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
 // `sensible` : l'issue porte le label `sensitive` (ticket 3224). `renvoi` : le dernier renvoi de sa livraison à un cook, et
@@ -148,7 +150,7 @@ async function lireLesServisParPages(lire: (chemin: string) => Promise<unknown>,
         titre: texte(pr.title).replace(/^#\d+\s*[—-]\s*/, ""),
         url: `https://github.com/${depot}/issues/${ticket}`,
         livre: mergeLe,
-        station: /Cooked by station `([A-Za-z0-9._/-]+)`/.exec(texte(pr.body))?.[1] ?? null,
+        station: STATION_DE_LA_PR.exec(texte(pr.body))?.[1] ?? null,
         pr: texte(pr.html_url),
       });
     }
@@ -190,7 +192,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   const livrees = new Map<number, PrDuTicket>();
   for (const pr of prs) {
     const ticket = ticketDeLaPR(texte(objet(pr.head)?.ref), texte(pr.body));
-    if (ticket !== null && !livrees.has(ticket) && typeof pr.number === "number") livrees.set(ticket, { numero: pr.number, url: texte(pr.html_url), le: texte(pr.created_at) });
+    if (ticket !== null && !livrees.has(ticket) && typeof pr.number === "number") livrees.set(ticket, { numero: pr.number, url: texte(pr.html_url), le: texte(pr.created_at), station: STATION_DE_LA_PR.exec(texte(pr.body))?.[1] ?? null });
   }
   const duRail = issues.flatMap((issue) => {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") return [];
@@ -220,7 +222,13 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const dit = etatDuTicket(issueLue, base);
     const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : etapeDuRail(labels) === "tests written" ? MOT_TESTS_ECRITS : MOT_EN_FILE;
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
-    const prise = deLaPrise === undefined ? null : tenantDeLIssue(deLaPrise, liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)));
+    // En pass, `taken` est retiré et la prise ne se lit plus : la station est d'abord celle que la PR de la livraison dit ;
+    // sans marque, ce que la prise dit encore, jamais une station devinée. Pris, le label dit que le ticket est tenu : un
+    // retrait `unlabeled taken` déjà lu dont le label est encore là (la lecture tombe dans la seconde du passage en pass)
+    // ne lui ôte pas sa station.
+    const deLaPr = etat === "pris" || pr?.station == null || pr.le === "" ? null : { station: pr.station, le: pr.le };
+    const lue = deLaPrise === undefined || deLaPr !== null ? null : tenantDeLIssue(deLaPrise, liste(await lire(`/repos/${depot}/issues/${numero}/events?per_page=100`)));
+    const prise = deLaPr ?? lue ?? (etat === "pris" && deLaPrise !== undefined ? tenantDeLIssue(deLaPrise, []) : null);
     // Son dernier renvoi à un cook (ticket 3302), des commentaires déjà lus : aucune lecture de plus.
     const renvoi = dernierRenvoi(deLaPrise ?? deLaMiseDeCote ?? []);
     // Ses prises (ticket 3823), des mêmes commentaires : un ticket relancé en boucle se compte sans lecture de plus.
