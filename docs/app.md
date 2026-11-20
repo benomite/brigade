@@ -3948,6 +3948,15 @@ section. With the section laid, `right now` is not repeated under it.
   a station of the header cooks the project, a cook runs, or a cook opened its PR less than 5 minutes ago. Nothing
   served for 30 minutes is one red `FAULT` line that names a known cause — one of the four, or the reason of the queue
   wait —, never "cause unknown" alone; it comes first, and the head of the rail shows only it.
+- **A stopped kitchen is always said** (#3924, `runtime/src/arret-cuisine/arret-cuisine.ts`, the notice in
+  `app/src/vue/bandeau-arret/`). When at least one ticket is queued and no card is taken or in pass, the head of the
+  rail opens with a red `STOPPED` line, above the status line, whatever that line shows: `The kitchen is stopped since
+  08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.`, or `…: main is red.`, or `…: the cause is unknown.`.
+  The GitHub reading of the rail names main red from its live `repair-main` ticket, since the issue opened, and a frozen
+  ticket from a set-aside ticket whose PR is open and whose fiche declares a zone, since it was set aside (or else since
+  its PR opened). With no known
+  cause, the stop runs from the oldest queued ticket's entry, or from the last service when it is later. The line goes
+  at the next reading of the rail, without a reload, once a card is taken or in pass or the queue is empty.
 - **A GitHub quota pause is not a fault** (#3482, `app/src/vue/pause-quota/`). When the account's GitHub quota is spent,
   the stations keep running but cannot write their sign of life. Each station's state carries `quotaGithub`
   (`limite`: `core` or `ecriture`, `pauseJusqua`: when it resumes, or null); a running station in pause is held by
