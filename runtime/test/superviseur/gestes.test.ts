@@ -270,3 +270,12 @@ test("les tickets ouverts illisibles : aucun fix ne s'ouvre sans avoir cherché 
     assert.deepEqual(depot.creees(), []);
   }
 });
+
+test("main rouge : un ancien ticket de réparation automatique de main sur le même check n'est pas la même cause (#3945) — le fix s'ouvre", async () => {
+  const depot = new FauxDepot();
+  depot.checkRouge("tests (linux)", 7, 2);
+  // Ouvert par la station avant #3945, de confiance, `prio:0`, sa marque de commit rouge et le check qu'il nommait.
+  depot.issue(41, ["fire", "prio:0"], `<!-- brigade:base-rouge sha=${"b".repeat(40)} -->\n\n## What fails\n\n- \`tests (linux)\``);
+  const fait = await jouer(depot, MAIN_ROUGE, { gesture: "fix", cause: "tests fail on linux", title: "Fix the linux tests", body: "Red after its rerun.", check: "tests (linux)" });
+  assert.deepEqual([fait.outcome, fait.ticket, depot.creees().length], ["done", 500, 1]);
+});

@@ -139,6 +139,18 @@ test("après deux relances pour la même raison, la troisième n'a pas lieu : le
   assert.ok(d.etiquettes.has(HORS_CUISINE));
 });
 
+test("un cook arrêté, relancé deux fois : sa raison se lit sous les commentaires de relance, la troisième n'a pas lieu, et aucun ticket de boucle ne s'ouvre (#3945)", async () => {
+  const d = depot();
+  d.poster(TICKET, `${MARQUE_D_ECHEC} n=3 -->\nStation \`box/claude\`: the cook stopped without a delivery — token ceiling reached`);
+  for (let n = 1; n <= RELANCES_MAX; n++) {
+    assert.deepEqual(await d.relancer(), { fait: "relance", cause: "cook-stopped", n });
+    d.remettreDeCote();
+  }
+  assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "the cook stopped without a delivery again after 2 relaunches for this reason: it stays set aside" });
+  assert.deepEqual(d.creees, []);
+  assert.ok(d.etiquettes.has(HORS_CUISINE));
+});
+
 test("les relances se comptent par raison : deux pour un conflit n'empêchent pas une relance pour un check rouge", async () => {
   const d = depot();
   d.ouvrirPR({ enConflit: true });
