@@ -50,7 +50,8 @@ import { avecLaPresenceLocale, avecLaStationLocale } from "./vue/pause-quota/pau
 import type { SignesDeVie } from "./vue/rail/github.ts";
 import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
-import { INTERVALLE_PAR_PROJET_MS, lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
+import { lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
+import { FRAICHEUR_MAX_D_UNE_LECTURE_MS, INTERVALLE_DE_LA_VEILLE_MS } from "./vue/servi/fraicheur.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
@@ -304,16 +305,16 @@ const lireLeTableau = async (projet: Projet): Promise<LectureDuTableauDuDepot> =
     },
   });
 };
-const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: INTERVALLE_PAR_PROJET_MS });
+const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: FRAICHEUR_MAX_D_UNE_LECTURE_MS });
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
-// les trente secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.
+// les cinq secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.
 // Les veilles des onglets (Cooks, Settings) et les gestes qui partent sur la box se partagent le
 // passage de chaque projet : à eux tous, un projet ne lance qu'une commande à la fois.
 const passage = new Map<string, Promise<unknown>>();
 const veille = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
-  intervalleMs: 30_000,
+  intervalleMs: INTERVALLE_DE_LA_VEILLE_MS,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
     // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa

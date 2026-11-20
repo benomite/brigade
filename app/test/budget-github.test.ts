@@ -131,7 +131,7 @@ for (let heure = 0; heure < 8; heure++) {
   });
 }
 
-test("a project is not read again within a reading's freshness (5 s, #3925), unless a gesture forgets the reading", async () => {
+test("a project is not read again within a reading's freshness (4 s), unless a gesture forgets the reading", async () => {
   const horloge = { t: DEBUT };
   const github = fauxGitHub(horloge);
   const { tableaux } = lectureDeLApp(horloge, github.appeler);
