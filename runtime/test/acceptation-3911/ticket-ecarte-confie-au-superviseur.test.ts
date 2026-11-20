@@ -90,5 +90,4 @@ test("whatever the supervisor does to that ticket is one of the gestures listed 
   }
 });
 
-// brigade:guard
 test("ticket-ecarte-confie-au-superviseur.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
