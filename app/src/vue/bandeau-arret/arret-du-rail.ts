@@ -2,7 +2,7 @@
 // est celui du runtime (runtime/src/arret-cuisine/arret-cuisine.ts) ; la lecture du rail sur GitHub (vue/rail/github.ts,
 // `avecLeRail`) lui donne ce qu'elle sait, et pose l'arrêt dans `facts` sous `arretCuisine` ; le rail le dit en tête
 // (bandeau-arret.js). Ce qu'elle sait des causes :
-//   - main rouge : le correctif que le superviseur ouvre pour un check rouge de la base (#3914), sur le rail (`baseRougeDuRail`) ;
+//   - main rouge : le correctif que le superviseur ouvre pour un check rouge de la base (ticket 3914), sur le rail (`baseRougeDuRail`) ;
 //   - un ticket gelé qui tient une zone de fichiers : un ticket mis de côté dont la PR est ouverte — une PR ouverte tient sa
 //     zone (runtime/src/brigade-github.ts, la porte de prise) —, et la zone que sa fiche déclare ;
 //   - sinon, la cause est inconnue, et l'arrêt se dit quand même.

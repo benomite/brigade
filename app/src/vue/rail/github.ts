@@ -63,7 +63,7 @@ export type PrDuTicket = { numero: number; url: string; le: string; station?: st
 // posé, d'un ticket en file — nul quand ses événements ne le disent pas, absent d'un autre (ticket 3433). `attentes` : d'un
 // ticket en file, ses attentes avec leur source — son corps, sa fiche, l'arrêt d'un cook — et `commentairesLus`, faux quand
 // ses commentaires ne se lisent pas (ticket 3763). `correctifDeLaCi` : le correctif que le superviseur a ouvert pour un check
-// rouge de la base (#3914) — main est rouge tant qu'il est sur le rail.
+// rouge de la base (ticket 3914) — main est rouge tant qu'il est sur le rail.
 export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; correctifDeLaCi?: true };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
 export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
@@ -302,7 +302,7 @@ export const ticketsDeLAttente = (tickets: readonly TicketSurGithub[]): TicketDu
   tickets.flatMap(({ ticket, etat, entreLe, depend, attentes, commentairesLus }) => (ETATS_DE_LA_FILE[etat] === undefined ? [] : [{ ticket, etat: ETATS_DE_LA_FILE[etat], entreLe: entreLe ?? null, depend: depend ?? [], ...(attentes === undefined ? {} : { attentes }), ...(commentairesLus === undefined ? {} : { commentairesLus }) }]));
 
 // Main rouge, de ce que la lecture du rail sait (ticket 3924) : le correctif que le superviseur ouvre pour un check rouge de
-// la base (#3914), sur le rail — en file, pris ou en pass, pas mis de côté. Main est rouge depuis l'ouverture du plus ancien.
+// la base (ticket 3914), sur le rail — en file, pris ou en pass, pas mis de côté. Main est rouge depuis l'ouverture du plus ancien.
 function baseRougeDuRail(tickets: readonly TicketSurGithub[]): { depuis: string } | null {
   const depuis = tickets.filter(({ correctifDeLaCi, etat }) => correctifDeLaCi === true && ETATS_DE_LA_FILE[etat] !== undefined).map(({ creeLe }) => creeLe).filter((le) => !Number.isNaN(Date.parse(le))).sort()[0];
   return depuis === undefined ? null : { depuis };
