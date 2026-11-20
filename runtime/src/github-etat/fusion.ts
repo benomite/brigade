@@ -28,7 +28,6 @@
 // lance sur cette PR (`ciDesPR`). S'il s'en lance un, sa CI reste exigée, et
 // un statut des gates ne la remplace pas.
 import { DE_CONFIANCE } from "../alimenter.ts";
-import { reponseDuCook } from "../desaccord-cook.ts";
 import type { Check } from "../events/pass.ts";
 import type { Merge, PR } from "../github.ts";
 import { etatDeLaBase } from "./etats.ts";
@@ -107,8 +106,10 @@ export async function relire(pr: PRAFusionner, { github, station, juger }: Conte
   if (pr.state !== "open" || pr.merged) return null;
   const commentaires = await github.commentaires(pr.number);
   const dejaRendu = dernierVerdict(commentaires);
-  // Une tête refusée se rejuge si le cook a répondu depuis sur la PR (#2592).
-  if (dejaRendu !== null && (dejaRendu.verdict === "approve" || (dejaRendu.sha === pr.sha && reponseDuCook(commentaires, pr.sha) === null))) return dejaRendu;
+  // Une tête refusée ne se rejuge jamais, même si le cook a répondu depuis sur
+  // la PR (#3961) : son verdict garde la paire jugée — la tête et son motif —,
+  // et la même tête revient avec le même motif. Le renvoi la recompte.
+  if (dejaRendu !== null && (dejaRendu.verdict === "approve" || dejaRendu.sha === pr.sha)) return dejaRendu;
   const jugement = await juger(pr);
   await github.commenter(pr.number, corpsDeVerdict(station, pr.sha, jugement));
   return dernierVerdict(await github.commentaires(pr.number));
