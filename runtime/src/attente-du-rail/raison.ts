@@ -18,7 +18,7 @@
 import { lignesHorsCode } from "../epique.ts";
 import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { stationDe } from "../stations-github/stations.ts";
-import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "./stations.ts";
+import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationDuCompte, type StationsLues } from "./stations.ts";
 
 export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github" | "plafond" | "pass" | "autre-ticket" | "normale";
 
@@ -134,7 +134,7 @@ export function expliquerLAttente(options: { depot: string; tickets: readonly Ti
   const enFile = tickets.filter(({ etat }) => etat === "queued");
   if (enFile.length === 0 || tickets.some(({ etat }) => etat === "taken")) return null;
   const dit = (raison: Exclude<Raison, "normale">, stations: readonly string[] = [], phrase?: string): AttenteDuRail => ({ raison, phrase: phrase ?? PHRASES[raison](stations), geste: GESTES[raison] ?? null, stations: [...stations] });
-  const noms = (lesquelles: readonly { name: string }[]) => [...new Set(lesquelles.map(({ name }) => stationDe(name)))].sort();
+  const noms = (lesquelles: readonly StationDuCompte[]) => [...new Set(lesquelles.map(({ name }) => stationDe(name)))].sort();
   // Des stations qui ne se lisent pas ne font ni la raison 1, ni 2, ni 3, ni 4 ; sous la limite de GitHub, c'est elle qui les rend illisibles.
   if ("illisibles" in options.stations) {
     if (options.limite != null) return dit("quota-github", [], phraseDeLaLimite(options.limite));
