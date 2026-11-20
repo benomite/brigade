@@ -205,6 +205,16 @@ reviewer says is blocking without a category, or with one outside the list, is a
 written on the PR, in the pass's verdict (`Advice` lines), and **does not stop the merge**: a review
 red only on advice is green.
 
+### A gesture the manager asks of a cook is never a blocking point
+
+One rule for the manager's answer and for the review (#3962). When the manager's answer in the ticket thread asks
+the cook for a gesture — for example adding `// brigade:guard` to a frozen test (#3913, #3955) — the cook may make it,
+and the review never lists it as a blocking point. The review reads the request from the manager's comments in the
+ticket thread, and holds the cook to the letter: a frozen test is let through only when the request names its file,
+the change removes no line, and every line it adds is quoted in the request. The same edit without a request, or an
+edit that goes beyond what was asked, stays a blocking point (`critere-non-tenu`). The review text that forbids edits
+to frozen tests (`runtime/src/reviewer.ts`) names this exception.
+
 ### Red on main, green on the branch
 
 A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pass/rouge-sur-main.ts`).
