@@ -12,6 +12,7 @@ const PRELOAD = (version: string) =>
   `data:text/javascript,${encodeURIComponent(`import os from "node:os"; import { syncBuiltinESMExports } from "node:module"; os.version = () => ${JSON.stringify(version)}; syncBuiltinESMExports();`)}`;
 const joue = (fichier: string, version: string) => spawnSync(process.execPath, ["--import", PRELOAD(version), fichier], { encoding: "utf8", timeout: 60_000 });
 
+// brigade:guard
 test("le test du corps du signalement échoue si une ligne du ticket #21 entre dans le rapport", () => {
   const app = join(import.meta.dirname, "../../..");
   const copie = mkdtempSync(join(tmpdir(), "brigade-3913-"));
