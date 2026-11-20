@@ -9,7 +9,7 @@
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../../runtime/src/arret-cuisine/arret-cuisine.ts").ArretDeLaCuisine} ArretDeLaCuisine */
 
-export const MARQUE_ARRET = "STOPPED";
+const MARQUE_ARRET = "STOPPED";
 
 /** @param {string} iso @returns {string | null} */
 const heureUtc = (iso) => (Number.isNaN(Date.parse(iso)) ? null : `${new Date(iso).toISOString().slice(11, 16)} UTC`);
@@ -23,7 +23,7 @@ function causeDite(cause) {
 
 // La phrase du bandeau : l'arrêt, depuis quand quand l'heure se lit, et sa cause.
 /** @param {ArretDeLaCuisine} arret @returns {string} */
-export function phraseDeLArret(arret) {
+function phraseDeLArret(arret) {
   const heure = heureUtc(arret.since);
   return `The kitchen is stopped${heure === null ? "" : ` since ${heure}`}: ${causeDite(arret.cause)}.`;
 }

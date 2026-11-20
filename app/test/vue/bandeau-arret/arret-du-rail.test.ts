@@ -7,7 +7,7 @@ import { comprendre, tableau, type Faits } from "../../../src/faits.ts";
 import type { AppelGitHub } from "../../../src/tableau/client.ts";
 import type { TableauLu } from "../../../src/tableau/lecture.ts";
 import { arretCuisineLu, arretDuRail, zoneTenueDe } from "../../../src/vue/bandeau-arret/arret-du-rail.ts";
-import { monterLeBandeau, phraseDeLArret } from "../../../src/vue/bandeau-arret/bandeau-arret.js";
+import { monterLeBandeau } from "../../../src/vue/bandeau-arret/bandeau-arret.js";
 import { avecLeRail, lireLeRailSurGithub, type SignesDeVie } from "../../../src/vue/rail/github.ts";
 import { Faux } from "../../aides/fausse-vue.ts";
 
@@ -124,7 +124,9 @@ test("without a known cause, the stop runs from the oldest queued ticket's entry
   // Rien de lisible : l'arrêt se dit, sans heure inventée.
   const sansHeure = arretDuRail(file, [{ ticket: 21, creeLe: "" }], [], null).arretCuisine;
   assert.deepEqual(sansHeure, { cause: { kind: "unknown" }, since: "" });
-  assert.equal(phraseDeLArret(sansHeure as NonNullable<typeof sansHeure>), "The kitchen is stopped: the cause is unknown.");
+  const hote = new Faux("div");
+  monterLeBandeau(doc, hote).maj(sansHeure);
+  assert.equal(hote.textContent, "STOPPEDThe kitchen is stopped: the cause is unknown.");
 });
 
 test("the zone a set-aside ticket holds: from its fiche, held by its open PR, since its setting aside or else its PR", () => {
