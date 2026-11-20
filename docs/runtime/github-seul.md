@@ -165,6 +165,10 @@ base, the stale-branch pruning).
   A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
   at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
   and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
+  A ticket held by another one (an open ticket it depends on, one set aside, its zone held) has its tests written
+  during that hold (#3872), and so do the tickets that wait for a place taken by a cook, or that a full pass leaves —
+  in rail order, at most one writing per place, under the same guards (#3887): the claim, once the hold, the place or
+  the pass frees, no longer waits for the writing after it. Their skip line still names what holds them.
   Before the step, the manager classes each criterion (#3740, `runtime/src/qualification/classes.ts`, the rule in
   `agents/manager.md`), in a throwaway checkout of the base: `testable` — a behaviour the end user observes — or
   `not-testable`, with the proof the delivery owes instead (a before/after capture, the diff, the evaluation case, the
@@ -223,6 +227,16 @@ base, the stale-branch pruning).
   station announces itself in the log (`station.announced`, with its declaration and its cores), so `status` and
   `station` say its cap and where it comes from. Until #3446 the places were fixed at start and the chef's cap was
   written but read by nothing ([diagnosis](claim-wait-2026-11-13.md)).
+- **A `taken` ticket with no cook and no wait returns to the rail** (#3883, `runtime/src/reprise-attente/`). A timed
+  wait lives on the issue, not in a station's memory: its date is the `until=` of the `brigade:attente` comment, read
+  again at every turn, so a restart neither loses a wait nor its date passing. At each turn, a station looks at every
+  `taken` ticket with no cook on it here. No cook runs on it on any station when this station holds it, when a wait
+  follows the holding claim (the cook of that claim stopped), or when the claim is older than a cook can live
+  (`COOK_LE_PLUS_LONG_MS`, 6 hours). Seen so, with no live wait, for more than 5 minutes (`ORPHELIN_APRES_MS`), the
+  ticket loses `taken`: the station releases the claim in the name of the station that held it, with a comment that
+  says the ticket was taken with no cook on any station and no wait, and that it returns to the rail. From that turn
+  it no longer holds its zone. On 2026-11-19, #3764 kept `taken` on a timed wait for over two hours across two
+  restarts of its station, and the claim gate skipped #3761 and #3786 as "zone held by #3764".
 - **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
   disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
   the cores' default is one cook per core past the two kept, not two cores per cook (#3560).

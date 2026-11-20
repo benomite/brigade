@@ -6,8 +6,9 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { brancheDuTicket, PASS_MAX, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
+import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
 import { LABEL_TESTS_ECRITS } from "../../src/tests-acceptation/etape.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { BASE, depotGit, ENV_GIT, jusqua, repertoireTemporaire } from "../outils.ts";
@@ -55,5 +56,48 @@ test("a ticket whose zone is held by a ticket in flight has its acceptance tests
   await jusqua(() => faux.ticket(2).labels.has(LABEL_TESTS_ECRITS), 1500);
   assert.match(sauts.get(2) ?? "", /zone held by #1\b/, "it is still held by #1 when its tests are written");
   liberer();
+  await ouverte.calme();
+});
+
+test("a full pass leaves the station writing the acceptance tests of the tickets it holds, one writing per place (#3887)", async (t) => {
+  const lieux = depotGit(t);
+  const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
+  const faux = new FauxGitHub();
+  // Cinq livraisons en pass, leur CI en cours : le pass est plein.
+  for (let n = 41; n < 41 + PASS_MAX; n += 1) {
+    faux.feu(n, [...CALIBRE, LABEL_IN_PASS]);
+    const sha = faux.sha();
+    faux.prs.push({ number: 1000 + n, issue: n, branche: brancheDuTicket(n), sha, state: "open", merged: false, enRetard: false, mergeePar: null, fichiers: [`runtime/src/f${n}.ts`] });
+    faux.poster(1000 + n, "A", `<!-- brigade:verdict station=A verdict=approve sha=${sha} -->\nApproved by station \`A\`.`);
+    faux.ciEnCours.add(1000 + n);
+  }
+  for (const n of [50, 51]) {
+    faux.feu(n, CALIBRE, CORPS(n));
+    faux.poster(n, "manager", FICHE(`runtime/src/z${n}.ts`));
+  }
+  const ecritures: number[] = [];
+  let liberer = () => {};
+  const libre = new Promise<void>((resoudre) => (liberer = resoudre));
+  const lancer: Lancer = ({ cwd, flux, entree, ticket }) => {
+    const numero = Number(ticket);
+    const fini = { code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null };
+    if (!entree?.startsWith(MARQUE_DE_LA_CONSIGNE)) throw new Error(`no cook while the pass is full (#${numero})`);
+    ecritures.push(numero);
+    const chemin = `test/acceptation/ecran-${numero}.test.ts`;
+    mkdirSync(dirname(join(cwd, chemin)), { recursive: true });
+    writeFileSync(join(cwd, chemin), `// ${chemin}\n`);
+    writeFileSync(flux, RENDU(JSON.stringify({ tests: [chemin] })));
+    return { fin: libre.then(() => fini) };
+  };
+  const sauts = new Map<number, string>();
+  const ouverte = stationDuDepot({ ...STATION_DU_DEPOT, places: 1, base: BASE, github: fauxClient(faux), depot, testsAcceptation: () => ({ model: "opus", effort: "medium" }), flux: repertoireTemporaire(t), lancer, sauter: (ticket, ligne) => void sauts.set(ticket, ligne) });
+  if ("refus" in ouverte) throw new Error(ouverte.refus);
+  await ouverte.tour();
+  await jusqua(() => ecritures.includes(50), 1500);
+  assert.deepEqual(ecritures, [50], "the one free place writes #50's tests, and #51 waits for a place");
+  assert.match(sauts.get(50) ?? "", /the pass holds 5 deliveries/, "its skip line still names the full pass");
+  liberer();
+  await jusqua(() => faux.ticket(50).labels.has(LABEL_TESTS_ECRITS), 1500);
+  assert.deepEqual(faux.pris(), [], "nothing is claimed while the pass is full");
   await ouverte.calme();
 });
