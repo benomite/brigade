@@ -6,7 +6,7 @@
 // Chaque lecture peut échouer : elle est alors dite illisible, avec sa raison,
 // et le dossier part avec les autres. Rien n'y est inventé à la place d'une
 // lecture qui manque.
-import { sortieDErreur } from "../base-rouge/ouvre-reparation.ts";
+import { sortieDErreur } from "../checks-de-la-base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { GitHub } from "../github.ts";
 import type { Journal } from "../journal.ts";

@@ -19,7 +19,7 @@
 // `/resume` sur l'issue d'une autre cuisine ne reprend pas celle-ci.
 import { dirname } from "node:path";
 import { DE_CONFIANCE } from "./alimenter.ts";
-import { LABEL_DU_DISJONCTEUR, marqueDuDisjoncteur } from "./alerte-cuisine/alerte-cuisine.ts";
+import { LABEL_DU_DISJONCTEUR, marqueDuDisjoncteur } from "./issue-de-la-cuisine.ts";
 import type { Base } from "./base.ts";
 import type { GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";

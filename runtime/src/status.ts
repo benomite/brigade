@@ -31,8 +31,7 @@ import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
-import { avecLeRailBloque, railBloqueCherche, railBloqueDuStatus } from "./rail-bloque/status.ts";
-import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile } from "./attente-du-rail/status.ts";
+import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile, railCherche } from "./attente-du-rail/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -75,12 +74,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     if (erreur instanceof LectureImpossible) echouer(erreur.code, erreur.message);
     throw erreur;
   }
-  // Le rail bloqué (#3358) : des tickets `fire` qu'aucun manager n'a pris, sous la tête du bloc `awaiting` — la file du second.
   const { lignes, dernierSeq } = photo;
   const lu = journal;
-  if (!railBloqueCherche(env)) return ecrire(lignes);
+  if (!railCherche(env)) return ecrire(lignes);
   // Pourquoi la file ne part pas (#3433) : sa phrase au-dessus de la ligne `rail`, la même que le rail de l'app.
-  return Promise.all([railBloqueDuStatus(env, maintenant, lu.base), attenteEtRailDuStatus(env, maintenant, lu.base)]).then(([rail, attente]) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(avecLeRailBloque(lignes, rail), attente.enFile), attente.lignes)), (erreur: unknown) => {
+  return attenteEtRailDuStatus(env, maintenant, lu.base).then((attente) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(lignes, attente.enFile), attente.lignes)), (erreur: unknown) => {
     lu.fermer();
     throw erreur;
   });

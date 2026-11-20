@@ -10,7 +10,6 @@ import { test } from "node:test";
 import { decrireAttentes, direAttenteEn, type Attente } from "../src/attend.ts";
 import { carteDeLAttente } from "../src/carte-todo/cartes.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
-import { GESTE_DE_LA_BASE, GESTE_DU_DISJONCTEUR } from "../src/retenue/retenue.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { motsFrancais, motsFrancaisDans, sansMotFrancais } from "./aides/glossaire.ts";
 import { repertoireTemporaire } from "./outils.ts";
@@ -197,13 +196,6 @@ const EXEMPLES = {
   renommage: [
     { ...horsTicket, quoi: "renommage", why: `the pass judged it red: red gates — \`FAIL  tests du projet en échec\`: ${pr(7)}`, pr: pr(7) },
     { ...horsTicket, quoi: "renommage", why: "the rename tool failed (`scripts/rename-code/rename.sh --apply`, exit code 1): `1 unresolved identifier(s)` — the tree was left as it was", pr: null },
-  ],
-  retenue: [
-    { ...horsTicket, quoi: "retenue", tickets: [12, 13], cause: { kind: "base-red", sha: "0123456789abcdef", checks: ["Windows tests", "lint"] }, gesture: GESTE_DE_LA_BASE },
-    { ...horsTicket, quoi: "retenue", tickets: [12], cause: { kind: "github-limit", limit: "primary", backAt: DEPUIS }, gesture: null },
-    { ...horsTicket, quoi: "retenue", tickets: [12, 13, 14, 15, 16, 17], cause: { kind: "write-pacer", writes: 450, nextAt: DEPUIS }, gesture: null },
-    { ...horsTicket, quoi: "retenue", tickets: [12], cause: { kind: "breaker", since: DEPUIS }, gesture: GESTE_DU_DISJONCTEUR },
-    { ...horsTicket, quoi: "retenue", tickets: [12], cause: { kind: "unknown" }, gesture: null },
   ],
 } satisfies { [Q in Attente["quoi"]]: Array<Extract<Attente, { quoi: Q }>> };
 

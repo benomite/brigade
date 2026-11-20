@@ -14,8 +14,7 @@
 //
 // L'appel vient du tour (`brigade-github.ts`), sur les checks que la relance
 // rend ; le client vient de `github-de-la-livraison.ts`.
-import type { CheckDeLaBase } from "../base-rouge/ouvre-reparation.ts";
-import { estInformatif } from "../relance-main-rouge.ts";
+import { estInformatif, type CheckDeLaBase } from "../checks-de-la-base.ts";
 
 // Le commit rouge et les checks rouges qu'il porte.
 export type PremierRouge = { sha: string; rouges: CheckDeLaBase[] };

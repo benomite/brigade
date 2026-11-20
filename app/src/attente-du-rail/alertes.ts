@@ -19,10 +19,10 @@
 //   cuisine-muette     rien servi depuis `MUETTE_MS` alors qu'un ticket est prêt : une ligne, qui nomme la cause connue
 //                      — une des quatre ci-dessus, ou la raison de l'attente de la file (`expliquerLAttente`) —, jamais
 //                      « cause inconnue » seule.
-import { disponible } from "../enregistrement-station/contrat.ts";
-import { stationDe } from "../stations-github/stations.ts";
-import { dureeCourte, heureUtc, MOTS_DU_GESTE, type Geste, type StationDuCompte, type StationsLues } from "../rail-bloque/rail-bloque.ts";
-import { expliquerLAttente, type TicketDuRail } from "./raison.ts";
+import { disponible } from "../../../runtime/src/enregistrement-station/contrat.ts";
+import { stationDe } from "../../../runtime/src/stations-github/stations.ts";
+import { dureeCourte, MOTS_DU_GESTE, type Geste, type StationDuCompte, type StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
+import { expliquerLAttente, type TicketDuRail } from "../../../runtime/src/attente-du-rail/raison.ts";
 
 // Un cook qui a tourné il y a moins de cinq minutes : aucune alerte ne dit qu'aucun cook ne peut partir.
 const COOK_RECENT_MS = 5 * 60_000;
@@ -69,6 +69,8 @@ const date = (iso: string | null | undefined): number => (typeof iso === "string
 const memeDepot = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const nombre = (n: number) => n.toLocaleString("en-US");
 const liste = (noms: readonly string[]) => (noms.length <= 1 ? (noms[0] ?? "") : `${noms.slice(0, -1).join(", ")} and ${noms.at(-1)}`);
+// Une heure, comme `status` les écrit : `14:05 UTC`.
+const heureUtc = (iso: string) => `${new Date(iso).toISOString().slice(11, 16)} UTC`;
 const depuisQuand = (iso: string, maintenant: number) => `since ${heureUtc(iso)} (${dureeCourte(maintenant - Date.parse(iso))})`;
 
 // Le plus ancien ticket prêt — en file, à la date d'entrée connue —, ou null.

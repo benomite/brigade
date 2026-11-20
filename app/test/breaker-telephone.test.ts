@@ -22,7 +22,7 @@ import { ecritureParCapacitor, ouvrirLesGestesGitHub, type DemandeNative } from 
 import { cuisineRetenueParLeDisjoncteur, LABEL_DU_DISJONCTEUR, type RenduDeLaReprise } from "../src/github/breaker-resume.ts";
 import { ouvrirLaLectureGitHub } from "../src/lecture-github-telephone.ts";
 import { API_GITHUB, clientGitHub, type Envoi, type ReponseGitHub } from "../src/tableau/client.ts";
-import { DEPOT_BRIGADE, marqueDuProjet } from "../../runtime/src/alerte-cuisine/alerte-cuisine.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../runtime/src/issue-de-la-cuisine.ts";
 
 const DEPOT = "chef/parade";
 const LU = "2026-11-06T09:00:00.000Z";

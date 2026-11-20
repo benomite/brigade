@@ -11,11 +11,12 @@
 // Et, pour les stations de l'onglet Cooks (ticket 2358), le signe de vie de chacune : l'enregistrement qu'elle réécrit dans son
 // gist, sous le compte du chef, que le process principal lit à son pas (vue/cooks/signes-de-vie.ts) — reçu ici, pas lu.
 import { porteListe, ticketsDeLaListe } from "../../../../runtime/src/epique.ts";
-import { feuPoseLe, lireLesNonPris } from "../../../../runtime/src/rail-bloque/lecture.ts";
+import { feuPoseLe } from "../../../../runtime/src/attente-du-rail/lecture.ts";
+import { lireLesNonPris } from "../../rail-bloque/diagnostic.ts";
 import type { AttenteSourcee, TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
 import { attentesDuTicket } from "../../../../runtime/src/carte-attente/carte-attente.ts";
 import { etatDuTicket, LABEL_REPARATION_DE_MAIN, PREFIXE_DE_LA_REPARATION, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
-import { alertesDuRail, type AlerteDuRail, type BaseRougeLue } from "../../../../runtime/src/attente-du-rail/alertes.ts";
+import { alertesDuRail, type AlerteDuRail, type BaseRougeLue } from "../../attente-du-rail/alertes.ts";
 import { etapeDuRail } from "../../../../runtime/src/tests-acceptation/etape.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
 import type { Cook } from "../../faits.ts";
@@ -28,7 +29,7 @@ import { estSensible } from "../carte-sensible/label.ts";
 import { PR_DU_TICKET } from "../pr-du-ticket.js";
 import { dernierRenvoi, type Renvoi } from "./renvoi.ts";
 import { railBloqueDe, type NonPrisLus } from "../rail-bloque/rail-bloque.ts";
-import { avecLesStationsQuiCuisent, type StationsLues } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
+import { avecLesStationsQuiCuisent, type StationsLues } from "../../../../runtime/src/attente-du-rail/stations.ts";
 import { attenteDuRailDe } from "../attente-du-rail/attente-du-rail.ts";
 import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pause-quota.ts";
 import { arretDuRail, zoneTenueDe } from "../bandeau-arret/arret-du-rail.ts";
@@ -69,7 +70,7 @@ export type PrDuTicket = { numero: number; url: string; le: string; station?: st
 export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; miseDeCoteLe?: string; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
 export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
-// `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, runtime/src/rail-bloque/), ou pourquoi ils ne se
+// `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, rail-bloque/diagnostic.ts), ou pourquoi ils ne se
 // lisent pas ; absent d'une lecture qui ne les a pas cherchés.
 export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[]; nonPris?: NonPrisLus };
 // Les signes de vie des stations du compte, tels que le process principal les a lus — ou pourquoi ils ne l'ont pas été,
@@ -321,7 +322,7 @@ function baseRougeDuRail(tickets: readonly TicketSurGithub[]): BaseRougeLue | nu
   return { depuis: reparation.creeLe, check, ticket: reparation.ticket, reparation: ETATS_DE_LA_FILE[reparation.etat] === "queued" ? null : reparation.ticket };
 }
 
-// Les alertes du haut du rail (ticket 3823, runtime/src/attente-du-rail/alertes.ts), de ce que la lecture du rail sait : l'en-tête
+// Les alertes du haut du rail (ticket 3823, attente-du-rail/alertes.ts), de ce que la lecture du rail sait : l'en-tête
 // — les stations qui cuisent ce projet —, le dernier cook — la PR la plus récente qu'un cook a ouverte —, le dernier service, la
 // réparation de main, et les prises de chaque ticket. Le plafond de cooks, que GitHub ne publie pas, n'est jamais deviné.
 function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: readonly ServiSurGithub[], cuisinent: readonly string[], stations: StationsLues, maintenant: number): { alertesDuRail?: AlerteDuRail[] } {

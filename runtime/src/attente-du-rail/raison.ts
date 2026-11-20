@@ -18,7 +18,7 @@
 import { lignesHorsCode } from "../epique.ts";
 import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { stationDe } from "../stations-github/stations.ts";
-import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
+import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "./stations.ts";
 
 export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github" | "plafond" | "pass" | "autre-ticket" | "normale";
 

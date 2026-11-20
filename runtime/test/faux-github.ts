@@ -4,7 +4,7 @@ import type { ReprendreLeTicket } from "../src/reprise-du-manager.ts";
 import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
 import { lienDuCorps } from "../src/besoin/besoin.ts";
 import { porteListe } from "../src/epique.ts";
-import { avecLAlerte } from "../src/alerte-cuisine/alerte-cuisine.ts";
+import { avecLAlerte } from "../src/issue-de-la-cuisine.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub, StatutDeCommit } from "../src/github.ts";

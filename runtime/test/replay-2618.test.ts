@@ -2,8 +2,8 @@
 // et quinze tickets ont l'air prêts. Neuf sont des épiques découpées dont tous
 // les sous-tickets sont fermés ; elles gardent `fire`, leur `prio:` et un
 // décompte `0/N servi`. En un tour, le manager réécrit leur décompte depuis
-// GitHub et les ferme ; la station n'en prend aucune, et la retenue de la
-// cuisine ne les compte plus. Horloge fixée, aucune station réelle.
+// GitHub et les ferme ; la station n'en prend aucune, et le superviseur ne
+// les compte pas parmi les cuisinables. Horloge fixée, aucune station réelle.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { DEBUT, FIN } from "../src/epique.ts";
-import { suivreLeTour } from "../src/retenue/tour.ts";
+import { suivreLeTour } from "../src/superviseur/tour.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "./faux-github.ts";
 import { jusqua } from "./outils.ts";
@@ -105,5 +105,5 @@ test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the held-ki
 
   assert.equal(faux.prisesDe("box/claude"), 0);
   assert.deepEqual(faux.pris(), []);
-  assert.deepEqual(suivi.vue().enAttente, [2600]);
+  assert.deepEqual(suivi.faits().cuisinables.map(({ ticket }) => ticket), [2600]);
 });

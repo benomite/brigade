@@ -19,7 +19,7 @@ import { MARQUE_QUALITE } from "./alerte-qualite.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
 import type { GitHub } from "./github.ts";
 import { MARQUE_CORRECTION, type GitHubDeLaCorrection } from "./temps-max/correction.ts";
-import { DEPOT_BRIGADE, marqueDuProjet } from "./alerte-cuisine/alerte-cuisine.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "./issue-de-la-cuisine.ts";
 
 // Le dépôt de la brigade et la marque du projet servi, définis avec les alertes de la cuisine qui s'y déposent (#3620).
 export { DEPOT_BRIGADE, marqueDuProjet };

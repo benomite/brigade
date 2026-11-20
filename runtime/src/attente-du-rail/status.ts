@@ -12,8 +12,8 @@ import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-c
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { lireGitHubSeul } from "../github-seul-etat.ts";
 import { clientGh } from "../proteger-branche.ts";
-import { feuPoseLe, lesFeux, type Lire } from "../rail-bloque/lecture.ts";
-import { LABELS_D_ECART, type StationsLues } from "../rail-bloque/rail-bloque.ts";
+import { feuPoseLe, lesFeux, type Lire } from "./lecture.ts";
+import { LABELS_D_ECART, type StationsLues } from "./stations.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
 import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
 import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail } from "./raison.ts";
@@ -98,15 +98,17 @@ export function plafondAtteintDeLaStation(base: Base): boolean {
   return plafonnees.length > 0 && plafonnees.every(({ station, plafond }) => cooksEnCoursDeStation(base, station).length >= plafond);
 }
 
-// Ce que `status` ajoute : rien hors d'une station GitHub seul (le rail n'est lu sur GitHub que là, comme le rail bloqué de
-// #3358), ou sans dépôt nommé.
+// Ce que `status` ajoute : rien hors d'une station GitHub seul (le rail n'est lu sur GitHub que là), ou sans dépôt nommé.
 export async function attenteDuRailDuStatus(env: Record<string, string | undefined>, maintenant: Date, base: Base): Promise<string[]> {
   return (await attenteEtRailDuStatus(env, maintenant, base)).lignes;
 }
 
+// `status` lit-il le rail sur GitHub ? Sur une station GitHub seul, au dépôt nommé : ailleurs, `status` reste sans lecture de GitHub.
+export const railCherche = (env: Record<string, string | undefined>): boolean => Boolean(env.BRIGADE_GITHUB_REPO) && lireGitHubSeul(env.BRIGADE_STATE_DIR)?.etat === "accepted";
+
 export async function attenteEtRailDuStatus(env: Record<string, string | undefined>, maintenant: Date, base: Base): Promise<AttenteLue> {
   const depot = env.BRIGADE_GITHUB_REPO;
-  if (!depot || lireGitHubSeul(env.BRIGADE_STATE_DIR)?.etat !== "accepted") return { lignes: [], enFile: [] };
+  if (!depot || !railCherche(env)) return { lignes: [], enFile: [] };
   const gh = env.BRIGADE_GH_BIN || "gh";
   const client = clientGh(gh, env as NodeJS.ProcessEnv);
   const lire: Lire = async (chemin) => {
