@@ -543,8 +543,11 @@ export function fauxGh(t: TestContext): FauxGh {
 // jamais du temps qu'elle sonde. Ses 20 ms ne règlent que sa latence, son délai ne fait que finir un test cassé.
 // La condition peut être asynchrone : une réponse HTTP, un gist relu.
 const DELAI_PAR_DEFAUT_MS = process.platform === "win32" ? 180_000 : 100_000;
-export async function jusqua(condition: () => boolean | Promise<boolean>, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
-  const limite = Date.now() + delaiMs;
+// Un délai explicite est celui de Linux : sous Windows, lancer le faux `claude` est lent, il compte cinq fois plus.
+const FACTEUR_DELAI_WINDOWS = 5;
+export async function jusqua(condition: () => boolean | Promise<boolean>, delaiMs?: number): Promise<void> {
+  const delai = delaiMs === undefined ? DELAI_PAR_DEFAUT_MS : process.platform === "win32" ? delaiMs * FACTEUR_DELAI_WINDOWS : delaiMs;
+  const limite = Date.now() + delai;
   while (!(await condition())) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");
     await new Promise((resoudre) => setTimeout(resoudre, 20));
