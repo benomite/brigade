@@ -38,9 +38,14 @@ test("while main is red, a delivery waits for main from the later of its phase a
   });
   // Sans début de rouge connu, le contrôle qui l'a vu rouge.
   assert.equal(avecEtape(activite("running the gates", "2026-11-19T12:00:00.000Z"), EN_JUGEMENT, rouge(null, "2026-11-19T12:05:00.000Z"))?.depuis, "2026-11-19T12:05:00.000Z");
+  // Une livraison qui attend la pass attend main elle aussi.
+  assert.equal(avecEtape(activite("waiting for the pass"), { phase: "delivered", reason: null }, rouge("2026-11-19T12:03:00.000Z"))?.etape, "waiting for main");
   // Une relecture ou un merge déjà partis vont à leur fin.
   assert.equal(avecEtape(activite("review in progress"), EN_JUGEMENT, rouge("2026-11-19T12:03:00.000Z"))?.etape, "review");
   assert.equal(avecEtape(activite("merging"), { phase: "merging", reason: null }, rouge("2026-11-19T12:03:00.000Z"))?.etape, "merging");
+  // Arrêtée ou remontée, une livraison attend autre chose que main : son activité le dit, sans étape.
+  assert.deepEqual(avecEtape(activite("held by the pass"), { phase: "held", reason: null }, rouge("2026-11-19T12:03:00.000Z")), activite("held by the pass"));
+  assert.deepEqual(avecEtape(activite("escalated to the chef"), { phase: "escalated", reason: null }, rouge("2026-11-19T12:03:00.000Z")), activite("escalated to the chef"));
 });
 
 test("no known activity, or no delivery at the pass: nothing is made up", () => {
