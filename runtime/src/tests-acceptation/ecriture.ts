@@ -64,6 +64,10 @@ export function consigneDesTests(mission: { depot: string; ticket: number; titre
   ].join("\n");
 }
 
+// Les essais que le manager a pour donner une réponse lisible, et ce que le journal en garde.
+const ESSAIS_DU_MANAGER = 2;
+const MAX_REPONSE_JOURNALISEE = 500;
+
 // Les chemins que le manager donne, un par critère, ou pourquoi ils ne se lisent pas.
 export function lireLesChemins(message: string, attendus: number): { chemins: string[] } | { illisible: string } {
   const json = /\{[\s\S]*\}/.exec(message)?.[0];
@@ -100,10 +104,19 @@ export async function ecrireLesTests(ticket: number, outils: OutilsDeLEcriture, 
   const { worktree, branche } = await outils.preparer();
   let poussee = false;
   try {
-    const repondu = await outils.manager(consigneDesTests({ depot: outils.depot, ticket, titre: issue.title, corps: issue.body ?? "", criteres }), worktree);
-    if ("illisible" in repondu) return { echec: repondu.illisible };
-    const lu = lireLesChemins(repondu.message, criteres.length);
-    if ("illisible" in lu) return { echec: lu.illisible };
+    let lu: { chemins: string[] } | undefined;
+    let raison = "";
+    for (let essai = 1; lu === undefined && essai <= ESSAIS_DU_MANAGER; essai++) {
+      const repondu = await outils.manager(consigneDesTests({ depot: outils.depot, ticket, titre: issue.title, corps: issue.body ?? "", criteres }), worktree);
+      if ("illisible" in repondu) return { echec: repondu.illisible };
+      const lecture = lireLesChemins(repondu.message, criteres.length);
+      if ("chemins" in lecture) lu = lecture;
+      else {
+        raison = lecture.illisible;
+        console.error(`#${ticket}: ${raison} (try ${essai}/${ESSAIS_DU_MANAGER}); raw answer, first ${MAX_REPONSE_JOURNALISEE} characters: ${repondu.message.slice(0, MAX_REPONSE_JOURNALISEE)}`);
+      }
+    }
+    if (lu === undefined) return { echec: raison };
     const statut = await outils.git(["status", "--porcelain", "-z", "--untracked-files=all"], worktree);
     if (statut.code !== 0) return { echec: `git status failed: ${statut.stderr.trim()}` };
     const touches = statut.stdout.split("\0").filter((entree) => entree.length > 3).map((entree) => entree.slice(3));

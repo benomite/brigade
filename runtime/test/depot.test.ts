@@ -337,7 +337,7 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     assert.equal(git(origine, "rev-parse", `${branche}~1`), duChef);
   });
 
-  test("un commit poussé à la main pendant que le cook travaille n'est pas écrasé : le push échoue en le disant, et le cook suivant repart des deux", async (t) => {
+  test("un commit poussé à la main pendant que le cook travaille n'est pas écrasé : le push le fusionne au travail du cook (#3893)", async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -348,15 +348,11 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     // n'est pas elle qui dit ce que la station a poussé.
     git(worktree, "fetch", "-q", "origin", "+refs/heads/*:refs/remotes/origin/*");
 
-    assert.throws(() => depot.pousser(branche), /^Error: git push : l'origine porte sur `cook\/15-abc` des commits que la station n'y a pas poussés .* rien n'est écrasé/);
-    assert.equal(git(origine, "rev-parse", branche), duChef);
-
-    await depot.ranger(worktree, branche);
-    const repris = await depot.reprendre("15-def", branche);
-    assert.deepEqual([existsSync(join(repris, "correctif.txt")), existsSync(join(repris, "du-chef.txt"))], [true, true]);
     depot.pousser(branche);
+
     assert.equal(git(origine, "rev-parse", branche), depot.tete(branche));
     assert.equal(git(origine, "merge-base", "--is-ancestor", duChef, branche), "");
+    assert.deepEqual([existsSync(join(worktree, "correctif.txt")), existsSync(join(worktree, "du-chef.txt"))], [true, true]);
   });
 
   test("une branche que l'origine et le clone ont changée au même endroit ne se reprend pas : l'échec le dit, sans worktree ni rien d'écrasé", async (t) => {

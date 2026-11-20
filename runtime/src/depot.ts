@@ -452,6 +452,37 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     }
   };
   const essais = join(worktrees, ESSAIS);
+  // Fusionne dans la branche locale ce que l'origine en porte (`suivie`). La
+  // fusion se joue là où la branche est sortie, ou dans un worktree jetable ;
+  // un conflit la défait, la branche n'a pas bougé, et l'erreur nomme les fichiers.
+  const fusionnerLEtranger = (branche: string): void => {
+    const sortie = git("worktree", "list", "--porcelain")
+      .split("\n\n")
+      .find((bloc) => bloc.split("\n").includes(`branch refs/heads/${branche}`))
+      ?.split("\n")[0]
+      ?.slice("worktree ".length);
+    const jetable = sortie === undefined ? join(essais, `${basename(branche)}.fusion`) : undefined;
+    const arbre = sortie ?? (jetable as string);
+    mkdirSync(essais, { recursive: true });
+    if (jetable !== undefined) git("worktree", "add", "--quiet", jetable, branche);
+    try {
+      execFileSync("git", [...IDENTITE, "-C", arbre, "merge", "--quiet", "--no-edit", "--no-verify", suivie(branche)], { ...reglages, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (erreur) {
+      let disputes: string[] = [];
+      try {
+        disputes = git("-C", arbre, "diff", "--name-only", "--diff-filter=U", "-z").split("\0").filter(Boolean);
+        execFileSync("git", ["-C", arbre, "merge", "--abort"], { ...reglages, stdio: ["ignore", "pipe", "pipe"] });
+      } catch {
+        // Pas de fusion en cours : rien à défaire.
+      }
+      if (disputes.length === 0) throw motif("git merge", erreur);
+      throw new Error(
+        `git push : \`${branche}\` est en conflit avec ce que l'origine en porte, sur ${disputes.map((chemin) => `\`${chemin}\``).join(", ")} — rien n'est écrasé : le travail du cook reste sur sa branche locale, à réconcilier à la main`,
+      );
+    } finally {
+      if (jetable !== undefined) git("worktree", "remove", "--force", jetable);
+    }
+  };
   const livree = (branche: string) => (git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? branche : `origin/${branche}`);
   const ancetre = (avant: string, apres: string) => {
     try {
@@ -807,21 +838,34 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       return Number(git("rev-list", "--count", `origin/${base}..${branche}`));
     },
     pousser(branche) {
-      try {
-        // Forcé, parce qu'un renvoi peut avoir rebasé la branche sur la base —
-        // mais contre ce que la station sait de l'origine seulement (rien, si
-        // elle n'y a jamais poussé cette branche) : ce qu'un autre y a poussé
-        // depuis n'est pas écrasé. `LC_ALL` : le refus se reconnaît à ses mots.
+      // Forcé, parce qu'un renvoi peut avoir rebasé la branche sur la base —
+      // mais contre ce que la station sait de l'origine seulement (rien, si
+      // elle n'y a jamais poussé cette branche) : ce qu'un autre y a poussé
+      // depuis n'est pas écrasé. `LC_ALL` : le refus se reconnaît à ses mots.
+      const essayer = () => {
         const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : envGit), LC_ALL: "C" };
         const tete = git("rev-parse", "--verify", `refs/heads/${branche}^{commit}`);
         const attendu = connu(branche);
         execFileSync("git", ["push", "--quiet", `--force-with-lease=refs/heads/${branche}:${attendu}`, "origin", `refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
         git("update-ref", connue(branche), tete);
+      };
+      const refuse = (erreur: unknown) => /stale info/.test(String((erreur as { stderr?: unknown }).stderr ?? ""));
+      try {
+        try {
+          essayer();
+        } catch (erreur) {
+          if (!refuse(erreur)) throw erreur;
+          // Quelqu'un a écrit sur la branche pendant que le cook travaillait :
+          // la station la rapatrie, la fusionne au travail local, et pousse de nouveau.
+          const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : envGit), LC_ALL: "C" };
+          execFileSync("git", ["fetch", "--quiet", "origin", `+refs/heads/${branche}:${suivie(branche)}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
+          git("update-ref", connue(branche), suivie(branche));
+          fusionnerLEtranger(branche);
+          essayer();
+        }
       } catch (erreur) {
-        if (/stale info/.test(String((erreur as { stderr?: unknown }).stderr ?? ""))) {
-          throw new Error(
-            `git push : l'origine porte sur \`${branche}\` des commits que la station n'y a pas poussés — quelqu'un y a écrit pendant que le cook travaillait ; rien n'est écrasé : le travail du cook reste sur sa branche locale, et la reprise d'un renvoi fusionne les deux`,
-          );
+        if (refuse(erreur)) {
+          throw new Error(`git push : l'origine a encore avancé \`${branche}\` pendant la fusion — rien n'est écrasé : le travail du cook reste sur sa branche locale`);
         }
         // GitHub refuse à une App sans le droit `workflows` de pousser un
         // changement sous `.github/workflows/`, et le dit.
