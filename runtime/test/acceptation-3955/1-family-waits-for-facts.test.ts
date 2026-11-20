@@ -16,6 +16,7 @@ const FAMILLE = [
 
 const sansCommentaires = (texte: string) => texte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
+// brigade:guard
 test("no test of the family fixes its own delay: it waits for a fact", () => {
   const fautes: string[] = [];
   for (const fichier of FAMILLE) {
