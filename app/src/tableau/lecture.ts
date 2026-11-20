@@ -80,7 +80,8 @@ export type TableauLu = {
 export type LectureSeule = { depot: string };
 // `horsLigne` : GitHub n'a pas été joint du tout — pas de réseau, une seule cause (#1818). Ce n'est pas une panne : la vue
 // garde le dernier rail lu, et le dit hors ligne. Un GitHub joint qui refuse en est une.
-export type TableauNonLu = { lu: false; depot: string; luLe: string; raison: string; horsLigne?: true };
+// `faits` n'y est jamais posé : il n'est déclaré (lâche) que pour que `lu.faits` se lise sans rétrécir d'abord.
+export type TableauNonLu = { lu: false; depot: string; luLe: string; raison: string; horsLigne?: true; faits?: any };
 export type LectureDuTableauDuDepot = TableauLu | TableauNonLu;
 
 export type OptionsDeLecture = {

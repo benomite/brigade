@@ -104,6 +104,8 @@ function unPC(t: TestContext, servi: string, { manquants = [] as string[], winge
     prelude,
     [
       "function Set-ItemProperty { [CmdletBinding()] param([string]$Path, [string]$Name, $Value) Add-Content -LiteralPath $env:BRIGADE_REGISTRE -Value \"$Path\\$Name=$Value\" }",
+      // Le PATH du compte (HKCU\Environment) : le dernier qui y est écrit, vide sinon.
+      "function Get-Item { [CmdletBinding()] param([string]$LiteralPath) $cle = [pscustomobject]@{}; $cle | Add-Member -MemberType ScriptMethod -Name GetValue -Value { param($nom, $defaut, $options) $lu = @(Get-Content -LiteralPath $env:BRIGADE_REGISTRE -ErrorAction SilentlyContinue | Where-Object { $_ -like 'HKCU:\\Environment\\Path=*' } | Select-Object -Last 1); if ($lu.Count) { $lu[0].Substring(23) } else { $defaut } }; $cle }",
       "function Start-Process { param([string]$FilePath, [string]$ArgumentList, [string]$WindowStyle)",
       '  Add-Content -LiteralPath $env:BRIGADE_APPELS -Value "Start-Process $FilePath $ArgumentList -WindowStyle $WindowStyle"',
       `  Microsoft.PowerShell.Management\\Start-Process -FilePath 'powershell.exe' -ArgumentList $ArgumentList -RedirectStandardOutput ${cite(join(etat, "lanceur.out"))} -RedirectStandardError ${cite(join(etat, "lanceur.err"))} }`,
@@ -219,7 +221,11 @@ describe("sous Windows", { skip: saut }, () => {
     assert.equal(jouer(pc).code, 0);
     const ps1 = join(pc.base, "lancer-station.ps1");
     const lancement = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "${ps1}"`;
-    assert.deepEqual(pc.registre(), [`HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\brigade-station="C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ${lancement}`]);
+    assert.deepEqual(pc.registre(), [
+      `HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\brigade-station="C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ${lancement}`,
+      // La commande `brigade`, sur le PATH du compte (runtime/test/commande-brigade/).
+      `HKCU:\\Environment\\Path=${join(pc.base, "bin")}`,
+    ]);
     // Lancée tout de suite comme l'ouverture de session la lancera : cachée, par le même lanceur.
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("Start-Process")), [`Start-Process C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe ${lancement} -WindowStyle Hidden`]);
     const lanceur = readFileSync(ps1, "utf8");

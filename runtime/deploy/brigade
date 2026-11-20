@@ -26,10 +26,12 @@
 #   69  `sudo` manque sur cette machine
 #   70  le `node` ou le runtime de la station manque ou ne démarre pas — le
 #       paquet n'est pas là, ou la machine n'a pas ce qu'il lui faut
-# Le geste refuse ici ce qui se juge sans lire la station (64, un nom qui n'est
-# pas un nom de projet en 65, 67 à 70) ; le projet que sa configuration ne
-# nomme pas (65) et la commande qui n'est pas du runtime (66) se jugent dans
-# `src/station/geste.ts`, sous le compte de la station, qui sort avec ces codes.
+# Le geste refuse ici ce qui se juge sans lire la station (un nom qui n'est pas
+# un nom de projet en 65, 67 à 70) ; l'aide et le geste sans projet ou sans
+# commande (64), le projet que sa configuration ne nomme pas (65) et la
+# commande qui n'est pas du runtime (66) se jugent dans `src/station/geste.ts`,
+# qui sort avec ces codes — le même sous macOS et Windows, où la commande
+# `brigade` est écrite par installer-station.sh et installer-station.ps1.
 set -u
 
 USAGE=64
@@ -43,22 +45,28 @@ DOC="docs/bascule.md, « Le geste brigade »"
 PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 UNITE=brigade-station.service
 
-usage() {
-  echo "usage: brigade <project> <command> [arguments…]"
-  echo "       brigade <project> help    lists the commands"
+# Ce que le paquet pose à côté de ce fichier : le runtime, et son `node`.
+au_paquet() {
+  ici="$(dirname "$(readlink -f "$0")")"
+  node="$ici/node/bin/node"
 }
-case "${1:-}" in
-  -h | --help) usage; exit 0 ;;
-esac
-if [ $# -lt 2 ]; then
-  usage >&2
-  exit $USAGE
+
+# L'aide, et le refus d'un geste sans projet ou sans commande (64), sont ceux
+# de `src/station/geste.ts`, le même texte que sous macOS et Windows : rien de
+# la station n'y est lu.
+if [ $# -lt 2 ] || [ "$1" = -h ] || [ "$1" = --help ]; then
+  au_paquet
+  [ -x "$node" ] || {
+    echo "brigade : le \`node\` de la station ($node) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
+    exit $NODE_INAPTE
+  }
+  cd "$ici/runtime" 2>/dev/null || {
+    echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
+    exit $NODE_INAPTE
+  }
+  exec env -i "PATH=$PATH_DE_SYSTEMD" "$node" src/station/geste.ts "$@"
 fi
 projet="$1"
-commande="$2"
-case "$commande" in
-  -h | --help) commande=help ;;
-esac
 
 # Pose dans `lu` une propriété de l'unité. Appelée telle quelle, jamais dans
 # `$(…)` : son refus doit arrêter le geste, pas un sous-shell.
@@ -102,9 +110,6 @@ if [ "$qui" != "$compte" ]; then
   # arguments un à un : aucun shell ne les redécoupe.
   exec sudo -H -u "$compte" -- "$0" "$@"
 fi
-shift 2
-[ "${1:-}" = "--" ] && shift
-
 # Ce que systemd donne d'office à un service, puis ce que l'unité déclare.
 environnement=("PATH=$PATH_DE_SYSTEMD" "HOME=$HOME" "USER=$compte" "LOGNAME=$compte" ${LANG:+"LANG=$LANG"} ${TERM:+"TERM=$TERM"})
 # `systemctl show` sépare les affectations par des espaces, et met entre
@@ -137,9 +142,7 @@ done
 # de la station : il dit le refus, ou lance la commande avec l'environnement
 # du projet. Le répertoire de celui qui lance n'est pas forcément lisible du
 # compte : la commande part de celui du runtime.
-# Ce que le paquet pose à côté de ce fichier : le runtime, et son `node`.
-ici="$(dirname "$(readlink -f "$0")")"
-node="$ici/node/bin/node"
+au_paquet
 
 # `node` d'abord, tel que la station le lance : sans lui, ni commande ni
 # runtime. Son refus est rendu avec ses mots — sur une machine où libatomic
@@ -157,4 +160,4 @@ cd "$ici/runtime" 2>/dev/null || {
   echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
   exit $NODE_INAPTE
 }
-exec env -i "${environnement[@]}" "$node" src/station/geste.ts "$projet" "$commande" "$@"
+exec env -i "${environnement[@]}" "$node" src/station/geste.ts "$@"
