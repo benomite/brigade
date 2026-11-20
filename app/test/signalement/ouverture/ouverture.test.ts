@@ -84,8 +84,10 @@ test("le corps porte les versions, le système, la panne en quelques mots et les
   // Les lignes de #22, dans l'ordre du journal ; pas celles de #21.
   assert.match(corps, /## Log \(last 3 lines\)/);
   assert.ok(corps.includes("cook.exited") && corps.includes("ticket.86"));
-  // Le journal seul : la ligne du système cite le noyau, dont la version peut porter un « #21 ».
-  assert.ok(!corps.slice(corps.indexOf("## Log")).includes("#21"));
+  // Le journal seul : la section System porte la version du noyau (« #21-Ubuntu SMP… » sur certains runners).
+  const debutDuJournal = corps.indexOf("## Log");
+  assert.notEqual(debutDuJournal, -1, "the Log section is missing");
+  assert.ok(!corps.slice(debutDuJournal).includes("#21"));
   // Le jeton et le nom de l'utilisateur ne sortent nulle part — ni du corps, ni du titre, ni de l'adresse.
   for (const texte of [corps, appels.ouverts[0] ?? "", decodeURIComponent(appels.ouverts[0] ?? "")]) {
     assert.ok(!texte.includes("ghp_"), "a token-like string is left");
