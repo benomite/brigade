@@ -112,6 +112,11 @@ async function renvoyeQuiSArrete(t: TestContext, message: string) {
   return { faux, consignes, corps: (numero: number) => (faux.commentaires.get(numero) ?? []).map((c) => c.body).join("\n") };
 }
 
+// #3910 : le flux d'amendement a disparu ; la consigne du renvoi n'en parle plus.
+test("the cook's send-back guidance no longer mentions an amendment of the criterion", () => {
+  assert.doesNotMatch(consigneDuDesaccord(42), /amend/i);
+});
+
 test("through the station: the resumed cook is told to reply, its reply is posted on the PR, and the delivery goes back to the pass with no failure counted", async (t) => {
   const { faux, consignes, corps } = await renvoyeQuiSArrete(t, `Nothing to change.\n<reponse-pr>${REPONSE}</reponse-pr>`);
   assert.match(consignes[0] ?? "", /reply on the PR/);

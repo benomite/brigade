@@ -45,9 +45,10 @@ export const VARIABLES_DE_JETON = [...VARIABLES_DE_CLE, "CLAUDE_CODE_OAUTH_TOKEN
 export const SOURCES_DE_REGLAGES: string[] = [];
 
 // Le début de tout lancement de `claude` : la consigne, le flux que lisent
-// la station, le manager et la pass, le modèle et l'effort.
-export function lancementEnFlux(texte: string, calibrage: Calibrage): string[] {
-  return ["-p", texte, ...optionsDeFlux(calibrage)];
+// la station, le manager et la pass, le modèle et l'effort. `texte` null : la
+// consigne part sur l'entrée de `claude` (`entree` du lancement).
+export function lancementEnFlux(texte: string | null, calibrage: Calibrage): string[] {
+  return ["-p", ...(texte === null ? [] : [texte]), ...optionsDeFlux(calibrage)];
 }
 
 // Le même début, sans la consigne : `-p` seul la lit sur l'entrée de `claude`.
