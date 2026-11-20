@@ -58,6 +58,12 @@ function bornes(corps: string): [number, number] | null {
   return [ouvre.debut, (ferme ?? ouvre).fin];
 }
 
+// Une épique, pour la porte de prise (#3932) : son corps a au moins une ligne de liste de tâches
+// qui nomme un ticket (`- [ ] #875`, `- [x] #875`). Elle ne tient jamais de zone de fichiers.
+export function porteDesTachesDeTickets(corps: string): boolean {
+  return /^\s*[-*+]\s+\[[ xX]\]\s+#[1-9]\d*\b/m.test(corps);
+}
+
 // Le marqueur de début suffit : c'est le geste par lequel le chef dit qu'une
 // épique est déjà découpée.
 export function porteListe(corps: string): boolean {
