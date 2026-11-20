@@ -9,7 +9,7 @@ import { gardesRepetees, type GardeRepetee } from "./gardes-historique/historiqu
 import { sejoursEnColonne, type Essai, type Sejour } from "./sejour-en-colonne.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import { attenteDeLaCarte, carteDeLAttente, type CarteDuTicket } from "./carte-todo/cartes.ts";
-import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
+import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, passageEnService, pauseDeLaCuisine, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout, manqueDuTicket } from "./capacites.ts";
 import { capturesManquantes, capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
@@ -60,8 +60,6 @@ import { decisionsPosees } from "./decisions.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
-import { alerteEnCours, type AlerteEnCours } from "./projections/emergency.ts";
-import { cleDUrgence, retenuesDuChef, urgenceDuChef, type CauseDUrgence as RetenueDuChef, type Urgence } from "./urgence.ts";
 
 // La raison d'un ticket 86 sous sa carte : ce que la cuisine fait d'une
 // remontée technique, sinon la raison de sa mise de côté.
@@ -124,17 +122,6 @@ export type EtatCuisine = {
   captures?: Map<number, Captures>;
   // Ce qui attend une décision du chef, le plus ancien d'abord.
   attend: Attente[];
-  // Non nulle : plus rien ne cuit, et c'est le chef que toute la cuisine
-  // attend (urgence.ts). Nulle aussi quand le chef a lui-même arrêté la
-  // cuisine : c'est son « stop » qui la retient.
-  urgence: Urgence | null;
-  // Les décisions du chef sur un ticket qui en retiennent d'autres sans
-  // arrêter la cuisine : un ticket au moins peut cuire (urgence.ts). Vide
-  // quand rien n'est retenu, ou quand tout l'est — c'est alors `urgence`.
-  retenues: RetenueDuChef[];
-  // L'alerte que le runtime a émise pour elle, lue du journal : app fermée
-  // comme ouverte. Nulle tant que rien n'a été annoncé.
-  alerteUrgence: AlerteEnCours | null;
   // La version où la station est passée par sa mise à jour, si elle date de
   // moins d'un jour à la lecture.
   passage: Passage | null;
@@ -246,9 +233,6 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
     sejours: sejoursEnColonne(base, rail.filter(({ state }) => state === "taken").map(({ ticket }) => ticket)),
     captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
-    urgence: gardeFous.stoppedAt === null ? urgenceDuChef(base, rail, attend, stations) : null,
-    retenues: gardeFous.stoppedAt === null ? retenuesDuChef(rail, attend, stations) : [],
-    alerteUrgence: gardeFous.stoppedAt === null ? alerteEnCours(base) : null,
     passage: passageEnService(base, maintenant),
     pause: pauseDeLaCuisine(base, rail),
     interrupteur,
@@ -413,20 +397,7 @@ function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: Depuis): string
   ];
 }
 
-// La première ligne de `status`, au-dessus de tout : plus rien ne cuit, et
-// c'est le chef que toute la cuisine attend — depuis quand, combien de tickets
-// sont à l'arrêt, la décision qui les retient et son geste, puis, s'il y en a,
-// les autres décisions qui en retiennent aussi. Toutes sont dans le bloc
-// `awaiting`, à leur rang. Rien à dire sinon.
-export const URGENCE = "emergency  THE WHOLE KITCHEN AWAITS THE CHEF";
-function decrireUrgence({ urgence }: EtatCuisine, depuis: Depuis): string[] {
-  if (urgence === null) return [];
-  const [premiere, ...autres] = urgence.causes;
-  const aussi = autres.length === 0 ? "" : ` — also: ${autres.map(({ attente }) => nommerEn(attente)).join(", ")}`;
-  return [`${URGENCE} for ${depuis(urgence.depuis)} — ${compteEn(urgence.retenus.length, "ticket")} stopped, held by ${nommerEn(premiere.attente)}: ${direAttenteEn(premiere.attente)}${aussi}`];
-}
-
-// La première ligne de `status` sans urgence : rien ne cuit, et pourquoi, tant que la base est
+// La première ligne de `status` : rien ne cuit, et pourquoi, tant que la base est
 // rouge et que le ticket de ce rouge-là la répare. Hors du bloc `awaiting` : rien
 // n'attend le chef. Une réparation échouée n'y est plus « en cours » — c'est la
 // ligne `base` du bloc `awaiting` qui prend le relais. Rien à dire sinon.
@@ -437,7 +408,7 @@ function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: Depuis): s
 }
 
 // La panne d'une cuisine oisive, des cartes sur le rail (cuisine-oisive.ts) : sous
-// l'urgence et `nothing cooks`, au-dessus de tout le reste — ce n'est pas normal, et
+// `nothing cooks`, au-dessus de tout le reste — ce n'est pas normal, et
 // aucune autre ligne ne le dit. Sa cause, s'il y en a une, est dans l'en-tête ou
 // dans le bloc `awaiting`. Chaque chaîne d'attente y nomme sa racine (#1902) :
 // les cartes qui l'attendent, puis elle, et où elle en est. Rien à dire sinon.
@@ -742,7 +713,6 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ),
   ];
   return [
-    ...decrireUrgence(etat, depuisEn),
     ...decrireRienNeCuit(etat, depuisEn),
     ...decrirePanne(etat, depuisEn),
     ligne("project", etat.projet ?? "unknown — empty log"),
@@ -915,21 +885,6 @@ export type Faits = {
   // lisible ne porte sur la livraison servie (mergée à la main, d'avant elle).
   // `captures` : comme sur le rail, pour un ticket d'interface.
   livres: Array<{ ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture: RelectureLivree | null; captures?: CapturesVues }>;
-  // L'urgence : plus rien ne cuit, et c'est le chef que toute la cuisine
-  // attend — nulle sinon. `depuis` : le début de l'arrêt total, stable tant
-  // que ses causes ne changent pas. `retenus` : les tickets à l'arrêt, dans
-  // l'ordre du rail. La décision qui en retient le plus : `decision`, ce qui la
-  // nomme en tête de sa ligne du bloc `attend` (`#535`, une station, `base`,
-  // `setup`) ; `ticket`, nul hors ticket ; `cause`, un mot de `CAUSES_D_URGENCE` ;
-  // `geste`, sa ligne du bloc `attend` — ce qui attend, puis le geste du chef ;
-  // `url`, l'adresse de son issue, comme dans `attend`. `autres` : les autres
-  // décisions qui retiennent aussi des tickets, sous la même forme.
-  urgence: (DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[]; alerte: AlerteExposee | null }) | null;
-  // Les décisions du chef qui retiennent des tickets sans arrêter la cuisine :
-  // `retenus`, ceux qui les attendent, directement ou de proche en proche. Les
-  // autres tickets sont servis. Vide sinon, et vide aussi à l'arrêt total
-  // (c'est `urgence`).
-  retenues: Array<DecisionUrgente & { retenus: number[] }>;
   // La panne d'une cuisine oisive, des cartes sur le rail (cuisine-oisive.ts) : la
   // ligne `fault` de `status`. `depuis` : le dernier repère d'où l'oisiveté se compte
   // — la fin du dernier cook, le démarrage du runtime, le dernier service,
@@ -992,65 +947,11 @@ export type Faits = {
 export const CUISSONS = ["cooking", "stopped", "saturated", "refused"] as const;
 export type Cuisson = (typeof CUISSONS)[number];
 
-// L'alerte émise pour l'urgence : sa ligne, sa première émission, la dernière
-// (rappel compris), et le nombre de rappels. Le début de l'arrêt est le `depuis`
-// de l'urgence.
-export type AlerteExposee = { libelle: string; emiseLe: string; derniereLe: string; rappels: number };
-
-// Une décision du chef qui retient toute la cuisine, pour un programme.
-export type DecisionUrgente = { decision: string; ticket: number | null; cause: CauseDUrgence; geste: string; url: string | null };
-
-// Ce qui retient la cuisine, pour qui pose un mot dessus : la nature de
-// l'entrée du bloc `attend` en cause. La liste est fermée, et peut gagner un
-// mot. Une entrée qui n'est à aucun ticket du rail ni à une station — une issue
-// écartée, la passe de fermeture… — n'est jamais en cause : elle
-// ne retient aucun ticket.
-export const CAUSES_D_URGENCE = {
-  merge: "merge",
-  remontee: "remontée",
-  fermee: "PR fermée",
-  ecartee: "écartée",
-  illisible: "illisible",
-  question: "question",
-  connexion: "connexion",
-  session: "session",
-  jeton: "jeton",
-  fermeture: "fermeture",
-  base: "base rouge",
-  setup: "setup",
-  aside: "mis de côté",
-  disjoncteur: "disjoncteur",
-  carte: "carte",
-  pause: "pause du renommage",
-  renommage: "renommage échoué",
-  abandon: "sorti du rail",
-  retenue: "cuisine retenue",
-} as const satisfies Record<Attente["quoi"], string>;
-export type CauseDUrgence = (typeof CAUSES_D_URGENCE)[keyof typeof CAUSES_D_URGENCE];
-
 // Une relecture, dans les mots que le reviewer lui-même emploie (reviewer.ts).
 export type RelectureLivree = { resume: string; constats: Array<{ gravite: "bloquant" | "remarque"; fichier: string | null; constat: string }> };
 const GRAVITES = { blocking: "bloquant", remark: "remarque" } as const;
 const relectureLivree = (review: Livre["review"]): RelectureLivree | null =>
   review === null ? null : { resume: review.summary, constats: review.findings.map(({ severity, file, text }) => ({ gravite: GRAVITES[severity], fichier: file, constat: text })) };
-
-const decisionUrgente = (attente: Attente, adresse: (ticket: number) => string | null): DecisionUrgente => ({
-  decision: nommerAttente(attente),
-  ticket: attente.ticket,
-  cause: CAUSES_D_URGENCE[attente.quoi],
-  geste: direAttente(attente),
-  url: attente.ticket === null ? null : adresse(attente.ticket),
-});
-
-function faitsDUrgence(urgence: Urgence | null, alerte: AlerteEnCours | null, adresse: (ticket: number) => string | null): Faits["urgence"] {
-  if (urgence === null) return null;
-  const decision = ({ attente }: Urgence["causes"][number]): DecisionUrgente => decisionUrgente(attente, adresse);
-  const [premiere, ...autres] = urgence.causes;
-  // L'alerte d'une autre urgence (cause changée, pas encore réannoncée) n'est
-  // pas la sienne.
-  const exposee = alerte === null || alerte.key !== cleDUrgence(urgence) ? null : { libelle: alerte.label, emiseLe: alerte.emiseLe, derniereLe: alerte.derniereLe, rappels: alerte.rappels };
-  return { ...decision(premiere), depuis: urgence.depuis, retenus: urgence.retenus, autres: autres.map(decision), alerte: exposee };
-}
 
 export const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
 
@@ -1142,8 +1043,6 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}), carte: carteVue(carteDeLAttente(attenteDeLaCarte(etat.attend, ticket) ?? attente)), ...tacheDuTicket(etat.taches, ticket) }];
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
-    urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
-    retenues: etat.retenues.map(({ attente, retenus }) => ({ ...decisionUrgente(attente, adresse), retenus })),
     cuisineOisive: etat.oisive ?? null,
     stations: etat.stations.map((station) => ({
       station: station.station,

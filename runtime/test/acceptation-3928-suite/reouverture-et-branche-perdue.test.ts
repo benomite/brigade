@@ -1,53 +1,14 @@
-// #3928 : la réouverture remet à zéro le compte des échecs même sans `set-aside:failures`, et la branche née sans commit
+// #3928 : la branche née sans commit
 // d'une réception manquée est élaguée quand les tests se réécrivent (celle qui porte des commits reste).
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { brancheDuTicket, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
-import { ouvreReparation, type CheckDeLaBase, type GitHubDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
-import { ECHECS_ATTEINTS } from "../../src/github.ts";
 import { LABEL_TESTS_ECRITS } from "../../src/tests-acceptation/etape.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
-
-const ROUGE: CheckDeLaBase[] = [{ name: "windows tests (1/4)", outcome: "red" }];
-
-test("a reopened ticket that was not set aside still gets a dated removal of 'set-aside:failures'", async () => {
-  const retraits: string[] = [];
-  const labels = new Set<string>();
-  let tete = "a".repeat(40);
-  const issue = { number: 3860, titre: "", corps: "", state: "open" as "open" | "closed" };
-  const github: GitHubDeLaReparation = {
-    teteDeLaBase: async () => tete,
-    issuesDepuis: async () => [{ number: issue.number, title: issue.titre, body: issue.corps, association: "OWNER", state: issue.state, labels: [...labels], updatedAt: "2026-11-20T13:54:00Z" }],
-    creerIssue: async ({ titre, corps }) => {
-      Object.assign(issue, { titre, corps });
-      return issue.number;
-    },
-    fermerIssue: async () => undefined,
-    rouvrirIssue: async () => {
-      issue.state = "open";
-    },
-    ecrireCorps: async () => undefined,
-    ecrireTitre: async () => undefined,
-    labelliser: async (_, l) => l.forEach((x) => labels.add(x)),
-    // Comme GitHub : sans le label, aucun retrait n'est daté.
-    delabelliser: async (_, l) => {
-      if (labels.delete(l) && l === ECHECS_ATTEINTS) retraits.push(l);
-    },
-  };
-  const ouvrir = ouvreReparation({ github, base: "main", maintenant: () => new Date("2026-11-20T14:00:00Z") });
-  await ouvrir(ROUGE);
-  labels.add(LABEL_TESTS_ECRITS);
-  issue.state = "closed";
-  tete = "c".repeat(40);
-  await ouvrir(ROUGE);
-  assert.equal(issue.state, "open");
-  assert.equal(retraits.length, 1, "the failure count is reset by a removal GitHub dates");
-  assert.ok(!labels.has(LABEL_TESTS_ECRITS) && !labels.has(ECHECS_ATTEINTS));
-});
 
 for (const [nom, avecCommit] of [["a branch born without commit is pruned and the tests are written again", false], ["a branch that carries commits is kept", true]] as const) {
   test(`'tests-written' lost on the origin: ${nom}`, async (t) => {

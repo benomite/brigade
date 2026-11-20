@@ -8,7 +8,6 @@ import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import { corpsDePrise, purger } from "../../src/github-etat/prise.ts";
 import { ouvrirGuerison } from "../../src/guerison/index.ts";
 import type { GitHub } from "../../src/github.ts";
-import { fermeReparationDeMain } from "../../src/reparation-base/reparation-de-main.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
 const SHA = "a".repeat(40);
@@ -101,20 +100,6 @@ test("purger leaves a ticket that carries fire and taken under a claim, without 
   assert.deepEqual([retraits, delabellises], [0, []]);
   assert.equal(await purger({ number: 1, labels: ["fire", "taken"] }, { github: github([]) }), true);
   assert.deepEqual(delabellises, ["taken"]);
-});
-
-test("on a green base, a repair held by a claim is left open without reading its label removals, and one nobody holds is closed", async () => {
-  const faux = new FauxGitHub();
-  faux.feu(40, [...CALIBRE, "repair-main", "taken"], "Repair main: held by B");
-  faux.feu(41, [...CALIBRE, "repair-main", "taken"], "Repair main: held by nobody");
-  faux.poster(40, "B", corpsDePrise("B"));
-  const github = faux.pour("A");
-  let retraits = 0;
-  github.retraitsDeLabels = async () => (retraits += 1, []);
-  const tickets = [40, 41].map((number) => ({ number, labels: [...faux.ticket(number).labels], state: "open" as const }));
-  assert.deepEqual(await fermeReparationDeMain({ github, base: "main" })(VERTE, tickets), [41]);
-  assert.equal(faux.ticket(40).state, "open");
-  assert.equal(retraits, 0);
 });
 
 test("the healing puts in-pass on a ready PR it reads by the open PR of its ticket, and never reads the PR of a branch in REST", async () => {

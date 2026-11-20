@@ -33,7 +33,6 @@ function raconter(journal: Journal): void {
   raconterLaSauvegarde(journal);
   raconterLeNettoyage(journal);
   raconterLaDerive(journal);
-  raconterLUrgence(journal);
   raconterLeJeton(journal);
   raconterLAncienneMiseEnService(journal);
 }
@@ -54,13 +53,6 @@ function raconterLAncienneMiseEnService(journal: Journal): void {
   noter("deploy.requested", { cut: false });
   noter("deploy.launched", { command: ["sudo", "-n", "--"], flying: [], log: "mise-en-service.log", served: "a".repeat(40) });
   noter("deploy.exited", { code: 1, signal: null, tail: "" });
-}
-
-// Une urgence annoncée, puis rappelée : l'alerte en cours garde le rappel.
-function raconterLUrgence(journal: Journal): void {
-  const payload = { key: "k", label: "brigade : toute la cuisine attend ton merge de #7", decision: "#7", ticket: 7, cause: "merge", geste: "merge", since: `${JOUR_HORLOGE}T08:00:00.000Z`, retenus: [8] };
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: false } });
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: true } });
 }
 
 // Une livraison dont les gates déclarent leurs mesures, mergée ; des seuils

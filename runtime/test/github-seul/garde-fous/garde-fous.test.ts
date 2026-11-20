@@ -56,7 +56,6 @@ class FauxGitHub {
       corpsDuTicket: async () => "",
       prsOuvertes: async () => this.prs.map((branche) => ({ branche, fichiers: [] })),
       checksDeLaBase: async () => [{ outcome: "green" }],
-      teteDeLaBase: async () => "0".repeat(40),
       issuesDepuis: async () => [],
       creerIssue: async () => 0,
       fermerIssue: async () => {},
@@ -70,7 +69,6 @@ class FauxGitHub {
         return `https://github.com/faux/depot/pull/${this.prs.length}`;
       },
       ci: async () => [],
-      etatDuRun: async () => ({ tentative: 1, termine: true }),
       relancerLesEchecs: async () => {},
       mettreAJour: async () => {},
       merger: async () => ({ fait: true }),
