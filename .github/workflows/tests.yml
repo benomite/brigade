@@ -30,6 +30,8 @@ permissions:
   contents: read
   statuses: write
 
+# Le run de la cuisine. `continue-on-error` ne lit pas ce `env` : sa condition y est recopiée, dans
+# `gates`, `types` et `tests`. Qui change l'une change les quatre (`runtime/test/ci-statut/workflow.test.ts` les veut égales).
 env:
   CUISINE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/') && github.event.pull_request.head.repo.full_name == github.repository) }}
 
