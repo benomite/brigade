@@ -1,6 +1,6 @@
 # The kitchen spins on itself — freeze, delete, one supervisor
 
-Date: 2026-11-20 · Epic: #3904 · Status: **proposal, awaiting the chef's validation**
+Date: 2026-11-20 · Epic: #3904 · Status: **validated by the chef on 2026-11-20 (answers below)**
 
 ## Why
 
@@ -57,11 +57,11 @@ Sizes are lines of `runtime/src` / lines of `runtime/test`. "Fold" means the mec
 
 | # | Mechanism | Size | Cost seen | Verdict |
 |---|---|---|---|---|
-| 5 | Lost-time measure, filed as `prio:0` tickets (`temps-max/`, `routage-temps-perdu`, `refile-served-elsewhere`) | 774 / 792 | 27 tickets, +4,458 lines, same diagnosis each time | **Delete** |
-| 5b | Cooking-time alert (`alerte-temps-cuisson/`) | 212 / 199 | correction tickets | **Delete** |
-| 5c | Quality before time, alert and weekly report (`alerte-qualite`, `mesure-qualite`, `qualite-github`, `rapport-hebdo-qualite`) | 716 / 747 | 60 tickets, 19 not planned | **Delete** |
+| 5 | Lost-time measure, filed as `prio:0` tickets (`temps-max/`, `routage-temps-perdu`, `refile-served-elsewhere`) | 774 / 792 | 27 tickets, +4,458 lines, same diagnosis each time | **Keep the measure, delete the filing** — the correction tickets and their routing go (Q3) |
+| 5b | Cooking-time alert (`alerte-temps-cuisson/`) | 212 / 199 | correction tickets | **Delete** — its measure overlaps 5 |
+| 5c | Quality before time, alert and weekly report (`alerte-qualite`, `mesure-qualite`, `qualite-github`, `rapport-hebdo-qualite`) | 716 / 747 | 60 tickets, 19 not planned | **Keep the measure, delete the alert** — no ticket is filed (Q3) |
 | 8b | Drift thresholds (`derive`, `closer-github-durees/derive`, `derive-github`) | 340 / 273 | log lines nobody reads | **Delete** |
-| 11 | `autonomie/` (table, routing, daily report, figures) | 569 / 793 | `aiguiller` is called nowhere | **Delete** |
+| 11 | `autonomie/` (table, routing, daily report, figures) | 569 / 793 | `aiguiller` is called nowhere | **Keep the figures, delete the dead routing** — the figures are the proofs of autonomy (Q3) |
 | 4 | Idle-kitchen ticket (`cuisine-inerte`, `alerte-cuisine`) | 227 / 314 | 6 tickets | **Fold** |
 | 2 | Loop tickets (`guerison/relance.ts` filing « #N loops ») | part of 903 / 1,092 | 5 tickets + the mirrorlab cascade | **Fold** — the rest of healing (stale claims, finished epics, ready PRs) stays |
 | 3 | Repair-main tickets (`reparation-base/`, `base-rouge/`, `relance-main-rouge`) | 761 / 852 | 25 tickets, duplicates, a 17 h stop on a flaky test | **Fold** — the supervisor reruns first, then files at most one repair ticket per red check |
@@ -79,7 +79,7 @@ Sizes are lines of `runtime/src` / lines of `runtime/test`. "Fold" means the mec
 | 9a–9e | Red-on-main proof, mutations, review, epic diagram, design review | 2,736 / 2,738 | #3785 (design review E2BIG, open) | **Keep**, and fix #3785; re-measure in a month |
 | 10d–10j | Cook tool guard, wait-loop breaker, main conflict, red-delivery naming, resumes, remedies, machine watch | 3,018 / 3,293 | — | **Keep** |
 
-**Expected deletion:** about 3,900 lines of `runtime/src` deleted outright (5, 5b, 5c, 8b, 11, 1c and part of 1b). About 3,100 more are folded into a supervisor of a few hundred lines (4, 2-loops, 3, 4b, 10a, 10b, 10c).
+**Expected deletion:** about 2,000 lines of `runtime/src` deleted outright (the filing part of 5 and 5c, 5b, 8b, the dead routing of 11, 1c and part of 1b). The measure code stays as the proofs of autonomy. About 3,100 more are folded into a supervisor of a few hundred lines (4, 2-loops, 3, 4b, 10a, 10b, 10c).
 
 ## B — the supervisor
 
@@ -108,13 +108,13 @@ One trigger, one actor, a fixed set of gestures.
 
 ## Order of the tickets (after validation)
 
-1. **Delete** 5, 5b, 5c, 8b and 11. This is pure deletion, so it may go first at `prio:0`.
+1. **Delete** the ticket filing of 5 and 5c, then 5b, 8b and the dead routing of 11. This is pure deletion, so it may go first at `prio:0`.
 2. **Supervisor**: its trigger replaces 10c, and its gestures replace 3 and the loop tickets of 2. Then delete 4, 4b, 10a, 10b and the code it replaces.
 3. **Frozen tests**: simplify 1b and delete 1c, according to Q1.
 4. **Breaker and set-aside**: the supervisor closes the breaker; set-aside tickets go to it.
 
-## Questions for the chef
+## The chef's answers (2026-11-20)
 
-- **Q1 — frozen tests.** Recommendation: keep the tests written first (1a); the guard becomes a review finding (1b); delete the amendment (1c). The alternative is to keep the automatic guard and fix its bugs one by one (#3794, …), which is the road that produced the chain above.
-- **Q2 — the supervisor's thresholds**: 30 min without a merge, 3 takes, 10 min of red `main`. Are these the right numbers?
-- **Q3 — the figures.** Once the alerts are deleted, do you want to see first-try rate and lost time anywhere (a line in `status`, a screen in the app), or not at all?
+- **Q1 — frozen tests.** The chef chose to keep the tests written first (1a), to turn the guard into a review finding (1b), and to delete the amendment (1c).
+- **Q2 — the supervisor's thresholds.** The chef approved them: 30 min without a merge, 3 takes, 10 min of red `main`.
+- **Q3 — the figures.** The chef wants to keep them as the proofs of autonomy (first-try rate, lost time). They stay measured, but they are never filed as tickets. Showing them is welcome but not part of this epic: little or nothing is shown today. A separate `product` ticket will decide where they are shown.
