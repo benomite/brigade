@@ -10,7 +10,8 @@
 // - un cook qui s'est arrêté sans livrer : pourquoi il s'est arrêté.
 //
 // Rien d'autre ne se relance : une carte qui attend le chef (`chef-todo` — une
-// question produit ou de design), une attente posée (`waiting`), ou une mise de
+// question produit ou de design), une attente posée (`waiting`), un ticket mis
+// de côté à son dernier renvoi — ses renvois épuisés (#3961) —, ou une mise de
 // côté dont la raison ne se lit pas. Un humain décide.
 //
 // Le même ticket ne boucle pas : après `RELANCES_MAX` relances pour la même
@@ -26,7 +27,7 @@ import { LABEL_WAITING } from "../github-etat/etats.ts";
 import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "../github-etat/fusion.ts";
 import type { Check } from "../events/pass.ts";
 import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, LABEL, type PR } from "../github.ts";
-import { MARQUE_D_ECHEC } from "../qualite-github.ts";
+import { estUnRenvoiPourConflit, MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../qualite-github.ts";
 
 // Combien de fois la cuisine relance un ticket pour la même raison.
 export const RELANCES_MAX = 2;
@@ -131,6 +132,11 @@ export async function relancer(ticket: TicketDeCote, contexte: ContexteDeLaGueri
   if (!estMisDeCote(ticket.labels)) return { fait: "rien", pourquoi: "not set aside" };
   if (ticket.labels.includes(CHEF_TODO)) return { fait: "rien", pourquoi: "a card awaits the chef: a product or design decision" };
   if (ticket.labels.includes(LABEL_WAITING)) return { fait: "rien", pourquoi: "it waits for something on purpose (`waiting`)" };
+  // Mis de côté à son dernier renvoi, ses renvois épuisés : il est allé au
+  // superviseur, et la cuisine ne le rend jamais seule à un cook (#3961) —
+  // #3955 a bouclé ainsi, relancé après chaque mise de côté.
+  const dernier = await dernierDeLaStation(ticket, contexte);
+  if (dernier !== undefined && dernier.body.startsWith(MARQUE_DE_RENVOI) && !estUnRenvoiPourConflit(dernier.body)) return { fait: "rien", pourquoi: "its sends back are spent: the supervisor decides, never a cook again" };
   const diagnostic = await diagnostiquer(ticket, contexte);
   if (diagnostic === null) return { fait: "rien", pourquoi: "no reason a cook can fix: a human decides" };
   const { cause, consigne } = diagnostic;

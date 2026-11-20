@@ -137,16 +137,18 @@ test("a decision the station cannot write into the body re-queues nothing: the b
   assert.match(du(MARQUE_D_ECHEC)[0] ?? "", /the manager's decision on the cook's block could not be written into the ticket: HTTP 502/);
 });
 
-test("a manager that cannot answer — unreadable answer, or no manager on this station — sends nothing to the chef: the ticket waits, then a failed cook after repeated tries", async (t) => {
+test("a manager that cannot answer — an unreadable answer — sends nothing to the chef: the ticket waits, then a failed cook after repeated tries; no manager on this station is not such a wait", async (t) => {
   const illisible = await bloque(t, { manager: () => "I am not sure." });
   assert.equal(illisible.ticket.labels.has(A_LA_MAIN), false);
   assert.equal(illisible.ticket.labels.has(LABEL_TAKEN), false);
   assert.match(illisible.du("<!-- brigade:attente")[0] ?? "", /^<!-- brigade:attente until=\d+ manager -->\nStation `box`: the cook stopped, blocked, and the manager could not answer its question — no JSON object in the answer/);
 
+  // Sans manager sur la station, la question est postée pour le manager d'une autre station (#3938) : test/manager/question-sans-manager.test.ts.
   const sans = await bloque(t, { manager: null });
   assert.equal(sans.consultations.length, 0);
   assert.equal(sans.ticket.labels.has(A_LA_MAIN), false);
-  assert.match(sans.du("<!-- brigade:attente")[0] ?? "", /this station has no manager to consult/);
+  assert.equal(sans.du("<!-- brigade:question-au-manager station=box -->").length, 1);
+  assert.equal(sans.du("<!-- brigade:attente").filter((corps) => / manager -->/.test(corps)).length, 0, "a missing manager is not a manager's wait: the tally of failed tries never counts it");
 
   const passees = [1, 2].map(() => "<!-- brigade:attente until=1 manager -->\nStation `box`: the manager could not answer");
   const usee = await bloque(t, { manager: () => "", commentaires: passees });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHEF_TODO, corpsDeCarte } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import { corpsDeVerdict, type CommentaireDeVerdict } from "../../src/github-etat/fusion.ts";
-import { HORS_CUISINE, LABEL } from "../../src/github.ts";
+import { ECHECS_ATTEINTS, HORS_CUISINE, LABEL } from "../../src/github.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { relancer, RELANCES_MAX, type ContexteDeLaGuerison } from "../../src/guerison/relance.ts";
 
@@ -167,6 +167,17 @@ test("une mise de côté dont la raison n'est pas réparable par un cook n'est p
   d.poster(TICKET, "<!-- brigade:renvoi n=3 sha=abc -->\nStation `box/claude`: still not mergeable after 2 sends back — the design is undecided\n\nTaken off the kitchen (`served-elsewhere`): a human decides.");
   assert.equal((await d.relancer()).fait, "rien");
   assert.ok(d.etiquettes.has(HORS_CUISINE));
+  assert.equal(d.commentairesDu().length, 1);
+});
+
+test("mis de côté à son dernier renvoi, ses renvois épuisés, un ticket n'est jamais relancé, même avec une PR refusée ou rouge (#3961)", async () => {
+  const d = depot([LABEL, ECHECS_ATTEINTS]);
+  d.ouvrirPR();
+  d.checks.set(SHA, [{ name: "unit tests", outcome: "red" }]);
+  d.poster(PR, corpsDeVerdict("box/claude", SHA, { verdict: "request-changes", motif: "- the guard is never tested" }));
+  d.poster(TICKET, `<!-- brigade:renvoi n=3 sha=${SHA} -->\nStation \`box/claude\`: still not mergeable after 2 sends back — the review requested changes: the guard is never tested\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after 2 sends back: not served elsewhere, nobody serves it. A human decides.`);
+  for (let fois = 0; fois < 2; fois += 1) assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "its sends back are spent: the supervisor decides, never a cook again" });
+  assert.ok(d.etiquettes.has(ECHECS_ATTEINTS));
   assert.equal(d.commentairesDu().length, 1);
 });
 
