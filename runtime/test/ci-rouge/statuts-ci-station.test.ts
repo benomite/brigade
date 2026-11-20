@@ -150,6 +150,8 @@ test("a cook's delivery on a ticket whose CI is red on the same check three runs
   assert.deepEqual(autres, rouges);
   assert.equal(faux.ticket(42).labels.has(ECHECS_ATTEINTS), true);
   assert.ok(avertis.some((ligne) => ligne.includes("#42") && ligne.includes("not pushed")), avertis.join("\n"));
+  // Le commentaire est écrit : la station ne dit pas qu'il s'est perdu.
+  assert.ok(!avertis.some((ligne) => ligne.includes("could not be posted")), avertis.join("\n"));
   // Rendu sans livraison, il libère sa place : un tour tout de suite.
   assert.ok(pressees.includes(true));
 });
