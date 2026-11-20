@@ -316,7 +316,7 @@ relaunches that cook in its worktree, its brief followed by `## Mutations your t
 and the reason lines the pass would write, each naming its file and line. The relaunched cook's delivery
 is checked again (#3976): with #3970's single relaunch, a mutation the relaunch left alive went on to the
 PR, and the pass sent the delivery back (#3974). So the cook is relaunched again on the lines that still
-survive, at most `RELANCES_DES_MUTATIONS` (3) times. Then the delivery goes on to its PR and the pass as
+survive, at most `RELANCES_DES_MUTATIONS` (2) times. Then the delivery goes on to its PR and the pass as
 before, which runs the check again. A relaunched cook that does not finish, or ends on a blocking
 question, stops the relaunches: the delivery goes on as the last cook that finished left it; a check
 that cannot run holds nothing back (the station warns).
