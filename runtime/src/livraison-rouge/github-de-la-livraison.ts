@@ -2,7 +2,7 @@
 // (`github.ts`) : la tête de la base et ses parents en REST, la PR d'un commit
 // de merge et les tickets qu'elle livre en GraphQL.
 import { DE_CONFIANCE } from "../alimenter.ts";
-import type { CheckDeLaBase } from "../checks-de-la-base.ts";
+import type { CheckDeLaBase } from "../checks-de-la-branche.ts";
 import type { GitHub } from "../github.ts";
 import { ticketDeLaPR } from "../recap/servis.ts";
 import type { GitHubDeLaLivraison } from "./nomme-livraison.ts";

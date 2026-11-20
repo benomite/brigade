@@ -761,8 +761,8 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
 
 // ——— Les mêmes phrases, en français ———
 //
-// Pour les sorties que rien n'a encore traduites : la ligne d'urgence de
-// `status`, l'alerte d'urgence, `amont` et le geste des faits. Elles tombent
+// Pour les sorties que rien n'a encore traduites : `amont` et le geste des
+// faits. Elles tombent
 // avec le ticket qui traduit la dernière d'entre elles ; le bloc `awaiting` dit
 // `direAttenteEn`.
 

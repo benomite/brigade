@@ -1,7 +1,6 @@
 // La livraison qui a rendu la base rouge, nommée sur son ticket (#3817, épique
-// #3812). Une base rouge ouvre sa réparation (`base-rouge/`), mais le ticket
-// dont la livraison l'a cassée n'en disait rien. Quand la base est rouge après
-// sa relance, ce module retrouve le commit où ses checks rouges ont échoué la
+// #3812). Le ticket dont la livraison a cassé la base n'en disait rien. Quand la base est rouge,
+// ce module retrouve le commit où ses checks rouges ont échoué la
 // première fois, la PR mergée qui l'a posé, et le ticket de cette PR ; il y
 // poste un commentaire qui nomme la PR, le commit de merge, chaque check rouge
 // et le lien de son run. Sans ticket lié, le commentaire va sur la PR.
@@ -12,9 +11,9 @@
 // station. Une lecture ou une écriture qui échoue est dite, une fois, et le
 // tour suivant réessaie : elle n'arrête jamais la cuisine.
 //
-// L'appel vient du tour (`brigade-github.ts`), sur les checks que la relance
-// rend ; le client vient de `github-de-la-livraison.ts`.
-import { estInformatif, type CheckDeLaBase } from "../checks-de-la-base.ts";
+// L'appel vient du tour (`brigade-github.ts`), sur les checks de la base qu'il
+// lit ; le client vient de `github-de-la-livraison.ts`.
+import { estInformatif, type CheckDeLaBase } from "../checks-de-la-branche.ts";
 
 // Le commit rouge et les checks rouges qu'il porte.
 export type PremierRouge = { sha: string; rouges: CheckDeLaBase[] };
@@ -57,7 +56,7 @@ export function commentaireDeLivraisonRouge({ base, sha, pr, rouges, surLaPR }: 
   ].join("\n");
 }
 
-// Les checks de la base, tels que la relance les rend : rouges, la livraison
+// Les checks de la base, tels que le tour les lit : rouges, la livraison
 // qui les a cassés est nommée. Ne rejette jamais.
 export function nommeLaLivraison({ github, base, avertir = (texte) => console.error(texte) }: OptionsDuNommage) {
   // Cache, pas état : les rouges déjà nommés, ou que rien ne livre.

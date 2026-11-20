@@ -37,7 +37,7 @@ const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runt
 
 const JOURS_DE_TODO = 7;
 
-// Synchrone, sauf sur une station GitHub seul : le rail bloqué (#3358) s'y lit sur GitHub avant que rien ne s'écrive.
+// Synchrone, sauf sur une station GitHub seul : l'attente du rail (#3433) s'y lit sur GitHub avant que rien ne s'écrive.
 export function principal({ args: tapes, env, dire, redire }: Appel): void | Promise<void> {
   const brut = enAnglais("status", tapes, redire);
   function echouer(code: number, message: string): never {

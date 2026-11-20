@@ -15,7 +15,7 @@ import { feuPoseLe } from "../../../../runtime/src/attente-du-rail/lecture.ts";
 import { lireLesNonPris } from "../../rail-bloque/diagnostic.ts";
 import type { AttenteSourcee, TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
 import { attentesDuTicket } from "../../../../runtime/src/carte-attente/carte-attente.ts";
-import { etatDuTicket, LABEL_REPARATION_DE_MAIN, PREFIXE_DE_LA_REPARATION, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
+import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
 import { alertesDuRail, type AlerteDuRail, type BaseRougeLue } from "../../attente-du-rail/alertes.ts";
 import { etapeDuRail } from "../../../../runtime/src/tests-acceptation/etape.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
@@ -310,6 +310,10 @@ function cookDe(ticket: TicketSurGithub): ActiviteDuCook[] {
 const ETATS_DE_LA_FILE: Record<string, TicketDuRail["etat"]> = { [MOT_EN_FILE]: "queued", [MOT_TESTS_ECRITS]: "queued", pris: "taken", "en pass": "pass", "base rouge": "pass" };
 export const ticketsDeLAttente = (tickets: readonly TicketSurGithub[]): TicketDuRail[] =>
   tickets.flatMap(({ ticket, etat, entreLe, depend, attentes, commentairesLus }) => (ETATS_DE_LA_FILE[etat] === undefined ? [] : [{ ticket, etat: ETATS_DE_LA_FILE[etat], entreLe: entreLe ?? null, depend: depend ?? [], ...(attentes === undefined ? {} : { attentes }), ...(commentairesLus === undefined ? {} : { commentairesLus }) }]));
+
+// Le label et le début du titre de la réparation de main (ticket 3815), que le runtime n'ouvre plus (ticket 3945).
+const LABEL_REPARATION_DE_MAIN = "repair-main";
+const PREFIXE_DE_LA_REPARATION = "Repair main:";
 
 // La base rouge que le rail dit (ticket 3823) : sa réparation `repair-main` vivante — ni mise de côté, ni en WAITING —, que
 // la cuisine ouvre tant que main est rouge et ferme une fois verte (ticket 3815). Depuis l'ouverture de l'issue, le check que son

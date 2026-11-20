@@ -43,7 +43,7 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
     case "roadmap":
       return { motif: "it is the project's roadmap", geste: null };
     case "kitchen-alert":
-      return { motif: "it is an alert the station opened about the kitchen itself (an idle kitchen, its breaker), not a ticket about this project's code: no cook takes it", geste: null };
+      return { motif: "it is an alert the station opened about the kitchen itself (its breaker), not a ticket about this project's code: no cook takes it", geste: null };
     case "vision":
       return { motif: "it is a product vision or a reference document, not a deliverable: `fire` is removed", geste: null };
     case "untrusted-author":
