@@ -120,28 +120,10 @@ export type EtatDeLaBase = {
 // the latest played check. A red observed twice stands: it was not transient.
 export type RougeCompte = { redChecks: number; replayed: boolean; checkedSeq: number };
 
-// The repair ticket that a red base gave birth to. `redSince`: the red it was
-// born for. `failures`: what the base's gates reported as failing. `etat`:
-// `en-cours` as long as it is neither served nor gone; `servie` once its
-// delivery is merged, as long as nothing says it did not repair; `echouee` if
-// it left the rail without being served, if it escalated to the chef, or if
-// the base, checked after its merge, stayed red — `echec` says which, null as
-// long as it has not failed.
-export type ReparationDeLaBase = {
-  ticket: number;
-  at: string;
-  sha: string;
-  redSince: string | null;
-  failures: string[];
-  etat: "en-cours" | "servie" | "echouee";
-  echec: EchecDeReparation | null;
-};
-export type EchecDeReparation = "partie" | "remontee" | "rouge-apres-merge";
 
 // The base check that the pass cannot start: the base cannot be fetched since
 // `at`, and `reason` is what git said about it.
 export type ControleRetenu = { at: string; reason: string };
-
 
 type Ecoutes =
   | FaitPass
@@ -165,10 +147,9 @@ const passer = (base: Base, ticket: number | null, at: string, phase: Phase, aff
   base.executer(`UPDATE pass SET phase = ?, since = ?${affectation === "" ? "" : `, ${affectation}`} WHERE ticket = ?`, phase, at, ...parametres, ticket);
 };
 
-
 export const pass = definirProjection<Ecoutes>({
   nom: "pass",
-  tables: ["pass", "pass_orphans", "base_checks", "base_suspects", "base_holds", "base_repairs", "base_repair_opening"],
+  tables: ["pass", "pass_orphans", "base_checks", "base_suspects", "base_holds"],
   schema: `
     CREATE TABLE IF NOT EXISTS pass (
       ticket         INTEGER PRIMARY KEY,
@@ -221,21 +202,6 @@ export const pass = definirProjection<Ecoutes>({
       replayed        INTEGER NOT NULL DEFAULT 0,
       checked_seq     INTEGER NOT NULL DEFAULT 0,
       after_red       TEXT
-    ) STRICT;
-    -- Les tickets de réparation nés d'une base rouge, et celui dont la
-    -- création est annoncée sans être confirmée.
-    CREATE TABLE IF NOT EXISTS base_repairs (
-      ticket    INTEGER PRIMARY KEY,
-      seq       INTEGER NOT NULL,
-      at        TEXT NOT NULL,
-      sha       TEXT NOT NULL,
-      red_since TEXT,
-      failures  TEXT NOT NULL
-    ) STRICT;
-    CREATE TABLE IF NOT EXISTS base_repair_opening (
-      id  INTEGER PRIMARY KEY CHECK (id = 1),
-      at  TEXT NOT NULL,
-      sha TEXT NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS base_suspects (
       ticket INTEGER PRIMARY KEY
@@ -427,8 +393,6 @@ export const pass = definirProjection<Ecoutes>({
           seq,
           apresRouge,
         );
-        // A creation announced and never confirmed no longer holds for a green base.
-        if (outcome === "green") base.executer("DELETE FROM base_repair_opening");
       }
       for (const ticket of tickets) base.executer("DELETE FROM base_suspects WHERE ticket = ?", ticket);
     },
@@ -439,25 +403,6 @@ export const pass = definirProjection<Ecoutes>({
     "base.recheck-requested": (base, { at, author }) => {
       const { changements } = base.executer("UPDATE base_checks SET recheck_at = ?, recheck_held_at = NULL, recheck_by = ?, replayed = 1 WHERE outcome = 'red'", at, author);
       if (changements > 0) base.executer("DELETE FROM base_holds");
-    },
-    // The creation of a repair ticket is announced before the call to
-    // GitHub, then confirmed: a runtime killed between the two finds it again.
-    "base.repair-opening": (base, { at, payload }) => {
-      if (!texte(payload.sha)) return;
-      base.executer("INSERT INTO base_repair_opening (id, at, sha) VALUES (1, ?, ?) ON CONFLICT (id) DO UPDATE SET at = excluded.at, sha = excluded.sha", at, payload.sha);
-    },
-    "base.repair-opened": (base, { ticket, seq, at, payload }) => {
-      if (ticket === null || !texte(payload.sha)) return;
-      base.executer(
-        `INSERT OR REPLACE INTO base_repairs (ticket, seq, at, sha, red_since, failures)
-         VALUES (?, ?, ?, ?, (SELECT red_since FROM base_checks WHERE outcome = 'red'), ?)`,
-        ticket,
-        seq,
-        at,
-        payload.sha,
-        liste(payload.failures),
-      );
-      base.executer("DELETE FROM base_repair_opening");
     },
     "base.recheck-held": (base, { at }) => {
       base.executer("UPDATE base_checks SET recheck_held_at = ? WHERE recheck_at IS NOT NULL", at);
@@ -600,46 +545,6 @@ export function rougeCompte(base: Base): RougeCompte | null {
   return ligne ? { redChecks: ligne.redChecks, replayed: ligne.replayed === 1, checkedSeq: ligne.checkedSeq } : null;
 }
 
-// The base's latest repair ticket, and where it stands — null if no red base
-// ever gave birth to one. Its fate is read on the rail.
-export function reparationDeLaBase(base: Base): ReparationDeLaBase | null {
-  const ligne = base.lire<{
-    ticket: number;
-    at: string;
-    sha: string;
-    redSince: string | null;
-    failures: string;
-    sortie: string | null;
-    sortieSeq: number | null;
-    etat: string | null;
-    retour: string | null;
-  }>(
-    `SELECT r.ticket, r.at, r.sha, r.red_since AS redSince, r.failures, o.outcome AS sortie, o.seq AS sortieSeq, t.state AS etat, t.until AS retour
-     FROM base_repairs r LEFT JOIN rail_outcomes o ON o.ticket = r.ticket LEFT JOIN rail t ON t.ticket = r.ticket
-     ORDER BY r.seq DESC LIMIT 1`,
-  )[0];
-  if (!ligne) return null;
-  const { ticket, at, sha, redSince, sortie, sortieSeq, etat, retour } = ligne;
-  const controle = base.lire<{ redSince: string | null; checkedSeq: number }>(
-    "SELECT red_since AS redSince, checked_seq AS checkedSeq FROM base_checks WHERE outcome = 'red'",
-  )[0];
-  // Merged, and the base checked since stayed the same red: it did not repair.
-  const rateeApresMerge = sortie === "served" && controle !== undefined && controle.redSince === redSince && controle.checkedSeq > (sortieSeq ?? 0);
-  const echec: EchecDeReparation | null = sortie === "left" ? "partie" : rateeApresMerge ? "rouge-apres-merge" : sortie === null && etat === "86" && retour === null ? "remontee" : null;
-  return { ticket, at, sha, redSince, failures: JSON.parse(ligne.failures), etat: echec !== null ? "echouee" : sortie === "served" ? "servie" : "en-cours", echec };
-}
-
-// The repair ticket whose issue was closed — the only trace left of it is
-// that it left the rail — and which nothing says was served: a fix merged
-// outside its own delivery would have closed it just the same.
-export function reparationFermeeSansService(base: Base): number | null {
-  const [ligne] = base.lire<{ ticket: number }>(
-    `SELECT r.ticket FROM base_repairs r JOIN rail_outcomes o ON o.ticket = r.ticket
-     WHERE o.outcome = 'left' AND o.reason = 'closed' AND r.seq = (SELECT max(seq) FROM base_repairs)`,
-  );
-  return ligne?.ticket ?? null;
-}
-
 // What the gates said at the latest played check of the red base — null if
 // it is not red, or if that check can no longer be read.
 export function gatesDuRouge(base: Base): Gates | null {
@@ -647,18 +552,6 @@ export function gatesDuRouge(base: Base): Gates | null {
   if (controle === undefined) return null;
   const { gates } = JSON.parse(controle.payload) as { gates?: Gates };
   return gates !== undefined && Array.isArray(gates.failures) ? gates : null;
-}
-
-// The repair ticket in progress, if there is one: the one a red base lets
-// go, and which the pass judges and merges despite it.
-export function reparationEnCours(base: Base): number | null {
-  const reparation = reparationDeLaBase(base);
-  return reparation?.etat === "en-cours" ? reparation.ticket : null;
-}
-
-// The creation of a repair ticket announced and not yet confirmed.
-export function reparationAnnoncee(base: Base): { at: string; sha: string } | null {
-  return base.lire<{ at: string; sha: string }>("SELECT at, sha FROM base_repair_opening")[0] ?? null;
 }
 
 // The base check held back by its fetch, or null.

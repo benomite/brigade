@@ -216,7 +216,7 @@ test("les lignes `project` et `github` sont en anglais : le projet, ou `unknown 
   const reprise = LU_LE.getTime() + 20 * 60_000;
   const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE, { derive: DERIVE_DU_BAS }), LU_LE, undefined, reprise);
   const hhmm = `${String(new Date(reprise).getHours()).padStart(2, "0")}:${String(new Date(reprise).getMinutes()).padStart(2, "0")}`;
-  assert.deepEqual(sortie.slice(1, 3), ["project    brigade", `github     GitHub is rate-limiting calls, back around ${hhmm}`]);
+  assert.deepEqual(sortie.slice(0, 2), ["project    brigade", `github     GitHub is rate-limiting calls, back around ${hhmm}`]);
   assert.ok(!sortie.some((ligne) => /^projet\b/.test(ligne)), "aucune ligne `projet`");
   sansMotFrancais(sortie);
 

@@ -30,7 +30,7 @@ export function etatDAvant(t: TestContext, repertoire = repertoireTemporaire(t))
 }
 
 // L'état d'exemple : tout ce qui arrête la cuisine, sur l'état d'avant. La station est annoncée, puis
-// sa connexion Max tombe, la base rouge a son ticket de réparation.
+// sa connexion Max tombe, la base est rouge.
 export function exemple(t: TestContext, repertoire?: string) {
   const { journal, noter } = etatDAvant(t, repertoire);
   noter("10:00", { type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
@@ -39,8 +39,9 @@ export function exemple(t: TestContext, repertoire?: string) {
   noter("10:00", { type: "setup.blocked", payload: { station: STATION, why: "code de sortie 1", hosts: [], base: "ba5e0001ffff" } }, 24, `station:${STATION}`);
   noter("10:00", { type: "aside.blocked", payload: { station: STATION, reason: "secrets-unavailable", base: "base-1" } }, 24);
   noter("10:00", { type: "base.checked", payload: { sha: "abc1234def", outcome: "red", gates: { outcome: "red", code: 1, failures: ["FAIL  tests"], tail: "" }, tickets: [] } }, null, "pass");
-  noter("10:00", { type: "base.repair-opening", payload: { sha: "abc1234def" } }, null, "pass");
-  noter("10:00", { type: "base.repair-opened", payload: { sha: "abc1234def", failures: ["FAIL  tests"], reconciled: false } }, 30, "pass");
+  // Un journal d'avant #3914 garde le ticket de réparation que la pass ouvrait : le runtime l'ignore.
+  noter("10:00", { type: "base.repair-opening", payload: { sha: "abc1234def" } } as never, null, "pass");
+  noter("10:00", { type: "base.repair-opened", payload: { sha: "abc1234def", failures: ["FAIL  tests"], reconciled: false } } as never, 30, "pass");
   noter("10:00", { type: "ticket.arrived", payload: { title: "Réparer la base", priority: 0, createdAt: "2026-10-01T00:00:00Z", url: "https://exemple.test/30" } }, 30, "github");
   // Un journal d'avant garde ses événements `grant.*` : le runtime les ignore.
   noter("10:01", { type: "grant.activated", payload: { action: "merge", until: "2026-10-12T10:30:00.000Z" } } as never, null, "chef");

@@ -68,7 +68,7 @@ test("30 min sans cook, une carte sur le rail : `status` écrit la ligne `fault`
   const { texte, panne } = lire(32);
   assert.match(texte, /^fault {6}IDLE KITCHEN for 30 min — no cook has run, with 1 card on the rail: #7$/m);
   assert.deepEqual(panne, { depuis: `${JOUR_HORLOGE}T10:02:00.000Z`, cartes: [7] });
-  // Au-dessus de tout le reste, sous l'urgence et `nothing cooks`, qui ne sont pas là.
+  // En tête, au-dessus de tout le reste.
   assert.equal(texte.split("\n")[0], "fault      IDLE KITCHEN for 30 min — no cook has run, with 1 card on the rail: #7");
 
   const tard = lire(2 + 130);

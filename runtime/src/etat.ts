@@ -44,7 +44,7 @@ import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } fr
 import { seuilsEnVigueur } from "./projections/measures.ts";
 import { direInterrupteur } from "./interrupteur.ts";
 import { etatDeLInterrupteur, type EtatInterrupteur } from "./projections/switch.ts";
-import { controleRetenu, etatDeLaBase, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type ReparationDeLaBase } from "./projections/pass.ts";
+import { controleRetenu, etatDeLaBase, type ControleRetenu, type EtatDeLaBase } from "./projections/pass.ts";
 import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/cleanup.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
 import { lastBackup, type Backup } from "./projections/backups.ts";
@@ -136,8 +136,6 @@ export type EtatCuisine = {
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
   baseRetenue: ControleRetenu | null;
-  // Le ticket de réparation de la base rouge, tel que la pass le suit : nul sans réparation.
-  reparation: ReparationDeLaBase | null;
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
   stations: EtatStation[];
   // Non nul : le projet ne déclare aucune station depuis cet instant, et aucun
@@ -224,7 +222,6 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
     sauvegarde: lastBackup(base),
     base: etatDeLaBase(base),
     baseRetenue: controleRetenu(base),
-    reparation: reparationDeLaBase(base),
     rail,
     activites: activitesDuRail(base, rail),
     reprises: reprisesDuRail(base, rail),
@@ -397,18 +394,8 @@ function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: Depuis): string
   ];
 }
 
-// La première ligne de `status` : rien ne cuit, et pourquoi, tant que la base est
-// rouge et que le ticket de ce rouge-là la répare. Hors du bloc `awaiting` : rien
-// n'attend le chef. Une réparation échouée n'y est plus « en cours » — c'est la
-// ligne `base` du bloc `awaiting` qui prend le relais. Rien à dire sinon.
-export const RIEN_NE_CUIT = "nothing cooks: ";
-function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: Depuis): string[] {
-  if (base?.outcome !== "red" || reparation === null || reparation.etat === "echouee" || reparation.redSince !== base.redSince) return [];
-  return [`${RIEN_NE_CUIT}base red since ${depuis(base.redSince ?? base.at)} ago, repair #${reparation.ticket} in progress`];
-}
-
-// La panne d'une cuisine oisive, des cartes sur le rail (cuisine-oisive.ts) : sous
-// l'urgence et `nothing cooks`, au-dessus de tout le reste — ce n'est pas normal, et
+// La panne d'une cuisine oisive, des cartes sur le rail (cuisine-oisive.ts) : en
+// tête, au-dessus de tout le reste — ce n'est pas normal, et
 // aucune autre ligne ne le dit. Sa cause, s'il y en a une, est dans l'en-tête ou
 // dans le bloc `awaiting`. Chaque chaîne d'attente y nomme sa racine (#1902) :
 // les cartes qui l'attendent, puis elle, et où elle en est. Rien à dire sinon.
@@ -713,7 +700,6 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ),
   ];
   return [
-    ...decrireRienNeCuit(etat, depuisEn),
     ...decrirePanne(etat, depuisEn),
     ligne("project", etat.projet ?? "unknown — empty log"),
     // Quand GitHub limite les appels du compte : une ligne — la limite, depuis quand, l'heure

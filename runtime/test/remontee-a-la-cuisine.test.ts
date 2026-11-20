@@ -50,7 +50,6 @@ test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un 
       session: "chef-gesture",
       jeton: "chef-gesture",
       fermeture: "chef-gesture",
-      base: "chef-gesture",
       setup: "chef-gesture",
       aside: "chef-gesture",
       disjoncteur: "chef-gesture",

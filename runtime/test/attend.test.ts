@@ -545,106 +545,28 @@ test("quand rien n'attend, le bloc reste là et le dit : deux lignes", (t) => {
   assert.deepEqual(blocAttend(lire(`${JOUR_HORLOGE}T10:00:00.000Z`)), RIEN);
 });
 
-// Une base rouge, ses gates telles que la pass les écrit, et son ticket de
-// réparation : ce que la pass note quand le rouge tient après son rejeu.
+// Une base rouge, ses gates telles que la pass les écrit.
 function baseRouge(noter: ReturnType<typeof cuisine>["noter"]) {
   const gates = (...failures: string[]) => ({ outcome: "red" as const, code: 1, failures: failures.map((echec) => `FAIL  ${echec}`), tail: "" });
   const controler = (sha: string, ...failures: string[]) =>
     noter({ type: "base.checked", payload: { sha, outcome: failures.length === 0 ? "green" : "red", gates: failures.length === 0 ? { outcome: "green", code: 0, failures: [], tail: "" } : gates(...failures), tickets: [] } }, null, "pass");
-  const ouvrirLaReparation = (ticket: number, sha: string, ...failures: string[]) => {
-    noter({ type: "base.repair-opening", payload: { sha } }, null, "pass");
-    noter({ type: "base.repair-opened", payload: { sha, failures, reconciled: false } }, ticket, "pass");
-    noter({ type: "ticket.arrived", payload: { title: `Réparer la base \`v2\``, priority: 0, createdAt: "2026-10-01T00:00:00Z", url: `https://exemple.test/${ticket}` } }, ticket, "github");
-  };
-  return { controler, ouvrirLaReparation };
+  return { controler };
 }
 
-const REPARER = "to repair: fix the base by hand, or restart #501: set `fire` on it again, its issue reopened if needed; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed on the station: no app button for it yet";
-
-test("une base rouge n'attend pas le chef tant qu'elle se répare seule : ni pendant le rejeu, ni pendant que son ticket de réparation travaille", (t) => {
-  const { a, noter, bloc } = cuisine(t);
-  const { controler, ouvrirLaReparation } = baseRouge(noter);
+// Une base rouge n'est jamais au chef : le superviseur relance ses jobs, puis ouvre au plus un correctif (#3914).
+test("une base rouge n'attend jamais le chef : ni pendant le rejeu, ni quand son rouge tient", (t) => {
+  const { a, noter, bloc, journal } = cuisine(t);
+  const { controler } = baseRouge(noter);
   controler("base-1", "tests du projet en échec");
   noter({ type: "base.recheck-requested", payload: {} }, null, "pass");
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:30:00.000Z`), RIEN);
 
   a(`${JOUR_HORLOGE}T10:05:00.000Z`);
   controler("base-1", "tests du projet en échec");
-  ouvrirLaReparation(501, "base-1", "tests du projet en échec");
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), RIEN);
-
-  // Prise, cuisinée, à la pass, mergée : tant que la base n'est pas recontrôlée rouge, rien n'attend.
-  noter({ type: "ticket.taken", payload: { station: STATION, leaseUntil: `${jourDecale(30)}T00:00:00.000Z` } }, 501, `station:${STATION}`);
-  noter({ type: "ticket.passing", payload: { station: STATION } }, 501, `station:${STATION}`);
-  noter({ type: "merge.done", payload: { pr: pr(501), sha: "abc", by: "pass", reconciled: false } }, 501, "pass");
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), RIEN);
-});
-
-test("une base rouge dont la réparation a échoué attend le chef : depuis son passage au rouge, ce qui y échoue, et le geste — puis elle sort de la file au retour au vert", (t) => {
-  const { a, noter, arriver, journal, bloc } = cuisine(t);
-  const { controler, ouvrirLaReparation } = baseRouge(noter);
-  controler("base-1", "tests du projet en échec");
-  noter({ type: "base.recheck-requested", payload: {} }, null, "pass");
-  a(`${JOUR_HORLOGE}T10:05:00.000Z`);
-  controler("base-1", "tests du projet en échec");
-  ouvrirLaReparation(501, "base-1", "tests du projet en échec");
-  arriver(18);
-
-  // Le chef retire `fire` : la réparation quitte le rail sans être servie.
-  a(`${JOUR_HORLOGE}T11:00:00.000Z`);
-  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 501, "github");
-  const ligne = `  base  for 3 h 00  BASE RED on base-1, failing: tests du projet en échec — its repair #501 left the rail without being served — ${REPARER}`;
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), ["awaiting   1 decision awaits the chef — for 3 h 00", ligne]);
-  // Elle compte pour une décision, sans être à aucun ticket.
-  const etat = lireEtat(journal, new Date(`${JOUR_HORLOGE}T13:00:00.000Z`));
-  assert.deepEqual(etat.attend.map(({ ticket, quoi }) => [ticket, quoi]), [[null, "base"]]);
-
-  // La base bouge, rouge encore, sur autre chose : la ligne dit ce qui y échoue à présent, et garde le passage au rouge.
   a(`${JOUR_HORLOGE}T12:00:00.000Z`);
-  controler("base-2", "tests de l'app en échec", "contrôle de types de l'app en échec");
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), [
-    "awaiting   1 decision awaits the chef — for 3 h 00",
-    `  base  for 3 h 00  BASE RED on base-2, failing: tests de l'app en échec; contrôle de types de l'app en échec — its repair #501 left the rail without being served — ${REPARER}`,
-  ]);
-
-  // Verte : la ligne a quitté la file, sans geste du chef.
-  a(`${JOUR_HORLOGE}T12:30:00.000Z`);
-  controler("base-3");
+  controler("base-2", "tests de l'app en échec");
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), RIEN);
-  assert.equal(journal.tout().some((e) => e.author === "chef"), false);
-});
-
-test("une réparation remontée au chef se relance ; mergée sans remettre la base au vert, elle le dit — et l'échec d'une réparation ne vaut pas pour un rouge neuf", (t) => {
-  const { a, noter, bloc } = cuisine(t);
-  const { controler, ouvrirLaReparation } = baseRouge(noter);
-  controler("base-1", "tests du projet en échec");
-  controler("base-1", "tests du projet en échec");
-  ouvrirLaReparation(501, "base-1", "tests du projet en échec");
-
-  // 86 sans heure de retour : remontée.
-  a(`${JOUR_HORLOGE}T11:00:00.000Z`);
-  noter({ type: "ticket.86", payload: { reason: "refused", until: null } }, 501, `station:${STATION}`);
-  const base = bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).find((ligne) => ligne.startsWith("  base  "));
-  assert.equal(
-    base,
-    "  base  for 2 h 00  BASE RED on base-1, failing: tests du projet en échec — its repair #501 was escalated without being served — to repair: fix the base by hand, or restart #501: remove and set `fire` again; the pass replays it as soon as it moves, and the kitchen starts again on its own once green; a red that is not down to the code is replayed on the station: no app button for it yet",
-  );
-
-  // Relancée par le chef — `fire` retiré puis reposé : elle travaille de nouveau, la base n'attend plus.
-  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 501, "github");
-  noter({ type: "ticket.arrived", payload: { title: "Réparer la base `v2`", priority: 0, createdAt: "2026-10-01T00:00:00Z", url: "https://exemple.test/501" } }, 501, "github");
-  assert.equal(bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).some((ligne) => ligne.startsWith("  base  ")), false);
-
-  // Mergée, puis la base recontrôlée reste rouge : elle n'a pas réparé.
-  noter({ type: "merge.done", payload: { pr: pr(501), sha: "abc", by: "pass", reconciled: false } }, 501, "pass");
-  controler("base-2", "tests du projet en échec");
-  assert.match(bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).find((ligne) => ligne.startsWith("  base  ")) ?? "", /— its repair #501 merged, did not bring it back to green — to repair: fix the base by hand; the pass/);
-
-  // Verte, puis rouge de nouveau : un rouge neuf, que la pass rejoue et répare seule — rien n'attend.
-  controler("base-3");
-  a(`${JOUR_HORLOGE}T12:30:00.000Z`);
-  controler("base-4", "tests du projet en échec");
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), RIEN);
+  assert.deepEqual(lireEtat(journal, new Date(`${JOUR_HORLOGE}T13:00:00.000Z`)).attend, []);
 });
 
 // Le setup du projet bloqué (#643), tel que la station l'écrit : deux échecs à

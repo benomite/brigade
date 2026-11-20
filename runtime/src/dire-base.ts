@@ -39,7 +39,7 @@ export function suiteDeBaseRougeEn({ unplayed, reason, recheck, at, redSince, sh
         : []),
     ...(recheck === null
       ? [...(retenu === null ? [] : [direControleRetenuEn(retenu, depuis, prep)]), `replay its gates without waiting for a commit: ${REJOUER_LA_BASE}`]
-      : [`${recheck.by === "chef" ? "replay asked by the chef" : "automatic replay, before opening a repair ticket if the red holds,"} ${prep} ${depuis(recheck.at)}: ${direRejeuEn(recheck, depuis, retenu, prep)}`]),
+      : [`${recheck.by === "chef" ? "replay asked by the chef" : "automatic replay"} ${prep} ${depuis(recheck.at)}: ${direRejeuEn(recheck, depuis, retenu, prep)}`]),
   ];
 }
 

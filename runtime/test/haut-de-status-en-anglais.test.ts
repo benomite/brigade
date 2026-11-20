@@ -1,5 +1,5 @@
 // Le haut de `status` est en anglais (#928) : `runtime`, `kitchen`, `connection`, `stations`, `setup`,
-// `aside`, `base`, `backup`, la ligne d'urgence et celle qui dit que rien ne cuit. Vérifié
+// `aside`, `base` et `backup`. Vérifié
 // de deux façons : un état de la box écrit avant la traduction (test/fixtures/etat-d-avant-927/)
 // dit les mêmes états qu'avant, sans qu'on l'édite ; et un état d'exemple qui fait paraître chaque
 // ligne ne laisse passer aucun mot de la colonne « français » du glossaire. `facts` n'a pas bougé.
@@ -59,7 +59,6 @@ test("sur l'état d'avant, ce que le journal garde en français est toujours lu 
 test("l'état d'exemple fait paraître chaque ligne du haut de `status`, et aucune ne porte un mot français du glossaire", (t) => {
   const tete = lireTete(exemple(t));
   assert.deepEqual(tete, [
-    "nothing cooks: base red since 4 min ago, repair #30 in progress",
     "project    brigade",
     "runtime    running according to the log — pid 4211 on box, started 3 d ago",
     "           last tick 5 min ago (cadence: 1 min)",
@@ -121,10 +120,11 @@ const chiffres = (ligne: string) => (ligne.match(/#\d+|\b[0-9a-f]{7}\b(?!-)|\b\d
 const FIXTURE_928 = join(import.meta.dirname, "fixtures/haut-de-status-d-avant-928");
 
 test("sur l'état d'exemple d'avant, chaque ligne du haut dit les mêmes tickets, commits et durées qu'avant — et la même ligne y répond, une à une", (t) => {
-  const avant = teteDe(readFileSync(join(FIXTURE_928, "status-d-avant.txt"), "utf8").split("\n"));
+  // La ligne « rien ne cuit », qui suivait le ticket de réparation de la base, part avec lui (#3914).
+  const avant = teteDe(readFileSync(join(FIXTURE_928, "status-d-avant.txt"), "utf8").split("\n")).filter((ligne) => !ligne.startsWith("rien ne cuit : "));
   const apres = lireTete(exemple(t));
   assert.equal(apres.length, avant.length);
-  const titres = { "rien ne cuit : ": "nothing cooks: ", projet: "project", runtime: "runtime", cuisine: "kitchen", connexion: "connection", base: "base", setup: "setup", "mis de côté": "aside", sauvegarde: "backup" } as const;
+  const titres = { projet: "project", runtime: "runtime", cuisine: "kitchen", connexion: "connection", base: "base", setup: "setup", "mis de côté": "aside", sauvegarde: "backup" } as const;
   avant.forEach((ligne, rang) => {
     const titre = Object.keys(titres).find((candidat) => ligne.startsWith(candidat));
     // Une ligne de suite (retrait de onze espaces) répond à une ligne de suite.

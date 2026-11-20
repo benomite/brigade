@@ -156,8 +156,7 @@ export const SANS_RENVOI: Readonly<Record<string, string>> = {
 
 // Le pas suivant de la cuisine sur une remontée qu'elle n'a pas encore prise,
 // d'après ce qu'elle a déjà tenté sur ce ticket. `fixPermis` : faux pour un
-// ticket qui est lui-même la correction de la cuisine ou la réparation de la
-// base — un `fix` de plus ne partirait pas, ou n'en finirait pas. `peutMonter` :
+// ticket qui est lui-même la correction de la cuisine — un `fix` de plus ne partirait pas, ou n'en finirait pas. `peutMonter` :
 // son calibrage a un cran au-dessus (`calibrageAuDessus`). Il n'y a jamais
 // « rien de plus » : ce qui ne peut ni repartir ni monter est abandonné.
 export function prochainCoup(remontee: { reason: string; cause: string | null }, deja: { renvoye: boolean; fixe: boolean }, fixPermis: boolean, peutMonter: boolean): Exclude<Coup, "resume" | "none"> {
@@ -207,15 +206,13 @@ export function reessaiPermis(base: Base, ticket: number): number | null {
 }
 
 // Un ticket que la cuisine a ouvert elle-même — la correction d'une remontée,
-// d'un test instable, ou la réparation de la base — n'en ouvre pas d'autre.
+// ou d'un test instable — n'en ouvre pas d'autre.
 export function fixPermis(base: Base, ticket: number): boolean {
   const [ouvert] = base.lire<{ un: number }>(
     `SELECT 1 AS un FROM events WHERE
        (type = 'pass.kitchen-took-over' AND json_extract(payload, '$.move') = 'fix' AND json_extract(payload, '$.issue') = ?)
-       OR (type = 'base.repair-opened' AND ticket = ?)
        OR (type = 'pass.ci-set-aside' AND EXISTS (SELECT 1 FROM json_each(json_extract(payload, '$.fixes')) AS j WHERE json_extract(j.value, '$.issue') = ?))
      LIMIT 1`,
-    ticket,
     ticket,
     ticket,
   );

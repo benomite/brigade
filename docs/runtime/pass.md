@@ -388,7 +388,7 @@ for code goes to the pass as "with no diff"; the reviewer must say so.
 | green, but it touches its judges | **not merged on the pass's verdict alone** (`review-required`, cause `judge-modified`): it goes before **the second judge** (above) |
 | green, but it touches `.claude/brigade/reseau` or `.claude/brigade/secrets` | **never merged by the pass** (`review-required`, cause `declaration-modified: <files>`): once merged, the declaration opens a host or hands over a secret to the next cooks. The issue comment says what to reread |
 | green, ticket with no diff | **served without a merge**, issue closed |
-| none, **base red** | the delivery **waits** (`pass.waiting`, `base-red`) and leaves by itself when the base is repaired or replayed green. Only the repair ticket for that red is judged and merged despite it |
+| none, **base red** | the delivery **waits** (`pass.waiting`, `base-red`) and leaves by itself when the base is repaired or replayed green. Only the supervisor's fix ticket for that red check is judged and merged despite it |
 | red: gates on the merge, conflict, CI, or blocking finding | the **findings go back to a cook**, same branch. Nothing is merged |
 | red a second time, **manager on** | **hands over to the manager** (`pass.deferred`; see "It reacts to a failure") |
 | red a third time, manager off | two send-backs used up: **escalates to you** (`still-red`). It goes **86** |
@@ -658,20 +658,12 @@ the top of `pass`. **Nothing is judged or merged**: each delivery **waits** (`ba
 station stops taking tickets** (`station.held`, reason `base`), send-back cooks included. Cooks in
 progress continue, as do the manager's judgements and the reviews.
 
-**The kitchen deals with the red on its own.** The pass **first replays its gates once**, at once and
-with no commit (`base.recheck-requested`, written by `pass`): a passing red (a flaky test, an
-exceeded delay) falls with nothing opened. **If the red holds**, it **opens a repair ticket**
-(`base.repair-opening` then `base.repair-opened`) naming the base, the commit and what
-fails. It carries `fire`, `model:opus`,
-`effort:medium` (like the manager's table, #2575) and **`prio:0`, which goes ahead of the whole rail**. **It is the only ticket that
-leaves from a red base**: the pass judges it merged with the red base and merges it, its
-green gates saying it repairs it. Merged, the base's gates are replayed, and at green everything
-restarts by itself.
-**One at a time**: no second while the first is in progress, nor more than one per red. Its
-marker is `<!-- brigade:reparation-base <sha> -->`. The repair reads `en-cours`, `servie` or
-`echouee` (`reparationDeLaBase`, read by the queue and the card). **While it works, the red base does
-not enter the `awaiting` block**; **failed, it enters it**, on a `base` line ("What awaits the chef"
-in [`etat-et-mesures.md`](etat-et-mesures.md)), and **leaves it by itself on return to green**.
+**The kitchen deals with the red on its own, through the supervisor** ([`superviseur.md`](superviseur.md), #3914):
+`main` red for 10 min starts a run, which reruns the failed jobs first and files at most one `fix` ticket per red
+check, only if the rerun stays red. The pass opens no repair ticket any more. **Only the supervisor's fix ticket for the
+red check leaves from a red base**: the pass judges it and merges it despite the red (`reparationDeLaBase`,
+`brigade-github.ts`); merged, the base's gates are replayed, and at green everything restarts by itself. **A red base
+never enters the `awaiting` block**: it is never the chef's to repair.
 
 **A red not about the code is also replayed on your request**: `npm --prefix runtime run base` says
 what the last check said; `npm --prefix runtime run base -- replay` replays the gates of a red base on

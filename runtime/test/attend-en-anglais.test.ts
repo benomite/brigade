@@ -160,11 +160,6 @@ const EXEMPLES = {
       retenue: { reason, observed: null, limit: null, detail: DEPUIS },
     })),
   ],
-  base: [
-    { ...horsTicket, quoi: "base", sha: "0123456789abcdef", echecs: ["runtime tests", "app typecheck"], reparation: 41, echec: "partie" },
-    { ...horsTicket, quoi: "base", sha: "0123456789abcdef", echecs: ["runtime tests"], reparation: 41, echec: "remontee" },
-    { ...horsTicket, quoi: "base", sha: "0123456789abcdef", echecs: ["runtime tests"], reparation: 41, echec: "rouge-apres-merge" },
-  ],
   setup: [
     { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: ["registry.npmjs.org:443", "example.test:8080"], base: "0123456", ticket: 42, station: "box/claude", output: "" } },
     { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: [], base: "0123456", ticket: 42, station: "box/claude", output: "" } },
@@ -223,7 +218,7 @@ test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucu
   sansMotFrancais(vide);
   // Les entrées hors ticket se nomment en anglais.
   const noms = decrireAttentes(TOUTES, () => "3 d").flatMap((ligne) => /^ {2}(\S+) {2}for /.exec(ligne)?.slice(1) ?? []);
-  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker", "pause", "rename"]);
+  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "setup", "aside", "breaker", "pause", "rename"]);
 });
 
 // Ce qu'une ligne du bloc ne doit jamais porter : une commande de la box
@@ -241,7 +236,7 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
   // Le disjoncteur nomme le bouton de TODO ; les gestes sans bouton le disent.
   const dite = (quoi: Attente["quoi"]) => TOUTES.filter((attente) => attente.quoi === quoi).map(direAttenteEn);
   for (const ligne of dite("disjoncteur")) assert.match(ligne, /press the `Resume` button on the breaker line of TODO$/);
-  for (const ligne of [...dite("pause"), ...dite("renommage"), ...dite("base")]) assert.match(ligne, /no app button for it yet/);
+  for (const ligne of [...dite("pause"), ...dite("renommage")]) assert.match(ligne, /no app button for it yet/);
   // L'abandon nomme les boutons de sa carte dans TODO, mot pour mot, racine comprise.
   for (const attente of TOUTES) {
     if (attente.quoi !== "abandon") continue;
