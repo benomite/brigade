@@ -99,12 +99,12 @@ test("a breaker whose check still fails stays open, and the check is rerun only 
   assert.equal(s.ouvert(), true);
 });
 
-test("a check that launched no run is replayed after a few seconds, not after the delay of a failed check", async (t) => {
+test("a check that launched no run is replayed after half a second, not after the delay of a failed check", async (t) => {
   const s = superviseur(t, { labels: [], reponses: [null], sansRun: true });
   s.ouvrirLeDisjoncteur();
   await s.supervision.passer();
   assert.equal(s.sujets.length, 1);
-  s.avancer(4_999);
+  s.avancer(499);
   await s.supervision.passer();
   assert.equal(s.sujets.length, 1);
   s.avancer(1);

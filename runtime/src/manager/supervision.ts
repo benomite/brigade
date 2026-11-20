@@ -31,8 +31,8 @@ type Geste = (typeof GESTES)[number];
 
 // Un contrôle de disjoncteur rejoué au plus toutes les 10 minutes.
 const CONTROLE_TOUS_LES_MS = 10 * 60_000;
-// Un contrôle qui n'a lancé aucun run (lancement refusé, arrêt) n'a rien dit : il se rejoue au réveil suivant, après 5 secondes.
-const CONTROLE_SANS_RUN_MS = 5_000;
+// Un contrôle qui n'a lancé aucun run (lancement refusé, arrêt) n'a rien dit : il se rejoue au réveil suivant, après une demi-seconde.
+const CONTROLE_SANS_RUN_MS = 500;
 // Un dossier redonné après 10 minutes quand la réponse ne s'applique pas, trois fois au plus.
 const DOSSIER_TOUS_LES_MS = 10 * 60_000;
 const DOSSIER_ESSAIS_MAX = 3;
