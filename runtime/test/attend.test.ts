@@ -553,8 +553,10 @@ function baseRouge(noter: ReturnType<typeof cuisine>["noter"]) {
   return { controler };
 }
 
-// Une base rouge n'est jamais au chef : le superviseur relance ses jobs, puis ouvre au plus un correctif (#3914).
-test("une base rouge n'attend jamais le chef : ni pendant le rejeu, ni quand son rouge tient", (t) => {
+// Une base rouge n'est jamais au chef : le superviseur relance ses jobs, puis ouvre au plus un correctif (#3914). Un
+// journal d'avant lui garde le ticket de réparation que la pass ouvrait, et son échec : le chef n'a plus à réparer la base
+// à la main.
+test("une base rouge n'attend jamais le chef, même quand le ticket de réparation d'avant le superviseur a quitté le rail sans être servi", (t) => {
   const { a, noter, bloc, journal } = cuisine(t);
   const { controler } = baseRouge(noter);
   controler("base-1", "tests du projet en échec");
@@ -563,8 +565,11 @@ test("une base rouge n'attend jamais le chef : ni pendant le rejeu, ni quand son
 
   a(`${JOUR_HORLOGE}T10:05:00.000Z`);
   controler("base-1", "tests du projet en échec");
-  a(`${JOUR_HORLOGE}T12:00:00.000Z`);
-  controler("base-2", "tests de l'app en échec");
+  noter({ type: "base.repair-opening", payload: { sha: "base-1" } } as never, null, "pass");
+  noter({ type: "base.repair-opened", payload: { sha: "base-1", failures: ["tests du projet en échec"], reconciled: false } } as never, 501, "pass");
+  noter({ type: "ticket.arrived", payload: { title: "Réparer la base `v2`", priority: 0, createdAt: "2026-10-01T00:00:00Z", url: "https://exemple.test/501" } }, 501, "github");
+  a(`${JOUR_HORLOGE}T11:00:00.000Z`);
+  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 501, "github");
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), RIEN);
   assert.deepEqual(lireEtat(journal, new Date(`${JOUR_HORLOGE}T13:00:00.000Z`)).attend, []);
 });
