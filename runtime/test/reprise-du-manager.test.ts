@@ -190,7 +190,7 @@ test("a product or design question in the reasons: only then a card for the chef
 test("a manager that cannot rework it, or no manager on the station: the ticket is set aside as before, and the comment says why", async () => {
   for (const [manager, dit] of [
     [() => ({ illisible: "no JSON object in the answer" }), /The manager could not rework it: no JSON object in the answer\./],
-    [null, /The manager did not rework it: this station has no manager to consult\./],
+    [null, /No manager runs on this station to rework it\./],
   ] as const) {
     const faux = new FauxGitHub();
     faux.feu(TICKET, ["fire", "model:sonnet", "effort:medium"], CORPS);

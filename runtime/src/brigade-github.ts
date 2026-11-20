@@ -57,6 +57,8 @@ import { lireInstantane, REQUETE, type Instantane, type PRDeLInstantane } from "
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { faitsDePrise, lacher, premierePrise, prendre, purger, stationsDesPrises } from "./github-etat/prise.ts";
+import { stationsDuManager } from "./github-etat/prise-du-manager.ts";
+import { corpsDeLaQuestion, corpsDeLaReprise, questionEnSuspens, type QuestionEnSuspens } from "./manager/question-sans-manager.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
 import { avecChangements, lireChangements } from "./validation-design/changements.ts";
 import { cleDansLaLivraison, lancementDuCook, moteurDeLaStation, noterLaLivraison } from "./moteur/moteur.ts";
@@ -91,6 +93,7 @@ import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/ga
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
+import { demandesDuManagerDans } from "./passe-gel-tests/demande-du-manager.ts";
 import { fichiersGeles, testsGelesTouches } from "./passe-gel-tests/gel-tests.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
@@ -533,8 +536,8 @@ export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], 
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
 // dernier retrait de `served-elsewhere`, que GitHub date pour toutes les stations
-// (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
-// livraison. Des retraits illisibles ne remettent rien à zéro. La reprise du
+// (#2430). Relancer un ticket remet à zéro ses cooks sans livraison — pas ses
+// renvois, comptés par ticket (#3961). Des retraits illisibles ne remettent rien à zéro. La reprise du
 // manager après le dernier essai (#3513) les remet à zéro aussi : seuls
 // comptent les commentaires d'après le sien.
 const relanceDe = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number): Promise<number> => {
@@ -953,7 +956,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : #${numero} sur ${nom} — its tries are spent again after the manager reworked it: it goes to the chef, with what was tried`);
       return { auChef: ceQuiAEteTente({ reprise: (dejaRepris ?? duParent)?.body ?? null, parent: dejaRepris === undefined ? parent : null, motifs }) };
     }
-    if (options.reprendre === undefined) return { auChef: "The manager did not rework it: this station has no manager to consult." };
+    if (options.reprendre === undefined) return { auChef: "No manager runs on this station to rework it." };
     const pose = calibrageDesLabels(ticket.labels);
     const calibrage = complet(pose) ? pose : null;
     const lu = await options.reprendre(ticket, { calibrage, motifs }).catch((erreur: unknown) => ({ illisible: message(erreur) }));
@@ -1013,6 +1016,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
     const issue = ticket.number;
+    if (options.consulter === undefined) return poserLaQuestionAilleurs(issue, question);
+    const consulter = options.consulter;
     const premiereLigne = question.trim().split("\n")[0] ?? "";
     // Les réponses techniques qu'il a déjà données, depuis le dernier retrait de `served-elsewhere`.
     const lus = await github.commentaires(issue).catch(() => null);
@@ -1020,9 +1025,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const lu: ReponseDuManager =
       reponses === null
         ? { illisible: "the issue's comments could not be read to count the manager's previous answers" }
-        : options.consulter === undefined
-          ? { illisible: "this station has no manager to consult" }
-          : await options.consulter(ticket, { question, reponses }).catch((erreur: unknown): ReponseDuManager => ({ illisible: message(erreur) }));
+        : await consulter(ticket, { question, reponses }).catch((erreur: unknown): ReponseDuManager => ({ illisible: message(erreur) }));
     // Sans avis, le ticket attend puis repart, sans aller au chef ; au-delà de
     // `ECHECS_MAX` attentes de ce genre, il compte pour un cook sans livraison.
     if ("illisible" in lu) {
@@ -1125,17 +1128,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // GitHub, aucune autre ne serait vue, et le ticket resterait retenu ici. La
   // lecture se garde dix minutes ; une lecture qui échoue ne retire rien aux
   // stations déclarées.
-  let vuesSurGitHub: { a: number; noms: string[] } | null = null;
+  // `managers` : celles dont une prise du travail du manager s'y lit (#3938).
+  let vuesSurGitHub: { a: number; noms: string[]; managers: string[] } | null = null;
   const stationsDuProjet = async (): Promise<string[]> => {
     const declarees = [...(options.stationsDuProjet?.() ?? [])];
     const maintenant = (options.maintenant?.() ?? new Date()).getTime();
     if (vuesSurGitHub === null || maintenant - vuesSurGitHub.a > 10 * 60_000) {
       try {
         const noms = new Set<string>();
+        const managers = new Set<string>();
         const recentes = (await github.issuesDepuis(new Date(maintenant - FENETRE_DES_STATIONS_MS).toISOString())).filter((lue) => lue.state !== "closed");
         if (recentes.length > ISSUES_LUES_AU_PLUS) avertir(`brigade : ${nom} — ${recentes.length} issues moved in the last two days: only the ${ISSUES_LUES_AU_PLUS} most recent are read for the stations of the project`);
-        for (const lue of recentes.slice(-ISSUES_LUES_AU_PLUS)) for (const nomVu of stationsDesPrises(await github.commentaires(lue.number))) noms.add(nomVu);
-        vuesSurGitHub = { a: maintenant, noms: [...noms] };
+        for (const lue of recentes.slice(-ISSUES_LUES_AU_PLUS)) {
+          const lus = await github.commentaires(lue.number);
+          for (const nomVu of stationsDesPrises(lus)) noms.add(nomVu);
+          for (const nomVu of stationsDuManager(lus)) managers.add(nomVu);
+        }
+        vuesSurGitHub = { a: maintenant, noms: [...noms], managers: [...managers] };
       } catch (erreur) {
         if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
         avertir(`brigade : ${nom} — the stations of the project could not be read on GitHub: ${message(erreur)}`);
@@ -1144,6 +1153,41 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     return [...new Set([...declarees, ...vuesSurGitHub.noms])];
   };
+
+  // Les autres stations du projet qui font tourner un manager, telles que GitHub
+  // les montre (#3938) ; null quand elles ne se sont jamais lues. Une station que
+  // l'issue marque incapable de jouer les gates du ticket ne le prend jamais :
+  // son manager n'y répondrait pas, la question ne l'attend pas.
+  const stationsAvecManager = async (marquees: ReadonlySet<string>): Promise<string[] | null> => {
+    await stationsDuProjet();
+    return vuesSurGitHub === null ? null : stationsCapables(nom, vuesSurGitHub.managers, marquees);
+  };
+
+  // Sans manager sur la station, la question du cook est postée sur l'issue pour
+  // le manager d'une autre station du projet, et le ticket est rendu, sans compter
+  // d'essai ni le mettre de côté (#3938). Si aucune station du projet ne fait
+  // tourner de manager, le ticket est rendu au rail, et attend avant d'être repris.
+  const poserLaQuestionAilleurs = async (issue: number, question: string): Promise<"liberee"> => {
+    // Des marques illisibles n'écartent aucune station : la porte relit les siennes.
+    const marquees = await github
+      .commentaires(issue)
+      .then((lus) => incapablesLus(lus, () => Promise.resolve().then(() => github.retraitsDeLabels(issue))))
+      .catch(() => new Set<string>());
+    const managers = await stationsAvecManager(marquees);
+    await github.commenter(issue, corpsDeLaQuestion({ station: nom, question, managers }));
+    if (managers !== null && managers.length > 0) {
+      avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked and this station has no manager: its question is posted on the issue for the manager on ${managers.join(", ")}, the ticket is given back`);
+      return "liberee";
+    }
+    const reprise = instant() + ATTENTE_MS;
+    avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked, and no station of the project runs a manager: its question is posted on the issue, the ticket is given back to the rail`);
+    await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise} -->\nStation \`${nom}\`: the ticket is given back to the rail with its cook's question above. It waits until ${new Date(reprise).toISOString()}, then a cook resumes it from its branch. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
+    return "liberee";
+  };
+
+  // Les questions qu'une station sans manager a postées sur les tickets que la
+  // porte de prise laisse partir ici : son manager y répond avant le cook (#3938).
+  const questionsAReprendre = new Map<number, QuestionEnSuspens>();
 
   // Marque sur l'issue que cette station ne joue pas les gates du ticket, et
   // rend les stations du projet qui le peuvent encore (#3057). Des marques
@@ -1170,7 +1214,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Le ticket est rendu sur l'issue sans livraison : sa place est libre.
     let liberee = false;
     try {
-      let fait = await cuisiner(ticket, calibrage);
+      // La question qu'une station sans manager a postée va d'abord au manager
+      // d'ici, comme celle de son propre cook : sa réponse s'écrit sur l'issue,
+      // où le cook suivant la lit (#3938).
+      const aReprendre = questionsAReprendre.get(issue);
+      questionsAReprendre.delete(issue);
+      if (aReprendre !== undefined) {
+        avertir(`brigade : #${issue} sur ${nom} — station ${aReprendre.station} has no manager and posted its cook's question: it goes to the manager here, before a cook`);
+        await github.commenter(issue, corpsDeLaReprise({ station: nom, de: aReprendre.station }));
+      }
+      let fait = aReprendre === undefined ? await cuisiner(ticket, calibrage) : { bloque: aReprendre.question };
       if (fait.testsMs !== undefined) chrono.tests(issue, fait.testsMs);
       if ("branche" in fait) {
         // Elle a cuit un ticket jusqu'à sa livraison : plus rien ne lui manque.
@@ -1477,8 +1530,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1, genre: "conflict" | "red CI" | "review" = "review", resynchroniser?: () => Promise<boolean>) => {
     const lus = await github.commentaires(ticket.number);
     const tous = lus.filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
-    // Compté depuis le dernier retrait de `served-elsewhere` (#2430), ou la reprise du manager (#3513).
-    const tousRenvois = await depuisLeRelancement(github, ticket.number, lus, MARQUE_DE_RENVOI);
+    // Compté par ticket, relancements compris (#3961) : #3955 est reparti à 1/2
+    // après chaque relance et a bouclé. Seule la reprise du manager (#3513),
+    // à la limite, le remet à zéro.
+    const tousRenvois = lus.slice(lus.findLastIndex((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE)) + 1).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     const enConflit = tousRenvois.filter((c) => c.body.includes(MARQUE_DE_CONFLIT));
     const renvois = genre === "conflict" ? enConflit : tousRenvois.filter((c) => !c.body.includes(MARQUE_DE_CONFLIT));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
@@ -2283,13 +2338,26 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // (`enAttente`) : la prise relit ces mêmes commentaires, et ne prend rien
       // sur une issue qu'elle ne lit pas — son tour échoue, et le dit. Des
       // retraits illisibles gardent toutes les marques.
-      const marquees = await github
-        .commentaires(ticket.number)
-        .then((commentaires) => incapablesLus(commentaires, () => Promise.resolve().then(() => github.retraitsDeLabels(ticket.number))))
+      const lusDuTicket = await github.commentaires(ticket.number).catch(() => null);
+      const marquees = await Promise.resolve(lusDuTicket)
+        .then((lus) => incapablesLus(lus ?? [], () => Promise.resolve().then(() => github.retraitsDeLabels(ticket.number))))
         .catch(() => new Set<string>());
       if (marquees.has(nom)) {
         sauter(ticket.number, direSaut(ticket.number, direIncapacite(nom, stationsCapables(nom, await stationsDuProjet(), marquees))));
         continue;
+      }
+      // La question qu'une station sans manager a postée (#3938) : une station
+      // qui en a un la prend pour la lui passer avant son cook ; une station sans
+      // manager ne la reprend pas tant qu'une autre du projet en fait tourner un.
+      const enSuspens = questionEnSuspens(lusDuTicket ?? []);
+      questionsAReprendre.delete(ticket.number);
+      if (enSuspens !== null && options.consulter !== undefined) questionsAReprendre.set(ticket.number, enSuspens);
+      if (enSuspens !== null && options.consulter === undefined) {
+        const managers = await stationsAvecManager(marquees);
+        if (managers !== null && managers.length > 0) {
+          sauter(ticket.number, direSaut(ticket.number, `its cook's question awaits the manager on ${managers.join(", ")}: this station has none`));
+          continue;
+        }
       }
       // Un ticket sans calibrage complet ne part pas, (#2213).
       const calibrage = calibrageDesLabels(ticket.labels);
@@ -3369,7 +3437,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           return { illisible: message(erreur) };
         }
       })();
-      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, ...(testsGeles === undefined ? {} : { testsGeles }) }), reponse);
+      // Ce que le manager a demandé au cook dans le fil : un geste demandé n'est jamais un point bloquant (#3962).
+      const demandesDuManager = demandesDuManagerDans(await options.github.commentaires(ticket.number).catch(() => []));
+      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, demandesDuManager, ...(testsGeles === undefined ? {} : { testsGeles }) }), reponse);
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
       // Les mutants se jouent après la preuve, contre ses tests gelés, et pendant la relecture.
       // Sans test gelé — un ticket sans critère testable (#3740) —, aucun mutant ne se joue.
