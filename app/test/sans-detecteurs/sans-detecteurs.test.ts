@@ -105,7 +105,7 @@ describe("à l'écran", () => {
     assert.equal(marque(), "!");
     vue.dire("surAlertes", { projet: "baloo", alertes: [alerte], signal: { etat: "injoignable", dit: "no answer" } });
     assert.equal(marque(), "×");
-    vue.dire("surAlertes", { projet: "baloo", alertes: [alerte], signal: { etat: "urgence", dit: "the whole kitchen waits" } });
+    vue.dire("surAlertes", { projet: "baloo", alertes: [alerte], signal: { etat: "urgence", dit: "the whole kitchen waits" } as unknown as ReturnType<typeof signalDe> });
     assert.equal(marque(), "?");
   });
 

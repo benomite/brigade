@@ -576,7 +576,7 @@ export const TOURS_POUR_TRAVAILLER = 3;
 export const ATTENTE_MS = 30 * 60_000;
 export const ATTENTE_MAX_MS = 6 * 60 * 60_000;
 
-// Le terme de la dernière attente d'après un arrêt : la porte de prise, la cuisine inerte (#2975) et la veille des tickets orphelins (#3883) le lisent.
+// Le terme de la dernière attente d'après un arrêt : la porte de prise (#2975) et la veille des tickets orphelins (#3883) le lisent.
 export { termeDeLAttente };
 
 // Les dernières lignes que `claude` a écrites : sa sortie d'erreur, sinon son
@@ -2273,8 +2273,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         continue;
       }
       // Un arrêt subi l'a mis en attente : il n'est pas repris avant son terme (#2508).
-      // Le saut est dit, comme les autres : sans lui, la retenue ne sait pas ce
-      // qui le tient et la cuisine inerte le prend pour un rail vide.
+      // Le saut est dit, comme les autres : sans lui, le dossier du superviseur
+      // ne sait pas ce qui le tient (#3914).
       const termeDeLAttente = await enAttente(ticket);
       if (termeDeLAttente !== null) {
         sauter(ticket.number, direSaut(ticket.number, `it waits until ${new Date(termeDeLAttente).toISOString()} after a stop`));
@@ -2302,7 +2302,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // s'ouvre pour celui-ci presse un tour tout de suite. Sans elle, le
         // ticket attendait sa prise jusqu'à l'intervalle (#2832).
         if (retenue === "arbiter") void gardes?.attendreUnePlace?.().then((libre) => libre && station.presser?.(true));
-        // Les tickets qu'elle laisse disent cette retenue : la cuisine inerte la nomme (#3699).
+        // Les tickets qu'elle laisse disent cette retenue : le dossier du superviseur la nomme (#3699, #3914).
         await direLesAttentes(libres.slice(rang), DIT_DES_RETENUES[retenue]);
         break;
       }

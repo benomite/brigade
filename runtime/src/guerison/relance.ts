@@ -34,8 +34,6 @@ export const RELANCES_MAX = 2;
 export type Cause = "conflict" | "red-check" | "review" | "cook-stopped";
 
 const MARQUE_DE_RELANCE = /^<!-- brigade:relance cause=([a-z-]+) n=(\d+) -->/;
-// La marque des boucles que la guérison signalait avant #3914 : un tel commentaire n'est pas ce qui a mis le ticket de côté.
-const MARQUE_DE_BOUCLE = /^<!-- brigade:boucle cause=([a-z-]+) bug=(\d+) -->/;
 export const marqueDeRelance = (cause: Cause, n: number) => `<!-- brigade:relance cause=${cause} n=${n} -->`;
 
 // Le ticket mis de côté, tel que la station le lit.
@@ -86,10 +84,10 @@ function pointsBloquants(motif: string): string[] {
 }
 
 // Le dernier commentaire de la station sur le ticket, hors de ceux de la guérison
-// (ses relances, ses boucles signalées) : ce qui l'a mis de côté.
+// (ses relances) : ce qui l'a mis de côté.
 async function dernierDeLaStation(ticket: TicketDeCote, { github }: ContexteDeLaGuerison) {
   return deLaCuisine(await github.commentaires(ticket.number))
-    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_RELANCE.test(c.body) && !MARQUE_DE_BOUCLE.test(c.body))
+    .filter((c) => c.body.startsWith("<!-- brigade:") && !MARQUE_DE_RELANCE.test(c.body))
     .at(-1);
 }
 

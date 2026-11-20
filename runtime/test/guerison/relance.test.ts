@@ -109,6 +109,24 @@ test("un cook qui s'est arrêté : le ticket repart, et le commentaire dit pourq
   assert.match(d.commentairesDu().at(-1) ?? "", /token ceiling reached/);
 });
 
+test("un cook arrêté puis relancé : sa relance n'est pas ce qui l'a remis de côté ; une boucle signalée avant le superviseur, si — rien ne repart (#3914)", async () => {
+  const arret = `${MARQUE_D_ECHEC} n=3 -->\nStation \`box/claude\`: the cook stopped without a delivery — token ceiling reached`;
+  const d = depot();
+  d.poster(TICKET, arret);
+  assert.deepEqual(await d.relancer(), { fait: "relance", cause: "cook-stopped", n: 1 });
+  d.remettreDeCote();
+  // Le dernier mot de la station reste son arrêt : la relance qui l'a suivi n'en est pas un.
+  assert.deepEqual(await d.relancer(), { fait: "relance", cause: "cook-stopped", n: 2 });
+
+  // Le commentaire de boucle que la guérison posait avant le superviseur n'est plus lu à part : dernier mot de la station,
+  // il ne dit aucune raison qu'un cook répare, et le ticket attend le superviseur.
+  const vieux = depot();
+  vieux.poster(TICKET, arret);
+  vieux.poster(TICKET, "<!-- brigade:boucle cause=cook-stopped bug=100 -->\nStation `box/claude`: #40 loops — bug #100.");
+  assert.equal((await vieux.relancer()).fait, "rien");
+  assert.ok(vieux.etiquettes.has(HORS_CUISINE));
+});
+
 test("après deux relances pour la même raison, la troisième n'a pas lieu, et aucun ticket ne dit la boucle : le superviseur décide (#3914)", async () => {
   const d = depot();
   d.ouvrirPR({ enConflit: true });

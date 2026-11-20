@@ -3,7 +3,7 @@
 // double de lui-même, ni l'issue du disjoncteur qui surveillerait une autre station pour une file disparue, ni une
 // alerte d'inertie qui ne serait pas un ticket.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -129,3 +129,20 @@ test("an issue titled as an old idle-kitchen alert is a ticket like any other; o
   assert.equal(horsDesTickets(ancienne, "benomite/secondes"), false);
   assert.equal(horsDesTickets("disjoncteur", "benomite/secondes"), true);
 });
+
+// Les modules des détecteurs que le superviseur remplace (lignes 2, 3, 4, 4b, 10a, 10b et 10c de l'inventaire de la spec
+// 2026-11-20-kitchen-spinning) : la cuisine retenue, le rail bloqué, la cuisine inerte, l'urgence, les alertes du rail, les
+// tickets de boucle et la réparation de main ouverte d'elle-même.
+const RETIRES = ["alerte-urgence.ts", "urgence.ts", "events/emergency.ts", "projections/emergency.ts", "attente-du-rail/alertes.ts", "base-rouge", "reparation-base", "relance-main-rouge.ts", "carte-ci-windows.ts", "cuisine-retenue-refus.ts", "guerison/cuisine-inerte.ts", "rail-bloque", "retenue"];
+// Ce qui les nommerait encore : leurs chemins, leurs marques et leurs noms.
+const LEURS_NOMS = /alerte-urgence|\/urgence\.ts|emergency\.ts|attente-du-rail\/alertes|base-rouge\/|reparation-base\/|relance-main-rouge|carte-ci-windows|cuisine-retenue-refus|cuisine-inerte|rail-bloque|[^-]retenue\/|signalerInertie|MARQUE_D_INERTIE|LABEL_REPARATION_DE_MAIN|alertesDuRail|brigade:boucle/;
+
+test("the removed detectors are gone from the runtime: neither their modules nor any reference to them", () => {
+  const SRC = join(import.meta.dirname, "../../src");
+  assert.deepEqual(RETIRES.filter((chemin) => existsSync(join(SRC, chemin))), []);
+  const fichiers = (readdirSync(SRC, { recursive: true }) as string[]).filter((fichier) => fichier.endsWith(".ts"));
+  assert.ok(fichiers.length > 100, "the runtime's sources are read");
+  const restes = fichiers.flatMap((fichier) => readFileSync(join(SRC, fichier), "utf8").split("\n").flatMap((ligne, rang) => (LEURS_NOMS.test(ligne) ? [`${fichier}:${rang + 1}: ${ligne.trim()}`] : [])));
+  assert.deepEqual(restes, []);
+});
+
