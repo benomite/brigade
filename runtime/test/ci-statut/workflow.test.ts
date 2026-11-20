@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const WORKFLOW = readFileSync(new URL("../../../.github/workflows/tests.yml", import.meta.url), "utf8").replace(/^\s*#.*$/gm, "");
-const CUISINE = "(github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/'))";
+const CUISINE = "(github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/') && github.event.pull_request.head.repo.full_name == github.repository)";
 const occurrences = (motif: string) => WORKFLOW.split(motif).length - 1;
 
 test("a kitchen run is a push on main or a PR from a cook branch, and only there do the jobs go on after a failure", () => {

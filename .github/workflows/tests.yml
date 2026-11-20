@@ -10,13 +10,13 @@
 #   - `types (<zone>)`                 : le contrôle de types de la zone.
 # Le nombre de parts se règle dans la matrice de `tests` : plus de parts, des parts plus courtes.
 #
-# Un run de la cuisine (#3952) — une PR d'une branche `cook/*`, un push sur `main` — finit vert : GitHub
+# Un run de la cuisine (#3952) — une PR d'une branche `cook/*` du dépôt même, un push sur `main` — finit vert : GitHub
 # poste au chef « Run failed » pour chaque run rouge, et rien d'autre qu'un run vert ne coupe ce mail. Les
 # jobs y courent en entier (`continue-on-error`, que `fail-fast` n'arrête pas) et chaque check rend sa
 # vraie issue en statut de commit sur la tête : un statut par check, sous le nom du check, `success` ou
 # `failure`, qui pointe le job. La pass et le second lisent ce statut (`ci` de `runtime/src/github.ts`),
-# et une relance du run repose le statut sous le même nom. Hors cuisine (une autre PR, un lancement à la
-# main), un check rouge rend le run rouge, comme avant.
+# et une relance du run repose le statut sous le même nom. Hors cuisine (une autre PR, celle d'un fork même
+# nommée `cook/*`, un lancement à la main), un check rouge rend le run rouge, comme avant.
 name: tests
 
 on:
@@ -31,7 +31,7 @@ permissions:
   statuses: write
 
 env:
-  CUISINE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
+  CUISINE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/') && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -49,7 +49,7 @@ jobs:
     needs: [tests, types]
     if: ${{ always() }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
+    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 3
     steps:
       # Tout l'historique : les gates lisent leur diff depuis `origin/<base>` (binding « Branche d'intégration » du CLAUDE.md).
@@ -87,7 +87,7 @@ jobs:
   types:
     name: types (${{ matrix.zone }})
     runs-on: ubuntu-latest
-    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
+    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 3
     strategy:
       matrix:
@@ -121,7 +121,7 @@ jobs:
   tests:
     name: tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})
     runs-on: ubuntu-latest
-    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
+    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 3
     strategy:
       # Une part rouge arrête les autres : le verdict ne se fait pas attendre. Sur un run de la cuisine,
