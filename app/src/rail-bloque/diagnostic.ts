@@ -24,13 +24,13 @@ import { feuPoseLe, lesFeux, type Lire } from "../../../runtime/src/attente-du-r
 // leurs modules — qui tirent le journal, que l'app ne charge pas : sa prise (`github-etat/prise-du-manager.ts`, `MARQUE`), son
 // commentaire de jugement (`juger.ts`, `MARQUEUR_MANAGER`), et les auteurs
 // dont un marqueur se croit (`alimenter.ts`, `DE_CONFIANCE`).
-const MARQUE_DE_PRISE = /^<!-- brigade:manager-prise station=/;
-const MARQUEUR_DU_MANAGER = "<!-- brigade:manager -->";
-const AUTEURS_DE_CONFIANCE: readonly string[] = ["OWNER", "MEMBER", "COLLABORATOR"];
+export const MARQUE_DE_PRISE = /^<!-- brigade:manager-prise station=/;
+export const MARQUEUR_DU_MANAGER = "<!-- brigade:manager -->";
+export const AUTEURS_DE_CONFIANCE: readonly string[] = ["OWNER", "MEMBER", "COLLABORATOR"];
 type CommentaireLu = { body: string; association: string };
 
 // Le ticket est-il passé par un manager ? D'après ses labels et ses commentaires.
-function prisParUnManager(labels: readonly string[], commentaires: readonly CommentaireLu[]): boolean {
+export function prisParUnManager(labels: readonly string[], commentaires: readonly CommentaireLu[]): boolean {
   if (labels.some((label) => label.startsWith("model:") || label.startsWith("effort:"))) return true;
   if (labels.some((label) => LABELS_D_ECART.includes(label) || label === LABEL_TAKEN || label === LABEL_IN_PASS || label === LABEL_WAITING)) return true;
   return commentaires.some(({ body, association }) => AUTEURS_DE_CONFIANCE.includes(association) && (MARQUE_DE_PRISE.test(body) || body.startsWith(MARQUEUR_DU_MANAGER)));
