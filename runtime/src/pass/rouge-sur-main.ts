@@ -27,7 +27,7 @@ export const FICHIER_DE_TEST = /\.test\.[cm]?[jt]s$/;
 // de tests. La branche les apporte avec ses tests sur le checkout de la base.
 export const SOUS_LES_TESTS = /(^|\/)(test|tests|__tests__)\//;
 // Un cas : `test("…")`, `it("…")`, et leurs `.only` / `.skip` / `.todo`.
-export const CAS = /\b(?:test|it)(?:\.(?:only|skip|todo))?\s*\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
+const CAS = /\b(?:test|it)(?:\.(?:only|skip|todo))?\s*\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
 // Une ligne de résultat du reporteur TAP de Node, à toute profondeur.
 const LIGNE_TAP = /^\s*(not )?ok \d+ - (.*?)(\s+# (?:SKIP|TODO)\b.*)?$/;
 export const RESULTAT_TAP = /^\s*(?:not )?ok \d+ - /;

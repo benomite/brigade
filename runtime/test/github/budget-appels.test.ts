@@ -164,7 +164,7 @@ test("à l'heure pleine, les compteurs repartent de zéro, et un nouveau dépass
   assert.equal(limite.budget().projects.alpha?.reads.total, 2);
   assert.equal(alertes.length, 1);
 
-  // Les lectures de 10:55 sortent de l'heure glissante : sans quoi alpha passerait sa part de la station (#3683).
+  // Les lectures de 10:55 sortent de l'heure glissante : sans quoi elles compteraient encore dans le rang d'alpha.
   h.instant = HEURE + 60 * 60_000 + 57 * 60_000 + 1000;
   appeler(limite, etiquetteDe(["repos/o/alpha/issues/9"], { projet: "alpha" }), BUDGET_PAR_HEURE, "cuisine", h.avancer);
   assert.deepEqual(
