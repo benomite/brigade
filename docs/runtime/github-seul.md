@@ -252,13 +252,20 @@ base, the stale-branch pruning).
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the
   cook is then told in its brief to bring the branch up to date (or start again from the base), and if it still adds
   nothing the ticket is given back with a comment, uncounted, since that is work left, not a failed cook.
+- **Sends back are counted per ticket** (#3961). The count is read from the ticket's `brigade:renvoi` comments and
+  survives relaunches: removing `served-elsewhere` or `set-aside:failures` no longer restarts it at 1/2 (on 2026-11-20,
+  #3955 went "send-back 3", "relaunch 2", then "send-back 1" on the same commit). Only the manager's rework at the limit
+  (#3513) starts it again. Set aside at its last send-back, a ticket is never relaunched to a cook by the kitchen: the
+  manager or the chef decides.
 - **A cook that disagrees with the review.** Sent back on review remarks, a cook that judges them already addressed or
   wrong replies on the PR instead of ending silently: its brief tells it to write the reply in its last message between
   `<reponse-pr>` tags, and the station posts it on the PR (`brigade:reponse-cook sha=…`), since the cook has no GitHub
   access. A stop that adds nothing but carries such a reply, posted since the send-back, is a disagreement, not a
-  failure: the delivery goes back to the pass as is, which judges the head again with the reply in its brief, and
-  accepts it or sends the head back with its reasoning. That send-back counts among the `RENVOIS_MAX`, so a
-  disagreement cannot loop (#2592). The brief also says that a "Red on main, green on the branch" remark is the
+  failure: the delivery goes back to the pass as is (#2592). A head the review already refused is never reviewed again,
+  reply or not: its verdict records the judged pair, the head and its reason, and the same head comes back with the same
+  reason. It is sent back again on that reason, and that send-back counts among the `RENVOIS_MAX`, so a disagreement
+  cannot loop (#3961: #3955 looped about 15 times between cook and review on one commit). A head never reviewed — sent
+  back for a red CI — is reviewed with the reply in its brief. The brief also says that a "Red on main, green on the branch" remark is the
   pass's replay, not the review's: no reply lifts it, nor a free comment in the test calling it a guard of a behavior
   the base already has — only a test that fails without the change, no such test (#3694: #3632's cook kept such a test
   with a guard comment, its next cooks added nothing with no failed cook counted, and its head came back on that same

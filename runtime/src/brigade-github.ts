@@ -93,6 +93,7 @@ import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/ga
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
+import { demandesDuManagerDans } from "./passe-gel-tests/demande-du-manager.ts";
 import { fichiersGeles, testsGelesTouches } from "./passe-gel-tests/gel-tests.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
@@ -536,8 +537,8 @@ export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], 
   tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
 // dernier retrait de `served-elsewhere`, que GitHub date pour toutes les stations
-// (#2430). Relancer un ticket remet à zéro ses renvois et ses cooks sans
-// livraison. Des retraits illisibles ne remettent rien à zéro. La reprise du
+// (#2430). Relancer un ticket remet à zéro ses cooks sans livraison — pas ses
+// renvois, comptés par ticket (#3961). Des retraits illisibles ne remettent rien à zéro. La reprise du
 // manager après le dernier essai (#3513) les remet à zéro aussi : seuls
 // comptent les commentaires d'après le sien.
 const relanceDe = async (github: Pick<GitHubDuTour, "retraitsDeLabels">, numero: number): Promise<number> => {
@@ -1530,8 +1531,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1, genre: "conflict" | "red CI" | "review" = "review", resynchroniser?: () => Promise<boolean>) => {
     const lus = await github.commentaires(ticket.number);
     const tous = lus.filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
-    // Compté depuis le dernier retrait de `served-elsewhere` (#2430), ou la reprise du manager (#3513).
-    const tousRenvois = await depuisLeRelancement(github, ticket.number, lus, MARQUE_DE_RENVOI);
+    // Compté par ticket, relancements compris (#3961) : #3955 est reparti à 1/2
+    // après chaque relance et a bouclé. Seule la reprise du manager (#3513),
+    // à la limite, le remet à zéro.
+    const tousRenvois = lus.slice(lus.findLastIndex((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE)) + 1).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     const enConflit = tousRenvois.filter((c) => c.body.includes(MARQUE_DE_CONFLIT));
     const renvois = genre === "conflict" ? enConflit : tousRenvois.filter((c) => !c.body.includes(MARQUE_DE_CONFLIT));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
@@ -3443,7 +3446,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           return { illisible: message(erreur) };
         }
       })();
-      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, ...(testsGeles === undefined ? {} : { testsGeles }) }), reponse);
+      // Ce que le manager a demandé au cook dans le fil : un geste demandé n'est jamais un point bloquant (#3962).
+      const demandesDuManager = demandesDuManagerDans(await options.github.commentaires(ticket.number).catch(() => []));
+      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, demandesDuManager, ...(testsGeles === undefined ? {} : { testsGeles }) }), reponse);
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
       // Les mutants se jouent après la preuve, contre ses tests gelés, et pendant la relecture.
       // Sans test gelé — un ticket sans critère testable (#3740) —, aucun mutant ne se joue.
