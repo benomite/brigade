@@ -91,17 +91,14 @@ import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/ga
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
-import { fichiersGeles, motifDuGel, violationsDuGel } from "./passe-gel-tests/gel-tests.ts";
-import { casGelesFaux, casQuiNeTypentPas, controleDesTypes, corpsDeLaCorrection, corrigerLesTestsGeles, ERREUR_TSC, MARQUE_MISE_DE_COTE_GELE, type Faux } from "./passe-gel-tests/gele-faux.ts";
+import { fichiersGeles, testsGelesTouches } from "./passe-gel-tests/gel-tests.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
-import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve, type Rejeu } from "./pass/rouge-sur-main.ts";
+import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
 import { direLaMiseDeCote, RUN_OK, runFiniOk, runsEchoues } from "./set-aside.ts";
-import { amenderParLeManager, traiterLAmendement, type AmenderLeTest } from "./amendement/amender.ts";
-import { consigneDeLAmendement, lireLaProposition, type Proposition } from "./amendement/proposition.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
@@ -318,12 +315,9 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { amendement: Proposition | { illisible: string } } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
-// `ecarte` : le ticket ne peut pas continuer — ses tests gelés faux retirés, rien
-// ne prouverait plus un critère (#3799) —, et pourquoi, en une ligne : il est mis
-// de côté une fois, sans renvoi au cook.
-export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement & { ecarte?: string }>;
+export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
 // la relecture d'accord : un autre lancement, qui reçoit les fichiers de ses
 // juges qu'elle change.
@@ -395,10 +389,6 @@ export type OptionsDeStation = {
   // `blocked-on-human` (#2894). Absent, le blocage attend, puis compte pour un
   // cook sans livraison : il ne va jamais au chef sans lui.
   consulter?: ConsulterLeManager;
-  // Le manager, qui classe l'amendement qu'un cook propose à un critère
-  // d'acceptation et l'applique s'il est petit (#3729). Absent, la proposition
-  // est postée sur l'issue, et compte pour un cook sans livraison.
-  amender?: AmenderLeTest;
   // Le manager, à qui va un ticket après son dernier essai raté (#3513) : il
   // le réécrit, le découpe, le recalibre, ou pose au chef une question de
   // produit ou de design. Absent, le ticket est mis de côté pour le chef, et
@@ -1240,20 +1230,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         liberee = true;
         return;
       }
-      // Un cook qui juge un critère faux propose un amendement (#3729) : la
-      // proposition va sur l'issue, le manager l'applique si elle est petite et
-      // rend le ticket à un cook, sinon la carte du chef le retient.
-      if ("amendement" in fait) {
-        const suite = await traiterLAmendement({ github, repertoireEtat: options.repertoireEtat, station: nom, amender: options.amender }, issue, brancheDuTicket(issue), fait.amendement);
-        if (typeof suite === "string") {
-          avertir(`brigade : #${issue} sur ${nom} — the cook proposed an amendment to an acceptance criterion: ${suite === "liberee" ? "the manager applied it, the ticket goes back to a cook" : "it changes the product or weakens the criterion, it goes to the chef"}`);
-          chrono.rater(issue);
-          await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
-          liberee = suite === "liberee";
-          return;
-        }
-        fait = suite;
-      }
       // Bloqué n'est pas livré (#2073) : la question du cook va au manager, qui
       // y répond et rend le ticket à un cook, ou la pose au chef sur la carte
       // sous `blocked-on-human` si elle est de produit, de design ou un geste
@@ -1862,29 +1838,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         let mergee = false;
         // Retenue pour la validation de son écran (#3184) : pas un refus de GitHub.
         let retenue = false;
-        // Le ticket ne peut pas continuer (#3799) : pourquoi, en une ligne.
-        let ecarte: string | undefined;
         try {
           const rendu = await relire(pr, {
             github,
             station: nom,
             juger: async (lue) => {
               chrono.marquer(ticket.number, "revue");
-              const { ecarte: pourquoi, ...jugement } = await juger(ticket, lue);
-              ecarte = pourquoi;
+              const jugement = await juger(ticket, lue);
               chrono.marquer(ticket.number, "ci");
               bouge = true;
               return jugement;
             },
           });
-          // Mis de côté une fois, la raison en une ligne : ni renvoyé à un cook, ni relancé.
-          if (ecarte !== undefined) {
-            await github.commenter(ticket.number, `${MARQUE_MISE_DE_COTE_GELE}\nStation \`${nom}\`: set aside (\`${ECHECS_ATTEINTS}\`) — its wrong frozen acceptance tests cannot be dropped without leaving a criterion with nothing to prove it, so no cook is relaunched on it.\n\nReason: ${ecarte}.\n\nNot served elsewhere, nobody serves it. A human decides; remove the label to try again.`);
-            await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
-            await github.delabelliser(ticket.number, LABEL_IN_PASS);
-            chrono.oublier(ticket.number);
-            return;
-          }
           // Approuvée, une livraison qui touche à ce qui la juge passe devant
           // le second juge ; refusée par lui, elle repart à un cook avec ses
           // raisons, comme une relecture qui demande des changements (#2555).
@@ -3087,7 +3052,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     } else if (resteAFaire !== null) {
       joint += `\n\n## Work left on the delivery\n\n${resteAFaire}. Bring the branch up to date with \`origin/${base}\` (\`git fetch origin ${base}\`, then rebase or merge), resolve the conflicts, fix what is red, run the gates and commit. If the old branch cannot be saved, start again from \`origin/${base}\` and redo the work. Adding nothing is not an option.`;
     } else if (prOuverte !== null) joint += `\n\n${consigneDuDesaccord(prOuverte)}`;
-    joint += `\n\n${consigneDeLAmendement()}`;
     const brief = briefDuRenvoi(renvoi, base);
     if (brief !== "") joint += `\n\n${brief}`;
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
@@ -3148,9 +3112,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // (#2586) : le cook qui reprend le ticket en repart, au lieu que la pass la
     // juge telle quelle (#2577).
     const question = lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null);
-    // Il juge un critère d'acceptation faux et propose de l'amender (#3729) :
-    // comme un blocage, ce qu'il a commité ne part pas en pass.
-    const amendement = question === null ? lireLaProposition(lireLeFlux(lance.flux ?? flux).message ?? null) : null;
     // Un renvoi pour conflit qui bute sur le refus d'une commande git n'est pas
     // une question : la station intègre la base elle-même, ou repart de main.
     // Jamais un second renvoi, ni une carte pour le chef (#2953).
@@ -3190,7 +3151,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         miseAJour = { etat: "echec", etape: "recolte", detail: message(erreur), fichiers: [] };
       }
     }
-    if ((question !== null && !integree) || amendement !== null) {
+    if (question !== null && !integree) {
       if (prOuverte === null && depot.recolter !== undefined) {
         try {
           depot.recolter(worktree, branche);
@@ -3210,7 +3171,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work stays only in the clone, \`${branche}\` could not be pushed: ${message(erreur)}`);
         }
       }
-      if (amendement !== null) return { amendement };
       return { bloque: question ?? "", ...(miseAJour === undefined ? {} : { miseAJour }), ...(conflit === null ? {} : { conflit }) };
     }
     // Il dit que le ticket est déjà satisfait sur la base : la station le vérifie
@@ -3285,9 +3245,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // en lecture seule, sans jeton GitHub ni secret du projet.
   // `criteres` : combien de critères d'acceptation la consigne lui donne (#3466).
   // `ticket` : celui dont elle relit la livraison, absent pour une PR du dehors (#3656).
+  // La consigne part sur son entrée : le diff des tests gelés s'y ajoute à celui de la livraison (#3910).
   const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0, ticket?: number): Promise<Lue> => {
     const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
-    const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" });
+    const lancement = { ...envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(null, options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" }), entree: texte };
     const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ...(ticket === undefined ? {} : { ticket }) });
     await lance.fin;
     const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message, null, criteres);
@@ -3356,43 +3317,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return mutations;
   };
 
-  // Les cas gelés que le contrôle de types du projet refuse (#3799) : le `tsc`
-  // du projet, joué sur le worktree de la relecture, pour chaque `tsconfig.json`
-  // qui couvre un fichier gelé. Sans `tsc` installé, le setup du projet passe
-  // d'abord, comme pour un cook ; sans `tsc` après lui, ou un `tsc` qui ne dit
-  // rien de lisible, le contrôle n'a pas lieu, et le journal le dit.
-  const typesDesGeles = async (ticket: TicketLu, worktree: string, geles: readonly string[]): Promise<Faux[]> => {
-    const lieux = () => {
-      const controles = new Map<string, string | null>();
-      for (const fichier of geles) {
-        const lu = controleDesTypes(worktree, fichier);
-        if (lu !== null) controles.set(lu.dossier, lu.tsc);
-      }
-      return controles;
-    };
-    let controles = lieux();
-    if ([...controles.values()].includes(null) && options.setup !== undefined) {
-      const setup = await jouerSetup({ worktree, ticket: ticket.number, env: sansJeton(), delaiMs: options.setup.delaiMs, interdites: interditesAuSetup, cloison, signal: abandon.signal });
-      if (!setup.pret) avertir(`brigade : #${ticket.number} sur ${nom} — \`${SCRIPT_SETUP}\` failed on the review's worktree (${setup.depasse ? "stopped" : `exit code ${setup.code ?? "none"}`})`);
-      controles = lieux();
-    }
-    const faux: Faux[] = [];
-    for (const [dossier, tsc] of controles) {
-      const dit = `the types of the frozen acceptance tests under \`${dossier}\` are not checked`;
-      if (tsc === null) {
-        avertir(`brigade : #${ticket.number} sur ${nom} — ${dit}: no TypeScript compiler is installed there`);
-        continue;
-      }
-      const { code, depasse, retenues, fin } = await jouerOutil(tsc, ["--noEmit", "--pretty", "false", "-p", join(worktree, dossier)], { worktree, ticket: ticket.number, env: sansJeton(), delaiMs: REJEU_MAX_MS, cloison, signal: abandon.signal }, ERREUR_TSC);
-      if (depasse || (code !== 0 && retenues.length === 0)) {
-        avertir(`brigade : #${ticket.number} sur ${nom} — ${dit}: \`tsc\` ${depasse ? "was stopped" : `exited with code ${code ?? "none"}`} — ${fin.split("\n").at(-1) ?? ""}`);
-        continue;
-      }
-      faux.push(...casQuiNeTypentPas(retenues, worktree, geles));
-    }
-    return faux;
-  };
-
   const juger: Juger = async (ticket, pr) => {
     const branche = brancheDuTicket(ticket.number);
     const run = `review-${ticket.number}-github`;
@@ -3405,25 +3329,20 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       await signalerHorsZone({ zone: async () => zoneDeclaree(issue?.body ?? "", fiche((await options.github.commentaires(ticket.number)).map(({ body }) => body))), fichiers: diff.fichiers, pr: pr.number, commentaires: async () => (await options.github.commentaires(pr.number)).map(({ body }) => body), commenter: (numero, corps) => options.github.commenter(numero, corps), avertir });
       // La réponse du cook aux remarques d'avant, s'il en a posté une : la pass la juge (#2592).
       const reponse = reponseDuCook(await options.github.commentaires(pr.number), pr.sha);
-      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres }), reponse);
-      // Un test d'acceptation gelé modifié renvoie la livraison sans relecture (#3726).
-      // Un historique illisible ne la renvoie pas : le contrôle n'a pas eu lieu, la pass le dit.
+      // Un test d'acceptation gelé changé ne renvoie pas la livraison d'office (#3910) :
+      // la relecture lit son diff depuis le gel et le juge comme un constat bloquant.
+      // Un historique illisible le lui dit, pour qu'elle les compare elle-même.
       // Un dépôt qui ne sait pas faire de checkout jetable n'est pas un clone git (une doublure) : rien à lire.
-      // Le chef du projet amende un test gelé comme le manager (ticket 3835) : son
-      // login n'est lu que si un test gelé a bougé, et sans attendre plus de 10 s.
-      const gel = await (async () => {
-        if (depot.essayer === undefined) return null;
+      const testsGeles = (() => {
+        if (depot.essayer === undefined) return undefined;
         try {
-          const violations = violationsDuGel(worktree, `origin/${base}`);
-          if (violations.length === 0 || options.chef === undefined) return motifDuGel(violations);
-          const chef = await Promise.race([options.chef().catch(() => null), new Promise<null>((rendre) => setTimeout(() => rendre(null), 10_000).unref())]);
-          return motifDuGel(violationsDuGel(worktree, `origin/${base}`, chef?.trim() || null));
+          return testsGelesTouches(worktree, `origin/${base}`);
         } catch (erreur) {
-          avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be checked: ${message(erreur)}`);
-          return null;
+          avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be compared, the review checks them itself: ${message(erreur)}`);
+          return { illisible: message(erreur) };
         }
       })();
-      if (gel !== null) return { verdict: "request-changes", motif: gel };
+      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, ...(testsGeles === undefined ? {} : { testsGeles }) }), reponse);
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
       // Les mutants se jouent après la preuve, contre ses tests gelés, et pendant la relecture.
       // Sans test gelé — un ticket sans critère testable (#3740) —, aucun mutant ne se joue.
@@ -3440,54 +3359,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       })();
       const avecTestsGeles = gelés === null || doitMuter(gelés.length);
       if (!avecTestsGeles) avertir(`brigade : #${ticket.number} sur ${nom} — ${LIGNE_SANS_MUTATION}`);
-      // Un cas gelé déjà vert sur la base, ou que le contrôle de types refuse, est
-      // faux (#3799) : le cook n'y peut rien, et le lui renvoyer fait boucler le
-      // ticket. La station le retire au nom du tests cook, le dit sur l'issue, et
-      // rejuge la livraison sans lui ; si rien ne prouve plus le critère de son
-      // fichier, le ticket est mis de côté une fois.
-      const typant = typesDesGeles(ticket, worktree, gelés ?? []).catch((erreur: unknown) => {
-        avertir(`brigade : #${ticket.number} sur ${nom} — the types of the frozen acceptance tests could not be checked: ${message(erreur)}`);
-        return [];
-      });
-      const corrigerLesFaux = async (preuve: Preuve): Promise<{ preuve: Preuve; ecarte?: string }> => {
-        const tous = [...casGelesFaux(vertsSurLaBase(preuve), gelés ?? [], base), ...(await typant)];
-        const faux = tous.filter((f, rang) => tous.findIndex((autre) => autre.fichier === f.fichier && autre.nom === f.nom) === rang);
-        if (faux.length === 0) return { preuve };
-        const { lancerGit } = depot;
-        if (lancerGit === undefined) {
-          avertir(`brigade : #${ticket.number} sur ${nom} — the wrong frozen acceptance tests cannot be corrected, this station's clone runs no git in its worktrees: the delivery is judged as it is`);
-          return { preuve };
-        }
-        const correction = await corrigerLesTestsGeles(faux, { worktree, ticket: ticket.number, git: lancerGit });
-        if ("echec" in correction) {
-          avertir(`brigade : #${ticket.number} sur ${nom} — the wrong frozen acceptance test could not be corrected, the delivery is judged as it is: ${correction.echec}`);
-          return { preuve };
-        }
-        if ("ecarte" in correction) return { preuve, ecarte: correction.ecarte };
-        try {
-          depot.pousser(branche);
-        } catch (erreur) {
-          await lancerGit(["reset", "--quiet", "--hard", "HEAD~1"], worktree);
-          avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test could not be pushed, its commit is undone here and the delivery is judged as it is; if the push partly reached the remote, the branch there differs from this clone's until the next push forces it: ${message(erreur)}`);
-          return { preuve };
-        }
-        await options.github
-          .commenter(ticket.number, corpsDeLaCorrection({ station: nom, ticket: ticket.number, branche, sha: correction.sha, retires: faux }))
-          .catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the correction of the wrong frozen acceptance test (\`${correction.sha.slice(0, 7)}\`) could not be said on the issue: ${message(erreur)}`));
-        // Les cas retirés sortent de la preuve ; les autres ont été rejoués tels que la branche corrigée les porte.
-        // Le diff reste celui de la livraison : la correction ne touche qu'un test, et aucun mutant ne naît d'un test.
-        const retire = (rejeu: Rejeu) => faux.some((f) => f.fichier === rejeu.fichier && f.nom === rejeu.nom);
-        return { preuve: "rejeux" in preuve ? { rejeux: preuve.rejeux.filter((rejeu) => !retire(rejeu)) } : preuve };
-      };
-      const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers).then(corrigerLesFaux);
+      const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers).then((preuve) => ({ preuve }));
       const [prouvee, relue, mutee] = await Promise.allSettled([
         prouvant,
         relecture(worktree, run, texte, pr, criteres.length, ticket.number),
-        avecTestsGeles ? prouvant.then((prouve) => (prouve.ecarte === undefined ? muterLaLivraison(ticket, worktree, diff, prouve.preuve) : null)) : Promise.resolve(null),
+        avecTestsGeles ? prouvant.then((prouve) => muterLaLivraison(ticket, worktree, diff, prouve.preuve)) : Promise.resolve(null),
       ]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value.preuve : { injouable: message(prouvee.reason) };
-      const ecarte = prouvee.status === "fulfilled" ? prouvee.value.ecarte : undefined;
-      if (ecarte !== undefined) return { verdict: "request-changes", motif: `Set aside: ${ecarte}.`, ecarte };
       const mutations: Mutations | null = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
       const verts = vertsSurLaBase(preuve);
       const lue0 = relue.status === "fulfilled" ? relue.value : null;
@@ -3578,34 +3456,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             depot.retirer(lieu.worktree, lieu.branche ?? undefined);
           }
         };
-
-  // Le manager qui classe l'amendement d'un cook (#3729) : dans un worktree de
-  // la branche du ticket, en lecture, comme pour un blocage ; c'est la station
-  // qui commite pour lui l'amendement qu'il juge petit.
-  const lancerGit = depot.lancerGit;
-  const amender: AmenderLeTest | undefined =
-    calibrageDuManager === undefined || lancerGit === undefined
-      ? undefined
-      : amenderParLeManager({
-          depotGitHub,
-          base,
-          depot,
-          git: (args, worktree) => lancerGit(args, worktree),
-          lire: async (numero) => {
-            const [lue, commentaires] = await Promise.all([options.github.issue(numero), options.github.commentaires(numero)]);
-            return lue === null ? null : { issue: { number: numero, title: lue.title, body: lue.body ?? "", labels: lue.labels }, commentaires: commentaires.slice(-DERNIERS_COMMENTAIRES).map(({ body }) => body) };
-          },
-          manager: async (texte, worktree, run, ticket) => {
-            const flux = join(options.flux, `${run}-${Date.now()}.flux.jsonl`);
-            const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), worktree) }, { cwd: worktree, depot: "lecture" });
-            const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ticket });
-            const fin = await lance.fin;
-            const lu = lireLeFlux(lance.flux ?? flux);
-            const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
-            if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
-            return { message: lu.message ?? null };
-          },
-        });
 
   // Le manager consulté après le dernier essai raté d'un ticket (#3513) : dans
   // un worktree de la base, en lecture, avec les motifs de ses essais.
@@ -3783,7 +3633,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDesTests === undefined || lancerGitDesTests === undefined
       ? undefined
       : porteDesTests(ecrireOuClasser, { apres: () => station.presser?.(true), avertir, dejaParti: (numero) => depot.connait(brancheDuTicket(numero)) });
-  const station = stationGitHub({ ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(amender === undefined ? {} : { amender }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   station.lacune = options.lacune;
   const quitter = station.quitter;
