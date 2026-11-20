@@ -610,10 +610,12 @@ test("les jobs en échec d'un run de GitHub Actions se relancent, eux seuls ; un
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/actions/runs/123/rerun-failed-jobs`;
   gh.repondre(chemin, { statut: 201, corps: {} });
+  gh.repondre(`repos/${DEPOT}/actions/runs/123`, { corps: { conclusion: "failure" } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/124`, { corps: { conclusion: "failure" } });
   gh.repondre(`repos/${DEPOT}/actions/runs/124/rerun-failed-jobs`, { statut: 403, corps: { message: "Resource not accessible by integration" } });
 
   await github.relancerLesEchecs(123);
-  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "POST", chemin]]);
+  assert.deepEqual(gh.appels(), [["api", "-i", `repos/${DEPOT}/actions/runs/123`], ["api", "-i", "-X", "POST", chemin]]);
   await assert.rejects(github.relancerLesEchecs(124), /HTTP 403/);
 });
 

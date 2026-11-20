@@ -20,6 +20,7 @@ import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, e
 import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
 import type { LecturesDesGestes } from "./gestes/lectures-des-gestes.ts";
 import type { RunDeCi } from "./temps-ticket/ci-github.ts";
+import { routeDeRelance } from "./ci-statut/relance.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -1038,7 +1039,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       return steps.filter((etape) => etape.conclusion === "failure" && typeof etape.name === "string").map((etape) => etape.name as string);
     },
     async relancerLesEchecs(run) {
-      const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;
+      // Un run de la cuisine finit vert, son vrai verdict en statuts : il se relance en entier (#3952).
+      const lu = `repos/${depot}/actions/runs/${run}`;
+      const { conclusion = null } = JSON.parse(exiger(await appeler([lu]), lu).corps) as { conclusion?: string | null };
+      const chemin = routeDeRelance(depot, run, conclusion);
       exiger(await appeler(["-X", "POST", chemin]), chemin, 201);
     },
     async etatDuRun(run) {

@@ -9,6 +9,14 @@
 #   - `tests <zone> (<i>/<n>)`         : la part i de n des tests de la zone, ceux que la PR touche ;
 #   - `types (<zone>)`                 : le contrôle de types de la zone.
 # Le nombre de parts se règle dans la matrice de `tests` : plus de parts, des parts plus courtes.
+#
+# Un run de la cuisine (#3952) — une PR d'une branche `cook/*`, un push sur `main` — finit vert : GitHub
+# poste au chef « Run failed » pour chaque run rouge, et rien d'autre qu'un run vert ne coupe ce mail. Les
+# jobs y courent en entier (`continue-on-error`, que `fail-fast` n'arrête pas) et chaque check rend sa
+# vraie issue en statut de commit sur la tête : un statut par check, sous le nom du check, `success` ou
+# `failure`, qui pointe le job. La pass et le second lisent ce statut (`ci` de `runtime/src/github.ts`),
+# et une relance du run repose le statut sous le même nom. Hors cuisine (une autre PR, un lancement à la
+# main), un check rouge rend le run rouge, comme avant.
 name: tests
 
 on:
@@ -20,6 +28,10 @@ on:
 
 permissions:
   contents: read
+  statuses: write
+
+env:
+  CUISINE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -37,6 +49,7 @@ jobs:
     needs: [tests, types]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
     timeout-minutes: 3
     steps:
       # Tout l'historique : les gates lisent leur diff depuis `origin/<base>` (binding « Branche d'intégration » du CLAUDE.md).
@@ -48,16 +61,31 @@ jobs:
           node-version: 26
       - name: Verdict de tests et de types
         run: |
-          test "${{ needs.tests.result }}" = success || { echo "tests : ${{ needs.tests.result }}" >&2; exit 1; }
-          test "${{ needs.types.result }}" = success || { echo "types : ${{ needs.types.result }}" >&2; exit 1; }
+          echo "tests : ${{ needs.tests.result }}, types : ${{ needs.types.result }}"
+          test "${{ needs.tests.result }}" = success
+          test "${{ needs.types.result }}" = success
       - name: Gates (suites et types joués par les autres jobs)
         run: |
           rm runtime/package.json app/package.json
           .claude/brigade/gates.sh "$PWD"
+      # La vraie issue du check, en statut de la tête, sur un run de la cuisine (voir l'en-tête).
+      - name: Statut du check
+        if: ${{ always() && env.CUISINE == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ETAT: ${{ job.status == 'success' && 'success' || 'failure' }}
+          NOM: gates
+          JOB: ${{ job.check_run_id }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state="$ETAT" -f context="$NOM" \
+            -f target_url="$RUN${JOB:+/job/$JOB}" -f description="$NOM : $ETAT"
 
   types:
     name: types (${{ matrix.zone }})
     runs-on: ubuntu-latest
+    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
     timeout-minutes: 3
     strategy:
       matrix:
@@ -74,13 +102,28 @@ jobs:
         run: npm ci --ignore-scripts --prefix ${{ matrix.zone }}
       - name: Contrôle de types
         run: npm --prefix ${{ matrix.zone }} run typecheck
+      # La vraie issue du check, en statut de la tête, sur un run de la cuisine (voir l'en-tête).
+      - name: Statut du check
+        if: ${{ always() && env.CUISINE == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ETAT: ${{ job.status == 'success' && 'success' || 'failure' }}
+          NOM: types (${{ matrix.zone }})
+          JOB: ${{ job.check_run_id }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state="$ETAT" -f context="$NOM" \
+            -f target_url="$RUN${JOB:+/job/$JOB}" -f description="$NOM : $ETAT"
 
   tests:
     name: tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})
     runs-on: ubuntu-latest
+    continue-on-error: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'cook/')) }}
     timeout-minutes: 3
     strategy:
-      # Une part rouge arrête les autres : le verdict ne se fait pas attendre.
+      # Une part rouge arrête les autres : le verdict ne se fait pas attendre. Sur un run de la cuisine,
+      # `continue-on-error` les laisse courir : chacune rend son statut.
       fail-fast: true
       matrix:
         include:
@@ -128,9 +171,9 @@ jobs:
           regle="tout"
           if [ "$EVENEMENT" = pull_request ]; then
             sel="$(git diff --name-only HEAD^1 HEAD | node .claude/brigade/tests-touches.mjs --souche HEAD^1)" \
-              || { echo "tests-touches.mjs a échoué : sélection des tests impossible" >&2; exit 1; }
+              || { echo "tests-touches.mjs a échoué : sélection des tests impossible" >&2; exit 2; }
             regle="$(printf '%s\n' "$sel" | sed -n "s/^$ZONE //p")"
-            [ -n "$regle" ] || { echo "tests-touches.mjs ne dit rien de la zone $ZONE : sortie '$sel'" >&2; exit 1; }
+            [ -n "$regle" ] || { echo "tests-touches.mjs ne dit rien de la zone $ZONE : sortie '$sel'" >&2; exit 2; }
           fi
           case "$regle" in
             rien) echo "aucun test de $ZONE ne touche ce changement"; exit 0 ;;
@@ -141,7 +184,7 @@ jobs:
           if [ -z "${fichiers// /}" ]; then echo "part $PART/$OF : aucun fichier"; exit 0; fi
           motif='"test/**/*.test.ts"'
           commande="$(node -e 'console.log(require(process.argv[1]).scripts.test)' "$PWD/$ZONE/package.json")"
-          case "$commande" in *"$motif"*) ;; *) echo "le script test de $ZONE n'a plus son motif $motif" >&2; exit 1 ;; esac
+          case "$commande" in *"$motif"*) ;; *) echo "le script test de $ZONE n'a plus son motif $motif" >&2; exit 2 ;; esac
           echo "part $PART/$OF : $(set -- $fichiers; echo $#) fichiers"
           # L'environnement que `gates.sh` donne à ses suites, celui où elles étaient vertes sur `main` :
           # pas d'entrée, pas de proxy de Node, ni les variables de ce job ; le répertoire temporaire en
@@ -163,3 +206,16 @@ jobs:
             echo "::error title=tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})::$(printf '%s\n' "$echecs" | awk '{ gsub(/%/, "%25"); gsub(/\r/, ""); printf "%s%%0A", $0 }')"
           fi
           exit "$code"
+      # La vraie issue du check, en statut de la tête, sur un run de la cuisine (voir l'en-tête).
+      - name: Statut du check
+        if: ${{ always() && env.CUISINE == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ETAT: ${{ job.status == 'success' && 'success' || 'failure' }}
+          NOM: tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})
+          JOB: ${{ job.check_run_id }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state="$ETAT" -f context="$NOM" \
+            -f target_url="$RUN${JOB:+/job/$JOB}" -f description="$NOM : $ETAT"
