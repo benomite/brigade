@@ -804,8 +804,4 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/support/windows.ts", garde: "GARDE_MS: 60_000" },
   { file: "test/support/windows.ts", garde: "timeout: 300000" },
   { file: "test/support/windows.ts", garde: "timeout: 60_000" },
-  // #3911 : bornes d'attente des tests gelés, élargies de 2 s à 10 s sur décision du manager (le faux `claude` est lent sous Windows).
-  { file: "test/acceptation-3911/comment-a-la-fermeture.test.ts", garde: "jusqua(…, 10000)" },
-  { file: "test/acceptation-3911/le-superviseur-rejoue-le-controle.test.ts", garde: "jusqua(…, 10000)" },
-  { file: "test/acceptation-3911/ticket-ecarte-confie-au-superviseur.test.ts", garde: "jusqua(…, 10000)" },
 ];
