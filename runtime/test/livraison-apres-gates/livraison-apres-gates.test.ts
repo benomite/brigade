@@ -120,3 +120,34 @@ test("a saved head the next cook delivers as it is plays the gates, and is pushe
   assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "green gates: the saved head, delivered as it is, is pushed");
   assert.equal(git(lieux.origine, "cat-file", "-e", `${brancheDuTicket(TICKET)}:bouton.ts`), "");
 });
+
+test("a delivery cut before its push, found only in the clone, plays the gates: red, it is not pushed nor sent to the pass, and a cook resumes it with what they say (#2577)", async (t) => {
+  const lieux = depotGit(t);
+  // La branche du ticket, commitée dans le clone sous des gates rouges, jamais poussée : la station s'est arrêtée là.
+  const branche = brancheDuTicket(TICKET);
+  git(lieux.clone, "checkout", "-q", "-b", branche);
+  mkdirSync(join(lieux.clone, ".claude/brigade"), { recursive: true });
+  writeFileSync(join(lieux.clone, ".claude/brigade/gates.sh"), '#!/bin/sh\necho "FAIL  the button test is red" >&2\nexit 1\n');
+  chmodSync(join(lieux.clone, ".claude/brigade/gates.sh"), 0o755);
+  writeFileSync(join(lieux.clone, "bouton.ts"), "export const bouton = 1;\n");
+  git(lieux.clone, "add", ".");
+  git(lieux.clone, "commit", "-q", "-m", "the button");
+  git(lieux.clone, "checkout", "-q", BASE);
+  const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
+  const faux = new FauxGitHub();
+  faux.feu(TICKET, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- The button exists");
+  const consignes: string[] = [];
+  const lancer: Lancer = ({ args, flux, entree }) => {
+    if (!args.includes("--tools")) consignes.push(entree ?? "");
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "Done." })}\n`);
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, avertir: () => {} });
+  if ("refus" in station) throw new Error(station.refus);
+
+  await station.tour();
+  await station.calme();
+  assert.equal(git(lieux.origine, "branch", "--list", branche), "", "red gates: the cut delivery is not pushed");
+  assert.equal(faux.prs.length, 0, "nor sent to the pass");
+  assert.match(consignes[0] ?? "", /## Gates red on the delivery[\s\S]*its gates are red, so its delivery was not pushed: FAIL {2}the button test is red/, "a cook resumes it with what the gates say");
+});

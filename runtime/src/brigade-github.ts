@@ -3060,7 +3060,18 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // quoi que dise le clone (#2610). Elle part d'abord sur GitHub ; si le push
       // échoue, un cook la reprend.
       let surGitHub = livree !== branche;
-      if (!surGitHub && depot.commits(branche) > 0) {
+      // Elle ne part qu'une fois les gates vertes dans son worktree (#3996) :
+      // rouges, un cook la reprend, avec ce qu'elles disent.
+      const retenue = surGitHub || depot.commits(branche) === 0 ? null : await gatesAvantLePush(ticket, worktree);
+      if (retenue !== null) {
+        if ("subi" in retenue) {
+          await depot.ranger(worktree, branche);
+          return retenue;
+        }
+        avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` carries a delivery that was never pushed, and ${retenue.echec}: a cook resumes it`);
+        joint += `\n\n## Gates red on the delivery\n\nThis branch carries a delivery that was never pushed: ${retenue.echec}. Fix what is red, run the gates and commit.`;
+      }
+      if (!surGitHub && retenue === null && depot.commits(branche) > 0) {
         try {
           depot.pousser(branche);
           surGitHub = true;

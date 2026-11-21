@@ -261,7 +261,8 @@ base, the stale-branch pruning).
   `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a
   failure, until `served-elsewhere` (#2577: two cooks of 7 and 10 turns on a delivery whose PR never opened). The
   branch must be what the origin carries: a head that was never pushed, or a branch that already had a PR (sent back,
-  closed), still gets a cook.
+  closed), still gets a cook. A head found only in the clone is pushed first, and only once the station's gates are
+  green on it; red, it is not pushed, and a cook resumes it with what they say (#3996).
 - **What a red CI says, handed to the cook.** The cook has no access to GitHub: told only that the CI of its PR is red,
   at best with the names of the red jobs, it rebuilt the CI's selection of tests and played it again to find what
   failed (#2545: 16 cooks taken again on a red CI, 93 min of cooking). The station now reads the failure annotations

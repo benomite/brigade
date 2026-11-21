@@ -11,6 +11,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/0-en-premier/recette.test.ts", test: "ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration" },
   { file: "test/acceptation-3996/3-a-type-error-in-the-branchs-own-test-turns-the-gates-red-before-any-push.test.ts", test: "in the app zone turns the gates red before the delivery is pushed" },
   { file: "test/acceptation-3996/3-a-type-error-in-the-branchs-own-test-turns-the-gates-red-before-any-push.test.ts", test: "in the runtime zone turns the gates red before the delivery is pushed" },
+  { file: "test/acceptation-3996/4-a-failing-far-away-test-turns-the-gates-red.test.ts", test: "a failing far-away test, one that walks a folder instead of importing the changed file, turns the gates red" },
   { file: "test/appairage/canal.test.ts", test: "la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box" },
