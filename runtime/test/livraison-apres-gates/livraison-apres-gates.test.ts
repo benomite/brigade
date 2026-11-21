@@ -25,7 +25,7 @@ test("red gates keep the delivery in the clone, marked as saved work; the next c
       consignes.push(entree ?? "");
       if (consignes.length === 1) {
         mkdirSync(join(cwd, ".claude/brigade"), { recursive: true });
-        writeFileSync(join(cwd, ".claude/brigade/gates.sh"), `#!/usr/bin/env bash\necho gates >> '${trace}'\n[ -f "$1/corrige.txt" ] || [ -f corrige.txt ] && exit 0\necho "FAIL  the button test is red" >&2\nexit 1\n`);
+        writeFileSync(join(cwd, ".claude/brigade/gates.sh"), `#!/usr/bin/env bash\necho "gates $BRIGADE_GATES_VERROU" >> '${trace}'\n[ -f "$1/corrige.txt" ] || [ -f corrige.txt ] && exit 0\necho "FAIL  the button test is red" >&2\nexit 1\n`);
         chmodSync(join(cwd, ".claude/brigade/gates.sh"), 0o755);
         writeFileSync(join(cwd, "bouton.ts"), "export const bouton = 1;\n");
       } else writeFileSync(join(cwd, "corrige.txt"), "fixed\n");
@@ -33,7 +33,8 @@ test("red gates keep the delivery in the clone, marked as saved work; the next c
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "Done.\n<livrable>\nThe button.\n</livrable>" })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
-  const station = stationDuDepot({ ...STATION_DU_DEPOT, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, avertir: () => {} });
+  // Le tour des gates que la station a reçu, elle le leur passe.
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, base: BASE, github: fauxClient(faux), depot, env: { BRIGADE_GATES_VERROU: "aucun" }, flux: repertoireTemporaire(t), lancer, avertir: () => {} });
   if ("refus" in station) throw new Error(station.refus);
 
   await station.tour();
@@ -49,7 +50,7 @@ test("red gates keep the delivery in the clone, marked as saved work; the next c
   assert.match(consignes[1] ?? "", /## Work saved before a restart/, "the next cook starts from the saved work");
   assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "green gates: the delivery is pushed");
   assert.equal(git(lieux.origine, "cat-file", "-e", `${brancheDuTicket(TICKET)}:corrige.txt`), "");
-  assert.equal(existsSync(trace) && readFileSync(trace, "utf8"), "gates\ngates\n");
+  assert.equal(existsSync(trace) && readFileSync(trace, "utf8"), "gates aucun\ngates aucun\n");
 });
 
 test("only gates that judge hold a delivery, and only a delivery plays them: gates that run no test command do not hold it, red gates that run one do, a cook that commits nothing plays none", async (t) => {

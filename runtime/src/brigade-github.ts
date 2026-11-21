@@ -2926,7 +2926,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const secrets = lireSecrets(worktree, options.gates?.secrets ?? null);
     if (!secrets.pret) return { echec: `its gates could not run before the push, so its delivery was not pushed: the secrets the project declares cannot be given to them — ${secrets.problemes.join("; ")}` };
     const delaiMs = options.gates?.delaiMs ?? delaiDesGatesMs(options.env);
-    const envGates = environnementCook(options.env);
+    // Le tour des gates que la station a reçu (`BRIGADE_GATES_VERROU`), que `environnementCook` écarte avec les autres `BRIGADE_*` :
+    // les gates d'un test qui joue celles du dépôt n'attendent pas le tour que tiennent les gates qui le jouent.
+    const verrou = options.env.BRIGADE_GATES_VERROU;
+    const envGates = { ...environnementCook(options.env), ...(verrou === undefined ? {} : { BRIGADE_GATES_VERROU: verrou }) };
     const gates = await jouerGates({
       worktree,
       ticket: ticket.number,

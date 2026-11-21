@@ -23,7 +23,8 @@ const ICI = fileURLToPath(import.meta.url);
 // A ticket's frozen acceptance tests (`test/acceptation-<n>/`, #3725) may read a live PR through
 // `gh`. Where `gh` is missing or logged out (the CI, a bare clone) they cannot answer: the tests of
 // such a file skip there, saying why, instead of turning the base suite red. Where `gh` is logged
-// in — the station, whose pass judges them — they run (#3847). A file it cannot read runs as is.
+// in — the station, whose pass judges them — they run (#3847); the gates' suites run without it, as
+// the CI does (#3996). A file it cannot read runs as is.
 function sansGh(fichier: string | undefined): string | null {
   if (fichier === undefined || !/[\\/]test[\\/]acceptation-\d+[\\/]/.test(fichier)) return null;
   let source: string;

@@ -558,6 +558,12 @@ types_partir app "$SELECTION_app"
 # poste en a un en mémoire — leur cache de compilation gardé à sa place.
 temporaire_des_tests
 ENV_TESTS=(-u BRIGADE_STATE_DIR -u BRIGADE_PORT)
+# Ni `gh` connecté, ni jeton de GitHub, comme sur la CI (#3996) : les tests
+# gelés d'un ticket qui lisent GitHub par `gh` s'y sautent (#3847,
+# `runtime/test-hang-guard/garde.ts`), et ici aussi — un test gelé d'un ticket
+# servi depuis longtemps, qui lit sur GitHub un état passé, ne retient pas la
+# livraison d'un autre. La pass joue elle-même ceux de son ticket, avec `gh`.
+ENV_TESTS+=(-u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN "GH_CONFIG_DIR=$PWD/.brigade-state/gates/sans-gh")
 [ -z "$TEMPORAIRE" ] || ENV_TESTS+=("NODE_COMPILE_CACHE=${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}" "TMPDIR=$TEMPORAIRE")
 suite runtime "du runtime" "runtime absent" du-runtime "$SELECTION_runtime"
 suite app "de l'app" "app absente" de-l-app "$SELECTION_app"
