@@ -3559,7 +3559,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       ]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value.preuve : { injouable: message(prouvee.reason) };
       const mutations: Mutations | null = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
-      const verts = vertsSurLaBase(preuve);
+      // Un test gelé déjà vert sur la base ne renvoie jamais la livraison : le cook ne peut pas le changer (#3921).
+      const verts = vertsSurLaBase(preuve).filter(({ fichier }) => !(gelés ?? []).includes(fichier));
       const lue0 = relue.status === "fulfilled" ? relue.value : null;
       // Un critère testable sans test gelé, ou non testable sans sa preuve, renvoie la livraison (#3741).
       const renvoi = [...motifDuRenvoi(verts, base), ...motifsDesCriteres(criteres.map(lireLeCritere), lue0?.criteria ?? null, preuve, gelés ?? []), ...(mutations === null ? [] : motifDesMutations(mutations))];
