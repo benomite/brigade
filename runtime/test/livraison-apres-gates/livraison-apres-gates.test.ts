@@ -52,30 +52,35 @@ test("red gates keep the delivery in the clone, marked as saved work; the next c
   assert.equal(existsSync(trace) && readFileSync(trace, "utf8"), "gates\ngates\n");
 });
 
-test("only gates that judge hold a delivery: gates that run no test command do not, gates that run one and are red do", async (t) => {
+test("only gates that judge hold a delivery, and only a delivery plays them: gates that run no test command do not hold it, red gates that run one do, a cook that commits nothing plays none", async (t) => {
   const lieux = depotGit(t);
+  const trace = join(repertoireTemporaire(t), "gates-jouees").replaceAll("\\", "/");
+  // La base du projet porte des gates qui lancent un test rouge, et notent où elles jouent.
+  mkdirSync(join(lieux.clone, ".claude/brigade"), { recursive: true });
+  writeFileSync(join(lieux.clone, ".claude/brigade/gates.sh"), `#!/bin/sh\necho "$PWD" >> '${trace}'\necho "FAIL  the button test is red" >&2\nexit 1\n`);
+  chmodSync(join(lieux.clone, ".claude/brigade/gates.sh"), 0o755);
+  git(lieux.clone, "add", ".");
+  git(lieux.clone, "commit", "-q", "-m", "gates");
+  git(lieux.clone, "push", "-q", "origin", `HEAD:${BASE}`);
+  git(lieux.clone, "fetch", "-q", "origin");
   const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
   const faux = new FauxGitHub();
-  const trace = join(repertoireTemporaire(t), "gates-jouees").replaceAll("\\", "/");
-  // #12 apporte des gates qui ne lancent rien, et sortent rouges ; #13, des gates qui lancent un test rouge.
-  const gates: Record<number, string> = { 12: "#!/bin/sh\nexit 1\n", 13: `#!/bin/sh\necho gates >> '${trace}'\necho "FAIL  the button test is red" >&2\nexit 1\n` };
-  for (const numero of [12, 13]) faux.feu(numero, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- The button exists");
+  for (const numero of [12, 13, 14]) faux.feu(numero, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- The button exists");
+  // #12 remplace les gates par des gates qui ne lancent rien, et sortent rouges ; #13 livre sous les gates de la base ; #14 n'écrit rien.
   const lancer: Lancer = ({ args, cwd, flux, ticket }) => {
-    if (!args.includes("--tools") && ticket !== undefined) {
-      mkdirSync(join(cwd, ".claude/brigade"), { recursive: true });
-      writeFileSync(join(cwd, ".claude/brigade/gates.sh"), gates[ticket] ?? "");
-      chmodSync(join(cwd, ".claude/brigade/gates.sh"), 0o755);
-      writeFileSync(join(cwd, `bouton-${ticket}.ts`), "export const bouton = 1;\n");
-    }
+    if (!args.includes("--tools") && ticket === 12) writeFileSync(join(cwd, ".claude/brigade/gates.sh"), "#!/bin/sh\nexit 1\n");
+    if (!args.includes("--tools") && ticket !== 14) writeFileSync(join(cwd, `bouton-${ticket}.ts`), "export const bouton = 1;\n");
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "Done.\n<livrable>\nThe button.\n</livrable>" })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
-  const station = stationDuDepot({ ...STATION_DU_DEPOT, places: 2, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, avertir: () => {} });
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, places: 3, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, avertir: () => {} });
   if ("refus" in station) throw new Error(station.refus);
   await station.tour();
   await station.calme();
 
   assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(12)), "", "gates that run nothing judge nothing: the delivery is pushed, the pass says why it does not run them");
-  assert.equal(existsSync(trace), true, "#13 was cooked, and its gates played");
+  const jouees = existsSync(trace) ? readFileSync(trace, "utf8") : "";
+  assert.match(jouees, /13-github/, "#13 was cooked, and its gates played");
   assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(13)), "", "red gates that run a test hold the delivery");
+  assert.doesNotMatch(jouees, /14-github/, "a cook that committed nothing has no delivery to play the gates on");
 });
