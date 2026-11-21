@@ -24,6 +24,8 @@ export const REVIEWER = "reviewer";
 // Une relecture est lancée hors ticket : son run porte le numéro du ticket
 // qu'elle relit, et c'est par lui seul qu'on sait laquelle tourne pour qui
 // avant que `pass.reviewed` ne la rattache.
+// Le run du jugement du choix de design : `design-<n>-github` (brigade-github.ts).
+export const debutDuChoixDeDesign = (ticket: number) => `design-${ticket}-`;
 export const debutDeRelecture = (ticket: number) => `review-${ticket}-`;
 
 // Ce que la brigade écrit elle-même sur une issue — le compte-rendu d'un cook,

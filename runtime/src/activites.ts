@@ -10,7 +10,7 @@ import { dernierRunNomme, derniersCooks, type DernierCook } from "./projections/
 import type { PassDeTicket } from "./projections/pass.ts";
 import { etatDeLaBase, lirePass } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
-import { debutDeRelecture } from "./reviewer.ts";
+import { debutDeRelecture, debutDuChoixDeDesign } from "./reviewer.ts";
 
 // `fait` : le geste, en mots du chef. `cible` : le fichier ou la commande qu'il
 // vise, s'il en vise un. `faitEn` : le même geste, en anglais — celui que la carte
@@ -58,7 +58,16 @@ function auTravail(ticket: TicketRail, cook: DernierCook | undefined): ActiviteD
 }
 
 // La dernière relecture d'un ticket : quand elle est partie, quand elle a fini.
-type Relecture = { launchedAt: string; endedAt: string | null; failed: boolean };
+type Relecture = { run: string; launchedAt: string; endedAt: string | null; failed: boolean };
+
+// L'erreur dont un run a fini, telle que le runtime l'a notée à sa sortie.
+function erreurDuRun(base: Base, run: string): string {
+  const ligne = base.lire<{ erreur: string | null }>(
+    `SELECT json_extract(payload, '$.error') AS erreur FROM events WHERE type = 'cook.exited' AND json_extract(payload, '$.run') = ? ORDER BY seq DESC LIMIT 1`,
+    run,
+  )[0];
+  return ligne?.erreur ?? "unknown error";
+}
 
 // Les workflows dont la pass attend la CI sur le commit jugé, d'après le
 // dernier fait qu'elle en a noté — nul si elle n'en attend aucun.
@@ -77,7 +86,7 @@ export function workflowsAttendus(base: Base, pass: PassDeTicket): string | null
 
 // Un ticket en pass : la relecture tant que son cook tourne ; après elle, le
 // jugement attend la CI ; avant elle, ce sont les gates.
-function aLaPass(base: Base, pass: PassDeTicket | undefined, derniere: Relecture | null): ActiviteDeTicket | null {
+function aLaPass(base: Base, pass: PassDeTicket | undefined, derniere: Relecture | null, choix: Relecture | null = null): ActiviteDeTicket | null {
   if (pass === undefined) return null;
   // Des gates coupées sur une machine saturée : la ligne qui le dit.
   if (pass.phase === "waiting" && pass.reason === GATES_COUPEES) return activite([DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN], pass.since);
@@ -88,6 +97,10 @@ function aLaPass(base: Base, pass: PassDeTicket | undefined, derniere: Relecture
   const debut = pass.startedAt ?? pass.since;
   // Une relecture d'avant ce jugement en relisait une autre livraison.
   const relecture = derniere !== null && derniere.launchedAt >= debut ? derniere : null;
+  // Le jugement du choix de design n'a pas pu partir, après la relecture : la carte dit l'erreur, pas une relecture en cours (#3786).
+  if (choix !== null && choix.failed && choix.endedAt !== null && choix.launchedAt >= debut && (relecture === null || choix.launchedAt >= (relecture.endedAt ?? relecture.launchedAt))) {
+    return activite([`jugement du design impossible : ${erreurDuRun(base, choix.run)}`, `design review cannot start: ${erreurDuRun(base, choix.run)}`], choix.endedAt);
+  }
   if (relecture === null) return activite(["gates en cours", "running the gates"], debut);
   if (relecture.endedAt === null) return activite([`relecture en cours depuis ${heure(relecture.launchedAt)}`, `review running since ${heure(relecture.launchedAt)}`], relecture.launchedAt);
   // Une relecture qui n'a pas pu partir ou qui a échoué : la carte le dit, elle ne la dit pas en cours (#3786).
@@ -108,7 +121,7 @@ export function activitesDuRail(base: Base, rail: TicketRail[]): Map<number, Act
       if (ticket.state === "taken") return [[ticket.ticket, auTravail(ticket, cooks.get(ticket.ticket))]];
       if (ticket.state === "pass") {
         const pass = passes.get(ticket.ticket);
-        return [[ticket.ticket, avecEtape(aLaPass(base, pass, dernierRunNomme(base, debutDeRelecture(ticket.ticket))), pass, etatBase)]];
+        return [[ticket.ticket, avecEtape(aLaPass(base, pass, dernierRunNomme(base, debutDeRelecture(ticket.ticket)), dernierRunNomme(base, debutDuChoixDeDesign(ticket.ticket))), pass, etatBase)]];
       }
       return [];
     }),

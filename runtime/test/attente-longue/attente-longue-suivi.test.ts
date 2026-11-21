@@ -158,7 +158,7 @@ test("through the station: a ticket whose sheet waits for a ticket set aside sta
   let consultations = 0;
   let maintenant = Date.parse("2026-11-17T10:00:00Z");
   const debut = maintenant;
-  const lancer: Lancer = ({ args, entree, flux }) => {
+  const lancer: Lancer = ({ args, flux }) => {
     const consulte = args[args.indexOf("--tools") + 1] === "Read,Grep,Glob";
     if (consulte) consultations += 1;
     else cooks += 1;

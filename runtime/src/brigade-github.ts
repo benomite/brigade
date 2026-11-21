@@ -3636,7 +3636,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const echecsDuChoix = new Map<number, { sha: string; erreur: string; fois: number }>();
   const jugerLeChoixDeDesign = async (ticket: { number: number; title: string; body: string }, fichiers: readonly string[], pr: { number: number; sha: string }): Promise<ChoixDeDesign> => {
     const dernier = echecsDuChoix.get(ticket.number);
-    if (dernier !== undefined && dernier.sha === pr.sha && dernier.fois >= 2) throw new Error(`design review cannot start: ${dernier.erreur} (failed ${dernier.fois} times in a row with the same error, not launched again for this head)`);
+    if (dernier !== undefined && dernier.sha === pr.sha && dernier.fois >= 2) throw new Error(`${dernier.erreur} (failed ${dernier.fois} times in a row with the same error, not launched again for this head)`);
     try {
       const choix = await lancerLeChoixDeDesign(ticket, fichiers, pr);
       echecsDuChoix.delete(ticket.number);
@@ -3656,7 +3656,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       // La consigne part sur l'entrée du reviewer, pas sur sa ligne de commande : le diff la fait dépasser la limite des arguments (spawn E2BIG, #3786).
       const lancement = { ...envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" }), entree: texte };
-      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ticket: ticket.number });
+      // Sans `ticket` : un lancement qui le porte remet la livraison en « cooking » et la sort de la pass (pass.ts, `cook.launched`) ; le run se lit par son nom (`design-<n>-`).
+      const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
       const fin = await lance.fin;
       if (fin.erreur !== null) throw new Error(`design review cannot start: ${fin.erreur}`);
       const lu = lireLeChoix(lireLeFlux(lance.flux ?? flux).message);
