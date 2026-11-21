@@ -2206,6 +2206,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (numero === undefined) return false;
       return porteDesTachesDeTickets(await github.corpsDuTicket(Number(numero)).catch(() => ""));
     };
+    // Un ticket qu'on ne cuit pas et qui n'est pas en pass ne tient aucune zone, sa PR ouverte pas plus : sinon des tickets en file se retiennent en cycle (#3979).
+    // Un ticket qu'on ne lit pas, ou dont la prise ne se lit pas, la tient encore : dans le doute, la zone reste tenue.
+    const enFileCeTour = async (branche: string): Promise<boolean> => {
+      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+      const lu = numero === undefined ? undefined : tickets.find((autre) => autre.number === Number(numero));
+      if (lu === undefined || lu.labels.includes(LABEL_IN_PASS) || enVol.has(lu.number) || prisCeTour.has(lu.number)) return false;
+      // Sa livraison attend le chef : elle tient sa zone tant qu'il ne l'a pas vue (#2977).
+      if (lu.labels.includes(A_LA_MAIN)) return false;
+      if (!lu.labels.includes(LABEL_TAKEN)) return true;
+      return !(await github.commentaires(lu.number).then((commentaires) => tenantDeLaPrise(commentaires, []) !== null).catch(() => true));
+    };
     const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
@@ -2217,6 +2228,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (ouverte.branche === propre || !ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier)))) continue;
         if (pourLeChefCeTour(ouverte.branche)) continue;
         if (misDeCoteCeTour(ouverte.branche)) continue;
+        if (await enFileCeTour(ouverte.branche)) continue;
         if (await ticketFerme(ouverte.branche)) continue;
         if (await estUneEpique(ouverte.branche)) continue;
         pr = ouverte;
