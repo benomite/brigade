@@ -12,7 +12,7 @@ process tree is read from the process table (`Win32_Process`, PowerShell) and ki
 grace (`runtime/src/arbre.ts`); a table PowerShell returns with an error is still read, and a read that
 returns no line is tried again on the next round, unless PowerShell is missing or used its whole delay (#2829); a relayed cook is killed by its pid. Whatever a cook started and
 that still lives at its exit is killed too. **An open breaker and the "stop" both hold**, restarts
-included, until "resume".
+included, until the supervisor closes the breaker or the chef resumes the stop.
 
 A cook that **wrote its result but does not exit** (`claude` held by a background command or
 agent; its activity stays `finishing`) gets a quarter of the idle delay, at most a minute, to exit
@@ -33,9 +33,9 @@ The kitchen relaunches a stalled run **by itself**, as it was, under the run nam
 (`cook.launched` carries `stallRetry`), at most `RELANCES_SUR_CALAGE` times (2). If the last relaunch
 stalls too, the breaker opens to **escalate to the chef**: `breaker.opened` carries `stalled` — the
 kind of run (`manager`, `cook`, `review`…), its run, its turns and tokens, its last activity —, and
-the refusal to launch and the breaker's GitHub issue say what keeps stalling. A breaker opened that
+the refusal to launch says what keeps stalling. A breaker opened that
 way **closes by itself** (`breaker.lifted`, `after: <run>`) as soon as a run still in progress
-completes normally; otherwise it waits for "resume".
+completes normally, or as soon as the supervisor's check passes (see "The supervisor and the breaker").
 
 ### A ticket killed twice by the same guardrail
 
@@ -74,7 +74,7 @@ the runs of the cooks that were running.
 
 The breaker counts failures of **all** the project's launches (cooks, reviews, manager judgements) on
 a single counter, **in launch order**: failures among those launched **after the last success**,
-since your last "resume". A manager relaunch counts as a success only once judged green. The caps
+since the breaker last closed. A manager relaunch counts as a success only once judged green. The caps
 stay **per cook**.
 
 ### On the GitHub-only path
@@ -107,46 +107,44 @@ launched by the runtime's guardrails, off any ticket and under the station's nam
 them within the second (the ticket is given back on its issue), their failures count for the
 breaker, the caps are the project's. A cook stopped by a cap counts as a failure here, as any
 launch off a ticket does — except a stall, which is relaunched (above). Each launch also records the
-ticket it serves (`cook.launched` carries `serves`), which the breaker's issue names (#3656).
+ticket it serves (`cook.launched` carries `serves`), which the supervisor names when it closes the breaker (#3656).
 
 A cook whose launch fails before it runs (0 turns, a launch error: `spawn E2BIG` when its prompt is too
 long for the system) does not count for the breaker: the kitchen keeps serving other tickets. Its
 station comments on its ticket — `the cook of #<n> never started, its launch failed: <error> …` —, and
 the ticket is retried like any cook without a delivery, then goes to the manager when its tries are spent (#3656).
 
-### The breaker on GitHub
+### The supervisor and the breaker
 
-An open breaker is also **an issue on `benomite/brigade`**, never in the project's repository (#3620): it says how the
-kitchen runs, not the project's code, and a cook of the project could do nothing with it. It is labeled `brigade:breaker-open`
-(`runtime/src/breaker-issue.ts`) and filed with the machine's `gh`; its body names the failing ticket, its exit code, the error the log
-recorded for it, and the time the breaker opened — and, for each failure counted, its ticket and error (#3656) — or, opened by stalls, what keeps stalling (#3599). An issue already open for this kitchen is reused, never doubled — its body carries
-`<!-- brigade:breaker-open project=<project> -->`, and names the project's repository with
-`<!-- brigade:projet=<owner>/<repo> -->`, by which the app finds it. On "resume", or when the breaker closes by itself,
-the issue receives a comment saying the kitchen is resumed, and is closed. The label is created if the repository lacks it. Nothing is
-added to the log: the runtime reads the breaker at every wake-up and publishes only what changed —
-at startup it reads GitHub once, so a breaker closed while it was down still closes its issue. A
-failed publication is said once and retried at the next tick.
+No chef gesture closes a breaker, and the station files no GitHub issue when one opens (#3911). The project's supervisor
+(`runtime/src/manager/supervision.ts`, step 4 of `docs/superpowers/specs/2026-11-20-kitchen-spinning.md`) re-runs the check
+that tripped it — a run of the project's `claude`, which ends well or does not — at once, then every 10 minutes while the
+breaker stays open. It closes the breaker (`breaker.lifted`, `after: <run>`) only when that run ends well; a run that
+fails leaves it open. When it closes it, it posts one comment on each ticket the cause touched — the tickets whose
+cooks failed in a row, or the ticket of the run that kept stalling — saying the breaker is closed and which cause is
+gone. A comment that cannot be posted is said in the service log and does not reopen the breaker. The supervisor's
+runs go through the manager's launches, which an open breaker does not hold. Open breaker issues the station filed
+before #3911 stay on GitHub and are still never tickets (`issue-de-la-cuisine.ts`); nothing closes them.
+
+A ticket set aside for its failures (`set-aside:failures`) on the rail is handed to the supervisor, which reads its
+dossier (the ticket, its last comments, the log's last facts on it) and answers with one gesture: put it back on the
+rail with a note, set it aside in WAITING for a named third party, close it as a duplicate or stale alert, or post a
+TODO card for a product or design question. Any other answer is applied as nothing and the dossier is handed again
+after 10 minutes, three times at most. Its trace is one comment on the ticket, and the `set-aside:failures` label falls
+after the gesture. No timer or healing turn puts a set-aside ticket back on the rail.
 
 ### See and command
 
 ```bash
 npm --prefix runtime run guardrails             # the state
 npm --prefix runtime run guardrails -- stop     # stops everything
-npm --prefix runtime run guardrails -- resume   # reopens the kitchen, closes the breaker
+npm --prefix runtime run guardrails -- resume   # reopens a kitchen the chef stopped
 ```
 
 "stop" and "resume" are logged in the name of the `chef`; the runtime sees them within a second. The
 state shows `caps per ticket`, `pass judgements` (`3 at once at most — … (BRIGADE_MAX_JUDGEMENTS)`),
 `kitchen`, `breaker`, `cooks running` and `latest guardrail stops`. Its output is **in English**
 (`kitchen already stopped since …`); `reprendre` still answers until 2027-01-14.
-
-**Resume from GitHub, without `ssh`** (`runtime/src/breaker-resume-github.ts`): while the breaker is
-open, each GitHub poll reads the comments of the open issue labeled `brigade:breaker-open` on
-`benomite/brigade` that carries this kitchen's mark — another kitchen's issue resumes nothing. A comment
-whose body is exactly `/resume`, posted after the breaker opened by the owner, a member or a
-collaborator of `benomite/brigade`, plays `guardrails resume` in the runtime's process: same events, same
-answer, logged to `journalctl`. Any other comment is ignored; no labeled issue, nothing to do. With
-the breaker closed, nothing is read.
 
 ### The pause for the code rename
 

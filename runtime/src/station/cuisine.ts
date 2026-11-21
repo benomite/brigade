@@ -9,8 +9,6 @@
 import { placesDeLaStation } from "../github-seul/places/places.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { brancherIssueDuDisjoncteur, clientDuDisjoncteur } from "../breaker-issue.ts";
-import { brancherRepriseParGitHub } from "../breaker-resume-github.ts";
 import { noterGitHubSeul } from "../github-seul-etat.ts";
 import { fichierDesRefus, lireLesRefus } from "../station-contributrice/refus.ts";
 import { aiguillerLaStation } from "../station-contributrice/aiguillage.ts";
@@ -322,14 +320,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherRapportHebdo(superviser(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat }), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
-    // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts),
-    // et le `/resume` du chef sur cette issue le referme (breaker-resume-github.ts). L'issue se dépose
-    // sur la brigade, jamais dans le dépôt du projet (#3620).
-    brancherIssueDuDisjoncteur(connectee, { client: clientDuDisjoncteur({ bin: rail.gh, projet }), servi: rail.depot, station: stations.find((declaree) => !declaree.distante)?.nom ?? null, avertir: dire });
-    ouverte = brancherRepriseParGitHub(connectee, { github: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }), projet: connectee.projet, avertir: dire });
+    ouverte = connectee;
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
-    const { chef } = brancherLeChef(ouverte, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
+    const { chef } = brancherLeChef(connectee, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
     chefDuProjet = chef;
     brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).

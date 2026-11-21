@@ -72,6 +72,12 @@ if [ -n "$suite" ] && [ -e "$suite" ]; then
   done <"$suite"
 fi
 
+# Le contrôle du disjoncteur que rejoue le superviseur (`manager/supervision.ts`, #3911) : son scénario est
+# FAUX_CLAUDE_CONTROLE, quand le test en pose un, à la place de celui des jugements.
+if [ -n "${FAUX_CLAUDE_CONTROLE:-}" ] && [[ "${ARGUMENTS[*]}" == *"health check of the kitchen"* ]]; then
+  nom="$FAUX_CLAUDE_CONTROLE"
+fi
+
 if [ -n "${FAUX_CLAUDE_TEMOIN:-}" ]; then
   lancement="$$-$RANDOM"
   {

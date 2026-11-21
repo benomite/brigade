@@ -105,9 +105,10 @@ async function claimPerime(p: Projet) {
 
 function assertGueri(p: Projet) {
   const dit = `${p.depot}: ${p.avertis.join("\n")}`;
-  // Le ticket en conflit est relancé : `served-elsewhere` tombe, et le commentaire dit de rebaser.
-  assert.ok(commentairesDe(p, CONFLIT).some((c) => c.startsWith("<!-- brigade:relance cause=conflict n=1")), dit);
-  assert.ok(p.faux.cuissons.some((c) => c.issue === CONFLIT) || !p.faux.ticket(CONFLIT).labels.has(HORS_CUISINE), dit);
+  // Le ticket en conflit reste de côté : aucune minuterie ne le relance, le superviseur en décide (#3911).
+  assert.deepEqual(p.faux.cuissons.filter((c) => c.issue === CONFLIT), [], dit);
+  assert.ok(p.faux.ticket(CONFLIT).labels.has(HORS_CUISINE), dit);
+  assert.equal(commentairesDe(p, CONFLIT).some((c) => c.includes("brigade:relance")), false, dit);
   // Le claim périmé est libéré.
   assert.ok(commentairesDe(p, PRIS).some((c) => /released the claim/.test(c)), dit);
   // La PR prête reçoit `in-pass` sur son ticket.
@@ -117,32 +118,13 @@ function assertGueri(p: Projet) {
   assert.ok(commentairesDe(p, EPIQUE).some((c) => /All the sub-tickets this epic lists are closed \(#21, #22\)/.test(c)), dit);
 }
 
-test("one pass of the kitchen heals two projects: a conflicting set-aside ticket relaunched, a 46-minute stale taken released, in-pass on a ready PR, a finished epic closed", async () => {
+test("one pass of the kitchen heals two projects: a conflicting set-aside ticket left aside, a 46-minute stale taken released, in-pass on a ready PR, a finished epic closed", async () => {
   const projets = [projet("acme/shop", "box/claude", "trunk"), projet("zeta/lab", "mac/claude", "develop")];
   for (const p of projets) await claimPerime(p);
   for (const p of projets) aGuerir(p);
   // Un seul tour de chaque station.
   await Promise.all(projets.map((p) => p.passer()));
   for (const p of projets) assertGueri(p);
-  // La consigne nomme la base de chaque projet, pas une autre.
-  assert.ok(commentairesDe(projets[0] as Projet, CONFLIT).some((c) => c.includes("rebase the branch on `trunk`")));
-  assert.ok(commentairesDe(projets[1] as Projet, CONFLIT).some((c) => c.includes("rebase the branch on `develop`")));
-});
-
-// brigade:guard
-test("after two relaunches for the same reason, no third happens and no loop ticket is filed (#3945)", async () => {
-  // Le cook relancé s'arrête sans livrer : la station remet le ticket de côté,
-  // et sa PR est toujours en conflit.
-  const p = projet("acme/shop", "box/claude", "trunk", {}, true);
-  conflitDeCote(p);
-  const relances = () => commentairesDe(p, CONFLIT).filter((c) => c.startsWith("<!-- brigade:relance cause=conflict")).length;
-  for (let i = 0; i < 40 && !(relances() === 2 && estMisDeCote([...p.faux.ticket(CONFLIT).labels])); i += 1) await p.passer();
-  assert.equal(relances(), 2, p.avertis.join("\n"));
-  // Des tours encore : ni troisième relance, ni ticket de boucle.
-  for (let i = 0; i < 3; i += 1) await p.passer();
-  assert.equal(relances(), 2);
-  assert.deepEqual(p.faux.creations, []);
-  assert.ok(estMisDeCote([...p.faux.ticket(CONFLIT).labels]));
 });
 
 test("a gesture that throws does not stop the others, and its error is logged", async () => {
@@ -158,7 +140,6 @@ test("a gesture that throws does not stop the others, and its error is logged", 
   assert.equal(p.faux.ticket(EPIQUE).state, "open");
   assert.ok(p.avertis.some((ligne) => /healing \(epique #20\) on mac\/claude — HTTP 502 — closing refused/.test(ligne)), p.avertis.join("\n"));
   // Les autres gestes ont joué.
-  assert.ok(commentairesDe(p, CONFLIT).some((c) => c.startsWith("<!-- brigade:relance cause=conflict n=1")));
   assert.ok(commentairesDe(p, PRIS).some((c) => /released the claim/.test(c)));
   assert.ok(p.poses.some(([numero, label]) => numero === PRETE && label === "in-pass"));
 });

@@ -132,7 +132,7 @@ function avantDe(base: Base, issue: Issue, amont: IssueAmont): { etat: EtatAvant
   const { dit } = amont;
   if (amont.etat === "servie" || amont.etat === "decoupee") return null;
   if (amont.etat === "en-route" && labels.includes(LABEL)) return null;
-  if (labels.includes(ECHECS_ATTEINTS)) return { etat: "mise-de-cote", dit: `set aside by its failure count: its cooks stopped without a delivery too many times in a row (\`${ECHECS_ATTEINTS}\`) — the station's last comment on the issue says why; remove the label to try again` };
+  if (labels.includes(ECHECS_ATTEINTS)) return { etat: "mise-de-cote", dit: `set aside by its failure count: its cooks stopped without a delivery too many times in a row (\`${ECHECS_ATTEINTS}\`) — the station's last comment on the issue says why; the supervisor has the ticket, nothing puts it back on the rail by itself` };
   if (labels.includes(HORS_CUISINE)) return { etat: "mise-de-cote", dit: `it carries \`${HORS_CUISINE}\`: this kitchen does not serve it` };
   const decision = issueDuManager(base, ticket);
   const decoupage = decoupageDe(base, ticket);

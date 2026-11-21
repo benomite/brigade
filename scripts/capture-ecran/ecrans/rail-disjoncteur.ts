@@ -4,7 +4,7 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { RENDU_DISJONCTEUR } from "./rail-disjoncteur-commun.ts";
 
 export const ecran: Ecran = {
-  dit: "Le rail de « parade » dont le disjoncteur est ouvert : la ligne d'état dit « held: breaker open » et propose « Resume » (#3602)",
+  dit: "Le rail de « parade » dont le disjoncteur est ouvert : la ligne d'état dit « held: breaker open » et n'a aucun bouton (#3602, #3911)",
   largeur: 1440,
   hauteur: 640,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],

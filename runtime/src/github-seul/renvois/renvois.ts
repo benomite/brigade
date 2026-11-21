@@ -235,7 +235,7 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   const vers = pose === null || estUnFix || remises.length > 0 ? null : calibrageAuDessus(pose, plafond);
   if (pose === null || vers === null) {
     const pourquoi = raisonDeSortie(pose, estUnFix, remises[0], plafond);
-    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`): ${pourquoi}. Not served elsewhere, nobody serves it. A human decides.`);
+    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`): ${pourquoi}. Not served elsewhere: the supervisor takes it and decides what happens to it.`);
     await github.labelliser(issue, [ECHECS_ATTEINTS]);
     await libere();
     return { coup: "set-aside", n, raison: pourquoi };

@@ -72,13 +72,11 @@ test("#2557 on 2026-11-06: the same stop without a reply on the PR is a failure 
 test("#2557 on 2026-11-06: the same stop without a reply, a cook finished ok whose delivery is refused, is set aside at the first refusal (#3651)", async (t) => {
   const { faux, corps } = await cuisinerLe6Novembre(t, DERNIER_MESSAGE, 16);
   const echecs = corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec"));
-  // Mis de côté à chaque refus, le ticket est relancé deux fois par la
-  // guérison (#2757) — la relecture de sa PR demande des changements — et pas
-  // une troisième.
-  assert.equal(echecs.length, 3);
+  // Mis de côté au premier refus, le ticket n'est pas relancé : aucune minuterie ne le remet sur le rail (#3911).
+  assert.equal(echecs.length, 1);
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
   assert.match(echecs[0] ?? "", /Set aside \(`set-aside:failures`\) at this refusal/);
-  assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:relance")).length, 2);
+  assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:relance")).length, 0);
   assert.ok(faux.ticket(TICKET).labels.has("set-aside:failures"));
   assert.ok(!faux.ticket(TICKET).labels.has("served-elsewhere"));
 });

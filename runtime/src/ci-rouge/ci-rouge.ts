@@ -2,8 +2,7 @@
 // — jamais au chef (épique #2967, ticket #2970). Le 2026-11-08, la CI de la PR
 // #2908 était rouge — deux tests de la vue lisaient encore les anciennes
 // maquettes — et personne ne l'a réparée : elle a fini en demande « merge it »
-// au chef. Le pass ne renvoie que le rouge d'un ticket `in-pass`, et la relance
-// (`guerison/relance.ts`) celui d'un ticket `served-elsewhere` ; un ticket tenu
+// au chef. Le pass ne renvoie que le rouge d'un ticket `in-pass` ; un ticket tenu
 // pour le chef (`blocked-on-human`, `chef-todo`) gardait sa PR rouge.
 //
 // À chaque tour, pour chaque PR ouverte sur une branche `cook/<n>-github` :

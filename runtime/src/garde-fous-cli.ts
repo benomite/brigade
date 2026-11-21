@@ -100,8 +100,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       etat.breakerOpenedAt === null
         ? `closed — ${pluriel(etat.failures, "failure")} in a row, opens at ${etat.breakerThreshold ?? "?"}`
         : calage !== null
-          ? `OPEN since ${etat.breakerOpenedAt}: a run keeps stalling — ${direLeCalage(calage)} — no more cooks are launched; it closes by itself if a running cook completes, or \`resume\` to close it`
-          : `OPEN since ${etat.breakerOpenedAt} after ${pluriel(etat.failures, "failure")} in a row — no more cooks are launched; \`resume\` to close it`,
+          ? `OPEN since ${etat.breakerOpenedAt}: a run keeps stalling — ${direLeCalage(calage)} — no more cooks are launched; the supervisor re-runs a run to check it and closes it by itself`
+          : `OPEN since ${etat.breakerOpenedAt} after ${pluriel(etat.failures, "failure")} in a row — no more cooks are launched; the supervisor re-runs a run to check it and closes it by itself`,
     );
     const cooks = cooksEnCours(base);
     ligne("cooks running", cooks.length === 0 ? "none" : String(cooks.length));
