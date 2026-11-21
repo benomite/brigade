@@ -2662,7 +2662,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "surLOrigine" | "elaguer" | "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "ajouts" | "recevoir">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "garer" | "surLOrigine" | "elaguer" | "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "ajouts" | "recevoir">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -2866,7 +2866,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     for (const [numero, { worktree, branche }] of lieuxEnVol) {
       try {
         depot.recolter(worktree, branche, SUJET_DE_SAUVEGARDE, true);
-        depot.pousser(branche);
+        // Garé, pas poussé sur sa branche : ce n'est pas une livraison, la CI n'y joue pas (#3996).
+        depot.garer?.(branche);
         sauves.add(numero);
         faits.push(numero);
         avertir(`brigade : #${numero} sur ${nom} — the cook's work is saved on \`${branche}\` before the station restarts: the next cook starts from it`);
@@ -2913,6 +2914,31 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
         return abandon.signal.aborted ? null : verdictDesGates(gates, reglage.delaiMs);
       },
     });
+  };
+  // Les gates du projet, jouées dans le worktree d'une livraison avant son push
+  // (#3996) : la CI ne joue que sur une livraison qu'elles ont jugée prête. Un
+  // projet sans `gates.sh` n'a rien à y jouer, ni des gates qui ne jugent rien
+  // — provisoires tant que la fondation n'est pas servie (#3188) : la livraison
+  // part comme avant, et la pass dit pourquoi elle ne les joue pas.
+  // Rend ce qui la retient, ou null quand elle peut partir.
+  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string } | { subi: string } | null> => {
+    if (!aDesGates(worktree) || (await gatesQuiNeJugentPas(worktree, ticket, lireFondations)) !== null) return null;
+    const secrets = lireSecrets(worktree, options.gates?.secrets ?? null);
+    if (!secrets.pret) return { echec: `its gates could not run before the push, so its delivery was not pushed: the secrets the project declares cannot be given to them — ${secrets.problemes.join("; ")}` };
+    const delaiMs = options.gates?.delaiMs ?? delaiDesGatesMs(options.env);
+    const envGates = environnementCook(options.env);
+    const gates = await jouerGates({
+      worktree,
+      ticket: ticket.number,
+      ...(Object.keys(secrets.env).length === 0 ? { env: envGates } : { env: { ...envGates, ...secrets.env }, masquer: secrets.masquer }),
+      interdites: options.gates?.sansIdentite ? VARIABLES_GITHUB : [],
+      delaiMs,
+      cloison,
+      signal: abandon.signal,
+    });
+    if (abandon.signal.aborted) return { subi: "the station stopped during the gates of the delivery, before its push" };
+    const { vert, resume } = verdictDesGates(gates, delaiMs);
+    return vert ? null : { echec: `its gates are red, so its delivery was not pushed: ${resume}` };
   };
   const cuisinerLeTicket: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
@@ -3021,7 +3047,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const sauvee = reprise && (estUneSauvegarde(depot.sujet?.(branche)) || repriseDeGarde);
     const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
     if (repriseDeGarde) joint += `\n\n${consigneDuRunPrecedent(branche, await commitsDuRunPrecedent(lancerGit, worktree, base))}`;
-    else if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, or it declared itself blocked and the chef has answered on this issue. Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
+    else if (sauvee) joint += `\n\n## Work saved before a restart\n\nThe previous cook on this ticket stopped before delivering: its station restarted for an update, it declared itself blocked and the chef has answered on this issue, or the station's gates were red on its delivery, which was not pushed (this issue's comments say which). Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
     // Sa tête est le commit de ses tests gelés (#3725) : aucun cook n'y a encore écrit, ce n'est pas une livraison.
     if (sansPR && !sauvee && avant !== null && depot.livree !== undefined && !estLeCommitDesTests(depot.sujet?.(branche))) {
       const livree = depot.livree(branche);
@@ -3214,11 +3240,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const fuite = cleDansLaLivraison(surLeMoteur, depot, worktree, branche);
       if (fuite !== null) return { echec: fuite };
       await depot.ranger(worktree, branche);
+      // Garé, pas poussé sur sa branche (#3996) : la PR ouverte dessus ne voit
+      // pas le travail à moitié fait, et la CI n'y joue pas.
       if (depot.commits(branche) > 0) {
         try {
-          depot.pousser(branche);
+          depot.garer?.(branche);
         } catch (erreur) {
-          avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work stays only in the clone, \`${branche}\` could not be pushed: ${message(erreur)}`);
+          avertir(`brigade : #${ticket.number} sur ${nom} — the blocked cook's work stays only in the clone, \`${branche}\` could not be parked on the origin: ${message(erreur)}`);
         }
       }
       return { bloque: question ?? "", ...(miseAJour === undefined ? {} : { miseAJour }), ...(conflit === null ? {} : { conflit }) };
@@ -3233,7 +3261,27 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     const fuite = cleDansLaLivraison(surLeMoteur, depot, worktree, branche);
     if (fuite !== null) return { echec: fuite };
+    // Une tête sauvée (#2586) n'est jamais allée en pass : le cook qui la livre
+    // telle quelle, avec son livrable — ce que le manager répond au blocage
+    // d'un cook dont le travail est fait —, livre. Sans quoi son essai comptait
+    // pour un cook raté, « added nothing since its last delivery », sur #3036.
+    const livreLaSauvegarde = sauvee && prOuverte === null && lireLivrable(lireLeFlux(lance.flux ?? flux).message ?? null).texte !== null;
+    // Ce qui partira en livraison ne part qu'une fois les gates du projet
+    // vertes dans son worktree (#3996), ce que le cook a laissé non commité
+    // compris : récolté d'abord. Rouges, la branche garde la marque du travail
+    // sauvé (#2586) : le cook suivant en repart, au lieu que la station la
+    // pousse telle quelle, sans gates, comme une livraison coupée (#2577).
+    depot.recolter?.(worktree, branche);
+    const retenue = depot.commits(branche) > 0 && (livreLaSauvegarde || depot.tete?.(branche) !== avant) ? await gatesAvantLePush(ticket, worktree) : null;
+    if (retenue !== null && "echec" in retenue) {
+      try {
+        depot.recolter?.(worktree, branche, SUJET_DE_SAUVEGARDE, true);
+      } catch (erreur) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — the work whose gates are red could not be marked as saved on \`${branche}\`: ${message(erreur)}`);
+      }
+    }
     await depot.ranger(worktree, branche);
+    if (retenue !== null) return retenue;
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
     // motif nommé, qui ne compte pas vers `served-elsewhere` (#2738).
     const refusee = lireLeFlux(lance.flux ?? flux).ecritureRefusee;
@@ -3257,11 +3305,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if (prOuverte !== null && reponse !== null && tete !== undefined) {
       await options.github.commenter(prOuverte, corpsDeLaReponse(tete, reponse)).catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the cook's reply could not be posted on PR #${prOuverte}: ${message(erreur)}`));
     }
-    // Une tête sauvée (#2586) n'est jamais allée en pass : le cook qui la livre
-    // telle quelle, avec son livrable — ce que le manager répond au blocage
-    // d'un cook dont le travail est fait —, livre. Sans quoi son essai comptait
-    // pour un cook raté, « added nothing since its last delivery », sur #3036.
-    const livreLaSauvegarde = sauvee && prOuverte === null && lireLivrable(lireLeFlux(lance.flux ?? flux).message ?? null).texte !== null;
     if (avant !== null && tete === avant && !livreLaSauvegarde) {
       if (resteAFaire !== null) return { reste: resteAFaire };
       // La branche porte déjà une livraison et sa PR a été fermée sans merge : le cook n'a rien à y ajouter,

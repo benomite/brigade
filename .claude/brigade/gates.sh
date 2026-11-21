@@ -167,11 +167,26 @@ fi
 # de 40 s à une minute à la station, une recuisson tout un cook de plus.
 # `BRIGADE_GATES_TESTS=proches` ne joue que les tests proches, hors CI : au
 # poste du dev, pendant le travail.
+# Mais un changement qui lance la CI Windows y joue toutes les suites : les
+# chemins de `pull_request.paths` de `.github/workflows/runtime-windows.yml`,
+# ci-dessous à l'identique. Les gates y jouent donc tout, elles aussi (#3996) :
+# les tests de loin — ceux qui parcourent un dossier au lieu d'importer ce
+# qu'ils gardent, ceux qu'un module du produit touche par ses imports — et la
+# garde des 2 s (#2129) sont joués avant le push, et une livraison ne part plus
+# rouge vers la CI. Sous `--proches`, au poste du dev, rien ne change.
 SELECTION_runtime=tout
 SELECTION_app=tout
 PORTEE=
 [ "${CI:-}" != true ] && [ "${BRIGADE_GATES_TESTS:-}" = proches ] && PORTEE=--proches
-if [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
+COMME_LA_CI_WINDOWS=0
+while IFS= read -r CHEMIN; do
+  case "$CHEMIN" in
+    runtime/*|app/*|docs/runtime/*|.claude/brigade/*|.github/workflows/runtime-windows.yml) COMME_LA_CI_WINDOWS=1 ;;
+  esac
+done <<<"${CHANGES:-}"
+if [ -z "$PORTEE" ] && [ "$COMME_LA_CI_WINDOWS" -eq 1 ]; then
+  ok "tests : tous, comme la CI Windows sur ce changement (runtime/, app/, docs/runtime/ ou .claude/brigade/)"
+elif [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
   if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs $PORTEE 2>/dev/null)"; then
     while read -r ZONE_SEL REGLE; do
       case "$ZONE_SEL" in runtime) SELECTION_runtime="$REGLE" ;; app) SELECTION_app="$REGLE" ;; esac

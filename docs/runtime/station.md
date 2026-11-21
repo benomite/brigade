@@ -405,7 +405,8 @@ taking tickets up to its places** (#2586 — it used to stop taking any, so the 
 refilled). The restart comes at the first moment with no cook in flight or, failing that, at the
 deadline (15 minutes by default, `BRIGADE_MISE_A_JOUR_VIDANGE_S`; the batching logic gives its own).
 At the deadline, the station first saves the work of each cook in flight on its branch — committed
-(`brigade: work in progress saved before the station restarts (#2586)`) and pushed — then says it is
+(`brigade: work in progress saved before the station restarts (#2586)`) and parked on the origin under
+`refs/brigade/parked/<branch>`, where no CI workflow runs (#3996) — then says it is
 ready (`prete` in `en-vol`), and takes no ticket until the restart. The ticket is given back; the next
 cook resumes the saved branch, told so in its brief, and that head is never sent to the pass as a
 delivery cut before its PR (#2577). A station that never says it is ready has its cooks cut 30 s

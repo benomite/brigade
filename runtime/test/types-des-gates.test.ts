@@ -8,7 +8,9 @@
 //
 // Les tests, de même (#2565) : la station joue la fermeture que joue la CI, pas
 // les seuls tests proches. Un test touché sans être proche — qui importe le
-// fichier changé sans en porter le nom — rougit ses gates avant la CI.
+// fichier changé sans en porter le nom — rougit ses gates avant la CI. Un
+// changement du code d'une zone, que la CI Windows juge sur toutes ses suites,
+// les joue toutes (#3996).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -80,12 +82,7 @@ describe("le contrôle de types des gates d'une station, sans test touché par l
 
     const { code, sortie } = jouer(racine);
 
-    assert.deepEqual(lignesDesTypes(sortie), [
-      "ok    tests du runtime non joués : aucun ne touche ce changement — la suite entière tourne sur la base",
-      "ok    contrôle de types du runtime",
-      "ok    tests de l'app non joués : aucun ne touche ce changement — la suite entière tourne sur la base",
-      "ok    contrôle de types de l'app",
-    ]);
+    assert.deepEqual(lignesDesTypes(sortie), ["ok    contrôle de types du runtime", "ok    contrôle de types de l'app"]);
     assert.equal(code, 0, sortie);
   });
 
@@ -122,7 +119,7 @@ describe("les tests que les gates d'une station jouent : la fermeture du changem
 
     const { code, sortie } = jouer(racine);
 
-    assert.match(sortie, /^ok {4}tests du runtime : 1 fichiers touchés par ce changement — la suite entière tourne sur la base$/m);
+    assert.match(sortie, /^ok {4}tests : tous, comme la CI Windows sur ce changement/m);
     assert.deepEqual(sortie.match(/^FAIL.*$/gm), ["FAIL  tests du runtime en échec — rejoue : npm --prefix runtime test"]);
     assert.match(sortie, /loin vaut 2/);
     assert.equal(code, 1, sortie);

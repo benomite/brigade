@@ -75,6 +75,13 @@ export type Depot = {
   // que dépend la fin du cook. Ne remplace sur l'origine que ce que la station
   // y connaît : si la branche y porte autre chose, lève sans rien écraser.
   pousser(branche: string): void;
+  // Gare sur l'origine le travail d'un cook qui n'est pas une livraison — un
+  // cook arrêté sur une question, sauvé avant une relance (#3996) : hors de
+  // toute branche, sous `refs/brigade/parked/<branche>`, qu'aucun déclencheur
+  // de workflow n'écoute et qui n'est la tête d'aucune PR. La CI ne joue ainsi
+  // que sur les livraisons. Une station qui n'a pas la branche en repart
+  // (`reprendre`), et la livraison suivante la retire. Lève si `git` échoue.
+  garer(branche: string): void;
   // Ce que l'origine a reçu d'une branche : sa branche de suivi, si elle a été
   // poussée, sinon la branche elle-même. C'est ce que la pass juge — une
   // récolte posée au rangement, jamais poussée, n'en fait pas partie.
@@ -439,6 +446,8 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // suivi, qu'un `git fetch` du cook déplace sans que la station ait rien vu.
   const connue = (branche: string) => `refs/brigade/origine/${branche}`;
   const suivie = (branche: string) => `refs/remotes/origin/${branche}`;
+  // Où le travail non livré d'une branche est garé, sur l'origine comme dans le clone (#3996).
+  const garage = (branche: string) => `refs/brigade/parked/${branche}`;
   const commitDe = (reference: string) => git("for-each-ref", "--format=%(objectname)", reference);
   // Le commit que la station sait sur l'origine, ou rien. Une branche poussée
   // avant que la station ne retienne ses pushs n'a que sa branche de suivi :
@@ -462,6 +471,18 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     } catch {
       return false;
     }
+  };
+  // Le travail garé d'une branche (#3996), rapatrié de l'origine : sa
+  // référence s'il prolonge `depuis` — ce que l'origine porte de la branche —,
+  // sinon null. Absent, ou qu'on ne peut lire, ou dépassé par une livraison
+  // qu'il ne porte pas : la branche se reprend comme avant, de l'origine.
+  const garee = async (env: NodeJS.ProcessEnv | undefined, branche: string, depuis: string | null): Promise<string | null> => {
+    try {
+      await gitAvec(env, "fetch", "--quiet", "origin", `+${garage(branche)}:${garage(branche)}`);
+    } catch {
+      return null;
+    }
+    return depuis === null || ancetre(depuis, garage(branche)) ? garage(branche) : null;
   };
   // Un arbre, ses chemins traduits : lu dans un index à part, réécrit dans un
   // autre, sans worktree. Rend l'arbre obtenu.
@@ -659,6 +680,9 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const env = await reseau();
         if ((await gitAvec(env, "ls-remote", "--heads", "origin", `refs/heads/${branche}`)).trim() === "") {
           for (const reference of [connue(branche), suivie(branche)]) git("update-ref", "-d", reference);
+          // Le clone ne l'a pas : elle naît du travail qu'une autre station a garé (#3996).
+          const depart = git("branch", "--list", branche) === "" ? await garee(env, branche, null) : null;
+          if (depart !== null) git("branch", "--quiet", branche, depart);
           await gitAsync("worktree", "add", "--quiet", worktree, branche);
           return worktree;
         }
@@ -670,10 +694,11 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         // Une branche qu'une autre station — ou le second — a poussée n'existe
         // pas encore ici : elle naît de ce que l'origine porte (#2311), pour que
         // toute station relise ce qu'une autre a cuisiné.
+        // Ou du travail qu'une station y a garé par-dessus (#3996).
         try {
           git("rev-parse", "--verify", "--quiet", `refs/heads/${branche}`);
         } catch {
-          git("branch", "--quiet", branche, suivie(branche));
+          git("branch", "--quiet", branche, (await garee(env, branche, suivie(branche))) ?? suivie(branche));
         }
         const [locale, distante] = [git("rev-parse", `refs/heads/${branche}`), commitDe(suivie(branche))];
         const compter = (plage: string) => Number(git("rev-list", "--count", plage));
@@ -820,6 +845,17 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const attendu = connu(branche);
         execFileSync("git", ["push", "--quiet", `--force-with-lease=refs/heads/${branche}:${attendu}`, "origin", `refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
         git("update-ref", connue(branche), tete);
+        // Livrée, la branche n'a plus de travail garé (#3996) : sa copie part
+        // de l'origine. Non retirée, elle y reste, dépassée : la reprise de la
+        // branche livrée n'en repart pas, puisqu'elle ne porte pas sa livraison.
+        if (commitDe(garage(branche)) !== "") {
+          try {
+            execFileSync("git", ["push", "--quiet", "origin", `:${garage(branche)}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
+          } catch {
+            // Déjà retirée par une autre station, ou l'origine qui refuse : la livraison est poussée.
+          }
+          git("update-ref", "-d", garage(branche));
+        }
       } catch (erreur) {
         if (/stale info/.test(String((erreur as { stderr?: unknown }).stderr ?? ""))) {
           throw new Error(
@@ -833,6 +869,16 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         }
         throw motif("git push", erreur);
       }
+    },
+    garer(branche) {
+      // Forcé : la copie garée n'est que celle de la branche locale, la plus récente gagne.
+      const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : envGit), LC_ALL: "C" };
+      try {
+        execFileSync("git", ["push", "--quiet", "--force", "origin", `refs/heads/${branche}:${garage(branche)}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
+      } catch (erreur) {
+        throw motif("git push", erreur);
+      }
+      git("update-ref", garage(branche), `refs/heads/${branche}`);
     },
     livree,
     tete: (branche) => git("rev-parse", "--verify", `${branche}^{commit}`),

@@ -98,8 +98,10 @@ const clientDe = (faux: FauxGitHub) => ({
 
 // La station de ce runtime sur un projet sans CI sur ses PR : ses worktrees
 // portent `claudeMd` et des gates sans commande de test, ou dont la commande
-// note où elle tourne, verte ou rouge. Elle cuit, relit et merge `ticket` ;
-// rend ce qu'elle a dit et fait.
+// note où elle tourne, verte ou rouge. Rouges, elles le sont sur la tête de la
+// PR seule : dans le worktree du cook, elles retiendraient la livraison avant
+// son push (#3996). Elle cuit, relit et merge `ticket` ; rend ce qu'elle a dit
+// et fait.
 async function servir(t: TestContext, { faux, ticket, claudeMd = REELLES, gates }: { faux: FauxGitHub; ticket: number; claudeMd?: string; gates: "aucune" | "verte" | "rouge" }) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-fondation-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
@@ -113,7 +115,7 @@ async function servir(t: TestContext, { faux, ticket, claudeMd = REELLES, gates 
     mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
     writeFileSync(join(worktree, "CLAUDE.md"), claudeMd);
     const script = join(worktree, ".claude/brigade/gates.sh");
-    const commande = `echo "npm test in $1" >> "${journal}"\n${gates === "rouge" ? 'echo "FAIL  adds two numbers"\nexit 1' : 'echo "PASS  adds two numbers"'}\n`;
+    const commande = `echo "npm test in $1" >> "${journal}"\n${gates === "rouge" && run.startsWith("gates-") ? 'echo "FAIL  adds two numbers"\nexit 1' : 'echo "PASS  adds two numbers"'}\n`;
     writeFileSync(script, gates === "aucune" ? SANS_COMMANDE : `${ENTETE}${commande}`);
     chmodSync(script, 0o755);
     return worktree;
@@ -200,7 +202,8 @@ test("the foundation ticket's own delivery is not blocked by the provisional gat
   faux.feu(1, [...CALIBRE, LABEL_FONDATION]);
   const { statuts, gatesJouees } = await servir(t, { faux, ticket: 1, claudeMd: PROVISOIRES, gates: "verte" });
   assert.equal(faux.mergee(1)?.mergeePar, "box");
-  assert.match(gatesJouees, /^npm test in .*\n$/);
+  // Dans le worktree du cook avant son push (#3996), puis sur la tête de sa PR.
+  assert.match(gatesJouees, /^npm test in .*\/1-github\nnpm test in .*\/gates-1-github\n$/);
   assert.deepEqual(statuts, [
     ["pending", "Gates running on station box"],
     ["success", "Gates green on station box"],
