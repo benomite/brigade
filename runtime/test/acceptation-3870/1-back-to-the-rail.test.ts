@@ -85,6 +85,7 @@ test("no other station in the project: the ticket stays held on the Mac, which s
 });
 
 // #3870, critère 2 : la station qui n'a pas pu cuire le ticket ne le reprend pas tant qu'une autre le peut.
+// brigade:guard — moved unchanged from its own file by the closing pass #3993: it keeps guarding what main already does.
 test("the Mac does not take the ticket again, turn after turn, while the box can", async (t) => {
   const faux = new FauxGitHub();
   projetDeuxStations(faux);

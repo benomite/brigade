@@ -170,6 +170,7 @@ test("après une veille, l'app rouverte se rattache à la station qui tourne et 
 // #3864 — Rouvrir l'app après l'avoir quittée : la station de fond et l'icône `--tray-fond` tournent déjà, et la fenêtre
 // de l'app se montre, sans que le chef arrête la station. Contre le vrai point d'entrée de l'app (tray-fond/entree.ts),
 // sous un Electron doublé : ni Mac, ni écran.
+// brigade:guard — moved unchanged from its own file by the closing pass #3993: it keeps guarding what main already does.
 test("l'app ouverte alors que la station de fond et l'icône tournent crée sa fenêtre principale et la montre, en moins de cinq secondes", { skip: SOUS_POSIX }, async (t) => {
   const ordi = await unMac(t);
   const app = await ordi.ouvrirLApp();
@@ -179,6 +180,7 @@ test("l'app ouverte alors que la station de fond et l'icône tournent crée sa f
 
 // #3864 — Une réouverture après une mise à jour de l'app : l'hôte de la station qui tourne a été lancé par une version plus
 // ancienne. La nouvelle app s'y rattache et montre sa fenêtre ; la station n'est pas arrêtée.
+// brigade:guard — moved unchanged from its own file by the closing pass #3993: it keeps guarding what main already does.
 test("l'hôte lancé par une version plus ancienne de l'app : l'app mise à jour s'y rattache, montre sa fenêtre, et la station reste", { skip: SOUS_POSIX }, async (t) => {
   const ordi = await unMac(t, { versionDeLHote: "1.0.240" });
   const app = await ordi.ouvrirLApp("1.0.286");
