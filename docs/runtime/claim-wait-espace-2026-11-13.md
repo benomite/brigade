@@ -119,17 +119,15 @@ the cause from the ticket alone.
   kind (`espace issues`, `station gist write`).
 - Every `kitchen.held` carries `skips`, the claim gate's lines for the claimable tickets it did not claim, when
   those lines are not already the cause. Under GitHub's limit they were written nowhere.
-- The Evidence of a lost-time ticket cites a `kitchen.held` line up to 1,500 characters (`LONGUEUR_D_UNE_RETENUE`
-  in `runtime/src/preuve-mesure.ts`): cut at 300, as the other events are, it stopped before these fields.
 
-`test/retenue/pauses-au-journal.test.ts` plays the chain: calls counted, a refusal, the hold written to the journal,
-and the Evidence section citing it whole.
+`kitchen.held` and its test are gone since #3945: the supervisor replaces the held kitchen
+([`github-seul.md`](github-seul.md#the-supervisor)).
 
 ## What remains unverified
 
 - **Which limit GitHub set**, and which calls brought it, on 2026-11-12 from 12:19 and on 2026-11-13 from 09:51:
-  the box's journal, service log and counter were not read, and the Evidence of #3448 does not hold them. The next
-  hold will say it in its `kitchen.held` line.
+  the box's journal, service log and counter were not read, and the Evidence of #3448 does not hold them. No
+  `kitchen.held` line will say it: the runtime no longer writes one (#3945).
 - **What held #955 from 09:46 to 12:16**, and #987's kitchen from 10:30 to 11:20 on 11-13: nothing cited says.
   The `nothing-waits` lift at 11:20:57 is the hold observer starting with an empty view at the restart (the GitHub
   turn has not run yet, `lireLaCuisine`), not a ticket served.

@@ -26,10 +26,6 @@ import type { Issue, PR } from "../github.ts";
 export const LABEL_TAKEN = "taken";
 export const LABEL_IN_PASS = "in-pass";
 export const LABEL_WAITING = "waiting";
-// La réparation de main (#3815, `reparation-base/reparation-de-main.ts`) : son label, et le début de son titre, que suit le
-// test en échec. Ici, pour que l'app les lise sans charger la réparation.
-export const LABEL_REPARATION_DE_MAIN = "repair-main";
-export const PREFIXE_DE_LA_REPARATION = "Repair main:";
 
 export type EtatDuTicket = "taken" | "pass" | "waiting" | "base-red";
 

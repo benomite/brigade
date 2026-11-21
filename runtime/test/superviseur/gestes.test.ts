@@ -114,14 +114,6 @@ test("main rouge : une relance qui tourne encore n'ouvre rien ; un fix sans son 
   assert.deepEqual([depot.creees(), depot.relances()], [[], []]);
 });
 
-test("une réparation de base déjà ouverte pour ce check en est le doublon : aucun ticket fix de plus", async () => {
-  const depot = new FauxDepot();
-  depot.checkRouge("tests (linux)", 7, 2);
-  depot.issue(90, ["fire", "prio:0"], "<!-- brigade:base-rouge sha=abc123 -->\n\n- `abc123` · 2026-11-20 · tests (linux) · not ok 1");
-  const trace = await jouer(depot, MAIN_ROUGE, { gesture: "fix", cause: "linux", title: "Fix the linux tests", body: "Red.", check: "tests (linux)" });
-  assert.deepEqual([trace.outcome, trace.ticket, depot.creees().length], ["refused", 90, 0]);
-});
-
 test("un fix pour une cause neuve s'ouvre ; une cause qu'un ticket ouvert porte déjà n'en ouvre pas un second", async () => {
   const depot = new FauxDepot();
   depot.issue(40, ["fire"]);
@@ -277,4 +269,13 @@ test("les tickets ouverts illisibles : aucun fix ne s'ouvre sans avoir cherché 
     assert.match(trace.comment ?? "", attendu[1]);
     assert.deepEqual(depot.creees(), []);
   }
+});
+
+test("main rouge : un ancien ticket de réparation automatique de main sur le même check n'est pas la même cause (#3945) — le fix s'ouvre", async () => {
+  const depot = new FauxDepot();
+  depot.checkRouge("tests (linux)", 7, 2);
+  // Ouvert par la station avant #3945, de confiance, `prio:0`, sa marque de commit rouge et le check qu'il nommait.
+  depot.issue(41, ["fire", "prio:0"], `<!-- brigade:base-rouge sha=${"b".repeat(40)} -->\n\n## What fails\n\n- \`tests (linux)\``);
+  const fait = await jouer(depot, MAIN_ROUGE, { gesture: "fix", cause: "tests fail on linux", title: "Fix the linux tests", body: "Red after its rerun.", check: "tests (linux)" });
+  assert.deepEqual([fait.outcome, fait.ticket, depot.creees().length], ["done", 500, 1]);
 });

@@ -662,16 +662,12 @@ progress continue, as do the manager's judgements and the reviews.
 
 **The kitchen deals with the red on its own.** The pass **first replays its gates once**, at once and
 with no commit (`base.recheck-requested`, written by `pass`): a passing red (a flaky test, an
-exceeded delay) falls with nothing opened. **If the red holds**, it **opens a repair ticket**
-(`base.repair-opening` then `base.repair-opened`) naming the base, the commit and what
-fails. It carries `fire`, `model:opus`,
-`effort:medium` (like the manager's table, #2575) and **`prio:0`, which goes ahead of the whole rail**. **It is the only ticket that
-leaves from a red base**: the pass judges it merged with the red base and merges it, its
-green gates saying it repairs it. Merged, the base's gates are replayed, and at green everything
-restarts by itself.
-**One at a time**: no second while the first is in progress, nor more than one per red. Its
-marker is `<!-- brigade:reparation-base <sha> -->`. The repair reads `en-cours`, `servie` or
-`echouee` (`reparationDeLaBase`, read by the queue and the card). **While it works, the red base does
+exceeded delay) falls with nothing opened. No repair ticket is opened automatically any more (#3945):
+a base red for 10 minutes wakes the [supervisor](github-seul.md#the-supervisor), which reruns the failed jobs
+first and files at most one `fix` ticket per red check. That ticket, `prio:0` with its
+`<!-- brigade:supervisor-cause check:<check name> -->` mark, **is the only one that leaves from a red base**:
+the pass judges it merged with the red base and merges it. The `base.repair-opening` and `base.repair-opened`
+facts of older logs are still read (`reparationDeLaBase`): **while such a repair works, the red base does
 not enter the `awaiting` block**; **failed, it enters it**, on a `base` line ("What awaits the chef"
 in [`etat-et-mesures.md`](etat-et-mesures.md)), and **leaves it by itself on return to green**.
 

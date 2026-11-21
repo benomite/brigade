@@ -4,7 +4,7 @@
 //
 // Ce module est l'unique source de la phrase : le rail de l'app (vue/rail/github.ts) et `brigade <project> status`
 // (`status.ts`) l'appellent et n'en écrivent aucune. Il ne lit rien : il juge ce qu'on lui donne — les tickets du rail,
-// les stations du compte (la même lecture que le rail bloqué de #3358) —, et rend la première raison
+// les stations du compte —, et rend la première raison
 // qui tient, dans cet ordre :
 //   1 aucune station ne sert le projet            2 ses stations sont arrêtées     3 ses stations sont hors ligne
 //   4 elles attendent le quota de GitHub          5 le plafond de cooks est atteint
@@ -18,7 +18,7 @@
 import { lignesHorsCode } from "../epique.ts";
 import { disponible, retenueJusqua } from "../enregistrement-station/contrat.ts";
 import { stationDe } from "../stations-github/stations.ts";
-import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "../rail-bloque/rail-bloque.ts";
+import { DELAI_MS, dureeCourte, MOTS_DU_GESTE, servantesDe, type Geste, type StationsLues } from "./stations.ts";
 
 export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github" | "plafond" | "pass" | "autre-ticket" | "normale";
 

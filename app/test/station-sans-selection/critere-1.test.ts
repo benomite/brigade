@@ -2,7 +2,7 @@
 // projet — le rail ne dit jamais « No station serves this project ».
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { comprendre, type Faits } from "../../src/faits.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";

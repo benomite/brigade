@@ -3,13 +3,13 @@
 // `/resume` sur l'issue ouverte du dépôt qui porte le label `brigade:breaker-open` : la station la publie quand le
 // disjoncteur s'ouvre (#2138), et sa veille lit le commentaire et referme le disjoncteur (#2139). L'issue est sur la
 // brigade, jamais dans le dépôt du projet (#3620) : celle du projet est celle dont le corps porte la marque de son dépôt
-// (`marqueDuProjet`, runtime/src/alerte-cuisine/alerte-cuisine.ts).
+// (`marqueDuProjet`, runtime/src/issue-de-la-cuisine.ts).
 // Ce module compose les demandes, avec les mêmes en-têtes et le même jeton que les autres appels de l'app à GitHub
 // (tableau/client.ts) ; ce qui les porte est donné par la plateforme. Il ne parle qu'à GitHub :
 // aucune box, aucune station n'est jointe.
 import { clientGitHub, refusDe, type AppelGitHub, type Poste } from "../tableau/client.ts";
 import { dureeEn } from "../tableau/rail.ts";
-import { DEPOT_BRIGADE, marqueDuProjet } from "../../../runtime/src/alerte-cuisine/alerte-cuisine.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../../runtime/src/issue-de-la-cuisine.ts";
 
 // Le label de l'issue que la station ouvre avec le disjoncteur, et le corps exact que sa veille attend.
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";

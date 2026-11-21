@@ -16,8 +16,10 @@
 // rien : il reprend au tour suivant, sans doublon.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import type { CarteDeTodoGitHub } from "./attente-github/attente-github.ts";
-import { LABEL_DU_BUG } from "./guerison/cuisine-inerte.ts";
-import { marqueDuProjet, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
+import { marqueDuProjet, type GitHubDeLaBrigade } from "./issue-de-la-cuisine.ts";
+
+// Le label du défaut.
+const LABEL_DU_BUG = "fix";
 
 // Jusqu'où, sur la brigade, on cherche le défaut déjà déposé.
 export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;

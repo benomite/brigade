@@ -19,15 +19,7 @@ const MARQUE_DE_REPONSE = /^<!-- brigade:reponse-cook sha=([0-9a-f]+) -->/;
 // Un commentaire de la PR, dans l'ordre où GitHub les rend.
 type CommentaireLu = { body: string; association: string; createdAt: string };
 
-// Ce que le brief d'un cook renvoyé lui dit du désaccord. Sauf sur le rejeu
-// des tests ajoutés (#3694) : #3632, renvoyé sur un test déjà vert sur la base,
-// a commenté ce test comme une garde d'un comportement que la base avait, et
-// sa tête est revenue sur le même motif jusqu'à 06f7aac, qui l'a retiré : la
-// relecture juge une réponse, mais le rejeu ne lit aucune réponse. Il lit le
-// marqueur de garde (#3852) : #3763 et #3810 ont bouclé des heures sur un test
-// qui gardait un comportement « comme avant », puis sont allés deux fois au
-// chef. Le refus ne boucle plus : la seconde fois, le cook marque le test, ou
-// met le ticket de côté une fois, la raison en une ligne.
+// Ce que le brief d'un cook renvoyé lui dit du désaccord. Le rejeu des tests ajoutés ne lit aucune réponse (#3694), mais le marqueur de garde (#3852) ; un test gelé n'y est jamais renvoyé (#3921).
 export function consigneDuDesaccord(pr: number): string {
   const [ouvre, ferme] = [`<${BALISE_DE_REPONSE}>`, `</${BALISE_DE_REPONSE}>`];
   return [

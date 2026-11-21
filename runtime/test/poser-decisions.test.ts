@@ -30,8 +30,6 @@ const REPONSES = [
   ["reviewer-effort", "medium"],
   ["seuil-ticket", "800000"],
   ["seuil-perdus", "300000"],
-  ["seuil-renvois", "40"],
-  ["fenetre-renvois", "12"],
   ["budget-gates", "120"],
   ["budget-gates-cpu", "500"],
   ["budget-base", "900"],

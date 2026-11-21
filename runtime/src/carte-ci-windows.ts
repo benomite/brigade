@@ -6,8 +6,7 @@
 // revenu vert, la carte sort de TODO, comme sortent les autres cartes.
 //
 // La carte n'a pas de ticket : sa clé en tient lieu, un numéro négatif dérivé
-// du nom et de la branche, stable d'un tour à l'autre. La relance des runs
-// rouges (relance-main-rouge.ts) n'est pas touchée.
+// du nom et de la branche, stable d'un tour à l'autre.
 import { cartesEnTodo, cartesRetenues, entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
 import type { Journal } from "./journal.ts";
 

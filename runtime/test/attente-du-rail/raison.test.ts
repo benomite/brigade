@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { dependancesDuCorps, expliquerLAttente, lignesDeStatus, lignesDesCartes, type TicketDuRail } from "../../src/attente-du-rail/raison.ts";
-import { MOTS_DU_GESTE, type StationDuCompte } from "../../src/rail-bloque/rail-bloque.ts";
+import { MOTS_DU_GESTE, type StationDuCompte } from "../../src/attente-du-rail/stations.ts";
 
 const DEPOT = "chef/secondes";
 const T0 = Date.parse("2026-11-12T10:00:00.000Z");

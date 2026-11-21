@@ -51,10 +51,6 @@
 // pass l'a abandonné, il est sorti avec un ticket qu'elle abandonne, ou le
 // triage l'a retiré : sa carte dit pourquoi et les trois gestes, et elle n'en
 // sort qu'à la réponse du chef (abandon-au-chef.ts).
-// La cuisine retenue y entre aussi (#2281) — rien de servi depuis 30 min
-// alors que des tickets attendent : une seule ligne par retenue, qui dit sa
-// cause et le geste qui la lève, et qui tombe quand la cuisine sert de nouveau
-// (retenue/).
 // L'alerte d'une publication ratée (#3090) — l'issue du job `alerter` des
 // workflows de publication — n'y entre que si la cuisine a renoncé (abandonnée,
 // ou remontée pour une cause du chef) et que la release n'est pas déjà publiée
@@ -88,8 +84,6 @@ import { etiquetteDeLAlerte, publieeDansLeClone, questionDeLAlerte, questionDuTi
 import type { EnVol } from "./pause/evenements.ts";
 import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
 import { INTRANSPOSABLE, pourquoiIntransposable } from "./pause/reprise.ts";
-import { retenueEnCours } from "./retenue/lire.ts";
-import { direRetenue, direRetenueEn, type Retenue } from "./retenue/retenue.ts";
 
 // Ce que le chef lit de la livraison qui l'attend, tel que la pass l'a consigné :
 // `resume`, celui de la relecture ; `constat`, le premier constat bloquant (celui
@@ -225,10 +219,6 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // est repartie seule. `why` : pourquoi, tel que la levée de la pause le dit ;
   // `pr` : sa PR restée sans merge, s'il en a ouvert une. `since` : la levée.
   | { quoi: "renommage"; why: string; pr: string | null }
-  // La cuisine retenue : rien de servi depuis 30 min alors que des tickets
-  // attendent. `since` : depuis quand rien n'est servi ; `tickets`, `cause`,
-  // `gesture` : ceux qui attendent, et son diagnostic (retenue/retenue.ts).
-  | ({ quoi: "retenue" } & Omit<Retenue, "since">)
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -260,7 +250,6 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
   disjoncteur: { sorte: "chef-gesture", pourquoi: "the breaker stops every cook after failures in a row: by design, only the chef resumes" },
   pause: { sorte: "chef-gesture", pourquoi: "the code rename asks the chef's yes before pausing the kitchen" },
   renommage: { sorte: "chef-gesture", pourquoi: "the paused code rename failed: the chef reads it and lifts the pause" },
-  retenue: { sorte: "chef-gesture", pourquoi: "nothing served for 30 minutes while tickets wait: the chef reads why, and makes the gesture that lifts it when there is one" },
 };
 
 export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
@@ -419,13 +408,10 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   // Le renommage échoué dit pourquoi, jusqu'à ce que le chef l'ait lu.
   const echec = echecDuRenommage(base);
   const renommage: Attente[] = echec === null ? [] : [{ ticket: null, title: null, since: echec.at, quoi: "renommage", why: echec.why, pr: echec.pr }];
-  // La cuisine retenue, une ligne tant qu'elle n'est pas levée.
-  const tenue = retenueEnCours(base);
-  const retenue: Attente[] = tenue === null ? [] : [{ ticket: null, title: null, since: tenue.since, quoi: "retenue", tickets: tenue.tickets, cause: tenue.cause, gesture: tenue.gesture }];
 
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...pause, ...renommage, ...retenue, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...attentesDuManager(base, tickets), ...cartes, ...abandons]
+  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...attentesDuManager(base, tickets), ...cartes, ...abandons]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -671,8 +657,6 @@ export function direAttenteEn(attente: Attente): string {
       return direDemandeDePauseEn(attente);
     case "renommage":
       return direEchecDuRenommageEn(attente);
-    case "retenue":
-      return direRetenueEn(attente);
   }
 }
 
@@ -746,7 +730,7 @@ export const FIN_AWAITING = "end awaiting";
 export const nommerAttente = (attente: Attente): string => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi);
 
 // Le même nom, tel que le bloc l'écrit : en anglais (docs/glossary.md, §2).
-const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename", retenue: "kitchen" };
+const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename" };
 export const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
 
 // Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision — et,
@@ -777,8 +761,8 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
 
 // ——— Les mêmes phrases, en français ———
 //
-// Pour les sorties que rien n'a encore traduites : la ligne d'urgence de
-// `status`, l'alerte d'urgence, `amont` et le geste des faits. Elles tombent
+// Pour les sorties que rien n'a encore traduites : `amont` et le geste des
+// faits. Elles tombent
 // avec le ticket qui traduit la dernière d'entre elles ; le bloc `awaiting` dit
 // `direAttenteEn`.
 
@@ -915,8 +899,6 @@ export function direAttente(attente: Attente): string {
       return direDemandeDePause(attente);
     case "renommage":
       return direEchecDuRenommage(attente);
-    case "retenue":
-      return direRetenue(attente);
   }
 }
 
