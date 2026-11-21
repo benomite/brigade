@@ -1483,7 +1483,8 @@ test("the station of this runtime, on espace: reading its dispatch-only CI, it r
   }
   assert.equal(faux.mergee(757)?.mergeePar, "box");
   assert.deepEqual(fait, ["reprendre review-757-github cook/757-github", "retirer review-757-github", "reprendre gates-757-github cook/757-github", "retirer gates-757-github"]);
-  assert.equal(readFileSync(join(repertoire, "gates.log"), "utf8"), `gates in ${join(repertoire, "gates-757-github")}\n`);
+  // Dans le worktree du cook avant le push (#3996), puis sur la tête approuvée de la PR.
+  assert.equal(readFileSync(join(repertoire, "gates.log"), "utf8"), `gates in ${join(repertoire, "757-github")}\ngates in ${join(repertoire, "gates-757-github")}\n`);
   assert.deepEqual((faux.statutsDeCommit.get(pr.sha) ?? []).map(({ state, description }) => [state, description]), [
     ["pending", "Gates running on station box"],
     ["success", "Gates green on station box"],

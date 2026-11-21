@@ -11,6 +11,10 @@
 # Le nombre de parts se règle dans la matrice de `tests` : plus de parts, des parts plus courtes.
 name: tests
 
+# Une branche de cook ne déclenche ce workflow qu'en tête d'une PR ouverte (`pull_request`) : aucun `push`
+# hors de `main`. La station n'y pousse qu'une livraison pour la pass, une fois ses gates vertes (#3996).
+# Le travail d'un cook qui n'est pas une livraison — arrêté sur une question, sauvé avant une relance — est
+# garé sous `refs/brigade/parked/<branche>` : ni une branche, ni la tête d'une PR, il ne déclenche rien.
 on:
   pull_request:
     branches: [main]

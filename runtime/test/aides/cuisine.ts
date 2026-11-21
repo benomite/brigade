@@ -385,6 +385,8 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
       return Math.max(commits, recoltes.length);
     },
     pousser: (nom) => void rangees.set(nom, { ...branche(nom), poussee: true }),
+    // Garé, le travail n'est pas poussé sur sa branche (#3996).
+    garer: () => {},
     tete: (nom) => {
       const { date, recoltes } = branche(nom);
       return `${nom.replace(/^(origin\/)?cook\//, "")}@${date}${recoltes.length === 0 ? "" : `+${recoltes.length}`}`;

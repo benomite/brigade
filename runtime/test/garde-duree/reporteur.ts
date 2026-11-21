@@ -8,14 +8,17 @@ import { chemin, fichiersDuTitre, lignesChangees, LIMITE_MS, racineDuRuntime, so
 
 // Le mode vient de `BRIGADE_DUREE_MODE` (#2322) : `pr` avec `BRIGADE_DUREE_BASE` (le commit de base de la PR),
 // `main`, ou rien (strict, comme les gates). Un mode `pr` dont le diff ne se lit pas retombe sur strict.
-function modeDemande(sources: Map<string, string>): Mode {
+// `BRIGADE_DUREE_STRICTS` : en mode `pr`, les fichiers jugés comme en strict même sans ligne changée — les tests
+// proches du changement, que les gates jouant toute la suite jugent comme avant (#3996).
+export function modeDemande(sources: Map<string, string>): Mode {
   const mode = process.env.BRIGADE_DUREE_MODE;
   if (mode === "main") return { genre: "main" };
   if (mode !== "pr") return { genre: "strict" };
   try {
     const diff = execFileSync("git", ["diff", "-U0", "--relative", "--no-color", process.env.BRIGADE_DUREE_BASE ?? "HEAD^1", "HEAD", "--", "."], { cwd: racineDuRuntime, encoding: "utf8", maxBuffer: 1 << 28 });
     const changees = lignesChangees(diff);
-    return { genre: "pr", touche: (m) => m.fichiers.length === 0 || m.fichiers.some((f) => testTouche(m.test, sources.get(f) ?? "", changees.get(f) ?? new Set())) };
+    const stricts = new Set((process.env.BRIGADE_DUREE_STRICTS ?? "").split(/\s+/).filter(Boolean));
+    return { genre: "pr", touche: (m) => m.fichiers.length === 0 || m.fichiers.some((f) => stricts.has(f) || testTouche(m.test, sources.get(f) ?? "", changees.get(f) ?? new Set())) };
   } catch {
     return { genre: "strict" };
   }

@@ -18,7 +18,7 @@ import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { attendusDuCorps } from "../attente-ticket/attente-ticket.ts";
 import { horsDesTickets } from "../issue-de-la-cuisine.ts";
-import { brancheDuTicket, ECHECS_MAX, runDuTicket, A_LA_MAIN, type Lancer, type StationGitHub } from "../brigade-github.ts";
+import { brancheDuTicket, delaiDesGatesMs, ECHECS_MAX, runDuTicket, A_LA_MAIN, verdictDesGates, type Lancer, type StationGitHub } from "../brigade-github.ts";
 import { environnementHorsGitHub, ticketJoint } from "../bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "../calibrage.ts";
@@ -31,6 +31,8 @@ import type { GardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { MIS_DE_COTE, type GitHub, type Issue } from "../github.ts";
 import { environnementClaude } from "../jeton-claude.ts";
 import { lireBlocage } from "../livrable.ts";
+import { aDesGates, jouerGates } from "../gates.ts";
+import { VARIABLES_GITHUB } from "../identites.ts";
 import { superviser } from "../superviseur.ts";
 import { oublierLaBranche, pousserDansLaFourche, type Fourche } from "./fourche.ts";
 import { estUneReclamation, reclamer, rendre, renouveler, type ContexteDeReclamation, type GitHubDeLaReclamation } from "./reclamation.ts";
@@ -122,6 +124,18 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
     }
   };
 
+  // Les gates du projet, jouées dans le worktree du cook avant que sa livraison
+  // ne parte vers la fourche (#3996) : la PR de la fourche lance la CI du
+  // projet, qui ne joue que sur une livraison qu'elles ont jugée prête. Sans
+  // `gates.sh`, la livraison part comme avant. Rend ce qui la retient, ou null.
+  const gatesAvantLePush = async (numero: number, worktree: string): Promise<string | null> => {
+    if (!aDesGates(worktree)) return null;
+    const delaiMs = delaiDesGatesMs(options.env);
+    const gates = await jouerGates({ worktree, ticket: numero, env: environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) }), interdites: VARIABLES_GITHUB, delaiMs, cloison: options.cloison });
+    const { vert, resume } = verdictDesGates(gates, delaiMs);
+    return vert ? null : `its gates are red, so nothing was pushed to the fork: ${resume}`;
+  };
+
   // Le cook d'un ticket pris, de son worktree à sa PR.
   const cuire = async (ticket: TicketDuRail, calibrage: Calibrage, issue: { body: string }, sa: Fourche): Promise<void> => {
     const run = runDuTicket(ticket.number);
@@ -152,10 +166,12 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
       depot.retirer(worktree, branche);
       return lacher(ticket.number, `the cook ended without a delivery (${conclusion})`);
     }
-    await depot.ranger(worktree, branche);
     const question = lireBlocage(lu.message);
+    const retenue = question === null ? await gatesAvantLePush(ticket.number, worktree) : null;
+    await depot.ranger(worktree, branche);
     if (question !== null) return lacher(ticket.number, `the cook is blocked: ${question}`, { ecarter: true });
     if (depot.commits(branche) === 0) return lacher(ticket.number, "the cook committed nothing");
+    if (retenue !== null) return lacher(ticket.number, retenue);
     try {
       pousserDansLaFourche({ clone, fourche: sa, branche, env: options.env });
     } catch (erreur) {
