@@ -77,7 +77,7 @@ The events not documented in [`pass.md`](pass.md) (which owns `pass.started`, `p
 | `pass.returned`, `pass.deferred`, `pass.outdated` | Red: return `n` of 2, with findings; the hand passes to the manager; GitHub required an up-to-date branch and refused the merge, `findings` goes back to the cook |
 | `base.checked` | No ticket. Gates on the base alone: `sha`, `outcome` (`green`, `red`, `skipped`), `gates`, `tickets`; on `skipped`, `red` and `reason` |
 | `base.recheck-requested`, `base.recheck-held` | A replay requested by the chef (`run base -- replay`) or the pass (once per red, author `pass`); a saturated machine holds it (`resource`, `observed`, `limit`) |
-| `base.repair-opening`, `base.repair-opened` | The red held after replay: the repair ticket is announced (`sha`), then born (`sha`, `failures`, `reconciled`) |
+| `base.repair-opening`, `base.repair-opened` | The red held after replay: the repair ticket is announced (`sha`), then born (`sha`, `failures`, `reconciled`). Only in older logs: nothing writes them since #3945 |
 | `base.check-held`, `base.check-resumed` | The base cannot be fetched (`reason`, once per cause); it can again |
 
 ### What is left after a cook

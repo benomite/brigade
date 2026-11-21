@@ -23,7 +23,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { ReponseGitHub } from "../src/tableau/client.ts";
 import { DEMANDEE, EN_ROUTE, REPRENDRE } from "../src/vue/todo-breaker-line.js";
-import { DEPOT_BRIGADE, marqueDuProjet } from "../../runtime/src/alerte-cuisine/alerte-cuisine.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../runtime/src/issue-de-la-cuisine.ts";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";

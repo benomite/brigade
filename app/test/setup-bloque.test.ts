@@ -107,14 +107,10 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     // Le geste se joue dans le dépôt du projet, hors de l'app : une demande au second.
     assert.deepEqual(ligne.appel, { demande: true });
     assert.match(ligne.prix, /^no cook is interrupted/);
-    // La cuisine est retenue, et sa cause est lue : pas de « kitchen held » sans cause. Aucun ticket ne
-    // peut partir : c'est une urgence (alertes.ts, « L'urgence »), en tête, et la ligne du setup reste dessous.
-    const [urgence] = lues;
-    assert.equal(urgence?.sujet, "urgence");
-    assert.match(urgence.dit, /^the whole kitchen is waiting for you to unblock the project setup — at a standstill for /);
-    assert.deepEqual(lues.map(({ dit }) => dit), [urgence.dit, ligne.dit]);
-    // La pastille de la case le reflète : l'urgence d'abord.
-    assert.deepEqual(signal, { etat: "urgence", dit: `${urgence.dit} ; ${ligne.dit}` });
+    // La cuisine est retenue, et sa cause est lue : pas de « kitchen held » sans cause. Le runtime ne dit plus
+    // d'urgence (ticket 3945) : la ligne du setup est seule, et la pastille de la case la reflète.
+    assert.deepEqual(lues.map(({ dit }) => dit), [ligne.dit]);
+    assert.deepEqual(signal, { etat: "alerte", dit: ligne.dit });
   });
 
   test("sans hôte refusé : la ligne dit que le setup est à corriger, et l'issue où lire ce qu'il a dit", (t) => {
@@ -126,7 +122,7 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
   test("débloqué, le runtime ne le dit plus : la ligne sort de la bande et la pastille s'éteint, sans geste ; rebloqué, elles reviennent", (t) => {
     const { bande, bloquer, debloquer } = cuisine(t);
     bloquer(["cdn.sheetjs.com:443"]);
-    assert.equal(bande().signal?.etat, "urgence");
+    assert.equal(bande().signal?.etat, "alerte");
 
     debloquer();
     const revenue = bande();
@@ -206,31 +202,29 @@ describe("le setup du projet bloqué, à l'écran", () => {
       espace: () => [],
     });
 
-  test("la pastille de la case dit l'urgence, la bande porte le texte du runtime ; débloqué, l'une s'éteint et l'autre se cache", async (t) => {
+  test("la pastille de la case dit l'alerte, la bande porte le texte du runtime ; débloqué, l'une s'éteint et l'autre se cache", async (t) => {
     const { bande, bloquer, debloquer } = cuisine(t);
     bloquer(["cdn.sheetjs.com:443"]);
     const vue = await ouvrir();
     const pastille = () => vue.element("projets").children[1]?.children.find((pose) => pose.className === "signal");
 
-    // L'app s'ouvre sur « Tous les projets » : la case de parade porte le signal — aucun ticket ne
-    // peut partir, toute la cuisine attend : l'urgence.
+    // L'app s'ouvre sur « Tous les projets » : la case de parade porte le signal de la ligne du setup.
     vue.dire("surAlertes", bande());
     const pose = pastille() ?? assert.fail("pas de pastille sur parade");
-    assert.equal(pose.dataset.etat, "urgence");
-    assert.match(pose.title, /^parade: the whole kitchen is waiting for you to unblock the project setup .* ; project setup impossible: no worktree is set up, no cook goes, for any ticket — urgent: /);
+    assert.equal(pose.dataset.etat, "alerte");
+    assert.match(pose.title, /^parade: project setup impossible: no worktree is set up, no cook goes, for any ticket/);
 
     // L'espace de parade : la bande en tête, la ligne et le texte du runtime, mot pour mot.
     pose.click();
     await repos();
     const alertesDeLaVue = vue.element("alertes");
     assert.equal(alertesDeLaVue.hidden, false);
-    const [urgence, ligne] = alertesDeLaVue.children;
-    assert.equal(urgence?.dataset.sujet, "urgence");
+    const [ligne] = alertesDeLaVue.children;
     assert.equal(ligne?.dataset.sujet, "cuisine");
     // Le texte du runtime n'est pas écrit à plat : il se lit, mot pour mot, derrière « detail » (#907).
     assert.deepEqual(ligne?.dessous("pre"), []);
     (ligne?.dessous("button").find((pose) => pose.className === "detail") ?? assert.fail("pas de « detail »")).click();
-    const depliee = alertesDeLaVue.children[1] ?? assert.fail("plus de ligne");
+    const depliee = alertesDeLaVue.children[0] ?? assert.fail("plus de ligne");
     assert.deepEqual(depliee.dessous("pre").map(({ textContent }) => textContent), [REFUS_RESEAU]);
 
     // Débloqué : la bande se vide et se cache ; revenu sur « Tous les projets », la case n'a pas de pastille.

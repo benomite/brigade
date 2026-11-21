@@ -26,7 +26,7 @@
 // L'issue d'une cuisine se reconnaît à une marque, en commentaire HTML que
 // GitHub n'affiche pas, qui nomme le projet : la brigade, que tous les projets
 // partagent, garde une issue par cuisine.
-import { DEPOT_BRIGADE, LABEL_DU_DISJONCTEUR, marqueDuDisjoncteur, marqueDuProjet } from "./alerte-cuisine/alerte-cuisine.ts";
+import { DEPOT_BRIGADE, LABEL_DU_DISJONCTEUR, marqueDuDisjoncteur, marqueDuProjet } from "./issue-de-la-cuisine.ts";
 import { calageDuDisjoncteur, direLeCalage, type Calage } from "./breaker/calage.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import type { Base } from "./base.ts";
@@ -36,9 +36,9 @@ import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "
 import type { CauseReveil, Runtime } from "./runtime.ts";
 import { decouper } from "./github.ts";
 import { execFile } from "./sans-invite.ts";
-import { disjoncteurDesAutres, estDeCetteStation, marqueDeStation, type SuiviDuDisjoncteurServant } from "./file-chef/cause-arret.ts";
+import { estDeCetteStation, marqueDeStation } from "./file-chef/cause-arret.ts";
 
-// Le label et la marque sont ceux qui font reconnaître l'issue comme une alerte de la cuisine (`alerte-cuisine/`, #3620).
+// Le label et la marque sont ceux qui font reconnaître l'issue comme une issue de la cuisine (`issue-de-la-cuisine.ts`, #3620).
 export { LABEL_DU_DISJONCTEUR };
 
 // Le label tel qu'il est créé s'il manque : sa couleur et sa description sont
@@ -143,23 +143,17 @@ export async function publierLeDisjoncteur(
   client: ClientDuDisjoncteur,
   projet: string,
   disjoncteur: Disjoncteur,
-  { station = null, servi = null, autre, maintenant = () => new Date() }: { station?: string | null; servi?: string | null; autre?: SuiviDuDisjoncteurServant; maintenant?: () => Date } = {},
+  { station = null, servi = null }: { station?: string | null; servi?: string | null } = {},
 ): Promise<number | null> {
   const ouvertes = (await client.ouvertesAuLabel(LABEL_DU_DISJONCTEUR)).filter(deLaCuisine(projet));
   if (disjoncteur.ouvert) {
-    if (autre !== undefined) autre.depuis = null;
     const [deja] = ouvertes;
     if (deja !== undefined) return deja.numero;
     await client.assurerLabel(DEFINITION_DU_LABEL);
     return client.creer({ titre: titreDeLIssue(projet), corps: corpsDeLIssue(projet, disjoncteur, station, servi), labels: [LABEL_DU_DISJONCTEUR] });
   }
   // Fermé ici : seule l'issue de cette station se reprend. Celle d'une autre,
-  // son disjoncteur la tient ouverte — et la file du chef le dit.
-  if (autre !== undefined) {
-    const lu = disjoncteurDesAutres(ouvertes, station);
-    // Une issue sans heure se date de la première lecture, et la garde tant qu'elle tient.
-    autre.depuis = lu === null ? null : (lu.depuis ?? autre.depuis ?? maintenant().toISOString());
-  }
+  // son disjoncteur la tient ouverte.
   for (const { numero } of ouvertes.filter((issue) => estDeCetteStation(issue, station))) {
     await client.commenter(numero, commentaireDeReprise(projet, disjoncteur.reprisLe));
     await client.fermer(numero);
@@ -180,12 +174,6 @@ export type OptionsDuDisjoncteur = {
   servi?: string;
   // Où se dit un échec de publication ; par défaut, la sortie d'erreur.
   avertir?: (ligne: string) => void;
-  // Ce que cette station lit du disjoncteur ouvert d'une autre, à chaque passe
-  // où le sien est fermé ; la file du chef le lit (`brancherRetenue`). Donné, le
-  // tick relit GitHub même quand l'état voulu n'a pas changé : l'autre
-  // disjoncteur se referme sans que le journal d'ici le sache.
-  autre?: SuiviDuDisjoncteurServant;
-  maintenant?: () => Date;
 };
 
 // Le publieur d'une cuisine : `passer` lit l'état voulu et le publie s'il a
@@ -218,9 +206,8 @@ export function publieurDuDisjoncteur(base: Base, projet: string, options: Optio
     // Le disjoncteur fermé ici ne dit rien de celui de la station qui sert le projet.
     if (!voulu.ouvert && options.station != null && stationRetenueParLeDisjoncteur(base, [options.station]) !== null) return Promise.resolve();
     const cle = cleDe(voulu);
-    const aSurveiller = !voulu.ouvert && options.autre !== undefined && cause === "tick";
-    if (cle === publiee && !aSurveiller) return Promise.resolve();
-    const courante = publierLeDisjoncteur(options.client, projet, voulu, { station: options.station ?? null, servi: options.servi ?? null, autre: options.autre, maintenant: options.maintenant }).then(
+    if (cle === publiee) return Promise.resolve();
+    const courante = publierLeDisjoncteur(options.client, projet, voulu, { station: options.station ?? null, servi: options.servi ?? null }).then(
       () => {
         publiee = cle;
         echec = null;

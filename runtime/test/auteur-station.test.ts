@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { auteurSansEcriture } from "../src/github-etat/auteur.ts";
-import { marqueDuProjet } from "../src/alerte-cuisine/alerte-cuisine.ts";
+import { marqueDuProjet } from "../src/issue-de-la-cuisine.ts";
 
 const station = ["pierreyvesbobl"];
 

@@ -16,7 +16,7 @@
 import type { Check } from "../events/pass.ts";
 import { lienDuCorps } from "../besoin/besoin.ts";
 import { porteListe } from "../epique.ts";
-import { avecLAlerte, type AlerteDeLaCuisine } from "../alerte-cuisine/alerte-cuisine.ts";
+import { avecLAlerte, type AlerteDeLaCuisine } from "../issue-de-la-cuisine.ts";
 import { CONCLUSIONS_VERTES } from "../github.ts";
 
 export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
@@ -47,7 +47,7 @@ export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
 
 // `epique` : son corps porte la liste des tickets d'une épique (`epique.ts`).
 // `besoin` : le besoin dont il se dit né (`besoin/besoin.ts`). `alerte` : une
-// alerte que la station a ouverte sur la cuisine (`alerte-cuisine/`, #3620).
+// issue que la station a ouverte sur la cuisine (`issue-de-la-cuisine.ts`, #3620).
 export type TicketDeLInstantane = { number: number; title: string; labels: string[]; state: "open"; epique?: true; besoin?: number; alerte?: AlerteDeLaCuisine };
 export type PRDeLInstantane = {
   number: number;

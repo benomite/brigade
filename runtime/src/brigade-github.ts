@@ -19,12 +19,11 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { horsDesBesoins } from "./besoin/besoin.ts";
-import { horsDesTickets } from "./alerte-cuisine/alerte-cuisine.ts";
+import { horsDesTickets } from "./issue-de-la-cuisine.ts";
 import { fiche, type Fiche } from "./fiche.ts";
 import { dependancesDuCorps } from "./attente-du-rail/raison.ts";
-import { direAttenteSurMisDeCote, direSaut } from "./retenue/retenue.ts";
 import { defaireLesBoucles } from "./boucle-attente/boucle-attente.ts";
-import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicket } from "./attente-ticket/attente-ticket.ts";
+import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicket, direAttenteSurMisDeCote, direSaut } from "./attente-ticket/attente-ticket.ts";
 import { consigneDeLAttenteLongue, lireRevue, origineDeLAttente, suiviDesAttentesLongues, type RevoirLAttente } from "./attente-longue/attente-longue.ts";
 import { leveesDesCommentaires } from "./boucle-attente/levee.ts";
 import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
@@ -49,9 +48,7 @@ import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING }
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
 import { termeDeLAttente, veilleDesOrphelins } from "./reprise-attente/orphelins.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
-import { type GitHubDeLaFermeture } from "./base-rouge/ferme-reparation.ts";
-import { avantLeRail, estUneReparationDeMain, fermeReparationDeMain, reparationDeMain } from "./reparation-base/reparation-de-main.ts";
-import { estUneReparation, shaDeBaseRouge, type CheckDeLaBase, type GitHubDeLaReparation } from "./base-rouge/ouvre-reparation.ts";
+import type { CheckDeLaBase } from "./checks-de-la-branche.ts";
 import { lireInstantane, REQUETE, type Instantane, type PRDeLInstantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -73,15 +70,14 @@ import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SET
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
-import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type PR } from "./github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type PR } from "./github.ts";
 import { avecListe, porteDesTachesDeTickets, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
-import { relanceDeLaBase, type GitHubDeLaRelance } from "./relance-main-rouge.ts";
 import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts";
 import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
-import type { TenantDeZone } from "./guerison/cuisine-inerte.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
+import type { ManagerDuSuperviseur } from "./superviseur/brancher.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -107,13 +103,13 @@ import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/att
 import { commitsDuRunPrecedent, consigneDuRunPrecedent, estUneRepriseDeGarde, gardeLeTravail, marquerLeTravail } from "./cuisson/reprise/reprise.ts";
 import { reconcilierLesArretsExternes } from "./arrets-externes.ts";
 import { horsCuisine } from "./seuil-served-elsewhere.ts";
-import { type GitHubDeLaBrigade } from "./alerte-cuisine/alerte-cuisine.ts";
+import { type GitHubDeLaBrigade } from "./issue-de-la-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
 import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_CONFLIT, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
-import { PRIO_REPARATION } from "./reparation.ts";
+import { checksRepares, estUneReparation, PRIO_REPARATION } from "./reparation.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
@@ -159,8 +155,12 @@ export type GitHubDuTour = GitHubDeLaFusion &
   // Les statuts de commit où se lisent et s'écrivent les gates d'une tête
   // (#2456). Absents, la station ne les joue pas.
   Partial<GitHubDesGates> &
-  GitHubDeLaReparation &
-  GitHubDeLaFermeture & {
+  // Créer, fermer une issue, relancer les jobs en échec d'un run : la guérison, le découpage, les gestes de la station.
+  Pick<GitHub, "creerIssue" | "fermerIssue" | "relancerLesEchecs"> & {
+    // Les issues modifiées depuis `instant`, ouvertes ou fermées, avec leur corps.
+    issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "title" | "state" | "labels" | "updatedAt">>)[]>;
+    // Le journal du job d'un check de GitHub Actions, ou null : le brief d'un renvoi le cite (#3806).
+    journalDuCheck?(check: Check): Promise<string | null>;
     // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
     retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Quand l'issue a été déposée et mise sur le rail : d'où part le temps du
@@ -219,7 +219,7 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // (#3617). Absents, la carte « Validate its screen » se pose sans elle.
     fichierBinaire?: GitHub["fichierBinaire"];
     publierFichiers?: GitHub["publierFichiers"];
-  } & GitHubDeLaRelance;
+  };
 
 // La fermeture du ticket d'une branche `cook/<n>-…` : son numéro et sa date,
 // ou null si la branche n'a pas de numéro, si le ticket est ouvert, si le
@@ -344,7 +344,7 @@ export type OptionsDeStation = {
   capacites?: readonly string[];
   // Appelé quand la porte de prise ne prend pas un ticket prenable, avec la
   // ligne qui dit pourquoi (zone tenue, capacité, calibrage, dépendance mise de
-  // côté) : la retenue de la cuisine la reprend (#2429).
+  // côté) : le tour du superviseur la lit (#2429, #3945).
   sauter?: (ticket: number, ligne: string, attendus?: readonly number[]) => void;
   // Les garde-fous (#2213) : le « stop », le disjoncteur,
   // le quota et l'arbitre, lus avant chaque prise. Absents, rien ne retient.
@@ -566,8 +566,6 @@ export const TOURS_POUR_TRAVAILLER = 3;
 export const ATTENTE_MS = 30 * 60_000;
 export const ATTENTE_MAX_MS = 6 * 60 * 60_000;
 
-// Le terme de la dernière attente d'après un arrêt : la porte de prise, la cuisine inerte (#2975) et la veille des tickets orphelins (#3883) le lisent.
-export { termeDeLAttente };
 
 // Les dernières lignes que `claude` a écrites : sa sortie d'erreur, sinon son
 // dernier message.
@@ -624,7 +622,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
   const capacites = new Set(options.capacites ?? []);
   const enVol = new Map<number, Promise<void>>();
-  const ouvrirLaReparation = reparationDeMain({ github, base });
   // Le parcours de chaque ticket, de sa prise à son merge, phase par phase
   // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
   // Illisible, le temps part de la prise, et la station le dit.
@@ -686,7 +683,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     for (const { ticket } of manquants) {
       try {
         const [corps, commentaires] = await Promise.all([github.corpsDuTicket(ticket), github.commentaires(ticket)]);
-        ajouts.set(ticket, { qualite: qualiteDeLIssue({ corps, labels: shaDeBaseRouge(corps) === null ? [] : [PRIO_REPARATION], commentaires }) });
+        ajouts.set(ticket, { qualite: qualiteDeLIssue({ corps, labels: checksRepares(corps).length === 0 ? [] : [PRIO_REPARATION], commentaires }) });
       } catch (erreur) {
         if (erreur instanceof LimiteGitHubAtteinte) break;
       }
@@ -732,7 +729,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : the claim of ${[...ajouts.keys()].map((n) => `#${n}`).join(", ")} could not be recorded on ${nom} — ${message(erreur)}`);
     }
   };
-  const fermerLaReparation = fermeReparationDeMain({ github, base });
   // Les gestes de guérison du projet (#2757), joués à chaque tour.
   // Une cause qui vit dans la station se dépose sur la brigade (#3098), comme le temps perdu.
   const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
@@ -809,19 +805,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   let ticketsDuTour: TicketLu[] = [];
   // Les tickets libres du dernier tour qui a lu le rail (#3713) : un tour que GitHub arrête avant garde ceux d'avant.
   let attendentDuTour = new Set<number>();
-  // Les tickets que la porte de prise a sautés au tour en cours parce qu'une
-  // PR ouverte, ou un ticket en cuisson, tient leur zone. La cuisine inerte
-  // les lit au tour suivant : ils ne sont pas à prendre, ce qui les tient
-  // doit bouger d'abord (#2977).
-  let tenusDuTour = new Map<number, TenantDeZone>();
-  // Tous les tickets que la porte de prise a sautés au tour en cours, et la
-  // ligne qui dit pourquoi : la cuisine inerte nomme ces raisons au tour
-  // suivant, au lieu d'un rail vide qu'aucun cook ne répare (#3699).
-  let sautsDuTour = new Map<number, string>();
-  const sauter = (ticket: number, ligne: string, attendus?: readonly number[]) => {
-    sautsDuTour.set(ticket, ligne);
-    options.sauter?.(ticket, ligne, attendus);
-  };
+  // Ce que la porte de prise dit de chaque ticket qu'elle saute : le superviseur le lit (#3945).
+  const sauter = (ticket: number, ligne: string, attendus?: readonly number[]) => options.sauter?.(ticket, ligne, attendus);
   // La station s'arrête (`arreter`) : ses cooks meurent avec elle.
   let arretee = false;
   // La branche d'intégration que l'origine n'a pas (#2876) : la station ne prend plus rien de ce projet.
@@ -1603,9 +1588,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     return { jugement, lance: true };
   };
 
-  // Une base rouge relance d'abord ses jobs en échec, une fois (#2323).
-  const relancerLaBase = relanceDeLaBase(github, avertir, nom);
-
   // Les PR externes que la station sert, hors du tour comme une relecture, une
   // à la fois ; et les têtes dont le service a échoué, retentées sur une tête
   // neuve ou `RELANCE_DES_GATES_MS` passé.
@@ -1716,25 +1698,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const tour = async () => {
     renvoyes.clear();
     retenuesDuTour.clear();
-    const checksDeLaBase = await relancerLaBase(await github.checksDeLaBase());
-    // Rouge après sa relance, la base a son ticket de réparation : un seul par commit (#2339).
-    const { erreur, consigner } = await ouvrirLaReparation(checksDeLaBase);
-    if (erreur !== undefined) avertir(`brigade : ${base} is red but its repair ticket could not be opened on ${nom} — ${erreur}`);
-    // Le rouge se consigne sur sa réparation (#3614) en parallèle du tour, sans
-    // rien lui retenir : la réparation est déjà dispatchée. Un échec est dit, le tour suivant réessaie.
+    // Une base rouge se relance, et se répare, au run du superviseur (#3945) : le tour la lit telle quelle.
+    const checksDeLaBase = await github.checksDeLaBase();
     void nommerLaLivraison?.(checksDeLaBase);
-    const consignation = consigner?.().catch((echec) => avertir(`brigade : ${base} is red and its repair ticket is open, but the new red commit could not be recorded on it on ${nom} — ${message(echec)}; retried next turn`));
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
-    // Le verdict de zone de la porte au tour précédent, le dernier qu'elle a rendu.
-    const tenusAvant = tenusDuTour;
-    tenusDuTour = new Map();
-    const sautesAvant = sautsDuTour;
-    sautsDuTour = new Map();
-    // Une alerte que la station a ouverte sur la cuisine n'est pas un ticket du
+    // Une issue que la station a ouverte sur la cuisine n'est pas un ticket du
     // projet, même lancée et calibrée : aucun cook ne la prend, rien du tour ne la
-    // lit (#3620). Sur la brigade, l'alerte d'inertie en reste un (#3098).
-    const fires = (await github.fires()).filter((ticket) => !horsDesTickets(ticket.alerte, options.depotServi));
+    // lit (#3620).
+    const fires = (await github.fires()).filter((ticket) => !horsDesTickets(ticket.alerte));
     // Une fois, au premier tour, avant la guérison : les tickets que des cooks tués du dehors ont fait mettre de côté reviennent sur le rail (#3528).
     if (!arretsExternesReconcilies) {
       const { rendus, complete } = await reconcilierLesArretsExternes(fires, { github, station: nom, echecs: async (numero) => (await depuisLeRelancement(github, numero, await github.commentaires(numero), MARQUE_D_ECHEC)).map(({ body }) => ({ body })), avertir });
@@ -1744,7 +1716,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Un ticket que la cuisine a mis en WAITING rentre seul sur le rail à sa relance (#3814) : ce tour le lit encore en
     // WAITING, le suivant le prend. Un geste qui échoue est dit ; le tour suivant réessaie.
     await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));
-    const { tickets: gueris } = await guerir(fires, new Set(enVol.keys()), tenusAvant, sautesAvant);
+    const { tickets: gueris } = await guerir(fires, new Set(enVol.keys()));
     // Ce que l'ancien chemin du conflit avec la base a laissé — un ticket ouvert
     // pour changer la branche d'un autre, une carte qui demande un geste git au
     // chef — se défait avant que le tour ne lise ses tickets (#3476).
@@ -1752,8 +1724,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const lus = gueris.filter(({ number }) => !degel.fermes.has(number)).map((ticket) => (degel.rendus.has(ticket.number) ? { ...ticket, labels: ticket.labels.filter((label) => label !== A_LA_MAIN) } : ticket));
     // Les prises des enregistrements d'avant #2732, avant que le temps perdu ne les lise (#2870).
     if (clone !== undefined) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
-    // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
-    await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
     // Une épique découpée, ou un besoin dont un ticket lancé est né : ni elle
     // ne se prend, ni elle ne compte parmi les tickets du tour (#2618, #3479).
     const tickets = horsDesBesoins(lus.filter((ticket) => !estMisDeCote(ticket.labels)));
@@ -1830,7 +1800,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // La seule exception est la réparation de la base elle-même : elle doit la
         // débloquer, et sa CI, sur sa tête, reste exigée par `fusionner`.
         const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
-        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparationDeMain(ticket.labels) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
+        if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
         // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
         // de plusieurs minutes ne retient plus les merges, les autres relectures
         // ni les prises. Les merges, eux, passent un à un.
@@ -2203,9 +2173,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       return null;
     };
-    // La réparation de main avant tout (#3815), puis les plus prioritaires
-    // (`prio:0` avant `prio:1`…, sans `prio:` en dernier), puis les plus anciens (#2209).
-    libres.sort((x, y) => avantLeRail(x.labels) - avantLeRail(y.labels) || rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
+    // Les plus prioritaires (`prio:0` avant `prio:1`…, sans `prio:` en dernier) — une
+    // réparation de la base porte `prio:0` —, puis les plus anciens (#2209).
+    libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     // Un `tests-written` dont la branche a disparu de l'origine repart de l'étape
     // « queued » : aucun cook ne le prend, aucun échec de cook n'est compté (#3928).
     for (const [rang, ticket] of libres.entries()) {
@@ -2222,11 +2192,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     attendentDuTour = new Set(libres.map(({ number }) => number));
     attentesLongues.tour(libres.map(({ number }) => number));
     // Les places ou le pass sont pleins : la boucle s'arrête, mais les tickets
-    // qui attendent un ticket ouvert le disent encore, sans quoi la retenue ne
-    // sait plus pourquoi ils n'avancent pas (#3647). Les autres disent l'arrêt
-    // qui les retient (#3677) : muet, il laissait la retenue sans cause
-    // (`unknown`, ou la CI d'une seule livraison) quand seize tickets
-    // attendaient leur prise depuis trente minutes, et l'attente d'une prise
+    // qui attendent un ticket ouvert le disent encore, sans quoi le superviseur
+    // ne sait plus pourquoi ils n'avancent pas (#3647, #3945). Les autres disent
+    // l'arrêt qui les retient (#3677) : muet, il laissait l'attente d'une prise
     // sans rien qui dise laquelle de ces deux bornes la tenait (#3446).
     // Les tickets dont le manager écrit les tests : chacun tient une place,
     // comme un cook, sous les mêmes garde-fous (#3742).
@@ -2361,8 +2329,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         continue;
       }
       // Un arrêt subi l'a mis en attente : il n'est pas repris avant son terme (#2508).
-      // Le saut est dit, comme les autres : sans lui, la retenue ne sait pas ce
-      // qui le tient et la cuisine inerte le prend pour un rail vide.
+      // Le saut est dit, comme les autres : sans lui, le dossier du superviseur
+      // ne sait pas ce qui le tient (#3945).
       const termeDeLAttente = await enAttente(ticket);
       if (termeDeLAttente !== null) {
         sauter(ticket.number, direSaut(ticket.number, `it waits until ${new Date(termeDeLAttente).toISOString()} after a stop`));
@@ -2379,10 +2347,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (tenuePar !== null) {
         const tenant = tenuePar.branche;
         const numeroDuTenant = /^cook\/(\d+)-/.exec(tenant)?.[1];
-        // Qui tient la zone, que la cuisine inerte nomme au tour suivant : son ticket, sa fermeture, sa PR. Une lecture qui manque ne la date pas.
-        const fermeture = await fermetureDe(tenant).catch(() => null);
-        const pr = ouvertes?.find((ouverte) => ouverte.branche === tenant)?.number;
-        tenusDuTour.set(ticket.number, { ticket: numeroDuTenant === undefined ? null : Number(numeroDuTenant), branche: tenant, fermeLe: fermeture?.date ?? null, pr: pr ?? null });
         sauter(ticket.number, direSaut(ticket.number, tenuePar.attente !== null ? direAttenteDeZone(tenuePar.attente) : `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
         await ecrireEnAttendant(ticket);
         continue;
@@ -2394,7 +2358,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // s'ouvre pour celui-ci presse un tour tout de suite. Sans elle, le
         // ticket attendait sa prise jusqu'à l'intervalle (#2832).
         if (retenue === "arbiter") void gardes?.attendreUnePlace?.().then((libre) => libre && station.presser?.(true));
-        // Les tickets qu'elle laisse disent cette retenue : la cuisine inerte la nomme (#3699).
+        // Les tickets qu'elle laisse disent cette retenue : le dossier du superviseur la nomme (#3699, #3945).
         await direLesAttentes(libres.slice(rang), DIT_DES_RETENUES[retenue]);
         break;
       }
@@ -2419,7 +2383,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       enVol.set(ticket.number, cuire(ticket, calibrage));
     }
     await gardes?.redire(enVol.size + enEcriture().length);
-    await consignation;
   };
 
   const station: StationGitHub = {
@@ -2557,7 +2520,6 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
   const { prsOuvertes } = github;
   if (mettreAJour === undefined) throw new Error("this GitHub client cannot update a branch");
   if (prsOuvertes === undefined) throw new Error("this GitHub client cannot list the files of the open PRs");
-  const { teteDeLaBase } = github;
   if (retraitsDeLabels === undefined) throw new Error("this GitHub client cannot read the label removals of an issue");
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketLu[] = [];
@@ -2617,17 +2579,9 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       if (lue !== undefined) return prLue(lue);
       return instantane !== null && !instantane.prsTronquees ? null : github.prDeBranche(brancheDuTicket(issue));
     },
-    // Lue seulement quand la base est rouge : sans elle, le ticket de réparation
-    // ne s'ouvre pas et le tour le dit.
-    teteDeLaBase: async () => {
-      if (teteDeLaBase === undefined) throw new Error("this GitHub client cannot read the head of the integration branch");
-      return teteDeLaBase.call(github, base);
-    },
     issuesDepuis: (instant) => github.issuesDepuis(instant),
     creerIssue: (issue) => github.creerIssue(issue),
     fermerIssue: (numero) => github.fermerIssue(numero),
-    ...(github.rouvrirIssue === undefined ? {} : { rouvrirIssue: github.rouvrirIssue.bind(github) }),
-    ...(github.ecrireTitre === undefined ? {} : { ecrireTitre: github.ecrireTitre.bind(github) }),
     ...(github.fermerPR === undefined ? {} : { fermerPR: github.fermerPR.bind(github) }),
     journalDuCheck: (check) => github.journalDuCheck(check),
     ...(github.etapesEnEchec === undefined ? {} : { etapesEnEchec: github.etapesEnEchec.bind(github) }),
@@ -2672,7 +2626,6 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       return github.commenter(numero, corps);
     },
     retraitsDeLabels: (numero) => retraitsDeLabels.call(github, numero),
-    etatDuRun: (run) => github.etatDuRun(run),
     relancerLesEchecs: (run) => github.relancerLesEchecs(run),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
     ...(github.fichiersEntre === undefined ? {} : { fichiersEntre: github.fichiersEntre.bind(github) }),
@@ -2746,9 +2699,12 @@ export type OptionsDuDepot = {
   // relectures.
   gardes?: GardesDuTour;
   avertir?: (message: string) => void;
-  // Ce qui regarde le tour par son client GitHub, sans rien y changer : la
-  // retenue de la cuisine (`retenue/tour.ts`).
+  // Ce qui regarde le tour par son client GitHub, sans rien y changer : le
+  // superviseur (`superviseur/tour.ts`, #3945).
   observer?: (github: GitHubDuTour) => GitHubDuTour;
+  // Reçoit le manager du projet, tel que le superviseur le consulte (#3945).
+  // Sans calibrage du manager, il ne reçoit rien, et aucun run ne part.
+  superviseur?: (consulter: ManagerDuSuperviseur) => void;
   // Le clone du projet, où s'écrit le temps des tickets mergés (#2342).
   clone?: string;
   // Le répertoire d'état du projet (#2556).
@@ -3626,6 +3582,26 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             depot.retirer(lieu.worktree, lieu.branche ?? undefined);
           }
         };
+
+  // Le manager au run du superviseur (#3945) : dans un worktree de la base,
+  // en lecture, avec le dossier que le superviseur lui donne.
+  if (calibrageDuManager !== undefined)
+    options.superviseur?.(async (texte) => {
+      const run = "superviseur-github";
+      const lieu = await depot.preparer(run);
+      try {
+        const flux = join(options.flux, `${run}-${Date.now()}.flux.jsonl`);
+        const lancement = envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(texte, calibrageDuManager()), lieu.worktree) }, { cwd: lieu.worktree, depot: "lecture" });
+        const lance = lancer({ ...lancement, cwd: lieu.worktree, env: env(), flux });
+        const fin = await lance.fin;
+        const lu = lireLeFlux(lance.flux ?? flux);
+        const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lu, fin.code);
+        if (conclusion !== "done") return { illisible: `the manager's run did not finish: ${direLaFin({ conclusion, fin, flux: lance.flux ?? flux })}` };
+        return lu.message === undefined || lu.message === null ? { illisible: "the manager's run left no answer" } : { message: lu.message };
+      } finally {
+        depot.retirer(lieu.worktree, lieu.branche ?? undefined);
+      }
+    });
 
   // Le second juge (#2555) : un lancement à part de la relecture, dans son
   // propre worktree et sous son propre flux, qui ne lit ni la relecture ni son

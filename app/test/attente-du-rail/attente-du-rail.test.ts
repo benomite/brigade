@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
-import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { comprendre, rail, tableau, type Carte, type Faits } from "../../src/faits.ts";
 import { ligneEnAttente, PRET } from "../../src/ligne-carte.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";

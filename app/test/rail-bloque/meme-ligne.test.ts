@@ -1,6 +1,6 @@
-// Le rail bloqué (ticket 3358) se dit d'une seule phrase partout : `brigade <project> status` sur la station
-// (runtime/src/rail-bloque/status.ts), la file du second (second/file.ts), le `status` que l'app tire de sa lecture
-// du rail et la ligne en tête de ce rail (vue/rail/github.ts, `avecLeRail`). Un même GitHub — ses issues `fire`, leurs
+// Le rail bloqué (ticket 3358) se dit d'une seule phrase partout dans l'app : la file du second (second/file.ts), le
+// `status` que l'app tire de sa lecture du rail et la ligne en tête de ce rail (vue/rail/github.ts, `avecLeRail`).
+// `brigade <project> status` sur la station ne le dit plus : le superviseur du runtime a pris sa place (ticket 3945). Un même GitHub — ses issues `fire`, leurs
 // commentaires et leurs événements, et les gists des stations du compte — est lu par chacun avec le même `gh`, et
 // chacun écrit la même ligne.
 import assert from "node:assert/strict";
@@ -94,15 +94,15 @@ const SOUS_LA_TETE = (lignes: readonly string[]) => {
 };
 
 describe("la même ligne dans `status` et dans la file du second", { skip: SANS_POSIX }, () => {
-  test("huit tickets qu'aucun manager n'a pris, leur station arrêtée : status, la file du second, le status de l'app et le rail disent la même phrase", async (t) => {
+  // L'app garde sa ligne telle qu'avant (#3945 : « do not rework their behavior ») ; seul `status` de la station la quitte.
+  // brigade:guard
+  test("huit tickets qu'aucun manager n'a pris, leur station arrêtée : la file du second, le status de l'app et le rail disent la même phrase", async (t) => {
     const repertoire = dossier(t);
     const instant = Date.now();
     station(repertoire, instant, true);
     const gh = ghDe(repertoire, monde(["fire"], instant));
-    const station_ = SOUS_LA_TETE(await statusDeLaStation(t, gh));
     const app = await lecturesDeLApp(gh, instant);
     const attendue = "  STUCK RAIL  8 tickets on the rail, no manager has taken them for 3 d: its station box/claude is stopped. Start it on its computer.";
-    assert.equal(station_, attendue);
     assert.equal(SOUS_LA_TETE(app.file), attendue);
     assert.equal(SOUS_LA_TETE(app.status), attendue);
     assert.equal(`  STUCK RAIL  ${app.railBloque?.phrase}`, attendue);

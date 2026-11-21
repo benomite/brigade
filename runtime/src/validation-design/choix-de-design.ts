@@ -21,11 +21,11 @@ import { CORPS_MAX, couper, DIFF_MAX, FICHIERS_MAX, octets } from "../reviewer.t
 export type TicketLu = { title: string; labels: readonly string[]; body: string };
 
 // Les marques cachées des tickets qu'une station ouvre seule, sans geste du
-// chef (réparation de la base, alerte qualité, temps perdu), et la phrase que
+// chef (ticket `fix` du superviseur, alerte qualité, temps perdu), et la phrase que
 // leur corps porte.
-const OUVERT_PAR_UNE_STATION = /<!--\s*brigade:(?:reparation-base|base-rouge|qualite|temps-max)\b|^_Opened by a station\b/m;
+const OUVERT_PAR_UNE_STATION = /<!--\s*brigade:(?:supervisor-cause|qualite|temps-max)\b|^_Opened by a station\b/m;
 
-// « Repair `main`, red on … », « Réparer la base `main`, rouge sur … ».
+// Un titre qui dit réparer `main` : « Repair `main`, … », « Réparer la base `main`, … ».
 const REPARE_MAIN = /^\s*(?:repair|réparer)\s+(?:(?:the|la)\s+)?(?:base\s+)?`?main`?(?=\s*(?:[,:;.—-]|red\b|rouge\b|$))/i;
 
 // Pourquoi ce ticket n'ouvre jamais de carte de design, ou null s'il n'est pas
