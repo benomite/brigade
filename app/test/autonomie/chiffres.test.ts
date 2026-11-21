@@ -15,7 +15,7 @@ import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { nommerLesProjets, SANS_LECTURE as SANS_LECTURE_DU_PROCESS, type LectureDAutonomie } from "../../src/vue/autonomie/autonomie-github.ts";
-import { AUCUN, AVEC_HUMAIN, BUGS_ECHAPPES, DEFAUTS_NON_LUS, PERIODES, REVERTS, periodeDite, SANS_LECTURE, SANS_QUESTION, tenirLesChiffresDAutonomie } from "../../src/vue/autonomie/chiffres.js";
+import { AUCUN, AVEC_HUMAIN, PERIODES, periodeDite, SANS_LECTURE, SANS_QUESTION, tenirLesChiffresDAutonomie } from "../../src/vue/autonomie/chiffres.js";
 import { Faux, jouerLaVue, ouvrirLecture, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -145,6 +145,10 @@ describe("les chiffres d'autonomie (#3222)", () => {
       ticketsDesCommits: { ["c".repeat(40)]: [2] },
     },
   };
+  // Les mots de la vue, tels que le ticket les nomme.
+  const BUGS_ECHAPPES = "escaped bugs";
+  const REVERTS = "reverts";
+  const DEFAUTS_NON_LUS = "not read";
   const textesDe = (bloc: Faux, nom: string) => {
     const cadre = bloc.dessous("div").find(({ className, textContent }) => className === "figure defauts" && textContent.startsWith(nom));
     return cadre?.dessous("p").map(({ textContent }) => textContent);

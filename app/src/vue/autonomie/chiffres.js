@@ -30,8 +30,8 @@ export const SANS_HUMAIN = "served without a human";
 export const AVEC_HUMAIN = "served with a human";
 export const DELAI = "lead time";
 export const RENVOI = "send-back rate";
-export const BUGS_ECHAPPES = "escaped bugs";
-export const REVERTS = "reverts";
+const BUGS_ECHAPPES = "escaped bugs";
+const REVERTS = "reverts";
 export const DEFINITIONS = {
   sansHumain: "The share of the tickets merged in the period whose path from fire to merge never asked the chef anything: no TODO card, no blocked-on-human.",
   delai: "The median time from fire to merge of the tickets merged in the period.",
@@ -40,9 +40,9 @@ export const DEFINITIONS = {
   reverts: "The commits of the default branch carrying git's 'This reverts commit <sha>' trailer whose reverted commit belongs to a ticket merged in the period.",
 };
 export const SOURCE = "Read from GitHub only: the merged pull requests, the labels and comments of each ticket, the bug-labelled issues and the reverting commits of the default branch.";
-export const DEFAUTS_NON_LUS = "not read";
+const DEFAUTS_NON_LUS = "not read";
 /** @param {string} sha */
-export const SHA_COURT = (sha) => sha.slice(0, 7);
+const SHA_COURT = (sha) => sha.slice(0, 7);
 /** @param {number} jours */
 export const AUCUN = (jours) => `no ticket merged in the ${periodeDite(jours)}`;
 export const SANS_QUESTION = "question not written on the ticket";
