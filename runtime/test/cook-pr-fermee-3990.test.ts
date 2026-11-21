@@ -13,7 +13,7 @@ const BRANCHE = `cook/${TICKET}-github`;
 
 // Un cook reprend une branche déjà livrée dont la PR a été fermée, ne commite rien
 // et dit que tout est fait ; les gates passent (CI verte du faux).
-async function cuisiner(t: TestContext, passages: number, merged: boolean) {
+async function cuisiner(t: TestContext, passages: number, merged: boolean, prIllisible = false) {
   const repertoire = mkdtempSync(join(tmpdir(), "acceptation-3990-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -24,8 +24,9 @@ async function cuisiner(t: TestContext, passages: number, merged: boolean) {
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "All 7 tests of the family pass, each under about 0.5 s." })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
+  let appels = 0;
   const avertis: string[] = [];
-  const station = stationDuDepot({ ...STATION_DU_DEPOT, github: fauxClient(faux), depot: depotRepris(repertoire, tete), flux: repertoire, lancer, maintenant: () => new Date("2026-11-21T09:07:00Z"), avertir: (texte) => avertis.push(texte) });
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, github: prIllisible ? { ...fauxClient(faux), prDeBranche: async (b: string) => { appels += 1; if (appels === 3) throw new Error("unreadable"); return fauxClient(faux).prDeBranche!(b); } } : fauxClient(faux), depot: depotRepris(repertoire, tete), flux: repertoire, lancer, maintenant: () => new Date("2026-11-21T09:07:00Z"), avertir: (texte) => avertis.push(texte) });
   if ("refus" in station) throw new Error(station.refus);
   for (let i = 0; i < passages; i += 1) {
     await station.tour();
@@ -38,6 +39,14 @@ async function cuisiner(t: TestContext, passages: number, merged: boolean) {
 // brigade:guard
 test("a branch whose PR was merged is not put back in pass: a cook that adds nothing counts as before", async (t) => {
   const { faux, corps } = await cuisiner(t, 1, true);
+  assert.equal(faux.ticket(TICKET).labels.has(LABEL_IN_PASS), false);
+  assert.equal(corps.filter((c) => c.startsWith("<!-- brigade:echec")).length, 1);
+});
+
+// The cook's own read of its branch's PR is the third call; the others come from the tour before it.
+// brigade:guard
+test("a PR that cannot be read does not put the branch back in pass: a cook that adds nothing counts as before", async (t) => {
+  const { faux, corps } = await cuisiner(t, 1, false, true);
   assert.equal(faux.ticket(TICKET).labels.has(LABEL_IN_PASS), false);
   assert.equal(corps.filter((c) => c.startsWith("<!-- brigade:echec")).length, 1);
 });
