@@ -126,6 +126,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/garde-des-gates.test.ts", test: "un test en échec avant la coupure garde la ligne d'un rouge" },
   { file: "test/garde-des-gates.test.ts", test: "une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué" },
   { file: "test/garde-fous-cli.test.ts", test: "« stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate" },
+  { file: "test/geste.test.ts", test: "sans projet ou sans commande, il dit comment il se lance" },
   { file: "test/geste.test.ts", test: "`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime" },
   { file: "test/geste.test.ts", test: "dans un terminal, l'entrée redirigée ou non, `sudo` demande son mot de passe et la commande part : le geste ne l'éprouve pas d'abord" },
   { file: "test/geste.test.ts", test: "lancé sous le compte de la station, il ne passe pas par `sudo`" },
