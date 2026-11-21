@@ -28,7 +28,7 @@ import { sondesDeLaMachine, type Sondes } from "../bac-a-sable/detection.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
 import { noterCodeEnService } from "../code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "../decisions.ts";
-import { DEPOT_BRIGADE } from "../routage-temps-perdu.ts";
+import { DEPOT_BRIGADE } from "../alerte-cuisine/alerte-cuisine.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireALaBase, ouvrirDepot, worktreesDuProjet } from "../depot.ts";
 import { brancherDerive, lireSeuils } from "../derive.ts";

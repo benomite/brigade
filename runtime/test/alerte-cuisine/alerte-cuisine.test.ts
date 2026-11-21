@@ -14,7 +14,7 @@ import type { Commentaire, GitHub } from "../../src/github.ts";
 import { INERTIE_MINUTES, LABEL_DU_BUG, MARQUE_D_INERTIE, signalerInertie } from "../../src/guerison/cuisine-inerte.ts";
 import { ouvrirLimite } from "../../src/limite-github.ts";
 import { issueDuManager } from "../../src/projections/manager.ts";
-import { DEPOT_BRIGADE, marqueDuProjet } from "../../src/routage-temps-perdu.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../src/alerte-cuisine/alerte-cuisine.ts";
 import { chef, CALIBRE, cuisine, issue } from "../aides/cuisine.ts";
 import { FauxGitHub } from "../faux-github.ts";
 import { fauxGh, jusqua } from "../outils.ts";

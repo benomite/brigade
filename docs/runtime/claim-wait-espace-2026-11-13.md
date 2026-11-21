@@ -119,8 +119,6 @@ the cause from the ticket alone.
   kind (`espace issues`, `station gist write`).
 - Every `kitchen.held` carries `skips`, the claim gate's lines for the claimable tickets it did not claim, when
   those lines are not already the cause. Under GitHub's limit they were written nowhere.
-- The Evidence of a lost-time ticket cites a `kitchen.held` line up to 1,500 characters (`LONGUEUR_D_UNE_RETENUE`
-  in `runtime/src/preuve-mesure.ts`): cut at 300, as the other events are, it stopped before these fields.
 
 `test/retenue/pauses-au-journal.test.ts` plays the chain: calls counted, a refusal, the hold written to the journal,
 and the Evidence section citing it whole.
