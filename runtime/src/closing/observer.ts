@@ -1,16 +1,12 @@
 // La fermeture qui observe : ce que la branche d'intégration du dépôt cible a
 // ajouté et retiré sur ses derniers merges, les doublons et le code mort
-// qu'elle porte, et les compteurs de dérive du journal. Elle mesure et
+// qu'elle porte, et la dernière passe du journal. Elle mesure et
 // repère, et ne touche à rien : ni fichier, ni branche, ni PR, ni verrou, ni
 // journal — elle peut tourner pendant que les cooks travaillent.
 import type { Appel } from "../appel.ts";
-import { geste } from "../geste.ts";
 import { Sortie } from "../appel.ts";
 import { ouvrirJournal, type Journal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
-import { direJaugeEn } from "../mesures.ts";
-import { seuilsEnVigueur } from "../projections/measures.ts";
-import { lireDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./dead-code.ts";
 import { direBilan } from "./report.ts";
@@ -124,11 +120,10 @@ function direPasse(journal: Journal, arbre: (commit: string) => string | null): 
   ];
 }
 
-// Les compteurs de la dérive, tels que le relevé des mesures les tient : rien
-// n'est recompté ici. `arbre` : l'arbre d'un commit du clone, pour le bilan. Le journal est lu sans être ouvert en écriture, et son
+// La dernière passe du journal. `arbre` : l'arbre d'un commit du clone, pour le bilan. Le journal est lu sans être ouvert en écriture, et son
 // absence n'empêche pas d'observer le dépôt.
 function direJournal(repertoireEtat: string | undefined, arbre: (commit: string) => string | null): string[] {
-  const nonLu = (pourquoi: string) => [ligne("log", `not read: ${pourquoi} — the drift counters are read with \`${geste(`measures`)}\``)];
+  const nonLu = (pourquoi: string) => [ligne("log", `not read: ${pourquoi}`)];
   if (!repertoireEtat) return nonLu("BRIGADE_STATE_DIR is not set");
   let journal;
   try {
@@ -137,14 +132,7 @@ function direJournal(repertoireEtat: string | undefined, arbre: (commit: string)
     return nonLu(erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    // Le journal ne voit plus un merge (#2061) : les merges et les seuils
-    // franchis sont ceux que la passe du closer a relevés sur le clone (#2707).
-    const relevee = lireDeriveGithub(repertoireEtat);
-    const seuils = seuilsEnVigueur(journal.base);
-    const passes = relevee?.franchis ?? [];
-    const constat = seuils === null ? "no threshold declared" : passes.length === 0 ? "no threshold crossed" : `${pluriel(passes.length, "threshold")} crossed, details with \`${geste(`measures`)}\``;
-    const merges = relevee?.merges === undefined ? "merges not yet counted by a closing pass" : `${pluriel(relevee.merges, "merge")} since the last closing`;
-    return [ligne("log", `${merges} — ${constat}`), ...passes.map((franchi) => ligne("", direJaugeEn(franchi))), ...direPasse(journal, arbre)];
+    return direPasse(journal, arbre);
   } catch (erreur) {
     if (journalPasRejoue(erreur)) return nonLu("it does not yet have the measures record, restart the runtime to recompute it");
     throw erreur;

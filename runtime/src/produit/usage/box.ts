@@ -51,7 +51,6 @@ export type UsageDUnVoisin = {
     thresholdPercent: number;
     below: boolean;
     tickets: Array<{ project: string; ticket: number; attempts: number; evidence: PreuveDeLaBox[] }>;
-    crossings: Array<{ project: string; measure: string; observed: number; limit: number; at: string; evidence: PreuveDeLaBox[] }>;
   };
   passRejections: Array<{ project: string; ticket: number; at: string; cause: Cause; title: string | null; evidence: PreuveDeLaBox[] }>;
   guardrailStops: Array<{ project: string; ticket: number | null; at: string; reason: string; limit: number | null; observed: number | null; evidence: PreuveDeLaBox[] }>;
@@ -179,7 +178,6 @@ function usageDUnVoisin({ project, drift, passRejections, guardrailStops, setAsi
       thresholdPercent: drift.thresholdPercent,
       below: drift.below,
       tickets: drift.tickets.map(({ ticket, attempts, evidence }) => ({ project, ticket, attempts, evidence: lignesDe(project, evidence) })),
-      crossings: drift.crossings.map(({ measure, observed, limit, at, evidence }) => ({ project, measure, observed, limit, at, evidence: lignesDe(project, evidence) })),
     },
     passRejections: passRejections.flatMap(({ ticket, at, cause, title, evidence }) =>
       cause !== null && CAUSES_DE_BRIGADE.includes(cause) ? [{ project, ticket, at, cause, title, evidence: lignesDe(project, evidence) }] : [],

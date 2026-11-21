@@ -69,25 +69,25 @@ export function mesurerRenvois(parcours: readonly Parcours[], n = DERNIERS_PAR_D
   };
 }
 
-// La dérive sur le premier coup : les réglages faute de seuil déclaré.
+// La dérive sur le premier coup : son seuil et sa fenêtre.
 export const SEUIL_PREMIER_COUP_PAR_DEFAUT = 50;
-export const FENETRE_PREMIER_COUP_PAR_DEFAUT = 10;
+const FENETRE_PREMIER_COUP_PAR_DEFAUT = 10;
 
 // La part des derniers tickets servis livrés du premier coup, quand elle est
 // sous le seuil : `premiers` sur `retenus` (les mergés de la fenêtre), la
 // fenêtre et le seuil en %. Nulle au seuil ou au-dessus, et tant que la fenêtre
 // n'est pas pleine ou qu'aucun de ses tickets n'est mergé : rien à juger.
 export type DerivePremierCoup = { premiers: number; retenus: number; fenetre: number; seuil: number };
-export function derivePremierCoup(parcours: readonly Parcours[], { firstTryPercent, firstTryWindow }: { firstTryPercent?: number | null; firstTryWindow?: number | null }): DerivePremierCoup | null {
-  const seuil = firstTryPercent ?? SEUIL_PREMIER_COUP_PAR_DEFAUT;
-  const fenetre = firstTryWindow ?? FENETRE_PREMIER_COUP_PAR_DEFAUT;
+export function derivePremierCoup(parcours: readonly Parcours[]): DerivePremierCoup | null {
+  const seuil = SEUIL_PREMIER_COUP_PAR_DEFAUT;
+  const fenetre = FENETRE_PREMIER_COUP_PAR_DEFAUT;
   const { servis, retenus, premierCoup } = mesurerRenvois(parcours, fenetre);
   if (servis < fenetre || premierCoup === null) return null;
   const premiers = Math.round(premierCoup * retenus);
   return (premiers * 100) / retenus < seuil ? { premiers, retenus, fenetre, seuil } : null;
 }
 
-// Sa ligne dans `status`, comme la dérive des mesures.
+// Sa ligne dans `status`.
 export function direDerivePremierCoupEn({ premiers, retenus, fenetre, seuil }: DerivePremierCoup): string {
   const part = `${premiers}/${retenus}`;
   return retenus === fenetre ? `${part} tickets delivered on the first try (threshold ${seuil}%)` : `${part} merged tickets delivered on the first try, among the last ${fenetre} served (threshold ${seuil}%)`;

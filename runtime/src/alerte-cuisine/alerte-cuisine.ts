@@ -23,6 +23,7 @@
 // Ce module ne lit rien et n'importe que des feuilles : la lecture des tickets
 // (`../github.ts`) s'en sert.
 import { MARQUE_D_INERTIE } from "../guerison/cuisine-inerte.ts";
+import type { GitHub, IssueOuverte } from "../github.ts";
 
 export type AlerteDeLaCuisine = "inertie" | "disjoncteur";
 
@@ -31,6 +32,13 @@ export const DEPOT_BRIGADE = "benomite/brigade";
 
 // La marque cachée qui nomme le projet servi (`<owner>/<repo>`) dans ce que la station dépose sur la brigade.
 export const marqueDuProjet = (servi: string) => `<!-- brigade:projet=${servi} -->`;
+
+// Le GitHub de la brigade tel que les alertes le lisent et l'écrivent : ses issues fermées disent quand (`closedAt`), si GitHub le dit.
+export type GitHubDeLaBrigade = Partial<Pick<GitHub, "droits">> & {
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt" | "author">> & { closedAt?: string })[]>;
+  creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
+  fermerIssue(numero: number): Promise<void>;
+};
 
 // Le label de l'issue du disjoncteur ; sa marque est `<!-- brigade:breaker-open project=<projet> -->`.
 export const LABEL_DU_DISJONCTEUR = "brigade:breaker-open";

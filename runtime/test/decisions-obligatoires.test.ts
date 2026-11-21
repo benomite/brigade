@@ -5,7 +5,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { DECISIONS, OBLIGATOIRES, type Decision } from "../src/decisions.ts";
-import { lireSeuils } from "../src/derive.ts";
 import { configManager } from "../src/manager.ts";
 import { GESTES } from "../src/montrer-station.ts";
 import { configReviewer } from "../src/reviewer.ts";
@@ -18,8 +17,6 @@ const TOUTES: Record<Decision, string> = {
   BRIGADE_STATIONS: "box/claude:1:code",
   BRIGADE_DRIFT_TICKET_TOKENS: "500000",
   BRIGADE_DRIFT_LOST_TOKENS: "200000",
-  BRIGADE_DRIFT_FIRST_TRY_PERCENT: "50",
-  BRIGADE_DRIFT_FIRST_TRY_WINDOW: "10",
   BRIGADE_GATES_BUDGET_SECONDS: "120",
   BRIGADE_GATES_BUDGET_CPU_SECONDS: "500",
   BRIGADE_GATES_BASE_BUDGET_SECONDS: "900",
@@ -39,7 +36,7 @@ const TOUTES: Record<Decision, string> = {
 
 // Ce que le runtime lit des décisions au démarrage.
 function lire(env: Record<string, string | undefined>) {
-  return { stations: lireStations(env), seuils: lireSeuils(env), manager: configManager(env), reviewer: configReviewer(env) };
+  return { stations: lireStations(env), manager: configManager(env), reviewer: configReviewer(env) };
 }
 
 test("sans une décision obligatoire de calibrage, le runtime refuse de démarrer ; sans une autre que les stations, il démarre", () => {

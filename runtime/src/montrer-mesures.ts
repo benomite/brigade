@@ -5,7 +5,7 @@
 // Les renvois et leurs causes se lisent dans `temps-tickets.json` du clone (`BRIGADE_REPO_DIR`),
 // où la station écrit au merge ce que GitHub dit de chaque ticket (#2707) : le journal ne le sait plus.
 // Les merges sont ceux de la branche d'intégration du clone, et leurs cooks ceux que les flux des
-// cooks GitHub de la station disent (`closer-github-passe/derive-github.ts`) : le journal ne voit
+// cooks GitHub de la station disent (`mesures/flux-des-cooks.ts`) : le journal ne voit
 // plus un merge depuis #2061 (#2707).
 // L'ancienne option `--par` répond encore, en disant la nouvelle (`commandes.ts`).
 // La commande n'écrit jamais, et répond pendant que le runtime tourne.
@@ -17,10 +17,10 @@ import { decrireCauses } from "./causes-des-ratages.ts";
 import { causesDesTemps, parcoursDesTemps, qualiteLue } from "./qualite-github.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { direLeReleveGitHub, releveGitHubDeLaStation } from "./mesures-github.ts";
-import { seuilsEnVigueur } from "./projections/measures.ts";
 import { execFileSync } from "./sans-invite.ts";
 import { join } from "node:path";
-import { coutsDesFlux, ticketDuMerge, type MergeDuClone } from "./closer-github-passe/derive-github.ts";
+import { ticketDuMerge, type MergeDuClone } from "./closer-github-passe/closer-github-passe.ts";
+import { coutsDesFlux } from "./mesures/flux-des-cooks.ts";
 import { describeCallsPerTicket, measureCallsPerTicket, type PerTicket } from "./mesures/appels-par-ticket.ts";
 import { ciDurationSection } from "./measures/ci-duration.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
@@ -77,7 +77,7 @@ try {
   const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null;
   const couts = coutsDesFlux(join(repertoireEtat, "github-seul"));
   const livraisons = mergesDuClone(process.env.BRIGADE_REPO_DIR, process.env.BRIGADE_BASE_BRANCH).map(({ at, ticket }) => ({ ticket, at, measures: {}, state: {}, gatesS: null, cooks: ticket === null ? [] : couts(ticket) }));
-  for (const ligne of decrireReleve({ projet, livraisons, seuils: seuilsEnVigueur(base) }, par)) console.log(ligne);
+  for (const ligne of decrireReleve({ projet, livraisons }, par)) console.log(ligne);
   console.log("");
   const connus = lesTempsDesTickets(process.env.BRIGADE_REPO_DIR).enregistrements.filter(({ qualite }) => qualiteLue(qualite) !== null);
   for (const ligne of decrireRenvois(mesurerRenvois(parcoursDesTemps(connus), derniers))) console.log(ligne);

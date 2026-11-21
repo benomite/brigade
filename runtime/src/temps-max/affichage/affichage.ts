@@ -9,7 +9,7 @@ import type { TempsTicket } from "../../temps-ticket/ligne-status.ts";
 const DERNIERS = 10;
 
 // Les phases d'un ticket, dans l'ordre de sa vie, et leur nom : la seule
-// liste, que lisent aussi l'alerte et le ticket de correction (`../mesure.ts`).
+// liste, que lit aussi la mesure (`../mesure.ts`).
 // `cuissonTests` est une part de `cuisson` : elle n'est pas une phase de plus.
 export const PHASES = [
   ["attenteQualification", "qualification wait"],

@@ -1,17 +1,12 @@
 // La fermeture, lue pour l'app : un objet, et non des lignes à découper. Ce
 // que `closing` imprime au chef — l'observation de la branche d'intégration,
-// les compteurs de la dérive, la dernière passe qui écrit et son bilan — est
-// relu ici dans les mêmes fonctions, sans rien recompter d'autre ni rien
-// inventer : le seuil de dérive est celui du relevé des mesures, que le bloc
-// `journal` de l'observation reprend (docs/runtime/fermeture.md).
+// la dernière passe qui écrit et son bilan — est relu ici dans les mêmes
+// fonctions, sans rien recompter d'autre ni rien inventer.
 //
 // Rien n'y écrit. Le journal est ouvert en lecture seule par la commande, le
 // dépôt n'est lu que par l'observation : lire n'a jamais rien lancé.
 import type { FaitFermeture, Laisse, ProvenancesDeFermeture, Retrait } from "../events/closing.ts";
 import type { Journal } from "../journal.ts";
-import { direJaugeEn } from "../mesures.ts";
-import { seuilsEnVigueur } from "../projections/measures.ts";
-import type { DeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Refus } from "../closing/condition.ts";
 import type { Observation } from "../closing/observer.ts";
 import { direRatio } from "../closing/ratio.ts";
@@ -67,10 +62,6 @@ export type Demande =
       text: string;
     };
 
-// La dérive : `crossed` vrai dès qu'une mesure du relevé franchit le seuil que
-// le chef lui a déclaré. Aucun seuil déclaré : rien n'est franchi.
-export type Derive = { declared: boolean; crossed: boolean; crossings: Array<{ measure: string; observed: number; limit: number; text: string }> };
-
 // La réponse. Sans closer réglé, elle le dit, et rien d'autre : ni observation,
 // ni trouvaille, ni demande. `closer.from` : d'où vient chacun de ses
 // réglages — le dépôt du projet, la box, ou le défaut (#1684) ; null si le
@@ -83,7 +74,6 @@ export type LectureDeFermeture =
       observation: ObservationLue;
       findings: Trouvaille[];
       request: Demande;
-      drift: Derive;
     };
 
 export const SANS_CLOSER = "the closer is not set on this project: no closing pass writes, there is nothing to observe for it";
@@ -141,22 +131,14 @@ export function demande(journal: Journal): Demande {
   return { state: "waiting", since: attend.since, stalledAt: attend.sansIssue, reason: retenue === null ? null : motif(retenue), text: direDemandeEn(attend, retenue) };
 }
 
-// La dérive, telle que la passe du closer l'a relevée sur le clone (`relevee`,
-// `lireDeriveGithub`) : le journal ne voit plus un merge (#2061, #2707). Rien
-// n'est recompté ; sans relevé, aucun seuil franchi.
-export function derive(journal: Journal, relevee: DeriveGithub | null = null): Derive {
-  const seuils = seuilsEnVigueur(journal.base);
-  const passes = relevee?.franchis ?? [];
-  return { declared: seuils !== null, crossed: passes.length > 0, crossings: passes.map((franchi) => ({ ...franchi, text: direJaugeEn(franchi) })) };
-}
-
 // Toute la lecture. `observation` : celle de la branche d'intégration, ou ce
 // qui l'a empêchée — appelée seulement si le closer est réglé.
-export function lireFermeture(journal: Journal, observation: () => Observation | { erreur: string }, relevee: DeriveGithub | null = null): LectureDeFermeture {
+export function lireFermeture(journal: Journal, observation: () => Observation | { erreur: string }): LectureDeFermeture {
   const reglages = reglagesEnVigueur(journal);
   if (!reglages?.calibration) return { configured: false, text: SANS_CLOSER };
   const { calibration, cooksBelow, tokens, removedLines, from } = reglages;
-  const mergesSinceCleanup = relevee?.merges ?? 0;
+  // Nothing counts the merges since the last pass any more: the field stays for the app.
+  const mergesSinceCleanup = 0;
   const lue = observation();
   return {
     configured: true,
@@ -179,6 +161,5 @@ export function lireFermeture(journal: Journal, observation: () => Observation |
           },
     findings: "erreur" in lue ? [] : trouvailles(lue),
     request: demande(journal),
-    drift: derive(journal, relevee),
   };
 }

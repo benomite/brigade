@@ -71,7 +71,6 @@ consommé   en cours : 3 lancements, dont 1 jugement · 12 tours · 184 000 to
            5 h : 8 lancements, dont 1 relecture et 2 jugements · 64 tours · 825 000 tokens
            24 h : 8 lancements, dont 1 relecture et 2 jugements · 64 tours · 825 000 tokens
            ce que ce projet a lancé, pas la consommation du compte : /usage la donne
-dérive     tests 622 pour un seuil de 500 — `brigade <projet> measures`
 claude     transcripts du projet : 1 027 gardés (112 Mo), 12 retirés (48 Mo) au rangement d'il y a 2 min — un transcript part 7 j après sa dernière écriture
 
 derniers événements
@@ -79,7 +78,7 @@ derniers événements
   94  2026-10-12T10:02:00.000Z  brigade  #22  worktree.kept  nettoyage  {"worktree":"worktrees/22-n","branch":"cook/22-n","reason":"pr-open","detail":"cook/22-n"}
   95  2026-10-12T10:02:00.000Z  brigade  #22  worktree.kept  nettoyage  {"worktree":"worktrees/22-o","branch":"cook/22-o","reason":"unpushed","detail":"2 commits"}
   96  2026-10-12T10:02:00.000Z  brigade  -  transcripts.tidied  nettoyage  {"removed":12,"freedBytes":50331648,"kept":1027,"keptBytes":117440512,"keepMs":604800000}
-  97  2026-10-12T10:02:00.000Z  brigade  -  drift.configured  runtime  {"limits":{"tests":500,"testsSeconds":null,"gatesSeconds":null,"contextKb":null,"repoMb":null,"merges":null,"growthPercent":null}}
+  97  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}
   98  2026-10-12T10:02:00.000Z  brigade  #40  pass.replayed  pass  {"sha":"sha-m","base":"base-2","gates":{"outcome":"green","code":0,"failures":[],"tail":"","measures":{"tests":622,"gates_s":21}},"findings":[]}
   99  2026-10-12T10:02:00.000Z  brigade  #40  merge.done  pass  {"pr":"https://github.com/o/r/pull/40","sha":"sha-m","by":"pass","reconciled":false}
   100  2026-10-12T10:02:00.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}

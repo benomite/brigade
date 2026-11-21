@@ -42,7 +42,7 @@ test("`station` : `cooks`, chaque décision, `remove` et `help` n'écrivent aucu
   assert.equal((await jouer("cooks", "3")).code, 0);
   assert.equal((await jouer("cooks", "3")).code, 0);
   assert.equal((await jouer("cooks", "0")).code, 0);
-  for (const [geste, valeur] of [["stations", `${STATION}:2:code`], ["seuil-ticket", "300000"], ["seuil-perdus", "100000"], ["seuil-renvois", "40"], ["fenetre-renvois", "8"], ["budget-gates", "120"], ["budget-gates-cpu", "500"], ["manager-modele", "sonnet"], ["manager-effort", "medium"], ["reviewer-modele", "opus"], ["reviewer-effort", "high"], ["closer-modele", "sonnet"], ["closer-effort", "low"], ["closer-cooks", "2"], ["closer-tokens", "400000"], ["closer-retraits", "300"]] as const) {
+  for (const [geste, valeur] of [["stations", `${STATION}:2:code`], ["seuil-ticket", "300000"], ["seuil-perdus", "100000"], ["budget-gates", "120"], ["budget-gates-cpu", "500"], ["manager-modele", "sonnet"], ["manager-effort", "medium"], ["reviewer-modele", "opus"], ["reviewer-effort", "high"], ["closer-modele", "sonnet"], ["closer-effort", "low"], ["closer-cooks", "2"], ["closer-tokens", "400000"], ["closer-retraits", "300"]] as const) {
     assert.equal((await jouer(geste, valeur)).code, 0, geste);
     assert.equal((await jouer(geste, valeur)).code, 0, geste);
   }
@@ -62,7 +62,7 @@ test("`station` : chaque refus, y compris ceux de `decisions.ts` et de `stations
     [["stations", "box:2:code"], env], [["stations", "box/claude:0:code"], env], [["stations", "box/claude:2"], env], [["stations", "box/claude:2:code+code"], env],
     [["stations", "box/claude:2:code:opus"], env], [["stations", "box/claude:2:code:ordinaires"], env], [["stations", "box/claude:2:navigateur headless"], env],
     [["stations", ""], env], [["stations", " , "], env], [["stations"], env],
-    [["seuil-ticket", "beaucoup"], env], [["seuil-ticket", "0"], env], [["seuil-perdus", "-1"], env], [["seuil-renvois", "x"], env], [["fenetre-renvois", "1.5"], env],
+    [["seuil-ticket", "beaucoup"], env], [["seuil-ticket", "0"], env], [["seuil-perdus", "-1"], env], 
     [["manager-modele", "gpt"], env], [["manager-effort", "fort"], env], [["reviewer-modele", "Opus"], env], [["reviewer-effort", "maximum"], env],
     [["closer-modele", "gpt"], env], [["closer-effort", "fort"], env], [["closer-cooks", "0"], env], [["closer-tokens", "x"], env], [["closer-retraits", "-3"], env],
     [["manager-modele", "opus", "high"], env], [["remove"], env], [["remove", "plat-du-jour"], env],
@@ -125,7 +125,7 @@ test("`station` : un état posé avant le ticket — décisions écrites, ancien
 test("`station` : les gestes gardent leurs noms", async (t) => {
   const { env } = etat(t);
   const aide = (await sortie(["help"], env)).lignes.join("\n");
-  for (const geste of ["stations", "seuil-ticket", "seuil-perdus", "seuil-renvois", "fenetre-renvois", "budget-gates", "budget-gates-cpu", "manager-modele", "manager-effort", "reviewer-modele", "reviewer-effort", "closer-modele", "closer-effort", "closer-cooks", "closer-tokens", "closer-retraits", "cooks", "remove"]) {
+  for (const geste of ["stations", "seuil-ticket", "seuil-perdus", "budget-gates", "budget-gates-cpu", "manager-modele", "manager-effort", "reviewer-modele", "reviewer-effort", "closer-modele", "closer-effort", "closer-cooks", "closer-tokens", "closer-retraits", "cooks", "remove"]) {
     assert.match(aide, new RegExp(`^  ${geste} `, "m"), geste);
   }
 });

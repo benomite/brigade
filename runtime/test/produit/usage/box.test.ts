@@ -147,7 +147,7 @@ test("réveillé sur brigade, le digest couvre les autres projets de la box, cha
 
   // Chaque élément venu d'ailleurs dit son projet, et ne cite que ses lignes de journal.
   for (const voisin of digest.box.siblings) {
-    const elements = [voisin.drift, ...voisin.drift.tickets, ...voisin.drift.crossings, ...voisin.passRejections, ...voisin.guardrailStops, ...voisin.setAside];
+    const elements = [voisin.drift, ...voisin.drift.tickets, ...voisin.passRejections, ...voisin.guardrailStops, ...voisin.setAside];
     for (const element of elements) assert.equal(element.project, voisin.project);
     for (const element of elements.slice(1) as Array<{ evidence: Array<{ kind: string; project: string }> }>) {
       assert.ok(element.evidence.length > 0);

@@ -6,7 +6,6 @@ import type { Fait } from "../../src/evenements.ts";
 import { etatDAvant, exemple, STATION } from "./haut-de-status.ts";
 
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-const SEUILS = { tests: 500, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null };
 
 // Ajoute à l'état d'exemple du haut ce qui fait paraître le bas : à utiliser sur le journal de `exemple(t)`
 // ou, avec `etatDAvant`, sur le journal d'avant — l'un et l'autre portent le même rail.
@@ -66,8 +65,8 @@ export function ajouterLeBas(journal: ReturnType<typeof etatDAvant>["journal"]):
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/22-o", branch: "cook/22-o", reason: "unpushed", detail: "2 commits" } }, 22, "nettoyage");
   noter({ type: "transcripts.tidied", payload: { removed: 12, freedBytes: 48 * 1024 * 1024, kept: 1_027, keptBytes: 112 * 1024 * 1024, keepMs: 7 * 24 * 3_600_000 } }, null, "nettoyage");
 
-  // La dérive : un seuil de tests franchi par une livraison mergée.
-  noter({ type: "drift.configured", payload: { limits: SEUILS } });
+  // Une livraison mergée dont les gates ont mesuré 622 tests.
+  noter({ type: "guard.configured", payload: { limits: LIMITES, breakerThreshold: 3 } });
   noter({ type: "pass.replayed", payload: { sha: "sha-m", base: "base-2", gates: { outcome: "green", code: 0, failures: [], tail: "", measures: { tests: 622, gates_s: 21 } }, findings: [] } }, 40, "pass");
   noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/40", sha: "sha-m", by: "pass", reconciled: false } }, 40, "pass");
 

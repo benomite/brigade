@@ -9,11 +9,10 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { DECISIONS, decisionsDansLEnvironnement, decisionsPosees, direDecisionIgnoree, environnementDecide, poserDecision, retirerDecision, suivreDecisions, supportDesDecisions } from "../src/decisions.ts";
-import { brancherDerive, lireSeuils } from "../src/derive.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { configManager } from "../src/manager.ts";
 import { configReviewer } from "../src/reviewer.ts";
-import { ConfigInvalide, demarrer } from "../src/runtime.ts";
+import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { chef, cuisine, decider, issue } from "./aides/cuisine.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
@@ -36,8 +35,6 @@ const DECIDEES = {
   BRIGADE_STATIONS: "box/claude:3:code,box/playwright:1:navigateur-headless",
   BRIGADE_DRIFT_TICKET_TOKENS: "300000",
   BRIGADE_DRIFT_LOST_TOKENS: "100000",
-  BRIGADE_DRIFT_FIRST_TRY_PERCENT: "40",
-  BRIGADE_DRIFT_FIRST_TRY_WINDOW: "12",
   BRIGADE_GATES_BUDGET_SECONDS: "90",
   BRIGADE_GATES_BUDGET_CPU_SECONDS: "300",
   BRIGADE_GATES_BASE_BUDGET_SECONDS: "700",
@@ -68,8 +65,7 @@ function poserLesPremieres(repertoire: string): void {
 }
 
 const lu = (decisions: ReturnType<typeof suivreDecisions>) => {
-  const seuils = decisions.seuils();
-  return { stations: decisions.stations(), ticketTokens: seuils.ticketTokens, lostTokens: seuils.lostTokens, manager: decisions.manager(), reviewer: decisions.reviewer(), fermeture: decisions.fermeture(), plafond: decisions.plafond() };
+  return { stations: decisions.stations(), manager: decisions.manager(), reviewer: decisions.reviewer(), fermeture: decisions.fermeture(), plafond: decisions.plafond() };
 };
 
 describe("les décisions du chef", { concurrency: 8 }, () => {
@@ -79,8 +75,6 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     const decisions = suivreDecisions(journal.base, {});
     assert.deepEqual(lu(decisions), {
       stations: lireStations({ BRIGADE_STATIONS: ENV.BRIGADE_STATIONS }),
-      ticketTokens: 500_000,
-      lostTokens: 200_000,
       manager: { model: "sonnet", effort: "medium" },
       reviewer: { model: "haiku", effort: "medium" },
       fermeture: { calibration: null, cooksBelow: 1, tokens: 500_000, removedLines: 500, from: { calibration: null, cooksBelow: "default", tokens: "default", removedLines: "default" } },
@@ -94,8 +88,6 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     // Le même suivi, dans le même process : rien n'a été rechargé.
     assert.deepEqual(lu(decisions), {
       stations: lireStations({ BRIGADE_STATIONS: DECIDEES.BRIGADE_STATIONS }),
-      ticketTokens: 300_000,
-      lostTokens: 100_000,
       manager: { model: "opus", effort: "high" },
       reviewer: { model: "sonnet", effort: "low" },
       fermeture: { calibration: { model: "sonnet", effort: "high" }, cooksBelow: 2, tokens: 300_000, removedLines: 200, from: { calibration: "station", cooksBelow: "station", tokens: "station", removedLines: "station" } },
@@ -120,7 +112,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     // Le support l'emporte, et là où il se tait, la variable n'est pas lue.
     assert.equal(configReviewer(decide).calibrage.model, "opus");
     assert.deepEqual(lireStations(decide).map((station) => station.cooks), [1]);
-    assert.equal(lireSeuils(decide).ticketTokens, 500_000);
+    assert.equal(decide.BRIGADE_DRIFT_TICKET_TOKENS, "500000");
     assert.equal(environnementDecide(dansLEnvironnement, {}).BRIGADE_STATIONS, undefined);
     assert.equal(configReviewer(decide).calibrage.effort, "medium");
 
@@ -174,7 +166,6 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.deepEqual(decisionsPosees(journal.base), {});
     for (const nom of DECISIONS) assert.equal(decide[nom], undefined, nom);
     assert.deepEqual(lireStations(decide), []);
-    assert.deepEqual([lireSeuils(decide).ticketTokens, lireSeuils(decide).lostTokens], [null, null]);
     assert.throws(() => configManager(decide), /BRIGADE_MANAGER_MODEL n'est pas défini — le calibrage des jugements du manager n'a pas de défaut/);
     assert.throws(() => configReviewer(decide), /BRIGADE_REVIEWER_MODEL n'est pas défini — le calibrage des relectures du reviewer n'a pas de défaut/);
     // Le suivi n'en invente pas non plus : sans rien à lire, il refuse.
@@ -207,27 +198,6 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.deepEqual([decisions.manager(), decisions.manager()], [{ model: "opus", effort: "medium" }, { model: "opus", effort: "medium" }]);
     assert.equal(avertissements.length, 1);
     assert.match(avertissements[0] ?? "", /le calibrage du manager non relu — BRIGADE_MANAGER_MODEL n'est pas défini.*s'en tient à ce qu'il lisait/);
-  });
-
-  test("les seuils de coût posés pendant que la dérive tourne sont écrits au journal au réveil suivant, et regardés à leur aune", (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 3_600_000, intervalleTickMs: 3_600_000 });
-    t.after(() => runtime.arreter("test"));
-    const reveils: Array<() => void> = [];
-    poserLesPremieres(repertoire);
-    const decisions = suivreDecisions(runtime.journal.base, {});
-    brancherDerive({ ...runtime, surReveil: (ecouter) => (reveils.push(() => ecouter("log")), () => {}) }, decisions.seuils, () => {});
-    const limites = () => runtime.journal.tout().filter((e) => e.type === "drift.configured").map((e) => [e.payload.limits.ticketTokens, e.payload.limits.lostTokens]);
-    assert.deepEqual(limites(), [[500_000, 200_000]]);
-
-    decider(repertoire, "BRIGADE_DRIFT_TICKET_TOKENS", "300000");
-    decider(repertoire, "BRIGADE_DRIFT_LOST_TOKENS", "100000");
-    for (const reveiller of reveils) reveiller();
-
-    assert.deepEqual(limites(), [
-      [500_000, 200_000],
-      [300_000, 100_000],
-    ]);
   });
 
   test("en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant", async (t) => {

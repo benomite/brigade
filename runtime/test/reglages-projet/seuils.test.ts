@@ -74,23 +74,21 @@ test("the box's variables take the repository's thresholds over the box's, key b
   assert.deepEqual([variablesDuDepot(COMPLETS).BRIGADE_CORRECTION_THRESHOLD, variablesDuDepot(COMPLETS).BRIGADE_CORRECTION_WINDOW], ["4", "30"]);
 });
 
-test("a station applies projet.json's drift thresholds at its next fetch over its box's decisions, and its gestures keep working without the file", (t) => {
+test("a station applies projet.json's closer settings at its next fetch over its box's decisions, and its gestures keep working without the file", (t) => {
   const projet = projetSurGit(t, { reglages: { integrationBranch: "v2" } });
-  const journal = journalDeStation(t, { BRIGADE_DRIFT_TICKET_TOKENS: "900", BRIGADE_DRIFT_FIRST_TRY_PERCENT: "70" });
-  const depot = lireLeDepot({ BRIGADE_REPO_DIR: projet.clone, BRIGADE_BASE_BRANCH: "v2", BRIGADE_DRIFT_TESTS: "100" });
+  const journal = journalDeStation(t, { BRIGADE_CLOSING_MAX_TOKENS: "900", BRIGADE_CLOSING_MAX_REMOVED_LINES: "70" });
+  const depot = lireLeDepot({ BRIGADE_REPO_DIR: projet.clone, BRIGADE_BASE_BRANCH: "v2" });
   const decisions = suivreDecisions(journal.base, depot.env, () => {}, depot.suivis);
-  // Le dépôt ne dit rien : la box, ses décisions et son environnement.
-  assert.equal(decisions.seuils().ticketTokens, 900);
-  assert.equal(decisions.seuils().firstTryPercent, 70);
-  assert.equal(decisions.seuils().tests, 100);
+  // Le dépôt ne dit rien : la box et ses décisions.
+  assert.deepEqual([decisions.fermeture().tokens, decisions.fermeture().removedLines], [900, 70]);
 
-  projet.merger("v2", texteDuFichier({ integrationBranch: "v2", drift: { ticketTokens: 5000, tests: 7 } }));
-  assert.equal(decisions.seuils().ticketTokens, 900);
+  projet.merger("v2", texteDuFichier({ integrationBranch: "v2", closer: { maxTokens: 5000 } }));
+  assert.equal(decisions.fermeture().tokens, 900);
   git(projet.clone, "fetch", "-q", "origin");
-  const lus = decisions.seuils();
-  assert.deepEqual([lus.ticketTokens, lus.tests, lus.firstTryPercent], [5000, 7, 70]);
+  assert.deepEqual([decisions.fermeture().tokens, decisions.fermeture().removedLines], [5000, 70]);
 
   projet.merger("v2", texteDuFichier({ integrationBranch: "v2" }));
   git(projet.clone, "fetch", "-q", "origin");
-  assert.deepEqual([decisions.seuils().ticketTokens, decisions.seuils().tests], [900, 100]);
+  assert.equal(decisions.fermeture().tokens, 900);
 });
+

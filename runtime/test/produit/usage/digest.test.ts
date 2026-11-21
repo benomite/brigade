@@ -83,7 +83,6 @@ function gestes({ ecrire }: Cuisine, projet = PROJET) {
     },
     mettreDeCote: (ticket: number, reason: string, why?: string) => noter(ticket, { type: "ticket.86", payload: { reason, until: null, ...(why === undefined ? {} : { why }) } }),
     garder: (ticket: number) => noter(ticket, { type: "worktree.kept", payload: { worktree: `worktrees/${ticket}-x`, branch: `cook/${ticket}-x`, reason: "failed", detail: "fatal: cannot remove: Device or resource busy" } }),
-    franchir: () => noter(null, { type: "drift.crossed", payload: { measure: "gates_s", observed: 130, limit: 100 } }),
   };
 }
 
@@ -101,17 +100,16 @@ const vide = (digest: DigestDUsage) => ({
   share: digest.drift.share,
   below: digest.drift.below,
   tickets: digest.drift.tickets,
-  crossings: digest.drift.crossings,
   passRejections: digest.passRejections,
   guardrailStops: digest.guardrailStops,
   setAside: digest.setAside,
   repeatedFailures: digest.repeatedFailures,
 });
-const RIEN = { merged: 0, share: null, below: false, tickets: [], crossings: [], passRejections: [], guardrailStops: [], setAside: [], repeatedFailures: [] };
+const RIEN = { merged: 0, share: null, below: false, tickets: [], passRejections: [], guardrailStops: [], setAside: [], repeatedFailures: [] };
 
 // Chaque élément d'une rubrique, quelle qu'elle soit, porte au moins une preuve.
 function preuves(digest: DigestDUsage): Preuve[][] {
-  return [...digest.drift.tickets, ...digest.drift.crossings, ...digest.passRejections, ...digest.guardrailStops, ...digest.setAside, ...digest.repeatedFailures].map(({ evidence }) => evidence);
+  return [...digest.drift.tickets, ...digest.passRejections, ...digest.guardrailStops, ...digest.setAside, ...digest.repeatedFailures].map(({ evidence }) => evidence);
 }
 
 // Un journal qui porte un fait de chaque rubrique.
@@ -138,7 +136,6 @@ function journalComplet(c: Cuisine): void {
   raterAuxGates(c, 26, FAIL_RUNTIME);
   // Un nettoyage qui échoue sur trois tickets.
   for (const ticket of [21, 22, 23]) g.garder(ticket);
-  g.franchir();
 }
 
 test("une période sans fait : chaque rubrique est vide, et la dérive ne dit rien", (t) => {
@@ -176,9 +173,6 @@ test("une période qui porte chaque rubrique : la dérive, les refus de la pass,
       { ticket: 22, attempts: 1, firstTry: true, cites: [issue(22).url, pr(22).url, "merge.done"] },
     ],
   );
-  assert.deepEqual(digest.drift.crossings.map(({ measure, observed, limit, evidence }) => ({ measure, observed, limit, type: evidence[0]?.kind === "log" ? evidence[0].type : null })), [
-    { measure: "gates_s", observed: 130, limit: 100, type: "drift.crossed" },
-  ]);
 
   // Les refus : #21 une fois, #25 et #26 chacun une fois, rangés par leur cause.
   assert.deepEqual(

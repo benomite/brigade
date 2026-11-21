@@ -46,7 +46,7 @@ function cuisine(t: TestContext) {
 }
 
 const releve = (livraisons: Delivery[], par?: number) => {
-  const lignes = decrireReleve({ projet: "brigade", livraisons, seuils: null }, par);
+  const lignes = decrireReleve({ projet: "brigade", livraisons }, par);
   const debut = lignes.findIndex((ligne) => ligne.startsWith("launches"));
   return lignes.slice(debut, lignes.indexOf("", debut));
 };

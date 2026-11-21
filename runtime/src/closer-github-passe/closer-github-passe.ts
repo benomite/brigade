@@ -6,7 +6,7 @@
 // closer is set and `MERGES_PER_PASS` merges reached the integration branch
 // since the last pass, never twice within `ONE_PASS_A_DAY_MS` and never while
 // one is still open, the pass observes the base (the duplicates and dead code
-// to prune, and the drift of the latest merges) and opens one closing issue —
+// to prune) and opens one closing issue —
 // `fire`, the closer's calibration, its candidates, their files as its zone,
 // and the removal cap as an acceptance criterion. The GitHub-only stations
 // take, cook, review and merge it like any ticket: its zone keeps the other
@@ -17,25 +17,10 @@
 // or another station serving the same project, sees it. Two stations that open
 // one at the same instant keep the oldest, and close the other.
 //
-// The drift is read at the same cadence, whether the closer is set or not, as
-// the old path read it at each merge (`derive.ts`): the merges since the last
-// pass and what the GitHub-only cooks spent on them, against the chef's
-// thresholds (`derive-github.ts`). Its result goes where `status` reads its
-// `drift` line, and a threshold newly crossed is said once.
-//
-// The tickets' times are read at the same pass (#2364): the times the station recorded at each
-// merge, since the previous pass, go to `readDrift` (`closer-github-durees`); a finding goes to
-// `writeCorrection` (`closer-github-correction`), which opens the project's correction ticket
-// or completes the open one. The closing issue's body says what was found and done, or that
-// the times are stable.
-//
 // What the old closer kept in the log has no GitHub-only counterpart yet, and
 // is not carried: the memory of what a pass left (a candidate left may be
-// proposed again), its run condition on the cooks in flight, and a drift
-// threshold as a trigger.
+// proposed again), and its run condition on the cooks in flight.
 import { promisify } from "node:util";
-import { writeCorrection, type CorrectionResult, type GithubClient } from "../closer-github-correction/correction.ts";
-import { readDrift, type ProjectReading, type TicketTime } from "../closer-github-durees/derive.ts";
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { decompteMarque, defautDesBlocagesSansQuestion, type StatutDeCloture } from "../cloture-blocages.ts";
 import { candidats, proposer, type Candidat } from "../closing/candidates.ts";
@@ -43,13 +28,20 @@ import { direRatio, mesurerRatio } from "../closing/ratio.ts";
 import { lireDepot, type Depot } from "../closing/reading.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
 import type { ReglagesDeFermeture } from "../events/closing.ts";
-import type { Seuils } from "../events/drift.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
 import type { Runtime } from "../runtime.ts";
-import { direJaugeEn } from "../mesures.ts";
 import { execFile } from "../sans-invite.ts";
-import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
-import { releverDerive, ticketDuMerge, type CoutsDesCooks, type DeriveGithub, type MergeDuClone } from "./derive-github.ts";
+
+// A merge of the integration branch: when, and the ticket its branch carried.
+export type MergeDuClone = { at: string; ticket: number | null };
+
+const BRANCHE_DU_TICKET = /\/cook\/(\d+)-/;
+
+// The ticket of a merge, from its subject (`Merge pull request #<pr> from <owner>/cook/<n>-github`).
+export function ticketDuMerge(sujet: string): number | null {
+  const numero = BRANCHE_DU_TICKET.exec(sujet)?.[1];
+  return numero === undefined ? null : Number(numero);
+}
 
 // The merges since the last pass beyond which a pass is opened.
 export const MERGES_PER_PASS = 20;
@@ -62,8 +54,6 @@ export type GitHubDuCloser = {
   issuesDepuis(instant: string): Promise<Pick<IssueOuverte, "number" | "title" | "labels" | "body" | "association" | "state" | "createdAt">[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   fermerIssue(numero: number): Promise<void>;
-  // Replaces an issue's body: the correction ticket completed with a finding.
-  ecrireCorps(numero: number, corps: string): Promise<void>;
 };
 
 // What the pass reads of the project's clone, the base fetched from the origin.
@@ -86,18 +76,12 @@ export type OptionsCloserGithub = {
   ecartMs?: number;
   maintenant?: () => Date;
   avertir?: (message: string) => void;
-  // The drift: the chef's thresholds, read at each pass, what the cooks of a
-  // ticket spent, and where the reading goes. Absent, the drift is not read.
-  // The tickets' times the station recorded at each merge (`temps-ticket/mesure.ts`), read at each
-  // pass. Absent, the times are not read.
-  temps?: () => TempsTicket[];
   // The quality of the same recent tickets (`mesure-qualite.ts`, #2678), as lines, read at each
   // pass. Absent, the quality is not said.
   qualite?: () => string[];
   // The status the closer reads: a `blockedWithoutQuestion` above zero is a defect to fix, not a clean close.
   // Absent, or `null`, nothing is read.
   statut?: () => StatutDeCloture | null | Promise<StatutDeCloture | null>;
-  derive?: { seuils: () => Seuils; couts: CoutsDesCooks; noter: (derive: DeriveGithub) => void };
 };
 
 // The shortest gap between two passes, ten ticks: a pass is due at most once
@@ -129,51 +113,12 @@ export function titreDeLaFermeture(base: string): string {
   return `Closing pass on \`${base}\`: prune dead code and duplicates`;
 }
 
-const signe = (n: number, s: string) => `${s}${n.toLocaleString("en-US")}`;
-
-// The times of the merged tickets as `readDrift` reads them: the cook's own work is what the cook
-// spent but for the tests, which are a part of it; the whole is the sum of the phases.
-export function tempsLus(project: string, enregistrements: TempsTicket[]): TicketTime[] {
-  return enregistrements
-    .filter(({ mergedAt }) => mergedAt !== undefined)
-    .map((t) => ({
-      project,
-      ticket: t.ticket,
-      at: t.mergedAt as string,
-      seconds: t.cuisson + t.attentePasse + t.revue + t.ci + t.merge,
-      split: { cook: Math.max(0, t.cuisson - t.cuissonTests), tests: t.cuissonTests, ci: t.ci },
-    }));
-}
-
 const EPOCH = new Date(0).toISOString();
 
-// What `writeCorrection` needs of GitHub, from the client the pass already has.
-export function clientDeCorrection(github: GitHubDuCloser): GithubClient {
-  return {
-    listIssues: async ({ label }) =>
-      (await github.issuesDepuis(EPOCH))
-        .filter((issue) => issue.labels.includes(label) && DE_CONFIANCE.includes(issue.association))
-        .map(({ number, title, body, state }) => ({ number, title, body, state })),
-    createIssue: async ({ title, body, labels }) => ({ number: await github.creerIssue({ titre: title, corps: body, labels }) }),
-    updateIssueBody: (numero, corps) => github.ecrireCorps(numero, corps),
-  };
-}
+const signe = (n: number, s: string) => `${s}${n.toLocaleString("en-US")}`;
 
-// What the times say since the pass: the lines of the closing issue's section, and what was done.
-export async function releverLesTemps(project: string, enregistrements: TempsTicket[], depuis: string | null, github: GitHubDuCloser): Promise<string[]> {
-  const lectures: ProjectReading[] = readDrift(tempsLus(project, enregistrements), depuis);
-  const trouvaille = lectures.find((lecture) => lecture.project === project)?.finding ?? null;
-  if (trouvaille === null) {
-    const tickets = lectures.find((lecture) => lecture.project === project)?.tickets ?? 0;
-    return [`Times stable: ${tickets === 0 ? "no ticket" : `${tickets} ticket${tickets > 1 ? "s" : ""}`} measured since the last pass, and no drift. No correction ticket is opened or changed.`];
-  }
-  const fait: CorrectionResult = await writeCorrection(project, trouvaille, clientDeCorrection(github));
-  const quoi = { opened: "opened", completed: "completed with this finding", unchanged: "already carries this finding" }[fait.action];
-  return [trouvaille.sentence, "", `Correction ticket #${fait.number} ${quoi}.`];
-}
-
-export function corpsDeLaFermeture(pour: { base: string; sha: string; merges: number; pente: ReturnType<typeof mesurerRatio>; proposes: Candidat[]; ecartes: number; zone: string[]; retraits: number; temps?: string[]; qualite?: string[] }): string {
-  const { base, sha, merges, pente, proposes, ecartes, zone, retraits, temps, qualite } = pour;
+export function corpsDeLaFermeture(pour: { base: string; sha: string; merges: number; pente: ReturnType<typeof mesurerRatio>; proposes: Candidat[]; ecartes: number; zone: string[]; retraits: number; qualite?: string[] }): string {
+  const { base, sha, merges, pente, proposes, ecartes, zone, retraits, qualite } = pour;
   return [
     marqueDeFermeture(sha),
     "",
@@ -187,7 +132,6 @@ export function corpsDeLaFermeture(pour: { base: string; sha: string; merges: nu
     "",
     ...pente.filter(({ merges: n }) => n > 0).map(({ fenetre, merges: n, ajoute, retire }) => `- last ${Math.min(fenetre, n)} merges: ${signe(ajoute, "+")} / ${signe(retire, "−")} (${direRatio({ ajoute, retire })})`),
     "",
-    ...(temps === undefined ? [] : ["## Times", "", ...temps, ""]),
     ...(qualite === undefined ? [] : ["## Quality", "", ...qualite, ""]),
     "## Candidates",
     "",
@@ -230,8 +174,6 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
   // The base on which the observation found nothing to propose: not observed
   // again until it moves.
   let rien: string | null = null;
-  // The measures crossed at the last reading of the drift: a crossing is said once.
-  let signales = new Set<string>();
 
   // The closing passes GitHub knows within the window, the oldest first. The
   // start of the window is a day's, so that the read stays conditional.
@@ -241,29 +183,6 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
       .filter((issue) => DE_CONFIANCE.includes(issue.association) && estUneFermeture(issue.body))
       .map(({ number, createdAt, state }) => ({ number, createdAt, state }))
       .sort((x, y) => x.number - y.number);
-  };
-
-  const relever = (derive: NonNullable<OptionsCloserGithub["derive"]>, derniere: Passe | null, merges: MergeDuClone[]) => {
-    try {
-      const depuis = depuisLaPasse(derniere);
-      const franchis = releverDerive(merges, depuis, derive.couts, derive.seuils());
-      derive.noter({ at: maintenant().toISOString(), franchis, merges: merges.filter(({ at }) => Date.parse(at) > depuis).length });
-      for (const franchi of franchis) if (!signales.has(franchi.measure)) avertir(`brigade : drift — ${direJaugeEn(franchi)}`);
-      signales = new Set(franchis.map(({ measure }) => measure));
-    } catch (erreur) {
-      // A reading that fails stops neither the closer nor the kitchen: the next pass reads again.
-      avertir(`brigade : drift not read — ${message(erreur)}`);
-    }
-  };
-
-  // A reading or a write that fails stops neither the pass nor the issue: the body says so.
-  const lesTemps = async (lire: () => TempsTicket[], derniere: Passe | null): Promise<string[]> => {
-    try {
-      return await releverLesTemps(runtime.projet, lire(), derniere === null ? null : derniere.createdAt, github);
-    } catch (erreur) {
-      avertir(`brigade : times not read — ${message(erreur)}`);
-      return [`Times not read: ${message(erreur)}.`];
-    }
   };
 
   const laQualite = (lire: () => string[]): string[] => {
@@ -294,11 +213,9 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
 
   const passer = async () => {
     const { calibration, removedLines } = options.reglages();
-    if (calibration === null && options.derive === undefined) return;
+    if (calibration === null) return;
     const derniere = (await passes()).at(-1) ?? null;
     const merges = await clone.merges();
-    if (options.derive !== undefined && !arrete) relever(options.derive, derniere, merges);
-    if (calibration === null) return;
     if (options.statut !== undefined && !arrete) await blocages(options.statut, calibration);
     const due = aOuvrir(derniere, merges, maintenant());
     if (due === null || arrete) return;
@@ -312,9 +229,8 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     }
     // Read again before writing: another station may have opened it meanwhile.
     if (((await passes()).at(-1)?.number ?? null) !== (derniere?.number ?? null) || arrete) return;
-    const temps = options.temps === undefined ? undefined : await lesTemps(options.temps, derniere);
     const qualite = options.qualite === undefined ? undefined : laQualite(options.qualite);
-    const corps = corpsDeLaFermeture({ base, sha: observation.sha, merges: due.merges, pente: mesurerRatio(observation.merges), proposes, ecartes: ecartes.length, zone, retraits: removedLines, ...(temps === undefined ? {} : { temps }), ...(qualite === undefined ? {} : { qualite }) });
+    const corps = corpsDeLaFermeture({ base, sha: observation.sha, merges: due.merges, pente: mesurerRatio(observation.merges), proposes, ecartes: ecartes.length, zone, retraits: removedLines, ...(qualite === undefined ? {} : { qualite }) });
     const creee = await github.creerIssue({ titre: titreDeLaFermeture(base), corps, labels: [LABEL, `model:${calibration.model}`, `effort:${calibration.effort}`] });
     // Two stations that opened one together: the oldest stays.
     const premiere = (await passes()).find(({ number }) => number > (derniere?.number ?? 0))?.number ?? creee;

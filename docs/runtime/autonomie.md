@@ -2,7 +2,7 @@
 
 A project's **autonomy table** says, for each kind of decision, what brigade may decide alone: the
 chef's answer to "how much do I want to be asked?". Code: `runtime/src/autonomie/table.ts` (table,
-profiles, changes), `decision/aiguillage.ts` (routing), `rapport/rapport.ts` (daily report). Words
+profiles, changes) and `runtime/src/autonomie/chiffres/chiffres.ts` (the figures). Words
 from [`glossary.md`](../glossary.md).
 
 ## The seven rows
@@ -26,7 +26,7 @@ delivery to the runtime: **Production** (any action on it), **Secrets** (reading
 | Position | What brigade does |
 |---|---|
 | **brigade decides** | Applies it alone. No card, no trace beyond what applying it writes |
-| **brigade decides and tells me** | Applies it and writes an entry saying what was done and where to see it; the daily report reads these |
+| **brigade decides and tells me** | Applies it and tells the chef what was done |
 | **I decide** | Applies nothing. Raises a card asking the chef, with its choices |
 
 ## What a row holds without a choice
@@ -52,6 +52,8 @@ every row can still be changed alone.
 Applying a profile writes one `autonomy.changed` per row it moves, naming the profile. A row already
 at its profile's position is not rewritten; a row still on its default is.
 
+The routing that read these positions at each decision (`aiguiller`, with its `autonomy.reported` and `autonomy.card-raised` entries and the daily report that read them) was called by nothing, and is deleted (#3908): the table is stored, changed and shown.
+
 ## How a change takes effect, and who made it
 
 Every change is an **`autonomy.changed`** entry with its author: the row, the position held before
@@ -62,11 +64,4 @@ row) is refused and nothing is written.
 
 ## Where to read it
 
-- **The log.** `npm --prefix runtime run log -- <ticket>` or `… run log`: `autonomy.changed`,
-  `autonomy.reported` (a decision under `brigade decides and tells me`), `autonomy.card-raised` (a
-  card under `I decide`).
-- **The daily report.** `npm --prefix runtime run report`, with `BRIGADE_STATE_DIR` set. Read-only:
-  the last 24 hours of decisions told about, grouped by row in table order, each with a one-line
-  summary and a link; a quiet day says so. Exit `0` printed (empty included), `1` log unreadable, `2`
-  bad call. The app reads the same through `rapportDuJour`. Decisions under `brigade decides` leave
-  no entry and `I decide` is a card, so neither appears.
+- **The log.** `npm --prefix runtime run log -- <ticket>` or `… run log`: `autonomy.changed`.

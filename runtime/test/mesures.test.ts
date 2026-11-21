@@ -3,18 +3,14 @@
 // est écrit à la main : aucune cuisine ne tourne ici.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
-import type { Seuils } from "../src/events/drift.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { noterDeriveGithub } from "../src/closer-github-passe/derive-github.ts";
-import { noterGitHubSeul } from "../src/github-seul-etat.ts";
-import { principal as status } from "../src/status.ts";
-import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from "../src/mesures.ts";
-import { mergedDeliveries, seuilsEnVigueur, signalements, type Delivery } from "../src/projections/measures.ts";
-import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
+import { decrireReleve, trancher } from "../src/mesures.ts";
+import { mergedDeliveries, type Delivery } from "../src/projections/measures.ts";
+import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
@@ -63,7 +59,6 @@ function cuisine(t: TestContext) {
 }
 
 const livraison = (measures: Record<string, number>, reste: Partial<Delivery> = {}): Delivery => ({ ticket: 1, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures, state: measures, gatesS: null, cooks: [], ...reste });
-const seuils = (declares: Partial<Seuils>): Seuils => ({ ...SANS_SEUIL, ...declares });
 
 test("une livraison mergée porte les mesures de ses dernières gates, la durée de toutes, et ses cooks", (t) => {
   const { base, cuire, juger, merger } = cuisine(t);
@@ -132,7 +127,6 @@ test("une livraison jugée avant une autre et mergée après elle, sans rejeu, n
     { ticket: 18, tests: 930, state: { tests: 930, gates_s: 12 } },
     { ticket: 17, tests: 916, state: { depot_octets: 2_000_000 } },
   ]);
-  assert.deepEqual(franchis(livraisons, seuils({ tests: 920 })), [{ measure: "tests", observed: 930, limit: 920 }]);
   assert.deepEqual(trancher(livraisons, 1).map(({ etats, gatesS }) => [etats.tests, gatesS]), [[930, 12], [null, 9]]);
 });
 
@@ -147,19 +141,6 @@ test("rejouée sur la base qui a avancé, la même livraison dit de nouveau l'é
   merger(17);
 
   assert.deepEqual(mergedDeliveries(base).map(({ state }) => state.tests), [930, 946]);
-});
-
-test("les seuils déclarés et les franchissements signalés se lisent au journal ; une mesure revenue sous son seuil n'est plus signalée", (t) => {
-  const { base, noter } = cuisine(t);
-  assert.equal(seuilsEnVigueur(base), null);
-
-  noter({ type: "drift.configured", payload: { limits: seuils({ tests: 500 }) } });
-  noter({ type: "drift.crossed", payload: { measure: "tests", observed: 622, limit: 500 } });
-  noter({ type: "drift.crossed", payload: { measure: "growth:tests", observed: 54, limit: 30 } });
-  noter({ type: "drift.cleared", payload: { measure: "tests" } });
-
-  assert.deepEqual(seuilsEnVigueur(base), seuils({ tests: 500 }));
-  assert.deepEqual(signalements(base), ["growth:tests"]);
 });
 
 test("une tranche vaut l'état que laisse sa dernière livraison, et la médiane de ce qui se répète", () => {
@@ -184,62 +165,14 @@ test("une tranche vaut l'état que laisse sa dernière livraison, et la médiane
   );
 });
 
-test("un plafond est franchi quand il est dépassé, le compteur de merges quand il est atteint ; un seuil non déclaré ne juge rien", () => {
-  const livraisons = [livraison({ tests: 500, tests_s: 6.2, gates_s: 21, contexte_octets: 9400, depot_octets: 2_900_000 }), livraison({})];
-
-  assert.deepEqual(jauger(livraisons, SANS_SEUIL), []);
-  // La valeur est comparée telle quelle : l'arrondi n'est qu'un affichage.
-  assert.deepEqual(franchis([livraison({ depot_octets: 5_040_000 })], seuils({ repoMb: 5 })), [{ measure: "depot_octets", observed: 5.04, limit: 5 }]);
-  assert.deepEqual(franchis([livraison({ tests_s: 0.28 })], seuils({ testsSeconds: 0.29 })), []);
-  assert.deepEqual(franchis(livraisons, seuils({ tests: 500, testsSeconds: 10, gatesSeconds: 20, contextKb: 9, repoMb: 3, merges: 2 })), [
-    { measure: "contexte_octets", observed: 9.4, limit: 9 },
-    { measure: "gates_s", observed: 21, limit: 20 },
-    { measure: "merges", observed: 2, limit: 2 },
-  ]);
-});
-
-test("la pente compare une mesure à ce qu'elle valait dix merges plus tôt, et ne dit rien avant", () => {
-  const stable = Array.from({ length: 10 }, () => livraison({ tests: 200, doc_octets: 1000 }));
-  const pente = seuils({ growthPercent: 30 });
-
-  // Dix merges : aucun n'a dix merges derrière lui.
-  assert.deepEqual(franchis([...stable.slice(1), livraison({ tests: 900, doc_octets: 9000 })], pente), []);
-  // Trente pour cent tout juste : le seuil est atteint, pas dépassé.
-  assert.deepEqual(franchis([...stable, livraison({ tests: 260, doc_octets: 1300 })], pente), []);
-  assert.deepEqual(franchis([...stable, livraison({ tests: 262, doc_octets: 1290 })], pente), [
-    { measure: "growth:tests", observed: 31, limit: 30 },
-  ]);
-});
-
-test("une mesure face à son seuil se lit dans l'unité du seuil", () => {
-  assert.deepEqual(
-    [
-      { measure: "tests", observed: 622, limit: 500 },
-      { measure: "tests_s", observed: 6.2, limit: 5 },
-      { measure: "depot_octets", observed: 2.9, limit: 2 },
-      { measure: "contexte_octets", observed: null, limit: 8 },
-      { measure: "merges", observed: 80, limit: 80 },
-      { measure: "growth:doc_octets", observed: 54.3, limit: 30 },
-    ].map(direJauge),
-    [
-      "tests 622 pour un seuil de 500",
-      "suite 6,2 s pour un seuil de 5 s",
-      "dépôt 2,9 Mo pour un seuil de 2 Mo",
-      "contexte — pour un seuil de 8 ko",
-      "80 merges depuis la dernière fermeture pour un seuil de 80",
-      "doc +54 % en 10 merges pour un seuil de 30 %",
-    ],
-  );
-});
-
-test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, les tours par calibrage, les seuils", (t) => {
+test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, les tours par calibrage", (t) => {
   const { base, livrer } = cuisine(t);
   livrer(1, { tests: 203, tests_s: 1.1, gates_s: 9, depot_octets: 1_200_000, contexte_octets: 6100, doc_octets: 212_000 }, { tours: 31, ms: 216_000, modele: "opus", effort: "high" });
   livrer(2, { tests: 287, tests_s: 1.9, gates_s: 11, depot_octets: 1_500_000, contexte_octets: 6100, doc_octets: 268_000 }, { tours: 12, ms: 209_000 });
   livrer(3, undefined, { tours: 14, ms: 100_000 });
   livrer(4, { tests: 622, tests_s: 6.2, gates_s: 21, depot_octets: 2_900_000, contexte_octets: 9400, doc_octets: 511_000 }, { tours: 58, ms: 170_000, modele: "opus", effort: "high" });
 
-  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: mergedDeliveries(base), seuils: seuils({ tests: 500, testsSeconds: 10 }) }, 2), [
+  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: mergedDeliveries(base) }, 2), [
     "report     brigade — 4 merges in the log, in slices of 2",
     "           4 since the last closing (none in the log) · 4 since the last security review (none in the log)",
     "           only the deliveries the pass judged count, and the cooks in the log — not the account's consumption",
@@ -261,25 +194,7 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
     "",
     "launches   no ticket launched more than once, and no launch without a delivery, behind these merges",
     "",
-    "thresholds tests 622 for a threshold of 500 — CROSSED",
-    "           test suite 6.2 s for a threshold of 10 s",
-    "closing    proposed — tests 622 for a threshold of 500 · yours to run: `brigade <projet> closing` observes, nothing starts by itself",
   ]);
-});
-
-test("un compteur franchi propose la fermeture, avec ce qu'il franchit ; tous sous leur seuil, la ligne n'apparaît pas", () => {
-  const livraisons = [livraison({ tests: 622, gates_s: 21 }), livraison({ tests: 622, gates_s: 21 })];
-
-  const proposee = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 500, gatesSeconds: 20, merges: 2 }) }).filter((ligne) => ligne.includes("proposed"));
-  const toutesSous = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 700, gatesSeconds: 30, merges: 3 }) });
-  const sansSeuil = decrireReleve({ projet: "brigade", livraisons, seuils: null });
-
-  assert.equal(proposee.length, 3);
-  assert.match(proposee[0] ?? "", /^closing {4}proposed — tests 622 for a threshold of 500/);
-  assert.match(proposee[1] ?? "", /proposed — gates 21 s for a threshold of 20 s/);
-  assert.match(proposee[2] ?? "", /proposed — 2 merges since the last closing for a threshold of 2/);
-  assert.doesNotMatch(toutesSous.join("\n"), /proposed|closing {4}/);
-  assert.doesNotMatch(sansSeuil.join("\n"), /proposed|closing {4}/);
 });
 
 // Un clone dont la branche d'intégration (`origin/main`) porte un merge par ticket, comme la station GitHub les
@@ -295,32 +210,10 @@ function cloneMerge(t: TestContext, tickets: number[]): string {
   return clone;
 }
 
-test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien", async (t) => {
-  const { repertoire, journal, noter } = cuisine(t);
-  noter({ type: "drift.configured", payload: { limits: seuils({ merges: 2 }) } });
-  const clone = cloneMerge(t, [1, 2]);
-  const avant = journal.dernierSeq();
-  // Un faux `claude` qui laisse une trace s'il est lancé : la mesure ne doit rien démarrer.
-  const trace = join(repertoire, "lance");
-  const faux = join(repertoire, "faux-claude.sh");
-  writeFileSync(faux, `#!/bin/sh\ntouch "${trace}"\n`, { mode: 0o755 });
-  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_CLAUDE_BIN: faux, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: "main" };
+test("sans merge ou sans cook calibré, le relevé le dit au lieu de montrer des zéros", () => {
+  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: [] }), ["report     brigade — no merge in the log: nothing to report"]);
 
-  const premiere = lancer(t, MESURES, [], env);
-  assert.equal(await premiere.fin, 0);
-  const seconde = lancer(t, MESURES, [], env);
-  assert.equal(await seconde.fin, 0);
-
-  assert.match(premiere.sortie(), /\nclosing {4}proposed — 2 merges since the last closing for a threshold of 2/);
-  assert.equal(seconde.sortie(), premiere.sortie());
-  assert.equal(journal.dernierSeq(), avant);
-  assert.equal(existsSync(trace), false);
-});
-
-test("sans merge, sans cook calibré ou sans seuil, le relevé le dit au lieu de montrer des zéros", () => {
-  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: [], seuils: null }), ["report     brigade — no merge in the log: nothing to report"]);
-
-  const lignes = decrireReleve({ projet: "brigade", livraisons: [livraison({})], seuils: null });
+  const lignes = decrireReleve({ projet: "brigade", livraisons: [livraison({})] });
 
   assert.deepEqual(lignes.slice(4), [
     "merges  up to       tests  test suite  gates  gates share  repo  context  docs",
@@ -333,12 +226,11 @@ test("sans merge, sans cook calibré ou sans seuil, le relevé le dit au lieu de
     "",
     "launches   no ticket launched more than once, and no launch without a delivery, behind these merges",
     "",
-    "thresholds none declared — nothing is flagged",
   ]);
 });
 
 test("au-delà de douze tranches, seules les dernières sont montrées, et le relevé le dit", () => {
-  const lignes = decrireReleve({ projet: "brigade", livraisons: Array.from({ length: 14 }, () => livraison({ tests: 1 })), seuils: null }, 1);
+  const lignes = decrireReleve({ projet: "brigade", livraisons: Array.from({ length: 14 }, () => livraison({ tests: 1 })) }, 1);
 
   assert.equal(lignes[0], "report     brigade — 14 merges in the log, in slices of 1 (the last 12)");
   assert.deepEqual(lignes.slice(5, 17).map((ligne) => ligne.split(" ")[0]), ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"]);
@@ -404,91 +296,10 @@ test("le plafond des gates, franchi sans être jugé, se lit au relevé : sur co
   // Une livraison dont les gates n'ont rien déclaré ne porte toujours aucune mesure.
   assert.deepEqual(livraisons.map((livraison) => livraison.measures), [{ tests: 200 }, {}, { tests: 203 }, { tests: 204 }]);
   assert.equal(
-    decrireReleve({ projet: "brigade", livraisons, seuils: null }).at(-1),
+    decrireReleve({ projet: "brigade", livraisons }).at(-1),
     "cap        of the gates exceeded on 2 of 4 deliveries — not judged by the pass; the latest: #19, 178.3 s of CPU for a cap of 165 s (+8%)",
   );
-  assert.doesNotMatch(decrireReleve({ projet: "brigade", livraisons: livraisons.slice(0, 1), seuils: null }).join("\n"), /plafond/);
-});
-
-test("un seuil de coût se juge sur les dix derniers merges : le ticket le plus cher, et ce qui a été perdu", (t) => {
-  const { base, cuire, livrer } = cuisine(t);
-  // Un ticket lancé trois fois : deux lancements perdus, un livré — trois mille tokens.
-  cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
-  cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
-  livrer(1, undefined);
-  livrer(2, undefined);
-  const livraisons = mergedDeliveries(base);
-
-  assert.deepEqual(jauger(livraisons, SANS_SEUIL), []);
-  assert.deepEqual(jauger(livraisons, seuils({ ticketTokens: 3500, lostTokens: 2000 })).map(({ franchi }) => franchi), [false, false]);
-  assert.deepEqual(franchis(livraisons, seuils({ ticketTokens: 2500, lostTokens: 1500 })), [
-    { measure: "tokens_ticket", observed: 3000, limit: 2500 },
-    { measure: "tokens_perdus", observed: 2000, limit: 1500 },
-  ]);
-  // Atteint n'est pas dépassé ; sans tokens connus, rien n'est dit.
-  assert.deepEqual(franchis(livraisons, seuils({ ticketTokens: 3000, lostTokens: 2000 })), []);
-  assert.deepEqual(jauger([livraison({})], seuils({ ticketTokens: 1, lostTokens: 1 })).map(({ observed }) => observed), [null, null]);
-  // Un merge de plus que la fenêtre : le ticket cher en sort.
-  for (let ticket = 3; ticket < 13; ticket++) livrer(ticket, undefined);
-  assert.deepEqual(franchis(mergedDeliveries(base), seuils({ ticketTokens: 2500, lostTokens: 1 })), []);
-  assert.deepEqual(
-    [
-      { measure: "tokens_ticket", observed: 2400000, limit: 2000000 },
-      { measure: "tokens_perdus", observed: null, limit: 500000 },
-    ].map(direJauge),
-    [
-      "tokens du ticket le plus cher des 10 derniers merges 2\u202f400\u202f000 pour un seuil de 2\u202f000\u202f000",
-      "tokens perdus sur les 10 derniers merges — pour un seuil de 500\u202f000",
-    ],
-  );
-});
-
-test("un seuil de coût franchi est dans le bloc dérive de status, et ne change ni son code de sortie ni le reste de ce qu'il dit", async (t) => {
-  const { repertoire, journal, noter, livrer, cuire } = cuisine(t);
-  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } });
-  cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
-  livrer(1, undefined);
-  // Un cook en cours — lancé, jamais sorti — que le franchissement ne doit pas arrêter.
-  noter({ type: "cook.launched", payload: { run: "run-vivant", limits: LIMITES, stream: "runs/run-vivant.jsonl", station: "box/claude", model: "sonnet", effort: "low" } }, 7);
-  const lire = async () => {
-    const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
-    return { code: await commande.fin, lignes: commande.sortie().split("\n") };
-  };
-  const estDerive = (ligne: string) => ligne.startsWith("drift");
-
-  // Aucun seuil déclaré : rien n'est signalé.
-  const sans = await lire();
-  assert.deepEqual(sans.lignes.filter(estDerive), []);
-
-  // Déclaré, non franchi : rien non plus. Le journal ne voit plus un merge (#2061) : ce qui est franchi
-  // est ce que la passe du closer a relevé sur le clone (#2707), pas le merge du journal ci-dessus.
-  noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 2000, lostTokens: 1000 } } });
-  noterGitHubSeul(repertoire, { etat: "accepted" }, new Date(`${JOUR_HORLOGE}T10:00:00.000Z`));
-  noterDeriveGithub(repertoire, { at: `${JOUR_HORLOGE}T10:00:00.000Z`, franchis: [], merges: 1 });
-  const loin = await lire();
-  assert.deepEqual(loin.lignes.filter(estDerive), []);
-
-  // Franchi : nommé, avec sa valeur et son seuil — personne n'a lancé le relevé.
-  noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 1500, lostTokens: 500 } } });
-  noterDeriveGithub(repertoire, { at: `${JOUR_HORLOGE}T10:05:00.000Z`, franchis: [{ measure: "tokens_ticket", observed: 2000, limit: 1500 }, { measure: "tokens_perdus", observed: 1000, limit: 500 }], merges: 1 });
-  const franchi = await lire();
-  assert.deepEqual(franchi.lignes.filter(estDerive), [
-    "drift      tokens of the costliest ticket of the last 10 merges 2,000 for a threshold of 1,500 · tokens lost over the last 10 merges 1,000 for a threshold of 500 — `brigade <projet> measures`",
-  ]);
-  // Seule la ligne de dérive en diffère, hors les derniers événements, où le
-  // seuil déclaré s'écrit : le code de sortie, la cuisine, le rail restent.
-  assert.deepEqual([sans.code, loin.code, franchi.code], [0, 0, 0]);
-  const photo = ({ lignes }: { lignes: string[] }) => {
-    const sansDerive = lignes.filter((ligne) => !estDerive(ligne));
-    return sansDerive.slice(0, sansDerive.indexOf("latest events"));
-  };
-  assert.deepEqual(photo(franchi), photo(sans));
-  // Le cook en cours figure dans status avant comme après, et rien n'a écrit son arrêt.
-  const enCours = (lignes: string[]) => lignes.filter((ligne) => ligne.includes("#7"));
-  assert.notDeepEqual(enCours(sans.lignes), []);
-  assert.deepEqual(enCours(franchi.lignes), enCours(sans.lignes));
-  const arrets = journal.tout().filter((fait) => fait.type.startsWith("cook.") && fait.type !== "cook.launched" && (fait.payload as { run?: string }).run === "run-vivant");
-  assert.deepEqual(arrets, []);
+  assert.doesNotMatch(decrireReleve({ projet: "brigade", livraisons: livraisons.slice(0, 1) }).join("\n"), /plafond/);
 });
 
 test("le total d'un ticket est son coût sans rétro plus le coût de sa rétro, sans rien compter deux fois", (t) => {
@@ -511,7 +322,7 @@ test("le total d'un ticket est son coût sans rétro plus le coût de sa rétro,
   assert.deepEqual(tranche?.retros, [{ ticket: 17, total: 1000, sansRetro: 850, retro: 150 }]);
   const cout = tranche?.retros[0];
   assert.equal(cout?.total, (cout?.sansRetro ?? NaN) + (cout?.retro ?? NaN));
-  const lignes = decrireReleve({ projet: "brigade", livraisons, seuils: null });
+  const lignes = decrireReleve({ projet: "brigade", livraisons });
   assert.ok(lignes.some((ligne) => ligne.startsWith("retro ")));
   assert.ok(lignes.some((ligne) => /^1-2\s+#17\s+1,000\s+850\s+150$/.test(ligne)));
 });
@@ -523,5 +334,5 @@ test("sans rétro, le relevé ne dit rien d'elle", (t) => {
 
   assert.equal("retroTokens" in (livraisons[0] ?? {}), false);
   assert.deepEqual(trancher(livraisons)[0]?.retros, []);
-  assert.ok(!decrireReleve({ projet: "brigade", livraisons, seuils: null }).some((ligne) => ligne.startsWith("retro ")));
+  assert.ok(!decrireReleve({ projet: "brigade", livraisons }).some((ligne) => ligne.startsWith("retro ")));
 });

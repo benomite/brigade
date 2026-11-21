@@ -5,13 +5,12 @@
 // la dernière heure et du dernier jour, et la tendance de l'une face à l'autre.
 //
 // Le budget est une décision du chef, par projet (`decisions.ts`) : une durée
-// et un processeur, chacun avec son défaut. La durée par défaut est le seuil de
-// dérive de la durée des gates (`derive.ts`) ; le processeur par défaut est
+// et un processeur, chacun avec son défaut. La durée par défaut est juste au-dessus
+// des 90 s que les gates tiennent sur une box au calme ; le processeur par défaut est
 // quatre cœurs pleins sur cette durée — la moitié d'une box de huit cœurs, et
 // moins que les quatre à cinq qu'une suite tenait quand trois de front l'ont
 // saturée (épique #1313).
 import type { Base } from "./base.ts";
-import { SEUIL_DUREE_GATES_PAR_DEFAUT } from "./derive.ts";
 import type { EmpreinteDesGates } from "./empreinte-des-gates.ts";
 import type { CoureurDesGates, FaitGates } from "./events/gates.ts";
 import type { Gates } from "./events/pass.ts";
@@ -21,8 +20,8 @@ import { lire } from "./plafonds.ts";
 
 export const BUDGET_DUREE = "BRIGADE_GATES_BUDGET_SECONDS";
 export const BUDGET_PROCESSEUR = "BRIGADE_GATES_BUDGET_CPU_SECONDS";
-export const BUDGET_DUREE_PAR_DEFAUT = SEUIL_DUREE_GATES_PAR_DEFAUT;
-export const BUDGET_PROCESSEUR_PAR_DEFAUT = 4 * SEUIL_DUREE_GATES_PAR_DEFAUT;
+export const BUDGET_DUREE_PAR_DEFAUT = 100;
+export const BUDGET_PROCESSEUR_PAR_DEFAUT = 4 * BUDGET_DUREE_PAR_DEFAUT;
 // Le run complet sur la base joue toute la suite, pas les tests que touche un ticket : il a son budget, plus large
 // (la suite entière pèse environ 700 s de processeur, bien plus que le budget d'un ticket). Quatre fois celui d'un ticket.
 export const BUDGET_BASE_DUREE = "BRIGADE_GATES_BASE_BUDGET_SECONDS";

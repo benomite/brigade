@@ -21,7 +21,7 @@ export const FICHIER = ".claude/brigade/projet.json";
 
 // Les seuils de dérive, tels que le runtime les lit, dans l'ordre où la page les montre : les durées d'abord.
 // `unite` : ce que la valeur compte ; `entier` : le runtime n'y lit qu'un entier ; `defaut` : la valeur que le runtime
-// prend quand rien n'est déclaré, ni dans le dépôt ni sur la station (runtime/src/derive.ts, renvois.ts).
+// prend quand rien n'est déclaré, ni dans le dépôt ni sur la station (runtime/src/renvois.ts).
 export const PLAFONDS = [
   { cle: "testsSeconds", nom: "Test suite duration", unite: "s", entier: false, duree: true },
   { cle: "gatesSeconds", nom: "Gates duration", unite: "s", entier: false, duree: true, defaut: 100 },

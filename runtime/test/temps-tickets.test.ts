@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { ticketDeCorrection } from "../src/temps-max/correction.ts";
 import { medianeDesRecents, medianePerdueDesRecents, tempsPerdu } from "../src/temps-max/mesure.ts";
 import { chronometre, type DepotDuTicket, enregistrerTemps, type Etape, FICHIER_DES_TEMPS, rattraperLaPrise, resumer } from "../src/temps-ticket/mesure.ts";
 import { lesTempsDesTickets } from "../src/temps-ticket/ligne-status.ts";
@@ -260,18 +259,6 @@ describe("temps-tickets.json and the lost-time alert read this time", () => {
     for (const temps of rejouer([DU_TICKET])) enregistrerTemps(depot, temps);
     assert.equal((JSON.parse(readFileSync(join(depot, FICHIER_DES_TEMPS), "utf8")) as { resume: { lostTimeMaxMin: number } }).resume.lostTimeMaxMin, 5);
   });
-
-  test("over the threshold, the correction ticket counts the lost time and names the loss that weighs most", () => {
-    const tickets = rejouer([DU_TICKET, { ...DU_TICKET, ticket: 43 }, { ...DU_TICKET, ticket: 44 }]);
-    const correction = ticketDeCorrection(tickets, 2);
-    assert.ok(correction !== null);
-    assert.equal(correction.titre, "Tickets lose too much time: median 20 min lost over the threshold of 2 min — failed cooks weighs most");
-    assert.match(correction.corps, /These tickets lost 60 min of their 105 min\./);
-    assert.match(correction.corps, /\*\*failed cooks\*\*: 30 min of these tickets' lost time \(50%\), a median of 10 min per ticket, in 3 of the 3 tickets/);
-    assert.match(correction.corps, /^- waiting for the manager's judgement: 6 min \(10%\), median 2 min per ticket, in 3 tickets$/m);
-    assert.match(correction.corps, /^- waiting for a claim: 24 min \(40%\), median 8 min per ticket, in 3 tickets$/m);
-    assert.match(correction.corps, /^- #42: 10 min of failed cooks — 20 min lost of 35 min$/m);
-  });
 });
 
 // Les 40 tickets servis du 6 et du 7 novembre, tels que GitHub les a gardés
@@ -304,17 +291,5 @@ describe("brigade's 40 tickets closed on 2026-11-06 and 07, replayed from their 
     assert.deepEqual(resume.perteLaPlusLourde, { nom: "waiting for a claim", medianMin: 4.8, partPct: 57 });
     // Le cook qui a livré et sa pass ne sont jamais perdus : chaque ticket perd moins que tout son temps.
     for (const t of rejoues) assert.ok(tempsPerdu(t) < (Date.parse(t.mergedAt) - Date.parse(t.depuis ?? t.claimedAt)) / 1000, `#${t.ticket}`);
-  });
-
-  test("the correction ticket they open names waiting before the claim, with its figures and the tickets concerned", () => {
-    const correction = ticketDeCorrection(rejoues, 2);
-    assert.ok(correction !== null);
-    const [, perte] = /— (.+) weighs most$/.exec(correction.titre) ?? [];
-    assert.ok(["waiting for a claim", "failed cooks"].includes(perte ?? ""), correction.titre);
-    assert.equal(correction.titre, "Tickets lose too much time: median 7.7 min lost over the threshold of 2 min — waiting for a claim weighs most");
-    assert.match(correction.corps, /\*\*waiting for a claim\*\*: 3328 min of these tickets' lost time \(57%\), a median of 4\.8 min per ticket, in 40 of the 40 tickets\./);
-    assert.match(correction.corps, /^- failed cooks: 633 min \(11%\), median 0 min per ticket, in 10 tickets$/m);
-    assert.match(correction.corps, /## Tickets concerned\n\n- #2479: 1217 min of waiting for a claim — 1235 min lost of 1238 min\n/);
-    assert.match(correction.corps, /^- and 30 more$/m);
   });
 });

@@ -16,8 +16,6 @@ const GESTES = [
   ["stations", "BRIGADE_STATIONS", "box/claude:3:code", "box/claude:2:code,box/playwright:1:navigateur-headless"],
   ["seuil-ticket", "BRIGADE_DRIFT_TICKET_TOKENS", "500000", "300000"],
   ["seuil-perdus", "BRIGADE_DRIFT_LOST_TOKENS", "200000", "100000"],
-  ["seuil-renvois", "BRIGADE_DRIFT_FIRST_TRY_PERCENT", "50", "40"],
-  ["fenetre-renvois", "BRIGADE_DRIFT_FIRST_TRY_WINDOW", "10", "12"],
   ["budget-gates", "BRIGADE_GATES_BUDGET_SECONDS", "120", "90"],
   ["budget-gates-cpu", "BRIGADE_GATES_BUDGET_CPU_SECONDS", "500", "300.5"],
   ["budget-base", "BRIGADE_GATES_BASE_BUDGET_SECONDS", "900", "700"],
@@ -166,8 +164,8 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     assert.equal(code, 0);
     for (const [geste, attendu] of [
       ["stations <declaration>", "the project's stations — `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires|+ensemble]]`, separated by commas"],
-      ["seuil-ticket <tokens>", "drift cost threshold: tokens of the most expensive ticket — an integer greater than zero"],
-      ["seuil-perdus <tokens>", "drift cost threshold: lost tokens, launches that delivered nothing — an integer greater than zero"],
+      ["seuil-ticket <tokens>", "cost threshold: tokens of the most expensive ticket — an integer greater than zero"],
+      ["seuil-perdus <tokens>", "cost threshold: lost tokens, launches that delivered nothing — an integer greater than zero"],
       ["manager-modele <model>", "the model of the manager's judgments — opus, sonnet or haiku"],
       ["manager-effort <effort>", "the effort of the manager's judgments — low, medium, high, xhigh or max"],
       ["reviewer-modele <model>", "the model of the reviewer's reviews — opus, sonnet or haiku"],

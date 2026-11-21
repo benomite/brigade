@@ -1,5 +1,5 @@
 // Le bas de `status` est en anglais (#940) : `project`, `github`, `rail`, `cooks`, `consumed`, `worktrees`,
-// `drift`, les transcripts et `latest events`. Vérifié de trois façons : l'état de la box écrit avant la traduction
+// les transcripts et `latest events`. Vérifié de trois façons : l'état de la box écrit avant la traduction
 // (test/fixtures/etat-d-avant-927/) montre les mêmes tickets, dans les mêmes états et le même ordre, sans qu'on
 // l'édite ; un état d'exemple qui fait paraître chaque ligne ne laisse passer aucun mot de la colonne « français » du
 // glossaire, sur toute la sortie, et dit chaque nombre qu'il disait ; et `facts` n'a pas bougé.
@@ -8,8 +8,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
-import { direJaugeEn } from "../src/mesures.ts";
-import { SANS_SEUIL } from "../src/mesures.ts";
 import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
@@ -60,9 +58,6 @@ function lignesDepuis1844(lignes: readonly string[]): string[] {
 const depuis1844 = <F extends { dernierEvenement: { seq: number } | null }>(avant: F): F =>
   avant.dernierEvenement === null ? avant : { ...avant, dernierEvenement: { ...avant.dernierEvenement, seq: avant.dernierEvenement.seq - SERVICE_RETIRE } };
 
-// La dérive de l'exemple : le journal ne voit plus un merge (#2061), elle vient de la passe du closer (#2707).
-const DERIVE_DU_BAS = [{ measure: "tests", observed: 622, limit: 500 }];
-
 test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes états et le même ordre, et les mêmes comptes", (t) => {
   const avant = lignesDepuis1834(readFileSync(join(ETAT_D_AVANT, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"));
   const apres = decrireEtat(lireEtat(etatDAvant(t).journal, LU_LE), LU_LE);
@@ -99,7 +94,7 @@ test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes �
 });
 
 test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucune ligne de toute la sortie ne porte un mot français du glossaire", (t) => {
-  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE, { derive: DERIVE_DU_BAS }), LU_LE);
+  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE);
   const bas = basDe(sortie);
 
   assert.deepEqual(bas.slice(0, bas.indexOf("latest events")), [
@@ -142,7 +137,6 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "           5 h: 8 launches, of which 1 review and 2 judgments · 64 turns · 825,000 tokens",
     "           24 h: 8 launches, of which 1 review and 2 judgments · 64 turns · 825,000 tokens",
     "           what this project has launched, not the account's consumption: /usage gives it",
-    "drift      tests 622 for a threshold of 500 — `brigade <projet> measures`",
     "claude     project transcripts: 1,027 kept (112 MB), 12 removed (48 MB) at the cleanup 2 min ago — a transcript goes 7 d after its last write",
     "",
   ]);
@@ -160,11 +154,11 @@ const chiffres = (ligne: string, francais = false) =>
 
 test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets, ports, durées et nombres qu'avant — et la même ligne y répond, une à une", (t) => {
   const avant = basDe(lignesDepuis1844(lignesDepuis1834(readFileSync(join(FIXTURE_940, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"))));
-  const apres = basDe(decrireEtat(lireEtat(exempleDuBas(t), LU_LE, { derive: DERIVE_DU_BAS }), LU_LE));
+  const apres = basDe(decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE));
   assert.equal(apres.length, avant.length);
   const titres: Array<[string, string]> = [
     ["rail", "rail"], ["cooks", "cooks"], ["consommé", "consumed"],
-    ["worktrees", "worktrees"], ["dérive", "drift"], ["claude", "claude"], ["derniers événements", "latest events"],
+    ["worktrees", "worktrees"], ["claude", "claude"], ["derniers événements", "latest events"],
   ];
   avant.forEach((ligne, rang) => {
     const reponse = apres[rang] ?? "";
@@ -199,22 +193,17 @@ test("l'état lu en anglais est celui que `facts` dit en français, mot pour mot
   ]);
 });
 
-test("une saturation et une dérive se disent en anglais, nombres compris", () => {
+test("une saturation se dit en anglais, nombres compris", () => {
   assert.equal(direSaturationEn({ resource: "cpu", observed: 16.24, limit: 15 }), "load of 16.2 for at most 15");
   assert.equal(direSaturationEn({ resource: "memory", observed: 1234.5, limit: 2000 }), "1,234.5 MB of memory available for at least 2,000 MB");
   assert.equal(direSaturationEn({ resource: "disk", observed: 800, limit: 1000 }), "800 MB of disk free for at least 1,000 MB");
-  assert.equal(direJaugeEn({ measure: "tests", observed: 622, limit: 500 }), "tests 622 for a threshold of 500");
-  assert.equal(direJaugeEn({ measure: "merges", observed: 12, limit: 10 }), "12 merges since the last closing for a threshold of 10");
-  assert.equal(direJaugeEn({ measure: "growth:depot_octets", observed: 25.4, limit: 20 }), "repo +25% over 10 merges for a threshold of 20%");
-  assert.equal(direJaugeEn({ measure: "gates_s", observed: 31.25, limit: 30 }), "gates 31.3 s for a threshold of 30 s");
-  assert.equal(SANS_SEUIL.tests, null);
 });
 
 // La ligne `projet` n'est pas entre backticks dans le glossaire (le test de glossaire ne l'y lit pas) : elle se
 // vérifie ici, mot pour mot, comme la ligne `github`.
 test("les lignes `project` et `github` sont en anglais : le projet, ou `unknown — empty log` ; la limite de GitHub et l'heure de reprise", (t) => {
   const reprise = LU_LE.getTime() + 20 * 60_000;
-  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE, { derive: DERIVE_DU_BAS }), LU_LE, undefined, reprise);
+  const sortie = decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE, undefined, reprise);
   const hhmm = `${String(new Date(reprise).getHours()).padStart(2, "0")}:${String(new Date(reprise).getMinutes()).padStart(2, "0")}`;
   assert.deepEqual(sortie.slice(1, 3), ["project    brigade", `github     GitHub is rate-limiting calls, back around ${hhmm}`]);
   assert.ok(!sortie.some((ligne) => /^projet\b/.test(ligne)), "aucune ligne `projet`");

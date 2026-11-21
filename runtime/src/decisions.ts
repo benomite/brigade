@@ -17,13 +17,12 @@ import { existsSync } from "node:fs";
 import { Base } from "./base.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { sous } from "./cloison.ts";
-import { lireSeuils } from "./derive.ts";
 import type { Evenement } from "./evenements.ts";
-import type { Seuils } from "./events/drift.ts";
 import type { ReglagesDeFermeture } from "./events/closing.ts";
 import { configFermeture, provenancesDeFermeture } from "./closing/settings.ts";
 import { lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
+import { lire } from "./plafonds.ts";
 import { configManager } from "./manager.ts";
 import { plafondDuProjet, type PlafondLu } from "./reagir.ts";
 import { variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
@@ -37,8 +36,6 @@ export const DECISIONS = [
   "BRIGADE_STATIONS",
   "BRIGADE_DRIFT_TICKET_TOKENS",
   "BRIGADE_DRIFT_LOST_TOKENS",
-  "BRIGADE_DRIFT_FIRST_TRY_PERCENT",
-  "BRIGADE_DRIFT_FIRST_TRY_WINDOW",
   "BRIGADE_GATES_BUDGET_SECONDS",
   "BRIGADE_GATES_BUDGET_CPU_SECONDS",
   "BRIGADE_GATES_BASE_BUDGET_SECONDS",
@@ -82,17 +79,15 @@ const nombre = (lecteur: (env: Record<string, string>) => unknown, attendu: stri
   }
 };
 const ENTIER = "an integer greater than zero";
-const NOMBRE = "a number greater than zero";
+const entierPositif = (valeur: number) => Number.isSafeInteger(valeur) && valeur > 0;
 const SECONDES = "a number of seconds greater than zero";
 
 // Ce qu'une valeur doit être, lue seule : le lecteur même du runtime, pour
 // qu'une décision ne puisse pas valoir ce que la variable ne vaudrait pas.
 const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
   BRIGADE_STATIONS: (nom, valeur) => void lireStations({ [nom]: valeur }),
-  BRIGADE_DRIFT_TICKET_TOKENS: nombre(lireSeuils, ENTIER),
-  BRIGADE_DRIFT_LOST_TOKENS: nombre(lireSeuils, ENTIER),
-  BRIGADE_DRIFT_FIRST_TRY_PERCENT: nombre(lireSeuils, NOMBRE),
-  BRIGADE_DRIFT_FIRST_TRY_WINDOW: nombre(lireSeuils, ENTIER),
+  BRIGADE_DRIFT_TICKET_TOKENS: nombre((env) => lire(env, "BRIGADE_DRIFT_TICKET_TOKENS", 0, ENTIER, entierPositif), ENTIER),
+  BRIGADE_DRIFT_LOST_TOKENS: nombre((env) => lire(env, "BRIGADE_DRIFT_LOST_TOKENS", 0, ENTIER, entierPositif), ENTIER),
   BRIGADE_GATES_BUDGET_SECONDS: nombre(lireBudget, SECONDES),
   BRIGADE_GATES_BUDGET_CPU_SECONDS: nombre(lireBudget, SECONDES),
   BRIGADE_GATES_BASE_BUDGET_SECONDS: nombre(lireBudgetDeLaBase, SECONDES),
@@ -165,8 +160,6 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
   BRIGADE_STATIONS: "stations",
   BRIGADE_DRIFT_TICKET_TOKENS: "seuil-ticket",
   BRIGADE_DRIFT_LOST_TOKENS: "seuil-perdus",
-  BRIGADE_DRIFT_FIRST_TRY_PERCENT: "seuil-renvois",
-  BRIGADE_DRIFT_FIRST_TRY_WINDOW: "fenetre-renvois",
   BRIGADE_GATES_BUDGET_SECONDS: "budget-gates",
   BRIGADE_GATES_BUDGET_CPU_SECONDS: "budget-gates-cpu",
   BRIGADE_GATES_BASE_BUDGET_SECONDS: "budget-base",
@@ -264,7 +257,6 @@ export function retirerDecision(journal: Journal, retrait: { projet: string; nom
 // Ce que le runtime lit des décisions, à chaque appel.
 export type Decisions = {
   stations(): StationDeclaree[];
-  seuils(): Seuils;
   manager(): Calibrage;
   // Jusqu'où le manager monte le calibrage d'un ticket rouge.
   plafond(): PlafondLu;
@@ -325,7 +317,6 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
   };
   return {
     stations: suivre("les stations", lireStations),
-    seuils: suivre("les seuils de la dérive", lireSeuils, true),
     manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage, true),
     plafond: suivre("le plafond de calibrage", plafondDuProjet, true),
     reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage, true),

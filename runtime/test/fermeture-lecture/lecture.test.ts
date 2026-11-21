@@ -14,8 +14,6 @@ import type { Evenement, Fait } from "../../src/evenements.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
 import { SANS_CLOSER, type LectureDeFermeture } from "../../src/fermeture-lecture/lecture.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { noterDeriveGithub } from "../../src/closer-github-passe/derive-github.ts";
-import { SANS_SEUIL } from "../../src/mesures.ts";
 import { PLAFONDS } from "../aides/cuisine.ts";
 import { ecrireHistoire, lignes } from "../closing/history.ts";
 import { appeler, BASE, depotGit, ENV_GIT, horloge, lancer, repertoireTemporaire } from "../outils.ts";
@@ -87,19 +85,13 @@ test("sans closer réglé, la réponse le dit et ne porte aucun champ de l'obser
   }
 });
 
-test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts — et les merges depuis la dernière fermeture, que la passe du closer a comptés sur le clone", async (t) => {
-  const lieu = projet(t);
-  // Le journal ne voit plus un merge (#2061) : ceux qu'il porterait ne comptent pas (#2707).
-  for (const ticket of [17, 18, 19]) lieu.noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
-  noterDeriveGithub(lieu.etat, { at: "2026-11-07T10:00:00.000Z", franchis: [], merges: 3 });
-
-  const lue = await lire(lieu);
+test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts", async (t) => {
+  const lue = await lire(projet(t));
   assert.ok(lue.configured);
   assert.deepEqual(lue.closer, { model: "sonnet", effort: "low", cooksBelow: 1, tokens: 1000, removedLines: 20, from: null });
   assert.ok(lue.observation.readable);
-  const { ratio, duplicates, deadExports, mergesSinceCleanup, ref } = lue.observation;
+  const { ratio, duplicates, deadExports, ref } = lue.observation;
   assert.equal(ref, `origin/${BASE}`);
-  assert.equal(mergesSinceCleanup, 3);
   assert.equal(duplicates, 1);
   assert.equal(deadExports, 2);
   // Deux merges : le premier ajoute 24 lignes, le second 4 ; aucun ne retire rien.
@@ -129,26 +121,6 @@ test("chaque trouvaille porte son fichier et ses lignes, sous le nom que la pass
     { id: "M2", kind: "dead-export", file: "src/tenu/outils.ts", start: 2, end: 2, name: "oublie", onlyTests: [] },
   ]);
   for (const trouvaille of lue.findings) assert.ok(trouvaille.file.length > 0 && trouvaille.start >= 1 && trouvaille.end >= trouvaille.start);
-});
-
-test("la dérive dit si un seuil est franchi, au seuil que le chef a déclaré au relevé des mesures", async (t) => {
-  const sansSeuil = await lire(projet(t));
-  assert.ok(sansSeuil.configured);
-  assert.deepEqual(sansSeuil.drift, { declared: false, crossed: false, crossings: [] });
-
-  const lieu = projet(t);
-  lieu.noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, merges: 2 } } });
-  // Trois merges au journal ne franchissent rien : il ne voit plus un merge (#2061, #2707).
-  for (const ticket of [17, 18, 19]) lieu.noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
-  const sous = await lire(lieu);
-  assert.ok(sous.configured);
-  assert.deepEqual(sous.drift, { declared: true, crossed: false, crossings: [] });
-
-  // Ce que la passe du closer a relevé sur le clone, si.
-  noterDeriveGithub(lieu.etat, { at: "2026-11-07T10:00:00.000Z", franchis: [{ measure: "merges", observed: 3, limit: 2 }], merges: 3 });
-  const franchi = await lire(lieu);
-  assert.ok(franchi.configured);
-  assert.deepEqual(franchi.drift, { declared: true, crossed: true, crossings: [{ measure: "merges", observed: 3, limit: 2, text: "3 merges since the last closing for a threshold of 2" }] });
 });
 
 test("une demande qui attend dit ce qui la retient : combien de cooks en vol, pour quel seuil", async (t) => {
@@ -287,7 +259,7 @@ test("lire ne change rien : aucune demande n'est créée, aucun fait n'est écri
   assert.ok(!types().includes("closing.started"));
 });
 
-test("une branche d'intégration qui ne se lit pas le dit, et la demande et la dérive se lisent quand même", async (t) => {
+test("une branche d'intégration qui ne se lit pas le dit, et la demande se lit quand même", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   const lue = await lire(lieu, { BRIGADE_BASE_BRANCH: "inconnue" });
@@ -296,7 +268,6 @@ test("une branche d'intégration qui ne se lit pas le dit, et la demande et la d
   assert.match(lue.observation.error, /^the branch `origin\/inconnue` is not in the clone /);
   assert.deepEqual(lue.findings, []);
   assert.equal(lue.request.state, "waiting");
-  assert.equal(lue.drift.crossed, false);
 });
 
 test("la commande refuse ce qu'elle ne comprend pas, et ne crée aucun journal là où il n'y en a pas", async (t) => {

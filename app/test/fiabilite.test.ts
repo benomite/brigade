@@ -3,7 +3,6 @@
 // section de fiabilité (#2921, la page Cooks est supprimée).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { direJaugeEn } from "../../runtime/src/mesures.ts";
 import { direDerivePremierCoupEn } from "../../runtime/src/renvois.ts";
 import { ligneDeProjet, type FaitsLus } from "../src/accueil.ts";
 import type { Faits } from "../src/faits.ts";
@@ -24,8 +23,8 @@ const A = "2026-10-19T10:00:00.000Z";
 describe("la dérive, dans `status`, et l'accueil", () => {
   const drift = (ligne: string) => `${"drift".padEnd(11)}${ligne} — \`brigade parade measures\``;
   const PREMIER_COUP_DERIVE = drift(direDerivePremierCoupEn({ premiers: 1, retenus: 7, fenetre: 10, seuil: 50 }));
-  const PERDUS_DERIVE = drift([{ measure: "tests", observed: 1200, limit: 1000 }, { measure: "tokens_perdus", observed: 842_809, limit: 400_000 }].map(direJaugeEn).join(" · "));
-  const COUT_SEUL = drift(direJaugeEn({ measure: "tokens_ticket", observed: 1_038_705, limit: 400_000 }));
+  const PERDUS_DERIVE = drift("tests 1,200 for a threshold of 1,000 · tokens lost over the last 10 merges 842,809 for a threshold of 400,000");
+  const COUT_SEUL = drift("tokens of the costliest ticket of the last 10 merges 1,038,705 for a threshold of 400,000");
 
   test("la part du premier coup sous son seuil, et les tokens perdus au-delà du leur, sont la fiabilité ; les autres seuils non", () => {
     assert.deepEqual(deriveDe(["project    parade", COUT_SEUL, PERDUS_DERIVE, PREMIER_COUP_DERIVE].join("\n")), [

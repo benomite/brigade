@@ -28,14 +28,12 @@ import { sondesDeLaMachine, type Sondes } from "../bac-a-sable/detection.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
 import { noterCodeEnService } from "../code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "../decisions.ts";
-import { DEPOT_BRIGADE } from "../routage-temps-perdu.ts";
+import { DEPOT_BRIGADE } from "../alerte-cuisine/alerte-cuisine.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireALaBase, ouvrirDepot, worktreesDuProjet } from "../depot.ts";
-import { brancherDerive, lireSeuils } from "../derive.ts";
 import { brancherElagageGithub, elagageDuClone } from "../github-seul/elagage/elagage.ts";
 import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/closer-github-passe.ts";
 import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
-import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { brancherRapportHebdo } from "../rapport-hebdo-qualite.ts";
 import { brancherRecurrents } from "../recurrents/planificateur.ts";
 import { brancherTicketDEssai } from "../essai-projet/ticket.ts";
@@ -153,7 +151,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   const { stations } = station;
   const reviewer = configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
-  lireSeuils(decide);
   const arbitre = configArbitrage(envProjet);
   // Le plafond des gates d'une tête, lu ici pour qu'un délai mal écrit refuse le démarrage (#2456).
   const delaiGatesMs = delaiDesGatesMs({ ...envProjet, ...variablesDesGatesDuDepot(duDepot.reglages) });
@@ -305,7 +302,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       avertir: dire,
     });
     projetGitHub = ouvert;
-    brancherDerive(socle, decisions.seuils, dire);
     const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
     // La retenue de la cuisine : rien de servi depuis 30 min alors que des
     // tickets attendent, sa cause et son geste entrent une fois dans la file
@@ -313,12 +309,12 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const disjoncteurServant: SuiviDuDisjoncteurServant = { depuis: null };
     const retenir = <R extends Runtime>(runtime: R) => brancherRetenue(runtime, { disjoncteurServant, station: envProjet.BRIGADE_STATION_DIR, tour: ouvert.refus === undefined ? suiviDuTour : null, branche: process.env.BRIGADE_BASE_BRANCH, dire });
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
-    // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
+    // sa passe est une issue que les stations cuisinent.
     const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));
-    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, qualite: () => {
+    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, qualite: () => {
         const { enregistrements } = lesTempsDesTickets(station.clone);
         return direLaQualite(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(station.clone)));
-      }, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
+      } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherRapportHebdo(retenir(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat })), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);

@@ -23,7 +23,6 @@ import { configCloison } from "./cloison.ts";
 import { SOURCES } from "./code.ts";
 import { ouvrirDepot, worktreesDuProjet } from "./depot.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
-import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
@@ -458,7 +457,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   for (const nom of decisionsDansLEnvironnement(env)) {
     noter("machine", "note", `${nom} is still in the unit's environment: the runtime ignores it — a chef's decision is no longer read from there`, `set it with \`brigade ${projet} station ${gesteDe(nom)} <value>\`, then remove \`Environment=${nom}\` from the drop-in — ${DOC_DU_PROJET}`);
   }
-  for (const lecteur of [configRail, lireReglages, configStation, configReviewer, configManager, lireSeuils]) {
+  for (const lecteur of [configRail, lireReglages, configStation, configReviewer, configManager]) {
     try {
       lecteur(lu);
     } catch (erreur) {

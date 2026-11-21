@@ -44,7 +44,7 @@ export type ReglagesDuCloser = { calibration?: Calibrage; cooksBelow?: number; m
 // (`drift`), à partir de quand une correction se répète (`correction`), et les
 // seuils de la mesure des profils de cooks (`profile`). Chaque clé dit la
 // variable de la box qu'elle remplace, et ce qu'elle doit être — ce que le
-// lecteur du runtime refuserait (`derive.ts`).
+// lecteur du runtime refuserait.
 // Chacune est facultative : celle que le fichier tait
 // reste celle de la box, ou son défaut.
 // `zero` : un entier qui peut valoir zéro (un plafond à zéro, un écart nul).

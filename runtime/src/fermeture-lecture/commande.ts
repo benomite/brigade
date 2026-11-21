@@ -1,7 +1,7 @@
 // La fermeture, pour un programme : `closing --json`.
 //   npm --prefix runtime run closing -- --json    l'objet de `lecture.ts`, sur une ligne
 // Ce que l'app lit du closer d'un projet — l'observation, ses trouvailles, la
-// dernière demande, ce qu'elle a retiré, la dérive — sans parser de texte.
+// dernière demande, ce qu'elle a retiré — sans parser de texte.
 // Elle lit et ne lance rien : le journal est ouvert en lecture seule, le dépôt
 // n'est lu que par l'observation, qui ne rapatrie rien.
 //
@@ -15,7 +15,6 @@ import { ConfigInvalide } from "../runtime.ts";
 import { observer } from "../closing/observer.ts";
 import { DepotIllisible, lireDepot } from "../closing/reading.ts";
 import { lireFermeture } from "./lecture.ts";
-import { lireDeriveGithub } from "../closer-github-passe/derive-github.ts";
 
 export const JSON_ = "--json";
 const USAGE = `usage: BRIGADE_STATE_DIR=<state directory> BRIGADE_REPO_DIR=<project clone> BRIGADE_BASE_BRANCH=<integration branch> npm --prefix runtime run closing -- ${JSON_}`;
@@ -44,7 +43,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
         if (erreur instanceof DepotIllisible) return { erreur: erreur.message };
         throw erreur;
       }
-    }, lireDeriveGithub(repertoireEtat));
+    });
     dire(JSON.stringify(lue));
   } catch (erreur) {
     if (journalPasRejoue(erreur)) echouer(1, "this log does not yet have the state of the rail and the measures: restart the runtime, which recomputes it");

@@ -7,11 +7,11 @@
 // prérequis le nomme, quel que soit le nombre de tickets que son absence bloque.
 //
 // La carte est une issue `blocked-on-human` qui porte une marque cachée (station
-// et prérequis) : la station la cherche avant d'en ouvrir une, comme le ticket de
-// qualité (alerte-qualite.ts). Une carte fermée par le chef se rouvre si le
+// et prérequis) : la station la cherche avant d'en ouvrir une, comme le bug de la
+// cuisine inerte. Une carte fermée par le chef se rouvre si le
 // prérequis manque encore.
 import { DE_CONFIANCE } from "../alimenter.ts";
-import type { GitHubDeLaQualite } from "../alerte-qualite.ts";
+import type { GitHubDeLaBrigade } from "../alerte-cuisine/alerte-cuisine.ts";
 
 export const MARQUE_CARTE_STATION = "<!-- brigade:carte-station";
 // Les issues que la recherche de la carte relit : celles touchées depuis un an.
@@ -71,7 +71,7 @@ export type Pose = { carte: number; ouverte: boolean } | { echec: string };
 // ne rend pas encore la dernière. Sans lecture des issues, rien n'est ouvert —
 // mieux vaut une carte de moins qu'un doublon.
 export async function poserLaCarteDeLaStation(
-  { github, deja, maintenant = () => new Date() }: { github: GitHubDeLaQualite; deja: Map<string, number>; maintenant?: () => Date },
+  { github, deja, maintenant = () => new Date() }: { github: Pick<GitHubDeLaBrigade, "issuesDepuis" | "creerIssue">; deja: Map<string, number>; maintenant?: () => Date },
   station: string,
   serveur: { cle: string; nom: string },
 ): Promise<Pose> {

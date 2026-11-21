@@ -3,9 +3,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { auteurSansEcriture } from "../src/github-etat/auteur.ts";
-import { marqueDeLaFamille, marqueDuProjet } from "../src/routage-temps-perdu.ts";
+import { marqueDuProjet } from "../src/alerte-cuisine/alerte-cuisine.ts";
 
 const station = ["pierreyvesbobl"];
+const marqueDeLaFamille = (metrique: string, valeur: string) => `<!-- brigade:famille ${metrique} valeur=${valeur} -->`;
 
 test("a ticket carrying the station's project or family mark, from a declared human's account, goes to the manager", () => {
   assert.equal(auteurSansEcriture({ association: "NONE", author: "pierreyvesbobl", body: `${marqueDuProjet("pierreyvesbobl/os-perso")}\nmeasure` }, station), false);

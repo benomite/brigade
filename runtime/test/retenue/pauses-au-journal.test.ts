@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { APPELS_AVANT_LA_PAUSE, constaterLimite, limiteDeLaStation, pausesDeLaStation, type ReponseHttp } from "../../src/limite-github.ts";
-import { LONGUEUR_D_UNE_RETENUE, preuveDeMesure } from "../../src/preuve-mesure.ts";
 import { annoncerRetenue, signauxDeLaStation } from "../../src/retenue/brancher.ts";
 import type { CauseDeRetenue } from "../../src/retenue/evenements.ts";
 import { detecterRetenue, direSaut, SANS_SIGNAL, type Observation } from "../../src/retenue/retenue.ts";
@@ -106,16 +105,6 @@ test("a kitchen held by GitHub's limit writes to the journal the pause, its refu
     },
   });
   assert.deepEqual(payload.skips, [SAUT]);
-
-  // La preuve du temps perdu cite la ligne entière : coupée à 300 caractères, elle s'arrêtait avant les pauses.
-  // Un ticket déposé à 12:00 et mergé à 13:00 : la fenêtre de la preuve, lue au journal d'état comme la station la lit.
-  const mesure: TempsTicket = { ticket: 955, depuis: iso("12:00"), mergedAt: iso("13:00"), attentePrise: 3000, cuisson: 600, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0, perdu: { attente: 3000, ratees: 0, renvois: 0 } };
-  const section = await preuveDeMesure({ github: { commentaires: async () => [], depotDuTicket: async () => null }, repertoireEtat: etat })("temps-perdu", [mesure], new Map());
-  const ligne = section.split("\n").find((l) => l.includes("`kitchen.held`"));
-  assert.ok(ligne);
-  assert.ok(ligne.length > 300 && ligne.length < LONGUEUR_D_UNE_RETENUE, String(ligne.length));
-  assert.ok(ligne.includes('"callsBefore":["station gist write","espace issues"]'), ligne);
-  assert.ok(ligne.includes(`skips=["${SAUT}"]`), ligne);
 });
 
 test("a hold whose cause is the claim gate's lines keeps them in its cause only, and a hold with no skip writes no `skips` (#3448)", (t) => {

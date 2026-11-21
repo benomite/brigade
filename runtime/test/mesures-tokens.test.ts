@@ -35,7 +35,7 @@ test("la médiane et le plus cher de la tranche se disent par calibrage, avec le
 });
 
 test("le relevé affiche les tokens à côté des tours, et dit qu'il n'y a rien à mesurer sans cook exité", () => {
-  const lignes = decrireReleve({ projet: "brigade", livraisons: [livraison(2, [cook("sonnet/medium", 500), cook("sonnet/medium", 4500)]), livraison(3, [cook("sonnet/medium", 3000)])], seuils: null }, 2);
+  const lignes = decrireReleve({ projet: "brigade", livraisons: [livraison(2, [cook("sonnet/medium", 500), cook("sonnet/medium", 4500)]), livraison(3, [cook("sonnet/medium", 3000)])] }, 2);
   const i = lignes.findIndex((ligne) => ligne.startsWith("tokens"));
 
   assert.deepEqual(lignes.slice(i, i + 3), [
@@ -44,6 +44,6 @@ test("le relevé affiche les tokens à côté des tours, et dit qu'il n'y a rien
     "1-2     4,000 (2) · max #2 5,000",
   ]);
 
-  const vide = decrireReleve({ projet: "brigade", livraisons: [livraison(1, [])], seuils: null });
+  const vide = decrireReleve({ projet: "brigade", livraisons: [livraison(1, [])] });
   assert.ok(vide.includes("tokens     nothing to measure: no calibrated cook, or none with known tokens, behind these merges"));
 });

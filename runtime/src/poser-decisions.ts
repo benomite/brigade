@@ -9,7 +9,7 @@
 // Les décisions posables pendant l'installation sont celles dont la réponse ne
 // dépend que de la configuration du projet, pas de ce qui arrive en cuisine :
 // le calibrage du manager, du reviewer et du closer, les plafonds du closer,
-// les seuils de coût de la dérive. Les stations en sont aussi, mais ont leur
+// les seuils de coût. Les stations en sont aussi, mais ont leur
 // étape (`declarer-stations.ts`). Ce qui naît en cuisine — un ticket sans
 // calibrage, une livraison à merger, une question du manager — n'a pas de
 // réponse avant que la cuisine tourne : ce n'est pas d'ici.
@@ -130,32 +130,20 @@ export const POSABLES: readonly DecisionPosable[] = [
   }),
   posable("BRIGADE_DRIFT_TICKET_TOKENS", {
     question: "À partir de combien de tokens un ticket coûte-t-il trop cher pour que tu veuilles le savoir ?",
-    options: [{ valeur: "<tokens>", effet: "la dérive signale un merge dont le ticket le plus cher a consommé plus que ce nombre de tokens ; elle ne lance rien" }],
+    options: [{ valeur: "<tokens>", effet: "la page des coûts de l'app met en évidence un ticket qui a consommé plus que ce nombre de tokens ; elle ne lance rien" }],
     recommandee: null,
-    sauter: "La dérive ne signale aucun ticket trop cher : rien ne te dit qu'un ticket a coûté plus que prévu.",
+    sauter: "La page des coûts ne met aucun ticket en évidence : rien ne te dit qu'un ticket a coûté plus que prévu.",
   }),
   posable("BRIGADE_DRIFT_LOST_TOKENS", {
     question: "À partir de combien de tokens perdus — consommés par des lancements qui n'ont rien livré — veux-tu le savoir ?",
-    options: [{ valeur: "<tokens>", effet: "la dérive signale les derniers merges quand leurs lancements perdus ont consommé plus que ce nombre de tokens ; elle ne lance rien" }],
+    options: [{ valeur: "<tokens>", effet: "la page des coûts de l'app met en évidence les lancements qui n'ont rien livré quand ils ont consommé plus que ce nombre de tokens ; elle ne lance rien" }],
     recommandee: null,
-    sauter: "La dérive ne signale aucune perte : rien ne te dit que des cooks consomment sans livrer.",
-  }),
-  posable("BRIGADE_DRIFT_FIRST_TRY_PERCENT", {
-    question: "Sous quelle part de tickets livrés du premier coup veux-tu que la file le signale ?",
-    options: [{ valeur: "<pourcentage>", effet: "la file signale une dérive quand la part des derniers tickets servis livrés du premier coup tombe sous ce pourcentage (50 faute de réglage) ; elle ne lance rien" }],
-    recommandee: null,
-    sauter: "Le seuil reste à 50 %.",
-  }),
-  posable("BRIGADE_DRIFT_FIRST_TRY_WINDOW", {
-    question: "Sur combien de tickets servis la file juge-t-elle la part livrée du premier coup ?",
-    options: [{ valeur: "<tickets>", effet: "la file regarde ce nombre de derniers tickets servis, et ne dit rien tant qu'il y en a moins (10 faute de réglage)" }],
-    recommandee: null,
-    sauter: "La fenêtre reste à 10 tickets.",
+    sauter: "La page des coûts ne signale aucune perte : rien ne te dit que des cooks consomment sans livrer.",
   }),
   posable("BRIGADE_GATES_BUDGET_SECONDS", {
     question: "En combien de secondes d'horloge les gates du projet doivent-elles tenir ?",
     options: [{ valeur: "<secondes>", effet: "chaque passage des gates plus long que cela dépasse le budget du projet ; la file le dit, rien n'est arrêté" }],
-    recommandee: { valeur: String(BUDGET_DUREE_PAR_DEFAUT), pourquoi: "le seuil de dérive de la durée des gates : des gates qui tiennent cela laissent la box servir" },
+    recommandee: { valeur: String(BUDGET_DUREE_PAR_DEFAUT), pourquoi: "le budget de durée des gates, juste au-dessus des 90 s qu'elles tiennent au calme : des gates qui tiennent cela laissent la box servir" },
     sauter: `Le budget reste au défaut, ${BUDGET_DUREE_PAR_DEFAUT} s : tu le changes quand tu veux, sans redémarrage.`,
   }),
   posable("BRIGADE_GATES_BUDGET_CPU_SECONDS", {

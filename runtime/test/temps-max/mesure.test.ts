@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { medianeDesRecents, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, SEUIL_PERDU_PAR_DEFAUT_MIN, seuilDuProjet, phaseLaPlusLenteDesTickets, phaseLaPlusLenteDuTicket, tempsPerdu, ticketsLesPlusLents, ticketsRecents, totauxParPerte } from "../../src/temps-max/mesure.ts";
+import { medianeDesRecents, medianePerdueDesRecents, perteLaPlusLourde, pertesDuTicket, SEUIL_PERDU_PAR_DEFAUT_MIN, seuilDuProjet, phaseLaPlusLenteDesTickets, tempsPerdu, ticketsRecents, totauxParPerte } from "../../src/temps-max/mesure.ts";
 import { lesTempsDesTickets, type TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
 import { rattraperLaPrise } from "../../src/temps-ticket/mesure.ts";
 import { repertoireTemporaire } from "../outils.ts";
@@ -88,14 +88,7 @@ test("the median of the recent tickets, in seconds; none measured, null", () => 
   assert.equal(medianeDesRecents([]), null);
 });
 
-test("the slowest phase of a ticket and of a set of tickets, with its figures", () => {
-  assert.deepEqual(phaseLaPlusLenteDuTicket(t(7, 8, 14, 2)), { phase: "revue", nom: "review", secondes: m(14), mediane: m(14), part: 14 / 24 });
-  // À égalité, la plus tôt dans la vie du ticket.
-  assert.equal(phaseLaPlusLenteDuTicket(t(7, 5, 5)).nom, "cooking");
+test("the slowest phase of a set of tickets, with its figures", () => {
   const lente = phaseLaPlusLenteDesTickets([t(1, 2, 10), t(2, 30, 1), t(3, 4, 2)]);
   assert.deepEqual(lente, { phase: "cuisson", nom: "cooking", secondes: m(36), mediane: m(4), part: 36 / 49 });
-});
-
-test("the slowest tickets, longest first", () => {
-  assert.deepEqual(ticketsLesPlusLents([t(1, 5), t(2, 81), t(3, 49), t(4, 74)], 2).map((r) => r.ticket), [2, 4]);
 });

@@ -10,7 +10,7 @@ import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { DELAI_CLAIM_PERIME_MS } from "../../src/guerison/claim-perime.ts";
 import { INERTIE_MINUTES } from "../../src/guerison/cuisine-inerte.ts";
 import { estMisDeCote, HORS_CUISINE } from "../../src/github.ts";
-import type { GitHubDeLaBrigade } from "../../src/routage-temps-perdu.ts";
+import type { GitHubDeLaBrigade } from "../../src/alerte-cuisine/alerte-cuisine.ts";
 import type { RetenueDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 

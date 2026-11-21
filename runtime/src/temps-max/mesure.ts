@@ -47,11 +47,6 @@ export function medianeDesRecents(enregistrements: readonly TempsTicket[]): numb
 
 export type PhaseLente = { phase: Phase; nom: string; secondes: number };
 
-// La phase la plus longue d'un ticket ; à égalité, la plus tôt dans sa vie.
-export function phaseLaPlusLenteDuTicket(t: TempsTicket): PhaseLente {
-  return phaseLaPlusLenteDesTickets([t]);
-}
-
 // La phase où des tickets ont passé le plus de temps, en tout (`secondes`) ;
 // à égalité, la plus tôt. Sans ticket, la cuisson à 0.
 export function phaseLaPlusLenteDesTickets(tickets: readonly TempsTicket[]): PhaseLente & { mediane: number; part: number } {
@@ -67,15 +62,6 @@ export function totauxParPhase(tickets: readonly TempsTicket[]): (PhaseLente & {
     const secondes = sommes[rang] ?? 0;
     return { phase, nom, secondes, mediane: mediane(tickets.map((t) => secondesDe(t, phase))), part: tout === 0 ? 0 : secondes / tout };
   });
-}
-
-// Les tickets les plus longs, du plus long au plus court ; à égalité, le premier mergé.
-export function ticketsLesPlusLents(tickets: readonly TempsTicket[], combien: number): TempsTicket[] {
-  return tickets
-    .map((t, rang) => ({ t, rang, duree: dureeDuTicket(t) }))
-    .sort((a, b) => b.duree - a.duree || a.rang - b.rang)
-    .slice(0, combien)
-    .map(({ t }) => t);
 }
 
 // Le temps perdu d'un ticket (#2670) : tout son temps sauf le cook qui a livré

@@ -13,7 +13,7 @@
 //   npm --prefix runtime run station -- <geste> <valeur>
 //                                                    pose une décision du chef (`decisions.ts`) — un geste par
 //                                                    décision, listés par `station -- help` : les stations, les deux
-//                                                    seuils de coût de la dérive, le calibrage du manager, du reviewer
+//                                                    seuils de coût, le calibrage du manager, du reviewer
 //                                                    et du closer, avec ses trois plafonds, et le plafond de calibrage
 //                                                    jusqu'où le manager monte un ticket rouge
 // Le réglage s'écrit dans le journal ; le runtime qui tourne le lit à sa
@@ -68,10 +68,8 @@ import {
 const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} or ${valeurs.at(-1)}`;
 export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: string; attendu: string }> = {
   stations: { decision: "BRIGADE_STATIONS", quoi: "the project's stations", valeur: "<declaration>", attendu: `\`${FORME}\`, separated by commas` },
-  "seuil-ticket": { decision: "BRIGADE_DRIFT_TICKET_TOKENS", quoi: "drift cost threshold: tokens of the most expensive ticket", valeur: "<tokens>", attendu: "an integer greater than zero" },
-  "seuil-perdus": { decision: "BRIGADE_DRIFT_LOST_TOKENS", quoi: "drift cost threshold: lost tokens, launches that delivered nothing", valeur: "<tokens>", attendu: "an integer greater than zero" },
-  "seuil-renvois": { decision: "BRIGADE_DRIFT_FIRST_TRY_PERCENT", quoi: "drift threshold: share of tickets delivered first try, in % (50 if unset)", valeur: "<percent>", attendu: "a number greater than zero" },
-  "fenetre-renvois": { decision: "BRIGADE_DRIFT_FIRST_TRY_WINDOW", quoi: "drift window on the first try: how many tickets served (10 if unset)", valeur: "<tickets>", attendu: "an integer greater than zero" },
+  "seuil-ticket": { decision: "BRIGADE_DRIFT_TICKET_TOKENS", quoi: "cost threshold: tokens of the most expensive ticket", valeur: "<tokens>", attendu: "an integer greater than zero" },
+  "seuil-perdus": { decision: "BRIGADE_DRIFT_LOST_TOKENS", quoi: "cost threshold: lost tokens, launches that delivered nothing", valeur: "<tokens>", attendu: "an integer greater than zero" },
   "budget-gates": { decision: "BRIGADE_GATES_BUDGET_SECONDS", quoi: `gates budget: wall-clock seconds of one gates run (${BUDGET_DUREE_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
   "budget-gates-cpu": { decision: "BRIGADE_GATES_BUDGET_CPU_SECONDS", quoi: `gates budget: CPU seconds of one gates run, workers included (${BUDGET_PROCESSEUR_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
   "budget-base": { decision: "BRIGADE_GATES_BASE_BUDGET_SECONDS", quoi: `base gates budget: wall-clock seconds of the full run on the base (${BUDGET_BASE_DUREE_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },

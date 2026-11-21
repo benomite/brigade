@@ -2,7 +2,7 @@
 //   npm --prefix runtime run closing              the observation: it reads, and touches nothing
 //   npm --prefix runtime run closing -- write     the writing pass: the chef's gesture, and the only one that launches it
 //   npm --prefix runtime run closing -- cancel    withdraws the waiting request, before it leaves
-//   npm --prefix runtime run closing -- --json    what the app reads: the observation, the last request, the drift — it reads, and launches nothing (`fermeture-lecture/`)
+//   npm --prefix runtime run closing -- --json    what the app reads: the observation, the last request — it reads, and launches nothing (`fermeture-lecture/`)
 // and the same gestures for a program, the app (`fermeture-action/action.ts`):
 // `preview`, `write --json --confirm`, `cancel --json`.
 // The old words (`fermeture`, `ecrire`, `annuler`) still answer, saying the new

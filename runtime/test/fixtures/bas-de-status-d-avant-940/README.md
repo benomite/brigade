@@ -1,7 +1,7 @@
 # Le bas de `status` d'avant (#940)
 
 L'état d'exemple de `test/aides/bas-de-status.ts` (celui du haut de #928, `exemple`, et par-dessus
-tout ce que le rail, les cooks, la consommation, les serveurs, les worktrees, la dérive et les
+tout ce que le rail, les cooks, la consommation, les serveurs, les worktrees et les
 transcripts peuvent dire), lu le `2026-10-12T10:04:00.000Z` par le code d'avant la traduction du
 bas (base `66c60b4`, le haut y est déjà en anglais).
 

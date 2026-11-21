@@ -15,14 +15,11 @@ import { brancherJeton, configJeton, direJeton, masquerLaConsole } from "./jeton
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
-import { DEPOT_BRIGADE } from "./routage-temps-perdu.ts";
+import { DEPOT_BRIGADE } from "./alerte-cuisine/alerte-cuisine.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { lireALaBase } from "./depot.ts";
-import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherCloserGithub, lectureDuClone } from "./closer-github-passe/closer-github-passe.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
-import { coutsDesFlux, noterDeriveGithub } from "./closer-github-passe/derive-github.ts";
-import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { brancherElagageGithub, elagageDuClone } from "./github-seul/elagage/elagage.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
@@ -119,9 +116,6 @@ try {
   ({ stations } = station);
   const reviewer = configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
-  // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
-  // relit ensuite à chaque réveil.
-  lireSeuils(decide);
   arbitre = configArbitrage(process.env);
   // Le plafond des gates d'une tête, lu ici pour qu'un délai mal écrit refuse le démarrage (#2456).
   const delaiGatesMs = delaiDesGatesMs({ ...process.env, ...variablesDesGatesDuDepot(duDepot.reglages) });
@@ -244,16 +238,13 @@ try {
           })(),
   });
   projetGitHub = ouvert;
-  // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
-  brancherDerive(socle, decisions.seuils);
   // Le manager : il ne lance que des jugements et des découpages. Son travail
   // sur une issue se prend sur GitHub au nom de la station (#2568).
   const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
-  // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,
-  // et il relève la dérive que `status` lit, des flux des cooks.
-  const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
+  // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent.
+  const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base });
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.

@@ -18,7 +18,6 @@ import { direLeBudget } from "./github/budget-appels.ts";
 import { appelsDeLaStation, budgetDeLaStation, direLeQuota, ecrituresRetenuesDeLaStation, pauseDeLaStation, quotaDeLaStation } from "./limite-github.ts";
 import { direGitHubSeul, lireGitHubSeul } from "./github-seul-etat.ts";
 import { direLesAppelsParIdentite, lireAppelsParIdentite } from "./appels-par-identite.ts";
-import { lireDeriveGithub } from "./closer-github-passe/derive-github.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
 import { direLeChef, lireLeChef } from "./chef/chef.ts";
 import { ligneDesRedemarrages } from "./redemarrages/journal.ts";
@@ -26,7 +25,6 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
-import { direLesAttentes, lireLesAttentes } from "./attente-des-tickets.ts";
 import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
@@ -146,12 +144,11 @@ function ouvrirEnLecture(repertoireEtat: string): Journal {
 
 function photographier(journal: Journal, env: Record<string, string | undefined>, jours: number, ageMaxSauvegardeMs: number, maintenant: Date, rouge = false): { lignes: string[]; dernierSeq: number } {
   let etat;
-  // Le journal ne voit plus de merge (#2061) : la dérive est celle que relève la passe du closer (#2361), quand
-  // la station GitHub seul tourne ; le premier coup, celui des temps du clone (#2707).
+  // Le journal ne voit plus de merge (#2061) : le premier coup est celui des temps du clone (#2707).
   const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
   const temps = lesTempsDesTickets(env.BRIGADE_REPO_DIR);
   try {
-    etat = lireEtat(journal, maintenant, { temps: temps.enregistrements, derive: githubSeul?.etat === "accepted" ? (lireDeriveGithub(env.BRIGADE_STATE_DIR)?.franchis ?? []) : [] });
+    etat = lireEtat(journal, maintenant, { temps: temps.enregistrements });
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
@@ -185,8 +182,6 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR), rouge));
   // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).
   lignes.push(ligneDesReparations(temps.enregistrements));
-  // Rien ne s'ouvre avant 20 tickets mergés après le dernier ticket servi (#2868) : la station dit ce qu'il en manque.
-  lignes.push(...direLesAttentes(lireLesAttentes(env.BRIGADE_STATE_DIR)));
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
   const nom = etat.projet ?? env.BRIGADE_PROJECT;
   const lent = nom ? nommerLePlusLent(nom, { racine: env.BRIGADE_REPO_DIR ?? nom, env }) : null;

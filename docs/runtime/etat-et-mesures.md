@@ -438,10 +438,9 @@ tickets. The bound on the claim wait (#2784) holds only the wait before the firs
 given back no longer gets the measure of its ticket rejected. With no claim readable, the time from the filing to
 the first phase seen stays claim wait. The record keeps that claim (`priseAt`, null when none is readable). A recent record without it was measured
 before #2732: after each merge the station reads its claim from GitHub and corrects it the same way, a few at a
-time (#2734) — #2709, merged eight minutes before #2732, kept 309 of its 310 min as claim wait and opened a
-correction on its own. The station also does it at each turn, before the lost-time rule reads the times
-(#2870): on a project with no merge since, BOBL-tech/espace#822 kept 8.2 of its 8.3 min as claim wait, claimed
-1.9 min after `fire`, and opened a correction on its own. An issue GitHub does not return is not read again while
+time (#2734) — #2709, merged eight minutes before #2732, kept 309 of its 310 min as claim wait. The station also does it at
+each turn (#2870): on a project with no merge since, BOBL-tech/espace#822 kept 8.2 of its 8.3 min as claim wait,
+claimed 1.9 min after `fire`. An issue GitHub does not return is not read again while
 the station runs; a read that fails is retried at the next turn. When the filing cannot be read from GitHub at the merge, the time runs from the
 claim and the station warns of it. The station replays nothing: only the tests replay a ticket from its
 recorded GitHub history (`runtime/test/temps-ticket/rejeu.ts`), through the same measure (`mesurer`), the
@@ -464,36 +463,13 @@ cook. Its cause is corrected in the manager: a new issue is judged before the re
 (`docs/runtime/manager.md`, "A new issue is judged first"). A record of before #2670 has no `perdu`: its waits, failed cooks and send-backs stand for it. Replayed, the 40 tickets of
 2026-11-06 and 07 lost a median 7.7 min, 57 % of it waiting for a claim.
 
-**Over the lost-time threshold, a correction ticket** (`runtime/src/temps-max/`, #2515, on lost time since
-#2670). The project's threshold is `lostTimeMaxMin` in `.claude/brigade/projet.json`, in minutes, **2 by
-default**. It replaced the max of a ticket's whole time (`tempsMaxTicketMin`, 10 min), which no longer exists
-nor is read: a ticket has no fixed size — 10 min is too short to refactor half the database, far too long to
-re-center a title — while the time it loses is waste whatever its size. At each turn, the
-GitHub-only station reads these records in its clone and takes the median lost time of the recent tickets —
-the last 10 merged, and every one merged in the 24 h before the last. Over the threshold, it opens one
-issue on the rail: `fire`, `prio:0` (it goes before the whole rail), `model:opus`, `effort:medium` (`high` until
-#2575: the ten corrections #2535 to #2573 cooked a median 10.9 min each, so each one added to the recent
-tickets a ticket over the max it was there to bring down), with the median lost time, the loss that weighs
-most — waiting for the manager's judgement, waiting for a claim, failed cooks or send-backs — with its total, its
-share of the lost time, its median per ticket and how many tickets it hit, the four losses, and the tickets concerned, the ten that lost
-the most to it first. **One open at a time**, whatever the turns or the stations: before opening, the station looks on
-GitHub for an open issue by a trusted author that carries the marker `<!-- brigade:temps-max -->` (changed in
-the last 30 days), and opens nothing if there is one. Two stations that open one together keep the oldest
-and close the other. Once it is closed, a median still over the threshold opens a new one — **but not before the
-last served correction has 20 tickets of its own** (#2577, #2868): until 20 tickets were claimed and merged after
-the merge of the last correction closed and recorded in these times, the median is still that of
-the tickets before it and says nothing of it, so nothing opens (`a-l-essai`, with the number still missing; the station then reads GitHub
-again only once they are there), and the next measure counts only those tickets. The "Quality before time" ticket follows the same rule with its own last served ticket (`en-attente`; #2868): after the loop of 2026-11-07/08 (27 quality and 8 lost-time tickets in a night, on a 96-ticket window that the previous ticket had almost entirely counted). The station notes the wait in `attente-des-tickets.json` of its state directory and `status` says it in one line, `quality: waiting for N more merged tickets since #<last>` (`lost time: …` for the other). Reopened two minutes after each merge on the same 24 h window, the
-correction was opened twelve times in 9 h 30 (#2535 to #2577): eleven of the 60 recent tickets, each `prio:0`
-ahead of the whole rail, looking for a cause the previous one had just fixed. A correction closed without a
-merge holds nothing back. For a served project, the correction is filed on `benomite/brigade` (#2783) and its
-merge is never in the project's times: it is served when its issue on the brigade is closed (its `closed_at`),
-and a project ticket bearing the same number is not it (#2809) — before, no correction of a served project was
-ever on trial, and each one reopened as soon as the previous one closed, on the tickets claimed before its fix. The rule holds only once the station runs it: #2580 opened two minutes after #2577
-merged, from a station still on the code before it, whose update comes much later; the same turn on the
-code of today opens nothing (`test/temps-max/station.test.ts`). In the cook sessions claimed after #2573
-and #2575 merged (#2575, #2577), cooking was 5 to 7 min of `claude`: the window's median of 9 min is that
-of the tickets cooked before them. At or under the threshold, nothing is opened and GitHub is not read. `status` says four
+**The lost-time threshold.** The project's threshold is `lostTimeMaxMin` in `.claude/brigade/projet.json`, in minutes, **2 by
+default** (the max of a ticket's whole time, `tempsMaxTicketMin`, no longer exists nor is read: a ticket has no fixed
+size, while the time it loses is waste whatever its size). The median lost time of the recent tickets — the last 10
+merged, and every one merged in the 24 h before the last — is read from these records in the station's clone. The
+kitchen files no ticket about it, nor about the first-try rate or the cooking time (#3908): the measures stay computed
+and shown, and nothing opens a correction ticket on them (27 « Tickets lose too much time » tickets and 60
+« Quality before time » tickets had fixed nothing). `status` says four
 figures, one line each, value then threshold and red over it (`runtime/src/chiffres-du-projet.ts`, #2672): the median and
 p75 lost time (`lostTimeMaxMin`), the median cooking over estimate (`cookingOverEstimateMax`), the first-try rate
 (`premierCoupMinPourcent`) and the repairs of main per merged PR (`REPARATIONS_PAR_MERGE_MAX`) — these two
@@ -503,21 +479,6 @@ most over their estimate, the most frequent send-back reasons and broken checks)
 show them from those values. TODO's informative part names each of the
 last 10 tickets that lost over twice the threshold, with its heaviest loss.
 
-On `benomite/brigade` itself, the times hold only the tickets this station merged. A quality or lost-time
-ticket that is closed, in none of these times, and closed by a merged PR (another station merged it) is served
-when its issue is closed (#2979); one closed without a merged PR — a duplicate the station closed, an issue
-closed as not planned — holds nothing back. Before, #2963, merged by another station, waited for nothing, and
-#2979 reopened on the nine conflict send-backs #2963 had counted.
-#3019 opened on those same nine conflicts (#2921 ×5, #2922 ×3, #2930 ×1), all cooked on 2026-11-08 before
-#2963's fix (4a17e71, merged as #2965 at 23:02 UTC) held a zone's companions at the claim gate; of the measured
-tickets claimed after that merge, #2977 and #2985, none was sent back for a conflict. Replayed on #3019's
-evidence, with #2963 and #2979 closed by merged PRs out of the station's times, main's gate returns `en-attente`
-on #2979 (19 tickets missing), and the code before #2979, which dated neither, opens a ticket.
-Nothing to correct on main.
-A merged PR is the one GitHub says closed the issue, or else the merged PR of its cook's branch
-(`cook/<n>-github`), as an epic reads its tickets (#3083): the station that merges closes the issue at once
-(#2467), often before GitHub does, and that closing carries no merge commit. Before, #3080, merged by another
-station, waited for nothing, and #3083 reopened on the two repairs of main (#3066, #3068) #3080 had counted.
 #3028, measured on BOBL-tech/mirrorlab, names "red gates: type check" for three red-CI send-backs (#651, #20,
 #612), but no failed step was read: their reasons name the one red check, `Lint + Format + Typecheck + Tests
 (+ e2e:critical si label e2e)`, a job that runs four steps. `causeDuRenvoi` (`runtime/src/qualite-github.ts`)
@@ -543,125 +504,6 @@ summary is their first `FAIL` line (`echecDesGates`, `runtime/src/github-etat/ga
 is read from it as from a job's steps: `tests du runtime en échec` is "red gates: runtime tests". The five send-backs
 counted keep their cause.
 
-The quality ticket (`runtime/src/alerte-qualite.ts`, #2680) that opens instead of the time tickets is not opened
-again for the send-backs a quality ticket already counted (#2804): each one names, in a hidden marker, the recent
-tickets it counted (`brigade:qualite-comptes`), and while the window holds no other, nothing opens (`deja-servie`).
-A quality ticket opened before that marker existed counted every such ticket merged before it was opened (#2813):
-#2805, served, had #2813 opened on the very 13 send-backs of BOBL-tech/espace it had counted, all cooked on
-2026-11-05 and 06, before the cook's instruction learned the reviewer's blocking rules (#2770, #2789, #2797, #2803)
-and before a blocked cook went to the chef (#2805).
-The rule holds only once the station runs it, like the time correction's (#2580): #2819, then #2825, opened
-on those same 13 send-backs from a station still on 0.20261107.201514+g8e64144, older than #2804 and #2813 —
-neither body carries the `brigade:qualite-comptes` marker. The station installs at most one version per 60 min,
-so each quality ticket served before the update reopened the next. On the code of #2813, the same window with
-#2805, #2813, #2819 and #2825 closed opens nothing (`deja-servie`), and a send-back merged after the last of
-them opens one. The cause they name, blocking review, is corrected in the cook's instruction (#2770, #2789,
-#2797, #2803, #2812, #2819) and by a blocked cook going to the chef (#2805); none of the 13 was cooked under it.
-#2829 is the fifth, from the same station: no marker, and none of the measure's rule (#2824) in its body, while
-0.20261107.212204+g0cf609d, which holds #2804, #2813 and #2819, was still draining in. Nothing to correct on main.
-
-A quality or lost-time ticket carries its evidence (`runtime/src/preuve-mesure.ts`, #2839): the cook that takes
-it reads neither the project's issues, nor its `temps-tickets.json`, nor the station's journal, and stopped
-blocked on #2832 and #2837. When it files one, the station appends an "Evidence" section, gathered from the
-project's GitHub and its own journal: every recent ticket measured, with the reason of each send-back and failed
-cook its station comments give; for the lost time, also each ticket's filing, `fire` and first claim, its four losses,
-and the journal events of the measured window (`station.held`, `station.released`…, without the runtime's
-heartbeat), 40 at most. Over 40, the events cited are those in the claim waits of the five tickets that waited
-longest for a claim (#3156): from filing — or from `fire` set over an hour later, as the measure counts it — to the
-first claim, and from each cook given back to the next claim, as GitHub dates them. Each of these waits gets an
-equal share, the longest wait first, taken from its first and its last events in turn — what opened it and what
-lifted it —, and the events cited are listed in the journal's order (#3422). The first 40 of BOBL-tech/espace's
-window all fell in its first hour, and #840's 40 min wait for a claim, an afternoon later, had no line to say it.
-With a share per ticket, its waits laid end to end, the lines of BOBL-tech/mirrorlab#706 all fell in its 45 s
-before its first claim, and its 549 min wait after a cook given back had none. With no wait read on GitHub, the
-first 40 of the window.
-The lost time counts as a failed cook every cook given back without a delivery, so its evidence also names the
-stops the quality does not count as a try — a block the manager answered, a stop on an open ticket, a stop the
-cook did not cause —, each with the cook's words (#3036), when its station comment quotes them — in English only:
-words the cook wrote in French and nothing translated are not quoted (#3033). Before, BOBL-tech/mirrorlab#670 read
-"first try" over 5 min of failed cooks, and the cook's question that cost them was written nowhere in the ticket.
-It also names, with their station, the cooks given back to another station or to the next round with no wait: a
-station that cannot run the ticket's gates (#3057), a station whose base branch is missing on the remote (#2876),
-a cook stopped with its station (#2543) (#3422). BOBL-tech/mirrorlab#706 read "first try" over 6 min of failed
-cook, then waited 549 min for a claim, and its evidence did not say which stop had given it back.
-A read that fails is named on its line, with its error: the ticket is filed all the same.
-Before the journal events, a "Station heartbeat" section names each silence of the runtime's heartbeat over 10 min in
-the window (#3713). The runtime writes a heartbeat to its journal every minute while it runs. For each silence, the
-section gives every stop (with its signal) and start the journal has inside it, in order, or `no stop written: the
-runtime was killed, or the machine slept`. It also gives the claim wait of each measured ticket that falls in it, and its first line
-says how many of the tickets' minutes of waits before a claim fall in silences. The journal is opened once for the
-events and the heartbeat: a journal that cannot be opened is said once, in the journal section.
-When the measured project is not the one the ticket is filed on (a served project's loss, filed on the brigade,
-#2783), the cook can reach neither its issues nor its state: the section copies the tickets (numbers, reasons),
-their timestamps and the journal events in full, names each ticket by its project (`owner/repo#101`, never a bare
-`#101`) and points to no issue list or state path (#2840).
-
-The rule each quality ticket carries (`runtime/src/garde-correction.ts`) also keeps its correction off the measure
-that opened it (#2824): a send-back the ticket did not count is never counted away, by its claim date, its age or its
-project. #2818 did just that — its cause already had its fix on main (#2812), and it made the gate count every
-send-back claimed before the last quality ticket closed as counted — and the review sent it back as a silencer. Of the
-tickets whose first commit came after #2812 merged (#2815, #2818, #2819), it is the only one sent back, and its send-back
-is the blocking review #2824 counts on top of the 21 #2818 had counted. The measure is corrected
-only when it reopens on the send-backs a served quality ticket already counted (#2804, #2813). When the cause is
-already fixed on main and nothing was cooked since, the delivery says so with the evidence and changes nothing.
-#2835, on the brigade itself, counted 38 send-backs; all but one were already counted, since they merged before
-#2829 (unmarked) was opened. The one left is #2829's own: a docs-only delivery whose Windows tests went red on
-`arbre.test.ts`. Its cause is a failed PowerShell read of the process table that ended the kill of a cook's tree,
-and #2829 fixed it on main (`runtime/src/arbre.ts`). Nothing to correct on main.
-#2846 counted 39 tickets. All but #2832 merged before #2835 was served (2026-11-07 21:59 UTC); its 22 blocking
-reviews, the first reason it names, are among those #2835 had counted. The one left
-is #2832's own, merged after (2026-11-08 01:01 UTC): its Windows tests went red on a `jusqua(…, 5000)` it had
-added to `test/github-seul/garde-fous/garde-fous.test.ts`. `test/garde-duree/garde-duree.test.ts` refuses that
-guard, but neither the gates nor the pull request's Linux CI played it: it is not in the closure of the files
-#2832 changed (`.claude/brigade/tests-touches.mjs`), and only the Windows CI plays every file. #2832 lowered the
-guard to 2 s on main (c3a6c79). The repository's `CLAUDE.md` said the gates refuse such a guard; it now says they
-do so only through that file, which a change writing a guard plays by hand. No guard is changed.
-#2858 counted 41 tickets: the 40 #2852 counted, and #2855. Its 23 blocking reviews, the first reason it names, are
-the 23 #2852 counted (#2846's 22 and #2848's), whose fix — a cook keeps every case an existing test held (f5411cc) —
-merged on 2026-11-08 at 03:55 UTC (fa89c71); of the two tickets cooked after it, #2854 was served first try and #2855
-had no blocking review. Nothing to correct there. The send-backs left are #2855's own: a conflict with the base, and a
-red CI that #2855 fixed on main by giving a git identity to the fake cook of `test/bac-a-sable/ecriture-brigade.test.ts`,
-which committed under `process.env` (a3c5dd3). The station's global `git` config carries an identity; that commit
-needs one the CI runner does not give. The repository's `CLAUDE.md` now says a test's `git`, and that of every child
-it launches, runs under `ENV_GIT` (`test/outils.ts`), which carries one. No guard is changed.
-#2859 (67% over 3 tickets, blocking review 2 times, conflict with the base once) carries no `brigade:qualite-comptes`
-marker, none of #2824's rule and no "Evidence" section: it was filed by a station on code older than #2804. The box's
-station runs 0.20261108.035547+gfa89c71 since 04:01 UTC (`/var/lib/brigade-station/etat.json`), which holds #2804, #2824
-and #2839, and filed #2858, above, in the same hour with all three. With no marker and no evidence, #2859 names
-neither its station nor its 3 tickets. The last blocking review on the brigade is #2848's, which #2852 counted and
-corrected (merged 2026-11-08 03:55 UTC). The two tickets cooked after that, #2854 and #2855, passed their only review
-green. #2855 was sent back twice, for a red CI and for a conflict: those are #2858's send-backs, whose fix is above.
-Nothing to correct on main.
-#2862 counted 42 tickets: the 41 #2858 counted, and #2859. Its 23 blocking reviews are #2858's, whose fix (f5411cc)
-merged before the four tickets cooked since (#2854, #2855, #2858, #2859), none of them sent back by a review. The one
-send-back left is #2859's conflict with the base: #2858 and #2859, two quality tickets cooked at once, both appended
-here, and #2858 merged first (7840cd0); #2859 was redone on it (83a4ec6, merged as 6b65a0b). Two quality tickets open at
-once is what the station's rule already refuses (`deja-ouverte`, #2680), and #2859 came from a station older than #2804,
-above. No ticket was merged after #2859. Nothing to correct on main.
-#2879 counted 85 tickets. Its first reason, 17 conflicts with the base, are all on tickets merged before #2862 was
-served (the last, #2859's, is above), and so are its 16 blocking reviews and 7 red runtime tests. The one ticket
-merged after #2862 that missed its first try is #2872, whose two failed cooks could not fetch a `v2` base branch:
-#2876 fixed that on main (bc1a68e, merged as b45f9f1), and no ticket was merged after it. It opened because the box's station still runs
-0.20261108.080450+gdd576d9 (`/var/lib/brigade-station/etat.json`), older than #2868 (merged as 6e89903): the next
-version, 0.20261108.085053+ge90f46a, did not download (504). Replayed on these 85 tickets, with #2862 served at its
-merge (05:22 UTC), dd576d9's gate opens a ticket and main's waits (`en-attente`, 17 more merged tickets since #2862).
-Nothing to correct on main.
-#2883 counted 88 tickets, on the same reasons: 17 conflicts with the base, 16 blocking reviews, 7 red runtime tests,
-all on tickets merged before #2862 was served. The one ticket it measures that #2879 did not and that missed its first
-try is #2873: two failed cooks on the missing `v2` base branch, both before its delivered cook (72f8e93, 09:51 UTC),
-which ran while #2876's fix was merging (b45f9f1, 09:51 UTC). #2879 was served at 10:00 UTC (584620f) and no ticket was
-merged after it. The box's station still runs dd576d9: the next version, 0.20261108.095107+gb45f9f1, did not download
-either (504). Replayed on these 88 tickets with #2879 served at its merge, dd576d9's gate opens a ticket and main's
-waits (`en-attente`, 20 merged tickets missing since #2879). Nothing to correct on main.
-#2885 counted 90 tickets, on the same reasons again: 17 conflicts with the base, 16 blocking reviews, 7 red runtime
-tests, all on tickets merged before #2862 was served. The two tickets it measures that #2883 did not are #2883, served
-first try, and #2874, whose two failed cooks are on the missing `v2` base branch again: #2876's fix (bc1a68e) is not in
-dd576d9, the version the box's station still runs. #2883 was served at 10:10 UTC (dcbd3a9) and no ticket was merged
-after it. The next version, 0.20261108.095107+gb45f9f1, still did not download (504, checked at 10:10 UTC); at 10:14
-UTC every station package under `releases/download/` answered 504, dd576d9's own included, while the release itself
-read 200 from the API. Replayed on these 90 tickets with #2879 and #2883 served at their merges, dd576d9's gate opens a
-ticket and main's waits (`en-attente`, 20 merged tickets missing since #2883). Nothing to correct on main.
-
 #3130 measured 48 tickets, a median lost time of 35 min, 3953 of their 4648 lost minutes (85 %) waiting for a
 claim. A ticket queued behind another on the same files is claimed the moment that one merges: #3112 45 s after
 #3111 merged, #3113 1 s after #3115, #3116 2 s after #3113, #3114 2 s after #3116, #3117 1 s after #3114 — seven
@@ -675,22 +517,7 @@ when the answer did not. Since #3130 the tickets of a split never await each oth
 and the instruction asks the manager for just that (see "It splits epics", `manager.md`). The measure is unchanged.
 This does not reach tickets filed one by one on the same files, which the claim gate still holds, the station's
 place limit, nor the minute or two between `fire` and the claim of a ticket nothing holds (#3001 1.1 min, #3088
-0.7 min, #3126 2.8 min). Whether the median goes back to 2 min is read on the tickets merged after this one,
-under the trial rule above.
-
-## The daily report of the decisions brigade told about
-
-Every decision taken under `brigade decides and tells me` writes an entry (`autonomy.reported`).
-`report` reads them back: those of the last 24 hours, grouped by kind of decision (in the table's
-order), each with a one-line summary and a link to what was done. Nothing decided under `brigade decides` or
-`I decide` is in it. A day without entries is a report that says so, not an error.
-
-```sh
-npm --prefix runtime run report   # read-only; exits 0 (an empty day too), 1 if the log cannot be read, 2 on a bad call
-```
-
-The data, for the app and the chef's channel, is `rapportDuJour(base, now)` in
-`runtime/src/autonomie/rapport/rapport.ts`: `{ from, to, vide, groups: [{ row, title, entries: [{ seq, at, ticket, decision, summary, link }] }] }`.
+0.7 min, #3126 2.8 min). Whether the median goes back to 2 min is read on the tickets merged after this one.
 
 ## The weekly kitchen summary (#3261)
 

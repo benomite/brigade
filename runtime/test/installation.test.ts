@@ -14,7 +14,6 @@ import type { EtatDuRenouvellement, Systemd } from "../src/sonde-renouvellement.
 import type { Verdict } from "../src/verdict.ts";
 import { poserDecision, retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
-import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
 import { configManager } from "../src/manager.ts";
 import { configReviewer } from "../src/reviewer.ts";
@@ -286,7 +285,7 @@ const lu = (t: TestContext, cas: "pret" | "mal-installe") => {
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("les variables obligatoires", { concurrency: 8 }, () => {
-  const lecteurs = [configRail, lireReglages, configStation, configReviewer, configManager, lireSeuils];
+  const lecteurs = [configRail, lireReglages, configStation, configReviewer, configManager];
   const complet = Object.fromEntries(VARIABLES.map((variable) => [variable, { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_BASE_BRANCH: BASE }[variable as string] ?? "sonnet"]));
   // Ce que le runtime lit, une fois les décisions du journal versées à son
   // environnement : le calibrage n'est plus une variable obligatoire.

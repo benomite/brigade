@@ -3,16 +3,7 @@
 // must not happen is checked once a pass has run, never after a duration.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
-import { aOuvrir, brancherCloserGithub, estUneFermeture, lectureDuClone, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, type GitHubDuCloser, type LectureDuClone, type OptionsCloserGithub } from "../../src/closer-github-passe/closer-github-passe.ts";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { coutsDesFlux, lancementsDuFlux, noterDeriveGithub, ticketDuMerge, type DeriveGithub, type MergeDuClone } from "../../src/closer-github-passe/derive-github.ts";
-import { noterGitHubSeul } from "../../src/github-seul-etat.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
-import { SANS_SEUIL } from "../../src/mesures.ts";
-import type { CookMesure } from "../../src/projections/measures.ts";
-import type { TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
-import { photoDuProjet } from "../../src/status.ts";
+import { aOuvrir, brancherCloserGithub, estUneFermeture, lectureDuClone, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, type GitHubDuCloser, type LectureDuClone, type MergeDuClone, type OptionsCloserGithub } from "../../src/closer-github-passe/closer-github-passe.ts";
 import { zoneDuCorps } from "../../src/brigade-github.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { demarrer } from "../../src/runtime.ts";
@@ -48,10 +39,6 @@ function fauxGitHubALHeure(horloge: () => Date, ...issues: IssueDuFaux[]) {
       etat.push(issue);
       creees.push(issue);
       return issue.number;
-    },
-    ecrireCorps: async (numero, corps) => {
-      const issue = etat.find(({ number }) => number === numero);
-      if (issue) issue.body = corps;
     },
     fermerIssue: async (numero) => {
       fermees.push(numero);
@@ -132,25 +119,16 @@ describe("the closer's trigger, on what GitHub and the clone say", () => {
   });
 });
 
-// A merged ticket's record: the cook's work (`tests` of it the tests), then the CI, merged at `mergedAt`.
-const enregistrement = (ticket: number, mergedAt: Date, cuisson: number, tests: number, ci: number): TempsTicket => ({ ticket, mergedAt: mergedAt.toISOString(), claimedAt: mergedAt.toISOString(), cuisson, cuissonTests: tests, attentePasse: 0, revue: 0, ci, merge: 0 });
-
-// Six tickets ending at `fin`, an hour apart: the first three with quick tests, the last three with slow ones.
-const tempsQuiDerivent = (fin: Date, premier = 200): TempsTicket[] =>
-  Array.from({ length: 6 }, (_, i) => enregistrement(premier + i, new Date(fin.getTime() - (6 - i) * HEURE_MS), i < 3 ? 400 : 1000, i < 3 ? 100 : 700, 60));
-const tempsStables = (fin: Date): TempsTicket[] => Array.from({ length: 6 }, (_, i) => enregistrement(200 + i, new Date(fin.getTime() - (6 - i) * HEURE_MS), 400, 100, 60));
-
 const fermetures = (gh: { etat: IssueDuFaux[] }) => gh.etat.filter(({ body }) => estUneFermeture(body));
-const corrections = (gh: { etat: IssueDuFaux[] }) => gh.etat.filter(({ labels }) => labels.includes("correction"));
 
 describe("the quality of the recent tickets, at the pass (#2678)", () => {
-  test("the closing issue says the quality lines next to the times", async (t) => {
+  test("the closing issue says the quality lines", async (t) => {
     const gh = fauxGitHub();
     const { clone } = fauxClone();
-    const k = brancher(t, { github: gh.github, clone, temps: () => tempsStables(MAINTENANT), qualite: () => ["- First try: 80% of the 10 recent tickets known to the log — at or over the project's threshold of 70%."] });
+    const k = brancher(t, { github: gh.github, clone, qualite: () => ["- First try: 80% of the 10 recent tickets known to the log — at or over the project's threshold of 70%."] });
     k.reveiller();
     await jusqua(() => fermetures(gh).length === 1);
-    assert.match(fermetures(gh)[0]!.body, /## Times\n\n.*\n\n## Quality\n\n- First try: 80% of the 10 recent tickets/);
+    assert.match(fermetures(gh)[0]!.body, /## Quality\n\n- First try: 80% of the 10 recent tickets/);
   });
 
   test("a quality that cannot be read is said in the body and warned, and the pass still opens", async (t) => {
@@ -161,84 +139,6 @@ describe("the quality of the recent tickets, at the pass (#2678)", () => {
     await jusqua(() => fermetures(gh).length === 1);
     assert.match(fermetures(gh)[0]!.body, /## Quality\n\nQuality not read: log closed\./);
     assert.ok(k.avertissements.includes("brigade : quality not read — log closed"));
-  });
-});
-
-describe("the times of the tickets, at the pass", () => {
-  test("drifting times: the closing issue names the cause and its numbers, and one correction ticket is opened", async (t) => {
-    const gh = fauxGitHub();
-    const { clone } = fauxClone();
-    const k = brancher(t, { github: gh.github, clone, temps: () => tempsQuiDerivent(MAINTENANT) });
-    k.reveiller();
-    await jusqua(() => fermetures(gh).length === 1);
-    const [fermeture] = fermetures(gh);
-    const [correction] = corrections(gh);
-    assert.ok(fermeture && correction && corrections(gh).length === 1);
-    assert.match(fermeture.body, /## Times\n\nThe tests got slow: a ticket's tests went from 1 min 40 s to 11 min 40 s/);
-    assert.match(fermeture.body, new RegExp(`Correction ticket #${correction.number} opened\\.`));
-    assert.match(correction.body, /The tests got slow/);
-    assert.equal(correction.state, "open");
-    // The candidates, the removal cap and the drift line are where they were.
-    assert.match(fermeture.body, /- M1 — export `inutile`/);
-    assert.match(fermeture.body, /No more than 20 lines removed/);
-    assert.match(fermeture.body, /## Drift\n\n.*\n\n- last 20 merges/);
-  });
-
-  test("stable times: the body says so, and no correction ticket is opened or changed", async (t) => {
-    const ouverte: IssueDuFaux = { number: 77, title: "Correct the time drift of brigade: slow-tests", body: "<!-- brigade:correction project=brigade -->\nold", labels: ["correction"], association: "MEMBER", state: "open", createdAt: "2026-10-01T00:00:00.000Z" };
-    const gh = fauxGitHub(ouverte);
-    const { clone } = fauxClone();
-    const k = brancher(t, { github: gh.github, clone, temps: () => tempsStables(MAINTENANT) });
-    k.reveiller();
-    await jusqua(() => fermetures(gh).length === 1);
-    assert.match(fermetures(gh)[0]!.body, /## Times\n\nTimes stable: 6 tickets measured since the last pass/);
-    assert.equal(corrections(gh).length, 1);
-    assert.equal(ouverte.body, "<!-- brigade:correction project=brigade -->\nold");
-  });
-
-  test("only the times since the previous pass are read", async (t) => {
-    const precedente = new Date(MAINTENANT.getTime() - 2 * ONE_PASS_A_DAY_MS);
-    const gh = fauxGitHub(passee(40, precedente.toISOString()));
-    const { clone } = fauxClone();
-    // The drift is all before the previous pass; since it, the times are stable.
-    const k = brancher(t, { github: gh.github, clone, temps: () => [...tempsQuiDerivent(precedente, 100), ...tempsStables(MAINTENANT)] });
-    k.reveiller();
-    await jusqua(() => fermetures(gh).length === 2);
-    assert.match(fermetures(gh)[1]!.body, /Times stable: 6 tickets measured since the last pass/);
-    assert.equal(corrections(gh).length, 0);
-  });
-
-  test("two passes in a row with the same drift leave exactly one open correction ticket", async (t) => {
-    let maintenant = MAINTENANT;
-    const gh = fauxGitHubALHeure(() => maintenant);
-    const { clone } = fauxClone();
-    const le = new Date(MAINTENANT.getTime() + 2 * ONE_PASS_A_DAY_MS);
-    const k = brancher(t, { github: gh.github, clone, maintenant: () => maintenant, temps: () => [...tempsQuiDerivent(MAINTENANT), ...tempsQuiDerivent(le, 300)].filter(({ mergedAt }) => Date.parse(mergedAt ?? "") <= maintenant.getTime()) });
-    k.reveiller();
-    await jusqua(() => fermetures(gh).length === 1);
-    // The first pass is served, two days go by.
-    fermetures(gh)[0]!.state = "closed";
-    maintenant = le;
-    // The merges since the first pass, for the second.
-    const suivantes = merges(MERGES_PER_PASS, le);
-    (clone as { merges: () => Promise<MergeDuClone[]> }).merges = async () => suivantes;
-    k.reveiller();
-    await jusqua(() => fermetures(gh).length === 2);
-    const [premiere] = corrections(gh);
-    assert.equal(corrections(gh).length, 1);
-    assert.equal(premiere!.state, "open");
-    assert.match(premiere!.body, /closer finding/i);
-    assert.equal(premiere!.body.match(/brigade:closer-finding/g)?.length, 2);
-    assert.match(fermetures(gh)[1]!.body, new RegExp(`Correction ticket #${premiere!.number} completed with this finding\\.`));
-  });
-
-  test("a project whose times are not given reads none: no section", async (t) => {
-    const gh = fauxGitHub();
-    const { clone } = fauxClone();
-    const k = brancher(t, { github: gh.github, clone });
-    k.reveiller();
-    await jusqua(() => fermetures(gh).length === 1);
-    assert.doesNotMatch(fermetures(gh)[0]!.body, /## Times/);
   });
 });
 
@@ -437,88 +337,5 @@ describe("the merges the clone says", () => {
     // The squash, the merge, then the base's first commit: the delivery's own commit is not a first parent.
     assert.deepEqual(lus.map(({ ticket }) => ticket), [null, 42, null]);
     assert.ok(lus.every(({ at }) => !Number.isNaN(Date.parse(at))));
-  });
-});
-
-// The stream a GitHub-only cook leaves, launch after launch: each spends `tokens`
-// (its message read twice, the last usage counting, cache reads not), and
-// delivers or not.
-const flux = (...lancements: Array<{ tokens: number; livre: boolean }>) =>
-  lancements
-    .flatMap(({ tokens, livre }, i) => [
-      { type: "system", subtype: "init", model: "claude-opus-5-5" },
-      { type: "assistant", message: { id: `m${i}`, usage: { input_tokens: tokens / 2, output_tokens: 0 } } },
-      { type: "assistant", message: { id: `m${i}`, usage: { input_tokens: tokens / 2, output_tokens: tokens / 2, cache_read_input_tokens: 99_999 } } },
-      { type: "result", subtype: "success", is_error: !livre },
-    ])
-    .map((evenement) => JSON.stringify(evenement))
-    .join("\n");
-
-const cook = (tokens: number, delivered: boolean): CookMesure => ({ calibration: "claude-opus-5-5", turns: 1, durationMs: null, tokens, delivered });
-const SANS_CLOSER = () => ({ calibration: null, removedLines: 20 });
-
-describe("the drift on the GitHub-only path", () => {
-  test("a stream says what each launch of a ticket spent, and whether it delivered; a merge, its ticket", () => {
-    assert.deepEqual(lancementsDuFlux(`${flux({ tokens: 900, livre: false }, { tokens: 700, livre: true })}\n{"type":"assistant"`), [cook(900, false), cook(700, true)]);
-    assert.deepEqual(lancementsDuFlux(""), []);
-    assert.equal(ticketDuMerge("Merge pull request #2365 from benomite/cook/2353-github"), 2353);
-    assert.equal(ticketDuMerge("Merge branch 'main' into x"), null);
-  });
-
-  test("at a tick, the drift of the merges since the last pass is read against the chef's thresholds, closer set or not; a crossing is said once", async (t) => {
-    // The last pass, five and a half hours ago: the 5 merges since count (tickets 119 to 115).
-    const gh = fauxGitHub(passee(40, new Date(MAINTENANT.getTime() - 5.5 * HEURE_MS).toISOString()));
-    const f = fauxClone();
-    const couts: Record<number, CookMesure[]> = { 119: [cook(800, true)], 117: [cook(900, false), cook(700, true)], 101: [cook(9_000, true)] };
-    const notes: DeriveGithub[] = [];
-    const seuils = () => ({ ...SANS_SEUIL, merges: 5, ticketTokens: 1_000, lostTokens: 800 });
-    const k = brancher(t, { github: gh.github, clone: f.clone, reglages: SANS_CLOSER, derive: { seuils, couts: (ticket) => couts[ticket] ?? [], noter: (derive) => void notes.push(derive) } });
-    k.reveiller();
-    await jusqua(() => notes.length === 1);
-    assert.deepEqual(notes[0], {
-      at: MAINTENANT.toISOString(),
-      franchis: [
-        { measure: "merges", observed: 5, limit: 5 },
-        { measure: "tokens_ticket", observed: 1_600, limit: 1_000 },
-        { measure: "tokens_perdus", observed: 900, limit: 800 },
-      ],
-      // The merges since the last pass, that `closing` and its reading for the app say (#2707).
-      merges: 5,
-    });
-    assert.deepEqual(k.avertissements, [
-      "brigade : drift — 5 merges since the last closing for a threshold of 5",
-      "brigade : drift — tokens of the costliest ticket of the last 10 merges 1,600 for a threshold of 1,000",
-      "brigade : drift — tokens lost over the last 10 merges 900 for a threshold of 800",
-    ]);
-    k.reveiller();
-    await jusqua(() => notes.length === 2);
-    assert.equal(k.avertissements.length, 3);
-    // Read, nothing opened: the closer is not set.
-    assert.deepEqual(gh.creees, []);
-  });
-
-  test("status reads its drift line from the closer's pass while the GitHub-only station runs, from the GitHub-only cooks' streams", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const journal = ouvrirJournal(repertoire, { maintenant: () => MAINTENANT });
-    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-    journal.fermer();
-    noterGitHubSeul(repertoire, { etat: "accepted" }, MAINTENANT);
-    mkdirSync(join(repertoire, "github-seul"));
-    writeFileSync(join(repertoire, "github-seul", "119-github.flux.jsonl"), flux({ tokens: 1_500, livre: true }));
-    const drift = () => photoDuProjet({ BRIGADE_STATE_DIR: repertoire }, { maintenant: MAINTENANT }).filter((ligne) => ligne.startsWith("drift"));
-    assert.deepEqual(drift(), []);
-
-    const k = brancher(t, {
-      github: fauxGitHub().github,
-      clone: fauxClone().clone,
-      reglages: SANS_CLOSER,
-      derive: { seuils: () => ({ ...SANS_SEUIL, ticketTokens: 1_000 }), couts: coutsDesFlux(join(repertoire, "github-seul")), noter: (derive) => noterDeriveGithub(repertoire, derive) },
-    });
-    k.reveiller();
-    await jusqua(() => drift().length === 1);
-    assert.match(drift()[0] ?? "", /^drift +tokens of the costliest ticket of the last 10 merges 1,500 for a threshold of 1,000 — `/);
-    // Refused, the station cooks nothing for the project, and no drift is said from its streams.
-    noterGitHubSeul(repertoire, { etat: "refused", reason: "x" }, MAINTENANT);
-    assert.deepEqual(drift(), []);
   });
 });

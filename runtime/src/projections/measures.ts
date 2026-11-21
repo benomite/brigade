@@ -1,17 +1,15 @@
 // What the log knows about the weight of the project, merged delivery by
 // merged delivery: the measures its gates declared, and what its cooks used
-// up. To this are added the chief's thresholds and the crossings already
-// flagged. Nothing is recorded separately: everything comes from the events of
+// up. Nothing is recorded separately: everything comes from the events of
 // the pass and of the guardrails.
 import type { Base } from "../base.ts";
 import type { Fait } from "../evenements.ts";
-import type { Seuils } from "../events/drift.ts";
 import type { Depassement, Gates } from "../events/pass.ts";
 import { definirProjection } from "../projection.ts";
 
 type Ecoutes = Extract<
   Fait,
-  { type: "pass.judged" | "pass.replayed" | "merge.done" | "cook.launched" | "cook.exited" | "cook.reported" | "drift.configured" | "drift.crossed" | "drift.cleared" }
+  { type: "pass.judged" | "pass.replayed" | "merge.done" | "cook.launched" | "cook.exited" | "cook.reported" }
 >;
 
 // A ticket cook. `calibration`: `<model>/<effort>`, or null for a cook
@@ -64,7 +62,7 @@ const noterGates = (base: Base, seq: number, ticket: number | null, gates: Gates
 
 export const measures = definirProjection<Ecoutes>({
   nom: "mesures",
-  tables: ["measured_gates", "measured_cooks", "measured_retros", "measured_merges", "drift_limits", "drift_flags"],
+  tables: ["measured_gates", "measured_cooks", "measured_retros", "measured_merges"],
   schema: `
     CREATE TABLE IF NOT EXISTS measured_gates (
       seq      INTEGER PRIMARY KEY,
@@ -93,13 +91,6 @@ export const measures = definirProjection<Ecoutes>({
       seq    INTEGER PRIMARY KEY,
       ticket INTEGER,
       at     TEXT NOT NULL
-    ) STRICT;
-    CREATE TABLE IF NOT EXISTS drift_limits (
-      id     INTEGER PRIMARY KEY CHECK (id = 1),
-      limits TEXT NOT NULL
-    ) STRICT;
-    CREATE TABLE IF NOT EXISTS drift_flags (
-      measure TEXT PRIMARY KEY
     ) STRICT;
   `,
   sur: {
@@ -136,15 +127,6 @@ export const measures = definirProjection<Ecoutes>({
       const { run, retroTokens } = evenement.payload;
       if (evenement.ticket === null || !Number.isSafeInteger(retroTokens)) return;
       base.executer("INSERT OR REPLACE INTO measured_retros (run, ticket, launched_seq, tokens) VALUES (?, ?, ?, ?)", run, evenement.ticket, evenement.seq, retroTokens as number);
-    },
-    "drift.configured": (base, evenement) => {
-      base.executer("INSERT OR REPLACE INTO drift_limits (id, limits) VALUES (1, ?)", JSON.stringify(evenement.payload.limits));
-    },
-    "drift.crossed": (base, evenement) => {
-      base.executer("INSERT OR IGNORE INTO drift_flags (measure) VALUES (?)", evenement.payload.measure);
-    },
-    "drift.cleared": (base, evenement) => {
-      base.executer("DELETE FROM drift_flags WHERE measure = ?", evenement.payload.measure);
     },
   },
 });
@@ -197,15 +179,4 @@ export function mergedDeliveries(base: Base): Delivery[] {
       ...(franchi === null ? {} : { overCeiling: JSON.parse(franchi) as Depassement }),
     };
   });
-}
-
-// The declared thresholds, or null as long as no runtime has started with them.
-export function seuilsEnVigueur(base: Base): Seuils | null {
-  const ligne = base.lire<{ limits: string }>("SELECT limits FROM drift_limits WHERE id = 1")[0];
-  return ligne ? JSON.parse(ligne.limits) : null;
-}
-
-// The measures whose crossing was flagged, and which have not come back.
-export function signalements(base: Base): string[] {
-  return base.lire<{ measure: string }>("SELECT measure FROM drift_flags ORDER BY measure").map(({ measure }) => measure);
 }

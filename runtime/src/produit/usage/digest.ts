@@ -9,7 +9,7 @@
 // Rien n'y est mesuré à neuf : les parcours et leurs renvois viennent de
 // `parcours-des-tickets.ts` et `renvois.ts`, la cause d'un essai raté de
 // `causes-des-ratages.ts`, ce qui met un ticket de côté et ce qui l'en sort de
-// `mise-de-cote.ts`, le seuil du premier coup de `projections/measures.ts`.
+// `mise-de-cote.ts`, le seuil du premier coup de `renvois.ts`.
 // Tout se relit du journal, en lecture seule, et seuls comptent les faits du
 // projet nommé. Aucun chemin n'est écrit ici : le projet, son dépôt sur GitHub
 // et son répertoire d'état sont des paramètres.
@@ -18,7 +18,6 @@ import { CAUSES, classerEssai, essaisRates, SANS_SIGNAUX, type Cause, type Signa
 import { ouvrirJournal } from "../../journal.ts";
 import { CAUSES_DU_PROJET, miseDeCoteDu } from "../../mise-de-cote.ts";
 import { parcoursDesTickets } from "../../parcours-des-tickets.ts";
-import { seuilsEnVigueur } from "../../projections/measures.ts";
 import { mesurerRenvois, SEUIL_PREMIER_COUP_PAR_DEFAUT, type Essai, type Parcours } from "../../renvois.ts";
 
 // Le nombre de tickets distincts sur lesquels un même échec doit se voir pour
@@ -41,11 +40,9 @@ export type Preuve =
 
 // Un ticket mergé dans la période : combien d'essais il a demandé.
 export type TicketMerge = { ticket: number; attempts: number; firstTry: boolean; mergedAt: string; evidence: Preuve[] };
-// Une mesure qui a franchi le seuil que le chef lui donne (`drift.crossed`).
-export type Franchissement = { measure: string; observed: number; limit: number; at: string; evidence: Preuve[] };
 // La dérive : sur les tickets mergés dans la période, la part livrée du premier
 // coup (`share`, entre 0 et 1, nulle sans merge), face au seuil du projet en %.
-export type Derive = { merged: number; firstTry: number; share: number | null; thresholdPercent: number; below: boolean; tickets: TicketMerge[]; crossings: Franchissement[] };
+export type Derive = { merged: number; firstTry: number; share: number | null; thresholdPercent: number; below: boolean; tickets: TicketMerge[] };
 
 // Une livraison que la pass a jugée rouge. `cause` : celle de l'essai, rangé
 // comme les essais ratés le sont (`causes-des-ratages.ts`), nulle s'il n'est
@@ -163,7 +160,7 @@ export function usageDuJournal(base: Base, { project, repository, period }: Opti
     project,
     repository,
     period: periode,
-    drift: derive(base, parcours, lire(["merge.done", "drift.crossed"]), dedans, { issue, pr, ligne }),
+    drift: derive(parcours, lire(["merge.done"]), dedans, { issue, pr, ligne }),
     passRejections: lire(["pass.judged"]).flatMap((juge) => {
       if (juge.p.verdict !== "red" || juge.ticket === null || !dedans(juge.at)) return [];
       const run = String(juge.p.run);
@@ -220,10 +217,10 @@ export function lireDigestDUsage(repertoireEtat: string, options: OptionsDuDiges
 
 type Citer = { issue: (ticket: number) => Preuve; pr: (url: string | null) => Preuve[]; ligne: (ligne: Ligne) => Preuve };
 
-function derive(base: Base, parcours: Parcours[], lus: Lu[], dedans: (at: string) => boolean, { issue, pr, ligne }: Citer): Derive {
+function derive(parcours: Parcours[], lus: Lu[], dedans: (at: string) => boolean, { issue, pr, ligne }: Citer): Derive {
   const merges = parcours.filter(({ end }) => end?.kind === "merged" && dedans(end.at));
   const { retenus, premierCoup } = mesurerRenvois(merges, merges.length);
-  const thresholdPercent = seuilsEnVigueur(base)?.firstTryPercent ?? SEUIL_PREMIER_COUP_PAR_DEFAUT;
+  const thresholdPercent = SEUIL_PREMIER_COUP_PAR_DEFAUT;
   const firstTry = premierCoup === null ? 0 : Math.round(premierCoup * retenus);
   return {
     merged: retenus,
@@ -242,11 +239,6 @@ function derive(base: Base, parcours: Parcours[], lus: Lu[], dedans: (at: string
         evidence: [issue(ticket), ...(merge === undefined ? [] : [...pr(texte(merge.p.pr)), ligne(merge)])],
       };
     }),
-    crossings: lus.flatMap((lu) =>
-      lu.type === "drift.crossed" && dedans(lu.at)
-        ? [{ measure: texte(lu.p.measure) ?? "?", observed: nombre(lu.p.observed) ?? 0, limit: nombre(lu.p.limit) ?? 0, at: lu.at, evidence: [ligne(lu)] }]
-        : [],
-    ),
   };
 }
 
