@@ -33,10 +33,14 @@ test("through the station of the repository: after its failed tries, the ticket 
   const faux = new FauxGitHub();
   faux.feu(TICKET, ["fire", "model:sonnet", "effort:medium"], CORPS);
   let cooks = 0;
-  const consultations: string[][] = [];
-  const lancer: Lancer = ({ args, flux }) => {
-    const manager = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSIGNE));
-    if (manager) consultations.push(args);
+  const consultations: string[] = [];
+  const argsDesConsultations: string[][] = [];
+  const lancer: Lancer = ({ args, entree, flux }) => {
+    const manager = (entree ?? "").startsWith(MARQUE_DE_LA_CONSIGNE);
+    if (manager) {
+      consultations.push(entree ?? "");
+      argsDesConsultations.push(args);
+    }
     else cooks += 1;
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: manager ? JSON.stringify(REECRIRE) : `I tried, try ${cooks}.` })}\n`);
     // Le cook finit en erreur : un cook fini `ok` dont la livraison est refusée va au manager dès ce refus (#3651).
@@ -50,8 +54,8 @@ test("through the station of the repository: after its failed tries, the ticket 
     await station.calme();
   }
   assert.equal(consultations.length, 1);
-  const [args] = consultations as [string[]];
-  const consigne = args[args.indexOf("-p") + 1] ?? "";
+  const [consigne = ""] = consultations;
+  const [args = []] = argsDesConsultations;
   assert.match(consigne, /<essais>\n1\. [^\n]+\n2\. [^\n]+/);
   assert.match(consigne, /Calibrage du ticket : `sonnet` \/ `medium`/);
   assert.match(consigne, /jamais au-dessus du plafond du projet, `opus` \/ `high`/, "the default ceiling, with none given");

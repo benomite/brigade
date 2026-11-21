@@ -61,7 +61,7 @@ the rail read does not carry has a card with its number and its title. **Before 
 runs besides its cooks** (#1971) — the pass judging a delivery, the manager qualifying or splitting an issue, the triage, the
 closer cleaning the project up, as `facts` gives them (`agents`): its role (what it is, on
 hover), the station's tag (its short name, the full name on hover), its ticket and the rail's title, what it does
-(`running the gates`, `review in progress`, `qualifying the issue`, `closing: cleaning up the project`…) and for how long
+(`running the gates`, `review running since 10:00Z`, `review failed at 10:03Z`, `qualifying the issue`, `closing: cleaning up the project`…) and for how long
 (the time on hover). Not paper like a cook's card: the kitchen's dark, a dashed outline and a left bar in the role's tint.
 A runtime from before `agents` gives the pass alone, read from the rail's tickets in pass. A station that runs nothing at
 all says `nothing running` in one line; one that runs only a pass or the manager shows its cards, and no such line. The

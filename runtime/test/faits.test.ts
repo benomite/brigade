@@ -707,10 +707,10 @@ test("la carte d'un ticket en pass dit où en est la pass : gates, relecture, ju
   assert.deepEqual(activite(), { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z`, etape: "CI running" });
 
   lancer("review-14-x", "reviewer", null); // 10:00:07
-  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
+  assert.deepEqual(activite(), { fait: "relecture en cours depuis 10:00Z", faitEn: "review running since 10:00Z", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
   // La relecture d'un autre ticket n'est pas la sienne.
   lancer("review-140-y", "reviewer", null);
-  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
+  assert.deepEqual(activite(), { fait: "relecture en cours depuis 10:00Z", faitEn: "review running since 10:00Z", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
 
   noter({ type: "cook.exited", payload: { run: "review-14-x", outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }); // 10:00:09
   noter({ type: "pass.reviewed", payload: { run: "14-a", sha: "abc", review: "review-14-x", outcome: "green", summary: null, findings: [], reason: null, truncated: false } }, 14);

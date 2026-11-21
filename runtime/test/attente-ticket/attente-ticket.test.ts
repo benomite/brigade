@@ -37,8 +37,8 @@ function station(t: TestContext, { bloque = null, avant }: Options = {}) {
   avant?.(faux);
   let cooks = 0;
   const consultations: string[][] = [];
-  const lancer: Lancer = ({ args, flux }) => {
-    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
+  const lancer: Lancer = ({ args, entree, flux }) => {
+    const consulte = (entree ?? "").startsWith(MARQUE_DE_LA_CONSULTATION);
     if (consulte) consultations.push(args);
     else cooks += 1;
     const bloqueIci = !consulte && cooks === 1 && bloque !== null;
