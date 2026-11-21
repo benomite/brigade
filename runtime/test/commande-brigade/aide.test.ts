@@ -5,9 +5,11 @@
 // d'installer-station.ps1 — et ce qu'elle dit est comparé, mot pour mot, au texte du runtime.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, linkSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, linkSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { before, describe, test } from "node:test";
+import { after, before, describe, test } from "node:test";
 import { repertoireDuFichier } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 import { GESTE_LINUX, SRC, commandeWindows, installerMac, nodePose, rendu, runtimeDEssai, serveurMac, unMac, type Rendu } from "./aides.ts";
@@ -17,7 +19,7 @@ const MODE_D_EMPLOI = "usage: brigade <project> <command> [arguments…]\n      
 // L'aide des commandes, telle que le runtime la dit.
 const AIDE = spawnSync(process.execPath, [join(SRC, "aide.ts")], { encoding: "utf8" }).stdout;
 
-type Entree = { plateforme: string; lancer: (args: string[]) => Rendu; dossier: string };
+type Entree = { plateforme: string; lancer: (args: string[]) => Rendu; dossier: string; racine?: string };
 
 // Le paquet Linux : le geste à côté du runtime et de son `node`, et une unité de station qui tourne
 // sous le compte de qui lance — `systemctl` est une doublure.
@@ -47,7 +49,10 @@ function macos(): Entree {
 
 // Un PC où brigade.cmd est posé comme installer-station.ps1 le pose, à côté du runtime et du node.
 function windows(): Entree {
-  const maison = repertoireDuFichier("brigade-test-commande-");
+  // Effacé par `after`, avec reprises : sous Windows, le `node.exe` que `cmd.exe` vient de lancer tient
+  // encore ses fichiers un moment (EPERM), et l'effacement de fin de process, sans reprise, ferait
+  // échouer tout le fichier.
+  const maison = mkdtempSync(join(tmpdir(), "brigade-test-commande-"));
   const base = join(maison, "AppData/Local/brigade-station");
   for (const dossier of [join(base, "bin"), join(base, "node"), join(maison, ".config/brigade/station")]) mkdirSync(dossier, { recursive: true });
   writeFileSync(join(base, "bin/brigade.cmd"), commandeWindows());
@@ -58,7 +63,7 @@ function windows(): Entree {
   }
   runtimeDEssai(base, "1.2.3");
   writeFileSync(join(maison, ".config/brigade/station/projets"), "calculus acme/calculus main\n");
-  return { plateforme: "windows", dossier: base, lancer: (args) => rendu(spawnSync("cmd.exe", ["/d", "/c", join(base, "bin/brigade.cmd"), ...args], { encoding: "utf8", env: { ...process.env, USERPROFILE: maison } })) };
+  return { plateforme: "windows", dossier: base, racine: maison, lancer: (args) => rendu(spawnSync("cmd.exe", ["/d", "/c", join(base, "bin/brigade.cmd"), ...args], { encoding: "utf8", env: { ...process.env, USERPROFILE: maison } })) };
 }
 
 // Les entrées que cette machine sait lancer : chacune est comparée au même texte, celui du runtime —
@@ -68,8 +73,14 @@ const ENTREES: Record<string, () => Entree> = process.platform === "win32" ? { w
 for (const [plateforme, poser] of Object.entries(ENTREES)) {
   describe(`l'aide de la commande brigade, sous ${plateforme}`, () => {
     let lancer: Entree["lancer"] = () => assert.fail("la commande n'est pas posée");
+    let racine: string | undefined;
     before(() => {
-      lancer = poser().lancer;
+      const entree = poser();
+      lancer = entree.lancer;
+      racine = entree.racine;
+    });
+    after(async () => {
+      if (racine !== undefined) await rm(racine, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
     });
 
     test("`brigade --help` dit le texte du runtime, le même sous Linux, macOS et Windows", () => {
