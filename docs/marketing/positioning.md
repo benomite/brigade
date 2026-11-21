@@ -21,7 +21,6 @@ Autonomy is the goal. Trust is what lets you take it: an agent you must watch is
 An agent left alone must not run away. Each ticket runs inside limits you did not have to set.
 
 - A cap on duration and tokens, an idle stop, a breaker after repeated failures, and a "stop" that halts every cook within the second. Proof: the table in [`docs/runtime/garde-fous.md`](../runtime/garde-fous.md).
-- What the kitchen may decide without you is written down per kind of decision, in the autonomy table. Proof: [`docs/runtime/autonomie.md`](../runtime/autonomie.md), code in `runtime/src/autonomie/table.ts`.
 
 ### 2. It is judged
 
