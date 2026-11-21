@@ -191,7 +191,7 @@ export function suiviDesAttentesLongues(options: { github: GitHubDeLAttenteLongu
     const origine = origineDeLAttente(corps, commentaires, attendus);
     const reponse: ReponseDeLaRevue =
       revoir === undefined
-        ? { illisible: "this station has no manager to consult" }
+        ? { illisible: "no manager runs on this station" }
         : await revoir(ticket, { attendus, depuisMs: maintenant() - debut }).catch((erreur: unknown): ReponseDeLaRevue => ({ illisible: erreur instanceof Error ? erreur.message : String(erreur) }));
     const contexte = { station, ticket: ticket.number, attendus, origine };
     if ("illisible" in reponse) {

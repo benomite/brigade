@@ -59,7 +59,7 @@ test("a station with no manager still writes, at the hour, what the ticket waits
   for (const minutes of [0, 61, 62, 120]) await s.tour(minutes);
   assert.equal(gh.ecrits.length, 1, gh.ecrits.join("\n---\n"));
   assert.match(gh.ecrits[0] ?? "", /#10: decided by the station/);
-  assert.match(gh.ecrits[0] ?? "", /no manager to consult/);
+  assert.match(gh.ecrits[0] ?? "", /no manager runs on this station/);
 });
 
 test("an issue that cannot be read at the hour says nothing and blocks nothing: the next turn reviews the wait", async () => {

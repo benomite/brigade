@@ -1,8 +1,9 @@
 // Le désaccord d'un cook renvoyé (#2592) : quand il juge les remarques de la
 // relecture déjà traitées, ou fausses, il le dit en réponse sur la PR au lieu
 // de s'arrêter sans un mot. Son arrêt sans livraison n'est alors pas un échec,
-// mais un désaccord : la livraison repart en pass telle quelle, et la pass lit
-// la réponse et la juge — elle l'accepte, ou renvoie avec ses raisons.
+// mais un désaccord : la livraison repart en pass telle quelle. Une tête que la
+// relecture a refusée ne s'y rejuge pas (#3961) : elle repart au même motif, et
+// ce renvoi compte. La réponse reste sur la PR, pour qui reprend le ticket.
 //
 // Le cook n'a aucun accès à GitHub : il écrit sa réponse dans son dernier
 // message, entre deux balises, et c'est la station qui la poste sur la PR,
@@ -34,11 +35,11 @@ export function consigneDuDesaccord(pr: number): string {
     "",
     `The review's remarks are on PR #${pr}. If you judge one of them already addressed by your delivery, or wrong, do not end silently: reply on the PR. You have no access to GitHub: write your reply in your last message between ${ouvre} and ${ferme}, bare tags, once, and the station posts it on PR #${pr}. Answer remark by remark: where it is already addressed, or why it does not hold.`,
     "",
-    "If you then add nothing to the branch, your delivery goes back to the pass as it is, and the pass judges your reply: it accepts it, or sends the delivery back with its reasoning. A stop that adds nothing without such a reply counts as a failed cook.",
+    "If you then add nothing to the branch, your delivery goes back to the pass as it is. A head the review already refused is not reviewed again: it is sent back on the same reason, and that send-back counts toward the ticket's limit, past which the ticket leaves the cooks. Change the branch if a remark holds. A stop that adds nothing without such a reply counts as a failed cook.",
     "",
     `A "${REGLE_ROUGE_SUR_MAIN}" remark is not the review's: the pass replays each test your delivery adds alone on the base, judges no reply, and sends the same head back for as long as the test passes there. A reply, or a free comment in the test, is not read. Make the named test fail without your change, or remove it from your delivery — unless it guards a behavior the base already has and the ticket's criteria say so ("as before", "unchanged"): then mark it as a guard, a \`// ${MARQUE_DE_GARDE}\` comment on the line above its case, and the pass accepts it green on the base.`,
     "",
-    `This remark never loops. If it names, a second time, a test your delivery already tried to fix, do not try a third way: mark the test \`// ${MARQUE_DE_GARDE}\` if the ticket's criteria say "as before" / "unchanged"; otherwise set the ticket aside, once, with the reason in one line between ${OUVERTURE_BLOCAGE} and ${FERMETURE_BLOCAGE}. Do not propose an amendment of the criterion for it.`,
+    `This remark never loops. If it names, a second time, a test your delivery already tried to fix, do not try a third way: mark the test \`// ${MARQUE_DE_GARDE}\` if the ticket's criteria say "as before" / "unchanged"; otherwise set the ticket aside, once, with the reason in one line between ${OUVERTURE_BLOCAGE} and ${FERMETURE_BLOCAGE}.`,
   ].join("\n");
 }
 
@@ -93,10 +94,11 @@ export function avecLeDesaccord(consigne: string, reponse: string | null): strin
 }
 
 // Combien de renvois la tête `sha` peut porter sur l'issue : un, plus un par
-// réponse du cook que la pass a jugée sur cette tête — un désaccord refusé
-// renvoie la même tête, et ce renvoi compte comme les autres.
+// réponse du cook sur cette tête — chaque réponse la relivre telle quelle, et
+// la tête refusée revient sans relecture neuve, au même motif : ce renvoi
+// compte comme les autres, jusqu'à la limite (#3961).
 export function renvoisDeLaTete(commentaires: CommentaireLu[], sha: string): number {
   const verdict = verdictDe(commentaires);
   if (verdict === null || verdict.sha !== sha) return 1;
-  return 1 + reponsesSur(commentaires, sha).filter(({ rang }) => rang < verdict.commentaire).length;
+  return 1 + reponsesSur(commentaires, sha).length;
 }

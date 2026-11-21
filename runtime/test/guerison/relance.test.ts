@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHEF_TODO, corpsDeCarte } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import { corpsDeVerdict, type CommentaireDeVerdict } from "../../src/github-etat/fusion.ts";
-import { HORS_CUISINE, LABEL } from "../../src/github.ts";
+import { ECHECS_ATTEINTS, HORS_CUISINE, LABEL } from "../../src/github.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
-import { MARQUE_MISE_DE_COTE_GELE } from "../../src/passe-gel-tests/gele-faux.ts";
 import { LABEL_DU_BUG, relancer, RELANCES_MAX, type ContexteDeLaGuerison } from "../../src/guerison/relance.ts";
 
 const TICKET = 40;
@@ -170,20 +169,20 @@ test("une mise de côté dont la raison n'est pas réparable par un cook n'est p
   assert.equal(d.commentairesDu().length, 1);
 });
 
+test("mis de côté à son dernier renvoi, ses renvois épuisés, un ticket n'est jamais relancé, même avec une PR refusée ou rouge (#3961)", async () => {
+  const d = depot([LABEL, ECHECS_ATTEINTS]);
+  d.ouvrirPR();
+  d.checks.set(SHA, [{ name: "unit tests", outcome: "red" }]);
+  d.poster(PR, corpsDeVerdict("box/claude", SHA, { verdict: "request-changes", motif: "- the guard is never tested" }));
+  d.poster(TICKET, `<!-- brigade:renvoi n=3 sha=${SHA} -->\nStation \`box/claude\`: still not mergeable after 2 sends back — the review requested changes: the guard is never tested\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after 2 sends back: not served elsewhere, nobody serves it. A human decides.`);
+  for (let fois = 0; fois < 2; fois += 1) assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "its sends back are spent: the supervisor decides, never a cook again" });
+  assert.ok(d.etiquettes.has(ECHECS_ATTEINTS));
+  assert.equal(d.commentairesDu().length, 1);
+});
+
 test("un ticket qui n'est pas de côté n'est pas touché", async () => {
   const d = depot([LABEL]);
   d.ouvrirPR({ enConflit: true });
   assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "not set aside" });
   assert.equal(d.commentairesDu().length, 0);
-});
-
-test("un ticket mis de côté par ses tests gelés faux n'est pas relancé, même quand une relance et le mot d'un humain suivent sa mise de côté, et même si sa PR est rouge", async () => {
-  const d = depot();
-  d.ouvrirPR();
-  d.checks.set(SHA, [{ name: "tests", outcome: "red" }]);
-  d.poster(TICKET, `${MARQUE_MISE_DE_COTE_GELE}\nStation \`box\`: set aside.\n\nReason: the frozen acceptance test \`a.test.ts\` already passes on \`main\`.`);
-  d.poster(TICKET, "<!-- brigade:relance cause=red-check n=1 -->\nRelaunched.");
-  d.poster(TICKET, "I will look at it.");
-  assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "its wrong frozen acceptance tests leave a criterion with nothing to prove it: a human decides" });
-  assert.ok(d.etiquettes.has(HORS_CUISINE));
 });
