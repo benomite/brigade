@@ -59,6 +59,10 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   // Les tickets que la porte de prise a vus attendre un ticket ouvert, au tour en cours.
   let attentes = new Map<number, number[]>();
   let sauts = new Map<number, string>();
+  // Les tickets que la porte de prise a sautés depuis la dernière lecture des tickets (#3761) : à la lecture suivante, leurs
+  // sauts et leurs attentes restent dits jusqu'à ce que la porte repasse — entre les deux, ce que le superviseur lit dit
+  // encore leur cause, jamais rien ; ceux qu'elle n'a pas sautés tombent.
+  let sautesDuTour = new Set<number>();
   const prises = new Map<number, number>();
 
   const nAttendQueLaCuisson = (ticket: number): boolean => {
@@ -72,8 +76,9 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     if ([...enPass].some((ticket) => !ouverts.has(ticket))) dernierMerge = instant;
     enPass = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
     enCuisson = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_TAKEN) || labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
-    attentes = new Map();
-    sauts = new Map();
+    attentes = new Map([...attentes].filter(([ticket]) => sautesDuTour.has(ticket)));
+    sauts = new Map([...sauts].filter(([ticket]) => sautesDuTour.has(ticket)));
+    sautesDuTour = new Set();
     for (const ticket of prises.keys()) if (!ouverts.has(ticket)) prises.delete(ticket);
     const suivants = new Map<number, string>();
     for (const { number, labels } of horsDesBesoins(tickets)) {
@@ -85,6 +90,9 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   return {
     sauter: (ticket, ligne, attendus) => {
       sauts.set(ticket, ligne);
+      sautesDuTour.add(ticket);
+      // Repassée, la porte remplace aussi l'attente du tour d'avant.
+      attentes.delete(ticket);
       if (attendus !== undefined) attentes.set(ticket, [...attendus]);
     },
     envelopper: (github) => ({
