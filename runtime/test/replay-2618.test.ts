@@ -76,6 +76,7 @@ test("#2618 on 2026-11-06 17:40: nine split epics whose sub-tickets are all clos
   assert.match(dit2553, /It closes anyway/);
 });
 
+// brigade:guard
 test("#2618 on 2026-11-06 17:40: no station claims a split epic, and the only cookable ticket is #2600", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "replay-2618-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
