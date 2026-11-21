@@ -30,8 +30,8 @@ async function bloque(t: TestContext, geste: string, { tickets = TICKETS, tours 
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
   for (const numero of tickets) faux.feu(numero, ["fire", "model:opus", "effort:medium"], "## Context\n\nA ticket that needs the database.");
-  const lancer: Lancer = ({ args, flux }) => {
-    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
+  const lancer: Lancer = ({ args, entree, flux }) => {
+    const consulte = (entree ?? "").startsWith(MARQUE_DE_LA_CONSULTATION);
     const message = consulte ? JSON.stringify({ issue: "geste", geste }) : `I stopped.\n<livrable>\n<bloque>${QUESTION}</bloque>\n</livrable>`;
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };

@@ -24,7 +24,7 @@ async function revue(t: TestContext, reponse: object) {
   let consultations = 0;
   let cooks = 0;
   let maintenant = DEBUT;
-  const lancer: Lancer = ({ args, flux }) => {
+  const lancer: Lancer = ({ args, entree, flux }) => {
     const consulte = args[args.indexOf("--tools") + 1] === "Read,Grep,Glob";
     if (consulte) consultations += 1;
     else cooks += 1;

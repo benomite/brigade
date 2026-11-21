@@ -45,7 +45,7 @@ function station(t: TestContext, faux: FauxGitHub, nom: string, { manager, cook,
   const consultations: string[] = [];
   const lancer: Lancer = ({ args, flux, entree }) => {
     const consigne = [...args, entree ?? ""].join("\n");
-    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
+    const consulte = (entree ?? "").startsWith(MARQUE_DE_LA_CONSULTATION);
     if (consulte) consultations.push(consigne);
     else consignes.push(consigne);
     const message = consulte ? TECHNIQUE : cook(consignes.length, consigne);

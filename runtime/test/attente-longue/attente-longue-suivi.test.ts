@@ -158,7 +158,7 @@ test("through the station: a ticket whose sheet waits for a ticket set aside sta
   let consultations = 0;
   let maintenant = Date.parse("2026-11-17T10:00:00Z");
   const debut = maintenant;
-  const lancer: Lancer = ({ args, flux }) => {
+  const lancer: Lancer = ({ args, entree, flux }) => {
     const consulte = args[args.indexOf("--tools") + 1] === "Read,Grep,Glob";
     if (consulte) consultations += 1;
     else cooks += 1;
@@ -186,9 +186,9 @@ test("through the station: the manager reads the awaited ticket and how long the
   const consignes: string[] = [];
   let maintenant = Date.parse("2026-11-17T10:00:00Z");
   const debut = maintenant;
-  const lancer: Lancer = ({ args, flux }) => {
+  const lancer: Lancer = ({ args, entree, flux }) => {
     const consulte = args[args.indexOf("--tools") + 1] === "Read,Grep,Glob";
-    if (consulte) consignes.push(args[args.indexOf("-p") + 1] ?? "");
+    if (consulte) consignes.push(entree ?? "");
     const message = consulte ? JSON.stringify({ issue: "garde", commentaire: "Kept: #20 builds on the palette." }) : "Done.\n<livrable>\nNothing.\n</livrable>";
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: consulte ? 0 : 1, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };

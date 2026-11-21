@@ -1352,9 +1352,9 @@ test("the station of this runtime: a delivery that changes what judges it is rev
   const faux = new FauxGitHub();
   faux.feu(12, ["fire", "model:sonnet", "effort:low"]);
   const fait: string[] = [];
-  const lancements: Array<{ args: string[]; cwd: string; flux: string }> = [];
+  const lancements: Array<{ args: string[]; cwd: string; flux: string; entree: string | undefined }> = [];
   const lancer: Lancer = ({ args, entree, cwd, flux }) => {
-    lancements.push({ args, cwd, flux });
+    lancements.push({ args, cwd, flux, entree });
     const texte = entree ?? args[args.indexOf("-p") + 1] ?? "";
     const reponse = texte.startsWith("Tu es le **second juge**")
       ? JSON.stringify({ verdict: "approuve", motif: "Runs one more check; weakens none." })
@@ -1410,7 +1410,7 @@ test("the station of this runtime: a delivery that changes what judges it is rev
   assert.equal(second.cwd, join(repertoire, "second-judge-12-github"));
   assert.notEqual(second.flux, relecture.flux);
   assert.deepEqual(fait, ["reprendre review-12-github cook/12-github", "retirer review-12-github", "reprendre second-judge-12-github cook/12-github", "retirer second-judge-12-github"]);
-  const texte = second.args[second.args.indexOf("-p") + 1] ?? "";
+  const texte = second.entree ?? "";
   assert.ok(texte.startsWith(lireLaConsigne()), "the brief of agents/second-juge.md, read from the runtime");
   assert.match(texte, /## La livraison\n\nDépôt faux\/depot, PR #\d+[\s\S]*- \.github\/workflows\/tests\.yml\n[\s\S]*\+ {6}- run: npm run lint/);
   // Rien de la relecture ne lui est donné.

@@ -31,9 +31,9 @@ function cuisine(t: TestContext, manager: (n: number) => string) {
   let cooks = 0;
   const consultations: string[] = [];
   let maintenant = DEBUT;
-  const lancer: Lancer = ({ args, flux }) => {
+  const lancer: Lancer = ({ args, entree, flux }) => {
     const consulte = args[args.indexOf("--tools") + 1] === "Read,Grep,Glob";
-    if (consulte) consultations.push(args[args.indexOf("-p") + 1] ?? "");
+    if (consulte) consultations.push(entree ?? "");
     else cooks += 1;
     const message = consulte ? manager(consultations.length) : "Done.\n<livrable>\nNothing.\n</livrable>";
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);

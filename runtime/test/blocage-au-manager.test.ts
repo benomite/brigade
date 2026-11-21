@@ -33,10 +33,14 @@ async function bloque(t: TestContext, { tours = 1, manager = TECHNIQUE, commenta
   for (const corps of commentaires) faux.poster(TICKET, "box", corps);
   let cooks = 0;
   let illisibles = false;
-  const consultations: string[][] = [];
-  const lancer: Lancer = ({ args, flux }) => {
-    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
-    if (consulte) consultations.push(args);
+  const consultations: string[] = [];
+  const argsDesConsultations: string[][] = [];
+  const lancer: Lancer = ({ args, entree, flux }) => {
+    const consulte = (entree ?? "").startsWith(MARQUE_DE_LA_CONSULTATION);
+    if (consulte) {
+      consultations.push(entree ?? "");
+      argsDesConsultations.push(args);
+    }
     else cooks += 1;
     // Le cook a lu son ticket : ce sont les lectures d'après qui échouent.
     if (commentairesIllisibles) illisibles = true;
@@ -62,14 +66,14 @@ async function bloque(t: TestContext, { tours = 1, manager = TECHNIQUE, commenta
     await station.calme();
   }
   const lus = (faux.commentaires.get(TICKET) ?? []).map((c) => c.body);
-  return { ticket: faux.ticket(TICKET), cooks: () => cooks, consultations, avertissements, commentaires: lus, du: (marque: string) => lus.filter((corps) => corps.startsWith(marque)) };
+  return { ticket: faux.ticket(TICKET), cooks: () => cooks, consultations, argsDesConsultations, avertissements, commentaires: lus, du: (marque: string) => lus.filter((corps) => corps.startsWith(marque)) };
 }
 
 test("a blocked cook never sets blocked-on-human itself: its question goes to the manager, with the manager's calibration, in the ticket's branch", async (t) => {
-  const { consultations } = await bloque(t, { manager: () => JSON.stringify({ issue: "produit", question: "Which layout?" }) });
+  const { consultations, argsDesConsultations } = await bloque(t, { manager: () => JSON.stringify({ issue: "produit", question: "Which layout?" }) });
   assert.equal(consultations.length, 1);
-  const [args] = consultations as [string[]];
-  const consigne = args[args.indexOf("-p") + 1] ?? "";
+  const [consigne = ""] = consultations;
+  const [args = []] = argsDesConsultations;
   assert.ok(consigne.includes(`<question>\n${QUESTION}\n</question>`), consigne);
   assert.match(consigne, /Issue #75 — /);
   assert.deepEqual([args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]], ["opus", "high"]);
@@ -111,7 +115,7 @@ test("the same technical block twice: the third goes back to the manager with bo
   const { ticket, cooks, consultations, du, avertissements } = await bloque(t, { tours: 4 });
   assert.equal(cooks(), 4);
   assert.equal(consultations.length, 4);
-  const troisieme = consultations[2]?.[(consultations[2]?.indexOf("-p") ?? 0) + 1] ?? "";
+  const troisieme = consultations[2] ?? "";
   assert.match(troisieme, /Tu as déjà répondu 2 fois[\s\S]*<reponse n="1">[\s\S]*answer 1:[\s\S]*<reponse n="2">[\s\S]*answer 2:/);
   assert.equal(ticket.labels.has(A_LA_MAIN), false);
   assert.equal(ticket.corps.split(MARQUE_DE_DECISION).length, 2, "the decision is written once");
