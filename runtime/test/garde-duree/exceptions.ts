@@ -9,9 +9,6 @@ import type { Exception } from "./regle.ts";
 export const EXCEPTIONS: Exception[] = [
   { file: "test-hang-guard/garde.test.ts", test: "a hanging test fails at the limit, naming file, title and what it still held; an opted-in test and a quick one pass" },
   { file: "test/0-en-premier/recette.test.ts", test: "ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration" },
-  { file: "test/acceptation-3996/3-a-type-error-in-the-branchs-own-test-turns-the-gates-red-before-any-push.test.ts", test: "in the app zone turns the gates red before the delivery is pushed" },
-  { file: "test/acceptation-3996/3-a-type-error-in-the-branchs-own-test-turns-the-gates-red-before-any-push.test.ts", test: "in the runtime zone turns the gates red before the delivery is pushed" },
-  { file: "test/acceptation-3996/4-a-failing-far-away-test-turns-the-gates-red.test.ts", test: "a failing far-away test, one that walks a folder instead of importing the changed file, turns the gates red" },
   { file: "test/appairage/canal.test.ts", test: "la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase" },
   { file: "test/appairage/rail-du-projet.test.ts", test: "sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box" },
@@ -127,7 +124,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/garde-des-gates.test.ts", test: "un test en échec avant la coupure garde la ligne d'un rouge" },
   { file: "test/garde-des-gates.test.ts", test: "une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué" },
   { file: "test/garde-fous-cli.test.ts", test: "« stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate" },
-  { file: "test/geste.test.ts", test: "sans projet ou sans commande, il dit comment il se lance" },
   { file: "test/geste.test.ts", test: "`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime" },
   { file: "test/geste.test.ts", test: "dans un terminal, l'entrée redirigée ou non, `sudo` demande son mot de passe et la commande part : le geste ne l'éprouve pas d'abord" },
   { file: "test/geste.test.ts", test: "lancé sous le compte de la station, il ne passe pas par `sudo`" },

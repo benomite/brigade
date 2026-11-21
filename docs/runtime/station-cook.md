@@ -161,7 +161,8 @@ series. **The worktree goes away at the end of the cook.**
 `.claude/brigade/gates.sh` in the cook's worktree before the push; red, nothing is pushed: the try fails
 with the gates' first red line (`its gates are red, so its delivery was not pushed: …`), the branch is
 marked as saved work (`brigade: work in progress saved before the station restarts (#2586)`), and the
-next cook starts from it. A project with no `gates.sh`, or gates that judge nothing (no test command,
+next cook starts from it. A next cook that delivers the same tree, changed in nothing, gets the same red
+without the gates being played again. A project with no `gates.sh`, or gates that judge nothing (no test command,
 or provisional until the foundation ticket is served, #3188), pushes as before. A contributor station
 plays them the same way before pushing to its fork. **What is not a delivery is never pushed to the
 ticket's branch**: the work of a cook that stops on a question, or saved before a restart, is parked

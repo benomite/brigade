@@ -348,8 +348,8 @@ describe("le geste brigade", { concurrency: 8 }, () => {
   test("sans projet ou sans commande, il dit comment il se lance", { skip: posixOnly("Runs the gesture with no arguments and with only `calculus` and checks it exits 64 with its usage line on stderr, no command started; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
 
-    for (const args of [[], ["calculus"]]) {
-      const fin = await m.lancer(args);
+    // Les deux lancements partent ensemble : l'un après l'autre, ils passaient les 2 s (#3996).
+    for (const fin of await Promise.all([[], ["calculus"]].map((args) => m.lancer(args)))) {
       assert.equal(fin.code, USAGE);
       assert.match(fin.erreur, /^usage: brigade <project> <command> \[arguments…\]/);
     }

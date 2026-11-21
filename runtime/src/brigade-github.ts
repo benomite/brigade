@@ -2921,8 +2921,17 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // — provisoires tant que la fondation n'est pas servie (#3188) : la livraison
   // part comme avant, et la pass dit pourquoi elle ne les joue pas.
   // Rend ce qui la retient, ou null quand elle peut partir.
+  // L'arbre dont les gates viennent d'être rouges, par ticket : le cook suivant
+  // qui le livre sans y rien changer n'a pas à les rejouer — même arbre, même
+  // verdict —, ce qui coûtait une suite entière de plus. Un arbre qui ne se lit
+  // pas les rejoue.
+  const arbresRouges = new Map<number, { arbre: string; echec: string }>();
   const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string } | { subi: string } | null> => {
     if (!aDesGates(worktree) || (await gatesQuiNeJugentPas(worktree, ticket, lireFondations)) !== null) return null;
+    const lu = await depot.lancerGit?.(["rev-parse", "HEAD^{tree}"], worktree);
+    const arbre = lu?.code === 0 ? lu.stdout.trim() : null;
+    const dejaRouge = arbresRouges.get(ticket.number);
+    if (arbre !== null && dejaRouge?.arbre === arbre) return { echec: `${dejaRouge.echec} (the same tree as its previous delivery: the gates were not played again)` };
     const secrets = lireSecrets(worktree, options.gates?.secrets ?? null);
     if (!secrets.pret) return { echec: `its gates could not run before the push, so its delivery was not pushed: the secrets the project declares cannot be given to them — ${secrets.problemes.join("; ")}` };
     const delaiMs = options.gates?.delaiMs ?? delaiDesGatesMs(options.env);
@@ -2942,7 +2951,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     });
     if (abandon.signal.aborted) return { subi: "the station stopped during the gates of the delivery, before its push" };
     const { vert, resume } = verdictDesGates(gates, delaiMs);
-    return vert ? null : { echec: `its gates are red, so its delivery was not pushed: ${resume}` };
+    if (vert) {
+      arbresRouges.delete(ticket.number);
+      return null;
+    }
+    const echec = `its gates are red, so its delivery was not pushed: ${resume}`;
+    if (arbre !== null) arbresRouges.set(ticket.number, { arbre, echec });
+    return { echec };
   };
   const cuisinerLeTicket: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);

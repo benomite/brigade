@@ -86,18 +86,18 @@ test("only gates that judge hold a delivery, and only a delivery plays them: gat
   assert.doesNotMatch(jouees, /14-github/, "a cook that committed nothing has no delivery to play the gates on");
 });
 
-test("a saved head the next cook delivers as it is plays the gates, and is pushed once they are green", async (t) => {
+test("a saved head the next cook delivers as it is, on the tree whose gates were red, is not pushed and does not play them again", async (t) => {
   const lieux = depotGit(t);
-  const vert = join(repertoireTemporaire(t), "vert").replaceAll("\\", "/");
+  const trace = join(repertoireTemporaire(t), "gates-jouees").replaceAll("\\", "/");
   const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
   const faux = new FauxGitHub();
   faux.feu(TICKET, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- The button exists");
-  // Le premier cook écrit tout, sous des gates rouges tant que `vert` n'existe pas ; le suivant n'ajoute rien et livre le travail sauvé tel quel.
+  // Le premier cook écrit tout, sous des gates rouges ; le suivant n'ajoute rien et livre le travail sauvé tel quel.
   let cuissons = 0;
   const lancer: Lancer = ({ args, cwd, flux }) => {
     if (!args.includes("--tools") && (cuissons += 1) === 1) {
       mkdirSync(join(cwd, ".claude/brigade"), { recursive: true });
-      writeFileSync(join(cwd, ".claude/brigade/gates.sh"), `#!/usr/bin/env bash\n[ -f '${vert}' ] && exit 0\necho "FAIL  the button test is red" >&2\nexit 1\n`);
+      writeFileSync(join(cwd, ".claude/brigade/gates.sh"), `#!/usr/bin/env bash\necho gates >> '${trace}'\necho "FAIL  the button test is red" >&2\nexit 1\n`);
       chmodSync(join(cwd, ".claude/brigade/gates.sh"), 0o755);
       writeFileSync(join(cwd, "bouton.ts"), "export const bouton = 1;\n");
     }
@@ -107,18 +107,14 @@ test("a saved head the next cook delivers as it is plays the gates, and is pushe
   const station = stationDuDepot({ ...STATION_DU_DEPOT, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, avertir: () => {} });
   if ("refus" in station) throw new Error(station.refus);
 
-  await station.tour();
-  await station.calme();
-  assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "nothing was pushed: the gates are red");
-
-  writeFileSync(vert, "");
-  for (let tour = 0; tour < 4 && git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)) === ""; tour += 1) {
+  for (let tour = 0; tour < 4 && cuissons < 2; tour += 1) {
     await station.tour();
     await station.calme();
   }
-  assert.ok(cuissons >= 2, "the next cook was launched");
-  assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "green gates: the saved head, delivered as it is, is pushed");
-  assert.equal(git(lieux.origine, "cat-file", "-e", `${brancheDuTicket(TICKET)}:bouton.ts`), "");
+  assert.equal(cuissons, 2, "the next cook was launched");
+  assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "the same red tree is not pushed");
+  assert.equal(readFileSync(trace, "utf8"), "gates\n", "same tree, same verdict: the gates are not played again");
+  assert.ok([...faux.commentaires.values()].flat().some((c) => /FAIL {2}the button test is red \(the same tree as its previous delivery: the gates were not played again\)/.test(c.body)));
 });
 
 test("a delivery cut before its push, found only in the clone, plays the gates: red, it is not pushed nor sent to the pass, and a cook resumes it with what they say (#2577)", async (t) => {

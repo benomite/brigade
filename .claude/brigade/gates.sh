@@ -174,6 +174,12 @@ fi
 # qu'ils gardent, ceux qu'un module du produit touche par ses imports — et la
 # garde des 2 s (#2129) sont joués avant le push, et une livraison ne part plus
 # rouge vers la CI. Sous `--proches`, au poste du dev, rien ne change.
+# La garde des 2 s y juge comme la CI de la PR (`tests.yml`, mode `pr`) : un
+# test lent que le changement ajoute ou change rougit les gates, et un test
+# proche du changement — ceux qu'elles jouaient seuls — aussi, comme avant ;
+# les autres tests lents sont rapportés sans échouer, leur durée suit la charge
+# du poste (#2322).
+DUREE=()
 SELECTION_runtime=tout
 SELECTION_app=tout
 PORTEE=
@@ -184,14 +190,21 @@ while IFS= read -r CHEMIN; do
     runtime/*|app/*|docs/runtime/*|.claude/brigade/*|.github/workflows/runtime-windows.yml) COMME_LA_CI_WINDOWS=1 ;;
   esac
 done <<<"${CHANGES:-}"
-if [ -z "$PORTEE" ] && [ "$COMME_LA_CI_WINDOWS" -eq 1 ]; then
-  ok "tests : tous, comme la CI Windows sur ce changement (runtime/, app/, docs/runtime/ ou .claude/brigade/)"
-elif [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
+if [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
   if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs $PORTEE 2>/dev/null)"; then
     while read -r ZONE_SEL REGLE; do
       case "$ZONE_SEL" in runtime) SELECTION_runtime="$REGLE" ;; app) SELECTION_app="$REGLE" ;; esac
     done <<<"$SELECTION"
   fi
+fi
+if [ -z "$PORTEE" ] && [ "$COMME_LA_CI_WINDOWS" -eq 1 ]; then
+  ok "tests : tous, comme la CI Windows sur ce changement (runtime/, app/, docs/runtime/ ou .claude/brigade/)"
+  case "$SELECTION_runtime" in
+    rien) DUREE=(BRIGADE_DUREE_MODE=pr "BRIGADE_DUREE_BASE=$SOUCHE" BRIGADE_DUREE_STRICTS=) ;;
+    "fichiers "*) DUREE=(BRIGADE_DUREE_MODE=pr "BRIGADE_DUREE_BASE=$SOUCHE" "BRIGADE_DUREE_STRICTS=${SELECTION_runtime#fichiers }") ;;
+  esac
+  SELECTION_runtime=tout
+  SELECTION_app=tout
 fi
 
 # 6 bis. Le tour : sur une box, les suites de tests de deux passages ne courent
@@ -557,13 +570,7 @@ types_partir app "$SELECTION_app"
 # ce worktree, et écrivent dans le répertoire temporaire des suites quand le
 # poste en a un en mémoire — leur cache de compilation gardé à sa place.
 temporaire_des_tests
-ENV_TESTS=(-u BRIGADE_STATE_DIR -u BRIGADE_PORT)
-# Ni `gh` connecté, ni jeton de GitHub, comme sur la CI (#3996) : les tests
-# gelés d'un ticket qui lisent GitHub par `gh` s'y sautent (#3847,
-# `runtime/test-hang-guard/garde.ts`), et ici aussi — un test gelé d'un ticket
-# servi depuis longtemps, qui lit sur GitHub un état passé, ne retient pas la
-# livraison d'un autre. La pass joue elle-même ceux de son ticket, avec `gh`.
-ENV_TESTS+=(-u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN "GH_CONFIG_DIR=$PWD/.brigade-state/gates/sans-gh")
+ENV_TESTS=(-u BRIGADE_STATE_DIR -u BRIGADE_PORT ${DUREE[@]+"${DUREE[@]}"})
 [ -z "$TEMPORAIRE" ] || ENV_TESTS+=("NODE_COMPILE_CACHE=${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}" "TMPDIR=$TEMPORAIRE")
 suite runtime "du runtime" "runtime absent" du-runtime "$SELECTION_runtime"
 suite app "de l'app" "app absente" de-l-app "$SELECTION_app"
