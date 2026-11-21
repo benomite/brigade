@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { chiffresDAutonomie, commitsRevertes, type DonneesDuDepot } from "../../../src/autonomie/chiffres/chiffres.ts";
+import { chiffresDAutonomie, commitsRevertes, type Defauts, type DonneesDuDepot } from "../../../src/autonomie/chiffres/chiffres.ts";
 
 const ECHANTILLON = JSON.parse(readFileSync(new URL("./echantillon-defauts.json", import.meta.url), "utf8")) as DonneesDuDepot;
 const MAINTENANT = new Date("2026-11-11T12:00:00.000Z");
@@ -73,6 +73,21 @@ describe("the defects that escape the pass (#3515)", () => {
     const nonLus = chiffresDAutonomie([sansDefauts], 7, MAINTENANT);
     assert.equal(nonLus.bugsEchappes, null);
     assert.deepEqual(nonLus.defautsNonLus, [{ depot: "chef/parade", raison: "not read" }]);
+  });
+
+  test("the escaped bugs are listed by bug number, and a revert's tickets by number, whatever order GitHub gives them in", () => {
+    const defauts = ECHANTILLON.defauts as Defauts;
+    const melange: DonneesDuDepot = {
+      ...ECHANTILLON,
+      defauts: {
+        ...defauts,
+        bugs: [...defauts.bugs].reverse(),
+        reverts: [{ sha: sha("7"), commit: { message: `Revert two tickets\n\nThis reverts commit ${sha("5")}.\nThis reverts commit ${sha("1")}.`, committer: { date: "2026-11-10T09:00:00Z" } } }],
+      },
+    };
+    const chiffres = chiffresDAutonomie([melange], 7, MAINTENANT);
+    assert.deepEqual(chiffres.bugsEchappes?.map(({ bug }) => bug), [201, 203, 207]);
+    assert.deepEqual(dits(chiffres).reverts, [{ sha: sha("7"), tickets: [101, 103] }]);
   });
 
   test("a commit message gives each commit its trailer reverts, once", () => {
