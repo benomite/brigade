@@ -6,7 +6,7 @@
 // livraison qui attend la pass ne la fait pas tourner. Le manager, le triage et le closer se lisent à leurs lancements
 // sans fin dans le journal (`cook_runs`, station `manager` ou `closer`) : le préfixe du run dit ce qu'ils font et sur
 // quel ticket (manager.ts, `demander` : `<prefixe>-<numero>-<id>` ; closing/run.ts : `fermeture-<id>`).
-import { PASS_A_L_OUVRAGE, type ActiviteDeTicket } from "./activites.ts";
+import { passALOuvrage, type ActiviteDeTicket } from "./activites.ts";
 import type { Base } from "./base.ts";
 
 export type RoleEnCours = "pass" | "manager" | "triage" | "closer";
@@ -56,7 +56,7 @@ function agentDuRun({ run, station, launchedAt }: RunHorsTicket): AgentEnCours {
 export function agentsEnCours(pass: ReadonlyArray<{ ticket: number; activite: ActiviteDeTicket | null | undefined }>, runs: readonly RunHorsTicket[]): AgentEnCours[] {
   return [
     ...pass.flatMap(({ ticket, activite }) =>
-      activite != null && PASS_A_L_OUVRAGE.has(activite.faitEn) ? [{ role: "pass" as const, ticket, fait: activite.faitEn, depuis: activite.depuis }] : [],
+      activite != null && passALOuvrage(activite.faitEn) ? [{ role: "pass" as const, ticket, fait: activite.faitEn, depuis: activite.depuis }] : [],
     ),
     ...runs.map(agentDuRun),
   ];

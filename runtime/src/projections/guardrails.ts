@@ -342,15 +342,16 @@ export function derniersCooks(base: Base): Map<number, DernierCook> {
 
 // Le dernier run dont le nom commence ainsi — la dernière relecture d'un
 // ticket, que la pass lance hors ticket : quand il est parti, quand il a fini.
-export function dernierRunNomme(base: Base, debut: string): { run: string; launchedAt: string; endedAt: string | null } | null {
-  return (
-    base.lire<{ run: string; launchedAt: string; endedAt: string | null }>(
-      `SELECT run, launched_at AS launchedAt, ended_at AS endedAt FROM cook_runs
+export function dernierRunNomme(base: Base, debut: string): { run: string; launchedAt: string; endedAt: string | null; failed: boolean } | null {
+  const ligne = (
+    base.lire<{ run: string; launchedAt: string; endedAt: string | null; ending: string | null }>(
+      `SELECT run, launched_at AS launchedAt, ended_at AS endedAt, ending FROM cook_runs
        WHERE substr(run, 1, length(?)) = ? ORDER BY launched_seq DESC LIMIT 1`,
       debut,
       debut,
     )[0] ?? null
   );
+  return ligne === null ? null : { run: ligne.run, launchedAt: ligne.launchedAt, endedAt: ligne.endedAt, failed: ligne.ending === "failed" };
 }
 
 // Les derniers arrêts provoqués par un garde-fou, le plus récent d'abord.

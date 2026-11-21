@@ -13,7 +13,6 @@ export type EtapeDePass = (typeof ETAPES)[number];
 const PAR_ACTIVITE = new Map<string, EtapeDePass>([
   ["running the gates", "CI running"],
   ["judging", "CI running"],
-  ["review in progress", "review"],
   ["merging", "merging"],
 ]);
 
@@ -29,7 +28,7 @@ const plusTard = (a: string, b: string) => (Date.parse(b) > Date.parse(a) ? b : 
 // après —, sauf la relecture déjà partie, qui va à sa fin.
 export function avecEtape(activite: ActiviteDeTicket | null, pass: Pick<PassDeTicket, "phase" | "reason"> | undefined, base: Pick<EtatDeLaBase, "outcome" | "at" | "redSince"> | null): ActiviteDeTicket | null {
   if (activite === null || pass === undefined) return activite;
-  const etape = PAR_ACTIVITE.get(activite.faitEn);
+  const etape: EtapeDePass | undefined = activite.faitEn.startsWith("review running since") || activite.faitEn === "review in progress" ? "review" : PAR_ACTIVITE.get(activite.faitEn);
   if (pass.phase === "waiting" && pass.reason === BASE_ROUGE) return { ...activite, etape: "waiting for main" };
   if (base?.outcome === "red" && ARRETEES_PAR_LE_ROUGE.has(pass.phase) && etape !== "review") return { ...activite, etape: "waiting for main", depuis: plusTard(activite.depuis, base.redSince ?? base.at) };
   return etape === undefined ? activite : { ...activite, etape };

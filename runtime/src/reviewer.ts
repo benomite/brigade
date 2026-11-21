@@ -57,11 +57,12 @@ export function configReviewer(env: Record<string, string | undefined>): ConfigR
 // Le reviewer n'a ni skill, ni serveur MCP, ni réglages, et pas de mode sans
 // permission : hors de ses trois outils de lecture, rien ne lui est ouvert, et
 // personne n'est là pour lui accorder autre chose. `--tools` vient avant les
-// options qui le suivent, il avale tout ce qui n'en est pas une. `texte` null :
-// la consigne part sur son entrée, comme celle d'un cook (#3910).
-export function argumentsReviewer(texte: string | null, calibrage: Calibrage): string[] {
+// options qui le suivent, il avale tout ce qui n'en est pas une. La consigne n'y
+// est pas : elle part sur son entrée (`entree` du lancement), comme celle d'un
+// cook (#3910) — une consigne en argument dépasse la limite de l'OS (#3786).
+export function argumentsReviewer(calibrage: Calibrage): string[] {
   return [
-    ...lancementEnFlux(texte, calibrage),
+    ...lancementEnFlux(null, calibrage),
     "--tools",
     OUTILS.join(","),
     "--setting-sources",

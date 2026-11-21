@@ -55,7 +55,7 @@ test("la pass qui juge une livraison, le manager qui qualifie une issue et le cl
 
   // La relecture partie, la pass en est là ; le runtime arrêté, plus rien ne tourne.
   lancer("review-15-cccc", "reviewer"); // :15
-  assert.deepEqual(agents()[0], { role: "pass", station: "box/claude", ticket: 15, fait: "review in progress", depuis: `${JOUR_HORLOGE}T10:00:15.000Z` });
+  assert.deepEqual(agents()[0], { role: "pass", station: "box/claude", ticket: 15, fait: "review running since 10:00Z", depuis: `${JOUR_HORLOGE}T10:00:15.000Z` });
   noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } });
   assert.deepEqual(agents(), []);
 });

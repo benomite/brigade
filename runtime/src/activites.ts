@@ -31,8 +31,13 @@ const PHASES: Partial<Record<PassDeTicket["phase"], [string, string]>> = {
 };
 
 // Ce que la pass fait elle-même d'une livraison, en anglais : elle y travaille — ses gates, la relecture, le jugement,
-// le merge. Les autres phases attendent (la pass, la CI coupée, le chef) : la pass n'y tourne pas (#1971).
-export const PASS_A_L_OUVRAGE: ReadonlySet<string> = new Set(["running the gates", "review in progress", "judging", "merging"]);
+// le merge. Les autres phases attendent (la pass, la CI coupée, le chef) : la pass n'y tourne pas (#1971). Ce sont les
+// débuts de la phrase, en anglais : la relecture y ajoute l'heure où elle est partie ; une relecture échouée n'en est pas.
+export const PASS_A_L_OUVRAGE: ReadonlySet<string> = new Set(["running the gates", "review running since", "judging", "merging"]);
+export const passALOuvrage = (faitEn: string): boolean => [...PASS_A_L_OUVRAGE].some((debut) => faitEn.startsWith(debut));
+
+// L'heure d'un instant du journal, en UTC, comme la carte la dit : « review running since 10:00 UTC ».
+const heure = (instant: string) => `${instant.slice(11, 16)}Z`;
 
 // `fait` : la phrase en français et en anglais, dans cet ordre.
 const activite = (fait: [string, string], depuis: string, cible: string | null = null): ActiviteDeTicket => ({ fait: fait[0], faitEn: fait[1], cible, depuis });
@@ -53,7 +58,7 @@ function auTravail(ticket: TicketRail, cook: DernierCook | undefined): ActiviteD
 }
 
 // La dernière relecture d'un ticket : quand elle est partie, quand elle a fini.
-type Relecture = { launchedAt: string; endedAt: string | null };
+type Relecture = { launchedAt: string; endedAt: string | null; failed: boolean };
 
 // Les workflows dont la pass attend la CI sur le commit jugé, d'après le
 // dernier fait qu'elle en a noté — nul si elle n'en attend aucun.
@@ -84,7 +89,9 @@ function aLaPass(base: Base, pass: PassDeTicket | undefined, derniere: Relecture
   // Une relecture d'avant ce jugement en relisait une autre livraison.
   const relecture = derniere !== null && derniere.launchedAt >= debut ? derniere : null;
   if (relecture === null) return activite(["gates en cours", "running the gates"], debut);
-  if (relecture.endedAt === null) return activite(["relecture en cours", "review in progress"], relecture.launchedAt);
+  if (relecture.endedAt === null) return activite([`relecture en cours depuis ${heure(relecture.launchedAt)}`, `review running since ${heure(relecture.launchedAt)}`], relecture.launchedAt);
+  // Une relecture qui n'a pas pu partir ou qui a échoué : la carte le dit, elle ne la dit pas en cours (#3786).
+  if (relecture.failed) return activite([`relecture échouée à ${heure(relecture.endedAt)}`, `review failed at ${heure(relecture.endedAt)}`], relecture.endedAt);
   // Relue, la livraison attend sa CI — ou une autre relecture, si la sienne était illisible.
   if (pass.review?.sha !== pass.sha) return activite(["relecture en cours", "review in progress"], relecture.endedAt);
   return activite(["jugement en cours", "judging"], relecture.endedAt, workflowsAttendus(base, pass));
