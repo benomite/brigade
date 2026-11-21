@@ -9,8 +9,10 @@
 // manager, rien ne part. Une cuisine que le chef a arrêtée ou éteinte n'est
 // pas supervisée : rien n'y doit bouger.
 //
-// Les checks Windows de la base y gardent leur carte (#2413), lue du même tour.
+// Les checks Windows de la base y gardent leur carte (#2413), lue du même tour ;
+// la base rouge que la cuisine ne rend plus verte seule aussi (#3953).
 import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
+import { evaluerMain, statutsDesChecks } from "../statuts-ci/regles.ts";
 import { objet } from "../juger.ts";
 import { etatDesGardeFous } from "../projections/guardrails.ts";
 import { etatDeLInterrupteur } from "../projections/switch.ts";
@@ -108,6 +110,15 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     try {
       const checks = tour.checks();
       if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, branche, checks);
+      // La base rouge que la cuisine ne rend plus verte seule a sa carte dans TODO, une seule ; verte, elle en sort (#3953).
+      if (checks !== null) {
+        void evaluerMain({ statuts: statutsDesChecks(checks), journal: runtime.journal, projet: runtime.projet, branche, cuisinePeutReparer: async () => !tour.reparationMiseDeCote() }).then(
+          ({ illisible }) => {
+            if (illisible !== undefined) dire(`the red base was not evaluated for the chef — ${illisible}`);
+          },
+          (erreur: unknown) => dire(`the card of the red base was not written — ${message(erreur)}`),
+        );
+      }
       const { base } = runtime.journal;
       if (etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false) return;
       if (options.consulter() === null) return;

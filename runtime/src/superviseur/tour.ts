@@ -24,9 +24,10 @@ import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import type { CheckVu } from "../carte-ci-windows.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
-import { MIS_DE_COTE } from "../github.ts";
+import { estMisDeCote, MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
+import { PRIO_REPARATION } from "../reparation.ts";
 import type { FaitsDuProjet } from "./declencheur.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
@@ -46,12 +47,17 @@ export type SuiviDuTour = {
   sauts(): string[];
   // Les checks de la base au dernier tour (nom et issue), nuls avant le premier.
   checks(): CheckVu[] | null;
+  // Un ticket de réparation de la base (`prio:0`) est mis de côté au dernier
+  // tour — ses cooks ont échoué, la cuisine ne rendra plus la base verte seule
+  // (statuts-ci/regles.ts, #3953). Faux avant le premier tour.
+  reparationMiseDeCote(): boolean;
 };
 
 export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDuTour {
   let dernierMerge: string | null = null;
   let mainRougeDepuis: string | null = null;
   let checks: CheckVu[] | null = null;
+  let reparationMiseDeCote = false;
   // Les cuisinables, et le tour qui a vu chacun commencer d'attendre.
   let cuisinables = new Map<number, string>();
   let enPass = new Set<number>();
@@ -100,6 +106,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       fires: async () => {
         const tickets = await github.fires();
         noterTickets(tickets);
+        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && estMisDeCote(labels));
         return tickets;
       },
       commenter: async (numero, corps) => {
@@ -130,5 +137,6 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     }),
     sauts: () => [...sauts].filter(([ticket]) => cuisinables.has(ticket) && !nAttendQueLaCuisson(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne),
     checks: () => checks,
+    reparationMiseDeCote: () => reparationMiseDeCote,
   };
 }

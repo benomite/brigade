@@ -686,21 +686,22 @@ test("the CI runs of a branch are read with all their jobs; an unreadable list f
       ],
     },
   });
-  gh.repondre(`repos/${DEPOT}/actions/runs/11/jobs?filter=all&per_page=100`, { corps: { jobs: [{ created_at: "2026-11-14T17:13:05Z", started_at: "2026-11-14T17:41:00Z", completed_at: "2026-11-14T17:50:00Z" }, { started_at: null }] } });
+  gh.repondre(`repos/${DEPOT}/actions/runs/11/jobs?filter=all&per_page=100`, { corps: { jobs: [{ name: "unit", conclusion: "failure", created_at: "2026-11-14T17:13:05Z", started_at: "2026-11-14T17:41:00Z", completed_at: "2026-11-14T17:50:00Z" }, { started_at: null }] } });
   gh.repondre(`repos/${DEPOT}/actions/runs/12/jobs?filter=all&per_page=100`, { corps: { jobs: [] } });
 
   const ciDeLaBranche = github.ciDeLaBranche?.bind(github) ?? assert.fail("the real client reads the CI runs of a branch");
   assert.deepEqual(await ciDeLaBranche("cook/3537-github"), [
     {
+      id: 11,
       tete: "a1",
       creeLe: "2026-11-14T17:13:00Z",
       finiLe: "2026-11-14T17:50:00Z",
       jobs: [
-        { creeLe: "2026-11-14T17:13:05Z", commenceLe: "2026-11-14T17:41:00Z", finiLe: "2026-11-14T17:50:00Z" },
-        { creeLe: "2026-11-14T17:13:00Z", commenceLe: null, finiLe: null },
+        { creeLe: "2026-11-14T17:13:05Z", commenceLe: "2026-11-14T17:41:00Z", finiLe: "2026-11-14T17:50:00Z", nom: "unit", conclusion: "failure" },
+        { creeLe: "2026-11-14T17:13:00Z", commenceLe: null, finiLe: null, nom: undefined, conclusion: null },
       ],
     },
-    { tete: "b2", creeLe: "2026-11-14T17:41:00Z", finiLe: null, jobs: [] },
+    { id: 12, tete: "b2", creeLe: "2026-11-14T17:41:00Z", finiLe: null, jobs: [] },
   ]);
   gh.repondre(runs, { statut: 502, corps: { message: "Bad Gateway" } });
   await assert.rejects(ciDeLaBranche("cook/3537-github"), /HTTP 502/);

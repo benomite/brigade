@@ -74,6 +74,7 @@ import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Is
 import { avecListe, porteDesTachesDeTickets, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
+import { deciderDuPush, ROUGES_DE_SUITE, statutsDesRuns } from "./statuts-ci/regles.ts";
 import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts";
 import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
@@ -310,7 +311,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { arrete: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -1220,6 +1221,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           return;
         }
         fait = { echec: refusee };
+      }
+      // Sa CI est rouge sur le même check trois runs de suite : il ne pousse plus,
+      // et sort de la cuisine. Le commentaire qui le dit est déjà sur l'issue (#3953).
+      if ("arrete" in fait) {
+        avertir(`brigade : #${issue} sur ${nom} — not pushed: ${fait.arrete}; the ticket is set aside`);
+        await github.labelliser(issue, [ECHECS_ATTEINTS]);
+        chrono.rater(issue);
+        await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
+        liberee = true;
+        return;
       }
       // La base de la station manque sur l'origine : c'est sa configuration, pas
       // le ticket. Il est rendu sans compter, et la station n'en prend plus (#2876).
@@ -3266,6 +3277,19 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // remarques de la relecture : ce n'est pas un essai (#2508).
       if (fin.turns <= TOURS_POUR_TRAVAILLER) return { court: true, subi: `the cook stopped after ${fin.turns} turn${fin.turns === 1 ? "" : "s"}, before it could work on the review's remarks, and added nothing since its last delivery` };
       return { echec: motifArretCook("the cook added nothing since its last delivery", arretDuCook()), fini: true };
+    }
+    // Trois runs rouges de suite sur le même check : pas de quatrième (#3953).
+    // Comptés depuis le dernier relancement du ticket. Une branche neuve n'a
+    // jamais été poussée : elle n'a aucun run, et rien ne se lit.
+    const lireLesRuns = options.github.ciDeLaBranche?.bind(options.github);
+    if (reprise && lireLesRuns !== undefined) {
+      const statuts = statutsDesRuns(lireLesRuns, brancheDuTicket, await relanceDe({ retraitsDeLabels: async (numero) => (await options.github.retraitsDeLabels?.(numero)) ?? [] }, ticket.number));
+      const decision = await deciderDuPush({ statuts, ticket: ticket.number, commenter: (issue, corps) => options.github.commenter(issue, corps) });
+      if (decision.pousser && decision.illisible !== undefined) avertir(`brigade : #${ticket.number} sur ${nom} — the CI runs of \`${branche}\` could not be read, the push goes ahead: ${decision.illisible}`);
+      if (!decision.pousser) {
+        if (decision.nonDit !== undefined) avertir(`brigade : #${ticket.number} sur ${nom} — the comment on the ${ROUGES_DE_SUITE} red runs could not be posted: ${decision.nonDit}`);
+        return { arrete: `its CI is red on \`${decision.check}\` ${ROUGES_DE_SUITE} runs in a row` };
+      }
     }
     try {
       depot.pousser(branche);

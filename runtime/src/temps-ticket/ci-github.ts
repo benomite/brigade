@@ -17,8 +17,9 @@
 // lequel il a été créé — ou au suivant, s'il l'a été pendant un cook.
 import type { Passage } from "./synthese.ts";
 
-type JobDeCi = { creeLe: string; commenceLe: string | null; finiLe: string | null };
-export type RunDeCi = { tete: string; creeLe: string; finiLe: string | null; jobs: JobDeCi[] };
+// `nom`, `conclusion` et `id` : ce que les règles des statuts de CI lisent (statuts-ci/regles.ts).
+type JobDeCi = { creeLe: string; commenceLe: string | null; finiLe: string | null; nom?: string; conclusion?: string | null };
+export type RunDeCi = { id?: number; tete: string; creeLe: string; finiLe: string | null; jobs: JobDeCi[] };
 
 type Intervalle = [number, number];
 
