@@ -4,11 +4,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { nommerLesProjets } from "../../../app/src/vue/autonomie/autonomie-github.ts";
-import { tenirLesChiffresDAutonomie } from "../../../app/src/vue/autonomie/chiffres.js";
 import { Faux, repos } from "../../../app/test/aides/fausse-vue.ts";
 import { chiffresDAutonomie } from "../../src/autonomie/chiffres/chiffres.ts";
 import { ECHANTILLON, MAINTENANT } from "./echantillon.ts";
 
+// The view is plain JavaScript with no declaration: its one call is typed here.
+type Bloc = { poser: () => unknown };
+const VUE = "../../../app/src/vue/autonomie/chiffres.js";
+const { tenirLesChiffresDAutonomie } = (await import(VUE)) as { tenirLesChiffresDAutonomie: (doc: unknown, options: { lire: (jours: number) => Promise<unknown>; ouvrir: () => void }) => Bloc };
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
 test("the autonomy block shows 'escaped bugs' and 'reverts' next to its figures, each with its tickets and shas", async () => {
