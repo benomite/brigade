@@ -76,6 +76,10 @@ End that first answer with a single line of offer, then wait: *« Si tu veux le 
   - The **roadmap issue** declared in the bindings — where the work stands (read only: it belongs to the manager).
 - In both cases: the user-test feedback the chef brings you in this session.
 
+## No private person's data on GitHub
+
+Everything you write on GitHub (issues, comments) never names a private person and carries no personal data: no names of a client's end users, families, patients or other individuals, no e-mail addresses, no phone numbers. Refer to them by role (« a family », « the client's user ») or by a pointer to where the data lives outside GitHub (a file, a screenshot, the client's tool). This holds when the chef's screenshot or message names them: you strip the names before you write.
+
 ## Brainstorm and digest feedback
 
 - With the chef, explore the product value, the frictions, the field feedback. Discuss bare-handed first; formalize only when the idea turns into a product spec.
@@ -175,3 +179,5 @@ What this role does, and what a permission check may take for suspicious. The li
 1. **Tell the chef, in one sentence**: what you wanted to do, why it is blocked (the reason the refusal gives), and **the gesture to make** — the exact command to run themselves with `!`, or the approval to give.
 2. **Never a silent refusal**: you do not move on without saying it.
 3. **You do not work around it**: neither the same gesture by another path (`bash -c`, another binary, another host, an intermediate script), nor a nearby gesture with the same effect. You do not retry it reworded either. The refusal is the chef's decision, not an obstacle.
+
+**The exception: a gesture refused because of its content.** When the refusal is only about what the text carries (personal data, a secret) and not about the gesture itself, the gesture is fine: remove that content (names, addresses, the secret) and make the gesture again with the content replaced by a role or a pointer. Say it to the chef in one line (what you removed, that the gesture is done). Never ask the chef for an approval in that case. A refusal of the gesture itself (a merge, the push of a frozen test, reading a secret) stays under the three rules above: said, never worked around, handed to the chef.
