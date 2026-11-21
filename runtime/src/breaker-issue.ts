@@ -304,9 +304,8 @@ export const lancerGhApi = (
   });
 
 // Le client de l'issue telle que la station la dépose : sur la brigade, jamais
-// dans le dépôt du projet servi (#3620), sous le `gh` de la machine — comme le
-// ticket du temps perdu (`routage-temps-perdu.ts`) : l'identité d'un projet n'a
-// pas la main sur la brigade.
+// dans le dépôt du projet servi (#3620), sous le `gh` de la machine :
+// l'identité d'un projet n'a pas la main sur la brigade.
 export const clientDuDisjoncteur = (options: Omit<OptionsClient, "depot" | "jeton" | "compte">): ClientDuDisjoncteur => clientGitHubDuDisjoncteur({ ...options, depot: DEPOT_BRIGADE });
 
 // Le client réel, par `gh api` : chaque appel prend le sien au compteur du

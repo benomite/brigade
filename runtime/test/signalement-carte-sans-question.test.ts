@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cartesDesIssues, type CarteDeTodoGitHub } from "../src/attente-github/attente-github.ts";
 import { stationGitHub } from "../src/brigade-github.ts";
-import type { GitHubDeLaBrigade } from "../src/routage-temps-perdu.ts";
+import type { GitHubDeLaBrigade } from "../src/alerte-cuisine/alerte-cuisine.ts";
 import { marqueDuSignalement, ouvrirSignalement, type GitHubDuSignalement } from "../src/signalement-carte-sans-question.ts";
 import { CALIBRE, FauxGitHub } from "./faux-github.ts";
 
