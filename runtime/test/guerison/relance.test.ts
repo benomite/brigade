@@ -121,6 +121,7 @@ test("un cook qui s'est arrêté : le ticket repart, et le commentaire dit pourq
   assert.match(d.commentairesDu().at(-1) ?? "", /token ceiling reached/);
 });
 
+// brigade:guard
 test("après deux relances pour la même raison, la troisième n'a pas lieu : le ticket reste de côté, et aucun ticket de boucle ne s'ouvre ni ne se commente (#3945)", async () => {
   const d = depot();
   d.ouvrirPR({ enConflit: true });
@@ -139,6 +140,7 @@ test("après deux relances pour la même raison, la troisième n'a pas lieu : le
   assert.ok(d.etiquettes.has(HORS_CUISINE));
 });
 
+// brigade:guard
 test("un cook arrêté, relancé deux fois : sa raison se lit sous les commentaires de relance, la troisième n'a pas lieu, et aucun ticket de boucle ne s'ouvre (#3945)", async () => {
   const d = depot();
   d.poster(TICKET, `${MARQUE_D_ECHEC} n=3 -->\nStation \`box/claude\`: the cook stopped without a delivery — token ceiling reached`);

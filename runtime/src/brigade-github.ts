@@ -37,7 +37,6 @@ import { enFluxClaude } from "./passe-moteur/flux.ts";
 import { lireBlocage, lireDejaServi, lireLivrable } from "./livrable.ts";
 import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-servi.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
-import { ajouterLaPreuve } from "./relance-blocage-preuve.ts";
 import { lireLeGeste, poserLaCarteDeLaStation } from "./carte-station/carte-station.ts";
 import { faireLesGestesGitHub, lireLesGestesDuManager } from "./geste-station/geste-station.ts";
 import { consigneDuBlocage, corpsDeLaCarte, corpsDeLaReponseAuBlocage, lireAvis, MARQUE_DE_DECISION, MARQUE_DE_REPONSE, REPONSES_AVANT_DECISION, sectionDeLaDecision, type ConsulterLeManager, type ReponseDuManager } from "./blocage-au-manager.ts";
@@ -53,7 +52,7 @@ import type { CheckDeLaBase } from "./checks-de-la-branche.ts";
 import { lireInstantane, REQUETE, type Instantane, type PRDeLInstantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { faitsDePrise, lacher, premierePrise, prendre, purger, stationsDesPrises } from "./github-etat/prise.ts";
+import { tenant as tenantDeLaPrise, faitsDePrise, lacher, premierePrise, prendre, purger, stationsDesPrises } from "./github-etat/prise.ts";
 import { stationsDuManager } from "./github-etat/prise-du-manager.ts";
 import { corpsDeLaQuestion, corpsDeLaReprise, questionEnSuspens, type QuestionEnSuspens } from "./manager/question-sans-manager.ts";
 import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validation-design/brief.ts";
@@ -88,12 +87,12 @@ import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renv
 import { DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
-import { BUDGET_DES_MUTATIONS_MS, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
+import { BUDGET_DES_MUTATIONS_MS, consigneDesMutations, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, RELANCES_DES_MUTATIONS, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
 import { demandesDuManagerDans } from "./passe-gel-tests/demande-du-manager.ts";
 import { fichiersGeles, testsGelesTouches } from "./passe-gel-tests/gel-tests.ts";
 import { classerPuisEcrire, doitMuter, LIGNE_SANS_MUTATION } from "./qualification/classes.ts";
 import { lireLeCritere, motifsDesCriteres } from "./pass/criteres-testables.ts";
-import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
+import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, TECH, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
@@ -104,19 +103,13 @@ import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/att
 import { commitsDuRunPrecedent, consigneDuRunPrecedent, estUneRepriseDeGarde, gardeLeTravail, marquerLeTravail } from "./cuisson/reprise/reprise.ts";
 import { reconcilierLesArretsExternes } from "./arrets-externes.ts";
 import { horsCuisine } from "./seuil-served-elsewhere.ts";
-import { alerteDuClone } from "./alerte-temps-cuisson/alerte.ts";
-import { attentesDeLaDecision, noterLesAttentes } from "./attente-des-tickets.ts";
-import { correctionDuTemps, ticketDeCorrection } from "./temps-max/correction.ts";
-import { DEPOT_BRIGADE, routerLeTempsPerdu, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
-import { preuveDeMesure } from "./preuve-mesure.ts";
-import { redeposerHorsCuisine } from "./refile-served-elsewhere.ts";
+import { type GitHubDeLaBrigade } from "./issue-de-la-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
 import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_CONFLIT, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { checksRepares, estUneReparation, PRIO_REPARATION } from "./reparation.ts";
-import { qualiteEnDefaut } from "./alerte-qualite.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
@@ -371,9 +364,6 @@ export type OptionsDeStation = {
   repertoireEtat?: string;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
-  // Combien de tickets une mesure demande avant d'ouvrir un ticket de qualité ou de temps perdu
-  // (#3012). Par défaut, 20.
-  echantillonMin?: number;
   // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
   // (#2456) ? Absent, oui : la CI de la PR est attendue, comme avant.
   ciDesPR?: (fichiers: string[]) => boolean;
@@ -381,9 +371,6 @@ export type OptionsDeStation = {
   // projet sans CI sur ses PR est jugé par elles. Absent, la station ne les
   // joue pas, et une autre le fera.
   gates?: (ticket: TicketLu, pr: PRAFusionner) => Promise<LieuDesGates>;
-  // Les tickets `served-elsewhere` du tour, que le redépôt reprend sans humain
-  // (`refile-served-elsewhere.ts`, #2786). Absent, rien ne les reprend.
-  redeposer?: (tickets: readonly TicketLu[]) => Promise<unknown>;
   // Les fichiers suivis de la base (#2826) : la zone d'un ticket sans zone
   // déclarée ne garde que les chemins de son corps qui nomment le dépôt
   // (`cheminsDuDepot`). Absents ou illisibles, elle les garde tous.
@@ -745,53 +732,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les gestes de guérison du projet (#2757), joués à chaque tour.
   // Une cause qui vit dans la station se dépose sur la brigade (#3098), comme le temps perdu.
   const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
-  // La médiane des tickets récents au-dessus du max du projet ouvre son ticket
-  // de correction, un seul à la fois (#2515) ; les temps se lisent dans le clone.
   const { clone } = options;
-  // Devant elle, et devant l'alerte de la cuisson, la porte de qualité (#2680),
-  // sur la qualité que les temps du clone portent (#2707) et son projet.json.
-  const corrigerLeTemps =
-    clone === undefined
-      ? null
-      : correctionDuTemps({
-          // Sur son propre dépôt, un ticket de mesure fermé hors de ses temps est daté par sa fermeture s'il a été mergé (#2979).
-          github: options.depotServi === undefined ? github : routerLeTempsPerdu({ github, servi: options.depotServi, dansLesTemps: (numero) => lesTempsDesTickets(clone).enregistrements.some((t) => t.ticket === numero), ...(options.githubDeLaBrigade === undefined ? {} : { brigade: options.githubDeLaBrigade }) }),
-          lire: () => {
-            const temps = lesTempsDesTickets(clone);
-            return { ...temps, qualites: qualitesDesTemps(temps.enregistrements), projet: projetDuClone(clone) };
-          },
-          // Sa preuve, lue sur le GitHub du projet mesuré et le journal de la station (#2839).
-          // Le ticket se dépose sur la brigade pour un projet servi (#2783) : la preuve y est copiée en entier (#2840).
-          preuve: preuveDeMesure({
-            github,
-            ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }),
-            ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined || options.depotServi.toLowerCase() === DEPOT_BRIGADE ? {} : { projetMesure: options.depotServi }),
-          }),
-          avertir,
-          ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
-          ...(options.echantillonMin === undefined ? {} : { echantillonMin: options.echantillonMin }),
-        });
-  // L'attente de 20 tickets après un ticket servi, que `status` dit (#2868) ; une écriture ratée est dite, et ne retient pas le tour.
-  const noterLAttente = (decision: Awaited<ReturnType<NonNullable<typeof corrigerLeTemps>>>) => {
-    if (options.repertoireEtat === undefined) return;
-    try {
-      noterLesAttentes(options.repertoireEtat, attentesDeLaDecision(decision));
-    } catch (echec) {
-      avertir(`brigade : the wait for new merged tickets could not be recorded for \`status\` on ${nom} — ${message(echec)}`);
-    }
-  };
-  // La médiane des rapports cuisson réelle / attendue au-dessus de
-  // `cookingOverEstimateMax` ouvre son ticket de correction, un seul (#2676).
-  // La porte de qualité la fait taire aussi : la qualité en défaut, c'est le
-  // ticket de qualité, que la correction du temps ouvre, qui part (#2680).
-  const alerteDeLaCuisson = clone === undefined ? null : alerteDuClone(clone, { github, avertir, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
-  const alerterLaCuisson =
-    alerteDeLaCuisson === null || clone === undefined
-      ? alerteDeLaCuisson
-      : async () => {
-          const { enregistrements } = lesTempsDesTickets(clone);
-          return qualiteEnDefaut(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(clone))) ? null : alerteDeLaCuisson();
-        };
   // Une PR ouverte dont le ticket est fermé, reste du circuit d'avant, ne sera
   // plus servie par personne : la station la ferme, d'un commentaire, et garde
   // sa branche (#3097). Le commentaire se lit avant d'être posé, pour qu'une
@@ -915,6 +856,20 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // qu'il devient : le même blocage technique ne boucle pas.
   // Les cartes de station que ce processus a posées : une par prérequis.
   const cartesDeLaStation = new Map<string, number>();
+  // Sa livraison ouverte, devenue caduque (réécrit, découpé), se ferme dans le même geste que lui : ouverte, elle tiendrait encore sa zone.
+  // Un échec ici ne défait pas le geste : il est dit.
+  const fermerLaLivraisonObsolete = async (numero: number, raison: string, geste: string): Promise<void> => {
+    try {
+      const livraison = (await github.prsOuvertes()).find((ouverte) => ouverte.number !== undefined && ouverte.branche.startsWith(`cook/${numero}-`));
+      if (livraison?.number !== undefined && github.fermerPR !== undefined) {
+        await github.commenter(livraison.number, `Ticket #${numero} ${raison}`);
+        await github.fermerPR(livraison.number);
+      }
+    } catch (erreur) {
+      avertir(`brigade : #${numero} sur ${nom} — ${geste} done, but its open delivery could not be closed: ${message(erreur)}`);
+    }
+  };
+
   // Après le dernier essai raté d'un ticket — `ECHECS_MAX` cooks sans
   // livraison, deux au même motif, ou ses renvois épuisés —, il va au manager,
   // pas au chef (#3513) : la station applique ici la reprise qu'il choisit —
@@ -923,7 +878,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // (les essais se recomptent d'après lui) ; ou ce que le chef lit quand le
   // ticket va à lui : déjà repris une fois, sans manager, ou une reprise qui ne
   // se lit ou ne s'applique pas — dite, jamais devinée.
-  const apresLesEssais = async (ticket: TicketLu, motifs: string[]): Promise<{ auChef: string } | { commentaire: string; question: boolean }> => {
+  const apresLesEssais = async (ticket: TicketLu, motifs: string[], { livraisonGardee = false }: { livraisonGardee?: boolean } = {}): Promise<{ auChef: string } | { commentaire: string; question: boolean }> => {
     const numero = ticket.number;
     let corps: string;
     let commentaires: { body: string; createdAt: string }[];
@@ -956,7 +911,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (reprise.choix === "reecrire" || reprise.choix === "decouper") {
         if (github.ecrireCorps === undefined) return { auChef: `The manager chose to ${reprise.choix === "reecrire" ? "rewrite" : "split"} it, but this station cannot write the ticket's body.` };
       }
-      if (reprise.choix === "reecrire") await github.ecrireCorps?.(numero, corpsReecrit(corps, reprise.corps));
+      if (reprise.choix === "reecrire") {
+        await github.ecrireCorps?.(numero, corpsReecrit(corps, reprise.corps));
+        // Réécrit, le ticket repart de son nouveau corps : sa livraison ouverte est caduque et ne tient plus sa zone (#3966).
+        // Sauf après les renvois de la pass : le cook reprend sous la même PR, qui reste sa livraison en pass.
+        if (!livraisonGardee) await fermerLaLivraisonObsolete(numero, "was rewritten by the manager: this delivery is obsolete and is closed, the ticket restarts from its new body.", "rewrite");
+      }
       if (reprise.choix === "recalibrer") {
         for (const label of ticket.labels.filter((l) => l.startsWith("model:") || l.startsWith("effort:"))) await github.delabelliser(numero, label);
         await github.labelliser(numero, [`model:${reprise.calibrage.model}`, `effort:${reprise.calibrage.effort}`]);
@@ -973,16 +933,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         }
         await github.ecrireCorps?.(numero, avecListe(corps, rendreListe(numero, lignes)));
         // Sa livraison ouverte se ferme avec le découpage : épique, elle tiendrait la zone de ses propres sous-tickets (#3932).
-        // Un échec ici ne défait pas le découpage : il est dit,.
-        try {
-          const livraison = (await github.prsOuvertes()).find((ouverte) => ouverte.number !== undefined && ouverte.branche.startsWith(`cook/${numero}-`));
-          if (livraison?.number !== undefined && github.fermerPR !== undefined) {
-            await github.commenter(livraison.number, `Ticket #${numero} was split into ${nouveaux.map((n) => `#${n}`).join(", ")}: this delivery is closed, its sub-tickets carry the work.`);
-            await github.fermerPR(livraison.number);
-          }
-        } catch (erreur) {
-          avertir(`brigade : #${numero} sur ${nom} — split done, but its open delivery could not be closed: ${message(erreur)}`);
-        }
+        await fermerLaLivraisonObsolete(numero, `was split into ${nouveaux.map((n) => `#${n}`).join(", ")}: this delivery is closed, its sub-tickets carry the work.`, "split");
       }
     } catch (erreur) {
       avertir(`brigade : #${numero} sur ${nom} — the manager's rework (${reprise.choix}) could not be applied: ${message(erreur)}`);
@@ -1340,18 +1291,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           liberee = true;
           return;
         }
-        // Une question que la preuve de la mesure répond n'est pas pour le
-        // chef : la station l'ajoute au ticket et le rend à un cook (#2841).
-        const relance = await ajouterLaPreuve(github, issue, fait.bloque);
-        if (relance?.relance === true) {
-          avertir(`brigade : #${issue} sur ${nom} — the cook blocked on a question the measurement evidence answers: the evidence is added to the ticket, which goes back to a cook`);
-          await github.commenter(issue, `Station \`${nom}\`: the cook stopped, blocked on a question the measurement evidence answers. The station added that evidence to the ticket's body; the ticket goes back to a cook, not to a human. This stop is not counted among the ticket's ${ECHECS_MAX} tries.`);
-          chrono.rater(issue);
-          await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
-          liberee = true;
-          return;
-        }
-        if (relance !== null) avertir(`brigade : #${issue} sur ${nom} — the blocked question is not re-queued with the evidence: ${relance.pourquoi}`);
         // Il bâtit sur le travail pas encore mergé d'un ticket ouvert : il
         // l'attend sur le rail, jamais dans la TODO du chef (#2968).
         const attendus = attendusDuBlocage(fait.bloque, issue, ouvertsDuTour);
@@ -1552,7 +1491,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     // Ses renvois épuisés, le ticket va au manager, pas au chef (#3513).
     const epuise = attenteDite === null && (deja >= RENVOIS_MAX || memeResultat) && genre !== "conflict";
-    const suite = epuise ? await apresLesEssais(ticket, [...renvois.map((c) => motifDe(c.body)), raison.split("\n")[0] ?? ""]) : null;
+    const suite = epuise ? await apresLesEssais(ticket, [...renvois.map((c) => motifDe(c.body)), raison.split("\n")[0] ?? ""], { livraisonGardee: true }) : null;
     const pourquoi = memeResultat ? `handed back twice in a row with the same result — ${(raison.split("\n")[0] ?? "").replace(/[.\s]+$/, "")}` : `after ${deja} sends back`;
     if (attenteDite !== null) {
       // En WAITING : le commentaire et le label sont posés.
@@ -1783,13 +1722,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // chef — se défait avant que le tour ne lise ses tickets (#3476).
     const degel = await degelerLesConflits(github, { station: nom, base, tickets: gueris, enVol: new Set(enVol.keys()), examinees: cartesExaminees, avertir });
     const lus = gueris.filter(({ number }) => !degel.fermes.has(number)).map((ticket) => (degel.rendus.has(ticket.number) ? { ...ticket, labels: ticket.labels.filter((label) => label !== A_LA_MAIN) } : ticket));
-    await options.redeposer?.(lus.filter((ticket) => estMisDeCote(ticket.labels))).catch((echec) => avertir(`brigade : a served-elsewhere lost-time ticket could not be re-filed on ${nom} — ${message(echec)}`));
-    // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
-    if (clone !== undefined && corrigerLeTemps !== null) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
-    await Promise.all([
-      corrigerLeTemps?.(lus.map((ticket) => ticket.number)).then((decision) => noterLAttente(decision)).catch((echec) => avertir(`brigade : the median lost time per ticket is over the threshold but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
-      alerterLaCuisson?.().catch((echec) => avertir(`brigade : the median cooking ratio is over cookingOverEstimateMax but its correction ticket could not be opened on ${nom} — ${message(echec)}`)),
-    ]);
+    // Les prises des enregistrements d'avant #2732, avant que le temps perdu ne les lise (#2870).
+    if (clone !== undefined) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
     // Une épique découpée, ou un besoin dont un ticket lancé est né : ni elle
     // ne se prend, ni elle ne compte parmi les tickets du tour (#2618, #3479).
     const tickets = horsDesBesoins(lus.filter((ticket) => !estMisDeCote(ticket.labels)));
@@ -2166,6 +2100,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (numero === undefined) return false;
       return porteDesTachesDeTickets(await github.corpsDuTicket(Number(numero)).catch(() => ""));
     };
+    // Un ticket qu'on ne cuit pas et qui n'est pas en pass ne tient aucune zone, sa PR ouverte pas plus : sinon des tickets en file se retiennent en cycle (#3979).
+    // Un ticket qu'on ne lit pas, ou dont la prise ne se lit pas, la tient encore : dans le doute, la zone reste tenue.
+    const enFileCeTour = async (branche: string): Promise<boolean> => {
+      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
+      const lu = numero === undefined ? undefined : tickets.find((autre) => autre.number === Number(numero));
+      if (lu === undefined || lu.labels.includes(LABEL_IN_PASS) || enVol.has(lu.number) || prisCeTour.has(lu.number)) return false;
+      // Sa livraison attend le chef : elle tient sa zone tant qu'il ne l'a pas vue (#2977).
+      if (lu.labels.includes(A_LA_MAIN)) return false;
+      if (!lu.labels.includes(LABEL_TAKEN)) return true;
+      return !(await github.commentaires(lu.number).then((commentaires) => tenantDeLaPrise(commentaires, []) !== null).catch(() => true));
+    };
     const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
@@ -2177,6 +2122,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (ouverte.branche === propre || !ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier)))) continue;
         if (pourLeChefCeTour(ouverte.branche)) continue;
         if (misDeCoteCeTour(ouverte.branche)) continue;
+        if (await enFileCeTour(ouverte.branche)) continue;
         if (await ticketFerme(ouverte.branche)) continue;
         if (await estUneEpique(ouverte.branche)) continue;
         pr = ouverte;
@@ -2187,6 +2133,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || autre.labels.includes(LABEL_IN_PASS) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
         if (retenuesDuTour.has(autre.number)) continue;
+        // Un ticket qu'aucun cook ne cuit ici, qui n'est pas en pass et que nulle station ne tient — `taken` sans prise lisible — est en file : il ne tient aucune zone (#3966).
+        // Une prise qui ne se lit pas le tient encore : dans le doute, la zone reste tenue.
+        if (!autre.labels.includes(LABEL_IN_PASS) && !enVol.has(autre.number) && !prisCeTour.has(autre.number)) {
+          const prise = await github.commentaires(autre.number).then((commentaires) => tenantDeLaPrise(commentaires, []) !== null).catch(() => true);
+          if (!prise) continue;
+        }
+        enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
+      }
+      // Un ticket plus prioritaire qui attend cette zone la garde, même retenu lui-même :
+      // à la place libérée, c'est lui qui la prend, pas un ticket de rang plus bas (#3974).
+      // Un ticket qui ne partirait pas ce tour (capacité ou calibrage qui manque, ticket attendu, arrêt subi) ne la garde pas.
+      for (const autre of libres) {
+        if (autre.number === ticket.number || rangDePriorite(autre) >= rangDePriorite(ticket) || enVolDuTour.some((vol) => vol.ticket === autre.number)) continue;
+        if (besoinsDuTicket(autre.labels).some((besoin) => !capacites.has(besoin)) || !complet(calibrageDesLabels(autre.labels))) continue;
+        if ((await attenduMisDeCote(autre).catch(() => ({ attendu: autre.number, raison: "" }))) !== null) continue;
+        if ((await defaireLesBoucles(github, autre.number, lus).catch(() => [autre.number])).length > 0) continue;
+        if ((await enAttente(autre).catch(() => 0)) !== null) continue;
         enVolDuTour.push({ ticket: autre.number, zone: await zoneDuTicket(autre.number).catch(() => []) });
       }
       const attente = attenteDeZone(ticket.number, zone, enVolDuTour);
@@ -3129,7 +3092,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (setup.pret) envDuCook = setup.env;
       else avertir(`brigade : #${ticket.number} sur ${nom} — \`${SCRIPT_SETUP}\` failed (${setup.depasse ? `stopped after ${Math.round(options.setup.delaiMs / 1000)} s` : `exit code ${setup.code ?? "none"}`}): the cook starts in its worktree as is`);
     }
-    const flux = join(options.flux, `${run}.flux.jsonl`);
+    let flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
@@ -3140,9 +3103,31 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { subi: surLeMoteur.refus };
     }
     const lancement = envelopper(cloison, { commande: surLeMoteur.commande, args: surLeMoteur.args }, { cwd: worktree, depot: "ecriture" });
-    const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
-    const fin = await lance.fin;
-    const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
+    let lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
+    let fin = await lance.fin;
+    let conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
+    // Une livraison dont une mutation survit revient à son cook avant sa PR
+    // (#3970), tant qu'une survit et au plus RELANCES_DES_MUTATIONS fois : la
+    // livraison du cook relancé est revérifiée à son tour (#3976). S'il ne finit
+    // pas, la livraison part comme le dernier cook fini l'a laissée.
+    const livre = conclusion === "done" && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null && depot.commits(branche) > 0 && (avant === null || depot.tete?.(branche) !== avant);
+    let survivantes = livre ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
+    for (let relance = 1; relance <= RELANCES_DES_MUTATIONS; relance += 1) {
+      if (survivantes.length === 0) break;
+      avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before its PR: ${survivantes.length} surviving, its cook gets them back`);
+      const fini = { lance, fin, flux };
+      flux = join(options.flux, `${run}-mutations-${relance}.flux.jsonl`);
+      lance = lancer({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
+      fin = await lance.fin;
+      conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
+      if (conclusion !== "done") {
+        avertir(`brigade : #${ticket.number} sur ${nom} — the cook relaunched on its surviving mutations did not finish (${conclusion}): the delivery goes on as it was`);
+        ({ lance, fin, flux } = fini);
+        conclusion = "done";
+        break;
+      }
+      survivantes = relance < RELANCES_DES_MUTATIONS && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
+    }
     if (conclusion !== "done") {
       // Tué par la garde d'inactivité, le cook laisse son travail sur sa
       // branche pour le run suivant (#3649). Sans rien laissé, ou s'il ne se
@@ -3377,6 +3362,36 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return mutations;
   };
 
+  // Les fichiers de test gelés de la branche du worktree, null s'ils ne se lisent pas.
+  const lireLesGeles = (ticket: TicketLu, worktree: string): string[] | null => {
+    try {
+      return fichiersGeles(worktree, `origin/${base}`);
+    } catch (erreur) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be counted, the mutants run anyway: ${message(erreur)}`);
+      return null;
+    }
+  };
+
+  // Les mutations qui survivent à la livraison d'un cook, vues avant sa PR
+  // (#3970) : la même vérification que la pass, jouée dans son worktree dès
+  // qu'il a fini. Une ligne qui survit lui revient tout de suite, au lieu d'un
+  // renvoi après la pass, une claim plus tard. Rien de joué — pas de checkout
+  // jetable, pas de test gelé, une panne — ne retient la livraison : la pass
+  // la vérifie de toute façon. Un ticket `tech` n'a aucun test prouvé contre
+  // qui jouer un mutant : rien ne s'y joue.
+  const survivantesAvantLaPR = async (ticket: TicketLu, worktree: string, branche: string): Promise<string[]> => {
+    if (depot.essayer === undefined || ticket.labels.includes(TECH)) return [];
+    const gelés = lireLesGeles(ticket, worktree);
+    if (gelés !== null && !doitMuter(gelés.length)) return [];
+    try {
+      const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
+      return motifDesMutations(await muterLaLivraison(ticket, worktree, diff, await prouverLaLivraison(ticket, worktree, diff.fichiers)));
+    } catch (erreur) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before the PR could not run, the pass runs it: ${message(erreur)}`);
+      return [];
+    }
+  };
+
   const juger: Juger = async (ticket, pr) => {
     const branche = brancheDuTicket(ticket.number);
     const run = `review-${ticket.number}-github`;
@@ -3412,12 +3427,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // Les fichiers gelés servent aussi aux critères testables (#3741) ; illisibles, aucun n'y compte.
       const gelés = (() => {
         if (depot.essayer === undefined) return null;
-        try {
-          return fichiersGeles(worktree, `origin/${base}`);
-        } catch (erreur) {
-          avertir(`brigade : #${ticket.number} sur ${nom} — the frozen acceptance tests could not be counted, the mutants run anyway: ${message(erreur)}`);
-          return null;
-        }
+        return lireLesGeles(ticket, worktree);
       })();
       const avecTestsGeles = gelés === null || doitMuter(gelés.length);
       if (!avecTestsGeles) avertir(`brigade : #${ticket.number} sur ${nom} — ${LIGNE_SANS_MUTATION}`);
@@ -3429,7 +3439,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       ]);
       const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value.preuve : { injouable: message(prouvee.reason) };
       const mutations: Mutations | null = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
-      const verts = vertsSurLaBase(preuve);
+      // Un test gelé déjà vert sur la base ne renvoie jamais la livraison : le cook ne peut pas le changer (#3921).
+      const verts = vertsSurLaBase(preuve).filter(({ fichier }) => !(gelés ?? []).includes(fichier));
       const lue0 = relue.status === "fulfilled" ? relue.value : null;
       // Un critère testable sans test gelé, ou non testable sans sa preuve, renvoie la livraison (#3741).
       const renvoi = [...motifDuRenvoi(verts, base), ...motifsDesCriteres(criteres.map(lireLeCritere), lue0?.criteria ?? null, preuve, gelés ?? []), ...(mutations === null ? [] : motifDesMutations(mutations))];
@@ -3637,14 +3648,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  // Le ticket de temps perdu resté hors cuisine est redéposé sur brigade (#2786) :
-  // sa perte est réelle tant que les temps du clone sont au-dessus du seuil.
-  const { clone, githubDeLaBrigade } = options;
-  const perteReelle = () => {
-    const { enregistrements, lostTimeMaxMin } = lesTempsDesTickets(clone);
-    return ticketDeCorrection(enregistrements, lostTimeMaxMin) !== null;
-  };
-  const redeposer = redeposerHorsCuisine({ depot: depotGitHub, github, ...(githubDeLaBrigade === undefined ? {} : { brigade: () => githubDeLaBrigade }), ...(clone === undefined ? {} : { perteReelle }) });
   // L'étape « tests written » (#3725) : le manager écrit les tests d'acceptation
   // du ticket dans le worktree de sa branche neuve, comme un cook — il écrit,
   // gardé dans son worktree —, et la station les commite en premier commit.
@@ -3722,7 +3725,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     await depot.elaguer?.(branche);
     return true;
   };
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), redeposer, jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   station.lacune = options.lacune;
   const quitter = station.quitter;

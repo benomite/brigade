@@ -14,7 +14,7 @@ import { brancherJeton, configJeton, direJeton, masquerLaConsole } from "./jeton
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
-import { DEPOT_BRIGADE } from "./routage-temps-perdu.ts";
+import { DEPOT_BRIGADE } from "./issue-de-la-cuisine.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";

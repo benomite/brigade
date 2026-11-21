@@ -48,8 +48,6 @@ export type UsageDUnVoisin = {
     merged: number;
     firstTry: number;
     share: number | null;
-    thresholdPercent: number;
-    below: boolean;
     tickets: Array<{ project: string; ticket: number; attempts: number; evidence: PreuveDeLaBox[] }>;
     crossings: Array<{ project: string; measure: string; observed: number; limit: number; at: string; evidence: PreuveDeLaBox[] }>;
   };
@@ -176,8 +174,6 @@ function usageDUnVoisin({ project, drift, passRejections, guardrailStops, setAsi
       merged: drift.merged,
       firstTry: drift.firstTry,
       share: drift.share,
-      thresholdPercent: drift.thresholdPercent,
-      below: drift.below,
       tickets: drift.tickets.map(({ ticket, attempts, evidence }) => ({ project, ticket, attempts, evidence: lignesDe(project, evidence) })),
       crossings: drift.crossings.map(({ measure, observed, limit, at, evidence }) => ({ project, measure, observed, limit, at, evidence: lignesDe(project, evidence) })),
     },

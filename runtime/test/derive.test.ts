@@ -50,35 +50,35 @@ function cuisine(t: TestContext, repertoire = repertoireTemporaire(t)) {
 test("un seuil non déclaré vaut null, et seule la durée des gates a un défaut", () => {
   assert.deepEqual(lireSeuils({}), { ...SANS_SEUIL, gatesSeconds: SEUIL_DUREE_GATES_PAR_DEFAUT });
   assert.deepEqual(
-    lireSeuils({ BRIGADE_DRIFT_TESTS: "500", BRIGADE_DRIFT_TESTS_SECONDS: "7.5", BRIGADE_DRIFT_GATES_SECONDS: "60", BRIGADE_DRIFT_CONTEXT_KB: "8", BRIGADE_DRIFT_REPO_MB: "2.5", BRIGADE_DRIFT_MERGES: "80", BRIGADE_DRIFT_GROWTH_PERCENT: "30", BRIGADE_DRIFT_TICKET_TOKENS: "2000000", BRIGADE_DRIFT_LOST_TOKENS: "500000", BRIGADE_DRIFT_FIRST_TRY_PERCENT: "60", BRIGADE_DRIFT_FIRST_TRY_WINDOW: "8" }),
-    { tests: 500, testsSeconds: 7.5, gatesSeconds: 60, contextKb: 8, repoMb: 2.5, merges: 80, growthPercent: 30, ticketTokens: 2_000_000, lostTokens: 500_000, firstTryPercent: 60, firstTryWindow: 8 },
+    lireSeuils({ BRIGADE_DRIFT_GATES_SECONDS: "60", BRIGADE_DRIFT_TICKET_TOKENS: "2000000", BRIGADE_DRIFT_LOST_TOKENS: "500000" }),
+    { gatesSeconds: 60, ticketTokens: 2_000_000, lostTokens: 500_000 },
   );
 });
 
 test("un seuil mal écrit est un refus de démarrer, pas un seuil désarmé", () => {
-  for (const env of [{ BRIGADE_DRIFT_TESTS: "beaucoup" }, { BRIGADE_DRIFT_TESTS: "12.5" }, { BRIGADE_DRIFT_MERGES: "0" }, { BRIGADE_DRIFT_GROWTH_PERCENT: "-5" }, { BRIGADE_DRIFT_TICKET_TOKENS: "2,5" }, { BRIGADE_DRIFT_LOST_TOKENS: "0" }]) {
+  for (const env of [{ BRIGADE_DRIFT_GATES_SECONDS: "beaucoup" }, { BRIGADE_DRIFT_TICKET_TOKENS: "12.5" }, { BRIGADE_DRIFT_GATES_SECONDS: "-5" }, { BRIGADE_DRIFT_TICKET_TOKENS: "2,5" }, { BRIGADE_DRIFT_LOST_TOKENS: "0" }]) {
     assert.throws(() => lireSeuils(env), ConfigInvalide, JSON.stringify(env));
   }
 });
 
 test("les seuils entrent au journal quand le chef en déclare, et n'y sont réécrits que s'ils changent", (t) => {
   const { brancher, derive } = cuisine(t);
-  const seuils = { ...SANS_SEUIL, tests: 500 };
+  const seuils = { ...SANS_SEUIL, gatesSeconds: 500 };
 
   brancher(SANS_SEUIL);
   brancher(seuils);
   brancher(seuils);
-  brancher({ ...seuils, merges: 80 });
+  brancher({ ...seuils, ticketTokens: 80 });
 
   assert.deepEqual(derive(), [
     ["drift.configured", { limits: seuils }],
-    ["drift.configured", { limits: { ...seuils, merges: 80 } }],
+    ["drift.configured", { limits: { ...seuils, ticketTokens: 80 } }],
   ]);
 });
 
 test("un merge au journal ne fait plus rien franchir : le journal ne voit plus un merge depuis #2061, la passe du closer relève la dérive sur le clone (#2707)", (t) => {
   const { brancher, merger, derive, avertissements } = cuisine(t);
-  const seuils = { ...SANS_SEUIL, tests: 500 };
+  const seuils = { ...SANS_SEUIL, gatesSeconds: 500 };
   brancher(seuils);
 
   merger(17, 622);
@@ -89,12 +89,12 @@ test("un merge au journal ne fait plus rien franchir : le journal ne voit plus u
 
 test("des seuils changés sans redémarrer entrent au journal au réveil suivant", (t) => {
   const { brancher, reveiller, derive } = cuisine(t);
-  let seuils: Seuils = { ...SANS_SEUIL, tests: 500 };
+  let seuils: Seuils = { ...SANS_SEUIL, gatesSeconds: 500 };
   brancher(() => seuils);
-  seuils = { ...seuils, merges: 80 };
+  seuils = { ...seuils, ticketTokens: 80 };
   reveiller();
   assert.deepEqual(derive(), [
-    ["drift.configured", { limits: { ...SANS_SEUIL, tests: 500 } }],
-    ["drift.configured", { limits: { ...SANS_SEUIL, tests: 500, merges: 80 } }],
+    ["drift.configured", { limits: { ...SANS_SEUIL, gatesSeconds: 500 } }],
+    ["drift.configured", { limits: { ...SANS_SEUIL, gatesSeconds: 500, ticketTokens: 80 } }],
   ]);
 });

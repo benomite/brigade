@@ -223,7 +223,7 @@ test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucu
   sansMotFrancais(vide);
   // Les entrées hors ticket se nomment en anglais.
   const noms = decrireAttentes(TOUTES, () => "3 d").flatMap((ligne) => /^ {2}(\S+) {2}for /.exec(ligne)?.slice(1) ?? []);
-  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker", "pause", "rename", "kitchen"]);
+  assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker", "pause", "rename"]);
 });
 
 // Ce qu'une ligne du bloc ne doit jamais porter : une commande de la box

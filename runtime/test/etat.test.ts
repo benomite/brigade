@@ -536,49 +536,12 @@ test("les seuils franchis que la passe du closer a relevés sont signalés dans 
   const { journal, noter } = cuisine(t);
   const maintenant = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
   const bloc = (derive?: { measure: string; observed: number; limit: number }[]) => decrireEtat(lireEtat(journal, maintenant, derive === undefined ? {} : { derive }), maintenant).filter((ligne) => ligne.startsWith("drift"));
-  noter({ type: "drift.configured", payload: { limits: { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: 2, growthPercent: null } } });
+  noter({ type: "drift.configured", payload: { limits: { gatesSeconds: 100 } } });
   // Le journal ne voit plus un merge depuis #2061 : ceux qu'il porterait ne font rien franchir (#2707).
   for (const ticket of [17, 18, 19]) noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket, "pass");
   assert.deepEqual(bloc(), []);
 
-  assert.deepEqual(bloc([{ measure: "merges", observed: 3, limit: 2 }]), ["drift      3 merges since the last closing for a threshold of 2 — `brigade <projet> measures`"]);
-});
-
-test("la part de tickets livrés du premier coup sous son seuil est une ligne de dérive dans l'état ; au seuil, avec moins de tickets que la fenêtre, rien ; le seuil et la fenêtre se règlent par les seuils de la dérive", (t) => {
-  const { journal, noter } = cuisine(t);
-  // Les temps du clone, où la station écrit au merge ce que GitHub dit de chaque ticket (#2707).
-  const temps: { ticket: number; claimedAt: string; mergedAt: string; qualite: { renvois: string[]; cooksRates: number } }[] = [];
-  const maintenant = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
-  const bloc = () => decrireEtat(lireEtat(journal, maintenant, { temps }), maintenant).filter((ligne) => ligne.startsWith("drift"));
-  const LIGNE = (part: string, seuil: number) => `drift      ${part} tickets delivered on the first try (threshold ${seuil}%) — \`brigade <projet> measures\``;
-  // Un ticket mergé après `essais` livraisons : toutes renvoyées au cook sauf la dernière.
-  const livrer = (ticket: number, essais: number) =>
-    temps.push({ ticket, claimedAt: `${JOUR_HORLOGE}T09:00:00.000Z`, mergedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, qualite: { renvois: Array.from({ length: essais - 1 }, () => "red CI"), cooksRates: 0 } });
-  const limites = (reglage: { firstTryPercent?: number | null; firstTryWindow?: number | null }) =>
-    noter({ type: "drift.configured", payload: { limits: { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ...reglage } } });
-
-  // Neuf tickets servis, tous renvoyés : la fenêtre n'est pas pleine.
-  for (let ticket = 1; ticket <= 9; ticket++) livrer(ticket, 2);
-  assert.deepEqual(bloc(), []);
-
-  // Le dixième remplit la fenêtre : 0 du premier coup sur 10.
-  livrer(10, 2);
-  assert.deepEqual(bloc(), [LIGNE("0/10", 50)]);
-
-  // Un seuil réglé plus bas (et la fenêtre) change le verdict : 0 < 0 est faux.
-  limites({ firstTryPercent: 0.5, firstTryWindow: 10 });
-  assert.deepEqual(bloc(), [LIGNE("0/10", 0.5)]);
-  limites({ firstTryWindow: 11 });
-  assert.deepEqual(bloc(), []);
-
-  // Quatre des dix derniers du premier coup : sous le seuil.
-  limites({});
-  for (let ticket = 11; ticket <= 14; ticket++) livrer(ticket, 1);
-  assert.deepEqual(bloc(), [LIGNE("4/10", 50)]);
-
-  // Cinq sur dix : à égalité avec le seuil, rien.
-  livrer(15, 1);
-  assert.deepEqual(bloc(), []);
+  assert.deepEqual(bloc([{ measure: "gates_s", observed: 150, limit: 100 }]), ["drift      gates 150 s for a threshold of 100 s — `brigade <projet> measures`"]);
 });
 
 test("`facts` dit, par ticket du rail, la station qui le tient ou l'a cuit et les capacités qu'il demande ; la station suit la relance", (t) => {

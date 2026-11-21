@@ -11,7 +11,6 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { direLaQualite, mesurerQualite } from "../src/mesure-qualite.ts";
 import { causeDuRenvoi, causesDesTemps, parcoursDesTemps, qualiteDeLIssue, qualitesDesTemps, RAISONS_DE_RENVOI } from "../src/qualite-github.ts";
 import { causeDuCheck, marqueDeCause, PRIO_REPARATION } from "../src/reparation.ts";
-import { derivePremierCoup } from "../src/renvois.ts";
 import { direLesReparations } from "../src/status-reparations.ts";
 import { aArreter, repertoireTemporaire } from "./outils.ts";
 
@@ -71,11 +70,6 @@ test("only the records that carry a well-formed quality are known; the parcours 
   ]);
 });
 
-test("the first-try drift of `status` reads the same records: four of ten on the first try is under 50%", () => {
-  const temps = Array.from({ length: 10 }, (_, i) => ({ ticket: i + 1, mergedAt: "2026-11-07T10:00:00Z", qualite: { renvois: i < 6 ? ["red CI"] : [], cooksRates: 0 } }));
-  assert.deepEqual(derivePremierCoup(parcoursDesTemps(temps), {}), { premiers: 4, retenus: 10, fenetre: 10, seuil: 50 });
-});
-
 // Le rejeu (#2707) : les 74 PR mergées sur brigade dans les 24 heures avant
 // 2026-11-06T17:03:46Z — la fenêtre des mesures de temps, au dernier merge —,
 // dont 7 réparations de `main`, telles que l'historique de `main` les donne
@@ -127,16 +121,4 @@ test("replayed on brigade's merges of 2026-11-05 to 07, the quality figures are 
   const { rates, lignes } = causesDesTemps(temps);
   assert.equal(rates, 6);
   assert.deepEqual(Object.fromEntries(lignes.filter(({ essais }) => essais > 0).map(({ cause, essais }) => [cause, essais])), { relecture: 2, "gates-types": 1, conflit: 1, autre: 2 });
-});
-
-test("replayed, `status`'s state reads the first-try drift from the clone's times it is given, never from the log", (t) => {
-  // Le journal se ferme avant que son répertoire s'efface : Windows refuse d'effacer une base ouverte.
-  const journal = ouvrirJournal(repertoireTemporaire(t));
-  aArreter(t, () => journal.fermer());
-  // Les dix premiers tickets du rejeu, dont quatre marqués, sous un seuil du premier coup à 70 %.
-  const temps = rejouer().slice(0, 10);
-  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.configured", payload: { limits: { ...SANS_SEUIL, firstTryPercent: 70 } } });
-  const maintenant = new Date("2026-11-07T00:00:00Z");
-  assert.equal(lireEtat(journal, maintenant).derivePremierCoup, null);
-  assert.deepEqual(lireEtat(journal, maintenant, { temps }).derivePremierCoup, { premiers: 6, retenus: 10, fenetre: 10, seuil: 70 });
 });

@@ -11,7 +11,7 @@ import { lireInstantane } from "../../src/github-etat/instantane.ts";
 import type { Commentaire, GitHub } from "../../src/github.ts";
 import { ouvrirLimite } from "../../src/limite-github.ts";
 import { issueDuManager } from "../../src/projections/manager.ts";
-import { DEPOT_BRIGADE, marqueDuProjet } from "../../src/routage-temps-perdu.ts";
+import { DEPOT_BRIGADE, marqueDuProjet } from "../../src/issue-de-la-cuisine.ts";
 import { chef, CALIBRE, cuisine, issue } from "../aides/cuisine.ts";
 import { FauxGitHub } from "../faux-github.ts";
 import { fauxGh, jusqua } from "../outils.ts";

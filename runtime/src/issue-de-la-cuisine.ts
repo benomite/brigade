@@ -12,13 +12,24 @@
 // son label `brigade:breaker-open`, ou, recopiée par un humain sans son corps,
 // au titre que la station lui donne. Elle se ferme quand la cuisine reprend.
 //
-// Ce module ne lit rien et n'importe rien : la lecture des tickets
+// Ce module ne lit rien et n'importe que des types : la lecture des tickets
 // (`github.ts`) s'en sert.
+import type { GitHub, IssueOuverte } from "./github.ts";
 
 export type AlerteDeLaCuisine = "disjoncteur";
 
 // Le dépôt de la brigade : là où vit le code de la cuisine, et où ses issues se déposent.
 export const DEPOT_BRIGADE = "benomite/brigade";
+
+// Le GitHub de la brigade tel que la station le lit et l'écrit : ses issues fermées
+// disent quand (`closedAt`), si GitHub le dit.
+export type GitHubDeLaBrigade = {
+  issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state" | "createdAt" | "author">> & { closedAt?: string })[]>;
+  creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
+  fermerIssue(numero: number): Promise<void>;
+  ecrireCorps?(numero: number, corps: string): Promise<void>;
+  commenter?(numero: number, corps: string): Promise<void>;
+} & Partial<Pick<GitHub, "droits">>;
 
 // La marque cachée qui nomme le projet servi (`<owner>/<repo>`) dans ce que la station dépose sur la brigade.
 export const marqueDuProjet = (servi: string) => `<!-- brigade:projet=${servi} -->`;

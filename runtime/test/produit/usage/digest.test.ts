@@ -99,7 +99,6 @@ const lire = (c: Cuisine, periode = PERIODE, projet = PROJET, depot = DEPOT) => 
 const vide = (digest: DigestDUsage) => ({
   merged: digest.drift.merged,
   share: digest.drift.share,
-  below: digest.drift.below,
   tickets: digest.drift.tickets,
   crossings: digest.drift.crossings,
   passRejections: digest.passRejections,
@@ -107,7 +106,7 @@ const vide = (digest: DigestDUsage) => ({
   setAside: digest.setAside,
   repeatedFailures: digest.repeatedFailures,
 });
-const RIEN = { merged: 0, share: null, below: false, tickets: [], crossings: [], passRejections: [], guardrailStops: [], setAside: [], repeatedFailures: [] };
+const RIEN = { merged: 0, share: null, tickets: [], crossings: [], passRejections: [], guardrailStops: [], setAside: [], repeatedFailures: [] };
 
 // Chaque élément d'une rubrique, quelle qu'elle soit, porte au moins une preuve.
 function preuves(digest: DigestDUsage): Preuve[][] {
@@ -148,12 +147,11 @@ test("une période sans fait : chaque rubrique est vide, et la dérive ne dit ri
   journalComplet(c);
   const digest = lire(c, { from: "2026-10-09T00:00:00.000Z", to: "2026-10-10T00:00:00.000Z" });
   assert.deepEqual(vide(digest), RIEN);
-  assert.deepEqual({ project: digest.project, repository: digest.repository, period: digest.period, firstTry: digest.drift.firstTry, thresholdPercent: digest.drift.thresholdPercent }, {
+  assert.deepEqual({ project: digest.project, repository: digest.repository, period: digest.period, firstTry: digest.drift.firstTry }, {
     project: PROJET,
     repository: DEPOT,
     period: { from: "2026-10-09T00:00:00.000Z", to: "2026-10-10T00:00:00.000Z" },
     firstTry: 0,
-    thresholdPercent: 50,
   });
 });
 
@@ -164,10 +162,10 @@ test("une période qui porte chaque rubrique : la dérive, les refus de la pass,
   const issue = (ticket: number) => ({ kind: "issue", ticket, url: `https://github.com/${DEPOT}/issues/${ticket}` });
   const pr = (ticket: number) => ({ kind: "pr", url: `https://github.com/${DEPOT}/pull/${ticket + 1000}` });
 
-  // La dérive : deux mergés, un du premier coup — au seuil de 50 %, pas en dessous.
+  // La dérive : deux mergés, un du premier coup.
   assert.deepEqual(
-    { merged: digest.drift.merged, firstTry: digest.drift.firstTry, share: digest.drift.share, below: digest.drift.below },
-    { merged: 2, firstTry: 1, share: 0.5, below: false },
+    { merged: digest.drift.merged, firstTry: digest.drift.firstTry, share: digest.drift.share },
+    { merged: 2, firstTry: 1, share: 0.5 },
   );
   assert.deepEqual(
     digest.drift.tickets.map(({ ticket, attempts, firstTry, evidence }) => ({ ticket, attempts, firstTry, cites: evidence.map((p) => (p.kind === "log" ? p.type : p.url)) })),

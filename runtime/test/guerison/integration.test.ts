@@ -9,7 +9,7 @@ import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { DELAI_CLAIM_PERIME_MS } from "../../src/guerison/claim-perime.ts";
 import { estMisDeCote, HORS_CUISINE } from "../../src/github.ts";
-import type { GitHubDeLaBrigade } from "../../src/routage-temps-perdu.ts";
+import type { GitHubDeLaBrigade } from "../../src/issue-de-la-cuisine.ts";
 import type { RetenueDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -129,6 +129,7 @@ test("one pass of the kitchen heals two projects: a conflicting set-aside ticket
   assert.ok(commentairesDe(projets[1] as Projet, CONFLIT).some((c) => c.includes("rebase the branch on `develop`")));
 });
 
+// brigade:guard
 test("after two relaunches for the same reason, no third happens and no loop ticket is filed (#3945)", async () => {
   // Le cook relancé s'arrête sans livrer : la station remet le ticket de côté,
   // et sa PR est toujours en conflit.
