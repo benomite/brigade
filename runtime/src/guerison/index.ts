@@ -32,7 +32,7 @@ import { dernierVerdict } from "../github-etat/fusion.ts";
 import { lireTenant, type RetraitDeLabel } from "../github-etat/prise.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { ouvrirClaimPerime } from "./claim-perime.ts";
-import { DEPOT_BRIGADE, marqueDuProjet, type GitHubDeLaBrigade } from "../routage-temps-perdu.ts";
+import { DEPOT_BRIGADE, marqueDuProjet, type GitHubDeLaBrigade } from "../alerte-cuisine/alerte-cuisine.ts";
 import { signalerInertie, type TenantDeZone } from "./cuisine-inerte.ts";
 import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";

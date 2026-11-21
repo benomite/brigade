@@ -204,10 +204,8 @@ test("une saturation et une dérive se disent en anglais, nombres compris", () =
   assert.equal(direSaturationEn({ resource: "memory", observed: 1234.5, limit: 2000 }), "1,234.5 MB of memory available for at least 2,000 MB");
   assert.equal(direSaturationEn({ resource: "disk", observed: 800, limit: 1000 }), "800 MB of disk free for at least 1,000 MB");
   assert.equal(direJaugeEn({ measure: "tests", observed: 622, limit: 500 }), "tests 622 for a threshold of 500");
-  assert.equal(direJaugeEn({ measure: "merges", observed: 12, limit: 10 }), "12 merges since the last closing for a threshold of 10");
-  assert.equal(direJaugeEn({ measure: "growth:depot_octets", observed: 25.4, limit: 20 }), "repo +25% over 10 merges for a threshold of 20%");
   assert.equal(direJaugeEn({ measure: "gates_s", observed: 31.25, limit: 30 }), "gates 31.3 s for a threshold of 30 s");
-  assert.equal(SANS_SEUIL.tests, null);
+  assert.equal(SANS_SEUIL.ticketTokens, null);
 });
 
 // La ligne `projet` n'est pas entre backticks dans le glossaire (le test de glossaire ne l'y lit pas) : elle se

@@ -18,8 +18,7 @@
 //
 // L'inertie dit comment la cuisine elle-même tourne, quelle que soit sa cause :
 // elle ne se répare pas dans le dépôt du projet servi, où le code de la cuisine
-// n'est pas. Le bug se dépose sur la brigade, comme le ticket du temps perdu
-// (`../routage-temps-perdu.ts`, #2783), et ne va jamais à un cook du projet
+// n'est pas. Le bug se dépose sur la brigade (#2783), et ne va jamais à un cook du projet
 // (#3098, #3620) ; sans la brigade, il ne se dépose nulle part. La brigade qui
 // se sert elle-même le garde chez elle, dans le dépôt du projet. Le 15 novembre
 // 2026, un `empty-rail` déposé sur secondes y a été pris par un cook qui n'y
