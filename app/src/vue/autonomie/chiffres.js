@@ -3,7 +3,7 @@
 // elle tient — servi sans humain, délai, taux de renvoi —, sur les 7 ou les 30 derniers jours, au choix. D'un projet, dans
 // sa section de Settings ; de tous les projets ensemble, sur la page de leur coût. Un clic sur « served with a human »
 // déplie les tickets qui ont demandé quelque chose au chef, chacun avec sa question et son lien : chacun est un échec à
-// corriger (CLAUDE.md, « Brigade's goal: autonomy »). À côté, ce que la pass a laissé passer sur ces mêmes tickets (#3515) :
+// corriger (CLAUDE.md, « Brigade's goal: autonomy »). À côté, ce que la pass a laissé passer sur ces mêmes tickets (ticket 3515) :
 // les bugs échappés et les reverts, chacun avec ce qui fait son nombre — les tickets, les commits.
 //
 // La vue n'y calcule rien : la lecture vient de GitHub, par le process principal (autonomie-github.ts), et le calcul est

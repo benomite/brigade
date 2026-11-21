@@ -2,7 +2,7 @@
 // sur les 7 ou les 30 derniers jours. Tout se lit de GitHub, rien de ce poste — un ordinateur neuf montre les mêmes :
 //   - les PR fermées de son dépôt, page après page jusqu'à la plus longue période (vue/rail/github.ts, `lireLesServis`) ;
 //   - pour chaque ticket servi, les événements et les commentaires de son issue, toutes pages.
-//   - pour les défauts échappés à la pass (#3515), les issues `bug` mises à jour sur la période, les commits de la
+//   - pour les défauts échappés à la pass (ticket 3515), les issues `bug` mises à jour sur la période, les commits de la
 //     branche par défaut qui portent le trailer de git `This reverts commit <sha>` — la recherche de commits de GitHub
 //     ne cherche que la branche par défaut —, et pour chaque commit reverté, les PR mergées qui le tiennent.
 // Le calcul est celui du runtime (runtime/src/autonomie/chiffres/chiffres.ts) : ce module lit, puis le lui remet.
@@ -58,7 +58,7 @@ const PAR_PAGE = 100;
 const objet = (valeur: unknown): Record<string, unknown> | null => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : null);
 const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
 
-// Ce que GitHub tient des défauts échappés d'un dépôt depuis `depuis` (#3515). Une lecture qui échoue ne fait pas tomber
+// Ce que GitHub tient des défauts échappés d'un dépôt depuis `depuis` (ticket 3515). Une lecture qui échoue ne fait pas tomber
 // les autres chiffres : elle rend pourquoi, et la vue n'affiche aucun des deux nombres à sa place. Un commit reverté que
 // GitHub ne connaît pas (422 ou 404 sur ses PR) n'est tenu par aucune PR : il n'est d'aucun ticket.
 async function lireLesDefauts(lire: (chemin: string) => Promise<unknown>, appeler: AppelGitHub, depot: string, depuis: number): Promise<Defauts | { illisible: string }> {
