@@ -636,7 +636,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/reglages-projet/en-vigueur.test.ts", test: "the file on the branch the line names comes first, then the file of the clone's working tree, then the line, then the CLAUDE.md line" },
   { file: "test/reglages-projet/reglages.test.ts", test: "an absolute machine path is refused, and the file is left untouched" },
   { file: "test/reglages-projet/reglages.test.ts", test: "what is not a project setting, or not a valid one, is refused and named" },
-  { file: "test/reglages-projet/seuils.test.ts", test: "a station applies projet.json's closer settings at its next fetch over its box's decisions, and its gestures keep working without the file" },
+  { file: "test/reglages-projet/seuils.test.ts", test: "a station applies projet.json's drift thresholds at its next fetch over its box's decisions, and its gestures keep working without the file" },
   { file: "test/relire.test.ts", test: "le journal d'un ticket se relit en entier et dans l'ordre, pendant que le runtime tourne" },
   { file: "test/renouvellement.test.ts", test: "claude renouvelle : le passage consigne la date où il a réécrit ses identifiants, et la dit" },
   { file: "test/renouvellement.test.ts", test: "rien à renouveler : le passage le consigne sans bruit, et ne demande rien de plus à claude" },

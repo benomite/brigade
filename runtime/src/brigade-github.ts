@@ -1747,7 +1747,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const degel = await degelerLesConflits(github, { station: nom, base, tickets: gueris, enVol: new Set(enVol.keys()), examinees: cartesExaminees, avertir });
     const lus = gueris.filter(({ number }) => !degel.fermes.has(number)).map((ticket) => (degel.rendus.has(ticket.number) ? { ...ticket, labels: ticket.labels.filter((label) => label !== A_LA_MAIN) } : ticket));
     // Les prises des enregistrements d'avant #2732, avant que la règle du temps perdu ne les lise (#2870).
-    if (clone !== undefined) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
+    if (clone) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
     // Verte, ses tickets de réparation encore ouverts se ferment (#2340) ; un échec attend le tour suivant.
     await fermerLaReparation(checksDeLaBase, lus).catch((echec) => avertir(`brigade : ${base} is green but its repair ticket could not be closed on ${nom} — ${echec instanceof Error ? echec.message : String(echec)}`));
     // Une épique découpée, ou un besoin dont un ticket lancé est né : ni elle

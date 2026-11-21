@@ -26,6 +26,9 @@ const cook = (tokens: number, delivered: boolean): CookMesure => ({ calibration:
 test("a stream says what each launch of a ticket spent, and whether it delivered", () => {
   assert.deepEqual(lancementsDuFlux(`${flux({ tokens: 900, livre: false }, { tokens: 700, livre: true })}\n{"type":"assistant"`), [cook(900, false), cook(700, true)]);
   assert.deepEqual(lancementsDuFlux(""), []);
+  // A launch killed before its result delivered nothing.
+  const sansResultat = flux({ tokens: 400, livre: true }).split("\n").slice(0, 3).join("\n");
+  assert.deepEqual(lancementsDuFlux(sansResultat), [cook(400, false)]);
 });
 
 test("the cooks of a ticket come from its stream under the station's directory; none without a stream", (t) => {

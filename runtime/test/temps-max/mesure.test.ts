@@ -88,7 +88,7 @@ test("the median of the recent tickets, in seconds; none measured, null", () => 
   assert.equal(medianeDesRecents([]), null);
 });
 
-test("the slowest phase of a set of tickets, with its figures", () => {
+test("the slowest phase of a ticket and of a set of tickets, with its figures", () => {
   const lente = phaseLaPlusLenteDesTickets([t(1, 2, 10), t(2, 30, 1), t(3, 4, 2)]);
   assert.deepEqual(lente, { phase: "cuisson", nom: "cooking", secondes: m(36), mediane: m(4), part: 36 / 49 });
 });

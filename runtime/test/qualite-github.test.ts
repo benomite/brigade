@@ -133,7 +133,7 @@ test("replayed on brigade's merges of 2026-11-05 to 07, the quality figures are 
   assert.deepEqual(Object.fromEntries(lignes.filter(({ essais }) => essais > 0).map(({ cause, essais }) => [cause, essais])), { relecture: 2, "gates-types": 1, conflit: 1, autre: 2 });
 });
 
-test("`status`'s state reads the first-try drift from the clone's times it is given, never from the log", (t) => {
+test("replayed, `status`'s state reads the first-try drift from the clone's times it is given, never from the log", (t) => {
   // Le journal se ferme avant que son répertoire s'efface : Windows refuse d'effacer une base ouverte.
   const journal = ouvrirJournal(repertoireTemporaire(t));
   aArreter(t, () => journal.fermer());

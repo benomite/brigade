@@ -20,7 +20,7 @@ const PROJET = { version: 1, integrationBranch: "main", defaultCalibrations: { m
 const SHA = "9f3c2a17b4e0d6c5a8b1f2e3d4c5b6a7f8e9d0c1";
 
 // Le corps d'une issue de fermeture, tel que le runtime l'écrit.
-const corps = (temps?: string[]) =>
+const corps = () =>
   corpsDeLaFermeture({
     base: "main",
     sha: SHA,
@@ -36,7 +36,6 @@ const corps = (temps?: string[]) =>
     ecartes: 3,
     zone: ["a.js", "b.js", "c.ts"],
     retraits: 500,
-    ...(temps === undefined ? {} : { temps }),
   });
 
 // Un GitHub en mémoire : les fichiers de chaque branche (contenu et `sha` qui change à chaque écriture) — `main` au
@@ -109,7 +108,8 @@ describe("le closer, dans le dépôt du projet", () => {
   });
 
   test("une passe se lit dans le corps que le runtime écrit : sa base, ses candidats, la dérive, les temps", () => {
-    const body = corps(["Times stable: 4 tickets measured since the last pass, and no drift. No correction ticket is opened or changed."]);
+    // Une passe d'avant #3908 portait encore sa section `Times` : elle se lit toujours.
+    const body = `${corps()}\n## Times\n\nTimes stable: 4 tickets measured since the last pass, and no drift. No correction ticket is opened or changed.\n`;
     assert.ok(estUneFermeture(body) && body.startsWith(marqueDeFermeture(SHA)));
     const lue = lirePasse({ number: 2531, created_at: "2026-10-10T08:00:00Z", state: "open", body }) ?? assert.fail("pas lue");
     assert.equal(lue.sha, SHA);

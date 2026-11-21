@@ -79,7 +79,7 @@ const nombre = (lecteur: (env: Record<string, string>) => unknown, attendu: stri
   }
 };
 const ENTIER = "an integer greater than zero";
-const entierPositif = (valeur: number) => Number.isSafeInteger(valeur) && valeur > 0;
+const entierPositif = (valeur: number) => /^[1-9]\d{0,14}$/.test(String(valeur));
 const SECONDES = "a number of seconds greater than zero";
 
 // Ce qu'une valeur doit être, lue seule : le lecteur même du runtime, pour

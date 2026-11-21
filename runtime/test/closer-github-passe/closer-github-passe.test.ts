@@ -3,7 +3,7 @@
 // must not happen is checked once a pass has run, never after a duration.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
-import { aOuvrir, brancherCloserGithub, estUneFermeture, lectureDuClone, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, type GitHubDuCloser, type LectureDuClone, type MergeDuClone, type OptionsCloserGithub } from "../../src/closer-github-passe/closer-github-passe.ts";
+import { aOuvrir, brancherCloserGithub, estUneFermeture, lectureDuClone, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, ticketDuMerge, type GitHubDuCloser, type LectureDuClone, type MergeDuClone, type OptionsCloserGithub } from "../../src/closer-github-passe/closer-github-passe.ts";
 import { zoneDuCorps } from "../../src/brigade-github.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { demarrer } from "../../src/runtime.ts";
@@ -122,7 +122,7 @@ describe("the closer's trigger, on what GitHub and the clone say", () => {
 const fermetures = (gh: { etat: IssueDuFaux[] }) => gh.etat.filter(({ body }) => estUneFermeture(body));
 
 describe("the quality of the recent tickets, at the pass (#2678)", () => {
-  test("the closing issue says the quality lines", async (t) => {
+  test("the closing issue says the quality lines next to the times", async (t) => {
     const gh = fauxGitHub();
     const { clone } = fauxClone();
     const k = brancher(t, { github: gh.github, clone, qualite: () => ["- First try: 80% of the 10 recent tickets known to the log — at or over the project's threshold of 70%."] });
@@ -338,4 +338,9 @@ describe("the merges the clone says", () => {
     assert.deepEqual(lus.map(({ ticket }) => ticket), [null, 42, null]);
     assert.ok(lus.every(({ at }) => !Number.isNaN(Date.parse(at))));
   });
+});
+
+test("a merge says its ticket by its branch, and none when its subject carries none", () => {
+  assert.equal(ticketDuMerge("Merge pull request #2365 from benomite/cook/2353-github"), 2353);
+  assert.equal(ticketDuMerge("Merge branch 'main' into x"), null);
 });

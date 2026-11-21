@@ -193,7 +193,7 @@ test("l'état lu en anglais est celui que `facts` dit en français, mot pour mot
   ]);
 });
 
-test("une saturation se dit en anglais, nombres compris", () => {
+test("une saturation et une dérive se disent en anglais, nombres compris", () => {
   assert.equal(direSaturationEn({ resource: "cpu", observed: 16.24, limit: 15 }), "load of 16.2 for at most 15");
   assert.equal(direSaturationEn({ resource: "memory", observed: 1234.5, limit: 2000 }), "1,234.5 MB of memory available for at least 2,000 MB");
   assert.equal(direSaturationEn({ resource: "disk", observed: 800, limit: 1000 }), "800 MB of disk free for at least 1,000 MB");

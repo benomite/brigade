@@ -20,7 +20,7 @@ export const CLOSER_LU: LectureDuCloser = {
         sha: "9f3c2a17b4e0d6c5a8b1f2e3d4c5b6a7f8e9d0c1",
         candidats: [
           { id: "D1", quoi: "24 identical lines of code: `app/src/vue/vue.js:1405-1428` = `app/src/vue/fiabilite.js:40-63`" },
-          { id: "D2", quoi: "9 identical lines of code: `runtime/src/mesures.ts:88-96` = `runtime/src/derive.ts:120-128`" },
+          { id: "D2", quoi: "9 identical lines of code: `runtime/src/mesures.ts:88-96` = `runtime/src/renvois.ts:120-128`" },
           { id: "M1", quoi: "export `ancienneJauge` of `runtime/src/mesures.ts:212` — referenced only by tests (`runtime/test/mesures.test.ts`)" },
           { id: "M2", quoi: "export `dureeBrute` of `app/src/format.ts:31` — referenced nowhere" },
           { id: "M3", quoi: "export `TITRE_ANCIEN` of `app/src/vue/closer/section.js:12` — referenced nowhere" },

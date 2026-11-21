@@ -532,7 +532,7 @@ test("sous cloison, le chef lit ce que le dernier rangement des transcripts a ga
   assert.deepEqual(claude(`${JOUR_HORLOGE}T13:00:03.000Z`), []);
 });
 
-test("la part de tickets livrés du premier coup sous son seuil est une ligne de dérive dans l'état ; au seuil, avec moins de tickets que la fenêtre, rien ", (t) => {
+test("la part de tickets livrés du premier coup sous son seuil est une ligne de dérive dans l'état ; au seuil, avec moins de tickets que la fenêtre, rien ; le seuil et la fenêtre se règlent par les seuils de la dérive", (t) => {
   const { journal } = cuisine(t);
   // Les temps du clone, où la station écrit au merge ce que GitHub dit de chaque ticket (#2707).
   const temps: { ticket: number; claimedAt: string; mergedAt: string; qualite: { renvois: string[]; cooksRates: number } }[] = [];

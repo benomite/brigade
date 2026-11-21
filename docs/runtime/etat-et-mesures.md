@@ -301,19 +301,9 @@ it leaves the gates green. See "The gates' duration cap is not judged by the pas
 
 ### Thresholds, and what warns you
 
-A threshold is declared in the runtime's environment. **Only one has a default: the gates' duration**,
-`SEUIL_DUREE_GATES_PAR_DEFAUT` (`runtime/src/derive.ts`), 100 s;
-`BRIGADE_DRIFT_GATES_SECONDS` replaces it. It counts the gates'
-execution, not the wait for their turn. Undeclared, the others signal nothing;
-badly written, the runtime refuses to start.
-`BRIGADE_DRIFT_TESTS` (number of tests), `BRIGADE_DRIFT_TESTS_SECONDS` (suite duration),
-`BRIGADE_DRIFT_GATES_SECONDS` (last delivery's gates duration), `BRIGADE_DRIFT_CONTEXT_KB`
-(context, KB) and `BRIGADE_DRIFT_REPO_MB` (repository, MB) are crossed when the measure
-exceeds them; `BRIGADE_DRIFT_MERGES`, when the merges since the last closing
-reach it; `BRIGADE_DRIFT_GROWTH_PERCENT` — **the slope** —, when `tests`, `test suite`, `repo`,
-`context` or `docs` has grown by more than this percentage in ten merges.
+The drift thresholds of the tests, the gates, the context, the repository, the merges and the slope no longer signal anything (#3908: their reader is deleted). Only the thresholds below are crossed.
 
-These thresholds, the cost ones below, `BRIGADE_CORRECTION_*` and `BRIGADE_PROFILE_*` can also be
+The cost thresholds below can also be
 set by the project in `.claude/brigade/projet.json` (`drift`, `correction` and `profile`, see
 [`../reglages.md`](../reglages.md)); the file's value wins over the box's, key by key.
 

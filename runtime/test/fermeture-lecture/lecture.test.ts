@@ -85,7 +85,7 @@ test("sans closer réglé, la réponse le dit et ne porte aucun champ de l'obser
   }
 });
 
-test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts", async (t) => {
+test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts — et les merges depuis la dernière fermeture, que la passe du closer a comptés sur le clone", async (t) => {
   const lue = await lire(projet(t));
   assert.ok(lue.configured);
   assert.deepEqual(lue.closer, { model: "sonnet", effort: "low", cooksBelow: 1, tokens: 1000, removedLines: 20, from: null });
@@ -259,7 +259,7 @@ test("lire ne change rien : aucune demande n'est créée, aucun fait n'est écri
   assert.ok(!types().includes("closing.started"));
 });
 
-test("une branche d'intégration qui ne se lit pas le dit, et la demande se lit quand même", async (t) => {
+test("une branche d'intégration qui ne se lit pas le dit, et la demande et la dérive se lisent quand même", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   const lue = await lire(lieu, { BRIGADE_BASE_BRANCH: "inconnue" });

@@ -33,7 +33,7 @@ test("a custom cookingOverEstimateMax in projet.json replaces the default", (t) 
   assert.equal(lireSeuil(dossier), 3);
 });
 
-test("the median ratio leaves out the tickets with no estimate", () => {
+test("a median at or below the threshold opens nothing, and tickets with no estimate are left out of the median", () => {
   // Trois tickets estimés à ×1, et quatre sans estimation qui ont cuit longtemps :
   // comptés, ils porteraient la médiane bien au-dessus du seuil.
   const sansEstimation = ratios([4, 10, 10], [5, 10, 10], [6, 10, 10], [7, null, 90], [8, null, 90], [9, 0, 90], [10, null, 90]);

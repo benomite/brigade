@@ -74,7 +74,7 @@ test("the box's variables take the repository's thresholds over the box's, key b
   assert.deepEqual([variablesDuDepot(COMPLETS).BRIGADE_CORRECTION_THRESHOLD, variablesDuDepot(COMPLETS).BRIGADE_CORRECTION_WINDOW], ["4", "30"]);
 });
 
-test("a station applies projet.json's closer settings at its next fetch over its box's decisions, and its gestures keep working without the file", (t) => {
+test("a station applies projet.json's drift thresholds at its next fetch over its box's decisions, and its gestures keep working without the file", (t) => {
   const projet = projetSurGit(t, { reglages: { integrationBranch: "v2" } });
   const journal = journalDeStation(t, { BRIGADE_CLOSING_MAX_TOKENS: "900", BRIGADE_CLOSING_MAX_REMOVED_LINES: "70" });
   const depot = lireLeDepot({ BRIGADE_REPO_DIR: projet.clone, BRIGADE_BASE_BRANCH: "v2" });
