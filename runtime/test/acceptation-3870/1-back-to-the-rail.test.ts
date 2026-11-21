@@ -83,3 +83,20 @@ test("no other station in the project: the ticket stays held on the Mac, which s
   await mac.tour();
   assert.match(commentaires(faux).join("\n"), /No other station of the project can take it: the ticket stays on the rail, held on `macbook-air-de-benoit\/claude`/);
 });
+
+// #3870, critère 2 : la station qui n'a pas pu cuire le ticket ne le reprend pas tant qu'une autre le peut.
+test("the Mac does not take the ticket again, turn after turn, while the box can", async (t) => {
+  const faux = new FauxGitHub();
+  projetDeuxStations(faux);
+  const mac = station(t, faux, MAC, NPM_CI);
+  await mac.tour();
+  for (let tour = 0; tour < 3; tour += 1) {
+    assert.match((await mac.tour()) ?? "", /cannot run its gates — it goes to parade-box\/claude/, "skipped for the box, not held for want of another station");
+    assert.equal(faux.ticket(N).labels.has(LABEL_TAKEN), false, "still on the rail");
+  }
+  assert.equal(mac.cooks(), 1, "the Mac never cooks it again");
+  // Une station redémarrée relit la marque sur l'issue.
+  const relancee = station(t, faux, MAC, null);
+  await relancee.tour();
+  assert.equal(relancee.cooks(), 0);
+});

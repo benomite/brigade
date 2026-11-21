@@ -41,3 +41,11 @@ test("a complete branch whose PR was closed gets an open PR and its ticket goes 
   assert.equal(faux.ticket(TICKET).labels.has(LABEL_IN_PASS), true);
   assert.equal(corps.filter((c) => c.startsWith("<!-- brigade:echec")).length, 0);
 });
+
+// #3990, critère 2 : ce cas ne compte jamais pour un cook raté.
+test("a cook that finds its branch complete with no open PR is never counted as a failed cook", async (t) => {
+  const { faux, corps, avertis } = await cuisiner(t, 4);
+  assert.equal(corps.filter((c) => c.startsWith("<!-- brigade:echec")).length, 0, "no failure comment");
+  assert.equal(avertis.filter((a) => a.includes("stopped without a delivery")).length, 0, "no failed try warned");
+  for (const label of ["served-elsewhere", "set-aside:failures"]) assert.equal(faux.ticket(TICKET).labels.has(label), false, label);
+});
