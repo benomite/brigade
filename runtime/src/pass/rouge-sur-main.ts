@@ -5,14 +5,17 @@
 // checkout jetable de la base où ses fichiers de test sont copiés, et les
 // rejoue sur la branche. Chacun doit échouer sur la base et passer sur la
 // branche : un test qui passe déjà sur la base ne prouve rien, et la livraison
-// repart à son cook en le nommant. La suite n'est jamais jouée : seuls les
-// tests ajoutés, par le lanceur de tests de Node, sans installation ni build.
+// repart à son cook en le nommant — sauf s'il est marqué comme une garde d'un
+// comportement que la base a déjà (`// brigade:guard`, #3852). La suite n'est
+// jamais jouée : seuls les tests ajoutés, par le lanceur de tests de Node,
+// sans installation ni build.
 //
 // Ce module ne lit ni GitHub ni le journal : le checkout de la base et le
 // lancement d'un fichier de test lui sont donnés. Il ne laisse rien derrière
 // lui : le checkout est jeté, rien n'est commité.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { FERMETURE_BLOCAGE, OUVERTURE_BLOCAGE } from "../livrable.ts";
 
 // Le label d'un ticket technique — refactor, ménage, sans changement de
 // comportement (`etiquettes.ts`) : il est exempté.
@@ -29,20 +32,55 @@ const CAS = /\b(?:test|it)(?:\.(?:only|skip|todo))?\s*\(\s*(["'`])((?:\\.|(?!\1)
 const LIGNE_TAP = /^\s*(not )?ok \d+ - (.*?)(\s+# (?:SKIP|TODO)\b.*)?$/;
 export const RESULTAT_TAP = /^\s*(?:not )?ok \d+ - /;
 
-// Les noms des cas qu'un fichier de test déclare en toutes lettres. Un nom
-// construit (`${…}`) ne se lit pas : il n'en est pas.
-export function nomsDesCas(source: string): string[] {
-  const noms = new Set<string>();
-  for (const [, guillemet, brut] of source.matchAll(CAS)) {
-    if (brut === undefined || (guillemet === "`" && brut.includes("${"))) continue;
-    noms.add(brut.replace(/\\(.)/g, "$1"));
+// La garde (#3852) : un test écrit pour garder un comportement que la base a
+// déjà — un critère qui dit « as before », « unchanged » — passe sur la base,
+// et c'est voulu. Le tests cook, ou le cook, le marque d'un commentaire
+// `// brigade:guard` écrit avant son cas : la pass l'accepte vert sur la base.
+// Un test vert sur la base sans ce marqueur reste renvoyé, comme avant.
+export const MARQUE_DE_GARDE = "brigade:guard";
+const GARDE = /brigade:guard\b/;
+
+const COMMENTAIRE = /^(?:\/\/|\/\*|\*)/;
+
+// Le marqueur d'un cas : sur sa ligne, avant lui, ou dans les lignes de
+// commentaire juste au-dessus. Ni le corps du cas précédent ni l'en-tête du
+// fichier, séparés de lui par du code, ne le marquent.
+function marque(avant: string): boolean {
+  const lignes = avant.split("\n");
+  if (GARDE.test(lignes.pop() ?? "")) return true;
+  for (const ligne of lignes.reverse().map((l) => l.trim())) {
+    if (!COMMENTAIRE.test(ligne)) return false;
+    if (GARDE.test(ligne)) return true;
   }
-  return [...noms];
+  return false;
+}
+
+// Les cas qu'un fichier de test déclare en toutes lettres, chacun avec sa
+// garde. Un nom construit (`${…}`) ne se lit pas : il n'en est pas.
+function casDeclares(source: string): Map<string, boolean> {
+  const cas = new Map<string, boolean>();
+  let depuis = 0;
+  for (const trouve of source.matchAll(CAS)) {
+    const [entier, guillemet, brut] = trouve;
+    const garde = marque(source.slice(depuis, trouve.index));
+    depuis = trouve.index + entier.length;
+    if (brut === undefined || (guillemet === "`" && brut.includes("${"))) continue;
+    const nom = brut.replace(/\\(.)/g, "$1");
+    cas.set(nom, garde || cas.get(nom) === true);
+  }
+  return cas;
+}
+
+// Les noms des cas qu'un fichier de test déclare en toutes lettres.
+export function nomsDesCas(source: string): string[] {
+  return [...casDeclares(source).keys()];
 }
 
 // Ce qui se rejoue : un cas d'un fichier, ou tout le fichier quand il est neuf
 // et que ses cas ne se lisent pas (`nom` nul) — il se juge alors à son code de sortie.
-export type Unite = { fichier: string; nom: string | null };
+// `garde` : le cas est marqué comme une garde (`// brigade:guard`) ; un fichier
+// dont les cas ne se lisent pas l'est s'il porte le marqueur.
+export type Unite = { fichier: string; nom: string | null; garde?: true };
 export type Ajoutes = { fichiers: Array<{ fichier: string; neuf: boolean; unites: Unite[] }>; aCopier: string[] };
 
 // Les tests que la livraison ajoute, parmi les fichiers qu'elle change :
@@ -59,14 +97,16 @@ export function testsAjoutes(fichiers: readonly string[], lire: { base(fichier: 
     ajoutes.aCopier.push(fichier);
     if (!FICHIER_DE_TEST.test(fichier)) continue;
     const avant = lire.base(fichier);
-    const noms = nomsDesCas(sienne);
+    const cas = casDeclares(sienne);
+    const unite = (nom: string): Unite => (cas.get(nom) === true ? { fichier, nom, garde: true } : { fichier, nom });
+    const noms = [...cas.keys()];
     if (avant === null) {
-      ajoutes.fichiers.push({ fichier, neuf: true, unites: noms.length === 0 ? [{ fichier, nom: null }] : noms.map((nom) => ({ fichier, nom })) });
+      ajoutes.fichiers.push({ fichier, neuf: true, unites: noms.length === 0 ? [{ fichier, nom: null, ...(GARDE.test(sienne) ? { garde: true as const } : {}) }] : noms.map(unite) });
       continue;
     }
     const deja = new Set(nomsDesCas(avant));
     const neufs = noms.filter((nom) => !deja.has(nom));
-    if (neufs.length > 0) ajoutes.fichiers.push({ fichier, neuf: false, unites: neufs.map((nom) => ({ fichier, nom })) });
+    if (neufs.length > 0) ajoutes.fichiers.push({ fichier, neuf: false, unites: neufs.map(unite) });
   }
   return ajoutes;
 }
@@ -93,10 +133,11 @@ export const passe = (unite: Unite, passage: Passage) => (unite.nom === null ? p
 const echapper = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Les arguments de `node` qui jouent, dans `dossier`, les seules unités du
-// fichier : tout le fichier s'il est neuf, ses cas neufs sinon.
+// fichier : tout le fichier s'il est neuf, ses cas neufs sinon. Le fichier se joue dans le process du
+// lanceur (`--test-isolation=none`) : un seul fichier par rejeu, et un Node lancé au lieu de deux (#3799).
 export function argumentsDuRejeu(dossier: string, { fichier, neuf, unites }: Ajoutes["fichiers"][number]): string[] {
   const motifs = neuf ? [] : unites.map(({ nom }) => `--test-name-pattern=^${echapper(nom ?? "")}$`);
-  return ["--test", "--test-reporter=tap", "--test-force-exit", ...motifs, relative(dossier, fichier).split("\\").join("/")];
+  return ["--test", "--test-isolation=none", "--test-reporter=tap", "--test-force-exit", ...motifs, relative(dossier, fichier).split("\\").join("/")];
 }
 
 // Le dossier d'où se joue un fichier de test : celui du `package.json` le plus
@@ -171,8 +212,12 @@ export async function prouver(labels: readonly string[], outils: OutilsDuRejeu):
 export const nomDuTest = ({ fichier, nom }: Unite) => (nom === null ? `\`${fichier}\`` : `\`${nom}\` (\`${fichier}\`)`);
 // Rouges sur la base, verts sur la branche : ils prouvent.
 export const prouves = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => !rejeu.main && rejeu.branche) : []);
-// Verts sur la base : ils ne prouvent rien, et renvoient la livraison.
-export const vertsSurLaBase = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.main) : []);
+// Verts sur la base sans être marqués comme gardes : ils ne prouvent rien, et renvoient la livraison.
+export const vertsSurLaBase = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.main && rejeu.garde !== true) : []);
+// Verts sur la base et marqués comme gardes : acceptés, sans rien demander (#3852).
+const gardesVertes = (preuve: Preuve): Rejeu[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.main && rejeu.garde === true) : []);
+// Les gardes vertes des deux côtés : elles couvrent leur critère comme une preuve.
+const gardesTenues = (preuve: Preuve): Rejeu[] => gardesVertes(preuve).filter((rejeu) => rejeu.branche);
 
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n === 1 ? "" : "s"}`;
 export const REGLE = "Red on main, green on the branch";
@@ -183,8 +228,9 @@ export function ligneDeLaPreuve(preuve: Preuve, base: string): string {
   if ("sansTest" in preuve) return `${REGLE}: the delivery adds no test to replay.`;
   if ("injouable" in preuve) return `${REGLE}: the added tests could not be replayed — ${preuve.injouable}.`;
   const verts = vertsSurLaBase(preuve).length;
+  const gardes = gardesVertes(preuve).length;
   const rouges = preuve.rejeux.filter((rejeu) => !rejeu.main && !rejeu.branche).length;
-  return `${REGLE}: ${pluriel(preuve.rejeux.length, "added test")} replayed alone on \`${base}\` — ${prouves(preuve).length} red on \`${base}\` and green on the branch${verts === 0 ? "" : `, ${verts} already green on \`${base}\``}${rouges === 0 ? "" : `, ${rouges} not green on the branch either (not counted as proof)`}.`;
+  return `${REGLE}: ${pluriel(preuve.rejeux.length, "added test")} replayed alone on \`${base}\` — ${prouves(preuve).length} red on \`${base}\` and green on the branch${verts === 0 ? "" : `, ${verts} already green on \`${base}\``}${gardes === 0 ? "" : `, ${gardes} marked as guarding a behavior \`${base}\` already has (accepted green on \`${base}\`)`}${rouges === 0 ? "" : `, ${rouges} not green on the branch either (not counted as proof)`}.`;
 }
 
 // Ce que la station écrit à son journal : la liste de ce qu'elle a rejoué sur
@@ -192,14 +238,17 @@ export function ligneDeLaPreuve(preuve: Preuve, base: string): string {
 export function journalDeLaPreuve(preuve: Preuve, base: string): string | null {
   if ("exempte" in preuve || "injouable" in preuve) return ligneDeLaPreuve(preuve, base);
   if ("sansTest" in preuve) return null;
-  return `${REGLE}: only the tests this delivery adds were replayed on \`${base}\`, not the suite — ${preuve.rejeux.map((rejeu) => `${nomDuTest(rejeu)} ${rejeu.main ? "green" : "red"} on \`${base}\`, ${rejeu.branche ? "green" : "red"} on the branch`).join("; ")}`;
+  return `${REGLE}: only the tests this delivery adds were replayed on \`${base}\`, not the suite — ${preuve.rejeux.map((rejeu) => `${nomDuTest(rejeu)} ${rejeu.main ? "green" : "red"} on \`${base}\`, ${rejeu.branche ? "green" : "red"} on the branch${rejeu.garde === true ? " (marked as a guard)" : ""}`).join("; ")}`;
 }
 
 // Le motif du renvoi : chaque test déjà vert sur la base, nommé. Il dit au
-// cook que seul un changement du test le lève (#3694 : #3632 a gardé son test
-// avec un commentaire de garde, et sa tête est revenue sur le même motif).
+// cook que seul un changement du test le lève : le rendre rouge sur la base,
+// ou le marquer comme une garde quand les critères du ticket disent que ce
+// comportement reste « as before » / « unchanged » (#3852). Une réponse, ou un
+// commentaire libre, ne le lève pas (#3694 : #3632 a gardé son test avec un
+// commentaire de garde, et sa tête est revenue sur le même motif).
 export function motifDuRenvoi(verts: readonly Rejeu[], base: string): string[] {
-  return verts.map((rejeu) => `- **Blocking**: ${REGLE} — the added test ${nomDuTest(rejeu)} already passes on \`${base}\`: it proves nothing about this ticket. Make it fail without this delivery's change, or replace it with a test that does: no reply on the PR, nor a comment saying it guards a behavior \`${base}\` already has, lifts this remark.`);
+  return verts.map((rejeu) => `- **Blocking**: ${REGLE} — the added test ${nomDuTest(rejeu)} already passes on \`${base}\`: it proves nothing about this ticket. Make it fail without this delivery's change, or replace it with a test that does. If the ticket's criteria say this behavior stays "as before" / "unchanged", mark the test as a guard instead: a \`// ${MARQUE_DE_GARDE}\` comment on the line above its case, and the pass accepts it green on \`${base}\`. No reply on the PR, nor any other comment, lifts this remark. If it names this test a second time, do not try a third way: mark it, or set the ticket aside once with the reason in one line between ${OUVERTURE_BLOCAGE} and ${FERMETURE_BLOCAGE}.`);
 }
 
 // Ce que la relecture dit d'un critère d'acceptation : les tests du diff qui le
@@ -208,12 +257,12 @@ export type Couverture = { tests: string[]; relecture: boolean };
 export type EtatDuCritere = { etat: "test"; tests: Rejeu[] } | { etat: "relecture" } | { etat: "rien" };
 
 // L'état d'un critère : couvert par un test rouge sur la base et vert sur la
-// branche que la relecture lui rattache ; sinon jugé par la relecture seule ;
-// sinon couvert par rien. Un test que la relecture nomme sans qu'il ait prouvé
-// ne couvre rien.
+// branche, ou par une garde verte des deux côtés (#3852), que la relecture lui
+// rattache ; sinon jugé par la relecture seule ; sinon couvert par rien. Un test
+// que la relecture nomme sans qu'il ait prouvé ne couvre rien.
 export function etatDuCritere(couverture: Couverture | undefined, preuve: Preuve): EtatDuCritere {
   const nommes = new Set(couverture?.tests ?? []);
-  const tests = prouves(preuve).filter(({ fichier, nom }) => nommes.has(nom ?? fichier));
+  const tests = [...prouves(preuve), ...gardesTenues(preuve)].filter(({ fichier, nom }) => nommes.has(nom ?? fichier));
   if (tests.length > 0) return { etat: "test", tests };
   return couverture?.relecture === true ? { etat: "relecture" } : { etat: "rien" };
 }
@@ -227,9 +276,13 @@ const couperCritere = (texte: string) => (texte.length <= CRITERE_MAX ? texte : 
 export function lignesDesCriteres(criteres: readonly string[], couvertures: readonly Couverture[] | null, preuve: Preuve, base: string): string[] {
   return criteres.map((critere, rang) => {
     const etat = etatDuCritere(couvertures?.[rang], preuve);
+    const [gardes, rouges] = etat.etat === "test" ? [etat.tests.filter(({ garde }) => garde === true), etat.tests.filter(({ garde }) => garde !== true)] : [[], []];
     const dit =
       etat.etat === "test"
-        ? `covered by a test red on \`${base}\` and green on the branch: ${etat.tests.map(nomDuTest).join(", ")}`
+        ? [
+            ...(rouges.length === 0 ? [] : [`covered by a test red on \`${base}\` and green on the branch: ${rouges.map(nomDuTest).join(", ")}`]),
+            ...(gardes.length === 0 ? [] : [`covered by a test marked as a guard, green on \`${base}\` and on the branch: ${gardes.map(nomDuTest).join(", ")}`]),
+          ].join("; ")
         : etat.etat === "relecture"
           ? "judged by the review alone"
           : "covered by nothing";

@@ -1,5 +1,5 @@
 // Le haut de `status` est en anglais (#928) : `runtime`, `kitchen`, `connection`, `stations`, `setup`,
-// `aside`, `base`, `backup`, la ligne d'urgence et celle qui dit que rien ne cuit. Vérifié
+// `aside`, `base`, `backup` et la ligne qui dit que rien ne cuit. Vérifié
 // de deux façons : un état de la box écrit avant la traduction (test/fixtures/etat-d-avant-927/)
 // dit les mêmes états qu'avant, sans qu'on l'édite ; et un état d'exemple qui fait paraître chaque
 // ligne ne laisse passer aucun mot de la colonne « français » du glossaire. `facts` n'a pas bougé.
@@ -11,7 +11,7 @@ import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { poserDecision } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { depuis1826, depuis1834, depuis1862, depuis1893, depuis1894, depuis1877, depuis1971, depuis2037, ETAT_D_AVANT, etatDAvant, exemple, LU_LE, STATION } from "./aides/haut-de-status.ts";
+import { depuis1826, depuis1834, depuis1862, depuis1893, depuis1894, depuis1877, depuis1971, depuis2037, depuis3945, ETAT_D_AVANT, etatDAvant, exemple, LU_LE, STATION } from "./aides/haut-de-status.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 // Les lignes qui précèdent le bloc `attend` / `awaiting`, d'une sortie de `status`.
@@ -136,6 +136,6 @@ test("sur l'état d'exemple d'avant, chaque ligne du haut dit les mêmes tickets
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
   const courant = JSON.parse(JSON.stringify(faits(lireEtat(exemple(t), LU_LE), LU_LE)));
-  const avant = depuis1971(depuis2037(depuis1894(depuis1893(depuis1862(depuis1877(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_928, "facts.json"), "utf8")))))))), courant));
+  const avant = depuis3945(depuis1971(depuis2037(depuis1894(depuis1893(depuis1862(depuis1877(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_928, "facts.json"), "utf8")))))))), courant)));
   assert.deepEqual(courant, avant);
 });

@@ -15,8 +15,7 @@ import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts"
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { limiteDuCompteDeLaStation } from "./github-limite.ts";
 import { direLeBudget } from "./github/budget-appels.ts";
-import { appelsDeLaStation, budgetDeLaStation, ecrituresRetenuesDeLaStation, partsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
-import { direLesParts } from "./budget-github/part-des-projets.ts";
+import { appelsDeLaStation, budgetDeLaStation, direLeQuota, ecrituresRetenuesDeLaStation, pauseDeLaStation, quotaDeLaStation } from "./limite-github.ts";
 import { direGitHubSeul, lireGitHubSeul } from "./github-seul-etat.ts";
 import { direLesAppelsParIdentite, lireAppelsParIdentite } from "./appels-par-identite.ts";
 import { lireDeriveGithub } from "./closer-github-passe/derive-github.ts";
@@ -27,19 +26,17 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
-import { direLesAttentes, lireLesAttentes } from "./attente-des-tickets.ts";
 import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
-import { avecLeRailBloque, railBloqueCherche, railBloqueDuStatus } from "./rail-bloque/status.ts";
-import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile } from "./attente-du-rail/status.ts";
+import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile, railCherche } from "./attente-du-rail/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
 const JOURS_DE_TODO = 7;
 
-// Synchrone, sauf sur une station GitHub seul : le rail bloqué (#3358) s'y lit sur GitHub avant que rien ne s'écrive.
+// Synchrone, sauf sur une station GitHub seul : l'attente du rail (#3433) s'y lit sur GitHub avant que rien ne s'écrive.
 export function principal({ args: tapes, env, dire, redire }: Appel): void | Promise<void> {
   const brut = enAnglais("status", tapes, redire);
   function echouer(code: number, message: string): never {
@@ -76,12 +73,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     if (erreur instanceof LectureImpossible) echouer(erreur.code, erreur.message);
     throw erreur;
   }
-  // Le rail bloqué (#3358) : des tickets `fire` qu'aucun manager n'a pris, sous la tête du bloc `awaiting` — la file du second.
   const { lignes, dernierSeq } = photo;
   const lu = journal;
-  if (!railBloqueCherche(env)) return ecrire(lignes);
+  if (!railCherche(env)) return ecrire(lignes);
   // Pourquoi la file ne part pas (#3433) : sa phrase au-dessus de la ligne `rail`, la même que le rail de l'app.
-  return Promise.all([railBloqueDuStatus(env, maintenant, lu.base), attenteEtRailDuStatus(env, maintenant, lu.base)]).then(([rail, attente]) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(avecLeRailBloque(lignes, rail), attente.enFile), attente.lignes)), (erreur: unknown) => {
+  return attenteEtRailDuStatus(env, maintenant, lu.base).then((attente) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(lignes, attente.enFile), attente.lignes)), (erreur: unknown) => {
     lu.fermer();
     throw erreur;
   });
@@ -162,13 +158,13 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     throw erreur;
   }
   etat = { ...etat, tropLongs: lignesDeTicketsQuiPerdent(temps.enregistrements, temps.lostTimeMaxMin) };
-  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
+  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
   if (budget !== null) lignes.push(...direLeBudget(budget).map((texte, i) => `${(i === 0 ? "gh budget" : "").padEnd(11)}${texte}`));
-  // La part de chaque projet dans le budget de la station, et qui en est ralenti (#3683).
-  const parts = partsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
-  if (parts !== null) lignes.push(...direLesParts(parts).map((texte, i) => `${(i === 0 ? "gh share" : "").padEnd(11)}${texte}`));
+  // Le quota réel que GitHub dit rester, son prochain reset, et les projets qu'il ralentit (#3833).
+  const quota = quotaDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());
+  if (quota !== null) lignes.push(...direLeQuota(quota).map((texte, i) => `${(i === 0 ? "gh quota" : "").padEnd(11)}${texte}`));
   // Le mode d'identité qu'a annoncé la cuisine, et les appels de chaque identité, jamais remis à zéro (#2316).
   lignes.push(...direLesAppelsParIdentite(lireAppelsParIdentite(env, etat.projet ?? env.BRIGADE_PROJECT ?? "")).map((texte, i) => `${(i === 0 ? "identity" : "").padEnd(11)}${texte}`));
   if (githubSeul !== null) lignes.push(direGitHubSeul(githubSeul));
@@ -186,8 +182,6 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR), rouge));
   // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).
   lignes.push(ligneDesReparations(temps.enregistrements));
-  // Rien ne s'ouvre avant 20 tickets mergés après le dernier ticket servi (#2868) : la station dit ce qu'il en manque.
-  lignes.push(...direLesAttentes(lireLesAttentes(env.BRIGADE_STATE_DIR)));
   // La partie la plus lente du projet, en mots simples (#2350) ; rien d'enregistré, pas de ligne.
   const nom = etat.projet ?? env.BRIGADE_PROJECT;
   const lent = nom ? nommerLePlusLent(nom, { racine: env.BRIGADE_REPO_DIR ?? nom, env }) : null;

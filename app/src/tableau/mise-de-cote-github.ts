@@ -19,13 +19,17 @@
 // une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
 // GitHub mène de l'une à l'autre.
 
+import type { ZoneTenue } from "../vue/bandeau-arret/arret-du-rail.ts";
 import { carteDuCommentaire, formeDuChef, type CarteDuChef, type ChoixDuChef, type Recommandee } from "./todo-github.ts";
 import { direLaPrParSonTicket, PR_DU_TICKET } from "../vue/pr-du-ticket.js";
 
 export const SERVED_ELSEWHERE = "served-elsewhere";
 export const BLOCKED_ON_HUMAN = "blocked-on-human";
 // Dans l'ordre où la carte les nomme quand l'issue porte les deux.
-export const LABELS_DE_MISE_DE_COTE = [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN] as const;
+// Ceux de la station (runtime/src/github.ts, `MIS_DE_COTE`) : `set-aside:failures` (#3875) et `out-of-kitchen` mettent aussi de côté.
+export const SET_ASIDE_FAILURES = "set-aside:failures";
+export const OUT_OF_KITCHEN = "out-of-kitchen";
+export const LABELS_DE_MISE_DE_COTE = [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN, SET_ASIDE_FAILURES, OUT_OF_KITCHEN] as const;
 // L'issue du tableau de la cuisine : jamais une carte, ni sur le rail ni dans TODO.
 export const LABEL_DU_TABLEAU_DE_LA_CUISINE = "kitchen-board";
 // La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi : un label posé à la main. Ici, et non dans faits.ts,
@@ -45,7 +49,8 @@ export type LienDeLigne = { numero: number; url: string };
 // `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`, ou celle
 // de la PR à merger, ou celle de la retenue sans PR (#3369), avec ses boutons.
 // `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
-export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef };
+// `zoneTenue` : la zone que sa fiche déclare et que sa PR ouverte tient, et depuis quand (vue/bandeau-arret/, ticket 3924).
+export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef; zoneTenue?: ZoneTenue };
 
 type Brut = Record<string, unknown>;
 

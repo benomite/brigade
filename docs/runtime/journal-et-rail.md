@@ -95,8 +95,7 @@ stays French until the runtime renames it). It is not lent until **all** those i
   the root is the only way back**: the kitchen then sets `fire` back on each still-open ticket that
   left because of it (`ticket.back-with`, `refired`; a comment "Cuisine — #N est revenu sur le
   rail"). One that comes back alone while its root stays dropped leaves again. A ticket taken or in
-  pass is not touched. A ticket you take off the rail yourself takes no one with it; the idle-kitchen
-  `fault` line names it as root of its waiters' chain. Off the rail, the root and each ticket that
+  pass is not touched. A ticket you take off the rail yourself takes no one with it. Off the rail, the root and each ticket that
   left with it wait in your TODO with a card until you answer (#2118, see [`manager.md`](manager.md));
   on a ticket that left with its root, « Put … back on the rail » sets `fire` on the root.
 
@@ -125,9 +124,11 @@ npm --prefix runtime run rail
 
 One line per ticket, in service order; a queued ticket that does not leave says why (`awaiting #12,
 #13`, `zone held by #14 (path)`, see "File zones"; `BLOCKED` and the dropped ticket). The first line
-names the project's **common paths**. Under a ticket with a card, an indented line gives what it
-awaits, its zone, and what the runtime does not understand in it (`UNREADABLE CARD — clé inconnue
-« budget »`, French as the card reader writes it).
+names the project's **common paths**. Under a ticket with a card, an indented line gives the waits of
+its card, with where they were read (`waits for #12 — read from the card`, #3763; `awaiting: nothing` when
+its card names none). The journal does not record the waits read from a body or from a cook's stop, so this
+command does not show them; `brigade <project> status` and the app do. The line then gives its zone, and what
+the runtime does not understand in it (`UNREADABLE CARD — clé inconnue « budget »`, French as the card reader writes it).
 
 ### Removing a ticket from the rail
 

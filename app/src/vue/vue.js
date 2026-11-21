@@ -106,6 +106,8 @@ import { affichageNeuf, changerD, poserDetailDeValidation } from "./validation-d
 import { apresRendu as apresLaValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, estUneValidation, poserCarteDeValidation, REPOS as VALIDATION_AU_REPOS, sansLesValidees } from "./validation-design/validation-design.js";
 import { ligneDuRailBloque } from "./rail-bloque/ligne-du-rail-bloque.js";
 import { ligneDeLAttente } from "./attente-du-rail/ligne-de-l-attente.js";
+import { ligneDesAlertesDuRail } from "./attente-du-rail/ligne-des-alertes.js";
+import { monterLeBandeau } from "./bandeau-arret/bandeau-arret.js";
 import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
@@ -116,7 +118,7 @@ import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { poserLesAutres } from "./todo/autres.js";
 import { LISTE_DU_CHEF, estRouge, rangerLeRail } from "./todo/todo.js";
 import { ligneDesAlertes, phraseDeLAttente, retenuesConnues } from "./ligne-de-statut/ligne-de-statut.js";
-import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, REPOS as REPRISE_AU_REPOS } from "./todo-breaker-line.js";
+import { poserLigneDuDisjoncteur } from "./todo-breaker-line.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
@@ -139,6 +141,7 @@ import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
+import { poserRangDEssai } from "./carte/essai.js";
 import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
 import { poserTestsDeFiche } from "./fiche-tests/fiche-tests.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
@@ -447,6 +450,10 @@ const declarees = new Map();
 // « report to brigade », sous chaque panne que l'app montre (ticket 1977) : une issue préremplie, ouverte dans le navigateur.
 // Sur le téléphone, rien ne l'ouvrirait : le bouton n'y est pas.
 const signalement = tenirLeSignalement({ doc: document, pont: brigade, actif: () => telephoneVu === undefined });
+// Le bandeau de la cuisine arrêtée (ticket 3924), en tête du rail : monté une fois, chaque lecture du rail le pose ou le retire.
+const hoteDeLArret = document.createElement("div");
+hoteDeLArret.className = "hote-bandeau-arret";
+const bandeauDArret = monterLeBandeau(document, hoteDeLArret);
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const ajout = element("ajout");
@@ -1098,15 +1105,11 @@ const etatsDesReglages = new Map();
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
 /** @type {Map<string, Alerte[]>} */
 const bandes = new Map();
-// La ligne du disjoncteur ouvert d'un projet, dans sa dernière bande : celle dont le bouton est « Resume » (ticket 2140).
+// La ligne du disjoncteur ouvert d'un projet, dans sa dernière bande : celle que `alertes.ts` marque `disjoncteur` (ticket 2140).
 /** @param {string} nom */
-const alerteDuDisjoncteur = (nom) => (bandes.get(nom) ?? []).find(({ appel }) => appel !== undefined && "reprise" in appel);
-// « Resume » en route d'ici, par projet (todo-breaker-line.js) : en cours, demandé, ou refusé. Il tient tant que la bande
-// dit le disjoncteur ouvert, et part avec elle.
+const alerteDuDisjoncteur = (nom) => (bandes.get(nom) ?? []).find(({ disjoncteur }) => disjoncteur === true);
 /** @type {Map<string, import("./page-projet/depot-non-prepare.js").Etat>} */
 const depots = new Map();
-/** @type {Map<string, import("./todo-breaker-line.js").Etat>} */
-const reprises = new Map();
 // Les projets dont le dernier rail posé porte la ligne du disjoncteur à côté de l'entrée TODO : la bande ne la redit pas.
 /** @type {Set<string>} */
 const disjoncteursEnTodo = new Set();
@@ -2847,6 +2850,8 @@ function coinceDit({ dit }) {
   return bail !== undefined && /^(?:STUCK: |COINC[EÉ] : )/.test(bail) ? bail.replace(/, (?:lease|bail) .*$/, "") : undefined;
 }
 
+const SANS_COOK = "Taken, no cook running";
+
 // Une carte du rail : son numéro, son état, son titre, puis une phrase en mots simples qui dit ce
 // qui se passe et, au plus, une ligne de signal (ligne-carte.ts) ; un petit repère quand la file ne
 // dit pas tout. Ce que la file dit du ticket en plus est dans sa fiche (`poserDetailsDeFiche`). Dans
@@ -2894,10 +2899,12 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (ticket 1895).
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
+  // Prise plus d'une fois : le rang de son essai en clair, « 3rd try », à côté de ses points (ticket 3923).
+  if (carte.essai !== undefined) tete.append(poserRangDEssai(document, carte.essai));
   // Tuée deux fois par le même garde-fou : la carte le dit, sous sa tête, tant que la box le dit (ticket 3650).
   if (carte.garde !== undefined) tete.after(poserGardeRepetee(document, carte.garde));
   // Un agent y travaille en ce moment : la poêle grésille au bout de sa tête (ticket 2984).
-  if (cuit) tete.append(poele(document));
+  if (cuit && carte.sansCook !== true) tete.append(poele(document));
   // Une carte que plus aucun cook ne prendra dit en haut pourquoi, en mots simples (ticket 3147) ; ce que la station en a écrit
   // est derrière « details ». Ses trois gestes sont au pied de la carte.
   if (carte.refus === undefined) refusDeCartes.delete(`${projet.nom}#${ticket}`);
@@ -2950,6 +2957,13 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     const phrase = liens === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, liens);
     phrase.className = "ligne-carte";
     bon.append(phrase);
+  }
+  // Prise, sans aucun cook qui la cuise ni attente vivante : la carte le dit (ticket 3884).
+  if (carte.sansCook === true) {
+    const sans = bloc("p", SANS_COOK);
+    sans.className = "signal";
+    sans.dataset.sansCook = "";
+    bon.append(sans);
   }
   // Un cook coincé le dit sur sa carte, faute d'un autre signal (ticket 1456) : sur Cooks, ce qui est coincé et depuis
   // quand se lit en tête, sans ouvrir la fiche.
@@ -5160,7 +5174,7 @@ function poserLeRail(projet) {
     );
     return liste;
   };
-  // Le disjoncteur ouvert : sa ligne à côté de l'entrée TODO, hors des colonnes, et son seul bouton « Resume » (ticket 2140) —
+  // Le disjoncteur ouvert : sa ligne à côté de l'entrée TODO, hors des colonnes, une information sans bouton (ticket 2140) —
   // pas quand la box ne répond pas : ce que TODO contenait n'est plus lu.
   const disjoncteur = muet === undefined ? alerteDuDisjoncteur(projet.nom) : undefined;
   const grille = document.createElement("div");
@@ -5198,7 +5212,7 @@ function poserLeRail(projet) {
   const ligneDuDisjoncteur = [];
   if (disjoncteur !== undefined) {
     disjoncteursEnTodo.add(projet.nom);
-    ligneDuDisjoncteur.push(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined));
+    ligneDuDisjoncteur.push(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }));
   }
   const avisDeDepot = avisDuDepot(projet, "todo");
   if (avisDeDepot !== undefined) duChef.push(avisDeDepot);
@@ -5251,6 +5265,10 @@ function poserLeRail(projet) {
   // l'attente de la file — sauf une panne que la pause n'explique pas, qui garde sa ligne et son geste.
   const ditDuRail = ceQueLeRailDit(tenu.tableau, Date.now(), projet.redemarre !== undefined);
   const attente = ditDuRail.railBloque === undefined ? ditDuRail.attenteDuRail : undefined;
+  // Les alertes du haut du rail (ticket 3823) : vraies et actionnables, jugées par le runtime. Une station qui redémarre pour
+  // une mise à jour n'est pas une panne (ticket 3637). Elles disent seules les pannes des stations : la phrase de l'attente
+  // qui porte un geste ne se montre plus, elle ne sait ni l'en-tête ni le dernier cook.
+  const alertesDuRail = (tenu.tableau.alertesDuRail ?? []).filter(({ sorte, cause }) => projet.redemarre === undefined || (sorte !== "aucun-cook" && cause !== "aucun-cook"));
   const statut =
     [
       ligneDuDisjoncteur,
@@ -5260,14 +5278,18 @@ function poserLeRail(projet) {
       panneDuRail(projet, tenu.tableau),
       teteDuRail(projet),
       horsLigne !== undefined ? [signeHorsLigne(horsLigne)] : perime !== undefined ? signePerime(perime, tenu.a) : fraicheur(tenu.a),
+      ligneDesAlertesDuRail(document, alertesDuRail, gestesDuRail),
       // Pourquoi la file ne part pas (ticket 3433) : jamais « no reason is found » devant une raison que la vue connaît.
-      ligneDeLAttente(document, attente === undefined ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail),
+      ligneDeLAttente(document, attente === undefined || attente.geste !== null ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail),
     ].find((lignes) => lignes.length > 0) ?? [];
+  bandeauDArret.maj(tenu.tableau.arretCuisine);
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
   poser(...statut, ...(bandeau === null ? [] : [bandeau]), grille, ...(duChef.length === 0 ? [] : [todo]), ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+  // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
+  if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
   if (memeRail) rail.scrollTop = hautDuRail;
@@ -5772,14 +5794,13 @@ function lesCartesDuChef() {
   });
 }
 // Les lignes du disjoncteur ouvert, en tête de la liste (ticket 3371) : une par projet dont la dernière bande le dit ouvert, avec
-// ce que la station en écrit — écrit sous la ligne, un téléphone n'ayant pas de survol — et son « Resume » — le même que celui de TODO sur le desktop (todo-breaker-line.js). Un projet en
-// lecture seule n'a que la ligne.
+// ce que la station en écrit — écrit sous la ligne, un téléphone n'ayant pas de survol (todo-breaker-line.js).
 function lesLignesDuDisjoncteur() {
   return configuration.projets.filter((projet) => seLit(projet)).flatMap((projet) => {
     const alerte = alerteDuDisjoncteur(projet.nom);
     if (alerte === undefined) return [];
     const dit = configuration.projets.length > 1 ? `${projet.nom}: ${alerte.dit}` : alerte.dit;
-    return [poserLigneDuDisjoncteur(document, { marque: pastille(alerte.dit, alerte.ton), dit, ...(alerte.releve === undefined ? {} : { pourquoi: alerte.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined)];
+    return [poserLigneDuDisjoncteur(document, { marque: pastille(alerte.dit, alerte.ton), dit, ...(alerte.releve === undefined ? {} : { pourquoi: alerte.releve }) })];
   });
 }
 function poserLesCartesDuChef() {
@@ -5941,32 +5962,6 @@ async function preparerLeDepot(projet) {
     poserLeDepot(projet, { etape: "refus", verif, dit: phraseDuRefus(erreur) });
   }
 }
-
-// « Resume », sur la ligne du disjoncteur (ticket 2140) : le process principal poste `/resume` sur l'issue du disjoncteur, sur
-// GitHub — une seule demande à la fois. La ligne dit ce qui part, puis ce qui a été demandé, ou pourquoi rien.
-/** @param {Projet} projet */
-async function reprendreLeDisjoncteur(projet) {
-  const etape = reprises.get(projet.nom)?.etape;
-  if (etape === "envoi" || etape === "demandee") return;
-  /** @param {import("./todo-breaker-line.js").Etat} etat */
-  const poser = (etat) => {
-    reprises.set(projet.nom, etat);
-    poserLesCartesDuChef();
-    if (courant?.nom !== projet.nom) return;
-    poserAlertes(projet);
-    poserRail(projet);
-  };
-  poser({ etape: "envoi" });
-  /** @type {import("../github/breaker-resume.ts").RenduDeLaReprise | undefined} */
-  let rendu;
-  try {
-    rendu = await brigade.reprendreLeDisjoncteur(projet.nom);
-  } catch (erreur) {
-    rendu = { refus: `resume not requested: ${NON_ATTEINT("GitHub")}`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  poser(apresLaReprise(rendu));
-}
-
 
 // La page des coûts de l'app (ticket 1022). En tête (cost/tete.js), les tokens lancés sur 5 h, 24 h et 7 jours,
 // tous projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore ;
@@ -7639,8 +7634,8 @@ function poserAlertes(projet) {
   // La ligne dont le geste est celui de l'interrupteur de l'espace n'est pas posée : l'interrupteur la
   // dit, et c'est lui qui la lève — le projet éteint (tickets 906, 1406). Non vérifiée, elle se pose :
   // l'interrupteur ne sait pas, la ligne dit pourquoi.
-  // La ligne du disjoncteur non plus quand TODO la porte, sur Rail : elle y a son bouton (ticket 2140).
-  const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && (("geste" in appel && appel.geste === "projet-allumer") || ("reprise" in appel && disjoncteursEnTodo.has(projet.nom)))));
+  // La ligne du disjoncteur non plus quand TODO la porte, sur Rail : elle y a sa ligne (ticket 2140).
+  const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel, disjoncteur }) => !((appel !== undefined && "geste" in appel && appel.geste === "projet-allumer") || (disjoncteur === true && disjoncteursEnTodo.has(projet.nom))));
   gesteDeLUrgence = undefined;
   const avis = avisDuDepot(projet, "page");
   // En lecture seule, sa ligne vient en tête du projet (ticket 3163) : elle dit pourquoi aucun geste n'est offert.
@@ -7728,8 +7723,8 @@ function poserAlerte(projet, alerte) {
 function poserControle(projet, alerte, endroit) {
   const { sujet, geste: leve, bouton: libelle, appel, prix } = alerte;
   if (appel === undefined) return [];
-  // En lecture seule (ticket 3163), ni geste du socle ni reprise du disjoncteur : rien qui change le projet.
-  if (lectureSeuleDe(projet) !== undefined && ("geste" in appel || "reprise" in appel)) return [];
+  // En lecture seule (ticket 3163), pas de geste du socle : rien qui change le projet.
+  if (lectureSeuleDe(projet) !== undefined && "geste" in appel) return [];
   const mot = libelle ?? leve;
   /** @type {HTMLElement[]} */
   let pose;
@@ -7754,9 +7749,6 @@ function poserControle(projet, alerte, endroit) {
   } else if ("relire" in appel) {
     // Réessayer maintenant : la box est relue tout de suite, au lieu d'attendre le tour des trente secondes.
     pose = [bouton(mot, () => lireLesFaits())];
-  } else if ("reprise" in appel) {
-    // Le disjoncteur, hors de Rail : le même « Resume » que sa ligne de TODO, dans le même état (todo-breaker-line.js).
-    pose = poserReprise(document, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, () => void reprendreLeDisjoncteur(projet));
   } else {
     const { onglet } = appel;
     pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
@@ -8996,8 +8988,6 @@ brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
   const disjoncteurAvant = JSON.stringify(alerteDuDisjoncteur(projet));
   bandes.set(projet, alertes);
   const disjoncteur = alerteDuDisjoncteur(projet);
-  // Le disjoncteur refermé : « Resume » demandé, ou refusé, n'a plus rien à dire.
-  if (disjoncteur === undefined) reprises.delete(projet);
   signaux.set(projet, signal);
   marquerSignal(projet);
   // La pastille dit la même chose que la bande, en un mot.

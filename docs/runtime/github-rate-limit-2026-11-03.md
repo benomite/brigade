@@ -12,8 +12,8 @@ The station journal, the counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.
 
 ## Established
 
-- **GitHub refused, not the box.** The `status` line `GitHub is rate-limiting calls, back around 15:54` is written only by `direLaLimite` (`runtime/src/limite-github.ts`), from a pause set by `constaterLimite` after `refusPourLimite` saw a 429, or a 403 with `retry-after`, `x-ratelimit-remaining: 0` or "rate limit" in the message. The box's own hold at the gestures' reserve (500 calls left) writes another line (`direLaRetenue`).
-- **Not the primary quota.** 4653/5000 left at 15:50, well above the reserve of 500, and a primary refusal carries `x-ratelimit-remaining: 0`.
+- **GitHub refused, not the box.** The `status` line `GitHub is rate-limiting calls, back around 15:54` is written only by `direLaLimite` (`runtime/src/limite-github.ts`), from a pause set by `constaterLimite` after `refusPourLimite` saw a 429, or a 403 with `retry-after`, `x-ratelimit-remaining: 0` or "rate limit" in the message. The box's own slowdown on the low remaining quota is not a pause and does not write that line.
+- **Not the primary quota.** 4653/5000 left at 15:50, far from empty, and a primary refusal carries `x-ratelimit-remaining: 0`.
 - **Every project stopped because the pause is shared.** `suspendre` writes it in the station's single counter; `prendre` then throws `LimiteGitHubAtteinte` for every kitchen call of every project until `jusqua`.
 - **How the end of the pause is chosen** (`constaterLimite`): `retry-after`, else `x-ratelimit-reset`, else `gh api rate_limit`, else 60 s.
 
@@ -40,7 +40,7 @@ The station journal, the counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.
 | PR of a branch, then its detail | read | per tick for each ticket in pass, plus on log events | yes | `pass.ts` `prDeBranche`, `github.ts` |
 | CI of a commit: check-runs + status | 2 reads | per tick for each ticket in pass while it waits for CI | yes, but while CI runs the answer changes: 200, counted | `pass.ts` (`github.ci(sha)`), `github.ts` `ci` |
 | CI of the base: 10 commits × `ci` | 20 reads in parallel | event: when a red check must be excused | yes | `pass.ts` `excuserLesJobsSansVert`, `github.ts` `ciDeLaBase` |
-| Issues since an instant (`state=all&since=<instant>`) | read | event, but **retried on every tick** while a kitchen fix or a breakdown is not found | **no** (the path changes with `instant`; comment in `github.ts` `issuesDepuis`) | `pass.ts` (`ouvrirLeFixDeLaCuisine`, fix lookup), `decoupage.ts`, `budget-des-gates.ts`, `breaker-resume-github.ts` |
+| Issues since an instant (`state=all&since=<instant>`) | read | event, but **retried on every tick** while a kitchen fix or a breakdown is not found | **no** (the path changes with `instant`; comment in `github.ts` `issuesDepuis`) | `pass.ts` (`ouvrirLeFixDeLaCuisine`, fix lookup), `decoupage.ts`, `budget-des-gates.ts` |
 | Job log of a check | read | event | no | `github.ts` `journalDuCheck` |
 | Last page of a full list (comments, events with 100 entries) | read | whenever the list is read | no (`pleine`) | `github.ts` `dernierePagePleine` |
 | Any list over 100 items | read | tick | first page and later pages: no | `github.ts` `sonder`, `feuilleter` |

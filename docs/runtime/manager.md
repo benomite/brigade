@@ -24,16 +24,23 @@ kitchen and is merged when green. Before switching on, set `blocked-on-human` on
 an issue that carries it is never judged, **an epic that carries it is never split**. It sets no
 dependencies between issues you wrote (unless you write `attend` in a card), but does between the
 tickets of an epic it splits.
-The kitchen still holds a ticket whose body says it builds on another one — a `Depends on #N` line, or
-in plain words on one line: "with the identity of #49", "once #12 is done", "after #12", "builds on
-#12", "on top of #12", "requires #12", and their French forms (#3622) — until that ticket is closed;
-a `#N` between backticks, in a code block or from another repository (`other#N`) does not count. When
+The kitchen holds a ticket only for a `Depends on #N` line of its body, written by the manager or the chef (#3865), until that ticket is closed;
+prose that mentions a ticket (a quote, a pasted decision, "builds on #N", "once #N") never holds it. When
 that ticket was split (its body carries the list of its tickets), the wait goes to the open tickets of
-the split, and the skip line names them, as does the card's line in `status`. The phrases are read
-broadly: a sentence like "after #12" or "with the title of #5" that is not a dependency holds the ticket
-too, until that ticket is closed — and a ticket that is never served (left off the rail, or
-`blocked-on-human`) holds it for good. The skip line is the signal: rewrite the sentence, or close the
-awaited ticket, to release it.
+the split, and the skip line names them, as does the card's line in `status`. A ticket that is never served (left off the rail, or `blocked-on-human`) holds it for good, unless the manager lifts the wait it reviews after an hour (below). The skip line is the signal: fix the `Depends on` line, or close the awaited ticket, to release it.
+
+**A wait held more than an hour goes to the manager, once (#3764).** A ticket on the rail held by a wait
+— a `Depends on` line of its body, the `awaiting` line of its sheet, its cook's stop on an open ticket, or an awaited ticket
+set aside — is counted from the first turn that saw it held; that count is kept in memory, so a restart
+of the station starts the hour over. Past an hour, the station gives the wait to the manager, read-only
+in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the manager lifts it,
+the issue says so in one line, and a cook takes the ticket at the next turn. A real one: it keeps it,
+the issue says why, and the wait stays until the awaited ticket is served. Only a product decision goes
+to the chef, as a question under `blocked-on-human`; once the chef has answered and removed the label,
+the manager reads the wait again with that answer. Whatever the outcome, the issue then carries a line
+naming what the ticket waits for and who decided it (the station, the manager or the chef) — also when
+the manager gives no readable answer, or the station has no manager. That line carries a mark: the same
+wait does not go back to the manager, not even after a restart.
 
 **Count before you turn it on.** `manager -- backlog` says in one line, for example `12 open issues, of
 which 3 carry blocked-on-human — read just now on GitHub`, what turning on commits to. It is **a read**
@@ -111,7 +118,7 @@ without spending anything:
 | is the roadmap: the issue `BRIGADE_ROADMAP_ISSUE` names, or the one the `**Roadmap**` line of the bindings in `CLAUDE.md` names on the integration branch, reread each turn — recognised before anything else (#3436) | Never judged, never put on the rail, never asks the chef anything. If it carries `question`, `decision` or `chef-todo`, or has a TODO card, the manager removes them, with no gesture from the chef. The LLM reads it once per state for separate work slipped into it (an observation, a bug): each piece becomes a new issue with no label, which the manager judges like any other. The roadmap itself keeps its body, and gets no label and no verdict. While the `**Roadmap**` line has never been read, no issue is judged or split | `manager.set-aside` (`roadmap`); `manager.roadmap-cleared`, `manager.roadmap-read`, `manager.roadmap-filed` |
 | carries `idea` — checked first, before everything else (#3536) | Never read: no judgment, no `decision`, `fire`, `model:` or `effort:`, no card. If it carries `fire` set by hand, the manager says once, in one comment, that it is an idea; it qualifies nothing until `idea` is removed | `manager.set-aside` (`idea`), then `manager.commented` if `fire` is set |
 | is a product vision or a reference document: it carries `vision`, `product-vision` or `reference`, or its title announces a vision (`Product vision — …`, `Vision: …`, `[Vision] …`) — checked before a complete calibration (#3479) | Never judged. If it carries `fire`, the manager removes it and posts **one line** on the issue saying why, once (`brigade:vision`) | `manager.set-aside` (`vision`) |
-| is an alert the station opened about the kitchen itself — an idle kitchen or its breaker: its `brigade:cuisine-inerte` or `brigade:breaker-open` mark, the `brigade:breaker-open` label, or the title the station gives it — checked first, before everything else (#3620) | Never judged, never fired, never calibrated, says nothing on the issue, even if it carries `fire`: it is not a ticket about this project's code, and no station hands it to a cook. On `benomite/brigade` itself, an idle-kitchen alert stays a ticket: the kitchen's code is there | `manager.set-aside` (`kitchen-alert`) |
+| is the breaker issue, the only issue the station opens about the kitchen itself: its `brigade:breaker-open` mark, the `brigade:breaker-open` label, or the title the station gives it — checked first, before everything else (#3620, `runtime/src/issue-de-la-cuisine.ts`) | Never judged, never fired, never calibrated, says nothing on the issue, even if it carries `fire`: it is not a ticket about this project's code, and no station hands it to a cook | `manager.set-aside` (`kitchen-alert`) |
 | carries `fire` and a complete calibration | Nothing: launched, by you or by it | — |
 | received labels from the manager, and lacks `fire`, `model:` or `effort:` since | Nothing, **until you hand it back**; says so once on the issue, with the command | `manager.set-aside` (`chef-changed`) |
 | is written by someone with no hand on the repository, and is not a station's measure ticket (one carries a `brigade:projet` / `brigade:famille` mark *and* is written by an account of the project's `humans`: the mark alone is text a stranger can paste, so it proves nothing; such a ticket goes to the manager like the kitchen's own, #3012) |and carries no `brigade:projet` / `brigade:famille` mark from a declared `humans` account (a station's measure ticket does: it goes to the manager like the kitchen's own, #3012) | **Triaged** by the LLM, once: one comment proposes `duplicate of #N`, `out of scope`, or `ticket` with a `prio:` value; then a `product-question` TODO card, assigned to the project's `product` human (the chef without one): what the issue asks and who opened it (a stranger, or a declared human when the author is in the project's `humans`), then two buttons — the recommendation first (`rail` with the proposed `prio:`, else `close`), the other choice second — and the free answer; a click plays the choice at once (the app puts the `prio:` label, or closes the issue). Nothing reaches the rail until that human (or an account with write access) answers on the issue: `on the rail` puts the proposed `prio:` — or the one the answer writes, `on the rail prio:N`; `fire` when there is none — and the issue is judged on the next wake-up like one a member prioritised (#2619); `close` closes it (#2934, `runtime/src/issue-etrangere/`) | `manager.set-aside` (`untrusted-author`) |
@@ -316,11 +323,11 @@ ticket: once split, its tickets carry the work. The manager removes the need's `
 its tickets gets its own, each ticket it creates says `Part of #<need>` in its body (above the closing
 line), and the need's body lists them as tasks. The rail never holds a need and a ticket made from it:
 an issue that a `fire` ticket names by `Part of #N` or `Epic: #N` is neither claimed by a station nor
-counted as waiting (`besoin/besoin.ts`, used by `brigade-github.ts` and `retenue/tour.ts`).
+counted as waiting (`besoin/besoin.ts`, used by `brigade-github.ts` and `superviseur/tour.ts`).
 
 **An epic is never a ticket.** An issue whose body carries the block keeps its `prio:` (and `fire`, if
-you put it back), but no station claims it (`brigade-github.ts`), the held-kitchen diagnosis does not count it as waiting
-(`retenue/tour.ts`, and so `status` and the TODO line), and the app's rail does not show it
+you put it back), but no station claims it (`brigade-github.ts`), the supervisor does not count it as cookable
+(`superviseur/tour.ts`), and the app's rail does not show it
 (`app/src/vue/rail/github.ts`): the GraphQL snapshot and the REST poll of the `fire` issues mark it
 `epique`.
 

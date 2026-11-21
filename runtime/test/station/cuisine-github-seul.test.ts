@@ -115,8 +115,10 @@ test("the box's kitchen announces its GitHub-only station in the log, with its d
 });
 
 test("the box's kitchen reads its machine before each claim: short of disk, it says so in the log, and its first cook still leaves (#3560)", async (t) => {
-  // Un milliard de Mo libres demandés : aucun disque ne les a.
-  const { cuisine, prises, etat } = ouvrir(t, { variables: { BRIGADE_MIN_FREE_DISK_MB: "1000000000" } });
+  // Un milliard de Mo libres demandés : aucun disque ne les a. La charge et la
+  // mémoire de la machine qui joue le test ne passent pas avant lui : sur un
+  // runner chargé, la charge sortait la première (`cpu`, 6).
+  const { cuisine, prises, etat } = ouvrir(t, { variables: { BRIGADE_MIN_FREE_DISK_MB: "1000000000", BRIGADE_MAX_LOAD_PER_CORE: "1000000", BRIGADE_MIN_FREE_MEMORY_MB: "0" } });
   try {
     await jusqua(() => prises().length > 0);
     assert.deepEqual(prises(), [PRISE]);

@@ -50,14 +50,14 @@ import { avecLaPresenceLocale, avecLaStationLocale } from "./vue/pause-quota/pau
 import type { SignesDeVie } from "./vue/rail/github.ts";
 import { partageDesCartesAssignees, tenirLeLogin } from "./vue/cartes-assignees/cartes-assignees.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
-import { INTERVALLE_PAR_PROJET_MS, lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
+import { lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
+import { FRAICHEUR_MAX_D_UNE_LECTURE_MS } from "./vue/servi/fraicheur.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
 import { jouerLIdee } from "./gestes-idee.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
-import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
 import { gestesDeCarte } from "./gestes-fiche.ts";
@@ -286,8 +286,8 @@ const compteConnecte = tenirLeLogin(async () => {
   const { echecDeGh } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
   return lireLeCompteGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env, echecDeGh });
 });
-// Ces lectures restent loin du budget horaire du jeton du chef (budget-github.ts, #3007) : un projet ne se relit pas plus
-// d'une fois par minute, et toutes s'arrêtent, chaque projet gardant son dernier rail, quand GitHub dit le budget
+// Ces lectures restent loin du budget horaire du jeton du chef (budget-github.ts, #3007) : les relectures d'un rail inchangé sont des 304 que GitHub ne compte pas,
+// et toutes s'arrêtent, chaque projet gardant son dernier rail, quand GitHub dit le budget
 // presque épuisé ou refuse pour dépassement — jusqu'à l'heure où il se remplit.
 const budgetGitHub = tenirLeBudgetGitHub();
 const appelerSousBudget = budgetGitHub.appeler(appelerGitHub);
@@ -304,16 +304,15 @@ const lireLeTableau = async (projet: Projet): Promise<LectureDuTableauDuDepot> =
     },
   });
 };
-const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: INTERVALLE_PAR_PROJET_MS });
+const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: FRAICHEUR_MAX_D_UNE_LECTURE_MS });
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
-// les trente secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.
+// les cinq secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.
 // Les veilles des onglets (Cooks, Settings) et les gestes qui partent sur la box se partagent le
 // passage de chaque projet : à eux tous, un projet ne lance qu'une commande à la fois.
 const passage = new Map<string, Promise<unknown>>();
 const veille = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
-  intervalleMs: 30_000,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
     // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa
@@ -1790,15 +1789,6 @@ ipcMain.handle("compter", (_, nom: unknown) => {
   const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => compter({ delaiMs: 30_000 }, servi));
   passage.set(servi.nom, rendu);
   return rendu;
-});
-// « Resume », sur la ligne du disjoncteur de TODO (#2140) : `/resume` posté sur l'issue `brigade:breaker-open` du projet,
-// sur la brigade (#3620), par le jeton du `gh` de ce poste — sans box jointe. La station le lit à sa veille suivante et referme le
-// disjoncteur (#2139) ; la ligne part avec la lecture qui ne le dit plus ouvert.
-const clientDuDisjoncteur = clientDuDisjoncteurGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
-ipcMain.handle("reprendreLeDisjoncteur", async (_, nom: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return undefined;
-  return reprendreLeDisjoncteur(await depotDuProjet(vise), clientDuDisjoncteur);
 });
 // La réponse du chef à une carte de TODO (carte-todo.ts) : la carte du chef lue de GitHub (#2434) — sa réponse est postée
 // sur son issue et son geste joué par l'app même, par le jeton du `gh` de ce poste (tableau-gestes/reponse-github.ts) —, ni

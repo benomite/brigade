@@ -51,10 +51,26 @@ export function incapables(commentaires: readonly { body: string; association: s
   return marquees;
 }
 
+// Les mêmes, sans lire les retraits quand aucun commentaire ne porte de marque :
+// ils ne datent que les marques (#3834). Des retraits illisibles gardent toutes les marques.
+export async function incapablesLus(commentaires: readonly { body: string; association: string; createdAt: string }[], lireLesRetraits: () => Promise<readonly { label: string; createdAt: string }[]>): Promise<Set<string>> {
+  if (!commentaires.some((c) => LIRE_LA_MARQUE.test(c.body))) return new Set();
+  return incapables(commentaires, await lireLesRetraits().catch(() => []));
+}
+
 // Où va le ticket : les autres stations du projet qu'aucune marque n'écarte.
 // Aucune : il reste retenu sur cette station.
 export function stationsCapables(station: string, stationsDuProjet: readonly string[], marquees: ReadonlySet<string>): string[] {
   return [...new Set(stationsDuProjet)].filter((autre) => autre !== station && !marquees.has(autre));
+}
+
+// Ce que la station a manqué, en une ligne, pour sa carte de l'onglet Stations (#3870) :
+// l'installation des dépendances se dit en clair, tout autre manque par la première ligne du cook.
+const DEPENDANCES_NON_INSTALLEES = /cannot be installed|can't be installed|npm ci|npm install|yarn install|pnpm install/i;
+export function direLaLacune(question: string): string {
+  if (DEPENDANCES_NON_INSTALLEES.test(question)) return "dependencies cannot be installed";
+  const ligne = question.trim().split("\n")[0]?.trim() ?? "";
+  return ligne.length > 140 ? `${ligne.slice(0, 137)}...` : ligne || "the gates cannot run here";
 }
 
 const citer = (texte: string) =>

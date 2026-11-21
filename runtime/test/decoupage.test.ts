@@ -23,7 +23,8 @@ const EPIQUE = "Le chef veut voir, partout, combien de tickets attendent.";
 function brigade(t: TestContext, options: Options & { decoupage?: string } = {}) {
   const c = cuisine(t, { ...options, manager: options.manager ?? { jugement: options.decoupage ?? "decoupe-tickets" } });
   if (!options.lieux) chef(c.repertoire, "manager.enabled");
-  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools"));
+  // Le contrôle que rejoue le superviseur quand le disjoncteur s'ouvre (#3911) n'est pas un jugement.
+  const jugements = () => c.lancements().filter((lancement) => lancement.args.includes("--tools") && !lancement.args.some((arg) => arg.includes("health check of the kitchen")));
   const dits = (numero: number) => c.gh.commentaires.filter(([n, corps]) => n === numero && corps.includes(MARQUEUR_MANAGER)).map(([, corps]) => corps);
   const faits = (numero: number) => c.journal.duTicket(numero).filter((e) => e.type.startsWith("manager."));
   const tous = (type: string) => c.journal.tout().filter((e) => e.type === type);

@@ -16,6 +16,7 @@ import { cheminConfiguration, lireConfiguration } from "../config.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "../emplacements.ts";
 import { estUnMac, shellDuPoste } from "../plateforme.ts";
 import { servisPar } from "../poste/cuisine-ici.ts";
+import { prendreLaPlace } from "./instance.ts";
 import { ICONE_DE_LA_BARRE, pastillee } from "./icone.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
 import { executer, quitterLaStation } from "./systeme.ts";
@@ -27,7 +28,8 @@ const DELAI_MS = 30_000;
 
 // Ses propres données, à part de celles de l'app : les deux tournent en même temps. Un seul process d'icône par compte.
 app.setPath("userData", join(app.getPath("userData"), "tray-fond"));
-if (!app.requestSingleInstanceLock()) app.exit(0);
+// Pas le verrou d'Electron, réservé à l'app (entree.ts, #3864) : un fichier de pid dans ses données.
+if (prendreLaPlace(join(app.getPath("userData"), "tray.pid")) !== undefined) app.exit(0);
 // Ni fenêtre, ni icône dans le Dock.
 app.on("window-all-closed", () => {});
 

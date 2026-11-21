@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
-import type { StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { comprendre, rail, tableau, type Carte, type Faits } from "../../src/faits.ts";
 import { ligneEnAttente, PRET } from "../../src/ligne-carte.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
@@ -74,20 +74,20 @@ describe("la lecture du rail pose la phrase et les lignes des cartes dans `facts
     for (const brut of [null, [], { raison: "inconnue", phrase: "x", geste: null }, { raison: "normale", phrase: "", geste: null }, { raison: "normale", phrase: "x", geste: "autre" }, { raison: "normale", phrase: "x" }]) {
       assert.deepEqual(attenteDuRailLue(brut), {}, JSON.stringify(brut));
     }
-    for (const brut of [null, [], {}, { x: "after #4" }, { 5: "" }, { 5: 4 }]) assert.deepEqual(lignesDesCartesLues(brut), {}, JSON.stringify(brut));
-    assert.deepEqual(lignesDesCartesLues({ 5: "after #4" }), { lignesDesCartes: { 5: "after #4" } });
+    for (const brut of [null, [], {}, { x: "waits for #4 — read from the card" }, { 5: "" }, { 5: 4 }]) assert.deepEqual(lignesDesCartesLues(brut), {}, JSON.stringify(brut));
+    assert.deepEqual(lignesDesCartesLues({ 5: "waits for #4 — read from the card" }), { lignesDesCartes: { 5: "waits for #4 — read from the card" } });
   });
 });
 
 describe("la ligne de chaque carte en file", () => {
   const depend = (...numeros: number[]) => ({ depend: numeros });
 
-  test("« after #N » derrière un ticket en file, « waiting for #N to merge » derrière un ticket tenu ; la carte qui part ensuite n'en a aucune", () => {
+  test("derrière un ticket en file comme derrière un ticket tenu, l'attente et sa source (ticket 3763) ; la carte qui part ensuite n'en a aucune", () => {
     const faits = faitsDe(lecture([ticket(4), ticket(5, depend(4)), ticket(6, depend(3)), pris], [station()]));
-    assert.deepEqual(faits.lignesDesCartes, { 5: "after #4", 6: "waiting for #3 to merge" });
-    assert.equal(carte(faits, 5).ligne, "after #4");
+    assert.deepEqual(faits.lignesDesCartes, { 5: "waits for #4 — read from the body", 6: "waits for #3 — read from the body" });
+    assert.equal(carte(faits, 5).ligne, "waits for #4 — read from the body");
     assert.deepEqual(carte(faits, 5).liens, [4]);
-    assert.equal(carte(faits, 6).ligne, "waiting for #3 to merge");
+    assert.equal(carte(faits, 6).ligne, "waits for #3 — read from the body");
     // La carte qui part ensuite garde sa phrase d'avant : elle n'a pas de dépendance.
     assert.equal(carte(faits, 4).ligne, PRET);
   });
@@ -95,12 +95,13 @@ describe("la ligne de chaque carte en file", () => {
   test("la ligne se dit même quand un cook tourne : c'est la carte qui attend, pas la file", () => {
     const faits = faitsDe(lecture([ticket(5, depend(3)), pris], []));
     assert.equal(faits.attenteDuRail, undefined);
-    assert.equal(carte(faits, 5).ligne, "waiting for #3 to merge");
+    assert.equal(carte(faits, 5).ligne, "waits for #3 — read from the body");
   });
 
   test("ce qui retient déjà la carte, et ses messages (« Will not start », mise de côté), passent avant", () => {
-    assert.deepEqual(ligneEnAttente("en attente", "blocked by #9", "after #4"), { ligne: "Waiting for #9", liens: [9] });
-    assert.deepEqual(ligneEnAttente("en attente", undefined, "after #4"), { ligne: "after #4", liens: [4] });
+    const derriere = { ligne: "waits for #4 — read from the card", attendus: [4] };
+    assert.deepEqual(ligneEnAttente("en attente", "blocked by #9", derriere), { ligne: "Waiting for #9", liens: [9] });
+    assert.deepEqual(ligneEnAttente("en attente", undefined, derriere), { ligne: "waits for #4 — read from the card", liens: [4] });
     assert.deepEqual(ligneEnAttente("en attente", undefined, undefined), { ligne: PRET });
     const refusee = ticket(5, { etat: "86", depend: [4], miseDeCote: { label: "served-elsewhere", raison: "already done", liens: [], auChef: false, pr: null } });
     const faits = faitsDe(lecture([ticket(4), refusee], [station()]));
@@ -161,7 +162,7 @@ describe("le `status` que l'app tire de sa lecture", () => {
     const rang = lignes.findIndex((ligne) => ligne.startsWith("queue wait "));
     assert.ok(rang !== -1, lignes.join("\n"));
     assert.match(lignes[rang] ?? "", /^queue wait Normal wait: a cook takes the ticket within minutes \(the oldest has waited 2 min\)\. It resolves by itself\.$/);
-    assert.equal(lignes[rang + 1], "  #5  after #4");
+    assert.equal(lignes[rang + 1], "  #5  waits for #4 — read from the body");
     assert.ok(lignes.findIndex((ligne) => ligne.startsWith("rail ")) > rang);
   });
 

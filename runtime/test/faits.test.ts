@@ -74,7 +74,7 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       // #18 attend #12, parti l'issue ouverte : il l'attend sur le rail, et rien n'attend le chef (#1834).
       `"attend":[],` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
-      `"urgence":null,"retenues":[],"cuisineOisive":null,"stations":[],"agents":[]}`,
+      `"cuisineOisive":null,"stations":[],"agents":[]}`,
   );
 });
 
@@ -528,8 +528,6 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     cooks: [],
     attend: [],
     livres: [],
-    urgence: null,
-    retenues: [],
     cuisineOisive: null,
     stations: [],
     agents: [],
@@ -547,7 +545,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "retenues", "cuisineOisive", "stations", "agents", "blockedWithoutQuestion", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "coutDesGates"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "cuisineOisive", "stations", "agents", "blockedWithoutQuestion", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "coutDesGates"]);
   // Aucune gate jouée, aucun budget posé : le défaut, rien de dépassé, un jour à zéro.
   assert.deepEqual(forme.coutDesGates, {
     budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },
@@ -706,17 +704,17 @@ test("la carte d'un ticket en pass dit où en est la pass : gates, relecture, ju
   assert.deepEqual(activite(), { fait: "attend la pass", faitEn: "waiting for the pass", cible: null, depuis: `${JOUR_HORLOGE}T10:00:04.000Z` });
 
   noter({ type: "pass.started", payload: { run: "14-a", pr: "https://exemple.test/pr/1", number: 1, sha: "abc" } }, 14); // 10:00:06
-  assert.deepEqual(activite(), { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z` });
+  assert.deepEqual(activite(), { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z`, etape: "CI running" });
 
   lancer("review-14-x", "reviewer", null); // 10:00:07
-  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
+  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
   // La relecture d'un autre ticket n'est pas la sienne.
   lancer("review-140-y", "reviewer", null);
-  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
+  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z`, etape: "review" });
 
   noter({ type: "cook.exited", payload: { run: "review-14-x", outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }); // 10:00:09
   noter({ type: "pass.reviewed", payload: { run: "14-a", sha: "abc", review: "review-14-x", outcome: "green", summary: null, findings: [], reason: null, truncated: false } }, 14);
-  assert.deepEqual(activite(), { fait: "jugement en cours", faitEn: "judging", cible: null, depuis: `${JOUR_HORLOGE}T10:00:09.000Z` });
+  assert.deepEqual(activite(), { fait: "jugement en cours", faitEn: "judging", cible: null, depuis: `${JOUR_HORLOGE}T10:00:09.000Z`, etape: "CI running" });
 
   const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
   noter(

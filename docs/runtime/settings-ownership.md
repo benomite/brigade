@@ -23,8 +23,6 @@ Today the "station" gestures write a decision to the project's **log** (`decisio
 | `stations <declaration>` | Which stations serve the project, each as `<machine>/<engine>:<cooks cap>:<capabilities>[:remote…]` | station | — |
 | `seuil-ticket` | Drift: tokens of the most expensive ticket (`BRIGADE_DRIFT_TICKET_TOKENS`) | project | [#1671](https://github.com/benomite/brigade/issues/1671) `drift.ticketTokens` |
 | `seuil-perdus` | Drift: lost tokens (`BRIGADE_DRIFT_LOST_TOKENS`) | project | #1671 `drift.lostTokens` |
-| `seuil-renvois` | Drift: share delivered first try (`BRIGADE_DRIFT_FIRST_TRY_PERCENT`) | project | #1671 `drift.firstTryPercent` |
-| `fenetre-renvois` | Window of that threshold, in tickets (`BRIGADE_DRIFT_FIRST_TRY_WINDOW`) | project | #1671 `drift.firstTryWindow` |
 | `budget-gates` | Wall-clock budget of one gates run (`BRIGADE_GATES_BUDGET_SECONDS`) | project | [#1672](https://github.com/benomite/brigade/issues/1672) `gates.durationBudgetSeconds` |
 | `budget-gates-cpu` | CPU budget of one gates run (`BRIGADE_GATES_BUDGET_CPU_SECONDS`) | project | #1672 `gates.processorBudgetSeconds` |
 | `budget-base` | Wall-clock budget of the full run on the base (`BRIGADE_GATES_BASE_BUDGET_SECONDS`) | project | #1672 `gates.baseDurationBudgetSeconds` |
@@ -43,7 +41,7 @@ The old names `retirer` and `aide` still answer and say the new word. A `gates` 
 
 ## 2. Settings read from the service environment and the station line
 
-These are the `BRIGADE_*` variables the runtime reads from the service environment (the station's line for the project). The variables named in §1 (`BRIGADE_STATIONS`, `BRIGADE_MANAGER_*`, `BRIGADE_REVIEWER_*`, `BRIGADE_CLOSING_*`, `BRIGADE_CEILING_*`, `BRIGADE_DRIFT_TICKET_TOKENS`, `BRIGADE_DRIFT_LOST_TOKENS`, `BRIGADE_DRIFT_FIRST_TRY_*`, `BRIGADE_GATES_*BUDGET*`) are no longer read from the environment.
+These are the `BRIGADE_*` variables the runtime reads from the service environment (the station's line for the project). The variables named in §1 (`BRIGADE_STATIONS`, `BRIGADE_MANAGER_*`, `BRIGADE_REVIEWER_*`, `BRIGADE_CLOSING_*`, `BRIGADE_CEILING_*`, `BRIGADE_DRIFT_TICKET_TOKENS`, `BRIGADE_DRIFT_LOST_TOKENS`, `BRIGADE_GATES_*BUDGET*`) are no longer read from the environment.
 
 ### 2.1 The project's caps and the breaker
 
@@ -62,13 +60,7 @@ All project: they describe the project's code, tests, tickets, CI or notebook. T
 
 | Setting | What it sets | `projet.json` key |
 |---|---|---|
-| `BRIGADE_DRIFT_CONTEXT_KB` | Drift: size of the context a cook receives, in KB | #1671 `drift.contextKb` |
 | `BRIGADE_DRIFT_GATES_SECONDS` | Drift: duration of the gates, in seconds | #1671 `drift.gatesSeconds` |
-| `BRIGADE_DRIFT_GROWTH_PERCENT` | Drift: growth of the project's measures, in % | #1671 `drift.growthPercent` |
-| `BRIGADE_DRIFT_MERGES` | Drift measure: number of merges per reading | #1671 `drift.merges` |
-| `BRIGADE_DRIFT_REPO_MB` | Drift: size of the repository, in MB | #1671 `drift.repoMb` |
-| `BRIGADE_DRIFT_TESTS` | Drift: number of tests | #1671 `drift.tests` |
-| `BRIGADE_DRIFT_TESTS_SECONDS` | Drift: duration of the tests, in seconds | #1671 `drift.testsSeconds` |
 | `BRIGADE_CORRECTION_THRESHOLD` | How many repeated corrections raise a proposal (2 or more) | #1671 `correction.threshold` |
 | `BRIGADE_CORRECTION_WINDOW` | Window, in tickets, in which corrections are counted | #1671 `correction.window` |
 | `BRIGADE_PROFILE_WINDOW` | Window, in tickets, from which a cook profile is computed | #1671 `profile.window` |

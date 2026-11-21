@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { dependancesDuCorps, expliquerLAttente, lignesDeStatus, lignesDesCartes, type TicketDuRail } from "../../src/attente-du-rail/raison.ts";
-import { MOTS_DU_GESTE, type StationDuCompte } from "../../src/rail-bloque/rail-bloque.ts";
+import { MOTS_DU_GESTE, type StationDuCompte } from "../../src/attente-du-rail/stations.ts";
 
 const DEPOT = "chef/secondes";
 const T0 = Date.parse("2026-11-12T10:00:00.000Z");
@@ -15,13 +15,19 @@ const attente = (tickets: TicketDuRail[], stations: StationDuCompte[] | null, pl
 
 describe("la raison pour laquelle la file ne part pas", () => {
   test("1 : aucune station ne sert le projet — la phrase nomme le geste", () => {
-    assert.deepEqual(attente([file(4)], [station({ selection: ["chef/autre"] }), station({ name: "mac", selection: null })]), {
+    assert.deepEqual(attente([file(4)], [station({ selection: ["chef/autre"] }), station({ name: "mac", selection: null, stoppedAt: iso(T0 - 10_000) })]), {
       raison: "aucune-station",
       phrase: "No station serves this project, so no cook can start. Add the project to a station.",
       geste: "ajouter-a-une-station",
       stations: [],
     });
     assert.deepEqual(attente([file(4)], [])?.raison, "aucune-station");
+  });
+
+  // Ticket 3818 : une station disponible qui ne publie aucune sélection sert peut-être le projet — on ne dit pas qu'aucune ne le sert.
+  test("1 : une station disponible sans sélection n'est jamais lue comme « aucune station »", () => {
+    assert.notEqual(attente([file(4)], [station({ selection: null })])?.raison, "aucune-station");
+    assert.notEqual(attente([file(4)], [station({ selection: ["chef/autre"] }), station({ name: "parade-box", selection: null })])?.raison, "aucune-station");
   });
 
   test("2 : sa station est arrêtée", () => {
@@ -184,9 +190,9 @@ describe("quand aucune ligne ne se montre", () => {
 describe("la ligne de chaque carte", () => {
   const pris: TicketDuRail = { ticket: 8, etat: "taken", entreLe: null, depend: [] };
 
-  test("« after #N » derrière un ticket en file, « waiting for #N to merge » derrière un ticket que la cuisine tient", () => {
+  test("derrière un ticket en file comme derrière un ticket que la cuisine tient : l'attente et sa source, le corps sans phrase quand seul `depend` est donné (#3763)", () => {
     const tickets = [file(4), file(5, undefined, [4]), file(6, undefined, [8]), pris];
-    assert.deepEqual(lignesDesCartes(tickets), { 5: "after #4", 6: "waiting for #8 to merge" });
+    assert.deepEqual(lignesDesCartes(tickets), { 5: "waits for #4 — read from the body", 6: "waits for #8 — read from the body" });
   });
 
   test("la carte qui part ensuite, une carte sans dépendance et un ticket hors du rail n'ont aucune ligne", () => {
@@ -194,9 +200,9 @@ describe("la ligne de chaque carte", () => {
     assert.deepEqual(lignesDesCartes(tickets), {});
   });
 
-  test("plusieurs dépendances : toutes nommées, la fusion attendue d'abord", () => {
-    assert.deepEqual(lignesDesCartes([file(4), file(5), file(6, undefined, [5, 4])]), { 6: "after #4, #5" });
-    assert.deepEqual(lignesDesCartes([file(4), pris, file(6, undefined, [4, 8])]), { 6: "waiting for #8 to merge" });
+  test("plusieurs dépendances : toutes nommées, chacune avec sa source", () => {
+    assert.deepEqual(lignesDesCartes([file(4), file(5), file(6, undefined, [5, 4])]), { 6: "waits for #5 — read from the body; waits for #4 — read from the body" });
+    assert.deepEqual(lignesDesCartes([file(4), pris, file(6, undefined, [4, 8])]), { 6: "waits for #4 — read from the body; waits for #8 — read from the body" });
   });
 
   test("les lignes de `status` : la phrase, puis une ligne par carte, dans l'ordre des tickets", () => {
@@ -211,18 +217,11 @@ describe("`Depends on #N`", () => {
     assert.deepEqual(dependancesDuCorps("Texte\nDepends on #12\n- Depends on #3, #4 and #5"), [12, 3, 4, 5]);
     assert.deepEqual(dependancesDuCorps("Rien ici, mais #7 est cité."), []);
   });
-  test("lit aussi la dépendance dite en toutes lettres (#3622)", () => {
-    assert.deepEqual(dependancesDuCorps("Restyle the home screen with the identity of #49."), [49]);
-    assert.deepEqual(dependancesDuCorps("Start once #12 is done."), [12]);
-    assert.deepEqual(dependancesDuCorps("After #12 and #13, wire it."), [12, 13]);
-    assert.deepEqual(dependancesDuCorps("This builds on #3 & #4, on top of #5."), [3, 4, 5]);
-    assert.deepEqual(dependancesDuCorps("Restyler l'écran avec l’identité de #49, une fois #12 fait, après #13."), [49, 12, 13]);
-    assert.deepEqual(dependancesDuCorps("Depends on #7\nand after #8"), [7, 8]);
-  });
-
-  test("ne lit ni un numéro cité sans tournure, ni entre backticks, ni dans un bloc de code, ni d'un autre dépôt", () => {
-    assert.deepEqual(dependancesDuCorps("Taken in parallel with #53, see #5, related to #10 (#2968), after #12."), [12]);
-    assert.deepEqual(dependancesDuCorps("The phrase `after #4` is an example.\n```\nonce #6 is done\n```\nOnce #7 is done."), [7]);
-    assert.deepEqual(dependancesDuCorps("Ported after secondes#49, after #50."), [50]);
+  test("ne lit jamais une prose, une citation ni une décision collée (#3865)", () => {
+    assert.deepEqual(dependancesDuCorps("Restyle the home screen with the identity of #49.\nStart once #12 is done. After #13, wire it."), []);
+    assert.deepEqual(dependancesDuCorps("This builds on #3 & #4, on top of #5. Requires #6, waits for #7."), []);
+    assert.deepEqual(dependancesDuCorps("Restyler l'écran avec l’identité de #49, une fois #12 fait, après #13."), []);
+    assert.deepEqual(dependancesDuCorps("> Once #7 is done, we ship.\n> Depends on #8\n`Depends on #9`"), []);
+    assert.deepEqual(dependancesDuCorps("Depends on #7\nand after #8"), [7]);
   });
 });

@@ -13,7 +13,7 @@ const MAINTENANT = Date.parse("2026-11-12T10:00:00.000Z");
 const FEUX = `/repos/${DEPOT}/issues?state=open&labels=fire&sort=created&direction=asc&per_page=100&page=1`;
 const issue = (number: number, labels: string[], body = "") => ({ number, title: `#${number}`, body, created_at: "2026-11-12T09:00:00Z", labels: labels.map((name) => ({ name })) });
 const evenements = (instant: string) => [{ event: "labeled", label: { name: "fire" }, created_at: instant }];
-const lireDe = (reponses: Record<string, unknown>) => async (chemin: string) => reponses[chemin] ?? (chemin.includes("/events?") ? [] : assert.fail(`not dictated: ${chemin}`));
+const lireDe = (reponses: Record<string, unknown>) => async (chemin: string) => reponses[chemin] ?? (chemin.includes("/events?") || chemin.includes("/comments?") ? [] : assert.fail(`not dictated: ${chemin}`));
 const aucune = async () => ({ lues: [] });
 const enLigne = async () => ({ lues: [{ name: "box", lastSeen: new Date(MAINTENANT - 30_000).toISOString(), stoppedAt: null, refreshMs: 120_000, selection: [DEPOT] }] });
 
@@ -25,14 +25,14 @@ describe("les lignes de l'attente de la file", () => {
 
   test("des tickets en file, aucune station : la phrase de la raison 1, puis la ligne de chaque carte qui attend", async () => {
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: [issue(4, ["fire"]), issue(5, ["fire"], "Depends on #4")] }), stations: aucune, maintenant: MAINTENANT });
-    assert.deepEqual(lignes, ["queue wait No station serves this project, so no cook can start. Add the project to a station.", "  #5  after #4"]);
+    assert.deepEqual(lignes, ["queue wait No station serves this project, so no cook can start. Add the project to a station.", "  #5  waits for #4 — read from the body: 'Depends on #4'"]);
   });
 
   test("un ticket qui dit en toutes lettres bâtir sur une épique découpée : sa ligne nomme le ticket du découpage, pas l'épique (#3622)", async () => {
     const epique = issue(49, ["fire"], `The app's identity.\n${DEBUT}\n- [ ] #53\n${FIN}`);
-    const feux = [epique, issue(53, ["fire", "taken"]), issue(50, ["fire"], "Restyle the screen with the identity of #49.")];
+    const feux = [epique, issue(53, ["fire", "taken"]), issue(50, ["fire"], "Restyle the screen.\nDepends on #49")];
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: feux }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT });
-    assert.deepEqual(lignes, ["  #50  waiting for #53 to merge"]);
+    assert.deepEqual(lignes, ["  #50  waits for #53 — read from the body: 'Depends on #49'"]);
   });
 
   test("une station en ligne : l'attente normale, depuis l'instant où `fire` a été posé", async () => {
@@ -47,7 +47,7 @@ describe("les lignes de l'attente de la file", () => {
 
   test("un cook tourne : pas de phrase, les stations ne se lisent pas, la ligne d'une carte derrière lui se dit", async () => {
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: [issue(3, ["fire", "taken"]), issue(4, ["fire"], "Depends on #3")] }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT });
-    assert.deepEqual(lignes, ["  #4  waiting for #3 to merge"]);
+    assert.deepEqual(lignes, ["  #4  waits for #3 — read from the body: 'Depends on #3'"]);
   });
 
   test("rien en file : aucune ligne ; un ticket mis de côté, en WAITING ou épique n'est pas en file", async () => {
@@ -56,12 +56,12 @@ describe("les lignes de l'attente de la file", () => {
     assert.deepEqual(await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: feux }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT }), []);
   });
 
-  test("des événements qui ne se lisent pas : la durée n'est pas dite, et la file reste lue", async () => {
+  test("des événements et des commentaires qui ne se lisent pas : la durée n'est pas dite, la carte dit ses commentaires non lus, et la file reste lue", async () => {
     const lire = async (chemin: string) => {
       if (chemin === FEUX) return [issue(4, ["fire"])];
       throw new Error("GitHub answered HTTP 502");
     };
-    assert.deepEqual(await lignesDeLAttente({ depot: DEPOT, lire, stations: enLigne, maintenant: MAINTENANT }), ["queue wait A cook takes the ticket within minutes. It resolves by itself."]);
+    assert.deepEqual(await lignesDeLAttente({ depot: DEPOT, lire, stations: enLigne, maintenant: MAINTENANT }), ["queue wait A cook takes the ticket within minutes. It resolves by itself.", "  #4  its card and its cooks' stops could not be read on GitHub"]);
   });
 
   test("GitHub qui ne rend pas le rail : la ligne dit qu'il n'a pas été vérifié, et pourquoi", async () => {

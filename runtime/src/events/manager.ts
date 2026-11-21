@@ -34,8 +34,8 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // manager takes it off the rail (`besoin/vision.ts`).
 // `idea`: the chef labelled it an idea in reserve, not a request: the manager
 // never reads it (#3536).
-// `kitchen-alert`: an issue the station opened for its own needs — an idle
-// kitchen, its breaker (`alerte-cuisine/`) —, not a ticket about the project's
+// `kitchen-alert`: an issue the station opened for its own needs — its
+// breaker (`issue-de-la-cuisine.ts`) —, not a ticket about the project's
 // code: never judged, never handed to a cook (#3620).
 export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "set-aside:failures" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert";
 

@@ -4,10 +4,12 @@
 // tient, son bail, ce qu'il brûle, ce que la file ne dit pas — est dans la fiche. Rien n'est
 // inventé : quand le fait manque, la phrase de l'état le dit en deux mots et `repere` s'allume.
 //
-//   au travail   `<fait> <cible> · <durée>`           (« writing app/src/bon.ts · 12 min » ; qui ne fait que réfléchir : « in the kitchen »)
-//   en pass      la même, sinon « review in progress »
-//   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; ou, en file derrière un ticket, `after #N` /
-//                `waiting for #N to merge` (ticket 3433) ; sinon « ready, waits for a place in the kitchen »
+//   au travail   `<fait> <cible> · <durée> ago`       (« writing app/src/bon.ts · 12 min ago » ; sans activité connue : « no activity yet »)
+//   en pass      la même, l'étape de la pass à la place du geste quand le runtime la donne (« CI running · 45 s ago »)
+//   base rouge   `waits for main to be green · <durée>`
+//   en attente   `Waiting for #a, #b` (chaque numéro s'ouvre) ; ou ce qui le retient ; ou, en file derrière un ticket, chaque
+//                attente et sa source, `waits for #N — read from the body: '…'` (tickets 3433, 3763) ; sinon « ready, waits
+//                for a place in the kitchen »
 //   en tête      en tête de la file sans partir : `does not leave: <raison du runtime>` (ticket 1347)
 //   bloquée      ce qui la retient ; signal « blocked »
 //   mise de côté `Will not start: <raison en mots simples>.` (refus.ts) ; signal « set aside »
@@ -17,43 +19,39 @@
 //   livrée       `served at HH:MM · <résumé>`
 import { heureHM } from "./format.ts";
 import { refusEnClair } from "./refus.ts";
+import { type ActiviteDeCarte, direActivite, PAS_ENCORE_D_ACTIVITE } from "./vue/carte/activite.ts";
 import { jourDe } from "./vue/attente/saisie.ts";
 
 // `signal` : ce qui demande l'attention. `repere` : la file ne dit pas tout, la fiche le détaille. `liens` : les tickets que la
 // ligne nomme et que la carte ouvre d'un clic.
 export type LigneDeCarte = { ligne: string; signal?: string; repere?: true; liens?: number[] };
 
-export const TRAVAIL_SANS_DETAIL = "in the kitchen";
-export const PASS_SANS_DETAIL = "review in progress";
 export const PRET = "ready, waits for a place in the kitchen";
 export const ATTEND_TA_DECISION = "waits for your decision";
 export const BLOQUEE = "blocked";
 export const MISE_DE_COTE = "set aside";
 export const RELANCE_PASSEE = "follow-up date passed";
 
-// Le geste d'un cook qui ne fait que réfléchir, tel que le runtime le dit en anglais : la carte n'en dit
-// rien de plus que « in the kitchen », sans durée.
-const SEULEMENT_REFLECHIT = "thinking";
-
-// Au travail ou en pass : le geste en anglais (`faitEn`), ce qu'il vise, depuis combien de temps (`duree`,
-// déjà écrite). `activite` : nulle ou absente, la box ne dit pas ce qu'on en fait ; sans `faitEn` (un runtime
-// d'avant ce champ), la carte ne dit pas le geste, jamais son français.
-export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: string; cible: string | null } | null | undefined, duree: string): LigneDeCarte {
-  const sansDetail = etat === "pris" ? TRAVAIL_SANS_DETAIL : PASS_SANS_DETAIL;
-  if (activite == null) return { ligne: sansDetail, repere: true };
-  if (activite.faitEn === undefined) return { ligne: sansDetail, repere: true };
-  if (activite.faitEn === SEULEMENT_REFLECHIT) return { ligne: TRAVAIL_SANS_DETAIL };
-  return { ligne: `${activite.cible === null ? activite.faitEn : `${activite.faitEn} ${activite.cible}`} · ${duree}` };
+// Au travail ou en pass : ce que la cuisine en fait et depuis quand (vue/carte/activite.ts) ; `duree` est déjà écrite. Sans
+// activité connue, la carte le dit en trois mots, et le repère.
+export function ligneAuTravail(activite: ActiviteDeCarte | null | undefined, duree: string): LigneDeCarte {
+  const dit = direActivite(activite, duree);
+  return dit === null ? { ligne: PAS_ENCORE_D_ACTIVITE, repere: true } : { ligne: dit };
 }
 
+// En pass, tenu par une base rouge : il attend que main soit verte, depuis que sa PR est ouverte (comme `in pass`) ; sans
+// date, la ligne le dit sans durée.
+export const ligneBaseRouge = (duree: string): LigneDeCarte => ({ ligne: `waits for main to be green${duree === "" ? "" : ` · ${duree}`}`, ...(duree === "" ? { repere: true as const } : {}) });
+
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.
-// Un retenu par des tickets se dit « after #a, #b » ; un texte sans numéro est relayé tel quel.
-// `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), faute d'autre
-// raison : elle ne remplace pas celle d'un retenu.
-export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: string): LigneDeCarte {
-  const numeros = [...new Set((retient ?? derriere)?.match(/#\d+/g) ?? [])];
-  const phrase = retient === undefined && derriere !== undefined ? derriere : numeros.length > 0 ? `Waiting for ${numeros.join(", ")}` : retient;
-  const liens = numeros.length > 0 ? { liens: numeros.map((numero) => Number(numero.slice(1))) } : {};
+// Un retenu par des tickets se dit « Waiting for #a, #b » ; un texte sans numéro est relayé tel quel.
+// `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), et les tickets
+// qu'elle attend, faute d'autre raison : elle ne remplace pas celle d'un retenu. Ses liens sont ces tickets, jamais un numéro
+// de la phrase du corps qu'elle cite (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763).
+export function ligneEnAttente(etat: string, retient: string | undefined, derriere?: { ligne: string; attendus: readonly number[] }): LigneDeCarte {
+  const numeros = retient === undefined && derriere !== undefined ? [...new Set(derriere.attendus)] : [...new Set((retient?.match(/#\d+/g) ?? []).map((numero) => Number(numero.slice(1))))];
+  const phrase = retient === undefined && derriere !== undefined ? derriere.ligne : numeros.length > 0 ? `Waiting for ${numeros.map((n) => `#${n}`).join(", ")}` : retient;
+  const liens = numeros.length > 0 ? { liens: numeros } : {};
   if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOQUEE, signal: BLOQUEE, ...liens, ...(phrase === undefined ? { repere: true as const } : {}) };
   return { ligne: phrase ?? PRET, ...liens };
 }

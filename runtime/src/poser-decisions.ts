@@ -140,18 +140,6 @@ export const POSABLES: readonly DecisionPosable[] = [
     recommandee: null,
     sauter: "La dérive ne signale aucune perte : rien ne te dit que des cooks consomment sans livrer.",
   }),
-  posable("BRIGADE_DRIFT_FIRST_TRY_PERCENT", {
-    question: "Sous quelle part de tickets livrés du premier coup veux-tu que la file le signale ?",
-    options: [{ valeur: "<pourcentage>", effet: "la file signale une dérive quand la part des derniers tickets servis livrés du premier coup tombe sous ce pourcentage (50 faute de réglage) ; elle ne lance rien" }],
-    recommandee: null,
-    sauter: "Le seuil reste à 50 %.",
-  }),
-  posable("BRIGADE_DRIFT_FIRST_TRY_WINDOW", {
-    question: "Sur combien de tickets servis la file juge-t-elle la part livrée du premier coup ?",
-    options: [{ valeur: "<tickets>", effet: "la file regarde ce nombre de derniers tickets servis, et ne dit rien tant qu'il y en a moins (10 faute de réglage)" }],
-    recommandee: null,
-    sauter: "La fenêtre reste à 10 tickets.",
-  }),
   posable("BRIGADE_GATES_BUDGET_SECONDS", {
     question: "En combien de secondes d'horloge les gates du projet doivent-elles tenir ?",
     options: [{ valeur: "<secondes>", effet: "chaque passage des gates plus long que cela dépasse le budget du projet ; la file le dit, rien n'est arrêté" }],

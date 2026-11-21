@@ -114,10 +114,21 @@ async function arreter(unite: string): Promise<void> {
   rmSync(fichierDe(unite, "actif"), { force: true });
   const pid = pidDe(unite);
   if (!vivant(pid)) return;
-  process.kill(pid, "SIGTERM");
+  tuer(pid, "SIGTERM");
   const limite = Date.now() + 30_000;
   while (vivant(pid) && Date.now() < limite) await new Promise((resoudre) => setTimeout(resoudre, 20));
-  if (vivant(pid)) process.kill(pid, "SIGKILL");
+  if (vivant(pid)) tuer(pid, "SIGKILL");
+}
+
+// Une station qui se relance d'elle-même pour sa mise à jour peut sortir entre
+// `vivant` et le signal : partie, elle est arrêtée, comme pour systemd — pas
+// une erreur qui ferait rendre 1 au postinst.
+function tuer(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(pid, signal);
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "ESRCH") throw erreur;
+  }
 }
 
 let code = 0;

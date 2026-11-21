@@ -365,11 +365,11 @@ describe("une carte porte ce que la file dit", () => {
     recevoir(vue);
 
     // Sur la carte : une ligne, rien de ce qui ne change pas ce que le chef fait.
-    assert.equal(ligneDe(bonDe(vue, 14)), "writing app/src/bon.ts · 2 min");
-    assert.equal(ligneDe(bonDe(vue, 30)), "running the gates · 30 s");
+    assert.equal(ligneDe(bonDe(vue, 14)), "writing app/src/bon.ts · 2 min ago");
+    assert.equal(ligneDe(bonDe(vue, 30)), "running the gates · 30 s ago");
     assert.ok((ligneDe(bonDe(vue, 12)) ?? "") !== "");
-    // Aucune carte ne dit « thinking » suivi d'une durée, ni le français du geste.
-    for (const bon of bons(vue.element("rail"))) assert.doesNotMatch(ligneDe(bon) ?? "", /thinking|réfléchit/);
+    // Aucune carte ne dit le français du geste — « thinking · N s ago » est, depuis #3923, ce que dit un cook qui réfléchit.
+    for (const bon of bons(vue.element("rail"))) assert.doesNotMatch(ligneDe(bon) ?? "", /réfléchit/);
     for (const bon of bons(vue.element("rail"))) {
       assert.deepEqual(portes(bon), [], bon.textContent);
       assert.doesNotMatch(bon.textContent, /lease|bail|\b86\b|not given|taken by/);
@@ -827,7 +827,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
     assert.equal(ligneDe(bonDe(vue, 216)), `served at ${heureHM("2026-10-13T10:03:58.000Z")}`);
     assert.equal(ligneDe(bonDe(vue, 188)), `served at ${heureHM("2026-10-12T16:30:05.000Z")}`);
     assert.deepEqual(portes(bonDe(vue, 216)), []);
-    assert.deepEqual(portes(detailsDe(vue, 216) ?? assert.fail("pas de détail")), [["served", "13 s before the reading"], ["cooked by", "box/claude"]]);
+    assert.deepEqual(portes(detailsDe(vue, 216) ?? assert.fail("pas de détail")), [["merged", "13 s ago"], ["cooked by", "box/claude"]]);
     assert.deepEqual(portes(detailsDe(vue, 188) ?? assert.fail("pas de détail")), [["served", "17 h 34 before the reading"], ["cooked by", "box/claude"], ["PR", "none — served without a merge"]]);
     fermer(vue);
     // #31, servi encore sur le rail mais pas dans les livrés : il n'est pas dans Livré.

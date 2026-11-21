@@ -38,11 +38,13 @@ import { brancheDuProjet, reglagesAuDemarrage } from "../reglages-projet/en-vigu
 import { DECLARATION_SERVICES_LOCAUX, servicesDuDepot } from "../sandbox/services-locaux.ts";
 import { DECLARATION_BAC_A_SABLE } from "../bac-a-sable/declaration.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE } from "../reseau.ts";
-import { direLaRetenueDeLaPart } from "../budget-github/part-des-projets.ts";
-import { surLaPartAtteinte } from "../limite-github.ts";
+import { surLeProjetRalenti } from "../limite-github.ts";
 import { ETATS, lieuxDuProjet } from "../station/configuration.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { lireProjetsServis } from "./projets-servis.ts";
+
+// Ce qui se dit d'un projet que le quota réel de GitHub ralentit : l'heure (UTC) où son appel repart (#3705, #3833).
+const direLeRalentissement = (reprise: number): string => `slowed by the low GitHub quota, resumes at ${new Date(reprise).toISOString().slice(11, 16)} UTC`;
 
 // Entre deux tours : celui de la box (`brancherBrigadeGithub`).
 export const INTERVALLE_MS = 120_000;
@@ -171,7 +173,7 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
   const ouvrirLeTour = options.ouvrirLeTour ?? tourDeLaBox(options);
   const dit = (ligne: string) => dire(`brigade : station ${station} — ${ligne}`);
   // Les projets servis, par dépôt en minuscules ; et ceux retirés dont des cooks sont encore en vol.
-  // `enCours` : le tour d'un projet que sa part GitHub retient, qui finit seul pendant que les autres tournent (#3705).
+  // `enCours` : le tour d'un projet que le quota GitHub ralentit, qui finit seul pendant que les autres tournent (#3705).
   const ouverts = new Map<string, { depot: string; nom: string; tour: TourDuProjet; dernier: string | null; enCours: Promise<void> | null }>();
   const retires = new Set<TourDuProjet>();
   // Ce qui a été dit de chaque dépôt qui n'a pas pu être servi, et de la liste
@@ -258,12 +260,12 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
         if (ligne !== ouvert.dernier) dit(ligne);
         ouvert.dernier = ligne;
       };
-      // Un appel du projet attend sa part dans la file : la station ne l'attend
+      // Un appel du projet est ralenti par le quota dans la file : la station ne l'attend
       // pas, elle passe aux projets suivants, qui gardent leurs appels (#3705).
       // L'écoute est posée avant le tour : un appel retenu dès son départ se dit aussi.
       let retirerLEcoute = () => {};
       const retenu = new Promise<{ reprise: number }>((reveiller) => {
-        retirerLEcoute = surLaPartAtteinte((projet, reprise) => {
+        retirerLEcoute = surLeProjetRalenti((projet, reprise) => {
           if (projet === ouvert.nom) reveiller({ reprise });
         });
       });
@@ -282,7 +284,7 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
         direLaLigne(fin.ligne);
         continue;
       }
-      direLaLigne(`GitHub-only turn on ${ouvert.depot} — ${direLaRetenueDeLaPart(fin.reprise)}`);
+      direLaLigne(`GitHub-only turn on ${ouvert.depot} — ${direLeRalentissement(fin.reprise)}`);
       ouvert.enCours = tour.then((ligne) => {
         ouvert.enCours = null;
         direLaLigne(ligne);

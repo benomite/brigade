@@ -3,7 +3,7 @@
 // depuis combien de temps tout est à l'arrêt ; la case du projet la dit, autrement qu'une alerte
 // (alertes.ts, « L'urgence »). Une décision qui ne retient qu'une partie du rail ne change rien.
 // Ce que la box rend est écrit ici par le runtime lui-même — `faits`, `status` et `manager`, joués
-// dans ce process sur un vrai journal (runtime/src/etat.ts, runtime/src/urgence.ts) : la forme que
+// dans ce process sur un vrai journal (runtime/src/etat.ts) : la forme que
 // la bande lit est tenue contre celle que le runtime écrit.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -22,7 +22,7 @@ import type { Lecture } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
+import { BANNIERE, comprendre } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
@@ -88,9 +88,6 @@ function cuisine(t: TestContext) {
   return { noter, a, arriver, cuisiner, retenir, rendre, bande };
 }
 
-// Ce que `faits` rendait avant l'urgence : la même forme, sans le champ.
-const sansUrgence = ({ urgence: _, retenues: __, ...reste }: Record<string, unknown>) => reste;
-
 // L'exemple du ticket : une livraison à merger à la main qui tient toutes les zones du rail.
 function toutRetenu(t: TestContext) {
   const servie = cuisine(t);
@@ -105,97 +102,6 @@ function toutRetenu(t: TestContext) {
 }
 
 describe("l'urgence dans la bande", () => {
-  test("toute la cuisine attend le merge du chef : la première ligne est l'urgence — ce qui est attendu, depuis quand tout est à l'arrêt, et le geste de la box mot pour mot", (t) => {
-    const { rendre, bande } = toutRetenu(t);
-    const urgence = rendre("13:58:00").faits.urgence ?? assert.fail("le runtime ne donne pas d'urgence");
-
-    const lue = bande("13:58:00");
-    const [premiere, ...reste] = lue.alertes;
-    assert.equal(premiere?.sujet, "urgence");
-    assert.equal(premiere.verifie, true);
-    assert.equal(premiere.ton, "rouge");
-    assert.equal(premiere.dit, "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28");
-    assert.equal(premiere.pourquoi, "2 tickets held, none can cook until you act: #536, #537");
-    // Ce qui attend, puis le geste du chef : la ligne du bloc `attend` que la box écrit, mot pour mot.
-    assert.equal(premiere.releve, `#535  ${urgence.geste}`);
-    assert.match(premiere.releve ?? "", /à relire et merger à la main : https:\/\/exemple\.test\/pull\/535$/);
-    assert.equal(premiere.geste, "do what #535 waits for, as the station writes it");
-    assert.deepEqual(premiere.appel, { demande: true });
-    assert.match(premiere.prix, /the held tickets start again/);
-    // Aucune autre ligne ne la redit.
-    assert.ok(!reste.some(({ sujet }) => sujet === "urgence"));
-
-    // La case du projet : l'urgence, pas une alerte ordinaire.
-    assert.equal(lue.signal?.etat, "urgence");
-    assert.match(lue.signal?.dit ?? "", /^the whole kitchen is waiting for your merge of #535/);
-  });
-
-  test("la durée d'arrêt se compte d'une lecture à l'autre, depuis le même début", (t) => {
-    const { bande } = toutRetenu(t);
-    assert.match(bande("09:00:00").alertes[0]?.dit ?? "", / — at a standstill for 30 min$/);
-    assert.match(bande("10:15:00").alertes[0]?.dit ?? "", / — at a standstill for 1 h 45$/);
-  });
-
-  test("au-dessus de tout le reste : même devant un manager éteint, rouge, ou des états non vérifiés", (t) => {
-    const { noter, rendre, bande } = toutRetenu(t);
-    noter({ type: "manager.disabled", payload: {} }, null, "chef");
-
-    const lue = bande("10:00:00").alertes;
-    assert.deepEqual(
-      lue.map(({ sujet, ton }) => [sujet, ton]),
-      [
-        ["urgence", "rouge"],
-        ["manager", "rouge"],
-      ],
-    );
-    // Ni `status` ni `manager` lus : les lignes « non vérifié » restent dessous.
-    const faits = comprendre(JSON.stringify(rendre("10:00:00").faits)) as Faits;
-    const seuls = alertes({ projet: "parade", faits, status: { sans: "pas lu" }, manager: { sans: MANAGER_PAS_DIT } });
-    assert.deepEqual(
-      seuls.map(({ sujet, verifie }) => [sujet, verifie]),
-      [
-        ["urgence", true],
-        ["manager", false],
-      ],
-    );
-  });
-
-  test("deux décisions qui retiennent tout : la ligne nomme celle qui retient le plus, puis l'autre, chacune avec sa ligne de la box", (t) => {
-    const { a, arriver, cuisiner, retenir, rendre, bande } = cuisine(t);
-    arriver(535, ["runtime"]);
-    arriver(540, ["app"]);
-    arriver(536, ["runtime/src"]);
-    arriver(541, ["app/src"]);
-    arriver(542, ["app/test"]);
-    cuisiner(535);
-    cuisiner(540);
-    a("08:30:00");
-    retenir(535);
-    a("08:40:00");
-    retenir(540);
-
-    const urgence = rendre("10:00:00").faits.urgence ?? assert.fail("pas d'urgence");
-    const [premiere] = bande("10:00:00").alertes;
-    assert.equal(premiere?.dit, "the whole kitchen is waiting for your merge of #540 — at a standstill for 1 h 20");
-    // Les tickets à l'arrêt dans l'ordre du rail, tel que la box le donne.
-    assert.deepEqual([...urgence.retenus].sort(), [536, 541, 542]);
-    assert.equal(premiere.pourquoi, `3 tickets held, none can cook until you act: ${urgence.retenus.map((ticket) => `#${ticket}`).join(", ")} — also held by #535`);
-    assert.equal(premiere.releve, [`#540  ${urgence.geste}`, `#535  ${urgence.autres[0]?.geste}`].join("\n"));
-  });
-
-  test("une connexion Max expirée sur la seule station : la ligne dit d'attendre la reconnexion, et le geste de la box", (t) => {
-    const { a, arriver, noter, bande } = cuisine(t);
-    arriver(14, ["runtime"]);
-    arriver(15, ["app"]);
-    a("09:00:00");
-    noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } }, null, `station:${STATION}`);
-
-    const [premiere] = bande("10:00:00").alertes;
-    assert.equal(premiere?.sujet, "urgence");
-    assert.equal(premiere.dit, `the whole kitchen is waiting for you to reconnect Max on ${STATION} — at a standstill for 1 h 00`);
-    assert.match(premiere.releve ?? "", new RegExp(`^${STATION.replace("/", "\\/")} {2}connexion Max expirée \\(authentication_failed\\) — à rétablir : `));
-  });
-
   test("une cause que l'app ne nomme pas se dit avec le mot de la box, sans rien inventer", () => {
     const faits = comprendre(
       JSON.stringify({
@@ -216,80 +122,11 @@ describe("l'urgence dans la bande", () => {
 });
 
 describe("sans urgence, rien ne change", () => {
-  test("une décision qui ne retient qu'une partie du rail : pas de ligne d'urgence : la bande nomme la décision et les tickets vraiment retenus, jamais « toute la cuisine »", (t) => {
-    const { a, arriver, cuisiner, retenir, rendre, bande } = cuisine(t);
-    arriver(535, ["runtime"]);
-    arriver(536, ["runtime/src"]);
-    arriver(540, ["app"]);
-    cuisiner(535);
-    a("08:30:00");
-    retenir(535);
-
-    const rendu = rendre("10:00:00").faits;
-    assert.equal(rendu.urgence, null);
-    assert.deepEqual(rendu.attend.map(({ ticket }) => ticket), [535]);
-    const lue = bande("10:00:00");
-    assert.ok(!lue.alertes.some(({ sujet }) => sujet === "urgence"));
-    assert.notEqual(lue.signal?.etat, "urgence");
-    // Ni la ligne ni la case ne disent « toute la cuisine » tant qu'un ticket peut cuire.
-    assert.ok(!JSON.stringify(lue).includes("whole kitchen"));
-    const [retenue] = lue.alertes;
-    assert.equal(retenue?.dit, "waiting for your merge of #535: 1 ticket held, the other tickets keep cooking");
-    assert.equal(retenue?.pourquoi, "held by #535: #536");
-    // Un runtime d'avant le champ n'en dit rien : la bande est celle d'avant.
-    assert.deepEqual(bande("10:00:00", sansUrgence).alertes, []);
-  });
-
-  test("la situation du 2026-10-23 : une remontée, trois tickets retenus, d'autres libres — la bande nomme #1309 et trois tickets, pas la cuisine entière", (t) => {
-    const { a, arriver, cuisiner, noter, bande } = cuisine(t);
-    const attendre = (ticket: number, zone: string[], waitsFor: number[]) =>
-      noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: "2026-10-01T00:00:01Z", url: `https://exemple.test/${ticket}`, card: { waitsFor, zone, problems: [] } } }, ticket, "github");
-    arriver(1309, ["runtime/src"]);
-    attendre(1310, ["docs"], [1309]);
-    attendre(1312, ["app/src"], [1310]);
-    attendre(1323, ["scripts"], [1309]);
-    arriver(1400, ["app/test"]);
-    arriver(1401, ["docs/runtime"]);
-    cuisiner(1309);
-    a("08:30:00");
-    noter({ type: "pass.escalated", payload: { reason: "encore-rouge", cause: "returns-exhausted" } } as never, 1309, "pass");
-    noter({ type: "ticket.86", payload: { reason: "pass:encore-rouge", until: null } } as never, 1309, "pass");
-
-    const lue = bande("12:05:00");
-    assert.ok(!lue.alertes.some(({ sujet }) => sujet === "urgence"));
-    assert.ok(!JSON.stringify(lue).includes("whole kitchen"));
-    const [retenue] = lue.alertes;
-    assert.equal(retenue?.dit, "waiting for your decision on #1309, escalated by the pass: 3 tickets held, the other tickets keep cooking");
-    assert.equal(retenue?.pourquoi, "held by #1309: #1310, #1312, #1323");
-  });
-
-  test("quand rien d'autre ne peut cuire, la bande dit toujours l'arrêt total de la cuisine", (t) => {
-    const { a, arriver, cuisiner, noter, bande } = cuisine(t);
-    arriver(1309, ["runtime/src"]);
-    noter({ type: "ticket.arrived", payload: { title: "Ticket 1310", priority: null, createdAt: "2026-10-01T00:00:01Z", url: "https://exemple.test/1310", card: { waitsFor: [1309], zone: ["docs"], problems: [] } } }, 1310, "github");
-    cuisiner(1309);
-    a("08:30:00");
-    noter({ type: "pass.escalated", payload: { reason: "encore-rouge", cause: "returns-exhausted" } } as never, 1309, "pass");
-    noter({ type: "ticket.86", payload: { reason: "pass:encore-rouge", until: null } } as never, 1309, "pass");
-    const lue = bande("12:05:00");
-    assert.equal(lue.alertes[0]?.sujet, "urgence");
-    assert.match(lue.alertes[0]?.dit ?? "", /^the whole kitchen is waiting for your decision on #1309/);
-    assert.equal(lue.alertes.length, 1);
-  });
-
   test("une cuisine qui va bien : la bande reste vide, la case sans signal", (t) => {
     const { bande } = cuisine(t);
     const { manager, ...lue } = bande("10:00:00");
     assert.deepEqual(lue, { projet: "parade", alertes: [], signal: undefined });
     assert.equal(manager !== undefined && "allume" in manager && manager.allume, true);
-  });
-
-  test("un runtime d'avant le champ `urgence` : rien n'en est dit, et la forme reste lue", (t) => {
-    const { rendre, bande } = toutRetenu(t);
-    assert.notEqual(rendre("10:00:00").faits.urgence, null);
-    const lue = bande("10:00:00", sansUrgence);
-    assert.ok(!lue.alertes.some(({ sujet }) => sujet === "urgence"));
-    assert.notEqual(lue.signal?.etat, "urgence");
   });
 
   test("le « stop » du chef retient la cuisine lui-même : sa ligne, pas celle de l'urgence", (t) => {
@@ -373,12 +210,4 @@ describe("l'urgence à l'écran", () => {
     assert.equal(signalDeLaCase(1)?.dataset.etat, "alerte");
     assert.equal(signalDeLaCase(1)?.textContent, "!");
   });
-});
-
-// La forme lue de `faits` garde l'urgence telle que le runtime la donne.
-test("`faits` lu par l'app porte l'urgence du runtime, champ pour champ", (t) => {
-  const { rendre } = toutRetenu(t);
-  const rendu = rendre("10:00:00").faits;
-  const lu = comprendre(JSON.stringify(rendu)) as Faits;
-  assert.deepEqual(lu.urgence, rendu.urgence);
 });

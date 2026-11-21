@@ -20,6 +20,7 @@
 import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
+import { direLAttente } from "./attente-du-rail/raison.ts";
 import { CLE_DES_CAPACITES, manqueDuTicket } from "./capacites.ts";
 import { retirerDuRail } from "./geste-ticket.ts";
 import { ouvrirGitHubDuGeste, PLAFOND_D_UN_GESTE_DU_RAIL } from "./gestes/github-du-geste.ts";
@@ -167,11 +168,15 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
 
   const RETRAIT = "     ";
 
-  function fiche({ card }: TicketRail): string[] {
+  // Les attentes que la cuisine applique au ticket en attente, chacune avec sa source, comme sur la carte du rail GitHub
+  // (#3763). Sur ce rail, elles ne viennent que de sa fiche (`retenue`, rail.ts) : un ticket de la fiche servi ou fermé
+  // ne retient plus, et ne se dit plus ici. Aucune : `awaiting: nothing`, comme avant.
+  function fiche({ card, state, awaits }: TicketRail): string[] {
     if (card === null) return [];
-    const attend = card.waitsFor.length === 0 ? "nothing" : card.waitsFor.map((numero) => `#${numero}`).join(", ");
+    const appliquees = state === "waiting" ? awaits : [];
+    const attend = appliquees.length === 0 ? "awaiting: nothing" : appliquees.map(({ ticket }) => direLAttente({ ticket, source: "fiche" })).join("; ");
     return [
-      `${RETRAIT}card — awaiting: ${attend} · zone: ${card.zone.join(", ") || "none"}${card.requires?.length ? ` · \`${CLE_DES_CAPACITES}\`: ${card.requires.join(", ")}` : ""}`,
+      `${RETRAIT}card — ${attend} · zone: ${card.zone.join(", ") || "none"}${card.requires?.length ? ` · \`${CLE_DES_CAPACITES}\`: ${card.requires.join(", ")}` : ""}`,
       ...card.problems.map((probleme) => `${RETRAIT}UNREADABLE CARD — ${probleme}`),
     ];
   }

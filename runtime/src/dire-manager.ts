@@ -37,13 +37,13 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
     case "idea":
       return label("idea");
     case "set-aside:failures":
-      return { motif: "set aside by its failure count: its cooks stopped without a delivery too many times in a row; the station's last comment on the issue says why", geste: "remove `set-aside:failures` to try the ticket again: it is judged on the next wake-up" };
+      return { motif: "set aside by its failure count: its cooks stopped without a delivery too many times in a row; the station's last comment on the issue says why", geste: "the supervisor has the ticket and acts on it with its own gestures: the chef does not need to act" };
     case "already-split":
       return { motif: "its body already lists the tickets of an epic, split by hand", geste: "remove that list from its body: the epic is split on the next wake-up" };
     case "roadmap":
       return { motif: "it is the project's roadmap", geste: null };
     case "kitchen-alert":
-      return { motif: "it is an alert the station opened about the kitchen itself (an idle kitchen, its breaker), not a ticket about this project's code: no cook takes it", geste: null };
+      return { motif: "it is an alert the station opened about the kitchen itself (its breaker), not a ticket about this project's code: no cook takes it", geste: null };
     case "vision":
       return { motif: "it is a product vision or a reference document, not a deliverable: `fire` is removed", geste: null };
     case "untrusted-author":

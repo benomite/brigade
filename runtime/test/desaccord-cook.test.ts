@@ -43,25 +43,24 @@ test("a reply posted before the send-back, or on another head, or by an outsider
   assert.ok("echec" in classerArret([renvoi(0), { ...reponse(5), association: "NONE" }], SHA, MOTIF));
 });
 
-test("the pass re-judges a refused head once the cook has replied, and is given the reply's text", async () => {
-  const commentaires = [renvoi(0), reponse(5)];
+test("the pass never re-judges a refused head, even once the cook has replied: the same head comes back on the same reason (#3961)", async () => {
   const pr: PRAFusionner = { number: 7, sha: SHA, state: "open", merged: false, enRetard: false } as PRAFusionner;
   let jugee = 0;
-  await relire(pr, {
-    station: "st-1",
-    github: { commentaires: async () => commentaires, commenter: async () => {} } as never,
-    juger: async () => {
-      jugee += 1;
-      return { verdict: "approve", motif: "" };
-    },
-  });
-  assert.equal(jugee, 1, "the head refused before the reply is judged again");
-  const consigne = avecLeDesaccord(consigneDeRelecture({ depot: "o/r", base: "main", ticket: { number: 3, title: "t", body: "b" }, commentaires: [], compteRendu: null, diff: { fichiers: ["x.ts"], texte: "+x" } }), reponseDuCook(commentaires, SHA));
-  assert.ok(consigne.includes(REPONSE), "the reply's text is in what the pass is given");
-  // Sans réponse, la tête refusée ne se rejuge pas.
-  jugee = 0;
-  await relire(pr, { station: "st-1", github: { commentaires: async () => [renvoi(0)], commenter: async () => {} } as never, juger: async () => ((jugee += 1), { verdict: "approve", motif: "" }) });
+  const juger = async () => ((jugee += 1), { verdict: "approve" as const, motif: "" });
+  for (const commentaires of [[renvoi(0), reponse(5)], [renvoi(0)]]) {
+    const rendu = await relire(pr, { station: "st-1", github: { commentaires: async () => commentaires, commenter: async () => {} } as never, juger });
+    assert.equal(rendu?.verdict, "request-changes");
+    assert.equal(rendu?.sha, SHA);
+  }
   assert.equal(jugee, 0);
+  // Une tête que la relecture n'a pas encore jugée l'est avec la réponse du cook dans sa consigne.
+  const consigne = avecLeDesaccord(consigneDeRelecture({ depot: "o/r", base: "main", ticket: { number: 3, title: "t", body: "b" }, commentaires: [], compteRendu: null, diff: { fichiers: ["x.ts"], texte: "+x" } }), reponseDuCook([reponse(5)], SHA));
+  assert.ok(consigne.includes(REPONSE), "the reply's text is in what the pass is given");
+});
+
+test("each reply of the cook on a refused head lets that head be sent back once more, so it reaches the limit (#3961)", () => {
+  assert.equal(renvoisDeLaTete([renvoi(0), reponse(5)], SHA), 2);
+  assert.equal(renvoisDeLaTete([renvoi(0), reponse(5), reponse(10)], SHA), 3);
 });
 
 test("once the pass has judged the reply, it is no longer pending, and refusing it allows one more send-back of the same head", () => {
@@ -111,6 +110,11 @@ async function renvoyeQuiSArrete(t: TestContext, message: string) {
   await station.calme();
   return { faux, consignes, corps: (numero: number) => (faux.commentaires.get(numero) ?? []).map((c) => c.body).join("\n") };
 }
+
+// #3910 : le flux d'amendement a disparu ; la consigne du renvoi n'en parle plus.
+test("the cook's send-back guidance no longer mentions an amendment of the criterion", () => {
+  assert.doesNotMatch(consigneDuDesaccord(42), /amend/i);
+});
 
 test("through the station: the resumed cook is told to reply, its reply is posted on the PR, and the delivery goes back to the pass with no failure counted", async (t) => {
   const { faux, consignes, corps } = await renvoyeQuiSArrete(t, `Nothing to change.\n<reponse-pr>${REPONSE}</reponse-pr>`);

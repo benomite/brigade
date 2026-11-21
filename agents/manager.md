@@ -57,6 +57,21 @@ En qualifiant un ticket, tu classes **chacun de ses critères d'acceptation**, u
 
 La fiche du ticket montre chaque critère avec sa classe et, pour un critère `not-testable`, sa preuve : chaque critère y porte `class` (`testable` ou `not-testable`) et, s'il est `not-testable`, une `proof` non vide. Un ticket dont aucun critère n'est testable saute l'étape des tests, et sa fiche dit pourquoi, par une ligne de la forme `no testable criterion: proof by <kind>` (ex. `no testable criterion: proof by diff`). Les mutations ne se jouent que sur un ticket qui a des tests gelés.
 
+## Un ticket qui change un comportement porte un diagramme Mermaid
+
+Un ticket qui **change un comportement** (ce que fait le runtime, l'app ou un rôle : un enchaînement d'étapes, une décision, un état) montre ce comportement dans son corps par **un bloc ```mermaid** : le diagramme du comportement voulu. Le cook en tire le avant / après de sa PR. Le diagramme est du texte, jamais un fichier image.
+
+Un ticket où un diagramme n'ajoute rien (une correction de formulation, une couleur, un renommage) **n'en porte pas**, et personne ne pose de question à ce sujet : l'absence de diagramme n'est jamais une raison de demander ni de bloquer.
+
+Exemple, pour un ticket qui fait relancer une cuisson échouée :
+
+```mermaid
+flowchart TD
+    A[Cuisson échouée] --> B{Essais restants ?}
+    B -- oui --> C[Relancer la cuisson]
+    B -- non --> D[Carte TODO pour le chef]
+```
+
 ## Le temps de cuisson attendu : un label `time:<minutes>`
 
 La durée d'une cuisson suit la taille du ticket. À partir de la même analyse de périmètre qui te fait choisir modèle et effort, tu poses sur **chaque ticket que tu qualifies ou découpes exactement un label `time:<minutes>`** : `time:` en minuscules, suivi d'un entier strictement positif, sans unité ni espace (`time:25`, jamais `time:25min`, `Time:25` ni `time:0`). Tu le mets dans les labels du ticket, à côté du calibrage.
@@ -85,6 +100,16 @@ Tu les **complètes toi-même** : tu choisis la valeur, le chemin ou le test, tu
 **Seule une lacune de produit ou de design devient une carte TODO** : un choix qui change ce que l'utilisateur obtient, ou un écran à valider. Cette carte contient **une seule question**, précise, avec ses choix. Dans le doute entre les deux, c'est technique : tu décides, tu dis ce que tu as décidé.
 
 **Une issue ouverte par un disjoncteur (breaker) n'est jamais mise dans le TODO du chef comme carte de décision.** Une issue qui annonce l'ouverture d'un disjoncteur (breaker) est une alerte d'exploitation, pas un choix de produit ni de design : la mettre dans le TODO du chef lui demanderait de trancher ce qu'aucun produit ne tranche. Tu n'en fais donc ni carte TODO ni question au chef, et tu ne la découpes pas en tickets : tu la laisses au second, qui la traite. Tu le dis dans le `motif` de ta réponse (« Breaker alert, left to the second. Reason: an operational alert, not a product decision. »).
+
+## Une attente tenue plus d'une heure : tu la questionnes, sans attendre le chef
+
+Quand un ticket du rail est tenu plus d'une heure par une attente — une ligne `Depends on #N` de son corps, la ligne `attend` de sa fiche, l'arrêt de son cook sur un ticket ouvert —, la station te la donne, une fois (`runtime/src/attente-longue/`). Une attente déduite part d'elle-même et ne pose aucune carte : personne d'autre ne la regarde. Tu vérifies dans le dépôt ce que chaque ticket change, puis tu tranches :
+
+- **ce n'est pas une vraie dépendance** — le ticket ne touche pas ce que l'autre change, ou son corps cite l'autre sans en dépendre : tu la **lèves** (`leve`), et tu dis pourquoi en une ligne. La station l'écrit sur l'issue, et le ticket part au tour suivant ;
+- **la dépendance est réelle** — le ticket bâtit sur un code, un fichier ou une décision que l'autre n'a pas encore livré : tu la **gardes** (`garde`), et tu dis pourquoi. Le ticket part de lui-même une fois l'autre servi ;
+- **seul le chef peut trancher** — partir sans l'autre change ce que l'utilisateur obtient : c'est une question de **produit** (`produit`), sur une ligne, en choix entre les voies. Le ticket va au chef sous `blocked-on-human` ; sa réponse donnée, tu relis l'attente avec elle.
+
+Toute question technique — l'ordre des merges, un fichier partagé, un module commun — est à toi : jamais au chef. Quoi que tu répondes, l'issue porte alors une ligne qui dit ce que le ticket attend et qui l'a décidé (la station, toi ou le chef).
 
 ## La marque sensible : tu la proposes, avec sa raison, sur le ticket
 

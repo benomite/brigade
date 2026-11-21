@@ -15,21 +15,23 @@
 //     `blocked-on-human`, `served-elsewhere`), `fire` posé s'il manque, et un
 //     commentaire qui dit que ce qu'il attendait est arrivé ;
 //   - `waiting <dépôt>` : les cartes du projet lues de GitHub — TODO, ce qui
-//     attend le chef (`chef-todo`, `blocked-on-human`, comme la retenue les lit,
-//     retenue/tour.ts), et WAITING, ce qui attend un tiers, avec ses trois mots.
+//     attend le chef (`chef-todo`, `blocked-on-human`), et WAITING, ce qui attend un tiers, avec ses trois mots.
 // Ce qu'une issue attend se relit dans le dernier commentaire marqué
 // `<!-- brigade:waiting … -->` d'un auteur du dépôt : tout le monde peut
 // commenter une issue publique. Une issue au label `waiting` sans ce
 // commentaire — posé à la main, ou par la station pour un ticket de `fix`
 // (github-seul/renvois/renvois.ts) — est en WAITING sans rien inventer : la
 // ligne dit que l'issue ne le dit pas.
-import { DE_CONFIANCE } from "../alimenter.ts";
 import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { LABEL, MIS_DE_COTE, type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
 import { carteEnCours, CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { GesteRefuse } from "../rail.ts";
+import { attenteDeLIssue, MARQUE, type AttenteGitHub } from "./marque.ts";
+
+// Relue de sa marque sans import lourd (marque.ts) : la lecture du rail de l'app la lit aussi (#3761).
+export { attenteDeLIssue, type AttenteGitHub };
 
 // Ce que les gestes demandent au client de GitHub, et rien de plus.
 export type GitHubDeLAttente = Pick<GitHub, "issue" | "commentaires" | "commenter" | "labelliser" | "delabelliser" | "ouvertes">;
@@ -48,19 +50,15 @@ export function lireCible(mot: string | undefined): Cible | null {
 // `BOBL-tech/mirrorlab`, ou null.
 export const lireDepot = (mot: string | undefined): string | null => (new RegExp(`^${DEPOT}$`).test(mot ?? "") ? (mot as string) : null);
 
-// Ce qu'un ticket attend : quoi, de qui, et la relance (ISO).
-export type AttenteGitHub = { what: string; who: string; followUp: string };
-
-const MARQUE = "<!-- brigade:waiting";
-const MARQUE_LUE = /^<!-- brigade:waiting (\{.*?\}) -->/;
-
 // La relance, dite avec son année : `2026-11-16 15:05 UTC`.
 export const direRelance = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 
 // Le commentaire posé à la mise en attente : la marque, que `attenteDeLIssue`
 // relit, puis les trois mots du chef. Dans la marque, `>` s'échappe : un `-->`
 // de ses mots ne la fermerait pas.
-export function corpsDeLAttente(attente: AttenteGitHub): string {
+// Posée par la cuisine, l'attente dit la station et les mots du cook dont elle vient (`par`), et que le ticket rentre
+// seul sur le rail à sa relance.
+export function corpsDeLAttente(attente: AttenteGitHub, par?: { station: string; mots: string }): string {
   const marque = JSON.stringify(attente).replace(/>/g, "\\u003e");
   return [
     `${MARQUE} ${marque} -->`,
@@ -70,32 +68,18 @@ export function corpsDeLAttente(attente: AttenteGitHub): string {
     `- **from whom**: ${attente.who}`,
     `- **follow-up**: ${direRelance(attente.followUp)}`,
     "",
-    `As long as it has the \`${LABEL_WAITING}\` label, no station takes it and it is not in TODO.`,
+    attente.backOnFollowUp === true
+      ? `As long as it has the \`${LABEL_WAITING}\` label, no station takes it, it holds no file zone and it is not in TODO. On its follow-up date it goes back on the rail on its own; removing the label sends it back sooner.`
+      : `As long as it has the \`${LABEL_WAITING}\` label, no station takes it and it is not in TODO.`,
+    ...(par === undefined ? [] : ["", `Set by station \`${par.station}\`, from what the cook said:`, "", ...par.mots.trim().split("\n").map((ligne) => `> ${ligne}`)]),
   ].join("\n");
-}
-
-// Ce qu'attend l'issue, d'après le plus récent commentaire marqué d'un auteur
-// du dépôt ; null si aucun ne se lit.
-export function attenteDeLIssue(commentaires: readonly Pick<Commentaire, "body" | "association">[]): AttenteGitHub | null {
-  for (const { body, association } of [...commentaires].reverse()) {
-    if (!DE_CONFIANCE.includes(association)) continue;
-    const brut = MARQUE_LUE.exec(body)?.[1];
-    if (brut === undefined) continue;
-    try {
-      const { what, who, followUp } = JSON.parse(brut) as Record<string, unknown>;
-      if (typeof what === "string" && typeof who === "string" && typeof followUp === "string" && !Number.isNaN(Date.parse(followUp))) return { what, who, followUp };
-    } catch {
-      // Une marque illisible ne dit rien : la précédente, s'il y en a une.
-    }
-  }
-  return null;
 }
 
 // La ligne de WAITING d'une issue : ce qu'elle attend, ou que l'issue ne le dit pas.
 export const direAttenteGitHub = (attente: AttenteGitHub | null) =>
   attente === null
     ? `carries \`${LABEL_WAITING}\`, but no comment of the repository says what it waits for, from whom, or until when`
-    : `awaiting ${attente.who}: “${attente.what}” — follow-up on ${direRelance(attente.followUp)}`;
+    : `awaiting ${attente.who}: “${attente.what}” — ${attente.backOnFollowUp === true ? "back on the rail on its own on" : "follow-up on"} ${direRelance(attente.followUp)}`;
 
 const nommer = ({ depot, numero }: Cible) => `${depot}#${numero}`;
 
@@ -126,19 +110,25 @@ export async function mettreEnAttenteGitHub(github: GitHubDeLAttente, cible: Cib
   const tenu = [LABEL_TAKEN, LABEL_IN_PASS].find((label) => issue.labels.includes(label));
   if (tenu !== undefined) throw new GesteRefuse(`${nommer(cible)} carries \`${tenu}\`: the kitchen holds it — set the wait once it leaves; nothing was written`);
   const attente = { what, who, followUp };
-  await github.labelliser(cible.numero, [LABEL_WAITING]);
+  await poserLAttente(github, cible.numero, corpsDeLAttente(attente), nommer(cible), "repeat the command");
+  return attente;
+}
+
+// Le geste même de la mise en WAITING, du chef comme de la cuisine : le label, puis le commentaire. Le commentaire qui ne
+// part pas retire le label posé : l'issue n'attend pas sans dire quoi. `reprendre` : ce que l'erreur dit de faire ensuite.
+export async function poserLAttente(github: Pick<GitHub, "labelliser" | "delabelliser" | "commenter">, numero: number, corps: string, nom: string, reprendre: string): Promise<void> {
+  await github.labelliser(numero, [LABEL_WAITING]);
   try {
-    await github.commenter(cible.numero, corpsDeLAttente(attente));
+    await github.commenter(numero, corps);
   } catch (erreur) {
     const raison = erreur instanceof Error ? erreur.message : String(erreur);
     try {
-      await github.delabelliser(cible.numero, LABEL_WAITING);
+      await github.delabelliser(numero, LABEL_WAITING);
     } catch {
-      throw new Error(`the comment was not posted on ${nommer(cible)} (${raison}), and \`${LABEL_WAITING}\` could not be removed: remove it by hand, then run the command again`);
+      throw new Error(`the comment was not posted on ${nom} (${raison}), and \`${LABEL_WAITING}\` could not be removed: remove it by hand, then ${reprendre}`);
     }
-    throw new Error(`the comment was not posted on ${nommer(cible)} (${raison}): \`${LABEL_WAITING}\` was removed, nothing waits — run the command again`);
+    throw new Error(`the comment was not posted on ${nom} (${raison}): \`${LABEL_WAITING}\` was removed, nothing waits — ${reprendre}`);
   }
-  return attente;
 }
 
 // L'issue qui doit attendre pour être reprise, et ce qu'elle attend.

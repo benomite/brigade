@@ -28,7 +28,8 @@ export class FauxGitHub {
   protection = false;
   // Les têtes dont la CI est verte ; les autres tournent encore.
   private vertes = new Set<string>();
-  private horloge = Date.UTC(2026, 10, 3);
+  // L'instant du dernier commentaire ou événement : le suivant vient une seconde après.
+  horloge = Date.UTC(2026, 10, 3);
   private suivant = 1;
 
   readonly depot: string;
@@ -83,7 +84,7 @@ export class FauxGitHub {
     this.poster(numero, body);
   }
 
-  readonly transport: Transport = async (args) => {
+  readonly transport: (args: string[], options?: Parameters<Transport>[1]) => ReturnType<Transport> = async (args) => {
     // Rend la main avant de répondre, comme un vrai appel.
     await new Promise((suite) => setImmediate(suite));
     const { methode, chemin, champs, entetes } = lire(args);

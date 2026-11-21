@@ -10,7 +10,7 @@
 //
 // Des fonctions pures : rien n'est lu ni écrit ici.
 import { DE_CONFIANCE } from "./alimenter.ts";
-import { estUneReparation } from "./base-rouge/ouvre-reparation.ts";
+import { checksRepares, estUneReparation } from "./reparation.ts";
 import { CAUSES, compterCauses, type Cause, type CausesDesRatages } from "./causes-des-ratages.ts";
 import type { QualiteDuTicket } from "./mesure-qualite.ts";
 import type { Essai, Parcours } from "./renvois.ts";
@@ -78,11 +78,6 @@ export function causeDuRenvoi(corps: string): Cause {
   return "autre";
 }
 
-// Les checks qu'une réparation de la base nomme, sous « What fails » (`corpsDeLaReparation`).
-export function checksDeLaReparation(corps: string): string[] {
-  const section = corps.split(/^## What fails\s*$/m)[1]?.split(/^## /m)[0] ?? "";
-  return [...section.matchAll(/^- `([^`\n]+)`\s*$/gm)].map(([, nom]) => nom as string);
-}
 
 // La qualité d'un ticket mergé, de ce que GitHub en dit : ses renvois, avec
 // leur cause, ses cooks sans livraison — dont le motif est un texte libre, que
@@ -94,7 +89,7 @@ export function qualiteDeLIssue({ corps, labels, commentaires }: IssueLue): Qual
   const siens = commentaires.filter(({ association }) => DE_CONFIANCE.includes(association));
   const renvois = siens.filter(({ body }) => body.startsWith(MARQUE_DE_RENVOI)).map(({ body }) => titre(causeDuRenvoi(body)));
   const cooksRates = siens.filter(({ body }) => body.startsWith(MARQUE_D_ECHEC)).length;
-  return { renvois, cooksRates, ...(estUneReparation(corps, [...labels]) ? { reparation: checksDeLaReparation(corps) } : {}) };
+  return { renvois, cooksRates, ...(estUneReparation(corps, [...labels]) ? { reparation: checksRepares(corps) } : {}) };
 }
 
 const textes = (valeur: unknown): valeur is string[] => Array.isArray(valeur) && valeur.every((v) => typeof v === "string");

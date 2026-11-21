@@ -135,7 +135,6 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
 
   test("une issue que la cuisine a ouverte sur elle-même n'est pas un besoin : ni comptée, ni rangée, mais dite à part (#3523)", async (t) => {
     const { sortie } = await unDepot(t, [
-      ouverte(34, ["bug"], { title: "Kitchen secondes held: its breaker is open" }),
       ouverte(35, ["bug"], { title: "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)" }),
       ouverte(36, [], { title: "The kitchen of the street is idle" }),
     ]);
@@ -145,7 +144,6 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     assert.equal(vu.compte, 9, "8 besoins de référence, et #36, un besoin comme un autre");
     assert.deepEqual(vu.groupes.flatMap(({ issues }) => issues.map(({ ticket }) => ticket)).filter((ticket) => ticket >= 34), [36]);
     assert.deepEqual(vu.alertes, [
-      { ticket: 34, titre: "Kitchen secondes held: its breaker is open", genre: "disjoncteur", dit: "Kitchen held: its breaker is open" },
       { ticket: 35, titre: "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)", genre: "inerte", dit: "Kitchen idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)" },
     ]);
     assert.equal(vu.survol.startsWith("9 issues before the rail"), true);

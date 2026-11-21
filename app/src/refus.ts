@@ -8,7 +8,7 @@
 //     without a delivery » (`cooks`) ; « still not mergeable after N sends back » (`renvois`) ;
 //   - runtime/src/github-seul/renvois/renvois.ts, `raisonDeSortie` : les quatre raisons pour lesquelles un ticket aux renvois
 //     épuisés ne peut plus être remis au manager (`deja-remis`, `ticket-de-fix`, `calibrage-incomplet`, `calibrage-au-plus-haut`) ;
-//   - runtime/src/guerison/relance.ts : relancé trop de fois pour la même cause (`boucle`) ;
+//   - les commentaires que la relance de la guérison (supprimée en #3911) a laissés sur d'anciens tickets : relancé trop de fois pour la même cause (`boucle`) ;
 //   - runtime/src/rail.ts : gelé par la pass sans avoir été jugé (`gele-par-la-pass`) ;
 //   - runtime/src/mise-de-cote.ts, `RAISONS` et `direMiseDeCote` : les raisons d'un ticket 86 sur une station, en français
 //     (quota, connexion, modèle qui refuse, setup, worktree, ticket ou fiche illisibles, secrets, calibrage absent, pass qui

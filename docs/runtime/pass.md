@@ -205,12 +205,29 @@ reviewer says is blocking without a category, or with one outside the list, is a
 written on the PR, in the pass's verdict (`Advice` lines), and **does not stop the merge**: a review
 red only on advice is green.
 
+### A gesture the manager asks of a cook is never a blocking point
+
+One rule for the manager's answer and for the review (#3962). When the manager's answer in the ticket thread asks
+the cook for a gesture — for example adding `// brigade:guard` to a frozen test (#3913, #3955) — the cook may make it,
+and the review never lists it as a blocking point. The review reads the request from the manager's comments in the
+ticket thread, and holds the cook to the letter: a frozen test is let through only when the request names its file,
+the change removes no line, and every line it adds is quoted in the request. The same edit without a request, or an
+edit that goes beyond what was asked, stays a blocking point (`critere-non-tenu`). The review text that forbids edits
+to frozen tests (`runtime/src/reviewer.ts`) names this exception.
+
 ### Red on main, green on the branch
 
 A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pass/rouge-sur-main.ts`).
 **"Red on main, green on the branch"** means: each test the delivery adds **fails on the integration
 branch** without the delivery's change, and **passes on the delivery's branch**. A test that already
 passes on the base proves nothing.
+
+**A guard is the exception** (#3852). A test guarding a behavior the base already has — a criterion that says "as
+before" / "unchanged" — is marked `// brigade:guard` on its line or the comment lines right above its case (in a file
+whose cases do not read, anywhere), by the tests cook or the cook. The pass accepts it green on the base, and a guard
+green on both sides covers its criterion as a proving test does. An unmarked test green on the base is still sent
+back, and the send-back says that the second time it names a test, the cook marks it or sets the ticket aside once,
+with the reason in one line between `<bloque>` tags.
 
 **It applies to every delivery whose ticket does not carry `tech`.** A `tech` ticket (a refactor or a
 clean-up with no change of behaviour) is exempt: nothing is replayed, and the pass says so in one line,
@@ -224,7 +241,8 @@ test file that existed, the cases (`test("…")`, `it("…")`) the base does not
 **Only they are replayed, never the suite.** While the reviewer reads, the pass makes a throwaway
 checkout of the base (`rouge-sur-main-<ticket>`), copies into it the branch's changed test files and
 the files under its test folders (`test/`, `tests/`, `__tests__/`), and plays each added test file on
-both sides: `node --test --test-reporter=tap <file>` from the folder of its nearest `package.json`, a
+both sides: `node --test --test-isolation=none --test-reporter=tap <file>` from the folder of its nearest
+`package.json` — the file runs in the runner's own process, one Node started instead of two (#3799) —, a
 case added to an existing file selected by its name (`--test-name-pattern`). No setup, install or
 build; under the cloison, with no GitHub token and no project secret; at most 5 minutes per file and
 side. The checkout is thrown away afterwards and nothing is committed: the rule adds no file to the
@@ -234,9 +252,21 @@ what it did on each side.
 | The replay says | What the pass does |
 |---|---|
 | every added test red on the base, green on the branch | nothing held back: the review decides |
-| an added test **green on the base** | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
+| an added test **green on the base**, marked as a guard (`// brigade:guard`) | nothing held back: accepted, and the verdict's line counts it as marked as guarding a behavior the base already has |
+| an added test **green on the base**, not marked | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
 | an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
 | the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
+
+**A frozen acceptance test the delivery changes** (#3910, `runtime/src/passe-gel-tests/gel-tests.ts`). The frozen
+acceptance tests are the branch's first commit (trailer `Acceptance-Tests: frozen`), written by the manager before
+the cook. A delivery that changes, renames or removes one is not refused before the review: the pass compares each
+frozen file at the head with the frozen commit, and the reviewer's brief gets a section naming each changed test,
+with its diff since the freeze. The reviewer reports each one as a `blocking` finding of category
+`critere-non-tenu`, saying what the change takes from the criterion; a test changed then put back byte for byte is
+not changed. A history the pass cannot read is said in the station's log and in the brief, and the reviewer
+compares the files itself. A frozen case already green on the base is an added test like any other (the table
+above). There is no amendment and no automatic repair: a wrong criterion is a send-back reason, or a TODO card when
+it changes the product — the cook says it in `<bloque>`, the manager answers it or puts it to the chef.
 
 **The verdict on the PR** — the comment the pass already posts — ends with that line, then **one line
 per acceptance criterion** of the ticket (the bullets of its `Acceptance criteria` section), each
@@ -277,6 +307,19 @@ many were not run.
 
 The verdict on the PR ends with that line, then one line per acceptance criterion covered by a proved
 test, per test file: `Criterion <n>, <test file>: X of Y mutations caught`, with the surviving lines.
+
+**Before the PR, too** (#3970): a surviving mutation was the heaviest loss of time of the kitchen's
+tickets, each send-back costing a pass, a claim and a new cook. So the station runs the same check
+(same replay, same mutants, same budget, same rule on frozen tests) in the cook's worktree as soon as a
+cook ends with a delivery — commits added, no blocking question. When a mutation survives, the station
+relaunches that cook in its worktree, its brief followed by `## Mutations your tests let through`
+and the reason lines the pass would write, each naming its file and line. The relaunched cook's delivery
+is checked again (#3976): with #3970's single relaunch, a mutation the relaunch left alive went on to the
+PR, and the pass sent the delivery back (#3974). So the cook is relaunched again on the lines that still
+survive, at most `RELANCES_DES_MUTATIONS` (2) times. Then the delivery goes on to its PR and the pass as
+before, which runs the check again. A relaunched cook that does not finish, or ends on a blocking
+question, stops the relaunches: the delivery goes on as the last cook that finished left it; a check
+that cannot run holds nothing back (the station warns).
 
 ### The second judge
 
@@ -619,16 +662,12 @@ progress continue, as do the manager's judgements and the reviews.
 
 **The kitchen deals with the red on its own.** The pass **first replays its gates once**, at once and
 with no commit (`base.recheck-requested`, written by `pass`): a passing red (a flaky test, an
-exceeded delay) falls with nothing opened. **If the red holds**, it **opens a repair ticket**
-(`base.repair-opening` then `base.repair-opened`) naming the base, the commit and what
-fails. It carries `fire`, `model:opus`,
-`effort:medium` (like the manager's table, #2575) and **`prio:0`, which goes ahead of the whole rail**. **It is the only ticket that
-leaves from a red base**: the pass judges it merged with the red base and merges it, its
-green gates saying it repairs it. Merged, the base's gates are replayed, and at green everything
-restarts by itself.
-**One at a time**: no second while the first is in progress, nor more than one per red. Its
-marker is `<!-- brigade:reparation-base <sha> -->`. The repair reads `en-cours`, `servie` or
-`echouee` (`reparationDeLaBase`, read by the queue and the card). **While it works, the red base does
+exceeded delay) falls with nothing opened. No repair ticket is opened automatically any more (#3945):
+a base red for 10 minutes wakes the [supervisor](github-seul.md#the-supervisor), which reruns the failed jobs
+first and files at most one `fix` ticket per red check. That ticket, `prio:0` with its
+`<!-- brigade:supervisor-cause check:<check name> -->` mark, **is the only one that leaves from a red base**:
+the pass judges it merged with the red base and merges it. The `base.repair-opening` and `base.repair-opened`
+facts of older logs are still read (`reparationDeLaBase`): **while such a repair works, the red base does
 not enter the `awaiting` block**; **failed, it enters it**, on a `base` line ("What awaits the chef"
 in [`etat-et-mesures.md`](etat-et-mesures.md)), and **leaves it by itself on return to green**.
 

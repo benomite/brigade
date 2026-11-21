@@ -9,6 +9,12 @@
 //
 // Un ticket sans critères d'acceptation n'a aucun test à geler : l'étape ne
 // s'applique pas à lui, et il se prend comme avant, une fois son corps lu.
+//
+// Un ticket retenu par un autre — un ticket ouvert qu'il attend, un ticket mis
+// de côté, sa zone tenue — part aussi à l'écriture, pendant la retenue (#3872) :
+// sa prise, à la levée, ne l'attend plus après elle. De même quand ses places
+// sont prises par des cooks ou que le pass est plein, une écriture au plus par
+// place (#3887).
 import { etapeDuRail } from "./etape.ts";
 import type { Ecriture } from "./ecriture.ts";
 
@@ -22,6 +28,8 @@ export const EN_ECRITURE = "its acceptance tests are being written by the manage
 export type PorteDesTests = {
   // null : le ticket a passé l'étape, il se prend. Sinon, la ligne de son saut.
   porte(ticket: { number: number; labels: readonly string[] }): string | null;
+  // Vrai si `porte` lancerait l'écriture des tests de ce ticket maintenant.
+  aEcrire(ticket: { number: number; labels: readonly string[] }): boolean;
   // Les tickets dont les tests s'écrivent en ce moment : chacun tient une
   // place de la station, comme un cook (#3742).
   enEcriture(): number[];
@@ -35,7 +43,10 @@ export function porteDesTests(ecrire: (ticket: number) => Promise<Ecriture>, opt
   const enCours = new Map<number, Promise<void>>();
   const echecs = new Map<number, { fois: number; motif: string }>();
   const sansCriteres = new Set<number>();
+  const aEcrire = (ticket: { number: number; labels: readonly string[] }) =>
+    etapeDuRail(ticket.labels) === "queued" && !sansCriteres.has(ticket.number) && !enCours.has(ticket.number) && options.dejaParti?.(ticket.number) !== true && (echecs.get(ticket.number)?.fois ?? 0) < ESSAIS_MAX;
   return {
+    aEcrire,
     porte(ticket) {
       if (etapeDuRail(ticket.labels) !== "queued" || sansCriteres.has(ticket.number)) return null;
       if (enCours.has(ticket.number)) return EN_ECRITURE;

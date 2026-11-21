@@ -1,0 +1,63 @@
+// #3911, criterion 6: no timer, scheduler or periodic job puts a set-aside ticket back on the rail. The station
+// turn used to heal a set-aside ticket whose reason a cook can fix (here a PR in conflict with the base) by
+// relaunching it. A set-aside ticket now stays off the rail, turn after turn, after the former relaunch delay
+// (a day here) has elapsed: only the supervisor acts on it.
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { test } from "node:test";
+import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote } from "../../src/github.ts";
+import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
+
+const JOUR_MS = 24 * 60 * 60_000;
+const TICKET = 10;
+
+function station() {
+  const faux = new FauxGitHub();
+  let instant = Date.parse("2026-11-20T10:00:00Z");
+  const nom = "box/claude";
+  const bas = faux.pour(nom);
+  const github: GitHubDuTour = { ...bas, issue: fauxClient(faux, nom).issue };
+  const tour = stationGitHub({
+    nom,
+    places: 1,
+    base: "trunk",
+    github,
+    prise: faux.prise(github, nom),
+    cuisiner: async (ticket) => {
+      faux.cuissons.push({ station: nom, issue: ticket.number });
+      return { branche: brancheDuTicket(ticket.number) };
+    },
+    juger: async () => ({ verdict: "approve", motif: "" }),
+    jugerEnSecond: async () => ({ verdict: "approve", motif: "" }),
+    avertir: () => {},
+    maintenant: () => new Date(instant),
+  });
+  const passer = async () => {
+    await tour.tour();
+    await tour.calme();
+    await tour.relu();
+  };
+  return { faux, passer, avancer: (ms: number) => (instant += ms) };
+}
+
+test("a ticket set aside for its failures, whose PR conflicts with the base, stays off the rail after the relaunch delay has elapsed", async () => {
+  const { faux, passer, avancer } = station();
+  faux.feu(TICKET, [...CALIBRE, ECHECS_ATTEINTS]);
+  faux.prs.push({ number: 100 + TICKET, issue: TICKET, branche: brancheDuTicket(TICKET), sha: faux.sha(), state: "open", merged: false, enRetard: false, enConflit: true, conflitDeContenu: true, mergeePar: null, fichiers: [] });
+  await passer();
+  avancer(JOUR_MS);
+  await passer();
+  avancer(JOUR_MS);
+  await passer();
+  assert.deepEqual(faux.cuissons, []);
+  assert.ok(estMisDeCote([...faux.ticket(TICKET).labels]), "still set aside");
+  const relances = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.includes("brigade:relance"));
+  assert.deepEqual(relances, []);
+});
+
+test("the station's healing turn has no relaunch path left: it no longer imports the relaunch of a set-aside ticket", () => {
+  const guerison = readFileSync(join(import.meta.dirname, "../../src/guerison/index.ts"), "utf8");
+  assert.doesNotMatch(guerison, /from "\.\/relance\.ts"/);
+});

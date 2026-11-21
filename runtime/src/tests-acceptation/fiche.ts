@@ -114,7 +114,7 @@ export function consigneDesTestsGeles(lues: ReturnType<typeof lireLesFiches>): s
   return [
     "## Frozen acceptance tests",
     "",
-    "The first commit of your branch (trailer `Acceptance-Tests: frozen`) holds the acceptance tests of this ticket, one per testable criterion, written by the manager before you took it. They judge your work: make them pass. Do not modify, move or delete them, and do not rewrite that commit.",
+    "The first commit of your branch (trailer `Acceptance-Tests: frozen`) holds the acceptance tests of this ticket, one per testable criterion, written by the manager before you took it. They judge your work: make them pass. Do not modify, move or delete them, and do not rewrite that commit: the review reads any change to them as a blocking finding. If a criterion looks wrong to you, leave its test as it is and say why in `<bloque>`: the manager answers, or puts it to the chef as a card when it changes the product.",
     ...liste,
     ...consigneDesPreuves(fiches),
   ].join("\n");

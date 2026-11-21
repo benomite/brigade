@@ -331,14 +331,26 @@ committing, the cook plays each new test as the pass will: in a throwaway checko
 (`git worktree add --detach <throwaway folder> origin/<base>`, never `git stash`, whose stack every
 worktree of the repo shares), it copies its test files and their helpers, sees the test fail there,
 throws the checkout away (`git worktree remove --force`), and sees the test pass on its branch; it
-rewrites a test that passes on both sides, or removes it from its delivery: a test guarding a behavior
-the base already has does not belong there, even commented as such, and no reply on the PR lifts that
-send-back (#3694: 13 of the 16 blocking reviews over 20 merged tickets were this rule, ten of them
-#3632's, whose cook kept such a test with a guard comment, and whose next cooks added nothing until
-06f7aac removed it). Blocking review
+rewrites a test that passes on both sides, or removes it from its delivery: no reply on the PR nor free
+comment lifts that send-back (#3694: 13 of the 16 blocking reviews over 20 merged tickets were this
+rule, ten of them #3632's, whose cook kept such a test with a guard comment). Only a test whose
+ticket's criteria say the behavior stays "as before" / "unchanged" stays, marked `// brigade:guard` on
+the line above its case: the pass accepts it green on the base (#3852). Blocking review
 was still the first send-back reason after #3466 brought the rule to the pass (#3628: 5 over 20 merged
 tickets), and 4 of those 5 were this rule — #3528 twice, #3559, #3600 —, which the cook's instructions
 did not name: the cook played its test on its branch only.
+
+The same instruction tells the cook that the pass then mutates, one by one, the lines of code its diff
+adds or changes ("Mutations caught", [`pass.md`](pass.md)) — each by the first of `===`/`!==`,
+`==`/`!=`, `&&`/`||`, `<=`/`>`, `>=`/`<`, ` < `/` >= `, ` > `/` <= `, `true`/`false`, ` + `/` - ` or a
+removed unary `!` it finds outside the line's strings and comments — and replays the tests the
+delivery adds against each mutant: a mutation that survives sends the delivery back naming its line,
+whatever the review says. Before committing, the cook does it itself: on each line of code its diff
+adds or changes that carries one of these mutations, it applies it by hand, plays its added tests and
+the frozen tests, sees one of them fail, and puts the line back. A surviving mutation calls for a test
+case that tells the line from its mutant, or for removing a line nothing asks for. Blocking review was
+still the first send-back reason after the mutations came to the pass (#3880: 33 over 20 merged
+tickets), and 24 of those 33 were a surviving mutation, which the cook's instructions did not name.
 
 The same instruction tells the cook to list, before writing, every place each criterion applies to,
 and to serve it in each: a criterion that says "every", "all", "never" or "no" covers each message,

@@ -35,7 +35,7 @@ import { statutLu } from "../moteur/moteurs.js";
  * encore — sa machine pleine, la limite de GitHub, son refus et sa raison. `cooks`, `agents` : ce qu'elle tient du projet à
  * l'instant. `prise` : le nom sous lequel sa cuisson la nomme (`<machine>/claude`), quand elle la nomme — celui de sa
  * déclaration et de son plafond. `moteur` : l'état de son moteur, tel que sa ligne de cuisson le publie (ticket 3746).
- * @typedef {{ id: string, nom: string, prise?: string, ici: boolean, sorte: Sorte, etat: EtatDeStation, dit: string, note?: string, cooks: Cook[], agents: AgentDeStation[], moteur?: import("../moteur/moteurs.js").Statut }} Servante
+ * @typedef {{ id: string, nom: string, prise?: string, ici: boolean, sorte: Sorte, etat: EtatDeStation, dit: string, note?: string, lacks?: string, cooks: Cook[], agents: AgentDeStation[], moteur?: import("../moteur/moteurs.js").Statut }} Servante
  */
 /**
  * Un déménagement en route : d'où, vers où, depuis quand (`depuis`, en ms), son étape, ce que la station en dit (`dit`), et
@@ -64,6 +64,17 @@ export const nomDePrise = (nom) => `${nom.toLowerCase().replace(/[^\p{Ll}\p{N}-]
 // La station appairée d'une ligne de cuisson : celle qui porte son nom, ou dont le nom de prise est le sien.
 /** @param {readonly StationVue[]} stations @param {string} nom */
 const appaireeDe = (stations, nom) => stations.find((station) => station.nom === nom || nomDePrise(station.nom) === nom);
+
+// La box dont une ligne de cuisson est la cuisine du projet, sous un autre nom que sa déclaration (ticket 3868) : la ligne
+// dit `<machine>/claude` (`box/claude`), la station s'est inscrite sous un nom qui finit par cette machine (`parade-box`) —
+// une seule machine, une seule carte. Elle doit servir le projet, n'être pas un ordinateur, et n'être pas déjà prise.
+/** @param {readonly StationVue[]} stations @param {ReadonlySet<string>} prises @param {string} projet @param {string} nom */
+const memeBoxQue = (stations, prises, projet, nom) => {
+  const machine = nom.endsWith("/claude") ? nom.slice(0, -"/claude".length) : "";
+  if (machine === "") return undefined;
+  const candidates = stations.filter((station) => !prises.has(station.id) && station.projets.includes(projet) && !estUnOrdinateur(station) && nomDePrise(station.nom).slice(0, -"/claude".length).endsWith(`-${machine}`));
+  return candidates.length === 1 ? candidates[0] : undefined;
+};
 
 // Une station qui tourne sur un ordinateur — un Mac, un PC —, tel que sa machine le dit (projets.ts, `estUnOrdinateur`, que
 // la vue redit sans l'importer) : elle s'arrête avec lui. Une autre est une box, toujours allumée.
@@ -128,7 +139,7 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
     // La station de ce poste, quand le projet cuit ici : la ligne de la box qui n'est pas distante est la sienne, quel que
     // soit le nom sous lequel le journal la déclare — une seule carte pour cet ordinateur.
     const iciMeme = ici && !ligne.distante && locale !== null && locale !== undefined && !prises.has(locale) ? stations.find(({ id }) => id === locale) : undefined;
-    const appairee = appaireeDe(stations, ligne.station) ?? iciMeme;
+    const appairee = appaireeDe(stations, ligne.station) ?? iciMeme ?? (ligne.distante ? memeBoxQue(stations, prises, projet, ligne.station) : undefined);
     if (appairee !== undefined) prises.add(appairee.id);
     const refuse = ligne.etat === REFUSE;
     const horsLigne = appairee?.etat === "hors-ligne" || !enLigneDe(ligne);
@@ -147,6 +158,7 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
       dit: refuse ? REFUSANT : !horsLigne ? "online" : appairee?.etat === "hors-ligne" ? appairee.dit : horsLigneDe(ligne, lu),
       ...(note === "" ? {} : { note }),
       ...(moteur === undefined ? {} : { moteur }),
+      ...(ligne.lacks === undefined ? {} : { lacks: ligne.lacks }),
       cooks: ligne.cooks,
       agents: ligne.agents,
     });

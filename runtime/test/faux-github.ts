@@ -4,7 +4,7 @@ import type { ReprendreLeTicket } from "../src/reprise-du-manager.ts";
 import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
 import { lienDuCorps } from "../src/besoin/besoin.ts";
 import { porteListe } from "../src/epique.ts";
-import { avecLAlerte } from "../src/alerte-cuisine/alerte-cuisine.ts";
+import { avecLAlerte } from "../src/issue-de-la-cuisine.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub, StatutDeCommit } from "../src/github.ts";
@@ -49,7 +49,7 @@ export class FauxGitHub {
   relectures: Array<{ station: string; pr: number }> = [];
   secondsJugements: Array<{ station: string; pr: number; sha: string; juges: string[] }> = [];
   base: "green" | "red" = "green";
-  // Le dernier commit de la base, et les issues de réparation que le faux a vu créer.
+  // Le dernier commit de la base, et les issues que le faux a vu créer.
   teteDeLaBase = "b".repeat(40);
   creations: number[] = [];
   // Des checks qui ne tournent que sur la base, jamais sur une PR (les tests Windows).
@@ -63,24 +63,11 @@ export class FauxGitHub {
   // Les PR qui ne portent aucune CI (espace, #2456), et les statuts de chaque commit.
   sansCI = new Set<number>();
   statutsDeCommit = new Map<string, StatutDeCommit[]>();
-  // Le run de GitHub Actions du check `tests` de la base, que la station peut
-  // relancer (#2323) ; null : un check sans lien, qui ne se relance pas.
-  runDeLaBase: number | null = null;
-  tentatives = new Map<number, number>();
   // Les issues que GitHub ne ferme pas au merge de leur PR (#2467), malgré `Closes #N`.
   nonFermees = new Set<number>();
-  // Une relance tourne : le check `tests` de la base est en cours jusqu'à
-  // `finirLaRelance`.
-  relanceEnCours = false;
   // La station peut-elle réécrire le corps d'une issue (#3513) ? Non, par défaut.
   corpsEcrivables = false;
   private horloge = 0;
-
-  // La relance des jobs de la base finit, verte ou rouge.
-  finirLaRelance(couleur: "green" | "red"): void {
-    this.relanceEnCours = false;
-    this.base = couleur;
-  }
 
   feu(number: number, labels: string[] = CALIBRE, corps = "the ticket's body"): void {
     this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open", corps });
@@ -171,12 +158,7 @@ export class FauxGitHub {
       },
       checksDeLaBase: async () => {
         await noter("checksDeLaBase");
-        const url = this.runDeLaBase === null ? {} : { url: `https://github.com/faux/depot/actions/runs/${this.runDeLaBase}/job/1` };
-        return [{ name: "tests", outcome: this.relanceEnCours ? ("pending" as const) : this.base, ...url }, ...this.checksDeLaBaseSeule];
-      },
-      teteDeLaBase: async () => {
-        await noter("teteDeLaBase");
-        return this.teteDeLaBase;
+        return [{ name: "tests", outcome: this.base }, ...this.checksDeLaBaseSeule];
       },
       issuesDepuis: async () => {
         await noter("issuesDepuis");
@@ -212,14 +194,8 @@ export class FauxGitHub {
         this.retraits.set(issue, [...(this.retraits.get(issue) ?? []), { label, createdAt: new Date(Date.UTC(2026, 10, 2) + this.horloge * 1000).toISOString() }]);
       },
       retraitsDeLabels: async (numero) => this.retraits.get(numero) ?? [],
-      etatDuRun: async (run) => {
-        await noter("etatDuRun");
-        return { tentative: this.tentatives.get(run) ?? 1, termine: !this.relanceEnCours };
-      },
-      relancerLesEchecs: async (run) => {
+      relancerLesEchecs: async () => {
         await noter("relancerLesEchecs");
-        this.tentatives.set(run, (this.tentatives.get(run) ?? 1) + 1);
-        this.relanceEnCours = true;
       },
       ouvrirPR: async ({ branche, corps }) => {
         await noter("ouvrirPR");
@@ -313,8 +289,8 @@ export class FauxGitHub {
       github,
       prise: this.prise(github, nom),
       cuisiner: async (ticket) => {
-        if (options.cuisiner) return options.cuisiner(ticket.number);
         this.cuissons.push({ station: nom, issue: ticket.number });
+        if (options.cuisiner) return options.cuisiner(ticket.number);
         // Un renvoi : le cook pousse sur la branche de la PR ouverte, sa tête change.
         const ouverte = this.prs.findLast((p) => p.issue === ticket.number && p.state === "open");
         if (ouverte !== undefined) Object.assign(ouverte, { sha: this.sha(), enConflit: false });
@@ -356,6 +332,8 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
   const bas = faux.pour(station);
   const client: Partial<GitHub> = {
     tickets: async () => ({ inchange: false, issues: (await bas.fires()).map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
+    // Toutes les issues du faux, ouvertes ou fermées : la lecture des stations du projet (#3870) y cherche leurs prises.
+    issuesDepuis: async () => [...faux.tickets.values()].map((t) => ({ number: t.number, title: t.title, labels: [...t.labels], state: t.state, body: t.corps, association: "OWNER", createdAt: "", updatedAt: "", url: "" })) as never,
     prDeBranche: async (branche) => {
       const pr = faux.prs.findLast((p) => p.branche === branche);
       return pr === undefined ? null : { number: pr.number, url: "", base: "main", sha: pr.sha, state: pr.state, merged: pr.merged, enRetard: pr.enRetard, mergeePar: pr.mergeePar, ...(pr.enConflit ? { enConflit: true } : {}) };

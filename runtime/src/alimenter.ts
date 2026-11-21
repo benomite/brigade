@@ -13,10 +13,8 @@ export function priorite(labels: string[]): number | null {
   return niveaux.length === 0 ? null : Math.min(...niveaux);
 }
 
-// Ceux dont un commentaire fait foi : le propriétaire du dépôt, les membres de
-// son organisation, ses collaborateurs. Tout le monde peut commenter une issue
-// publique, et une fiche dit quoi cuisiner.
-export const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
+// Ceux dont un commentaire fait foi (attente-github/marque.ts, sans import : la lecture du rail de l'app les lit aussi).
+export { DE_CONFIANCE } from "./attente-github/marque.ts";
 
 export type ConfigRail = {
   // `<owner>/<repo>` : le dépôt GitHub dont le projet sert les issues.

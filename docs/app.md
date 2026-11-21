@@ -167,28 +167,14 @@ you answer (`docs/runtime/manager.md`, "A ticket the kitchen takes off the rail 
 price follows its gesture (`app/src/carte-todo.ts`): `drop` says the ticket stays off the rail, `close` that its issue is
 closed — neither says a cook is launched. Since #2061 no reading carries that card: such a ticket is a `chef-todo` card
 of kind `abandoned`, answered on its issue.
-**A kitchen held by its breaker is resumed in one click, from the head of Todo** (#2140, epic #2134): while the
+**A kitchen held by its breaker is shown as one information line, from the head of Todo** (#2140, epic #2134, #3911): while the
 `kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
-failed in a row, no cook goes any more`, what the station writes on hover — and its single button, `Resume`, recommended,
-its price on hover. The line says the project's state, `held: breaker open — …`, in the same words on Home (the project's
-state, in place of `stuck` and `no manager takes`), on Rail and on the phone (#3602). No command to copy, no ssh, no confirmation: the click posts one comment whose body is exactly
-`/resume` on the project's open issue labeled `brigade:breaker-open` on `benomite/brigade` — the one whose body carries
-`<!-- brigade:projet=<owner>/<repo> -->` for this project, #3620 — (the station publishes it when the breaker opens,
-#2138, and its watcher closes the breaker when it reads the comment, #2139), with the GitHub sign-in of
-this computer's `gh` (`app/src/github/breaker-resume.ts`). While it is posted, the button waits and the line says
-`requesting the resume on GitHub…`; posted, it says `Resume requested` (the comment's address on hover) and offers no
-button to click twice, until the reading that no longer says the breaker open takes the line away. GitHub refusing, or no
-labeled issue being open, the line says why in one line (`resume not requested: …`), GitHub's answer on hover, and gives
-`Resume` back to try again. On Rail the alert band does not repeat the line; on the other tabs, where there is no Todo,
-the band carries it with the same `Resume` (`app/src/vue/todo-breaker-line.js`). Captures: `docs/captures/2140/`.
-**On the phone the breaker line is at the head of `Awaiting you`, with the same `Resume`** (#3371). The phone has no
-station to ask: its reading lists the open issues labeled `brigade:breaker-open` on `benomite/brigade` and keeps the one
-marked with the project's repository (`app/src/lecture-github-telephone.ts`, `avecLeDisjoncteur`, #3620). An open one says the kitchen held, with a `kitchen` line built from the issue the station wrote (how long,
-how many failures in a row, the failing ticket, its exit code: `cuisineRetenueParLeDisjoncteur`); the band's breaker alert follows,
-and the list shows it with that line written under it (a phone has no hover). `Resume` posts `/resume` on that issue through
-`reprendreLeDisjoncteur` of `app/src/gestes-github-telephone.ts`, the code the desktop runs. A reading of the issues that fails
-says nothing of the breaker: the rail stays as read, and the next reading, thirty seconds later, asks again. Captures:
-`docs/captures/3371/`.
+failed in a row, no cook goes any more`, what the station writes on hover — with no button: the chef no longer resets the
+breaker, the station's supervisor re-runs the check that tripped it and closes it itself (#3911), and the station no longer
+files a breaker issue on GitHub. The line says the project's state, `held: breaker open — …`, in the same words on Home (the project's
+state, in place of `stuck` and `no manager takes`) and on Rail (#3602). On Rail the alert band does not repeat the line; on the other
+tabs, where there is no Todo, the band carries it (`app/src/vue/todo-breaker-line.js`). The phone has nothing to read it from, and
+shows no breaker line.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the
@@ -2611,7 +2597,7 @@ Settings (#3014), then the closer's; they are read on GitHub when Settings opens
 **Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
 first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
 as the station publishes it), then the durations the
-repository declares — `drift.testsSeconds`, `drift.gatesSeconds` (100 s by default) —, then, folded behind one line
+repository declares — `drift.gatesSeconds` (100 s by default) —, then, folded behind one line
 ("Other drift thresholds · 1 set in the repository"), every other `drift.*` threshold of `projet.json`. Each cap is one
 settings row (`composants/reglage`, #2920): no **save** — a `drift.*` field applies on its `change` (left, or Enter) when
 it changes the repository's value. Kept in the repository, its row says `a change opens a pull request, applied once merged`: the app proposes the change by a pull request, on GitHub, with the chef's `gh` token
@@ -3105,7 +3091,7 @@ or the app's `inscrite-par-l-app` mark there on Windows), the installed app
 hands the icon to a process of its own binary started with `--tray-fond`, which stays when the app closes. The app
 registers it at login on each opening — a launchd agent `~/Library/LaunchAgents/brigade.tray-fond.plist` on a Mac, the
 `brigade-tray` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows — and no longer puts its own
-icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front.
+icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front. The icon process does not hold Electron's single-instance lock, which belongs to the app alone: it keeps a pid file in its own data folder, so an app opened while the icon runs shows its window instead of handing off to a process that has none (#3864).
 
 - **The line** is the same (`3 cooking · 1 for you`, the disc on Windows), read every 15 s from the `facts` of each
   project the station serves, through the station's own gesture, as the app reads them. It adds `· paused` or
@@ -3586,8 +3572,8 @@ attention. Each sentence is written from the facts the queue already gives about
 
 | State of the card | Its sentence | Its signal |
 |---|---|---|
-| taken (`taken`) | what the cook is doing, and for how long: `writes the tests · 12 min` (`rail[].activite`); with no activity, `in the kitchen` and a `…` marker | — |
-| in pass | likewise: `review in progress · 1 min`; with no activity, `review in progress` and the marker | — |
+| taken (`taken`) | what the cook is doing, and how fresh that is: `running the tests · 20 s ago` (`rail[].activite`); with no known activity, `no activity yet` and a `…` marker. A ticket taken more than once shows the rank of its attempt next to its dots, `3rd try` (`rail[].essais`); a first attempt shows none (#3923) | — |
+| in pass | likewise, with the step of the pass when the runtime gives it (`activite.etape`): `CI running · 45 s ago`, `review · 12 s ago`, `waiting for main · 1 min ago`, `merging · 5 s ago`; otherwise what the pass does (`judged green, the pass decides · 1 min ago`); with no known activity, `no activity yet` and the marker | — |
 | queued | `Waiting for #14, #15` when `status` names the tickets that hold it, each number opening its issue (#3147); otherwise what holds it, as is; otherwise `ready, waits for a place in the kitchen` | — |
 | `BLOCKED` | likewise, or `blocked` and the marker | `blocked` |
 | set aside (`86`) | `Will not start: <reason in plain words>.` (`app/src/refus.ts`, from `attente.raison` or the station's comment); the word `86` is displayed as `set aside` | `set aside` |
@@ -3725,6 +3711,7 @@ section. With the section laid, `right now` is not repeated under it.
   in `facts` (#1346); a runtime from before this field says nothing more.
   **A queued card held back for other tickets says `after #12, #15`** (#3510): the numbers of `rail[].attend` in `facts`, a
   list the rail scheduling writes (#3502) and the app only reads; an empty or missing `attend` adds nothing to the card.
+  These numbers do not say where each wait was read; the GitHub rail's card below does (#3763).
 - **A ticket set aside (`86`) is never out of a column.** The runtime gives, in `rail[].attente`
   of `facts`, its reason in plain words ("awaiting: project setup impossible") and the column where it waits;
   the app files it there — failing a column it knows, in **On the rail** — and its card
@@ -3915,19 +3902,56 @@ section. With the section laid, `right now` is not repeated under it.
   checked`, never as a calm rail.
 - **The rail says why its queued tickets do not start** (#3433, `app/src/vue/attente-du-rail/`, one sentence per reason in
   `runtime/src/attente-du-rail/raison.ts`). With at least one queued ticket and no cook running, the head of the rail,
-  under the stuck-rail line, shows one sentence: the first of these reasons that holds — no station serves the project;
+  under the stuck-rail line, shows one sentence: the first of these reasons that holds — no station serves the project
+  (never said while an available station publishes no selection: set up on its own machine, it serves what its pairing
+  asks, which the account does not show — `servantesDe`, #3818; the stuck-rail cause reads the same rule);
   its station is stopped; its station is offline or out of quota; the station waits for the GitHub quota; the cook cap
-  is reached; a delivery is in the pass; every queued ticket waits for another ticket; else a normal wait, which says a
+  is reached; a delivery is in the pass; every queued ticket waits for another ticket; every queued ticket waits for a
+  ticket in WAITING (#3761: `Every queued ticket waits for a ticket in WAITING on a third party: it starts once that
+  ticket is served.` — it does not resolve by itself; when it is the only ticket of the rail and has been unable to
+  leave for more than an hour since `fire` was put on it, the sentence names it and what it waits for instead:
+  `#3734 has not been able to leave for 1 h: it waits for `#1912`, WAITING on a collaborator — read from the body: …`); else a normal wait, which says a
   cook takes the ticket within minutes and how long the oldest queued ticket has waited since `fire` was put on it (from
   five minutes on: "longer than usual"). The first three name the gesture that lifts them (**Start this computer's station** on this
   computer, `Start it on its computer.` on another one, **Add the project to a station** — a red `FAULT` line, with the
   button that opens the Stations tab for the latter); the others say
-  they resolve by themselves. A queued card that will not start next carries `after #N` (behind another queued ticket)
-  or `waiting for #N to merge` (behind a ticket a cook holds or the pass judges), read from the `Depends on #N` lines of
-  its issue; the card that starts next and a card without dependency have none, and "Will not start: …" or a blocking
+  they resolve by themselves. A queued card held by another ticket on the rail carries each wait the kitchen
+  applies to it, with where it was read (#3763): `waits for #N — read from the body: '<the sentence>'` (a `Depends on #N` line, and
+  only that: a context sentence such as `Builds on #N` is no dependency, #3865), `waits for #N — read from the card` (the `awaiting` line of its card), or
+  `waits for #N — read from a cook's stop` (the mark the station writes when a cook stops on an unmerged ticket); a wait
+  the kitchen lifted is not shown, nor a wait on an open ticket that is not on the rail (the card then reads as ready). When its comments cannot be read, the card says `its card and its cooks' stops could
+  not be read on GitHub`, never that nothing holds it. A queued ticket held by a ticket in WAITING (#3761) is shown as
+  WAITING, never as an idle queued ticket: its card is in the Waiting column, without the WAITING gestures (nothing
+  put it there), and its line names both tickets and who the WAITING one waits on, read from its WAITING mark —
+  `waits for `#1912`, WAITING on a collaborator — read from the body: 'Depends on #1912'` (`a third party` when that
+  comment cannot be read); the `rail` line counts it as WAITING, and the stopped-kitchen banner and the rail alerts do
+  not count it as a ready ticket. The card that starts next and a card without dependency have
+  none, and "Will not start: …" or a blocking
   reason on a card come first. The same sentence and card lines are in the app's `status` and the second's queue
   (`queue wait`, above the `rail` line) and in `brigade <project> status` on a GitHub-only station. GitHub does not
-  publish a station's cook cap, so this reading never raises that reason.
+  publish a station's cook cap, so this reading never raises that reason. In the app, the three station faults are said
+  by the rail alert line (#3823, below), never by this sentence: it knows neither the header nor the last cook.
+- **A rail alert is shown only when it is true and actionable** (#3823, `runtime/src/attente-du-rail/alertes.ts`, the line
+  in `app/src/vue/attente-du-rail/ligne-des-alertes.js`). The GitHub reading of the rail judges five kinds: no station
+  serves the project; its stations are stopped or offline, so no cook can start; the main branch is red (its live
+  `repair-main` ticket on the rail, #3815: since the issue opened, the check its title names); a ticket taken ten times
+  or more (counted from the take comments on the first page of its comments, said as "at least" when that page is
+  full); and nothing served for 30 minutes while a ticket is ready. Each alert carries a checkable fact — since when, and
+  which ticket or which check, on hover — and either the gesture that lifts it (a button when the app has one: **Add the
+  project to a station**, **Start this computer's station**) or what the kitchen already does about it (`The kitchen
+  repairs it on #N.`); an alert with neither, or without a fact, is not shown. No alert says that no cook can start while
+  a station of the header cooks the project, a cook runs, or a cook opened its PR less than 5 minutes ago. Nothing
+  served for 30 minutes is one red `FAULT` line that names a known cause — one of the four, or the reason of the queue
+  wait —, never "cause unknown" alone; it comes first, and the head of the rail shows only it.
+- **A stopped kitchen is always said** (#3924, `runtime/src/arret-cuisine/arret-cuisine.ts`, the notice in
+  `app/src/vue/bandeau-arret/`). When at least one ticket is queued and no card is taken or in pass, the head of the
+  rail opens with a red `STOPPED` line, above the status line, whatever that line shows: `The kitchen is stopped since
+  08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.`, or `…: main is red.`, or `…: the cause is unknown.`.
+  The GitHub reading of the rail names main red from its live `repair-main` ticket, since the issue opened, and a frozen
+  ticket from a set-aside ticket whose PR is open and whose fiche declares a zone, since it was set aside (or else since
+  its PR opened). With no known
+  cause, the stop runs from the oldest queued ticket's entry, or from the last service when it is later. The line goes
+  at the next reading of the rail, without a reload, once a card is taken or in pass or the queue is empty.
 - **A GitHub quota pause is not a fault** (#3482, `app/src/vue/pause-quota/`). When the account's GitHub quota is spent,
   the stations keep running but cannot write their sign of life. Each station's state carries `quotaGithub`
   (`limite`: `core` or `ecriture`, `pauseJusqua`: when it resumes, or null); a running station in pause is held by
@@ -4053,13 +4077,13 @@ The band at the top of the Rail tab is an order book above the rail: **one tag p
 Above the columns of the Rail tab there are **at most two lines**: the Backlog band, and one status line that shows **only when
 something holds the kitchen**. The columns start right under them.
 
-- **The status line** is the first of these causes, never two stacked: the breaker line with its `Resume` (#2140); an issue the
-  kitchen filed about itself (`Kitchen held: its breaker is open`, `Kitchen idle: …`); the blocked rail (#3358); the idle-kitchen
-  fault (#1863); the project off, with its switch (#3454); a stale or offline reading; the wait of the queue (#3433).
-- **A kitchen-filed issue is never a need.** `Kitchen <project> held: its breaker is open` and `The kitchen is idle: …`
-  (`app/src/amont.ts`, `alerteDeLaCuisine`) are left out of the Backlog — no tag, no row in the unfolded list, not counted —
-  and their content is the status line. Since #3620 the station files them on `benomite/brigade`, never in the project's
-  repository: only those opened there before still reach a project's list.
+- **The status line** is the first of these causes, never two stacked: the breaker line (#2140); an issue the
+  kitchen filed about itself (`Kitchen idle: …`); the blocked rail (#3358); the idle-kitchen
+  fault (#1863); the project off, with its switch (#3454); a stale or offline reading; a rail alert (#3823); the wait of the queue (#3433).
+- **A kitchen-filed issue is never a need.** `The kitchen is idle: …`
+  (`app/src/amont.ts`, `alerteDeLaCuisine`) is left out of the Backlog — no tag, no row in the unfolded list, not counted —
+  and its content is the status line. Since #3620 the station files it on `benomite/brigade`, never in the project's
+  repository: only one opened there before still reaches a project's list.
 - **The status line never says "no reason is found" when a reason is known**: with the kitchen held, its breaker open, a
   ticket set aside or the kitchen stopped, the wait line names it (`The queue waits: #12, #13 are set aside.`,
   `app/src/vue/ligne-de-statut/`). Only when nothing is known does the runtime's sentence stand.
