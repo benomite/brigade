@@ -2983,10 +2983,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let prOuverte: number | null = null;
     // Cette PR est en conflit avec la base : c'est un renvoi pour conflit (#2953).
     let enConflit = false;
+    // Sa PR a été fermée sans être mergée (la seconde en a fermé une pour défaire un blocage, #3979) (#3990).
+    let prFermee = false;
     if (reprise) {
       try {
         const ouverte = await options.github.prDeBranche(branche);
         sansPR = ouverte === null;
+        prFermee = ouverte !== null && ouverte.state === "closed" && !ouverte.merged;
         if (ouverte !== null && ouverte.state === "open") {
           prOuverte = ouverte.number;
           if (ouverte.enConflit === true) enConflit = true;
@@ -3259,6 +3262,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const livreLaSauvegarde = sauvee && prOuverte === null && lireLivrable(lireLeFlux(lance.flux ?? flux).message ?? null).texte !== null;
     if (avant !== null && tete === avant && !livreLaSauvegarde) {
       if (resteAFaire !== null) return { reste: resteAFaire };
+      // La branche porte déjà une livraison et sa PR a été fermée sans merge : le cook n'a rien à y ajouter,
+      // la station la remet en pass, qui rouvre la PR. Ce n'est pas un cook raté (#3990).
+      if (prFermee && !sauvee && !estLeCommitDesTests(depot.sujet?.(branche))) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` already carries a delivery and its PR was closed: it goes to the pass, not counted as a failed cook`);
+        return { branche };
+      }
       // Il a répondu sur la PR depuis le renvoi : un désaccord, pas un échec —
       // la livraison repart en pass, qui juge sa réponse (#2592).
       if (prOuverte !== null && "desaccord" in classerArret(await options.github.commentaires(prOuverte).catch(() => []), avant, "")) return { branche };
