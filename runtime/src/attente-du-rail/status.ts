@@ -16,7 +16,8 @@ import { feuPoseLe, lesFeux, type Lire } from "./lecture.ts";
 import { LABELS_D_ECART, type StationsLues } from "./stations.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
 import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
-import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail } from "./raison.ts";
+import { attenteDeLIssue } from "../attente-github/marque.ts";
+import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail, type TicketEnWaiting } from "./raison.ts";
 
 const LABEL_DU_TABLEAU = "kitchen-board";
 const PAR_PAGE = 100;
@@ -31,14 +32,23 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme. Un ticket en file porte aussi
 // ses attentes avec leur source (#3763) : son corps, sa fiche et les arrêts de ses cooks, lus de ses commentaires, sur un
 // ticket du rail : un ticket hors du rail ne se dit pas.
-export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<TicketDuRail[]> {
+// Un ticket en WAITING n'est pas sur le rail, mais un ticket en file qui l'attend le dit (#3761) : `waiting`, chacun avec
+// qui il attend, relu de sa marque ; ses commentaires illisibles ne le cachent pas, ils taisent seulement qui (nul).
+export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<{ tickets: TicketDuRail[]; waiting: TicketEnWaiting[] }> {
   const { depot, lire } = options;
   const tickets: TicketDuRail[] = [];
+  const waiting: TicketEnWaiting[] = [];
   const feux = await lesFeux(depot, lire);
+  const quiAttend = async (numero: number): Promise<string | null> => {
+    const brutes = await lire(`/repos/${depot}/issues/${numero}/comments?per_page=${PAR_PAGE}`).catch(() => null);
+    const commentaires = Array.isArray(brutes) ? brutes.flatMap((un: unknown) => { const o = objet(un); return o === null ? [] : [{ body: texte(o.body), association: texte(o.author_association) }]; }) : [];
+    return attenteDeLIssue(commentaires)?.who ?? null;
+  };
   const decoupages = new Map(feux.flatMap((issue) => (typeof issue.number === "number" && porteListe(texte(issue.body)) ? [[issue.number, ticketsDeLaListe(texte(issue.body))] as const] : [])));
   for (const issue of feux) {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
     const labels = (Array.isArray(issue.labels) ? issue.labels : []).flatMap((label) => (typeof objet(label)?.name === "string" ? [objet(label)?.name as string] : []));
+    if (labels.includes(LABEL_WAITING)) waiting.push({ ticket: issue.number, qui: await quiAttend(issue.number) });
     if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_WAITING)) continue;
     const decoupage = (n: number) => decoupages.get(n) ?? [];
     const duCorps = attentesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires: [], decoupage }).attentes;
@@ -56,7 +66,7 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
       tickets.push({ ticket: issue.number, etat: "queued", entreLe: poses, depend: [...new Set(attentes.map(({ ticket }) => ticket))], attentes, commentairesLus });
     }
   }
-  return tickets;
+  return { tickets, waiting };
 }
 
 const TITRE = "queue wait";
@@ -74,15 +84,16 @@ export type AttenteLue = { lignes: string[]; enFile: number[] };
 async function lireLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<AttenteLue> {
   const { depot, lire, maintenant, plafondAtteint = false, limite = null } = options;
   let tickets: TicketDuRail[];
+  let waiting: TicketEnWaiting[];
   try {
-    tickets = await lireLeRailEnFile({ depot, lire });
+    ({ tickets, waiting } = await lireLeRailEnFile({ depot, lire }));
   } catch (erreur) {
     return { lignes: [nonLue(depot, erreur instanceof Error ? erreur.message : String(erreur))], enFile: [] };
   }
-  const cartes = lignesDesCartes(tickets);
+  const cartes = lignesDesCartes(tickets, waiting);
   // Rien en file, ou un cook qui tourne : les stations n'ont rien à dire, elles ne se lisent pas.
   if (!tickets.some(({ etat }) => etat === "queued") || tickets.some(({ etat }) => etat === "taken")) return { lignes: lignesDeStatus(null, cartes), enFile: [] };
-  const attente = expliquerLAttente({ depot, tickets, stations: await options.stations(), plafondAtteint, maintenant, limite });
+  const attente = expliquerLAttente({ depot, tickets, stations: await options.stations(), plafondAtteint, maintenant, limite, waiting });
   const limitee = attente?.raison === "quota-github" && limite !== null;
   return { lignes: lignesDeStatus(attente?.phrase ?? null, cartes), enFile: limitee ? tickets.filter(({ etat }) => etat === "queued").map(({ ticket }) => ticket) : [] };
 }

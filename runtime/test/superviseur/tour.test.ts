@@ -140,7 +140,9 @@ test("un cuisinable que la porte de prise a sauté parce qu'il n'attend que des 
   tour.sauter(4, "#4 is taken");
   assert.deepEqual(tour.faits().cuisinables.map(({ ticket }) => ticket), [1, 2, 5]);
   assert.deepEqual(tour.sauts(), ["#1: no station provides `gpu`", "#2 waits for #4 and #5"]);
-  // Le tour suivant repart de zéro : la porte redira ce qu'elle saute.
+  // Au tour suivant, ce que la porte a dit se lit jusqu'à ce qu'elle repasse (#3761) ; un tour sans saut, et il tombe.
+  await github.fires();
+  assert.deepEqual(tour.sauts(), ["#1: no station provides `gpu`", "#2 waits for #4 and #5"]);
   await github.fires();
   assert.deepEqual(tour.sauts(), []);
   assert.deepEqual(tour.faits().cuisinables.map(({ ticket }) => ticket), [1, 2, 3, 5]);

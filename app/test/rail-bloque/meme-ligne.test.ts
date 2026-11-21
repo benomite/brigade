@@ -72,17 +72,18 @@ async function statusDeLaStation(t: TestContext, gh: string): Promise<string[]> 
   return lignes;
 }
 
-// Les trois lectures de l'app, au même instant : la file du second, son `status` et la ligne en tête du rail.
+// Les trois lectures de l'app, au même instant : la file du second, son `status` et la ligne en tête du rail. Chaque
+// lecture a son propre appel, donc sa propre échéance de 2 s : une seule, partagée, ne laissait à la seconde que ce que
+// la première n'avait pas pris, et la CI chargée la passait (ticket 3761).
 async function lecturesDeLApp(gh: string, instant: number) {
-  const appeler = appelParGh(gh, 2_000);
   const stations = stationsParGh(gh, 2_000);
-  const file = await lireLaFile(appeler, DEPOT, () => new Date(instant), stations);
+  const file = await lireLaFile(appelParGh(gh, 2_000), DEPOT, () => new Date(instant), stations);
   assert.ok(file.lue, JSON.stringify(file));
   const signes = async () => {
     const lues = await stations();
     return "lues" in lues ? { lus: lues.lues.map((station) => ({ ...station })) } : { illisible: lues.illisibles };
   };
-  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date(instant), signes });
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: appelParGh(gh, 2_000), maintenant: () => new Date(instant), signes });
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
   return { file: file.texte.split("\n"), status: statusDuTableau(lu).split("\n"), railBloque: lu.faits.railBloque as { phrase: string } | undefined };
 }
