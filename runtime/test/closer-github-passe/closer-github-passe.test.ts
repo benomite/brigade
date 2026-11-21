@@ -131,6 +131,23 @@ describe("the quality of the recent tickets, at the pass (#2678)", () => {
     assert.match(fermetures(gh)[0]!.body, /## Quality\n\n- First try: 80% of the 10 recent tickets/);
   });
 
+  test("times a station still hands the pass are not read: no times section, no correction ticket, the quality kept", async (t) => {
+    const gh = fauxGitHub();
+    const { clone } = fauxClone();
+    const fin = MAINTENANT.getTime();
+    const temps = Array.from({ length: 6 }, (_, i) => {
+      const at = new Date(fin - (6 - i) * HEURE_MS).toISOString();
+      return { ticket: 200 + i, mergedAt: at, claimedAt: at, cuisson: i < 3 ? 400 : 1000, cuissonTests: i < 3 ? 100 : 700, attentePasse: 0, revue: 0, ci: 60, merge: 0 };
+    });
+    const k = brancher(t, { github: gh.github, clone, qualite: () => ["- First try: 80% of the 10 recent tickets."], ...({ temps: () => temps } as object) });
+    k.reveiller();
+    await jusqua(() => fermetures(gh).length === 1);
+    const corps = fermetures(gh)[0]!.body;
+    assert.doesNotMatch(corps, /## Times/);
+    assert.match(corps, /## Quality\n\n- First try: 80% of the 10 recent tickets\./);
+    assert.equal(gh.etat.filter(({ labels }) => labels.includes("correction")).length, 0);
+  });
+
   test("a quality that cannot be read is said in the body and warned, and the pass still opens", async (t) => {
     const gh = fauxGitHub();
     const { clone } = fauxClone();
