@@ -11,8 +11,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { corpsDeLIssue, disjoncteurDuJournal } from "../../src/breaker-issue.ts";
-import { RELANCES_SUR_CALAGE } from "../../src/breaker/calage.ts";
+import { calageDuDisjoncteur, RELANCES_SUR_CALAGE } from "../../src/breaker/calage.ts";
 import { lireFlux, verdict } from "../../src/claude.ts";
 import { brancherGardeFous, LancementRefuse, type DemandeCook, type Reglages } from "../../src/garde-fous.ts";
 import { principal as gardeFous } from "../../src/garde-fous-cli.ts";
@@ -139,13 +138,7 @@ test("a cook that stalls on `cat` after all its relaunches opens the breaker for
     () => lancer("45-github-2222bbbb"),
     (erreur: unknown) => erreur instanceof LancementRefuse && erreur.motif === "breaker" && /a cook run \(`44-github-2222aaaa-r2`\) hung on `running cat`, a command that never returned, still after 2 relaunches/.test(erreur.message),
   );
-  const disjoncteur = disjoncteurDuJournal(runtime.journal.base);
-  assert.ok(disjoncteur.ouvert);
-  if (!disjoncteur.ouvert) return;
-  const corps = corpsDeLIssue("secondes", disjoncteur);
-  assert.match(corps, /opened because a run keeps stalling/);
-  assert.match(corps, /\*\*What keeps stalling\*\*: a cook run \(`44-github-2222aaaa-r2`\) hung on `running cat`/);
-  assert.match(corps, /relaunched this run by itself, 2 times, and it stalled every time/);
+  assert.equal(calageDuDisjoncteur(runtime.journal.base)?.run, "44-github-2222aaaa-r2");
 });
 
 test("a manager judgement that never starts, relaunches included, escalates naming the manager run", async (t) => {
@@ -177,8 +170,7 @@ test("a breaker opened by stalls closes by itself once a later run completes nor
   assert.equal(etatDesGardeFous(runtime.journal.base).breakerOpenedAt, null);
   assert.deepEqual(faits("breaker.lifted"), [{ failures: 0, threshold: 3, after: "44-github-4444aaaa" }]);
   assert.deepEqual(faits("kitchen.resumed"), []);
-  const disjoncteur = disjoncteurDuJournal(runtime.journal.base);
-  assert.deepEqual(disjoncteur, { ouvert: false, reprisLe: runtime.journal.tout().find((e) => e.type === "breaker.lifted")?.at });
+  assert.equal(calageDuDisjoncteur(runtime.journal.base), null);
   assert.equal((await lancer("46-github-4444dddd").fin).outcome, "ok");
 });
 

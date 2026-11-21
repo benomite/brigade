@@ -240,7 +240,7 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
   for (const attente of TOUTES) for (const commande of COMMANDES_DE_BOX) assert.doesNotMatch(direAttenteEn(attente), commande, attente.quoi);
   // Le disjoncteur nomme le bouton de TODO ; les gestes sans bouton le disent.
   const dite = (quoi: Attente["quoi"]) => TOUTES.filter((attente) => attente.quoi === quoi).map(direAttenteEn);
-  for (const ligne of dite("disjoncteur")) assert.match(ligne, /press the `Resume` button on the breaker line of TODO$/);
+  for (const ligne of dite("disjoncteur")) assert.match(ligne, /the supervisor re-runs the check that tripped it and closes it by itself$/);
   for (const ligne of [...dite("pause"), ...dite("renommage"), ...dite("base")]) assert.match(ligne, /no app button for it yet/);
   // L'abandon nomme les boutons de sa carte dans TODO, mot pour mot, racine comprise.
   for (const attente of TOUTES) {
@@ -253,7 +253,6 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
 // Settings —, et où l'app le pose, mot pour mot : un nom absent d'ici est un
 // bouton inventé.
 const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
-  Resume: ["vue/todo-breaker-line.js", 'REPRENDRE = "Resume"'],
   "log in": ["pannes/pannes.ts", 'libelle: "log in"'],
   "resume the kitchen": ["cuisine.ts", 'libelle: "resume the kitchen"'],
   Kitchen: ["vue/vue.js", 'rangeeDeReglage("Kitchen"'],

@@ -185,7 +185,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       // sur des échecs qui ne tiennent plus se referme, sans geste du chef.
       for (const run of echecsExternes(base)) noter(null, { type: "cook.reclassified", payload: { run, from: "failed", to: "stop", reason: "external" } });
       const apres = etatDesGardeFous(base);
-      if (apres.breakerOpenedAt !== null && apres.failures < reglages.seuilDisjoncteur) noter(null, { type: "breaker.lifted", payload: { failures: apres.failures, threshold: reglages.seuilDisjoncteur } });
+      // Un disjoncteur ouvert par des calages ne tient à aucun échec : seul le contrôle du superviseur le referme.
+      if (apres.breakerOpenedAt !== null && apres.failures < reglages.seuilDisjoncteur && calageDuDisjoncteur(base) === null) noter(null, { type: "breaker.lifted", payload: { failures: apres.failures, threshold: reglages.seuilDisjoncteur } });
       // Un « stop » d'avant ce démarrage ne vise aucun cook d'aujourd'hui.
       journal.consommer(CONSOMMATEUR, () => {});
       const etat = etatDesGardeFous(base);
@@ -330,8 +331,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         throw new LancementRefuse(
           "breaker",
           calage === null
-            ? `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « resume »`
-            : `disjoncteur ouvert le ${etat.breakerOpenedAt} : un run cale encore après ses relances — ${direLeCalage(calage)} ; aucun cook n'est lancé avant « resume », ou avant qu'un run en cours finisse bien`,
+            ? `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant que le superviseur le referme`
+            : `disjoncteur ouvert le ${etat.breakerOpenedAt} : un run cale encore après ses relances — ${direLeCalage(calage)} ; aucun cook n'est lancé avant que le superviseur le referme, ou qu'un run en cours finisse bien`,
         );
       }
       const lance = noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;

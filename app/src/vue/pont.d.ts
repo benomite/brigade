@@ -419,10 +419,6 @@ export type Pont = {
   // principal — une PR revert son merge et passe la pass, le ticket est rouvert ; ou, en conflit, un ticket est déposé pour
   // la cuisine. Absent du téléphone, qui ne porte pas le runtime. Rien pour un projet inconnu.
   annulerServi?(projet: string, ticket: number): Promise<import("./undo/undo-github.ts").RenduDAnnulation | undefined>;
-  // « Resume », sur la ligne du disjoncteur de TODO (github/breaker-resume.ts) : `/resume` posté sur l'issue
-  // `brigade:breaker-open` du dépôt du projet. Rend la reprise demandée, ou pourquoi rien n'est parti ; rien pour un
-  // projet que l'app ne connaît plus.
-  reprendreLeDisjoncteur(projet: string): Promise<import("../github/breaker-resume.ts").RenduDeLaReprise | undefined>;
   ouvrirBilan(projet: string, url: string): Promise<boolean>;
   // Un lien de la ligne d'un projet en lecture seule (ticket 3163, vue/lecture-seule/) : comment obtenir l'écriture sur son
   // dépôt, ou le forker — ouvert pour le seul dépôt que la dernière lecture dit en lecture seule (lecture-seule.ts).

@@ -118,7 +118,7 @@ import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { poserLesAutres } from "./todo/autres.js";
 import { LISTE_DU_CHEF, estRouge, rangerLeRail } from "./todo/todo.js";
 import { ligneDesAlertes, phraseDeLAttente, retenuesConnues } from "./ligne-de-statut/ligne-de-statut.js";
-import { apresRendu as apresLaReprise, poserLigneDuDisjoncteur, poserReprise, REPOS as REPRISE_AU_REPOS } from "./todo-breaker-line.js";
+import { poserLigneDuDisjoncteur } from "./todo-breaker-line.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
@@ -1105,15 +1105,11 @@ const etatsDesReglages = new Map();
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
 /** @type {Map<string, Alerte[]>} */
 const bandes = new Map();
-// La ligne du disjoncteur ouvert d'un projet, dans sa dernière bande : celle dont le bouton est « Resume » (ticket 2140).
+// La ligne du disjoncteur ouvert d'un projet, dans sa dernière bande : celle que `alertes.ts` marque `disjoncteur` (ticket 2140).
 /** @param {string} nom */
-const alerteDuDisjoncteur = (nom) => (bandes.get(nom) ?? []).find(({ appel }) => appel !== undefined && "reprise" in appel);
-// « Resume » en route d'ici, par projet (todo-breaker-line.js) : en cours, demandé, ou refusé. Il tient tant que la bande
-// dit le disjoncteur ouvert, et part avec elle.
+const alerteDuDisjoncteur = (nom) => (bandes.get(nom) ?? []).find(({ disjoncteur }) => disjoncteur === true);
 /** @type {Map<string, import("./page-projet/depot-non-prepare.js").Etat>} */
 const depots = new Map();
-/** @type {Map<string, import("./todo-breaker-line.js").Etat>} */
-const reprises = new Map();
 // Les projets dont le dernier rail posé porte la ligne du disjoncteur à côté de l'entrée TODO : la bande ne la redit pas.
 /** @type {Set<string>} */
 const disjoncteursEnTodo = new Set();
@@ -5178,7 +5174,7 @@ function poserLeRail(projet) {
     );
     return liste;
   };
-  // Le disjoncteur ouvert : sa ligne à côté de l'entrée TODO, hors des colonnes, et son seul bouton « Resume » (ticket 2140) —
+  // Le disjoncteur ouvert : sa ligne à côté de l'entrée TODO, hors des colonnes, une information sans bouton (ticket 2140) —
   // pas quand la box ne répond pas : ce que TODO contenait n'est plus lu.
   const disjoncteur = muet === undefined ? alerteDuDisjoncteur(projet.nom) : undefined;
   const grille = document.createElement("div");
@@ -5216,7 +5212,7 @@ function poserLeRail(projet) {
   const ligneDuDisjoncteur = [];
   if (disjoncteur !== undefined) {
     disjoncteursEnTodo.add(projet.nom);
-    ligneDuDisjoncteur.push(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined));
+    ligneDuDisjoncteur.push(poserLigneDuDisjoncteur(document, { marque: pastille(disjoncteur.dit, disjoncteur.ton), dit: disjoncteur.dit, ...(disjoncteur.releve === undefined ? {} : { releve: disjoncteur.releve }) }));
   }
   const avisDeDepot = avisDuDepot(projet, "todo");
   if (avisDeDepot !== undefined) duChef.push(avisDeDepot);
@@ -5798,14 +5794,13 @@ function lesCartesDuChef() {
   });
 }
 // Les lignes du disjoncteur ouvert, en tête de la liste (ticket 3371) : une par projet dont la dernière bande le dit ouvert, avec
-// ce que la station en écrit — écrit sous la ligne, un téléphone n'ayant pas de survol — et son « Resume » — le même que celui de TODO sur le desktop (todo-breaker-line.js). Un projet en
-// lecture seule n'a que la ligne.
+// ce que la station en écrit — écrit sous la ligne, un téléphone n'ayant pas de survol (todo-breaker-line.js).
 function lesLignesDuDisjoncteur() {
   return configuration.projets.filter((projet) => seLit(projet)).flatMap((projet) => {
     const alerte = alerteDuDisjoncteur(projet.nom);
     if (alerte === undefined) return [];
     const dit = configuration.projets.length > 1 ? `${projet.nom}: ${alerte.dit}` : alerte.dit;
-    return [poserLigneDuDisjoncteur(document, { marque: pastille(alerte.dit, alerte.ton), dit, ...(alerte.releve === undefined ? {} : { pourquoi: alerte.releve }) }, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, lectureSeuleDe(projet) === undefined ? () => void reprendreLeDisjoncteur(projet) : undefined)];
+    return [poserLigneDuDisjoncteur(document, { marque: pastille(alerte.dit, alerte.ton), dit, ...(alerte.releve === undefined ? {} : { pourquoi: alerte.releve }) })];
   });
 }
 function poserLesCartesDuChef() {
@@ -5967,32 +5962,6 @@ async function preparerLeDepot(projet) {
     poserLeDepot(projet, { etape: "refus", verif, dit: phraseDuRefus(erreur) });
   }
 }
-
-// « Resume », sur la ligne du disjoncteur (ticket 2140) : le process principal poste `/resume` sur l'issue du disjoncteur, sur
-// GitHub — une seule demande à la fois. La ligne dit ce qui part, puis ce qui a été demandé, ou pourquoi rien.
-/** @param {Projet} projet */
-async function reprendreLeDisjoncteur(projet) {
-  const etape = reprises.get(projet.nom)?.etape;
-  if (etape === "envoi" || etape === "demandee") return;
-  /** @param {import("./todo-breaker-line.js").Etat} etat */
-  const poser = (etat) => {
-    reprises.set(projet.nom, etat);
-    poserLesCartesDuChef();
-    if (courant?.nom !== projet.nom) return;
-    poserAlertes(projet);
-    poserRail(projet);
-  };
-  poser({ etape: "envoi" });
-  /** @type {import("../github/breaker-resume.ts").RenduDeLaReprise | undefined} */
-  let rendu;
-  try {
-    rendu = await brigade.reprendreLeDisjoncteur(projet.nom);
-  } catch (erreur) {
-    rendu = { refus: `resume not requested: ${NON_ATTEINT("GitHub")}`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-  poser(apresLaReprise(rendu));
-}
-
 
 // La page des coûts de l'app (ticket 1022). En tête (cost/tete.js), les tokens lancés sur 5 h, 24 h et 7 jours,
 // tous projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore ;
@@ -7665,8 +7634,8 @@ function poserAlertes(projet) {
   // La ligne dont le geste est celui de l'interrupteur de l'espace n'est pas posée : l'interrupteur la
   // dit, et c'est lui qui la lève — le projet éteint (tickets 906, 1406). Non vérifiée, elle se pose :
   // l'interrupteur ne sait pas, la ligne dit pourquoi.
-  // La ligne du disjoncteur non plus quand TODO la porte, sur Rail : elle y a son bouton (ticket 2140).
-  const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && (("geste" in appel && appel.geste === "projet-allumer") || ("reprise" in appel && disjoncteursEnTodo.has(projet.nom)))));
+  // La ligne du disjoncteur non plus quand TODO la porte, sur Rail : elle y a sa ligne (ticket 2140).
+  const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel, disjoncteur }) => !((appel !== undefined && "geste" in appel && appel.geste === "projet-allumer") || (disjoncteur === true && disjoncteursEnTodo.has(projet.nom))));
   gesteDeLUrgence = undefined;
   const avis = avisDuDepot(projet, "page");
   // En lecture seule, sa ligne vient en tête du projet (ticket 3163) : elle dit pourquoi aucun geste n'est offert.
@@ -7754,8 +7723,8 @@ function poserAlerte(projet, alerte) {
 function poserControle(projet, alerte, endroit) {
   const { sujet, geste: leve, bouton: libelle, appel, prix } = alerte;
   if (appel === undefined) return [];
-  // En lecture seule (ticket 3163), ni geste du socle ni reprise du disjoncteur : rien qui change le projet.
-  if (lectureSeuleDe(projet) !== undefined && ("geste" in appel || "reprise" in appel)) return [];
+  // En lecture seule (ticket 3163), pas de geste du socle : rien qui change le projet.
+  if (lectureSeuleDe(projet) !== undefined && "geste" in appel) return [];
   const mot = libelle ?? leve;
   /** @type {HTMLElement[]} */
   let pose;
@@ -7780,9 +7749,6 @@ function poserControle(projet, alerte, endroit) {
   } else if ("relire" in appel) {
     // Réessayer maintenant : la box est relue tout de suite, au lieu d'attendre le tour des trente secondes.
     pose = [bouton(mot, () => lireLesFaits())];
-  } else if ("reprise" in appel) {
-    // Le disjoncteur, hors de Rail : le même « Resume » que sa ligne de TODO, dans le même état (todo-breaker-line.js).
-    pose = poserReprise(document, reprises.get(projet.nom) ?? REPRISE_AU_REPOS, () => void reprendreLeDisjoncteur(projet));
   } else {
     const { onglet } = appel;
     pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
@@ -9022,8 +8988,6 @@ brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
   const disjoncteurAvant = JSON.stringify(alerteDuDisjoncteur(projet));
   bandes.set(projet, alertes);
   const disjoncteur = alerteDuDisjoncteur(projet);
-  // Le disjoncteur refermé : « Resume » demandé, ou refusé, n'a plus rien à dire.
-  if (disjoncteur === undefined) reprises.delete(projet);
   signaux.set(projet, signal);
   marquerSignal(projet);
   // La pastille dit la même chose que la bande, en un mot.

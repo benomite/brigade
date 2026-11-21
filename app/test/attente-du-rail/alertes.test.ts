@@ -100,4 +100,11 @@ describe("tout mis de côté : le ticket le plus ancien est nommé, à date éga
     const [autre] = deSorte("tout-mis-de-cote", entree({ tickets: [], misDeCoteParEchecs: [...mis].reverse() }));
     assert.equal(autre?.fait.ticket, 5);
   });
+
+  test("la phrase ne demande pas au chef de retirer le label : le superviseur a le ticket (#3911)", () => {
+    const mis = [{ ticket: 5, depuis: iso(T0 - 3_600_000), raison: "guard" }];
+    const [alerte] = deSorte("tout-mis-de-cote", entree({ tickets: [], misDeCoteParEchecs: mis }));
+    assert.doesNotMatch(alerte?.phrase ?? "", /Remove|back on the rail\./);
+    assert.match(alerte?.phrase ?? "", /The supervisor has #5/);
+  });
 });

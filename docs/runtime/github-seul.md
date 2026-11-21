@@ -114,7 +114,7 @@ base, the stale-branch pruning).
 - **A red cook PR held for the chef goes back to a cook.** At each turn's healing, an open PR on a `cook/<n>-github`
   branch whose head has a red check, and whose ticket is on the rail and held for the chef (`blocked-on-human`,
   `chef-todo`) with no cook on it — not cooking on this station, not `taken`, not `in-pass` (the pass sends its own
-  red back), not `served-elsewhere` (the relaunch's), not `waiting` —, is sent back: the hold labels are removed, then a
+  red back), not set aside (`served-elsewhere`, `set-aside:failures`: the supervisor's), not `waiting` —, is sent back: the hold labels are removed, then a
   `brigade:renvoi … sha=<sha> ci-rouge` comment names the red checks, and the ticket is free for a cook from its
   branch (`runtime/src/ci-rouge/ci-rouge.ts`). A head is sent back once by this path; the send-back counts among the
   ticket's `RENVOIS_MAX`. A green, pending or check-less CI, a free ticket, or another branch is left alone; open
@@ -330,11 +330,8 @@ base, the stale-branch pruning).
   changes. A ticket served end to end costs about 27 calls, at most 31 (`runtime/test/cout-par-ticket/`).
 - **Leftover PRs** (#3097): at most every ten minutes, a turn closes each open PR whose ticket (`cook/<n>-…` branch) is closed, with one comment — `its ticket #N was closed on <date>; nothing serves this PR any more` — and keeps its branch. The comment is read before it is posted, so a failed close does not double it on the next pass. A PR from a fork is never closed.
 - **Guardrails.** The chef's stop, the breaker, the Max quota and the arbiter between projects hold a turn's launches
-  (`github-seul/garde-fous/`, #2213). An open breaker is said on GitHub by an issue labelled `brigade:breaker-open`
-  on `benomite/brigade`, never in the project's repository (`breaker-issue.ts`, #3620); a `/resume` comment on it by someone with write access closes the breaker at the next tick
-  (`breaker-resume-github.ts`). The issue names the station whose breaker opened it: only that station comments
-  « resumed » and closes it when its own breaker closes. Any other station reads it as an open breaker elsewhere, and its
-  chef's queue says « the breaker is open since <time> » instead of « cause unknown » (`file-chef/cause-arret.ts`, #3658).
+  (`github-seul/garde-fous/`, #2213). An open breaker files no GitHub issue and no chef gesture closes it: the supervisor
+  re-runs the check that tripped it and closes it (`manager/supervision.ts`, #3911; see `garde-fous.md`).
 - **Stale branches.** The `cook/<n>-github` branches whose issue is closed are deleted, locally and on the origin, at
   each tick (`github-seul/elagage/`).
 - **The manager runs on every station** that serves the project, and its work on an issue (qualify, calibrate,
@@ -409,8 +406,9 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   (`estUneReparation`, `runtime/src/reparation.ts`): the only delivery judged and merged on a red base, and what the
   quality figures count as a repair. The GitHub-only turn itself no longer re-runs the base's red jobs nor opens or
   closes a repair ticket; a red base still holds merges as before.
-- **A looping ticket.** After `RELANCES_MAX` (2) relaunches for the same reason, a set-aside ticket is not relaunched
-  again and stays set aside (`runtime/src/guerison/relance.ts`); nothing is filed about it.
+- **A set-aside ticket.** No timer and no loop puts a ticket set aside for its failures (`set-aside:failures`) back on
+  the rail: the healing turn leaves it where it is, and `runtime/src/manager/supervision.ts` hands it to the supervisor,
+  which answers with one of its closed list of gestures (#3911).
 - **The Windows CI card of the base** (#2413, `carte-ci-windows.ts`) is kept, read by the supervisor's wiring from the
   same turn.
 
