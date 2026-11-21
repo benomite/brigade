@@ -56,13 +56,7 @@ The thresholds, each one in place of a variable of the box (the four cost ones a
 | `drift.lostTokens` | lost tokens | integer > 0 | `seuil-perdus` |
 | `drift.firstTryPercent` | share of tickets delivered first try, in % | number > 0 | `seuil-renvois` |
 | `drift.firstTryWindow` | window of that threshold, in tickets | integer > 0 | `fenetre-renvois` |
-| `drift.contextKb` | size of the context a cook receives, in KB | number > 0 | `BRIGADE_DRIFT_CONTEXT_KB` |
 | `drift.gatesSeconds` | duration of the gates, in seconds | number > 0 | `BRIGADE_DRIFT_GATES_SECONDS` |
-| `drift.growthPercent` | growth of the project's measures, in % | number > 0 | `BRIGADE_DRIFT_GROWTH_PERCENT` |
-| `drift.merges` | merges per reading | integer > 0 | `BRIGADE_DRIFT_MERGES` |
-| `drift.repoMb` | size of the repository, in MB | number > 0 | `BRIGADE_DRIFT_REPO_MB` |
-| `drift.tests` | number of tests | integer > 0 | `BRIGADE_DRIFT_TESTS` |
-| `drift.testsSeconds` | duration of the tests, in seconds | number > 0 | `BRIGADE_DRIFT_TESTS_SECONDS` |
 | `correction.threshold` | repeated corrections that raise a proposal | integer ≥ 2 | `BRIGADE_CORRECTION_THRESHOLD` |
 | `correction.window` | window, in tickets, in which corrections are counted | integer > 0 | `BRIGADE_CORRECTION_WINDOW` |
 | `profile.window` | window, in tickets, a cook profile is computed from | integer > 0 | `BRIGADE_PROFILE_WINDOW` |

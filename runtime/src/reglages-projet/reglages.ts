@@ -53,13 +53,7 @@ const seuil = (variable: string, entier = false, min = 0, max?: number): SeuilDu
 const entierOuZero = (variable: string): SeuilDuProjet => ({ variable, entier: true, min: 0, zero: true });
 export const SEUILS_DU_PROJET = {
   drift: {
-    contextKb: seuil("BRIGADE_DRIFT_CONTEXT_KB"),
     gatesSeconds: seuil("BRIGADE_DRIFT_GATES_SECONDS"),
-    growthPercent: seuil("BRIGADE_DRIFT_GROWTH_PERCENT"),
-    merges: seuil("BRIGADE_DRIFT_MERGES", true),
-    repoMb: seuil("BRIGADE_DRIFT_REPO_MB"),
-    tests: seuil("BRIGADE_DRIFT_TESTS", true),
-    testsSeconds: seuil("BRIGADE_DRIFT_TESTS_SECONDS"),
     ticketTokens: seuil("BRIGADE_DRIFT_TICKET_TOKENS", true),
     lostTokens: seuil("BRIGADE_DRIFT_LOST_TOKENS", true),
     firstTryPercent: seuil("BRIGADE_DRIFT_FIRST_TRY_PERCENT"),

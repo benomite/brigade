@@ -57,7 +57,7 @@ describe("les plafonds de durée, sur Health", () => {
       assert.deepEqual(parClasse(ligne, "par-pr").map(texte), [PAR_PR], cle);
     }
     sansEnregistrer(bloc);
-    assert.match(texte(ligneDe(bloc, "testsSeconds")), /^Test suite durationnot setthe station's, if any/);
+    assert.match(texte(ligneDe(bloc, "firstTryPercent")), /^Delivered first try, belownot setthe station's, or 50/);
     const replie = bloc.dessous("details")[0] ?? assert.fail("pas de repli");
     assert.match(texte(replie), /Other drift thresholdsnone set in the repository/);
     assert.equal(replie.dessous("input").length, PLAFONDS.filter(({ duree }) => !duree).length);
@@ -81,7 +81,7 @@ describe("les plafonds de durée, sur Health", () => {
     // Vide, le retrait d'un seuil posé s'applique ; celui d'un seuil qui n'est pas posé, non.
     champ.value = "";
     champ.declencher("change");
-    const nonPose = champDe(ligneDe(bloc, "testsSeconds"));
+    const nonPose = champDe(ligneDe(bloc, "firstTryPercent"));
     nonPose.value = " ";
     nonPose.declencher("change");
     assert.deepEqual(changes, [
@@ -97,9 +97,9 @@ describe("les plafonds de durée, sur Health", () => {
       ouvrir: (url) => ouvertes.push(url),
       etats: new Map([
         ["gatesSeconds", { dit: { pr: PR, numero: 41, valeur: 150 } }],
-        ["testsSeconds", { choisi: "abc", dit: { refus: "nothing was changed: test suite duration must be a number greater than zero", detail: "" } }],
-        ["tests", { choisi: "800", enCours: true }],
-        ["merges", { dit: { pr: PR, numero: 42, valeur: null } }],
+        ["firstTryPercent", { choisi: "abc", dit: { refus: "nothing was changed: test suite duration must be a number greater than zero", detail: "" } }],
+        ["ticketTokens", { choisi: "800", enCours: true }],
+        ["lostTokens", { dit: { pr: PR, numero: 42, valeur: null } }],
       ]),
     });
     const proposee = ligneDe(bloc, "gatesSeconds");
@@ -108,13 +108,13 @@ describe("les plafonds de durée, sur Health", () => {
     assert.deepEqual(parClasse(proposee, "propose").map(texte), ["150 s proposed inpull request #41"]);
     (proposee.dessous("button").find(({ textContent }) => textContent === "pull request #41") ?? assert.fail("pas de lien vers la PR")).click();
     assert.deepEqual(ouvertes, [PR]);
-    assert.match(texte(ligneDe(bloc, "merges")), /removal proposed inpull request #42/);
+    assert.match(texte(ligneDe(bloc, "lostTokens")), /removal proposed inpull request #42/);
 
-    const refusee = ligneDe(bloc, "testsSeconds");
+    const refusee = ligneDe(bloc, "firstTryPercent");
     assert.match(texte(refusee), /nothing was changed/);
     assert.equal(champDe(refusee).value, "abc", "ce que le chef a tapé reste dans le champ");
 
-    const enCours = ligneDe(bloc, "tests");
+    const enCours = ligneDe(bloc, "ticketTokens");
     assert.deepEqual(parClasse(enCours, "en-cours").map(texte), [EN_COURS]);
     assert.equal(champDe(enCours).disabled, true);
   });

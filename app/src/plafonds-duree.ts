@@ -23,13 +23,7 @@ export const FICHIER = ".claude/brigade/projet.json";
 // `unite` : ce que la valeur compte ; `entier` : le runtime n'y lit qu'un entier ; `defaut` : la valeur que le runtime
 // prend quand rien n'est déclaré, ni dans le dépôt ni sur la station (runtime/src/renvois.ts).
 export const PLAFONDS = [
-  { cle: "testsSeconds", nom: "Test suite duration", unite: "s", entier: false, duree: true },
   { cle: "gatesSeconds", nom: "Gates duration", unite: "s", entier: false, duree: true, defaut: 100 },
-  { cle: "tests", nom: "Number of tests", unite: "tests", entier: true, duree: false },
-  { cle: "contextKb", nom: "Context size", unite: "KB", entier: false, duree: false },
-  { cle: "repoMb", nom: "Repository size", unite: "MB", entier: false, duree: false },
-  { cle: "merges", nom: "Merges since the last closing", unite: "merges", entier: true, duree: false },
-  { cle: "growthPercent", nom: "Growth over the last 10 merges", unite: "%", entier: false, duree: false },
   { cle: "ticketTokens", nom: "Costliest ticket", unite: "tokens", entier: true, duree: false },
   { cle: "lostTokens", nom: "Tokens lost", unite: "tokens", entier: true, duree: false },
   { cle: "firstTryPercent", nom: "Delivered first try, below", unite: "%", entier: false, duree: false, defaut: 50 },

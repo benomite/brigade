@@ -16,7 +16,7 @@ import type { ClientDeLaPriorite } from "../src/priorite.ts";
 import type { ReponseGitHub } from "../src/tableau/client.ts";
 
 const DEPOT = "chef/parade";
-const PROJET = { version: 1, integrationBranch: "main", defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, closer: { maxTokens: 300000 }, drift: { tests: 900 } };
+const PROJET = { version: 1, integrationBranch: "main", defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, closer: { maxTokens: 300000 }, drift: { ticketTokens: 900 } };
 const SHA = "9f3c2a17b4e0d6c5a8b1f2e3d4c5b6a7f8e9d0c1";
 
 // Le corps d'une issue de fermeture, tel que le runtime l'écrit.

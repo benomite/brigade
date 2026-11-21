@@ -62,13 +62,7 @@ All project: they describe the project's code, tests, tickets, CI or notebook. T
 
 | Setting | What it sets | `projet.json` key |
 |---|---|---|
-| `BRIGADE_DRIFT_CONTEXT_KB` | Drift: size of the context a cook receives, in KB | #1671 `drift.contextKb` |
 | `BRIGADE_DRIFT_GATES_SECONDS` | Drift: duration of the gates, in seconds | #1671 `drift.gatesSeconds` |
-| `BRIGADE_DRIFT_GROWTH_PERCENT` | Drift: growth of the project's measures, in % | #1671 `drift.growthPercent` |
-| `BRIGADE_DRIFT_MERGES` | Drift measure: number of merges per reading | #1671 `drift.merges` |
-| `BRIGADE_DRIFT_REPO_MB` | Drift: size of the repository, in MB | #1671 `drift.repoMb` |
-| `BRIGADE_DRIFT_TESTS` | Drift: number of tests | #1671 `drift.tests` |
-| `BRIGADE_DRIFT_TESTS_SECONDS` | Drift: duration of the tests, in seconds | #1671 `drift.testsSeconds` |
 | `BRIGADE_CORRECTION_THRESHOLD` | How many repeated corrections raise a proposal (2 or more) | #1671 `correction.threshold` |
 | `BRIGADE_CORRECTION_WINDOW` | Window, in tickets, in which corrections are counted | #1671 `correction.window` |
 | `BRIGADE_PROFILE_WINDOW` | Window, in tickets, from which a cook profile is computed | #1671 `profile.window` |
