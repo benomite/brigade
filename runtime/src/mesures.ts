@@ -16,7 +16,6 @@ const GATES = "gates_s";
 
 const dire = (valeur: number, decimales = 1) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: decimales });
 const secondes = (valeur: number) => `${dire(valeur)} s`;
-const pourcent = (valeur: number) => `${dire(valeur, 0)} %`;
 // Le relevé s'écrit en anglais, nombres compris ; la forme française ci-dessus
 // ne sert plus qu'à `direJauge`.
 const direEn = (valeur: number, decimales = 1) => valeur.toLocaleString("en-US", { maximumFractionDigits: decimales });
@@ -25,16 +24,16 @@ const pourcentEn = (valeur: number) => `${direEn(valeur, 0)}%`;
 const octetsEn = (valeur: number) => (valeur < 1000 ? `${direEn(valeur, 0)} B` : valeur < 1_000_000 ? `${direEn(valeur / 1000)} KB` : `${direEn(valeur / 1_000_000)} MB`);
 
 // Les mesures d'état : ce que le projet pèse une fois la livraison mergée,
-// sous le nom que ses gates leur donnent. `unite` : celle de leur seuil.
+// sous le nom que ses gates leur donnent.
 const ETATS = [
-  { nom: "tests", titre: "tests", lire: (valeur: number) => direEn(valeur, 0), seuil: "tests", unite: 1 },
-  { nom: "tests_s", titre: "suite", lire: secondesEn, seuil: "testsSeconds", unite: 1 },
-  { nom: "depot_octets", titre: "dépôt", lire: octetsEn, seuil: "repoMb", unite: 1_000_000 },
-  { nom: "contexte_octets", titre: "contexte", lire: octetsEn, seuil: "contextKb", unite: 1000 },
-  { nom: "doc_octets", titre: "doc", lire: octetsEn, seuil: null, unite: 1 },
-] as const satisfies ReadonlyArray<{ nom: string; titre: string; lire: (valeur: number) => string; seuil: keyof Seuils | null; unite: number }>;
+  { nom: "tests", titre: "tests", lire: (valeur: number) => direEn(valeur, 0) },
+  { nom: "tests_s", titre: "suite", lire: secondesEn },
+  { nom: "depot_octets", titre: "dépôt", lire: octetsEn },
+  { nom: "contexte_octets", titre: "contexte", lire: octetsEn },
+  { nom: "doc_octets", titre: "doc", lire: octetsEn },
+] as const satisfies ReadonlyArray<{ nom: string; titre: string; lire: (valeur: number) => string }>;
 
-export const SANS_SEUIL: Seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ticketTokens: null, lostTokens: null, firstTryPercent: null, firstTryWindow: null };
+export const SANS_SEUIL: Seuils = { gatesSeconds: null, ticketTokens: null, lostTokens: null };
 
 function mediane(valeurs: number[]): number | null {
   const triees = [...valeurs].sort((a, b) => a - b);
@@ -195,24 +194,18 @@ export function trancher(livraisons: Delivery[], par = PAR_DEFAUT): Tranche[] {
 export type Jauge = { measure: string; observed: number | null; limit: number; franchi: boolean; motifs?: string[] };
 export type Franchi = { measure: string; observed: number; limit: number };
 
-const PENTE = "growth:";
 // Les mesures de coût : sur les derniers merges, la fenêtre de la pente.
 const TICKET_TOKENS = "tokens_ticket";
 const TOKENS_PERDUS = "tokens_perdus";
 
 // Chaque seuil déclaré, avec ce que le projet en est. Un plafond est franchi
-// quand il est dépassé ; le compteur de merges, quand il est atteint.
+// quand il est dépassé.
 export function jauger(livraisons: Delivery[], seuils: Seuils): Jauge[] {
   const jauges: Jauge[] = [];
   const plafond = (measure: string, observed: number | null, limit: number | null, motifs?: string[]) => {
     if (limit !== null) jauges.push({ measure, observed, limit, franchi: observed !== null && observed > limit, ...(motifs === undefined || motifs.length === 0 ? {} : { motifs }) });
   };
-  for (const { nom, seuil, unite } of ETATS) {
-    const valeur = derniere(livraisons, nom);
-    if (seuil !== null) plafond(nom, valeur === null ? null : valeur / unite, seuils[seuil]);
-  }
   plafond(GATES, derniere(livraisons, GATES), seuils.gatesSeconds);
-  if (seuils.merges !== null) jauges.push({ measure: "merges", observed: livraisons.length, limit: seuils.merges, franchi: livraisons.length >= seuils.merges });
   // Le coût des derniers merges : le ticket le plus cher, et ce qui a été perdu.
   const recentes = livraisons.slice(-FENETRE_DE_PENTE);
   const couts = recentes.flatMap((livraison) => tokensDuTicket(livraison)?.tokens ?? []);
@@ -221,13 +214,6 @@ export function jauger(livraisons: Delivery[], seuils: Seuils): Jauge[] {
   plafond(TICKET_TOKENS, couts.length === 0 ? null : Math.max(...couts), limiteTicket, motifs);
   const perdus = recentes.flatMap((livraison) => paiementDuTicket(livraison).tokens?.perdus ?? []);
   plafond(TOKENS_PERDUS, perdus.length === 0 ? null : perdus.reduce((somme, tokens) => somme + tokens, 0), seuils.lostTokens ?? null);
-  // La pente : ce que la mesure vaut aujourd'hui, rapporté à ce qu'elle valait
-  // une fenêtre de merges plus tôt.
-  const avant = livraisons.slice(0, Math.max(0, livraisons.length - FENETRE_DE_PENTE));
-  for (const { nom } of ETATS) {
-    const [reference, valeur] = [derniere(avant, nom), derniere(livraisons, nom)];
-    plafond(`${PENTE}${nom}`, reference === null || valeur === null || reference <= 0 ? null : ((valeur - reference) * 100) / reference, seuils.growthPercent);
-  }
   return jauges;
 }
 
@@ -251,12 +237,6 @@ const TITRES: Record<string, string> = {
 
 // Une mesure face à son seuil, telle que le chef la lit.
 export function direJauge({ measure, observed, limit }: Omit<Jauge, "franchi">): string {
-  if (measure === "merges") return `${observed ?? "—"} merges depuis la dernière fermeture pour un seuil de ${limit}`;
-  if (measure.startsWith(PENTE)) {
-    const titre = TITRES[measure.slice(PENTE.length)] ?? measure.slice(PENTE.length);
-    const pente = observed === null ? "—" : `${observed > 0 ? "+" : ""}${pourcent(observed)}`;
-    return `${titre} ${pente} en ${FENETRE_DE_PENTE} merges pour un seuil de ${pourcent(limit)}`;
-  }
   const unite = UNITES[measure] ?? ((valeur: number) => dire(valeur));
   return `${TITRES[measure] ?? measure} ${observed === null ? "—" : unite(observed)} pour un seuil de ${unite(limit)}`;
 }
@@ -281,12 +261,6 @@ const TITRES_EN: Record<string, string> = {
 };
 
 export function direJaugeEn({ measure, observed, limit }: Omit<Jauge, "franchi">): string {
-  if (measure === "merges") return `${observed ?? "—"} merges since the last closing for a threshold of ${limit}`;
-  if (measure.startsWith(PENTE)) {
-    const titre = TITRES_EN[measure.slice(PENTE.length)] ?? measure.slice(PENTE.length);
-    const pente = observed === null ? "—" : `${observed > 0 ? "+" : ""}${pourcentEn(observed)}`;
-    return `${titre} ${pente} over ${FENETRE_DE_PENTE} merges for a threshold of ${pourcentEn(limit)}`;
-  }
   const unite = UNITES_EN[measure] ?? ((valeur: number) => direEn(valeur));
   return `${TITRES_EN[measure] ?? measure} ${observed === null ? "—" : unite(observed)} for a threshold of ${unite(limit)}`;
 }

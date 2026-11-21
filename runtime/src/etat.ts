@@ -26,7 +26,7 @@ import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { direLaLimiteDuCompte, type LimiteDuCompte } from "./github-limite.ts";
 import { direLaLimite, direLesAppels, direLesEcrituresRetenues, type Repartition } from "./limite-github.ts";
-import { direJaugeEn, SANS_SEUIL, type Franchi } from "./mesures.ts";
+import { direJaugeEn, type Franchi } from "./mesures.ts";
 import {
   activitesDesCooksEnCours,
   consommation,
@@ -40,8 +40,6 @@ import {
   type Mesure,
 } from "./projections/guardrails.ts";
 import { parcoursDesTemps } from "./qualite-github.ts";
-import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } from "./renvois.ts";
-import { seuilsEnVigueur } from "./projections/measures.ts";
 import { direInterrupteur } from "./interrupteur.ts";
 import { etatDeLInterrupteur, type EtatInterrupteur } from "./projections/switch.ts";
 import { controleRetenu, etatDeLaBase, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type ReparationDeLaBase } from "./projections/pass.ts";
@@ -186,7 +184,6 @@ export type EtatCuisine = {
   // Les mesures du projet qui ont franchi un seuil déclaré.
   derive: Franchi[];
   // La part de tickets livrés du premier coup, quand elle est sous son seuil.
-  derivePremierCoup: DerivePremierCoup | null;
   // Les tickets servis dans les 24 h avant la lecture, le plus récent d'abord.
   livres: Livre[];
   // Les livraisons en pass, à juger, sans pass depuis plus de 15 min
@@ -269,7 +266,6 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
     derive: [...derive],
-    derivePremierCoup: derivePremierCoup(parcoursDesTemps(temps), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
     coincees: livraisonsCoincees(base, maintenant),
     oisive: cuisineOisive({ session, gardeFous, interrupteur, stations, arretees, rail, cooks, livres, finDuDernierCook: finDuDernierCook(base) }, maintenant),
@@ -797,7 +793,6 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
     ...(etat.derive.length === 0 ? [] : [ligne("drift", `${etat.derive.map(direJaugeEn).join(" · ")} — \`${geste(`measures`)}\``)]),
-    ...(etat.derivePremierCoup === null ? [] : [ligne("drift", `${direDerivePremierCoupEn(etat.derivePremierCoup)} — \`${geste(`measures`)}\``)]),
     ...decrireTranscripts(etat, depuisEn),
     "",
     "latest events",

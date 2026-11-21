@@ -11,7 +11,7 @@ import type { ReponseGitHub } from "../src/tableau/client.ts";
 
 const DEPOT = "chef/parade";
 const CONTENU = `/repos/${DEPOT}/contents/${FICHIER}`;
-const PROJET = { version: 1, integrationBranch: "main", defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, drift: { tests: 900 } };
+const PROJET = { version: 1, integrationBranch: "main", defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, drift: { ticketTokens: 900 } };
 
 // Un GitHub en mémoire, ses branches : `main` porte le fichier (ou rien), une branche créée part de la tête d'une autre et
 // en copie les fichiers, le `sha` d'un fichier change à chaque écriture ; les PR ouvertes sont gardées. Chaque demande est
@@ -92,12 +92,11 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
     const { client, demandes } = github(PROJET);
     const lue = await lireLesPlafonds({ depot: DEPOT, branche: "main", client });
     assert.deepEqual(demandes, [`GET ${CONTENU}?ref=main`]);
-    assert.equal(valeur(lue, "tests"), 900);
+    assert.equal(valeur(lue, "ticketTokens"), 900);
     assert.equal(valeur(lue, "gatesSeconds"), null);
     assert.deepEqual(
       ("plafonds" in lue ? lue.plafonds : []).filter(({ duree }) => duree).map(({ cle, defaut }) => [cle, defaut]),
       [
-        ["testsSeconds", null],
         ["gatesSeconds", 100],
       ],
     );
@@ -131,30 +130,30 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
     // Le fichier proposé garde le reste, et le runtime le lit : son seuil, une fois mergé, est celui proposé.
     const texte = depot.texte("pr") ?? assert.fail("pas de fichier proposé");
     assert.deepEqual(JSON.parse(texte).defaultCalibrations, PROJET.defaultCalibrations);
-    assert.deepEqual(seuilsDuProjet(reglagesDuTexte(texte)).drift, { tests: 900, gatesSeconds: 150 });
+    assert.deepEqual(seuilsDuProjet(reglagesDuTexte(texte)).drift, { ticketTokens: 900, gatesSeconds: 150 });
   });
 
   test("vide, le retrait du plafond est proposé ; la valeur déjà là n'ouvre rien", async () => {
     const depot = github(PROJET);
-    assert.deepEqual(await changerLePlafond({ depot: DEPOT, branche: "main", cle: "tests", saisie: "900", client: depot.client }), { fait: "unchanged: the repository already says so", cle: "tests", valeur: 900 });
+    assert.deepEqual(await changerLePlafond({ depot: DEPOT, branche: "main", cle: "ticketTokens", saisie: "900", client: depot.client }), { fait: "unchanged: the repository already says so", cle: "ticketTokens", valeur: 900 });
     assert.equal(depot.ecrits.length, 0);
     assert.equal(depot.prs.length, 0);
-    const rendu = await changerLePlafond({ depot: DEPOT, branche: "main", cle: "tests", saisie: "", client: depot.client });
+    const rendu = await changerLePlafond({ depot: DEPOT, branche: "main", cle: "ticketTokens", saisie: "", client: depot.client });
     assert.ok("propose" in rendu && rendu.valeur === null);
     const texte = depot.texte("pr") ?? assert.fail("pas de fichier proposé");
     assert.equal(JSON.parse(texte).drift, undefined, "plus aucun seuil : la famille sort du fichier");
     assert.deepEqual(seuilsDuProjet(reglagesDuTexte(texte)), {});
-    assert.equal(depot.prs[0]?.title, "brigade: remove drift.tests");
+    assert.equal(depot.prs[0]?.title, "brigade: remove drift.ticketTokens");
   });
 
   test("sans fichier, il est créé avec ce que le runtime exige — seulement quand la branche est connue", async () => {
     const depot = github(null);
-    await changerLePlafond({ depot: DEPOT, branche: "main", cle: "testsSeconds", saisie: "45.5", client: depot.client });
+    await changerLePlafond({ depot: DEPOT, branche: "main", cle: "gatesSeconds", saisie: "45.5", client: depot.client });
     assert.equal(depot.ecrits[0]?.sha, undefined);
-    assert.deepEqual(reglagesDuTexte(depot.texte("pr") ?? assert.fail("pas de fichier")), { integrationBranch: "main", drift: { testsSeconds: 45.5 } });
+    assert.deepEqual(reglagesDuTexte(depot.texte("pr") ?? assert.fail("pas de fichier")), { integrationBranch: "main", drift: { gatesSeconds: 45.5 } });
 
     const sansBranche = github(null);
-    const rendu = await changerLePlafond({ depot: DEPOT, branche: null, cle: "testsSeconds", saisie: "45", client: sansBranche.client });
+    const rendu = await changerLePlafond({ depot: DEPOT, branche: null, cle: "gatesSeconds", saisie: "45", client: sansBranche.client });
     assert.ok("refus" in rendu);
     assert.equal(sansBranche.ecrits.length, 0);
     assert.equal(sansBranche.prs.length, 0);
@@ -171,7 +170,7 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
 
   test("une valeur que le runtime refuserait n'écrit rien, et se dit", async () => {
     for (const [cle, saisie] of [
-      ["tests", "12.5"],
+      ["ticketTokens", "12.5"],
       ["gatesSeconds", "0"],
       ["gatesSeconds", "-3"],
       ["gatesSeconds", "vite"],
@@ -182,7 +181,7 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
       assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was changed"), `${cle} = ${saisie}`);
       assert.equal(depot.ecrits.length, 0, `${cle} = ${saisie}`);
     }
-    assert.deepEqual(valeurProposee("tests", "12.5"), { refus: "number of tests must be a whole number greater than zero" });
+    assert.deepEqual(valeurProposee("ticketTokens", "12.5"), { refus: "costliest ticket must be a whole number greater than zero" });
   });
 
   test("chaque étape que GitHub refuse : rien n'est proposé, rien ne se dit fait, et le détail est gardé pour le survol", async () => {

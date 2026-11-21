@@ -16,8 +16,6 @@ const GESTES = [
   ["stations", "BRIGADE_STATIONS", "box/claude:3:code", "box/claude:2:code,box/playwright:1:navigateur-headless"],
   ["seuil-ticket", "BRIGADE_DRIFT_TICKET_TOKENS", "500000", "300000"],
   ["seuil-perdus", "BRIGADE_DRIFT_LOST_TOKENS", "200000", "100000"],
-  ["seuil-renvois", "BRIGADE_DRIFT_FIRST_TRY_PERCENT", "50", "40"],
-  ["fenetre-renvois", "BRIGADE_DRIFT_FIRST_TRY_WINDOW", "10", "12"],
   ["budget-gates", "BRIGADE_GATES_BUDGET_SECONDS", "120", "90"],
   ["budget-gates-cpu", "BRIGADE_GATES_BUDGET_CPU_SECONDS", "500", "300.5"],
   ["budget-base", "BRIGADE_GATES_BASE_BUDGET_SECONDS", "900", "700"],

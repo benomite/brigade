@@ -132,7 +132,7 @@ test("une livraison jugée avant une autre et mergée après elle, sans rejeu, n
     { ticket: 18, tests: 930, state: { tests: 930, gates_s: 12 } },
     { ticket: 17, tests: 916, state: { depot_octets: 2_000_000 } },
   ]);
-  assert.deepEqual(franchis(livraisons, seuils({ tests: 920 })), [{ measure: "tests", observed: 930, limit: 920 }]);
+  assert.deepEqual(franchis(livraisons, seuils({ gatesSeconds: 10 })), [{ measure: "gates_s", observed: 12, limit: 10 }]);
   assert.deepEqual(trancher(livraisons, 1).map(({ etats, gatesS }) => [etats.tests, gatesS]), [[930, 12], [null, 9]]);
 });
 
@@ -153,12 +153,12 @@ test("les seuils déclarés et les franchissements signalés se lisent au journa
   const { base, noter } = cuisine(t);
   assert.equal(seuilsEnVigueur(base), null);
 
-  noter({ type: "drift.configured", payload: { limits: seuils({ tests: 500 }) } });
+  noter({ type: "drift.configured", payload: { limits: seuils({ gatesSeconds: 500 }) } });
   noter({ type: "drift.crossed", payload: { measure: "tests", observed: 622, limit: 500 } });
   noter({ type: "drift.crossed", payload: { measure: "growth:tests", observed: 54, limit: 30 } });
   noter({ type: "drift.cleared", payload: { measure: "tests" } });
 
-  assert.deepEqual(seuilsEnVigueur(base), seuils({ tests: 500 }));
+  assert.deepEqual(seuilsEnVigueur(base), seuils({ gatesSeconds: 500 }));
   assert.deepEqual(signalements(base), ["growth:tests"]);
 });
 
@@ -184,31 +184,12 @@ test("une tranche vaut l'état que laisse sa dernière livraison, et la médiane
   );
 });
 
-test("un plafond est franchi quand il est dépassé, le compteur de merges quand il est atteint ; un seuil non déclaré ne juge rien", () => {
+test("un plafond est franchi quand il est dépassé ; un seuil non déclaré ne juge rien", () => {
   const livraisons = [livraison({ tests: 500, tests_s: 6.2, gates_s: 21, contexte_octets: 9400, depot_octets: 2_900_000 }), livraison({})];
 
   assert.deepEqual(jauger(livraisons, SANS_SEUIL), []);
-  // La valeur est comparée telle quelle : l'arrondi n'est qu'un affichage.
-  assert.deepEqual(franchis([livraison({ depot_octets: 5_040_000 })], seuils({ repoMb: 5 })), [{ measure: "depot_octets", observed: 5.04, limit: 5 }]);
-  assert.deepEqual(franchis([livraison({ tests_s: 0.28 })], seuils({ testsSeconds: 0.29 })), []);
-  assert.deepEqual(franchis(livraisons, seuils({ tests: 500, testsSeconds: 10, gatesSeconds: 20, contextKb: 9, repoMb: 3, merges: 2 })), [
-    { measure: "contexte_octets", observed: 9.4, limit: 9 },
-    { measure: "gates_s", observed: 21, limit: 20 },
-    { measure: "merges", observed: 2, limit: 2 },
-  ]);
-});
-
-test("la pente compare une mesure à ce qu'elle valait dix merges plus tôt, et ne dit rien avant", () => {
-  const stable = Array.from({ length: 10 }, () => livraison({ tests: 200, doc_octets: 1000 }));
-  const pente = seuils({ growthPercent: 30 });
-
-  // Dix merges : aucun n'a dix merges derrière lui.
-  assert.deepEqual(franchis([...stable.slice(1), livraison({ tests: 900, doc_octets: 9000 })], pente), []);
-  // Trente pour cent tout juste : le seuil est atteint, pas dépassé.
-  assert.deepEqual(franchis([...stable, livraison({ tests: 260, doc_octets: 1300 })], pente), []);
-  assert.deepEqual(franchis([...stable, livraison({ tests: 262, doc_octets: 1290 })], pente), [
-    { measure: "growth:tests", observed: 31, limit: 30 },
-  ]);
+  assert.deepEqual(franchis(livraisons, seuils({ gatesSeconds: 20 })), [{ measure: "gates_s", observed: 21, limit: 20 }]);
+  assert.deepEqual(franchis(livraisons, seuils({ gatesSeconds: 21 })), []);
 });
 
 test("une mesure face à son seuil se lit dans l'unité du seuil", () => {
@@ -218,16 +199,12 @@ test("une mesure face à son seuil se lit dans l'unité du seuil", () => {
       { measure: "tests_s", observed: 6.2, limit: 5 },
       { measure: "depot_octets", observed: 2.9, limit: 2 },
       { measure: "contexte_octets", observed: null, limit: 8 },
-      { measure: "merges", observed: 80, limit: 80 },
-      { measure: "growth:doc_octets", observed: 54.3, limit: 30 },
     ].map(direJauge),
     [
       "tests 622 pour un seuil de 500",
       "suite 6,2 s pour un seuil de 5 s",
       "dépôt 2,9 Mo pour un seuil de 2 Mo",
       "contexte — pour un seuil de 8 ko",
-      "80 merges depuis la dernière fermeture pour un seuil de 80",
-      "doc +54 % en 10 merges pour un seuil de 30 %",
     ],
   );
 });
@@ -239,7 +216,7 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
   livrer(3, undefined, { tours: 14, ms: 100_000 });
   livrer(4, { tests: 622, tests_s: 6.2, gates_s: 21, depot_octets: 2_900_000, contexte_octets: 9400, doc_octets: 511_000 }, { tours: 58, ms: 170_000, modele: "opus", effort: "high" });
 
-  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: mergedDeliveries(base), seuils: seuils({ tests: 500, testsSeconds: 10 }) }, 2), [
+  assert.deepEqual(decrireReleve({ projet: "brigade", livraisons: mergedDeliveries(base), seuils: seuils({ gatesSeconds: 20 }) }, 2), [
     "report     brigade — 4 merges in the log, in slices of 2",
     "           4 since the last closing (none in the log) · 4 since the last security review (none in the log)",
     "           only the deliveries the pass judged count, and the cooks in the log — not the account's consumption",
@@ -261,23 +238,20 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
     "",
     "launches   no ticket launched more than once, and no launch without a delivery, behind these merges",
     "",
-    "thresholds tests 622 for a threshold of 500 — CROSSED",
-    "           test suite 6.2 s for a threshold of 10 s",
-    "closing    proposed — tests 622 for a threshold of 500 · yours to run: `brigade <projet> closing` observes, nothing starts by itself",
+    "thresholds gates 21 s for a threshold of 20 s — CROSSED",
+    "closing    proposed — gates 21 s for a threshold of 20 s · yours to run: `brigade <projet> closing` observes, nothing starts by itself",
   ]);
 });
 
 test("un compteur franchi propose la fermeture, avec ce qu'il franchit ; tous sous leur seuil, la ligne n'apparaît pas", () => {
   const livraisons = [livraison({ tests: 622, gates_s: 21 }), livraison({ tests: 622, gates_s: 21 })];
 
-  const proposee = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 500, gatesSeconds: 20, merges: 2 }) }).filter((ligne) => ligne.includes("proposed"));
-  const toutesSous = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 700, gatesSeconds: 30, merges: 3 }) });
+  const proposee = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ gatesSeconds: 20 }) }).filter((ligne) => ligne.includes("proposed"));
+  const toutesSous = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ gatesSeconds: 30 }) });
   const sansSeuil = decrireReleve({ projet: "brigade", livraisons, seuils: null });
 
-  assert.equal(proposee.length, 3);
-  assert.match(proposee[0] ?? "", /^closing {4}proposed — tests 622 for a threshold of 500/);
-  assert.match(proposee[1] ?? "", /proposed — gates 21 s for a threshold of 20 s/);
-  assert.match(proposee[2] ?? "", /proposed — 2 merges since the last closing for a threshold of 2/);
+  assert.equal(proposee.length, 1);
+  assert.match(proposee[0] ?? "", /^closing {4}proposed — gates 21 s for a threshold of 20 s/);
   assert.doesNotMatch(toutesSous.join("\n"), /proposed|closing {4}/);
   assert.doesNotMatch(sansSeuil.join("\n"), /proposed|closing {4}/);
 });
@@ -295,9 +269,9 @@ function cloneMerge(t: TestContext, tickets: number[]): string {
   return clone;
 }
 
-test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien", async (t) => {
+test("`run mesures` ne lance pas de passe, n'écrit rien, et le relancer ne change rien", async (t) => {
   const { repertoire, journal, noter } = cuisine(t);
-  noter({ type: "drift.configured", payload: { limits: seuils({ merges: 2 }) } });
+  noter({ type: "drift.configured", payload: { limits: seuils({ gatesSeconds: 100 }) } });
   const clone = cloneMerge(t, [1, 2]);
   const avant = journal.dernierSeq();
   // Un faux `claude` qui laisse une trace s'il est lancé : la mesure ne doit rien démarrer.
@@ -311,7 +285,7 @@ test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien 
   const seconde = lancer(t, MESURES, [], env);
   assert.equal(await seconde.fin, 0);
 
-  assert.match(premiere.sortie(), /\nclosing {4}proposed — 2 merges since the last closing for a threshold of 2/);
+  assert.match(premiere.sortie(), /^report {5}brigade — 2 merges in the log/);
   assert.equal(seconde.sortie(), premiere.sortie());
   assert.equal(journal.dernierSeq(), avant);
   assert.equal(existsSync(trace), false);

@@ -305,12 +305,7 @@ A threshold is declared in the runtime's environment. **Only one has a default: 
 `BRIGADE_DRIFT_GATES_SECONDS` replaces it. It counts the gates'
 execution, not the wait for their turn. Undeclared, the others signal nothing;
 badly written, the runtime refuses to start.
-`BRIGADE_DRIFT_TESTS` (number of tests), `BRIGADE_DRIFT_TESTS_SECONDS` (suite duration),
-`BRIGADE_DRIFT_GATES_SECONDS` (last delivery's gates duration), `BRIGADE_DRIFT_CONTEXT_KB`
-(context, KB) and `BRIGADE_DRIFT_REPO_MB` (repository, MB) are crossed when the measure
-exceeds them; `BRIGADE_DRIFT_MERGES`, when the merges since the last closing
-reach it; `BRIGADE_DRIFT_GROWTH_PERCENT` — **the slope** —, when `tests`, `test suite`, `repo`,
-`context` or `docs` has grown by more than this percentage in ten merges.
+`BRIGADE_DRIFT_GATES_SECONDS` (last delivery's gates duration) is crossed when the measure exceeds it.
 
 These thresholds, the cost ones below, `BRIGADE_CORRECTION_*` and `BRIGADE_PROFILE_*` can also be
 set by the project in `.claude/brigade/projet.json` (`drift`, `correction` and `profile`, see
@@ -320,13 +315,6 @@ Two thresholds concern **cost**, in tokens, over the last ten merges, and are se
 **by gesture** (`station seuil-ticket <integer>` and `station seuil-perdus <integer>`):
 the tokens of the most expensive ticket, all its launches counted, and the tokens of the launches that delivered nothing, summed. Crossed when exceeded, named in the `drift` block. **No default**: it is the chef's quota. A crossed cost threshold is only read
 — it turns nothing red, stops no cook and blocks no delivery.
-
-One last signal concerns **send-backs**: the share of tickets delivered on the first try over the last merged tickets
-whose quality is recorded with their time (see "The measures reading", #2707). Under the threshold, `status`'s `drift` block
-adds a line — "4/10 tickets delivered on the first try (threshold 50%)". At or above it,
-or while the window is not full, nothing. Set by gesture:
-`station seuil-renvois <percentage>` (50 by default) and `station fenetre-renvois <tickets>`
-(10 by default). It is only read, and writes neither `drift.crossed` nor a log line.
 
 Thresholds enter the log when they change (`drift.configured`). Whether a merge makes one
 cross is no longer read from the log, which has not seen a merge since #2061: the closer's pass
