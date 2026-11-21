@@ -17,9 +17,9 @@ test("le calibrage du reviewer n'a pas de défaut : sans lui, ou avec une valeur
 });
 
 test("le reviewer est lancé à son calibrage, avec trois outils de lecture et rien d'autre : ni écriture, ni shell, ni session reprise, ni permission levée", () => {
-  const args = argumentsReviewer("la consigne", { model: "haiku", effort: "low" });
+  const args = argumentsReviewer({ model: "haiku", effort: "low" });
 
-  assert.deepEqual(args.slice(0, 2), ["-p", "la consigne"]);
+  assert.deepEqual(args.slice(0, 2), ["-p", "--output-format"]);
   assert.deepEqual([args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]], ["haiku", "low"]);
   assert.equal(args[args.indexOf("--tools") + 1], "Read,Grep,Glob");
   // `--tools` avale ce qui le suit jusqu'à la prochaine option.
@@ -299,12 +299,6 @@ test("une violation de #830 mal formée rend la relecture illisible : règle inc
   assert.match((illisible(violation("erreur-brute", null)) as { illisible: string }).illisible, /cite la capture/);
   assert.match((illisible(violation("erreur-brute", "docs/captures/17/fiche-avant.png")) as { illisible: string }).illisible, /cite la capture/);
   assert.match((illisible(violation("erreur-brute", "app/src/vue/vue.js")) as { illisible: string }).illisible, /cite la capture/);
-});
-
-test("sans consigne, le reviewer la lit sur son entrée : `-p` seul, suivi des options du flux (#3910)", () => {
-  const args = argumentsReviewer(null, { model: "haiku", effort: "low" });
-  assert.deepEqual(args.slice(0, 2), ["-p", "--output-format"]);
-  assert.equal(args.includes(null as unknown as string), false);
 });
 
 test("the review's brief carries the frozen tests the delivery changes, their diff since the freeze, and makes each a blocking finding (#3910)", () => {

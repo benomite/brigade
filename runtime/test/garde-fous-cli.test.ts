@@ -167,7 +167,7 @@ test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêt�
 
   const { sortie } = await commande();
 
-  assert.match(sortie, new RegExp(`breaker\\s+OPEN since ${JOUR_HORLOGE}T.* after 2 failures in a row — no more cooks are launched; \`resume\` to close it`));
+  assert.match(sortie, new RegExp(`breaker\\s+OPEN since ${JOUR_HORLOGE}T.* after 2 failures in a row — no more cooks are launched; the supervisor re-runs a run to check it and closes it by itself`));
   assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+tokens cap exceeded: 30 for 25`));
   assert.throws(() => cook(10, "fini"), /disjoncteur/);
 

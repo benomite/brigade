@@ -8,9 +8,8 @@ import { DEBUT, FIN } from "../../src/epique.ts";
 import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { DELAI_CLAIM_PERIME_MS } from "../../src/guerison/claim-perime.ts";
-import { INERTIE_MINUTES } from "../../src/guerison/cuisine-inerte.ts";
 import { estMisDeCote, HORS_CUISINE } from "../../src/github.ts";
-import type { GitHubDeLaBrigade } from "../../src/routage-temps-perdu.ts";
+import type { GitHubDeLaBrigade } from "../../src/issue-de-la-cuisine.ts";
 import type { RetenueDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -106,9 +105,10 @@ async function claimPerime(p: Projet) {
 
 function assertGueri(p: Projet) {
   const dit = `${p.depot}: ${p.avertis.join("\n")}`;
-  // Le ticket en conflit est relancé : `served-elsewhere` tombe, et le commentaire dit de rebaser.
-  assert.ok(commentairesDe(p, CONFLIT).some((c) => c.startsWith("<!-- brigade:relance cause=conflict n=1")), dit);
-  assert.ok(p.faux.cuissons.some((c) => c.issue === CONFLIT) || !p.faux.ticket(CONFLIT).labels.has(HORS_CUISINE), dit);
+  // Le ticket en conflit reste de côté : aucune minuterie ne le relance, le superviseur en décide (#3911).
+  assert.deepEqual(p.faux.cuissons.filter((c) => c.issue === CONFLIT), [], dit);
+  assert.ok(p.faux.ticket(CONFLIT).labels.has(HORS_CUISINE), dit);
+  assert.equal(commentairesDe(p, CONFLIT).some((c) => c.includes("brigade:relance")), false, dit);
   // Le claim périmé est libéré.
   assert.ok(commentairesDe(p, PRIS).some((c) => /released the claim/.test(c)), dit);
   // La PR prête reçoit `in-pass` sur son ticket.
@@ -118,35 +118,13 @@ function assertGueri(p: Projet) {
   assert.ok(commentairesDe(p, EPIQUE).some((c) => /All the sub-tickets this epic lists are closed \(#21, #22\)/.test(c)), dit);
 }
 
-test("one pass of the kitchen heals two projects: a conflicting set-aside ticket relaunched, a 46-minute stale taken released, in-pass on a ready PR, a finished epic closed", async () => {
+test("one pass of the kitchen heals two projects: a conflicting set-aside ticket left aside, a 46-minute stale taken released, in-pass on a ready PR, a finished epic closed", async () => {
   const projets = [projet("acme/shop", "box/claude", "trunk"), projet("zeta/lab", "mac/claude", "develop")];
   for (const p of projets) await claimPerime(p);
   for (const p of projets) aGuerir(p);
   // Un seul tour de chaque station.
   await Promise.all(projets.map((p) => p.passer()));
   for (const p of projets) assertGueri(p);
-  // La consigne nomme la base de chaque projet, pas une autre.
-  assert.ok(commentairesDe(projets[0] as Projet, CONFLIT).some((c) => c.includes("rebase the branch on `trunk`")));
-  assert.ok(commentairesDe(projets[1] as Projet, CONFLIT).some((c) => c.includes("rebase the branch on `develop`")));
-});
-
-test("after two relaunches for the same reason, no third happens and one bug ticket is filed", async () => {
-  // Le cook relancé s'arrête sans livrer : la station remet le ticket de côté,
-  // et sa PR est toujours en conflit.
-  const p = projet("acme/shop", "box/claude", "trunk", {}, true);
-  conflitDeCote(p);
-  const relances = () => commentairesDe(p, CONFLIT).filter((c) => c.startsWith("<!-- brigade:relance cause=conflict")).length;
-  for (let i = 0; i < 40 && p.faux.creations.length === 0; i += 1) await p.passer();
-  assert.equal(relances(), 2, p.avertis.join("\n"));
-  assert.equal(p.faux.creations.length, 1);
-  assert.ok(estMisDeCote([...p.faux.ticket(CONFLIT).labels]));
-  const [bug] = p.faux.creations;
-  assert.match(p.faux.ticket(bug as number).corps, /relaunched it 2 times/);
-  // Des tours encore : ni troisième relance, ni second bug.
-  for (let i = 0; i < 3; i += 1) await p.passer();
-  assert.equal(relances(), 2);
-  assert.equal(p.faux.creations.length, 1);
-  assert.ok(estMisDeCote([...p.faux.ticket(CONFLIT).labels]));
 });
 
 test("a gesture that throws does not stop the others, and its error is logged", async () => {
@@ -162,201 +140,6 @@ test("a gesture that throws does not stop the others, and its error is logged", 
   assert.equal(p.faux.ticket(EPIQUE).state, "open");
   assert.ok(p.avertis.some((ligne) => /healing \(epique #20\) on mac\/claude — HTTP 502 — closing refused/.test(ligne)), p.avertis.join("\n"));
   // Les autres gestes ont joué.
-  assert.ok(commentairesDe(p, CONFLIT).some((c) => c.startsWith("<!-- brigade:relance cause=conflict n=1")));
   assert.ok(commentairesDe(p, PRIS).some((c) => /released the claim/.test(c)));
   assert.ok(p.poses.some(([numero, label]) => numero === PRETE && label === "in-pass"));
-});
-
-test("a kitchen whose only open tickets are waiting (with or without blocked-on-human) files no inertia bug", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
-  p.faux.feu(30, [...CALIBRE, "waiting"]);
-  p.faux.feu(32, [...CALIBRE, "waiting", "blocked-on-human"]);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  await p.passer();
-  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
-});
-
-test("tickets the station would skip (blocked on the chef, uncalibrated) do not file an inertia bug on an empty rail", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
-  p.faux.feu(40, [...CALIBRE, "blocked-on-human"]);
-  p.faux.feu(41, ["fire"]);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  await p.passer();
-  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
-});
-
-// #2865 : la passe de clôture ouvre #2864 après plus de 90 min de rail vide,
-// sans un ticket à prendre ; le tour suivant ouvrait le bug d'inertie avant de
-// prendre #2864. L'inertie compte depuis que le ticket est à prendre.
-test("a ticket that becomes cookable after 90 minutes with nothing to take is cooked on the next turn and files no inertia bug", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  p.avancer(2 * MINUTE);
-  p.faux.feu(50);
-  await p.passer();
-  assert.deepEqual(p.faux.cuissons, [{ station: "mac/claude", issue: 50 }]);
-  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
-});
-
-// La brigade, où le bug de l'inertie se dépose (#3620) : ce qu'on y a déposé.
-function brigadeEnMemoire() {
-  const deposees: { titre: string; corps: string; labels: string[] }[] = [];
-  const brigade = {
-    issuesDepuis: async () => deposees.map((d, rang) => ({ number: 800 + rang, body: d.corps, association: "OWNER", state: "open" })),
-    creerIssue: async (issue: { titre: string; corps: string; labels: string[] }) => {
-      deposees.push(issue);
-      return 800 + deposees.length - 1;
-    },
-    fermerIssue: async () => {},
-  } as unknown as GitHubDeLaBrigade;
-  return { brigade, deposees };
-}
-
-test("a ticket that becomes cookable after a long empty rail files the inertia bug only once it has waited 90 minutes untaken", async () => {
-  const { brigade, deposees } = brigadeEnMemoire();
-  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  p.faux.feu(30, CALIBRE, "Depends on #31");
-  p.faux.feu(31, [...CALIBRE, HORS_CUISINE]);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE - MINUTE);
-  await p.passer();
-  assert.equal(deposees.length, 0, p.avertis.join("\n"));
-  p.avancer(MINUTE);
-  await p.passer();
-  assert.equal(deposees.length, 1, p.avertis.join("\n"));
-  assert.equal(p.faux.creations.length, 0, "nothing on the served project");
-  // La porte l'a sauté, et dit pourquoi : ce n'est pas un rail vide (#3699).
-  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(skipped\) — bug #\d+ filed/.test(ligne)));
-});
-
-test("a kitchen with a fire ticket to take (a model label, nothing else) and nothing at work for 90 minutes files one inertia bug, once, without blocked-on-human", async () => {
-  const { brigade, deposees } = brigadeEnMemoire();
-  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
-  p.faux.feu(30, CALIBRE, "Depends on #31");
-  p.faux.feu(31, [...CALIBRE, HORS_CUISINE]);
-  await p.passer();
-  // La station n'a pas pris le ticket : il dépend de #31, que rien ne cuit.
-  assert.deepEqual([...p.faux.ticket(30).labels], CALIBRE);
-  assert.equal(p.faux.creations.length, 0);
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  await p.passer();
-  assert.equal(deposees.length, 1, p.avertis.join("\n"));
-  assert.equal(p.faux.creations.length, 0, "nothing on the served project");
-  assert.ok(!deposees[0]?.labels.includes("blocked-on-human"));
-  // La porte l'a sauté, et dit pourquoi : ce n'est pas un rail vide (#3699).
-  assert.ok(p.avertis.some((ligne) => /idle kitchen on mac\/claude \(skipped\) — bug #\d+ filed/.test(ligne)));
-});
-
-// #2975 : la porte de prise saute un ticket que l'attente d'après un arrêt retient ;
-// la cuisine inerte ne le compte pas comme à prendre, tant que le terme n'est pas passé.
-test("a ticket held by the wait after a stop does not file an inertia bug on an empty rail, until the wait is over (#2975)", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
-  p.faux.feu(2912, CALIBRE);
-  const terme = Date.parse("2026-11-07T10:00:00Z") + (INERTIE_MINUTES + 30) * MINUTE;
-  await p.faux.pour("mac/claude").commenter(2912, `<!-- brigade:attente until=${terme} court -->\nStation \`mac/claude\`: stopped.`);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  await p.passer();
-  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
-  assert.deepEqual(p.faux.cuissons, []);
-  // Le terme passé, la porte le prend : il n'est plus retenu.
-  p.avancer(31 * MINUTE);
-  await p.passer();
-  assert.deepEqual(p.faux.cuissons.map((c: { issue: number }) => c.issue), [2912]);
-});
-
-// #2977 : #2912, prenable, était sauté par la porte de prise — « zone held by
-// #2907 » — tant que la PR de #2907, chez le chef, restait ouverte hors de la
-// pass ; la cuisine inerte le comptait quand même à prendre et ouvrait un bug
-// `empty-rail`. Elle lit maintenant le verdict de zone de la porte.
-test("a ticket whose zone is held by an open PR set aside for the chef files no inertia bug on an empty rail, and is cooked once that PR merges (#2977)", async () => {
-  const p = projet("zeta/lab", "mac/claude", "develop");
-  const zone = "## Context\n\nwhatever\n\n## Zone\n\n- `docs/maquettes/app/`\n\n## Acceptance\n\n- done\n";
-  p.faux.feu(2907, [...CALIBRE, "blocked-on-human"], zone);
-  const tenante = p.faux.prOuverte(["docs/maquettes/app/Main.dc.html"], brancheDuTicket(2907));
-  p.faux.feu(2912, CALIBRE, zone);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  await p.passer();
-  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
-  assert.deepEqual(p.faux.cuissons, []);
-  // La PR qui tenait la zone mergée, la porte prend le ticket.
-  tenante.state = "closed";
-  tenante.merged = true;
-  await p.passer();
-  assert.deepEqual(p.faux.cuissons.map((c: { issue: number }) => c.issue), [2912]);
-});
-
-// #3098 : la zone de #2912 est tenue par la PR de #2907 (chez le chef) ; #2913, qui
-// demande une capacité qu'aucune station n'a, est à prendre mais sautée : rien ne
-// travaille. L'alerte nomme ce qui tient la zone et se dépose sur la brigade.
-test("an idle kitchen held by a zone files its alert on the brigade, naming the holder, and none on the served project (#3098)", async () => {
-  const deposees: { titre: string; corps: string }[] = [];
-  const brigade = {
-    issuesDepuis: async () => deposees.map((d, rang) => ({ number: 800 + rang, body: d.corps, association: "OWNER", state: "open" })),
-    creerIssue: async (issue: { titre: string; corps: string }) => {
-      deposees.push(issue);
-      return 800 + deposees.length - 1;
-    },
-    fermerIssue: async () => {},
-  } as unknown as GitHubDeLaBrigade;
-  const p = projet("zeta/lab", "mac/claude", "develop", {}, false, brigade);
-  const zone = "## Context\n\nwhatever\n\n## Zone\n\n- `docs/maquettes/app/`\n\n## Acceptance\n\n- done\n";
-  p.faux.feu(2907, [...CALIBRE, "blocked-on-human"], zone);
-  p.faux.prOuverte(["docs/maquettes/app/Main.dc.html"], brancheDuTicket(2907));
-  p.faux.feu(2912, CALIBRE, zone);
-  p.faux.feu(2913, [...CALIBRE, "needs:gpu"]);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  assert.equal(p.faux.creations.length, 0, p.avertis.join("\n"));
-  assert.equal(deposees.length, 1, p.avertis.join("\n"));
-  assert.match(deposees[0]?.corps ?? "", /#2912: zone held by #2907, through PR #\d+/);
-  assert.doesNotMatch(`${deposees[0]?.titre}${deposees[0]?.corps}`, /empty-rail/);
-});
-
-// #3699 : sur secondes, #50, #51 et #52 étaient à prendre, rien en pass, et
-// l'alerte disait `empty-rail` — « réparez le dispatcher » — alors que la porte
-// de prise les sautait, et disait pourquoi. L'alerte nomme ce qu'elle a dit.
-test("an idle kitchen whose cookable tickets the claim gate all skips names the gate's reasons, not an empty rail (#3699)", async () => {
-  const { brigade, deposees } = brigadeEnMemoire();
-  const p = projet("benomite/secondes", "box/claude", "main", {}, false, brigade);
-  p.faux.feu(49, [...CALIBRE, HORS_CUISINE]);
-  for (const numero of [50, 51, 52]) p.faux.feu(numero, CALIBRE, "Depends on #49");
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  assert.deepEqual(p.faux.cuissons, []);
-  assert.equal(deposees.length, 1, p.avertis.join("\n"));
-  const { titre, corps } = deposees[0]!;
-  assert.match(titre, /3 cookable ticket\(s\) \(skipped\)/);
-  for (const numero of [50, 51, 52]) assert.match(corps, new RegExp(`^- #${numero} .*#49`, "m"));
-  assert.doesNotMatch(`${titre}${corps}`, /empty-rail/);
-});
-
-// #3699 : une cuisine que ses garde-fous retiennent (le quota, le disjoncteur,
-// le « stop ») ne prend rien, et son alerte nomme la retenue, pas un rail vide.
-test("an idle kitchen held by its guardrails names the hold in its alert, not an empty rail (#3699)", async () => {
-  const { brigade, deposees } = brigadeEnMemoire();
-  const p = projet("benomite/secondes", "box/claude", "main", {}, false, brigade, "quota");
-  p.faux.feu(50, CALIBRE);
-  await p.passer();
-  p.avancer(INERTIE_MINUTES * MINUTE);
-  await p.passer();
-  assert.deepEqual(p.faux.cuissons, []);
-  assert.equal(deposees.length, 1, p.avertis.join("\n"));
-  assert.match(deposees[0]!.corps, /`skipped`[\s\S]*- #50 .*the Max quota is spent/);
-  assert.doesNotMatch(deposees[0]!.corps, /empty-rail/);
 });

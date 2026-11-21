@@ -11,7 +11,7 @@ import { refusDeLaCreation } from "./conflit-main/renvoi.ts";
 import { execFile } from "./sans-invite.ts";
 import { lienDuCorps } from "./besoin/besoin.ts";
 import { porteListe } from "./epique.ts";
-import { avecLAlerte, type AlerteDeLaCuisine } from "./alerte-cuisine/alerte-cuisine.ts";
+import { avecLAlerte, type AlerteDeLaCuisine } from "./issue-de-la-cuisine.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
@@ -55,8 +55,8 @@ export type Issue = {
   // montre pas ce besoin à côté de lui (`besoin/besoin.ts`). Seul le sondage
   // des tickets le dit.
   besoin?: number;
-  // Une issue que la station a ouverte sur la cuisine elle-même — une cuisine
-  // inerte, son disjoncteur —, reconnue à sa marque (`alerte-cuisine/`, #3620) :
+  // Une issue que la station a ouverte sur la cuisine elle-même — son
+  // disjoncteur —, reconnue à sa marque (`issue-de-la-cuisine.ts`, #3620) :
   // ce n'est pas un ticket du projet. Seul le sondage des tickets le dit.
   alerte?: AlerteDeLaCuisine;
 };
@@ -726,8 +726,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     },
     async issuesDepuis(instant) {
       // Sous condition, comme toute lecture : le même `instant` se redemande à
-      // chaque tick tant que le disjoncteur est ouvert (`breaker-resume-github.ts`),
-      // et ne coûte rien tant que rien n'a bougé depuis (#2198).
+      // chaque tick, et ne coûte rien tant que rien n'a bougé depuis (#2198).
       const chemin = `repos/${depot}/issues?state=all&since=${instant}&per_page=100`;
       const pages = await lireLaListe(chemin);
       return pages

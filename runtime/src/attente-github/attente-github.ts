@@ -15,21 +15,23 @@
 //     `blocked-on-human`, `served-elsewhere`), `fire` posé s'il manque, et un
 //     commentaire qui dit que ce qu'il attendait est arrivé ;
 //   - `waiting <dépôt>` : les cartes du projet lues de GitHub — TODO, ce qui
-//     attend le chef (`chef-todo`, `blocked-on-human`, comme la retenue les lit,
-//     retenue/tour.ts), et WAITING, ce qui attend un tiers, avec ses trois mots.
+//     attend le chef (`chef-todo`, `blocked-on-human`), et WAITING, ce qui attend un tiers, avec ses trois mots.
 // Ce qu'une issue attend se relit dans le dernier commentaire marqué
 // `<!-- brigade:waiting … -->` d'un auteur du dépôt : tout le monde peut
 // commenter une issue publique. Une issue au label `waiting` sans ce
 // commentaire — posé à la main, ou par la station pour un ticket de `fix`
 // (github-seul/renvois/renvois.ts) — est en WAITING sans rien inventer : la
 // ligne dit que l'issue ne le dit pas.
-import { DE_CONFIANCE } from "../alimenter.ts";
 import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { LABEL, MIS_DE_COTE, type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
 import { carteEnCours, CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { GesteRefuse } from "../rail.ts";
+import { attenteDeLIssue, MARQUE, type AttenteGitHub } from "./marque.ts";
+
+// Relue de sa marque sans import lourd (marque.ts) : la lecture du rail de l'app la lit aussi (#3761).
+export { attenteDeLIssue, type AttenteGitHub };
 
 // Ce que les gestes demandent au client de GitHub, et rien de plus.
 export type GitHubDeLAttente = Pick<GitHub, "issue" | "commentaires" | "commenter" | "labelliser" | "delabelliser" | "ouvertes">;
@@ -47,14 +49,6 @@ export function lireCible(mot: string | undefined): Cible | null {
 
 // `BOBL-tech/mirrorlab`, ou null.
 export const lireDepot = (mot: string | undefined): string | null => (new RegExp(`^${DEPOT}$`).test(mot ?? "") ? (mot as string) : null);
-
-// Ce qu'un ticket attend : quoi, de qui, et la relance (ISO). `backOnFollowUp` :
-// la cuisine l'y a mis d'après les mots de son cook (attente/attente-par-le-cook.ts,
-// #3814), et il rentre seul sur le rail à sa relance ; posé par le chef, il y reste.
-export type AttenteGitHub = { what: string; who: string; followUp: string; backOnFollowUp?: true };
-
-const MARQUE = "<!-- brigade:waiting";
-const MARQUE_LUE = /^<!-- brigade:waiting (\{.*?\}) -->/;
 
 // La relance, dite avec son année : `2026-11-16 15:05 UTC`.
 export const direRelance = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
@@ -79,23 +73,6 @@ export function corpsDeLAttente(attente: AttenteGitHub, par?: { station: string;
       : `As long as it has the \`${LABEL_WAITING}\` label, no station takes it and it is not in TODO.`,
     ...(par === undefined ? [] : ["", `Set by station \`${par.station}\`, from what the cook said:`, "", ...par.mots.trim().split("\n").map((ligne) => `> ${ligne}`)]),
   ].join("\n");
-}
-
-// Ce qu'attend l'issue, d'après le plus récent commentaire marqué d'un auteur
-// du dépôt ; null si aucun ne se lit.
-export function attenteDeLIssue(commentaires: readonly Pick<Commentaire, "body" | "association">[]): AttenteGitHub | null {
-  for (const { body, association } of [...commentaires].reverse()) {
-    if (!DE_CONFIANCE.includes(association)) continue;
-    const brut = MARQUE_LUE.exec(body)?.[1];
-    if (brut === undefined) continue;
-    try {
-      const { what, who, followUp, backOnFollowUp } = JSON.parse(brut) as Record<string, unknown>;
-      if (typeof what === "string" && typeof who === "string" && typeof followUp === "string" && !Number.isNaN(Date.parse(followUp))) return { what, who, followUp, ...(backOnFollowUp === true ? { backOnFollowUp } : {}) };
-    } catch {
-      // Une marque illisible ne dit rien : la précédente, s'il y en a une.
-    }
-  }
-  return null;
 }
 
 // La ligne de WAITING d'une issue : ce qu'elle attend, ou que l'issue ne le dit pas.

@@ -13,7 +13,7 @@ import { estUneVision, LIGNE_VISION, MARQUE_VISION, sortirLaVision } from "../..
 import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { DEBUT, FIN, rendreListe } from "../../src/epique.ts";
 import { MARQUEUR_MANAGER } from "../../src/juger.ts";
-import { suivreLeTour } from "../../src/retenue/tour.ts";
+import { suivreLeTour } from "../../src/superviseur/tour.ts";
 import { chef, CALIBRE, cuisine, issue, type Options } from "../aides/cuisine.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { jusqua } from "../outils.ts";
@@ -101,7 +101,7 @@ describe("un besoin découpé", { concurrency: 4 }, () => {
 
     assert.equal(faux.prisesDe("box/claude"), 0);
     assert.deepEqual(faux.pris(), []);
-    assert.deepEqual(suivi.vue().enAttente, [501], "the rail shows the ticket, not its need");
+    assert.deepEqual(suivi.faits().cuisinables.map(({ ticket }) => ticket), [501], "the rail shows the ticket, not its need");
   });
 
   test("le manager découpe un besoin lancé : `fire` lui est retiré avant que ses tickets n'entrent sur le rail, chacun dit `Part of`, et le besoin les liste en tâches", async (t) => {

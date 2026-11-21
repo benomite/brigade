@@ -33,7 +33,7 @@ async function demande(t: TestContext, { question, geste, issues, tours = 2, ech
   const cooks: string[] = [];
   let consultations = 0;
   const lancer: Lancer = ({ args, entree, flux }) => {
-    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
+    const consulte = (entree ?? "").startsWith(MARQUE_DE_LA_CONSULTATION);
     let message: string;
     if (consulte) {
       consultations += 1;

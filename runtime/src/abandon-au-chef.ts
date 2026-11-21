@@ -93,7 +93,7 @@ export function pourquoiEn({ voie, cause, root }: Pick<Abandon, "voie" | "cause"
   return `Its delivery stayed blocked${dite} after everything the kitchen could try, up to the highest calibration it sets.`;
 }
 
-// La même, en français : la ligne d'urgence et ce que rien n'a encore traduit.
+// La même, en français : pour ce que rien n'a encore traduit.
 export function pourquoi({ voie, cause, root }: Pick<Abandon, "voie" | "cause" | "root">): string {
   const dite = cause === null ? "" : ` (${cause})`;
   if (voie === "chain") return `il attend #${root ?? "?"}, que la cuisine a abandonné${dite}, et il est sorti du rail avec lui`;

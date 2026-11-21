@@ -24,6 +24,7 @@ import { environnementClaude } from "./jeton-claude.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
 import { estUneVision, sortirLaVision } from "./besoin/vision.ts";
+import { ouvrirSupervision } from "./manager/supervision.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
@@ -50,7 +51,7 @@ import { ouvrirRoadmap } from "./manager/roadmap.ts";
 import { ouvrirVerdictIncomplet } from "./manager/verdict-incomplet.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { estLaPauseDeGitHub } from "./limite-github.ts";
-import { alerteDeLaCuisine, horsDesTickets } from "./alerte-cuisine/alerte-cuisine.ts";
+import { alerteDeLaCuisine, horsDesTickets } from "./issue-de-la-cuisine.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -271,7 +272,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const fired = issue.labels.includes(LABEL);
     // Une alerte que la station a ouverte sur la cuisine elle-même n'est jamais
     // un ticket du projet : ni jugée, ni lancée, ni au chef, quoi qu'elle porte (#3620).
-    if (horsDesTickets(alerteDeLaCuisine(issue), options.depotGitHub)) return { quoi: "ecart", raison: "kitchen-alert", fired };
+    if (horsDesTickets(alerteDeLaCuisine(issue))) return { quoi: "ecart", raison: "kitchen-alert", fired };
     // Une idée en réserve n'est jamais lue : ni jugée, ni qualifiée, ni au chef (#3536).
     if (issue.labels.includes(LABEL_IDEE)) return { quoi: "ecart", raison: "idea", fired };
     // La roadmap est un document de suivi, jamais un ticket : reconnue avant
@@ -547,7 +548,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           MARQUEUR_MANAGER,
           `**Manager — set aside by its failure count (\`${ECHECS_ATTEINTS}\`).**${connue.fired ? " `fire` is set on it, and the label wins: the ticket does not enter the rail, no cook starts." : " It does not enter the rail."} Its cooks stopped without a delivery too many times in a row; no other box serves it.`,
           "",
-          `The reason is in the station's last comment. Remove \`${ECHECS_ATTEINTS}\` to try the ticket again.`,
+          `The reason is in the station's last comment. The supervisor takes the ticket and acts with its own gestures; no timer puts it back on the rail, and the chef does not need to act.`,
         ].join("\n")
       : connue.reason === ("served-elsewhere" satisfies Ecart)
       ? parLaStation
@@ -673,6 +674,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return true;
   };
 
+  // Ce qu'un message dit du travail demandé : un jugement ou un découpage est d'une issue ; le contrôle du disjoncteur
+  // (`manager/supervision.ts`) n'en a aucune, son numéro est 0.
+  const designation = (sujet: { numero: number; nom: string }) => (sujet.numero === 0 ? sujet.nom : `${sujet.nom} de l'issue #${sujet.numero}`);
+
   // Fait répondre le LLM à une consigne, sous les garde-fous : un jugement, ou
   // un découpage. Rend sa réponse lue — ou ce qui la rend illisible —, et null
   // s'il n'a pas abouti : il reste alors à faire.
@@ -681,6 +686,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     consigne: string,
     lire: (message: string | null) => { valeur: T } | { illisible: string },
     envDuRole: NodeJS.ProcessEnv = options.env ?? process.env,
+    // Ce que vaut une réponse lue : un jugement ne compte ni pour ni contre les échecs d'affilée ; le contrôle du
+    // disjoncteur (`manager/supervision.ts`) est un run qui doit finir « ok ».
+    succes: Verdict = "neutral",
   ): Promise<Reponse<T> | null> => {
     const run = `${sujet.prefixe}-${sujet.numero}-${randomUUID().slice(0, 8)}`;
     let lecture: Lecture | null = null;
@@ -702,7 +710,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       lue = lire(lecture.message);
       // Un jugement réussi ne remet pas à zéro les échecs d'affilée des cooks :
       // il ne compte ni pour ni contre.
-      return "valeur" in lue ? "neutral" : "failed";
+      return "valeur" in lue ? succes : "failed";
     };
 
     // Une autre station fait ce travail, ou l'a fait : rien ne part d'ici.
@@ -748,7 +756,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // comme une réponse qui ne se lit pas, et celui qui l'a posée le dit.
     if (comment === "refused") {
       const refus = refusDAffilee(base, `${sujet.prefixe}-${sujet.numero}-`);
-      avertir(`brigade : ${sujet.nom} de l'issue #${sujet.numero} refusé par le modèle (${direRefus(flux)}), essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`);
+      avertir(`brigade : ${designation(sujet)} refusé par le modèle (${direRefus(flux)}), essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`);
       if (refus < REFUS_MAX) return null;
       // Posé sur l'issue : en anglais.
       return { run: fin.run, illisible: `model refusal${flux?.refus?.categorie ? ` (${flux.refus.categorie})` : ""}, ${refus} times in a row (\`stop_reason: refusal\`)` };
@@ -762,7 +770,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const raison = fin.arret
       ? `guard:${fin.arret.reason}`
       : (fin.erreur ?? (fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`));
-    avertir(`brigade : ${sujet.nom} de l'issue #${sujet.numero} non abouti (${raison}) — il sera retenté`);
+    avertir(`brigade : ${designation(sujet)} non abouti (${raison}) — il sera retenté`);
     return null;
   };
 
@@ -1181,7 +1189,15 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     })();
   };
 
-  const desabonner = runtime.surReveil(reveiller);
+  // Le superviseur du projet : le disjoncteur et les tickets mis de côté (`manager/supervision.ts`). Il ne dépend pas de
+  // l'interrupteur du manager : le chef ne referme plus le disjoncteur, et aucune minuterie ne remet un ticket sur le rail.
+  const supervision = ouvrirSupervision({ base, journal, projet, github, demander, maintenant, avertir, arrete: () => arrete });
+  // Le contrôle du disjoncteur part avant le tour du manager : sur une machine lente, ses lectures GitHub ne le retardent pas.
+  const desabonner = runtime.surReveil(() => {
+    void supervision.passer();
+    reveiller();
+  });
+  void supervision.passer();
   reveiller();
 
   return {

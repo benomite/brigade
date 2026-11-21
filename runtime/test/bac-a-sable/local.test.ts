@@ -87,7 +87,7 @@ test("le profil se pose sur chaque `claude` : le cook perd `bypassPermissions`, 
   const place = cook.indexOf("--permission-mode");
   assert.deepEqual(poserLeBacASable(cook, config), [...cook.slice(0, place), ...profil, ...cook.slice(place + 2)]);
   assert.equal(poserLeBacASable(cook, config).includes("bypassPermissions"), false);
-  for (const args of [argumentsReviewer("consigne", CALIBRAGE), argumentsJuge("consigne", CALIBRAGE)]) {
+  for (const args of [argumentsReviewer(CALIBRAGE), argumentsJuge("consigne", CALIBRAGE)]) {
     const sources = args.indexOf("--setting-sources");
     assert.deepEqual(poserLeBacASable(args, config), [...args.slice(0, sources), ...profil, ...args.slice(sources)]);
   }

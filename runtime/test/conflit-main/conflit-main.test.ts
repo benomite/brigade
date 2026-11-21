@@ -66,9 +66,9 @@ function station(t: TestContext, { ticket, cook, manager, avant }: { ticket: num
   let cooks = 0;
   const consultations: string[] = [];
   const lancer: Lancer = ({ args, entree, cwd, flux }) => {
-    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
+    const consulte = (entree ?? "").startsWith(MARQUE_DE_LA_CONSULTATION);
     let message = manager ?? JSON.stringify({ issue: "geste", geste: "merge the branch" });
-    if (consulte) consultations.push(args.join("\n"));
+    if (consulte) consultations.push([...args, entree ?? ""].join("\n"));
     else if (!args.includes("--tools")) message = basename(cwd) === `${ticket}-github` ? cook(++cooks, cwd, [...args, entree ?? ""].join("\n")) : "Done.\n<livrable>\nNothing.\n</livrable>";
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: message })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null }) };

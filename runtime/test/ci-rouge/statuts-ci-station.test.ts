@@ -1,6 +1,6 @@
 // Les règles des statuts de CI (#3953) là où la station les joue : la règle A
-// dans la retenue, sur les checks de la base que le tour a lus et ses tickets
-// de réparation ; la règle B avant le push de la livraison d'un cook.
+// au réveil du superviseur, sur les checks de la base que le tour a lus et ses
+// tickets de réparation ; la règle B avant le push de la livraison d'un cook.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,9 +11,9 @@ import { ticketDuCheck } from "../../src/carte-ci-windows.ts";
 import { cartesEnTodo } from "../../src/carte-todo.ts";
 import { ECHECS_ATTEINTS, HORS_CUISINE, type GitHub } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { brancherRetenue } from "../../src/retenue/brancher.ts";
-import { suivreLeTour } from "../../src/retenue/tour.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
+import { brancherSuperviseur } from "../../src/superviseur/brancher.ts";
+import { suivreLeTour } from "../../src/superviseur/tour.ts";
 import type { RunDeCi } from "../../src/temps-ticket/ci-github.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
 import { aArreter, jusqua, repertoireTemporaire } from "../outils.ts";
@@ -42,8 +42,8 @@ test("the turn sees a base repair ticket set aside by its failures — and only 
   }
 });
 
-// La retenue branchée sur un tour dont le test dit les checks de la base et les tickets.
-function retenue(t: TestContext) {
+// Le superviseur branché sur un tour dont le test dit les checks de la base et les tickets.
+function supervise(t: TestContext) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   aArreter(t, () => journal.fermer());
   const dicte = { tickets: [] as TicketLu[], checks: [] as Array<{ name: string; outcome: "red" | "green" }> };
@@ -52,7 +52,8 @@ function retenue(t: TestContext) {
   const ecouteurs: Array<(cause: CauseReveil) => void> = [];
   const runtime: Runtime = { projet: "brigade", journal, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}), arreter: () => {} };
   const dits: string[] = [];
-  brancherRetenue(runtime, { tour: suivi, relance: null, dire: (ligne) => void dits.push(ligne) });
+  // Sans manager à consulter : seule la carte de la base se joue.
+  brancherSuperviseur(runtime, { tour: suivi, github: fauxClient(new FauxGitHub()), depot: "faux/depot", branche: "main", consulter: () => null, dire: (ligne) => void dits.push(ligne) });
   const tourner = async () => {
     await github.fires();
     await github.checksDeLaBase();
@@ -61,8 +62,8 @@ function retenue(t: TestContext) {
   return { journal, dicte, tourner, dits };
 }
 
-test("the station's hold: a red base whose repair is still alive makes no card; set aside, one card; green again, it leaves", async (t) => {
-  const r = retenue(t);
+test("the supervisor's wake-up: a red base whose repair is still alive makes no card; set aside, one card; green again, it leaves", async (t) => {
+  const r = supervise(t);
   const cartes = () => cartesEnTodo(r.journal.base).map(({ ticket }) => ticket);
   r.dicte.checks = [{ name: "unit", outcome: "red" }];
   r.dicte.tickets = [ticket(70, "prio:0")];
@@ -83,10 +84,10 @@ test("the station's hold: a red base whose repair is still alive makes no card; 
 });
 
 // Aucun ticket de réparation encore : la cuisine n'a pas essayé, elle en ouvrira
-// un (base-rouge/) — la base rouge reste à elle, le chef n'a pas de carte. Elle
+// un (le geste `fix` du superviseur) — la base rouge reste à elle, le chef n'a pas de carte. Elle
 // n'y va qu'une fois ce ticket mis de côté.
-test("the station's hold: a red base with no repair ticket at all is still the kitchen's, and makes no card", async (t) => {
-  const r = retenue(t);
+test("the supervisor's wake-up: a red base with no repair ticket at all is still the kitchen's, and makes no card", async (t) => {
+  const r = supervise(t);
   const cartes = () => cartesEnTodo(r.journal.base).map(({ ticket }) => ticket);
   r.dicte.checks = [{ name: "unit", outcome: "red" }];
   r.dicte.tickets = [ticket(71, HORS_CUISINE), ticket(72, ECHECS_ATTEINTS)];

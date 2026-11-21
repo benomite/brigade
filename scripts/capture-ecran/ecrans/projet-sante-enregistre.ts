@@ -16,6 +16,6 @@ export const ecran: Ecran = {
   dit: "L'espace de « parade », le bandeau de santé de Settings : un plafond de durée changé, proposé par une pull request (#2490, #2920)",
   largeur: 1440,
   hauteur: 900,
-  etapes: [OUVRIR, SETTINGS, { saisir: CHAMP, texte: "150", valider: true }, { defiler: `[data-bloc="plafonds-duree"] .reglage[data-cle="testsSeconds"]` }],
+  etapes: [OUVRIR, SETTINGS, { saisir: CHAMP, texte: "150", valider: true }, { defiler: `[data-bloc="plafonds-duree"] .reglage[data-cle="gatesSeconds"]` }],
   donnees: () => donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, lostTimeMaxMin: 2 } }, { plafondsDuree: PLAFONDS_LUS, changerPlafondDuree: PROPOSE_PAR_PR }),
 };

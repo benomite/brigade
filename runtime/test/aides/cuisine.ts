@@ -555,7 +555,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         cloison,
         bacASable: options.bacASable,
         // Les jugements ont leur scénario.
-        env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
+        env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge, FAUX_CLAUDE_CONTROLE: "echec" },
         maintenant: heure.maintenant,
         avertir: (message) => void avertissements.push(message),
         station: options.manager.station ?? null,

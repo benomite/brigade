@@ -91,7 +91,8 @@ function aRegler(ligne: LigneDeStation): string | undefined {
 // Ce que la pass fait elle-même d'une livraison, comme la carte du ticket en pass le dit : ses phases de travail. Une
 // livraison qui attend — la pass, sa CI coupée, le chef — ne la fait pas tourner. La même liste que le runtime
 // (runtime/src/activites.ts, `PASS_A_L_OUVRAGE`) : un test les compare.
-export const PASS_A_L_OUVRAGE: ReadonlySet<string> = new Set(["running the gates", "review in progress", "judging", "merging"]);
+export const PASS_A_L_OUVRAGE: ReadonlySet<string> = new Set(["running the gates", "review running since", "judging", "merging"]);
+const passALOuvrage = (faitEn: string): boolean => [...PASS_A_L_OUVRAGE].some((debut) => faitEn.startsWith(debut));
 
 // Ce qui tourne hors des cooks de ticket : ce que le runtime en dit (`agents`) ; d'un runtime d'avant ce champ, la pass
 // seule, d'après les tickets en pass du rail — elle tourne sur la principale, sans nom de station. Les tickets au travail
@@ -99,7 +100,7 @@ export const PASS_A_L_OUVRAGE: ReadonlySet<string> = new Set(["running the gates
 export function agentsDe(agents: readonly AgentLu[] | undefined, rail: Faits["rail"]): AgentLu[] {
   if (agents !== undefined) return [...agents];
   return rail.flatMap(({ ticket, etat, activite }) =>
-    etat === "en pass" && activite?.faitEn !== undefined && PASS_A_L_OUVRAGE.has(activite.faitEn) ? [{ role: "pass", station: null, ticket, fait: activite.faitEn, depuis: activite.depuis }] : [],
+    etat === "en pass" && activite?.faitEn !== undefined && passALOuvrage(activite.faitEn) ? [{ role: "pass", station: null, ticket, fait: activite.faitEn, depuis: activite.depuis }] : [],
   );
 }
 

@@ -254,6 +254,9 @@ function graphe(entree: string): string[] {
 
 test("la lecture du rail ne joint ni box ni station : ses modules ne chargent que les états de GitHub du runtime, et la règle des stations vues de GitHub (#2358)", () => {
   assert.deepEqual(graphe("app/src/tableau/lecture.ts"), [
+    // Les alertes du haut du rail et le diagnostic du rail bloqué, sans E/S, que le runtime ne dit plus (ticket 3945).
+    "app/src/attente-du-rail/alertes.ts",
+    "app/src/rail-bloque/diagnostic.ts",
     "app/src/tableau/ecriture.ts",
     "app/src/tableau/lecture.ts",
     "app/src/tableau/mise-de-cote-github.ts",
@@ -277,8 +280,11 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
     "runtime/src/arret-cuisine/arret-cuisine.ts",
-    "runtime/src/attente-du-rail/alertes.ts",
+    "runtime/src/attente-du-rail/lecture.ts",
     "runtime/src/attente-du-rail/raison.ts",
+    "runtime/src/attente-du-rail/stations.ts",
+    // Qui un ticket en WAITING attend, relu de sa marque, sans E/S : la carte qui l'attend le nomme (ticket 3761).
+    "runtime/src/attente-github/marque.ts",
     // Les attentes d'un ticket en file et leur source — son corps, sa fiche, l'arrêt d'un cook —, sans E/S (ticket 3763).
     "runtime/src/boucle-attente/levee.ts",
     "runtime/src/capacites.ts",
@@ -289,8 +295,6 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/events/rail.ts",
     "runtime/src/fiche.ts",
     "runtime/src/github-etat/etats.ts",
-    "runtime/src/rail-bloque/lecture.ts",
-    "runtime/src/rail-bloque/rail-bloque.ts",
     // Le ticket qu'une PR sert, sans E/S : la règle que le récapitulatif du runtime lit sur les mêmes PR (ticket 3581).
     "runtime/src/recap/servis.ts",
     // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).

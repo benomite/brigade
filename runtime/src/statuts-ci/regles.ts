@@ -2,7 +2,8 @@
 // branche ou de `main` (#3953, épique #3950).
 //
 // Règle A — un `main` rouge est d'abord l'affaire de la cuisine : la relance de
-// ses jobs en échec, puis son ticket de réparation (base-rouge/). Il ne va au
+// ses jobs en échec, puis son ticket de réparation (le geste `fix` du
+// superviseur, superviseur/gestes.ts). Il ne va au
 // chef que quand la cuisine ne peut pas le rendre vert seule, et alors en une
 // carte TODO — la carte du produit, jamais un mail —, une seule tant que le
 // rouge dure. `main` revenu au vert, la carte sort de TODO, comme sortent les

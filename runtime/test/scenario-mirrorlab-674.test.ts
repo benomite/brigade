@@ -68,8 +68,8 @@ function station(t: TestContext, faux: FauxGitHub, nom: string, complet: boolean
   const repertoire = mkdtempSync(join(racine, "flux-"));
   let cooks = 0;
   const consultations: string[][] = [];
-  const lancer: Lancer = ({ args, flux }) => {
-    const consulte = args.some((arg) => arg.startsWith(MARQUE_DE_LA_CONSULTATION));
+  const lancer: Lancer = ({ args, entree, flux }) => {
+    const consulte = (entree ?? "").startsWith(MARQUE_DE_LA_CONSULTATION);
     if (consulte) consultations.push(args);
     else cooks += 1;
     const echec = consulte ? null : reinstaller();

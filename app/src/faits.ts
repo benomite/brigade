@@ -14,7 +14,7 @@
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
-import type { AlerteDuRail } from "../../runtime/src/attente-du-rail/alertes.ts";
+import type { AlerteDuRail } from "./attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
@@ -1389,9 +1389,13 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   // La carte d'un ticket qui attend un tiers : ce qu'il attend, dans les mots du chef ; de qui ;
   // depuis quand et sa relance, à l'horloge de la box, et leur écart à la lecture ; ce que
   // « c'est arrivé » fera de lui. Puis ses deux gestes : le reprendre, ou le renvoyer en cuisine.
+  // Un ticket en file qu'un ticket en WAITING retient y est aussi (ticket 3761) : sa carte dit, de la file, ce qu'il attend —
+  // « waits for `#N`, WAITING on … » —, avec son lien, et n'a aucun geste de WAITING : rien ne l'y a mis.
   const enAttente = (ticket: number): Carte => {
     const connu = connus.get(ticket) as Faits["rail"][number];
     const { tiers, url, titre } = connu;
+    const derriere = tiers == null ? derriereDe(faits, ticket) : undefined;
+    if (derriere !== undefined) return { ticket, ...ligneEnAttente("", undefined, derriere), ...colore(TONS_DE_TICKET, connu.etat), ...(titre === "" ? {} : { titre }), ouvrable: ouvrable(url), attendu: false, attend: [], dit: [], fiche: entete({ titre, url, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }) };
     const relance = tiers?.relance == null ? 0 : Date.parse(tiers.relance) - Date.parse(faits.lu);
     return {
       ticket,

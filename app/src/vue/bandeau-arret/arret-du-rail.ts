@@ -7,7 +7,7 @@
 //     zone (runtime/src/brigade-github.ts, la porte de prise) —, et la zone que sa fiche déclare ;
 //   - sinon, la cause est inconnue, et l'arrêt se dit quand même.
 import { arretDeLaCuisine, type ArretDeLaCuisine } from "../../../../runtime/src/arret-cuisine/arret-cuisine.ts";
-import type { BaseRougeLue } from "../../../../runtime/src/attente-du-rail/alertes.ts";
+import type { BaseRougeLue } from "../../attente-du-rail/alertes.ts";
 import type { TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
 import { fiche } from "../../../../runtime/src/fiche.ts";
 

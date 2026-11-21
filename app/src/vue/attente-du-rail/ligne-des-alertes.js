@@ -1,6 +1,6 @@
 // @ts-check
 // La ligne d'alerte en tête du rail d'un projet (ticket 3823) : la première des alertes que le runtime a jugées vraies et
-// actionnables (runtime/src/attente-du-rail/alertes.ts) — la vue n'en écrit aucune, n'en juge aucune. Une panne, comme le
+// actionnables (attente-du-rail/alertes.ts) — la vue n'en écrit aucune, n'en juge aucune. Une panne, comme le
 // rail bloqué : marquée FAULT, en rouge. Sa phrase dit le fait, depuis quand et quel ticket ou quel check ; ce que la cuisine
 // fait déjà pour la lever se dit à voix basse à côté ; le geste qui la lève, quand l'app sait le faire, est son bouton
 // (rail-bloque/ligne-du-rail-bloque.js) — sans bouton, la phrase le dit en toutes lettres. Le fait se relit au survol.
@@ -9,7 +9,7 @@
 import { boutonDuGeste, MARQUE } from "../rail-bloque/ligne-du-rail-bloque.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
-/** @typedef {import("../../../../runtime/src/attente-du-rail/alertes.ts").AlerteDuRail} AlerteDuRail */
+/** @typedef {import("../../attente-du-rail/alertes.ts").AlerteDuRail} AlerteDuRail */
 
 /** @param {AlerteDuRail["fait"]} fait @returns {string} */
 const faitDit = ({ depuis, ticket, check }) => [`since ${depuis.slice(0, 16).replace("T", " ")} UTC`, ticket === undefined ? null : `#${ticket}`, check === undefined ? null : `check: ${check}`].filter((un) => un !== null).join(" · ");
