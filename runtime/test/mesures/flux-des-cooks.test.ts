@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
-import { coutsDesFlux, lancementsDuFlux } from "../../src/mesures/flux-des-cooks.ts";
+import { test, type TestContext } from "node:test";
+import { coutsDesFlux } from "../../src/mesures/flux-des-cooks.ts";
 import type { CookMesure } from "../../src/projections/measures.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
@@ -23,12 +23,21 @@ const flux = (...lancements: Array<{ tokens: number; livre: boolean }>) =>
 
 const cook = (tokens: number, delivered: boolean): CookMesure => ({ calibration: "claude-opus-5-5", turns: 1, durationMs: null, tokens, delivered });
 
-test("a stream says what each launch of a ticket spent, and whether it delivered", () => {
-  assert.deepEqual(lancementsDuFlux(`${flux({ tokens: 900, livre: false }, { tokens: 700, livre: true })}\n{"type":"assistant"`), [cook(900, false), cook(700, true)]);
-  assert.deepEqual(lancementsDuFlux(""), []);
-  // A launch killed before its result delivered nothing.
-  const sansResultat = flux({ tokens: 400, livre: true }).split("\n").slice(0, 3).join("\n");
-  assert.deepEqual(lancementsDuFlux(sansResultat), [cook(400, false)]);
+// The cooks `coutsDesFlux` reads from the stream of ticket 119.
+function lus(t: TestContext, contenu: string): CookMesure[] {
+  const repertoire = join(repertoireTemporaire(t), "github-seul");
+  mkdirSync(repertoire);
+  writeFileSync(join(repertoire, "119-github.flux.jsonl"), contenu);
+  return coutsDesFlux(repertoire)(119);
+}
+
+test("a stream says what each launch of a ticket spent, and whether it delivered", (t) => {
+  assert.deepEqual(lus(t, `${flux({ tokens: 900, livre: false }, { tokens: 700, livre: true })}\n{"type":"assistant"`), [cook(900, false), cook(700, true)]);
+});
+
+test("a launch killed before its result delivered nothing; an empty stream, no launch", (t) => {
+  assert.deepEqual(lus(t, flux({ tokens: 400, livre: true }).split("\n").slice(0, 3).join("\n")), [cook(400, false)]);
+  assert.deepEqual(lus(t, ""), []);
 });
 
 test("the cooks of a ticket come from its stream under the station's directory; none without a stream", (t) => {

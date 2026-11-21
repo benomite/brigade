@@ -16,7 +16,7 @@ const nombre = (valeur: unknown) => (typeof valeur === "number" ? valeur : 0);
 // Tokens are counted as the supervisor counts them (`superviseur.ts`): one
 // message spread over several lines counts its last usage, and cache reads do
 // not count. A launch delivered when its result is not an error.
-export function lancementsDuFlux(contenu: string): CookMesure[] {
+function lancementsDuFlux(contenu: string): CookMesure[] {
   const lancements: Array<{ calibration: string | null; usages: Map<string, number>; delivered: boolean }> = [];
   let courant: (typeof lancements)[number] | undefined;
   for (const ligne of contenu.split("\n")) {
