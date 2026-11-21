@@ -42,7 +42,10 @@ export function motifsDesCriteres(criteres: readonly Critere[], couvertures: rea
     const etat = etatDuCritere(couvertures?.[rang], preuve);
     const nom = `criterion ${rang + 1} (“${dit(critere.texte)}”)`;
     if (critere.classe === "testable") {
-      const gele = etat.etat === "test" && etat.tests.some(({ fichier }) => gelés.includes(fichier));
+      // Un test gelé vert sur la base et sur la branche, que la relecture nomme, couvre aussi : le cook ne peut pas le changer (#3921).
+      const nommes = couvertures?.[rang]?.tests ?? [];
+      const dejaVerts = "rejeux" in preuve ? preuve.rejeux.filter(({ fichier, nom, main, branche }) => main && branche && gelés.includes(fichier) && nommes.includes(nom ?? fichier)) : [];
+      const gele = dejaVerts.length > 0 || (etat.etat === "test" && etat.tests.some(({ fichier }) => gelés.includes(fichier)));
       if (!gele) motifs.push(`- **Blocking**: ${nom} is classed testable and no frozen test covers it${etat.etat === "test" ? ` (the test that covers it, ${etat.tests.map(nomDuTest).join(", ")}, is not in the frozen acceptance commit)` : ""}: freeze a test for it.`);
       return;
     }
