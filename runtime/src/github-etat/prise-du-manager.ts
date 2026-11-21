@@ -98,3 +98,9 @@ export async function finirLeTravail(numero: number, tenant: TenantDuTravail, gi
   if (!marque) return false;
   return github.remplacerCommentaire(numero, tenant.corps, corpsDeTravailFait(marque[1] as string, marque[2] as string, marque[3] as string));
 }
+
+// Les stations dont une prise du travail du manager se lit dans ces
+// commentaires : celles qui font tourner un manager (#3938).
+export function stationsDuManager(commentaires: readonly { body: string; association: string }[]): string[] {
+  return commentaires.flatMap((c) => (DE_CONFIANCE.includes(c.association) ? [MARQUE.exec(c.body)?.[1] ?? []].flat() : []));
+}

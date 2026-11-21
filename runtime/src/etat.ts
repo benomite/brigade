@@ -483,14 +483,17 @@ function enTete(rail: TicketRail[]): TicketRail | undefined {
   return rail.find((ticket) => ticket.state === "waiting" && ticket.waitingOn.length === 0);
 }
 
-// Pourquoi le ticket en tête de la file ne part pas : ce qui le retient sur le
+// Pourquoi le ticket en tête de la file — ou un `prio:0` qui attend — ne part pas : ce qui le retient sur le
 // rail (une zone tenue par tel ticket, un ticket attendu), ou la machine
 // saturée quand toutes les stations le sont. Nul pour tout autre ticket, et
 // pour celui qui part.
 export function raisonDeTete(etat: EtatCuisine, ticket: TicketRail): string | null {
-  if (enTete(etat.rail) !== ticket) return null;
+  const tete = enTete(etat.rail) === ticket;
+  // Un `prio:0` qui attend dit derrière quoi, tête de file ou non (#3974).
+  if (!tete && !(ticket.priority === 0 && ticket.state === "waiting" && ticket.waitingOn.length === 0)) return null;
   const retenue = direRetenueEn(ticket);
   if (retenue !== null) return retenue;
+  if (!tete) return null;
   const saturees = etat.stations.length > 0 && etat.stations.every((station) => !station.remote && station.saturatedAt !== null && station.saturatedCauses.length > 0);
   return saturees ? "machine saturated" : null;
 }

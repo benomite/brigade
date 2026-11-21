@@ -233,13 +233,21 @@ installer) if they are missing, then:
   checksums nodejs.org publishes, under `~/.local/share/brigade-station/`;
 - a launchd agent, `~/Library/LaunchAgents/brigade.station.plist`, which starts the station when you
   log in and restarts it if it stops — its log is `~/Library/Logs/brigade-station.log`;
+- the `brigade` command, `~/.local/bin/brigade`, with no administrator right: `brigade <project>
+  status` in a new Terminal. If `~/.local/bin` is not on your `PATH`, the command adds it to your
+  shell profile, once (`~/.zprofile` for zsh; for bash, the first of `~/.bash_profile`,
+  `~/.bash_login` and `~/.profile`); for another shell, it says where the command is;
 - then the GitHub connection (`gh auth login --web`) and the Claude connection (`claude auth login`,
   like the app's button), under your account, once each.
 
 `launchctl print gui/$(id -u)/brigade.station` says `state = running`. The station keeps the same
 directory as the app's (`~/.config/brigade/station`): only one of them runs at a time, and the
 other waits for it to stop. Rerunning the command is how a Mac station moves to the latest version:
-it replaces only what changed, and restarts the station only then.
+it replaces only what changed, and restarts the station only then. It rewrites the `brigade`
+command, and never adds its profile line twice.
+
+`brigade --help` and `brigade <project> help` say the same text on a Mac, on Windows and on a
+server: on each, the command runs the runtime's `src/station/geste.ts`, which holds it.
 
 ## On Windows
 
@@ -263,6 +271,9 @@ Windows** and **`gh`** with `winget` — Windows may ask you to allow their inst
   Task Manager's startup apps) and started right away; it relaunches the station five seconds after
   it stops on a failure, like a server's service — not when it refused to start. The station's log
   is `%LOCALAPPDATA%\brigade-station\brigade-station.log`;
+- the `brigade` command, `%LOCALAPPDATA%\brigade-station\bin\brigade.cmd`, whose directory goes on
+  your user `PATH` (user scope, no administrator right), once: `brigade <project> status` in a new
+  PowerShell or Command Prompt window;
 - then the GitHub connection (`gh auth login --web`, then `gh auth setup-git`) and the Claude
   connection (`claude auth login`, like the app's button), under your account, once each.
 
@@ -273,7 +284,8 @@ reads the script in the machine's code page, so it is kept plain ASCII.
 
 Rerunning the command is safe, and it is how a Windows station moves to the latest version: it
 replaces only what changed, stops and restarts the station only then — leaving its cooks to finish
-their work, as on a server —, and does not redo a connection already made. If it stops on
+their work, as on a server —, and does not redo a connection already made. It rewrites the
+`brigade` command, and never puts its directory on the `PATH` twice. If it stops on
 `brigade: installation refused -- …` or `brigade: the station is installed, but …`, the line says
 why: fix it, and rerun the same command. A station built by hand installs from its archive:
 `powershell -ExecutionPolicy Bypass -File installer-station.ps1 .\brigade-station-windows.zip`.

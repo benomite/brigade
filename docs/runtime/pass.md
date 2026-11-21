@@ -205,6 +205,16 @@ reviewer says is blocking without a category, or with one outside the list, is a
 written on the PR, in the pass's verdict (`Advice` lines), and **does not stop the merge**: a review
 red only on advice is green.
 
+### A gesture the manager asks of a cook is never a blocking point
+
+One rule for the manager's answer and for the review (#3962). When the manager's answer in the ticket thread asks
+the cook for a gesture — for example adding `// brigade:guard` to a frozen test (#3913, #3955) — the cook may make it,
+and the review never lists it as a blocking point. The review reads the request from the manager's comments in the
+ticket thread, and holds the cook to the letter: a frozen test is let through only when the request names its file,
+the change removes no line, and every line it adds is quoted in the request. The same edit without a request, or an
+edit that goes beyond what was asked, stays a blocking point (`critere-non-tenu`). The review text that forbids edits
+to frozen tests (`runtime/src/reviewer.ts`) names this exception.
+
 ### Red on main, green on the branch
 
 A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pass/rouge-sur-main.ts`).
@@ -297,6 +307,19 @@ many were not run.
 
 The verdict on the PR ends with that line, then one line per acceptance criterion covered by a proved
 test, per test file: `Criterion <n>, <test file>: X of Y mutations caught`, with the surviving lines.
+
+**Before the PR, too** (#3970): a surviving mutation was the heaviest loss of time of the kitchen's
+tickets, each send-back costing a pass, a claim and a new cook. So the station runs the same check
+(same replay, same mutants, same budget, same rule on frozen tests) in the cook's worktree as soon as a
+cook ends with a delivery — commits added, no blocking question. When a mutation survives, the station
+relaunches that cook in its worktree, its brief followed by `## Mutations your tests let through`
+and the reason lines the pass would write, each naming its file and line. The relaunched cook's delivery
+is checked again (#3976): with #3970's single relaunch, a mutation the relaunch left alive went on to the
+PR, and the pass sent the delivery back (#3974). So the cook is relaunched again on the lines that still
+survive, at most `RELANCES_DES_MUTATIONS` (2) times. Then the delivery goes on to its PR and the pass as
+before, which runs the check again. A relaunched cook that does not finish, or ends on a blocking
+question, stops the relaunches: the delivery goes on as the last cook that finished left it; a check
+that cannot run holds nothing back (the station warns).
 
 ### The second judge
 

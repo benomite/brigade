@@ -77,8 +77,19 @@ base, the stale-branch pruning).
   with both answers, and its decision is appended to the ticket's body once (`<!-- brigade:decision-du-manager -->`);
   a block on a ticket that already carries it, or a decision the station cannot write, counts as a cook without a
   delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
-  unreadable, the station has none — sends nothing to the chef: the ticket waits (`brigade:attente … manager`), then
+  unreadable — sends nothing to the chef: the ticket waits (`brigade:attente … manager`), then
   is retried; the third such wait since the ticket was last relaunched counts as a cook without a delivery. Seen on #2875 (#2894).
+- **A station with no manager posts the cook's question for a manager on another station** (#3938,
+  `runtime/src/manager/question-sans-manager.ts`). It posts the question on the issue
+  (`<!-- brigade:question-au-manager station=<name> -->`) and gives the ticket back. A station runs a manager when GitHub
+  shows its claim of the manager's work (`brigade:manager-prise`) on an issue that moved in the last two days, read like
+  the stations of the project below. While another station of the project runs one, the station with no manager does not
+  take the ticket back: that station takes it, and gives the question to its manager before any cook
+  (`<!-- brigade:question-reprise station=<name> -->`); the answer is written on the issue, where the next cook reads it.
+  A station that the issue marks as unable to run the ticket's gates never takes it, so the question does not wait for
+  its manager. When no other station of the project that can take the ticket runs a manager, or they cannot be read, the ticket is given back to the rail and waits
+  (`brigade:attente`), then a cook resumes it. A missing manager is never a failed cook and never sets a ticket aside:
+  on BOBL-tech/mirrorlab#842, two such stops set the ticket aside for 21 h, when another station's manager could answer.
 - **A blocked question the evidence answers goes back to a cook, not to the chef.** When the blocked ticket is a
   quality ticket that counts tickets (`brigade:qualite-comptes`) and the question asks for what that evidence holds —
   which tickets, their send-backs or cooks without a delivery, their reasons, their timestamps — the station appends
@@ -241,13 +252,20 @@ base, the stale-branch pruning).
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the
   cook is then told in its brief to bring the branch up to date (or start again from the base), and if it still adds
   nothing the ticket is given back with a comment, uncounted, since that is work left, not a failed cook.
+- **Sends back are counted per ticket** (#3961). The count is read from the ticket's `brigade:renvoi` comments and
+  survives relaunches: removing `served-elsewhere` or `set-aside:failures` no longer restarts it at 1/2 (on 2026-11-20,
+  #3955 went "send-back 3", "relaunch 2", then "send-back 1" on the same commit). Only the manager's rework at the limit
+  (#3513) starts it again. Set aside at its last send-back, a ticket is never relaunched to a cook by the kitchen: the
+  manager or the chef decides.
 - **A cook that disagrees with the review.** Sent back on review remarks, a cook that judges them already addressed or
   wrong replies on the PR instead of ending silently: its brief tells it to write the reply in its last message between
   `<reponse-pr>` tags, and the station posts it on the PR (`brigade:reponse-cook sha=…`), since the cook has no GitHub
   access. A stop that adds nothing but carries such a reply, posted since the send-back, is a disagreement, not a
-  failure: the delivery goes back to the pass as is, which judges the head again with the reply in its brief, and
-  accepts it or sends the head back with its reasoning. That send-back counts among the `RENVOIS_MAX`, so a
-  disagreement cannot loop (#2592). The brief also says that a "Red on main, green on the branch" remark is the
+  failure: the delivery goes back to the pass as is (#2592). A head the review already refused is never reviewed again,
+  reply or not: its verdict records the judged pair, the head and its reason, and the same head comes back with the same
+  reason. It is sent back again on that reason, and that send-back counts among the `RENVOIS_MAX`, so a disagreement
+  cannot loop (#3961: #3955 looped about 15 times between cook and review on one commit). A head never reviewed — sent
+  back for a red CI — is reviewed with the reply in its brief. The brief also says that a "Red on main, green on the branch" remark is the
   pass's replay, not the review's: no reply lifts it, nor a free comment in the test calling it a guard of a behavior
   the base already has — only a test that fails without the change, no such test (#3694: #3632's cook kept such a test
   with a guard comment, its next cooks added nothing with no failed cook counted, and its head came back on that same

@@ -3,7 +3,7 @@
 // dessous (au plus 1 000 demandes comptées par heure). Trois freins, posés sur la lecture du rail (main.ts) :
 //   - les lectures conditionnelles : l'ETag gardé repart en `If-None-Match`, et un 304 ne coûte rien
 //     (tableau/rail-github.ts, `lectureConditionnelle`) ;
-//   - un projet ne se relit pas plus d'une fois par `INTERVALLE_PAR_PROJET_MS` (tableau/rail.ts, `fraicheurMs`) ;
+//   - les veilles lancées ensemble ne font qu'une lecture par projet (tableau/rail.ts, `fraicheurMs`, plafonnée à 4 s : vue/servi/fraicheur.ts) ;
 //   - la pause, ici : quand ce que GitHub dit rester du budget (`x-ratelimit-remaining`) passe sous 20 % de son total,
 //     ou qu'il refuse une demande pour dépassement, plus aucune lecture ne part, pour aucun projet, jusqu'à l'heure où
 //     il dit que le budget se remplit (`x-ratelimit-reset`, ou `retry-after`). Chaque projet garde alors son dernier
@@ -13,9 +13,6 @@
 import type { AppelGitHub, ReponseGitHub } from "./tableau/client.ts";
 import type { LectureDuTableauDuDepot, TableauLu, TableauNonLu } from "./tableau/lecture.ts";
 
-// Un projet ne se relit pas plus souvent. Une lecture fait une quinzaine de demandes ou plus — le rail, ce qui attend le
-// chef, les cartes assignées —, mais GitHub ne compte que ce qui a changé depuis la précédente.
-export const INTERVALLE_PAR_PROJET_MS = 60_000;
 // Sous cette part du budget, les lectures s'arrêtent : le reste est au chef.
 export const SEUIL_DU_BUDGET = 0.2;
 // La pause quand GitHub ne dit pas quand reprendre — ni `retry-after`, ni `x-ratelimit-reset` à venir : une minute,
