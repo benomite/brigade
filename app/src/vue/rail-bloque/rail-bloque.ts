@@ -1,14 +1,13 @@
 // Le rail bloqué dans l'app (ticket 3358, épique 3352) : des tickets `fire` qu'aucun manager n'a pris au-delà du délai. Le
-// diagnostic est celui du runtime (runtime/src/rail-bloque/rail-bloque.ts) — combien, depuis combien de temps, la cause,
+// diagnostic est celui de rail-bloque/diagnostic.ts — combien, depuis combien de temps, la cause,
 // le geste —, posé dans `facts` par la lecture du rail sur GitHub (vue/rail/github.ts, `avecLeRail`) sous `railBloque`.
 // Trois endroits le disent, de la même phrase :
 //   - le rail du projet, en tête (rail-bloque.js) ;
 //   - « Tous les projets », où le projet est bloqué, en rouge (accueil.ts) ;
-//   - la file du second, sous la tête du bloc `awaiting` de `status` (tableau/rail.ts) — la ligne même que
-//     `brigade <project> status` écrit (runtime/src/rail-bloque/status.ts).
+//   - la file du second, sous la tête du bloc `awaiting` de `status` (tableau/rail.ts).
 // Les tickets non pris qui ne se lisent pas le disent dans la file, jamais un rail calme à leur place.
-import { lireLesNonPris } from "../../../../runtime/src/rail-bloque/lecture.ts";
-import { diagnostiquer, dureeCourte, ligneDeLaFile, ligneNonLue, MOTS_DU_GESTE, type Cause, type Geste, type RailBloque, type StationsLues, type TicketNonPris } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
+import { dureeCourte, MOTS_DU_GESTE, type Geste, type StationsLues } from "../../../../runtime/src/attente-du-rail/stations.ts";
+import { diagnostiquer, ligneDeLaFile, ligneNonLue, lireLesNonPris, type Cause, type RailBloque, type TicketNonPris } from "../../rail-bloque/diagnostic.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
 
 // Ce que `facts` porte : le diagnostic, ou pourquoi les tickets non pris ne se lisent pas.

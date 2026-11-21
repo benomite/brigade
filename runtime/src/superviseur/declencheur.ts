@@ -8,9 +8,8 @@
 // Sans E/S : il reçoit ce qui a été observé du projet, et rend la cause du
 // réveil — ou null.
 //
-// Le compte des 30 min part du plus récent de deux repères, comme celui de la
-// cuisine retenue (`retenue/retenue.ts`) : le dernier merge, et le moment où le
-// plus ancien des tickets cuisinables a commencé d'attendre — un ticket arrivé
+// Le compte des 30 min part du plus récent de deux repères, que `tour.ts`
+// observe : le dernier merge, et le moment où le plus ancien des tickets cuisinables a commencé d'attendre — un ticket arrivé
 // sur un rail vide n'a pas attendu les heures où rien n'était à cuisiner.
 export const SANS_MERGE_MS = 30 * 60_000;
 export const PRISES_SANS_LIVRER = 3;

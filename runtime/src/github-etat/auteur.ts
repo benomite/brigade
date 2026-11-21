@@ -7,11 +7,11 @@
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { auteurInterne } from "../auteur-interne.ts";
 
-// Un ticket qu'une station a déposé (#3012) porte les marques cachées `brigade:projet` ou
-// `brigade:famille` : c'est une mesure, pas l'issue d'un inconnu, quel que soit le compte GitHub
+// Un ticket qu'une station a déposé (#3012) porte la marque cachée `brigade:projet` :
+// ce n'est pas l'issue d'un inconnu, quel que soit le compte GitHub
 // de la station. Mais la marque est du texte, qu'un inconnu écrit aussi : elle ne vaut que
 // de la part d'un compte que le projet déclare (`humans`), jamais seule.
-const MARQUE_DE_STATION = /<!-- brigade:(?:projet=|famille )/;
+const MARQUE_DE_STATION = /<!-- brigade:projet=/;
 export const deposeParUneStation = (body: string): boolean => MARQUE_DE_STATION.test(body);
 
 const meme = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();

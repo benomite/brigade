@@ -6,8 +6,8 @@
 //   - la file du second (tableau/rail.ts), au-dessus de la ligne `rail` de `status` — les lignes mêmes que
 //     `brigade <project> status` écrit.
 import { attendusDesCartes, expliquerLAttente, lignesDesCartes, type AttenteDuRail, type Raison, type TicketDuRail, type TicketEnWaiting } from "../../../../runtime/src/attente-du-rail/raison.ts";
-import type { Geste, StationsLues } from "../../../../runtime/src/rail-bloque/rail-bloque.ts";
-import type { AlerteDuRail, CauseConnue, SorteDAlerte } from "../../../../runtime/src/attente-du-rail/alertes.ts";
+import type { Geste, StationsLues } from "../../../../runtime/src/attente-du-rail/stations.ts";
+import type { AlerteDuRail, CauseConnue, SorteDAlerte } from "../../attente-du-rail/alertes.ts";
 
 // Ce que `facts` porte : `attenteDuRail`, la raison, sa phrase et son geste, absente quand rien n'attend ou qu'un cook tourne ;
 // `lignesDesCartes`, la ligne de chaque carte en file qui ne part pas la prochaine, absente sans aucune ; `attendusDesCartes`,
@@ -63,7 +63,7 @@ export function attendusDesCartesLus(valeur: unknown): { attendusDesCartes?: Att
 const SORTES: readonly SorteDAlerte[] = ["aucune-station", "aucun-cook", "base-rouge", "relance-en-boucle", "tout-mis-de-cote", "cuisine-muette"];
 const texteOuNul = (valeur: unknown): string | null | undefined => (valeur === null ? null : typeof valeur === "string" && valeur !== "" ? valeur : undefined);
 
-// `alertesDuRail`, de la racine de `facts` (ticket 3823, runtime/src/attente-du-rail/alertes.ts) : les alertes du haut du rail.
+// `alertesDuRail`, de la racine de `facts` (ticket 3823, attente-du-rail/alertes.ts) : les alertes du haut du rail.
 // Une alerte mal formée — sans fait daté, sans ticket ni check, ou sans geste ni prise en charge — n'est pas lue : la vue ne
 // montre que ce que le runtime a jugé montrable.
 export function alertesDuRailLues(valeur: unknown): { alertesDuRail?: AlerteDuRail[] } {

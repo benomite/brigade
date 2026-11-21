@@ -17,7 +17,7 @@
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { attendusDuCorps } from "../attente-ticket/attente-ticket.ts";
-import { horsDesTickets } from "../alerte-cuisine/alerte-cuisine.ts";
+import { horsDesTickets } from "../issue-de-la-cuisine.ts";
 import { brancheDuTicket, ECHECS_MAX, runDuTicket, A_LA_MAIN, type Lancer, type StationGitHub } from "../brigade-github.ts";
 import { environnementHorsGitHub, ticketJoint } from "../bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
@@ -174,7 +174,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
   const prenable = (ticket: TicketDuRail, ouvertes: ReadonlySet<string>): Calibrage | null => {
     if (ticket.pr || ticket.epique || enVol.has(ticket.number) || ecartes.has(ticket.number)) return null;
     // Une alerte que la station a ouverte sur la cuisine n'est pas un ticket du projet (#3620).
-    if (horsDesTickets(ticket.alerte, depotGitHub)) return null;
+    if (horsDesTickets(ticket.alerte)) return null;
     if (ticket.labels.some((label) => NON_PRENABLES.includes(label))) return null;
     if (ouvertes.has(brancheDuTicket(ticket.number))) return null;
     const calibrage = calibrageDesLabels(ticket.labels);

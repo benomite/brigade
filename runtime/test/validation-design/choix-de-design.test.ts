@@ -8,7 +8,7 @@ const ticket = (title: string, labels: string[] = [], body = "") => ({ title, la
 
 test("estTechnique: prio:0, a station-opened ticket, or a repair of main is technical; an ordinary ticket is not", () => {
   assert.notEqual(estTechnique(ticket("Tidy", ["prio:0"])), null);
-  assert.notEqual(estTechnique(ticket("Tidy", [], "<!-- brigade:reparation-base abc1234 -->")), null);
+  assert.notEqual(estTechnique(ticket("Tidy", [], "<!-- brigade:supervisor-cause check:tests -->")), null);
   assert.notEqual(estTechnique(ticket("Tidy", [], "x\n_Opened by a station, with no gesture from the chef_")), null);
   assert.notEqual(estTechnique(ticket("Repair `main`, red on 08de823: windows app tests")), null);
   assert.notEqual(estTechnique(ticket("Réparer la base `main`, rouge sur 08de823 : tests")), null);

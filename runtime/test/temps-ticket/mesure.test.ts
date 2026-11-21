@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { corpsDeLaReparation } from "../../src/base-rouge/ouvre-reparation.ts";
+import { causeDuCheck, marqueDeCause } from "../../src/reparation.ts";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { chronometre, completerLesTemps, enregistrerTemps, FICHIER_DES_TEMPS, mesurer, type Etape, type Marque } from "../../src/temps-ticket/mesure.ts";
@@ -172,7 +172,7 @@ test("after the station merges a ticket, the project's file holds its record, ph
     dependancesOuvertes: async () => [],
     prDuTicket: async () => (faux.pr === null ? null : { ...faux.pr }),
     prsOuvertes: async () => (faux.pr?.state === "open" ? [{ branche: brancheDuTicket(7), fichiers: ["src/a.ts"] }] : []),
-    corpsDuTicket: async (numero: number) => (numero === 5 ? corpsDeLaReparation("main", "4ddaa96", [{ nom: "types (app)", url: null, sortie: null }]) : ""),
+    corpsDuTicket: async (numero: number) => (numero === 5 ? marqueDeCause(causeDuCheck("types (app)")) : ""),
     ci: async () => [{ name: "tests", outcome: ciEnCours ? ("pending" as const) : ("green" as const) }],
     commentaires: async (numero: number) => (numero === 5 ? [] : numero === 6 ? [...anciens] : [...commentaires]),
     commenter: async (_numero: number, body: string) => {

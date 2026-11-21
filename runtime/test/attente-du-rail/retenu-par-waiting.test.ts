@@ -5,7 +5,7 @@ import { describe, test } from "node:test";
 import { attendusDesCartes, expliquerLAttente, lignesDesCartes, UNE_HEURE_MS, type TicketDuRail, type TicketEnWaiting } from "../../src/attente-du-rail/raison.ts";
 import { lignesDeLAttente } from "../../src/attente-du-rail/status.ts";
 import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
-import type { StationDuCompte } from "../../src/rail-bloque/rail-bloque.ts";
+import type { StationDuCompte } from "../../src/attente-du-rail/stations.ts";
 import { DEPOT } from "../outils.ts";
 
 const T0 = Date.parse("2026-11-17T10:00:00.000Z");

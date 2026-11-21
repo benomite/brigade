@@ -15,8 +15,7 @@
 //     `blocked-on-human`, `served-elsewhere`), `fire` posé s'il manque, et un
 //     commentaire qui dit que ce qu'il attendait est arrivé ;
 //   - `waiting <dépôt>` : les cartes du projet lues de GitHub — TODO, ce qui
-//     attend le chef (`chef-todo`, `blocked-on-human`, comme la retenue les lit,
-//     retenue/tour.ts), et WAITING, ce qui attend un tiers, avec ses trois mots.
+//     attend le chef (`chef-todo`, `blocked-on-human`), et WAITING, ce qui attend un tiers, avec ses trois mots.
 // Ce qu'une issue attend se relit dans le dernier commentaire marqué
 // `<!-- brigade:waiting … -->` d'un auteur du dépôt : tout le monde peut
 // commenter une issue publique. Une issue au label `waiting` sans ce

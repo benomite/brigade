@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHEF_TODO, corpsDeCarte } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import { corpsDeVerdict, type CommentaireDeVerdict } from "../../src/github-etat/fusion.ts";
-import { HORS_CUISINE, LABEL } from "../../src/github.ts";
+import { ECHECS_ATTEINTS, HORS_CUISINE, LABEL } from "../../src/github.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
-import { LABEL_DU_BUG, relancer, RELANCES_MAX, type ContexteDeLaGuerison } from "../../src/guerison/relance.ts";
+import { relancer, RELANCES_MAX, type ContexteDeLaGuerison } from "../../src/guerison/relance.ts";
 
 const TICKET = 40;
 const PR = 41;
@@ -29,19 +29,24 @@ function depot(labels: string[] = [LABEL, HORS_CUISINE]) {
   const contexte = (): ContexteDeLaGuerison => ({
     station: "box/claude",
     base: "trunk",
-    github: {
-      commentaires: async (numero) => [...(commentaires.get(numero) ?? [])],
-      commenter: async (numero, corps) => poster(numero, corps),
-      labelliser: async (numero, ajout) => void (numero === TICKET && ajout.forEach((label) => etiquettes.add(label))),
-      delabelliser: async (numero, label) => void (numero === TICKET && etiquettes.delete(label)),
-      prDuTicket: async () => pr,
-      ci: async (sha) => checks.get(sha) ?? [],
-      creerIssue: async (issue) => {
-        const numero = 100 + creees.length;
-        creees.push({ numero, ...issue });
-        return numero;
+    // Une issue créée, si la relance en créait une, serait comptée : elle n'en a pas le moyen (#3945).
+    github: Object.assign(
+      {
+        commentaires: async (numero: number) => [...(commentaires.get(numero) ?? [])],
+        commenter: async (numero: number, corps: string) => poster(numero, corps),
+        labelliser: async (numero: number, ajout: string[]) => void (numero === TICKET && ajout.forEach((label) => etiquettes.add(label))),
+        delabelliser: async (numero: number, label: string) => void (numero === TICKET && etiquettes.delete(label)),
+        prDuTicket: async () => pr,
+        ci: async (sha: string) => checks.get(sha) ?? [],
       },
-    },
+      {
+        creerIssue: async (issue: { titre: string; corps: string; labels: string[] }) => {
+          const numero = 100 + creees.length;
+          creees.push({ numero, ...issue });
+          return numero;
+        },
+      },
+    ),
   });
   const ticket = () => ({ number: TICKET, title: "Heal the rail", labels: [...etiquettes] });
   return {
@@ -116,25 +121,35 @@ test("un cook qui s'est arrêté : le ticket repart, et le commentaire dit pourq
   assert.match(d.commentairesDu().at(-1) ?? "", /token ceiling reached/);
 });
 
-test("après deux relances pour la même raison, la troisième n'a pas lieu, et un seul ticket de bug dit ce qui fait boucler", async () => {
+// brigade:guard
+test("après deux relances pour la même raison, la troisième n'a pas lieu : le ticket reste de côté, et aucun ticket de boucle ne s'ouvre ni ne se commente (#3945)", async () => {
   const d = depot();
   d.ouvrirPR({ enConflit: true });
   for (let n = 1; n <= RELANCES_MAX; n++) {
     assert.deepEqual(await d.relancer(), { fait: "relance", cause: "conflict", n });
     d.remettreDeCote();
   }
-  const boucle = await d.relancer();
-  assert.deepEqual(boucle, { fait: "boucle", cause: "conflict", bug: 100 });
+  const commentes = d.commentairesDu().length;
+  assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "its PR conflicts with the base again after 2 relaunches for this reason: it stays set aside" });
   assert.ok(d.etiquettes.has(HORS_CUISINE), "the third relaunch is not performed");
-  assert.equal(d.creees.length, 1);
-  const [bug] = d.creees;
-  assert.match(bug?.titre ?? "", /#40 loops/);
-  assert.match(bug?.corps ?? "", /## What makes it loop/);
-  assert.match(bug?.corps ?? "", /conflicts with the base/);
-  assert.deepEqual(bug?.labels, [LABEL_DU_BUG]);
-  // Rappelée, d'une station neuve : aucun second bug, aucune relance.
-  assert.deepEqual(await d.relancer(), { fait: "deja-signale", cause: "conflict", bug: 100 });
-  assert.equal(d.creees.length, 1);
+  assert.deepEqual(d.creees, []);
+  assert.equal(d.commentairesDu().length, commentes);
+  // Rappelée, d'une station neuve : ni relance, ni ticket.
+  assert.equal((await d.relancer()).fait, "rien");
+  assert.deepEqual(d.creees, []);
+  assert.ok(d.etiquettes.has(HORS_CUISINE));
+});
+
+// brigade:guard
+test("un cook arrêté, relancé deux fois : sa raison se lit sous les commentaires de relance, la troisième n'a pas lieu, et aucun ticket de boucle ne s'ouvre (#3945)", async () => {
+  const d = depot();
+  d.poster(TICKET, `${MARQUE_D_ECHEC} n=3 -->\nStation \`box/claude\`: the cook stopped without a delivery — token ceiling reached`);
+  for (let n = 1; n <= RELANCES_MAX; n++) {
+    assert.deepEqual(await d.relancer(), { fait: "relance", cause: "cook-stopped", n });
+    d.remettreDeCote();
+  }
+  assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "the cook stopped without a delivery again after 2 relaunches for this reason: it stays set aside" });
+  assert.deepEqual(d.creees, []);
   assert.ok(d.etiquettes.has(HORS_CUISINE));
 });
 
@@ -166,6 +181,17 @@ test("une mise de côté dont la raison n'est pas réparable par un cook n'est p
   d.poster(TICKET, "<!-- brigade:renvoi n=3 sha=abc -->\nStation `box/claude`: still not mergeable after 2 sends back — the design is undecided\n\nTaken off the kitchen (`served-elsewhere`): a human decides.");
   assert.equal((await d.relancer()).fait, "rien");
   assert.ok(d.etiquettes.has(HORS_CUISINE));
+  assert.equal(d.commentairesDu().length, 1);
+});
+
+test("mis de côté à son dernier renvoi, ses renvois épuisés, un ticket n'est jamais relancé, même avec une PR refusée ou rouge (#3961)", async () => {
+  const d = depot([LABEL, ECHECS_ATTEINTS]);
+  d.ouvrirPR();
+  d.checks.set(SHA, [{ name: "unit tests", outcome: "red" }]);
+  d.poster(PR, corpsDeVerdict("box/claude", SHA, { verdict: "request-changes", motif: "- the guard is never tested" }));
+  d.poster(TICKET, `<!-- brigade:renvoi n=3 sha=${SHA} -->\nStation \`box/claude\`: still not mergeable after 2 sends back — the review requested changes: the guard is never tested\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) after 2 sends back: not served elsewhere, nobody serves it. A human decides.`);
+  for (let fois = 0; fois < 2; fois += 1) assert.deepEqual(await d.relancer(), { fait: "rien", pourquoi: "its sends back are spent: the supervisor decides, never a cook again" });
+  assert.ok(d.etiquettes.has(ECHECS_ATTEINTS));
   assert.equal(d.commentairesDu().length, 1);
 });
 

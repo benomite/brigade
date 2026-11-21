@@ -68,8 +68,7 @@ const lignesDeRubrique = ({ titre, lignes }: RubriqueDuTableau): string[] =>
 // Le bloc `awaiting` de `status` (runtime/src/attend.ts, `decrireAttentes`) : sa tête, une ligne par attente — son nom,
 // depuis combien de temps, ce qui attend et le geste, son titre —, puis ce qui n'est pas une décision. Les durées se
 // comptent jusqu'à la lecture (`lu`). Ce qui attend le chef lu de GitHub (attente-du-chef.ts, #2460) passe par lui :
-// l'app et le second en lisent le même bloc. `railBloque` : le rail bloqué (#3358), sa ligne sous la tête — celle que
-// `brigade <project> status` écrit au même endroit (runtime/src/rail-bloque/status.ts).
+// l'app et le second en lisent le même bloc. `railBloque` : le rail bloqué (#3358), sa ligne sous la tête.
 export function blocAwaiting({ file, bilans, lu, depot = "", railBloque }: { file: readonly LigneDeLaFile[]; bilans: readonly string[]; lu: string; depot?: string; railBloque?: RailBloqueLu }): string[] {
   const depuis = (instant: string) => dureeEn(Date.parse(lu) - Date.parse(instant));
   const [premiere] = file;

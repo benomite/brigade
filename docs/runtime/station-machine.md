@@ -142,12 +142,12 @@ Every call by the station and its projects to GitHub (issue polling in `github.t
   go on` when it starts, `brigade : GitHub <kind> calls resumed` when the next call of that kind leaves
   (a pause of every kind keeps `brigade : GitHub limit reached — no call leaves the station before
   HH:MM` and `brigade : GitHub calls resumed`). A pause of the gist alone does not hold the kitchen:
-  `status`, `facts` and the held-kitchen detector do not see it (#3481). A GitHub-only turn stopped by
+  `status` and `facts` do not see it (#3481). A GitHub-only turn stopped by
   the pause takes its next turn at the pause's end when that comes before the interval, never later than
   the interval (#3448, [diagnosis](claim-wait-espace-2026-11-13.md)): claimable tickets no longer wait
   up to 2 more minutes once the pause is over. The counter keeps each pause that starts, with its
   refusal (status, `x-ratelimit-resource`, `retry-after`), in its `pauses` table, with its kind, for an
-  hour after its end; a held kitchen reads it (`etat-et-mesures.md`); the manager, the GitHub-only turn
+  hour after its end; the manager, the GitHub-only turn
   and the stale-branch cleanup say nothing of it. The resumption is automatic. During a pause of the
   gist the station does not write its state on GitHub — except its registration
   (`runtime/src/enregistrement-station/`, #2443), written outside the pause with `heldBy` (the limit,

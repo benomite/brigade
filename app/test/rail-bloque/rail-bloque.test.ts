@@ -2,7 +2,8 @@
 // le geste quand il y en a un —, le projet « stuck » sur « Tous les projets », et rien de tout cela pour un projet calme.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { diagnostiquer, MOTS_DU_GESTE, type RailBloque, type StationDuCompte } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import { MOTS_DU_GESTE, type StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
+import { diagnostiquer, type RailBloque } from "../../src/rail-bloque/diagnostic.ts";
 import { ligneDeProjet } from "../../src/accueil.ts";
 import { comprendre, tableau, type Faits } from "../../src/faits.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";

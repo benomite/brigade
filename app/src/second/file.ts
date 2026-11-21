@@ -20,7 +20,7 @@ import { corpsLu, type AppelGitHub } from "../tableau/client.ts";
 import { ecritureSurLeDepot } from "../tableau/ecriture.ts";
 import { EVENEMENT, type Cible } from "./crochet-de-la-file.ts";
 import { lireLesStationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
-import type { StationsLues } from "../../../runtime/src/rail-bloque/rail-bloque.ts";
+import type { StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { lireLeRailBloque } from "../vue/rail-bloque/rail-bloque.ts";
 
 // Ce que la lecture entière a pour se faire, toutes ses vagues d'appels comprises — sous le délai du crochet
@@ -76,8 +76,7 @@ export function appelParGh(gh: string, delaiMs: number = DELAI_MS): AppelGitHub 
 }
 
 // Ce qui attend le chef dans ce dépôt, lu comme le TODO de l'app le lit, rendu dans le bloc `awaiting`. `stations` : les
-// stations du compte — avec elles, le rail bloqué (#3358) se lit aussi, et sa ligne vient sous la tête du bloc, la même
-// que `brigade <project> status` écrit (runtime/src/rail-bloque/status.ts).
+// stations du compte — avec elles, le rail bloqué (#3358) se lit aussi, et sa ligne vient sous la tête du bloc.
 export async function lireLaFile(appeler: AppelGitHub, depot: string, maintenant: () => Date = () => new Date(), stations?: () => Promise<StationsLues>): Promise<Lecture> {
   const instant = maintenant();
   const [lue, railBloque] = await Promise.all([
