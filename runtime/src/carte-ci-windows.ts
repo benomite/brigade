@@ -29,6 +29,15 @@ export function accuseeTantQueRouge(journal: Journal, ticket: number): boolean {
   return marques.at(-1)?.type === "todo.answered";
 }
 
+// Le check revenu vert : sa carte sort de TODO, et une carte à laquelle le chef
+// a répondu tant qu'il était rouge est close, pour qu'un rouge suivant la
+// repose. Vrai si la carte est sortie de TODO.
+export function sortirAuVert(journal: Journal, projet: string, ticket: number, pourquoi: string): boolean {
+  if (cartesEnTodo(journal.base).some((carte) => carte.ticket === ticket)) return sortirDeTodo(journal, projet, ticket, pourquoi, AUTEUR);
+  if (accuseeTantQueRouge(journal, ticket)) journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "todo.left", payload: { why: pourquoi } });
+  return false;
+}
+
 export type CheckVu = { name?: string; outcome: "green" | "red" | "pending" };
 
 // Pose ou retire la carte de chaque check Windows lu sur la base. Rouge : la
@@ -60,9 +69,7 @@ export function suivreLesChecksWindows(journal: Journal, projet: string, branche
       }, AUTEUR);
       if (entree.porte === "todo") entrees.push(nom);
     } else if (lus.every((check) => check.outcome === "green")) {
-      const pourquoi = `${nom} is green on ${branche}`;
-      if (enTodo && sortirDeTodo(journal, projet, ticket, pourquoi, AUTEUR)) sorties.push(nom);
-      else if (!enTodo && accuseeTantQueRouge(journal, ticket)) journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "todo.left", payload: { why: pourquoi } });
+      if (sortirAuVert(journal, projet, ticket, `${nom} is green on ${branche}`)) sorties.push(nom);
     }
   }
   return { entrees, sorties };

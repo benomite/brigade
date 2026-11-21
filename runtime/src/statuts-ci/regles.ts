@@ -20,8 +20,8 @@
 // d'une cible, du plus récent au plus ancien. Les règles s'éprouvent sur des
 // doublures ; la station les lit des checks de la base (le tour) et des runs de
 // la branche du ticket (`ciDeLaBranche`).
-import { accuseeTantQueRouge, ticketDuCheck, type CheckVu } from "../carte-ci-windows.ts";
-import { cartesEnTodo, cartesRetenues, entrerDansTodo, sortirDeTodo } from "../carte-todo.ts";
+import { accuseeTantQueRouge, sortirAuVert, ticketDuCheck, type CheckVu } from "../carte-ci-windows.ts";
+import { cartesEnTodo, cartesRetenues, entrerDansTodo } from "../carte-todo.ts";
 import { CONCLUSIONS_VERTES, ECHECS_ATTEINTS } from "../github.ts";
 import type { Journal } from "../journal.ts";
 import type { RunDeCi } from "../temps-ticket/ci-github.ts";
@@ -131,12 +131,7 @@ export async function evaluerMain({ statuts, journal, projet, cuisinePeutReparer
   const ticket = ticketDuRougeDe(branche);
   const enTodo = cartesEnTodo(journal.base).some((carte) => carte.ticket === ticket);
   const rouges = derniers.filter(({ outcome }) => outcome === "red").map(({ check }) => check);
-  if (rouges.length === 0) {
-    const pourquoi = `${branche} is green again`;
-    if (enTodo) return { carte: sortirDeTodo(journal, projet, ticket, pourquoi, AUTEUR) ? "sortie" : "aucune" };
-    if (accuseeTantQueRouge(journal, ticket)) journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "todo.left", payload: { why: pourquoi } });
-    return { carte: "aucune" };
-  }
+  if (rouges.length === 0) return { carte: sortirAuVert(journal, projet, ticket, `${branche} is green again`) ? "sortie" : "aucune" };
   // La cuisine peut encore le rendre vert : il est à elle. Une carte déjà dans
   // TODO, retenue par le triage, ou à laquelle le chef a répondu tant que le
   // rouge dure : rien n'est reproposé.
