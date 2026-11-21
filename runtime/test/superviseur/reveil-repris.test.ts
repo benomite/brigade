@@ -5,16 +5,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import type { FaitsDuProjet } from "../../src/superviseur/declencheur.ts";
-import { REVEIL_REPRIS_MS, superviseur } from "../../src/superviseur/superviseur.ts";
+import { superviseur } from "../../src/superviseur/superviseur.ts";
 import { repertoireTemporaire } from "../outils.ts";
 import { FauxDepot } from "./faux-depot.ts";
 
+// Le délai du superviseur (`superviseur.ts`) : trente minutes.
+const REVEIL_REPRIS_MS = 30 * 60_000;
 const DEPART = Date.parse("2026-11-20T10:00:00.000Z");
 const ROUGE: FaitsDuProjet = { dernierMerge: null, cuisinables: [], prises: [], mainRougeDepuis: "2026-11-20T09:45:00.000Z" };
 const PRIS: FaitsDuProjet = { ...ROUGE, mainRougeDepuis: null, prises: [{ ticket: 40, prises: 3 }] };
 
 test("une même cause ne relance le manager qu'après REVEIL_REPRIS_MS ; une autre cause, aussitôt", async (t) => {
-  assert.equal(REVEIL_REPRIS_MS, 30 * 60_000);
   const journal = ouvrirJournal(repertoireTemporaire(t));
   t.after(() => journal.fermer());
   const depot = new FauxDepot();

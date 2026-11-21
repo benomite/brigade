@@ -3,14 +3,13 @@
 // dossier du superviseur porte (`superviseur/dossier.ts`).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { estInformatif, LIGNES_MAX, SORTIE_MAX, sortieDErreur } from "../src/checks-de-la-branche.ts";
+import { estInformatif, sortieDErreur } from "../src/checks-de-la-branche.ts";
 
 test("the error output keeps the end of the log up to its last error, truncated on a whole line", () => {
-  assert.equal(SORTIE_MAX, 6_000);
   const lignes = Array.from({ length: 500 }, (_, i) => `2026-11-04T16:40:00Z line ${i}`);
   const sortie = sortieDErreur([...lignes, "2026-11-04T16:41:00Z ##[error]boom", "2026-11-04T16:41:01Z Cleaning up"].join("\n"));
   const gardees = sortie.split("\n");
-  assert.equal(gardees.length, LIGNES_MAX);
+  assert.equal(gardees.length, 80);
   assert.equal(gardees.at(-1), "##[error]boom");
   assert.ok(!sortie.includes("Cleaning up"));
 

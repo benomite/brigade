@@ -6,7 +6,7 @@ import { DE_CONFIANCE } from "../../../runtime/src/alimenter.ts";
 import { corpsDePriseDuManager, corpsDeTravailFait, estUnePriseDuManager } from "../../../runtime/src/github-etat/prise-du-manager.ts";
 import { MARQUEUR_MANAGER } from "../../../runtime/src/juger.ts";
 import { DELAI_MS, type StationDuCompte, type StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
-import { AUTEURS_DE_CONFIANCE, diagnostiquer, lireLesNonPris, MARQUE_DE_PRISE, MARQUEUR_DU_MANAGER, prisParUnManager, type TicketNonPris } from "../../src/rail-bloque/diagnostic.ts";
+import { diagnostiquer, lireLesNonPris, type TicketNonPris } from "../../src/rail-bloque/diagnostic.ts";
 
 const DEPOT = "benomite/secondes";
 const MAINTENANT = Date.parse("2026-11-12T02:30:00.000Z");
@@ -89,24 +89,30 @@ describe("le diagnostic", () => {
 });
 
 describe("pris par un manager", () => {
-  test("ses marques sont celles du runtime : la prise du manager, son jugement, ses auteurs de confiance", () => {
+  // Pris si sa lecture ne le compte pas parmi les tickets non pris.
+  const pris = async (labels: string[], commentaires: { body: string; association: string }[]) => {
+    const issue = { number: 4, title: "#4", body: "", created_at: "2026-11-01T00:00:00Z", labels: labels.map((name) => ({ name })) };
+    const lire = async (chemin: string) => (chemin.endsWith("/comments?per_page=100") ? commentaires.map(({ body, association }) => ({ body, author_association: association })) : []);
+    return (await lireLesNonPris({ depot: "benomite/secondes", issues: [issue], lire })).length === 0;
+  };
+
+  test("ses marques sont celles du runtime : la prise du manager, son jugement, ses auteurs de confiance", async () => {
     for (const corps of [corpsDePriseDuManager("box/claude", "ab12", "cd34"), corpsDeTravailFait("box/claude", "ab12", "cd34")]) {
       assert.ok(estUnePriseDuManager(corps));
-      assert.match(corps, MARQUE_DE_PRISE);
+      assert.ok(await pris(["fire"], [{ body: corps, association: "OWNER" }]));
     }
-    assert.equal(MARQUEUR_DU_MANAGER, MARQUEUR_MANAGER);
-    assert.deepEqual(AUTEURS_DE_CONFIANCE, DE_CONFIANCE);
+    for (const association of DE_CONFIANCE) assert.ok(await pris(["fire"], [{ body: `${MARQUEUR_MANAGER}\nA ticket.`, association }]), association);
   });
 
-  test("qualifié, écarté, en cuisson, pris ou jugé par le manager : pris ; sinon, non", () => {
-    assert.ok(prisParUnManager(["fire", "model:opus"], []));
-    assert.ok(prisParUnManager(["fire", "effort:medium"], []));
-    for (const label of ["blocked-on-human", "question", "taken", "in-pass", "waiting"]) assert.ok(prisParUnManager(["fire", label], []), label);
-    assert.ok(prisParUnManager(["fire"], [{ body: corpsDePriseDuManager("box/claude", "ab12", "cd34"), association: "OWNER" }]));
-    assert.ok(prisParUnManager(["fire"], [{ body: `${MARQUEUR_MANAGER}\nA ticket.`, association: "MEMBER" }]));
-    assert.ok(!prisParUnManager(["fire", "prio:1"], [{ body: "When will this ship?", association: "OWNER" }]));
+  test("qualifié, écarté, en cuisson, pris ou jugé par le manager : pris ; sinon, non", async () => {
+    assert.ok(await pris(["fire", "model:opus"], []));
+    assert.ok(await pris(["fire", "effort:medium"], []));
+    for (const label of ["blocked-on-human", "question", "taken", "in-pass", "waiting"]) assert.ok(await pris(["fire", label], []), label);
+    assert.ok(await pris(["fire"], [{ body: corpsDePriseDuManager("box/claude", "ab12", "cd34"), association: "OWNER" }]));
+    assert.ok(await pris(["fire"], [{ body: `${MARQUEUR_MANAGER}\nA ticket.`, association: "MEMBER" }]));
+    assert.ok(!(await pris(["fire", "prio:1"], [{ body: "When will this ship?", association: "OWNER" }])));
     // Tout le monde peut commenter une issue publique : une marque d'un inconnu ne compte pas.
-    assert.ok(!prisParUnManager(["fire"], [{ body: corpsDePriseDuManager("box/claude", "ab12", "cd34"), association: "NONE" }]));
+    assert.ok(!(await pris(["fire"], [{ body: corpsDePriseDuManager("box/claude", "ab12", "cd34"), association: "NONE" }])));
   });
 });
 

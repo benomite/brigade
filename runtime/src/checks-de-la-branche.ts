@@ -12,8 +12,8 @@ export const estInformatif = (check: CheckDeLaBase) => /^windows (app )?tests\b/
 
 // Ce qu'on garde d'un journal de job : ses dernières lignes, jusqu'à la
 // dernière erreur que GitHub Actions y annonce, `SORTIE_MAX` caractères au plus.
-export const LIGNES_MAX = 80;
-export const SORTIE_MAX = 6_000;
+const LIGNES_MAX = 80;
+const SORTIE_MAX = 6_000;
 
 const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
 const HORODATAGE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ?/;

@@ -23,7 +23,7 @@ export type OptionsDuSuperviseur = {
   maintenant?: () => Date;
 };
 
-export const REVEIL_REPRIS_MS = 30 * 60_000;
+const REVEIL_REPRIS_MS = 30 * 60_000;
 
 // Rend la promesse du run lancé, ou null quand rien ne part.
 export function superviseur({ projet, depot, sources, manager, maintenant = () => new Date() }: OptionsDuSuperviseur): (faits: FaitsDuProjet) => Promise<void> | null {
