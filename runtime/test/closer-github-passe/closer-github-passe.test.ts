@@ -471,14 +471,13 @@ describe("the drift on the GitHub-only path", () => {
     const f = fauxClone();
     const couts: Record<number, CookMesure[]> = { 119: [cook(800, true)], 117: [cook(900, false), cook(700, true)], 101: [cook(9_000, true)] };
     const notes: DeriveGithub[] = [];
-    const seuils = () => ({ ...SANS_SEUIL, merges: 5, ticketTokens: 1_000, lostTokens: 800 });
+    const seuils = () => ({ ...SANS_SEUIL, ticketTokens: 1_000, lostTokens: 800 });
     const k = brancher(t, { github: gh.github, clone: f.clone, reglages: SANS_CLOSER, derive: { seuils, couts: (ticket) => couts[ticket] ?? [], noter: (derive) => void notes.push(derive) } });
     k.reveiller();
     await jusqua(() => notes.length === 1);
     assert.deepEqual(notes[0], {
       at: MAINTENANT.toISOString(),
       franchis: [
-        { measure: "merges", observed: 5, limit: 5 },
         { measure: "tokens_ticket", observed: 1_600, limit: 1_000 },
         { measure: "tokens_perdus", observed: 900, limit: 800 },
       ],
@@ -486,13 +485,12 @@ describe("the drift on the GitHub-only path", () => {
       merges: 5,
     });
     assert.deepEqual(k.avertissements, [
-      "brigade : drift — 5 merges since the last closing for a threshold of 5",
       "brigade : drift — tokens of the costliest ticket of the last 10 merges 1,600 for a threshold of 1,000",
       "brigade : drift — tokens lost over the last 10 merges 900 for a threshold of 800",
     ]);
     k.reveiller();
     await jusqua(() => notes.length === 2);
-    assert.equal(k.avertissements.length, 3);
+    assert.equal(k.avertissements.length, 2);
     // Read, nothing opened: the closer is not set.
     assert.deepEqual(gh.creees, []);
   });

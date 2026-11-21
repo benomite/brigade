@@ -185,7 +185,7 @@ test("le journal, s'il est là, dit les compteurs de la dérive : les merges dep
   const etat = repertoireTemporaire(t);
   const journal = ouvrirJournal(etat, { maintenant: horloge() });
   const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
-  noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, merges: 2 } } });
+  noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, gatesSeconds: 100 } } });
   for (const ticket of [17, 18, 19]) noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
   journal.fermer();
 
@@ -193,9 +193,9 @@ test("le journal, s'il est là, dit les compteurs de la dérive : les merges dep
   const avant = await observer(clone, { BRIGADE_STATE_DIR: etat });
   assert.match(avant.sortie, /\nlog        merges not yet counted by a closing pass — no threshold crossed\n$/);
 
-  noterDeriveGithub(etat, { at: "2026-11-07T10:00:00.000Z", franchis: [{ measure: "merges", observed: 3, limit: 2 }], merges: 3 });
+  noterDeriveGithub(etat, { at: "2026-11-07T10:00:00.000Z", franchis: [{ measure: "gates_s", observed: 150, limit: 100 }], merges: 3 });
   const avec = await observer(clone, { BRIGADE_STATE_DIR: etat });
-  assert.match(avec.sortie, /\nlog        3 merges since the last closing — 1 threshold crossed, details with `brigade <projet> measures`\n {11}3 merges since the last closing for a threshold of 2\n$/);
+  assert.match(avec.sortie, /\nlog        3 merges since the last closing — 1 threshold crossed, details with `brigade <projet> measures`\n {11}gates 150 s for a threshold of 100 s\n$/);
 
   const sans = await observer(clone);
   assert.match(sans.sortie, /\nlog        not read: BRIGADE_STATE_DIR is not set — the drift counters are read with `brigade <projet> measures`\n$/);

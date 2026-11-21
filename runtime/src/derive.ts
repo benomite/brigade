@@ -25,17 +25,9 @@ export function lireSeuils(env: NodeJS.ProcessEnv): Seuils {
     return lire(env, variable, 0, entier ? "un entier supérieur à zéro" : "un nombre supérieur à zéro", (valeur) => valeur > 0 && Number.isFinite(valeur) && (!entier || Number.isSafeInteger(valeur)));
   };
   return {
-    tests: seuil("BRIGADE_DRIFT_TESTS", true),
-    testsSeconds: seuil("BRIGADE_DRIFT_TESTS_SECONDS"),
     gatesSeconds: seuil("BRIGADE_DRIFT_GATES_SECONDS") ?? SEUIL_DUREE_GATES_PAR_DEFAUT,
-    contextKb: seuil("BRIGADE_DRIFT_CONTEXT_KB"),
-    repoMb: seuil("BRIGADE_DRIFT_REPO_MB"),
-    merges: seuil("BRIGADE_DRIFT_MERGES", true),
-    growthPercent: seuil("BRIGADE_DRIFT_GROWTH_PERCENT"),
     ticketTokens: seuil("BRIGADE_DRIFT_TICKET_TOKENS", true),
     lostTokens: seuil("BRIGADE_DRIFT_LOST_TOKENS", true),
-    firstTryPercent: seuil("BRIGADE_DRIFT_FIRST_TRY_PERCENT"),
-    firstTryWindow: seuil("BRIGADE_DRIFT_FIRST_TRY_WINDOW", true),
   };
 }
 

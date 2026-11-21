@@ -18,8 +18,7 @@ import { CAUSES, classerEssai, essaisRates, SANS_SIGNAUX, type Cause, type Signa
 import { ouvrirJournal } from "../../journal.ts";
 import { CAUSES_DU_PROJET, miseDeCoteDu } from "../../mise-de-cote.ts";
 import { parcoursDesTickets } from "../../parcours-des-tickets.ts";
-import { seuilsEnVigueur } from "../../projections/measures.ts";
-import { mesurerRenvois, SEUIL_PREMIER_COUP_PAR_DEFAUT, type Essai, type Parcours } from "../../renvois.ts";
+import { mesurerRenvois, type Essai, type Parcours } from "../../renvois.ts";
 
 // Le nombre de tickets distincts sur lesquels un même échec doit se voir pour
 // être un échec qui revient. En deçà, il n'est pas dans le digest.
@@ -45,7 +44,7 @@ export type TicketMerge = { ticket: number; attempts: number; firstTry: boolean;
 export type Franchissement = { measure: string; observed: number; limit: number; at: string; evidence: Preuve[] };
 // La dérive : sur les tickets mergés dans la période, la part livrée du premier
 // coup (`share`, entre 0 et 1, nulle sans merge), face au seuil du projet en %.
-export type Derive = { merged: number; firstTry: number; share: number | null; thresholdPercent: number; below: boolean; tickets: TicketMerge[]; crossings: Franchissement[] };
+export type Derive = { merged: number; firstTry: number; share: number | null; tickets: TicketMerge[]; crossings: Franchissement[] };
 
 // Une livraison que la pass a jugée rouge. `cause` : celle de l'essai, rangé
 // comme les essais ratés le sont (`causes-des-ratages.ts`), nulle s'il n'est
@@ -223,14 +222,11 @@ type Citer = { issue: (ticket: number) => Preuve; pr: (url: string | null) => Pr
 function derive(base: Base, parcours: Parcours[], lus: Lu[], dedans: (at: string) => boolean, { issue, pr, ligne }: Citer): Derive {
   const merges = parcours.filter(({ end }) => end?.kind === "merged" && dedans(end.at));
   const { retenus, premierCoup } = mesurerRenvois(merges, merges.length);
-  const thresholdPercent = seuilsEnVigueur(base)?.firstTryPercent ?? SEUIL_PREMIER_COUP_PAR_DEFAUT;
   const firstTry = premierCoup === null ? 0 : Math.round(premierCoup * retenus);
   return {
     merged: retenus,
     firstTry,
     share: premierCoup,
-    thresholdPercent,
-    below: premierCoup !== null && premierCoup * 100 < thresholdPercent,
     tickets: merges.map(({ ticket, attempts, end }) => {
       const at = end?.at ?? "";
       const merge = lus.find((lu) => lu.type === "merge.done" && lu.ticket === ticket && lu.at === at);

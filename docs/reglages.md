@@ -54,15 +54,7 @@ The thresholds, each one in place of a variable of the box (the four cost ones a
 |---|---|---|---|
 | `drift.ticketTokens` | tokens of the most expensive ticket | integer > 0 | `seuil-ticket` |
 | `drift.lostTokens` | lost tokens | integer > 0 | `seuil-perdus` |
-| `drift.firstTryPercent` | share of tickets delivered first try, in % | number > 0 | `seuil-renvois` |
-| `drift.firstTryWindow` | window of that threshold, in tickets | integer > 0 | `fenetre-renvois` |
-| `drift.contextKb` | size of the context a cook receives, in KB | number > 0 | `BRIGADE_DRIFT_CONTEXT_KB` |
 | `drift.gatesSeconds` | duration of the gates, in seconds | number > 0 | `BRIGADE_DRIFT_GATES_SECONDS` |
-| `drift.growthPercent` | growth of the project's measures, in % | number > 0 | `BRIGADE_DRIFT_GROWTH_PERCENT` |
-| `drift.merges` | merges per reading | integer > 0 | `BRIGADE_DRIFT_MERGES` |
-| `drift.repoMb` | size of the repository, in MB | number > 0 | `BRIGADE_DRIFT_REPO_MB` |
-| `drift.tests` | number of tests | integer > 0 | `BRIGADE_DRIFT_TESTS` |
-| `drift.testsSeconds` | duration of the tests, in seconds | number > 0 | `BRIGADE_DRIFT_TESTS_SECONDS` |
 | `correction.threshold` | repeated corrections that raise a proposal | integer ≥ 2 | `BRIGADE_CORRECTION_THRESHOLD` |
 | `correction.window` | window, in tickets, in which corrections are counted | integer > 0 | `BRIGADE_CORRECTION_WINDOW` |
 | `profile.window` | window, in tickets, a cook profile is computed from | integer > 0 | `BRIGADE_PROFILE_WINDOW` |
@@ -139,8 +131,7 @@ branch takes effect at the next fetch, with no restart and no `sudo`.
   or from the default; `brigade <projet> closing --json` says the same in `closer.from`.
 - **The thresholds**, one by one: a key of `drift`, `correction`, `profile` or `gates` the file leaves out is the
   box's (the gesture's decision, else the variable of the station's line), and without one, the runtime's
-  default. A box whose project has no file keeps its gestures (`seuil-ticket`, `seuil-perdus`,
-  `seuil-renvois`, `fenetre-renvois`) and its variables exactly as before; while the file sets a key,
+  default. A box whose project has no file keeps its gestures (`seuil-ticket`, `seuil-perdus`) and its variables exactly as before; while the file sets a key,
   the gesture's decision is ignored, and `station` says so. The four budgets of `gates` are reread at
   each use, and the `budget-*` gestures keep working on a box with no file; `gates.timeoutSeconds` and
   `gates.ciWaitSeconds` are read when the kitchen opens, so a change reaches them at the station's next

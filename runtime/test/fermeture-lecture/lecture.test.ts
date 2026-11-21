@@ -137,7 +137,7 @@ test("la dérive dit si un seuil est franchi, au seuil que le chef a déclaré a
   assert.deepEqual(sansSeuil.drift, { declared: false, crossed: false, crossings: [] });
 
   const lieu = projet(t);
-  lieu.noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, merges: 2 } } });
+  lieu.noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, gatesSeconds: 100 } } });
   // Trois merges au journal ne franchissent rien : il ne voit plus un merge (#2061, #2707).
   for (const ticket of [17, 18, 19]) lieu.noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
   const sous = await lire(lieu);
@@ -145,10 +145,10 @@ test("la dérive dit si un seuil est franchi, au seuil que le chef a déclaré a
   assert.deepEqual(sous.drift, { declared: true, crossed: false, crossings: [] });
 
   // Ce que la passe du closer a relevé sur le clone, si.
-  noterDeriveGithub(lieu.etat, { at: "2026-11-07T10:00:00.000Z", franchis: [{ measure: "merges", observed: 3, limit: 2 }], merges: 3 });
+  noterDeriveGithub(lieu.etat, { at: "2026-11-07T10:00:00.000Z", franchis: [{ measure: "gates_s", observed: 150, limit: 100 }], merges: 3 });
   const franchi = await lire(lieu);
   assert.ok(franchi.configured);
-  assert.deepEqual(franchi.drift, { declared: true, crossed: true, crossings: [{ measure: "merges", observed: 3, limit: 2, text: "3 merges since the last closing for a threshold of 2" }] });
+  assert.deepEqual(franchi.drift, { declared: true, crossed: true, crossings: [{ measure: "gates_s", observed: 150, limit: 100, text: "gates 150 s for a threshold of 100 s" }] });
 });
 
 test("une demande qui attend dit ce qui la retient : combien de cooks en vol, pour quel seuil", async (t) => {
