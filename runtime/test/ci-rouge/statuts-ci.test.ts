@@ -87,6 +87,15 @@ test("a red main: the card names its checks and asks one question; unreadable st
   assert.deepEqual(await evaluerMain({ ...base, statuts: verts, cuisinePeutReparer: async () => false }), { carte: "aucune" });
 });
 
+test("another red's card in TODO does not hold back this branch's card: each red has its own", async (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  aArreter(t, () => journal.fermer());
+  const entree = { journal, projet: "brigade", statuts: statutsFixes({ main: [rouge("unit", 900)] }), cuisinePeutReparer: async () => false };
+  assert.deepEqual(await evaluerMain({ ...entree, branche: "trunk" }), { carte: "entree" });
+  assert.deepEqual(await evaluerMain(entree), { carte: "entree" });
+  assert.deepEqual(cartesEnTodo(journal.base).map(({ ticket }) => ticket).sort(), [ticketDuRougeDe("trunk"), ticketDuRougeDe("main")].sort());
+});
+
 test("a card the chef answered while main stays red does not come back before the green; a card held by the triage is not proposed again", async (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   aArreter(t, () => journal.fermer());
