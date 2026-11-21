@@ -14,7 +14,7 @@ import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { depuis1826, depuis1834, depuis1862, depuis1893, depuis1894, depuis1971, depuis2037, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
+import { depuis1826, depuis1834, depuis1862, depuis1893, depuis1894, depuis1971, depuis2037, depuis3945, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -185,9 +185,9 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
   const courant = JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE)));
   // Le jugement du manager en cours sur #9 tourne sur la box (#1971).
-  const avant = depuis1971(depuis2037(depuis1844(depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")))))))), courant), [
+  const avant = depuis3945(depuis1971(depuis2037(depuis1844(depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")))))))), courant), [
     { role: "manager", station: "box/claude", ticket: 9, fait: "qualifying the issue", depuis: "2026-10-12T10:02:00.000Z" },
-  ]);
+  ]));
   assert.deepEqual(courant, avant);
 });
 
@@ -204,10 +204,8 @@ test("une saturation et une dérive se disent en anglais, nombres compris", () =
   assert.equal(direSaturationEn({ resource: "memory", observed: 1234.5, limit: 2000 }), "1,234.5 MB of memory available for at least 2,000 MB");
   assert.equal(direSaturationEn({ resource: "disk", observed: 800, limit: 1000 }), "800 MB of disk free for at least 1,000 MB");
   assert.equal(direJaugeEn({ measure: "tests", observed: 622, limit: 500 }), "tests 622 for a threshold of 500");
-  assert.equal(direJaugeEn({ measure: "merges", observed: 12, limit: 10 }), "12 merges since the last closing for a threshold of 10");
-  assert.equal(direJaugeEn({ measure: "growth:depot_octets", observed: 25.4, limit: 20 }), "repo +25% over 10 merges for a threshold of 20%");
   assert.equal(direJaugeEn({ measure: "gates_s", observed: 31.25, limit: 30 }), "gates 31.3 s for a threshold of 30 s");
-  assert.equal(SANS_SEUIL.tests, null);
+  assert.equal(SANS_SEUIL.ticketTokens, null);
 });
 
 // La ligne `projet` n'est pas entre backticks dans le glossaire (le test de glossaire ne l'y lit pas) : elle se

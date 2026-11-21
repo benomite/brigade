@@ -14,7 +14,7 @@
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
-import type { AlerteDuRail } from "../../runtime/src/attente-du-rail/alertes.ts";
+import type { AlerteDuRail } from "./attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";

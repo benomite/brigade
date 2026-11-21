@@ -121,7 +121,7 @@ export function comprendre(sortie: string): Amont | { informe: string } {
   }
 }
 
-// Une issue que la cuisine ouvre sur elle-même : la cuisine oisive (runtime/src/guerison/cuisine-inerte.ts). Ce n'est pas un besoin : son contenu devient la ligne d'état du rail.
+// Une issue que la cuisine ouvre sur elle-même : la cuisine oisive (que le runtime n'ouvre plus depuis #3945 ; celles déjà ouvertes restent lues). Le disjoncteur n'ouvre plus d'issue (#3911). Ce n'est pas un besoin : son contenu devient la ligne d'état du rail.
 export function alerteDeLaCuisine({ ticket, titre }: Pick<Donnee, "ticket" | "titre">): AlerteDeLaCuisine | undefined {
   if (/^The kitchen is idle\b/.test(titre)) return { ticket, titre, genre: "inerte", dit: titre.replace(/^The kitchen is idle/, "Kitchen idle") };
   return undefined;

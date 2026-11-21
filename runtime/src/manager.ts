@@ -51,7 +51,7 @@ import { ouvrirRoadmap } from "./manager/roadmap.ts";
 import { ouvrirVerdictIncomplet } from "./manager/verdict-incomplet.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { estLaPauseDeGitHub } from "./limite-github.ts";
-import { alerteDeLaCuisine, horsDesTickets } from "./alerte-cuisine/alerte-cuisine.ts";
+import { alerteDeLaCuisine, horsDesTickets } from "./issue-de-la-cuisine.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -272,7 +272,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const fired = issue.labels.includes(LABEL);
     // Une alerte que la station a ouverte sur la cuisine elle-même n'est jamais
     // un ticket du projet : ni jugée, ni lancée, ni au chef, quoi qu'elle porte (#3620).
-    if (horsDesTickets(alerteDeLaCuisine(issue), options.depotGitHub)) return { quoi: "ecart", raison: "kitchen-alert", fired };
+    if (horsDesTickets(alerteDeLaCuisine(issue))) return { quoi: "ecart", raison: "kitchen-alert", fired };
     // Une idée en réserve n'est jamais lue : ni jugée, ni qualifiée, ni au chef (#3536).
     if (issue.labels.includes(LABEL_IDEE)) return { quoi: "ecart", raison: "idea", fired };
     // La roadmap est un document de suivi, jamais un ticket : reconnue avant

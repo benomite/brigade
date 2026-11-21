@@ -9,8 +9,6 @@
 //   cook ne travaille, jamais au chef (`../ci-rouge/ci-rouge.ts`, #2970) ;
 // - la clôture d'une épique dont tous les sous-tickets sont fermés
 //   (`epique-finie.ts`, #2754) ;
-// - le bug d'une cuisine inerte : des tickets à prendre, et rien n'avance
-//   depuis 90 min (`cuisine-inerte.ts`, #2755), déposé sur la brigade (#3620) ;
 // - le défaut d'une carte de TODO sans question, déposé sur la brigade
 //   (`../signalement-carte-sans-question.ts`, #3134).
 // La lacune technique que le manager complète seul (#2753) est dans ses
@@ -18,21 +16,19 @@
 //
 // Un geste qui échoue ne retient pas les autres : son erreur va à `avertir`.
 // Rien n'est propre à un dépôt : le projet, sa base et sa station viennent de
-// l'appelant. Ce qui se tient d'un tour à l'autre (l'horloge des claims, celle
-// de l'inertie) vit dans l'objet que rend `ouvrirGuerison`, un par station.
+// l'appelant. Ce qui se tient d'un tour à l'autre (l'horloge des claims) vit
+// dans l'objet que rend `ouvrirGuerison`, un par station.
 import { cartesDesIssues } from "../attente-github/attente-github.ts";
-import { A_LA_MAIN, brancheDuTicket, termeDeLAttente } from "../brigade-github.ts";
-import { calibrage, complet } from "../calibrage.ts";
+import { brancheDuTicket } from "../brigade-github.ts";
 import { aExaminer, renvoyerLesCiRouges, type PROuverte } from "../ci-rouge/ci-rouge.ts";
-import type { Check } from "../events/pass.ts";
-import { estMisDeCote, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type PR } from "../github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { estMisDeCote, type GitHub, type Issue, type PR } from "../github.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
 import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "../github-etat/fusion.ts";
+import type { Check } from "../events/pass.ts";
 import { lireTenant, type RetraitDeLabel } from "../github-etat/prise.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { ouvrirClaimPerime } from "./claim-perime.ts";
-import { DEPOT_BRIGADE, marqueDuProjet, type GitHubDeLaBrigade } from "../routage-temps-perdu.ts";
-import { signalerInertie, type TenantDeZone } from "./cuisine-inerte.ts";
+import { DEPOT_BRIGADE, type GitHubDeLaBrigade } from "../issue-de-la-cuisine.ts";
 import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
@@ -49,20 +45,17 @@ export type GitHubDeLaGuerison = {
   prDuTicket(issue: number): Promise<(PRAFusionner & Partial<Pick<PR, "base">>) | null>;
   // Les checks de la CI sur le commit `sha`.
   ci(sha: string): Promise<Pick<Check, "outcome" | "name">[]>;
-  creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
 };
 
 // Ce que la guérison demande au client du tour, et rien de plus. `issue` :
-// absent, les épiques ne se ferment pas. `issuesDepuis` : absent, le bug de
-// l'inertie ne se retrouve que s'il a été ouvert par cette station.
-// `prsOuvertes` : absent, aucune PR rouge n'est renvoyée.
+// absent, les épiques ne se ferment pas. `prsOuvertes` : absent, aucune PR
+// rouge n'est renvoyée.
 export type GitHubDuProjet = GitHubDeLaGuerison &
   Pick<GitHub, "fermerIssue"> & {
     retraitsDeLabels(numero: number): Promise<RetraitDeLabel[]>;
     prsOuvertes?(): Promise<PROuverte[]>;
     prOuverteDuTicket?: GitHubDeLaGuerison["prDuTicket"];
     issue?: GitHub["issue"];
-    issuesDepuis?: (instant: string) => Promise<(Pick<IssueOuverte, "number" | "body"> & Partial<Pick<IssueOuverte, "labels" | "state">>)[]>;
   };
 
 // Un ticket tel que le tour le lit.
@@ -75,16 +68,15 @@ export type OptionsDeLaGuerison = {
   // La branche d'intégration du projet.
   base: string;
   avertir: (message: string) => void;
-  // Le projet servi et le GitHub de la brigade : le bug de l'inertie se dépose
-  // sur la brigade, jamais dans le dépôt du projet (#3098, #3620). Sur la
-  // brigade elle-même, il reste dans son dépôt ; sans eux, il ne se dépose pas.
+  // Le projet servi et le GitHub de la brigade : le défaut d'une carte sans
+  // question se dépose sur la brigade (#3134) ; sans eux, il ne se dépose pas.
   servi?: string;
   brigade?: GitHubDeLaBrigade;
   // En millisecondes ; l'horloge du système par défaut.
   maintenant?: () => number;
 };
 
-export type Geste = "claim" | "ci-rouge" | "in-pass" | "epique" | "inertie" | "sans-question";
+export type Geste = "claim" | "ci-rouge" | "in-pass" | "epique" | "sans-question";
 
 // Ce qu'un tour de guérison a fait, geste par geste. `tickets` : ceux du tour
 // tels que la guérison les laisse — un
@@ -98,8 +90,6 @@ export type BilanDeLaGuerison<T extends TicketDuTour = TicketDuTour> = {
   ciRouges: { ticket: number; leves: string[] }[];
   enPass: number[];
   epiquesFermees: number[];
-  // Le bug de la cuisine inerte, ouvert à ce tour.
-  inertie: number | null;
   echecs: { geste: Geste; message: string }[];
 };
 
@@ -107,35 +97,15 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 
 export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   const { github, station, base, avertir, servi } = options;
-  const projetBrigade = servi?.toLowerCase() === DEPOT_BRIGADE;
-  const brigade = servi === undefined || projetBrigade ? undefined : options.brigade;
-  // Une cuisine inerte sans brigade où déposer son bug : dit une fois.
-  let sansBrigadeDit = false;
   const maintenant = options.maintenant ?? Date.now;
   const claim = ouvrirClaimPerime({ github, maintenant });
   // Le défaut d'une carte sans question va sur la brigade, le projet servi la brigade elle-même compris :
   // sans son GitHub, rien ne se dépose.
   const sansQuestion = servi === undefined || options.brigade === undefined ? null : ouvrirSignalement({ servi, brigade: options.brigade, maintenant: () => new Date(maintenant()) });
-  // La dernière fois que la station a vu la cuisine au travail (un cook ici,
-  // un ticket pris ou en pass) ou sans rien à prendre : le tour ne lit pas les
-  // merges, c'est d'elle que l'inertie compte. Une cuisine sans ticket à
-  // prendre n'est pas inerte : sans cela, le premier ticket qui arrivait après
-  // 90 min de rail vide ouvrait le bug au tour même qui le prenait (#2865).
-  // Au départ, l'ouverture de la guérison.
-  let auTravailLe = maintenant();
-  // Le bug d'inertie que cette station a ouvert, s'il en est un.
-  let bugOuvert: number | null = null;
-  // Une semaine : le bug d'inertie se cherche parmi les issues touchées depuis.
-  const SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
-  // Un mois : sur la brigade, le bug d'un projet se cherche plus loin, comme les tickets d'une famille.
-  const MOIS_MS = 30 * 24 * 60 * 60 * 1000;
-
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
-  // les tickets qu'un cook de cette station cuisine en ce moment. `zonesTenues` :
-  // ceux que la porte de prise a sautés à son dernier tour, leur zone tenue.
-  // `sautes` : tous ceux qu'elle a sautés à ce tour-là, et la ligne qui dit pourquoi.
-  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>, zonesTenues: ReadonlyMap<number, TenantDeZone> = new Map(), sautes: ReadonlyMap<number, string> = new Map()): Promise<BilanDeLaGuerison<T>> {
-    const bilan: BilanDeLaGuerison<T> = { tickets: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], inertie: null, echecs: [] };
+  // les tickets qu'un cook de cette station cuisine en ce moment.
+  async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>): Promise<BilanDeLaGuerison<T>> {
+    const bilan: BilanDeLaGuerison<T> = { tickets: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
       bilan.echecs.push({ geste, message: dit });
@@ -220,76 +190,6 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
           echouer("epique", erreur, epique.number);
         }
       }
-    });
-
-    // Inerte : des tickets à prendre — ni de côté, ni pris, ni en pass, ni en
-    // attente (`waiting` : sa colonne, pas le rail, #1924), ni une épique, ni en
-    // attente du chef, calibrés —, et depuis `INERTIE_MINUTES` rien au travail
-    // alors qu'il y en avait à prendre.
-    // Un seul bug tant qu'il reste ouvert (#2755).
-    await tache("inertie", async () => {
-      const instant = maintenant();
-      const auTravail = enCuisine.size > 0 || tickets.some((t) => t.labels.includes(LABEL_TAKEN) || t.labels.includes(LABEL_IN_PASS));
-      // Comme la retenue (`retenue/tour.ts`) : un ticket qui attend le chef, ou
-      // dont le calibrage est incomplet, n'est pas prenable — la station le
-      // saute — et ne vaut pas une inertie. Un `waiting` non plus : il est sur
-      // sa colonne, pas sur le rail.
-      // Ni un ticket que l'attente d'après un arrêt retient : la porte de prise le saute (#2508, #2975).
-      const aPrendre: typeof tickets[number][] = [];
-      for (const t of tickets) {
-        if (t.epique === true || [...MIS_DE_COTE, LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => t.labels.includes(label)) || !complet(calibrage([...t.labels]))) continue;
-        // Ni un ticket dont la zone est tenue : la porte de prise le saute, et ce
-        // qui le tient se compte de lui-même — son ticket pris ou en pass est du
-        // travail, à prendre il vaut une inertie, mis de côté ou chez le chef il
-        // attend un humain, que rien sur le rail ne remplace (#2977).
-        if (zonesTenues.has(t.number)) continue;
-        // Illisibles, ses commentaires ne le retiennent pas : comme la porte.
-        if (termeDeLAttente(await github.commentaires(t.number).catch(() => []), instant) !== null) continue;
-        aPrendre.push(t);
-      }
-      if (auTravail || aPrendre.length === 0) auTravailLe = instant;
-      const fait = await signalerInertie({
-        maintenant: new Date(instant),
-        github: {
-          dernierMerge: async () => new Date(auTravailLe).toISOString(),
-          cuisinables: async () => aPrendre.map((t) => ({ number: t.number, title: t.title })),
-          // Rien n'est pris quand l'inertie se lit : un ticket pris est du travail.
-          prises: async () => [],
-          prsEnPasse: async () => tickets.filter((t) => t.labels.includes(LABEL_IN_PASS)).length,
-          issuesOuvertes: async (label) => {
-            const lues = github.issuesDepuis === undefined ? [] : (await github.issuesDepuis(new Date(instant - SEMAINE_MS).toISOString())).filter((i) => i.state === "open" && i.labels?.includes(label) === true);
-            if (bugOuvert !== null && !lues.some((i) => i.number === bugOuvert)) {
-              const lue = await github.issue?.(bugOuvert);
-              if (lue?.state === "open") lues.push({ number: bugOuvert, body: lue.body ?? "", labels: lue.labels, state: lue.state });
-            }
-            return lues;
-          },
-          creerIssue: (issue) => github.creerIssue(issue),
-          // Les zones tenues des tickets sautés au dernier tour de la porte de prise.
-          zonesTenues: async () => [...zonesTenues].map(([ticket, tenant]) => ({ ticket, tenant })),
-          // Ce que la porte de prise a dit, à son dernier tour, des tickets à prendre qu'elle a sautés.
-          sautes: async () => aPrendre.flatMap((t) => (sautes.has(t.number) ? [{ ticket: t.number, ligne: sautes.get(t.number)! }] : [])),
-        },
-        projetBrigade,
-        ...(brigade === undefined || servi === undefined
-          ? {}
-          : {
-              brigade: {
-                servi,
-                marqueDuProjet: marqueDuProjet(servi),
-                creerIssue: (issue) => brigade.creerIssue(issue),
-                issuesOuvertes: async () => (await brigade.issuesDepuis(new Date(instant - MOIS_MS).toISOString())).filter((i) => i.state !== "closed"),
-              },
-            }),
-      });
-      if (fait.fait === "bug") {
-        // Le bug de la brigade n'est pas une issue du projet : il ne se relit pas là.
-        if (fait.sur !== "brigade") bugOuvert = fait.bug;
-        bilan.inertie = fait.bug;
-        avertir(`brigade : idle kitchen on ${station} (${fait.cause}) — bug #${fait.bug} filed${fait.sur === "brigade" ? ` on ${DEPOT_BRIGADE}` : ""}`);
-      }
-      if (fait.fait === "sans-brigade" && !sansBrigadeDit) avertir(`brigade : idle kitchen on ${station} — no bug filed: no ${DEPOT_BRIGADE} client, and a kitchen alert is never filed in the project's repository`);
-      sansBrigadeDit = fait.fait === "sans-brigade";
     });
 
     // Une carte de TODO qui ne pose pas de question : son défaut sur la brigade, une fois (#3134).

@@ -1,7 +1,6 @@
 // Point d'entrée du runtime : `npm --prefix runtime start`, ou l'unité systemd.
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { placesDeLaStation } from "./github-seul/places/places.ts";
-import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { noterGitHubSeul } from "./github-seul-etat.ts";
 import { fichierDesRefus, lireLesRefus } from "./station-contributrice/refus.ts";
@@ -13,7 +12,7 @@ import { brancherJeton, configJeton, direJeton, masquerLaConsole } from "./jeton
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
-import { DEPOT_BRIGADE } from "./routage-temps-perdu.ts";
+import { DEPOT_BRIGADE } from "./issue-de-la-cuisine.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
@@ -34,8 +33,8 @@ import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { lireLeDepot, roadmapALaBase, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
-import { brancherRetenue } from "./retenue/brancher.ts";
-import { suivreLeTour } from "./retenue/tour.ts";
+import { brancherSuperviseur, type ManagerDuSuperviseur } from "./superviseur/brancher.ts";
+import { suivreLeTour } from "./superviseur/tour.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -168,8 +167,10 @@ try {
   const ici = stations.find((declaree) => !declaree.distante);
   // Ses places, relues à chaque tour : le plafond que le chef règle à chaud, sinon sa déclaration bornée par les cœurs (#3446).
   const places = ici === undefined ? 0 : placesDeLaStation(socle.journal, projet, ici);
-  // Ce que voit le tour GitHub seul, pour la retenue de la cuisine.
+  // Ce que voit le tour GitHub seul, pour le superviseur (#3945).
   const suiviDuTour = suivreLeTour();
+  // Le manager, tel que le superviseur le consulte : la station le donne.
+  let managerDuSuperviseur: ManagerDuSuperviseur | null = null;
   // Le chef, résolu plus bas : la validation demandée sur un ticket le mentionne (#3615).
   let chefDuProjet: (() => Promise<string | null>) | null = null;
   const ouvert = brancherBrigadeGithub({
@@ -207,6 +208,7 @@ try {
               flux: join(repertoireEtat, "github-seul"),
               observer: suiviDuTour.envelopper,
               sauter: suiviDuTour.sauter,
+              superviseur: (consulter) => (managerDuSuperviseur = consulter),
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,
               // Les gates d'un projet sans CI sur ses PR, jouées sur leur tête (#2456).
@@ -258,13 +260,10 @@ try {
   // De même pour le jeton longue durée : son échéance se lit de la date de sa
   // création, rangée à côté de lui, jamais du jeton.
   const datee = brancherJeton(suivie, jeton);
-  // La retenue ne lance rien : rien de servi depuis 30 min alors que des
-  // tickets attendent, elle écrit sa cause et son geste — une fois — dans la
-  // file du chef, et l'en ôte quand la cuisine sert de nouveau.
-  const retenue = brancherRetenue(datee, { station: process.env.BRIGADE_STATION_DIR, tour: ouvert.refus ? null : suiviDuTour, branche: process.env.BRIGADE_BASE_BRANCH });
-  // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
-  // chef, une fois, puis un rappel espacé.
-  runtime = brancherAlerteUrgence(retenue);
+  // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
+  // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
+  const supervisee = brancherSuperviseur(datee, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur });
+  runtime = supervisee;
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
   const { chef } = brancherLeChef(runtime, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat });

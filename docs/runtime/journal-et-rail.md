@@ -95,8 +95,7 @@ stays French until the runtime renames it). It is not lent until **all** those i
   the root is the only way back**: the kitchen then sets `fire` back on each still-open ticket that
   left because of it (`ticket.back-with`, `refired`; a comment "Cuisine — #N est revenu sur le
   rail"). One that comes back alone while its root stays dropped leaves again. A ticket taken or in
-  pass is not touched. A ticket you take off the rail yourself takes no one with it; the idle-kitchen
-  `fault` line names it as root of its waiters' chain. Off the rail, the root and each ticket that
+  pass is not touched. A ticket you take off the rail yourself takes no one with it. Off the rail, the root and each ticket that
   left with it wait in your TODO with a card until you answer (#2118, see [`manager.md`](manager.md));
   on a ticket that left with its root, « Put … back on the rail » sets `fire` on the root.
 

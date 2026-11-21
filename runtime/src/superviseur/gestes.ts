@@ -24,14 +24,13 @@
 // aucune carte de TODO pour eux.
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { mettreEnAttenteGitHub } from "../attente-github/attente-github.ts";
-import { estUneReparation } from "../base-rouge/ouvre-reparation.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { gesteGit, LABELS_DE_REPARATION } from "../garde-todo/geste-git.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { CHEF_TODO, carteQuestionProduit, poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
 import { jobDuCheck, LABEL, MIS_DE_COTE, type GitHub } from "../github.ts";
 import { GesteRefuse } from "../rail.ts";
-import { LABELS_REPARATION } from "../reparation.ts";
+import { causeDuCheck, LABELS_REPARATION, marqueDeCause } from "../reparation.ts";
 import type { Reveil } from "./declencheur.ts";
 
 const GESTES = ["rerun", "back-on-rail", "waiting", "close-duplicate", "fix", "todo"] as const;
@@ -61,8 +60,6 @@ export type ContexteDesGestes = { github: GitHubDesGestes; depot: string; branch
 export type Trace = { outcome: "done" | "refused" | "failed"; ticket: number | null; comment: string | null };
 
 const MARQUE_DU_SUPERVISEUR = "<!-- brigade:supervisor -->";
-// La marque d'un ticket `fix` du superviseur : la cause qu'il répare.
-const marqueDeCause = (cause: string) => `<!-- brigade:supervisor-cause ${cause.replace(/-->/g, "--\\u003e")} -->`;
 
 // Ce qu'une question pour le chef ne demande jamais : lire un log.
 const LECTURE_DE_LOG = /\b(?:read|look(?:ing)? at|check|inspect|go through|open|dig into)\b[^.?]{0,40}\blogs?\b/i;
@@ -199,13 +196,13 @@ async function ouvrirLeFix(ctx: ContexteDesGestes, reveil: Reveil, { cause, titl
       if (!termine) throw new Refus(`the rerun of ${check} (run ${run}) is still running: a fix ticket waits for it to stay red`);
     }
     labels = [...LABELS_REPARATION, "fix"];
-    cle = `check:${check}`;
+    cle = causeDuCheck(check);
   }
   const lues = await github.ouvertes();
   if (lues.inchange) throw new Refus("the open tickets could not be read: no fix ticket is filed without checking that none has the same cause");
   const marque = marqueDeCause(cle);
   const doublon = lues.issues.find(
-    ({ body, labels: siens, association }) => DE_CONFIANCE.includes(association) && (body.includes(marque) || (check !== null && estUneReparation(body, siens) && body.includes(check))),
+    ({ body, association }) => DE_CONFIANCE.includes(association) && body.includes(marque),
   );
   if (doublon !== undefined) throw new Refus(`#${doublon.number} is already open for this cause: no second fix ticket`, doublon.number);
   const cree = await github.creerIssue({ titre: title, corps: `${body}\n\n${marque}`, labels });

@@ -124,7 +124,7 @@ fails leaves it open. When it closes it, it posts one comment on each ticket the
 cooks failed in a row, or the ticket of the run that kept stalling — saying the breaker is closed and which cause is
 gone. A comment that cannot be posted is said in the service log and does not reopen the breaker. The supervisor's
 runs go through the manager's launches, which an open breaker does not hold. Open breaker issues the station filed
-before #3911 stay on GitHub and are still never tickets (`alerte-cuisine/`); nothing closes them.
+before #3911 stay on GitHub and are still never tickets (`issue-de-la-cuisine.ts`); nothing closes them.
 
 A ticket set aside for its failures (`set-aside:failures`) on the rail is handed to the supervisor, which reads its
 dossier (the ticket, its last comments, the log's last facts on it) and answers with one gesture: put it back on the
