@@ -1,0 +1,82 @@
+// The defects that escape the pass (#3515), counted on a known sample of closed
+// tickets (echantillon-defauts.json, GitHub's shapes): the escaped bugs and the
+// reverts the runtime finds must be the ones counted by hand below, with the
+// same tickets and the same shas.
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, test } from "node:test";
+import { chiffresDAutonomie, commitsRevertes, type DonneesDuDepot } from "../../../src/autonomie/chiffres/chiffres.ts";
+
+const ECHANTILLON = JSON.parse(readFileSync(new URL("./echantillon-defauts.json", import.meta.url), "utf8")) as DonneesDuDepot;
+const MAINTENANT = new Date("2026-11-11T12:00:00.000Z");
+const sha = (signe: string) => signe.repeat(40);
+const dits = (chiffres: ReturnType<typeof chiffresDAutonomie>) => ({
+  bugs: chiffres.bugsEchappes?.map(({ bug, tickets }) => ({ bug, tickets })),
+  reverts: chiffres.reverts?.map(({ sha, tickets }) => ({ sha, tickets })),
+});
+
+describe("the defects that escape the pass (#3515)", () => {
+  test("over the last 7 days, the sample's hand count: 3 escaped bugs on #101, #102, #103, #104, and 2 reverts", () => {
+    // Served in the 7 days with `fire`: #101, #102, #103, #104 (#105 has no `fire`, #90 is older).
+    // Escaped: #201 cites #101 after its merge; #203 cites #102 and #103; #207 cites #104 by its address.
+    // Not counted: #202 (before #101's merge), #204 (#90, out of the period), #205 (no served ticket), #206 (no `bug`
+    // label), #208 (a pull request), #209 (#105, no `fire`), #210 (after the period).
+    // Reverts: aaaa… reverts #101's commit; eeee… reverts #103's and a commit of no ticket. Not counted: bbbb… (no ticket),
+    // cccc… (#90), dddd… (#105), the second aaaa… (the same commit), ffff… (after the period), 9999… (no trailer).
+    const chiffres = chiffresDAutonomie([ECHANTILLON], 7, MAINTENANT);
+    assert.equal(chiffres.tickets, 4);
+    assert.equal(chiffres.bugsEchappes?.length, 3);
+    assert.equal(chiffres.reverts?.length, 2);
+    assert.deepEqual(dits(chiffres), {
+      bugs: [
+        { bug: 201, tickets: [101] },
+        { bug: 203, tickets: [102, 103] },
+        { bug: 207, tickets: [104] },
+      ],
+      reverts: [
+        { sha: sha("a"), tickets: [101] },
+        { sha: sha("e"), tickets: [103] },
+      ],
+    });
+    assert.deepEqual(chiffres.reverts?.[1]?.revertes, [sha("5"), sha("6")]);
+    assert.deepEqual(chiffres.bugsEchappes?.[0], { depot: "chef/parade", bug: 201, titre: "Rail is blank", url: "https://github.com/chef/parade/issues/201", tickets: [101] });
+    assert.deepEqual(chiffres.defautsNonLus, []);
+  });
+
+  test("over the last 30 days, #90 is served in the period: its bug #204 and its revert cccc… count too", () => {
+    const chiffres = chiffresDAutonomie([ECHANTILLON], 30, MAINTENANT);
+    assert.equal(chiffres.tickets, 5);
+    assert.deepEqual(dits(chiffres), {
+      bugs: [
+        { bug: 201, tickets: [101] },
+        { bug: 203, tickets: [102, 103] },
+        { bug: 204, tickets: [90] },
+        { bug: 207, tickets: [104] },
+      ],
+      reverts: [
+        { sha: sha("a"), tickets: [101] },
+        { sha: sha("c"), tickets: [90] },
+        { sha: sha("e"), tickets: [103] },
+      ],
+    });
+  });
+
+  test("defects not read, or unreadable, in one repository: no count at all, and which repository and why", () => {
+    const { defauts: _defauts, ...sansDefauts } = ECHANTILLON;
+    const autre: DonneesDuDepot = { depot: "chef/cantine", servis: [], issues: {}, defauts: { illisible: "GitHub answered HTTP 403 on /search/commits" } };
+    const chiffres = chiffresDAutonomie([ECHANTILLON, autre], 7, MAINTENANT);
+    assert.equal(chiffres.bugsEchappes, null);
+    assert.equal(chiffres.reverts, null);
+    assert.deepEqual(chiffres.defautsNonLus, [{ depot: "chef/cantine", raison: "GitHub answered HTTP 403 on /search/commits" }]);
+    // The other figures still count.
+    assert.equal(chiffres.tickets, 4);
+    const nonLus = chiffresDAutonomie([sansDefauts], 7, MAINTENANT);
+    assert.equal(nonLus.bugsEchappes, null);
+    assert.deepEqual(nonLus.defautsNonLus, [{ depot: "chef/parade", raison: "not read" }]);
+  });
+
+  test("a commit message gives each commit its trailer reverts, once", () => {
+    assert.deepEqual(commitsRevertes(`This reverts commit ${sha("1")}.\n\nThis reverts commit ${sha("2")}.\nThis reverts commit ${sha("1")}.`), [sha("1"), sha("2")]);
+    assert.deepEqual(commitsRevertes("Revert the wording: this reverts nothing"), []);
+  });
+});

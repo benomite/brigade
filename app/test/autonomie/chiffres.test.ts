@@ -14,8 +14,8 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { SANS_LECTURE as SANS_LECTURE_DU_PROCESS, type LectureDAutonomie } from "../../src/vue/autonomie/autonomie-github.ts";
-import { AUCUN, AVEC_HUMAIN, PERIODES, periodeDite, SANS_LECTURE, SANS_QUESTION, tenirLesChiffresDAutonomie } from "../../src/vue/autonomie/chiffres.js";
+import { nommerLesProjets, SANS_LECTURE as SANS_LECTURE_DU_PROCESS, type LectureDAutonomie } from "../../src/vue/autonomie/autonomie-github.ts";
+import { AUCUN, AVEC_HUMAIN, BUGS_ECHAPPES, DEFAUTS_NON_LUS, PERIODES, REVERTS, periodeDite, SANS_LECTURE, SANS_QUESTION, tenirLesChiffresDAutonomie } from "../../src/vue/autonomie/chiffres.js";
 import { Faux, jouerLaVue, ouvrirLecture, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -46,10 +46,16 @@ const PARADE: DonneesDuDepot = {
 };
 const lu = (jours: number, donnees = [PARADE]): LectureDAutonomie => {
   const chiffres = chiffresDAutonomie(donnees, jours, MAINTENANT);
-  return { jours, chiffres: { ...chiffres, avecHumain: chiffres.avecHumain.map((servi) => ({ ...servi, projet: "parade" })) }, manquants: [], partiels: [] };
+  return { jours, chiffres: nommerLesProjets(chiffres, () => "parade"), manquants: [], partiels: [] };
 };
 
-const valeurs = (bloc: Faux) => bloc.dessous("p").filter(({ className }) => className === "valeur").map(({ textContent }) => textContent);
+// Les valeurs des trois chiffres d'autonomie ; celles des défauts échappés (#3515), à part.
+const valeursDe = (bloc: Faux, classe: string) =>
+  bloc
+    .dessous("div")
+    .filter(({ className }) => className === classe)
+    .flatMap((cadre) => cadre.dessous("p").filter(({ className }) => className === "valeur").map(({ textContent }) => textContent));
+const valeurs = (bloc: Faux) => valeursDe(bloc, "figure");
 const boutonNomme = (bloc: Faux, debut: string) => bloc.dessous("button").find(({ textContent }) => textContent.startsWith(debut));
 
 describe("les chiffres d'autonomie (#3222)", () => {
@@ -128,6 +134,44 @@ describe("les chiffres d'autonomie (#3222)", () => {
     await repos();
     assert.match(bloc.textContent, /not read over the whole last 7 days: parade counted only from 2026-11-01 10:30 UTC/);
     assert.equal(valeurs(bloc).length, 3);
+  });
+
+  // Les défauts échappés de « parade » (#3515) : le bug #9 cite #1 après son merge, le commit abcdef1… revert un commit de #2.
+  const AVEC_DEFAUTS: DonneesDuDepot = {
+    ...PARADE,
+    defauts: {
+      bugs: [{ number: 9, title: "Badge grey", body: "Since #1.", created_at: il(JOUR), labels: [{ name: "bug" }], html_url: "https://github.com/chef/parade/issues/9" }],
+      reverts: [{ sha: "abcdef1".padEnd(40, "0"), commit: { message: `Revert "x"\n\nThis reverts commit ${"c".repeat(40)}.`, committer: { date: il(HEURE) } } }],
+      ticketsDesCommits: { ["c".repeat(40)]: [2] },
+    },
+  };
+  const textesDe = (bloc: Faux, nom: string) => {
+    const cadre = bloc.dessous("div").find(({ className, textContent }) => className === "figure defauts" && textContent.startsWith(nom));
+    return cadre?.dessous("p").map(({ textContent }) => textContent);
+  };
+
+  test("les bugs échappés et les reverts suivent les trois chiffres, chacun avec les tickets et les commits qui font son nombre (#3515)", async () => {
+    const bloc = tenirLesChiffresDAutonomie(doc, { lire: (jours) => Promise.resolve(lu(jours, [AVEC_DEFAUTS])), ouvrir: () => undefined }).poser() as Faux;
+    await repos();
+    assert.deepEqual(valeurs(bloc), ["100 %", "3 h", "50 %"]);
+    assert.deepEqual(textesDe(bloc, BUGS_ECHAPPES), ["1", "#1 (bug #9)"]);
+    assert.deepEqual(textesDe(bloc, REVERTS), ["1", "abcdef1 (#2)"]);
+    // Ceux de tous les projets nomment le projet de chacun.
+    const tous = tenirLesChiffresDAutonomie(doc, { lire: (jours) => Promise.resolve(lu(jours, [AVEC_DEFAUTS])), ouvrir: () => undefined, tous: true }).poser() as Faux;
+    await repos();
+    assert.deepEqual(textesDe(tous, BUGS_ECHAPPES), ["1", "parade #1 (bug #9)"]);
+    assert.deepEqual(textesDe(tous, REVERTS), ["1", "parade abcdef1 (#2)"]);
+  });
+
+  test("aucun défaut échappé se dit 0 ; des défauts non lus ne se disent pas 0, mais non lus et pourquoi (#3515)", async () => {
+    const sans = tenirLesChiffresDAutonomie(doc, { lire: (jours) => Promise.resolve(lu(jours, [{ ...PARADE, defauts: { bugs: [], reverts: [], ticketsDesCommits: {} } }])), ouvrir: () => undefined }).poser() as Faux;
+    await repos();
+    assert.deepEqual(textesDe(sans, BUGS_ECHAPPES), ["0", "none"]);
+    assert.deepEqual(textesDe(sans, REVERTS), ["0", "none"]);
+    const nonLus = tenirLesChiffresDAutonomie(doc, { lire: (jours) => Promise.resolve(lu(jours, [{ ...PARADE, defauts: { illisible: "GitHub answered HTTP 403 on /search/commits" } }])), ouvrir: () => undefined }).poser() as Faux;
+    await repos();
+    assert.deepEqual(textesDe(nonLus, BUGS_ECHAPPES), [DEFAUTS_NON_LUS, "parade: GitHub answered HTTP 403 on /search/commits"]);
+    assert.deepEqual(textesDe(nonLus, REVERTS), [DEFAUTS_NON_LUS, "parade: GitHub answered HTTP 403 on /search/commits"]);
   });
 
   test("dix minutes après sa lecture, la période se relit à la pose suivante", async () => {
