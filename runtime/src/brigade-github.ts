@@ -3303,7 +3303,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // pousse telle quelle, sans gates, comme une livraison coupée (#2577).
     depot.recolter?.(worktree, branche);
     const retenue = depot.commits(branche) > 0 && (livreLaSauvegarde || depot.tete?.(branche) !== avant) ? await gatesAvantLePush(ticket, worktree) : null;
-    if (retenue !== null && "echec" in retenue) {
+    if (retenue !== null && "echec" in retenue && !estUneSauvegarde(depot.sujet?.(branche))) {
       try {
         depot.recolter?.(worktree, branche, SUJET_DE_SAUVEGARDE, true);
       } catch (erreur) {

@@ -29,14 +29,60 @@ rc=0
 fail() { echo "FAIL  $*" >&2; rc=1; }
 ok()   { echo "ok    $*"; }
 
-# 1. Validité des manifests JSON.
-for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude/settings.json; do
+# Ce qui ne doit rien aux étapes d'avant part ensemble, dès ici, et se lit à
+# son étape : chaque python ou node paie 20 à 40 ms de démarrage, qui ne
+# s'additionnent plus (#3996). Leur sortie attend dans son tube.
+# - fd 3 : les manifests JSON qui se lisent (étape 1) ;
+MANIFESTS=(.claude-plugin/plugin.json .claude-plugin/marketplace.json .claude/settings.json)
+exec 3< <(python3 -c '
+import json, sys
+for f in sys.argv[1:]:
+    try:
+        json.load(open(f))
+        print(f)
+    except Exception:
+        pass
+' "${MANIFESTS[@]}" 2>/dev/null)
+# - fd 4 : les scripts `test` et `typecheck` du runtime, puis de l'app, une
+#   ligne chacun, vide pour un script absent ou un package.json illisible
+#   (étape 7) ;
+exec 4< <(node -e '
+for (const zone of process.argv.slice(1)) {
+  let scripts = {};
+  try { scripts = require(zone).scripts ?? {}; } catch {}
+  for (const nom of ["test", "typecheck"]) console.log(String(scripts[nom] ?? "").replace(/\n/g, " "));
+}' "$PWD/runtime/package.json" "$PWD/app/package.json" 2>/dev/null)
+# - fd 5 : ce que pèse ce que chaque cook charge à coup sûr (étape 9) : le
+#   CLAUDE.md et, de proche en proche, les fichiers qu'il importe par
+#   `@chemin`. Sans CLAUDE.md, rien.
+exec 5< <(python3 - <<'PY' 2>/dev/null
+import os, re
+vus, pile, total = set(), ["CLAUDE.md"], 0
+while pile:
+    f = os.path.normpath(pile.pop())
+    if f in vus or not os.path.isfile(f):
+        continue
+    vus.add(f)
+    total += os.path.getsize(f)
+    with open(f, errors="replace") as texte:
+        for importe in re.findall(r"(?:^|\s)@(\S+)", texte.read()):
+            pile.append(os.path.join(os.path.dirname(f), importe.rstrip(".,;:)")))
+if vus:
+    print(total)
+PY
+)
+
+# 1. Validité des manifests JSON. Le python parti au début des gates (fd 3) a
+# nommé ceux qui se lisent. Sans python, aucun ne se dit valide.
+VALIDES=""
+IFS= read -r -d '' VALIDES <&3
+exec 3<&-
+for f in "${MANIFESTS[@]}"; do
   if [ ! -f "$f" ]; then fail "absent : $f"; continue; fi
-  if python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" 2>/dev/null; then
-    ok "JSON valide : $f"
-  else
-    fail "JSON invalide : $f"
-  fi
+  case $'\n'"$VALIDES" in
+    *$'\n'"$f"$'\n'*) ok "JSON valide : $f" ;;
+    *) fail "JSON invalide : $f" ;;
+  esac
 done
 
 # 2. Syntaxe de tous les scripts shell versionnés.
@@ -376,14 +422,26 @@ CODE_DES_ZONES=0
 case "$(printf '%s\n' "${CHANGES:-}" | grep -E '^(runtime|app)/.*\.(ts|mts|cts|js|mjs|cjs|json)$' | head -1)" in
   ?*) CODE_DES_ZONES=1 ;;
 esac
+# Les scripts des zones, lus par le node parti au début des gates (fd 4) :
+# `SCRIPT_<dossier>_test` et `SCRIPT_<dossier>_typecheck`.
+for SCRIPT in SCRIPT_runtime_test SCRIPT_runtime_typecheck SCRIPT_app_test SCRIPT_app_typecheck; do
+  LIGNE=""
+  IFS= read -r LIGNE <&4
+  printf -v "$SCRIPT" '%s' "$LIGNE"
+done
+exec 4<&-
 types_partir() {
-  local ZONE="$1" REGLE="$2" SORTIE
+  local ZONE="$1" REGLE="$2" SORTIE TYPAGE
+  TYPAGE="SCRIPT_${ZONE}_typecheck"
+  TYPAGE="${!TYPAGE:-}"
   printf -v "TYPES_$ZONE" '%s' ""
   [ -f "$ZONE/package.json" ] && { [ "$REGLE" != rien ] || [ "$CODE_DES_ZONES" -eq 1 ]; } && command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 || return 0
-  node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null || return 0
+  [ -n "$TYPAGE" ] || return 0
   if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
     SORTIE="$(mktemp)"
-    GOMAXPROCS=2 GOGC=200 npm --prefix "$ZONE" run typecheck >"$SORTIE" 2>&1 9>&- &
+    # Son script, sans `npm run` : `npm` coûte 150 ms de démarrage, et ne fait
+    # ici que poser `node_modules/.bin` devant le PATH (#3996).
+    ( cd "$ZONE" && PATH="$PWD/node_modules/.bin:$PATH" GOMAXPROCS=2 GOGC=200 exec sh -c "$TYPAGE" ) >"$SORTIE" 2>&1 9>&- &
     printf -v "PID_TYPES_$ZONE" '%s' "$!"
     printf -v "TYPES_$ZONE" '%s' "$SORTIE"
   else
@@ -414,12 +472,16 @@ suite() {
     fail "dépendances $DE absentes : tests injouables — rejoue worktree-setup.sh"
     return
   fi
+  # Le script `test` de la zone, joué sans `npm test` : `npm` coûte 150 ms de
+  # démarrage par suite, et ne fait ici que poser `node_modules/.bin` devant le
+  # PATH (#3996). Un script qui ne s'est pas lu part par `npm`, comme avant.
+  COMMANDE="SCRIPT_${ZONE}_test"
+  COMMANDE="${!COMMANDE:-}"
   case "$REGLE" in
     "fichiers "*)
       # Le motif du script `test`, remplacé par les fichiers choisis. Un script
       # sans ce motif joue tout.
       MOTIF='"test/**/*.test.ts"'
-      COMMANDE="$(node -e 'console.log(require(process.argv[1]).scripts?.test ?? "")' "$PWD/$ZONE/package.json" 2>/dev/null)"
       case "$COMMANDE" in
         *"$MOTIF"*)
           FICHIERS="${REGLE#fichiers }"
@@ -452,9 +514,9 @@ suite() {
       # second, qui lui survivrait en tenant un cœur. Hors du groupe du
       # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
       set -m
-      if [ -n "$FICHIERS" ]; then
-        # Le script `test` de la zone, ses fichiers à la place de son motif.
-        ( cd "$ZONE" && exec env "${ENV_TESTS[@]}" sh -c "$COMMANDE" ) </dev/null >"$JOURNAL" 2>&1 9>&- &
+      if [ -n "$COMMANDE" ]; then
+        # Le script `test` de la zone, ses fichiers choisis à la place de son motif.
+        ( cd "$ZONE" && PATH="$PWD/node_modules/.bin:$PATH" exec env "${ENV_TESTS[@]}" sh -c "$COMMANDE" ) </dev/null >"$JOURNAL" 2>&1 9>&- &
       else
         env "${ENV_TESTS[@]}" npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 9>&- &
       fi
@@ -608,23 +670,12 @@ if POIDS="$(git ls-tree -r -l HEAD 2>/dev/null)"; then
   mesure depot_octets "$(printf '%s\n' "$POIDS" | LC_ALL=C awk '{ s += $4 } END { printf "%d", s }')"
   mesure doc_octets "$(printf '%s\n' "$POIDS" | LC_ALL=C awk '/\.md$/ { s += $4 } END { printf "%d", s }')"
 fi
-# Ce que chaque cook charge à coup sûr : le CLAUDE.md et, de proche en proche,
-# les fichiers qu'il importe par `@chemin`.
-[ ! -f CLAUDE.md ] || mesure contexte_octets "$(python3 - <<'PY' 2>/dev/null
-import os, re
-vus, pile, total = set(), ["CLAUDE.md"], 0
-while pile:
-    f = os.path.normpath(pile.pop())
-    if f in vus or not os.path.isfile(f):
-        continue
-    vus.add(f)
-    total += os.path.getsize(f)
-    with open(f, errors="replace") as texte:
-        for importe in re.findall(r"(?:^|\s)@(\S+)", texte.read()):
-            pile.append(os.path.join(os.path.dirname(f), importe.rstrip(".,;:)")))
-print(total)
-PY
-)"
+# Ce que chaque cook charge à coup sûr, lu par le python parti au début des
+# gates (fd 5).
+CONTEXTE=""
+IFS= read -r CONTEXTE <&5
+exec 5<&-
+mesure contexte_octets "$CONTEXTE"
 # La durée d'exécution : l'attente du tour n'est pas une dérive des gates.
 mesure gates_s "$((SECONDS - ATTENTE))"
 
