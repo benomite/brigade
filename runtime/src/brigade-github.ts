@@ -3672,7 +3672,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const { githubDeLaBrigade } = options;
   // L'étape « tests written » (#3725) : le manager écrit les tests d'acceptation
   // du ticket dans le worktree de sa branche neuve, comme un cook — il écrit,
   // gardé dans son worktree —, et la station les commite en premier commit.
