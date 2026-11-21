@@ -44,7 +44,7 @@ test("a ticket held by an open ticket it depends on has its acceptance tests wri
   await ouverte.tour();
   await jusqua(() => faux.ticket(10).labels.has(LABEL_TESTS_ECRITS));
   await ouverte.tour();
-  await jusqua(() => faux.ticket(20).labels.has(LABEL_TESTS_ECRITS), 1500);
+  await jusqua(() => faux.ticket(20).labels.has(LABEL_TESTS_ECRITS));
   assert.match(sauts.get(20) ?? "", /waiting for #10\b/, "it is still held by #10 when its tests are written");
   liberer();
   await ouverte.calme();
