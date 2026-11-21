@@ -482,7 +482,7 @@ A station on GitHub alone sets a ticket aside when its tries are spent and the m
 rework it, or did already (above). It puts `set-aside:failures` on it and says so in its own
 words in its comment ("Set aside by its failure count") and on its card: nobody else serves it.
 `served-elsewhere` is never put by the station: it says that another station serves the ticket, and
-is set by whoever knows it does (#3528). To relaunch it, fix the cause, then **remove
+is set by whoever knows it does (#3528). No timer relaunches a ticket set aside: the supervisor acts on `set-aside:failures` (#3911), and to relaunch it by hand, fix the cause, then **remove
 `set-aside:failures`** (or `served-elsewhere`, on a ticket set aside before #3528)
 from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
 the next turn, and both counts restart: the cooks without a delivery and the sends back are counted
@@ -491,16 +491,12 @@ set-aside needs the full number of failures again. The earlier `brigade:echec` a
 comments stay on the issue as history. A delivery that was already good needs no `in-pass` by hand:
 it is reviewed again once the ticket is served.
 
-**Reconciliation at start** (#3528, `runtime/src/arrets-externes.ts`, `runtime/src/garde-fous.ts`).
+**Reconciliation at start** (#3528, `runtime/src/garde-fous.ts`).
 Before the fix, cooks killed from outside were counted as failures. When the runtime starts, once, it
 reads again the failures it recorded: those whose cook ended with exit code 143 (or SIGTERM), with no
-guardrail tripped and no launch error, are dropped (`cook.reclassified`), and a breaker that no longer
-holds is closed (`breaker.lifted`) — no `resume` of the chef. At its first turn the station does the same for the tickets it
-set aside: when its last comment on a ticket is the one that set it aside, and without the cooks
-killed from outside the failures no longer reach the threshold, it comments on the ticket, puts it
-back on the rail (`fire`) and removes the label. A set-aside by real failures, or by the chef,
-stays as it is. A ticket whose comments cannot be read is left as it is, said in the journal, and
-read again at the next turn.
+guardrail tripped and no launch error, are dropped (`cook.reclassified`), and a breaker opened by failures that no longer
+holds is closed (`breaker.lifted`). It puts no ticket back on the rail: a ticket set aside for its failures is the
+supervisor's (#3911), and a breaker opened by stalls is closed only by the supervisor's check.
 
 ### The capabilities a ticket asks for
 

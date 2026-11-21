@@ -40,7 +40,7 @@ The station journal, the counter (`<BRIGADE_STATION_DIR>/appels-github/compteur.
 | PR of a branch, then its detail | read | per tick for each ticket in pass, plus on log events | yes | `pass.ts` `prDeBranche`, `github.ts` |
 | CI of a commit: check-runs + status | 2 reads | per tick for each ticket in pass while it waits for CI | yes, but while CI runs the answer changes: 200, counted | `pass.ts` (`github.ci(sha)`), `github.ts` `ci` |
 | CI of the base: 10 commits × `ci` | 20 reads in parallel | event: when a red check must be excused | yes | `pass.ts` `excuserLesJobsSansVert`, `github.ts` `ciDeLaBase` |
-| Issues since an instant (`state=all&since=<instant>`) | read | event, but **retried on every tick** while a kitchen fix or a breakdown is not found | **no** (the path changes with `instant`; comment in `github.ts` `issuesDepuis`) | `pass.ts` (`ouvrirLeFixDeLaCuisine`, fix lookup), `decoupage.ts`, `budget-des-gates.ts`, `breaker-resume-github.ts` |
+| Issues since an instant (`state=all&since=<instant>`) | read | event, but **retried on every tick** while a kitchen fix or a breakdown is not found | **no** (the path changes with `instant`; comment in `github.ts` `issuesDepuis`) | `pass.ts` (`ouvrirLeFixDeLaCuisine`, fix lookup), `decoupage.ts`, `budget-des-gates.ts` |
 | Job log of a check | read | event | no | `github.ts` `journalDuCheck` |
 | Last page of a full list (comments, events with 100 entries) | read | whenever the list is read | no (`pleine`) | `github.ts` `dernierePagePleine` |
 | Any list over 100 items | read | tick | first page and later pages: no | `github.ts` `sonder`, `feuilleter` |

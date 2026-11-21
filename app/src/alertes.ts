@@ -47,8 +47,7 @@ export type Sujet = "urgence" | "github" | "manager" | "cuisine" | "station" | "
 // une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
 // `relire` : relire la box tout de suite, au lieu d'attendre le tour de la veille (#728).
-// `reprise` : la reprise du disjoncteur, d'un clic, par GitHub (#2140, github/breaker-resume.ts) — jamais par la box.
-export type Appel = { geste: string } | { demande: true } | { onglet: string } | { relire: true } | { reprise: "disjoncteur" };
+export type Appel = { geste: string } | { demande: true } | { onglet: string } | { relire: true };
 // Une ligne de la bande. `verifie` faux : la box ne dit pas cet état, et la ligne le dit.
 // `dit` : ce qui ne va pas, dans les mots de l'app ; `pourquoi` : ce qu'elle en sait de plus,
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
@@ -57,8 +56,9 @@ export type Appel = { geste: string } | { demande: true } | { onglet: string } |
 // le verdict que l'écran Verify pose — la même phrase, les mêmes lignes de manque.
 // `bouton` : ce que dit le bouton du geste, en quelques mots — jamais une commande ni une phrase de
 // mode d'emploi : celles-là (`geste`, `pourquoi`, `releve`, `prix`) se lisent au survol. Absent, la
-// ligne n'a pas de geste à faire depuis l'app.
-export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; consignes?: string[]; releve?: string; geste: string; bouton?: string; appel?: Appel; prix: string; verification?: Verification };
+// ligne n'a pas de geste à faire depuis l'app. `disjoncteur` : la ligne du disjoncteur ouvert, que la vue pose en tête de TODO — une
+// information, sans bouton : le chef ne le referme pas (#3911).
+export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; consignes?: string[]; releve?: string; geste: string; bouton?: string; appel?: Appel; prix: string; verification?: Verification; disjoncteur?: true };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
 // Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
@@ -334,9 +334,9 @@ function causesDeRetenue(status: string): Alerte[] {
           ton: "rouge",
           dit: `breaker open: ${enchaines(valeur)}, no cook goes any more`,
           releve: valeur.slice(valeur.search(DISJONCTEUR)),
-          geste: "resume the kitchen, once you have read why they fail",
-          appel: { reprise: "disjoncteur" },
-          prix: `the breaker closes: ${REPRENDRE}`,
+          geste: "nothing to press: the station closes the breaker itself once the check that tripped it passes",
+          prix: "none",
+          disjoncteur: true,
         },
       ];
     if (titre === "stations") {
@@ -615,7 +615,6 @@ export function boutonDe({ geste, appel }: Pick<Alerte, "geste" | "appel">): str
   if ("demande" in appel) return "ask the second";
   if ("onglet" in appel) return appel.onglet === "parametres" ? "open Settings" : `open the ${appel.onglet} tab`;
   if ("relire" in appel) return "try again now";
-  if ("reprise" in appel) return "Resume";
   return BOUTONS_DE_GESTE[appel.geste] ?? (geste.split(/[:,—`]/)[0] ?? geste).trim();
 }
 const avecBouton = (alerte: Alerte): Alerte => {
