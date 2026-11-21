@@ -60,7 +60,7 @@ test("the station's kitchen reaches the supervisor: main red for 10 min launches
   journal.fermer();
   const depart = Date.parse("2026-11-20T10:00:00.000Z");
   t.mock.timers.enable({ apis: ["Date"], now: depart });
-  const cuisine = ouvrirCuisine(env, { dire: () => {}, intervalleTickMs: 20 });
+  const cuisine = ouvrirCuisine(env, { dire: () => {}, intervalleTickMs: 200 });
   try {
     await attendre(() => luLaBase(gh));
     // Rouge depuis moins de 10 min : rien ne part.

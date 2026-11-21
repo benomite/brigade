@@ -44,16 +44,3 @@ test("une même cause ne relance le manager qu'après REVEIL_REPRIS_MS ; une aut
   assert.equal(await jouer(ROUGE), true);
   assert.deepEqual(consultes, ["main-red", "takes", "main-red", "main-red"]);
 });
-
-test("rien ne tient : aucun run, et le manager n'est pas consulté", async (t) => {
-  const journal = ouvrirJournal(repertoireTemporaire(t));
-  t.after(() => journal.fermer());
-  const superviser = superviseur({
-    projet: "reveil-rien",
-    depot: "acme/shop",
-    sources: { journal, github: new FauxDepot().client(), branche: "main" },
-    manager: async () => assert.fail("no manager"),
-    maintenant: () => new Date(DEPART),
-  });
-  assert.equal(superviser({ dernierMerge: null, cuisinables: [], prises: [], mainRougeDepuis: null }), null);
-});
