@@ -194,7 +194,6 @@ export function trancher(livraisons: Delivery[], par = PAR_DEFAUT): Tranche[] {
 export type Jauge = { measure: string; observed: number | null; limit: number; franchi: boolean; motifs?: string[] };
 export type Franchi = { measure: string; observed: number; limit: number };
 
-// Les mesures de coût : sur les derniers merges, la fenêtre de la pente.
 const TICKET_TOKENS = "tokens_ticket";
 const TOKENS_PERDUS = "tokens_perdus";
 

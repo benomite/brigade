@@ -183,7 +183,6 @@ export type EtatCuisine = {
   consommation: { enCours: Consommation; fenetres: Array<{ heures: number } & Consommation> };
   // Les mesures du projet qui ont franchi un seuil déclaré.
   derive: Franchi[];
-  // La part de tickets livrés du premier coup, quand elle est sous son seuil.
   // Les tickets servis dans les 24 h avant la lecture, le plus récent d'abord.
   livres: Livre[];
   // Les livraisons en pass, à juger, sans pass depuis plus de 15 min

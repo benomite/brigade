@@ -184,6 +184,7 @@ test("une tranche vaut l'état que laisse sa dernière livraison, et la médiane
   );
 });
 
+// brigade:guard
 test("un plafond est franchi quand il est dépassé ; un seuil non déclaré ne juge rien", () => {
   const livraisons = [livraison({ tests: 500, tests_s: 6.2, gates_s: 21, contexte_octets: 9400, depot_octets: 2_900_000 }), livraison({})];
 
@@ -269,6 +270,7 @@ function cloneMerge(t: TestContext, tickets: number[]): string {
   return clone;
 }
 
+// brigade:guard
 test("`run mesures` ne lance pas de passe, n'écrit rien, et le relancer ne change rien", async (t) => {
   const { repertoire, journal, noter } = cuisine(t);
   noter({ type: "drift.configured", payload: { limits: seuils({ gatesSeconds: 100 }) } });
