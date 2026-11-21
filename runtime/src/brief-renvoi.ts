@@ -37,6 +37,7 @@ export type GitHubDuBrief = {
   commentaires(numero: number): Promise<Commentaire[]>;
   annotationsDuCheck?(check: Check): Promise<AnnotationDeCheck[]>;
   journalDuCheck?(check: Check): Promise<string | null>;
+  etapesEnEchec?(check: { name: string; url?: string | null }): Promise<string[]>;
 };
 
 // Une clôture de bloc plus longue que toute suite d'accents graves du texte.
@@ -76,16 +77,23 @@ export async function lireLeRenvoi(github: GitHubDuBrief, pr: { number: number; 
       // Le check est dit sans elles.
     }
     const dites = annotations.map(annotationEnTexte);
-    if (annotations.every(({ chemin }) => chemin === null)) {
-      let journal: string | null = null;
-      try {
-        journal = (await github.journalDuCheck?.(check)) ?? null;
-      } catch {
-        // Le check est dit sans lui.
-      }
-      const fin = journal === null ? "" : sortieDErreur(journal);
-      if (fin !== "") dites.push(`The end of the job's log:\n${fin}`);
+    // Le journal est lu pour chaque check rouge : une annotation qui nomme un fichier ne dit ni l'étape
+    // en échec ni les tests (#4005). Illisibles, l'étape et le journal sont tus : le check est dit sans eux.
+    let etapes: string[] = [];
+    try {
+      etapes = (await github.etapesEnEchec?.(check)) ?? [];
+    } catch {
+      // Le check est dit sans elles.
     }
+    if (etapes.length > 0) dites.unshift(`Failed step${etapes.length === 1 ? "" : "s"}: ${etapes.join(", ")}`);
+    let journal: string | null = null;
+    try {
+      journal = (await github.journalDuCheck?.(check)) ?? null;
+    } catch {
+      // Le check est dit sans lui.
+    }
+    const fin = journal === null ? "" : sortieDErreur(journal);
+    if (fin !== "") dites.push(`The end of the job's log:\n${fin}`);
     lus.push({ nom: check.name, url: check.url, sortie: dites.join("\n\n") });
   }
   return { relecture, rouges: lus, diff };
@@ -125,7 +133,7 @@ export function briefDuRenvoi(renvoi: Renvoi | null, base: string): string {
       [
         "### What the CI says is red",
         "",
-        "Its failure annotations, check by check — the failing tests, with their errors, as the CI wrote them, in full — and, for a check whose annotations name no file, the end of its job's log, where the red tool wrote its errors. Start from these: there is no need to rebuild the CI's selection of tests to find what failed.",
+        "Its failure annotations, check by check — the failing tests, with their errors, as the CI wrote them, in full — and, the failed step and the end of each job's log, where the red tool wrote its errors. Start from these: there is no need to rebuild the CI's selection of tests to find what failed.",
         "",
         blocs.join("\n\n"),
         ...(nommes.length > 0 ? ["", `${nommes.length} more red check${nommes.length === 1 ? "" : "s"}, too long for this brief: ${nommes.join(", ")}.`] : []),

@@ -12,7 +12,7 @@ const rouge = (name: string): Check => ({ name, outcome: "red", conclusion: "fai
 const SANS_FICHIER = { chemin: null, ligne: null, titre: "", message: "Process completed with exit code 1." };
 const JOURNAL = "2026-11-17T10:00:00.0000000Z > tsc --noEmit\nsrc/a.ts(3,1): error TS2322: Type 'string' is not assignable to type 'number'.\n##[error]Process completed with exit code 1.\n";
 
-test("a red check whose annotations name no file is given with the end of its job's log; a check that names a file, or whose log cannot be read, is given by its annotations alone", async () => {
+test("a red check whose annotations name no file is given with the end of its job's log; a check that names a file has it too (#4005); one whose log cannot be read is given by its annotations alone", async () => {
   const lus: string[] = [];
   const github = {
     commentaires: async () => [],
@@ -30,10 +30,9 @@ test("a red check whose annotations name no file is given with the end of its jo
 
   assert.ok(combine!.sortie.startsWith("Process completed with exit code 1.\n\nThe end of the job's log:\n"), combine!.sortie);
   assert.match(combine!.sortie, /src\/a\.ts\(3,1\): error TS2322/);
-  assert.equal(nomme!.sortie, "test/a.test.ts:4 — tests (ubuntu)\nAssertionError: 1 !== 2");
+  assert.ok(nomme!.sortie.startsWith("test/a.test.ts:4 — tests (ubuntu)\nAssertionError: 1 !== 2\n\nThe end of the job's log:\n"), nomme!.sortie);
   assert.equal(illisible!.sortie, "Process completed with exit code 1.");
   assert.equal(sansJournal!.sortie, "Process completed with exit code 1.");
-  // Le journal d'un check dont une annotation nomme un fichier n'est pas lu.
-  assert.deepEqual(lus, ["Lint + Format + Typecheck + Tests", "illisible", "sans journal"]);
-  assert.match(briefDuRenvoi(renvoi, "main"), /the end of its job's log, where the red tool wrote its errors/);
+  assert.deepEqual(lus, ["Lint + Format + Typecheck + Tests", "tests (ubuntu)", "illisible", "sans journal"]);
+  assert.match(briefDuRenvoi(renvoi, "main"), /the end of each job's log, where the red tool wrote its errors/);
 });

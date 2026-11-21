@@ -3336,6 +3336,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       await options.github.commenter(prOuverte, corpsDeLaReponse(tete, reponse)).catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the cook's reply could not be posted on PR #${prOuverte}: ${message(erreur)}`));
     }
     if (avant !== null && tete === avant && !livreLaSauvegarde) {
+      // Une CI rouge que le cook n'a pas fait avancer compte pour un échec : sans quoi le ticket
+      // était relancé sans fin, #4001 trente-cinq fois en trois heures (#4005). Le même check
+      // rouge deux fois de suite le sort de la cuisine, comme tout motif répété.
+      if (resteAFaire !== null && rouges.length > 0) return { echec: motifArretCook(`the cook added nothing since its last delivery, and the CI of PR #${prOuverte} is still red (${rouges.map((check) => check.name).sort().join(", ")})`, arretDuCook()) };
       if (resteAFaire !== null) return { reste: resteAFaire };
       // La branche porte déjà une livraison et sa PR a été fermée sans merge : le cook n'a rien à y ajouter,
       // la station la remet en pass, qui rouvre la PR. Ce n'est pas un cook raté (#3990).
