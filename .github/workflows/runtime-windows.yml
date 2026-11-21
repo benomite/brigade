@@ -37,6 +37,7 @@
 # réparation qui n'y sont pas encore, et le dire dans la PR de la réparation.
 name: runtime-windows
 
+# Aucun `push` hors de `main` : une branche de cook ne déclenche ce workflow qu'en tête d'une PR (règle dans tests.yml, #3996).
 on:
   push:
     branches:

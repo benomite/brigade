@@ -5,7 +5,7 @@
 // nue, une fourche nue, le clone de chaque station —, seuls GitHub et le
 // lancement de `claude` sont faux.
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Lancer, StationGitHub } from "../../src/brigade-github.ts";
@@ -300,6 +300,25 @@ test("a fork the push cannot reach releases the claim, says why, and opens no PR
   assert.deepEqual(projet.prs, []);
   assert.equal(projet.premieresLignes(7).at(-1), "bob: <!-- brigade:rend station=bob-pc/claude login=bob -->");
   assert.ok(bob.dits.some((dit) => dit.includes("could not be pushed to the fork")), bob.dits.join("\n"));
+});
+
+test("a delivery whose gates are red in the cook's worktree is not pushed to the fork, and no PR opens (#3996)", async (t) => {
+  const projet = new Projet();
+  projet.ajouter(7);
+  const { origine, clone } = depotGit(t);
+  // Le projet porte des gates rouges sur sa base.
+  mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/bin/sh\necho "FAIL  the shop test is red" >&2\nexit 1\n');
+  chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
+  git(clone, "add", ".");
+  git(clone, "commit", "-q", "-m", "gates");
+  git(clone, "push", "-q", "origin", `HEAD:${BASE}`);
+  const bob = station(t, projet, "bob", origine);
+  await bob.servir();
+  assert.deepEqual(bob.cooks, ["bob:7-github"]);
+  assert.equal(git(bob.fourche, "branch", "--list", "cook/7-github"), "");
+  assert.deepEqual(projet.prs, []);
+  assert.ok(bob.dits.some((dit) => dit.includes("its gates are red, so nothing was pushed to the fork: FAIL  the shop test is red")), bob.dits.join("\n"));
 });
 
 test("rights that cannot be read fail the turn and nothing is cooked; the next turn reads them again", async (t) => {

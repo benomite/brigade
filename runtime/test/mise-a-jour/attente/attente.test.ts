@@ -144,8 +144,9 @@ test("after a restart at the deadline, the ticket whose cook was interrupted is 
   await premiere.tour();
   await jusqua(() => couper !== undefined);
   assert.deepEqual(await premiere.sauver?.(), [14]);
-  // L'origine porte le travail sauvé.
-  assert.equal(git(origine, "log", "-1", "--format=%s", "cook/14-github"), SUJET_DE_SAUVEGARDE);
+  // L'origine porte le travail sauvé, garé hors de la branche : la CI n'y joue pas (#3996).
+  assert.equal(git(origine, "log", "-1", "--format=%s", "refs/brigade/parked/cook/14-github"), SUJET_DE_SAUVEGARDE);
+  assert.equal(git(origine, "branch", "--list", "cook/14-github"), "");
   // La relance : la station s'arrête, son cook meurt avec elle.
   premiere.arreter?.();
   couper?.();

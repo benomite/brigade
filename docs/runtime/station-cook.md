@@ -145,7 +145,7 @@ and no child process.
 
 | Ending | Recognised by | What the station does | Breaker |
 |---|---|---|---|
-| **done** | commits on the branch, concluded or not (error, guardrail, lease) | commits the rest, pushes, opens the PR, puts the ticket **in pass**, comments | success |
+| **done** | commits on the branch, concluded or not (error, guardrail, lease) | commits the rest, plays the project's gates in the worktree, pushes once they are green, opens the PR, puts the ticket **in pass**, comments | success |
 | **done, no diff** | no commit, a **delimited deliverable**, an **intact** worktree | no push, no PR, ticket **in pass** (`cook.reported`, reason `no-diff`): the reviewer judges it alone | success |
 | **failed** | no commit and nothing delimited (`no-deliverable`); files never committed (`no-commit`); no commit and no conclusion; a worktree off its branch (`off-branch`) or abandoned ("What is left after a cook"); an impossible push | returns the ticket, comments with the reason; what it wrote is committed on its **local** branch, never pushed | failure |
 | **86** | the stream says the quota is exhausted | ticket **86** until the quota is back | not counted |
@@ -156,6 +156,20 @@ and no child process.
 
 A failed ticket is taken again at once by a new cook (new worktree and branch); the breaker bounds the
 series. **The worktree goes away at the end of the cook.**
+
+**A delivery is pushed only once the project's gates are green** (#3996). The station plays
+`.claude/brigade/gates.sh` in the cook's worktree before the push; red, nothing is pushed: the try fails
+with the gates' first red line (`its gates are red, so its delivery was not pushed: …`), the branch is
+marked as saved work (`brigade: work in progress saved before the station restarts (#2586)`), and the
+next cook starts from it. A next cook that delivers the same tree, changed in nothing, gets the same red
+without the gates being played again. A project with no `gates.sh`, or gates that judge nothing (no test command,
+or provisional until the foundation ticket is served, #3188), pushes as before. A contributor station
+plays them the same way before pushing to its fork. **What is not a delivery is never pushed to the
+ticket's branch**: the work of a cook that stops on a question, or saved before a restart, is parked
+on the origin under `refs/brigade/parked/<branch>` — no branch, no PR head, so no CI workflow runs on
+it. A station that does not have the branch resumes from that parked work when it carries what the
+origin has of the branch; the next delivery push removes it. So the CI runs on a cook branch only for
+a delivery.
 
 **What a cook leaves uncommitted goes into the delivery**, in a separate commit in the name of
 `brigade`; the comment says so and the reviewer is warned. What the project ignores never goes in, but
@@ -210,7 +224,7 @@ the repo, one call per turn in 95 % of turns, 82 % of them in runs of 3 to 42 re
 first item of cooking, ahead of the tests (92 min).
 
 **The cook plays the far tests its change can break.** Its instructions (`CONSIGNE_DES_TESTS`, the
-first cook's, the resuming cook's and the closer's) tell it that the gates and its PR's CI play only the
+first cook's, the resuming cook's and the closer's) tell it that the gates and its PR's CI may play only the
 tests close to its diff — what they import or name, without entering the product's code
 (`.claude/brigade/tests-touches.mjs`, #2565) — while the base plays everything: a test broken from afar
 turns the base red after the merge. Before delivering, the cook searches all the repo's tests for each

@@ -4,6 +4,7 @@
 # Réglage à activer une fois par le chef : Settings → Pages → Source : GitHub Actions.
 name: pages
 
+# Aucun `push` hors de `main` : une branche de cook ne déclenche ce workflow qu'en tête d'une PR (règle dans tests.yml, #3996).
 on:
   push:
     branches: [main]
