@@ -85,3 +85,38 @@ test("only gates that judge hold a delivery, and only a delivery plays them: gat
   assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(13)), "", "red gates that run a test hold the delivery");
   assert.doesNotMatch(jouees, /14-github/, "a cook that committed nothing has no delivery to play the gates on");
 });
+
+test("a saved head the next cook delivers as it is plays the gates, and is pushed once they are green", async (t) => {
+  const lieux = depotGit(t);
+  const vert = join(repertoireTemporaire(t), "vert").replaceAll("\\", "/");
+  const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
+  const faux = new FauxGitHub();
+  faux.feu(TICKET, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- The button exists");
+  // Le premier cook écrit tout, sous des gates rouges tant que `vert` n'existe pas ; le suivant n'ajoute rien et livre le travail sauvé tel quel.
+  let cuissons = 0;
+  const lancer: Lancer = ({ args, cwd, flux }) => {
+    if (!args.includes("--tools") && (cuissons += 1) === 1) {
+      mkdirSync(join(cwd, ".claude/brigade"), { recursive: true });
+      writeFileSync(join(cwd, ".claude/brigade/gates.sh"), `#!/usr/bin/env bash\n[ -f '${vert}' ] && exit 0\necho "FAIL  the button test is red" >&2\nexit 1\n`);
+      chmodSync(join(cwd, ".claude/brigade/gates.sh"), 0o755);
+      writeFileSync(join(cwd, "bouton.ts"), "export const bouton = 1;\n");
+    }
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "Done.\n<livrable>\nThe button.\n</livrable>" })}\n`);
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, avertir: () => {} });
+  if ("refus" in station) throw new Error(station.refus);
+
+  await station.tour();
+  await station.calme();
+  assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "nothing was pushed: the gates are red");
+
+  writeFileSync(vert, "");
+  for (let tour = 0; tour < 4 && git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)) === ""; tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
+  assert.ok(cuissons >= 2, "the next cook was launched");
+  assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "green gates: the saved head, delivered as it is, is pushed");
+  assert.equal(git(lieux.origine, "cat-file", "-e", `${brancheDuTicket(TICKET)}:bouton.ts`), "");
+});

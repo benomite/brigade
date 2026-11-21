@@ -2933,7 +2933,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const gates = await jouerGates({
       worktree,
       ticket: ticket.number,
-      ...(Object.keys(secrets.env).length === 0 ? { env: envGates } : { env: { ...envGates, ...secrets.env }, masquer: secrets.masquer }),
+      env: { ...envGates, ...secrets.env },
+      masquer: secrets.masquer,
       interdites: options.gates?.sansIdentite ? VARIABLES_GITHUB : [],
       delaiMs,
       cloison,
