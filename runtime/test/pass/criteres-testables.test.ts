@@ -48,3 +48,12 @@ test("a sheet with no testable criterion is not sent back for lacking tests", ()
   assert.deepEqual(m, []);
   assert.deepEqual(lireLeCritere("no testable criterion: proof by diff"), { texte: "no testable criterion: proof by diff", classe: "none", preuve: "diff" });
 });
+
+test("a testable criterion covered by a frozen test already green on main is not sent back (#3921)", () => {
+  const verte: Preuve = { rejeux: [{ fichier: GELE, nom: "sends back", main: true, branche: true }] };
+  assert.deepEqual(motifs(["The pass sends back (testable)"], [{ tests: ["sends back"], relecture: false }], verte, [GELE]), []);
+  assert.equal(motifs(["The pass sends back (testable)"], [{ tests: ["sends back"], relecture: false }], verte, []).length, 1);
+  const rougeSurLaBranche: Preuve = { rejeux: [{ fichier: GELE, nom: "sends back", main: true, branche: false }] };
+  assert.equal(motifs(["The pass sends back (testable)"], [{ tests: ["sends back"], relecture: false }], rougeSurLaBranche, [GELE]).length, 1);
+  assert.equal(motifs(["The pass sends back (testable)"], [{ tests: [], relecture: false }], verte, [GELE]).length, 1);
+});

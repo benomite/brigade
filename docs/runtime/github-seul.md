@@ -90,14 +90,6 @@ base, the stale-branch pruning).
   its manager. When no other station of the project that can take the ticket runs a manager, or they cannot be read, the ticket is given back to the rail and waits
   (`brigade:attente`), then a cook resumes it. A missing manager is never a failed cook and never sets a ticket aside:
   on BOBL-tech/mirrorlab#842, two such stops set the ticket aside for 21 h, when another station's manager could answer.
-- **A blocked question the evidence answers goes back to a cook, not to the chef.** When the blocked ticket is a
-  quality ticket that counts tickets (`brigade:qualite-comptes`) and the question asks for what that evidence holds —
-  which tickets, their send-backs or cooks without a delivery, their reasons, their timestamps — the station appends
-  to the ticket's body, under `<!-- brigade:preuve -->`, every `brigade:renvoi` and `brigade:echec` a station wrote on
-  each counted ticket, with its time and reason, and gives the ticket back without `blocked-on-human`, not counted
-  among its tries (`runtime/src/relance-blocage-preuve.ts`). Once only: a ticket that already carries the evidence and
-  blocks again goes to the manager, as does a question the evidence does not answer, or evidence the station cannot
-  read or write (it warns why). Seen on #2832, #2837 and BOBL-tech/espace#825 (#2841).
 - **The kitchen keeps a cook branch up to date with `origin/<base>`.** A new branch starts from the base the station
   has just fetched. Before a cook resumes an existing branch, the station fetches the base in its worktree and merges it
   into the branch if the branch does not hold its tip (a branch whose PR is in conflict follows the conflict send-back

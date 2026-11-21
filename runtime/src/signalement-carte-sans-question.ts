@@ -17,7 +17,7 @@
 import { DE_CONFIANCE } from "./alimenter.ts";
 import type { CarteDeTodoGitHub } from "./attente-github/attente-github.ts";
 import { LABEL_DU_BUG } from "./guerison/cuisine-inerte.ts";
-import { marqueDuProjet, type GitHubDeLaBrigade } from "./routage-temps-perdu.ts";
+import { marqueDuProjet, type GitHubDeLaBrigade } from "./alerte-cuisine/alerte-cuisine.ts";
 
 // Jusqu'où, sur la brigade, on cherche le défaut déjà déposé.
 export const FENETRE_MS = 30 * 24 * 60 * 60 * 1000;
