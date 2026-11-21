@@ -33,5 +33,5 @@ test("la part du premier coup et le temps perdu se calculent toujours depuis les
   const qualite = mesurerQualite(enregistrements, qualites);
   assert.equal(qualite.premierCoup, 0.5);
   assert.equal(qualite.mesures, 4);
-  assert.equal(tempsPerdu(enregistrements[0]), 20 * 60);
+  assert.equal(tempsPerdu(enregistrements[0]!), 20 * 60);
 });
