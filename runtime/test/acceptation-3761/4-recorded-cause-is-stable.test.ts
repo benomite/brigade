@@ -1,12 +1,13 @@
 // #3761, critère 4 : la cause qu'enregistre la cuisine retenue est stable : tant que le même ticket est sauté pour la
 // même raison, elle ne passe jamais à « unknown » ; elle ne change que si la vraie raison change.
-// Test d'acceptation gelé (#3725) : le suivi du tour GitHub seul rejoue plusieurs tours de la porte de prise, avec la lecture
-// de la retenue entre la lecture des tickets et le saut, comme le fait chaque réveil du runtime.
+// Test d'acceptation gelé (#3725), réécrit sur le suivi du superviseur avec l'accord du manager (#3761) : le détecteur de
+// la cuisine retenue (`retenue/`) a été retiré par #3914. Le suivi du tour GitHub seul rejoue plusieurs tours de la porte
+// de prise, et lit ses sauts entre la lecture des tickets et le saut, comme le fait chaque réveil du runtime.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GitHubDuTour, TicketLu } from "../../src/brigade-github.ts";
-import { direCause, diagnostiquer, direSaut, SANS_SIGNAL } from "../../src/retenue/retenue.ts";
-import { suivreLeTour } from "../../src/retenue/tour.ts";
+import { direSaut } from "../../src/attente-ticket/attente-ticket.ts";
+import { suivreLeTour } from "../../src/superviseur/tour.ts";
 
 const TICKET = 3734;
 const tickets: TicketLu[] = [{ number: TICKET, title: "Ticket", labels: ["fire", "model:opus", "effort:medium"], state: "open" }];
@@ -15,7 +16,7 @@ const client = { fires: async () => tickets, commentaires: async () => [] } as u
 test("the same ticket skipped for the same reason records the same cause on every turn, never 'unknown'; a new reason changes it", async () => {
   const suivi = suivreLeTour(() => new Date("2026-11-17T10:00:00.000Z"));
   const github = suivi.envelopper(client);
-  const cause = () => direCause(diagnostiquer({ ...SANS_SIGNAL, explications: suivi.vue().explications }).cause);
+  const cause = () => suivi.sauts().join("\n");
   const tour = async (raison: string) => {
     await github.fires();
     const entre = cause(); // un réveil du runtime entre la lecture des tickets et la porte de prise
