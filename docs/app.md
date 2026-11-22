@@ -1757,7 +1757,7 @@ the block `app/src/vue/autonomie/chiffres.js`.
 **What the pass let through** (#3515): after the three figures, two counts on the same tickets — those merged in the
 period with `fire`. **escaped bugs**: the `bug`-labelled issues created after one of those tickets was merged and citing its
 number in their title or body (`#12`, or its issue's address); a bug citing none of them is not counted, one citing two
-counts once. **reverts**: the commits of the default branch carrying git's `This reverts commit <sha>` trailer whose
+counts once; a bug also cites a ticket as `owner/repo#12` of the same repository. **reverts**: the commits of the default branch carrying git's `This reverts commit <sha>` trailer whose
 reverted commit belongs to one of those tickets — a merged pull request of the ticket holds it, as GitHub says; a revert of
 another commit is not counted. Under each count, what makes it: `#12 (bug #50)`, `4f2c9e1 (#30)` — the revert's sha, short,
 and the tickets of the commits it reverts. With none, `0` and `none`. They are read in the same reading as the figures: the

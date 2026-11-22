@@ -106,6 +106,17 @@ describe("the defects that escape the pass (#3515)", () => {
     assert.deepEqual(lus([bug(302, "Since https://github.com/chef/cantine/issues/102."), bug(303, "A brace: &#102; in the log."), bug(304, "Since chef/parade#1023.")]), []);
   });
 
+  test("a bug cites a served ticket as its own repository's `owner/repo#12`, never as another repository's", () => {
+    const bug = (number: number, body: string) => ({ number, title: "Crash", body, created_at: "2026-11-10T00:00:00Z", labels: [{ name: "bug" }], html_url: `https://github.com/chef/parade/issues/${number}` });
+    const defauts = ECHANTILLON.defauts as Defauts;
+    const lus = (bugs: object[]) => dits(chiffresDAutonomie([{ ...ECHANTILLON, defauts: { ...defauts, bugs } }], 7, MAINTENANT)).bugs;
+    assert.deepEqual(lus([bug(321, "Since chef/parade#102."), bug(322, "Since Chef/Parade#103 and chef/parade#104")]), [
+      { bug: 321, tickets: [102] },
+      { bug: 322, tickets: [103, 104] },
+    ]);
+    assert.deepEqual(lus([bug(323, "Since chef/cantine#102."), bug(324, "Since otherchef/parade#102."), bug(325, "Since chef/parade.old#102.")]), []);
+  });
+
   test("a bug's label is read whatever its case and its shape, a name or an object; another label is not a bug", () => {
     const bug = (number: number, labels: unknown[]) => ({ number, title: `Since #101`, body: null, created_at: "2026-11-10T00:00:00Z", labels, html_url: `https://github.com/chef/parade/issues/${number}` });
     const defauts = ECHANTILLON.defauts as Defauts;

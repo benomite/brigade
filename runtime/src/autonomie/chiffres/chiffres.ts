@@ -22,7 +22,7 @@
 // merged in the period, with `fire`:
 // - escaped bugs: the `bug`-labelled issues created after one of those tickets
 //   was merged, and before the end of the period, whose title or body cites its
-//   number (`#12`, or its issue's address). A bug that cites none of them is
+//   number (`#12`, `owner/repo#12`, or its issue's address). A bug that cites none of them is
 //   not counted; one that cites two counts once, with both.
 // - reverts: the commits of the default branch that carry git's trailer
 //   `This reverts commit <sha>`, committed before the end of the period, whose
@@ -151,10 +151,13 @@ function questionsDuParcours(evenements: readonly Evenement[], commentaires: rea
   return questions.sort((a, b) => a.le - b.le).map(({ question }) => question);
 }
 
-// The tickets a text cites: `#12`, or the address of issue 12 of the repository.
+// The tickets a text cites: `#12`, `owner/repo#12` of the repository, or the
+// address of issue 12 of the repository.
 function ticketsCites(texteLu: string, depot: string): Set<number> {
-  const adresse = new RegExp(`github\\.com/${depot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/issues/(\\d+)\\b`, "gi");
-  return new Set([...texteLu.matchAll(/(?<![\w&])#(\d+)\b/g), ...texteLu.matchAll(adresse)].map(([, n]) => Number(n)));
+  const nom = depot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const adresse = new RegExp(`github\\.com/${nom}/issues/(\\d+)\\b`, "gi");
+  const reference = new RegExp(`(?<![\\w./-])${nom}#(\\d+)\\b`, "gi");
+  return new Set([...texteLu.matchAll(/(?<![\w&])#(\d+)\b/g), ...texteLu.matchAll(adresse), ...texteLu.matchAll(reference)].map(([, n]) => Number(n)));
 }
 
 // A repository's escaped bugs and reverts, against its tickets counted
