@@ -113,6 +113,19 @@ test("les prises sans livrer : le compte `n=` que la station écrit au cook arr�
   assert.deepEqual(tour.faits().prises, []);
 });
 
+test("les prises sans livrer : une relance à vide compte une prise de plus, sur le `n=` courant, une seule fois par commentaire", async () => {
+  const { dicte, github, tour } = suivi();
+  dicte.tickets = [ticket(4)];
+  await github.fires();
+  const aVide = "Station `box/claude`: the cook added nothing, and the delivery still has work left — the CI of PR #9 is red. The ticket is given back; this is not counted as a failed cook.";
+  await github.commenter(4, aVide);
+  assert.deepEqual(tour.faits().prises, [{ ticket: 4, prises: 1 }]);
+  await github.commenter(4, "<!-- brigade:echec n=3 -->\n" + aVide);
+  assert.deepEqual(tour.faits().prises, [{ ticket: 4, prises: 3 }]);
+  await github.commenter(4, aVide);
+  assert.deepEqual(tour.faits().prises, [{ ticket: 4, prises: 4 }]);
+});
+
 test("`main` rouge : depuis le premier tour qui a lu un check rouge, nul dès qu'aucun ne l'est ; les checks lus, nom et issue", async () => {
   const { dicte, github, tour, a } = suivi();
   dicte.checks = [{ name: "tests", outcome: "green" }];
