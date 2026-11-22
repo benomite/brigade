@@ -1754,6 +1754,18 @@ counted: never figures presented as the whole period over a shorter span. The
 computation is the runtime's, `runtime/src/autonomie/chiffres/chiffres.ts`; the reading is `app/src/vue/autonomie/autonomie-github.ts`,
 the block `app/src/vue/autonomie/chiffres.js`.
 
+**What the pass let through** (#3515): after the three figures, two counts on the same tickets — those merged in the
+period with `fire`. **escaped bugs**: the `bug`-labelled issues created after one of those tickets was merged and citing its
+number in their title or body (`#12`, or its issue's address); a bug citing none of them is not counted, one citing two
+counts once; a bug also cites a ticket as `owner/repo#12` of the same repository. **reverts**: the commits of the default branch carrying git's `This reverts commit <sha>` trailer whose
+reverted commit belongs to one of those tickets — a merged pull request of the ticket holds it, as GitHub says; a revert of
+another commit is not counted. Under each count, what makes it: `#12 (bug #50)`, `4f2c9e1 (#30)` — the revert's sha, short,
+and the tickets of the commits it reverts. With none, `0` and `none`. They are read in the same reading as the figures: the
+`bug` issues updated in the 30 days, GitHub's commit search for the trailer (it searches the default branch only, up to
+1,000 commits), and the pull requests of each reverted commit. When that reading fails, both counts say `not read`, with
+the project and the reason, never `0`, and the other figures still count; the reading is not kept, the next one redoes it.
+Captures: `docs/captures/3515/`.
+
 ### The cost of all projects
 
 *Tickets: #908 to #912, #1022, #2638.* **In a project's health strip, the "Cost" row opens the cost page of all

@@ -311,7 +311,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { arrete: string } | { baseAbsente: string } | { reste: string } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { arrete: string } | { baseAbsente: string } | { reste: string; rouges?: string[] } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -1379,6 +1379,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Un arrêt que le cook n'a pas causé — quota, limite GitHub, station
       // relancée, process tué — n'est pas un de ses essais non plus : le ticket
       // attend, puis repart, sans `served-elsewhere` (#2508).
+      // Rien ajouté, et la CI rouge sur les mêmes checks : un essai raté, qui compte ; au second de suite, le ticket va au superviseur (#4007).
+      if ("reste" in fait && fait.rouges !== undefined && fait.rouges.length > 0) fait = { echec: `the cook added nothing, and the CI of its PR is still red on ${fait.rouges.join(", ")}` };
       if ("reste" in fait || "subi" in fait) {
         // Sa station s'arrête — une mise à jour la relance — et le cook meurt
         // avec elle. Rien n'est à attendre : la station relancée, ou une autre,
@@ -3022,6 +3024,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let resteAFaire: string | null = null;
     // Ses checks rouges : ce qu'ils disent est remis au cook (#2545).
     let rouges: Check[] = [];
+    let nomsRouges: string[] = [];
     // La branche n'a jamais eu de PR : sa livraison n'est jamais arrivée en pass (#2577).
     let sansPR = false;
     // Ce que la livraison renvoyée laisse au cook : remarques, checks rouges, diff (#2590).
@@ -3046,6 +3049,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
             if (etatDeLaBase(checks) === "red") {
               resteAFaire = `the CI of PR #${ouverte.number} is red`;
               rouges = checks.filter((check) => check.outcome === "red");
+              nomsRouges = rouges.map((check) => check.name).sort();
             }
           }
           renvoi = await lireLeRenvoi(options.github, ouverte, rouges, depot.diff(branche));
@@ -3336,7 +3340,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       await options.github.commenter(prOuverte, corpsDeLaReponse(tete, reponse)).catch((erreur: unknown) => avertir(`brigade : #${ticket.number} sur ${nom} — the cook's reply could not be posted on PR #${prOuverte}: ${message(erreur)}`));
     }
     if (avant !== null && tete === avant && !livreLaSauvegarde) {
-      if (resteAFaire !== null) return { reste: resteAFaire };
+      if (resteAFaire !== null) return { reste: resteAFaire, rouges: nomsRouges };
       // La branche porte déjà une livraison et sa PR a été fermée sans merge : le cook n'a rien à y ajouter,
       // la station la remet en pass, qui rouvre la PR. Ce n'est pas un cook raté (#3990).
       if (prFermee && !sauvee && !estLeCommitDesTests(depot.sujet?.(branche))) {
