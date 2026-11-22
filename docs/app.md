@@ -4634,7 +4634,6 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
   `ESC f` (one word), Cmd + ←/→ → `^A` / `^E` (the line), Option + ⌫ → `ESC DEL` (one word), Cmd + ⌫ →
   `^U` (to the start of the line), Ctrl + ⌫ → `^W`. Shift alone has nothing to select: the arrow
   goes out bare.
-- **The view stays thin.** The repo's test rules (`docs/runtime/exploitation.md` § "Rules of this repo") hold for the app's tests too (#4016).
 - **No test launches Electron.** What can be proven lives in twenty modules run by
   `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
   moving one to another place in it — a legacy key naming a host, boxes or played stations is read and ignored),
