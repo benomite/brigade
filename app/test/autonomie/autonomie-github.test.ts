@@ -275,6 +275,19 @@ describe("les chiffres d'autonomie lus de GitHub (#3222)", () => {
     assert.equal(chemins.length, lus);
   });
 
+  test("un commit reverté que GitHub ne connaît pas (404) n'est d'aucun ticket ; une recherche sans liste n'est pas lue (#3515)", async () => {
+    const { appeler } = github("chef/parade", DEFAUTS);
+    let sansListe = false;
+    const lire: AppelGitHub = async (chemin) => {
+      if (chemin === `/repos/chef/parade/commits/${sha("c2")}/pulls`) return { status: 404, data: { message: "Not Found" } };
+      if (sansListe && chemin.startsWith("/search/commits?")) return { status: 200, data: { incomplete_results: false } };
+      return appeler(chemin);
+    };
+    assert.deepEqual((await defautsDits(autonomieDe(lire), 7)).reverts, [{ projet: "parade", sha: sha("a1"), tickets: [12] }]);
+    sansListe = true;
+    assert.deepEqual((await defautsDits(autonomieDe(lire), 7)).defautsNonLus, [{ projet: "parade", raison: "GitHub's commit search gave no list" }]);
+  });
+
   test("la recherche des commits qui revertent se lit page après page ; au-delà de 1 000, la lecture le dit, sans nombre (#3515)", async () => {
     const commits = (n: number) => Array.from({ length: n }, (_, i) => ({ sha: `${i}`.padStart(40, "f"), commit: { message: "Revert nothing a trailer names", committer: { date: il(HEURE) } } }));
     const recherche = (total: number) => {
