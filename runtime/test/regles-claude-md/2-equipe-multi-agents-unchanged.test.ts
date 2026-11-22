@@ -1,6 +1,8 @@
 // #4016, critère 2 : les liaisons de la section `## Équipe multi-agents` de CLAUDE.md restent, mot pour mot, celles de `origin/main`.
-// Réponse au blocage n=1 du manager : seules les liaisons comptent (jusqu'à `### Conventions of this repo`,
-// que le ticket allège), et la référence est `origin/main` — `main` en local est souvent périmé ou absent.
+// Changé sur décision du manager (#4016, commentaire `brigade:reponse-au-blocage n=1`, 2026-11-22T16:24:05Z) :
+// « The cook may edit the frozen test […] It must compare only the bindings part […] It must read the
+// reference from `origin/main`, and fall back to `main` only if `origin/main` does not exist. »
+// Seules les liaisons comptent (jusqu'à `### Conventions of this repo`, que le ticket allège).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
