@@ -106,6 +106,18 @@ describe("the defects that escape the pass (#3515)", () => {
     assert.deepEqual(lus([bug(302, "Since https://github.com/chef/cantine/issues/102."), bug(303, "A brace: &#102; in the log."), bug(304, "Since chef/parade#1023.")]), []);
   });
 
+  test("a bug's label is read whatever its case and its shape, a name or an object; another label is not a bug", () => {
+    const bug = (number: number, labels: unknown[]) => ({ number, title: `Since #101`, body: null, created_at: "2026-11-10T00:00:00Z", labels, html_url: `https://github.com/chef/parade/issues/${number}` });
+    const defauts = ECHANTILLON.defauts as Defauts;
+    const bugs = [bug(311, ["Bug"]), bug(312, [{ name: "BUG" }]), bug(313, ["bugfix", { name: "debug" }]), bug(314, [null, 7, { name: "bug" }])];
+    const chiffres = chiffresDAutonomie([{ ...ECHANTILLON, defauts: { ...defauts, bugs } }], 7, MAINTENANT);
+    assert.deepEqual(dits(chiffres).bugs, [
+      { bug: 311, tickets: [101] },
+      { bug: 312, tickets: [101] },
+      { bug: 314, tickets: [101] },
+    ]);
+  });
+
   test("a commit message gives each commit its trailer reverts, once", () => {
     assert.deepEqual(commitsRevertes(`This reverts commit ${sha("1")}.\n\nThis reverts commit ${sha("2")}.\nThis reverts commit ${sha("1")}.`), [sha("1"), sha("2")]);
     assert.deepEqual(commitsRevertes("Revert the wording: this reverts nothing"), []);
