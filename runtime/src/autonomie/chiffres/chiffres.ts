@@ -182,7 +182,8 @@ function defautsDuDepot(depot: string, defauts: Defauts, servis: ReadonlyMap<num
     const tickets = [...new Set(revertes.flatMap((reverte) => defauts.ticketsDesCommits[reverte] ?? []))].filter((ticket) => servis.has(ticket)).sort((a, b) => a - b);
     return tickets.length === 0 ? [] : [{ depot, sha, revertes, tickets }];
   });
-  return { bugs: bugs.sort((a, b) => a.bug - b.bug), reverts };
+  // GitHub's commit search gives its best match first: the reverts are listed by sha.
+  return { bugs: bugs.sort((a, b) => a.bug - b.bug), reverts: reverts.sort((a, b) => a.sha.localeCompare(b.sha)) };
 }
 
 // The figures over the `jours` days before `maintenant`, pooled over the

@@ -90,6 +90,14 @@ describe("the defects that escape the pass (#3515)", () => {
     assert.deepEqual(dits(chiffres).reverts, [{ sha: sha("7"), tickets: [101, 103] }]);
   });
 
+  test("the reverts are listed by sha, whatever order GitHub's commit search gives them in", () => {
+    const defauts = ECHANTILLON.defauts as Defauts;
+    // The first aaaa… moved last: eeee… comes before both aaaa… in the search's order.
+    const [premier, ...autres] = defauts.reverts;
+    const chiffres = chiffresDAutonomie([{ ...ECHANTILLON, defauts: { ...defauts, reverts: [...autres, premier] } }], 7, MAINTENANT);
+    assert.deepEqual(chiffres.reverts?.map(({ sha }) => sha), [sha("a"), sha("e")]);
+  });
+
   test("a bug cites a served ticket by its own repository's address, never by another repository's, nor by an HTML entity", () => {
     const bug = (number: number, body: string) => ({ number, title: "Crash", body, created_at: "2026-11-10T00:00:00Z", labels: [{ name: "bug" }], html_url: `https://github.com/chef/parade/issues/${number}` });
     const defauts = ECHANTILLON.defauts as Defauts;
