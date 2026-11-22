@@ -166,7 +166,8 @@ function defautsDuDepot(depot: string, defauts: Defauts, servis: ReadonlyMap<num
     const labels = Array.isArray(lu.labels) ? lu.labels.map((label) => (typeof label === "string" ? label : texte(objet(label)?.name)).toLowerCase()) : [];
     if (!labels.includes(LABEL_BUG)) return [];
     const bug = lu.number;
-    const tickets = [...ticketsCites(`${texte(lu.title)}\n${texte(lu.body)}`, depot)].filter((ticket) => ticket !== bug && (servis.get(ticket) ?? Infinity) < cree).sort((a, b) => a - b);
+    // A bug that cites itself is not a ticket served before it was created.
+    const tickets = [...ticketsCites(`${texte(lu.title)}\n${texte(lu.body)}`, depot)].filter((ticket) => (servis.get(ticket) ?? Infinity) < cree).sort((a, b) => a - b);
     return tickets.length === 0 ? [] : [{ depot, bug, titre: texte(lu.title), url: texte(lu.html_url), tickets }];
   });
   const vus = new Set<string>();

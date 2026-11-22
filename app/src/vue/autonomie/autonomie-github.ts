@@ -84,7 +84,7 @@ async function lireLesDefauts(lire: (chemin: string) => Promise<unknown>, appele
         ticketsDesCommits[reverte] = [];
         continue;
       }
-      if (reponse.status !== 200 || !Array.isArray(reponse.data)) throw new Error(`GitHub answered HTTP ${reponse.status} on ${chemin}`);
+      if (!(reponse.status === 200 && Array.isArray(reponse.data))) throw new Error(`GitHub answered HTTP ${reponse.status} on ${chemin}`);
       ticketsDesCommits[reverte] = reponse.data.flatMap((brute: unknown) => {
         const pr = objet(brute);
         const ticket = pr === null || texte(pr.merged_at) === "" ? null : ticketDeLaPR(texte(objet(pr.head)?.ref), texte(pr.body));
