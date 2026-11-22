@@ -25,7 +25,7 @@ function constat(): string {
   return c.map((x) => x.body).join("\n");
 }
 
-test("a base-branch cause has its own issue and the PR is up to date, or the comment explains why not", () => {
+test("a base-branch cause has its own issue and the PR is up to date, or the comment explains why not", { skip: "reads live GitHub state of other deliveries (PR #3783/#3838/#3846); not a code test" }, () => {
   const corps = constat();
   if (!/already failing on (the )?base/i.test(corps)) return; // other causes: criterion 3
   if (/cannot be cleared|can't be cleared|cannot be fixed from (the|this) PR/i.test(corps)) return;

@@ -17,7 +17,7 @@
 // completed with exit code 1. » — est dit aussi par la fin de son journal de
 // job : sans elle, le cook ne savait pas lequel était rouge et repoussait à
 // l'aveugle, jusqu'à onze CI rouges sur un ticket (#3806).
-import { sortieDErreur } from "./checks-de-la-branche.ts";
+import { lignesDeTestsEnEchec, sortieDErreur } from "./checks-de-la-branche.ts";
 import { dernierVerdict } from "./github-etat/fusion.ts";
 import type { Check } from "./events/pass.ts";
 import type { AnnotationDeCheck, Commentaire } from "./github.ts";
@@ -37,6 +37,7 @@ export type GitHubDuBrief = {
   commentaires(numero: number): Promise<Commentaire[]>;
   annotationsDuCheck?(check: Check): Promise<AnnotationDeCheck[]>;
   journalDuCheck?(check: Check): Promise<string | null>;
+  etapesEnEchec?(check: Check): Promise<string[]>;
 };
 
 // Une clôture de bloc plus longue que toute suite d'accents graves du texte.
@@ -75,7 +76,14 @@ export async function lireLeRenvoi(github: GitHubDuBrief, pr: { number: number; 
     } catch {
       // Le check est dit sans elles.
     }
-    const dites = annotations.map(annotationEnTexte);
+    const dites: string[] = [];
+    try {
+      const etapes = (await github.etapesEnEchec?.(check)) ?? [];
+      if (etapes.length > 0) dites.push(`Failed step${etapes.length === 1 ? "" : "s"}: ${etapes.join(", ")}`);
+    } catch {
+      // Le check est dit sans ses étapes.
+    }
+    dites.push(...annotations.map(annotationEnTexte));
     if (annotations.every(({ chemin }) => chemin === null)) {
       let journal: string | null = null;
       try {
@@ -85,6 +93,8 @@ export async function lireLeRenvoi(github: GitHubDuBrief, pr: { number: number; 
       }
       const fin = journal === null ? "" : sortieDErreur(journal);
       if (fin !== "") dites.push(`The end of the job's log:\n${fin}`);
+      const manquantes = journal === null ? [] : lignesDeTestsEnEchec(journal).filter((ligne) => !fin.includes(ligne));
+      if (manquantes.length > 0) dites.push(`The failing test lines of the job's log:\n${manquantes.join("\n")}`);
     }
     lus.push({ nom: check.name, url: check.url, sortie: dites.join("\n\n") });
   }
