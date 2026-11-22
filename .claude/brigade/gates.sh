@@ -91,6 +91,18 @@ while IFS= read -r s; do
 done < <(find . \( -path ./.git -o -name node_modules -o -path ./.brigade-state \) -prune \
               -o -name '*.sh' -print)
 
+# Le verdict d'un contrôle python qui écrit lui-même ses lignes FAIL : sorti en
+# 2, il les a écrites ; sorti autrement que 0, il n'a pas abouti, et sa trace
+# n'est pas une ligne FAIL : il en faut une.
+# Usage : controle_juge <code de sortie> <nom du contrôle>
+controle_juge() {
+  case "$1" in
+    0) ;;
+    2) rc=1 ;;
+    *) fail "$2 planté — sa trace est au-dessus" ;;
+  esac
+}
+
 # 3-4-5. Cohérence commands/ ↔ plugin.json ↔ agents/ ↔ miroir Codex.
 # Le contrôle sort en 2 quand il a trouvé, et dit, des incohérences. Tout autre
 # code est le contrôle lui-même qui n'a pas abouti — python3 absent, un manifest
@@ -108,11 +120,11 @@ manifest = json.loads((root / ".claude-plugin/plugin.json").read_text())
 
 for champ, motif in (("commands", "commands/*.md"), ("agents", "agents/*.md")):
     declares = {c.lstrip("./") for c in manifest.get(champ, [])}
-    presents = {str(f) for f in root.glob(motif)}
+    presents = {f.as_posix() for f in root.glob(motif)}
     for f in sorted(declares - presents):
         bad.append(f"declare dans plugin.json[{champ}] mais absent du disque : {f}")
     for f in sorted(presents - declares):
-        bad.append(f"present sur le disque mais absent de plugin.json[{champ}] : {f}")
+        bad.append(f"present sur le disque mais absent de plugin.json[{champ}] : {f} — un rôle ajouté doit être déclaré dans plugin.json, sinon il ne se charge jamais")
 
 for r in ROLES:
     if not (root / f"commands/{r}.md").is_file():
@@ -134,11 +146,7 @@ if not bad:
     print("ok    coherence commands/agents/plugin.json/miroir Codex")
 sys.exit(2 if bad else 0)
 PY
-case "$?" in
-  0) ;;
-  2) rc=1 ;;
-  *) fail "contrôle de cohérence commands/agents/plugin.json/miroir Codex planté — sa trace est au-dessus" ;;
-esac
+controle_juge "$?" "contrôle de cohérence commands/agents/plugin.json/miroir Codex"
 
 # 6. Fraîcheur du miroir Codex, relative au diff : un rôle modifié sans que son
 # miroir bouge échoue. La règle ne regarde QUE commands/<rôle>.md — un changement
@@ -176,6 +184,125 @@ codex/skills/$r/"*) ;; *)
     esac
   done
   [ "$perime" -eq 0 ] && ok "miroir Codex à jour pour les rôles modifiés depuis $REF"
+fi
+
+# 6 quinquies. Les règles du CLAUDE.md qu'un script vérifie (#4016) : elles
+# ont quitté le CLAUDE.md, et c'est la ligne FAIL qui les dit à qui les casse.
+# Elles ne jugent que les fichiers que le changement touche : un reste plus
+# ancien n'est pas le sien. Les tests de `runtime/test/regles-claude-md/`
+# cassent ces règles exprès, dans les projets d'essai qu'ils écrivent : ils
+# n'en sont pas jugés.
+#   - Le git d'un test tourne sous ENV_GIT (`runtime/test/outils.ts`), jamais
+#     sous process.env : l'identité git de la station manque au runner de la
+#     CI, et un commit fait sous process.env y rougit (#2855).
+#   - Un process ne se tue jamais par son nom (pkill, killall, taskkill /im) :
+#     ce nom est aussi celui des process des autres worktrees. Par son pid.
+#   - Le miroir Codex dit la même chose que son rôle : un paragraphe que
+#     commands/<rôle>.md et codex/skills/<rôle>/SKILL.md partagent à la souche
+#     devient le même texte dans les deux, ou disparaît des deux. L'étape 6 voit
+#     que le miroir a bougé ; celle-ci, qu'il n'a pas divergé.
+# Le contrôle sort en 2 quand il a trouvé, et dit, des manquements ; tout autre
+# code est le contrôle lui-même qui n'a pas abouti — sa trace n'est pas une
+# ligne FAIL, il en faut une. Sans souche, l'étape 6 a déjà rougi.
+if [ -n "${SOUCHE:-}" ]; then
+  # La liste des changements part par un fichier, pas par l'environnement : une
+  # longue liste dépasse ce qu'une variable passe à un process (128 Ko sous Linux).
+  LISTE="$(mktemp)"
+  printf '%s\n' "$CHANGES" >"$LISTE"
+  python3 - "$SOUCHE" "$LISTE" <<'PY'
+import difflib, re, subprocess, sys
+
+souche = sys.argv[1]
+with open(sys.argv[2], encoding="utf-8") as liste:
+    touches = [c for c in liste.read().split("\n") if c]
+EXPRES = "runtime/test/regles-claude-md/"
+CODE = (".ts", ".mts", ".cts", ".js", ".mjs", ".cjs", ".sh", ".bash", ".py")
+bad = []
+
+# Un fichier du changement, ou None quand le changement l'a supprimé.
+def lire(chemin):
+    try:
+        with open(chemin, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+# Un fichier tel qu'il était à la souche, ou None s'il n'y était pas. Une
+# souche que git ne lit pas lève : le contrôle n'aboutit pas.
+def a_la_souche(chemin):
+    present = subprocess.run(["git", "ls-tree", "--name-only", souche, "--", chemin], capture_output=True, check=True, text=True)
+    if not present.stdout.strip():
+        return None
+    return subprocess.run(["git", "show", f"{souche}:{chemin}"], capture_output=True, check=True, encoding="utf-8", errors="replace").stdout
+
+def ligne(texte, position):
+    return texte.count("\n", 0, position) + 1
+
+codes = [c for c in touches if c.endswith(CODE) and not c.startswith(EXPRES) and "/node_modules/" not in c]
+
+APPEL_GIT = re.compile(r"\b(?:execFileSync|execFile|spawnSync|spawn|execSync|exec)\(\s*[\"'`]git\b")
+SOUS_PROCESS_ENV = re.compile(r"(?:\benv\s*:\s*|\.\.\.)process\.env\b(?!\s*\.)")
+for chemin in codes:
+    if not chemin.startswith("runtime/test/"):
+        continue
+    texte = lire(chemin)
+    if texte is None:
+        continue
+    for appel in APPEL_GIT.finditer(texte):
+        debut = texte.index("(", appel.start())
+        profondeur, fin = 0, debut
+        for fin in range(debut, len(texte)):
+            profondeur += {"(": 1, ")": -1}.get(texte[fin], 0)
+            if profondeur == 0:
+                break
+        arguments = texte[debut:fin]
+        if SOUS_PROCESS_ENV.search(arguments) and "ENV_GIT" not in arguments:
+            bad.append(f"le git d'un test tourne sous ENV_GIT (runtime/test/outils.ts), jamais sous process.env : {chemin}:{ligne(texte, appel.start())}")
+
+PAR_SON_NOM = re.compile(r"""\b(?:p[k]ill|k[i]llall)\b|\bt[a]skkill\b.*[\s"'`]/im\b""", re.IGNORECASE)
+for chemin in codes:
+    texte = lire(chemin)
+    if texte is None:
+        continue
+    for numero, contenu in enumerate(texte.split("\n"), 1):
+        if contenu.lstrip().startswith(("#", "//", "*", "/*")):
+            continue
+        if PAR_SON_NOM.search(contenu):
+            bad.append(f"ne tue jamais un process par son nom — un autre worktree en lance du même nom ; tue-le par son pid : {chemin}:{numero}")
+
+def paragraphes(texte):
+    return [p.strip() for p in re.split(r"\n[ \t]*\n", texte or "") if p.strip()]
+
+# Ce qu'est devenu le paragraphe `p` d'un fichier : le paragraphe qui lui
+# ressemble le plus dans le bloc qui lui répond — lui-même s'il n'a pas bougé,
+# ce qui l'a remplacé sinon —, rien s'il a été retiré.
+def devenu(avant, apres, p):
+    for _, a1, a2, b1, b2 in difflib.SequenceMatcher(None, avant, apres, autojunk=False).get_opcodes():
+        if p in avant[a1:a2]:
+            if b1 == b2:
+                return ""
+            return max(apres[b1:b2], key=lambda q: difflib.SequenceMatcher(None, p, q).ratio())
+    return ""
+
+ROLES_TOUCHES = {c[len("commands/"):-len(".md")] for c in touches if re.fullmatch(r"commands/[^/]+\.md", c)}
+ROLES_TOUCHES |= {c.split("/")[2] for c in touches if re.fullmatch(r"codex/skills/[^/]+/SKILL\.md", c)}
+for role in sorted(ROLES_TOUCHES):
+    commande, miroir = f"commands/{role}.md", f"codex/skills/{role}/SKILL.md"
+    role_avant, miroir_avant = paragraphes(a_la_souche(commande)), paragraphes(a_la_souche(miroir))
+    role_apres, miroir_apres = paragraphes(lire(commande)), paragraphes(lire(miroir))
+    for p in [p for p in role_avant if p in miroir_avant]:
+        if devenu(role_avant, role_apres, p) != devenu(miroir_avant, miroir_apres, p):
+            bad.append(f"miroir Codex divergent : {commande} et {miroir} partageaient « {p.splitlines()[0][:60]} », ils ne disent plus la même chose — porte le même texte dans les deux")
+
+for b in bad:
+    print(f"FAIL  {b}", file=sys.stderr)
+if not bad:
+    print("ok    règles du CLAUDE.md : git des tests sous ENV_GIT, aucun process tué par son nom, miroir Codex fidèle à son rôle")
+sys.exit(2 if bad else 0)
+PY
+  REGLES=$?
+  rm -f "$LISTE"
+  controle_juge "$REGLES" "contrôle des règles du CLAUDE.md (ENV_GIT, process tué par son nom, miroir Codex)"
 fi
 
 # 6 quater. Les motifs de renvoi de la relecture qu'un script voit sans elle
