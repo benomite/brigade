@@ -37,3 +37,11 @@ export function sortieDErreur(journal: string, plafond = SORTIE_MAX): string {
   const saut = fin.indexOf("\n");
   return `…\n${saut === -1 || saut === fin.length - 1 ? fin : fin.slice(saut + 1)}`;
 }
+
+// Les lignes de tests en échec d'un journal de job (`✖ nom`, `not ok n - nom`, `FAIL nom`), sans couleurs ni
+// horodatage ni la suite récapitulative « failing tests: », `max` au plus : un échec loin dans un long journal
+// n'est pas dans sa fin.
+export function lignesDeTestsEnEchec(journal: string, max = 40): string[] {
+  const lignes = journal.split(/\r?\n/).map((ligne) => ligne.replace(ANSI, "").replace(HORODATAGE, "").trimEnd());
+  return [...new Set(lignes.filter((ligne) => /^\s*(?:✖|not ok\b|FAIL\b)/.test(ligne)))].slice(0, max);
+}
