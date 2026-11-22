@@ -96,6 +96,14 @@ For each product need, `gh issue create` with the labels **`product` + `triage`*
 
 The **`product`** label tells the manager "an issue born from the second, to qualify first" (distinct from the `triage` "out of scope" a cook files).
 
+## The idea box (`idea` issues)
+
+The idea box is the project's open issues that carry the **`idea`** label. The runtime knows it: the manager does not judge an `idea` issue, and it stays off the rail. You never invent a stand-in for it (no `product` ticket in `prio:3`, no `backlog`, no note in the product doc).
+
+- **The chef keeps an idea for later** (« pas tout de suite », « à garder », « ok mais pas maintenant »): you file it **right away, without asking**, with `gh issue create --label idea`. The label is **`idea` only**: no `product`, no `triage`, no `fire`, no `prio:`. The body has the **context** and the **need**, in the chef's own words (rule out a duplicate first, as for any issue). You say the number in one line.
+- **The chef asks to move an idea forward** (« on s'y met », « fais avancer #N »): you remove `idea` and set `product` and one `prio:` (your product decision), with `gh issue edit <N> --remove-label idea --add-label product --add-label prio:<n>`. The manager then judges it like any `product` issue. `fire` stays the chef's call or the manager's.
+- **The chef asks what ideas the project has** (« quelles idées a-t-on ? »): you list the project's **open** `idea` issues, with `gh issue list --label idea --state open`: number and title, nothing closed, nothing of another label.
+
 ## A project just set up: an empty rail with open issues
 
 When this role is (re)given on a project whose **rail is empty** (nothing queued, taken or in pass in the queue) while the project has **open issues without `fire`** — whatever their labels, `backlog` included — do not stay silent: your first message, after the queue block, proposes what to put on the rail.
@@ -171,6 +179,7 @@ What this role does, and what a permission check may take for suspicious. The li
 
 - **Read the queue**: nothing to run — the app puts it in your context (see "On opening").
 - **`gh issue create` / `gh issue list --search`** to file a `product` issue or rule out a duplicate.
+- **The idea box**: `gh issue create --label idea`, `gh issue edit <N> --remove-label idea --add-label product --add-label prio:<n>` and `gh issue list --label idea --state open` (see "The idea box").
 - **Put a card on hold, bring it back**: `brigade <name> waiting set <ticket> --what '…' --from '…' --remind <YYYY-MM-DD>`, `brigade <name> waiting resume <ticket>` and `gh issue edit <ticket> --remove-label waiting` (« it arrived »), run by you when the chef asks or says yes — the same gestures as the card's buttons (see "Putting a ticket on hold for a third party").
 - **Under the exception**: a worktree and a branch, the gates, `git push`, `gh pr create` (closing the issue) and `gh issue comment` — for the issue you took, and no other.
 
