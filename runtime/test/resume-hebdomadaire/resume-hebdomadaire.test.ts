@@ -231,7 +231,7 @@ test("with autonomy figures the markdown ends with the autonomy section then 'Wa
   assert.doesNotMatch(r2.markdown, /Autonomy/);
   assert.match(r2.markdown, /\n## Waiting for the chef\n\nNothing is waiting for you\.\n$/);
   // Une semaine sans ticket compté n'a pas de chiffres non plus.
-  const vide = resumeDeLaSemaine({ project: "gamma", weekStart: "2026-11-02", weekEnd: "2026-11-08", servis: [], autonomie: { debut: "", fin: "", tickets: 0, sansHumain: 0, partSansHumain: null, delaiMedianMs: null, renvoyes: 0, partRenvoyee: null, avecHumain: [] }, attentes: [] });
+  const vide = resumeDeLaSemaine({ project: "gamma", weekStart: "2026-11-02", weekEnd: "2026-11-08", servis: [], autonomie: { debut: "", fin: "", tickets: 0, sansHumain: 0, partSansHumain: null, delaiMedianMs: null, renvoyes: 0, partRenvoyee: null, avecHumain: [], bugsEchappes: null, reverts: null, defautsNonLus: [] }, attentes: [] });
   assert.equal(vide.autonomy, undefined);
   assert.match(vide.markdown, /Nothing was served this week\.\n\n## Waiting for the chef\n\nNothing is waiting for you\.\n$/);
 });

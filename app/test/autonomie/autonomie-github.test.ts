@@ -31,12 +31,19 @@ const COMMENTAIRES: Record<number, object[]> = {
   13: [{ body: "<!-- brigade:renvoi n=1 sha=a -->\nsent back", created_at: il(20 * JOUR + HEURE / 2), author_association: "OWNER" }],
 };
 
-function github(depot = "chef/parade") {
+// Ses défauts échappés (#3515), vides par défaut : ses issues `bug`, les commits que trouve la recherche, les PR de chaque
+// commit reverté — un commit absent, GitHub répond 422.
+type DefautsDuFaux = { bugs?: object[]; reverts?: object[]; prs?: Record<string, object[]> };
+function github(depot = "chef/parade", defauts: DefautsDuFaux = {}) {
   const chemins: string[] = [];
   const appeler: AppelGitHub = async (chemin) => {
     chemins.push(chemin);
     const ok = (data: unknown) => ({ status: 200, data });
     if (chemin.startsWith(`/repos/${depot}/pulls?state=closed`)) return ok(chemin.includes("page=1") ? PULLS : []);
+    if (chemin.startsWith(`/repos/${depot}/issues?state=all&labels=bug&`)) return ok(chemin.includes("&page=1") ? (defauts.bugs ?? []) : []);
+    if (chemin.startsWith("/search/commits?")) return ok({ total_count: 0, incomplete_results: false, items: chemin.includes("&page=1") ? (defauts.reverts ?? []) : [] });
+    const pullsDuCommit = new RegExp(`^/repos/${depot}/commits/([0-9a-f]+)/pulls$`).exec(chemin);
+    if (pullsDuCommit !== null) return defauts.prs?.[pullsDuCommit[1]!] === undefined ? { status: 422, data: { message: "No commit found for SHA" } } : ok(defauts.prs[pullsDuCommit[1]!]);
     const issue = /\/issues\/(\d+)\/(events|comments)\?/.exec(chemin);
     if (issue !== null) return ok(chemin.includes("page=1") ? ((issue[2] === "events" ? EVENEMENTS : COMMENTAIRES)[Number(issue[1])] ?? []) : []);
     return { status: 404, data: {} };
@@ -50,7 +57,7 @@ describe("les chiffres d'autonomie lus de GitHub (#3222)", () => {
     const donnees = await lireLAutonomieDuDepot({ depot: "chef/parade", appeler, maintenant: MAINTENANT });
     assert.deepEqual(donnees.servis.map(({ ticket }) => ticket), [12, 13]);
     assert.deepEqual(Object.keys(donnees.issues).sort(), ["12", "13"]);
-    assert.deepEqual(chemins.filter((chemin) => !chemin.includes("/pulls?")).sort(), [
+    assert.deepEqual(chemins.filter((chemin) => !chemin.includes("/pulls?") && !chemin.includes("labels=bug") && !chemin.startsWith("/search/commits?")).sort(), [
       "/repos/chef/parade/issues/12/comments?per_page=100&page=1",
       "/repos/chef/parade/issues/12/events?per_page=100&page=1",
       "/repos/chef/parade/issues/13/comments?per_page=100&page=1",
@@ -193,5 +200,113 @@ describe("les chiffres d'autonomie lus de GitHub (#3222)", () => {
     assert.equal(relue.chiffres.tickets, 2);
     assert.equal(issues(), 4);
     assert.equal(chemins.filter((chemin) => chemin.includes("/pulls?")).length, 2);
+  });
+
+  // Les défauts échappés de « chef/parade » (#3515) : #50 cite #12 après son merge, #51 cite #13 ; a1… revert un commit de la
+  // PR de #12, c4… un de #13 ; b2… un commit que GitHub ne connaît pas, d3… celui d'une PR jamais mergée.
+  const sha = (signe: string) => signe.repeat(20);
+  const revert = (de: string, cible: string, heures: number) => ({ sha: sha(de), commit: { message: `Revert "x"\n\nThis reverts commit ${sha(cible)}.`, committer: { date: il(heures * HEURE) } } });
+  const DEFAUTS: DefautsDuFaux = {
+    bugs: [
+      { number: 50, title: "Grey badges", body: "Since #12 the badges are grey.", created_at: il(JOUR), labels: [{ name: "bug" }], html_url: "https://github.com/chef/parade/issues/50" },
+      { number: 51, title: "Rail slower", body: "Since #13.", created_at: il(10 * JOUR), labels: [{ name: "bug" }], html_url: "https://github.com/chef/parade/issues/51" },
+    ],
+    reverts: [revert("a1", "c1", 1), revert("b2", "c2", 2), revert("d3", "c3", 3), revert("e4", "c4", 4)],
+    prs: {
+      [sha("c1")]: [{ number: 40, merged_at: il(2 * JOUR), head: { ref: "cook/12-github" }, body: "Closes #12" }],
+      [sha("c3")]: [{ number: 42, merged_at: null, head: { ref: "cook/14-github" }, body: "Closes #14" }],
+      [sha("c4")]: [{ number: 41, merged_at: il(20 * JOUR), head: { ref: "cook/13-github" }, body: "Closes #13" }],
+    },
+  };
+  const parade = [{ nom: "parade", depot: "chef/parade" }];
+  const autonomieDe = (appeler: AppelGitHub, instant = () => MAINTENANT) =>
+    tenirLAutonomie({ lire: (depot, lues) => lireLAutonomieDuDepot({ depot, appeler, maintenant: instant(), lues }), fraicheurMs: 10 * 60_000, maintenant: instant });
+  const defautsDits = async (autonomie: ReturnType<typeof tenirLAutonomie>, jours: number) => {
+    const lue = await autonomie.chiffres(parade, jours);
+    assert.ok("chiffres" in lue);
+    const { bugsEchappes, reverts, defautsNonLus } = lue.chiffres;
+    return { bugs: bugsEchappes?.map(({ projet, bug, tickets }) => ({ projet, bug, tickets })) ?? null, reverts: reverts?.map(({ projet, sha, tickets }) => ({ projet, sha, tickets })) ?? null, defautsNonLus };
+  };
+
+  test("les défauts échappés se lisent des issues `bug` et des commits qui revertent de la branche par défaut, et des PR des commits revertés (#3515)", async () => {
+    const { chemins, appeler } = github("chef/parade", DEFAUTS);
+    const autonomie = autonomieDe(appeler);
+    assert.deepEqual(await defautsDits(autonomie, 7), { bugs: [{ projet: "parade", bug: 50, tickets: [12] }], reverts: [{ projet: "parade", sha: sha("a1"), tickets: [12] }], defautsNonLus: [] });
+    assert.deepEqual(await defautsDits(autonomie, 30), {
+      bugs: [{ projet: "parade", bug: 50, tickets: [12] }, { projet: "parade", bug: 51, tickets: [13] }],
+      reverts: [{ projet: "parade", sha: sha("a1"), tickets: [12] }, { projet: "parade", sha: sha("e4"), tickets: [13] }],
+      defautsNonLus: [],
+    });
+    const depuis = il(30 * JOUR);
+    assert.ok(chemins.includes(`/repos/chef/parade/issues?state=all&labels=bug&since=${depuis}&per_page=100&page=1`));
+    assert.ok(chemins.includes(`/search/commits?q=${encodeURIComponent(`repo:chef/parade "This reverts commit" committer-date:>=${depuis.slice(0, 10)}`)}&per_page=100&page=1`));
+    assert.deepEqual(chemins.filter((chemin) => chemin.includes("/commits/")).sort(), [sha("c1"), sha("c2"), sha("c3"), sha("c4")].map((un) => `/repos/chef/parade/commits/${un}/pulls`));
+  });
+
+  test("des défauts qui ne se lisent pas : les autres chiffres comptent, aucun des deux nombres, la raison dite, et la lecture ne se garde pas (#3515)", async () => {
+    const { chemins, appeler } = github("chef/parade", DEFAUTS);
+    let panne: "recherche" | "incomplete" | "pulls" | null = "recherche";
+    const enPanne: AppelGitHub = async (chemin) => {
+      if (panne === "recherche" && chemin.startsWith("/search/commits?")) return { status: 403, data: {} };
+      if (panne === "incomplete" && chemin.startsWith("/search/commits?")) return { status: 200, data: { incomplete_results: true, items: [] } };
+      if (panne === "pulls" && chemin.endsWith("/pulls")) return { status: 500, data: {} };
+      return appeler(chemin);
+    };
+    let instant = MAINTENANT;
+    const autonomie = autonomieDe(enPanne, () => instant);
+    const lue = await autonomie.chiffres(parade, 7);
+    assert.ok("chiffres" in lue);
+    assert.equal(lue.chiffres.tickets, 1);
+    assert.equal(lue.chiffres.bugsEchappes, null);
+    assert.equal(lue.chiffres.reverts, null);
+    assert.equal(lue.chiffres.defautsNonLus.length, 1);
+    assert.equal(lue.chiffres.defautsNonLus[0]!.projet, "parade");
+    assert.match(lue.chiffres.defautsNonLus[0]!.raison, /HTTP 403/);
+    panne = "incomplete";
+    assert.deepEqual((await defautsDits(autonomie, 7)).defautsNonLus, [{ projet: "parade", raison: "GitHub's commit search gave incomplete results" }]);
+    panne = "pulls";
+    assert.match((await defautsDits(autonomie, 7)).defautsNonLus[0]?.raison ?? "", /HTTP 500 on \/repos\/chef\/parade\/commits\//);
+    // Chaque lecture en panne s'est refaite ; lue entière, elle se garde dix minutes.
+    panne = null;
+    assert.deepEqual((await defautsDits(autonomie, 7)).bugs, [{ projet: "parade", bug: 50, tickets: [12] }]);
+    const lus = chemins.length;
+    instant = new Date(MAINTENANT.getTime() + 9 * 60_000);
+    await autonomie.chiffres(parade, 7);
+    assert.equal(chemins.length, lus);
+  });
+
+  test("un commit reverté que GitHub ne connaît pas (404) n'est d'aucun ticket ; une recherche sans liste n'est pas lue (#3515)", async () => {
+    const { appeler } = github("chef/parade", DEFAUTS);
+    let sansListe = false;
+    const lire: AppelGitHub = async (chemin) => {
+      if (chemin === `/repos/chef/parade/commits/${sha("c2")}/pulls`) return { status: 404, data: { message: "Not Found" } };
+      if (sansListe && chemin.startsWith("/search/commits?")) return { status: 200, data: { incomplete_results: false } };
+      return appeler(chemin);
+    };
+    assert.deepEqual((await defautsDits(autonomieDe(lire), 7)).reverts, [{ projet: "parade", sha: sha("a1"), tickets: [12] }]);
+    sansListe = true;
+    assert.deepEqual((await defautsDits(autonomieDe(lire), 7)).defautsNonLus, [{ projet: "parade", raison: "GitHub's commit search gave no list" }]);
+  });
+
+  test("la recherche des commits qui revertent se lit page après page ; au-delà de 1 000, la lecture le dit, sans nombre (#3515)", async () => {
+    const commits = (n: number) => Array.from({ length: n }, (_, i) => ({ sha: `${i}`.padStart(40, "f"), commit: { message: "Revert nothing a trailer names", committer: { date: il(HEURE) } } }));
+    const recherche = (total: number) => {
+      const { appeler } = github();
+      const tous = commits(total);
+      const pages: number[] = [];
+      const lire: AppelGitHub = async (chemin) => {
+        if (!chemin.startsWith("/search/commits?")) return appeler(chemin);
+        const page = Number(/&page=(\d+)/.exec(chemin)![1]);
+        pages.push(page);
+        return { status: 200, data: { incomplete_results: false, items: tous.slice((page - 1) * 100, page * 100) } };
+      };
+      return { lire, pages };
+    };
+    const lues = recherche(250);
+    assert.deepEqual((await defautsDits(autonomieDe(lues.lire), 7)).reverts, []);
+    assert.deepEqual(lues.pages, [1, 2, 3]);
+    const trop = recherche(1200);
+    assert.deepEqual((await defautsDits(autonomieDe(trop.lire), 7)).defautsNonLus, [{ projet: "parade", raison: "more than 1000 reverting commits in the period" }]);
+    assert.equal(trop.pages.length, 10);
   });
 });

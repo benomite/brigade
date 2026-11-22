@@ -17,6 +17,20 @@
 //
 // A ticket merged with no `fire` before its merge was not served by the
 // kitchen: it is left out of the three figures.
+//
+// Next to them, what the pass let through (#3515), on the same tickets — those
+// merged in the period, with `fire`:
+// - escaped bugs: the `bug`-labelled issues created after one of those tickets
+//   was merged, and before the end of the period, whose title or body cites its
+//   number (`#12`, `owner/repo#12`, or its issue's address). A bug that cites none of them is
+//   not counted; one that cites two counts once, with both.
+// - reverts: the commits of the default branch that carry git's trailer
+//   `This reverts commit <sha>`, committed before the end of the period, whose
+//   reverted commit belongs to one of those tickets — a merged pull request of
+//   the ticket holds it, as GitHub says. A revert of another commit is not
+//   counted.
+// Each lists what makes its number: the bug and the tickets it cites, the
+// revert's sha and the tickets of the commits it reverts.
 import { mediane } from "../../temps-ticket/synthese.ts";
 
 // The marks the stations write, with the constants of their writers:
@@ -47,7 +61,24 @@ const JOUR_MS = 24 * 3600 * 1000;
 export type Servi = { ticket: number; titre: string; url: string; livre: string };
 // What one repository's GitHub holds for the figures: its served tickets, and
 // for each, its issue's events and comments as GitHub's REST API returns them.
-export type DonneesDuDepot = { depot: string; servis: readonly Servi[]; issues: Readonly<Record<number, { evenements: readonly unknown[]; commentaires: readonly unknown[] }>> };
+// `defauts`: what GitHub holds for the escaped defects, or why it could not be
+// read; absent when nobody read it.
+export type DonneesDuDepot = { depot: string; servis: readonly Servi[]; issues: Readonly<Record<number, { evenements: readonly unknown[]; commentaires: readonly unknown[] }>>; defauts?: Defauts | { illisible: string } };
+
+// What GitHub holds for a repository's escaped defects: its `bug` issues as the
+// REST API returns them, the commits its commit search finds with the revert
+// trailer (`items` of `/search/commits`), and for each reverted sha, the
+// tickets of the merged pull requests that hold it.
+export type Defauts = { bugs: readonly unknown[]; reverts: readonly unknown[]; ticketsDesCommits: Readonly<Record<string, readonly number[]>> };
+export const LABEL_BUG = "bug";
+const TRAILER_DE_REVERT = /This reverts commit ([0-9a-f]{7,40})\b/gi;
+// The commits a commit message reverts, each once, by their sha in lower case
+// as GitHub names them, whatever case the message wrote it in.
+export const commitsRevertes = (message: string): string[] => [...new Set(Array.from(message.matchAll(TRAILER_DE_REVERT), ([, sha]) => (sha as string).toLowerCase()))];
+// An escaped bug, and the served tickets it cites; a revert, the commits it
+// reverts, and their served tickets.
+export type BugEchappe = { depot: string; bug: number; titre: string; url: string; tickets: number[] };
+export type Revert = { depot: string; sha: string; revertes: string[]; tickets: number[] };
 
 // A ticket served with a human: the questions it asked the chef, in order —
 // null for one whose text is not on the ticket (a label set by hand).
@@ -64,6 +95,11 @@ export type ChiffresDAutonomie = {
   renvoyes: number;
   partRenvoyee: number | null;
   avecHumain: ServiAvecHumain[];
+  // Null when a repository's defects were not read (`defautsNonLus` says
+  // which and why): never a count over part of the repositories.
+  bugsEchappes: BugEchappe[] | null;
+  reverts: Revert[] | null;
+  defautsNonLus: { depot: string; raison: string }[];
 };
 
 type Brut = Record<string, unknown>;
@@ -115,6 +151,45 @@ function questionsDuParcours(evenements: readonly Evenement[], commentaires: rea
   return questions.sort((a, b) => a.le - b.le).map(({ question }) => question);
 }
 
+// The tickets a text cites: `#12`, `owner/repo#12` of the repository, or the
+// address of issue 12 of the repository.
+function ticketsCites(texteLu: string, depot: string): Set<number> {
+  const nom = depot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const adresse = new RegExp(`github\\.com/${nom}/issues/(\\d+)\\b`, "gi");
+  const reference = new RegExp(`(?<![\\w./-])${nom}#(\\d+)\\b`, "gi");
+  return new Set([...texteLu.matchAll(/(?<![\w&])#(\d+)\b/g), ...texteLu.matchAll(adresse), ...texteLu.matchAll(reference)].map(([, n]) => Number(n)));
+}
+
+// A repository's escaped bugs and reverts, against its tickets counted
+// (`servis`: ticket → merge instant), up to `fin`.
+function defautsDuDepot(depot: string, defauts: Defauts, servis: ReadonlyMap<number, number>, fin: number): { bugs: BugEchappe[]; reverts: Revert[] } {
+  const bugs = defauts.bugs.flatMap((brut): BugEchappe[] => {
+    const lu = objet(brut);
+    const cree = Date.parse(texte(lu?.created_at));
+    if (lu === null || typeof lu.number !== "number" || Number.isNaN(cree) || cree > fin || lu.pull_request !== undefined) return [];
+    const labels = Array.isArray(lu.labels) ? lu.labels.map((label) => (typeof label === "string" ? label : texte(objet(label)?.name)).toLowerCase()) : [];
+    if (!labels.includes(LABEL_BUG)) return [];
+    const bug = lu.number;
+    // A bug that cites itself is not a ticket served before it was created.
+    const tickets = [...ticketsCites(`${texte(lu.title)}\n${texte(lu.body)}`, depot)].filter((ticket) => (servis.get(ticket) ?? Infinity) < cree).sort((a, b) => a - b);
+    return tickets.length === 0 ? [] : [{ depot, bug, titre: texte(lu.title), url: texte(lu.html_url), tickets }];
+  });
+  const vus = new Set<string>();
+  const reverts = defauts.reverts.flatMap((brut): Revert[] => {
+    const lu = objet(brut);
+    const commit = objet(lu?.commit);
+    const sha = texte(lu?.sha);
+    const le = Date.parse(texte(objet(commit?.committer)?.date));
+    if (sha === "" || vus.has(sha) || Number.isNaN(le) || le > fin) return [];
+    vus.add(sha);
+    const revertes = commitsRevertes(texte(commit?.message));
+    const tickets = [...new Set(revertes.flatMap((reverte) => defauts.ticketsDesCommits[reverte] ?? []))].filter((ticket) => servis.has(ticket)).sort((a, b) => a - b);
+    return tickets.length === 0 ? [] : [{ depot, sha, revertes, tickets }];
+  });
+  // GitHub's commit search gives its best match first: the reverts are listed by sha.
+  return { bugs: bugs.sort((a, b) => a.bug - b.bug), reverts: reverts.sort((a, b) => a.sha.localeCompare(b.sha)) };
+}
+
 // The figures over the `jours` days before `maintenant`, pooled over the
 // repositories given.
 export function chiffresDAutonomie(depots: readonly DonneesDuDepot[], jours: number, maintenant: Date): ChiffresDAutonomie {
@@ -123,7 +198,11 @@ export function chiffresDAutonomie(depots: readonly DonneesDuDepot[], jours: num
   const delais: number[] = [];
   const avecHumain: ServiAvecHumain[] = [];
   let renvoyes = 0;
-  for (const { depot, servis, issues } of depots) {
+  const bugsEchappes: BugEchappe[] = [];
+  const reverts: Revert[] = [];
+  const defautsNonLus: { depot: string; raison: string }[] = [];
+  for (const { depot, servis, issues, defauts } of depots) {
+    const comptes = new Map<number, number>();
     for (const servi of servis) {
       const merge = Date.parse(servi.livre);
       if (Number.isNaN(merge) || merge < debut || merge > fin) continue;
@@ -134,9 +213,17 @@ export function chiffresDAutonomie(depots: readonly DonneesDuDepot[], jours: num
       if (fire === undefined) continue;
       const commentaires = commentairesLus(lue.commentaires);
       delais.push(merge - fire);
+      comptes.set(servi.ticket, merge);
       if (commentaires.some(({ corps, le }) => le >= fire && le <= merge && corps.trimStart().startsWith(MARQUE_DE_RENVOI))) renvoyes++;
       const questions = questionsDuParcours(evenements, commentaires, fire, merge);
       if (questions.length > 0) avecHumain.push({ depot, ticket: servi.ticket, titre: servi.titre, url: servi.url, livre: servi.livre, questions });
+    }
+    if (defauts === undefined) defautsNonLus.push({ depot, raison: "not read" });
+    else if ("illisible" in defauts) defautsNonLus.push({ depot, raison: defauts.illisible });
+    else {
+      const lus = defautsDuDepot(depot, defauts, comptes, fin);
+      bugsEchappes.push(...lus.bugs);
+      reverts.push(...lus.reverts);
     }
   }
   const tickets = delais.length;
@@ -151,5 +238,8 @@ export function chiffresDAutonomie(depots: readonly DonneesDuDepot[], jours: num
     renvoyes,
     partRenvoyee: part(renvoyes),
     avecHumain: avecHumain.sort((a, b) => Date.parse(b.livre) - Date.parse(a.livre)),
+    bugsEchappes: defautsNonLus.length === 0 ? bugsEchappes : null,
+    reverts: defautsNonLus.length === 0 ? reverts : null,
+    defautsNonLus,
   };
 }

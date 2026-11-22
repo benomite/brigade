@@ -3,7 +3,8 @@
 // elle tient — servi sans humain, délai, taux de renvoi —, sur les 7 ou les 30 derniers jours, au choix. D'un projet, dans
 // sa section de Settings ; de tous les projets ensemble, sur la page de leur coût. Un clic sur « served with a human »
 // déplie les tickets qui ont demandé quelque chose au chef, chacun avec sa question et son lien : chacun est un échec à
-// corriger (CLAUDE.md, « Brigade's goal: autonomy »).
+// corriger (CLAUDE.md, « Brigade's goal: autonomy »). À côté, ce que la pass a laissé passer sur ces mêmes tickets (ticket 3515) :
+// les bugs échappés et les reverts, chacun avec ce qui fait son nombre — les tickets, les commits.
 //
 // La vue n'y calcule rien : la lecture vient de GitHub, par le process principal (autonomie-github.ts), et le calcul est
 // celui du runtime. Le bloc garde ce qu'il a lu de chaque période dix minutes ; une période changée se lit si elle ne
@@ -29,12 +30,19 @@ export const SANS_HUMAIN = "served without a human";
 export const AVEC_HUMAIN = "served with a human";
 export const DELAI = "lead time";
 export const RENVOI = "send-back rate";
+const BUGS_ECHAPPES = "escaped bugs";
+const REVERTS = "reverts";
 export const DEFINITIONS = {
   sansHumain: "The share of the tickets merged in the period whose path from fire to merge never asked the chef anything: no TODO card, no blocked-on-human.",
   delai: "The median time from fire to merge of the tickets merged in the period.",
   renvoi: "The share of the deliveries merged in the period that the pass sent back at least once.",
+  bugs: "The bug-labelled issues created after a ticket merged in the period was served, and citing its number in their title or body.",
+  reverts: "The commits of the default branch carrying git's 'This reverts commit <sha>' trailer whose reverted commit belongs to a ticket merged in the period.",
 };
-export const SOURCE = "Read from GitHub only: the merged pull requests, and the labels and comments of each ticket.";
+export const SOURCE = "Read from GitHub only: the merged pull requests, the labels and comments of each ticket, the bug-labelled issues and the reverting commits of the default branch.";
+const DEFAUTS_NON_LUS = "not read";
+/** @param {string} sha */
+const SHA_COURT = (sha) => sha.slice(0, 7);
 /** @param {number} jours */
 export const AUCUN = (jours) => `no ticket merged in the ${periodeDite(jours)}`;
 export const SANS_QUESTION = "question not written on the ticket";
@@ -138,8 +146,27 @@ export function tenirLesChiffresDAutonomie(doc, { lire, ouvrir, tous = false, ma
       sansHumain,
       figure(DELAI, DEFINITIONS.delai, dureeEnClair(chiffres.delaiMedianMs ?? 0), "median, fire to merge"),
       figure(RENVOI, DEFINITIONS.renvoi, pourcent(chiffres.partRenvoyee ?? 0), `${chiffres.renvoyes} of ${chiffres.tickets} deliveries sent back`),
+      defauts(BUGS_ECHAPPES, DEFINITIONS.bugs, chiffres.bugsEchappes, chiffres.defautsNonLus, (bug) => `${nomme(bug.projet)}${bug.tickets.map((ticket) => `#${ticket}`).join(", ")} (bug #${bug.bug})`),
+      defauts(REVERTS, DEFINITIONS.reverts, chiffres.reverts, chiffres.defautsNonLus, (revert) => `${nomme(revert.projet)}${SHA_COURT(revert.sha)} (${revert.tickets.map((ticket) => `#${ticket}`).join(", ")})`),
     );
     return grille;
+  };
+
+  /** @param {string} projet */
+  const nomme = (projet) => (tous ? `${projet} ` : "");
+
+  // Un nombre de défauts, et sous lui ce qui le fait ; non lus, ni nombre ni zéro : pourquoi, au survol.
+  /**
+   * @template {{ projet: string }} T
+   * @param {string} nom @param {string} definition @param {T[] | null} lus @param {Chiffres["defautsNonLus"]} nonLus @param {(un: T) => string} dire
+   */
+  const defauts = (nom, definition, lus, nonLus, dire) => {
+    const cadre =
+      lus === null
+        ? figure(nom, definition, DEFAUTS_NON_LUS, nonLus.map(({ projet, raison }) => `${projet}: ${raison}`).join("\n"))
+        : figure(nom, definition, String(lus.length), lus.length === 0 ? "none" : lus.map(dire).join(" · "));
+    cadre.classList.add("defauts");
+    return cadre;
   };
 
   /** @param {string} nom @param {string} definition @param {string} valeur @param {string} dit */
