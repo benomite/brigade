@@ -13,8 +13,9 @@ import { ENV_GIT } from "../outils.ts";
 const RACINE = join(import.meta.dirname, "../../..");
 
 // De `## Équipe multi-agents` jusqu'à `### Conventions of this repo`, ou au prochain titre de niveau 2 sans elle.
+// Fins de ligne ramenées à `\n` : un checkout Windows peut écrire CLAUDE.md en `\r\n`, `git show` le rend en `\n`.
 function liaisons(texte: string): string | null {
-  const m = texte.match(/^## Équipe multi-agents[^\n]*\n[\s\S]*?(?=^### Conventions of this repo|^## |(?![\s\S]))/m);
+  const m = texte.replace(/\r\n/g, "\n").match(/^## Équipe multi-agents[^\n]*\n[\s\S]*?(?=^### Conventions of this repo|^## |(?![\s\S]))/m);
   return m ? m[0] : null;
 }
 
