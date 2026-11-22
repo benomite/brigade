@@ -72,3 +72,16 @@ test("past the size a claude argument carries, the remarks stay whole, a check i
   assert.match(brief, /It is too long for this brief: read it with `git diff origin\/main\.\.\.HEAD`\./);
   assert.ok(!brief.includes(DIFF.trimEnd()));
 });
+
+test("the brief names the failed step and the failing test lines a long log keeps far from its end (#4006)", async () => {
+  const journal = ["✖ early failing test (1ms)", ...Array.from({ length: 200 }, (_, i) => `noise ${i}`), "##[error]Process completed with exit code 1."].join("\n");
+  const github = {
+    commentaires: async () => [],
+    annotationsDuCheck: async () => [{ chemin: null, ligne: null, titre: "t", message: "Process completed with exit code 1." }],
+    journalDuCheck: async () => journal,
+    etapesEnEchec: async () => ["Run the tests"],
+  };
+  const brief = briefDuRenvoi(await lireLeRenvoi(github, { number: 1, sha: "a".repeat(40) }, [{ name: "tests", outcome: "red", conclusion: "failure", url: null }], ""), "main");
+  assert.match(brief, /Failed step: Run the tests/);
+  assert.match(brief, /failing test lines of the job's log:\n✖ early failing test/);
+});

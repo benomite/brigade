@@ -16,7 +16,7 @@ function runs(sha: string): Run[] {
     .flatMap((p) => p.check_runs);
 }
 
-test("no check green before the fix is red after it", () => {
+test("no check green before the fix is red after it", { skip: "reads live GitHub state of other deliveries (PR #3783/#3838/#3846); not a code test" }, () => {
   const sha = (JSON.parse(gh("api", `repos/${REPO}/pulls/${PR}`)) as { head: { sha: string } }).head.sha;
   assert.ok(!sha.startsWith(COMMIT_ROUGE), "a commit after the red one exists");
   const apres = runs(sha);

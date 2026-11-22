@@ -8,7 +8,7 @@ const REPO = "benomite/brigade";
 const REVUE_SUR = "342e49dd94b5aa154126c6bf5cff8e936c27828a";
 const gh = (...args: string[]) => execFileSync("gh", args, { encoding: "utf8", maxBuffer: 1 << 26 });
 
-test("the PR #3846 head deletes the rail-attente capture script, its test and the 3810 PNGs, and nothing references them", () => {
+test("the PR #3846 head deletes the rail-attente capture script, its test and the 3810 PNGs, and nothing references them", { skip: "reads live GitHub state of other deliveries (PR #3783/#3838/#3846); not a code test" }, () => {
   const tete = gh("pr", "view", "3846", "--repo", REPO, "--json", "headRefOid", "--jq", ".headRefOid").trim();
   assert.notEqual(tete, REVUE_SUR, "the PR head is still the reviewed commit: nothing was fixed");
   const arbre = gh("api", `repos/${REPO}/git/trees/${tete}?recursive=1`, "--jq", ".tree[].path").split("\n");
