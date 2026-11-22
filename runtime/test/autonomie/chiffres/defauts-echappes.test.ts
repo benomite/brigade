@@ -122,4 +122,9 @@ describe("the defects that escape the pass (#3515)", () => {
     assert.deepEqual(commitsRevertes(`This reverts commit ${sha("1")}.\n\nThis reverts commit ${sha("2")}.\nThis reverts commit ${sha("1")}.`), [sha("1"), sha("2")]);
     assert.deepEqual(commitsRevertes("Revert the wording: this reverts nothing"), []);
   });
+
+  test("a trailer that writes its sha in capitals reverts the same commit, named in lower case", () => {
+    assert.deepEqual(commitsRevertes(`This reverts commit ${sha("A")}.`), [sha("a")]);
+    assert.deepEqual(commitsRevertes(`This reverts commit ${sha("A")}.\nThis reverts commit ${sha("a")}.`), [sha("a")]);
+  });
 });

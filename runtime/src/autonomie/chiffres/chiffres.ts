@@ -71,9 +71,10 @@ export type DonneesDuDepot = { depot: string; servis: readonly Servi[]; issues: 
 // tickets of the merged pull requests that hold it.
 export type Defauts = { bugs: readonly unknown[]; reverts: readonly unknown[]; ticketsDesCommits: Readonly<Record<string, readonly number[]>> };
 export const LABEL_BUG = "bug";
-const TRAILER_DE_REVERT = /This reverts commit ([0-9a-f]{7,40})\b/g;
-// The commits a commit message reverts, each once.
-export const commitsRevertes = (message: string): string[] => [...new Set(Array.from(message.matchAll(TRAILER_DE_REVERT), ([, sha]) => sha as string))];
+const TRAILER_DE_REVERT = /This reverts commit ([0-9a-f]{7,40})\b/gi;
+// The commits a commit message reverts, each once, by their sha in lower case
+// as GitHub names them, whatever case the message wrote it in.
+export const commitsRevertes = (message: string): string[] => [...new Set(Array.from(message.matchAll(TRAILER_DE_REVERT), ([, sha]) => (sha as string).toLowerCase()))];
 // An escaped bug, and the served tickets it cites; a revert, the commits it
 // reverts, and their served tickets.
 export type BugEchappe = { depot: string; bug: number; titre: string; url: string; tickets: number[] };
