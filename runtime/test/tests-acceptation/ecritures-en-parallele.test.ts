@@ -10,7 +10,7 @@ import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import { LABEL_TESTS_ECRITS } from "../../src/tests-acceptation/etape.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
-import { BASE, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "../outils.ts";
+import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
 
 const CALIBRE = ["fire", "model:opus", "effort:medium"];
 const CORPS = (ticket: number) => ["## Context", "", `Screen ${ticket}.`, "", "## Acceptance criteria", "", `- Screen ${ticket} is shown`].join("\n");
@@ -30,6 +30,14 @@ test("with N tests writings and M code cooks ready, they are dispatched concurre
   // Ce qui tourne en même temps : les écritures et les cooks lancés, pas encore finis.
   const enCours = { ecritures: new Set<number>(), cooks: new Set<number>() };
   let pic = 0;
+  // Le tour a tout réglé quand chacun des cinq tickets est parti ou s'est vu refuser une place : un fait, pas un délai.
+  const regles = new Set<number>();
+  let tourRegle = () => {};
+  const regle = new Promise<void>((resoudre) => (tourRegle = resoudre));
+  const regler = (ticket: number) => {
+    regles.add(ticket);
+    if (regles.size === 5) tourRegle();
+  };
   const lancer: Lancer = ({ args, cwd, flux, entree, ticket }) => {
     const numero = Number(ticket);
     const fini = { code: 0, signal: null, turns: 10, tokens: 1, durationMs: 1, arret: null, erreur: null };
@@ -52,11 +60,12 @@ test("with N tests writings and M code cooks ready, they are dispatched concurre
     if (tenu === null || !retenir) return { fin: Promise.resolve(fini) };
     tenu.add(numero);
     pic = Math.max(pic, enCours.ecritures.size + enCours.cooks.size);
+    regler(numero);
     return { fin: libre.then(() => (tenu.delete(numero), fini)) };
   };
   // Ce que la porte de prise dit, au dernier mot, de chaque ticket qu'elle ne prend pas.
   const sauts = new Map<number, string>();
-  const ouverte = stationDuDepot({ ...STATION_DU_DEPOT, places: PLACES, base: BASE, github: fauxClient(faux), depot, testsAcceptation: () => ({ model: "opus", effort: "medium" }), flux: repertoireTemporaire(t), lancer, sauter: (ticket, ligne) => void sauts.set(ticket, ligne) });
+  const ouverte = stationDuDepot({ ...STATION_DU_DEPOT, places: PLACES, base: BASE, github: fauxClient(faux), depot, testsAcceptation: () => ({ model: "opus", effort: "medium" }), flux: repertoireTemporaire(t), lancer, sauter: (ticket, ligne) => (sauts.set(ticket, ligne), /places are all taken/.test(ligne) && regler(ticket)) });
   if ("refus" in ouverte) throw new Error(ouverte.refus);
   await ouverte.tour();
   await ouverte.calme();
@@ -66,8 +75,8 @@ test("with N tests writings and M code cooks ready, they are dispatched concurre
   for (const ticket of [9, 10, 11]) faux.feu(ticket, CALIBRE, CORPS(ticket));
   retenir = true;
   await ouverte.tour();
+  await regle;
   assert.match(sauts.get(11) ?? "", /the station's 4 places are all taken \(.*\)/, "the fifth ticket waits for a place, as a cook would");
-  await jusqua(() => enCours.cooks.size + enCours.ecritures.size === PLACES);
   assert.deepEqual([...enCours.cooks].sort((a, b) => a - b), [7, 8], "the two code cooks are dispatched");
   assert.deepEqual([...enCours.ecritures].sort((a, b) => a - b), [9, 10], "two writings run at once, beside the cooks: no writing waits for another");
   assert.equal(pic, PLACES, "writings and cooks together fill the station's places");
@@ -75,4 +84,5 @@ test("with N tests writings and M code cooks ready, they are dispatched concurre
   liberer();
   await ouverte.calme();
   assert.equal(pic, PLACES, "and never pass them");
+  assert.equal(faux.ticket(11).labels.has(LABEL_TESTS_ECRITS), true, "the fifth ticket's tests are written once a place is free: no writing is held back by another");
 });
