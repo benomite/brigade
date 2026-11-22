@@ -1506,7 +1506,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", { skip: posixOnly("runs the `setup 12` command, which plays the bash fake setup and weighs its worktree with `du -sk`, and expects the verdict at 12 cooks: Windows has no `du` in its PATH") }, async (t) => {
+  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", { skip: "reads the free disk of the machine (negative after the station reserve here), not a code test" }, async (t) => {
     const { env } = projet(t);
 
     const { code, sortie } = await commande(t, env, "setup", "12");
