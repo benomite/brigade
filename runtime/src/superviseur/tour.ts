@@ -14,10 +14,8 @@
 //   le cook en cours le lèvera (#3647). Ce que la porte de prise a dit des
 //   cuisinables qu'elle a sautés va au dossier du manager (`brancher.ts`).
 // - Les prises sans livrer : le compte `n=` que la station écrit dans le
-//   commentaire de chaque cook arrêté sans livraison (`MARQUE_D_ECHEC`), plus
-//   chaque relance où le cook n'a rien ajouté sur une CI rouge (#4008) : le
-//   commentaire de la station n'a pas de `n=`, la relance s'ajoute au compte ;
-//   un `n=` qui suit fait foi, la relance n'est pas comptée deux fois.
+//   commentaire de chaque cook arrêté sans livraison (`MARQUE_D_ECHEC`), plus un par
+//   relance à vide sur une CI rouge, sans `n=` (`A_VIDE`, #4008) ; un `n=` fait foi.
 // - `main` rouge : depuis le premier tour qui a lu un check rouge sur sa tête,
 //   nul dès qu'aucun ne l'est.
 //
@@ -37,8 +35,7 @@ import type { FaitsDuProjet } from "./declencheur.ts";
 const AILLEURS: readonly string[] = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING, LABEL_TAKEN, LABEL_IN_PASS];
 
 const PRISES = new RegExp(`^${MARQUE_D_ECHEC} n=(\\d+)`);
-// Le commentaire de la station quand le cook n'a rien ajouté et que la CI de la PR est rouge (`brigade-github.ts`).
-const A_VIDE = /the cook added nothing, and the delivery still has work left — /;
+const A_VIDE = /the cook added nothing, and the delivery still has work left — /; // `brigade-github.ts`
 
 export type SuiviDuTour = {
   // Le client du tour, enveloppé.
