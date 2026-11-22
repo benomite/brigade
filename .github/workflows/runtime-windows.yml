@@ -80,6 +80,9 @@ jobs:
           sparse-checkout: |
             /*
             !/docs/captures/
+      # `origin/main` : des tests relisent la base (regles-claude-md/2-…, #4016), que le checkout ne pose pas.
+      - name: Base origin/main
+        run: git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
       - uses: actions/setup-node@v4
         with:
           node-version: 26
