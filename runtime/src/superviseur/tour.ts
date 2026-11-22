@@ -38,7 +38,7 @@ const AILLEURS: readonly string[] = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL
 
 const PRISES = new RegExp(`^${MARQUE_D_ECHEC} n=(\\d+)`);
 // Le commentaire de la station quand le cook n'a rien ajouté et que la CI de la PR est rouge (`brigade-github.ts`).
-const A_VIDE = /the cook added nothing, and the delivery still has work left — the CI of PR #\d+ is red/;
+const A_VIDE = /the cook added nothing, and the delivery still has work left — /;
 
 export type SuiviDuTour = {
   // Le client du tour, enveloppé.
