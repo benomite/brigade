@@ -49,7 +49,7 @@ function jouer(racine: string): { code: number | null; echecs: string[]; sortie:
 
 const appelGit = (env: string) => `import { execFileSync } from "node:child_process";\nimport { ENV_GIT } from "./outils.ts";\n\nexecFileSync("git", ["commit"], { env: ${env} });\n`;
 
-describe("the gates name the broken CLAUDE.md rule, and only it", { concurrency: 4 }, () => {
+describe("the gates name the broken CLAUDE.md rule, and only it", () => {
   test("a test's git under ENV_GIT passes, one under process.env fails on its line", (t) => {
     const racine = projet(t);
     poser(racine, "runtime/test/sous-env-git.test.ts", appelGit("{ ...ENV_GIT, GIT_DIR: \"x\" }"));

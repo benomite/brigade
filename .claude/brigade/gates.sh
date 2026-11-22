@@ -200,7 +200,9 @@ fi
 #   - Le miroir Codex dit la même chose que son rôle : un paragraphe que
 #     commands/<rôle>.md et codex/skills/<rôle>/SKILL.md partagent à la souche
 #     devient le même texte dans les deux, ou disparaît des deux. L'étape 6 voit
-#     que le miroir a bougé ; celle-ci, qu'il n'a pas divergé.
+#     que le miroir a bougé ; celle-ci, qu'il n'a pas divergé. Elle ne juge
+#     que les rôles que le changement touche, et que les paragraphes partagés
+#     à la souche : un miroir qui y différait déjà n'est pas dit (limite admise).
 # Le contrôle sort en 2 quand il a trouvé, et dit, des manquements ; tout autre
 # code est le contrôle lui-même qui n'a pas abouti — sa trace n'est pas une
 # ligne FAIL, il en faut une. Sans souche, l'étape 6 a déjà rougi.
