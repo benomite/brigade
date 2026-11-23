@@ -52,6 +52,15 @@ test("a gesture the supervisor does by itself is logged as fixed by itself", asy
   assert.deepEqual(counters, { fixedBySelf: 1, handedToChef: 0 });
 });
 
+test("a logged gesture done on a ticket still leaves its trace on that ticket", async (t) => {
+  const { repertoire, depot, run } = await unRun(t, { gesture: "back-on-rail", ticket: 40, note: "the client answered" }, ["waiting"]);
+  await run;
+  assert.equal(enregistrementDe(repertoire, "supervisor").gestures.length, 1);
+  const commentaires = depot.commentaires.get(40) ?? [];
+  assert.equal(commentaires.length, 1);
+  assert.match(commentaires[0] ?? "", /put #40 back on the rail/);
+});
+
 test("a refused gesture is not logged: nothing was done", async (t) => {
   const { repertoire, run } = await unRun(t, { gesture: "merge", ticket: 40 });
   await run;
