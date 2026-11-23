@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { worktreesDuProjet } from "./depot.ts";
 
 // En deçà, un reste n'en est peut-être pas un.
-export const LAISSE_MS = 3_600_000;
+const LAISSE_MS = 3_600_000;
 const DELAI_MS = 120_000;
 // Les worktrees jetables de la pass (`depot.ts`) ne sont pas ceux des cooks.
 const ESSAIS = ".essais";

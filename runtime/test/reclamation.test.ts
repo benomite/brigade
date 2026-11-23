@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { LAISSE_MS, reclamerLesRestes, type LieuxARecuperer } from "../src/reclamation.ts";
+import { reclamerLesRestes, type LieuxARecuperer } from "../src/reclamation.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
+const LAISSE_MS = 3_600_000;
 const MAINTENANT = 10 * LAISSE_MS;
 const vieillir = (chemin: string, ageMs: number) => utimesSync(chemin, (MAINTENANT - ageMs) / 1000, (MAINTENANT - ageMs) / 1000);
 
