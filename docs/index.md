@@ -19,6 +19,8 @@ contribute and the release notes — go back to the [repository root](../README.
   project, open one ticket as a GitHub issue, watch a cook work it, review the delivery at the pass,
   and merge.
 - [Try it](../README.md#try-it) — the short version, in the repository's README.
+- [Tutorial: install brigade on a Mac](tutoriels/installer-sur-mac.md) — from a Mac with nothing on
+  it to the app installed and the station of your Mac running.
 
 ## Run a station
 
@@ -33,8 +35,6 @@ For people who run a station on a server.
 
 - [Tutorial: from a production error to a fixed ticket](tutoriels/erreur-de-production-a-ticket-corrige.md) — connect
   Sentry to GitHub so a production error opens an issue labelled `fire`, and follow it to the merged fix.
-- [Tutorial: install brigade on a Mac](tutoriels/installer-sur-mac.md) — from a Mac with nothing on
-  it to the app installed and the station of your Mac running.
 - [The app, screen by screen](app.md) — what each part of the app shows and what you can do there.
 - [The three levels of settings](reglages.md) — where a setting lives: the project, the station, or
   the app.
