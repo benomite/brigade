@@ -23,24 +23,24 @@ import { source } from "./source.js";
 
 // Les trois niveaux, dans l'ordre où l'agent gagne la confiance du chef, et ce que chacun veut dire (spec, C4), au survol.
 /** @type {readonly Niveau[]} */
-export const NIVEAUX = ["observe", "propose", "act"];
-export const SENS = { observe: "It says what it would do.", propose: "It waits for your OK, in one click.", act: "It does it, then says so." };
+const NIVEAUX = ["observe", "propose", "act"];
+const SENS = { observe: "It says what it would do.", propose: "It waits for your OK, in one click.", act: "It does it, then says so." };
 // Supervisor et closer d'abord, puis manager et pass ; les cooks ensuite, dans l'ordre où le runtime les publie.
-export const EN_TETE = ["supervisor", "closer", "manager", "pass"];
+const EN_TETE = ["supervisor", "closer", "manager", "pass"];
 
-export const TITRE = "The agents";
-export const INDISPONIBLE = NON_ATTEINT("the agents");
-export const ILLISIBLE = "the agents' reading is not readable";
-export const NIVEAU = "autonomy";
-export const PAR_LUI = "fixed by itself";
-export const AU_CHEF = "handed to the chef";
-export const EN_ATTENTE = "awaits your OK";
-export const AUCUN_GESTE = PAS_ENCORE("gesture");
-export const OK = "OK";
+const TITRE = "The agents";
+const INDISPONIBLE = NON_ATTEINT("the agents");
+const ILLISIBLE = "the agents' reading is not readable";
+const NIVEAU = "autonomy";
+const PAR_LUI = "fixed by itself";
+const AU_CHEF = "handed to the chef";
+const EN_ATTENTE = "awaits your OK";
+const AUCUN_GESTE = PAS_ENCORE("gesture");
+const OK = "OK";
 /** @param {string} agent */
-export const NIVEAU_NON_CHANGE = (agent) => `${agent}'s level was not changed`;
+const NIVEAU_NON_CHANGE = (agent) => `${agent}'s level was not changed`;
 /** @param {string} agent */
-export const NON_APPROUVE = (agent) => `${agent}'s gesture was not approved`;
+const NON_APPROUVE = (agent) => `${agent}'s gesture was not approved`;
 
 // Ce qu'un enregistrement doit porter pour se montrer : un champ qui manque ne s'invente pas, la lecture se dit illisible.
 /** @type {((un: any) => boolean)[]} */
@@ -57,10 +57,10 @@ const FORME = [
   (un) => Array.isArray(un.pending),
 ];
 /** @param {unknown} lus @returns {lus is Agent[]} */
-export const seLit = (lus) => Array.isArray(lus) && lus.every((un) => FORME.every((porte) => porte(un)));
+const seLit = (lus) => Array.isArray(lus) && lus.every((un) => FORME.every((porte) => porte(un)));
 
 /** @param {Agent[]} agents */
-export const dansLOrdre = (agents) => {
+const dansLOrdre = (agents) => {
   const rang = (/** @type {Agent} */ un) => (EN_TETE.includes(un.agent) ? EN_TETE.indexOf(un.agent) : EN_TETE.length);
   return [...agents].sort((a, b) => rang(a) - rang(b));
 };

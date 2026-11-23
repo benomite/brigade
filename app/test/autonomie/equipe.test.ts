@@ -13,12 +13,19 @@ import { BANNIERE, tenirFaits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { AUCUN_GESTE, ILLISIBLE, INDISPONIBLE, NIVEAU_NON_CHANGE, NON_APPROUVE, tenirLEquipe } from "../../src/vue/autonomie/equipe.js";
-import { SANS_LE_GESTE, source, type Agent } from "../../src/vue/autonomie/source.js";
+import { tenirLEquipe } from "../../src/vue/autonomie/equipe.js";
+import { source, type Agent } from "../../src/vue/autonomie/source.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 import { EQUIPE } from "./equipe-fixture.ts";
 
 const LA_VRAIE = { ...source };
+// Les lignes que le chef lit, telles que le bloc les écrit.
+const INDISPONIBLE = "The agents not reached.";
+const ILLISIBLE = "the agents' reading is not readable";
+const AUCUN_GESTE = "No gesture yet.";
+const NIVEAU_NON_CHANGE = (agent: string) => `${agent}'s level was not changed`;
+const NON_APPROUVE = (agent: string) => `${agent}'s gesture was not approved`;
+const SANS_LE_GESTE = "the app does not take this gesture yet";
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const copie = (): Agent[] => structuredClone(EQUIPE);
 const boutons = (racine: Faux) => racine.dessous("button");

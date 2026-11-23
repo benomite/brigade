@@ -23,7 +23,7 @@
  * }} Agent
  */
 
-export const SANS_LE_GESTE = "the app does not take this gesture yet";
+const SANS_LE_GESTE = "the app does not take this gesture yet";
 
 export const source = {
   // Les agents du projet ; null tant que le runtime n'en publie aucun.
