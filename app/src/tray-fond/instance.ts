@@ -15,7 +15,7 @@ export function vivant(pid: number): boolean {
 }
 
 // La ligne de commande d'un process vivant, telle que le système la donne ; `undefined` quand elle ne se lit pas.
-export function commandeDe(pid: number, plateforme: NodeJS.Platform = process.platform): string | undefined {
+function commandeDe(pid: number, plateforme: NodeJS.Platform = process.platform): string | undefined {
   try {
     const lue =
       plateforme === "win32"

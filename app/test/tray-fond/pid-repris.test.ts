@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { commandeDe, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
+import { memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
 
 const SOUS_POSIX: string | false = process.platform === "win32" ? "the command line is read with ps, which Windows does not have" : false;
 
@@ -16,11 +16,14 @@ function lancer(t: TestContext, ...args: string[]): number {
   return enfant.pid ?? assert.fail("no pid");
 }
 
-test("the command line of a living process is read; a dead one has none", { skip: SOUS_POSIX }, async (t) => {
-  const pid = lancer(t, "--une-app");
-  await jusqua(() => commandeDe(pid)?.includes("--une-app") === true, 5_000);
-  assert.ok(commandeDe(pid)?.startsWith(process.execPath), `got: ${commandeDe(pid)}`);
-  assert.equal(commandeDe(4_000_000), undefined);
+test("two living processes launched with the same command are the same; another command, or a dead one, is not", { skip: SOUS_POSIX }, async (t) => {
+  const une = lancer(t, "--une-app");
+  const autre = lancer(t, "--une-app");
+  const icone = lancer(t, "--tray-fond");
+  await jusqua(() => memeProcess(une, autre), 5_000);
+  assert.equal(memeProcess(une, autre), true);
+  assert.equal(memeProcess(icone, autre), false);
+  assert.equal(memeProcess(4_000_000, autre), false, "a dead process has no command line");
 });
 
 test("a process launched like this one is the same; another command, or one that cannot be read, is not", () => {
@@ -44,8 +47,8 @@ test("the app's place left with a pid now held by another process is taken; held
   const icone = lancer(t, "--tray-fond");
   const app = lancer(t, "--une-app");
   const soi = lancer(t, "--une-app");
-  await jusqua(() => [icone, app, soi].every((pid) => commandeDe(pid) !== undefined), 5_000);
   const estTenant = (pid: number) => memeProcess(pid, soi);
+  await jusqua(() => estTenant(app), 5_000);
   writeFileSync(fichier, String(icone));
   assert.equal(prendreLaPlace(fichier, soi, estTenant), undefined, "the icon does not hold the app's place");
   assert.equal(readFileSync(fichier, "utf8"), String(soi));
