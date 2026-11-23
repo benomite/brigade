@@ -43,11 +43,11 @@ export function poserBlocPostMortems(doc, vue) {
   for (const ligne of vue.lignes) {
     const rangee = doc.createElement("li");
     rangee.append(
-      noeud(doc, "span", "cause", `Cause: ${ligne.cause}`),
-      noeud(doc, "span", "duree", `Duration: ${ligne.duree}`),
-      noeud(doc, "span", "vu-en-premier", `Seen first by: ${ligne.vuEnPremier}`),
-      noeud(doc, "span", "corrige", `Fixed by: ${ligne.corrige ?? PAS_DIT}`),
-      noeud(doc, "span", "ticket", `Fix ticket: ${ligne.ticket ?? PAS_DIT}`),
+      noeud(doc, "div", "cause", `Cause: ${ligne.cause}`),
+      noeud(doc, "div", "duree", `Duration: ${ligne.duree}`),
+      noeud(doc, "div", "vu-en-premier", `Seen first by: ${ligne.vuEnPremier}`),
+      noeud(doc, "div", "corrige", `Fixed by: ${ligne.corrige ?? PAS_DIT}`),
+      noeud(doc, "div", "ticket", `Fix ticket: ${ligne.ticket ?? PAS_DIT}`),
     );
     liste.append(rangee);
   }

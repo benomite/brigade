@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { lirePostMortemsDates, suivreLaBaseRouge, terminerLaPanne } from "../../src/post-mortems/post-mortems.ts";
+import { lireLesFinsDesPannes, lirePostMortems, suivreLaBaseRouge, terminerLaPanne } from "../../src/post-mortems/post-mortems.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { brancherSuperviseur } from "../../src/superviseur/brancher.ts";
 import type { SuiviDuTour } from "../../src/superviseur/tour.ts";
@@ -46,11 +46,12 @@ test("wired on the runtime's wake-up, a main red for 31 minutes leaves its post-
   p.a("10:05", A("10:00"));
   p.a("10:29", A("10:00"));
   p.a("10:30", null);
-  assert.equal(lirePostMortemsDates(p.repertoire, "shop").length, 0, "30 min exactly: none");
+  assert.equal(lirePostMortems(p.repertoire, "shop").length, 0, "30 min exactly: none");
   p.a("11:00", A("11:00"));
   p.a("11:31", null);
   p.a("11:40", null);
-  assert.deepEqual(lirePostMortemsDates(p.repertoire, "shop"), [{ cause: "main was red", duree: "31 min", vuEnPremier: "system", corrige: null, ticket: null, fin: A("11:31") }]);
+  assert.deepEqual(lirePostMortems(p.repertoire, "shop"), [{ cause: "main was red", duree: "31 min", vuEnPremier: "system", corrige: null, ticket: null }]);
+  assert.deepEqual(lireLesFinsDesPannes(p.repertoire, "shop"), [A("11:31")]);
 });
 
 test("a post-mortem file that cannot be read is said by the supervisor and left as it was, the wake-up goes on", (t) => {

@@ -14,7 +14,7 @@ test("the block says the count, then each post-mortem with its five fields, newe
   const vue = vueDesPostMortems([pm("old", "system", "2026-11-20T10:00:00.000Z"), pm("new", "chef", "2026-11-22T10:00:00.000Z", null, null)], new Date("2026-11-23T12:00:00.000Z"));
   const bloc = poserBlocPostMortems(doc, vue);
   assert.match(bloc.textContent, /Seen first by the chef, last 7 days: 1/);
-  const [premiere, seconde] = bloc.dessous("li").map((li) => li.textContent);
+  const [premiere, seconde] = bloc.dessous("li").map((li: Faux) => li.textContent);
   assert.match(premiere, /Cause: new.*Duration: 45 min.*Seen first by: chef.*Fixed by: not recorded.*Fix ticket: not recorded/);
   assert.match(seconde, /Cause: old.*Seen first by: system.*Fixed by: restart.*Fix ticket: #9/);
 });

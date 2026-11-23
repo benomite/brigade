@@ -24,8 +24,6 @@ type Panne = {
 
 // Les cinq champs, et eux seuls.
 export type PostMortem = { cause: string; duree: string; vuEnPremier: "system" | "chef"; corrige: string | null; ticket: string | null };
-// Ce que le projet publie : le post-mortem et l'instant où sa panne a fini, d'où la vue les trie et compte sur 7 jours.
-export type PostMortemDate = PostMortem & { fin: string };
 // Rangé : le post-mortem à ses cinq champs, et la fin de sa panne à côté.
 type Rangee = { id: string; fin: string; postMortem: PostMortem };
 
@@ -89,9 +87,10 @@ export function lirePostMortems(dossier: string, projet: string): PostMortem[] {
   return lireRangees(dossier, projet).map(({ postMortem }) => postMortem);
 }
 
-// Les mêmes, chacun avec la fin de sa panne : ce que `facts` publie à la vue du projet.
-export function lirePostMortemsDates(dossier: string, projet: string): PostMortemDate[] {
-  return lireRangees(dossier, projet).map(({ fin, postMortem }) => ({ ...postMortem, fin }));
+// La fin de la panne de chaque post-mortem, dans le même ordre que `lirePostMortems` : `facts` les publie ensemble, la vue
+// du projet trie et compte sur 7 jours d'après elle.
+export function lireLesFinsDesPannes(dossier: string, projet: string): string[] {
+  return lireRangees(dossier, projet).map(({ fin }) => fin);
 }
 
 // `main` rouge, la panne que le superviseur observe déjà (`mainRougeDepuis`, tour.ts) : son début est celui qu'il a noté,

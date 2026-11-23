@@ -24,7 +24,7 @@ import { reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
 import { coutDuProjet, lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { ticketDuBudget } from "./budget-des-gates.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
-import { lirePostMortemsDates } from "./post-mortems/post-mortems.ts";
+import { lireLesFinsDesPannes, lirePostMortems } from "./post-mortems/post-mortems.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
 
@@ -103,7 +103,10 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     // Les post-mortems des pannes du projet (#4023) : un fichier illisible les retire des faits, il ne les fait pas taire.
     let postMortems;
     try {
-      postMortems = projet ? lirePostMortemsDates(repertoireEtat, projet) : undefined;
+      // Rangés en ajout seul : lus avant leurs fins, ils les précèdent de même rang.
+      const lus = projet ? lirePostMortems(repertoireEtat, projet) : undefined;
+      const fins = projet ? lireLesFinsDesPannes(repertoireEtat, projet) : [];
+      postMortems = lus?.map((postMortem, rang) => ({ ...postMortem, fin: fins[rang] as string }));
     } catch {
       postMortems = undefined;
     }
