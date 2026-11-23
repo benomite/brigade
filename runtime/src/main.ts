@@ -262,7 +262,7 @@ try {
   const datee = brancherJeton(suivie, jeton);
   // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
   // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
-  const supervisee = brancherSuperviseur(datee, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur });
+  const supervisee = brancherSuperviseur(datee, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, repertoireEtat });
   runtime = supervisee;
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).

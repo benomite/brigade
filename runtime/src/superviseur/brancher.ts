@@ -22,6 +22,7 @@ import type { Dossier } from "./dossier.ts";
 import type { Decision } from "./gestes.ts";
 import { superviseur } from "./superviseur.ts";
 import type { SuiviDuTour } from "./tour.ts";
+import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
 
 // Le manager lancé sur une consigne : sa réponse, ou pourquoi il n'y en a pas.
 export type ManagerDuSuperviseur = (consigne: string) => Promise<{ message: string } | { illisible: string }>;
@@ -36,6 +37,8 @@ export type OptionsDuBranchement = {
   branche: string;
   // Le manager, tel que la station le donne ; nul tant qu'elle ne l'a pas donné.
   consulter: () => ManagerDuSuperviseur | null;
+  // Le répertoire d'état du projet : une panne de `main` de plus de 30 minutes y laisse son post-mortem (#4023). Sans lui, rien n'est rangé.
+  repertoireEtat?: string;
   maintenant?: () => Date;
   dire?: (ligne: string) => void;
 };
@@ -105,9 +108,19 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     },
     maintenant,
   });
+  const { repertoireEtat } = options;
+  const suivreLaBase = suivreLaBaseRouge((panne) => {
+    if (repertoireEtat === undefined) return;
+    try {
+      terminerLaPanne(repertoireEtat, runtime.projet, panne);
+    } catch (erreur) {
+      dire(`supervisor on ${runtime.projet}: the post-mortem of an outage was not written — ${message(erreur)}`);
+    }
+  });
   const passer = () => {
     if (tour === null) return;
     try {
+      suivreLaBase(tour.faits().mainRougeDepuis, maintenant());
       const checks = tour.checks();
       if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, branche, checks);
       // La base rouge que la cuisine ne rend plus verte seule a sa carte dans TODO, une seule ; verte, elle en sort (#3953).
