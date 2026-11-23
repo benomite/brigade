@@ -812,4 +812,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/support/windows.ts", garde: "GARDE_MS: 60_000" },
   { file: "test/support/windows.ts", garde: "timeout: 300000" },
   { file: "test/support/windows.ts", garde: "timeout: 60_000" },
+  { file: "test/commande-brigade/macos.test.ts", test: "rejouée, puis mise à jour : un seul fichier de commande, une seule ligne au profil, et la commande lance le runtime neuf" },
+  { file: "test/mutations-avant-la-pr.test.ts", test: "a cook given back its surviving mutations is given them a bounded number of times: its last delivery goes to its review even if one still survives" },
 ];
