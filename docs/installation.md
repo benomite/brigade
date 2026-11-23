@@ -34,12 +34,19 @@ first time you open one; the steps are below.
 3. **Install the tools**, if you do not have them: `git`, `gh` (<https://cli.github.com>) and
    `claude`. Log in to Claude with your Max account: run `claude` once in Terminal and follow its
    login. You do not need `node` or `npm`.
-4. **Open it the first time.** Gatekeeper blocks it. In **Applications**, **right-click Brigade,
-   choose Open, then Open again**. On **macOS 15 and later**, also open **System Settings > Privacy
-   & Security** and click **Open Anyway**. It opens normally afterwards.
+4. **Open it the first time.** Gatekeeper blocks it, because the build is unsigned. In
+   **Applications**, **right-click Brigade, choose Open, then Open again**. On **macOS 15 and
+   later**, also open **System Settings > Privacy & Security** and click **Open Anyway**. It opens
+   normally afterwards.
+   **If macOS says Brigade is “damaged and can't be opened. You should move it to the Trash”**, the
+   app is not damaged: Gatekeeper is refusing a download it has put in quarantine. Do not move it to
+   the Trash. Open **Terminal** and run `xattr -dr com.apple.quarantine /Applications/Brigade.app`,
+   then open Brigade again.
 5. Go to [Your first ticket](#your-first-ticket).
 
-The app does not update itself: download the new `.dmg` and drag it over the old one.
+The app updates itself. When a newer version is out, a line at the top of the app says so, then
+downloads it: click **Install now**, or it installs at the next launch. If it cannot update itself,
+the line gives a **Download** link to the package for your computer: install it over the old one.
 
 ## On Windows
 
@@ -48,8 +55,8 @@ The app does not update itself: download the new `.dmg` and drag it over the old
    (<https://git-scm.com/downloads>; the app opens its `bash` in its terminals, and `claude` asks for
    it), `gh` (<https://cli.github.com>) and `claude`. Log in to Claude with your Max account: run
    `claude` once and follow its login. You do not need `node` or `npm`.
-3. **Run the installer.** Windows **SmartScreen** warns about an unknown app: click **More info**,
-   then **Run anyway**. It installs for your account only, with no administrator rights, and adds
+3. **Run the installer.** The build is unsigned, so Windows **SmartScreen** warns about an unknown
+   app (“Windows protected your PC”): click **More info**, then **Run anyway**. It installs for your account only, with no administrator rights, and adds
    **Brigade** to the Start menu.
 4. **Open Brigade** from the Start menu.
 5. Go to [Your first ticket](#your-first-ticket).
@@ -83,22 +90,20 @@ and one click on yours opens it.
 **You see**: `Cloning owner/repo into <folder> — 40%.` Then the project appears in the icon bar and
 its **space** opens, with the tabs **Rail** and **Cooks**.
 
-### 3. Say where it cooks, and start the kitchen
+### 3. Choose the station, and start the kitchen
 
-The space says `No station cooks <project> yet.` Click **choose its machine**, choose this computer
-(`stops when you close the app on this computer`). Keep the preset number of cooks, then click
-**Start the kitchen on this computer**. The manager and reviewer calibration goes out as recommended
-(`sonnet` / `medium` for a first project) and is changed in the project's settings.
-
-If the page warns that the machine has no sandbox, **continue without sandbox** is yours to decide
-for a first run on your own repository.
+The project's page asks `Who cooks <owner/repo>?`. This computer comes first, named **this computer**
+and marked `recommended` when it can cook now; your other stations follow. Keep **this computer**,
+then click **Start the kitchen on this computer**. If the page offers no station, **choose its
+machine** first. If it warns that the machine has no sandbox, **continue without sandbox** is yours
+to decide for a first run on your own repository.
 
 ### 4. Wait for the project to be prepared
 
-The project's page shows four steps, each `done`, `now` or `to come`: **Repository**, **Cooking
-machine**, **Repository preparation**, **First ticket**. The station prepares the repository with a
-ticket of its own. If a GitHub App must be authorized, click **authorize on GitHub**. When it ends,
-the page says:
+Before your own ticket moves, brigade prepares your repository: a cook works a setup pull request in
+it, and it is merged. The project's page shows four steps, each `done`, `now` or `to come`:
+**Repository**, **Cooking machine**, **Repository preparation**, **First ticket**. If a GitHub App
+must be authorized, click **authorize on GitHub**. When it ends, the page says:
 
 > `<project> is ready: post your first ticket with the fire label`
 
@@ -106,7 +111,7 @@ the page says:
 
 On GitHub, open a new issue in your repository, something small (title `Add a CONTRIBUTING.md`,
 body `Create a CONTRIBUTING.md with a three-line "how to propose a change" section.`), and put the
-label **`fire`** on it, creating the label if needed. The button **post the first ticket** opens the
+label **`fire`** on it (the label already exists in your repository). The button **post the first ticket** opens the
 new-issue page for you.
 
 **You see**: within a minute or so, the ticket as a card in the **Rail** tab.

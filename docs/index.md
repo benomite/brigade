@@ -10,12 +10,21 @@ This page is organized by what you want to do. The words (*cook*, *rail*, *stati
 *served*…) are those of the [glossary](glossary.md). For the repository itself — its layout, how to
 contribute and the release notes — go back to the [repository root](../README.md).
 
-## Install brigade
+## Start here
 
+- [Install brigade and cook your first ticket](installation.md) — the whole path for Mac and
+  Windows, from the download to the first merged pull request, with the steps for the unsigned app.
+- [The README's “Try it”](../README.md#try-it) — the five steps, from the download to a first ticket.
+- [Tutorial: add a first project and cook its first ticket](tutoriels/premier-projet.md) — add one
+  project, open one ticket as a GitHub issue, watch a cook work it, review the delivery at the pass,
+  and merge.
 - [Tutorial: install brigade on a Mac](tutoriels/installer-sur-mac.md) — from a Mac with nothing on
   it to the app installed and the station of your Mac running.
-- [Install brigade and cook your first ticket](installation.md) — the whole path for Mac and
-  Windows, from the download to the first merged pull request. Linux is not covered there.
+
+## Run a station
+
+For people who run a station on a server.
+
 - [Install a station on a server](installation-station.md) — a station on a Debian server (with
   systemd), installed once per machine. There is no separate Linux tutorial.
 - [Install a station](installer.md) — the walkthrough of the station installation, with its
@@ -23,9 +32,6 @@ contribute and the release notes — go back to the [repository root](../README.
 
 ## Add a project and cook its first ticket
 
-- [Tutorial: add a first project and cook its first ticket](tutoriels/premier-projet.md) — add one
-  project, open one ticket as a GitHub issue, watch a cook work it, review the delivery at the pass,
-  and merge.
 - [Tutorial: from a production error to a fixed ticket](tutoriels/erreur-de-production-a-ticket-corrige.md) — connect
   Sentry to GitHub so a production error opens an issue labelled `fire`, and follow it to the merged fix.
 - [Install brigade and cook your first ticket](installation.md#your-first-ticket) — the same path,
