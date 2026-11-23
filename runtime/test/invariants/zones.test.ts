@@ -130,7 +130,7 @@ test("a ticket cooked on this station keeps the zone of its open PR, even when i
   faux.poster(1, "manager", fiche("runtime/src/a.ts"));
   faux.prOuverte(["runtime/src/b.ts"], "cook/1-abcdef01");
   let finir = () => {};
-  const a = faux.station("A", { places: 2, sauter: () => {}, avertir: () => {}, cuisiner: (ticket) => new Promise((fini) => void (finir = () => fini({ echec: `#${ticket.number} not the point` }))) });
+  const a = faux.station("A", { places: 2, sauter: () => {}, avertir: () => {}, cuisiner: (ticket) => new Promise((fini) => void (finir = () => fini({ echec: `#${ticket} not the point` }))) });
   await a.tour();
   assert.deepEqual(faux.cuissons.map(({ issue }) => issue), [1]);
   // #1 cuit ici ; ses labels, eux, ne le disent plus.
