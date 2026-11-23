@@ -18,6 +18,7 @@ contribute and the release notes — go back to the [repository root](../README.
 - [Tutorial: add a first project and cook its first ticket](tutoriels/premier-projet.md) — add one
   project, open one ticket as a GitHub issue, watch a cook work it, review the delivery at the pass,
   and merge.
+- [Try it](../README.md#try-it) — the short version, in the repository's README.
 
 ## Run a station
 
