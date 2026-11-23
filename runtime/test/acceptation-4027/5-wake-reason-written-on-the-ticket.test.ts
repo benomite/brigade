@@ -24,6 +24,6 @@ test("the wake reason is written on the ticket with the date of the last progres
   await inactivite.passer([{ number: 7, state: "WAITING" }]);
   assert.equal(commentaires.length, 1);
   assert.equal(commentaires[0]?.ticket, 7);
-  assert.match(commentaires[0]?.corps, /30 minutes/);
+  assert.match(commentaires[0]?.corps ?? "", /30 minutes/);
   assert.ok(commentaires[0]?.corps.includes("2026-11-23T10:00:00"), `the date of the last progress is in: ${commentaires[0]?.corps}`);
 });
