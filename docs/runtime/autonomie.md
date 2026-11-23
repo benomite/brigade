@@ -15,3 +15,31 @@ The rules are in "What the pass let through" under "Autonomy figures" in [`../ap
 
 The autonomy table (rows, positions, profiles) and the routing of decisions that read it were deleted
 (#3984, epic #3908): nothing called them.
+
+## Each agent's record and autonomy level
+
+Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036). Code:
+`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`) and `niveaux.ts` (`magasinDeNiveaux`).
+
+`facts` gives one record per agent in `equipe`: the manager, the supervisor, the closer, the pass, then each cook running
+(its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)). The next run, the
+counters and the gestures of an agent's thread start empty; later tickets fill them in.
+
+Each agent has an autonomy level per project: `observe` (it says what it would do), `propose` (it waits for the chef's
+OK), `act` (it does it, then says so). The manager's splitting of an epic has its own level. A level never set
+is its default, the chef's choice of 2026-11-23:
+
+| Agent | Default |
+|---|---|
+| `supervisor` | `act` |
+| `pass` | `act` |
+| `closer` | `propose` |
+| `manager` | `act` |
+| `manager split-epic` | `propose` |
+| `cook` | `act` — not in the chef's answer: a cook already does its ticket and says so |
+
+The levels set are kept in `autonomy-levels.json` of the state directory, per project. A missing file gives the
+defaults. A file that cannot be read is said in `equipe` of `facts`, and refused by the store when it sets a level:
+nothing is guessed in its place and the file is never overwritten.
+
+No command sets a level yet, and nothing reads the levels to decide: the agents act as before.
